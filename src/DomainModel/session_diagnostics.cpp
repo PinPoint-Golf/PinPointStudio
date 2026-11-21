@@ -569,6 +569,7 @@ std::shared_ptr<const FiringSnapshot> SessionDiagnostics::makeSnapshot() const
     }
     in.clubBaseline = m_baseline;
     in.usuals       = m_usuals;
+    if (m_doors.withSigma) in.withSigma = *m_doors.withSigma;   // the gate report's switch (DiagnosticsDoors); else tuned
     // in.cohort stays unqualified here: each fire sets the shot's own (cohortOnShotDate).
     s->outcomePack       = m_outcomePack;
     s->dob               = m_dob;
@@ -1136,6 +1137,7 @@ analysis::SessionReductionInput SessionDiagnostics::reductionInput() const
     in.pack        = m_snapshot->inputs.pack;
     in.outcomePack = m_outcomePack;
     in.options     = m_ledgerOptions;
+    if (m_doors.softTier) in.options.softTier = *m_doors.softTier;   // the gate report's switch (DiagnosticsDoors)
     in.withSigma   = m_snapshot->inputs.withSigma;
     in.usuals      = m_usuals;
     in.baseline    = m_baseline;

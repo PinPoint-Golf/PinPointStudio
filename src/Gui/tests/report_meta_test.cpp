@@ -70,6 +70,17 @@ int main(int argc, char **argv)
     check(f0 != reportFingerprint(session, 4, QStringLiteral("c1"), QStringLiteral("s1")), "a deleted swing moves it");
     const QString f1 = reportFingerprint(session, 4, QStringLiteral("c1"), QStringLiteral("s1"));
 
+    // The report's own rule versions in its stamp (refactor 3.7-d, R-STAMP-1; review 3.7-d B2): the diagnosis source and
+    // the board's rule each move the fingerprint, so a report made by an earlier rule reads "out of date".
+    check(reportRulesStamp(QStringLiteral("c1"), 1) != QLatin1String("c1")
+              && reportRulesStamp(QStringLiteral("c1"), 1).startsWith(QLatin1String("c1|")),
+          "the report's stamp is the diagnostics' content stamp plus its rule versions");
+    check(reportRulesStamp(QStringLiteral("c1"), 1) != reportRulesStamp(QStringLiteral("c1"), 2), "the board rule's version moves it");
+    check(reportRulesStamp(QStringLiteral("c1"), 1).contains(QStringLiteral("report%1").arg(kReportDiagnosisVersion))
+              && kReportDiagnosisVersion >= 2, "the diagnosis source's version is in it (2: the session's owner, 3.7-d)");
+    check(reportFingerprint(session, 4, reportRulesStamp(QStringLiteral("c1"), 1), QStringLiteral("s1")) != f1,
+          "a report made before 3.7-d (content stamp alone) is out of date after it");
+
     // No record, then a record with no PDF: no report.
     check(!readReportMeta(session), "no record yet");
     check(reportState(session, std::nullopt, f1) == ReportState::None, "no record is no report");

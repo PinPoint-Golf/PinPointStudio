@@ -599,6 +599,8 @@ void SessionSeriesModel::clearSharedCache()
     shared().recent.clear();
 }
 
+static void annotateForBoard(ShotSeries &shot, const pinpoint::analysis::BoardAnnotation &a);   // below (J-45)
+
 SessionSeriesModel::Result SessionSeriesModel::runJob(const Job &job)
 {
     QMutexLocker lk(&m_workerMutex);
@@ -622,6 +624,8 @@ SessionSeriesModel::Result SessionSeriesModel::runJob(const Job &job)
         // diagnostics.json is not parsed again; a different session starts from nothing.
         if (job.dir != m_wSessionDir) {
             m_ledger.clear();
+            m_ledgerRows.clear();
+            m_ledgerJoined = false;
             m_ledgerSize = m_ledgerMtimeMs = -1;
             m_own.clear();                      // this instance's shots are the new session's only
         }
@@ -750,6 +754,9 @@ void SessionSeriesModel::ensureShot(const QString &swingDir, bool force)
     QString why;
     const bool readOk = !root.isEmpty();
     std::shared_ptr<ShotSeries> shot = readOk ? extractShot(root, swingDir, &why) : nullptr;
+    // The board's annotations are the document's review (a board edit rewrites it, so the cache stamp moves with them).
+    if (readOk) e.board = pinpoint::analysis::boardAnnotationOfDocument(root);
+    if (shot) annotateForBoard(*shot, e.board);
     root = QJsonObject();          // the document goes NOW, before the next one is read (decision 3)
     m_stats.extractNs += t.nsecsElapsed();
 
@@ -762,6 +769,22 @@ void SessionSeriesModel::ensureShot(const QString &swingDir, bool force)
         e.fresh = std::move(shot);
     }
     keep(swingDir, e);
+}
+
+// THE LAUNCH MONITOR BOARD ON A SWING'S SERIES (Mark, 21 Nov: J-45 — the Charts tab follows the board, as the report
+// does). The one rule's parts (board_annotations.h: annotatedClub, isLaunchMonitorKey), as the session reduction reads a
+// shot (annotatedShot): the swing under the board's club; a reading left out read as one the monitor never made — its
+// launch monitor series ("lm." keys) not read. Its ledger rows follow in joinLedger. A swing the board said nothing of is
+// unchanged.
+static void annotateForBoard(ShotSeries &shot, const pinpoint::analysis::BoardAnnotation &a)
+{
+    using namespace pinpoint::analysis;
+    if (!a.any()) return;
+    shot.club = annotatedClub(shot.club, a);
+    if (!a.excluded) return;
+    for (auto m = shot.metrics.begin(); m != shot.metrics.end();)
+        m = isLaunchMonitorKey(m.key()) ? shot.metrics.erase(m) : std::next(m);
+    shot.metricOrder.removeIf([](const QString &k) { return isLaunchMonitorKey(k); });
 }
 
 void SessionSeriesModel::keep(const QString &swingDir, const CacheEntry &e)
@@ -782,9 +805,8 @@ bool SessionSeriesModel::readLedgerIfChanged()
     if (size == m_ledgerSize && mtime == m_ledgerMtimeMs) return false;
     m_ledgerSize    = size;
     m_ledgerMtimeMs = mtime;
-    m_ledger.clear();
-    m_ledgerTiers.clear();
-    m_ledgerWorkOnOrder.clear();
+    m_ledgerRows.clear();
+    m_ledgerJoined = false;         // joined again (joinLedger) at the next snapshot
     if (!exists) return true;      // no diagnostics yet: every shot reads with none
 
     const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(m_wSessionDir);
@@ -802,10 +824,31 @@ bool SessionSeriesModel::readLedgerIfChanged()
     }
     // The ledger's own deserialiser (diagnostic_ledger.h fromJson), so a row field added there
     // reaches this file without a second parser to update.
-    pinpoint::analysis::LedgerOptions opt;
-    const std::vector<pinpoint::analysis::ShotRecord> shots = pinpoint::analysis::fromJson(read.envelope.ledger, &opt);
+    m_ledgerOpt  = pinpoint::analysis::LedgerOptions();
+    m_ledgerRows = pinpoint::analysis::fromJson(read.envelope.ledger, &m_ledgerOpt);
+    return true;
+}
+
+// THE LEDGER JOINED TO THE SHOTS AS THE GOLFER ANNOTATED THEM ON THE BOARD (J-45): the rows through the reduction's own
+// rule (board_annotations.h annotateShots: the board's club; a left-out reading's monitor-driven rows not assessable),
+// then the shot rows, the session tiers and the work-on order from them — so the Charts tab says what Session diagnostics
+// and the report say. Joined again only when the rows were read again or the boards moved.
+void SessionSeriesModel::joinLedger(const QHash<int, pinpoint::analysis::BoardAnnotation> &boards)
+{
+    if (m_ledgerJoined && boards == m_ledgerBoards) return;
+    m_ledgerJoined = true;
+    m_ledgerBoards = boards;
+    m_ledger.clear();
+    m_ledgerTiers.clear();
+    m_ledgerWorkOnOrder.clear();
+    if (m_ledgerRows.empty()) return;
+    const pinpoint::analysis::CharacteristicPack *pack = m_pack ? &m_pack->pack() : nullptr;
+    std::vector<pinpoint::analysis::ShotRecord> shots = m_ledgerRows;
+    if (!boards.isEmpty())
+        pinpoint::analysis::annotateShots(shots, boards, pack ? pinpoint::analysis::launchMonitorMeasures(*pack) : QSet<QString>{});
+    const pinpoint::analysis::LedgerOptions &opt = m_ledgerOpt;
     for (const pinpoint::analysis::ShotRecord &s : shots)
-        m_ledger.insert(s.shotId, diagnosticsOf(s, m_pack ? &m_pack->pack() : nullptr));
+        m_ledger.insert(s.shotId, diagnosticsOf(s, pack));
     // The session tiers, by the ledger's own reduction over the options the file was written with —
     // the numbers Session diagnostics shows, never a second rule (the Wrist tab's severity reads them).
     using pinpoint::analysis::Tier;
@@ -818,9 +861,8 @@ bool SessionSeriesModel::readLedgerIfChanged()
     pinpoint::analysis::WorkOnOptions wopt;
     wopt.maxPerSession = std::numeric_limits<int>::max();
     for (const pinpoint::analysis::WorkOnEntry &e :
-         pinpoint::analysis::sessionWorkOnsForPack(m_pack ? &m_pack->pack() : nullptr, shots, ledgers, wopt).entries)
+         pinpoint::analysis::sessionWorkOnsForPack(pack, shots, ledgers, wopt).entries)
         m_ledgerWorkOnOrder << e.id;
-    return true;
 }
 
 SessionSeriesModel::Result SessionSeriesModel::buildSnapshot(int generation, bool forcePublish)
@@ -833,6 +875,18 @@ SessionSeriesModel::Result SessionSeriesModel::buildSnapshot(int generation, boo
         if ((na >= 0) != (nb >= 0)) return na >= 0;
         return a < b;
     });
+
+    // The ledger joined to the swings as the board annotated them (J-45): each swing's board, from its entry.
+    {
+        QHash<int, pinpoint::analysis::BoardAnnotation> boards;
+        for (const QString &dir : std::as_const(dirs)) {
+            const auto it = m_own.constFind(dir);
+            if (it == m_own.constEnd() || !it->board.any()) continue;
+            const int id = folderShotId(dir) >= 0 ? folderShotId(dir) : m_callerIds.value(dir, -1);
+            if (id >= 0) boards.insert(id, it->board);
+        }
+        joinLedger(boards);
+    }
 
     auto snap = std::make_shared<SessionSnapshot>();
     snap->sessionDir = m_wSessionDir;

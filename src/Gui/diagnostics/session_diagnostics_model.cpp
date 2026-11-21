@@ -918,13 +918,14 @@ bool SessionDiagnosticsModel::followNormSave()
     return true;
 }
 
-QString SessionDiagnosticsModel::computeContentStamp() const
+// The content stamp's one rule (computeContentStamp, currentContentStamp).
+static QString contentStampOf(const ICharacteristicPackProvider *pack, const INormProvider *norms)
 {
-    if (!m_packProv || !m_norms) return QString();
+    if (!pack || !norms) return QString();
     QCryptographicHash h(QCryptographicHash::Sha1);
-    h.addData(QJsonDocument(savePack(m_packProv->pack())).toJson(QJsonDocument::Compact));
-    h.addData(QJsonDocument(saveNormPack(m_norms->norms())).toJson(QJsonDocument::Compact));
-    h.addData(QJsonDocument(saveContextTree(m_norms->contexts())).toJson(QJsonDocument::Compact));
+    h.addData(QJsonDocument(savePack(pack->pack())).toJson(QJsonDocument::Compact));
+    h.addData(QJsonDocument(saveNormPack(norms->norms())).toJson(QJsonDocument::Compact));
+    h.addData(QJsonDocument(saveContextTree(norms->contexts())).toJson(QJsonDocument::Compact));
     // The row shape too: a row written before a field existed regrades to fill it.
     h.addData(QByteArray::number(kDiagSchemaVersion));
     h.addData(QByteArrayLiteral("words") + QByteArray::number(kRowWordsVersion));
@@ -933,6 +934,18 @@ QString SessionDiagnosticsModel::computeContentStamp() const
     // the extremes at a masked end, issue #1), and a row graded on the old ones regrades.
     h.addData(QByteArrayLiteral("grid") + QByteArray::number(kPhaseGridSchemaVersion));
     return QString::fromLatin1(h.result().toHex().left(16));
+}
+
+QString SessionDiagnosticsModel::computeContentStamp() const
+{
+    return contentStampOf(m_packProv.get(), m_norms.get());
+}
+
+QString SessionDiagnosticsModel::currentContentStamp()
+{
+    const std::unique_ptr<ICharacteristicPackProvider> pack = makeCharacteristicPackProvider();
+    const std::shared_ptr<const INormProvider>        norms = sharedNormProvider();
+    return contentStampOf(pack.get(), norms.get());
 }
 
 SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(

@@ -19,39 +19,51 @@
 #pragma once
 
 // THE REPORT MODEL (docs/design/session_report_design.md §8.1, §11) — the façade the session list and
-// the report sheet drive. It owns a private, panel-less SessionDiagnosticsModel (the pattern
-// WorkOnsController uses), builds the one `report` map the register binds to (every string made here,
-// none in QML: build/report-build/REPORT_MAP.md is the schema), has the stills made, and asks
-// PpReportPrintHost to lay the register out on a hidden A4 sheet and print it. Context property
-// `sessionReport`.
+// the report sheet drive. It READS THE SESSION'S OWN DIAGNOSIS (refactor step 3.7-d): the Session's one
+// SessionDiagnostics, through that Session's thin adapter for the "report" surface (SessionDiagnosticsModel made by C++,
+// session_diagnostics_adapter.h), reached through the door main.cpp hands it (setDiagnosisDoor: app.sessionAt, then
+// diagnosticsAdapters.of) — never a SessionDiagnosticsModel of its own. It builds the one `report` map the register binds
+// to (every string made here, none in QML: build/report-build/REPORT_MAP.md is the schema), has the stills made, and asks
+// PpReportPrintHost to lay the register out on a hidden A4 sheet and print it. Context property `sessionReport`.
 //
 // ── What a make runs, in order ──────────────────────────────────────────────────────────────────
-//   1. the private model is pointed at the session (activateSession, reviewing, the app's grade
-//      policy) while the swing documents' small blocks — launch monitor, athlete, clock, cameras — are
+//   1. the session's diagnosis is asked for (the door): the adapter takes the owner's applied diagnosis — its rows as
+//      the reduction read them, so each shot AS THE GOLFER ANNOTATED IT on the launch monitor board (its club override,
+//      a reading left out not read: board_annotations.h), its ledgers, links and stage — and the report waits until the
+//      owner is idle; meanwhile the swing documents' small blocks — launch monitor, athlete, clock, cameras — are
 //      read on a worker thread, and, on another, the Charts panel's session snapshot of the swings is
 //      built ONCE (a private SessionSeriesModel, inline) and the Posture, Wrist, Club delivery and Consistency
 //      presenters' session payloads read off it (postureSessionReportPayload, wristSessionReportPayload,
-//      deliverySessionReportPayload, consistencySessionReportPayload) for those four pages;
-//   2. once all three have landed, the work-on list is derived FRESH (sessionWorkOns(), never work_ons.json,
-//      which can be stale after a delete), the same-day sessions' records are read for "Earlier today",
-//      and the pure reductions (src/Coaching/session_report.h) choose what to say. The launch monitor board's
-//      own model (a private LmSessionModel over the session's shots) is run once, and EVERY launch monitor figure
-//      — cover, numbers table, carry row, reference swing, appendix — reads its shots through report_lm.h, so
+//      deliverySessionReportPayload, consistencySessionReportPayload) for those four pages — the swings as the golfer
+//      annotated them on the board, as the Charts tab publishes them (J-45) — and the Tendencies page's (the board's
+//      left-out readings and club overrides honoured: WorkOnsController::tendenciesAsOf with the pack's monitor measures);
+//   2. once all three have landed, the work-on list is derived FRESH (sessionWorkOns() over the owner's rows and
+//      ledgers, never work_ons.json, which can be stale after a delete), the same-day sessions' records are read for
+//      "Earlier today", and the pure reductions (src/Coaching/session_report.h) choose what to say. The launch monitor
+//      board's own model (a private LmSessionModel over the session's shots) is run once, and EVERY launch monitor
+//      figure — cover, numbers table, carry row, reference swing, appendix — reads its shots through report_lm.h, so
 //      a shot the golfer left out or re-labelled on the board is treated the same on every page (F-03);
 //   3. the stills are made off the GUI thread (ReportStills::renderAll) unless photos are off;
 //   4. the map is assembled (report_words.h holds every sentence template) and handed to the print host
 //      (printRequested); the host prints it and answers printFinished;
 //   5. report_meta.json is written beside the PDF (note, options, photos, prepared times, SHA-256, size,
-//      the fingerprint), the private model lets the session go, and made() / stateChanged() fire.
+//      the fingerprint), the adapter is let go (with it the report's use of the Session), and made() / stateChanged() fire.
 // prepare() runs 1–4 without the print, for the probe that dumps the map (tools/session-report-mock/
 // dump_report.qml) and for any surface that wants the words without a PDF.
 //
+// A folder no Session holds: one in the current golfer's folder whose file names another athlete id (a cabin session
+// on the Mac, until M1) keeps TODAY'S PATH — the door answers the engine-mode model C++ makes for it
+// (SessionDiagnosticsAdapters; build/refactor/step-3/3.7/NOTES-a.md J-a3), which the report points at the session as it
+// pointed its own; any other (a session recorded with no golfer, Mark's N1) has no diagnostics, so no report is made and
+// the sheet says why (NOTES-d.md J-d2).
+//
 // ── What it never does ──────────────────────────────────────────────────────────────────────────
-// It never writes into the session's analysis on its own account: no diagnostics.json of its own making,
-// no ratchet, no closeSession, no work_ons.json, no fault profile. The ONE write it cannot prevent is the
-// diagnostics model's own reconcile: activateSession() regrades rows that went stale (a re-analysis, a
-// content change) and persists them, exactly as the panel and the work-ons catch-up do when they open
-// the same session. SessionDiagnosticsModel has no read-only switch today; see the .cpp (activate()).
+// It writes nothing of the session's analysis: no diagnostics.json, no ratchet, no closeSession, no work_ons.json, no
+// club_baseline.json, no fault profile (its adapter judges and writes nothing; it never freezes: reviewing, baseline
+// authority Never). The one write a report can CAUSE is not its own: asking for a session no screen has loaded loads it,
+// and its owner — the session's one writer of diagnostics.json (DEC-135) — re-judges the shots whose stamps are stale
+// and writes them, exactly as it does when the panel or the catch-up loads the same session. On the J-a3 path the
+// engine model's persist is off, as the report's own model's was.
 //
 // state() and preflight() are cheap and synchronous — report_meta.json, the fingerprint (the work-on
 // record's recipe plus the studio's and the photo rule's inputs) and a directory listing — and never
@@ -77,9 +89,9 @@ class SessionReportModel : public QObject
     Q_PROPERTY(QString busySession   READ busySession   NOTIFY busyChanged)
     Q_PROPERTY(int     progressPage  READ progressPage  NOTIFY progressChanged)
     Q_PROPERTY(int     progressPages READ progressPages NOTIFY progressChanged)
-    // The private diagnostics model, exposed for the length of a print ONLY (null otherwise): the print
-    // host feeds the technical appendix (PpDiagPrint) from it exactly as diag_print_pdf.qml feeds it from
-    // the panel's body — cards, headerInfo, detail, and shotReadout() for the reference swing.
+    // The session's diagnosis the make reads (its adapter: setDiagnosisDoor), exposed for the length of a print ONLY (null
+    // otherwise): the print host feeds the technical appendix (PpDiagPrint) from it exactly as diag_print_pdf.qml feeds it
+    // from the panel's body — cards, headerInfo, detail, and shotReadout() for the reference swing.
     Q_PROPERTY(QObject *printModel   READ printModel    NOTIFY printModelChanged)
     // The shot the appendix reads (the reference swing) and the condition its detail page opens on
     // (work-on 1); -1 / "" when there is none. Valid while printModel is.
@@ -91,6 +103,10 @@ public:
 
     void setStudioProfile(StudioProfile *studio);
     void setAthleteController(AthleteController *athletes);
+    // THE SESSION'S DIAGNOSIS (refactor step 3.7-d): the model a make reads for `sessionDir` — the Session's thin adapter
+    // for the "report" surface, or the J-a3 engine model, or the empty adapter when no Session holds it (the header).
+    // main.cpp: diagnosticsAdapters.of(app.sessionAt(dir), "report", dir). Never null when set.
+    void setDiagnosisDoor(std::function<SessionDiagnosticsModel *(const QString &sessionDir)> door) { m_diagnosisDoor = std::move(door); }
 
     bool    busy() const;
     QString busySession() const;
@@ -135,8 +151,8 @@ private:
     struct Job;
 
     void start(const QString &sessionDir, const QVariantMap &options, bool print);
-    SessionDiagnosticsModel *model();
     void onModelSettled();
+    void letModelGo();   // the job's model let go: an adapter deleted (its use of the Session dropped), J-a3's unpointed
     void onDocsRead();
     void onChartsRead();
     void maybeBuild();
@@ -155,10 +171,13 @@ private:
 
     QPointer<StudioProfile>     m_studio;
     QPointer<AthleteController> m_athletes;
-    SessionDiagnosticsModel    *m_model = nullptr;
+    std::function<SessionDiagnosticsModel *(const QString &)> m_diagnosisDoor;
+    QPointer<SessionDiagnosticsModel> m_model;          // the job's (the door's answer); null between makes
+    QMetaObject::Connection     m_modelBusy;            // its busyChanged, for the job's length
+    QMetaObject::Connection     m_modelGone;            // its destroyed: the session went away mid-make (B1)
     ReportStills               *m_stills = nullptr;
     std::unique_ptr<Job>        m_job;
-    mutable QString             m_contentStamp;     // the private model's pack + norms, computed once
+    mutable QString             m_contentStamp;     // the pack + norms a model would grade on, computed once
     bool                        m_printing = false;
     int                         m_printShotId = -1;
     int                         m_progressPage = 0;

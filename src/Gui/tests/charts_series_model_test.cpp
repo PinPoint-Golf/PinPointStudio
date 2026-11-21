@@ -29,7 +29,9 @@
 #include "session_series_model.h"
 #include "../../Export/rule_data_install.h"
 
+#include "../../Coaching/board_annotations.h"
 #include "../../Coaching/diagnostic_ledger.h"
+#include "../../DomainModel/rule_data.h"   // makeCharacteristicPackProvider
 #include "../../Metrics/metric_reducer.h"
 #include "../../Export/swing_store.h"
 
@@ -305,6 +307,90 @@ private slots:
     // Each case rewrites the session, so none may inherit another's shots from the process-wide
     // cache (decision 5 of the model's header).
     void init() { SessionSeriesModel::clearSharedCache(); }
+
+    // J-45 (Mark, 21 Nov; refactor 3.7-d): THE CHARTS TAB FOLLOWS THE LAUNCH MONITOR BOARD, by the session reduction's own
+    // rule. Swing 1's reading left out, swing 2 re-labelled 8 IRON on the board (the documents' review blocks, as the
+    // board's commands write them). The session report's Charts pages read this very snapshot (readChartsPages), so this
+    // is also the report's view of the session: the two cannot disagree.
+    void followsTheLaunchMonitorBoard()
+    {
+        using namespace pinpoint::analysis;
+        const auto provider = makeCharacteristicPackProvider();
+        const QSet<QString> lm = launchMonitorMeasures(provider->pack());
+        QVERIFY2(!lm.isEmpty(), "the shipped pack names launch monitor measures");
+        const QString lmMeasure = *std::min_element(lm.begin(), lm.end());
+
+        QDir(m_session).removeRecursively();
+        QDir().mkpath(m_session);
+        const auto writeBoarded = [&](int index, const QJsonObject &review) {
+            QJsonObject root = makeDoc(index, true, true);
+            root[QStringLiteral("review")] = review;
+            QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
+            QJsonArray metrics = an.value(QStringLiteral("metrics")).toArray();
+            metrics.append(QJsonObject{ { QStringLiteral("key"), QStringLiteral("lm.carryDistance") },
+                                        { QStringLiteral("label"), QStringLiteral("Carry") },
+                                        { QStringLiteral("unit"), QStringLiteral("yd") },
+                                        { QStringLiteral("t_us"), QJsonArray{} }, { QStringLiteral("value"), QJsonArray{} },
+                                        { QStringLiteral("phaseSamples"), QJsonArray{ QJsonObject{
+                                              { QStringLiteral("phase"), 5 }, { QStringLiteral("t_us"), double(kT0 + 120000) },
+                                              { QStringLiteral("value"), 150.0 }, { QStringLiteral("band"), QString() } } } } });
+            an[QStringLiteral("metrics")] = metrics;
+            root[QStringLiteral("analysis")] = an;
+            const QString dir = m_session + QStringLiteral("/swing_%1").arg(index, 4, 10, QLatin1Char('0'));
+            QDir().mkpath(dir);
+            QString err;
+            QVERIFY2(pinpoint::SwingStore::save(dir, root, &err), qPrintable(err));
+        };
+        writeBoarded(1, QJsonObject{ { QStringLiteral("club"), QStringLiteral("7 IRON") }, { QStringLiteral("excluded"), true } });
+        writeBoarded(2, QJsonObject{ { QStringLiteral("club"), QStringLiteral("7 IRON") },
+                                     { QStringLiteral("clubOverride"), QStringLiteral("8 IRON") } });
+        writeBoarded(3, QJsonObject{ { QStringLiteral("club"), QStringLiteral("7 IRON") } });
+        // Each shot: one camera row and one row the launch monitor drives, both fired.
+        std::vector<ShotRecord> rows;
+        for (int id = 1; id <= 3; ++id) {
+            ShotRecord r;
+            r.shotId = id;
+            r.club   = QStringLiteral("7 IRON");
+            r.rows.push_back(row(QStringLiteral("s_posture"), ShotState::Fired, 12.5, 2.1, 0.0, 10.0, 1));
+            r.rows.push_back(row(QStringLiteral("over_the_top"), ShotState::Fired, 4, 1.8, -2, 2, 1, lmMeasure));
+            rows.push_back(r);
+        }
+        writeLedger(m_session, rows);
+
+        SessionSeriesModel m;
+        m.setSynchronous(true);
+        m.activateSession(m_session);
+        const auto snap = m.snapshot();
+        QCOMPARE(snap->count(), 3);
+        const ShotSeries &left = *snap->shots[0], &relabelled = *snap->shots[1], &plain = *snap->shots[2];
+
+        // The series: the board's club; the left-out shot's monitor series not read.
+        QCOMPARE(relabelled.club, QStringLiteral("8 IRON"));
+        QCOMPARE(left.club, QStringLiteral("7 IRON"));
+        QVERIFY(!left.metric(QStringLiteral("lm.carryDistance")));
+        QVERIFY(!left.metricOrder.contains(QStringLiteral("lm.carryDistance")));
+        QVERIFY(left.metric(QStringLiteral("clubheadSpeed")));                 // the camera's stay
+        QVERIFY(relabelled.metric(QStringLiteral("lm.carryDistance")));         // only a left-out reading goes
+        QVERIFY(plain.metric(QStringLiteral("lm.carryDistance")));
+
+        // The ledger rows: exactly what the reduction's rule (annotatedShot) makes of them.
+        const QHash<int, BoardAnnotation> board{ { 1, BoardAnnotation{ true, QString() } },
+                                                 { 2, BoardAnnotation{ false, QStringLiteral("8 IRON") } } };
+        std::vector<ShotRecord> want = rows;
+        annotateShots(want, board, lm);
+        for (size_t i = 0; i < want.size(); ++i) {
+            QStringList fired;
+            for (const ConditionRow &r : want[i].rows) if (r.state == ShotState::Fired) fired << r.conditionId;
+            fired.sort();
+            QCOMPARE(snap->shots[i]->diagnostics.fired, fired);
+            QCOMPARE(snap->shots[i]->diagnostics.club, want[i].club);
+        }
+        QCOMPARE(left.diagnostics.fired, QStringList{ QStringLiteral("s_posture") });   // its monitor row not read
+        QCOMPARE(relabelled.diagnostics.club, QStringLiteral("8 IRON"));
+
+        // No annotation: exactly as before (the third shot keeps both rows).
+        QCOMPARE(plain.diagnostics.fired.size(), 2);
+    }
 
     void extractsTheAnalysisOnTheReplayClock()
     {

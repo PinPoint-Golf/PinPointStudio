@@ -1,8 +1,11 @@
 // diag_uncertainty_report — the §A8 gates, applied to real sessions, READ-ONLY on the library.
 //
 // session_diagnostics_design.md §A8.8. For every session directory given (laid out by
-// diag_uncertainty_prep.py from a scratch sweep — never the library itself), the panel's own model
-// is run six times, once per combination of the measurement-uncertainty switches:
+// diag_uncertainty_prep.py from a scratch sweep — never the library itself), the session's diagnosis
+// is read from the SESSION'S OWN OWNER six times (refactor step 3.7-d; owner_harness.h: its
+// SessionDiagnostics, with every shot fired again under the switches — σ and the soft tier the owner's
+// doors, the posterior ranking its thin adapter's explanation — no SessionDiagnosticsModel of its own),
+// once per combination of the measurement-uncertainty switches:
 //
 //   M0  σ off, soft tier off, posterior off   — the pre-§A8 panel
 //   M1  σ on                                   — G1: every shot's verdict identical to M0
@@ -20,11 +23,11 @@
 //                                                                    DRILLS, REFERENCES likewise)
 //   ./build/tests/Analysis/diag_uncertainty_report --out <dir> [--library <lib>] <session-dir>...
 //
-// Writes <out>/diag_uncertainty_report.md and .json. The session dirs get a diagnostics.json and
-// phase-grid sidecars as the model always writes; they are scratch and are left for inspection.
+// Writes <out>/diag_uncertainty_report.md and .json. Nothing is written into the session dirs: the owner
+// runs in memory (owner_harness.h).
 // NOT A TEST, not registered with ctest — precedent: rank_shift_report, regrade_ledger.
 
-#include "Gui/diagnostics/session_diagnostics_model.h"
+#include "owner_harness.h"   // the session's own owner, headless (refactor 3.7-d)
 #include "../../src/Export/rule_data_install.h"
 #include "../../src/DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "Export/session_diagnostics_files.h"
@@ -62,22 +65,24 @@ struct RunOut {
 
 RunOut runMode(const QString &dir, const Mode &m)
 {
-    // The scratch layout's cache, deleted so each mode grades every shot. A copy of a session from before step 2.5
-    // loses the older golfer keys it carried with it — scratch only, never a library session.
-    QFile::remove(pinpoint::SessionFiles::diagnosticsFile(dir));
-    SessionDiagnosticsModel model;
-    model.setSynchronous(true);
-    model.setCadence(QStringLiteral("everyShot"));
-    model.setUncertaintyModes(m.sigma, m.soft, m.post);
-    model.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);   // a tool: no club_baseline.json
-    model.activateSession(dir);
+    // THE SESSION'S OWN OWNER under this mode (refactor 3.7-d; owner_harness.h): every shot fired again (the kept rows
+    // and the file's ledger options not read, as the old tool's deleted cache gave), σ and the soft tier through its
+    // doors, the posterior ranking through its adapter's explanation. In memory: the session dir is not written.
+    pinpoint::tools::OwnerHarness harness({ m.sigma, m.soft, /*rebuild=*/true });
+    pinpoint::Session *session = harness.open(dir);
+    SessionDiagnosticsModel *model = session ? harness.adapter(session, m.post) : nullptr;
     RunOut o;
-    o.shots = model.shotRecords();
+    if (!model) {
+        std::fprintf(stderr, "diag_uncertainty_report: no owner could hold %s\n", qPrintable(dir));
+        harness.release(session, model);
+        return o;
+    }
+    o.shots = model->shotRecords();
     for (const ShotRecord &s : o.shots)
         for (const ConditionRow &r : s.rows) o.rows[{ s.shotId, r.conditionId }] = r;
-    for (const ConditionLedger &l : model.ledgerRows()) o.ledgers[l.id] = l;
-    o.roots = model.explanation().roots;
-    QFile::remove(pinpoint::SessionFiles::diagnosticsFile(dir));
+    for (const ConditionLedger &l : model->ledgerRows()) o.ledgers[l.id] = l;
+    o.roots = model->explanation().roots;
+    harness.release(session, model);
     return o;
 }
 

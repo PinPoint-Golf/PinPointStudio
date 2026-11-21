@@ -629,9 +629,11 @@ If a detail is missing, the sheet says which, as a link to where it is entered: 
 yet — add it in Settings → Studio".
 
 **What runs:**
-- A `SessionReportModel` (C++) owns a private, panel-less `SessionDiagnosticsModel`. This is the
-  pattern `WorkOnsController` already uses.
-- It calls `activateSession(dir)` and `waitForIdle`, then reads the sibling sessions' records and
+- A `SessionReportModel` (C++) reads the session's own diagnosis: the `Session`'s one `SessionDiagnostics`,
+  through that `Session`'s thin adapter for the report (refactor step 3.7-d; until then it owned a private,
+  panel-less `SessionDiagnosticsModel`, the pattern `WorkOnsController` uses). It holds the adapter for one make
+  and writes nothing of the session's analysis.
+- It points the adapter at the session and waits until the owner is idle, then reads the sibling sessions' records and
   the swing documents' launch-monitor blocks, and builds the `report` map. Studio, coach and
   golfer details go into that map's `brand` and `meta` blocks, exactly as in the mock's
   `report.json`.
@@ -667,7 +669,9 @@ A report is out of date when what it was made from has moved:
 - the studio's details changed.
 
 The fingerprint is the work-on record's own (`WorkOnsController`: rule version, content stamp,
-each swing document's size and mtime), plus a stamp of the studio and photo inputs. The row
+each swing document's size and mtime), plus a stamp of the studio and photo inputs, plus the report's own rule
+versions (refactor step 3.7-d; R-STAMP-1: where it reads its diagnosis from, and the launch monitor board's rule —
+`report_meta.h` `reportRulesStamp`). So a report made before 3.7-d reads "out of date" once: a remake now differs. The row
 compares it without opening the session, so the list stays fast.
 
 ### 8.3 Sending it

@@ -122,6 +122,22 @@ inline QByteArray swingsIdentity(const QString &sessionDir)
     return out;
 }
 
+// THE REPORT'S OWN RULES IN ITS STAMP (refactor step 3.7-d; R-STAMP-1: "the version of every rule that produced the
+// result"; session_report_design.md §8.2). A report is out of date when a rule that made it changed, not only its inputs:
+// the version of where the report reads its diagnosis from, and the launch monitor board's rule
+// (board_annotations.h kBoardAnnotationRuleVersion, passed in by the report).
+//   1 (to 21 Nov 2026): the report's own SessionDiagnosticsModel (no version was stamped: the content stamp alone).
+//   2 (21 Nov 2026, refactor 3.7-d): the Session's owner through its thin adapter — every page reads the shots as the
+//     golfer annotated them on the board, and the appendix's carry cost is "-" until a club's usual is earned (G-08).
+// A report made before 3.7-d therefore reads "out of date" once: a remake says something else.
+inline constexpr int kReportDiagnosisVersion = 2;
+
+// The content stamp a report's fingerprint carries: the diagnostics' content stamp plus the report's rule versions.
+inline QString reportRulesStamp(const QString &contentStamp, int boardRuleVersion)
+{
+    return contentStamp + QStringLiteral("|report%1|board%2").arg(kReportDiagnosisVersion).arg(boardRuleVersion);
+}
+
 inline QString reportFingerprint(const QString &sessionDir, int workOnRuleVersion, const QString &contentStamp,
                                  const QString &inputsStamp)
 {

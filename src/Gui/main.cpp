@@ -613,6 +613,12 @@ int main(int argc, char *argv[])
     ReportMailer           reportMailer;
     sessionReport.setStudioProfile(&studioProfile);
     sessionReport.setAthleteController(&athleteController);
+    // THE SESSION'S OWN DIAGNOSIS (refactor step 3.7-d): the report reads each session's owner through that Session's thin
+    // adapter for the "report" surface, reached as the stage panel reaches its own (app.sessionAt, then
+    // diagnosticsAdapters.of) — it makes no model of its own. Both outlive the report (declared before it).
+    sessionReport.setDiagnosisDoor([&appObject, &diagnosticsAdapters](const QString &dir) {
+        return diagnosticsAdapters.of(appObject.sessionAt(dir), QStringLiteral("report"), dir);
+    });
     sessionReportList.setReportModel(&sessionReport);
     // Archive and restore re-stamp a report that was current, so it still reads current (S-D6).
     archiveController.setReportFingerprint([&sessionReport] { return sessionReport.fingerprintFunction(); });

@@ -2219,72 +2219,39 @@ pp_add_test(reduction_rule_golden_test
 set_tests_properties(reduction_rule_golden_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
-# diag_uncertainty_report — the session_diagnostics_design.md §A8.8 gates over real sessions: the panel's
-# model run under each measurement-uncertainty switch, verdict identity, the soft tier's moves, the
-# posterior's root order, re-rank cost and word sensitivity. READ-ONLY on the library: it runs over a
-# scratch layout made by tools/diagnostics/diag_uncertainty_prep.py. Same link line as regrade_ledger.
+# diag_uncertainty_report — the session_diagnostics_design.md §A8.8 gates over real sessions: the session's diagnosis
+# read from its own owner (refactor step 3.7-d: tools/diagnostics/owner_harness.h — an Athlete, its Session, the Session's
+# SessionDiagnostics run synchronously in memory, and its thin adapter's view half) under each measurement-uncertainty
+# switch: verdict identity, the soft tier's moves, the posterior's root order, re-rank cost and word sensitivity. It
+# writes nothing into the session dirs (a scratch layout made by tools/diagnostics/diag_uncertainty_prep.py).
+# diag_stage_panel_test's link line: the owner's closure (regrade_ledger's, less the tool) plus the adapter's half.
 add_executable(diag_uncertainty_report
-    ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${PP_REPO_ROOT}/tools/diagnostics/diag_uncertainty_report.cpp
-    ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
-    ${SESSION_DIAG_MARKS_SOURCES}
-    ${SESSION_DIAG_CATALOGUE_SOURCES}
-    ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
-    ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-    ${DIAG}/packs/screen_pack.cpp
-    ${DIAG_NORM}
-    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
-    ${DIAG}/norms/merged_norm_provider.cpp
-    ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
-    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-    ${DIAG}/packs/merged_pack_provider.cpp
-    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
-    ${SRC}/Export/swing_doc_reader.cpp
-    ${SRC}/Export/swing_doc_analysis.cpp
-    ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-    ${SRC}/Export/swing_paths.cpp
-    ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
-    ${SRC}/Core/pp_log_stream.cpp
-    ${SRC}/Core/PpMessageLog.cpp)
-target_include_directories(diag_uncertainty_report PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor)
-target_link_libraries(diag_uncertainty_report PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
-set_target_properties(diag_uncertainty_report PROPERTIES AUTOMOC ON)
+    ${PP_REPO_ROOT}/tools/diagnostics/owner_harness.h
+    ${_diag_parallel_live_sources}
+    ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp)
+target_include_directories(diag_uncertainty_report PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(diag_uncertainty_report PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
+set_target_properties(diag_uncertainty_report PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 # Optimised, because it MEASURES the re-rank cost (gate §A8.8) and an -O0 test build reads several
 # times slower than the studio's Release; the Mac Debug app's figure is quoted beside it in the report.
 target_compile_options(diag_uncertainty_report PRIVATE -O2)
 pp_apply_sanitizers(diag_uncertainty_report)
 
-# diag_rank_diff — trunk_imu_sequence_grf_design.md §10.9 P5: the panel's model run under two packs
-# over real sessions, writing what fired and which roots moved as CSVs. READ-ONLY on the library: each
-# session is mirrored (swing documents + sidecars, mtimes kept) under <out>/.work and the model runs
-# on the mirror. Same link line as diag_uncertainty_report. NOT registered with ctest.
+# diag_rank_diff — trunk_imu_sequence_grf_design.md §10.9 P5: each session's diagnosis read from its own owner
+# (refactor 3.7-d: owner_harness.h) under two packs over real sessions, writing what fired and which roots moved as
+# CSVs. READ-ONLY on the library: each session is mirrored (swing documents + sidecars, mtimes kept) under <out>/.work
+# and seeded with its intent; the owner runs on the mirror, in memory. Same link line as diag_uncertainty_report. NOT
+# registered with ctest.
 add_executable(diag_rank_diff
-    ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${PP_REPO_ROOT}/tools/diagnostics/diag_rank_diff.cpp
-    ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
-    ${SESSION_DIAG_MARKS_SOURCES}
-    ${SESSION_DIAG_CATALOGUE_SOURCES}
-    ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
-    ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-    ${DIAG}/packs/screen_pack.cpp
-    ${DIAG_NORM}
-    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
-    ${DIAG}/norms/merged_norm_provider.cpp
-    ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
-    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-    ${DIAG}/packs/merged_pack_provider.cpp
-    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
-    ${SRC}/Export/swing_doc_reader.cpp
-    ${SRC}/Export/swing_doc_analysis.cpp
-    ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-    ${SRC}/Export/swing_paths.cpp
-    ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
-    ${SRC}/Core/pp_log_stream.cpp
-    ${SRC}/Core/PpMessageLog.cpp)
-target_include_directories(diag_rank_diff PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor)
-target_link_libraries(diag_rank_diff PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+    ${PP_REPO_ROOT}/tools/diagnostics/owner_harness.h
+    ${_diag_parallel_live_sources}
+    ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp)
+target_include_directories(diag_rank_diff PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(diag_rank_diff PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
 target_compile_definitions(diag_rank_diff PRIVATE PP_DIAG_RES_DIR="${DIAGRES}")
-set_target_properties(diag_rank_diff PROPERTIES AUTOMOC ON)
+set_target_properties(diag_rank_diff PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 target_compile_options(diag_rank_diff PRIVATE -O2)
 pp_apply_sanitizers(diag_rank_diff)
 

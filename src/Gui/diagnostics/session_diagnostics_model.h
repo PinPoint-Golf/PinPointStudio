@@ -697,6 +697,9 @@ public:
         m_withSigma              = withSigma;
         m_opt.softTier           = softTier;
         m_explainOpt.posteriorRank = posteriorRank;
+        // The explanation is cached by its pattern set (refreshExplanation); new options re-rank it at the next rebuild,
+        // as a change of the screens does — a thin adapter (refactor 3.7-d) has explained before its tool sets these.
+        m_patternSet.clear();
     }
     // Read-outs for the same tool — the evidence and what was concluded from it.
     const std::vector<pinpoint::analysis::ShotRecord>      &shotRecords() const { return m_shots; }
@@ -732,6 +735,10 @@ public:
     // What the rows are graded against, so a holder of this model can tell when a record it
     // derived earlier has gone stale. The same stamp gradedFrom carries.
     QString contentStamp() const { return computeContentStamp(); }
+    // The same stamp with no model (refactor step 3.7-d): the pack and norms as they stand now, as a model made now would
+    // read them (makeCharacteristicPackProvider, sharedNormProvider). For the session report's fingerprint, which no
+    // longer makes a model of its own; one rule with computeContentStamp (the hash below).
+    static QString currentContentStamp();
     // This session's evidence per condition, for work_ons.json: what the tendency reduction needs to
     // re-compose a shot without re-deriving the session (Contract: per condition, not per shot).
     pinpoint::analysis::TendencySessionEvidence outcomeEvidence() const;

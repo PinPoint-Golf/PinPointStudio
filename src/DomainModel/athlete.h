@@ -89,6 +89,7 @@
 #include <QVariantMap>
 
 #include <functional>
+#include <optional>
 #include <memory>
 
 namespace pinpoint {
@@ -142,6 +143,12 @@ struct DiagnosticsDoors {
     // With `persist`, the session summary (work_ons.json) is written too (refactor 3.7-a): false in the app until the
     // catch-up's cut-over (3.7-e), where WorkOnsController stays that file's one writer; true in every tool and test.
     bool                                writeSummary    = true;
+    // THE MEASUREMENT-UNCERTAINTY SWITCHES (session_diagnostics_design.md §A8.8), for the gate report alone
+    // (tools/diagnostics/diag_uncertainty_report, refactor 3.7-d): σ on the readings a shot fires on (FiringInputs::withSigma,
+    // so the findings stamp moves with it) and the soft tier in the session's counts (LedgerOptions::softTier). Unset —
+    // the app and every other tool and test — they are the tuned defaults.
+    std::optional<bool>                 withSigma;
+    std::optional<bool>                 softTier;
     std::function<SessionDiagnostics *(Session *, const DiagnosticsDoors &)> attach;
 };
 

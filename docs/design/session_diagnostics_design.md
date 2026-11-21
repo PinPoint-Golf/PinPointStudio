@@ -496,7 +496,12 @@ than it is. Three devices keep it honest:
 | `diagnostics.uncertainty.posteriorRank` | D4 | per Mark's review of the rank-shift report |
 
 The gates were fixed before any number was seen. They run on the re-analysed library, read
-only (`tools/diagnostics/diag_uncertainty_report`):
+only (`tools/diagnostics/diag_uncertainty_report`; since refactor step 3.7-d it reads each session's
+own owner, `SessionDiagnostics`, in memory, with D1–D3's switches as two of its door options,
+`DiagnosticsDoors::withSigma` and `softTier`, and D4's on its adapter's explanation). M3, and so G4, rank once
+over the session's final ledgers, as a reopened panel and the session report do; a panel open through a live
+session re-ranks only when its pattern set changes, so it may rank the lower roots differently (refactor 3.7-d,
+J-d4):
 
 - **G1, verdicts identical.** With D1 and D2 on, every shot's Fired / NotFired /
   Unavailable matches with the switch off.

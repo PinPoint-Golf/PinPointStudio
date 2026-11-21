@@ -1,10 +1,11 @@
 // diag_rank_diff — two packs over the same sessions, READ-ONLY on the library.
 //
 // trunk_imu_sequence_grf_design.md §10.8 (gates) and §10.9 P5. rank_shift_report is synthetic and
-// cannot compare two packs on real swings; this runs the Session diagnostics panel's own model
-// (SessionDiagnosticsModel — detectShot()'s detectForSwing with the sequence-check signals, the
-// ledger reduction, explain() over the pattern set) once under pack A and once under pack B, and
-// writes what moved:
+// cannot compare two packs on real swings; this reads each session's diagnosis from the SESSION'S OWN
+// OWNER, as the app's panel does since refactor step 3.7-a (owner_harness.h: the Session's
+// SessionDiagnostics — each shot's fireFindings() with the sequence-check signals, the session's
+// reduction — and its thin adapter's view half, explain() over the pattern set; refactor 3.7-d: no
+// SessionDiagnosticsModel of its own), once under pack A and once under pack B, and writes what moved:
 //
 //   roots_by_session.csv   session, rank, root_a, score_a, root_b, score_b (top 10 each)
 //   firing_counts.csv      condition, fired_a, fired_b, assessable_a, assessable_b (all swings)
@@ -15,12 +16,12 @@
 //
 // plus a summary on stdout.
 //
-// NOTHING IS WRITTEN INTO A SESSION. The model writes diagnostics.json after every batch and the
-// swing_phasegrid.json / swing_summary.json sidecars beside each swing, so it never sees the
-// library: each session is mirrored into <out>/.work/<athlete>/<session>/ first — the swing
+// NOTHING IS WRITTEN INTO A SESSION. The owner runs in memory (it writes no diagnostics.json and no
+// sidecar), but the pack's comparison needs the session seeded with its intent and nothing else, so it
+// never sees the library: each session is mirrored into <out>/.work/<athlete>/<session>/ first — the swing
 // document (swing.ppsw or swing.json) and its sidecars, copied with their modification times so
 // the sidecar guards still match and the cheap read is taken exactly as the app takes it — and
-// the model is pointed at the mirror. The mirror's diagnostics.json carries only the original's
+// the owner is pointed at the mirror. The mirror's diagnostics.json carries only the original's
 // intent (focus, declared miss), entered screens and ledger options, so every shot is detected
 // fresh under each pack and both packs see the same intent. The mirror is deleted afterwards
 // (--keep-work keeps it). The library is only ever opened for reading.
@@ -31,11 +32,11 @@
 // references.json — the files the PINPOINT_CORE_* variables name. A file missing from a dir falls
 // back to that variable as it was set when the tool started, else to the checkout's
 // src/Resources/diagnostics; which was used is printed. Drills are resolved for completeness but
-// the model never reads them.
+// the owner never reads them.
 //
 // NOT A TEST, not registered with ctest — precedent: rank_shift_report, diag_uncertainty_report.
 
-#include "Gui/diagnostics/session_diagnostics_model.h"
+#include "owner_harness.h"   // the session's own owner, headless (refactor 3.7-d)
 #include "../../src/Export/rule_data_install.h"
 #include "../../src/DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "Core/atomic_write.h"
@@ -221,13 +222,21 @@ RunOut runPack(const Pack &p, const QString &work, const QByteArray &intentDoc)
     QElapsedTimer t;
     t.start();
     {
-        SessionDiagnosticsModel m;
-        m.setSynchronous(true);
-        m.setReviewing(true);            // a recorded session, opened as the panel opens one
-        m.activateSession(work);
-        o.shots = m.shotRecords();
-        o.roots = m.explanation().roots;
-        o.links = m.linkEvidence();
+        // THE SESSION'S OWN OWNER (refactor 3.7-d; owner_harness.h), made after the pack was published, so it fires every
+        // shot under it: the mirror's seed has no rows, so each is asked, under the seed's ledger options. Its thin
+        // adapter, reviewing as the panel opens a recorded session, gives the rows as the reduction read them (each shot
+        // as the golfer annotated it on the launch monitor board), the links and the explanation's roots.
+        pinpoint::tools::OwnerHarness harness;
+        pinpoint::Session *s = harness.open(work);
+        SessionDiagnosticsModel *m = s ? harness.adapter(s) : nullptr;
+        if (m) {
+            o.shots = m->shotRecords();
+            o.roots = m->explanation().roots;
+            o.links = m->linkEvidence();
+        } else {
+            std::fprintf(stderr, "diag_rank_diff: no owner could hold %s\n", qPrintable(work));
+        }
+        harness.release(s, m);
     }
     o.ms = double(t.nsecsElapsed()) / 1e6;
     return o;

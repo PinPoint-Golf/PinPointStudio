@@ -19,6 +19,7 @@
 #pragma once
 
 #include "session_series_types.h"
+#include "../../Coaching/board_annotations.h"   // the launch monitor board's rule (J-45)
 
 #include <QHash>
 #include <QJsonObject>
@@ -269,6 +270,7 @@ private:
         std::shared_ptr<const ShotSeries> shot;   // as last published; null when skipped
         std::shared_ptr<ShotSeries> fresh;        // read, not yet published (completed in place)
         QString skipReason;
+        pinpoint::analysis::BoardAnnotation board;   // the swing's board annotations, from its document (J-45)
     };
     enum class JobKind { Activate, Ingest, Regrade, Forget, RefreshLedger, Rearchetype };
     struct Job {
@@ -289,6 +291,7 @@ private:
     void   ensureShot(const QString &swingDir, bool force);
     void   keep(const QString &swingDir, const CacheEntry &e);
     bool   readLedgerIfChanged();
+    void   joinLedger(const QHash<int, pinpoint::analysis::BoardAnnotation> &boards);   // the rows as the board says (J-45)
     Result buildSnapshot(int generation, bool forcePublish);
     void   evictOtherSessions();
 
@@ -308,6 +311,12 @@ private:
     qint64      m_ledgerSize    = -1;
     qint64      m_ledgerMtimeMs = -1;
     QHash<int, ShotDiagnostics> m_ledger;        // shotId → the shot's ledger row, joined
+    // THE LEDGER AS READ, joined to the shots as the golfer annotated them on the board (joinLedger; J-45): the rows as
+    // the file holds them, its options, the boards it was last joined under, and whether it has been joined since read.
+    std::vector<pinpoint::analysis::ShotRecord>    m_ledgerRows;
+    pinpoint::analysis::LedgerOptions              m_ledgerOpt;
+    QHash<int, pinpoint::analysis::BoardAnnotation> m_ledgerBoards;
+    bool                                           m_ledgerJoined = false;
     QHash<QString, QString>     m_ledgerTiers;   // conditionId → session tier (SessionSnapshot::tiers)
     QStringList                 m_ledgerWorkOnOrder;   // SessionSnapshot::workOnOrder
     int         m_wArchetype = -1;               // the archetype the running job grades against

@@ -42,6 +42,17 @@
 //   ARCHIVE a session held only to archive it: its owner asks nothing and writes nothing (review B2)
 //   NOGOLF  no Session (a session with no golfer: N1): an empty adapter, judging nothing — pointing it at the folder
 //           writes no file there
+//   REPORT  (refactor 3.7-d) the session report's adapter, set up as SessionReportModel sets it: the owner's rows AS
+//           THE GOLFER ANNOTATED THEM on the launch monitor board (a club override is the row's club; a reading left out
+//           leaves its monitor-driven rows not assessable), the work-on list over them; it holds a use of the Session
+//           while it lives and drops it when the report lets it go; it writes nothing into the session
+//   STAMP   (refactor 3.7-d) SessionDiagnosticsModel::currentContentStamp() is the stamp a model computes (the report's
+//           fingerprint, now made with no model)
+//   TRASH   (review 3.7-d B1) a session trashed while the report holds its adapter, before and after its owner settles:
+//           the adapter goes with the Session (its `destroyed` is what SessionReportModel ends the make on), nothing
+//           lands on it afterwards
+//   SIGMA   (refactor 3.7-d) the gate report's switch through the owner's doors (DiagnosticsDoors::withSigma): σ off
+//           moves the findings stamp, so a session loaded under it is judged again, and no row carries a σ
 //
 //   cmake --build build/tests --target diag_stage_panel_test -j 6
 //   ctest --test-dir build/tests -R '^diag_stage_panel_test$' --output-on-failure
@@ -50,6 +61,7 @@
 #include "../../DomainModel/session.h"
 #include "../../DomainModel/session_diagnostics.h"
 #include "../../DomainModel/shot.h"
+#include "../../Coaching/board_annotations.h"
 #include "../../Core/club_vocabulary.h"
 #include "../../Core/work_pool.h"
 #include "../../Export/firing_reader_store.h"
@@ -75,6 +87,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QStandardPaths>
+#include <QPointer>
 #include <QTemporaryDir>
 #include <QThread>
 
@@ -644,6 +657,169 @@ static void testNoGolfer()
                                                                 && rig.adapters->of(nullptr, QStringLiteral("cast")) != empty);
 }
 
+// The bytes of a session file, "" when there is none.
+static QByteArray fileBytes(const QString &path)
+{
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+// An ended session of kShots shots, each with its reading, on the rig's doors.
+static Session *endedSession(Rig &rig)
+{
+    Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    if (!d) return nullptr;
+    const qint64 t0 = QDateTime::currentMSecsSinceEpoch();
+    for (int i = 1; i <= kShots; ++i) {
+        Shot *shot = liveShot(rig, s, t0 + i * 45000);
+        if (shot) shot->completeCapture(fixtureReading(shot->swingNumber()));
+        Rig::settled(d);
+    }
+    if (!s->end().ok()) return nullptr;
+    Rig::settled(d);
+    return s;
+}
+
+static void testReport()
+{
+    std::printf("\nREPORT — the session report's adapter (refactor 3.7-d)\n");
+    Rig rig;
+    Session *s = endedSession(rig);
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    check(QStringLiteral("REPORT pre: an ended session of %1 shots, judged by its owner").arg(kShots),
+          d && int(d->keptShots().size()) == kShots);
+    if (!d) return;
+    const QString folder = s->entry() ? s->entry()->folder : QString();
+    // The golfer's two board annotations, through the Shot's own commands (the board's): shot 2 re-labelled, shot 3's
+    // reading left out.
+    const QList<Shot *> shots = s->shots();
+    Shot *relabelled = shots.value(1), *leftOut = shots.value(2);
+    const bool marked = relabelled && leftOut && relabelled->correctClub(QStringLiteral("8 IRON")).ok()   // EVT-04
+                        && leftOut->excludeReading(true).ok();                                              // EVT-05
+    Rig::settled(d);
+    check(QStringLiteral("REPORT pre: shot 2 re-labelled 8 IRON and shot 3's reading left out, on the board"), marked);
+    const QByteArray diagBefore = fileBytes(folder + QStringLiteral("/diagnostics.json"));
+    const bool baselineBefore = QFile::exists(folder + QStringLiteral("/club_baseline.json"));
+    const int usesBefore = s->uses();
+
+    // As SessionReportModel::start sets it up (main.cpp's door: diagnosticsAdapters.of(app.sessionAt(dir), "report", dir)).
+    QPointer<SessionDiagnosticsModel> m = rig.adapters->of(s, QStringLiteral("report"), folder);
+    check(QStringLiteral("REPORTa the report's adapter is the Session's, its own surface (not the panel's)"),
+          m && m->isAdapter() && m->parent() == s && m != rig.adapters->of(s, QStringLiteral("panel"), folder));
+    if (!m) return;
+    m->setReviewing(true);
+    m->setPersistEnabled(false);
+    m->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);
+    m->addView();
+    m->activateSession(folder);
+    spin();
+    check(QStringLiteral("REPORTb it holds a use of the Session while the report holds it (CARRY: every holder addUse()s)"),
+          s->uses() == usesBefore + 1 + 1);   // the report's, and the panel adapter asked for in REPORTa
+    check(QStringLiteral("REPORTc it shows every shot the owner kept, not busy"), m->shotCount() == kShots && !m->busy());
+    const analysis::ShotRecord *two = nullptr, *three = nullptr;
+    for (const analysis::ShotRecord &r : m->shotRecords()) {
+        if (r.shotId == relabelled->swingNumber()) two = &r;
+        if (r.shotId == leftOut->swingNumber()) three = &r;
+    }
+    check(QStringLiteral("REPORTd the re-labelled shot's row reads the board's club (the kicker's and the pages' club)"),
+          two && two->club == QLatin1String("8 IRON"));
+    const QSet<QString> lm = analysis::launchMonitorMeasures(RuleData::installed()->snapshot()->pack->pack());
+    int lmRows = 0, lmAssessed = 0;
+    if (three)
+        for (const analysis::ConditionRow &r : three->rows)
+            if (lm.contains(r.drivingMeasureId)) {
+                ++lmRows;
+                if (r.state != analysis::ShotState::NotAssessable) ++lmAssessed;
+            }
+    check(QStringLiteral("REPORTe the left-out shot's monitor-driven rows are not assessable (%1 rows)").arg(lmRows),
+          three && lmRows > 0 && lmAssessed == 0);
+    check(QStringLiteral("REPORTf the work-on list is reduced over those rows (sessionWorkOns, the report's FRESH list)"),
+          m->sessionWorkOns().shotCount == kShots);
+    check(QStringLiteral("REPORTg nothing written into the session by it (diagnostics.json byte-equal; no baseline frozen)"),
+          fileBytes(folder + QStringLiteral("/diagnostics.json")) == diagBefore
+              && QFile::exists(folder + QStringLiteral("/club_baseline.json")) == baselineBefore);
+    // The report lets it go (SessionReportModel::letModelGo): its view dropped, the adapter deleted.
+    m->dropView();
+    m->deleteLater();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    check(QStringLiteral("REPORTh let go, its use of the Session is dropped"), !m && s->uses() == usesBefore + 1);
+}
+
+static void testTrashDuringMake()
+{
+    std::printf("\nTRASH — the session trashed while the report holds its adapter (review 3.7-d B1)\n");
+    for (const bool settled : { false, true }) {
+        const QString when = settled ? QStringLiteral("after the owner settled") : QStringLiteral("before the owner settled");
+        Rig rig;
+        Session *s = endedSession(rig);
+        if (!s) { check(QStringLiteral("TRASH pre: an ended session"), false); return; }
+        const SessionId id = s->id();
+        const QString folder = s->entry() ? s->entry()->folder : QString();
+        // Let it go, then load it as the report's door does (a session no screen holds): its owner has work out.
+        rig.athlete->releaseSession(id);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        Session *again = rig.athlete->sessionAt(folder);
+        SessionDiagnostics *d = again ? again->diagnostics() : nullptr;
+        QPointer<SessionDiagnosticsModel> m = again ? rig.adapters->of(again, QStringLiteral("report"), folder) : nullptr;
+        if (!d || !m) { check(QStringLiteral("TRASH pre: the report's adapter of a reloaded session"), false); return; }
+        bool gone = false;
+        QObject::connect(m.data(), &QObject::destroyed, [&gone] { gone = true; });
+        m->addView();
+        m->activateSession(folder);
+        const bool busyAtStart = m->busy() || !d->idle();
+        if (settled) { Rig::settled(d); spin(); }   // the adapter's busy falls a turn after the owner's
+        check(QStringLiteral("TRASH %1: pre — the owner %2").arg(when, settled ? QStringLiteral("idle") : QStringLiteral("still busy")),
+              settled ? (d->idle() && !m->busy()) : busyAtStart);
+        QString where;
+        const WriteResult t = rig.athlete->trashSession(id, &where);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        spin(300);   // anything the owner had out lands now, on nothing
+        check(QStringLiteral("TRASH %1: the trash goes through though the report holds a use").arg(when), t.ok());
+        check(QStringLiteral("TRASH %1: the report's adapter goes with its Session, and says so (destroyed)").arg(when),
+              gone && !m && rig.athlete->loadedSession(id) == nullptr);
+    }
+}
+
+static void testSigmaDoor()
+{
+    std::printf("\nSIGMA — the gate report's σ switch through the owner's doors (refactor 3.7-d)\n");
+    Rig rig;
+    Session *s = endedSession(rig);
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    if (!d) { check(QStringLiteral("SIGMA pre: an ended session"), false); return; }
+    const SessionId id = s->id();
+    const QString folder = s->entry() ? s->entry()->folder : QString();
+    const KeptShot *k = d->kept(1);
+    const QString stampOn = k ? k->findingsStamp : QString();
+    int quantifiedOn = 0;
+    for (const int n : d->keptShots())
+        if (const KeptShot *x = d->kept(n))
+            for (const analysis::ConditionRow &r : x->findings.rows) quantifiedOn += r.quantified ? 1 : 0;
+    check(QStringLiteral("SIGMA pre: with the tuned default some rows carry a σ (%1)").arg(quantifiedOn),
+          !stampOn.isEmpty() && (quantifiedOn > 0) == tuned::diagUncertainty::kEnabled);
+    QString whyNot;
+    const bool released = rig.athlete->releaseSession(id, &whyNot);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    DiagnosticsDoors off = appDiagnosticsDoors(rig.pool.get(), rig.receiver.get(), RuleData::installed(), rig.store, *rig.recordings);
+    off.writeDebounceMs = 0;
+    off.persist   = false;   // as the tool runs it: nothing written
+    off.withSigma = false;
+    rig.athlete->setDiagnosticsDoors(off);
+    Session *again = released ? rig.athlete->sessionAt(folder) : nullptr;
+    SessionDiagnostics *d2 = again ? again->diagnostics() : nullptr;
+    Rig::settled(d2);
+    const KeptShot *k2 = d2 ? d2->kept(1) : nullptr;
+    int quantifiedOff = 0;
+    if (d2)
+        for (const int n : d2->keptShots())
+            if (const KeptShot *x = d2->kept(n))
+                for (const analysis::ConditionRow &r : x->findings.rows) quantifiedOff += r.quantified ? 1 : 0;
+    check(QStringLiteral("SIGMAa σ off moves the findings stamp, so the session is judged again under it"),
+          k2 && !k2->findingsStamp.isEmpty() && k2->findingsStamp != stampOn && int(d2->keptShots().size()) == kShots);
+    check(QStringLiteral("SIGMAb and no row carries a σ"), d2 && quantifiedOff == 0);
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -659,6 +835,19 @@ int main(int argc, char **argv)
     testArchive();
     testArchiveEvents();
     testNoGolfer();
+    testReport();
+    testTrashDuringMake();
+    testSigmaDoor();
+
+    // STAMP (refactor 3.7-d): the report's fingerprint takes the content stamp with no model of its own; it is the one a
+    // model computes, so a report made before 3.7-d still reads "current" after it.
+    {
+        std::printf("\nSTAMP — the content stamp without a model (refactor 3.7-d)\n");
+        SessionDiagnosticsModel m;
+        const QString stamp = SessionDiagnosticsModel::currentContentStamp();
+        check(QStringLiteral("STAMPa the model-free stamp equals a model's (%1)").arg(stamp),
+              !stamp.isEmpty() && stamp == m.contentStamp());
+    }
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;

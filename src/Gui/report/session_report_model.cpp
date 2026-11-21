@@ -46,6 +46,7 @@
 #include "../variability/variability_facade.h"
 #include "../variability/variability_ledger.h"         // ledgerConsistencyGrade (R10, R14)
 #include "../variability/variability_measures.h"       // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth
+#include "../../Coaching/board_annotations.h"         // the board's annotations, as every reduction reads them (3.7-d)
 #include "../../Coaching/session_report.h"
 #include "../../Coaching/swing_areas_pack.h"          // areaConditionInfoForPack: a yes/no condition has no grade
 #include "../../Coaching/shot_outcomes_pack.h"
@@ -127,20 +128,25 @@ struct DocFacts {
 // other sessions' swing_phasegrid.json). The same numbers and words the Charts Posture, Wrist and Club delivery
 // sections draw for the session. Over it too the Consistency presenter's report payload (the Consistency tab's table and
 // flagged shots, on a swings kicker); `env` and `norms` come from the GUI thread (consistency_env.h).
-// { posture, wrist, delivery, consistency }, each empty when nothing reads.
+// { posture, wrist, delivery, consistency, tendencies }, each empty when nothing reads. `lmMeasures`: the pack's launch
+// monitor measures, so the Tendencies page leaves a reading the board left out unread (step 3.6's rule; refactor 3.7-d).
 QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::ConsistencyEnv &env, const QString &gradePolicy,
-                            const std::shared_ptr<const INormProvider> &norms, const ShotOutcomePack &outcomePack)
+                            const std::shared_ptr<const INormProvider> &norms, const ShotOutcomePack &outcomePack,
+                            const QSet<QString> &lmMeasures)
 {
     pinpoint::charts::SessionSeriesModel series;
     series.setSynchronous(true);
     series.activateSession(sessionDir);
+    // THE SWINGS AS THE GOLFER ANNOTATED THEM ON THE BOARD (refactor 3.7-d; J-45): the Charts snapshot is published that
+    // way (SessionSeriesModel, session_series_types.h annotateForBoard), for the Charts tab and every Charts page here
+    // alike, so no page groups or norms a re-labelled swing under another club than the work-on facts and the kicker do.
     const std::shared_ptr<const pinpoint::charts::SessionSnapshot> snap = series.snapshot();
     if (!snap || snap->count() == 0) return {};
     return { { QStringLiteral("posture"), pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings")) },   // the report says swings
              { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) },
              { QStringLiteral("delivery"), pinpoint::charts::deliverySessionReportPayload(*snap, QStringLiteral("swings")) },
              { QStringLiteral("consistency"), pinpoint::charts::consistencySessionReportPayload(snap, env, gradePolicy, norms, QStringLiteral("swings")) },
-             { QStringLiteral("tendencies"), pinpoint::report::tendenciesReportBlock(WorkOnsController::tendenciesAsOf(sessionDir, outcomePack, *norms), &outcomePack) } };
+             { QStringLiteral("tendencies"), pinpoint::report::tendenciesReportBlock(WorkOnsController::tendenciesAsOf(sessionDir, outcomePack, *norms, lmMeasures), &outcomePack) } };
 }
 
 QVector<DocFacts> readDocs(const QString &sessionDir)
@@ -300,29 +306,17 @@ bool    SessionReportModel::busy() const { return bool(m_job); }
 QString SessionReportModel::busySession() const { return m_job ? m_job->dir : QString(); }
 int     SessionReportModel::progressPage() const { return m_progressPage; }
 int     SessionReportModel::progressPages() const { return m_progressPages; }
-QObject *SessionReportModel::printModel() const { return m_printing ? m_model : nullptr; }
+QObject *SessionReportModel::printModel() const { return m_printing ? static_cast<QObject *>(m_model.data()) : nullptr; }
 int     SessionReportModel::printShotId() const { return m_printing ? m_printShotId : -1; }
 
-SessionDiagnosticsModel *SessionReportModel::model()
-{
-    if (!m_model) {
-        m_model = new SessionDiagnosticsModel(this);
-        // REVIEWING, as WorkOnsController's model is: it reads recorded sessions, never the live one, and
-        // a reviewed session's footer is final, so rebuild() never runs the live debounce walk. The rows,
-        // the ledgers and sessionWorkOns() read the same with it on or off.
-        m_model->setReviewing(true);
-        // A report READS the session and never writes it (design §8.1): diagnostics.json stays as the
-        // panel and the work-ons catch-up left it, even when this model's rows are fresher.
-        m_model->setPersistEnabled(false);
-        // QUEUED: the model emits busyChanged before it appends the row that made it idle.
-        connect(m_model, &SessionDiagnosticsModel::busyChanged, this, &SessionReportModel::onModelSettled, Qt::QueuedConnection);
-    }
-    return m_model;
-}
-
+// What the rows are graded against (the pack, norms and contexts), computed once, as the report's own model computed it
+// at its first ask before refactor step 3.7-d — now with no model (SessionDiagnosticsModel::currentContentStamp: one rule)
+// — WITH THE REPORT'S OWN RULE VERSIONS (report_meta.h reportRulesStamp; R-STAMP-1): where it reads its diagnosis from,
+// and the board's rule. So a report made by an earlier rule reads "out of date" (NOTES-d.md J-d7).
 QString SessionReportModel::contentStamp() const
 {
-    if (m_contentStamp.isEmpty()) m_contentStamp = const_cast<SessionReportModel *>(this)->model()->contentStamp();
+    if (m_contentStamp.isEmpty())
+        m_contentStamp = M::reportRulesStamp(SessionDiagnosticsModel::currentContentStamp(), kBoardAnnotationRuleVersion);
     return m_contentStamp;
 }
 
@@ -468,6 +462,23 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
         else       emit prepared(dir, false, {}, why);
         return;
     }
+    // THE SESSION'S OWN DIAGNOSIS (refactor step 3.7-d; the header): the Session's thin adapter for the report, asked of the
+    // door — which loads the session if no screen has (its owner then judges what is stale, and writes it: its own write).
+    SessionDiagnosticsModel *m = m_diagnosisDoor ? m_diagnosisDoor(dir) : nullptr;
+    if (!m || (m->isAdapter() && m->sessionDir().isEmpty())) {
+        // NO SESSION HOLDS IT (Mark's N1: a session recorded with no golfer has no diagnostics; or another golfer's): no
+        // report, and the sheet says why — never a report with its findings silently missing (show with a warning).
+        const QString owner = QFileInfo(QFileInfo(dir).absolutePath()).fileName();   // the folder it is in
+        const QString why = owner == QLatin1String("unknown")
+            ? QStringLiteral("This session was recorded with no golfer, so its swings are not judged and there is nothing to "
+                             "report. Move it to a golfer to report on it.")
+            : QStringLiteral("This session is not one of the chosen golfer's, so its swings are not judged here and there is "
+                             "nothing to report.");
+        ppWarn() << "[Report] no Session holds" << dir << "- no report:" << why;
+        if (print) emit made(dir, false, QString(), why);
+        else       emit prepared(dir, false, {}, why);
+        return;
+    }
     m_job = std::make_unique<Job>();
     m_job->dir = dir;
     m_job->options = options;
@@ -490,22 +501,65 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     // The Tendencies page reads the sessions up to this one with the same outcome words Home uses.
     const std::unique_ptr<ICharacteristicPackProvider> outcomeProvider = makeCharacteristicPackProvider();
     const ShotOutcomePack outcomePack = shotOutcomePackFor(&outcomeProvider->pack());
+    // The board's left-out readings: the pack's monitor measures (board_annotations.h), for the Tendencies page.
+    const QSet<QString> lmMeasures = launchMonitorMeasures(outcomeProvider->pack());
     connect(&m_job->chartsWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onChartsRead);
-    m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms, outcomePack] { return readChartsPages(dir, consistencyEnv, policy, norms, outcomePack); }));
+    m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms, outcomePack, lmMeasures] {
+        return readChartsPages(dir, consistencyEnv, policy, norms, outcomePack, lmMeasures);
+    }));
 
-    SessionDiagnosticsModel *m = model();
-    m->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);   // a reader: no club_baseline.json
+    m_model = m;
+    // QUEUED: an engine model emits busyChanged before it appends the row that made it idle; an adapter's busy falls a
+    // turn after the owner's write lands.
+    m_modelBusy = connect(m, &SessionDiagnosticsModel::busyChanged, this, &SessionReportModel::onModelSettled, Qt::QueuedConnection);
+    // THE SESSION CAN GO DURING THE MAKE (review 3.7-d B1): the adapter is its Session's child, and a trash takes the
+    // Session whatever its uses. The job then ends, failed — never a job left waiting for a model that is gone (every
+    // later make refused) nor a build over a null one. Queued: the model is mid-destruction when this fires.
+    const Job *job = m_job.get();
+    m_modelGone = connect(m, &QObject::destroyed, this, [this, job] {
+        QMetaObject::invokeMethod(this, [this, job] {
+            if (m_job.get() == job) fail(QStringLiteral("The session went away while its report was being made."));
+        }, Qt::QueuedConnection);
+    });
+    // REVIEWING, as WorkOnsController's model is: it reads recorded sessions, never the live one, and a reviewed
+    // session's footer is final. A reader: no club_baseline.json (Never), and nothing persisted. The rows, the ledgers
+    // and sessionWorkOns() read the same with these on or off; an adapter judges and writes nothing either way.
+    m->setReviewing(true);
+    m->setPersistEnabled(false);
+    m->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);
     m->setGradePolicy(gradePolicyName());
     m->setSelectedSwingDir(QString());
     m->closeDetail();
-    // NOTHING OF OUR OWN IS WRITTEN. activateSession() reads diagnostics.json, reconciles it against the
-    // swing folders and regrades rows that went stale — and that reconcile persists, as it does for the
-    // panel and the work-ons catch-up. There is no read-only switch on SessionDiagnosticsModel; on a
-    // session the catch-up has already brought current (the normal case: it runs at launch and after
-    // every session) nothing is stale and nothing is written.
+    // The adapter does its view work only while a view is bound (3.7-a, review M2): the report is one for the job's
+    // length, so the owner's diagnosis that lands while it waits is taken in.
+    if (m->isAdapter()) m->addView();
+    // Pointed at the session as the panel points its adapter (the profile and history read; the owner's club baseline
+    // brought up to date, read only) — or, on J-a3's engine model, judged as the report's own model judged it, persist off.
     m->activateSession(dir);
     if (!m->busy())
         QTimer::singleShot(0, this, [this] { if (m_job && !m_job->modelReady && m_model && !m_model->busy()) { m_job->modelReady = true; maybeBuild(); } });
+}
+
+void SessionReportModel::letModelGo()
+{
+    disconnect(m_modelBusy);
+    disconnect(m_modelGone);   // its deletion below is ours, not a session that went away
+    SessionDiagnosticsModel *m = m_model;
+    m_model = nullptr;
+    if (!m) return;
+    m->closeDetail();
+    m->setSelectedSwingDir(QString());
+    if (m->isAdapter()) {
+        // The report's adapter is the Session's child, made for this make: let go of it, and with it its use of the
+        // Session (Q-18; CARRY 3.5-i §6: every holder addUse()s while it holds — the report for the job's length).
+        // Out of the Session's children first, so a make of the same session in this same turn gets a fresh one rather
+        // than this one, which is about to go (adapterFor finds a Session's adapters among its children).
+        m->dropView();
+        m->setParent(nullptr);
+        m->deleteLater();
+    } else {
+        m->activateSession(QString());      // J-a3's engine model: let the session's rows go
+    }
 }
 
 void SessionReportModel::onModelSettled()
@@ -558,17 +612,13 @@ void SessionReportModel::fail(const QString &error)
 
 void SessionReportModel::finishJob()
 {
-    if (m_model) {
-        m_model->closeDetail();
-        m_model->setSelectedSwingDir(QString());
-        m_model->activateSession(QString());      // let the session's rows go
-    }
     const bool wasPrinting = m_printing;
     m_printing = false;
     m_printShotId = -1;
     if (m_job) { m_job->docsWatcher.waitForFinished(); m_job->chartsWatcher.waitForFinished(); }
     m_job.reset();
-    if (wasPrinting) emit printModelChanged();
+    if (wasPrinting) emit printModelChanged();   // the appendix lets go of the model first
+    letModelGo();
     emit busyChanged();
 }
 
@@ -846,6 +896,7 @@ void SessionReportModel::build()
 {
     Job &job = *m_job;
     SessionDiagnosticsModel *m = m_model;
+    if (!m) { fail(QStringLiteral("The session went away while its report was being made.")); return; }   // B1
 
     // ── the pack, the ledger, the fresh work-on list ──
     // The pack as it stands now (a coach's pack edit reaches the next report), loaded per make.
@@ -1890,6 +1941,10 @@ void SessionReportModel::deliver()
         const QVariantMap map = job.map;
         finishJob();
         emit prepared(dir, true, map, QString());
+        return;
+    }
+    if (!m_model) {   // the session went away while the stills were made (review 3.7-d B1)
+        fail(QStringLiteral("The session went away while its report was being made."));
         return;
     }
     if (!isSignalConnected(QMetaMethod::fromSignal(&SessionReportModel::printRequested))) {

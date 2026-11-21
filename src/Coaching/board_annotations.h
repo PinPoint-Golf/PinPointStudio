@@ -40,7 +40,9 @@
 // windows the distances and baselines come from, each shot's club in the summary); Home's Tendencies and Your
 // distances (WorkOnsController's ledger read) and its Consistency marks (the club a reading is centred under). Not yet:
 // the shot's own derived data and findings (layers 3–5 fire from the readings as recorded), and the session report's
-// pages other than Stage 0.5's (3.7, with the report's cut-over).
+// pages other than Stage 0.5's (3.7, with the report's cut-over). Since refactor 3.7-d also the report's pages and, by
+// Mark's J-45, the Charts tab (SessionSeriesModel): the swing series under the board's club, a left-out shot's
+// monitor series and monitor-driven ledger rows not read.
 //
 // Rules ring (src/Coaching): pure, no I/O.
 
@@ -48,6 +50,7 @@
 #include "../Diagnostics/engine/characteristic.h"
 
 #include <QHash>
+#include <QJsonObject>
 #include <QSet>
 #include <QString>
 
@@ -67,13 +70,32 @@ struct BoardAnnotation {
     bool operator==(const BoardAnnotation &o) const { return excluded == o.excluded && clubOverride == o.clubOverride; }
 };
 
+// THE RULE'S PARTS, ONE PLACE (refactor 3.7-d, J-45): every shape a shot is read in — the ledger's ShotRecord
+// (annotatedShot, below) and the Charts' ShotSeries (session_series_types.h annotateForBoard) — asks these.
+// A reading key the launch monitor gives: an "lm." key (the catalogue's key ladder; the document's metric keys).
+inline bool isLaunchMonitorKey(const QString &key) { return key.startsWith(QLatin1String("lm.")); }
+// The club a shot is read under: the board's when it set one, else the shot's own.
+inline QString annotatedClub(const QString &club, const BoardAnnotation &a)
+{
+    const QString board = a.clubOverride.trimmed();
+    return board.isEmpty() ? club : board;
+}
+// A swing document's two board facts, from its review block (review.excluded, review.clubOverride: the keys
+// RecordingRepository's review read gives as ShotReview::lmExcluded / lmClubOverride).
+inline BoardAnnotation boardAnnotationOfDocument(const QJsonObject &root)
+{
+    const QJsonObject review = root.value(QStringLiteral("review")).toObject();
+    return BoardAnnotation{ review.value(QStringLiteral("excluded")).toBool(false),
+                            review.value(QStringLiteral("clubOverride")).toString() };
+}
+
 // The pack's measures the launch monitor reads: an "lm." key on the measure's ladder.
 inline QSet<QString> launchMonitorMeasures(const CharacteristicPack &pack)
 {
     QSet<QString> out;
     for (const Measure &m : pack.measures)
         for (const QString &key : measureKeyLadder(m))
-            if (key.startsWith(QLatin1String("lm."))) {
+            if (isLaunchMonitorKey(key)) {
                 out.insert(m.id);
                 break;
             }
@@ -85,8 +107,7 @@ inline ShotRecord annotatedShot(ShotRecord shot, const BoardAnnotation &a, const
 {
     if (!a.any())
         return shot;
-    if (!a.clubOverride.trimmed().isEmpty())
-        shot.club = a.clubOverride.trimmed();
+    shot.club = annotatedClub(shot.club, a);
     if (a.excluded) {
         constexpr double kNotRead = std::numeric_limits<double>::quiet_NaN();
         for (const ShotReadingField &f : shotReadingFields())
