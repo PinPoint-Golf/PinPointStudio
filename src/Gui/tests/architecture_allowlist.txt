@@ -94,7 +94,7 @@ Audio/audio_stream_saver.cpp | A5 | 1 | P11: an audio capture written to the Des
 Audio/audio_stream_saver.h | A5 | 1 | P11: an audio capture written to the Desktop (EXT-04, a tool's output, not domain); no step 1-8 moves it  # not domain (§8.3)
 Ball/ball_baseline_io.h | A5 | 1 | P11: a rules stage reads a pinned input or baseline file (or fingerprints its model file) itself; step 7 takes file I/O out of the rules ring, Ball and Pose included (Mark, 15 Nov 2026)  # step 7
 Ball/ball_runner.cpp | A5 | 1 | P11: a rules stage reads a pinned input or baseline file (or fingerprints its model file) itself; step 7 takes file I/O out of the rules ring, Ball and Pose included (Mark, 15 Nov 2026)  # step 7
-Core/studio_profile.cpp | A5 | 9 | P11: the studio profile (FILE-APP-06) reads and writes its own folder; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+Core/studio_profile.cpp | A5 | 9 | P11: the studio and coach details (FILE-APP-06, SET-20; OBJ-STUDIO-PROFILE, IM DEC-193) read and write their own folder; their repository is the platform refactor's, outside steps 1-8 (05 §2)  # platform refactor (settings)
 Gui/cameras/camera_role_probe.cpp | A5 | 1 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
 Gui/charts/delivery_picture.cpp | A5 | 1 | P11: the Charts stills cache (EXT-07, a regenerable view cache, not domain); no step 1-8 moves it  # not domain (§8.3)
 Gui/charts/posture_picture.cpp | A5 | 1 | P11: the Charts stills cache (EXT-07, a regenerable view cache, not domain); no step 1-8 moves it  # not domain (§8.3)
@@ -160,7 +160,7 @@ Gui/launchmonitor/launch_monitor_controller.h | A6 | 1 | the LM board's readings
 Gui/launchmonitor/lm_club_art.h | A6 | 3 | the LM board's readings reach QML as QVariantMaps; step 6 makes the board a presenter over typed measurements  # step 6
 Gui/launchmonitor/lm_session_model.h | A6 | 2 | the LM board's readings reach QML as QVariantMaps; step 6 makes the board a presenter over typed measurements  # step 6
 Core/app_info.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
-Core/studio_profile.h | A6 | 4 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
+Core/studio_profile.h | A6 | 4 | a settings, monitoring or tool object's QML API (the studio and coach details, OBJ-STUDIO-PROFILE, IM DEC-193); not a presenter, and no step 1-8 types it (05 §2)  # unplanned
 Export/swing_zip_exporter.h | A6 | 2 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
 Gui/app/app_settings.h | A6 | 26 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
 Gui/cameras/buffer_controller.h | A6 | 1 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned

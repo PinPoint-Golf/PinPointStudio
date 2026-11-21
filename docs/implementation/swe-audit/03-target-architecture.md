@@ -436,7 +436,7 @@ step 3).
 | `SessionSeries` | in memory only, not persisted | — | — |
 
 The table covers the athlete, session and shot files and the rule data they are graded against. Studio and
-acquisition files (the studio profile, the PPCP import ledger, calibration and ceremony recordings) go with Studio/Rig
+acquisition files (the studio profile (→ reference DEC-193: not a rig fact; owned by `StudioProfile`, at the application level), the PPCP import ledger, calibration and ceremony recordings) go with Studio/Rig
 and the platform refactor (capture). (→ reference §8, DEC-45: every file the app writes is listed there, with its
 writer today and its target owner, including media, report, trash, archive and the domain-fact settings keys.)
 
