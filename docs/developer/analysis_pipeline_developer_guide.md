@@ -666,6 +666,26 @@ it will pay for itself at the first parity gate.
   ShotProcessor sequences analysis before export. Do not add threads inside
   a stage; the QtConcurrent job is the concurrency boundary and ORT already
   owns the cores during pose.
+- **The cached ViTPose session has ONE thread** (step 3.7; J-43; IM DEC-194,
+  R-CON-5's one exception). `PoseRunner` owns a long-lived inference thread
+  (`src/Pose/inference_thread.h`), and every cached session is bound to it
+  before its load (`acquireCached` in `pose_runner.cpp`): the launch warm-up,
+  every `inferBatch` / `inferPrepared`, in the app, re-analysis and the tools,
+  run there while the calling stage thread waits. Decode and preprocess stay
+  on the stage's producers. Why: ONNX Runtime's CUDA arena does not reuse
+  memory freed by an earlier calling thread, and the DAG builds new threads
+  every shot (`analysis_dag.h`), so the arena grew 1 GiB about every 4 shots
+  until pose collapsed near shot 35 (`build/refactor/step-3/3.7/NOTES-L.md`).
+  Never call a cached session around it, and never add work to that thread.
+  Pose was already serial within one analysis (DtlPose reads `kPose2d`) and
+  on any one cached session (the cache's lease). **Two analyses on different
+  models now take turns** on the thread, batch by batch, and a model load
+  holds up the other model's run until it finishes (CoreML 20–97 s on the
+  Mac; ~1 s on CUDA). That can happen today: re-analysing a High swing
+  (ViTPose-L) whose pose must be re-inferred, during a live Medium session
+  (ViTPose-B). It delays the run; it never changes a result. It is stopped at exit after the last analysis
+  (`PoseRunner::stopInferenceThread`: `main.cpp`'s exit guard; `std::atexit`
+  for the tools); the sessions are never destroyed.
 - **Local dev box limits:** build with `--parallel 4` (15 GiB box OOMs
   above ~4 jobs); one heavy analysis job at a time; if everything is
   mysteriously ~4× slow, check the BD_PROCHOT 800 MHz clamp (MSR `0x1FC`

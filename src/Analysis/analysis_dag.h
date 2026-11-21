@@ -59,6 +59,9 @@
 // longest chain still below it goes first (ties: authored order), so DtlShaft (the chain)
 // takes the down-the-line camera before AddressMarks (a leaf). canRun is evaluated when a
 // stage starts, on its own thread; a halt stops new starts and lets the running finish.
+// The threads are new every run: never call a long-lived, thread-affine session (an ORT CUDA
+// session) from a stage directly. ViTPose inference no longer runs on them: the pose stages hand it
+// to PoseRunner's one inference thread (src/Pose/inference_thread.h; J-43).
 // Header-only (Qt Core + the standard library) so the unit test drives it with fake stages.
 
 #include "analysis_stage.h"
@@ -382,6 +385,7 @@ inline void runStagesParallel(const SessionProfile &profile, const StageGraph &g
     };
 
     const int threads = std::max(1, std::min(nThreads, std::max(1, n)));
+    // A new pool every run (see "Scheduling" above): ViTPose inference does not run on these threads.
     std::vector<std::thread> pool;
     pool.reserve(size_t(threads));
     for (int t = 0; t < threads; ++t) pool.emplace_back(worker, t);

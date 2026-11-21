@@ -19,6 +19,7 @@
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
 
 #include "pose_estimator_vitpose.h"
+#include "inference_thread.h"   // bindInferenceThread: the session's one thread (J-43)
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -179,6 +180,10 @@ static QString fp16Sibling(const QString &fp32Path)
 
 void PoseEstimatorViTPose::load()
 {
+    if (m_inferenceThread && !m_inferenceThread->onThread()) {   // bound: built on its one thread
+        m_inferenceThread->call([this] { load(); });
+        return;
+    }
     QString path = modelPath(m_variant);
     const char *variantTag = (m_variant == ModelVariant::WholeBodyLarge) ? "++-L" : "-B";
     if (!QFile::exists(path)) {
@@ -466,6 +471,10 @@ void PoseEstimatorViTPose::load()
 
 void PoseEstimatorViTPose::estimatePose(const cv::Mat &frame)
 {
+    if (m_inferenceThread && !m_inferenceThread->onThread()) {   // bound: run on its one thread
+        m_inferenceThread->call([this, &frame] { estimatePose(frame); });
+        return;
+    }
     // Whole-body keypoints from a previous frame must never outlive the call
     // that produced them — invalidate before any early-out. No-op live.
     if (m_decodeWholeBody)
@@ -639,6 +648,10 @@ void PoseEstimatorViTPose::preprocess(const cv::Mat &frame, std::vector<float> &
 // pointer; the buffer is only read during Run()).
 void PoseEstimatorViTPose::inferPrepared(std::vector<float> &inputBuf)
 {
+    if (m_inferenceThread && !m_inferenceThread->onThread()) {   // bound: run on its one thread
+        m_inferenceThread->call([this, &inputBuf] { inferPrepared(inputBuf); });
+        return;
+    }
     // Whole-body keypoints from a previous frame must never outlive the call
     // that produced them.
     if (m_decodeWholeBody)
@@ -766,6 +779,9 @@ bool PoseEstimatorViTPose::inferBatch(const std::vector<const std::vector<float>
                                       pinpoint::pose::ChannelSet channels, int decodeThreads,
                                       bool ioBinding)
 {
+    if (m_inferenceThread && !m_inferenceThread->onThread())     // bound: run on its one thread
+        return m_inferenceThread->call(
+            [&] { return inferBatch(inputs, out, channels, decodeThreads, ioBinding); });
     out.clear();
     if (inputs.empty())
         return true;

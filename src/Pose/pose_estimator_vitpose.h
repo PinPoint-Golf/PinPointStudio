@@ -28,6 +28,8 @@
 #include <memory>
 #include <vector>
 
+namespace pinpoint::pose { class InferenceThread; }   // inference_thread.h
+
 // ViTPose-B whole-body estimator.
 //
 // Model: vitpose-b-wholebody.onnx (JunkyByte/easy_ViTPose)
@@ -160,6 +162,16 @@ public:
                     std::vector<FrameResult> &out,
                     pinpoint::pose::ChannelSet channels, int decodeThreads, bool ioBinding);
 
+    // ── The one inference thread (step 3.7; J-43; DEC-194) ────────────────────
+    // Bound, this estimator's ORT session is built and run ONLY on `t`: load(), estimatePose(),
+    // inferPrepared() and inferBatch() hand themselves to it and wait, whichever thread calls
+    // them (on `t` itself they run directly), and a stopped thread makes them throw. PoseRunner
+    // binds every cached session to its one thread before load() (inference_thread.h says why:
+    // ORT's CUDA arena is not reused across calling threads). Set once, before load(); not owned.
+    // Unbound (the default: MotionCaptureProbe, PoseRunner's private estimator) nothing changes.
+    // preprocess() and the setters never touch the session and stay on the caller's thread.
+    void bindInferenceThread(pinpoint::pose::InferenceThread *t) { m_inferenceThread = t; }
+
 public slots:
     void load();
     void estimatePose(const cv::Mat &frame) override;
@@ -196,6 +208,8 @@ private:
     int    m_timingIndex  = 0;
     int    m_timingCount  = 0;
     qint64 m_lastCallNs   = -1;
+
+    pinpoint::pose::InferenceThread *m_inferenceThread = nullptr;   // bindInferenceThread()
 
     // ONNX Runtime state isolated so onnxruntime_cxx_api.h stays out of this header.
     struct OrtState;

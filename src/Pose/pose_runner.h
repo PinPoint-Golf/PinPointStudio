@@ -19,8 +19,9 @@
 #pragma once
 
 // Offline pose pass over the face-on camera of a frozen SwingWindow
-// (ShaftTracker S0 — the anchor source). Runs ViTPose synchronously on the
-// QtConcurrent analysis worker; honors the frozen-window read contract
+// (ShaftTracker S0 — the anchor source). Runs ViTPose synchronously for the
+// analysis worker, the cached session's work on the one pose inference thread
+// (stopInferenceThread below); honors the frozen-window read contract
 // (null-checked payloads, shared frame_decode, const reads only).
 
 #include <QJsonObject>
@@ -147,9 +148,10 @@ public:
 
     // Decode + pose the face-on camera's frames. Returns an empty track when
     // the source has no frames, the format is undecodable, or ViTPose is
-    // unavailable (model missing / built without ORT). Constructs the
-    // estimator on the calling (worker) thread; all reads finish before
-    // return (frozen-window contract).
+    // unavailable (model missing / built without ORT). Runs on the calling
+    // (worker) thread, except the cached session's build and inference, which
+    // run on the pose inference thread while it waits (stopInferenceThread
+    // below); all reads finish before return (frozen-window contract).
     static pinpoint::analysis::PoseTrack2D run(const pinpoint::SwingWindow &window,
                                                pinpoint::SourceId faceOnSource,
                                                const ShotAnalysisRunnerOptions &opt);
@@ -167,4 +169,15 @@ public:
     // cold (pose_performance_20261006.md §3); CUDA 0.3 s. A no-op when the cache is off or
     // the model is missing. Returns the load's wall time in ms (0 when nothing was built).
     static double warmUp(const QString &motionCaptureQuality);
+
+    // THE POSE INFERENCE THREAD (step 3.7; J-43, Mark, 21 Nov 2026; DEC-194). Every cached ViTPose
+    // session is built, warmed and run on ONE long-lived thread that PoseRunner owns
+    // (inference_thread.h says why: ONNX Runtime's CUDA arena is not reused across calling
+    // threads). run() and warmUp() hand it their session work and wait; decode and preprocess
+    // stay on the caller's threads. Stop it once at exit, after the last run() has returned (the
+    // app: after QGuiApplication, whose destructor waits for the analysis on the global pool;
+    // main.cpp). It finishes what is queued, then joins; a run() after it fails (its session work
+    // throws). Idempotent; also registered with std::atexit when the thread is made, which is how
+    // the command-line tools stop it. The sessions themselves are still never destroyed.
+    static void stopInferenceThread();
 };

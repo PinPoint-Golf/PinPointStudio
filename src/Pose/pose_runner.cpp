@@ -24,6 +24,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstdlib>   // std::atexit (stopInferenceThread)
 #include <deque>
 #include <mutex>
 #include <thread>
@@ -37,7 +38,9 @@ using pinpoint::analysis::PoseTrack2D;
 
 #include "format_descriptor.h"
 #include "swing_window.h"
+#include "inference_thread.h"      // the one pose inference thread (J-43)
 #include "../Core/pp_debug.h"
+#include "../Core/pp_os_metrics.h" // registerThread: the inference thread's CPU row
 #include "../Core/pp_profiler.h"
 
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
@@ -64,6 +67,24 @@ using pinpoint::analysis::PoseTrack2D;
 static thread_local pinpoint::pose::PoseTiming tl_lastPoseTiming;
 
 pinpoint::pose::PoseTiming PoseRunner::lastTiming() { return tl_lastPoseTiming; }
+
+namespace {
+
+// ── The one pose inference thread (step 3.7; J-43, Mark, 21 Nov 2026; DEC-194) ──────────────────
+// Every cached ViTPose session is bound to it before its load() (acquireCached below), so the
+// session is built and run on this thread alone, whichever analysis thread asks: ORT's CUDA arena
+// does not reuse memory across calling threads, and the analysis DAG's threads are new every shot
+// (inference_thread.h; build/refactor/step-3/3.7/NOTES-L.md). Made on first use and never
+// destroyed, like the cache; stopInferenceThread() stops it at exit. Nothing else queues here.
+std::atomic<pinpoint::pose::InferenceThread *> g_inferenceThread{ nullptr };
+
+} // namespace
+
+void PoseRunner::stopInferenceThread()
+{
+    if (pinpoint::pose::InferenceThread *t = g_inferenceThread.load())
+        t->stop();
+}
 
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
 
@@ -118,6 +139,21 @@ const char *epCascadeTag()
         "cpu";
 }
 
+// The one pose inference thread (g_inferenceThread above): made on first use.
+pinpoint::pose::InferenceThread &inferenceThread()
+{
+    static pinpoint::pose::InferenceThread *const thread = [] {
+        auto *t = new pinpoint::pose::InferenceThread;
+        t->call([] { pinpoint::osmetrics::registerThread("Pose.Inference"); });
+        g_inferenceThread.store(t);
+        // The tools' exit (and the app's backstop): an idle thread joins at once. Registered
+        // after the logging statics exist, so it runs before they are destroyed.
+        std::atexit([] { PoseRunner::stopInferenceThread(); });
+        return t;
+    }();
+    return *thread;
+}
+
 // Never destroyed, deliberately: the cached sessions live until the process
 // exits, and tearing ORT sessions (CoreML/CUDA EPs) and QObjects down during
 // static destruction — after QCoreApplication and possibly ORT's own statics are
@@ -126,6 +162,23 @@ EstimatorCache &estimatorCache()
 {
     static EstimatorCache *cache = new EstimatorCache;
     return *cache;
+}
+
+// THE ONE DOOR TO THE CACHE: every cached estimator is bound to the inference thread here,
+// before its load(), so the cache holds no session that another thread could build or run.
+// `make` constructs and configures an estimator; it does not load it.
+EstimatorCache::Lease acquireCached(const EstimatorKey &key,
+                                    const std::function<std::unique_ptr<PoseEstimatorViTPose>()> &make)
+{
+    return estimatorCache().acquire(
+        key,
+        [&]() {
+            std::unique_ptr<PoseEstimatorViTPose> e = make();
+            e->bindInferenceThread(&inferenceThread());
+            e->load();   // on the inference thread; this thread waits
+            return e;
+        },
+        [](const PoseEstimatorViTPose &e) { return e.isReady(); });
 }
 
 PoseEstimatorViTPose::LoadOptions loadOptionsFor(bool fp16, bool coremlProgram, bool tensorrt,
@@ -302,12 +355,13 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     // session and this run's per-run state (decode mode, whole-body flag, result
     // slot, timing sink, the poseEstimated hook below). sessionCache = false
     // builds a private estimator exactly as before.
+    // Constructed and configured here; loaded by acquireCached (on the inference thread) or,
+    // private, right here.
     auto makeEstimator = [&]() {
         auto e = std::make_unique<PoseEstimatorViTPose>(variant);
         e->setIntraOpThreads(intraOpThreads);
         e->setLoadOptions(loadOpts);
         e->setTimingSink(&timingSink);   // the build lands in THIS run's sessionBuildMs
-        e->load();
         return e;
     };
     EstimatorCache::Lease                 lease;
@@ -320,12 +374,12 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         // building it; what it blocked for, less this run's own build, is the wait.
         QElapsedTimer acquireClock;
         acquireClock.start();
-        lease = estimatorCache().acquire(key, makeEstimator,
-                                         [](const PoseEstimatorViTPose &e) { return e.isReady(); });
+        lease = acquireCached(key, makeEstimator);
         timingSink.add(&pinpoint::pose::PoseTiming::sessionWaitMs,
                        std::max(0.0, double(acquireClock.elapsed()) - timingSink.snapshot().sessionBuildMs));
     } else {
         privateEstimator = makeEstimator();
+        privateEstimator->load();
     }
     PoseEstimatorViTPose &estimator = sessionCache ? *lease : *privateEstimator;
     estimator.setTimingSink(&timingSink);   // session build, preprocess, Run(), heatmaps, frames
@@ -364,10 +418,11 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                                            : PoseEstimatorViTPose::DecodeMode::Argmax);
     track.decode = acc.decodeDark ? QStringLiteral("dark") : QStringLiteral("argmax");
 
-    // inferPrepared() is synchronous and emits poseEstimated() inline on this
-    // (consumer) thread — a direct connection captures the result before it
-    // returns. The hook captures this run's locals, so it is cut on every exit:
-    // a cached estimator outlives the run.
+    // inferPrepared() is synchronous and emits poseEstimated() inline — on the
+    // inference thread for a cached session, while this (consumer) thread waits —
+    // so a direct connection captures the result before it returns. The hook
+    // captures this run's locals, so it is cut on every exit: a cached estimator
+    // outlives the run.
     PoseResult res;
     bool gotPose = false;
     const QMetaObject::Connection poseHook =
@@ -399,10 +454,12 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     const pinpoint::analysis::FrameStore *const store = frameLease.store();
 
     // ── Pipelined pose (perf plan step 2: a producer pool) ──────────────────────
-    // decode + preprocess run on producer threads while ORT inference runs on
-    // this (consumer) thread. One producer was the bottleneck once inference got
-    // fast: a 688×1024 BayerRG8 frame is ~5–8 ms of edge-aware demosaic + resize
-    // + normalise, against a Run() of a few ms on CoreML/CUDA. pose.producerThreads
+    // decode + preprocess run on producer threads while ORT inference is driven
+    // from this (consumer) thread (a cached session's Run() itself on the one
+    // inference thread, this thread waiting for each batch). One producer was
+    // the bottleneck once inference got fast: a 688×1024 BayerRG8 frame is ~5–8
+    // ms of edge-aware demosaic + resize + normalise, against a Run() of a few ms
+    // on CoreML/CUDA. pose.producerThreads
     // producers (auto min(4, physical cores / 2)) now each prepare their own
     // frames; runOrderedPipeline hands them to inference strictly in job order
     // through a pose.queueDepth (8) window. Output is byte-identical to the old
@@ -988,13 +1045,11 @@ double PoseRunner::warmUp(const QString &motionCaptureQuality)
         auto e = std::make_unique<PoseEstimatorViTPose>(variant);
         e->setIntraOpThreads(intraOpThreads);
         e->setLoadOptions(loadOpts);
-        e->load();
         return e;
     };
     {
-        EstimatorCache::Lease lease = estimatorCache().acquire(
-            estimatorKey(variant, loadOpts, intraOpThreads), make,
-            [](const PoseEstimatorViTPose &e) { return e.isReady(); });
+        // The load runs on the inference thread (acquireCached); this thread waits for it.
+        EstimatorCache::Lease lease = acquireCached(estimatorKey(variant, loadOpts, intraOpThreads), make);
         if (!lease->isReady()) {
             ppWarn() << "[PoseRunner] warm-up: ViTPose did not load";
             return 0.0;

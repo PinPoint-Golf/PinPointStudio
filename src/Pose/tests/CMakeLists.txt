@@ -56,6 +56,15 @@ pp_add_test(pose_model_selection_test
     SOURCES pose_model_selection_test.cpp
     INCLUDE ${POSE})
 
+# The pose inference thread (inference_thread.h; step 3.7, J-43): one thread whatever the caller,
+# FIFO, a task's exception to its caller, a re-entrant call run directly, a clean stop; and
+# PoseRunner's pattern — a cached estimator bound to it, two runs on fresh threads — with a fake
+# estimator. Header-only: no ORT, OpenCV or Qt.
+pp_add_test(inference_thread_test
+    SOURCES inference_thread_test.cpp
+    INCLUDE ${POSE}
+    NO_QT)
+
 # Heatmap sub-pixel decode (heatmap_decode.h, WB1): DARK Gaussian-peak recovery,
 # raw-score preservation, and the border/flat degenerate fallbacks to the argmax
 # rule. Pure C++ — no ORT / OpenCV / Qt.

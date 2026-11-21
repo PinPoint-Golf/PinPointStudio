@@ -150,6 +150,13 @@ std::atomic<bool> g_poseWarmUpInFlight{false};
 // of them persists anything: the PPCP statics are stopped on aboutToQuit). A normal quit, once the
 // warm-up is done, returns from main() as before.
 //
+// THE POSE INFERENCE THREAD IS STOPPED HERE TOO (step 3.7; J-43; DEC-194): every cached ViTPose
+// session runs on one long-lived thread PoseRunner owns (src/Pose/inference_thread.h). On a normal
+// quit it is stopped and joined here, after `app` (whose destructor waits for the global pool, so
+// no analysis is still asking it for work) and before any static is destroyed, so ORT and CUDA are
+// never torn down under a running inference. Idle, it joins at once. While the warm-up is still
+// building, that thread is inside the load, so the process ends below instead, as before.
+//
 // ⚠ WINDOWS: std::_Exit there still runs every DLL's DLL_PROCESS_DETACH (the CRT ends the process
 // with ExitProcess, which first kills the other threads — the warm-up's among them, possibly holding
 // a loader or ORT lock — and then detaches the DLLs, ORT and the CUDA runtime included). So Windows
@@ -159,8 +166,10 @@ struct AbandonPoseWarmUpAtExit {
     const int &exitCode;
     ~AbandonPoseWarmUpAtExit()
     {
-        if (!g_poseWarmUpInFlight.load())
+        if (!g_poseWarmUpInFlight.load()) {
+            PoseRunner::stopInferenceThread();
             return;
+        }
         // The app log is still alive here (a function-local static, gone only after main()).
         ppInfo() << "[PoseRunner] warm-up still building at quit — abandoned, not waited for";
         std::fflush(stdout);
@@ -1636,7 +1645,8 @@ int main(int argc, char *argv[])
     // the current quality tier (pose_inference_performance_plan.md step 1). Its OWN detached
     // thread, not the global pool: ~QCoreApplication waits for the pool, and a quit during the
     // load must not wait for it (#20) — AbandonPoseWarmUpAtExit above. Nothing joins it, and the
-    // cache is never torn down (pose_runner.cpp). Nothing on the GUI thread waits for it either:
+    // cache is never torn down (pose_runner.cpp). The load itself runs on the pose inference
+    // thread, this thread waiting for it (J-43). Nothing on the GUI thread waits for it either:
     // the first run() that needs the session takes it from the cache, waiting there if the
     // warm-up is still building it.
     QTimer::singleShot(1500, &app, [&appSettings]() {
