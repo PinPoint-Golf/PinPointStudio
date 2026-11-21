@@ -270,7 +270,9 @@ trend across sessions). Uses:
 
 Strict rule: the profile biases **ranking and presentation only** — never firing,
 never corridors. This is athlete *history*, not per-athlete norms (which remain out of
-scope). Storage: per-athlete `fault_profile.json` updated at session close.
+scope). Storage: per-athlete `fault_profile.json` updated at session close. *(Retired in refactor step 3.8-ii: the
+file was never written — its writer had no caller — and is deleted with its reader; H-11, D-07. The athlete-level
+history is `AthleteDiagnostics`' work-ons.)*
 
 ### A8. Measurement uncertainty through the DAG *(added 1 October 2026)*
 
@@ -705,8 +707,8 @@ wizard; gates Zone rendering and TTS, never the engine.
 (picker UI exists in intent; runtime consumption is new); baseline/intervention
 split for Moved-together grading.
 
-**C2.8 Fault profile store**: per-athlete `fault_profile.json`; updated at close;
-read at session start for warm-start expectations. Ranking/presentation only.
+**C2.8 Fault profile store** *(retired, refactor 3.8-ii: never written; deleted with its reader)*: per-athlete
+`fault_profile.json`; updated at close; read at session start for warm-start expectations. Ranking/presentation only.
 
 **C2.9 Spoken-cue generator**: templated one-liners from delta logic + pack
 vernacular; TTS dispatch gated on shot-state and cadence.

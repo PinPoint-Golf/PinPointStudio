@@ -257,18 +257,13 @@ public:
     // bind `summary.valid` safely without a null guard.
     Q_INVOKABLE QVariantMap shotSummary(int id) const;
 
-    // The analysisDetail of the swing captured just BEFORE the one at `swingDir` (the next-older
-    // sibling; rows are newest-first). Empty if `swingDir` isn't in this model or has no predecessor.
-    // Backs the wrist diagnostics "compare to previous" ghost.
-    Q_INVOKABLE QVariantMap previousAnalysisDetail(const QString &swingDir) const;
-
     // The analysisDetail of the swing at `swingDir`, from this model if it holds that row and
-    // FROM DISK IF IT DOES NOT. Backs the wrist diagnostics "compare to reference" ghost, and
-    // the fallback is what makes that ghost work at all: the reference is a swing the golfer
-    // marked once and it persists in settings, so by tomorrow it belongs to a session no model
-    // has loaded. Answering "not in this list" as "does not exist" made the reference curve
-    // disappear overnight without a word. Empty only when the document cannot be read.
-    // One full parse on the miss, and the callers bind it to a swingDir that rarely changes.
+    // FROM DISK IF IT DOES NOT. Its app caller (the retired WristDiagnosticsModel's "compare to reference"
+    // ghost) is gone (refactor 3.8-i); the dev probes read a swing's detail through it
+    // (tools/probes/instant_cards.qml, ks_overlay_chart.qml, plumb_bob_chart.qml). A swing outside
+    // the list is read from its document, not answered as absent. Empty only when the document cannot
+    // be read; one full parse on the miss. (Its sibling previousAnalysisDetail, test-only, was deleted
+    // in 3.8-ii: C-15, E-15.)
     Q_INVOKABLE QVariantMap analysisDetailForSwingDir(const QString &swingDir) const;
 
 signals:

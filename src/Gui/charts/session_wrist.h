@@ -20,26 +20,27 @@
 
 // ONE SHOT'S WRIST CHECKPOINT PROFILE, as the Charts panel carries it (build/wrist-tab/CONTRACT.md I3).
 //
-// The wrist engine (src/Wrist/wrist_assessment_engine.h) stays THE CELL GRADER: it samples each wrist
-// DOF at the eight checkpoints (wristCheckpoints(), the adapter's own table — never a phase list of
-// ours), takes the change from address, and grades each cell against the norm band of the resolved
-// archetype (NormBandProvider, the diagnostics norms). Its RULES and its score do not reach the panel:
-// findings and the score are the diagnostics conditions' (CONTRACT decision 3). `engineScore` is kept
-// only so the morning's before/after table can show the two side by side.
+// THE PROFILE IS THE FINDINGS' (refactor step 3.8-ii; DEC-123, J-58): fireFindings() runs the wrist engine over the
+// shot's wrist series (Wrist/wrist_profile_assess.h, the one rule) and the shot's row keeps the result
+// (ShotDiagnostics::wrist, diagnostics.json schema 16): the Δ from address at each checkpoint, and each cell's band and
+// RAG under each style with the style Auto resolved. This file GRADES NOTHING: it lays that profile out as the payload
+// below — picking the cells of the style asked for — with the DOFs' words (wrist_dof_metadata.h) and the checkpoint
+// times from the shot's own phases (wristCheckpoints(), on the series' window clock).
 //
-// INPUT IS THE ShotSeries ITSELF — the metrics and phases SessionSeriesModel already copied out — so a
-// change of archetype re-grades every shot from memory, and nothing of the swing document is held for
-// it. The angle source is built by the adapter's own buildWristAngleSource (same DOF keys, same
-// last-key-wins rule, same right-handed producer convention, same gimbal proxy), so this profile is the
-// one the retired WristDiagnosticsModel (deleted in refactor step 3.8: DEC-123) drew for the same swing; the only
-// difference is honesty about a missing
-// sample: a non-finite value is a gap (unavailable), never a 0.
+// A SHOT WITH WRIST READINGS AND NO PROFILE YET (its findings not written, a ledger older than schema 16, a newer build's
+// file this one cannot add to, a picked shot not in the snapshot yet) is never drawn empty and never as "no wrist
+// metrics": its payload is PENDING — `pending` true and `pendingWhy` the reason — with its DOFs and checkpoints and no
+// cell measured, and the Wrist chart says "not graded yet" in the cells (J-58: show, never hide).
+//
+// The ★ reference swing of ANOTHER session keeps today's read (J-58, J-ii3): its own document, its Δ only, through the
+// same rule with no band (wristDeltasOnly) — nothing is graded for it.
 //
 // ── THE PAYLOAD (QVariantMap; EMPTY when the shot has no wrist DOF) ─────────────────────────────
 //  { archetype: int (0 neutral | 1 bowed | 2 cupped — the RESOLVED band model),
 //    archetypeName: "Neutral" | "Bowed" | "Cupped",
 //    archetypeMode: int (-1 auto | 0..2 — what it was asked to grade against),
 //    resemblance: { neutral, bowed, cupped } (ints, %; the analysis' score.resemblance) | {},
+//    pending: bool, pendingWhy: string ("" unless pending),
 //    checkpoints: [ 8 × { tag: "P1".."P8", phase: int (the Phase enum it samples), note,
 //                         tUs: qint64 (window-relative; ABSENT when the swing has no such phase),
 //                         available: bool } ],
@@ -52,14 +53,12 @@
 //                             rag: "green" | "amber" | "red" | "ref" | "none",
 //                             banded: bool, bandLo, bandHi (null when !banded) } ] } ]
 //            in display order: hinge, bow / cup, forearm roll, trail wrist, lead elbow; only the
-//            DOFs the shot carries,
-//    engineScore: int }
+//            DOFs the shot carries }
 //
-// Pure apart from the shared norm set (sharedNormProvider, an immutable snapshot): no QObject, no
-// files, no threads of its own. Safe on any thread. Each call grades against the norm set current when
-// it starts, so a corridor saved in the Diagnostic Model reaches the next call.
+// Pure: no QObject, no files, no threads of its own. Safe on any thread.
 
 #include "session_series_types.h"
+#include "../../Wrist/wrist_profile_assess.h"   // WristInput
 
 #include <QJsonObject>
 #include <QString>
@@ -68,13 +67,16 @@
 
 namespace pinpoint::charts {
 
-// The profile of `shot` graded against `archetypeMode` (-1 = Auto: the engine resolves the swing's
-// own style). `resemblance` is carried through as given ({} = none). Empty when no wrist DOF.
-QVariantMap shotWristPayload(const ShotSeries &shot, int archetypeMode, const QVariantMap &resemblance);
+// The payload of `shot` at `archetypeMode` (-1 = Auto: the style its findings resolved), from its findings' profile
+// (shot.diagnostics.wrist). With wrist readings and no profile: the PENDING payload, `pendingWhy` its reason. Empty when
+// the shot carries no wrist DOF.
+QVariantMap shotWristPayload(const ShotSeries &shot, int archetypeMode, const QString &pendingWhy = QString());
 
-// The same payload re-graded against another archetype, or `payload` itself when it already is.
-// For a payload that is empty, returns it unchanged.
-QVariantMap regradeWristPayload(const ShotSeries &shot, const QVariantMap &payload, int archetypeMode);
+// The ★ reference swing read from its own document (another session's): its Δ only, every cell unbanded (J-ii3).
+QVariantMap referenceWristPayload(const ShotSeries &shot);
+
+// The shot's series and phases as the profile's rule reads them (every metric in the swing's own order).
+pinpoint::analysis::WristInput wristInputOfSeries(const ShotSeries &shot);
 
 // The analysis block's resemblance index (analysis.score.resemblance), normalised to
 // { neutral, bowed, cupped } ints; {} when the analysis carries none (an adherence score, a /2 doc).
@@ -82,10 +84,5 @@ QVariantMap wristResemblanceOf(const QJsonObject &analysis);
 
 // "Neutral" | "Bowed" | "Cupped" for 0..2 (anything else reads Neutral, as the engine resolves it).
 QString wristArchetypeName(int archetype);
-
-// Build the shared norm set and the band provider over it on the calling thread, so the first worker
-// read does not pay for the assembly. A warm-up only: the shared norm set's build is safe on any thread
-// (norm_provider.h), so nothing depends on it for correctness.
-void warmWristBands();
 
 } // namespace pinpoint::charts

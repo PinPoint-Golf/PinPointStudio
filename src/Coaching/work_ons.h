@@ -51,7 +51,7 @@
 //
 // The aggregate is a PURE FUNCTION OF THE SESSION RECORDS. Nothing accumulates: deleting a
 // session, re-analysing one or changing the rule changes the list by re-running it, which is
-// what the incremental fault profile could not do.
+// what an incremental tally (the fault profile, deleted in refactor 3.8-ii) could not do.
 //
 // Unit-tested standalone in src/Analysis/tests/work_ons_test.cpp.
 
@@ -605,9 +605,9 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
         }
 
         // THE CARD ROW'S ORDER, minus history. Magnitude first, the bound to settle a near-tie,
-        // and the pack's two demotions (SessionDiagnosticsModel::rankScores). The fault profile's
-        // bias is deliberately absent: what a session records must be a function of that session,
-        // or the aggregate would be counting its own earlier answers.
+        // and the pack's two demotions (SessionDiagnosticsModel::rankScores). No history: what a
+        // session records must be a function of that session, or the aggregate would be counting
+        // its own earlier answers.
         c.score = l.firingExcess + 0.10 * l.wilsonLower;
         const ConditionRow *latest = shots.empty() ? nullptr : rowFor(shots.back(), l.id);
         if (latest && !latest->material)       c.score -= 0.05;

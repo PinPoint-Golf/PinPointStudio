@@ -18,18 +18,13 @@
 
 #include "session_wrist.h"
 
-#include "../../Wrist/reference_bands.h"
 #include "../../Wrist/wrist_analysis_adapter.h"
-#include "../../Wrist/wrist_assessment_engine.h"
 #include "../../Wrist/wrist_dof_metadata.h"
 
 #include <QHash>
-#include <QMutex>
-#include <QMutexLocker>
 #include <QVariantList>
 
 #include <cmath>
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -39,8 +34,8 @@ namespace {
 
 namespace pa = pinpoint::analysis;
 
-// The display order (the retired WristDiagnosticsModel's kDisplayOrder): lag → face → forearm roll → trail tray →
-// the grid-only lead elbow.
+// The display order (the profile's own: Wrist/wrist_profile_assess.cpp): lag → face → forearm roll → trail tray → the
+// grid-only lead elbow.
 const pa::PpJointDof kDisplayOrder[] = {
     pa::PpJointDof::LeadWristRadUln,
     pa::PpJointDof::LeadWristFlexExt,
@@ -49,30 +44,16 @@ const pa::PpJointDof kDisplayOrder[] = {
     pa::PpJointDof::LeadElbowFlex,
 };
 
-// The band provider over the CURRENT shared norm set, as a snapshot. NormBandProvider is read-only once
-// made (it holds one norm snapshot), so every worker may grade through it at once. It is made again,
-// under this lock, when the shared norm set has moved since (a corridor saved in the Diagnostic Model
-// resets it); a grade already holding the old one finishes on it. Safe from any thread: the shared
-// norm set's own build is (norm_provider.h).
-std::shared_ptr<const pa::IReferenceBandProvider> bands()
+std::optional<pa::PpJointDof> dofNamed(const QString &name)
 {
-    static QMutex lock;
-    static std::shared_ptr<const pa::IReferenceBandProvider> provider;
-    static quint64 builtAt = 0;
-    QMutexLocker lk(&lock);
-    if (!provider || builtAt != pa::sharedNormProviderGeneration()) {
-        std::shared_ptr<const pa::INormProvider> norms = pa::sharedNormProvider(&builtAt);
-        provider = std::make_shared<const pa::NormBandProvider>(std::move(norms));
-    }
-    return provider;
+    for (pa::PpJointDof d : kDisplayOrder)
+        if (name == QLatin1String(pa::dofName(d))) return d;
+    for (int d = 0; d < pa::kNumDof; ++d)
+        if (name == QLatin1String(pa::dofName(pa::PpJointDof(d)))) return pa::PpJointDof(d);
+    return std::nullopt;
 }
 
 QVariant nul() { return QVariant::fromValue(nullptr); }
-
-QString ragWord(pa::PpRag r)
-{
-    return r == pa::PpRag::Grey ? QStringLiteral("none") : QString::fromLatin1(pa::ragName(r));
-}
 
 // "IMU" for the wrist unit's own reading (hm.*); a lead-wrist DOF read off anything else is the pose's.
 QString sourceOf(const pa::DofMetadata &meta, const QString &key)
@@ -82,9 +63,107 @@ QString sourceOf(const pa::DofMetadata &meta, const QString &key)
     return meta.source;
 }
 
-} // namespace
+// The checkpoints on the shot's own (window) clock: each checkpoint's phase, its first mark (the adapter's rule).
+QVariantList checkpointsOf(const ShotSeries &shot)
+{
+    QVariantList cps;
+    const pa::WristCheckpoint *k = pa::wristCheckpoints();
+    for (int c = 0; c < pa::kNumPos; ++c) {
+        const PhaseMark *at = nullptr;
+        for (const PhaseMark &p : shot.phases)
+            if (p.phase >= 0 && p.phase == k[c].phase) { at = &p; break; }
+        QVariantMap m{ { QStringLiteral("tag"), QStringLiteral("P%1").arg(int(k[c].pos) + 1) },
+                       { QStringLiteral("phase"), k[c].phase }, { QStringLiteral("note"), QString::fromLatin1(k[c].note) },
+                       { QStringLiteral("available"), at != nullptr } };
+        if (at) m.insert(QStringLiteral("tUs"), qlonglong(at->tUs));
+        cps.append(m);
+    }
+    return cps;
+}
 
-void warmWristBands() { (void)bands(); }
+QVariantMap dofHead(pa::PpJointDof dof, const QString &key, double confidence)
+{
+    const pa::DofMetadata meta = pa::dofMetadata(dof);
+    return { { QStringLiteral("dof"), QString::fromLatin1(pa::dofName(dof)) }, { QStringLiteral("metricKey"), key },
+             { QStringLiteral("name"), meta.name }, { QStringLiteral("sub"), meta.sub }, { QStringLiteral("axisName"), meta.axisName },
+             { QStringLiteral("source"), sourceOf(meta, key) }, { QStringLiteral("confidence"), confidence },
+             { QStringLiteral("poleTop"), meta.poleTop }, { QStringLiteral("poleBottom"), meta.poleBottom },
+             { QStringLiteral("hasStrip"), meta.hasStrip } };
+}
+
+QVariantMap payloadOf(const ShotSeries &shot, const pa::WristProfile &prof, int archetypeMode, bool unbanded)
+{
+    const int mode = archetypeMode < -1 || archetypeMode > 2 ? -1 : archetypeMode;
+    const int style = mode < 0 ? prof.resolved : mode;
+    QVariantList dofs;
+    for (const pa::WristProfileRow &r : prof.rows) {
+        const std::optional<pa::PpJointDof> dof = dofNamed(r.dof);
+        if (!dof) continue;
+        QVariantMap d = dofHead(*dof, r.metricKey, r.confidence);
+        QVariantList cells;
+        for (int p = 0; p < pa::kWristProfilePositions; ++p) {
+            const double delta = r.deltaDeg[size_t(p)];
+            const bool ok = std::isfinite(delta);
+            const pa::WristProfileGrade g = unbanded ? pa::WristProfileGrade{} : r.grades[size_t(style)][size_t(p)];
+            QVariantMap cm{ { QStringLiteral("available"), ok }, { QStringLiteral("rag"), g.rag },
+                            { QStringLiteral("banded"), g.banded },
+                            { QStringLiteral("bandLo"), g.banded ? QVariant(g.lo) : nul() },
+                            { QStringLiteral("bandHi"), g.banded ? QVariant(g.hi) : nul() } };
+            if (ok) cm.insert(QStringLiteral("deltaDeg"), delta);
+            cells.append(cm);
+        }
+        d.insert(QStringLiteral("cells"), cells);
+        dofs.append(d);
+    }
+    if (dofs.isEmpty()) return {};
+    return { { QStringLiteral("archetype"), style }, { QStringLiteral("archetypeName"), wristArchetypeName(style) },
+             { QStringLiteral("archetypeMode"), mode }, { QStringLiteral("resemblance"), shot.wristResemblance },
+             { QStringLiteral("pending"), false }, { QStringLiteral("pendingWhy"), QString() },
+             { QStringLiteral("checkpoints"), checkpointsOf(shot) }, { QStringLiteral("dofs"), dofs } };
+}
+
+// Wrist readings, no profile: the DOFs it carries (the rule's own pick: per DOF the last key), no cell measured.
+QVariantMap pendingOf(const ShotSeries &shot, int archetypeMode, const QString &why)
+{
+    const pa::WristInput in = wristInputOfSeries(shot);
+    if (!in.hasWristDof()) return {};
+    std::vector<pa::MetricSeries> series;
+    QHash<int, QString> keyOf;
+    for (const pa::WristInput::Series &s : in.series) {
+        const std::optional<pa::PpJointDof> dof = pa::dofForMetricKey(s.key);
+        if (!dof || s.tUs.empty() || s.value.empty() || pa::isCameraWristDofSeries(s.routeId)) continue;
+        pa::MetricSeries m;
+        m.key = s.key;
+        m.t_us.assign(s.tUs.begin(), s.tUs.end());
+        m.value = s.value;
+        series.push_back(std::move(m));
+        keyOf.insert(int(*dof), s.key);
+    }
+    const pa::InMemoryWristAngleSource source = pa::buildWristAngleSource(series, {});
+    QVariantList dofs;
+    for (pa::PpJointDof dof : kDisplayOrder) {
+        if (!keyOf.contains(int(dof))) continue;
+        const pa::PpJointAngleSeries *s = source.series(dof);
+        QVariantMap d = dofHead(dof, keyOf.value(int(dof)), s ? double(s->baseConfidence) : 0.0);
+        QVariantList cells;
+        for (int p = 0; p < pa::kWristProfilePositions; ++p)
+            cells.append(QVariantMap{ { QStringLiteral("available"), false }, { QStringLiteral("rag"), QStringLiteral("none") },
+                                      { QStringLiteral("banded"), false }, { QStringLiteral("bandLo"), nul() },
+                                      { QStringLiteral("bandHi"), nul() } });
+        d.insert(QStringLiteral("cells"), cells);
+        dofs.append(d);
+    }
+    if (dofs.isEmpty()) return {};
+    const int mode = archetypeMode < -1 || archetypeMode > 2 ? -1 : archetypeMode;
+    const int style = mode < 0 ? 0 : mode;
+    return { { QStringLiteral("archetype"), style }, { QStringLiteral("archetypeName"), wristArchetypeName(style) },
+             { QStringLiteral("archetypeMode"), mode }, { QStringLiteral("resemblance"), shot.wristResemblance },
+             { QStringLiteral("pending"), true },
+             { QStringLiteral("pendingWhy"), why.isEmpty() ? QStringLiteral("Diagnostics have not graded this swing's wrist checkpoints yet.") : why },
+             { QStringLiteral("checkpoints"), checkpointsOf(shot) }, { QStringLiteral("dofs"), dofs } };
+}
+
+} // namespace
 
 QString wristArchetypeName(int archetype)
 {
@@ -109,107 +188,33 @@ QVariantMap wristResemblanceOf(const QJsonObject &analysis)
     return out;
 }
 
-QVariantMap shotWristPayload(const ShotSeries &shot, int archetypeMode, const QVariantMap &resemblance)
+pa::WristInput wristInputOfSeries(const ShotSeries &shot)
 {
-    // The wrist series only, in the swing's own order (last key per DOF wins, as the adapter's).
-    std::vector<pa::MetricSeries> series;
-    QHash<int, QString> keyOf;
+    pa::WristInput in;
     for (const QString &k : shot.metricOrder) {
-        const std::optional<pa::PpJointDof> dof = pa::dofForMetricKey(k);
-        if (!dof) continue;
         const MetricSeries *m = shot.metric(k);
-        if (!m || m->tUs.empty()) continue;
-        if (pa::isCameraWristDofSeries(m->routeId)) continue;   // the face-on elbow is not the sensors' grid
-        pa::MetricSeries s;
+        if (!m) continue;
+        pa::WristInput::Series s;
         s.key = k;
-        s.t_us.assign(m->tUs.begin(), m->tUs.end());
+        s.routeId = m->routeId;
+        s.tUs.assign(m->tUs.begin(), m->tUs.end());
         s.value = m->value;
-        series.push_back(std::move(s));
-        keyOf.insert(int(*dof), k);
+        in.series.push_back(std::move(s));
     }
-    if (series.empty()) return {};
-
-    std::vector<pa::PhaseEvent> phases;
-    phases.reserve(shot.phases.size());
-    for (const PhaseMark &p : shot.phases) {
-        if (p.phase < 0) continue;
-        pa::PhaseEvent e;
-        e.phase = pa::Phase(p.phase);
-        e.t_us  = p.tUs;
-        e.conf  = std::isfinite(p.conf) ? float(p.conf) : 1.0f;
-        phases.push_back(e);
-    }
-
-    pa::InMemoryWristAngleSource source = pa::buildWristAngleSource(series, phases);
-    // A missing sample is a gap, never a value: the document's null reads NaN here (session_series_model
-    // num()), which the sampler would otherwise median into the cell.
-    for (int d = 0; d < pa::kNumDof; ++d) {
-        const pa::PpJointAngleSeries *s = source.series(pa::PpJointDof(d));
-        if (!s) continue;
-        bool any = false;
-        for (const pa::PpJointAngleSample &x : s->samples) any = any || !std::isfinite(x.valueDeg) || !std::isfinite(x.pitchProxyDeg);
-        if (!any) continue;
-        pa::PpJointAngleSeries fixed = *s;
-        for (pa::PpJointAngleSample &x : fixed.samples) {
-            if (!std::isfinite(x.valueDeg)) { x.valueDeg = 0.0; x.available = false; }
-            if (!std::isfinite(x.pitchProxyDeg)) x.pitchProxyDeg = 0.0;
-        }
-        source.setSeries(fixed);
-    }
-
-    pa::WristAssessmentConfig cfg;
-    cfg.band.archetype = archetypeMode < -1 || archetypeMode > 2 ? -1 : archetypeMode;
-    const pa::PpWristAssessmentResult r = pa::WristAssessmentEngine::assess(source, *bands(), cfg);
-    const pa::PpSwingPositionTimeline tl = source.timeline();
-
-    QVariantList dofs;
-    for (pa::PpJointDof dof : kDisplayOrder) {
-        const pa::PpDofRow &row = r.row(dof);
-        if (!row.present) continue;
-        const pa::DofMetadata meta = pa::dofMetadata(dof);
-        const QString key = keyOf.value(int(dof));
-        QVariantList cells;
-        for (int p = 0; p < pa::kNumPos; ++p) {
-            const pa::PpRagCell &c = row.cells[size_t(p)];
-            const bool ok = c.status == pa::PpCellStatus::Ok && std::isfinite(c.deltaDeg);
-            QVariantMap cm{ { QStringLiteral("available"), ok }, { QStringLiteral("rag"), ragWord(c.rag) },
-                            { QStringLiteral("banded"), c.banded },
-                            { QStringLiteral("bandLo"), c.banded ? QVariant(c.bandLo) : nul() },
-                            { QStringLiteral("bandHi"), c.banded ? QVariant(c.bandHi) : nul() } };
-            if (ok) cm.insert(QStringLiteral("deltaDeg"), c.deltaDeg);
-            cells.append(cm);
-        }
-        dofs.append(QVariantMap{
-            { QStringLiteral("dof"), QString::fromLatin1(pa::dofName(dof)) }, { QStringLiteral("metricKey"), key },
-            { QStringLiteral("name"), meta.name }, { QStringLiteral("sub"), meta.sub }, { QStringLiteral("axisName"), meta.axisName },
-            { QStringLiteral("source"), sourceOf(meta, key) }, { QStringLiteral("confidence"), double(row.confidence) },
-            { QStringLiteral("poleTop"), meta.poleTop }, { QStringLiteral("poleBottom"), meta.poleBottom },
-            { QStringLiteral("hasStrip"), meta.hasStrip }, { QStringLiteral("cells"), cells } });
-    }
-    if (dofs.isEmpty()) return {};
-
-    QVariantList cps;
-    const pa::WristCheckpoint *k = pa::wristCheckpoints();
-    for (int c = 0; c < pa::kNumPos; ++c) {
-        const auto &e = tl.positions[size_t(c)];
-        QVariantMap m{ { QStringLiteral("tag"), QStringLiteral("P%1").arg(int(k[c].pos) + 1) },
-                       { QStringLiteral("phase"), k[c].phase }, { QStringLiteral("note"), QString::fromLatin1(k[c].note) },
-                       { QStringLiteral("available"), e.present } };
-        if (e.present) m.insert(QStringLiteral("tUs"), qlonglong(e.t_us));
-        cps.append(m);
-    }
-
-    return { { QStringLiteral("archetype"), r.archetype }, { QStringLiteral("archetypeName"), wristArchetypeName(r.archetype) },
-             { QStringLiteral("archetypeMode"), cfg.band.archetype }, { QStringLiteral("resemblance"), resemblance },
-             { QStringLiteral("checkpoints"), cps }, { QStringLiteral("dofs"), dofs },
-             { QStringLiteral("engineScore"), r.score.total } };
+    for (const PhaseMark &p : shot.phases) in.phases.push_back(pa::WristInput::Phase{ p.phase, p.tUs, p.conf });
+    return in;
 }
 
-QVariantMap regradeWristPayload(const ShotSeries &shot, const QVariantMap &payload, int archetypeMode)
+QVariantMap shotWristPayload(const ShotSeries &shot, int archetypeMode, const QString &pendingWhy)
 {
-    if (payload.isEmpty()) return payload;
-    if (payload.value(QStringLiteral("archetypeMode")).toInt() == archetypeMode) return payload;
-    return shotWristPayload(shot, archetypeMode, payload.value(QStringLiteral("resemblance")).toMap());
+    if (shot.diagnostics.wrist.present) return payloadOf(shot, shot.diagnostics.wrist, archetypeMode, false);
+    return pendingOf(shot, archetypeMode, pendingWhy);
+}
+
+QVariantMap referenceWristPayload(const ShotSeries &shot)
+{
+    if (shot.diagnostics.wrist.present) return payloadOf(shot, shot.diagnostics.wrist, -1, true);
+    return payloadOf(shot, pa::wristDeltasOnly(wristInputOfSeries(shot)), -1, true);
 }
 
 } // namespace pinpoint::charts

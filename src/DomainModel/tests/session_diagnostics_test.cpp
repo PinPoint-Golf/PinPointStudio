@@ -56,6 +56,7 @@
 #include "../session.h"
 #include "../session_diagnostics.h"
 #include "../shot.h"
+#include "../../Core/folder_lock.h"
 #include "../../Core/work_pool.h"
 #include "../../Diagnostics/measures/live_measure_source.h"
 #include "../../Export/firing_reader_store.h"
@@ -88,6 +89,7 @@
 #include <memory>
 #include <mutex>
 #include <stdexcept>
+#include <thread>
 
 #ifndef PP_LIVE_SWINGS_DIR
 #  define PP_LIVE_SWINGS_DIR "."
@@ -622,6 +624,14 @@ static void testT4()
     pump([] { return false; }, 100);
 }
 
+// One read's findings against the session's inputs (for comparing two reads of the same shot).
+static analysis::ShotRecord fireOf(const FiringRead &r, SessionDiagnostics *d)
+{
+    analysis::FiredShot f = analysis::fireFindings(r.readings, d->snapshot()->inputs);
+    f.record.shotId = 2;
+    return f.record;
+}
+
 // ── R: the real reader, headless ───────────────────────────────────────────────────────────────────────────
 static void testRealReader()
 {
@@ -642,6 +652,7 @@ static void testRealReader()
     r.dataWarning   = sum.dataWarning;
     r.captureBroken = sum.dataWarningDetail.value(QStringLiteral("capture")).toBool();
     r.imuBroken     = sum.dataWarningDetail.value(QStringLiteral("imu")).toBool();
+    r.wrist         = analysis::readWristInput(folder, r.grid);   // the wrist checkpoint profile's readings (3.8-ii)
     analysis::FiredShot direct = analysis::fireFindings(std::move(r), d->snapshot()->inputs);
     direct.record.shotId      = 1;
     direct.record.timestampMs = k->findings.timestampMs;
@@ -654,6 +665,49 @@ static void testRealReader()
     const FiringRead none = off.read(ShotRef(s->id(), 1), d->snapshot()->inputs.pack->pack());
     check(QStringLiteral("Re a store that does not publish the session reads nothing (unread, with the reason)"),
           !none.ok && !none.error.isEmpty());
+
+    // R1-m6 (refactor 3.8-ii; REVIEW-e, J-58): a firing read writes the sidecars it rebuilt ONLY under the session's lock
+    // and ONLY with no archive marker, so a job still on a worker when an archive starts never leaves a cache in a swing the
+    // archive is thinning. The read itself is the same either way.
+    const SwingStoreFiringReader reader(rig.store, *rig.recordings);
+    const ShotRef two(s->id(), 2);
+    Shot *shot2 = s->shot(two);
+    const QString f2 = shot2 ? shot2->folder() : QString();
+    const QString sessionDir = QFileInfo(f2).absolutePath();
+    const QString grid2 = analysis::phaseGridPath(f2), sum2 = f2 + QStringLiteral("/swing_summary.json");
+    const auto clear = [&] { QFile::remove(grid2); QFile::remove(sum2); };
+    const analysis::CharacteristicPack &pk = d->snapshot()->inputs.pack->pack();
+    clear();
+    const FiringRead open = reader.read(two, pk);
+    check(QStringLiteral("Rf outside the archive window the rebuilt sidecars are written (the grid's and the JSON-era summary's)"),
+          open.ok && QFile::exists(grid2) && QFile::exists(sum2));
+    clear();
+    {
+        QFile m(SessionFiles::archiveMarker(sessionDir));
+        m.open(QIODevice::WriteOnly);
+        m.write("{}");
+    }
+    const FiringRead marked = reader.read(two, pk);
+    check(QStringLiteral("Rg with the archive marker there, nothing is written (and the read is the same)"),
+          marked.ok && !QFile::exists(grid2) && !QFile::exists(sum2) && json(fireOf(marked, d)) == json(fireOf(open, d)));
+    QFile::remove(SessionFiles::archiveMarker(sessionDir));
+    std::atomic_bool held{ false }, letGo{ false };
+    std::thread holder([&] {
+        FolderLock lock(sessionDir);
+        held = lock.lock() == FolderLock::Result::Acquired;
+        while (!letGo) QThread::msleep(5);
+    });
+    for (int i = 0; i < 400 && !held; ++i) QThread::msleep(5);
+    QElapsedTimer waited;
+    waited.start();
+    const FiringRead locked = reader.read(two, pk);
+    const qint64 readMs = waited.elapsed();
+    letGo = true;
+    holder.join();
+    check(QStringLiteral("Rh with the session's lock held by another writer, nothing is written"),
+          held && locked.ok && !QFile::exists(grid2) && !QFile::exists(sum2));
+    // the read waits at most its short lock wait (250 ms) for the sidecar, never the lock's own 5 s: under a second
+    check(QStringLiteral("Rh2 …and the read does not wait for that writer (%1 ms, under 1 s)").arg(readMs), readMs < 1000);
 }
 
 // ── Q18: release in a sweep ────────────────────────────────────────────────────────────────────────────────

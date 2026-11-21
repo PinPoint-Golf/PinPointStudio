@@ -31,8 +31,8 @@
 //   5. one line per session on stdout: shots, stage, patterns, coverage, and what was carried —
 //      with a WARN, and exit 1, if the rebuilt file does not say the same as the old one did
 //
-// It does NOT close the session — closeSession() writes the athlete's fault_profile.json and
-// freezes the stage, and a sweep is a re-reading of evidence, not a session ending — and it does
+// It does NOT close the session — a session's End is its Session's (EVT-09), and a sweep is a
+// re-reading of evidence, not a session ending — and it does
 // not touch swing.json, pose, ball or shaft. No pose re-analysis is involved; the reduction reads
 // the metrics already in each document.
 //

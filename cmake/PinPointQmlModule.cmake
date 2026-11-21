@@ -740,6 +740,9 @@ set(PP_QML_SOURCES
     src/Wrist/wrist_assessment_engine.cpp
     src/Wrist/wrist_analysis_adapter.h
     src/Wrist/wrist_analysis_adapter.cpp
+    src/Wrist/wrist_profile.h
+    src/Wrist/wrist_profile_assess.h
+    src/Wrist/wrist_profile_assess.cpp
     src/Wrist/assessment_rule.h
     src/Wrist/assessment_rules.h
     src/Wrist/assessment_rules.cpp

@@ -2,7 +2,7 @@
 //
 // diagnostic_ledger_test proves the arithmetic; live_measure_source_test proves the pack meets a
 // real swing. Neither can fail if the ORCHESTRATION between them is wrong, and orchestration is
-// where this panel's honesty actually lives: a cadence check in the ingest path, a fault profile
+// where this panel's honesty actually lives: a cadence check in the ingest path, history
 // leaking into a tier, an idempotence hole that counts one swing twice, a diagnostics.json that
 // does not round-trip — every one of those produces a panel that looks entirely healthy and is
 // lying about a golfer.
@@ -16,14 +16,14 @@
 //   · cadence changes `quiet` and NOTHING that is stored — the two modes' ledgers are compared
 //     byte for byte;
 //   · the focus contract and the declared miss move no tier, no count and no corridor;
-//   · the fault profile is written at close, read at the next activation, and moves no tier;
+//   · no fault profile is read or written (retired in 3.8-ii), and an old file of its name moves no tier;
 //   · a shot whose document is rewritten (a re-analysis) is REGRADED in place — live through
 //     regradeShot(), even in a closed session, and on the next activation otherwise — and a
 //     shot whose document has not changed is left exactly as it was.
 //
 // The fixtures are live_measure_source_test's, staged into a temporary session so the model sees
-// the swing-library shape it will see in the app (<athlete>/<session>/swing_NNNN/swing.json) — the
-// fault profile lands in the ATHLETE folder, which only exists if the session has a parent.
+// the swing-library shape it will see in the app (<athlete>/<session>/swing_NNNN/swing.json): a
+// session's siblings in its ATHLETE folder are its golfer's history.
 //
 //   cmake --build build/analysis-tests --target session_diagnostics_model_test
 //   ctest --test-dir build/analysis-tests -R session_diagnostics_model --output-on-failure
@@ -80,8 +80,7 @@ static void check(bool c, const char *label)
 // ── Fixture staging ─────────────────────────────────────────────────────────────────────
 
 // <root>/<athlete>/<session>/swing_000N/swing.json, copied out of the corpus fixtures. The
-// two-deep shape is load-bearing: faultProfilePath() is the session's PARENT, so a flat
-// staging would write the athlete's history inside one session and give it a sample size of one.
+// two-deep shape is the library's: a session's siblings are its athlete's history (historyOf).
 static QString makeSession(const QTemporaryDir &tmp, const char *athlete, const char *session)
 {
     const QString dir = QDir(tmp.path()).filePath(QLatin1String(athlete) + QLatin1Char('/')
@@ -254,7 +253,7 @@ static QByteArray surfaceOf(const SessionDiagnosticsModel &m)
 // The tier ledger, and ONLY the tier ledger. This is what "never alters detection or tiers" is
 // asserted against — a snapshot that also carried ranking or link grades would pass when a focus
 // contract legitimately changed a LINK (which it may) and fail for the wrong reason. Sorted for
-// the same reason as above, and here the sort is itself load-bearing: the fault profile is
+// the same reason as above, and here the sort is itself load-bearing: a ranking bias would be
 // ALLOWED to change the order and forbidden to change anything in the rows.
 static QByteArray tiersOf(const SessionDiagnosticsModel &m)
 {
@@ -306,6 +305,26 @@ static std::unique_ptr<SessionDiagnosticsModel> freshModel(const QString &cadenc
     m->setSynchronous(true);
     m->setCadence(cadence);
     return m;
+}
+
+// THE SESSION'S END, AS ITS OWNER RECORDS IT (refactor 3.8-ii): the model's own closeSession(), which nothing in the app
+// called, is deleted (C-15, D-07). A session ends through its Session (EVT-09), whose diagnosis writes `closed` into
+// diagnostics.json's session block; a model reads it from there. So: the file marked closed, the model pointed at it again.
+static void endTheSession(SessionDiagnosticsModel &m)
+{
+    m.waitForIdle();
+    const QString path = QDir(m.sessionDir()).filePath(QStringLiteral("diagnostics.json"));
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return;
+    QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();
+    QJsonObject session = root.value(QStringLiteral("session")).toObject();
+    session[QStringLiteral("closed")] = true;
+    root[QStringLiteral("session")] = session;
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return;
+    f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+    f.close();
+    m.activateSession(m.sessionDir());
 }
 
 // A measure source holding exactly what a test puts in it — for evaluateSignal's refusals.
@@ -2949,9 +2968,9 @@ int main(int argc, char **argv)
         m->ingestShot(3, swingDirFor(stepDir, 1));
         check(m->shotCount() == kShots, "re-ingesting a shot id is a no-op");
 
-        // Closing freezes and produces the bookends strip.
-        m->closeSession();
-        check(m->stage() == QLatin1String("closing"), "closeSession freezes at Closing");
+        // The session's end freezes and produces the bookends strip.
+        endTheSession(*m);
+        check(m->stage() == QLatin1String("closing"), "an ended session reads frozen at Closing");
         check(!m->bookends().isEmpty(), "the closing panel offers session bookends");
         // #17: the closing line, from the model itself — what the counts cover, which shot is this one in
         // words that do not depend on how it is drawn, and why a count is not a percentage, in plain words
@@ -3179,7 +3198,7 @@ int main(int argc, char **argv)
         check(!sparse.isEmpty() && sparse != rich, "…graded, and different from the rich reading");
 
         // Live, in a CLOSED session: the panel is up when the re-analysis lands.
-        m->closeSession();
+        endTheSession(*m);
         check(swapShot(dir, 1, "rich_7iron"), "the shot is re-analysed — its document rewritten");
         m->regradeShot(swingDirFor(dir, 1));
         check(m->shotCount() == 1, "regradeShot replaces the row — still one shot");
@@ -3323,7 +3342,7 @@ int main(int argc, char **argv)
               "forgetting it again, or a swing of another session, changes nothing");
 
         // In a closed session the summary must not count it either.
-        m->closeSession();
+        endTheSession(*m);
         check(QDir(swingDirFor(dir, 3)).removeRecursively(), "swing 3 goes after the session closed");
         m->forgetShot(swingDirFor(dir, 3));
         check(m->shotCount() == 1, "a closed session forgets it too");
@@ -3550,65 +3569,48 @@ int main(int argc, char **argv)
               "clearFocus still withdraws an adopted focus");
     }
 
-    // ── 6. The fault profile: written at close, read at the next activation, inert ───
-    std::printf("\nfault profile\n");
+    // ── 6. No fault profile (refactor 3.8-ii: FILE-ATH-05 deleted with its reader and writer; H-11, D-07) ──────
+    // It was read at every activation and written at a close nothing called, so no library ever held one. A file of its
+    // old name in the athlete folder is now nothing: the same rows give the same tiers, order and ranks without it, the
+    // Cold list stays empty, and nothing is written there.
+    std::printf("\nno fault profile\n");
     {
-        const QString first  = makeSession(tmp, "athlete_e", "session_one");
-        const QString second = makeSession(tmp, "athlete_e", "session_two");
-        check(stageLayout(first) && stageLayout(second), "two sessions for one athlete");
-
-        auto m1 = freshModel();
-        m1->activateSession(first);
-        check(m1->expectations().isEmpty(), "a first session has no history to expect");
-        m1->closeSession();
-
-        const QString profilePath =
-            QDir(QDir(first).filePath(QStringLiteral(".."))).absoluteFilePath(
-                QStringLiteral("fault_profile.json"));
-        check(QFile::exists(profilePath),
-              "closing writes fault_profile.json into the ATHLETE folder, not the session");
-
-        auto m2 = freshModel();
-        m2->activateSession(second);
-        const QByteArray tiersWithProfile = tiersOf(*m2);
-        check(!m2->expectations().isEmpty(),
-              "the next session opens with the athlete's usual patterns");
-        const QVariantMap exp = m2->expectations().first().toMap();
-        check(exp.value(QStringLiteral("text")).toString()
-                  .contains(QLatin1String("of your last")),
-              "…phrased as a count of sessions, never a percentage");
-        check(exp.value(QStringLiteral("caveat")).toString()
-                  .contains(QLatin1String("not a finding")),
-              "…and labelled an expectation to test");
-
-        // The structural claim: the same rows under a profile and under none produce the same
-        // tiers. The profile reaches ranking and the Cold list; there is no code path from it
-        // to a reduction, and this is the assertion that keeps it that way.
-        const QString bare = makeSession(tmp, "athlete_f", "session_two");
-        check(stageLayout(bare), "the same six swings under an athlete with no history");
-        auto m3 = freshModel();
-        m3->activateSession(bare);
-        check(m3->expectations().isEmpty(), "no history, no expectations");
-        check(tiersOf(*m3) == tiersWithProfile,
-              "IDENTICAL ROWS PRODUCE IDENTICAL TIERS, profile or no profile");
-
-        // Closing twice must not double-count the session.
-        auto m4 = freshModel();
-        m4->activateSession(first);
-        m4->closeSession();
-        QFile pf(profilePath);
-        check(pf.open(QIODevice::ReadOnly), "the profile is readable");
-        const QJsonObject prof = QJsonDocument::fromJson(pf.readAll()).object();
-        pf.close();
-        const QJsonObject conds = prof.value(QStringLiteral("conditions")).toObject();
-        bool countsSane = !conds.isEmpty();
-        for (auto it = conds.constBegin(); it != conds.constEnd(); ++it) {
-            const QJsonObject c = it.value().toObject();
-            if (c.value(QStringLiteral("sessionsSeen")).toInt() != 1) countsSane = false;
+        const QString planted = makeSession(tmp, "athlete_e", "session_two");
+        const QString bare    = makeSession(tmp, "athlete_f", "session_two");
+        check(stageLayout(planted) && stageLayout(bare), "the same six swings under two athletes");
+        const QString profilePath = QDir(QDir(planted).filePath(QStringLiteral(".."))).absoluteFilePath(
+            QStringLiteral("fault_profile.json"));
+        {
+            // the old shape, every condition a pattern in every earlier session: the strongest bias it could have given
+            QJsonObject conds;
+            for (const char *id : { "early_extension", "over_the_top", "sway", "hips_closed_at_impact" })
+                conds.insert(QLatin1String(id), QJsonObject{ { QStringLiteral("sessionsSeen"), 9 }, { QStringLiteral("sessionsPattern"), 9 },
+                                                             { QStringLiteral("trend"), QStringLiteral("rising") } });
+            QFile pf(profilePath);
+            check(pf.open(QIODevice::WriteOnly), "a fault_profile.json of the old shape planted in one athlete folder");
+            pf.write(QJsonDocument(QJsonObject{ { QStringLiteral("conditions"), conds } }).toJson());
         }
-        check(countsSane, "closing the same session twice counts it once");
-        std::printf("      profile carries %lld conditions after one session\n",
-                    static_cast<long long>(conds.size()));
+        const QByteArray before = [&] { QFile f(profilePath); f.open(QIODevice::ReadOnly); return f.readAll(); }();
+        auto withFile = freshModel();
+        withFile->activateSession(planted);
+        auto without = freshModel();
+        without->activateSession(bare);
+        check(withFile->expectations().isEmpty() && without->expectations().isEmpty(), "no Cold expectations, file or no file");
+        check(tiersOf(*withFile) == tiersOf(*without), "IDENTICAL ROWS PRODUCE IDENTICAL TIERS, the old file or none");
+        const auto order = [](const SessionDiagnosticsModel &m) {
+            QStringList out;
+            for (const QVariant &cv : m.cards()) {
+                const QVariantMap c = cv.toMap();
+                out << c.value(QStringLiteral("id")).toString() + QLatin1Char(' ') + c.value(QStringLiteral("rankText")).toString();
+            }
+            return out;
+        };
+        check(!order(*without).isEmpty() && order(*withFile) == order(*without),
+              "…and the same cards, in the same order, with the same ranks");
+        const QByteArray after = [&] { QFile f(profilePath); f.open(QIODevice::ReadOnly); return f.readAll(); }();
+        check(after == before, "the model never writes the athlete folder's old file");
+        check(!QFile::exists(QDir(QDir(bare).filePath(QStringLiteral(".."))).absoluteFilePath(QStringLiteral("fault_profile.json"))),
+              "…and never makes one");
     }
 
     // ── 7. Review payloads ───────────────────────────────────────────────────────────
@@ -3618,7 +3620,7 @@ int main(int argc, char **argv)
         check(stageLayout(dir), "six swings staged");
         auto m = freshModel();
         m->activateSession(dir);
-        m->closeSession();
+        endTheSession(*m);
         m->setReviewing(true);
         m->setSelectedShotId(3);
 
@@ -4096,11 +4098,12 @@ int main(int argc, char **argv)
         m->setCadence(QStringLiteral("bandwidth"));
         check(canon(m->detail()) == canon(liveDetail), "cadence cannot reach the page");
         m->setCadence(QStringLiteral("everyShot"));
-        m->closeSession();
+        endTheSession(*m);          // a re-pointing puts the page away (activateSession), so it is opened again
+        m->openDetail(id);
         m->setReviewing(true);
         m->setSelectedShotId(3);
         const QVariantMap reviewDetail = m->detail();
-        check(!reviewDetail.isEmpty(), "the page survives the close and the review");
+        check(!reviewDetail.isEmpty(), "the page reads in the ended session, under review");
         {
             // The one honest difference: the reviewed shot is highlighted, here as everywhere.
             const QVariantList ticks =
@@ -4214,7 +4217,7 @@ int main(int argc, char **argv)
         check(mw->shotReadout(1) != mw->shotReadout(2), "the clean shot is not withheld");
 
         // The verdict rides the ledger's persistence.
-        mw->closeSession();
+        mw->waitForIdle();
         auto mr = freshModel();
         mr->activateSession(withDir);
         const QVariantList again = mr->shotReadout(2).value(QStringLiteral("conditions")).toList();

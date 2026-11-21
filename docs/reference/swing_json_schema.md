@@ -1592,7 +1592,7 @@ These are not part of the swing document, but someone reading a library will fin
 | session | `consistency.json` | — | **No longer written or read** (retired 2026-11-07, `src/Coaching/consistency_home.h`). Old copies stay in libraries. |
 | athlete | `tendencies.json` | `schema` int 1 (`kTendencySchemaVersion`) | `WorkOnsController` (`work_ons_controller.cpp`; `tendencies.h`) |
 | athlete | `swing_themes.json`, `swing_themes.<club>[.<filter>].json` | — | `WorkOnsController::themesPath` |
-| athlete | `fault_profile.json`, `outcome_corrections.jsonl` | — | `SessionDiagnosticsModel` |
+| athlete | `outcome_corrections.jsonl` | — | the tuning log's append (`AthleteFiles::appendTuningLine`) |
 | library | `ppcp-ledger.json` | — | PPCP import ledger: maps a phone capture's identity to where its bytes were filed (`src/Ppcp/ppcp_host_service.cpp`) |
 | library | `.pinpoint-trash/<athlete>/…` | — | Trashed swings and sessions, used only when the volume has no system trash, as on a network share. Otherwise they go to the system trash (`src/Export/swing_paths.cpp`). `SwingStore::swingDirsUnder` never enters it. |
 

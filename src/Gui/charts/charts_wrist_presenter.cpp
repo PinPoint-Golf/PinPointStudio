@@ -94,8 +94,13 @@ struct Checkpoint {
 // ShotSeries::wrist, parsed once per job.
 struct Profile {
     bool    has = false;
-    int     archetype = 0, mode = -1, engineScore = -1;
+    int     archetype = 0, mode = -1;
     QString archetypeName;
+    // Wrist readings and no profile in the findings yet (session_wrist.h): the DOFs and checkpoints, no cell measured, and
+    // why. Not `has`: nothing of it is a graded reading, so no box, count or style is made from it.
+    bool    pending = false;
+    QString pendingWhy;
+    bool shown() const { return has || pending; }
     QVariantMap resemblance;
     std::array<Checkpoint, kP> cps{};
     std::vector<Dof> dofs;
@@ -244,7 +249,8 @@ Profile parseProfile(const QVariantMap &p)
     out.archetypeName = p.value(QStringLiteral("archetypeName")).toString();
     if (out.archetypeName.isEmpty()) out.archetypeName = wristArchetypeName(out.archetype);
     out.mode = p.value(QStringLiteral("archetypeMode"), -1).toInt();
-    out.engineScore = p.value(QStringLiteral("engineScore"), -1).toInt();
+    out.pending = p.value(QStringLiteral("pending")).toBool();
+    out.pendingWhy = p.value(QStringLiteral("pendingWhy")).toString();
     out.resemblance = p.value(QStringLiteral("resemblance")).toMap();
     const QVariantList cps = p.value(QStringLiteral("checkpoints")).toList();
     for (int i = 0; i < kP && i < cps.size(); ++i) {
@@ -282,7 +288,8 @@ Profile parseProfile(const QVariantMap &p)
         }
         out.dofs.push_back(std::move(d));
     }
-    out.has = !out.dofs.empty();
+    out.has = !out.dofs.empty() && !out.pending;
+    if (out.dofs.empty()) out.pending = false;
     return out;
 }
 
@@ -387,7 +394,8 @@ struct Ctx {
     std::shared_ptr<const ShotSeries> shot;      // the picked shot (the snapshot's, or its own detail)
     Profile pick;
     std::vector<Profile> profs;                  // parallel to snap->shots, re-graded to the archetype
-    int ready = 0;                               // shots with a wrist DOF
+    int ready = 0;                               // shots with a wrist profile in their findings
+    int waiting = 0;                             // shots with wrist readings and no profile yet (pending)
     std::shared_ptr<const ShotSeries> ref;
     Profile refProf;
     QString refWhy, refLabel;
@@ -790,8 +798,10 @@ QVariantMap styleMap(const Profile &p)
             line.append(wristArchetypeName(i) + QLatin1Char(' ')).figure(pct);
         }
     }
-    if (has) line.append(byHand ? QStringLiteral("; bands set to %1 by hand.").arg(p.archetypeName)
-                                : QStringLiteral("; the bands are %1’s.").arg(p.archetypeName));
+    if (p.pending) line.append(has ? QStringLiteral("; the style is read with the checkpoints, not graded yet.")
+                                   : QStringLiteral("the style is read with the checkpoints, not graded yet."));
+    else if (has) line.append(byHand ? QStringLiteral("; bands set to %1 by hand.").arg(p.archetypeName)
+                                     : QStringLiteral("; the bands are %1’s.").arg(p.archetypeName));
     else line.append(byHand ? QStringLiteral("bands set to %1 by hand.").arg(p.archetypeName)
                             : QStringLiteral("Auto resolved the bands to %1.").arg(p.archetypeName));
     m.insert(QStringLiteral("hasIndex"), has);
@@ -827,7 +837,7 @@ QVariantMap scoreMap(const Verdicts &v, const Profile &p)
                                         : v.refused ? QStringLiteral("Wrist score -")
                                         : v.graded ? QStringLiteral("Wrist score -: no wrist condition could be read on this swing")
                                                    : QStringLiteral("Wrist score -: diagnostics have not graded this swing yet"));
-    m.insert(QStringLiteral("engineScore"), p.has && p.engineScore >= 0 ? QVariant(p.engineScore) : nullv());
+    (void)p;
     return m;
 }
 
@@ -933,6 +943,11 @@ QVariantMap trustOf(const Ctx &c, const ShotSeries *shot, const Profile *p, cons
         }
         if (v->refused) lines << QStringLiteral("No wrist score on this swing: a check refused one of its wrist readings, and the score is not made from the rest.");
         else if (!v->graded) lines << QStringLiteral("The diagnostics have not graded this swing yet, so it has no wrist score and no findings.");
+        if (p->pending) {
+            // no profile in the findings yet: the reason, and no band words (nothing was graded against one)
+            lines << p->pendingWhy;
+            return { { QStringLiteral("lines"), lines } };
+        }
         // Auto resolves the style off the lead wrist's bow / cup at the top: without it there is nothing to resolve
         const bool fe = p->dof(QStringLiteral("leadWristFlexExt")) != nullptr;
         lines << (byHand ? QStringLiteral("The bands are the %1 style's, set by hand.").arg(p->archetypeName)
@@ -981,8 +996,15 @@ QVariantMap trustOf(const Ctx &c, const ShotSeries *shot, const Profile *p, cons
         lines << W::cap1(longName(id)) + QStringLiteral(": ") + from + QStringLiteral(", confidence ") + pips(med)
                      + (confs.size() > 1 ? QStringLiteral(" (the median)") : QString()) + QLatin1Char('.');
     }
-    if (c.ready < c.n)
-        lines << QStringLiteral("No wrist reading %1.").arg(onCount(c, c.n - c.ready, c.n));
+    // a shot with wrist readings whose findings hold no profile yet is NOT a shot with no reading (3.8-ii, REVIEW-ii B2)
+    if (c.ready + c.waiting < c.n)
+        lines << QStringLiteral("No wrist reading %1.").arg(onCount(c, c.n - c.ready - c.waiting, c.n));
+    if (c.waiting > 0) {
+        QString why = c.snap ? c.snap->wristPendingWhy : QString();
+        if (!why.isEmpty()) why[0] = why[0].toLower();
+        lines << QStringLiteral("Not graded yet %1").arg(onCount(c, c.waiting, c.n))
+                     + (why.isEmpty() ? QStringLiteral(".") : QStringLiteral(": ") + why);
+    }
     int refused = 0, ungraded = 0;
     QStringList refusedWhat;
     for (int i = 0; all && i < c.n && i < int(all->size()); ++i) {
@@ -1052,7 +1074,7 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
     QVariantMap out;
     R.cpUs.fill(-1);
     for (int i = 0; i < kP; ++i) R.tags << QStringLiteral("P%1").arg(i + 1);
-    const bool has = c.shot && c.pick.has;
+    const bool has = c.shot && c.pick.shown();
     out.insert(QStringLiteral("available"), has);
     if (!has) {
         out.insert(QStringLiteral("empty"), (c.shot || !c.in.pickedSwingDir.trimmed().isEmpty()
@@ -1087,7 +1109,12 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
     W::Sentence head;
     const QString cells = QStringLiteral("%1 checkpoint%2").arg(outCells).arg(outCells == 1 ? QString() : QStringLiteral("s"));
     // a gate refused the wrist: no all-clear without the readings to back it (Mark, 17 Oct 2026); a finding still heads
-    if (v.refused && findings.isEmpty()) {
+    if (p.pending) {
+        // NO PROFILE IN THE FINDINGS YET (J-58: show, never hide): the reason heads the section; the cells say it too
+        QString why = p.pendingWhy;
+        if (why.endsWith(QLatin1Char('.'))) why.chop(1);
+        head.append(why);
+    } else if (v.refused && findings.isEmpty()) {
     } else if (!v.graded) {
         if (outCells == 0) head.append(QStringLiteral("The wrist stayed inside its bands at every checkpoint; diagnostics have not graded this swing yet"));
         else head.figure(W::cap1(cells)).append(QStringLiteral(" sat outside a band; diagnostics have not graded this swing yet"));
@@ -1120,7 +1147,8 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
                 first = false;
                 // an empty cell a gate left: its words, quiet (a "-" else)
                 const WristGate g = cell.available ? WristGate{} : wristGate(&s, d.id, d.key, checkpointMs(s, p, i));
-                if (!g.words.isEmpty()) st.append(shortName(d.id) + QLatin1Char(' ') + g.words);
+                if (p.pending) st.append(shortName(d.id) + QStringLiteral(" not graded yet"));
+                else if (!g.words.isEmpty()) st.append(shortName(d.id) + QLatin1Char(' ') + g.words);
                 else st.append(shortName(d.id) + QLatin1Char(' ')).figure(cell.available ? degText(cell.delta) : QStringLiteral("-"));
                 if (cell.out() && cell.banded)
                     st.append(QStringLiteral(" outside its band, ") + (cell.delta > cell.hi ? d.poleTop : d.poleBottom));
@@ -1165,6 +1193,7 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
                 const Cell &cell = d.cells[size_t(i)];
                 QVariantMap cm{ { QStringLiteral("available"), cell.available }, { QStringLiteral("value"), nv(cell.delta) },
                                 { QStringLiteral("valueText"), cell.available ? degText(cell.delta) : QStringLiteral("-") } };
+                if (p.pending) { cm.insert(QStringLiteral("valueText"), QStringLiteral("not graded yet")); cm.insert(QStringLiteral("trust"), p.pendingWhy); }
                 cells.append(cm);
             }
             rows.append(QVariantMap{ { QStringLiteral("numbersOnly"), true }, { QStringLiteral("dof"), d.id }, { QStringLiteral("key"), d.key },
@@ -1178,6 +1207,8 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
         for (int i = 0; i < kP; ++i) {
             const Cell &cell = d.cells[size_t(i)];
             QVariantMap pm = pointMap(d, cell, true);
+            // a cell the findings have not graded yet says so, with why (the QML's in-place words: valueText + trust)
+            if (p.pending) { pm.insert(QStringLiteral("valueText"), QStringLiteral("not graded yet")); pm.insert(QStringLiteral("trust"), p.pendingWhy); }
             points.append(pm);
             sc.add(cell.delta);
             if (cell.banded) { sc.add(cell.lo); sc.add(cell.hi); }
@@ -1239,7 +1270,9 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
     out.insert(QStringLiteral("profile"), QVariantMap{
         { QStringLiteral("positions"), positionsOf(c, p) }, { QStringLiteral("rows"), rows },
         { QStringLiteral("ghostWord"), ghostWord }, { QStringLiteral("ghostRefusal"), ghostRefusal }, { QStringLiteral("sub"), sub },
-        { QStringLiteral("caption"), QStringLiteral("Shaded: the %1 band at each checkpoint. A ring and a word under the value: outside it, "
+        // a profile not graded yet has no band to shade: the caption says why instead (J-58)
+        { QStringLiteral("caption"), p.pending ? QStringLiteral("No band is shaded: %1").arg(p.pendingWhy.isEmpty() ? QString() : p.pendingWhy.left(1).toLower() + p.pendingWhy.mid(1))
+                                               : QStringLiteral("Shaded: the %1 band at each checkpoint. A ring and a word under the value: outside it, "
                                                     "graded by how far (fault, watch). A finding's word is the session's: pattern, it keeps "
                                                     "firing across the session; watching, not yet.").arg(p.archetypeName) },
         { QStringLiteral("missing"), missing },
@@ -1284,7 +1317,7 @@ bool dominantBandAt(const Ctx &c, int dom, std::map<QString, Profile> &regraded,
         for (int i = 0; i < c.n; ++i)
             if (c.profs[size_t(i)].has && c.profs[size_t(i)].dof(id)) {
                 const ShotSeries &s = *c.snap->shots[size_t(i)];
-                rp = parseProfile(regradeWristPayload(s, s.wrist, dom));
+                rp = parseProfile(shotWristPayload(s, dom, c.snap ? c.snap->wristPendingWhy : QString()));
                 break;
             }
         it = regraded.emplace(id, rp).first;
@@ -1476,11 +1509,33 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     out.insert(QStringLiteral("ready"), c.ready);
     out.insert(QStringLiteral("small"), c.n < 10);
     out.insert(QStringLiteral("available"), c.ready > 0);
+    // NO SHOT GRADED YET, BUT SHOTS WITH WRIST READINGS (3.8-ii, REVIEW-ii B1; show, never hide): the section is shown with
+    // its head and the reason, and nothing drawn from grades (`pending`; PpChartsBody shows it, PpChWristSession draws the
+    // head alone, the report's page its head and the reason).
+    const bool pendingOnly = c.ready == 0 && c.waiting > 0;
+    out.insert(QStringLiteral("pending"), pendingOnly);
     QStringList clubs;
     for (int i = 0; i < c.n; ++i) { const QString k = c.snap->shots[size_t(i)]->club.toLower(); if (!k.isEmpty() && !clubs.contains(k)) clubs << k; }
     out.insert(QStringLiteral("kicker"), QStringLiteral("%1 %2").arg(c.n).arg(c.many)
                                              + (clubs.size() == 1 ? QStringLiteral("  ·  ") + clubs.first() : clubs.size() > 1 ? QStringLiteral("  ·  mixed clubs") : QString())
                                              + QStringLiteral("  ·  Wrist"));
+    if (pendingOnly) {
+        out.insert(QStringLiteral("head"), W::Sentence().append(QStringLiteral("Wrist grades aren't ready yet: "))
+                                               .figure(QString::number(c.waiting)).append(QStringLiteral(" of "))
+                                               .figure(QString::number(c.n)).append(QStringLiteral(" %1 %2 waiting for their findings")
+                                               .arg(c.n == 1 ? c.one : c.many, c.waiting == 1 ? QStringLiteral("is") : QStringLiteral("are"))).toVariant());
+        const QString why = c.snap ? c.snap->wristPendingWhy : QString();
+        out.insert(QStringLiteral("standfirst"), W::Sentence().append(why).toVariant());
+        out.insert(QStringLiteral("pendingWhy"), why);
+        // the wrist curves' keys, so the body knows a wrist curve is on show with no graded row to name it
+        QStringList keys;
+        for (const Profile &p : c.profs)
+            if (p.pending) for (const Dof &d : p.dofs) if (d.hasStrip && !d.key.isEmpty() && !keys.contains(d.key)) keys << d.key;
+        out.insert(QStringLiteral("keys"), keys);
+        out.insert(QStringLiteral("recurringEmpty"), QString());
+        R.session = out;
+        return;
+    }
     if (c.ready == 0) {
         out.insert(QStringLiteral("head"), W::Sentence().append(QStringLiteral("No %1 in this session carries a wrist reading").arg(c.one)).toVariant());
         out.insert(QStringLiteral("recurringEmpty"), QStringLiteral("No wrist finding fired on any %1.").arg(c.one));
@@ -1848,8 +1903,9 @@ static std::shared_ptr<ChartsWristPresenter::Result> computeWrist(ChartsWristPre
     // every shot's profile against the asked archetype (the model's re-grade may not have landed yet)
     c.profs.reserve(size_t(c.n));
     for (const auto &s : c.snap->shots) {
-        c.profs.push_back(parseProfile(regradeWristPayload(*s, s->wrist, in.archetype)));
+        c.profs.push_back(parseProfile(shotWristPayload(*s, in.archetype, c.snap->wristPendingWhy)));
         if (c.profs.back().has) ++c.ready;
+        else if (c.profs.back().pending) ++c.waiting;
     }
     // the picked shot: the snapshot's, else its own detail (a live shot, another session's)
     const QString want = cleanDir(in.pickedSwingDir);
@@ -1862,15 +1918,17 @@ static std::shared_ptr<ChartsWristPresenter::Result> computeWrist(ChartsWristPre
     } else if (!want.isEmpty() && !in.pickedDetail.value(QStringLiteral("series")).toList().isEmpty()) {
         auto sh = wristShotFromDetail(in.pickedDetail, want);
         sh->ordinal = c.n + 1;
-        sh->wrist = shotWristPayload(*sh, in.archetype, resemblanceOfDetail(in.pickedDetail));
-        c.pick = parseProfile(sh->wrist);
+        // not in the snapshot yet: its findings have not landed, so its checkpoints are not graded yet (J-58, W4)
+        sh->wristResemblance = resemblanceOfDetail(in.pickedDetail);
+        c.pick = parseProfile(shotWristPayload(*sh, in.archetype,
+                                               QStringLiteral("This swing's diagnostics haven't landed yet: its wrist checkpoints are graded with them.")));
         c.shot = sh;
     }
     // the ★ reference
     if (!in.referenceSwingDir.trimmed().isEmpty()) {
         c.ref = referenceShot(w, in.referenceSwingDir, c.snap, &c.refWhy);
         if (c.ref) {
-            c.refProf = parseProfile(c.ref->wrist);
+            c.refProf = parseProfile(referenceWristPayload(*c.ref));   // its Δ only (J-ii3)
             c.refLabel = referenceLabelOf(c.ref->swingDir);
             c.refIsPicked = c.shot && cleanDir(c.ref->swingDir) == cleanDir(c.shot->swingDir);
         }
@@ -1879,7 +1937,7 @@ static std::shared_ptr<ChartsWristPresenter::Result> computeWrist(ChartsWristPre
     }
 
     const std::vector<DofAgg> aggs = aggregates(c);
-    R->available = c.ready > 0 || c.pick.has;
+    R->available = c.ready > 0 || c.waiting > 0 || c.pick.shown();
     buildThisShot(c, aggs, *R);
     buildSession(c, aggs, *R);
     buildMovesWith(c, *R);
@@ -1936,8 +1994,9 @@ QVariantMap wristSessionReportPayload(const SessionSnapshot &snapshot, int arche
     c.n = snapshot.count();
     c.profs.reserve(size_t(c.n));
     for (const auto &s : snapshot.shots) {
-        c.profs.push_back(parseProfile(regradeWristPayload(*s, s->wrist, mode)));
+        c.profs.push_back(parseProfile(shotWristPayload(*s, mode, snapshot.wristPendingWhy)));
         if (c.profs.back().has) ++c.ready;
+        else if (c.profs.back().pending) ++c.waiting;
     }
     // THE DOMINANT STYLE (dominantStyle: the style most shots were graded as)
     std::array<int, 3> graded{};
@@ -2060,7 +2119,6 @@ void ChartsWristPresenter::setModel(QObject *m)
     m_model = m;
     if (auto *sm = qobject_cast<SessionSeriesModel *>(m))
         connect(sm, &SessionSeriesModel::snapshotChanged, this, &ChartsWristPresenter::schedule);
-    forwardArchetype();
     emit inputsChanged();
     schedule();
 }
@@ -2075,12 +2133,6 @@ void ChartsWristPresenter::setSnapshot(std::shared_ptr<const SessionSnapshot> sn
 {
     m_directSnapshot = std::move(snapshot);
     schedule();
-}
-
-// The Bands choice is session-wide: the model re-grades every shot's profile against it.
-void ChartsWristPresenter::forwardArchetype()
-{
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m_model.data())) sm->setWristArchetype(m_in.archetype);
 }
 
 #define PP_SETTER(Type, name, field)                                       \
@@ -2104,7 +2156,6 @@ void ChartsWristPresenter::setArchetype(int a)
     const int v = (a < -1 || a > 2) ? -1 : a;
     if (m_in.archetype == v) return;
     m_in.archetype = v;
-    forwardArchetype();
     emit inputsChanged();
     schedule();
 }

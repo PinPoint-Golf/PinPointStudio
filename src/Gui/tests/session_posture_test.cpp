@@ -158,7 +158,6 @@ private slots:
     {
         QStandardPaths::setTestModeEnabled(true);
         pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
-        warmWristBands();
         m_env = postureSharedEnv();
         QVERIFY(m_env->pack);
         QVERIFY(m_env->norms);

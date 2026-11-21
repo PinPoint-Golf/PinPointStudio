@@ -6,33 +6,33 @@
             "fired": 1,
             "notAssessable": 137,
             "rows": 163,
-            "sha1": "17ac008a8326ff83ea3b83305d2e432160bb3b03"
+            "sha1": "0a482564a86ac4448c819ddcdc90362fba3ae1dd"
         },
         "lm_partial": {
             "checks": 13,
             "fired": 0,
             "notAssessable": 151,
             "rows": 163,
-            "sha1": "0a051fe88134944b2aa989a3da7c1999c371993c"
+            "sha1": "fa7bfa263c4b519a3f28a155314b9a310e600cef"
         },
         "rich_7iron": {
             "checks": 13,
             "fired": 8,
             "notAssessable": 107,
             "rows": 163,
-            "sha1": "6cd2230a3ac3e763488893cab1417218cd55383f"
+            "sha1": "d4f9b9c5d88c6a43b494ce05552f8a6dec2d1fe3"
         },
         "sparse_noclub": {
             "checks": 13,
             "fired": 1,
             "notAssessable": 161,
             "rows": 163,
-            "sha1": "38b3805943c56a9af39278214655f2903eb5d01e"
+            "sha1": "b0c3b9bee8e3974eac63a7536c27ee117923e782"
         }
     },
     "frozenContent": "72eeb4189aee4810",
     "versions": {
-        "diagSchema": 15,
+        "diagSchema": 16,
         "phaseGrid": 10,
         "rowGrading": 1,
         "rowWords": 1

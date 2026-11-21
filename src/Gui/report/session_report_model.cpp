@@ -520,9 +520,7 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
 
     connect(&m_job->docsWatcher, &QFutureWatcher<QVector<DocFacts>>::finished, this, &SessionReportModel::onDocsRead);
     m_job->docsWatcher.setFuture(QtConcurrent::run([dir] { return readDocs(dir); }));
-    // The Posture and Wrist pages' reading, alongside. The wrist grader's shared norm set is built here first, on
-    // this thread, as SessionSeriesModel's constructor does for its own worker (session_wrist.h).
-    pinpoint::charts::warmWristBands();
+    // The Posture and Wrist pages' reading, alongside (the Wrist page's cells are the findings': nothing to warm up).
     // The Consistency page's env and norms are taken here for the same reason, and handed over by value.
     const pinpoint::charts::ConsistencyEnv consistencyEnv = pinpoint::charts::consistencyEnvFromPacks();
     const std::shared_ptr<const INormProvider> norms = sharedNormProvider();

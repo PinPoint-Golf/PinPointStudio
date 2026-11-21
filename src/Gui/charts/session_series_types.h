@@ -37,6 +37,7 @@
 // re-analysed, so a reader holding a SessionSnapshot never sees a shot change under it.
 
 #include "../../Metrics/series_reduce.h"   // reduceInstantOver
+#include "../../Wrist/wrist_profile.h"      // ShotDiagnostics::wrist (DEC-123)
 
 #include <QHash>
 #include <QString>
@@ -147,6 +148,11 @@ struct ShotDiagnostics {
     // Coaching/sequence_checks.h sequenceChecksToVariant() publishes — read off the ledger's own
     // per-signal verdicts (schema 5), never re-derived here. Empty when the row carries none.
     QVariantMap sequenceChecks;
+
+    // ADDED 21 Nov (ledger schema 16; refactor 3.8-ii, DEC-123): the shot's wrist checkpoint profile, part of its findings
+    // (Wrist/wrist_profile.h) — the Δ from address at P1–P8 of each wrist DOF and each cell's band and RAG under each
+    // style. present false: no wrist DOF, or the findings have not graded it yet (a ledger older than schema 16, or none).
+    pinpoint::analysis::WristProfile wrist;
 };
 
 struct ShotSeries {
@@ -164,12 +170,10 @@ struct ShotSeries {
     QVariantList gates;
     int          gatesVersion = 0;
     ShotDiagnostics diagnostics;
-    // ADDED 15 Oct (build/wrist-tab/CONTRACT.md I3): the wrist engine's checkpoint profile of this
-    // shot, as session_wrist.h shotWristPayload() publishes it — EMPTY when the shot carries no wrist
-    // DOF. Graded against the session's archetype (SessionSeriesModel::wristArchetype; -1 = each shot
-    // resolves its own), recomputed from `metrics` + `phases` above when that changes, so no analysis
-    // blob is held for it. Shape: session_wrist.h.
-    QVariantMap wrist;
+    // The analysis' own wrist resemblance index (analysis.score.resemblance: { neutral, bowed, cupped } ints, %), {} when it
+    // carries none — a reading of the analysis, carried beside the profile the findings hold (diagnostics.wrist; the
+    // Wrist chart's payload is built from both, session_wrist.h). Until 3.8-ii this was the view's own graded payload.
+    QVariantMap wristResemblance;
 
     const MetricSeries *metric(const QString &key) const {
         auto it = metrics.constFind(key);
@@ -209,6 +213,10 @@ struct SessionSnapshot {
     // sessionWorkOnsForPack, uncapped), over the same ledgers as `tiers`. The Posture section orders its
     // head line and its Findings by it. Empty with no ledger, or no pattern.
     QStringList workOnOrder;
+    // ADDED 21 Nov (refactor 3.8-ii; DEC-123, J-58): why a shot with wrist readings has no checkpoint profile in its findings
+    // yet, as the golfer reads it — the session's diagnostics file is not there yet, was saved by a newer build, cannot be
+    // read, or has not graded that shot. The Wrist chart says it in the cells, never leaves them empty.
+    QString wristPendingWhy;
     quint64 revision = 0;                                    // bumps on every change
 
     int count() const { return int(shots.size()); }

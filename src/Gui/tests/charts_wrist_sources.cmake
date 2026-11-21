@@ -1,6 +1,7 @@
-# The wrist checkpoint profile every Charts target now carries (src/Gui/charts/session_wrist.{h,cpp},
-# build/wrist-tab/CONTRACT.md I3): SessionSeriesModel::extractShot grades each shot's wrist DOFs through
-# the wrist engine against the diagnostics norms, so EVERY target that compiles session_series_model.cpp
+# The wrist checkpoint profile every Charts target carries (src/Gui/charts/session_wrist.{h,cpp},
+# build/wrist-tab/CONTRACT.md I3): since refactor 3.8-ii (DEC-123) the cells are the findings' (diagnostics.json
+# schema 16) and session_wrist only lays them out, but the ★ reference of another session still takes its Δ
+# through the profile's rule (wristDeltasOnly), so EVERY target that compiles session_wrist.cpp
 # links the engine, its adapter (wristCheckpoints, buildWristAngleSource) and the norm stack — and needs
 # PINPOINT_CORE_NORMS / PINPOINT_CORE_CONTEXTS to find the shipped norm files (CHARTS_NORM_ENV below,
 # the Analysis suite's pp_norm_env). Listing a source a target already lists is harmless (CMake keeps one).
@@ -8,6 +9,7 @@
 set(CHARTS_WRIST_SRC
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${GUI}/charts/session_wrist.cpp
+    ${SRC}/Wrist/wrist_profile_assess.cpp   # the ★ reference's Δ (wristDeltasOnly) and the fixtures' profiles (3.8-ii)
     # The Posture section's core (session_posture.{h,cpp}, posture_chart_design.md stage 2a) rides with
     # the wrist profile: it reads each cell through the measure engine's own sampler (measure_sample.cpp).
     ${GUI}/charts/session_posture.cpp

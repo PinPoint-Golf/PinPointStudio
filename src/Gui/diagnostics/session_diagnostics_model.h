@@ -150,28 +150,21 @@ class INormProvider;
 //    session-owned single writer removes (audit D-01, step 3); neither writes the golfer's input but
 //    through its commands.
 //
-// 3. WHAT THE FAULT PROFILE MAY TOUCH. `fault_profile.json` lives in the ATHLETE folder (the
-//    session directory's parent) and is read at activation and written at close. It reaches
-//    exactly two things: the Cold state's `expectations` list, and the `score` fed to
-//    hystereticOrder(). It is structurally incapable of reaching a tier, a corridor or a
-//    firing, because the only function that reads it — profileBias() — is called from
-//    rankScores() and from nowhere else, and LedgerOptions has no field it could be poured
-//    into. That is brief §5.5 made a property of the call graph rather than a promise.
-//
-// 4. WHEN explain() RUNS. Over the PATTERN-TIER set only, and only when that set's
+// 3. WHEN explain() RUNS. Over the PATTERN-TIER set only, and only when that set's
 //    membership changes (design §A5) — per-shot re-ranking would churn the resolver's greedy
 //    set cover on every ball and reorder the footer under the golfer's eyes. The footer is
 //    then debounced a second time, by kDiagDriverDebounceShots, so it appears only once the
 //    pattern set has held still: better absent than flickering (§B8).
 //
-// 5. WHAT CADENCE GATES. `quiet` and `afterShotDelta`. Nothing else, ever. ingestShot() does
+// 4. WHAT CADENCE GATES. `quiet` and `afterShotDelta`. Nothing else, ever. ingestShot() does
 //    not consult it, the ledger does not see it, and the persisted rows are byte-identical
 //    under both modes — brief §5.6. A cadence check anywhere near the ingest path is the
 //    single most likely way for this panel to start lying, so there is exactly one place in
 //    the .cpp where m_cadence is read and it is named surfaceThisShot().
 //
-// The panel comes in a later phase; every property below is already the finished shape it
-// will bind to. Unit-tested standalone in
+// (Until refactor 3.8-ii a section here said what the athlete's fault_profile.json might touch: it was read at every
+// activation and written at a close nothing called, so it was never written; H-11, D-07. Deleted with its reader.)
+// Every property below is the shape the stage panel and the cast window bind to. Unit-tested standalone in
 // src/Diagnostics/tests/session_diagnostics_model_test.cpp.
 //
 // ── THE THIN ADAPTER (refactor step 3.7-a; build/refactor/step-3/BRIEF.md §4.9, §4.10; D3: DEC-165) ─────────────
@@ -186,8 +179,8 @@ class INormProvider;
 // words (R-DER-9: the adapter composes them). The golfer's commands forward to the Session's and the Shot's commands
 // as before (3.4b-i); the owner hears their events and diagnoses again. Every live shot is judged whether or not a
 // panel is up (DEC-02; 04 step 3 item 4): the owner runs for every loaded session. What stays this class's in the
-// adapter: the view state (selection, cadence, the open detail, reviewing), the fault profile's bias (until 3.8-ii) and
-// the same golfer's other sessions (historyOf). The club baseline is the owner's alone (refactor 3.7-e: ONE freeze rule,
+// adapter: the view state (selection, cadence, the open detail, reviewing) and the same golfer's other sessions
+// (historyOf). The club baseline is the owner's alone (refactor 3.7-e: ONE freeze rule,
 // SessionDiagnostics' from the predecessors' summaries; the adapter's interim live freeze, J-a2, is gone). An adapter
 // holds a use of its Session only while a screen shows it (a view bound: addView), so a sweep may release a session no
 // screen shows (3.7-e; Q-18).
@@ -440,7 +433,10 @@ public:
     QVariantList notJudged() const { return m_notJudged; }
     QString      notJudgedLine() const { return m_notJudgedLine; }
     QVariantList bookends() const { return m_bookends; }
-    QVariantList expectations() const { return m_expectations; }
+    // The Cold state's "Usually yours" list. ALWAYS EMPTY since refactor 3.8-ii: its one source, the athlete's
+    // fault_profile.json, is deleted (H-11, D-07; it was never written). The block that draws it (PpExpectations) draws
+    // nothing when empty; retiring the property with the block is a design-system change, for Mark (J-58, DS-1).
+    QVariantList expectations() const { return {}; }
     QString      detailConditionId() const { return m_detailConditionId; }
     QVariantMap  detail() const { return m_detail; }
     QVariantList shotLog() const { ensureOutcomes(); return m_shotLog; }
@@ -471,8 +467,6 @@ public:
     // the truth, the swing directories are the truth about which shots exist, and the
     // difference is work to do".
     //
-    // Also reads the athlete's fault profile from the PARENT directory (see the class
-    // comment) and publishes it as `expectations`.
     Q_INVOKABLE void activateSession(const QString &sessionDir);
 
     // Reduce one shot into the ledger. IDEMPOTENT per shotId: a shot already ingested, or
@@ -491,23 +485,19 @@ public:
     // The one exception to ingestShot()'s idempotence, and deliberately a separate door: the
     // row is REPLACED in place, not appended, and a closed session accepts it, because it is the
     // same shot measured again rather than a new one arriving after the summary was written.
-    // The athlete's fault profile is not re-folded: it counts each session once, at close.
     // A dir outside the loaded session is ignored; a shot the ledger has never seen is ingested.
     Q_INVOKABLE void regradeShot(const QString &swingDir);
 
     // The swing at `swingDir` was moved to the trash: its row leaves the ledger, the session
     // is reduced again without it and diagnostics.json is rewritten (#56). Before this nothing
     // ever removed a row, so a deleted swing went on being counted for the life of the session.
-    // A closed session accepts it too — the summary must not count a swing that is not there —
-    // but the athlete's fault profile is not re-folded (it counted the session once, at close).
+    // A closed session accepts it too — the summary must not count a swing that is not there.
     // A dir outside the loaded session, or one the ledger never held, is ignored. An ingest of
     // that swing still in flight is dropped when it lands.
     Q_INVOKABLE void forgetShot(const QString &swingDir);
 
-    // End the session: freeze at Closing, write the final diagnostics.json, and fold this
-    // session's patterns into the athlete's fault profile. One-way — sessionStage() will not
-    // un-close it, and neither will another shot.
-    Q_INVOKABLE void closeSession();
+    // (No closeSession since refactor 3.8-ii: nothing called it, and a session's End is its Session's — EVT-09, J-24 —
+    // which writes `closed` into diagnostics.json; a session loaded closed reads it from there.)
 
     // ── Intent (design §A6) ─────────────────────────────────────────────────────────
 
@@ -542,7 +532,8 @@ public:
 
     // A physical screen answered at the range counts immediately (design §A5). Feeds
     // explain()'s knownScreenResults and NodeSpec::screenEntered — which is what lets a
-    // screened root stop anchoring nothing.
+    // screened root stop anchoring nothing. UNWIRED in the panel today (PpSessionDiagnosticsPanel.qml: deliberately
+    // unconnected; audit D-19): kept as the command a screens surface will call.
     Q_INVOKABLE void recordScreenResult(const QString &conditionId, bool present);
 
     // ── What happened on a shot (shot_outcomes_design.md §4) ────────────────────────────────
@@ -949,13 +940,11 @@ private:
     // explain() over the pattern-tier set, run only when that set's membership changes.
     void refreshExplanation();
 
-    // hystereticOrder()'s input. The ONLY function that reads the fault profile.
+    // hystereticOrder()'s input: a display score of this session's evidence alone.
     std::vector<pinpoint::analysis::RankedCondition> rankScores() const;
-    double profileBias(const QString &conditionId) const;
 
     // ── Persistence ─────────────────────────────────────────────────────────────────
     QString      diagnosticsPath() const;
-    QString      faultProfilePath() const;
     QString      tuningLogPath() const;
     // diagnostics.json's session block (the cache half beside the ledger).
     QJsonObject  sessionBlock() const;
@@ -1006,8 +995,6 @@ private:
     // `rowCurrent`: the shot's row was graded from the document as it stood before the edit, so its stamp
     // follows the document the edit wrote (a review edit is not a new recording).
     void         onShotInputWritten(int generation, int shotId, bool rowCurrent, const pinpoint::WriteResult &result);
-    void         loadProfile();
-    void         updateProfile();
 
     // ── The frozen club baseline (Contract A) ────────────────────────────────────────
     // Reads <session>/club_baseline.json (true: none, and this model may freeze one — its predecessors must
@@ -1264,10 +1251,6 @@ private:
     QVariantList m_missChain;
     QHash<QString, bool> m_screens;
 
-    // ── The fault profile. Read here; it reaches rankScores() and expectations(), and
-    //    there is no third call site. See the class comment.
-    QJsonObject  m_profile;
-    QVariantList m_expectations;
 
     // ── Published surface ───────────────────────────────────────────────────────────
     QVariantMap  m_headerInfo;

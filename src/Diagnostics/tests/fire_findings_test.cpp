@@ -36,11 +36,14 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
+#include <cmath>
 #include <cstdio>
+#include <limits>
 
 #ifndef PP_LIVE_SWINGS_DIR
 #  define PP_LIVE_SWINGS_DIR "."
@@ -299,6 +302,75 @@ int main(int argc, char **argv)
         check(clubUsualOf(base, QStringLiteral("7 iron")) != nullptr && clubUsualOf(base, QStringLiteral("DRIVER")) == nullptr
                   && clubUsualOf(FiringInputs{}, club) == nullptr,
               "clubUsualOf: any spelling of the club; none without a baseline");
+    }
+
+    // ── THE WRIST CHECKPOINT PROFILE (refactor 3.8-ii; DEC-123): part of the findings, by one rule ──────────────
+    std::printf("\nthe wrist checkpoint profile\n");
+    {
+        // A synthetic swing: the wrist unit's lead wrist (two DOFs) with a phase at every checkpoint; a second copy of one
+        // key (the first is kept), and the face-on elbow (a camera reading, never on the grid).
+        WristInput in;
+        const int kAt[][2] = { { 0, 0 }, { 12, 300 }, { 8, 500 }, { 2, 800 }, { 13, 1000 }, { 9, 1080 }, { 5, 1150 }, { 14, 1250 } };
+        for (const auto &ph : kAt) in.phases.push_back(WristInput::Phase{ ph[0], qint64(ph[1]) * 1000, 1.0 });
+        const auto series = [](const char *key, const char *route, double top) {
+            WristInput::Series sr;
+            sr.key = QLatin1String(key);
+            sr.routeId = QLatin1String(route);
+            for (int ms = 0; ms <= 1600; ms += 10) {
+                sr.tUs.push_back(qint64(ms) * 1000);
+                sr.value.push_back(ms <= 800 ? top * ms / 800.0 : top * (1600 - ms) / 800.0);
+            }
+            return sr;
+        };
+        in.series.push_back(series("hm.leadWristFlexExt", "", -30));
+        in.series.push_back(series("hm.leadWristRadUln", "", 30));
+        in.series.push_back(series("hm.leadWristFlexExt", "", 99));     // a second copy of the key
+        in.series.push_back(series("leadArmFlexion", "faceOn", 40));    // the face-on elbow
+        const GradePolicy standard = gradePolicyByName(QStringLiteral("standard"));
+        const WristProfile a = assessWristProfile(in, norms, standard);
+        check(a.present && a == assessWristProfile(in, norms, standard), "deterministic: the same readings give the same profile");
+        check(a.rows.size() == 2 && a.rows[0].dof == QLatin1String("leadWristRadUln") && a.rows[1].dof == QLatin1String("leadWristFlexExt"),
+              "the display order, the face-on elbow kept off the grid");
+        check(std::isfinite(a.rows[1].deltaDeg[3]) && std::abs(a.rows[1].deltaDeg[3] + 30.0) < 3.0,
+              "the first copy of a key is the one read (Δ at P4 ≈ −30°, not +99°)");
+        check(a.resolved == 2, "Auto resolves a −30° cup at the top to Cupped (the wrist pattern)");
+        bool styleMoves = false;
+        for (int p = 0; p < kWristProfilePositions; ++p) styleMoves = styleMoves || !(a.rows[1].grades[0][size_t(p)] == a.rows[1].grades[2][size_t(p)]);
+        check(styleMoves, "each style keeps its own bands (Neutral and Cupped differ on the bow / cup)");
+        WristInput holes = in;
+        for (size_t i = 0; i < holes.series[0].tUs.size(); ++i)
+            if (std::abs(holes.series[0].tUs[i] - 800000) <= 200000) holes.series[0].value[i] = std::numeric_limits<double>::quiet_NaN();
+        const WristProfile h = assessWristProfile(holes, norms, standard);
+        check(h.present && !std::isfinite(h.rows[1].deltaDeg[3]), "a missing sample is a gap, never a 0");
+        const WristProfile d = wristDeltasOnly(in);
+        bool sameDelta = d.rows.size() == a.rows.size(), unbanded = true;
+        for (size_t r = 0; sameDelta && r < d.rows.size(); ++r)
+            for (int p = 0; p < kWristProfilePositions; ++p) {
+                const double x = d.rows[r].deltaDeg[size_t(p)], y = a.rows[r].deltaDeg[size_t(p)];
+                sameDelta = sameDelta && ((std::isnan(x) && std::isnan(y)) || x == y);
+                for (int st = 0; st < kWristProfileStyles; ++st) unbanded = unbanded && !d.rows[r].grades[size_t(st)][size_t(p)].banded;
+            }
+        check(sameDelta && unbanded, "with no band provider: the same Δ, nothing banded (the ★ reference's read)");
+        const WristProfile strict = assessWristProfile(in, norms, gradePolicyByName(QStringLiteral("strict")));
+        check(!(strict == a), "the grade policy reaches the bands (SET-15, as the conditions')");
+
+        FiringReadings rw = readingsOf();
+        rw.wrist = in;
+        const FiredShot f = fireFindings(rw, base);
+        check(f.ok && f.record.wrist == a, "fireFindings puts it on the shot's record, against its inputs' norms and policy");
+        check(!fireFindings(readingsOf(), base).record.wrist.present, "no wrist readings: no profile");
+        FiringReadings rb = readingsOf(/*broken=*/true);
+        rb.wrist = in;
+        check(fireFindings(rb, base).record.wrist == a, "an integrity-flagged shot keeps its cells, as the Wrist chart always drew them");
+        const std::vector<ShotRecord> back = fromJson(toJson(std::vector<ShotRecord>{ f.record }));
+        check(back.size() == 1 && back[0].wrist == f.record.wrist, "it round-trips through the shot's row (diagnostics.json schema 16)");
+        QJsonObject old = toJson(std::vector<ShotRecord>{ f.record });
+        QJsonArray shots = old.value(QStringLiteral("shots")).toArray();
+        if (!shots.isEmpty()) { QJsonObject s0 = shots.at(0).toObject(); s0.remove(QStringLiteral("wrist")); shots[0] = s0; }
+        old[QStringLiteral("shots")] = shots;
+        const std::vector<ShotRecord> older = fromJson(old);
+        check(older.size() == 1 && !older[0].wrist.present, "a row written before schema 16 reads with no profile");
+        check(kDiagSchemaVersion == 16, "the row shape's version moved with it (a stored ledger regrades once)");
     }
 
     std::printf("\n%s (%d failed)\n", g_fail ? "FAILED" : "passed", g_fail);

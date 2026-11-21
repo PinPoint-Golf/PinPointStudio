@@ -62,6 +62,8 @@
 #include "charts/charts_posture_presenter.h"
 #include "charts/charts_delivery_presenter.h"
 #include "charts/session_wrist.h"
+#include "../../../Diagnostics/norms/norm.h"
+#include "../../../Diagnostics/norms/norm_provider.h"
 #include "tests/charts_maths_fixture.h"
 
 #include <QQmlContext>
@@ -225,8 +227,13 @@ public:
                     auto &ps = c->metrics[un.value(QStringLiteral("key")).toString()].phaseSamples;
                     ps.erase(std::remove_if(ps.begin(), ps.end(), [ph](const PhaseSample &x) { return x.phase == ph; }), ps.end());
                 }
-                if (wrist) { withWristCurve(*c); c->wrist = shotWristPayload(*c, -1, {}); }
-                else c->wrist = QVariantMap{};
+                // the wrist profile as the shot's findings hold it (refactor 3.8-ii; DEC-123): fireFindings' one rule
+                if (wrist) {
+                    withWristCurve(*c);
+                    c->diagnostics.wrist = pinpoint::analysis::assessWristProfile(
+                        pinpoint::charts::wristInputOfSeries(*c), pinpoint::analysis::sharedNormProvider(),
+                        pinpoint::analysis::gradePolicyByName(QStringLiteral("standard")));
+                } else c->diagnostics.wrist = pinpoint::analysis::WristProfile{};
                 if (delivery) withDeliveryReadings(*c);
                 s->shots.push_back(c);
             }
@@ -327,8 +334,7 @@ public:
 
     // ⚠ THE TRIMMED FIXTURE KEEPS NO WRIST CURVE: trim_fixture.py kept curves for the six speeds only, so
     // the pose trail wrist (trailWristFlexExt) carries just its phase readings (address, top, impact,
-    // finish) and shotWristPayload — which builds from the series, as SessionSeriesModel does — returns
-    // an empty payload. `wrist: true` therefore draws the shot's curve THROUGH those readings: piecewise
+    // finish) and the wrist profile's rule (Wrist/wrist_profile_assess.h, which reads the series) finds nothing to sample. `wrist: true` therefore draws the shot's curve THROUGH those readings: piecewise
     // linear, flat beyond the first and last, at 4 ms over the shot's phase span. Every checkpoint the
     // engine samples reads a value made from this swing's own readings, never an invented one.
     static void withWristCurve(pinpoint::charts::ShotSeries &c)

@@ -21,6 +21,7 @@
 #include "club_baseline_provider.h"
 #include "measure_sample.h"
 #include "../norms/norm_measure_source.h"
+#include "../../Wrist/wrist_profile_assess.h"   // WristInput (readWristInput)
 
 #include <QHash>
 #include <QString>
@@ -107,6 +108,12 @@ SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPa
 SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPack &pack,
                                  SidecarPolicy policy, const PhaseGridConfig &cfg = {},
                                  SwingStore::LazyDocument *parsed = nullptr);
+
+// THE SHOT'S WRIST READINGS for its wrist checkpoint profile (refactor 3.8-ii; DEC-123: fire_findings.h FiringReadings::
+// wrist). Empty unless `grid` (the shot's phase grid, just read) carries a metric that names a wrist DOF; then the
+// document's analysis metrics and phases — from `parsed` when the grid's read already parsed it, else the analysis
+// alone (SwingStore::loadAnalysis: the root chunk and the chunks on the path to the metrics, never the tracks).
+WristInput readWristInput(const QString &swingDir, const SwingPhaseGrid &grid, SwingStore::LazyDocument *parsed = nullptr);
 
 // One recorded swing, presented as measure values.
 //

@@ -38,13 +38,15 @@
 // WristLedger.qml) is computed here; QML positions and paints.
 //
 // ── ONE VERDICT (CONTRACT decisions 1–4) ─────────────────────────────────────────────────────
-//   · THE CELLS are the wrist engine's: each DOF at each checkpoint against its norm band
-//     (ShotSeries::wrist, session_wrist.h), graded against the session's archetype.
+//   · THE CELLS are the findings' (refactor 3.8-ii; DEC-123): each DOF at each checkpoint against its norm band, graded
+//     by fireFindings() under each style and kept on the shot's row (ShotDiagnostics::wrist, diagnostics.json schema 16);
+//     the payload (session_wrist.h) picks the style asked for. Nothing is graded here. A shot with wrist readings and no
+//     profile yet says "not graded yet" in its cells, with why (J-58: show, never hide).
 //   · THE FINDINGS AND THE SCORE are the diagnostics conditions' in the wrist domain
 //     (Condition::domain == "wrist"): a finding is a wrist condition that FIRED on the shot, a
 //     strength one that read clean on every tail of its axis; the score is scoreWristDomain()
 //     (src/Diagnostics/engine/wrist_domain_score.h) over this shot's verdicts. The engine's rules and
-//     score do not reach the tab (its score rides along as `engineScore` only).
+//     score do not reach the tab.
 //   · THE VERDICTS ARE READ OFF THE SNAPSHOT — the ledger SessionDiagnosticsModel writes
 //     (diagnostics.json), joined per shot by SessionSeriesModel (ShotDiagnostics: fired / clean,
 //     graded value, corridor, confidence, driving reading) with the session tiers
@@ -61,9 +63,8 @@
 // model (SessionSeriesModel), pickedSwingDir + pickedDetailRef (shotReplay.analysisDetailRef: a shot not
 // yet in the snapshot still reads), register ("analyse" | "replay"), playheadUs (the picked shot's
 // window-relative clock), scope ("shot" | "session"), against ("address" | "previous" | "reference" |
-// "median"), curvesBehind, archetype (-1 Auto | 0 Neutral | 1 Bowed | 2 Cupped; FORWARDED to the
-// model's wristArchetype, so every shot is graded against it, and applied here to any shot the model
-// has not re-graded yet), referenceSwingDir (appSettings.wristReferenceSwingDir, any session).
+// "median"), curvesBehind, archetype (-1 Auto | 0 Neutral | 1 Bowed | 2 Cupped: which of the styles the findings graded
+// every shot under is shown), referenceSwingDir (appSettings.wristReferenceSwingDir, any session).
 //
 // ── THREADING (the ChartsTracesPresenter pattern) ────────────────────────────────────────────
 // Any input or snapshot change schedules ONE coalesced job on a private single-thread pool; results
@@ -99,7 +100,7 @@
 //      checkpoint; the live one is `standfirst`),
 //    score: { score (int | null), scoreText ("84" | "-"), band ("good"|"watch"|"weak"|"fault"|""),
 //             base: 100, sumText ("100 − 16 = 84" | ""), line ("Wrist score 84 of 100, good  ·  100 − 16 = 84"),
-//             contributions: [{ id, label, penalty (int), penaltyText ("−9") }], engineScore (int | null) },
+//             contributions: [{ id, label, penalty (int), penaltyText ("−9") }] },
 //    style: { hasIndex, archetype, archetypeName, mode, byHand: bool, line: Sentence (W4),
 //             items: [{ key: "neutral"|"bowed"|"cupped", name, pct (int|null), pctText ("84 %"), graded }] },
 //    profile: {
@@ -186,8 +187,8 @@
 namespace pinpoint::charts {
 
 // THE SESSION REPORT'S WRIST PAGE (report/report_wrist.h): the `session` map above for a snapshot, with no picked
-// shot and no QObject — built on the caller's thread with the shipped pack and the shared norm set (any thread;
-// warmWristBands() first only moves the norm assembly off it, as SessionReportModel does). `archetypeMode` −1 Auto, 0..2 by hand. `available`
+// shot and no QObject — built on the caller's thread with the shipped pack (any thread), from the cells the findings
+// graded (diagnostics.json schema 16; DEC-123). `archetypeMode` −1 Auto, 0..2 by hand. `available`
 // false when no shot reads a wrist DOF. `noun`: what its sentences count, plural — "shots" as on Charts, "swings"
 // for the report (with "shots" every string is the screen's, byte for byte, but for the keys changed below).
 // What differs from `session`, for paper:
@@ -319,7 +320,6 @@ private:
     void apply(std::shared_ptr<Result> r);
     void flushIfSynchronous();
     void updateSelected(bool force);
-    void forwardArchetype();
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
 
     Inputs m_in;

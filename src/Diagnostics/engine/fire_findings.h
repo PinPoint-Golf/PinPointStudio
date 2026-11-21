@@ -26,8 +26,10 @@
 //   • fireFindings()      layers 4–5: the shot's readings (its phase grid and the few document facts below),
 //                         assessed against the diagnostic graph (pack + norms, at the grade policy, for the
 //                         cohort, with the club baseline) → the shot's findings: one row per condition, each
-//                         sequence check's verdict, the placed peak times, the readings as recorded, and the
-//                         swing length the assessment was gated on.
+//                         sequence check's verdict, the placed peak times, the readings as recorded, the
+//                         swing length the assessment was gated on, and the wrist checkpoint profile
+//                         (refactor 3.8-ii; DEC-123: the wrist engine against the same norms, at the same
+//                         grade policy, for each style; no cohort: the wrist bands are not cohort-qualified).
 //   • deriveShotData()    layer 3: what the shot came to — its outcome (labels, carry against the usual) and
 //                         its three factors (strike · direction · flight) — from its record, the golfer's word
 //                         on it and the session's usuals. The rules are Coaching's (composeShotOutcome,
@@ -53,6 +55,7 @@
 #include "../../Coaching/shot_factors.h"        // ShotFactors (and, through it, ShotOutcome, composeShotOutcome)
 #include "../../Coaching/strike_from_flight.h"  // FlightNorms, ClubFlightUsual
 #include "../../Core/pp_tuned_constants.h"
+#include "../../Wrist/wrist_profile_assess.h"   // WristInput, the wrist checkpoint profile (DEC-123)
 
 #include <QHash>
 #include <QString>
@@ -152,6 +155,9 @@ struct FiringReadings {
     bool           dataWarning = false;   // the summary's data warning
     bool           captureBroken = false; // …because frames were lost during capture (dataWarningDetail.capture)
     bool           imuBroken = false;     // …because the IMU record does not reproduce (dataWarningDetail.imu)
+    // The shot's wrist series and phases (refactor 3.8-ii; DEC-123): what its wrist checkpoint profile is assessed from
+    // (Wrist/wrist_profile_assess.h). Read only for a shot whose grid carries a wrist DOF (readWristInput); empty else.
+    WristInput     wrist;
 };
 
 struct FiredShot {

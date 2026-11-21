@@ -16,6 +16,8 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include "live_measure_source.h"                 // readWristInput
+#include "../../Wrist/wrist_assessment_types.h"   // dofForMetricKey (readWristInput)
 #include "measure_sample.h"
 
 #include "../../Metrics/series_reduce.h"
@@ -1021,6 +1023,18 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, SidecarPolicy policy, cons
     pinpoint::atomicWrite(sidePath, QJsonDocument(savePhaseGrid(grid, size, mtimeMs)).toJson(QJsonDocument::Compact),
                           pinpoint::AtomicWriteOptions::intoExistingFolder());
     return grid;
+}
+
+// readWristInput (live_measure_source.h): here, beside the one other reader of the swing's analysis this module makes.
+WristInput readWristInput(const QString &swingDir, const SwingPhaseGrid &grid, SwingStore::LazyDocument *parsed)
+{
+    bool any = false;
+    for (const MetricPhaseGrid &m : grid.metrics)
+        if (dofForMetricKey(m.key)) { any = true; break; }
+    if (!any) return {};
+    if (parsed && parsed->loaded())
+        return wristInputOf(parsed->root().value(QStringLiteral("analysis")).toObject());
+    return wristInputOf(SwingStore::loadAnalysis(swingDir).value(QStringLiteral("analysis")).toObject());
 }
 
 } // namespace pinpoint::analysis

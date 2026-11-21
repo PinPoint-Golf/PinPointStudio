@@ -35,8 +35,8 @@
 //                             scope's or filter's from the sessions' judged rows, DEC-195)
 //
 //     outcome_corrections.jsonl   FILE-ATH-04: the tuning log, append-only (appendTuningLine, below)
-//     fault_profile.json      FILE-ATH-05: to be deleted (H-11, D-07; step 3); the diagnostics model reads
-//                             and writes it until then, through the name here
+//     (FILE-ATH-05, fault_profile.json, is retired: deleted with its reader and writer in refactor 3.8-ii; H-11, D-07.
+//      It was never written, and no app or tool names it now.)
 //
 // Lint A4 names this file the owner of every name above (IM-S2-6: DEC-160; step 2.8b), so each is spelled
 // here and nowhere else in src/. Header-only (like SessionFiles), so the diagnostics model's six link lines
@@ -149,11 +149,9 @@ public:
         return atomicWrite(file, QJsonDocument(root).toJson(QJsonDocument::Compact), why);
     }
 
-    // "outcome_corrections.jsonl" (FILE-ATH-04: the tuning log) and "fault_profile.json" (FILE-ATH-05)
+    // "outcome_corrections.jsonl" (FILE-ATH-04: the tuning log)
     static QString tuningLogFileName() { return QStringLiteral("outcome_corrections.jsonl"); }
     static QString tuningLogFile(const QString &athleteDir) { return athleteDir + QLatin1Char('/') + tuningLogFileName(); }
-    static QString faultProfileFileName() { return QStringLiteral("fault_profile.json"); }
-    static QString faultProfileFile(const QString &athleteDir) { return athleteDir + QLatin1Char('/') + faultProfileFileName(); }
 
     // ".pinpoint-lock": FolderLock's own, named here so the list is complete.
     static QString lockFileName() { return FolderLock::fileName(); }

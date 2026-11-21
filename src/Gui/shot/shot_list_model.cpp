@@ -843,19 +843,6 @@ QVariantMap ShotListModel::shotSummary(int id) const
     };
 }
 
-QVariantMap ShotListModel::previousAnalysisDetail(const QString &swingDir) const
-{
-    if (swingDir.isEmpty())
-        return {};
-    for (int i = 0; i < m_shots.size(); ++i) {
-        if (m_shots.at(i).swingDir != swingDir)
-            continue;
-        const int older = i + 1;               // newest-first → the next row is the previous swing
-        return (older < m_shots.size()) ? m_shots.at(older).analysisDetail.map() : QVariantMap{};
-    }
-    return {};
-}
-
 QVariantMap ShotListModel::analysisDetailForSwingDir(const QString &swingDir) const
 {
     if (swingDir.isEmpty())

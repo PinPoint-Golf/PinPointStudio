@@ -1652,8 +1652,8 @@ set_tests_properties(club_baseline_provider_test PROPERTIES
 # the line; the test drives it synchronously, which is the one concession the design makes to
 # being tested.
 #
-# Reuses live_measure_source_test's corpus fixtures, staged into <athlete>/<session>/swing_NNNN so
-# the fault profile lands in the athlete folder the way it will in the app.
+# Reuses live_measure_source_test's corpus fixtures, staged into <athlete>/<session>/swing_NNNN, the
+# library's own shape (a session's siblings are its athlete's history).
 # THE VARIABILITY MARKS the model publishes on the strip and the history (per-club badges, the funnel):
 # the grader, its trend and result strings, the façade's value type, and the per-club windows
 # (variability_clubs.cpp, which needs the Consistency maths for its R2a half). Every target that compiles
@@ -1662,6 +1662,9 @@ set(SESSION_DIAG_MARKS_SOURCES
     # The shot's findings and derived data, pure (Diagnostics/engine/fire_findings.*, refactor step 3.3): the
     # model's detectShot and its factor compositions call them.
     ${SRC}/Diagnostics/engine/fire_findings.cpp
+    # The wrist checkpoint profile fireFindings computes (refactor 3.8-ii; DEC-123): the profile's rule and the wrist engine.
+    ${SRC}/Wrist/wrist_profile_assess.cpp ${SRC}/Wrist/wrist_assessment_engine.cpp ${SRC}/Wrist/assessment_rules.cpp
+    ${SRC}/Wrist/wrist_analysis_adapter.cpp ${SRC}/Wrist/reference_bands.cpp
     ${SRC}/Metrics/variability/variability_result.cpp
     ${SRC}/Metrics/variability/variability_grader.cpp
     ${SRC}/Metrics/variability/variability_trend.cpp
@@ -2135,6 +2138,9 @@ set_tests_properties(measure_dump_test PROPERTIES
 set(FIRE_FINDINGS_TEST_SOURCES
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${DIAG}/engine/fire_findings.cpp
+    # The wrist checkpoint profile fireFindings computes (refactor 3.8-ii; DEC-123): the profile's rule and the wrist engine.
+    ${SRC}/Wrist/wrist_profile_assess.cpp ${SRC}/Wrist/wrist_assessment_engine.cpp ${SRC}/Wrist/assessment_rules.cpp
+    ${SRC}/Wrist/wrist_analysis_adapter.cpp ${SRC}/Wrist/reference_bands.cpp
     ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
     ${DIAG}/packs/screen_pack.cpp

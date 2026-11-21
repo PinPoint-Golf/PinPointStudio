@@ -859,6 +859,13 @@ bool SwingDocReader::writeSwingSummary(const PersistedShot &shot, QString *error
     return writeSummaryFile(summaryFromShot(shot), error);
 }
 
+bool SwingDocReader::writeSummarySidecar(const SwingSummary &summary, QString *error)
+{
+    if (SwingStore::info(summary.swingDir).format == SwingStore::Format::Ppsw)
+        return true;   // its summary is inside the document
+    return writeSummaryFile(summary, error);
+}
+
 SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writeSidecar,
                                               SwingStore::LazyDocument *parsed)
 {

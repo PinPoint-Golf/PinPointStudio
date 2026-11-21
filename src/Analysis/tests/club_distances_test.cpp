@@ -157,7 +157,7 @@ int main()
     {
         // 14 -> 15 (#176): rows a non-live measure stopped carry notLiveStatus, and the bump regrades
         // stored ledgers so verdicts graded off a held measure go away. Nothing this test reads moved.
-        check(kDiagSchemaVersion == 15, "the ledger is schema 15");
+        check(kDiagSchemaVersion == 16, "the ledger is schema 16 (3.8-ii: the shot rows carry the wrist profile)");
 
         ShotRecord s = shotWith(1, k7i, 137.8);
         s.swingLength = QStringLiteral("full");

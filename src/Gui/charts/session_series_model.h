@@ -56,7 +56,7 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; }
 // ── The decisions worth knowing before reading the .cpp ─────────────────────────────────
 //
 // 1. THE FEEDING API IS SessionDiagnosticsModel's, NAME FOR NAME. activateSession(dir),
-//    ingestShot(shotId, swingDir), regradeShot(swingDir) and closeSession() mean here what they
+//    ingestShot(shotId, swingDir) and regradeShot(swingDir) mean here what they
 //    mean there, so the panel wires this model to the same three events the diagnostics panel
 //    already answers (PpSessionDiagnosticsPanel.qml): its `sessionDir` binding changing, the
 //    shot processor's shotProcessed, and the carousel's re-analysis (reanalysisController
@@ -139,12 +139,9 @@ class SessionSeriesModel : public QObject
     Q_PROPERTY(QVariantList skipped READ skipped NOTIFY snapshotChanged)
     // SessionSnapshot::revision, for QML bindings that need to re-ask a C++ question.
     Q_PROPERTY(int revision READ revision NOTIFY snapshotChanged)
-    Q_PROPERTY(bool closed READ closed NOTIFY sessionChanged)
-    // ADDED 15 Oct (build/wrist-tab/CONTRACT.md I3): the wrist corridors EVERY shot's wrist profile
-    // (ShotSeries::wrist) is graded against — -1 Auto (each shot resolves its own style), 0 Neutral,
-    // 1 Bowed, 2 Cupped. Session-wide: setting it re-grades every shot from the series already held
-    // (no document is read) and publishes a new snapshot. The Wrist tab's "Bands" choice.
-    Q_PROPERTY(int wristArchetype READ wristArchetype WRITE setWristArchetype NOTIFY wristArchetypeChanged)
+    // (Until 3.8-ii: `closed`, set by a closeSession() nothing called, and `wristArchetype`, the style every shot's wrist
+    // cells were graded against here. The cells are the findings' now, each style kept (DEC-123): the Wrist chart's
+    // style choice is the presenter's pick.)
 
 public:
     explicit SessionSeriesModel(QObject *parent = nullptr);
@@ -156,9 +153,6 @@ public:
     int     skippedCount() const { return int(m_skipped.size()); }
     QVariantList skipped() const;
     int     revision() const { return m_snapshot ? int(m_snapshot->revision & 0x7fffffff) : 0; }
-    bool    closed() const { return m_closed; }
-    int     wristArchetype() const { return m_wristArchetype; }
-    void    setWristArchetype(int a);
 
     // What the session maths reads. Never null; an empty session is an empty snapshot.
     std::shared_ptr<const SessionSnapshot> snapshot() const { return m_snapshot; }
@@ -172,18 +166,16 @@ public:
     Q_INVOKABLE void activateSession(const QString &sessionDir);
 
     // A shot landed. Idempotent: an unchanged document already held costs a stat. A swing
-    // outside the loaded session is ignored (it belongs to whichever session activates it), and
-    // so is any shot after closeSession(). Wire straight to ShotProcessor::shotProcessed.
+    // outside the loaded session is ignored (it belongs to whichever session activates it). Wire straight to
+    // ShotProcessor::shotProcessed.
     Q_INVOKABLE void ingestShot(int shotId, const QString &swingDir);
 
     // The swing was re-analysed: read it again whatever its stamp says, and replace its shot.
-    // Accepted after closeSession() — it is the same shot measured again. A swing the model has
-    // not seen is ingested; one outside the loaded session is ignored.
+    // A swing the model has not seen is ingested; one outside the loaded session is ignored.
     Q_INVOKABLE void regradeShot(const QString &swingDir);
 
     // The swing was moved to the trash: its shot leaves the snapshot, and its cached reading goes
-    // (#56). Accepted after closeSession() — the panel must not draw a swing that is not there.
-    // One outside the loaded session is ignored.
+    // (#56). One outside the loaded session is ignored.
     Q_INVOKABLE void forgetShot(const QString &swingDir);
 
     // Re-read the session's diagnostics ledger (diagnostics.json) if it has changed, and re-join
@@ -191,10 +183,6 @@ public:
     // busyChanged to false precedes the write by a few statements on the same thread, so the read
     // is POSTED to run after the caller's handler returns, never inside it.
     Q_INVOKABLE void refreshDiagnostics();
-
-    // End of session: later ingestShot() calls are refused, as the diagnostics model refuses
-    // them. Nothing is written. activateSession() re-opens.
-    Q_INVOKABLE void closeSession();
 
     // ── Test and measurement seams ──────────────────────────────────────────────────────
 
@@ -254,7 +242,6 @@ signals:
     void busyChanged();
     // The snapshot was replaced. Every property above that reads it is re-read on this.
     void snapshotChanged();
-    void wristArchetypeChanged();
 
 private:
     // ── Worker half. Touched only by jobs, which run one at a time (decision 2). ──────────
@@ -272,13 +259,12 @@ private:
         QString skipReason;
         pinpoint::analysis::BoardAnnotation board;   // the swing's board annotations, from its document (J-45)
     };
-    enum class JobKind { Activate, Ingest, Regrade, Forget, RefreshLedger, Rearchetype };
+    enum class JobKind { Activate, Ingest, Regrade, Forget, RefreshLedger };
     struct Job {
         JobKind kind = JobKind::Activate;
         int     generation = 0;
         QString dir;          // the session (Activate) or the swing (Ingest/Regrade)
         int     callerShotId = -1;
-        int     wristArchetype = -1;   // stamped by queue() from the owner's choice
     };
     struct Result {
         int  generation = 0;
@@ -315,11 +301,11 @@ private:
     // the file holds them, its options, the boards it was last joined under, and whether it has been joined since read.
     std::vector<pinpoint::analysis::ShotRecord>    m_ledgerRows;
     pinpoint::analysis::LedgerOptions              m_ledgerOpt;
+    QString                                        m_ledgerWhy;   // SessionSnapshot::wristPendingWhy, from the last read
     QHash<int, pinpoint::analysis::BoardAnnotation> m_ledgerBoards;
     bool                                           m_ledgerJoined = false;
     QHash<QString, QString>     m_ledgerTiers;   // conditionId → session tier (SessionSnapshot::tiers)
     QStringList                 m_ledgerWorkOnOrder;   // SessionSnapshot::workOnOrder
-    int         m_wArchetype = -1;               // the archetype the running job grades against
     std::shared_ptr<const SessionSnapshot> m_wLast;
     std::vector<Skip> m_wLastSkipped;
     LoadStats   m_stats;
@@ -331,8 +317,6 @@ private:
     void apply(const Result &r, bool counted);
 
     QString m_sessionDir;
-    bool    m_closed = false;
-    int     m_wristArchetype = -1;
     int     m_generation = 0;
     std::shared_ptr<const SessionSnapshot> m_snapshot;
     std::vector<Skip> m_skipped;

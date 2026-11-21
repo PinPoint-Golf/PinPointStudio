@@ -520,6 +520,10 @@ FiredShot fireFindings(FiringReadings readings, const FiringInputs &inputs)
     ShotRecord rec;
     rec.club        = d.club;
     rec.contextId   = d.contextId;
+    // THE WRIST CHECKPOINT PROFILE (refactor 3.8-ii; DEC-123): part of the shot's findings, assessed against the same norms
+    // at the same grade policy. Computed whenever the shot carries a wrist DOF — an integrity-flagged or excluded shot too,
+    // as the Wrist chart always drew its cells.
+    rec.wrist       = assessWristProfile(readings.wrist, inputs.norms, gradePolicyByName(inputs.gradePolicy));
 
     rec.rows.reserve(d.result.findings.size());
     for (const Finding &f : d.result.findings) {

@@ -18,7 +18,8 @@
 
 // ChartsWristPresenter (build/wrist-tab/CONTRACT.md I4) on a three-shot synthetic session built in
 // memory: the wrist unit's two lead-wrist series, a phase at every checkpoint, each shot's wrist profile
-// graded by the real engine against the shipped norms (session_wrist.h), and ledger rows for the wrist
+// as its findings hold it (graded by fireFindings' one rule against the shipped norms: Wrist/wrist_profile_assess.h,
+// refactor 3.8-ii, DEC-123 — the presenter grades nothing), and ledger rows for the wrist
 // conditions of the shipped pack (Condition::domain == "wrist"). Synchronous; no files but the pack and
 // the norms (PINPOINT_CORE_PACK / PINPOINT_CORE_NORMS).
 //
@@ -30,6 +31,9 @@
 #include "../../Export/rule_data_install.h"
 #include "charts/session_series_types.h"
 #include "charts/session_wrist.h"
+#include "Diagnostics/norms/norm.h"            // gradePolicyByName
+#include "Diagnostics/norms/norm_provider.h"   // sharedNormProvider
+#include "Wrist/wrist_profile_assess.h"
 #include "report/report_wrist.h"
 #include "variability/variability_facade.h"
 #include "Metrics/variability/variability_grader.h"
@@ -62,6 +66,14 @@ double curve(double ms, const std::vector<std::pair<double, double>> &k)
 const std::vector<std::pair<int, int>> kPhases{ { 0, 0 }, { 1, 100 }, { 12, 300 }, { 8, 500 }, { 2, 800 },
                                                 { 13, 1000 }, { 9, 1080 }, { 5, 1150 }, { 14, 1250 }, { 7, 1600 } };
 
+// THE SHOT'S WRIST PROFILE AS ITS FINDINGS HOLD IT (refactor 3.8-ii; DEC-123): fireFindings' one rule over the shot's
+// series, against the shipped norms at the standard policy. The presenter grades nothing; this is what it reads.
+void grade(ShotSeries &s)
+{
+    s.diagnostics.wrist = pinpoint::analysis::assessWristProfile(wristInputOfSeries(s), pinpoint::analysis::sharedNormProvider(),
+                                                                 pinpoint::analysis::gradePolicyByName(QStringLiteral("standard")));
+}
+
 std::shared_ptr<ShotSeries> makeShot(int ordinal, double topFlex, bool withIndex = true, bool withForearmRotation = false)
 {
     auto s = std::make_shared<ShotSeries>();
@@ -90,9 +102,10 @@ std::shared_ptr<ShotSeries> makeShot(int ordinal, double topFlex, bool withIndex
         s->metricOrder << fr.key;
         s->metrics.insert(fr.key, fr);
     }
-    s->wrist = shotWristPayload(*s, -1, withIndex ? QVariantMap{ { QStringLiteral("neutral"), 84 }, { QStringLiteral("bowed"), 7 },
-                                                                 { QStringLiteral("cupped"), 50 } }
-                                                  : QVariantMap{});
+    s->wristResemblance = withIndex ? QVariantMap{ { QStringLiteral("neutral"), 84 }, { QStringLiteral("bowed"), 7 },
+                                                   { QStringLiteral("cupped"), 50 } }
+                                    : QVariantMap{};
+    grade(*s);
     return s;
 }
 
@@ -163,7 +176,6 @@ private slots:
     {
         QStandardPaths::setTestModeEnabled(true);
         pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
-        warmWristBands();
         m_snap = std::make_shared<SessionSnapshot>();
         m_snap->sessionDir = QStringLiteral("/wx/2026-08-18_Mark-Liversedge_Wrist_02");
         m_snap->revision = 1;
@@ -177,23 +189,107 @@ private slots:
         m_snap->shots = { s1, s2, s3 };
         m_snap->tiers.insert(QStringLiteral("cupped_at_top"), QStringLiteral("pattern"));
         for (const QString &id : others) m_snap->tiers.insert(id, QStringLiteral("clean"));
-        QVERIFY(!s1->wrist.isEmpty());
+        QVERIFY(s1->diagnostics.wrist.present);
     }
 
     // ── the payload (I3) ──────────────────────────────────────────────────────────────────────
     void payloadShape()
     {
-        const QVariantMap w = m_snap->shots[0]->wrist;
+        const QVariantMap w = shotWristPayload(*m_snap->shots[0], -1);
+        QVERIFY(!w.value(QStringLiteral("pending")).toBool());
         QCOMPARE(w.value(QStringLiteral("checkpoints")).toList().size(), 8);
         const QVariantList dofs = w.value(QStringLiteral("dofs")).toList();
         QCOMPARE(dofs.size(), 2);
         QCOMPARE(dofs.at(1).toMap().value(QStringLiteral("dof")).toString(), QStringLiteral("leadWristFlexExt"));
         QCOMPARE(dofs.at(1).toMap().value(QStringLiteral("metricKey")).toString(), QStringLiteral("hm.leadWristFlexExt"));
-        // regrading by hand moves the mode; Auto again is the same payload
-        const QVariantMap c = regradeWristPayload(*m_snap->shots[0], w, 2);
+        // a style by hand is a pick of the grades the findings kept (3.8-ii): the mode moves; Auto again is the same payload
+        const QVariantMap c = shotWristPayload(*m_snap->shots[0], 2);
         QCOMPARE(c.value(QStringLiteral("archetype")).toInt(), 2);
         QCOMPARE(c.value(QStringLiteral("archetypeMode")).toInt(), 2);
-        QCOMPARE(regradeWristPayload(*m_snap->shots[0], w, -1), w);
+        QCOMPARE(shotWristPayload(*m_snap->shots[0], -1), w);
+        // the payload's Auto is the style the findings resolved, and its cells are the engine's own grade for that style
+        QCOMPARE(w.value(QStringLiteral("archetype")).toInt(), m_snap->shots[0]->diagnostics.wrist.resolved);
+    }
+
+    // ── A shot with wrist readings and no profile in its findings yet (3.8-ii; J-58: show, never hide) ──────────────
+    // Its section shows, its DOFs are listed, and every cell says "not graded yet" with why — never empty, never "no wrist
+    // metrics"; no box, count or style is made from it.
+    void pendingCellsSayNotGradedYet()
+    {
+        auto snap = std::make_shared<SessionSnapshot>();
+        snap->sessionDir = m_snap->sessionDir;
+        snap->revision = 7;
+        snap->wristPendingWhy = QStringLiteral("Diagnostics have not graded this swing's wrist checkpoints yet.");
+        auto s1 = makeShot(1, -30);
+        s1->diagnostics.wrist = pinpoint::analysis::WristProfile{};   // a row older than schema 16
+        snap->shots = { s1 };
+        ChartsWristPresenter p;
+        p.setSynchronous(true);
+        p.setSnapshot(snap);
+        p.setPickedSwingDir(dirOf(1));
+        QVERIFY(p.available());
+        const QVariantMap ts = p.thisShot();
+        QVERIFY(ts.value(QStringLiteral("available")).toBool());
+        QVERIFY(ts.value(QStringLiteral("empty")).toString().isEmpty());
+        QVERIFY2(ts.value(QStringLiteral("head")).toMap().value(QStringLiteral("text")).toString().startsWith(QStringLiteral("Diagnostics have not graded")),
+                 qPrintable(ts.value(QStringLiteral("head")).toMap().value(QStringLiteral("text")).toString()));
+        const QVariantList rows = ts.value(QStringLiteral("profile")).toMap().value(QStringLiteral("rows")).toList();
+        QCOMPARE(rows.size(), 2);
+        for (const QVariant &rv : rows)
+            for (const QVariant &pv : rv.toMap().value(QStringLiteral("points")).toList()) {
+                const QVariantMap pt = pv.toMap();
+                QVERIFY(!pt.value(QStringLiteral("available")).toBool());
+                QCOMPARE(pt.value(QStringLiteral("valueText")).toString(), QStringLiteral("not graded yet"));
+                QCOMPARE(pt.value(QStringLiteral("trust")).toString(), snap->wristPendingWhy);
+            }
+        QVERIFY(anyLine(trustLines(ts), snap->wristPendingWhy));
+        QVERIFY(ts.value(QStringLiteral("profile")).toMap().value(QStringLiteral("caption")).toString().startsWith(QStringLiteral("No band is shaded")));
+        QVERIFY(!anyLine(trustLines(ts), QStringLiteral("The bands are")));   // nothing was graded against a band
+        // REVIEW-ii B1: the Session section and the report's page are SHOWN, with the reason, nothing drawn from grades
+        const QVariantMap se = p.session();
+        QVERIFY(!se.value(QStringLiteral("available")).toBool());                // no graded shot: no session boxes
+        QVERIFY(se.value(QStringLiteral("pending")).toBool());
+        QCOMPARE(se.value(QStringLiteral("head")).toMap().value(QStringLiteral("text")).toString(),
+                 QStringLiteral("Wrist grades aren't ready yet: 1 of 1 shot is waiting for their findings"));
+        QCOMPARE(se.value(QStringLiteral("standfirst")).toMap().value(QStringLiteral("text")).toString(), snap->wristPendingWhy);
+        QVERIFY(se.value(QStringLiteral("keys")).toStringList().contains(QStringLiteral("hm.leadWristFlexExt")));
+        const QVariantMap rep = wristSessionReportPayload(*snap, -1, QStringLiteral("swings"));
+        QVERIFY(rep.value(QStringLiteral("pending")).toBool());
+        QVERIFY(rep.value(QStringLiteral("head")).toMap().value(QStringLiteral("text")).toString().startsWith(QStringLiteral("Wrist grades aren't ready yet: 1 of 1 swing")));
+        const QVariantMap page = pinpoint::report::wristReportBlock(rep, {}).toMap();
+        QVERIFY(!page.isEmpty());                                                 // the page is printed, not dropped
+        QVERIFY(page.value(QStringLiteral("head")).toString().startsWith(QStringLiteral("Wrist grades aren't ready yet")));
+        QCOMPARE(page.value(QStringLiteral("profile")).toMap().value(QStringLiteral("sub")).toString(), snap->wristPendingWhy);
+        QVERIFY(page.value(QStringLiteral("trust")).toStringList().contains(snap->wristPendingWhy));
+        QVERIFY(page.value(QStringLiteral("profile")).toMap().value(QStringLiteral("rows")).toList().isEmpty());
+        // the caption's reason, lower-cased after its colon
+        QCOMPARE(ts.value(QStringLiteral("profile")).toMap().value(QStringLiteral("caption")).toString(),
+                 QStringLiteral("No band is shaded: diagnostics have not graded this swing's wrist checkpoints yet."));
+    }
+
+    // ── REVIEW-ii B2: a shot with wrist readings and no grade yet is counted apart from a shot with no reading ─────
+    void pendingIsNotNoReading()
+    {
+        auto snap = std::make_shared<SessionSnapshot>();
+        snap->sessionDir = m_snap->sessionDir;
+        snap->revision = 8;
+        snap->wristPendingWhy = QStringLiteral("Diagnostics have not graded this swing's wrist checkpoints yet.");
+        auto graded = makeShot(1, -30), pending = makeShot(2, -28), none = makeShot(3, -60);
+        pending->diagnostics.wrist = pinpoint::analysis::WristProfile{};
+        none->metrics.clear();
+        none->metricOrder.clear();
+        none->diagnostics.wrist = pinpoint::analysis::WristProfile{};
+        snap->shots = { graded, pending, none };
+        ChartsWristPresenter p;
+        p.setSynchronous(true);
+        p.setSnapshot(snap);
+        const QStringList t = trustLines(p.session());
+        QVERIFY2(t.contains(QStringLiteral("No wrist reading on 1 of 3 shots.")), qPrintable(t.join(QLatin1Char('\n'))));
+        QVERIFY2(t.contains(QStringLiteral("Not graded yet on 1 of 3 shots: diagnostics have not graded this swing's wrist checkpoints yet.")),
+                 qPrintable(t.join(QLatin1Char('\n'))));
+        const QStringList r = trustLines(wristSessionReportPayload(*snap, -1, QStringLiteral("swings")));
+        QVERIFY2(r.contains(QStringLiteral("No wrist reading on 1 of 3 swings.")) && anyLine(r, QStringLiteral("Not graded yet on 1 of 3 swings")),
+                 qPrintable(r.join(QLatin1Char('\n'))));
     }
 
     // ── This shot: the condition's verdict, the score over the wrist domain, the profile ─────────
@@ -418,8 +514,9 @@ private slots:
             }
             sh->metricOrder << tr.key;
             sh->metrics.insert(tr.key, tr);
-            sh->wrist = shotWristPayload(*sh, -1, QVariantMap{ { QStringLiteral("neutral"), 84 }, { QStringLiteral("bowed"), 7 },
-                                                               { QStringLiteral("cupped"), 50 } });
+            sh->wristResemblance = QVariantMap{ { QStringLiteral("neutral"), 84 }, { QStringLiteral("bowed"), 7 },
+                                                { QStringLiteral("cupped"), 50 } };
+            grade(*sh);
             snap->shots.push_back(sh);
         }
         const QVariantMap rep = wristSessionReportPayload(*snap, -1, QStringLiteral("shots"));
@@ -605,7 +702,7 @@ private slots:
         QCOMPARE(fe.value(QStringLiteral("label")).toString(), QStringLiteral("Lead wrist bow / cup"));
         QCOMPARE(fe.value(QStringLiteral("camera")).toString(), QStringLiteral("wrist sensor"));
         // the wash at the top is the Cupped band shot 1 was graded against
-        const QVariantMap own = m_snap->shots[0]->wrist.value(QStringLiteral("dofs")).toList().at(1).toMap().value(QStringLiteral("cells")).toList().at(3).toMap();
+        const QVariantMap own = shotWristPayload(*m_snap->shots[0], -1).value(QStringLiteral("dofs")).toList().at(1).toMap().value(QStringLiteral("cells")).toList().at(3).toMap();
         const QVariantMap top = fe.value(QStringLiteral("points")).toList().at(3).toMap();
         QCOMPARE(top.value(QStringLiteral("wash")).toString(), QStringLiteral("band"));
         QCOMPARE(top.value(QStringLiteral("bandLo")).toDouble(), own.value(QStringLiteral("bandLo")).toDouble());
@@ -727,7 +824,7 @@ private slots:
             auto t1 = makeShot(1, -30, false);
             t1->metrics.remove(QStringLiteral("hm.leadWristFlexExt"));
             t1->metricOrder.removeAll(QStringLiteral("hm.leadWristFlexExt"));
-            t1->wrist = shotWristPayload(*t1, -1, {});
+            grade(*t1);
             cam->shots = { t1 };
             const QVariantMap crep = wristSessionReportPayload(*cam, -1, QStringLiteral("swings"));
             const QStringList ct = trustLines(crep);

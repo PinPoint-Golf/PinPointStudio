@@ -557,6 +557,10 @@ public:
     // Derive a summary from an already-parsed shot and write its sidecar. Called where a
     // fat parse has happened anyway (session load), so indexing costs nothing extra.
     static bool writeSwingSummary(const PersistedShot &shot, QString *error = nullptr);
+    // A summary a reader parsed, indexed as the JSON-era sidecar (swing_summary.json; a .ppsw carries its summary inside,
+    // so nothing is written for one). For a reader that read with ParseNoWrite and writes the index itself, under the
+    // session's lock (SwingStoreFiringReader; refactor 3.8-ii, R1-m6).
+    static bool writeSummarySidecar(const SwingSummary &summary, QString *error = nullptr);
     // swing_*/ directories under sessionDir, ascending (swing_0001 .. swing_NNNN).
     static QStringList findSwingDirs(const QString &sessionDir);
     // Most recent session dir in an athlete's folder (Athlete::folder(); never derived from a

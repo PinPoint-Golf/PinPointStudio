@@ -276,7 +276,6 @@ private slots:
     {
         QStandardPaths::setTestModeEnabled(true);
         pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
-        warmWristBands();
         QVERIFY(postureSharedEnv()->pack);
         const QJsonObject root = readJson("PP_POSTURE_FIXTURE");
         QVERIFY2(!root.isEmpty(), "PP_POSTURE_FIXTURE");

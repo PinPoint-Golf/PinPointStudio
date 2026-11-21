@@ -58,8 +58,8 @@
 // the sheet says why (NOTES-d.md J-d2).
 //
 // ── What it never does ──────────────────────────────────────────────────────────────────────────
-// It writes nothing of the session's analysis: no diagnostics.json, no ratchet, no closeSession, no work_ons.json, no
-// club_baseline.json, no fault profile (its adapter judges and writes nothing; it never freezes: reviewing, baseline
+// It writes nothing of the session's analysis: no diagnostics.json, no ratchet, no work_ons.json, no
+// club_baseline.json (its adapter judges and writes nothing; it never freezes: reviewing, baseline
 // authority Never). The one write a report can CAUSE is not its own: asking for a session no screen has loaded loads it,
 // and its owner — the session's one writer of diagnostics.json (DEC-135) — re-judges the shots whose stamps are stale
 // and writes them, exactly as it does when the panel or the catch-up loads the same session. On the J-a3 path the

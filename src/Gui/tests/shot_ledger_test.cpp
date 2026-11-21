@@ -620,38 +620,9 @@ static void testLmReadingsAfterCheapReload()
           SwingDocReader::readLaunchMonitorDetail(session + QStringLiteral("/swing_0099")).isEmpty());
 }
 
-// ---------------------------------------------------------------------------
-// P — previousAnalysisDetail: the "compare to previous" ghost
-// ---------------------------------------------------------------------------
+// (P — previousAnalysisDetail, test-only, deleted with the method in refactor 3.8-ii: C-15, E-15. Its one documented
+// consumer, WristDiagnosticsModel, went in 3.8-i.)
 
-static void testPreviousAnalysisDetail()
-{
-    std::printf("\nP — the previous swing\n");
-
-    ShotListModel m;
-    auto detail = [](int marker) {
-        return QVariantMap{ { QStringLiteral("overall"), marker } };
-    };
-    m.addShot(QStringLiteral("/s/swing_0001"), QStringLiteral("13:00"), QStringLiteral("7-iron"),
-              true, QUrl(), {}, 70, {}, detail(1));
-    m.addShot(QStringLiteral("/s/swing_0002"), QStringLiteral("13:01"), QStringLiteral("7-iron"),
-              true, QUrl(), {}, 71, {}, detail(2));
-    m.addShot(QStringLiteral("/s/swing_0003"), QStringLiteral("13:02"), QStringLiteral("7-iron"),
-              true, QUrl(), {}, 72, {}, detail(3));
-
-    checkInt(QStringLiteral("P1 the previous of the newest is the middle one"),
-             m.previousAnalysisDetail(QStringLiteral("/s/swing_0003"))
-                 .value(QStringLiteral("overall")).toInt(), 2);
-    checkInt(QStringLiteral("P2 the previous of the middle is the oldest"),
-             m.previousAnalysisDetail(QStringLiteral("/s/swing_0002"))
-                 .value(QStringLiteral("overall")).toInt(), 1);
-    check(QStringLiteral("P3 the oldest has no previous"),
-          m.previousAnalysisDetail(QStringLiteral("/s/swing_0001")).isEmpty());
-    check(QStringLiteral("P4 a swing not in this model has no previous"),
-          m.previousAnalysisDetail(QStringLiteral("/s/nowhere")).isEmpty());
-    check(QStringLiteral("P5 an empty dir has no previous"),
-          m.previousAnalysisDetail(QString()).isEmpty());
-}
 
 // ---------------------------------------------------------------------------
 // A — attachSwingDir: the launch monitor arriving late
@@ -895,7 +866,6 @@ int main(int argc, char **argv)
     testReviewWriteThrough();
     testLmAnnotationsWriteThrough();
     testLmReadingsAfterCheapReload();
-    testPreviousAnalysisDetail();
     testAttachSwingDir();
     testActiveCountSignal();
     testTrashOpenSwing();

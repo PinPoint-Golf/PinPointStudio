@@ -51,7 +51,7 @@ renders say so.
 
 | # | Function | Today |
 |---|---|---|
-| W1 | Checkpoint profile per DOF: Δ from address at P1–P8 (lead wrist hinge, lead wrist bow/cup, lead forearm roll, trail wrist extension; lead elbow grid-only) | DofTrajectoryStrip |
+| W1 | Checkpoint profile per DOF: Δ from address at P1–P8 (lead wrist hinge, lead wrist bow/cup, lead forearm roll, trail wrist extension; lead elbow grid-only). *Since refactor 3.8-ii part of each shot's findings (DEC-123): `fireFindings` grades every cell under each style and diagnostics.json keeps it (schema 16); the tab grades nothing, and a shot not graded yet says so in its cells.* | DofTrajectoryStrip |
 | W2 | Archetype band per checkpoint; a grade per cell (in range / watch / fault / no data) | RAG glyphs (an audit defect: traffic lights) |
 | W3 | Band model: Auto (→ Neutral / Bowed / Cupped) or a manual override; re-bands and re-grades | segmented control |
 | W4 | Archetype similarity (Neutral / Bowed / Cupped %), which is effective | chips |

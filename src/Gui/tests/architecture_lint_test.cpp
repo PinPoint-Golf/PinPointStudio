@@ -358,7 +358,6 @@ const QVector<OwnedFile> &ownedFiles()
         { "tendencies.json",    R"(tendencies\.json)",                        "Export/athlete_files" },   // FILE-ATH-02 (step 2.5: names only; written by the work-ons controller until step 3)
         { "swing_themes*.json", R"(swing_themes(?:\.[^/]*)?\.json|swing_themes)","Export/athlete_files" },   // FILE-ATH-03 (step 2.5: likewise)
         { "outcome_corrections.jsonl", R"(outcome_corrections\.jsonl)",       "Export/athlete_files" },   // FILE-ATH-04 (the append: AthleteFiles::appendTuningLine)
-        { "fault_profile.json", R"(fault_profile\.json)",                     "Export/athlete_files" },   // FILE-ATH-05 (deleted in step 3; named here until then)
     };
     return t;
 }
@@ -904,8 +903,8 @@ void selfTest()
           QStringLiteral("A4 covers every session and athlete file (session.json, the report PDF, the ceremony, the stills, "
                          "the tuning log); passes a schema name"));
     check(countRule(run("Export/athlete_files.h", QStringLiteral("auto e = \"outcome_corrections.jsonl\";\n")), "A4") == 0
-              && countRule(run("Gui/diagnostics/session_diagnostics_model.cpp", QStringLiteral("auto p = \"fault_profile.json\";\n")), "A4") == 1,
-          QStringLiteral("A4: the athlete files' owner is AthleteFiles (the diagnostics model no longer spells fault_profile.json)"));
+              && countRule(run("Gui/diagnostics/session_diagnostics_model.cpp", QStringLiteral("auto p = \"tendencies.json\";\n")), "A4") == 1,
+          QStringLiteral("A4: the athlete files' owner is AthleteFiles (the diagnostics model spells no athlete file; FILE-ATH-05 is retired, 3.8-ii)"));
     check(countRule(run("Coaching/x.cpp", QStringLiteral("#include <QFile>\nQFile f(p);\nQString s = \"QDir\";\nstd::ifstream in(p);\n")), "A5") == 2,
           QStringLiteral("A5 catches file I/O lines in a rules directory, not a word in a string or the <QFile> include"));
     const auto charts = run("Gui/charts/x.cpp", QStringLiteral(

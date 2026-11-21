@@ -116,6 +116,29 @@ inline QString wristSentenceText(const QVariant &v)
 inline QVariant wristReportBlock(const QVariantMap &payload, const QHash<QString, int> &swingNoOfDir)
 {
     const QVariant none = QVariant::fromValue(nullptr);
+    // SWINGS WITH WRIST READINGS AND NONE GRADED YET (refactor 3.8-ii, REVIEW-ii B1; show, never hide): the page is printed
+    // with its head and the reason, under "Checkpoints across the session" (the profile's sub line), and the reason in the
+    // trust lines; nothing drawn from grades. Existing blocks only: every other block is empty, so the page hides it.
+    if (!payload.value(QStringLiteral("available")).toBool() && payload.value(QStringLiteral("pending")).toBool()) {
+        const QString why = payload.value(QStringLiteral("pendingWhy")).toString();
+        QVariantMap out;
+        out.insert(QStringLiteral("kicker"), payload.value(QStringLiteral("kicker")).toString());
+        out.insert(QStringLiteral("head"), wristSentenceText(payload.value(QStringLiteral("head"))));
+        out.insert(QStringLiteral("styleLine"), QString());
+        out.insert(QStringLiteral("scoreLine"), QString());
+        out.insert(QStringLiteral("profile"), QVariantMap{ { QStringLiteral("positions"), QVariantList() }, { QStringLiteral("rows"), QVariantList() },
+                                                           { QStringLiteral("sub"), why }, { QStringLiteral("caption"), QString() } });
+        out.insert(QStringLiteral("scoreRun"), QVariantMap{ { QStringLiteral("points"), QVariantList() } });
+        out.insert(QStringLiteral("styles"), QVariantMap());
+        out.insert(QStringLiteral("recurring"), QVariantList());
+        out.insert(QStringLiteral("recurringEmpty"), QString());
+        out.insert(QStringLiteral("consistency"), QVariantList());
+        out.insert(QStringLiteral("movesWith"), none);
+        out.insert(QStringLiteral("trust"), why.isEmpty() ? QStringList() : QStringList{ why });
+        out.insert(QStringLiteral("trustMore"), QString());
+        out.insert(QStringLiteral("pending"), true);
+        return out;
+    }
     if (!payload.value(QStringLiteral("available")).toBool()) return none;
     const auto swingOf = [&](const QVariantMap &m) {
         return reportSwingNo(swingNoOfDir, m);

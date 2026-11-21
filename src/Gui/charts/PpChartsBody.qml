@@ -89,13 +89,18 @@ Item {
     function _bareKey(k) { return String(k || "").replace(/^hm\./, "") }
     readonly property var _wristKeys: {
         const rows = [].concat(wShot && wShot.profile ? (wShot.profile.rows || []) : [], wSession ? (wSession.rows || []) : [])
-        return rows.filter(function (r) { return !r.numbersOnly && !!r.key }).map(function (r) { return root._bareKey(r.key) })
+        // a session with wrist readings and none graded yet names its curves' keys alone (3.8-ii, REVIEW-ii B1)
+        const pend = wSession && wSession.pending === true ? (wSession.keys || []).map(function (k) { return root._bareKey(k) }) : []
+        return rows.filter(function (r) { return !r.numbersOnly && !!r.key }).map(function (r) { return root._bareKey(r.key) }).concat(pend)
     }
     readonly property bool wristOnShow: (tChoices && tChoices.metrics ? tChoices.metrics : [])
                                         .some(function (m) { return m.on === true && root._wristKeys.indexOf(root._bareKey(m.key)) >= 0 })
     readonly property bool wristShotShown: wristOnShow && !!wShot && wShot.available === true
     // Session's section reads in depth only: the glance (Replay register) adds This shot's, never Session's
-    readonly property bool wristSessionShown: wristOnShow && wristAvailable && register !== "Replay" && !!wSession && wSession.available === true
+    // …and shown when no shot is graded yet but some carry wrist readings: its head and the reason, nothing drawn from grades
+    // (3.8-ii, REVIEW-ii B1: show, never hide; PpChWristSession draws its head without `available`)
+    readonly property bool wristSessionShown: wristOnShow && wristAvailable && register !== "Replay" && !!wSession
+                                              && (wSession.available === true || wSession.pending === true)
     // THE POSTURE SECTIONS (docs/design/posture_chart_design.md §5.1), the wrist's rule: the shot (or some shot of the
     // session) carries a posture reading AND a posture metric is among the curves on show — one of the presenter's
     // choices.onShowKeys (the rows' series and headRise) on in the traces' preset. In practice the Posture preset.

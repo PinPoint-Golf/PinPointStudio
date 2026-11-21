@@ -1783,7 +1783,7 @@ int main()
         // schema15_notLive_roundtrip (#176): a row a non-live measure stopped carries the engine rule and
         // the measure's status on both row kinds; every other row writes no status key at all
         {
-            check(kDiagSchemaVersion == 15, "schema15: the ledger is schema 15 (#176, a held measure no longer grades)");
+            check(kDiagSchemaVersion >= 15, "schema15: the ledger is schema 15 or later (#176, a held measure no longer grades; 16 since 3.8-ii, the wrist profile)");
             ShotRecord g;
             g.shotId = 10;
             ConditionRow cr;

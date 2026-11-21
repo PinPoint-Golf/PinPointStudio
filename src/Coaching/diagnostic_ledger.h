@@ -58,11 +58,10 @@
 //
 // TWO THINGS ARE DELIBERATELY ABSENT and their absence is part of the contract.
 //
-//   The FAULT PROFILE (prior sessions' prevalence) has no input here at all. It biases
-//   ranking and presentation and nothing else, and the way to guarantee that in code is
-//   to give the arithmetic no way to see it: identical rows produce identical tiers, full
-//   stop. hystereticOrder() is where a ranking bias would legitimately enter, and it
-//   cannot reach a tier from there.
+//   NO HISTORY (prior sessions' prevalence) has an input here at all: identical rows produce
+//   identical tiers, full stop. hystereticOrder() is where a ranking bias would legitimately
+//   enter, and it cannot reach a tier from there. (The fault profile that once could feed it,
+//   never written, was deleted in refactor 3.8-ii: H-11, D-07.)
 //
 //   CADENCE (Bandwidth / Every shot / Block / Quiet) does not appear in this file either.
 //   Cadence gates SURFACING, never the engine — the ledger accumulates at full rate no
@@ -83,6 +82,7 @@
 
 #include "../Core/pp_tuned_constants.h"   // tuned::diagUncertainty (§A8)
 #include "../Analysis/det_rng.h"           // the P(Pattern) Monte Carlo
+#include "../Wrist/wrist_profile.h"        // ShotRecord::wrist (schema 16; DEC-123)
 
 #include <algorithm>
 #include <optional>
@@ -236,7 +236,13 @@ inline constexpr double kDiagSharpExcess = 1000.0;
 // stored ledger regrade on first open (the content stamp carries this version), so verdicts graded off a
 // held measure go away. A file at 14 reads back with no status on any row; the regrade re-reads each
 // swing's stored readings and never re-runs pose, ball or shaft.
-inline constexpr int kDiagSchemaVersion = 15;
+// 16 (refactor step 3.8-ii, 21 Nov 2026; DEC-123, DEC-135, J-58): ShotRecord::wrist, the shot's wrist checkpoint profile
+// (Wrist/wrist_profile.h) — the Δ from address at P1–P8 of each wrist DOF the shot carries and each cell's band and RAG
+// under each style, with the style Auto resolved the swing to — is part of the shot's findings, fired by fireFindings()
+// and kept on the shot's row as `wrist`. The Wrist chart and the report's Wrist page read it and grade nothing. A file at
+// 15 reads back with no profile on any shot and regrades on first open (the content stamp carries this version): the
+// regrade re-reads each swing's stored readings and never re-runs pose, ball or shaft.
+inline constexpr int kDiagSchemaVersion = 16;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -769,6 +775,10 @@ struct ShotRecord {
     // every verdict made from these fields reads them through GradedReadings, which hides these. Empty on
     // every shot whose readings are all live, and on every file older than schema 15.
     QStringList ungradedReadings;
+
+    // Schema 16 (DEC-123): the shot's wrist checkpoint profile (Wrist/wrist_profile.h). present false on a shot with no
+    // wrist DOF, and on every row of a file older than schema 16.
+    WristProfile wrist;
 };
 
 // The readings above, by the measure each is read from — the ONE table detectShot fills them from
@@ -2013,8 +2023,8 @@ inline std::vector<QString> competitionRanks(const std::vector<double> &scoresIn
 // on the fresh rank, so a decisive change lands where it belongs rather than at the end.
 // Items not previously on screen enter at their fresh rank.
 //
-// This is also where a fault profile would legitimately bias presentation — by feeding
-// `score`. It cannot reach a tier from here, which is rule 5 of the brief made structural.
+// This is also where a ranking bias would legitimately enter — by feeding `score`. It cannot
+// reach a tier from here, which is rule 5 of the brief made structural.
 inline std::vector<QString> hystereticOrder(const std::vector<RankedCondition> &scored,
                                             const std::vector<QString> &previousOrder,
                                             int bandWidth = kDiagRankBandWidth)
@@ -2371,6 +2381,8 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
         if (!s.handedness.isEmpty())       so[QStringLiteral("handedness")]   = s.handedness;
         // Schema 15 — only on a shot with a reading whose measure is not live.
         if (!s.ungradedReadings.isEmpty()) so[QStringLiteral("ungradedReadings")] = QJsonArray::fromStringList(s.ungradedReadings);
+        // Schema 16 — only on a shot with a wrist DOF.
+        if (s.wrist.present) so[QStringLiteral("wrist")] = wristProfileToJson(s.wrist);
         // Schema 6 — written only when present.
         if (!s.peakTimes.empty()) {
             QJsonArray pa;
@@ -2536,6 +2548,7 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
         s.handedness   = so.value(QStringLiteral("handedness")).toString();
         for (const QJsonValue &uv : so.value(QStringLiteral("ungradedReadings")).toArray())
             if (uv.isString()) s.ungradedReadings << uv.toString();
+        s.wrist = wristProfileFromJson(so.value(QStringLiteral("wrist")));
         for (const QJsonValue &tv : so.value(QStringLiteral("peakTimes")).toArray()) {
             const QJsonObject to = tv.toObject();
             const QJsonValue v = to.value(QStringLiteral("valueMs"));

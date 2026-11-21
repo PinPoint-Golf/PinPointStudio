@@ -2164,7 +2164,7 @@ int main(int argc, char **argv)
     check(record(golfer, QStringLiteral("s1")).value(QStringLiteral("workOns")).toArray().size() == 2,
           "s1 lists its two movement faults and not the ball-flight outcome");
     check(!QFile::exists(golfer + QStringLiteral("/fault_profile.json")),
-          "deriving a record does not close the session or write the fault profile");
+          "deriving a record does not close the session, and nothing writes the retired fault_profile.json (3.8-ii)");
 
     // ── The swing summary on too little data ────────────────────────────────────
     check(c.summaryReady() && !c.summaryUpdating() && QFile::exists(WorkOnsController::themesPath(golfer)),

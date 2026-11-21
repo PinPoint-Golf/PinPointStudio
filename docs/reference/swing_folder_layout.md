@@ -30,7 +30,7 @@ Each level is created lazily: the athlete folder on first save for that athlete,
 
 `<athleteLibraryPath>/<Athlete-Name>/` — the athlete name is sanitised for the filesystem (`SwingPaths::sanitise`, e.g. spaces → `-`, so *Mark Liversedge* → `Mark-Liversedge`). The athlete's identity/UUID lives in QSettings, not in a file here; the folder name is a display convenience and is **not** the identity key (the `athlete.uuid` inside each swing document is).
 
-The app writes a few athlete-level files beside the session folders: `tendencies.json`, `swing_themes*.json`, `fault_profile.json` and `outcome_corrections.jsonl` (see [`swing_json_schema.md`](swing_json_schema.md) § "Files beside the swings"). (Any `corpus.json`, `*.json.prenorm`, `*.json.prebackfill`, or similar you find are **tooling/corpus artifacts** — swinglab manifests and migration backups — not written by the app.)
+The app writes a few athlete-level files beside the session folders: `tendencies.json`, `swing_themes*.json` and `outcome_corrections.jsonl` (see [`swing_json_schema.md`](swing_json_schema.md) § "Files beside the swings"). (Any `corpus.json`, `*.json.prenorm`, `*.json.prebackfill`, or similar you find are **tooling/corpus artifacts** — swinglab manifests and migration backups — not written by the app.)
 
 ---
 

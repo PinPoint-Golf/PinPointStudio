@@ -27,6 +27,10 @@
 // and a diagnostics.json ledger with rows for shot 1.
 
 #include "session_series_model.h"
+#include "session_wrist.h"
+#include "../../Diagnostics/norms/norm.h"           // gradePolicyByName
+#include "../../Diagnostics/norms/norm_provider.h"  // sharedNormProvider
+#include "../../Wrist/wrist_profile_assess.h"
 #include "../../Export/rule_data_install.h"
 
 #include "../../Coaching/board_annotations.h"
@@ -469,20 +473,28 @@ private slots:
         QCOMPARE(SessionSeriesModel::relUs(QJsonValue(5.0), kT0), qint64(5));
     }
 
-    // ── The wrist checkpoint profile (build/wrist-tab CONTRACT I3) ──────────────────────────────
-    void carriesTheWristProfileAndRegradesItSessionWide()
+    // ── The wrist checkpoint profile (build/wrist-tab CONTRACT I3; since refactor 3.8-ii the FINDINGS', DEC-123) ─────
+    // The model grades nothing: the ledger row's profile (schema 16) is joined to the shot, the payload picks a style
+    // from it, and a shot with wrist series and no profile in its row is PENDING (J-58: never empty, never "no metrics").
+    void carriesTheWristProfileFromTheFindings()
     {
         using pinpoint::analysis::ShotState;
         const QString dir = m_tmp.path() + QStringLiteral("/Athlete/2026-10-15_Wrist_01");
         QDir(dir).removeRecursively();
         QDir().mkpath(dir + QStringLiteral("/swing_0001"));
         QString err;
-        QVERIFY2(pinpoint::SwingStore::save(dir + QStringLiteral("/swing_0001"), makeWristDoc(), &err), qPrintable(err));
+        const QJsonObject doc = makeWristDoc();
+        QVERIFY2(pinpoint::SwingStore::save(dir + QStringLiteral("/swing_0001"), doc, &err), qPrintable(err));
         pinpoint::analysis::ShotRecord rec;
         rec.shotId = 1;
         pinpoint::analysis::ConditionRow r = row(QStringLiteral("cupped_at_top"), ShotState::Fired, -30, -2, -20, 10, -1);
         r.confidence = 0.75f;
         rec.rows.push_back(r);
+        // the profile as fireFindings writes it: the one rule, over the document's own analysis
+        rec.wrist = pinpoint::analysis::assessWristProfile(
+            pinpoint::analysis::wristInputOf(doc.value(QStringLiteral("analysis")).toObject()),
+            pinpoint::analysis::sharedNormProvider(), pinpoint::analysis::gradePolicyByName(QStringLiteral("standard")));
+        QVERIFY(rec.wrist.present);
         writeLedger(dir, { rec });
 
         SessionSeriesModel m;
@@ -490,9 +502,12 @@ private slots:
         m.activateSession(dir);
         const auto snap = m.snapshot();
         QCOMPARE(snap->count(), 1);
-        const QVariantMap w = snap->shots[0]->wrist;
+        QVERIFY(snap->shots[0]->diagnostics.wrist == rec.wrist);   // carried as written, not re-graded
+        const QVariantMap w = shotWristPayload(*snap->shots[0], -1);
         QVERIFY(!w.isEmpty());
+        QVERIFY(!w.value(QStringLiteral("pending")).toBool());
         QCOMPARE(w.value(QStringLiteral("archetypeMode")).toInt(), -1);
+        QCOMPARE(w.value(QStringLiteral("archetype")).toInt(), rec.wrist.resolved);
         QCOMPARE(w.value(QStringLiteral("resemblance")).toMap().value(QStringLiteral("neutral")).toInt(), 84);
         QCOMPARE(w.value(QStringLiteral("resemblance")).toMap().value(QStringLiteral("cupped")).toInt(), 50);
         const QVariantList cps = w.value(QStringLiteral("checkpoints")).toList();
@@ -514,24 +529,36 @@ private slots:
         QCOMPARE(snap->shots[0]->diagnostics.values.value(QStringLiteral("cupped_at_top")).confidence, 0.75);
         QVERIFY(!snap->tiers.value(QStringLiteral("cupped_at_top")).isEmpty());
 
-        // the archetype is session-wide: a new snapshot, every shot re-graded from memory, no read
+        // a style by hand is a PICK of the grades the findings kept: no read, no re-grade, the Δ unchanged
         const int reads = m.loadStats().docReads;
-        m.setWristArchetype(2);
-        const auto snap2 = m.snapshot();
-        QVERIFY(snap2->revision > snap->revision);
-        QVERIFY(snap2->shots[0] != snap->shots[0]);
-        QCOMPARE(snap2->shots[0]->wrist.value(QStringLiteral("archetypeMode")).toInt(), 2);
-        QCOMPARE(snap2->shots[0]->wrist.value(QStringLiteral("archetype")).toInt(), 2);
+        const QVariantMap cupped = shotWristPayload(*snap->shots[0], 2);
+        QCOMPARE(cupped.value(QStringLiteral("archetypeMode")).toInt(), 2);
+        QCOMPARE(cupped.value(QStringLiteral("archetype")).toInt(), 2);
         QCOMPARE(m.loadStats().docReads, reads);
-        m.setWristArchetype(-1);
-        QCOMPARE(m.snapshot()->shots[0]->wrist.value(QStringLiteral("archetypeMode")).toInt(), -1);
+        const QVariantMap d0 = w.value(QStringLiteral("dofs")).toList().value(1).toMap(), d2 = cupped.value(QStringLiteral("dofs")).toList().value(1).toMap();
+        for (int p = 0; p < 8; ++p)
+            QCOMPARE(d0.value(QStringLiteral("cells")).toList().value(p).toMap().value(QStringLiteral("deltaDeg")),
+                     d2.value(QStringLiteral("cells")).toList().value(p).toMap().value(QStringLiteral("deltaDeg")));
+
+        // a row with no profile (a ledger older than schema 16): PENDING, with the DOFs and the reason, no cell measured
+        rec.wrist = pinpoint::analysis::WristProfile{};
+        writeLedger(dir, { rec });
+        m.refreshDiagnostics();
+        QTRY_VERIFY(!m.snapshot()->shots[0]->diagnostics.wrist.present);
+        const QVariantMap pend = shotWristPayload(*m.snapshot()->shots[0], -1, m.snapshot()->wristPendingWhy);
+        QVERIFY(pend.value(QStringLiteral("pending")).toBool());
+        QVERIFY(!pend.value(QStringLiteral("pendingWhy")).toString().isEmpty());
+        QCOMPARE(pend.value(QStringLiteral("dofs")).toList().size(), 2);
+        for (const QVariant &d : pend.value(QStringLiteral("dofs")).toList())
+            for (const QVariant &c : d.toMap().value(QStringLiteral("cells")).toList())
+                QVERIFY(!c.toMap().value(QStringLiteral("available")).toBool());
 
         // a swing with no wrist DOF carries none
         stage();
         SessionSeriesModel plain;
         plain.setSynchronous(true);
         plain.activateSession(m_session);
-        QVERIFY(plain.snapshot()->shots[0]->wrist.isEmpty());
+        QVERIFY(shotWristPayload(*plain.snapshot()->shots[0], -1).isEmpty());
     }
 
     void skipsAShotWithNoAnalysisAndCountsIt()
@@ -805,7 +832,8 @@ private slots:
         QCOMPARE(before->shots[2]->ordinal, 3);                     // ...and the old one is unchanged
     }
 
-    void ignoresShotsOutsideTheSessionAndAfterClose()
+    // (Until 3.8-ii also "…AndAfterClose": the model's closeSession(), which nothing called, is deleted: C-15.)
+    void ignoresShotsOutsideTheSession()
     {
         stage();
         SessionSeriesModel m;
@@ -814,19 +842,14 @@ private slots:
         QVERIFY(writeSwing(m_other, 1, true, true));
         m.ingestShot(1, m_other + QStringLiteral("/swing_0001"));
         QCOMPARE(m.shotCount(), 3);
-
-        m.closeSession();
-        QVERIFY(m.closed());
         QVERIFY(writeSwing(m_session, 5, true, true));
-        m.ingestShot(5, m_session + QStringLiteral("/swing_0005"));
-        QCOMPARE(m.shotCount(), 3);                                 // refused after close
-        m.regradeShot(m_session + QStringLiteral("/swing_0005"));   // the same shot measured: accepted
+        m.regradeShot(m_session + QStringLiteral("/swing_0005"));   // a swing it has not seen: ingested
         QCOMPARE(m.shotCount(), 4);
         QDir(m_other + QStringLiteral("/swing_0001")).removeRecursively();
     }
 
-    // #56: a swing moved to the trash leaves the snapshot — counted shot or skipped one — and a
-    // closed session accepts it; one of another session is ignored.
+    // #56: a swing moved to the trash leaves the snapshot — counted shot or skipped one; one of another
+    // session is ignored.
     void aTrashedSwingLeavesTheSession()
     {
         stage();
@@ -853,7 +876,6 @@ private slots:
         m.forgetShot(m_session + QStringLiteral("/swing_0002"));     // already gone: ignored
         QCOMPARE(m.snapshot(), snap);
 
-        m.closeSession();
         QVERIFY(QDir(m_session + QStringLiteral("/swing_0003")).removeRecursively());
         m.forgetShot(m_session + QStringLiteral("/swing_0003"));
         QCOMPARE(m.skippedCount(), 0);                               // a skipped swing goes too

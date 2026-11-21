@@ -90,15 +90,6 @@ bool swingIsInSession(const QString &swingDir, const QString &sessionDir)
         == QDir::cleanPath(QFileInfo(sessionDir).absoluteFilePath());
 }
 
-// The envelope's own schema tag, separate from kDiagSchemaVersion: SessionDiagnosticsFiles::kEnvelopeVersion
-// (Export/session_diagnostics_files.h), its one reader and writer since step 2.5.
-//
-// TWO VERSIONS BECAUSE THERE ARE TWO CONTRACTS. kDiagSchemaVersion tags the ROW shape, which
-// diagnostic_ledger.h owns and which a corpus tool reads without knowing this class exists.
-// The envelope's tags what the MODEL wraps around it — the session meta. They change on completely
-// different schedules, and sharing one number would force a bump on every consumer whenever a panel
-// gained a field.
-constexpr int kEnvelopeVersion = pinpoint::SessionDiagnosticsFiles::kEnvelopeVersion;
 
 // What the launch monitor saw often enough to seed the session's graph as an observed miss (§4.5).
 constexpr int kDiagObservedMissMin = 3;
@@ -623,7 +614,7 @@ SessionDiagnosticsModel::SessionDiagnosticsModel(QObject *parent)
     rebuild();
 }
 
-// THE THIN ADAPTER POINTED AT (activateSession; 3.7-a): the profile and the history read, the owner's club baseline
+// THE THIN ADAPTER POINTED AT (activateSession; 3.7-a): the history read, the owner's club baseline
 // brought up to date (its link: a freeze landed elsewhere since — the catch-up's, at End), today's live freeze when the
 // session has none, then the owner's diagnosis shown. The adapter's Session-facing half is its link
 // (session_diagnostics_adapter.cpp), so this file links nothing of the domain model.
@@ -651,7 +642,6 @@ void SessionDiagnosticsModel::pointAdapter()
         rebuild();
         return;
     }
-    loadProfile();
     scanHistory();
     // THE CLUB BASELINE IS THE OWNER'S, BY ONE RULE (refactor 3.7-e; J-a8): a freeze that landed elsewhere is read, else the
     // owner freezes it at first need from its predecessors' summaries when that is computable. The adapter's own live
@@ -984,6 +974,9 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(
         summary.wallclockMs > 0
             ? summary.wallclockMs
             : pinpoint::SwingStore::info(swingDir).mtimeMs;
+    // The shot's wrist readings for its checkpoint profile (refactor 3.8-ii; DEC-123), as the owner's firing reader reads
+    // them (SwingStoreFiringReader::read): only when the grid names a wrist DOF.
+    readings.wrist = readWristInput(swingDir, readings.grid, &parsed);
     parsed.release();
 
     // The document's own facts the findings read: the hand, and the two recording-integrity facts that
@@ -1224,8 +1217,6 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     m_stage  = Stage::Cold;
     m_reachedEstablished = false;
     m_closed = false;
-    m_profile = QJsonObject();
-    m_expectations.clear();
     // A detail is a page being read, not a fact about a session. Pointing the panel at a
     // different ledger closes it rather than re-answering it against evidence it was not opened
     // over — and the id may not even exist in the new session's neighbourhood.
@@ -1351,8 +1342,7 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     // written this activation either (m_ledgerWriteBlocked), so no new home can hide its older copy.
     readGolferInput(pinpoint::SessionDiagnosticsFiles::golferInput(sessionDir, m_legacyGolfer, *m_recordings));
 
-    // ── 2. The athlete's history ────────────────────────────────────────────────────
-    loadProfile();
+    // ── 2. The club baseline ────────────────────────────────────────────────────────
     // BEFORE ANYTHING IS QUEUED: every row graded from here on reads this baseline, and carries the
     // stamp that says which it read.
     //
@@ -1506,26 +1496,6 @@ void SessionDiagnosticsModel::continueActivation()
     // THE PARALLEL RUN (refactor 3.5-ii; D14): a session opened with nothing to regrade is compared once here (a batch
     // that is owed is compared by settleBatch when it lands).
     if (!owed && m_pending == 0 && g_parallelHook && !m_sessionDir.isEmpty()) g_parallelHook(*this);
-}
-
-void SessionDiagnosticsModel::closeSession()
-{
-    if (m_adapter) return;   // the Session's end closes its diagnosis (EVT-09; J-24)
-    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
-    if (m_closed) return;
-    m_pool.waitForDone();
-    m_closed = true;
-    // Rank on the final evidence, whenever the pattern set last moved: the closed session must read as a
-    // reload of it will, and a reload ranks once, on the final numbers.
-    m_patternSet.clear();
-    rebuild();
-    persist();
-    // The profile is updated ONCE, at close, and from the frozen ledger. Updating it per shot
-    // would let a session that ended after four swings claim the same standing as one that
-    // ran to thirty, and the whole value of the profile is that a "pattern in 8 of your last
-    // 10 sessions" line is countable in sessions rather than in moments.
-    updateProfile();
-    emit surfaceChanged();
 }
 
 // ── Intent ──────────────────────────────────────────────────────────────────────────────
@@ -3081,10 +3051,9 @@ void SessionDiagnosticsModel::refreshExplanation()
     }
 }
 
-// THE ONLY READER OF THE FAULT PROFILE. hystereticOrder()'s comment names this as the one
-// place a prevalence bias may legitimately enter, and the reason it is safe is structural:
-// this function returns a display SCORE, the score reaches nothing but an ordering, and there
-// is no path from an ordering to a tier, a corridor or a firing.
+// hystereticOrder()'s input: a display SCORE, which reaches nothing but an ordering — there is no path from an ordering
+// to a tier, a corridor or a firing. (Until refactor 3.8-ii a tenth of the athlete's fault-profile prevalence was added
+// here too; the profile was never written — H-11, D-07 — and is deleted, so the score is a function of this session.)
 std::vector<RankedCondition> SessionDiagnosticsModel::rankScores() const
 {
     std::vector<RankedCondition> out;
@@ -3116,10 +3085,6 @@ std::vector<RankedCondition> SessionDiagnosticsModel::rankScores() const
         // The bound, scaled so it settles a near-tie on magnitude and never overturns a real
         // difference in it: excess runs to several band-widths, this term to a tenth of one.
         r.score += 0.10 * l.wilsonLower;
-        // Then history, at the same weight: enough to break a tie between two equally placed
-        // patterns in favour of the one this golfer keeps producing, never enough to lift a
-        // mild one over a severe one.
-        r.score += 0.10 * profileBias(l.id);
         // And the two demotions the pack already carries. Immateriality is RANKING ONLY by
         // ContextBinding's own contract, and this is where it is allowed to act.
         const ConditionRow *latest = m_shots.empty() ? nullptr : rowFor(m_shots.back(), l.id);
@@ -3128,16 +3093,6 @@ std::vector<RankedCondition> SessionDiagnosticsModel::rankScores() const
         out.push_back(std::move(r));
     }
     return out;
-}
-
-double SessionDiagnosticsModel::profileBias(const QString &conditionId) const
-{
-    const QJsonObject conds = m_profile.value(QStringLiteral("conditions")).toObject();
-    const QJsonObject c     = conds.value(conditionId).toObject();
-    const double seen    = c.value(QStringLiteral("sessionsSeen")).toDouble(0.0);
-    const double pattern = c.value(QStringLiteral("sessionsPattern")).toDouble(0.0);
-    if (!(seen > 0.0)) return 0.0;
-    return std::clamp(pattern / seen, 0.0, 1.0);
 }
 
 // ── Persistence ─────────────────────────────────────────────────────────────────────────
@@ -3154,22 +3109,11 @@ QString SessionDiagnosticsModel::diagnosticsPath() const
 
 QString SessionDiagnosticsModel::tuningLogPath() const
 {
-    // The athlete folder, as the fault profile: one golfer's corrections, read across sessions.
+    // The athlete folder (the session folder's parent): one golfer's corrections, read across sessions.
     if (m_sessionDir.isEmpty()) return QString();
     QDir d(m_sessionDir);
     if (!d.cdUp()) return QString();
     return pinpoint::AthleteFiles::tuningLogFile(d.path());   // FILE-ATH-04's name (lint A4)
-}
-
-QString SessionDiagnosticsModel::faultProfilePath() const
-{
-    // The ATHLETE folder, which is the session directory's parent —
-    // <athleteLibraryPath>/<athlete>/<session>/. A profile written inside the session folder
-    // would be a profile with a sample size of one, which is the one thing it must not be.
-    if (m_sessionDir.isEmpty()) return QString();
-    QDir d(m_sessionDir);
-    if (!d.cdUp()) return QString();
-    return pinpoint::AthleteFiles::faultProfileFile(d.path());   // FILE-ATH-05's name (lint A4)
 }
 
 // ── The golfer's input ──────────────────────────────────────────────────────────────────────
@@ -3592,113 +3536,6 @@ void SessionDiagnosticsModel::persist(bool adoptInput)
     }
     ppWarn() << "[Diagnostics] diagnostics.json was not written:" << qPrintable(path) << "—" << qPrintable(w.error);
     reportWriteFailure(tr("The session's diagnostics"), w.error);
-}
-
-void SessionDiagnosticsModel::loadProfile()
-{
-    m_profile = QJsonObject();
-    m_expectations.clear();
-
-    const QString path = faultProfilePath();
-    if (path.isEmpty()) return;
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) return;
-    m_profile = QJsonDocument::fromJson(f.readAll()).object();
-    f.close();
-
-    // The Cold state's "usually yours" list. EXPECTATIONS TO TEST, and the wording has to
-    // keep saying so — these are dashed cards in the design precisely because they are the
-    // one thing on the panel that is not evidence from this session.
-    const QJsonObject conds = m_profile.value(QStringLiteral("conditions")).toObject();
-    struct Row { QString id; int seen; int pattern; QString last; QString trend; };
-    std::vector<Row> rows;
-    for (auto it = conds.constBegin(); it != conds.constEnd(); ++it) {
-        const QJsonObject c = it.value().toObject();
-        Row r;
-        r.id      = it.key();
-        r.seen    = c.value(QStringLiteral("sessionsSeen")).toInt();
-        r.pattern = c.value(QStringLiteral("sessionsPattern")).toInt();
-        r.last    = c.value(QStringLiteral("lastSeenSession")).toString();
-        r.trend   = c.value(QStringLiteral("trend")).toString();
-        if (r.seen < 1 || r.pattern < 1) continue;    // nothing to expect
-        rows.push_back(std::move(r));
-    }
-    std::sort(rows.begin(), rows.end(), [](const Row &a, const Row &b) {
-        const double pa = double(a.pattern) / double(a.seen);
-        const double pb = double(b.pattern) / double(b.seen);
-        if (pa != pb) return pa > pb;
-        if (a.pattern != b.pattern) return a.pattern > b.pattern;
-        return a.id < b.id;
-    });
-
-    for (const Row &r : rows) {
-        m_expectations.append(QVariantMap{
-            { QStringLiteral("id"),   r.id },
-            { QStringLiteral("name"), conditionName(r.id) },
-            // A COUNT over sessions, for the same reason recurrence is a count over shots: at
-            // this n a percentage is fabricated precision.
-            { QStringLiteral("text"), QStringLiteral("pattern in %1 of your last %2 sessions")
-                                          .arg(r.pattern).arg(r.seen) },
-            { QStringLiteral("trend"), r.trend },
-            { QStringLiteral("lastSeenSession"), r.last },
-            // The sentence the design puts on the panel and the implementation has to keep
-            // true. It ships as data so no surface can drop it.
-            { QStringLiteral("caveat"),
-              QStringLiteral("an expectation to test, not a finding") },
-        });
-    }
-}
-
-void SessionDiagnosticsModel::updateProfile()
-{
-    const QString path = faultProfilePath();
-    if (path.isEmpty()) return;
-
-    const QString sessionId = QFileInfo(m_sessionDir).fileName();
-    QJsonObject conds = m_profile.value(QStringLiteral("conditions")).toObject();
-
-    for (const ConditionLedger &l : m_ledgers) {
-        // Only conditions this session could actually SEE update their history. A condition
-        // the capture never assessed is not evidence that it was absent, and counting it as a
-        // session-seen-but-not-pattern would quietly drive its prevalence to zero every time
-        // the camera could not answer it.
-        if (l.assessable < 1) continue;
-
-        QJsonObject c = conds.value(l.id).toObject();
-        const int seenBefore    = c.value(QStringLiteral("sessionsSeen")).toInt();
-        const int patternBefore = c.value(QStringLiteral("sessionsPattern")).toInt();
-        const QString lastSession = c.value(QStringLiteral("lastSeenSession")).toString();
-        if (lastSession == sessionId) continue;        // idempotent: closing twice counts once
-
-        const int seen    = seenBefore + 1;
-        const int pattern = patternBefore + (l.tier == Tier::Pattern ? 1 : 0);
-
-        // A three-valued trend and nothing finer. "rising"/"falling"/"steady" over the
-        // prevalence before and after this session is all two numbers can support, and a
-        // slope over a handful of sessions dressed as a percentage would be the same
-        // fabricated precision the recurrence caption refuses.
-        QString trend = QStringLiteral("steady");
-        if (seenBefore > 0) {
-            const double before = double(patternBefore) / double(seenBefore);
-            const double after  = double(pattern) / double(seen);
-            if (after > before + 1e-9)      trend = QStringLiteral("rising");
-            else if (after < before - 1e-9) trend = QStringLiteral("falling");
-        }
-
-        c[QStringLiteral("sessionsSeen")]    = seen;
-        c[QStringLiteral("sessionsPattern")] = pattern;
-        c[QStringLiteral("trend")]           = trend;
-        if (l.tier == Tier::Pattern) c[QStringLiteral("lastPatternSession")] = sessionId;
-        c[QStringLiteral("lastSeenSession")] = sessionId;
-        conds.insert(l.id, c);
-    }
-
-    QJsonObject root = m_profile;
-    root[QStringLiteral("schemaVersion")] = kEnvelopeVersion;
-    root[QStringLiteral("conditions")]    = conds;
-    root[QStringLiteral("updatedAtMs")]   = double(QDateTime::currentMSecsSinceEpoch());
-    m_profile = root;
-    (void)pinpoint::atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Compact), nullptr);
 }
 
 // ── Work-ons ────────────────────────────────────────────────────────────────────────────
@@ -4768,8 +4605,8 @@ SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing, in
     if (selfNOfDay) *selfNOfDay = 0;
     if (sessionDir.isEmpty()) return out;
 
-    // THE SAME GOLFER is the session folder's PARENT — the athlete folder, the one place the fault
-    // profile already treats as "this golfer's history" (faultProfilePath()). Siblings only: a
+    // THE SAME GOLFER is the session folder's PARENT — the athlete folder, "this golfer's history".
+    // Siblings only: a
     // session in another athlete's folder is another golfer, whatever its condition ids say.
     const QFileInfo self(QDir::cleanPath(sessionDir));
     const QString selfCanon = self.canonicalFilePath().isEmpty() ? self.absoluteFilePath()

@@ -13,8 +13,8 @@ around it.
 | | |
 |---|---|
 | `diagnostics.json` per session | The ledger's rows — one per shot per condition. Evidence only, no verdicts. All seven library sessions have one. |
-| `SessionDiagnosticsModel::closeSession()` | Freezes a session and folds it into `fault_profile.json`. **Nothing calls it.** Every ledger on the share reads `closed: false` and no fault profile has ever been written. |
-| `fault_profile.json` | An incremental tally (`sessionsSeen`, `sessionsPattern`). It cannot be rebuilt, cannot survive a re-analysis without double counting, and treats "not a pattern" as "absent". |
+| `SessionDiagnosticsModel::closeSession()` | Freezes a session and folds it into `fault_profile.json`. **Nothing calls it.** *(Deleted in refactor 3.8-ii, with the file's reader and writer.)* Every ledger on the share reads `closed: false` and no fault profile has ever been written. |
+| `fault_profile.json` | *(Retired in refactor 3.8-ii.)* An incremental tally (`sessionsSeen`, `sessionsPattern`). It cannot be rebuilt, cannot survive a re-analysis without double counting, and treats "not a pattern" as "absent". |
 
 So the catch-up is not a migration of old data; there is no "ended" state anywhere to migrate.
 The design below does not introduce one.
