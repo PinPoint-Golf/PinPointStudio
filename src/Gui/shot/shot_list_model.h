@@ -279,6 +279,10 @@ signals:
     // A trashShots() request is done: `moved` of `requested` shots went, and
     // `reason` says why the rest did not ("" when they all went).
     void trashFinished(int requested, int moved, const QString &reason);
+    // A shot's edit (its rating, note, club, the reading's exclusion or the club correction) was NOT saved (DEC-126;
+    // refactor step 3.7-a): the row shows the shot's saved value, and the composition root tells the golfer. `what`
+    // names the edit ("the rating"); `why` is the error.
+    void saveFailed(const QString &what, const QString &why);
 
 private:
     struct Shot {

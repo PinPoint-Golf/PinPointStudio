@@ -308,8 +308,13 @@ SessionArchiveJob Session::archiveJob(const SessionArchiveOptions &options)
         return job;
     }
     job = m_sessions->archiveJob(m_id, options);
-    if (!job)
+    if (!job) {
         ppWarn() << "[Session] archive refused:" << m_id.toString() << "-" << job.refused.error;
+        return job;
+    }
+    // Out until it lands (archiveLanded): its diagnostics ask and write nothing meanwhile (3.7-a, review B2).
+    m_archiving = true;
+    emit archiveOut();
     return job;
 }
 
@@ -317,6 +322,10 @@ void Session::archiveLanded(const SessionArchiveResult &result)
 {
     if (m_sessions)
         m_sessions->archiveLanded(m_id);   // the record reads the marker again, whatever happened
+    if (m_archiving) {
+        m_archiving = false;
+        emit archiveBack(result.ok);
+    }
     if (!result.ok) {
         ppWarn() << "[Session] not archived:" << m_id.toString() << "-" << result.error;
         return;   // nothing changed for good: no event

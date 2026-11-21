@@ -44,7 +44,13 @@
 //
 //   cmake --build build/tests --target post_shot_bench -j 6
 //   post_shot_bench --fixtures <dir of swing.ppsw copies> --library <empty scratch dir> [--shots 40] [--parallel 1]
-//                   [--csv out.csv]
+//                   [--path new|old] [--view 1|0] [--csv out.csv]
+//
+// --path new (the default; refactor 3.7-a): the app since the stage panel's cut-over — the app's doors
+// (appDiagnosticsDoors: the owner always attached, persisting, on the one pool) and the panel's THIN ADAPTER
+// (SessionDiagnosticsAdapters, a view bound), so a shot's window holds the owner's keep and diagnosis (`owner`), its
+// debounced write (`owner.write`, 1.5 s later, as the app) and the adapter's view work (`adapter`, with the panel's QML
+// read under it). --path old: HEAD before 3.7-a (the panel's own engine model; --parallel as before).
 //
 // NOT a ctest: it times, it does not check, and it writes a library (refused unless --library is empty or new).
 
@@ -63,6 +69,7 @@
 #include "../../src/Export/swing_store.h"
 #include "../../src/Export/swing_store_repository.h"
 #include "../../src/Gui/diagnostics/diag_parallel_run.h"
+#include "../../src/Gui/diagnostics/session_diagnostics_adapter.h"
 #include "../../src/Gui/diagnostics/session_diagnostics_model.h"
 #include "../../src/Gui/shot/qml_payload.h"
 #include "../../src/Gui/shot/shot_list_model.h"
@@ -209,6 +216,10 @@ int main(int argc, char **argv)
     p.addOption({ QStringLiteral("shots"), QStringLiteral("shots in the one session (40)"), QStringLiteral("n"), QStringLiteral("40") });
     p.addOption({ QStringLiteral("parallel"), QStringLiteral("1: the parallel run on, as on the cabin (1)"), QStringLiteral("0|1"), QStringLiteral("1") });
     p.addOption({ QStringLiteral("csv"), QStringLiteral("per-shot step table"), QStringLiteral("file") });
+    p.addOption({ QStringLiteral("path"), QStringLiteral("new: the app since 3.7-a (owner + adapter); old: the panel's own model (new)"),
+                  QStringLiteral("new|old"), QStringLiteral("new") });
+    p.addOption({ QStringLiteral("view"), QStringLiteral("new path: 1 a panel bound to the adapter, 0 the panel off (1)"),
+                  QStringLiteral("0|1"), QStringLiteral("1") });
     p.addOption({ QStringLiteral("quiet"), QStringLiteral("no [PostShot] line per shot") });
     p.addOption({ QStringLiteral("gc"), QStringLiteral("collect the JS engine's garbage after each shot, outside its window") });
     p.addHelpOption();
@@ -222,7 +233,9 @@ int main(int argc, char **argv)
         if (qEnvironmentVariableIsEmpty(var)) qputenv(var, (QStringLiteral(PP_DIAGRES "/") + QLatin1String(file)).toLocal8Bit());
 
     const int  kShots   = std::max(2, p.value(QStringLiteral("shots")).toInt());
-    const bool parallel = p.value(QStringLiteral("parallel")) == QLatin1String("1");
+    const bool newPath  = p.value(QStringLiteral("path")) != QLatin1String("old");
+    const bool parallel = !newPath && p.value(QStringLiteral("parallel")) == QLatin1String("1");
+    const bool owners   = newPath || parallel;   // the pool, the receiver and an owner on the session
     const QString library = QDir::cleanPath(p.value(QStringLiteral("library")));
     if (library.isEmpty() || (QDir(library).exists() && !QDir(library).isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden))) {
         std::fprintf(stderr, "post_shot_bench: --library must name an empty or new folder\n");
@@ -261,7 +274,7 @@ int main(int argc, char **argv)
     std::function<WorkTarget(const WorkAddress &)> lookup;
     std::unique_ptr<WorkReceiver> receiver;
     std::unique_ptr<WorkPool>     pool;
-    if (parallel) {
+    if (owners) {
         receiver = std::make_unique<WorkReceiver>([&lookup](const WorkAddress &a) { return lookup ? lookup(a) : WorkTarget{}; });
         pool     = std::make_unique<WorkPool>();
     }
@@ -270,12 +283,13 @@ int main(int argc, char **argv)
     rec.name = QStringLiteral("Bench Golfer");
     athlete->setStored(rec, library + QLatin1Char('/') + kToken, SessionOwner{ kAthlete, rec.name, library }, Athlete::Source::Library, false);
     athlete->setShotDoors({ &recordings, std::shared_ptr<RecordingReader>(&reader, [](RecordingReader *) {}) });
-    if (parallel) {
+    if (owners) {
         lookup = [&athlete](const WorkAddress &a) {
             return diagnosticsWorkTarget(athlete ? athlete->loadedSession(SessionId::fromString(a.owner)) : nullptr, a);
         };
-        // The app's one doors function (3.7-0; main.cpp and diag_parallel_live_test call it too).
-        athlete->setDiagnosticsDoors(parallel::doors(pool.get(), receiver.get(), &ruleData, store, recordings));
+        // The app's doors (3.7-a: main.cpp's appDiagnosticsDoors), or the parallel run's in-memory ones (3.7-0).
+        athlete->setDiagnosticsDoors(newPath ? appDiagnosticsDoors(pool.get(), receiver.get(), &ruleData, store, recordings)
+                                             : parallel::doors(pool.get(), receiver.get(), &ruleData, store, recordings));
     }
     App appObject([&athlete] { return athlete.get(); });
     SessionDiagnosticsModel::setShotCommands(&appObject);
@@ -296,12 +310,24 @@ int main(int argc, char **argv)
         return 1;
     }
     const QString folder = session->entry()->folder;
-    auto panel = std::make_unique<SessionDiagnosticsModel>();   // the panel's model, made by QML: async
+    // The panel's model: 3.7-a's thin adapter (made by C++, a view bound), or HEAD's own model (made by QML: async).
+    SessionDiagnosticsAdapters adapters;
+    std::unique_ptr<SessionDiagnosticsModel> oldPanel;
+    SessionDiagnosticsModel *panel = nullptr;
+    if (newPath) {
+        panel = adapters.of(session, QStringLiteral("panel"), folder);
+        if (p.value(QStringLiteral("view")) != QLatin1String("0"))
+            panel->addView();   // --view 0: the panel off — the adapter exists (as after a panel was once up) and idles
+        panel->setBaselineAuthorityName(QStringLiteral("live"));
+    } else {
+        oldPanel = std::make_unique<SessionDiagnosticsModel>();
+        panel = oldPanel.get();
+    }
     panel->activateSession(folder);
     panel->waitForIdle(60000);
     // The QML readers' floor (readLikeQml): the panel's every property on each surfaceChanged, the carousel's new row
     // on rowsInserted and a refreshed row's roles on dataChanged — synchronously, inside the emit, as QML reads.
-    QObject::connect(panel.get(), &SessionDiagnosticsModel::surfaceChanged, panel.get(), [&engine, &panel] {
+    QObject::connect(panel, &SessionDiagnosticsModel::surfaceChanged, panel, [&engine, panel] {
         PostShotTrace::Scope t("qml.panel");
         readAllProperties(engine, *panel);
     });
@@ -315,8 +341,9 @@ int main(int argc, char **argv)
         for (int r = a.row(); r <= b.row(); ++r) readRow(engine, shotModel, r, roles);
     });
     SessionDiagnostics *owner = session->diagnostics();
-    std::printf("post_shot_bench: %d shots, %lld fixture(s), parallel run %s, library %s\n", kShots,
-                (long long)fixtures.size(), parallel ? "ON" : "off", qPrintable(library));
+    std::printf("post_shot_bench: %d shots, %lld fixture(s), path %s, parallel run %s, library %s\n", kShots,
+                (long long)fixtures.size(), newPath ? "new (3.7-a: owner + adapter)" : "old (the panel's own model)",
+                parallel ? "ON" : "off", qPrintable(library));
     std::printf("  session %s\n", qPrintable(folder));
 
     QList<StepTable> perShot;
@@ -389,7 +416,7 @@ int main(int argc, char **argv)
             panel->regradeShot(pdir);
         }
         // ── the queued deliveries: the panel's settles, the new owner's results ──
-        pump([&] { return !panel->busy() && (!owner || owner->idle()); });
+        pump([&] { return !panel->busy() && (!owner || (owner->idle() && !owner->writePending())); });
         QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
         PostShotTrace::end();
         perShot << tableOf(last);
@@ -427,7 +454,7 @@ int main(int argc, char **argv)
         }
     }
 
-    panel.reset();
+    oldPanel.reset();
     parallel::uninstall();
     SessionDiagnosticsModel::setShotCommands(nullptr);
     session->end();

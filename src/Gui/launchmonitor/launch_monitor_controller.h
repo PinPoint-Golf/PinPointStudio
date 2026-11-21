@@ -198,6 +198,9 @@ signals:
     // A shot's reading was REPLACED by a fuller one after the fact (Foresight Premier's club
     // data, which lands a shot late). Everything showing that swing re-reads it; no chime.
     void readingUpdatedForSwing(const QString &swingDir);
+    // A reading — the shot's own, or its late club data — could not be written into its swing (DEC-126; refactor step
+    // 3.7-a): logged, and the composition root tells the golfer. `what` names it; `why` is the error.
+    void saveFailed(const QString &what, const QString &why);
 
 private:
     void onReadingAvailable(const pinpoint::lm::LaunchMonitorReading &reading);

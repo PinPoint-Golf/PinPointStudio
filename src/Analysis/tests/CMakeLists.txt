@@ -1983,6 +1983,21 @@ pp_add_test(diag_parallel_live_test
 set_tests_properties(diag_parallel_live_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
+# diag_stage_panel_test — THE STAGE PANEL'S CUT-OVER AND ALWAYS FIRE (refactor step 3.7-a): the app's doors
+# (appDiagnosticsDoors) over a live-shaped session with no panel, then the panel's thin adapter as the panel reaches
+# it (SessionDiagnosticsAdapters). diag_parallel_live_test's link line plus the adapter's half.
+pp_add_test(diag_stage_panel_test
+    SOURCES ${DIAG}/tests/diag_stage_panel_test.cpp ${_diag_parallel_live_sources}
+            ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
+            ${SRC}/Export/session_archiver.cpp   # ARCHIVE: the archive job, as main.cpp wires it (review B2)
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
+    LINK    Qt6::Qml ${OpenCV_LIBS}
+    STD 20
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(diag_stage_panel_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
 # post_shot_bench — THE POST-SHOT GUI PATH, HEADLESS, FOR A WHOLE SESSION (refactor 3.7-S, the post-shot stall;
 # build/refactor/step-3/3.7/NOTES-S.md): main.cpp's composition (the store, the swing door, an Athlete, `app`, the
 # carousel's model, the panel's diagnostics model and, with --parallel 1, the parallel run's doors and hook) driven
@@ -1997,6 +2012,7 @@ add_executable(post_shot_bench
     ${_post_shot_bench_sources}
     ${SRC}/App/app.h ${SRC}/App/app.cpp
     ${SRC}/Gui/shot/shot_list_model.h ${SRC}/Gui/shot/shot_list_model.cpp
+    ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
     ${SRC}/Core/post_shot_trace.h)
 target_include_directories(post_shot_bench PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${OpenCV_INCLUDE_DIRS})
 target_compile_definitions(post_shot_bench PRIVATE PP_DIAGRES="${DIAGRES}")

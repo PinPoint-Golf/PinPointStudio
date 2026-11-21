@@ -155,6 +155,8 @@ public:
     // end first (DEC-78, DEC-134). A session a crash left in progress is not running here: the repository's
     // Start ends it, with its end inferred (J-18), as today.
     bool runningHere() const { return m_runningHere; }
+    // An archive job of this session is out (archiveJob → archiveLanded; refactor step 3.7-a).
+    bool archiving() const { return m_archiving; }
     // Started on demand for a swing outside a session (ShotProcessor's capture outside one): never the empty
     // discard's, whatever ends it — as today, where only a session the golfer started is discarded (DEC-93).
     bool onDemand() const { return m_onDemand; }
@@ -184,6 +186,11 @@ signals:
     // diagnostics kept is written first, synchronously: DirectConnection).
     void shotHeld(const pinpoint::ShotRef &shot);
     void releasing();
+    // Not domain events (refactor step 3.7-a, review B2): an archive job of this session is out (archiveJob handed one
+    // out) and has landed (archiveLanded; `ok`: the archive is made). Between the two its SessionDiagnostics asks
+    // nothing and writes nothing (one writer of a session's files at any moment, while the archive thins them).
+    void archiveOut();
+    void archiveBack(bool ok);
 
 private:
     friend class Athlete;   // one instance per SessionId: made by its Athlete only
@@ -210,6 +217,7 @@ private:
     bool                m_startedHere = false;
     bool                m_runningHere = false;
     bool                m_onDemand    = false;
+    bool                m_archiving   = false;
     bool                m_shotsLoaded = false;
     QMap<int, Shot *>   m_shots;       // by swing number; each a child of this Session
     QSet<int>           m_announced;   // swing numbers whose EVT-01 has been emitted

@@ -26,14 +26,12 @@
 // available data and devices, never on the session's type, so it has nothing to do
 // with one.
 //
-// TWO MODELS, ON PURPOSE FOR NOW. PpSessionDiagnosticsPanel instantiates its own
-// SessionDiagnosticsModel and claims SessionMode.sessionDiagnostics on completion (last wins).
-// With an in-app panel AND this cast up there are therefore two models ingesting the same
-// shots independently — wasteful, and correct: both are wired to the same ShotProcessor
-// signal, both are idempotent per shot id, and both reduce the same rows to the same surface.
-// The seam the carousel pips read is simply whichever came up last. Sharing one model between
-// the two is a lifetime question (who owns it when the stage panel is torn down and the cast
-// is not) that is not worth answering before the wasted CPU is measurable.
+// ONE OWNER, TWO VIEWS (refactor steps 3.7-a/b). The panel below reaches the session's one
+// SessionDiagnostics through app.sessionAt and its thin adapter for the "cast" surface
+// (diagnosticsAdapters.of; PpSessionDiagnosticsPanel), so the stage panel and this cast show the
+// same judged shots (LIVE-2) while each keeps its own view state (open detail, register). Neither
+// judges or writes anything: the owner does, panel or not. The seam the carousel pips read is
+// whichever panel came up last, released only by the panel that claimed it.
 
 import QtQuick
 import QtQuick.Window

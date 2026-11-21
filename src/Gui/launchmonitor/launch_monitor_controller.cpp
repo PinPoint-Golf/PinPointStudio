@@ -560,8 +560,9 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
     bool clubReplaced = false;
     const pinpoint::WriteResult w = completeCapture(swingDir, r, captureClub, &clubReplaced);
     if (!w.ok()) {
-        ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":"
-                 << (m_repo ? w.error : QStringLiteral("no recording repository"));
+        const QString why = m_repo ? w.error : QStringLiteral("no recording repository");
+        ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":" << why;
+        emit saveFailed(tr("The launch monitor's reading"), why);
         return false;
     }
     if (clubReplaced) {
@@ -728,8 +729,9 @@ void LaunchMonitorController::flushUpdates()
 
         const pinpoint::WriteResult w = completeCapture(dir, r);
         if (!w.ok()) {
-            ppWarn() << "LaunchMonitor: cannot write the club data for" << r.deviceShotId
-                     << "to" << dir << ":" << (m_repo ? w.error : QStringLiteral("no recording repository"));
+            const QString why = m_repo ? w.error : QStringLiteral("no recording repository");
+            ppWarn() << "LaunchMonitor: cannot write the club data for" << r.deviceShotId << "to" << dir << ":" << why;
+            emit saveFailed(tr("The launch monitor's late club data"), why);
             continue;
         }
         ppInfo() << "LaunchMonitor: club data for" << r.deviceShotId << "written to" << dir;

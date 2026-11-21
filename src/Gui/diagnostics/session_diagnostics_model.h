@@ -29,6 +29,8 @@
 #include "../../Export/session_diagnostics_files.h"   // GolferInput, WriteResult
 #include "session_spread.h"
 
+#include "../../Coaching/session_results.h"   // SessionResults (the thin adapter's view of its owner: 3.7-a)
+
 #include <optional>
 #include <QHash>
 #include <QJsonObject>
@@ -48,10 +50,16 @@
 #include <vector>
 
 namespace pinpoint {
+class Session;
+class SessionDiagnostics;
 class SessionStore;
 class SwingStoreRecordingRepository;
 class ShotCommandDoor;
 struct LabelCorrectionNote;
+}
+
+namespace pinpoint::analysis {
+struct SessionReductionInput;
 }
 
 namespace pinpoint::analysis {
@@ -165,6 +173,25 @@ class INormProvider;
 // The panel comes in a later phase; every property below is already the finished shape it
 // will bind to. Unit-tested standalone in
 // src/Diagnostics/tests/session_diagnostics_model_test.cpp.
+//
+// ── THE THIN ADAPTER (refactor step 3.7-a; build/refactor/step-3/BRIEF.md §4.9, §4.10; D3: DEC-165) ─────────────
+//
+// The stage panel (and the wall cast, which hosts the same panel file) no longer make one of these. They reach the
+// Session the panel's folder names through app.sessionAt (D1: DEC-164) and ask SessionDiagnosticsAdapters for that
+// Session's adapter: an instance of this class MADE BY C++ (adapterFor), the Session's child, one per (Session, surface),
+// that judges nothing and writes nothing of the session's diagnostics. It shows the Session's ONE SessionDiagnostics
+// (LIVE-2): on each applied diagnosis it takes the owner's rows (as the reduction read them), ledgers, links, stage,
+// composed outcomes and typed results (reasons, carry today, club mix) and runs only this class's VIEW half — the
+// graph's marshalling, the chains' rails, the explanation, the cards' hysteretic order, every surface builder and the
+// words (R-DER-9: the adapter composes them). The golfer's commands forward to the Session's and the Shot's commands
+// as before (3.4b-i); the owner hears their events and diagnoses again. Every live shot is judged whether or not a
+// panel is up (DEC-02; 04 step 3 item 4): the owner runs for every loaded session. What stays this class's in the
+// adapter: the view state (selection, cadence, the open detail, reviewing), the fault profile's bias (until 3.8-ii),
+// the same golfer's other sessions (historyOf), and — until the catch-up's cut-over (3.7-e) can freeze from summaries
+// — TODAY'S LIVE BASELINE FREEZE (a live panel freezes club_baseline.json from its predecessors' ledgers, as the panel's
+// model did), written through the Session's own command (Session::freezeClubBaseline) and read back by the owner.
+// The engine half (detectShot, the reduction, persist) is untouched for the instances the catch-up, the report and the
+// tools still make until their cut-overs (3.7-c…e).
 class SessionDiagnosticsModel : public QObject
 {
     Q_OBJECT
@@ -210,6 +237,9 @@ class SessionDiagnosticsModel : public QObject
     // A detection is in flight. The panel shows the previous state while it is true — never
     // an empty one, because a blank panel between balls reads as "nothing is wrong".
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    // A Session's thin adapter (refactor step 3.7-a), not an engine of its own: the panel shows its no-golfer notice when
+    // it is handed the EMPTY adapter (session_diagnostics_adapter.h).
+    Q_PROPERTY(bool adapter READ isAdapter CONSTANT)
 
     // ── Session intent (design §A6) ─────────────────────────────────────────────────
     //
@@ -369,7 +399,9 @@ public:
     bool    closed() const { return m_closed; }
     int     shotCount() const { return int(m_shots.size()); }
     int     patternCount() const;
-    bool    busy() const { return m_pending > 0; }
+    // The adapter: its owner has asks or a diagnosis outstanding, or a write waiting (so busy going false means the
+    // written file is there), or a live freeze is reading its predecessors.
+    bool    busy() const { return m_adapter ? (m_adapterBusy || m_freezing) : m_pending > 0; }
 
     QString focusConditionId() const { return m_focusConditionId; }
     int     focusFromShot() const { return m_focusFromShot; }
@@ -644,6 +676,19 @@ public:
     // holds — and every model in a tool or test, which sets no door — keeps today's writes (N1's interim).
     static void setShotCommands(pinpoint::ShotCommandDoor *door);
 
+    // ── The thin adapter (refactor step 3.7-a; the class comment) ────────────────────────────────────
+    // The adapter of `session` for `surface` ("panel", "cast"): made on the first ask, the Session's child (so it goes
+    // with the Session), C++-owned, holding a use of the Session for its life (Session::addUse: Q-18, so no sweep
+    // releases a session a screen shows). Null when the Session has no SessionDiagnostics (no doors: a tool or test).
+    static SessionDiagnosticsModel *adapterFor(pinpoint::Session *session, const QString &surface);   // ibid.
+    bool isAdapter() const { return m_adapter; }
+    // THE VIEWS BOUND TO AN ADAPTER (refactor 3.7-a, review M2): a panel adds itself while it shows the adapter and drops
+    // itself when it goes. With none bound, the adapter does no view work on a new diagnosis (it is owed, and done when a
+    // view binds again). An engine-mode model counts them and ignores them.
+    Q_INVOKABLE void addView();
+    Q_INVOKABLE void dropView();
+    int views() const { return m_views; }
+
     // The measurement-uncertainty switches (session_diagnostics_design.md §A8.8), for the report
     // tool that grades each stage against the others. Production leaves them at the tuned defaults.
     // Set BEFORE activateSession(): detection reads withSigma as each shot is ingested.
@@ -768,6 +813,43 @@ signals:
     void ledgerWritesResumed(const QString &sessionDir);
 
 private:
+    // ── The thin adapter's half (refactor step 3.7-a) ────────────────────────────────────────────────
+    //
+    // ITS SESSION-FACING HALF IS A LINK, in its own file (session_diagnostics_adapter.cpp): the Session, its owner, the
+    // use it holds, the owner's signals heard, and mirrorOwner — so THIS file links nothing of the domain model, and every
+    // tool and QML suite that compiles it (with no Session or SessionDiagnostics) builds as before.
+public:
+    struct AdapterLink {
+        virtual ~AdapterLink() = default;
+        virtual void mirror() = 0;                                   // the owner's diagnosis taken in, or rebuild()
+        virtual bool notRecordedHere() const = 0;                    // in progress by its file, not recorded here
+        virtual pinpoint::WriteResult freezeBaseline(const QJsonObject &root) = 0;   // Session::freezeClubBaseline
+        virtual void reloadBaseline(bool keepWhenAbsent) = 0;        // SessionDiagnostics::reloadClubBaseline
+        virtual void wake() = 0;                                     // a view is bound again: mirror what was owed
+    };
+private:
+    friend class SessionDiagnosticsOwnerLink;   // session_diagnostics_adapter.cpp
+    friend class SessionDiagnosticsAdapters;    // makes the adapters
+    SessionDiagnosticsModel(pinpoint::Session *session, const QString &surface);   // ibid.
+    // What activateSession() is for an adapter, which never re-reads its session: the profile and the history read,
+    // the owner's club baseline brought up to date (a freeze landed elsewhere: the catch-up's at End), and a live panel's
+    // freeze (today's rule) when the session has none; then the owner's diagnosis shown.
+    void pointAdapter();
+    // The reasons, the carry today and the club mix, worded from the owner's typed results (ensureOutcomes).
+    void composeOwnerOutcomes(QHash<QString, int> &reasonIndex) const;
+    // The shot log and the session's mix, worded from m_composed (both halves).
+    void composeShotLog(const QHash<QString, int> &reasonIndex) const;
+    bool    m_adapter = false;
+    QString m_adapterSurface;
+    std::unique_ptr<AdapterLink> m_link;   // null: the empty adapter (no Session)
+    // The owner's last applied diagnosis as the adapter took it (mirrorOwner): what its rows were reduced from, its
+    // composed outcomes (aligned with m_shots) and its typed results.
+    std::shared_ptr<const pinpoint::analysis::SessionReductionInput> m_ownerInput;
+    pinpoint::analysis::SessionResults             m_ownerResults;
+    std::vector<pinpoint::analysis::ShotOutcome>   m_ownerComposed;
+    bool m_adapterBusy = false;
+    int  m_views = 0;
+
     struct GradedFrom {
         qint64  docSize    = 0;
         qint64  docMtimeMs = 0;
@@ -1260,3 +1342,4 @@ private:
     int         m_owedAfterShot = -1;
     int         m_persistCount = 0;
 };
+

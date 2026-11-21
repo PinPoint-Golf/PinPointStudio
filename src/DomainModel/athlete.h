@@ -139,6 +139,9 @@ struct DiagnosticsDoors {
     bool                                synchronous     = false;
     int                                 writeDebounceMs = 1500;
     bool                                rebuild         = false;
+    // With `persist`, the session summary (work_ons.json) is written too (refactor 3.7-a): false in the app until the
+    // catch-up's cut-over (3.7-e), where WorkOnsController stays that file's one writer; true in every tool and test.
+    bool                                writeSummary    = true;
     std::function<SessionDiagnostics *(Session *, const DiagnosticsDoors &)> attach;
 };
 
@@ -300,6 +303,10 @@ signals:
     // AthleteDiagnostics, which hears the session's events so the athlete level is marked stale (DEC-60), and so this
     // file links none of it.
     void sessionHeld(pinpoint::Session *session);
+    // Not a domain event (refactor step 3.7-a; DEC-126): one of this athlete's writes failed — today the tuning log's
+    // append (FILE-ATH-04) — so the composition root can show it to the golfer (it was logged only). `what` names the
+    // fact in the golfer's words; `why` is the repository's error.
+    void writeFailed(const QString &what, const QString &why);
 
 private:
     friend class AthleteDiagnostics;   // reads its sessions' summaries through the repository it was made with

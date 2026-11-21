@@ -527,8 +527,8 @@ void install(std::function<Session *(const QString &folder)> sessionAt,
 {
     g_sessionAt = std::move(sessionAt);
     g_loadedAt  = std::move(loadedAt);
-    ppInfo() << "[DiagParallel] on (PINPOINT_DIAG_PARALLEL=1): every loaded session's new diagnostics owner runs in memory"
-             << "beside the panel's model; one line per session below";
+    ppInfo() << "[DiagParallel] on (PINPOINT_DIAG_PARALLEL=1): every old diagnostics model still made (the catch-up's, the"
+             << "report's) is compared with its session's owner; one line per session below";
     SessionDiagnosticsModel::setParallelHook([](const SessionDiagnosticsModel &model) {
         if (!g_sessionAt || !g_loadedAt) return;
         const bool sweep = model.baselineAuthorityName() == QLatin1String("always");   // the catch-up's model
@@ -588,3 +588,23 @@ int     linesOf(const QString &sessionFolder) { return byFolder(g_lines, session
 QString lastLineOf(const QString &sessionFolder) { return byFolder(g_lastLine, sessionFolder); }
 
 } // namespace pinpoint::parallel
+
+namespace pinpoint {
+
+// THE APP'S DOORS (refactor step 3.7-a; the header): the owner writes diagnostics.json and the shots' sidecars, never
+// work_ons.json (WorkOnsController's until 3.7-e).
+DiagnosticsDoors appDiagnosticsDoors(WorkPool *pool, WorkReceiver *receiver, RuleData *ruleData,
+                                     const SessionRepository &sessions, RecordingRepository &recordings)
+{
+    DiagnosticsDoors d;
+    d.pool         = pool;
+    d.receiver     = receiver;
+    d.ruleData     = ruleData;
+    d.reader       = std::make_shared<SwingStoreFiringReader>(sessions, recordings);   // parses a miss, writes the sidecar
+    d.persist      = true;
+    d.writeSummary = false;
+    d.attach       = &SessionDiagnostics::attach;
+    return d;
+}
+
+} // namespace pinpoint

@@ -226,6 +226,7 @@ public:
         quint64 reductionsAsked = 0, reductions = 0, reductionsSuperseded = 0, reductionFailures = 0;
         quint64 derivedRestored = 0, summaryWrites = 0;
         quint64 baselineFreezes = 0;   // a club baseline computed at first need (step 3.6), written or held in memory
+        quint64 droppedWhileArchived = 0;   // results that came back while an archive was out: not kept, owed (3.7-a)
     };
     const Counts &counts() const { return m_counts; }
     // The last write that failed, in words for the golfer's notice (DEC-126): "" when none has (the catch-up reports it).
@@ -244,6 +245,15 @@ public:
     analysis::SessionResults summary() const;
     // The findings stamp of this snapshot (R-STAMP-1): what the parallel run shows beside the old model's stamp.
     QString findingsStamp() const { return m_findingsStamp; }
+    // WHAT THE APPLIED DIAGNOSIS WAS REDUCED FROM (refactor 3.7-a): the immutable input its reduction was posted with —
+    // the rows as checked against the flight, each shot's derived data and word, the usuals, the baseline, the golfer's
+    // session-level word, the stage before it. The thin adapter (SessionDiagnosticsModel over this owner) shows these
+    // rows beside diagnosis(), so a screen never pairs one reduction's ledgers with another's rows. Null before the first
+    // reduction lands.
+    std::shared_ptr<const analysis::SessionReductionInput> diagnosisInput() const { return m_diagnosisInput; }
+    // A write of what is kept is waiting on its debounce (§4.4 step 8): the adapter's `busy` holds until it lands, so a
+    // screen that re-reads diagnostics.json when busy goes false (Charts, Consistency) reads the written file.
+    bool    writePending() const { return m_writeTimer.isActive(); }
 
     // ── Commands (owner thread) ─────────────────────────────────────────────────────────────────────────
     void fire(const ShotRef &shot);       // that shot (its own command's chain)
@@ -270,6 +280,9 @@ private:
     SessionDiagnostics(Session *session, const DiagnosticsDoors &doors);
 
     void load();
+    void loadTail();                                       // the re-asks and the derived data's take-back of a load
+    void onArchiveOut();                                   // the archive window opened (3.7-a, B2)
+    void onArchiveBack(bool ok);                           // the archive window closed (3.7-a, B2)
     void loadOrFreezeClubBaseline();                       // step 3.6 (DEC-46)
     analysis::BoardAnnotation boardOf(int swing) const;    // the board's word on a shot, asked of the Shot
     QString summaryFingerprint() const;                    // what the summary was worked out from
@@ -329,6 +342,7 @@ private:
         bool                      derive = false;
         analysis::ClubFlightUsual usual;
         quint64                   generation = 0;
+        quint64                   number = 0;   // its ask number: which asks are oldest when an archive drops the rest
     };
     QHash<int, InFlight> m_inFlight;
     QSet<int>           m_heard;       // the shots whose events it hears (each connected once)
@@ -343,6 +357,15 @@ private:
     bool                    m_readOnly = false;
     bool                    m_dirty    = false;
     bool                    m_retired  = false;
+    // THE ARCHIVE WINDOW (refactor 3.7-a, review B2): an archive job of the session is out (nothing asked or written);
+    // an ask or a write was owed meanwhile; a golfer's command or a late part came meanwhile; an archive was made while
+    // this instance held the session (its loaded results stand: the archive copied them).
+    bool                    m_archiveOut       = false;
+    bool                    m_owedAfterArchive = false;
+    QSet<int>               m_eventSwings;              // shots a command or a late part reached meanwhile
+    bool                    m_eventAll         = false;     // a change to every shot meanwhile (pack, norm, record, run)
+    bool                    m_wordWhileOut     = false;     // the session's word (focus, miss, screen) meanwhile
+    bool                    m_archivedThisHold = false;
     QTimer                  m_writeTimer;
 
     std::vector<Ask> m_asks;
@@ -358,6 +381,9 @@ private:
     bool                 m_stageHeld = false;      // false: none read or reduced yet (the ratchet replays)
     std::optional<analysis::SessionDiagnosis> m_diagnosis;
     quint64              m_reductionLatest = 0;
+    // The input of the latest reduction asked (its number), and of the one applied (refactor 3.7-a; diagnosisInput()).
+    std::shared_ptr<const analysis::SessionReductionInput> m_askedInput;
+    std::shared_ptr<const analysis::SessionReductionInput> m_diagnosisInput;
     bool                 m_reductionInFlight = false;
     bool                 m_reductionOwed = false;  // what is kept moved since the last reduction was asked
     qint64               m_lastReductionMs = 0;

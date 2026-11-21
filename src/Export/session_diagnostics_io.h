@@ -32,6 +32,10 @@
 // folder_lock.cpp). Stateless, so safe from any thread.
 
 #include "session_files.h"
+
+#include <QFileInfo>
+#include <QHash>
+#include <QMutex>
 #include "../Core/atomic_write.h"
 #include "../Core/folder_lock.h"
 #include "../Core/pp_debug.h"
@@ -222,17 +226,46 @@ inline DiagnosticsRead readDiagnostics(const QString &sessionDir)
     return r;
 }
 
+// THE FILE AS THIS PROCESS LAST WROTE IT (refactor 3.7-a, review round 2): its size, its mtime, and the two parts a write
+// carries from the file (the keys this build does not know, the older golfer keys). A write whose file still has that
+// size and mtime — no other writer since — carries them from here instead of reading and parsing the whole file again
+// (a session's ledger: ~3 MB at 40 shots). Any other writer (J-a7's catch-up model, another computer) moves the mtime,
+// and the next write reads the file as before. Process-wide, under its own mutex.
+struct WrittenEnvelope {
+    qint64      size    = -1;
+    qint64      mtimeMs = -1;
+    QJsonObject other;
+    QJsonObject legacy;
+};
+inline QMutex &writtenMutex() { static QMutex m; return m; }
+inline QHash<QString, WrittenEnvelope> &writtenEnvelopes() { static QHash<QString, WrittenEnvelope> h; return h; }
+
 inline WriteResult writeDiagnostics(const QString &sessionDir, const QJsonObject &session,
                                                       const QJsonObject &ledger, const QJsonObject &legacyFallback,
                                                       DiagnosticsRead::State *state)
 {
     const QString path = SessionFiles::diagnosticsFile(sessionDir);
     // What is on disk NOW: its older golfer keys are carried as they stand (J-33), and it decides whether
-    // this write may be made at all.
+    // this write may be made at all. Unless it is still the file this process last wrote (above).
     DiagnosticsRead now;
     {
         PostShotTrace::Scope trace("read");   // [PostShot] (refactor 3.7-S): the file on disk, parsed whole
-        now = readDiagnostics(sessionDir);
+        const QFileInfo onDisk(path);
+        bool known = false;
+        if (onDisk.exists()) {
+            const QMutexLocker guard(&writtenMutex());
+            const auto it = writtenEnvelopes().constFind(path);
+            if (it != writtenEnvelopes().constEnd() && it->size == onDisk.size()
+                && it->mtimeMs == onDisk.lastModified().toMSecsSinceEpoch()) {
+                now.state                      = DiagnosticsRead::State::Read;
+                now.envelope.schemaVersion     = kEnvelopeVersion;
+                now.envelope.other             = it->other;
+                now.envelope.legacyGolferInput = it->legacy;
+                known                          = true;
+            }
+        }
+        if (!known)
+            now = readDiagnostics(sessionDir);
     }
     if (state) *state = now.state;
     switch (now.state) {
@@ -253,7 +286,17 @@ inline WriteResult writeDiagnostics(const QString &sessionDir, const QJsonObject
     root[QStringLiteral("session")]       = session;
     // Nested, so diagnostic_ledger.h's reader takes exactly the object its writer produced.
     root[QStringLiteral("ledger")]        = ledger;
-    return session_diagnostics_detail::writeJson(sessionDir, path, root, QJsonDocument::Compact);
+    const WriteResult w = session_diagnostics_detail::writeJson(sessionDir, path, root, QJsonDocument::Compact);
+    {
+        const QMutexLocker guard(&writtenMutex());
+        const QFileInfo after(path);
+        if (w.ok() && after.exists())
+            writtenEnvelopes().insert(path, WrittenEnvelope{ after.size(), after.lastModified().toMSecsSinceEpoch(),
+                                                             now.parsed() ? now.envelope.other : QJsonObject(), carried });
+        else
+            writtenEnvelopes().remove(path);   // not written as known: the next write reads the file
+    }
+    return w;
 }
 
 inline WriteResult backupDiagnostics(const QString &sessionDir, const QString &tag, QString *backupPath)

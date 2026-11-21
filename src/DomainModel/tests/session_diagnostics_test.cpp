@@ -192,9 +192,16 @@ public:
     {
         Spec spec;
         {
-            std::lock_guard<std::mutex> l(m_mutex);
-            ++m_reviewReads[shot.swingNumber()];
-            spec = m_specs.value(shot.swingNumber());
+            std::unique_lock<std::mutex> l(m_mutex);
+            const int swing = shot.swingNumber();
+            ++m_reviewReads[swing];
+            if (m_holdReview.remove(swing)) {   // a derive held at its review read (the 3.7-a archive case)
+                m_blocked.insert(swing);
+                m_cv.wait(l, [&] { return m_opened.contains(swing) || m_openAll; });
+                m_opened.remove(swing);
+                m_blocked.remove(swing);
+            }
+            spec = m_specs.value(swing);
         }
         if (spec.throwReview) throw std::runtime_error("the review read failed (the test's)");
         return spec.realReview && recordings ? recordings->readReview(shot) : spec.review;
@@ -210,17 +217,18 @@ public:
     Spec spec(int swing) const { std::lock_guard<std::mutex> l(m_mutex); return m_specs.value(swing); }
     void setEpoch(int e) { std::lock_guard<std::mutex> l(m_mutex); m_epoch = e; }
     void holdNext(int swing) { std::lock_guard<std::mutex> l(m_mutex); m_holdNext.insert(swing); }
+    void holdReview(int swing) { std::lock_guard<std::mutex> l(m_mutex); m_holdReview.insert(swing); }
     bool blocked(int swing) const { std::lock_guard<std::mutex> l(m_mutex); return m_blocked.contains(swing); }
     int  reads(int swing) const { std::lock_guard<std::mutex> l(m_mutex); return m_reads.value(swing); }
     void open(int swing) { { std::lock_guard<std::mutex> l(m_mutex); m_opened.insert(swing); } m_cv.notify_all(); }
-    void openAll() { { std::lock_guard<std::mutex> l(m_mutex); m_openAll = true; m_holdNext.clear(); } m_cv.notify_all(); }
+    void openAll() { { std::lock_guard<std::mutex> l(m_mutex); m_openAll = true; m_holdNext.clear(); m_holdReview.clear(); } m_cv.notify_all(); }
 
 private:
     mutable std::mutex              m_mutex;
     mutable std::condition_variable m_cv;
     QHash<int, Spec>                m_specs;
     mutable QHash<int, int>         m_reads, m_reviewReads;
-    mutable QSet<int>               m_holdNext, m_blocked, m_opened;
+    mutable QSet<int>               m_holdNext, m_holdReview, m_blocked, m_opened;
     int                             m_epoch   = 0;
     bool                            m_openAll = false;
 };
@@ -883,6 +891,41 @@ static void testDeriveFailure(bool headless)
           t.derives[2] == 2 && d2->counts().deriveFailures == 2 && t.derives[1] == 2 && t.derives[3] == 2);
 }
 
+// ARC (refactor 3.7-a, review R2-M3): a DERIVE already running when its Session's archive goes out, landing after the
+// archive is made, is still read as a derive: its failure is recorded as a failed derive, never as an unread shot (the
+// archive window clears the newer, dropped asks' entries, not the running one's).
+static void testDeriveAcrossArchive()
+{
+    std::printf("\nARC — a derive running when the archive goes out is still a derive when it lands\n");
+    Rig rig;
+    Session *s = rig.session({ spec(kA, 10), spec(kA, 12), spec(kA, 14) });
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    if (!Rig::settled(d)) { check(QStringLiteral("ARC setup"), false); return; }
+    s->end();
+    const SessionId id = s->id();
+    Spec two = rig.fake->spec(2);
+    two.throwReview = true;   // its derive will fail
+    rig.fake->set(2, two);
+    rig.athlete->releaseSession(id);
+    stripDerived(rig.folderOf(id));   // an older file: the load derives every shot, reading each review on a worker
+    rig.fake->holdReview(2);          // …shot 2's held at its review read
+    Session *again = rig.athlete->session(id);   // derives 1, then 2 (held), then 3, on the lane
+    SessionDiagnostics *d2 = again ? again->diagnostics() : nullptr;
+    check(QStringLiteral("ARCa shot 2's derive is running (held), shot 1's has landed"),
+          d2 && pump([&] { return rig.fake->blocked(2) && d2->outstanding() == 2; }));
+    if (!d2) return;
+    const quint64 failsBefore = d2->counts().deriveFailures;
+    emit again->archiveOut();        // the archive job goes out: shot 3's waiting derive is dropped
+    emit again->archiveBack(true);   // …and is made, with no command meanwhile: what was loaded stands, nothing re-asked
+    rig.fake->open(2);               // shot 2's derive lands now, failing
+    pump([&] { return d2->outstanding() == 0; }, 5000);
+    pump([] { return false; }, 100);
+    std::printf("    derive failures %lld (before %lld), unread %s\n", (long long)d2->counts().deriveFailures,
+                (long long)failsBefore, d2->unread().contains(2) ? "has shot 2" : "none");
+    check(QStringLiteral("ARCb it is recorded as a failed derive (C3), and shot 2 is NOT marked unread"),
+          d2->counts().deriveFailures == failsBefore + 1 && !d2->unread().contains(2) && d2->kept(2) && d2->kept(2)->deriveFailed);
+}
+
 // C4: the cohort on the shot's date (DEC-171); a record change re-fires every shot.
 static void testCohortDate()
 {
@@ -1294,6 +1337,7 @@ int main(int argc, char **argv)
     testLegacyGolferInput();
     testDeriveFailure(false);
     testDeriveFailure(true);
+    testDeriveAcrossArchive();
     testCohortDate();
     testCohortNoInstant();
     testWordCommands();

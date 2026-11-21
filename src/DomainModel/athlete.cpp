@@ -498,8 +498,10 @@ WriteResult Athlete::appendTuningLine(const QJsonObject &line, const ShotRef &sh
         return { WriteResult::Status::Failed, QStringLiteral("no athlete repository") };
     }
     const WriteResult w = m_repository->appendTuningLine(*this, QJsonDocument(line).toJson(QJsonDocument::Compact));
-    if (!w.ok())
-        ppWarn() << "[Athlete] could not append to the tuning log:" << w.error;   // logged only, as today (DEC-126: §11)
+    if (!w.ok()) {
+        ppWarn() << "[Athlete] could not append to the tuning log:" << w.error;
+        emit writeFailed(QStringLiteral("A shot flagged or corrected for the model's tuning"), w.error);   // DEC-126 (3.7-a)
+    }
     return w;
 }
 

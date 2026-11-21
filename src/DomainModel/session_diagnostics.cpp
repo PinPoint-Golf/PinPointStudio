@@ -272,6 +272,10 @@ void SessionDiagnostics::connectSession()
         if (Shot *shot = m_session->shot(ref)) hearShot(shot);
     }, Qt::DirectConnection);
     connect(s, &Session::releasing, this, [this] { retire(/*writeFirst=*/true); }, Qt::DirectConnection);
+    // THE ARCHIVE WINDOW (refactor 3.7-a, review B2): between archiveJob and archiveLanded nothing is asked or written —
+    // one writer of the session's files at any moment, and no read of a swing the archive is thinning.
+    connect(s, &Session::archiveOut, this, [this] { onArchiveOut(); }, Qt::DirectConnection);
+    connect(s, &Session::archiveBack, this, [this](bool ok) { onArchiveBack(ok); }, Qt::DirectConnection);
     if (Athlete *a = s->athlete()) {
         connect(a, &Athlete::sessionTrashed, this, [this](const SessionId &id) {   // EVT-20: nothing more is written
             if (id == m_id) retire(/*writeFirst=*/false);
@@ -281,6 +285,83 @@ void SessionDiagnostics::connectSession()
     // EVT-12 / EVT-13: a new RuleData snapshot → every shot (§4.4 step 2).
     connect(m_doors.ruleData, &RuleData::normsChanged, this, [this](const QString &) { onRulesChanged(); });
     connect(m_doors.ruleData, &RuleData::packChanged, this, [this](const QString &) { onRulesChanged(); });
+}
+
+void SessionDiagnostics::onArchiveOut()
+{
+    m_archiveOut = true;
+    m_writeTimer.stop();
+    // The jobs still waiting in the lane (a load's, asked in the same turn as the archive job: housekeeping holds a session
+    // to archive it) are dropped unrun, and owed. What is already on a worker, or done and not yet delivered, still comes
+    // back: those are the OLDEST asks (a lane runs its jobs in order), so their in-flight entries are kept, and a derive
+    // among them is still read as a derive when it lands (review R2-M3); the newer entries go with their jobs.
+    if (!m_doors.pool || (m_outstanding == 0 && !m_reductionInFlight))
+        return;
+    const bool running = m_doors.pool->isRunning(m_instance);
+    const int  dropped = m_doors.pool->cancelLane(m_instance);
+    // A reduction in flight is older than every ask made after it: dropped only when nothing of the lane is running.
+    const bool reductionDropped = m_reductionInFlight && !running && dropped > 0;
+    if (m_reductionInFlight) {
+        // Whatever became of it, a newer one is owed: a result of it that still comes back is dropped as superseded.
+        m_reductionLatest   = nextWorkNumber();
+        m_reductionInFlight = false;
+        m_reductionOwed     = true;
+    }
+    const int asksDropped = dropped - (reductionDropped ? 1 : 0);
+    if (asksDropped > 0)
+        m_owedAfterArchive = true;
+    m_outstanding = std::max(0, m_outstanding - asksDropped);
+    QList<QPair<quint64, int>> byAge;
+    for (auto it = m_inFlight.constBegin(); it != m_inFlight.constEnd(); ++it)
+        byAge.append({ it->number, it.key() });
+    std::sort(byAge.begin(), byAge.end());
+    for (int i = m_outstanding; i < byAge.size(); ++i)
+        m_inFlight.remove(byAge.at(i).second);
+}
+
+void SessionDiagnostics::onArchiveBack(bool ok)
+{
+    m_archiveOut = false;
+    if (m_retired)
+        return;
+    const QSet<int> events   = std::exchange(m_eventSwings, {});
+    const bool      eventAll = std::exchange(m_eventAll, false);
+    const bool      word     = std::exchange(m_wordWhileOut, false);
+    if (ok && !eventAll) {
+        // THE ARCHIVE IS MADE OF THE FILES AS THEY WERE: what this hold loaded stands (its file is the archived copy's).
+        m_owedAfterArchive = false;
+        if (events.isEmpty() && !word) {
+            // No golfer command or late part meanwhile: nothing is asked and nothing owed is written — a release now
+            // writes nothing (B2). A diagnosis of what was loaded is still owed to a screen that holds the session (on
+            // the lane: values only, no file).
+            m_archivedThisHold = true;
+            m_dirty            = false;
+            settleIfDone();
+            return;
+        }
+        // The golfer changed these shots (or the session's word) meanwhile: they alone are asked, from their files as
+        // they are now (each command saved to its own shot), and the session is diagnosed and written again. Every
+        // other shot's findings stand as loaded: none is judged again from its stub (review R2-B1).
+        for (const int swing : events)
+            if (Shot *s = m_session->shot(ShotRef(m_id, swing))) askFire(s);
+        m_reductionOwed = true;
+        m_dirty         = true;
+        settleIfDone();
+        return;
+    }
+    // Not archived, or a change to every shot meanwhile (a pack, norm, record or intent-run change): what was owed is
+    // asked now, as the load would have asked it.
+    for (Shot *s : m_session->shots()) {
+        const auto k = m_kept.constFind(s->swingNumber());
+        if (events.contains(s->swingNumber())
+            || (m_owedAfterArchive && (k == m_kept.constEnd() || m_unread.contains(s->swingNumber())
+                                       || k->findingsStamp != m_findingsStamp || k->document != m_doors.reader->stamp(s->ref()))))
+            askFire(s);
+    }
+    m_owedAfterArchive = false;
+    m_reductionOwed    = true;
+    reconcile();
+    settleIfDone();
 }
 
 void SessionDiagnostics::hearShot(Shot *shot)
@@ -412,6 +493,14 @@ void SessionDiagnostics::load()
     for (const int swing : m_unread.values())
         if (!present.contains(swing)) m_unread.remove(swing);
 
+    loadTail();
+}
+
+void SessionDiagnostics::loadTail()
+{
+    if (m_retired)
+        return;
+    const QList<Shot *> shots = m_session->shots();
     // RE-ASK EVERY SHOT WHOSE STAMP IS STALE, THAT HAS NO KEPT RESULT, OR THAT IS MARKED UNREAD (§4.4 step 10): the
     // shots a release cancelled, the ones left unread, the ones captured while no object held the session. A shot
     // that is current takes its DERIVED DATA back from the file when the stamp it was derived under still holds
@@ -509,6 +598,8 @@ void SessionDiagnostics::fire(const ShotRef &shot)
 {
     if (m_retired || shot.session() != m_id)
         return;
+    if (m_archiveOut) m_eventSwings.insert(shot.swingNumber());   // a command or a late part meanwhile: asked when it lands
+    m_archivedThisHold = false;
     if (Shot *s = m_session->shot(shot))
         askFire(s);
 }
@@ -517,17 +608,23 @@ void SessionDiagnostics::fireAll()
 {
     if (m_retired)
         return;
+    if (m_archiveOut) m_eventAll = true;
+    m_archivedThisHold = false;
     for (Shot *s : m_session->shots())
         askFire(s);
 }
 
 void SessionDiagnostics::askFire(Shot *shot)
 {
+    if (m_archiveOut) {   // an archive is thinning the session's files: asked when it lands, unless it is made (B2)
+        m_owedAfterArchive = true;
+        return;
+    }
     const ShotRef ref   = shot->ref();
     const int     swing = ref.swingNumber();
     const quint64 n     = nextWorkNumber();
     shot->recordAsk(n);   // the Shot's latest (§4.4 step 3)
-    m_inFlight.insert(swing, InFlight{});
+    m_inFlight.insert(swing, InFlight{ false, {}, 0, n });
     ++m_outstanding;
     m_asks.push_back({ swing, false, n });
     // VALUES ONLY: the snapshot pointer, the ShotRef, the reader. No Shot, Session or this.
@@ -539,12 +636,16 @@ void SessionDiagnostics::askFire(Shot *shot)
 
 void SessionDiagnostics::askDerive(Shot *shot, const KeptShot &kept)
 {
+    if (m_archiveOut) {
+        m_owedAfterArchive = true;
+        return;
+    }
     const ShotRef ref   = shot->ref();
     const int     swing = ref.swingNumber();
     const quint64 n     = nextWorkNumber();
     shot->recordAsk(n);
     const analysis::ClubFlightUsual usual = m_usuals.value(canonicalClubId(kept.findings.club));
-    m_inFlight.insert(swing, InFlight{ true, usual, m_derivedGeneration });
+    m_inFlight.insert(swing, InFlight{ true, usual, m_derivedGeneration, n });
     ++m_outstanding;
     m_asks.push_back({ swing, true, n });
     // Values only. A result loaded from the file has no review: the job reads it on the worker (C1), as a fire does.
@@ -612,6 +713,17 @@ void SessionDiagnostics::deliver(WorkVerdict verdict, WorkResult &&result)
     m_outstanding = std::max(0, m_outstanding - 1);
     const ShotRef ref   = ShotRef::fromString(result.address.item);
     const int     swing = ref.swingNumber();
+
+    // A RESULT THAT LANDS WHILE AN ARCHIVE IS OUT is not kept (review R2-M2): its read may have met a swing being thinned
+    // to its stub. The shot's earlier result stays, and it is owed: asked when the archive lands, unless the archive is
+    // made from the files as they were (onArchiveBack).
+    if (m_archiveOut && verdict == WorkVerdict::Kept) {
+        m_inFlight.remove(swing);
+        m_owedAfterArchive = true;
+        ++m_counts.droppedWhileArchived;
+        settleIfDone();
+        return;
+    }
 
     switch (verdict) {
     case WorkVerdict::Superseded:
@@ -783,6 +895,8 @@ void SessionDiagnostics::onIntentRunChanged()
 {
     if (m_retired)
         return;
+    if (m_archiveOut) m_eventAll = true;
+    m_archivedThisHold = false;
     // The one rule again (J-33): the new home's run, else the older copy's.
     const IntentRun run = golfer_input::resolveIntentRun(m_sessions->readSessionInput(m_id).input, m_legacyGolfer);
     if (run == m_intentRun)
@@ -808,6 +922,8 @@ void SessionDiagnostics::onSessionIntentChanged()
 {
     if (m_retired)
         return;
+    if (m_archiveOut) m_wordWhileOut = true;
+    m_archivedThisHold = false;
     // EVT-10: the focus, the miss or a screen answer — read by the diagnosis only (no finding, no derived data reads
     // them), so the session is diagnosed again and nothing is asked of a shot.
     const golfer_input::SessionWord before{ m_focus, m_miss, m_screens };
@@ -903,6 +1019,10 @@ bool SessionDiagnostics::reloadClubBaseline(bool keepWhenAbsent)
 bool SessionDiagnostics::flush()
 {
     m_writeTimer.stop();
+    // Nothing is written while an archive is out (B2), nor after it was made from this hold until the golfer changes
+    // something: the session's file stays the archive's copy (a restore puts back what the library holds).
+    if (m_archiveOut || m_archivedThisHold)
+        return true;
     if (!m_dirty || !m_doors.persist || m_readOnly || m_retired)
         return true;
     return write();
@@ -910,11 +1030,15 @@ bool SessionDiagnostics::flush()
 
 bool SessionDiagnostics::write()
 {
+    PostShotTrace::Scope trace("owner.write");   // [PostShot] (refactor 3.7-a): the debounced write, on the owner's thread
     // TODAY'S SHAPE (FILE-SESS-03): the ledger holds the rows CHECKED against the session's usual flight, as every
     // reader of the file counts them. The session block is FIELD-LIST §2's typed state, every key the old model's
     // sessionBlock() writes, as it writes them (review 1 of 3.5-ii: no key change) — `closed` FROM THE SESSION, the one
     // writer of its status (J-24) — over any key of the file this object does not know (kept as read), with DEC-191's
     // `unread` and each shot's derived data, stamped (DEC-135).
+    // ⏱ [PostShot] (refactor 3.7-a, review R2-M4): the part of the write before the file — the rows copied and checked
+    // against the flight, the session block, each shot's derived data, the ledger as JSON — all on this thread.
+    std::optional<PostShotTrace::Scope> build(std::in_place, "build");
     std::vector<ShotRecord> rows;
     QJsonArray  unread;
     analysis::SessionDiagnosisState st;
@@ -963,16 +1087,17 @@ bool SessionDiagnostics::write()
         block.insert(QStringLiteral("derived"), derived);
     }
 
+    const QJsonObject ledger = analysis::toJson(rows, m_ledgerOptions);
+    build.reset();
     DiagnosticsRead::State found = DiagnosticsRead::State::Missing;
-    const WriteResult w = m_sessions->writeDiagnostics(m_id, block, analysis::toJson(rows, m_ledgerOptions),
-                                                       m_legacyGolfer, &found);
+    const WriteResult w = m_sessions->writeDiagnostics(m_id, block, ledger, m_legacyGolfer, &found);
     if (w.ok()) {
         m_sessionBlock = block;
         m_dirty = false;
         ++m_counts.writes;
         // THE SUMMARY (FILE-SESS-05; DEC-55, DEC-192), with the diagnosis it is of: this object is its one writer
         // (step 3.6). In the app from the catch-up's cut-over (3.7); until then nothing there persists.
-        if (m_diagnosis) {
+        if (m_diagnosis && m_doors.writeSummary) {
             const WriteResult ws = m_sessions->writeWorkOns(m_id, analysis::sessionResultsToJson(summary()));
             if (ws.ok()) {
                 ++m_counts.summaryWrites;
@@ -1060,11 +1185,16 @@ void SessionDiagnostics::askReduction()
 {
     if (m_retired || !m_snapshot)
         return;
+    if (m_archiveOut) {   // diagnosed when the archive lands (B2)
+        m_reductionOwed = true;
+        return;
+    }
     m_reductionOwed     = false;
     m_reductionLatest   = nextWorkNumber();   // the one counter (§4.4 step 7): latest wins
     m_reductionInFlight = true;
     ++m_counts.reductionsAsked;
     auto input = std::make_shared<const analysis::SessionReductionInput>(reductionInput());   // values only
+    m_askedInput = input;   // a kept reduction is the latest asked (§4.4 step 6), so this is what it was reduced from
     submit(WorkAddress{ m_id.toString(), m_instance, QString(), m_reductionLatest },
            [input]() -> std::any {
                QElapsedTimer t;
@@ -1096,6 +1226,7 @@ void SessionDiagnostics::deliverReduction(WorkVerdict verdict, WorkResult &&resu
         m_stageHeld          = true;
         m_lastReductionMs    = r->ms;
         m_diagnosis          = std::move(r->diagnosis);
+        m_diagnosisInput     = m_askedInput;   // kept means latest: the input asked last (refactor 3.7-a)
         m_dirty              = true;   // the diagnosis state is written with what is kept (§4.4 step 8)
         ++m_counts.reductions;
         emit diagnosisApplied();

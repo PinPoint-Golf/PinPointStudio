@@ -52,6 +52,9 @@ QtObject {
     // their pip row off it. NULLABLE AND NULL BY DEFAULT: the panel is off unless the user
     // turns it on in View, and a card must cost nothing when it is (see PpShotCard).
     property var    sessionDiagnostics: null
+    // Which panel claimed the seam above (refactor step 3.7-a): panels on one session share its adapter, so the
+    // outgoing panel releases the seam only when the claim is still its own.
+    property var    sessionDiagnosticsClaimant: null
 
     // Where the reader was in the stage's session diagnostics panel — tab, card filter,
     // Watching fold, open characteristic, and each list's scroll — kept HERE because the panel

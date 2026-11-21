@@ -40,7 +40,6 @@ Update/update_controller.cpp | A1 | 2 | DEC-146: the updater takes the app's set
 Update/win_sparkle_update.cpp | A1 | 2 | DEC-146: the updater takes the app's settings object and the session controller (Gui/app/app_settings.h, Gui/session/session_controller.h) to hold off while a session runs; the platform refactor (settings, 05 §2), outside steps 1-8  # platform refactor (settings)
 
 # ── A2 QML creating a session/athlete-scoped type ──
-Gui/diagnostics/PpSessionDiagnosticsPanel.qml | A2 | 1 | the stage panel creates a private SessionDiagnosticsModel; step 3 points it at the session's SessionDiagnostics owner  # step 3
 Gui/charts/PpChartsPanel.qml | A2 | 6 | the Charts panel creates its own SessionSeriesModel and the five presenters; step 5 gives each session one SessionSeries and the presenters to it  # step 5
 Gui/diagnostics/PpConsistencyView.qml | A2 | 3 | the Consistency view creates its own SessionSeriesModel and presenters; step 5 moves them onto the session  # step 5
 Gui/trust/PpTrustInlineFor.qml | A2 | 2 | a trust view creates its own SessionSeriesModel and TrustPresenter; step 5 moves them onto the session  # step 5

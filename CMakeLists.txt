@@ -2979,6 +2979,10 @@ target_sources(PinPointStudio PRIVATE
     # the module's C++ without the session diagnostics owner, need none of it.
     src/Gui/diagnostics/diag_parallel_run.h
     src/Gui/diagnostics/diag_parallel_run.cpp
+    # The thin adapter's Session-facing half and the screens' way to it (refactor 3.7-a): NOT a QML type either, for
+    # the same reason — it links the Session and its SessionDiagnostics, which the QML suites do not compile.
+    src/Gui/diagnostics/session_diagnostics_adapter.h
+    src/Gui/diagnostics/session_diagnostics_adapter.cpp
     src/App/app.h
     src/App/app.cpp
     src/Analysis/effective_context.h

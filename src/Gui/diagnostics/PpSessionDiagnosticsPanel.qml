@@ -28,17 +28,19 @@
 // not-assessable tick — are asserted rather than eyeballed; and there is exactly one place
 // where this panel touches the app's singletons, which is here.
 //
-// THE MODEL IS INSTANTIATED, NOT REACHED FOR. SessionDiagnosticsModel owns a characteristic
-// pack, a norm provider and a worker thread that re-runs detection on every shot, and this
-// panel is OFF by default — the user turns it on in View. A golfer who never opens it
-// should not be paying for any of that, which is why the model is not a context property in
-// main.cpp. See the class comment on SessionDiagnosticsModel.
+// THE SESSION'S DIAGNOSTICS ARE REACHED, NOT MADE (refactor step 3.7-a; build/refactor/step-3/BRIEF.md §4.10).
+// The panel used to instantiate a private model that judged the session itself, and only while
+// the panel was up — so with it off (the default) no shot was judged (audit D-02). Now every
+// loaded Session's one SessionDiagnostics judges every shot, panel or not (DEC-02), and the panel
+// shows it: the folder it chooses (sessionDir, below: still its own choice until step 4's
+// sessionOnScreen) names a Session through app.sessionAt (D1: DEC-164), and
+// diagnosticsAdapters.of() answers that Session's thin adapter — made by C++, one per
+// Session and surface (the stage panel and the wall cast each keep their own view state over the
+// one owner). See the class comment on SessionDiagnosticsModel's adapter half.
 //
-// CADENCE GATES SURFACING, NEVER THE ENGINE. ingestShot() below is wired straight to
-// ShotProcessor::shotProcessed with no cadence check anywhere near it, and there must never
-// be one: the ledger accumulates at full rate whatever the panel is showing (brief §3.4,
-// §5.6). ingestShot() is idempotent per shot id, which is what makes it safe to wire this
-// way and to call again from activateSession()'s back-fill.
+// CADENCE GATES SURFACING, NEVER THE ENGINE. Nothing here feeds a shot to anything: the owner
+// hears each shot's document land (EVT-01) and its late parts (EVT-22) itself, so the ledger
+// accumulates at full rate whatever the panel is showing (brief §3.4, §5.6).
 
 import QtQuick
 import PinPointStudio
@@ -87,42 +89,64 @@ Item {
     // by a guess is precisely the claim §5.4 forbids.
     signal screenRequested(string screenRef, string conditionId)
 
-    SessionDiagnosticsModel {
-        id: diagModel
-
-        // Both passed in rather than reached for, so the model stays constructible in a
-        // test. gradePolicy must be the SAME policy the other metric surfaces and the
-        // launch monitor board grade against, or one reading would sit outside its
-        // corridor on one panel and inside it on another.
-        cadence:     appSettings.sessionDiagnosticsCadence
-        gradePolicy: appSettings.diagnosticsGradePolicy
-
-        // Review FREEZES the ledger at Closing: a finished session's panel is its summary
-        // and must not re-open because it was looked at.
-        reviewing:   sessionReviewController.reviewActive
-
-        // THE CAROUSEL OWNS THE SELECTION AND THE PANEL ONLY READS IT (brief §6.1, §8). The
-        // carousel is already at the foot of the stage and is post-session the ONLY way in;
-        // a second selection control on the panel would be a second answer to "which shot",
-        // and the two would disagree the moment either was used.
-        //
-        // BY SWING FOLDER, NOT BY ID. SessionMode.focusedShotId is the carousel model's own
-        // counter and this model numbers shots differently, so passing the id selected nothing
-        // and THIS SHOT stayed empty. The folder is the identity both sides share; the model
-        // resolves it to its own id (SessionDiagnosticsModel::selectedSwingDir).
-        selectedSwingDir: SessionMode.focusedSwingDir
+    // ── the Session this panel shows, and its thin adapter (3.7-a) ──────────────
+    //
+    // app.sessionAt(folder) asks the CURRENT athlete for the Session of the folder; null when no
+    // athlete holds it — a session captured with no golfer (the `unknown` folder: Mark's N1, kept
+    // with no diagnostics), or no folder yet. Asked again when the athlete changes (the folder may
+    // stay the same string). The adapter for that Session and this surface is never null: with no
+    // Session it is an EMPTY one, which judges nothing, and the panel says why (noGolferNotice).
+    readonly property var session:
+        (typeof app !== "undefined" && app && sessionDir !== ""
+         && (typeof athleteController === "undefined" || athleteController === null
+             || athleteController.currentUuid !== ""))   // a golfer chosen (and asked again when it changes)
+            ? app.sessionAt(sessionDir) : null
+    readonly property var diagModel:
+        (typeof diagnosticsAdapters !== "undefined" && diagnosticsAdapters) ? diagnosticsAdapters.of(session, surface, sessionDir) : null
+    // SHOW WITH A WARNING, NEVER HIDE (Mark's N1): a folder the panel is pointed at that no Session
+    // of the current golfer owns has no diagnostics; the panel says so instead of drawing an empty
+    // panel as if nothing had happened.
+    // (A folder in the golfer's own folder that no Session of theirs holds — another athlete id in its file — gets
+    // today's engine model instead, made by C++: not an adapter, so no notice. session_diagnostics_adapter.h.)
+    readonly property bool noGolfer: sessionDir !== "" && session === null && !!diagModel && diagModel.adapter
+    // What is true of the folder (review M6): no golfer chosen here; a session recorded with no golfer (the library's
+    // `unknown` folder); or another golfer's session.
+    readonly property string noGolferText: {
+        const parts = SessionMode.folderKey(sessionDir).split("/")
+        const owner = parts.length >= 2 ? parts[parts.length - 2] : ""
+        if (typeof athleteController !== "undefined" && athleteController && athleteController.currentUuid === "")
+            return qsTr("No golfer is chosen, so this session's swings are not judged. Choose a golfer to see its diagnostics.")
+        if (owner === "unknown")
+            return qsTr("This session was recorded with no golfer, so its swings are not judged. Move it to a golfer to see its diagnostics.")
+        return qsTr("This session is not one of the chosen golfer's, so its swings are not judged here.")
     }
 
-    // THE SESSION THE PANEL IS POINTED AT — the loaded one while reviewing, the live one
-    // otherwise. A session's id IS its directory, which is why one property answers both:
-    // SessionReviewController::loadSession() takes the same string and reads the same
-    // swing_* dirs out of it that activateSession() reconciles against.
+    // NEVER RESTORED (RestoreNone): the adapter outlives this panel, and the stage builds the incoming
+    // panel before it destroys the outgoing one, so a restore would undo the incoming panel's values.
+    // Both passed in rather than reached for. gradePolicy must be the SAME policy the other metric
+    // surfaces and the launch monitor board grade against, or one reading would sit outside its
+    // corridor on one panel and inside it on another.
+    Binding { restoreMode: Binding.RestoreNone; target: root.diagModel; property: "cadence";     value: appSettings.sessionDiagnosticsCadence }
+    Binding { restoreMode: Binding.RestoreNone; target: root.diagModel; property: "gradePolicy"; value: appSettings.diagnosticsGradePolicy }
+    // Review FREEZES the ledger at Closing: a finished session's panel is its summary and must not
+    // re-open because it was looked at.
+    Binding { restoreMode: Binding.RestoreNone; target: root.diagModel; property: "reviewing";   value: sessionReviewController.reviewActive }
+    // THE CAROUSEL OWNS THE SELECTION AND THE PANEL ONLY READS IT (brief §6.1, §8). The carousel
+    // is already at the foot of the stage and is post-session the ONLY way in; a second selection
+    // control on the panel would be a second answer to "which shot", and the two would disagree
+    // the moment either was used.
     //
-    // activateSession() covers three situations that are the same problem — opening a
-    // finished session, resuming after a crash, and turning this panel on half way through a
-    // session — by reconciling diagnostics.json against the swing_* directories beside it and
-    // back-filling the difference. Entering and leaving review is a fourth, and it is the
-    // same call for the same reason.
+    // BY SWING FOLDER, NOT BY ID. SessionMode.focusedShotId is the carousel model's own counter and
+    // the ledger numbers shots by swing number, so the folder is the identity both sides share; the
+    // adapter resolves it to its own id (SessionDiagnosticsModel::selectedSwingDir).
+    Binding { restoreMode: Binding.RestoreNone; target: root.diagModel; property: "selectedSwingDir"; value: SessionMode.focusedSwingDir }
+
+    // THE SESSION THE PANEL IS POINTED AT — the loaded one while reviewing, the live one
+    // otherwise. The folder names the Session (app.sessionAt, above); the Session's owner has
+    // already read it — opening a finished session, resuming after a crash, and turning this panel
+    // on half way through a session are all "the owner holds it" now (it judged every shot as it
+    // landed). activateSession() on the adapter only brings what the panel shows up to date
+    // (pointAdapter: the club baseline, the athlete's history).
     //
     // LIVE IS TODAY'S SESSION WHETHER OR NOT IT IS RUNNING. shotProcessor.activeSessionDir is
     // set only between a session's start and its end, and this used to read nothing else: end
@@ -138,26 +162,23 @@ Item {
                 ? shotProcessor.activeSessionDir
                 : sessionReviewController.liveSessionDir
 
-    // GUARDED ON THE MODEL'S OWN ANSWER, not on a remembered one. activateSession() is a disk
-    // scan and a back-fill, so it must not run again for a session already loaded — and
-    // asking the model what it holds is what makes leaving review correct: coming back to a
-    // live directory the panel was pointed at BEFORE the excursion still differs from the
-    // reviewed one the model is holding now, so the live ledger is rebuilt rather than the
-    // reviewed one being left on screen in the live tense. Empty is a real value here (a live
-    // session before its first export) and clears the model, for the same reason.
-    //
-    // COMPARED AS FOLDERS, NOT AS STRINGS: the two live sources spell the same folder
-    // differently when the library path ends in a slash ("…/lib//athlete/…" from the
-    // processor, "…/lib/athlete/…" from the carousel), and a session ending must not cost a
-    // second scan of the folder the panel is already on (SessionMode.sameFolder).
+    // ON EVERY POINTING, NOT ONLY A NEW FOLDER: the adapter outlives this panel (PpModeStage rebuilds
+    // the panel on every mode switch), and each pointing is when a club baseline frozen elsewhere
+    // since (the catch-up's, at End) is read — as each rebuilt panel's private model used to read it.
+    // Cheap: the adapter reads no swing and re-judges nothing unless that baseline moved.
     function _pointAtSession() {
-        if (!SessionMode.sameFolder(sessionDir, diagModel.sessionDir)) {
-            // WHO MAY FREEZE THE BASELINE, set by hand before the load reads it (a binding's order isn't pinned, so
-            // one could race the activate): a reviewed session never writes its sidecar, a live panel may.
-            diagModel.baselineAuthority = (typeof sessionReviewController !== "undefined" && sessionReviewController
-                                           && sessionReviewController.reviewActive) ? "never" : "live"
-            diagModel.activateSession(sessionDir)
-        }
+        if (!diagModel) return
+        // Today's engine model (a folder no Session holds): a disk scan and a back-fill, so only for a new folder, as
+        // before 3.7-a — compared as folders, not strings (SessionMode.sameFolder).
+        if (!diagModel.adapter && SessionMode.sameFolder(sessionDir, diagModel.sessionDir)) { _adoptFocus(); return }
+        // …and only for a folder no Session holds: the two change handlers above may run before `diagModel` has moved
+        // to a held folder's adapter, and an engine model must never judge (and write) a session its owner holds.
+        if (!diagModel.adapter && typeof app !== "undefined" && app && sessionDir !== "" && app.sessionAt(sessionDir)) return
+        // WHO MAY FREEZE THE BASELINE, set by hand before the pointing reads it (a binding's order isn't
+        // pinned): a reviewed session never freezes one, a live panel may (today's rule).
+        diagModel.baselineAuthority = (typeof sessionReviewController !== "undefined" && sessionReviewController
+                                       && sessionReviewController.reviewActive) ? "never" : "live"
+        diagModel.activateSession(sessionDir)
         _adoptFocus()
     }
 
@@ -181,7 +202,7 @@ Item {
         typeof sessionController !== "undefined" && sessionController !== null
         && typeof shotProcessor !== "undefined" && shotProcessor !== null
         && sessionController.running
-        && !diagModel.reviewing
+        && !!diagModel && !diagModel.reviewing
         && shotProcessor.activeSessionDir !== ""
         && SessionMode.sameFolder(sessionDir, shotProcessor.activeSessionDir)
     onLiveSessionChanged: _adoptFocus()
@@ -191,7 +212,7 @@ Item {
     // the model announces its new folder before it has read that folder's intent, and an
     // adoption then would land on rows not yet loaded and be overwritten by the file.
     function _adoptFocus() {
-        if (!liveSession) return
+        if (!liveSession || !diagModel) return
         if (!SessionMode.sameFolder(diagModel.sessionDir, shotProcessor.activeSessionDir)) return
         const want = sessionController.focusConditionId || ""
         if (want === (diagModel.focusConditionId || "")) return
@@ -211,8 +232,28 @@ Item {
     // second publishes a state that has both facts in it, and the pair converges within the
     // same event-loop turn either way. Pinning it would mean breaking the declarative binding
     // on `reviewing` to set it by hand, which buys a transient nobody can observe.
+    // ON THE FOLDER AS WELL AS ON THE MODEL (review B1): a folder no Session holds is shown by one engine-mode model per
+    // surface (session_diagnostics_adapter.h), so a move between two of them keeps the same object and only the folder
+    // says so. _pointAtSession is guarded on sameFolder for that model and idempotent for an adapter.
     onSessionDirChanged: { _pointAtSession(); _refreshReadout() }
+    // The view bound to the adapter (review M2): the adapter does view work only while a view holds it.
+    property var _viewOf: null
+    function _bindView() {
+        if (_viewOf === diagModel) return
+        if (_viewOf) _viewOf.dropView()
+        _viewOf = diagModel
+        if (_viewOf) _viewOf.addView()
+    }
+    onDiagModelChanged: {
+        _bindView()
+        _pointAtSession()
+        _refreshReadout()
+        // The seam follows the panel onto its new adapter (it was ours: the last panel up claims it, below).
+        if (SessionMode.sessionDiagnosticsClaimant === root) SessionMode.sessionDiagnostics = diagModel
+    }
+
     Component.onCompleted: {
+        _bindView()
         _pointAtSession()
         // ⚠ FETCHED HERE AS WELL AS FROM THE SIGNALS, and it has to be. The panel is built when
         // its stage tab first shows — typically on entering Analyse with a shot already picked —
@@ -228,6 +269,7 @@ Item {
         // ledger the cards draw. That is the right answer because it is the one the user is
         // looking at, and it is the only answer that does not need a registry.
         SessionMode.sessionDiagnostics = diagModel
+        SessionMode.sessionDiagnosticsClaimant = root
         if (remembersNav) {
             _restoreNav()
             place.watch()
@@ -237,10 +279,15 @@ Item {
     // ...and released only if it is still OURS. A panel being torn down while a second one
     // holds the seam must not null a pointer it no longer owns — which is exactly what
     // happens when the user switches screens and the outgoing panel is destroyed after the
-    // incoming one has already claimed it.
-    Component.onDestruction:
-        if (SessionMode.sessionDiagnostics === diagModel)
+    // incoming one has already claimed it. BY PANEL, NOT BY OBJECT (3.7-a): the incoming panel
+    // claims the SAME adapter, so the object alone cannot say whose claim stands.
+    Component.onDestruction: {
+        if (_viewOf) _viewOf.dropView()
+        if (SessionMode.sessionDiagnosticsClaimant === root) {
             SessionMode.sessionDiagnostics = null
+            SessionMode.sessionDiagnosticsClaimant = null
+        }
+    }
 
     // ── keeping the reader's place across a rebuild ──────────────────────────
     //
@@ -365,19 +412,17 @@ Item {
         }
     }
 
+    // NO SHOT OF A SESSION IS FED FROM HERE (3.7-a): its owner hears each shot's document land (EVT-01),
+    // its late reading (EVT-22), a re-analysis (EVT-02) and a trash (EVT-03) itself, with or without
+    // this panel, and an adapter ignores both calls below. They reach only today's engine model, for a
+    // folder no Session holds, exactly as before.
     Connections {
         target: shotProcessor
-        function onShotProcessed(shotId, swingDir) {
-            diagModel.ingestShot(shotId, swingDir)
-        }
+        function onShotProcessed(shotId, swingDir) { if (root.diagModel) root.diagModel.ingestShot(shotId, swingDir) }
     }
-
-    // A swing moved to the trash leaves the ledger (#56); the model ignores a swing of a session it
-    // is not holding. With no panel up, the next activateSession() drops the row instead, because
-    // the swing is no longer on disk.
     Connections {
         target: SessionMode
-        function onSwingTrashed(swingDir) { diagModel.forgetShot(swingDir) }
+        function onSwingTrashed(swingDir) { if (root.diagModel) root.diagModel.forgetShot(swingDir) }
     }
 
     // shotReadout() IS AN INVOKABLE, SO IT CANNOT BE BOUND — somebody has to call it, and
@@ -388,7 +433,7 @@ Item {
     function _refreshReadout() {
         // Live as well as in review: the body decides what a live pick of the newest swing
         // shows (the after-shot strip), and needs the readout for every other pick.
-        body.readout = diagModel.selectedShotId >= 0
+        body.readout = diagModel && diagModel.selectedShotId >= 0
                        ? diagModel.shotReadout(diagModel.selectedShotId)
                        : null
     }
@@ -426,9 +471,26 @@ Item {
     // session's in review, the live carousel's otherwise (PpReaderPlace.pickShot, as the Charts
     // panel's).
 
+    // ── a session with no golfer (Mark's N1) ─────────────────────────────────
+    //
+    // An existing PpNotice (warning style) across the top of the panel, the body below it in its empty
+    // (cold) state: nothing here is judged, and the golfer is told why and what to do.
+    PpNotice {
+        id: noGolferNotice
+        objectName: "sdNoGolferNotice"
+        visible: root.noGolfer
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        tone: "warn"
+        style: "warning"
+        title: Theme.caps(qsTr("No diagnostics"))
+        text: root.noGolferText
+    }
+
     PpSessionDiagnosticsBody {
         id: body
-        anchors.fill: parent
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom
+                  top: root.noGolfer ? noGolferNotice.bottom : parent.top
+                  topMargin: root.noGolfer ? Theme.gap(8) : 0 }
         source: diagModel
         // Where a declaration made on this panel is written back, while it is live (above).
         focusController: root.liveSession ? sessionController : null

@@ -63,9 +63,9 @@
 // write (step 2.8b) — THEN EMITS ITS EVENT ONCE, on this thread, carrying only the ShotRef (DEC-69, DEC-103). An
 // event says the fact CHANGED: a save that changed nothing (WriteResult Unchanged: the value was already so)
 // emits nothing. A FAILED SAVE EMITS NOTHING; its WriteResult goes back to the caller and the app log says which
-// command failed and why. Only the diagnostics panel's model SHOWS it to the golfer (its write notice); the
-// carousel, the launch monitor's late reading and the clip filer log it only, as before this step — the gap
-// against DEC-126 is scheduled for step 3.7's cut-overs (information_model.md §11). A save is made now, on this thread, unless
+// command failed and why. The caller shows it to the golfer (DEC-126): the diagnostics panel's write notice; from step
+// 3.7-a the carousel's and the launch monitor's notices (their saveFailed, posted by main.cpp); the clip filer still
+// logs only (information_model.md §11). A save is made now, on this thread, unless
 // the caller names its worker (SaveLater: setShotIntent and correctLabel, the diagnostics panel's, whose save is
 // made off the GUI thread today; D25, DEC-183). Its Session hears every event (P10), and its SessionDiagnostics
 // re-asks the shot on each (step 3.5-i).

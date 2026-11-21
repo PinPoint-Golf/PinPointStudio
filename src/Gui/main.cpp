@@ -107,7 +107,8 @@
 #include "../Core/work_pool.h"                // the one pool and its receiver (D15), for the parallel run (3.5-ii)
 #include "../DomainModel/session.h"
 #include "../DomainModel/session_diagnostics.h"   // diagnosticsWorkTarget (3.5-ii)
-#include "diagnostics/diag_parallel_run.h"    // PINPOINT_DIAG_PARALLEL=1 (D14); its doors (3.7-0)
+#include "diagnostics/diag_parallel_run.h"    // PINPOINT_DIAG_PARALLEL=1 (D14); its doors (3.7-0); the app's (3.7-a)
+#include "diagnostics/session_diagnostics_adapter.h"   // diagnosticsAdapters: each Session's thin adapter (3.7-a)
 #include "diagnostics/session_diagnostics_model.h"   // its golfer commands' door (step 3.4b-i)
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
@@ -354,22 +355,26 @@ int main(int argc, char *argv[])
     LlmController           llmController(&appSettings);
     CameraManager           cameraManager(&eventBuffer, &appSettings);
     BufferController        bufferController(&eventBuffer);
-    // THE PARALLEL RUN (refactor step 3.5-ii; BRIEF §4.9; D14: DEC-179, off by default): with PINPOINT_DIAG_PARALLEL=1
-    // every session an Athlete loads (a live one, one a view opens) gets its new diagnostics owner, SessionDiagnostics,
-    // IN MEMORY ONLY (persist false: diagnostics.json and work_ons.json keep the old model as their one writer until
-    // the cut-over, 3.7), on the one pool (D15; J-3's size) with the GUI thread's receiver; after each reduction the
-    // old model settles, the two are compared and one line per session goes to the app log ("[DiagParallel]").
-    // Declared BEFORE the athlete store, so the receiver and the pool outlive every Athlete (DiagnosticsDoors).
+    // EVERY LOADED SESSION'S DIAGNOSTICS RUN (refactor step 3.7-a; DEC-02; 04 step 3 item 4: "always fire"): every session
+    // an Athlete loads — the live one at its Start, one a view opens — gets its one diagnostics owner, SessionDiagnostics,
+    // which judges each shot as its document lands, whether or not a diagnostics panel is up, on the one pool (D15; J-3's
+    // size) with the GUI thread's receiver, and writes diagnostics.json (the stage panel's model, its writer until 3.7-a, is
+    // gone: the panels show this owner through their thin adapters). work_ons.json keeps WorkOnsController as its one
+    // writer until the catch-up's cut-over (3.7-e). Declared BEFORE the athlete store, so the receiver and the pool outlive
+    // every Athlete (DiagnosticsDoors).
+    // THE PARALLEL RUN (refactor step 3.5-ii; BRIEF §4.9; D14: DEC-179, off by default): PINPOINT_DIAG_PARALLEL=1 now only
+    // installs the comparison hook — the old models still made by the catch-up (and the report) are compared with this
+    // owner after each of their reductions, one line per session in the app log ("[DiagParallel]").
     const bool diagParallel = pinpoint::parallel::enabledByEnvironment();
     std::function<pinpoint::WorkTarget(const pinpoint::WorkAddress &)> diagLookup;   // set once the store exists
-    std::unique_ptr<pinpoint::WorkReceiver> diagReceiver;   // made before the pool, destroyed after it
-    std::unique_ptr<pinpoint::WorkPool>     diagPool;
-    if (diagParallel) {
-        diagReceiver = std::make_unique<pinpoint::WorkReceiver>([&diagLookup](const pinpoint::WorkAddress &a) {
-            return diagLookup ? diagLookup(a) : pinpoint::WorkTarget{};
-        });
-        diagPool = std::make_unique<pinpoint::WorkPool>();
-    }
+    // What the composition root does with each owner once made (its failed writes shown: DEC-126); set once the
+    // notification centre exists, before any session is loaded.
+    std::function<void(pinpoint::Session *, pinpoint::SessionDiagnostics *)> diagAttached;
+    // made before the pool, destroyed after it
+    auto diagReceiver = std::make_unique<pinpoint::WorkReceiver>([&diagLookup](const pinpoint::WorkAddress &a) {
+        return diagLookup ? diagLookup(a) : pinpoint::WorkTarget{};
+    });
+    auto diagPool = std::make_unique<pinpoint::WorkPool>();
     // THE ONE DOOR TO THE ATHLETE'S RECORD (AthleteRepository, step 2.3): athlete.json in each athlete's
     // folder, or this machine's settings record until migration M1. GUI thread only; declared before the
     // controller, so it outlives every Athlete the controller holds.
@@ -378,15 +383,21 @@ int main(int argc, char *argv[])
     // reading door above, shared, never owned (both are static and outlive every Athlete).
     athleteStore.setShotDoors({ &recordingRepository,
                                 std::shared_ptr<pinpoint::RecordingReader>(&recordingReader, [](pinpoint::RecordingReader *) {}) });
-    if (diagParallel) {
-        diagLookup = [&athleteStore](const pinpoint::WorkAddress &a) {
-            return pinpoint::diagnosticsWorkTarget(athleteStore.loadedSession(pinpoint::SessionId::fromString(a.owner)), a);
+    diagLookup = [&athleteStore](const pinpoint::WorkAddress &a) {
+        return pinpoint::diagnosticsWorkTarget(athleteStore.loadedSession(pinpoint::SessionId::fromString(a.owner)), a);
+    };
+    {
+        // The app's doors, put together in ONE place (pinpoint::appDiagnosticsDoors, refactor 3.7-a), which
+        // diag_stage_panel_test drives too; the attach told to the composition root (diagAttached, below).
+        pinpoint::DiagnosticsDoors doors = pinpoint::appDiagnosticsDoors(diagPool.get(), diagReceiver.get(), &ruleData,
+                                                                          sessionStore, recordingRepository);
+        doors.attach = [&diagAttached](pinpoint::Session *s, const pinpoint::DiagnosticsDoors &d) {
+            pinpoint::SessionDiagnostics *owner = pinpoint::SessionDiagnostics::attach(s, d);
+            if (owner && diagAttached)
+                diagAttached(s, owner);
+            return owner;
         };
-        // IN MEMORY ONLY (§4.9): no diagnostics file and no sidecar (the reader parses a miss and writes nothing), so
-        // the old model stays the only writer of every file of the session. Put together in ONE place (3.7-0), which
-        // diag_parallel_live_test drives too.
-        athleteStore.setDiagnosticsDoors(pinpoint::parallel::doors(diagPool.get(), diagReceiver.get(), &ruleData,
-                                                                   sessionStore, recordingRepository));
+        athleteStore.setDiagnosticsDoors(doors);
     }
     // THE COMPOSITION ROOT'S CALLABLES (D18 (c); DEC-167): how the application services and AthleteController
     // reach the athletes, over the one athlete repository, which reads SET-03 on every call (so a library
@@ -421,12 +432,24 @@ int main(int argc, char *argv[])
     AthleteController       athleteController;
     athleteController.setCallables(athleteCallables, &sessionStore);
     // `app` (D1: DEC-164): app.sessionAt(folder), the Session of a folder a view still chooses itself, asked of
-    // the current athlete. No QML calls it yet (the panels move in step 3.7).
+    // the current athlete. The diagnostics panel and the cast call it (refactor 3.7-a).
     pinpoint::App           appObject([&athleteController] { return athleteController.currentAthlete(); });
     // THE SHOT'S AND THE SESSION'S COMMANDS (refactor step 3.4b-i): today's writers of a shot's facts forward to
     // them through `app` (ShotCommandDoor) and write nothing themselves. The diagnostics panel's model is made by
     // QML, so its door is process-wide; reset after exec (it outlives this local).
     SessionDiagnosticsModel::setShotCommands(&appObject);
+    // THE SCREENS' WAY TO A SESSION'S DIAGNOSTICS (refactor 3.7-a): each Session's thin adapter, made by C++ (the stage
+    // panel and the cast no longer make a model of their own). Outlives the QML engine (declared before it).
+    SessionDiagnosticsAdapters diagnosticsAdapters;
+    diagnosticsAdapters.setAthleteFolder([&athleteController] { return athleteController.currentFolder(); });
+    // THE QUIT SAVE (§4.4 step 8; CARRY 3.5-i §6): what the current athlete's loaded sessions' owners kept is written on
+    // aboutToQuit, before any of the app is torn down (the live session's last shots, inside their debounce). Every other
+    // loaded session (another athlete's) is written as before, as its Athlete is destroyed with the athlete store.
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, &athleteController, [&athleteController] {
+        if (pinpoint::Athlete *a = athleteController.currentAthlete())
+            for (pinpoint::Session *s : a->loadedSessions())
+                if (pinpoint::SessionDiagnostics *d = s->diagnostics()) d->flush();
+    });
     if (diagParallel) {
         pinpoint::parallel::install(
             [&appObject](const QString &folder) { return appObject.sessionAt(folder); },
@@ -452,6 +475,34 @@ int main(int argc, char *argv[])
     // Constructed before the objects that post to it; see notification_center.h
     // for why identity (a stable id) is the whole mechanism.
     NotificationCenter      notificationCenter;
+    // A SESSION'S DIAGNOSTICS THAT ARE NOT BEING SAVED (DEC-126; Stage 0.4c's notice; refactor step 3.7-a): every owner's
+    // failed write (diagnostics.json, the club baseline) is said here, through the one notification centre, whether or not a
+    // diagnostics panel is up — the owner now judges and writes with none (always fire) — one notice per session, taken back
+    // by its next write that lands. A file it can only read (unopenable, or a newer build's) is said once, at its load. Set
+    // before any session can be loaded (the doors above call it from every attach).
+    diagAttached = [&notificationCenter](pinpoint::Session *s, pinpoint::SessionDiagnostics *owner) {
+        using N = NotificationCenter;
+        const QString id = QStringLiteral("diagnostics.writes-blocked:") + s->id().toString();
+        QString name = QObject::tr("a session");
+        if (const auto e = s->entry(); e && e->startedAtUtc.isValid())
+            name = QObject::tr("the %1 session").arg(e->startedAtUtc.toLocalTime().toString(QStringLiteral("ddd d MMM · HH:mm")));
+        const auto post = [&notificationCenter, id, name](const QString &why) {
+            N::Notification n;
+            n.id       = id;
+            n.severity = N::Warn;
+            n.kind     = N::Condition;   // a state of the session, until a write lands
+            n.title    = QObject::tr("Changes to the diagnostics of %1 are not being saved").arg(name);
+            n.detail   = why;
+            notificationCenter.post(n);
+        };
+        QObject::connect(owner, &pinpoint::SessionDiagnostics::writeFailed, &notificationCenter, post);
+        QObject::connect(owner, &pinpoint::SessionDiagnostics::written, &notificationCenter, [&notificationCenter, id] {
+            if (notificationCenter.isLive(id)) notificationCenter.resolve(id);
+        });
+        if (owner->readOnly())
+            post(QObject::tr("Its diagnostics file could not be opened, or was saved by a newer version of PinPoint Studio, "
+                             "so it is read and not written."));
+    };
     SessionController       sessionController(&athleteController);
     // No athlete switch while a session runs: the controller refuses it (E-01, Stage 0.8g).
     athleteController.setSessionRunningCheck([&sessionController] { return sessionController.running(); });
@@ -995,6 +1046,36 @@ int main(int argc, char *argv[])
             n.detail   = why;
             notificationCenter.post(n);
         });
+        // A SHOT'S EDIT, A LAUNCH MONITOR READING, OR THE TUNING LOG THAT DID NOT SAVE (DEC-126; refactor step 3.7-a):
+        // logged only until now. Each is said, one notice per kind (a failure that repeats is one notice, counted): the
+        // carousel's edits (the live list's and the reviewed session's), the monitor's reading and its late club data,
+        // and the current athlete's tuning log (a flag or a label correction).
+        const auto saveNotice = [&notificationCenter](const QString &id) {
+            return [&notificationCenter, id](const QString &what, const QString &why) {
+                N::Notification n;
+                n.id       = id;
+                n.severity = N::Warn;
+                n.kind     = N::Event;
+                n.title    = QObject::tr("%1 could not be saved").arg(what);
+                n.detail   = why;
+                notificationCenter.post(n);
+            };
+        };
+        for (ShotListModel *m : { &shotModel, qobject_cast<ShotListModel *>(sessionReviewController.shots()) })
+            if (m) QObject::connect(m, &ShotListModel::saveFailed, &notificationCenter, saveNotice(QStringLiteral("shot.edit.not-saved")));
+        QObject::connect(&launchMonitorController, &LaunchMonitorController::saveFailed, &notificationCenter,
+                         saveNotice(QStringLiteral("lm.reading.not-saved")));
+        {
+            static QMetaObject::Connection tuning;   // the current athlete's, re-made when the athlete changes
+            const auto hearAthlete = [&athleteController, &notificationCenter, saveNotice] {
+                QObject::disconnect(tuning);
+                if (pinpoint::Athlete *a = athleteController.currentAthlete())
+                    tuning = QObject::connect(a, &pinpoint::Athlete::writeFailed, &notificationCenter,
+                                              saveNotice(QStringLiteral("athlete.tuning-log.not-saved")));
+            };
+            hearAthlete();
+            QObject::connect(&athleteController, &AthleteController::currentAthleteChanged, &notificationCenter, hearAthlete);
+        }
         // "Continue today's session" refused or not saved (DEC-126): a new session started instead, and
         // the golfer is told why.
         QObject::connect(&shotProcessor, &ShotProcessor::sessionResumeFailed,
@@ -1306,6 +1387,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("secrets"),           &secrets);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
     engine.rootContext()->setContextProperty(QStringLiteral("app"),               &appObject);
+    // A Session's thin diagnostics adapter for a screen (refactor 3.7-a): diagnosticsAdapters.of(app.sessionAt(dir), surface).
+    engine.rootContext()->setContextProperty(QStringLiteral("diagnosticsAdapters"), &diagnosticsAdapters);
     engine.rootContext()->setContextProperty(QStringLiteral("navController"),     &navController);
     engine.rootContext()->setContextProperty(QStringLiteral("imuManager"),       &imuManager);
     engine.rootContext()->setContextProperty(QStringLiteral("trunkCeremony"),    &trunkCeremony);

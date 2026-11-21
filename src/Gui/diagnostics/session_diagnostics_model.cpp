@@ -623,6 +623,55 @@ SessionDiagnosticsModel::SessionDiagnosticsModel(QObject *parent)
     rebuild();
 }
 
+// THE THIN ADAPTER POINTED AT (activateSession; 3.7-a): the profile and the history read, the owner's club baseline
+// brought up to date (its link: a freeze landed elsewhere since — the catch-up's, at End), today's live freeze when the
+// session has none, then the owner's diagnosis shown. The adapter's Session-facing half is its link
+// (session_diagnostics_adapter.cpp), so this file links nothing of the domain model.
+void SessionDiagnosticsModel::addView()
+{
+    if (++m_views == 1 && m_link) m_link->wake();
+}
+
+void SessionDiagnosticsModel::dropView()
+{
+    m_views = std::max(0, m_views - 1);
+}
+
+void SessionDiagnosticsModel::pointAdapter()
+{
+    if (!m_link) {
+        rebuild();
+        return;
+    }
+    loadProfile();
+    scanHistory();
+    m_link->reloadBaseline(/*keepWhenAbsent=*/true);
+    // TODAY'S LIVE FREEZE (the class comment; beginClubBaseline's rule): a live panel, not reviewing, on a session that
+    // has none, freezes it from its predecessors' ledgers, off the GUI thread.
+    if (!m_freezing && beginClubBaseline()) {
+        const QDate day = m_sessionIdentity.localDay();
+        if (m_synchronous) {
+            finishClubBaseline(day, readPredecessors(m_sessionDir, day));
+        } else {
+            m_freezing = true;
+            const int token = ++m_freezeToken;
+            emit busyChanged();
+            const QString sessionDir = m_sessionDir;
+            m_freezePool.start([this, sessionDir, day, token]() {
+                PredecessorRead r = readPredecessors(sessionDir, day);
+                {
+                    const QMutexLocker guard(&m_freezeMutex);
+                    m_freezeResult = std::move(r);
+                }
+                QMetaObject::invokeMethod(this, [this, token]() {
+                    if (m_freezing && token == m_freezeToken) joinFreeze();
+                }, Qt::QueuedConnection);
+            });
+        }
+    }
+    m_link->mirror();
+}
+
 SessionDiagnosticsModel::~SessionDiagnosticsModel()
 {
     // The pool holds lambdas that capture `this`. Draining before the members go is not
@@ -644,6 +693,7 @@ SessionDiagnosticsModel::~SessionDiagnosticsModel()
     // notification is being torn down with this object.
     m_destroying = true;
     if (m_owedRebuild || m_shotInputUnflushed) persist(/*adoptInput=*/false);
+    // The thin adapter's link (and its use of its Session) goes with the members.
 }
 
 // ── Simple inputs ───────────────────────────────────────────────────────────────────────
@@ -727,7 +777,10 @@ int SessionDiagnosticsModel::shotIdForSwingDir(const QString &dir) const
 
 Stage SessionDiagnosticsModel::effectiveStage() const
 {
-    return (m_closed || m_reviewing) ? Stage::Closing : m_stage;
+    // The adapter also shows a session not being recorded here that its file still calls in progress (a crash's
+    // leftover, kept in progress until the athlete's next Start: J-24) at Closing, whether reviewed or not — the view's
+    // mapping, as reviewing's is; the session's lifecycle is not touched (3.7-0 review 2; CARRY).
+    return (m_closed || m_reviewing || (m_adapter && m_link && m_link->notRecordedHere())) ? Stage::Closing : m_stage;
 }
 
 QString SessionDiagnosticsModel::stage() const { return stageName(effectiveStage()); }
@@ -744,6 +797,7 @@ int SessionDiagnosticsModel::patternCount() const
 
 void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
 {
+    if (m_adapter) return;   // the owner fires every shot itself, on EVT-01 (3.7-a: always fire)
     joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     // IDEMPOTENCE IS DECIDED HERE, ON THE CALLING THREAD, AND BEFORE ANY WORK IS QUEUED.
     // Doing it in applyIngested() would still produce one row per shot, but it would parse
@@ -780,6 +834,7 @@ void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
 
 void SessionDiagnosticsModel::regradeShot(const QString &swingDir)
 {
+    if (m_adapter) return;   // the owner hears the rewrite itself (EVT-02 re-analysis, EVT-22 a late reading)
     joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     // A re-analysis of another session's swing is that session's business: no warning, it is routine.
     if (!swingIsInSession(swingDir, m_sessionDir)) return;
@@ -815,6 +870,7 @@ bool SessionDiagnosticsModel::dropShot(int shotId)
 
 void SessionDiagnosticsModel::forgetShot(const QString &swingDir)
 {
+    if (m_adapter) return;   // the owner hears the trash itself (EVT-03)
     joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     if (m_sessionDir.isEmpty() || swingDir.isEmpty()) return;
     const QFileInfo fi(swingDir);
@@ -1056,7 +1112,7 @@ void SessionDiagnosticsModel::applyIngested(const Ingested &in)
 // once — tests and the report tools see the per-shot behaviour they always did.
 void SessionDiagnosticsModel::settleBatch()
 {
-    if (!m_owedRebuild) return;
+    if (m_adapter || !m_owedRebuild) return;
     if (!m_synchronous && m_pending > 0) return;       // more of this batch still to land
     m_owedRebuild = false;
     const int afterShot = std::exchange(m_owedAfterShot, -1);
@@ -1099,6 +1155,13 @@ bool SessionDiagnosticsModel::waitForIdle(int msTimeout)
 
 void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
 {
+    // THE THIN ADAPTER IS ITS SESSION'S (3.7-a): pointing a panel at it reads nothing of the session again — the owner
+    // holds it — and `sessionDir` is the folder the panel chose, which named this adapter's Session.
+    if (m_adapter) {
+        Q_UNUSED(sessionDir);
+        pointAdapter();
+        return;
+    }
     m_pool.waitForDone();
     // A shot's intent or correction still on its way to the swing file lands first: this activation
     // reads it back.
@@ -1348,6 +1411,11 @@ void SessionDiagnosticsModel::joinFreeze()
         m_freezeResult = PredecessorRead();
     }
     m_freezing = false;
+    if (m_adapter) {   // the adapter's live freeze (pointAdapter): no activation goes on after it
+        finishClubBaseline(m_sessionIdentity.localDay(), r);
+        emit busyChanged();
+        return;
+    }
     m_pending = std::max(0, m_pending - 1);
     finishClubBaseline(m_sessionIdentity.localDay(), r);
     continueActivation();
@@ -1452,6 +1520,7 @@ void SessionDiagnosticsModel::continueActivation()
 
 void SessionDiagnosticsModel::closeSession()
 {
+    if (m_adapter) return;   // the Session's end closes its diagnosis (EVT-09; J-24)
     joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     if (m_closed) return;
     m_pool.waitForDone();
@@ -1660,6 +1729,18 @@ void SessionDiagnosticsModel::ensureOutcomes() const
         if (e.grade != LinkGrade::Unanchored) m_outcomeEvidence.links.push_back(e);
     m_outcomeEvidence.chainConfirmed = chainConfirmedConditions(m_outcomePack, m_outcomeLinks);
 
+    if (m_adapter) {
+        // THE THIN ADAPTER (3.7-a): each shot's outcome as the owner composed it (DEC-124: readers never recompose) and
+        // the session's evidence it was composed with; the reasons, carry today and club mix worded from its typed
+        // results (R-DER-9: the adapter composes the words). The links above stay for the detail's words.
+        m_outcomeEvidence = m_ownerResults.outcomeEvidence;
+        m_composed = m_ownerComposed.size() == m_shots.size() ? m_ownerComposed : std::vector<ShotOutcome>{};
+        QHash<QString, int> reasonIndex;
+        composeOwnerOutcomes(reasonIndex);
+        composeShotLog(reasonIndex);
+        return;
+    }
+
     const ShotOutcomeSessionFacts facts = outcomeSessionFacts();
     m_composed.reserve(m_shots.size());
     for (const ShotRecord &s : m_shots)
@@ -1806,44 +1887,7 @@ void SessionDiagnosticsModel::ensureOutcomes() const
         });
     }
 
-    // ── The shot log, every shot in strike order ──
-    for (int i = 0; i < nShots; ++i) {
-        const ShotOutcome &o = m_composed[size_t(i)];
-        QVariantList lines, labels;
-        bool intended = false, corrected = false;
-        for (const QString &l : o.cellLines) lines << l;
-        for (const ShotOutcomeLabel &l : o.labels) {
-            labels << l.displayId;
-            intended  = intended || l.intended;
-            corrected = corrected || l.corrected;
-        }
-        const bool anyMiss = std::any_of(o.labels.begin(), o.labels.end(), [](const ShotOutcomeLabel &l) { return l.miss; });
-        m_shotLog.append(QVariantMap{
-            { QStringLiteral("shotId"),      m_shots[size_t(i)].shotId },
-            { QStringLiteral("cell"),        o.cell },
-            { QStringLiteral("lines"),       lines },
-            { QStringLiteral("labels"),      labels },
-            { QStringLiteral("reasonId"),    anyMiss && !o.clean ? o.driver.id : QString() },
-            { QStringLiteral("reasonIndex"), anyMiss && !o.clean ? reasonIndex.value(o.driver.id, -1) : -1 },
-            { QStringLiteral("clean"),       o.clean },
-            { QStringLiteral("intended"),    intended },
-            { QStringLiteral("corrected"),   corrected },
-            { QStringLiteral("noReading"),   o.noReading },
-            { QStringLiteral("swingDir"),    m_swingDirs.value(m_shots[size_t(i)].shotId) },
-        });
-    }
-
-    const ShotMix mix = composeSessionMix(m_composed);
-    m_shotMix = QVariantMap{
-        { QStringLiteral("line"),            mix.line },
-        { QStringLiteral("corrections"),     mix.corrections },
-        { QStringLiteral("correctionsLine"), mix.corrections == 0 ? QString()
-                                             : mix.corrections == 1 ? QStringLiteral("1 label corrected by you")
-                                                                    : QStringLiteral("%1 labels corrected by you").arg(mix.corrections) },
-        { QStringLiteral("fromFlightLine"),  mix.fromFlight == 0 ? QString()
-                                             : mix.fromFlight == 1 ? QStringLiteral("1 strike read from the flight")
-                                                                   : QStringLiteral("%1 strikes read from the flight").arg(mix.fromFlight) },
-    };
+    composeShotLog(reasonIndex);
 
     // ── Today's carry against the usual (§4.2), from the FROZEN sidecar ──
     ClubDistanceSession self;
@@ -1918,6 +1962,167 @@ void SessionDiagnosticsModel::ensureOutcomes() const
             { QStringLiteral("strike"),    shotMixBarToJson(composeFactorMixBar(mix.strike)).toVariantMap() },
             { QStringLiteral("direction"), shotMixBarToJson(composeFactorMixBar(mix.direction)).toVariantMap() },
             { QStringLiteral("flight"),    shotMixBarToJson(composeFactorMixBar(mix.flight)).toVariantMap() },
+        });
+    }
+}
+
+// The shot log, every shot in strike order, and the session's mix: worded from the composed outcomes (both halves).
+void SessionDiagnosticsModel::composeShotLog(const QHash<QString, int> &reasonIndex) const
+{
+    const int nShots = int(std::min(m_composed.size(), m_shots.size()));
+    for (int i = 0; i < nShots; ++i) {
+        const ShotOutcome &o = m_composed[size_t(i)];
+        QVariantList lines, labels;
+        bool intended = false, corrected = false;
+        for (const QString &l : o.cellLines) lines << l;
+        for (const ShotOutcomeLabel &l : o.labels) {
+            labels << l.displayId;
+            intended  = intended || l.intended;
+            corrected = corrected || l.corrected;
+        }
+        const bool anyMiss = std::any_of(o.labels.begin(), o.labels.end(), [](const ShotOutcomeLabel &l) { return l.miss; });
+        m_shotLog.append(QVariantMap{
+            { QStringLiteral("shotId"),      m_shots[size_t(i)].shotId },
+            { QStringLiteral("cell"),        o.cell },
+            { QStringLiteral("lines"),       lines },
+            { QStringLiteral("labels"),      labels },
+            { QStringLiteral("reasonId"),    anyMiss && !o.clean ? o.driver.id : QString() },
+            { QStringLiteral("reasonIndex"), anyMiss && !o.clean ? reasonIndex.value(o.driver.id, -1) : -1 },
+            { QStringLiteral("clean"),       o.clean },
+            { QStringLiteral("intended"),    intended },
+            { QStringLiteral("corrected"),   corrected },
+            { QStringLiteral("noReading"),   o.noReading },
+            { QStringLiteral("swingDir"),    m_swingDirs.value(m_shots[size_t(i)].shotId) },
+        });
+    }
+
+    const ShotMix mix = composeSessionMix(m_composed);
+    m_shotMix = QVariantMap{
+        { QStringLiteral("line"),            mix.line },
+        { QStringLiteral("corrections"),     mix.corrections },
+        { QStringLiteral("correctionsLine"), mix.corrections == 0 ? QString()
+                                             : mix.corrections == 1 ? QStringLiteral("1 label corrected by you")
+                                                                    : QStringLiteral("%1 labels corrected by you").arg(mix.corrections) },
+        { QStringLiteral("fromFlightLine"),  mix.fromFlight == 0 ? QString()
+                                             : mix.fromFlight == 1 ? QStringLiteral("1 strike read from the flight")
+                                                                   : QStringLiteral("%1 strikes read from the flight").arg(mix.fromFlight) },
+    };
+
+}
+
+// THE THIN ADAPTER'S WORDS (3.7-a): the reasons, carry today and club mix from the owner's typed results — the same
+// maps the engine half builds, with the same words, so the panel's QML reads one shape. A reason's cost is the owner's
+// (G-08: against an EARNED usual only, else "-").
+void SessionDiagnosticsModel::composeOwnerOutcomes(QHash<QString, int> &reasonIndex) const
+{
+    const int nShots = int(m_shots.size());
+    const auto stateName = [](ShotState st) {
+        return st == ShotState::Fired ? QStringLiteral("fired")
+             : st == ShotState::Clean ? QStringLiteral("clean") : QStringLiteral("notAssessable");
+    };
+    int ri = 0;
+    for (const SessionReason &r : m_ownerResults.reasons) {
+        const QString &id = r.conditionId;
+        reasonIndex.insert(id, ri);
+        std::vector<int> firedAt;     // indices into m_shots
+        QVariantList ticks;
+        for (size_t t = 0; t < r.ticks.size(); ++t) {
+            ticks.append(QVariantMap{ { QStringLiteral("state"),  stateName(r.ticks[t].state) },
+                                      { QStringLiteral("shotId"), r.ticks[t].shotId } });
+            if (r.ticks[t].state == ShotState::Fired) {
+                const int at = indexOfShot(r.ticks[t].shotId);
+                if (at >= 0) firedAt.push_back(at);
+            }
+        }
+        std::vector<ReasonProduced> produced = r.produced;
+        std::stable_sort(produced.begin(), produced.end(),
+                         [](const ReasonProduced &a, const ReasonProduced &b) { return a.count > b.count; });
+        QVariantList producedList;
+        for (const ReasonProduced &p : produced)
+            producedList.append(QVariantMap{ { QStringLiteral("phrase"), outcomeCapitalised(p.mixKey) },
+                                             { QStringLiteral("count"),  p.count } });
+        // The trend's words: the owner's direction, worded as the engine half words it (§4.2).
+        QString trendWords;
+        if (!id.isEmpty()) {
+            const int lastStart = nShots - std::max(1, nShots / 3);
+            int late = 0;
+            for (int i : firedAt) if (i >= lastStart) ++late;
+            if (r.shots < 2)       trendWords = QStringLiteral("watching");
+            else if (r.trend < 0)  trendWords = (late == 0 && !firedAt.empty())
+                                       ? QStringLiteral("↓ none since %1").arg(m_shots[size_t(firedAt.back())].shotId)
+                                       : QStringLiteral("↓ easing");
+            else if (r.trend > 0)  trendWords = QStringLiteral("↑ growing");
+            else                   trendWords = QStringLiteral("→ steady");
+        }
+        const QString handed = firedAt.empty() ? QString() : m_shots[size_t(firedAt.front())].handedness;
+        const ConditionLedger *ledgerRow = id.isEmpty() ? nullptr : ledger(id);
+        const QString strengthWord = r.strength.isEmpty() ? QStringLiteral("possible") : r.strength;
+        const QString tierText = id.isEmpty()
+            ? QStringLiteral("Gap in the model")
+            : outcomeCapitalised(strengthWord)
+                  + (r.chainConfirmed ? QStringLiteral(" · chain confirmed")
+                                      : r.shots == 1 ? QStringLiteral(" · one shot") : QString());
+        const QString golferPhrase = [&]() -> QString {
+            if (id.isEmpty()) return QString();
+            const QString display = glossedConditionId(id, handed);
+            const ShotConditionFacts *f = outcomeFacts(m_outcomePack, display);
+            QString text = f ? f->golfer : conditionName(id);
+            while (text.endsWith(QLatin1Char('.'))) text.chop(1);
+            return outcomeCapitalised(text);
+        }();
+        const bool hasCost = std::isfinite(r.cost);
+        m_reasons.append(QVariantMap{
+            { QStringLiteral("id"),             id },
+            { QStringLiteral("conditionId"),    id },
+            { QStringLiteral("name"),           id.isEmpty() ? QStringLiteral("No reason found")
+                                                             : conditionName(glossedConditionId(id, handed)) },
+            { QStringLiteral("golfer"),         golferPhrase },
+            { QStringLiteral("shots"),          r.shots },
+            { QStringLiteral("produced"),       producedList },
+            { QStringLiteral("cost"),           hasCost ? r.cost : std::numeric_limits<double>::quiet_NaN() },
+            { QStringLiteral("costText"),       hasCost ? yardsText(r.cost) : QString(F::kMissing) },
+            { QStringLiteral("tier"),           ledgerRow ? tierTag(ledgerRow->tier) : QString() },
+            { QStringLiteral("tierText"),       tierText },
+            { QStringLiteral("strength"),       r.strength },
+            { QStringLiteral("chainConfirmed"), r.chainConfirmed },
+            { QStringLiteral("trend"),          r.trend },
+            { QStringLiteral("trendWords"),     trendWords },
+            { QStringLiteral("colourIndex"),    ri },
+            { QStringLiteral("ticks"),          ticks },
+            { QStringLiteral("flaggable"),      id.isEmpty() },
+        });
+        ++ri;
+    }
+
+    // Today's carry against the usual (§4.2): the owner's, the usual only when EARNED (B-22, G-08).
+    for (const ClubCarryToday &c : m_ownerResults.carryToday) {
+        const bool earned = c.baselineN > 0 && std::isfinite(c.baselineMean);
+        QString line = QStringLiteral("%1 carry today %2").arg(clubDistanceLabel(c.clubId), yardsMeanSdText(c.mean, c.sd));
+        if (earned) line += QStringLiteral(" · your usual ") + yardsMeanSdText(c.baselineMean, c.baselineSd);
+        const double noUsual = std::numeric_limits<double>::quiet_NaN();
+        m_carryToday.append(QVariantMap{
+            { QStringLiteral("club"),      clubDistanceLabel(c.clubId) },
+            { QStringLiteral("clubId"),    c.clubId },
+            { QStringLiteral("mean"),      c.mean },
+            { QStringLiteral("sd"),        c.sd },
+            { QStringLiteral("n"),         c.n },
+            { QStringLiteral("usualMean"), earned ? c.baselineMean : noUsual },
+            { QStringLiteral("usualSd"),   earned ? c.baselineSd : noUsual },
+            { QStringLiteral("usualN"),    earned ? c.baselineN : 0 },
+            { QStringLiteral("line"),      line },
+        });
+    }
+
+    // Each club's shots by factor (G-09), the owner's counts.
+    for (const ClubFactorMix &mix : m_ownerResults.clubMix) {
+        if (mix.judged == 0) continue;
+        m_clubMix.append(QVariantMap{
+            { QStringLiteral("club"),      clubDistanceLabel(mix.clubId) },
+            { QStringLiteral("clubId"),    mix.clubId },
+            { QStringLiteral("judged"),    mix.judged },
+            { QStringLiteral("strike"),    shotMixBarToJson(mix.strike).toVariantMap() },
+            { QStringLiteral("direction"), shotMixBarToJson(mix.direction).toVariantMap() },
+            { QStringLiteral("flight"),    shotMixBarToJson(mix.flight).toVariantMap() },
         });
     }
 }
@@ -2475,7 +2680,12 @@ void SessionDiagnosticsModel::finishClubBaseline(const QDate &day, const Predece
     ClubBaselineSnapshot snap;
     snap.frozenAt = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     snap.clubs    = clubBaselineAsOf(r.earlier, day, flightNorms());
-    const pinpoint::WriteResult w = pinpoint::SessionDiagnosticsFiles::writeClubBaseline(m_sessionDir, clubBaselineToJson(snap));
+    // The thin adapter freezes through its Session's own command (FILE-SESS-04's writer: Session::freezeClubBaseline),
+    // never the file door; the owner then reads what was frozen (and fires again).
+    if (m_adapter && !m_link) return;
+    const pinpoint::WriteResult w = m_adapter
+        ? m_link->freezeBaseline(clubBaselineToJson(snap))
+        : pinpoint::SessionDiagnosticsFiles::writeClubBaseline(m_sessionDir, clubBaselineToJson(snap));
     if (!w.ok()) {
         ppWarn() << "[Diagnostics] could not freeze the club baseline:" << qPrintable(path) << "—" << qPrintable(w.error);
         // Said (DEC-126), unless writes are switched off for this activation anyway (the persist below).
@@ -2484,6 +2694,7 @@ void SessionDiagnosticsModel::finishClubBaseline(const QDate &day, const Predece
     }
     m_baselineFrozen = true;
     adoptClubBaseline(snap.clubs);
+    if (m_adapter && m_link) m_link->reloadBaseline(/*keepWhenAbsent=*/false);
 }
 
 // ── The reduction ───────────────────────────────────────────────────────────────────────
@@ -2491,10 +2702,32 @@ void SessionDiagnosticsModel::finishClubBaseline(const QDate &day, const Predece
 void SessionDiagnosticsModel::rebuild()
 {
     m_outcomesDirty = true;     // the shot outcomes are composed on their next read
-    m_ledgers  = conditionLedgers(m_shots, m_opt);
-    appendSessionScope();
+    if (m_adapter) {
+        // THE THIN ADAPTER (3.7-a): the ledgers, the links and the stage are the owner's (mirrorOwner) — nothing is
+        // reduced here. Only the view half runs: the session-scope readout (its ledgers are already the owner's), the
+        // coverage line, the graph's marshalling and the chains' rails (session_reduction.h: "the thin adapter's").
+        // ⏱ [PostShot] (refactor 3.7-a, review M3): the view half's parts, so a live run says where the adapter's time goes.
+        {
+            pinpoint::PostShotTrace::Scope t("scope");
+            const std::vector<ConditionLedger> owners = m_ledgers;
+            appendSessionScope();          // for m_sequenceConsistency only
+            m_ledgers = owners;
+        }
+        m_coverage = sessionCoverage(m_ledgers, m_packProv ? int(m_packProv->pack().conditions.size()) : 0);
+        {
+            pinpoint::PostShotTrace::Scope t("graph");
+            buildGraph();
+            m_rails = extractChains(m_nodes, m_edges, m_ledgers, m_links, m_opt);
+        }
+    } else {
+    {
+        pinpoint::PostShotTrace::Scope t("ledgers");
+        m_ledgers  = conditionLedgers(m_shots, m_opt);
+        appendSessionScope();
+    }
     m_coverage = sessionCoverage(m_ledgers, m_packProv ? int(m_packProv->pack().conditions.size()) : 0);
 
+    pinpoint::PostShotTrace::Scope graphTrace("graph");
     buildGraph();
 
     FocusSplit focus;
@@ -2525,8 +2758,12 @@ void SessionDiagnosticsModel::rebuild()
     if (m_stage == Stage::Established
         || sessionStage(Stage::Cold, m_ledgers, m_links, false, m_opt) == Stage::Established)
         m_reachedEstablished = true;
+    }   // the engine half
 
-    refreshExplanation();
+    {
+        pinpoint::PostShotTrace::Scope t("explain");
+        refreshExplanation();
+    }
 
     // Display order, with rank-band hysteresis, over the pattern set. The previous order IS
     // the state — hystereticOrder() holds none, by design.
@@ -2539,16 +2776,19 @@ void SessionDiagnosticsModel::rebuild()
 
     // buildThisShot() BEFORE buildHeader(): it is the one function that reads cadence, and
     // the header quotes its verdict ("BANDWIDTH · QUIET").
-    buildThisShot();
-    buildHeader();
-    buildCards();
-    buildChains();
-    buildDriver();
-    buildBookends();
-    // LAST, because it reads the same reduction the zones do and there is no order in which it
-    // could be right first. A detail left open across a shot re-derives with everything else, so
-    // the page the golfer is reading accumulates evidence rather than going stale behind them.
-    buildDetail();
+    {
+        pinpoint::PostShotTrace::Scope t("surfaces");
+        buildThisShot();
+        buildHeader();
+        buildCards();
+        buildChains();
+        buildDriver();
+        buildBookends();
+        // LAST, because it reads the same reduction the zones do and there is no order in which it
+        // could be right first. A detail left open across a shot re-derives with everything else, so
+        // the page the golfer is reading accumulates evidence rather than going stale behind them.
+        buildDetail();
+    }
 
     pinpoint::PostShotTrace::Scope trace("emit");   // [PostShot]: the panel's bindings (QML) re-read the surface
     emit surfaceChanged();
@@ -3291,6 +3531,7 @@ QJsonObject SessionDiagnosticsModel::sessionBlock() const
 
 void SessionDiagnosticsModel::persist(bool adoptInput)
 {
+    if (m_adapter) return;   // the owner is diagnostics.json's writer (3.7-a); the adapter writes none of it
     const QString path = diagnosticsPath();
     if (path.isEmpty() || !m_persistEnabled || m_ledgerWriteBlocked) return;
     // THE CATCH-UP MUST NOT WRITE A STAGE THE GOLFER DID NOT MAKE. While it regrades a session a panel

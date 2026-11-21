@@ -118,7 +118,14 @@ Three rules keep them (audit H-04, 14 Nov 2026):
   event-loop turn), and `PpSessionDiagnosticsPanel` calls `notifications.postWarning()` /
   `resolve()`. That hop exists only because the model is created in QML; once the Session owns its
   diagnostics (target architecture, step 3) it posts directly. The work-ons catch-up's own models
-  have no panel and still only log. Two known limits until then:
+  have no panel and still only log. **Since refactor step 3.7-a** the Session's `SessionDiagnostics`
+  is the live writer, and `main.cpp` posts its failed writes directly (id
+  `diagnostics.writes-blocked:<session id>`, "Changes to the diagnostics of the Tue 18 Aug · 21:38
+  session are not being saved"), panel or not; the panel's hop remains for the golfer-input writes its
+  adapter forwards, and for today's engine model on a folder no Session holds. **While a session's archive
+  job is out** (housekeeping, the Archiving tab) its owner asks nothing and writes nothing; after an archive
+  made with no golfer change meanwhile its `diagnostics.json` stays the archive's copy until the golfer next
+  changes something (refactor 3.7-a, J-a9). Two known limits until then:
   - The stage panel and the wall cast each hold a model and share the one notice. If one finds the file
     openable it clears that notice while the other model stays blocked for its activation, and input
     given on that other panel is not kept. The session-owned single writer (step 3) removes this.
@@ -675,7 +682,11 @@ unit tests; every policy number from §4 injected, not hardcoded.
 **C2.4 `SessionDiagnosticsModel`** (QML façade, `src/Gui/diagnostics`): subscribes to
 `shotProcessed`; owns ledger + reductions + explanation invocation policy; exposes
 zones, cards, chain, deltas, lifecycle state, cadence gating; live/review switch via
-the activeModel pattern.
+the activeModel pattern. **Since refactor step 3.7-a** the stage panel and the wall cast use it as
+the Session's *thin adapter* (made by C++, `diagnosticsAdapters.of(app.sessionAt(dir), surface)`):
+it shows the Session's `SessionDiagnostics` (which judges every live shot, panel or not) and keeps
+only the view half; its engine half is left to the catch-up, the report and the tools until their
+cut-overs (refactor step 3.7-b…e).
 
 **C2.5 Panel QML** (`src/Gui/diagnostics`): `PpSessionDiagnosticsPanel` with zone
 components (`PpThisShotStrip`, `PpPatternCard`, `PpChainRail`, `PpChainLink`,

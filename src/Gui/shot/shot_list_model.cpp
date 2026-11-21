@@ -428,8 +428,10 @@ void ShotListModel::persistReview(int row)
     edit.note   = s.note;
     edit.club   = s.club;
     const pinpoint::WriteResult w = m_repo->editReview(shotOf(row), edit);
-    if (!w.ok())
+    if (!w.ok()) {
         ppWarn() << "[ShotListModel] review write-through failed:" << w.error;
+        emit saveFailed(tr("The shot's rating, note or club"), w.error);
+    }
 }
 
 ShotListModel::Edit ShotListModel::forwarded(int row, const char *what, const Forward &command)
@@ -446,8 +448,12 @@ ShotListModel::Edit ShotListModel::forwarded(int row, const char *what, const Fo
     s.held = f.reached;
     if (!f.reached)
         return Edit::NotHeld;   // no Session holds it (N1): today's write-through
-    if (!f.result.ok())
+    if (!f.result.ok()) {
         ppWarn() << "[ShotListModel]" << what << "not saved:" << f.result.error;
+        QString words = QString::fromLatin1(what);
+        if (!words.isEmpty()) words[0] = words[0].toUpper();
+        emit saveFailed(words, f.result.error);
+    }
     return Edit::Shot;
 }
 
@@ -592,8 +598,10 @@ void ShotListModel::persistLmAnnotations(int row)
     edit.excluded     = s.lmExcluded;
     edit.clubOverride = s.lmClubOverride;
     const pinpoint::WriteResult w = m_repo->editReview(shotOf(row), edit);
-    if (!w.ok())
+    if (!w.ok()) {
         ppWarn() << "[ShotListModel] launch monitor annotation write-through failed:" << w.error;
+        emit saveFailed(tr("The launch monitor reading's exclusion or club"), w.error);
+    }
 }
 
 void ShotListModel::setLmExcluded(int id, bool excluded)
