@@ -33,15 +33,22 @@ changed. `WorkOnsController::refresh()` finds stale sessions and re-derives them
 session is simply the moment one becomes stale, so "end of session" and "catch-up" are the same
 code path, and a session the app quit out of is picked up at the next launch.
 
-The record carries a fingerprint of its inputs (`kWorkOnRuleVersion`, the model's content stamp,
-and each swing document's name, size and mtime). A matching fingerprint means the file is read
-and nothing is derived.
+The record carries a fingerprint of everything it was produced under (R-STAMP-1) — one rule, `summaryFingerprintOf`
+(`src/Diagnostics/engine/session_reduction.h`, refactor 3.7-e, round 2), which the record's writer (the session's owner)
+and the catch-up's scan both compute: the rule versions (today's keys', DEC-192's growth, the facts' rules, the
+reduction's, the club baseline's schema), the rule data (`summaryRulesStamp`: the row shape and grid, the pack, the norms,
+the grade policy, the disabled norm sets, the flight norms), the session's frozen club baseline, the athlete record's
+facts its cohort is read from, and each numbered swing document's name, size and mtime. A record read strictly whose
+facts are under the current rules and whose fingerprint matches is read, and nothing is derived; any of those inputs
+moving — a version bumped, a policy or norm changed, a baseline frozen, a date of birth corrected, a swing re-analysed —
+makes it stale.
 
-Derivation goes through a private, panel-less `SessionDiagnosticsModel`. Its
-`activateSession()` already back-fills shots the ledger never reduced and regrades rows whose
-swing document or content has changed, so a record is always cut from a current ledger and
-cannot disagree with the panel opened on the same session. It does **not** call
-`closeSession()`: the stage ratchet and the fault profile are left exactly as they were.
+Derivation is the session's own (refactor 3.7-e, the catch-up's cut-over): `WorkOnsController` hands the stale sessions to
+the catch-up service (`src/App/athlete_catch_up.h`), which takes each in hand, oldest first; its `Session`'s
+`SessionDiagnostics` re-judges whatever is stale, freezes the club baseline at first need, reduces, and writes
+`diagnostics.json` and the record — the one writer of both — so a record cannot disagree with the panel opened on the
+same session. A live session's record is written at its End. Until 3.7-e the derivation was a private, panel-less
+`SessionDiagnosticsModel` here.
 
 The aggregate is a pure function of the records. Trash a session and its contribution is gone
 at the next refresh.

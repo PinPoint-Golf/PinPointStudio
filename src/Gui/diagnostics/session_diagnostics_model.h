@@ -186,16 +186,22 @@ class INormProvider;
 // words (R-DER-9: the adapter composes them). The golfer's commands forward to the Session's and the Shot's commands
 // as before (3.4b-i); the owner hears their events and diagnoses again. Every live shot is judged whether or not a
 // panel is up (DEC-02; 04 step 3 item 4): the owner runs for every loaded session. What stays this class's in the
-// adapter: the view state (selection, cadence, the open detail, reviewing), the fault profile's bias (until 3.8-ii),
-// the same golfer's other sessions (historyOf), and — until the catch-up's cut-over (3.7-e) can freeze from summaries
-// — TODAY'S LIVE BASELINE FREEZE (a live panel freezes club_baseline.json from its predecessors' ledgers, as the panel's
-// model did), written through the Session's own command (Session::freezeClubBaseline) and read back by the owner.
-// The engine half (detectShot, the reduction, persist) is untouched for the instances the catch-up, the report and the
-// tools still make until their cut-overs (3.7-c…e).
+// adapter: the view state (selection, cadence, the open detail, reviewing), the fault profile's bias (until 3.8-ii) and
+// the same golfer's other sessions (historyOf). The club baseline is the owner's alone (refactor 3.7-e: ONE freeze rule,
+// SessionDiagnostics' from the predecessors' summaries; the adapter's interim live freeze, J-a2, is gone). An adapter
+// holds a use of its Session only while a screen shows it (a view bound: addView), so a sweep may release a session no
+// screen shows (3.7-e; Q-18).
+//
+// MADE BY C++ ONLY (refactor 3.7-e: "cut to a thin adapter created by C++"): QML names the type and never creates it
+// (QML_UNCREATABLE). What is left of the ENGINE half (detectShot, the reduction, persist, the predecessor freeze) serves
+// only (a) J-a3's folders no Session holds (a session another athlete id names, until migration M1: for Mark), made by
+// SessionDiagnosticsAdapters, and (b) regrade_ledger --engine=old, run P's parity reference until 3.10 — every screen,
+// the report, the tools and the catch-up have been cut over (3.7-a…e).
 class SessionDiagnosticsModel : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
+    QML_UNCREATABLE("Made by C++ only (refactor 3.7-e): diagnosticsAdapters.of(app.sessionAt(folder), surface)")
 
     // ── Inputs the panel binds, passed in rather than reached for ────────────────────
     //
@@ -241,6 +247,10 @@ class SessionDiagnosticsModel : public QObject
     // session is loaded (and a stale shot re-fired) off the GUI thread, so for a moment the adapter holds nothing. The
     // panel says so rather than show an empty session as if it were the session (3.7-c review B3).
     Q_PROPERTY(bool loading READ loading NOTIFY busyChanged)
+    // THE SESSION'S CLUB BASELINE IS NOT READY (refactor 3.7-e round 2; J-49): its owner holds none and could not freeze one
+    // (earlier sessions not summed up by this build yet), so its findings against the golfer's usual numbers wait. The
+    // panel and the carousel say so (show with a warning, never hide). An adapter's only (false for an engine model).
+    Q_PROPERTY(bool baselineWaiting READ baselineWaiting NOTIFY busyChanged)
     // A Session's thin adapter (refactor step 3.7-a), not an engine of its own: the panel shows its no-golfer notice when
     // it is handed the EMPTY adapter (session_diagnostics_adapter.h).
     Q_PROPERTY(bool adapter READ isAdapter CONSTANT)
@@ -407,6 +417,7 @@ public:
     // written file is there), or a live freeze is reading its predecessors.
     bool    busy() const { return m_adapter ? (m_adapterBusy || m_freezing) : m_pending > 0; }
     bool    loading() const { return m_adapter && m_adapterLoading; }
+    bool    baselineWaiting() const { return m_adapter && m_adapterBaselineWaiting; }
 
     QString focusConditionId() const { return m_focusConditionId; }
     int     focusFromShot() const { return m_focusFromShot; }
@@ -841,17 +852,17 @@ public:
         virtual ~AdapterLink() = default;
         virtual void mirror() = 0;                                   // the owner's diagnosis taken in, or rebuild()
         virtual bool notRecordedHere() const = 0;                    // in progress by its file, not recorded here
-        virtual pinpoint::WriteResult freezeBaseline(const QJsonObject &root) = 0;   // Session::freezeClubBaseline
-        virtual void reloadBaseline(bool keepWhenAbsent) = 0;        // SessionDiagnostics::reloadClubBaseline
+        virtual void freezeBaselineIfNeeded() = 0;                   // SessionDiagnostics' (the one rule: 3.7-e)
         virtual void wake() = 0;                                     // a view is bound again: mirror what was owed
+        virtual void viewed(bool on) = 0;                            // the first view bound / the last dropped (3.7-e)
     };
 private:
     friend class SessionDiagnosticsOwnerLink;   // session_diagnostics_adapter.cpp
     friend class SessionDiagnosticsAdapters;    // makes the adapters
     SessionDiagnosticsModel(pinpoint::Session *session, const QString &surface);   // ibid.
     // What activateSession() is for an adapter, which never re-reads its session: the profile and the history read,
-    // the owner's club baseline brought up to date (a freeze landed elsewhere: the catch-up's at End), and a live panel's
-    // freeze (today's rule) when the session has none; then the owner's diagnosis shown.
+    // the owner's club baseline at first need asked again (the one rule: a freeze landed elsewhere is read, else frozen
+    // from the summaries when computable: 3.7-e); then the owner's diagnosis shown.
     void pointAdapter();
     // The reasons, the carry today and the club mix, worded from the owner's typed results (ensureOutcomes).
     void composeOwnerOutcomes(QHash<QString, int> &reasonIndex) const;
@@ -867,6 +878,7 @@ private:
     std::vector<pinpoint::analysis::ShotOutcome>   m_ownerComposed;
     bool m_adapterBusy = false;
     bool m_adapterLoading = false;   // loading(): set by the adapter's link (updateBusy)
+    bool m_adapterBaselineWaiting = false;   // baselineWaiting(): ditto
     int  m_views = 0;
 
     struct GradedFrom {

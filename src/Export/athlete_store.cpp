@@ -165,6 +165,14 @@ void AthleteStore::setDiagnosticsDoors(const DiagnosticsDoors &doors)
         a->setDiagnosticsDoors(doors);
 }
 
+QList<Athlete *> AthleteStore::heldAthletes() const
+{
+    QList<Athlete *> out;
+    for (const std::unique_ptr<Athlete> &a : m_owned)
+        out << a.get();
+    return out;
+}
+
 Session *AthleteStore::loadedSession(const SessionId &id) const
 {
     for (const std::unique_ptr<Athlete> &a : m_owned)

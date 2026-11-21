@@ -76,6 +76,13 @@ Item {
         const shown = bodies.filter(function (b) { return b.visible && b.width > 0 })
         return shown.length === 1 ? shown[0] : null
     }
+    // The model the stage panel shows: its body's source (the body is not drawn while the session is read: 3.7-e).
+    function theModel() {
+        const bodies = []
+        walk(probe.Window.window.contentItem, "sdBody", bodies)
+        for (const b of bodies) if (b.source) return b.source
+        return null
+    }
     function flick(body, name) { const o = []; walk(body, name, o); return o.length ? o[0] : null }
     // On screen only if every ancestor up to `top` is visible.
     function shown(item, top) {
@@ -145,8 +152,9 @@ Item {
                 // WAIT FOR THE SESSION'S DIAGNOSTICS, ON A CONDITION, BOUNDED (3.7-c review B3). Since 3.7-a a
                 // reviewed session's panel shows its Session's owner, which loads (and re-fires a stale shot) off the
                 // GUI thread; under CPU load that outlasted this step's fixed 2.5 s. Ready = the panel's model has the
-                // session's shots and is no longer busy; up to 24 more steps (60 s).
-                const m = SessionMode.sessionDiagnostics
+                // session's shots and is no longer busy; up to 24 more steps (60 s). The panel's OWN model (its body's
+                // source), refactor 3.7-e: the SessionMode.sessionDiagnostics seam this waited on is gone (review R2-m3).
+                const m = theModel()
                 const ready = !!m && !m.busy && m.shotCount > 0
                 if (!ready && probe.waits < 24) {
                     probe.waits += 1

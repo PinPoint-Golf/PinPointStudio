@@ -47,6 +47,10 @@
 // a library that already has its ledgers, which is the one the app meets first.
 
 #include "Gui/diagnostics/work_ons_controller.h"
+#include "Gui/diagnostics/session_diagnostics_model.h"   // the catch-up's stand-in (3.7-e)
+#include "Coaching/session_results.h"
+#include "DomainModel/summary_rules.h"
+#include "Export/swing_paths.h"
 #include "../../Export/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "Gui/variability/variability_measures.h"
@@ -86,6 +90,66 @@ static void check(bool c, const char *label)
 {
     std::printf("  [%s] %s\n", c ? "PASS" : "FAIL", label);
     if (!c) ++g_fail;
+}
+
+
+// ── THE CATCH-UP'S STAND-IN (refactor step 3.7-e) ──────────────────────────────────────────────────────────────────────
+// Since the catch-up's cut-over WorkOnsController derives nothing itself: it hands its stale sessions to the catch-up
+// service (WorkOnsController::CatchUpDoor), whose Sessions' owners write each record. These fixtures are LEDGERS ON DISK
+// beside empty swing folders, with no session file — no Session can hold them — so this suite stands in for the service
+// with the engine that derived them before 3.7-e (SessionDiagnosticsModel, kept as run P's parity reference until 3.10):
+// it writes each record in the owner's shape (the summary, its fingerprint by the one rule, summaryFingerprintOf), then
+// answers as the service does. What this suite proves is WorkOnsController's own plumbing — the scan, freshness, the list,
+// the summary, the marks, the scopes and filters; the real service and owners are athlete_diagnostics_test's and
+// diag_stage_panel_test's (CATCHUP).
+struct FixtureCatchUp {
+    SessionDiagnosticsModel model;
+    int derived = 0;
+    void derive(const QString &dir)
+    {
+        model.setSynchronous(true);
+        model.setReviewing(true);
+        model.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
+        model.activateSession(dir);
+        SessionResults r;
+        r.workOns = model.sessionWorkOns();
+        if (r.workOns.startMs <= 0) {   // no shot carried a clock: the session's day, then its folder's time (the owner's rule)
+            const pinpoint::SessionIdentity id = model.sessionIdentity();
+            const QDate d = id.localDay();
+            r.workOns.startMs = id.startedAtUtc().isValid() ? id.startedAtUtc().toMSecsSinceEpoch()
+                              : d.isValid()                  ? d.startOfDay().toMSecsSinceEpoch()
+                                                             : QFileInfo(dir).lastModified().toMSecsSinceEpoch();
+            r.workOns.endMs = r.workOns.startMs;
+        }
+        r.outcomeEvidence = model.outcomeEvidence();
+        r.hasGrowth = true;
+        r.hasFacts  = true;
+        // The fingerprint as the scan computes it (one rule: WorkOnsController::summaryFingerprintFor), with no athlete record.
+        r.derivedFrom.fingerprint  = WorkOnsController::summaryFingerprintFor(dir, WorkOnsController::rulesStampNow(),
+                                                                              pinpoint::summaryCohortFacts(QString(), QString()));
+        r.derivedFrom.contentStamp = model.contentStamp();
+        r.derivedFrom.writtenAtMs  = double(QDateTime::currentMSecsSinceEpoch());
+        QFile f(WorkOnsController::recordPath(dir));
+        if (f.open(QIODevice::WriteOnly)) f.write(QJsonDocument(sessionResultsToJson(r)).toJson(QJsonDocument::Compact));
+        model.activateSession(QString());
+        ++derived;
+    }
+};
+static FixtureCatchUp &standIn()
+{
+    static FixtureCatchUp *one = new FixtureCatchUp;   // made after the RuleData install; never torn down before main ends
+    return *one;
+}
+static void catchUp(WorkOnsController &c)
+{
+    c.setCatchUp({ [&c](const QString &, const QList<WorkOnsController::CatchUpAsk> &asks) {
+                       for (const WorkOnsController::CatchUpAsk &k : asks) {
+                           standIn().derive(k.sessionDir);
+                           c.sessionCaughtUp(k.sessionDir);
+                       }
+                       c.catchUpDone();
+                   },
+                   [](bool) {}, [] {} });
 }
 
 struct Plan { const char *id; int fired; };   // fired on every shot (1) or none (0)
@@ -749,6 +813,8 @@ static void checkConsistencyMarks(const QString &root)
     stageMarks(golfer, QStringLiteral("m3"), t0 + 2 * day, m3);
 
     WorkOnsController c;
+
+    catchUp(c);
     c.setSynchronous(true);
     c.setAthleteDir(golfer);
     check(c.waitForIdle(), "the catch-up settles");
@@ -928,6 +994,8 @@ static void checkTendencies(const QString &root)
         stageTendencySession(golfer, d, t0 + 2 * day, 40);
 
         WorkOnsController c;
+
+        catchUp(c);
         c.setSynchronous(true);
         c.setAthleteDir(golfer);
         check(QFile::exists(golfer + QLatin1Char('/') + a + QStringLiteral("/club_baseline.json"))
@@ -952,6 +1020,8 @@ static void checkTendencies(const QString &root)
     stageTendencySession(golfer, QStringLiteral("2026-04-03_M_01"), t0 + 2 * day, 7, QStringLiteral("7 IRON"));
 
     WorkOnsController c;
+
+    catchUp(c);
     c.setSynchronous(true);
     c.setAthleteDir(golfer);
     check(c.waitForIdle(1000) && c.tendenciesReady() && QFile::exists(WorkOnsController::tendenciesPath(golfer)),
@@ -1104,6 +1174,7 @@ static void checkTendencies(const QString &root)
         QDir().mkpath(paused);
         stageTendencySession(paused, QStringLiteral("2026-05-01_M_01"), t0, 12);
         WorkOnsController p;
+        catchUp(p);
         p.setSynchronous(true);
         p.setPaused(true);
         p.setAthleteDir(paused);
@@ -1128,6 +1199,8 @@ static void checkClubScope(const QString &root)
     stageTendencySession(golfer, QStringLiteral("2026-06-03_M_01"), t0 + 2 * day, 7, QStringLiteral("7 IRON"));
 
     WorkOnsController c;
+
+    catchUp(c);
     c.setSynchronous(true);
     c.setAthleteDir(golfer);
     check(c.waitForIdle(), "the catch-up settles");
@@ -1176,6 +1249,7 @@ static void checkClubScope(const QString &root)
         const QDateTime stamp = QFileInfo(file).lastModified();
         QThread::msleep(25);
         WorkOnsController again;
+        catchUp(again);
         again.setSynchronous(true);
         again.setAthleteDir(golfer);
         again.waitForIdle();
@@ -1209,6 +1283,8 @@ static void checkClubScope(const QString &root)
         f.close();
 
         WorkOnsController m;
+
+        catchUp(m);
         m.setSynchronous(true);
         m.setAthleteDir(mixed);
         m.waitForIdle();
@@ -1220,6 +1296,7 @@ static void checkClubScope(const QString &root)
     // Asked twice in quick succession off the test seam: the last choice is what lands.
     {
         WorkOnsController a;
+        catchUp(a);
         a.setAthleteDir(golfer);
         check(a.waitForIdle(), "the background catch-up settles");
         a.setClubScope(QStringLiteral("group:driver"));
@@ -1243,6 +1320,7 @@ static void checkClubScope(const QString &root)
         }
         stageMarks(marks, QStringLiteral("2026-06-20_M_01"), t0, plan);
         WorkOnsController m;
+        catchUp(m);
         m.setSynchronous(true);
         m.setAthleteDir(marks);
         check(m.waitForIdle() && markOf(area(m, "lateral").value(QStringLiteral("consistency"))).n() == 20, "every club: all twenty readings");
@@ -1400,6 +1478,8 @@ static void checkShotFilter(const QString &root)
     stageOutcomeSession(golfer, QStringLiteral("2026-08-03_M_01"), t0 + 2 * day, QStringLiteral("7 IRON"), iron);
 
     WorkOnsController c;
+
+    catchUp(c);
     c.setSynchronous(true);
     check(optionsAre(c, "any Any 0", "any Any 0", "any Any 0"), "before any tendencies: each factor's list is Any alone");
     c.setAthleteDir(golfer);
@@ -1559,6 +1639,7 @@ static void checkShotFilter(const QString &root)
         const QDateTime stamp = QFileInfo(sliceFile).lastModified();
         QThread::msleep(25);
         WorkOnsController again;
+        catchUp(again);
         again.setSynchronous(true);
         again.setShotFilter(QStringLiteral("direction:slice"));
         check(again.shotFilter() == QStringLiteral("all"), "asked before there are options: all for now");
@@ -1615,6 +1696,8 @@ static void checkShotFilter(const QString &root)
         stageOutcomeSession(lmOnly, QStringLiteral("2026-08-05_M_01"), t0 + 4 * day, QStringLiteral("DRIVER"), plan);
 
         WorkOnsController m;
+
+        catchUp(m);
         m.setSynchronous(true);
         m.setAthleteDir(lmOnly);
         check(m.waitForIdle() && m.tendenciesReady() && m.outcomeTooFewNote().isEmpty() && m.shotFilterLine().isEmpty(),
@@ -1644,6 +1727,7 @@ static void checkShotFilter(const QString &root)
         // Read back from the stored file by a second controller: the measured count comes with it.
         {
             WorkOnsController again;
+            catchUp(again);
             again.setSynchronous(true);
             again.setShotFilter(QStringLiteral("direction:slice"));
             again.setAthleteDir(lmOnly);
@@ -1678,6 +1762,8 @@ int main(int argc, char **argv)
     QDir().mkpath(golfer + QStringLiteral("/empty_session"));     // nothing hit: not a session to record
 
     WorkOnsController c;
+
+    catchUp(c);
     c.setSynchronous(true);
     int areasSignals = 0;
     QObject::connect(&c, &WorkOnsController::areasChanged, [&areasSignals] { ++areasSignals; });
@@ -1875,6 +1961,31 @@ int main(int argc, char **argv)
     c.refresh();
     check(c.sessionCount() == 3 && !c.updating(), "…and is then current, though the new swing had no document to read");
 
+    // ── A facts' rule bump alone (refactor 3.7-e; CARRY 3.6 review 2) ───────────
+    // A catch-up that skips fresh sessions must still ask for one whose summary's per-shot facts were made under an older
+    // rule: s3's file says the theme rule one version behind, and nothing else in it changes.
+    {
+        const double ws1 = writtenAt(golfer, QStringLiteral("s1")), ws2 = writtenAt(golfer, QStringLiteral("s2"));
+        const double ws3 = writtenAt(golfer, QStringLiteral("s3"));
+        QJsonObject r = record(golfer, QStringLiteral("s3"));
+        QJsonObject rules = r.value(QStringLiteral("factsRules")).toObject();
+        rules[QStringLiteral("theme")] = kThemeRuleVersion - 1;
+        r[QStringLiteral("factsRules")] = rules;
+        QFile f(WorkOnsController::recordPath(golfer + QStringLiteral("/s3")));
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            f.write(QJsonDocument(r).toJson());
+        f.close();
+        const int derivedBefore = standIn().derived;
+        c.refresh();
+        check(writtenAt(golfer, QStringLiteral("s3")) != ws3 && standIn().derived == derivedBefore + 1
+                  && record(golfer, QStringLiteral("s3")).value(QStringLiteral("factsRules")).toObject()
+                         .value(QStringLiteral("theme")).toInt() == kThemeRuleVersion,
+              "a summary whose facts' rule is one version behind (and nothing else) is asked for again, and written current");
+        check(writtenAt(golfer, QStringLiteral("s1")) == ws1 && writtenAt(golfer, QStringLiteral("s2")) == ws2
+                  && c.sessionCount() == 3 && !c.updating(),
+              "…and the fresh sessions beside it are skipped");
+    }
+
     // ── A live session holds derivation, and ending it is the catch-up ──────────
     c.setPaused(true);
     stage(golfer, QStringLiteral("s4"), t0 + 3 * day, { { "reverse_spine_p4", 0 } });
@@ -1916,6 +2027,7 @@ int main(int argc, char **argv)
 
     {
         WorkOnsController t;
+        catchUp(t);
         t.setAthleteDir(themed);
         check(t.waitForIdle(300'000), "the threaded catch-up and the reduction settle");
         std::printf("    after three sessions:\n");
@@ -2010,6 +2122,7 @@ int main(int argc, char **argv)
     {
         const double w = themesWrittenAt(themed);
         WorkOnsController t;
+        catchUp(t);
         t.setAthleteDir(themed);
         t.waitForIdle(300'000);
         check(t.summaryReady() && t.summarySwings() == 150 && themesWrittenAt(themed) == w,
@@ -2026,6 +2139,7 @@ int main(int argc, char **argv)
         f.close();
         const double w = themesWrittenAt(themed);
         WorkOnsController t;
+        catchUp(t);
         t.setAthleteDir(themed);
         t.waitForIdle(300'000);
         check(t.summaryReady() && themesFile(themed).value(QStringLiteral("ruleVersion")).toInt() == kThemeRuleVersion
@@ -2072,6 +2186,8 @@ int main(int argc, char **argv)
         f.close();
 
         WorkOnsController w;
+
+        catchUp(w);
         w.setSynchronous(true);
         w.setAthleteDir(wrist);
         const QVariantMap wrists = area(w, "wrists");

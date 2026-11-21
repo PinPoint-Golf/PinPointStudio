@@ -120,6 +120,7 @@
 #include <QTimer>
 #include <QVector>
 
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -262,8 +263,27 @@ public:
     // `keepWhenAbsent` (the parallel run's hook, refactor 3.7-0): no file → nothing changes (the baseline computed in
     // memory at first need is kept); without it, an absent file reads as "no usual numbers", as before.
     bool reloadClubBaseline(bool keepWhenAbsent = false);
-    // Write what is kept now, if anything is unwritten (and persisting). False on a failed write.
-    bool flush();
+    // Write what is kept now, if anything is unwritten (and persisting). False on a failed write. `final` (a release, the
+    // quit: §4.4 step 8) writes a summary still owed for a live session too (summaryWaits).
+    bool flush(bool final = false);
+    // The catch-up's (3.7-e): flush(), and the summary written even when nothing is owed (its file is stale on disk).
+    bool flushWithSummary();
+    // THE CLUB BASELINE AT FIRST NEED, ASKED AGAIN (refactor 3.7-e; DEC-46; CARRY 3.7-0 and J-a8: ONE freeze rule, the
+    // owner's): a session that holds no baseline reads club_baseline.json again (a freeze that landed meanwhile), else
+    // freezes it now from AthleteDiagnostics' computation over its predecessors' summaries, when that is computable — what
+    // load() does, asked again by the catch-up for every session it takes in hand (a session ended since its load, the live
+    // one at its End). Never while an archive is out, for a read-only file, or once a baseline is held. True when the
+    // baseline moved (then every shot is asked: EVT-16).
+    bool freezeClubBaselineIfNeeded();
+    bool holdsClubBaseline() const { return m_baseline.has_value(); }
+    // The last attempt to freeze found it not computable (earlier sessions not summed up yet), and none is held: the
+    // screens say so (refactor 3.7-e round 2; J-49: show with a warning, never hide).
+    bool clubBaselineWaiting() const { return !m_baseline && m_baselineWaiting; }
+    // Nothing is written now: an archive is out, or was made from this hold (J-a9).
+    bool writesHeld() const { return m_archiveOut || m_archivedThisHold; }
+    // Each kept shot's document stamp checked against its document on disk, as a load does; a stale one is asked again
+    // (review R1-m2 (c): a session held here whose documents changed outside this process). True if any was asked.
+    bool recheckDocuments();
 
     // The receiver's hand-off (§4.4 step 6): Kept, ItemGone or Superseded, on the owner thread.
     void deliver(WorkVerdict verdict, WorkResult &&result);
@@ -275,6 +295,7 @@ signals:
     void diagnosisApplied();                    // a reduction was applied (§4.4 step 7)
     void written();
     void writeFailed(const QString &error);     // DEC-126: the caller shows it
+    void clubBaselineChanged();                 // held, or waiting on earlier sessions, moved (refactor 3.7-e round 2)
 
 private:
     SessionDiagnostics(Session *session, const DiagnosticsDoors &doors);
@@ -285,7 +306,9 @@ private:
     void onArchiveBack(bool ok);                           // the archive window closed (3.7-a, B2)
     void loadOrFreezeClubBaseline();                       // step 3.6 (DEC-46)
     analysis::BoardAnnotation boardOf(int swing) const;    // the board's word on a shot, asked of the Shot
-    QString summaryFingerprint() const;                    // what the summary was worked out from
+    QString summaryFingerprint() const;                    // what the summary was worked out from (3.7-e: one rule)
+    bool    summaryWaits() const;                          // a live session's summary waits for its End (3.7-e)
+    bool    writeSummary();                                // work_ons.json alone (3.7-e)
     void hearShot(Shot *shot);
     void connectSession();
     std::shared_ptr<const FiringSnapshot> makeSnapshot() const;
@@ -385,6 +408,12 @@ private:
     std::shared_ptr<const analysis::SessionReductionInput> m_askedInput;
     std::shared_ptr<const analysis::SessionReductionInput> m_diagnosisInput;
     bool                 m_reductionInFlight = false;
+    QString              m_summaryFingerprint;     // taken with the applied diagnosis (summaryFingerprint)
+    mutable std::shared_ptr<const RuleDataSnapshot> m_contentStampOf;   // the snapshot m_contentStamp was hashed from
+    mutable QString      m_contentStamp;
+    bool                 m_summaryOwed = false;    // a diagnosis is written but its summary is not (summaryWaits)
+    bool                 m_finalWrite  = false;    // a release's or the quit's write has begun
+    bool                 m_baselineWaiting = false;   // the last freeze attempt was not computable (J-49)
     bool                 m_reductionOwed = false;  // what is kept moved since the last reduction was asked
     qint64               m_lastReductionMs = 0;
 };

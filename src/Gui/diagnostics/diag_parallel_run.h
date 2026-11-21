@@ -39,9 +39,9 @@
 // The stamp (`stamp`) is in the dump and left out of the app's line: it differs on every session by design (run P
 // case 1, R-STAMP-1).
 //
-// FROM 3.7-a the stage panel and the cast show the owner through its thin adapter, so the old models left to compare are
-// the catch-up's (and the report's); in the app the owner now persists (appDiagnosticsDoors below), so `doors()`'s
-// in-memory wiring is the tests' (diag_parallel_live_test), no longer the app's.
+// FROM 3.7-a the stage panel and the cast show the owner through its thin adapter; 3.7-d cut the report over and 3.7-e the
+// catch-up, so NO OLD MODEL IS LEFT IN THE APP TO COMPARE: the app's hook (install) finds nothing, and run P's comparison is
+// regrade_ledger --engine=old|new (until 3.10). `doors()`'s in-memory wiring is the tests' (diag_parallel_live_test).
 //
 // Adapters ring (src/Gui): reads the old model and the new owner; writes nothing but the log.
 
@@ -65,15 +65,8 @@ class WorkPool;
 class WorkReceiver;
 struct DiagnosticsDoors;
 
-// THE APP'S DIAGNOSTICS DOORS (refactor step 3.7-a; DEC-02, 04 step 3 item 4: always fire): what main.cpp hands every
-// Athlete, put together here beside the parallel run's so diag_stage_panel_test wires the owner exactly as the app does.
-// The owner WRITES: diagnostics.json (`persist`; the stage panel's model, its writer until 3.7-a, is gone) and the shots'
-// phase-grid and summary sidecars as the old model's detectShot did (the reader's default policy: parse a miss, write
-// it); NOT work_ons.json (`writeSummary` false: WorkOnsController stays its one writer until the catch-up's cut-over,
-// 3.7-e). On `pool` with `receiver`, never synchronous. `attach` is SessionDiagnostics::attach (main.cpp wraps it to show
-// each owner's failed writes). Every pointer and reference is borrowed and must outlive every Athlete given the doors.
-DiagnosticsDoors appDiagnosticsDoors(WorkPool *pool, WorkReceiver *receiver, RuleData *ruleData,
-                                     const SessionRepository &sessions, RecordingRepository &recordings);
+// THE APP'S DIAGNOSTICS DOORS (appDiagnosticsDoors) moved to session_diagnostics_adapter.h with the thinning (refactor
+// 3.7-e; review M9 of 3.7-a): the app's always-on wiring is not the parallel run's.
 
 namespace parallel {
 

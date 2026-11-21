@@ -27,6 +27,7 @@
 
 #include <QDate>
 #include <QHash>
+#include <QList>
 #include <QJsonObject>
 #include <QObject>
 #include <QSet>
@@ -42,7 +43,6 @@
 #include <memory>
 #include <vector>
 
-class SessionDiagnosticsModel;
 namespace pinpoint::analysis { class ICharacteristicPackProvider; struct CharacteristicPack; class INormProvider; }
 
 // WORK ONS — the list of the faults a golfer keeps producing (each opened in place under its row on
@@ -57,17 +57,18 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; struct Charact
 // is merely the moment one becomes stale. Nothing has to remember to "close" anything, and a
 // library converted, re-analysed or copied in from another machine catches up by being looked at.
 //
-// The derivation is SessionDiagnosticsModel's — a private, panel-less instance. Its
-// activateSession() already reconciles the ledger against the swings on disk (back-fills what
-// was never reduced, regrades what went stale), so a record is always derived from a CURRENT
-// ledger, and the list here cannot disagree with the panel a golfer opens on the same session.
+// THE DERIVATION IS THE SESSION'S OWN (refactor step 3.7-e: the catch-up's cut-over). Until 3.7-e it was a private,
+// panel-less SessionDiagnosticsModel here, the second writer of every session's files (J-a7). Now a stale session is handed
+// to the catch-up service (CatchUpDoor, below), whose Session's SessionDiagnostics re-judges whatever is stale, reduces,
+// and writes diagnostics.json and the record (work_ons.json) — their one writer — so the list here cannot disagree with
+// the panel a golfer opens on the same session, and honours the launch monitor board's annotations as the owner does.
 //
 // The list is aggregateWorkOns() over the records and nothing else. No running totals:
 // trashing a session removes its contribution at the next refresh.
 //
 // THREADING. The folder scan (a stat per swing, on what may be a network share) runs on a
-// private single-thread pool and is delivered back queued. Derivation is the model's own worker.
-// Sessions are derived one at a time, and never while a session is live (`paused`) — detection
+// private single-thread pool and is delivered back queued. Derivation is the catch-up service's (each session's owner, on
+// the one pool's lane). Sessions are derived one at a time, and never while a session is live (`paused`) — detection
 // reads whole swing documents and must not compete with capture.
 //
 // REFACTOR STEP 3.6 (build/refactor/step-3/3.6/NOTES.md). The athlete level has its owner, AthleteDiagnostics
@@ -81,9 +82,10 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; struct Charact
 //     as the launch monitor board annotated it (board_annotations.h: its club override, a left-out reading not read).
 // And D-15: a pause (a session going live) also lets go of the derivation in flight.
 // AthleteDiagnostics now reduces the tendencies and the themes from the summaries' compact per-shot facts too (DEC-192
-// as Mark amended it, "b"); this object keeps doing them from the ledgers until the catch-up's cut-over (3.7), because in
-// the app the summaries are still this object's own (they carry no facts until SessionDiagnostics persists there). The
-// consistency marks stay here until their grader leaves the Gui ring (3.6 NOTES F7).
+// as Mark amended it, "b"). REFACTOR 3.7-e cut the CATCH-UP over (the service, the owners writing every summary in the
+// app); Home's tendencies, themes and athlete work-ons are still reduced HERE, from the ledgers the owners now write, as
+// before — their move onto AthleteDiagnostics (BRIEF §4.6 "the adapter"), with the report's Tendencies page, is refactor
+// item 3.7-f (J-48), straight after 3.7-e. The consistency grader is in the Rules ring since 3.8 (J-34).
 //
 // YOUR SWING — the same catch-up ends in the golfer's swing summary (swing_themes.h,
 // docs/design/home_themes_design.md): the one thing to practise (the focus), what they do well,
@@ -419,8 +421,40 @@ public:
     // A condition's name as the items show it: the pack label, else the id ("" for "").
     Q_INVOKABLE QString conditionLabel(const QString &id) const;
 
-    // Test seam, as SessionDiagnosticsModel's: scan, derive and reduce the themes inline.
+    // Test seam: scan and reduce the themes inline (the catch-up service's own doors say whether it runs inline).
     void setSynchronous(bool on) { m_synchronous = on; }
+
+    // THE CATCH-UP'S DOOR (refactor step 3.7-e; BRIEF §4.6; CLS-ATHLETE-DIAG): this object no longer derives a session's
+    // record itself. The scan finds the stale sessions (and the ones still without a frozen club baseline: baselineOnly)
+    // and hands them, in one ask, to the catch-up service (src/App/athlete_catch_up.h, through main.cpp), which takes each
+    // in hand in turn, oldest first: the Session's own SessionDiagnostics re-judges what is stale, freezes the baseline at
+    // first need, reduces and writes diagnostics.json and work_ons.json — their one writer (DEC-55) — and the session is
+    // let go. The service answers sessionCaughtUp() for every session asked (taken or not), then catchUpDone().
+    // `pause` (a session going live: D-15) lets go of the session in hand at once; `cancel` (the athlete switched) drops
+    // the queue too. Without a door, a stale session's record stays out of the list.
+    struct CatchUpAsk {
+        QString sessionDir;
+        bool    baselineOnly = false;   // its summary is current; only its club baseline is not frozen yet
+    };
+    struct CatchUpDoor {
+        std::function<void(const QString &athleteDir, const QList<CatchUpAsk> &asks)> run;
+        std::function<void(bool on)> pause;
+        std::function<void()>        cancel;
+        // The current athlete record's facts its sessions' cohort is read from ("dob|sex": summaryCohortFacts), for the
+        // scan's fingerprint (R-STAMP-1; refactor 3.7-e round 2). Empty function: none ("|").
+        std::function<QString()>     cohortFacts;
+    };
+    void setCatchUp(CatchUpDoor door);
+    // The service's answers (GUI thread; main.cpp connects them).
+    void sessionCaughtUp(const QString &sessionDir);
+    void catchUpDone();
+    // The content stamp the records are graded against, by the owner's rule (fire_findings.h contentStamp), and the rule
+    // data's summary stamp (summaryRulesStamp): each once per RuleData snapshot.
+    static QString contentStampNow();
+    static QString rulesStampNow();
+    // A session summary's fingerprint as the scan computes it, by the owner's one rule (session_reduction.h
+    // summaryFingerprintOf): its numbered swings' documents, its frozen club baseline, the rule data, the cohort facts.
+    static QString summaryFingerprintFor(const QString &sessionDir, const QString &rulesStamp, const QString &cohort);
     // Waits for the scan, the derivation, the swing summary AND the consistency marks.
     bool waitForIdle(int msTimeout = 60000);
     // For the tests: marks jobs started, and ledgers they have read between them.
@@ -480,12 +514,9 @@ private:
         int     nOfDay = 0;                  // order goes by when a baseline is missing, with its place in the day
         pinpoint::analysis::SessionWorkOns record;   // valid when fresh
     };
-    static std::vector<Scanned> scan(const QString &athleteDir, const QString &contentStamp);
+    static std::vector<Scanned> scan(const QString &athleteDir, const QString &rulesStamp, const QString &cohort);
     void applyScan(int generation, std::vector<Scanned> rows);
 
-    void deriveNext();
-    void onModelSettled();
-    void finishDerive();
     void publish();
     const QHash<QString, pinpoint::analysis::SessionWorkOns> &shownRecords() const;
     void updateClubScope();
@@ -505,7 +536,6 @@ private:
     bool onBallInScope(const QString &tendencyKey) const;
     void publishAreas(const pinpoint::analysis::CharacteristicPack &pack,
                       const std::vector<pinpoint::analysis::SessionWorkOns> &sessions);
-    SessionDiagnosticsModel *model();
 
     // ── Shot filter ──
     // One filter choice as the screens show it: what the job counted for it, and the words to say it with.
@@ -662,8 +692,8 @@ private:
     QHash<QString, QString> m_fingerprints;   // session dir -> what the queue will stamp
     QHash<QString, qint64>  m_dirMtime;
     QStringList m_queue;                      // stale session dirs, newest first
-    QString     m_derivingDir;
-    bool        m_deriving = false;
+    bool        m_deriving = false;       // the catch-up service holds this scan's ask (3.7-e)
+    CatchUpDoor m_catchUp;
     bool        m_scanning = false;
     bool        m_rescan   = false;
     int         m_generation = 0;
@@ -676,7 +706,6 @@ private:
     QVariantMap  m_lastSession;
     QVariantList m_areaItems;          // publish()'s, stored: QML reads it many times per frame
 
-    SessionDiagnosticsModel *m_model = nullptr;   // created on first need; owned (child)
     // Lazily made; mutable so conditionLabel() (const) can make it on first need.
     mutable std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_packProv;
     QThreadPool m_pool;

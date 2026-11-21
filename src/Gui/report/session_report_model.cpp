@@ -138,7 +138,7 @@ QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::C
     series.setSynchronous(true);
     series.activateSession(sessionDir);
     // THE SWINGS AS THE GOLFER ANNOTATED THEM ON THE BOARD (refactor 3.7-d; J-45): the Charts snapshot is published that
-    // way (SessionSeriesModel, session_series_types.h annotateForBoard), for the Charts tab and every Charts page here
+    // way (SessionSeriesModel: annotateForBoard, a static in session_series_model.cpp), for the Charts tab and every Charts page here
     // alike, so no page groups or norms a re-labelled swing under another club than the work-on facts and the kicker do.
     const std::shared_ptr<const pinpoint::charts::SessionSnapshot> snap = series.snapshot();
     if (!snap || snap->count() == 0) return {};

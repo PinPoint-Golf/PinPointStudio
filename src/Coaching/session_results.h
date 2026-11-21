@@ -56,6 +56,7 @@
 #include "work_ons.h"
 #include "../Diagnostics/measures/club_baseline_provider.h"
 
+#include <QCryptographicHash>
 #include <QHash>
 #include <QJsonArray>
 #include <QList>
@@ -166,10 +167,20 @@ using ClubWindow = ClubSessionPool;
 
 // ── FIELD-LIST §1.8 ───────────────────────────────────────────────────────────────────────────────────────────────
 struct SummaryProvenance {
-    QString fingerprint;     // read by the catch-up's freshness check (today WorkOnsController's own hash)
+    QString fingerprint;     // read by the catch-up's freshness check: summaryFingerprintOf, below (refactor 3.7-e)
     QString contentStamp;
     QString gradePolicy;
     double  writtenAtMs = 0.0;
+};
+
+// ── FIELD-LIST §1.8's `fingerprint`: one swing as the summary's fingerprint takes it (refactor 3.7-e) ───────────────
+// The rule itself — every version and input the summary was produced under (R-STAMP-1) — is session_reduction.h's
+// summaryFingerprintOf, which sees the reduction's own version.
+struct SummarySwing {
+    QString folder;          // the swing folder's name ("swing_0007")
+    bool    exists  = false; // its document is there
+    qint64  size    = 0;
+    qint64  mtimeMs = 0;
 };
 
 // ── FIELD-LIST §1.1: the root ─────────────────────────────────────────────────────────────────────────────────────

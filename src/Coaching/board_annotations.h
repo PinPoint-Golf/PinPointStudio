@@ -71,7 +71,7 @@ struct BoardAnnotation {
 };
 
 // THE RULE'S PARTS, ONE PLACE (refactor 3.7-d, J-45): every shape a shot is read in — the ledger's ShotRecord
-// (annotatedShot, below) and the Charts' ShotSeries (session_series_types.h annotateForBoard) — asks these.
+// (annotatedShot, below) and the Charts' ShotSeries (annotateForBoard, a static in session_series_model.cpp) — asks these.
 // A reading key the launch monitor gives: an "lm." key (the catalogue's key ladder; the document's metric keys).
 inline bool isLaunchMonitorKey(const QString &key) { return key.startsWith(QLatin1String("lm.")); }
 // The club a shot is read under: the board's when it set one, else the shot's own.

@@ -20,6 +20,7 @@
 #include "athlete_diagnostics.h"   // the club baseline the freeze takes (step 3.6)
 #include "session.h"
 #include "shot.h"
+#include "summary_rules.h"   // the rule data as the firing reads it; a summary's rules (3.7-e round 2)
 
 #include "../Coaching/board_annotations.h"     // the board's annotations, read by the reduction (step 3.6)
 #include "../Coaching/club_distances.h"        // clubBaselineFromJson
@@ -243,7 +244,7 @@ void SessionDiagnostics::retire(bool writeFirst)
     if (m_retired)
         return;
     if (writeFirst)
-        flush();
+        flush(/*final=*/true);
     m_retired = true;
     m_writeTimer.stop();
     // Its waiting jobs go unrun; one running finishes and is dropped at the receiver (another instance, or none).
@@ -297,10 +298,12 @@ void SessionDiagnostics::onArchiveOut()
     // among them is still read as a derive when it lands (review R2-M3); the newer entries go with their jobs.
     if (!m_doors.pool || (m_outstanding == 0 && !m_reductionInFlight))
         return;
-    const bool running = m_doors.pool->isRunning(m_instance);
-    const int  dropped = m_doors.pool->cancelLane(m_instance);
-    // A reduction in flight is older than every ask made after it: dropped only when nothing of the lane is running.
-    const bool reductionDropped = m_reductionInFlight && !running && dropped > 0;
+    // WHICH JOBS WERE DROPPED IS THE POOL'S ANSWER, UNDER ITS LOCK (review R3-M1, then R1-m1 of 3.7-e): each job's tag is its
+    // ask number, so the reduction in flight was dropped exactly when its number is among the dropped — never a guess from
+    // "nothing running", nor from a flag the job sets after a worker has already taken it.
+    std::vector<quint64> tags;
+    const int  dropped = m_doors.pool->cancelLane(m_instance, &tags);
+    const bool reductionDropped = m_reductionInFlight && std::find(tags.begin(), tags.end(), m_reductionLatest) != tags.end();
     if (m_reductionInFlight) {
         // Whatever became of it, a newer one is owed: a result of it that still comes back is dropped as superseded.
         m_reductionLatest   = nextWorkNumber();
@@ -311,12 +314,9 @@ void SessionDiagnostics::onArchiveOut()
     if (asksDropped > 0)
         m_owedAfterArchive = true;
     m_outstanding = std::max(0, m_outstanding - asksDropped);
-    QList<QPair<quint64, int>> byAge;
-    for (auto it = m_inFlight.constBegin(); it != m_inFlight.constEnd(); ++it)
-        byAge.append({ it->number, it.key() });
-    std::sort(byAge.begin(), byAge.end());
-    for (int i = m_outstanding; i < byAge.size(); ++i)
-        m_inFlight.remove(byAge.at(i).second);
+    // The dropped asks' in-flight entries go with them, by their numbers (the pool's answer); a job already taken comes back.
+    for (auto it = m_inFlight.begin(); it != m_inFlight.end();)
+        it = std::find(tags.begin(), tags.end(), it->number) != tags.end() ? m_inFlight.erase(it) : std::next(it);
 }
 
 void SessionDiagnostics::onArchiveBack(bool ok)
@@ -558,15 +558,10 @@ std::shared_ptr<const FiringSnapshot> SessionDiagnostics::makeSnapshot() const
     auto s = std::make_shared<FiringSnapshot>();
     s->rules = m_rules;
     analysis::FiringInputs &in = s->inputs;
-    if (m_rules) {
-        in.pack  = m_rules->pack;    // OWNING (3.3 review 1, note 2): the snapshot keeps the pack and norms alive
-        in.norms = m_rules->norms;
-        if (!m_rules->gradePolicy.isEmpty())
-            in.gradePolicy = m_rules->gradePolicy;   // SET-15 from the snapshot: never a live read (D-12)
-        in.disabledNormSets = m_rules->disabledNormSets;
-        if (m_rules->flightNorms)
-            in.flightNorms = *m_rules->flightNorms;
-    }
+    // The rule data's part, by the one rule the catch-up's scan uses too (summary_rules.h; refactor 3.7-e round 2): the pack
+    // and norms OWNED (3.3 review 1, note 2), SET-15 from the snapshot — never a live read (D-12) —, SET-06, the flight table.
+    if (m_rules)
+        in = firingInputsOf(*m_rules);
     in.clubBaseline = m_baseline;
     in.usuals       = m_usuals;
     if (m_doors.withSigma) in.withSigma = *m_doors.withSigma;   // the gate report's switch (DiagnosticsDoors); else tuned
@@ -961,6 +956,7 @@ void SessionDiagnostics::loadOrFreezeClubBaseline()
     if (!athlete)
         return;
     const ClubBaselineComputation c = athlete->clubBaselineFor(m_id);
+    m_baselineWaiting = !c.computable && !c.waitingOn.isEmpty();
     if (!c.computable) {
         ppInfo() << "[SessionDiagnostics] club baseline not frozen yet for" << m_id.toString() << "-" << c.why;
         return;
@@ -985,6 +981,45 @@ void SessionDiagnostics::loadOrFreezeClubBaseline()
         m_lastWriteError = QStringLiteral("The session's club baseline: ") + w.error;
         emit writeFailed(m_lastWriteError);
     }
+}
+
+bool SessionDiagnostics::recheckDocuments()
+{
+    if (m_retired || m_archiveOut || !m_session || !m_doors.reader)
+        return false;
+    bool asked = false;
+    for (Shot *shot : m_session->shots()) {
+        const KeptShot *k = kept(shot->swingNumber());
+        if (k && k->document == m_doors.reader->stamp(shot->ref()) && !m_unread.contains(shot->swingNumber()))
+            continue;
+        if (m_inFlight.contains(shot->swingNumber()))
+            continue;   // already asked
+        askFire(shot);
+        asked = true;
+    }
+    if (asked)
+        m_reductionOwed = true;
+    return asked;
+}
+
+bool SessionDiagnostics::freezeClubBaselineIfNeeded()
+{
+    if (m_retired || m_archiveOut || m_readOnly || m_baseline)
+        return false;
+    const bool waitingBefore = m_baselineWaiting;
+    loadOrFreezeClubBaseline();   // a file frozen meanwhile is read; else frozen now when computable (the one rule)
+    if (m_baselineWaiting != waitingBefore || m_baseline)
+        emit clubBaselineChanged();   // the screens' "usual numbers not ready" follows (J-49), shots or none
+    if (!m_baseline)
+        return false;
+    const QString before = m_findingsStamp;
+    refreshFindingsInputs();
+    if (m_findingsStamp == before)
+        return false;
+    ++m_derivedGeneration;   // the carry against the usual reads it too
+    m_snapshot = makeSnapshot();
+    fireAll();               // a baseline frozen → every shot (EVT-16)
+    return true;
 }
 
 bool SessionDiagnostics::reloadClubBaseline(bool keepWhenAbsent)
@@ -1017,16 +1052,68 @@ bool SessionDiagnostics::reloadClubBaseline(bool keepWhenAbsent)
 
 // ── Written (§4.4 step 8) ──────────────────────────────────────────────────────────────────────────────────
 
-bool SessionDiagnostics::flush()
+bool SessionDiagnostics::flush(bool final)
 {
     m_writeTimer.stop();
     // Nothing is written while an archive is out (B2), nor after it was made from this hold until the golfer changes
     // something: the session's file stays the archive's copy (a restore puts back what the library holds).
     if (m_archiveOut || m_archivedThisHold)
         return true;
-    if (!m_dirty || !m_doors.persist || m_readOnly || m_retired)
+    if (!m_doors.persist || m_readOnly || m_retired)
         return true;
-    return write();
+    if (final)
+        m_finalWrite = true;   // a release or the quit: an owed summary is written now, live or not
+    bool ok = true;
+    if (m_dirty)
+        ok = write();
+    if (ok && m_summaryOwed && !summaryWaits())
+        ok = writeSummary();
+    return ok;
+}
+
+// THE CATCH-UP'S WRITE (refactor 3.7-e): what is kept, as flush(), AND the summary even when nothing is owed — the catch-up
+// took this session in hand because the summary on disk is stale (an older rule's, a missing one, a folder changed outside
+// this process) while the owner itself may be idle with nothing unwritten (a session a screen loaded and diagnosed). One
+// summary write at most. A live session's still waits for its End.
+bool SessionDiagnostics::flushWithSummary()
+{
+    const bool attempted = m_dirty;   // a dirty flush writes the summary with what is kept (or fails saying so)
+    if (!flush(/*final=*/false))
+        return false;
+    if (attempted || m_archiveOut || m_archivedThisHold || !m_doors.persist || m_readOnly
+        || m_retired || summaryWaits())
+        return true;
+    return writeSummary();
+}
+
+// THE SUMMARY WAITS FOR THE SESSION'S END WHILE IT IS RECORDED HERE (refactor 3.7-e, the checklist's "no per-shot GUI
+// cost"): the athlete level reads no live session's summary (the catch-up is paused while a session is live, and every
+// baseline window is of earlier days), so a live session's summary is written once it has ended (its End's diagnosis is
+// written), or when it is released or the app quits (flush(final)) — never with every debounced write of a live shot.
+// Read through the repository's identity map, not the Session object, once a final write has begun (the destructor's).
+bool SessionDiagnostics::summaryWaits() const
+{
+    if (m_finalWrite || !m_session)
+        return false;
+    return m_session->runningHere() && m_session->inProgress();
+}
+
+bool SessionDiagnostics::writeSummary()
+{
+    if (!m_diagnosis || !m_doors.writeSummary)
+        return true;
+    PostShotTrace::Scope trace("owner.summary");   // [PostShot]: the session summary's write (3.7-e)
+    const WriteResult ws = m_sessions->writeWorkOns(m_id, analysis::sessionResultsToJson(summary()));
+    m_summaryOwed = false;   // a failed write is said once and tried again with the next diagnosis, as before 3.7-e
+    if (ws.ok()) {
+        ++m_counts.summaryWrites;
+        return true;
+    }
+    ++m_counts.writeFailures;
+    m_lastWriteError = QStringLiteral("The session's work-ons: ") + ws.error;
+    ppWarn() << "[SessionDiagnostics] work_ons.json was not written for" << m_id.toString() << "-" << ws.error;
+    emit writeFailed(m_lastWriteError);
+    return false;
 }
 
 bool SessionDiagnostics::write()
@@ -1097,17 +1184,11 @@ bool SessionDiagnostics::write()
         m_dirty = false;
         ++m_counts.writes;
         // THE SUMMARY (FILE-SESS-05; DEC-55, DEC-192), with the diagnosis it is of: this object is its one writer
-        // (step 3.6). In the app from the catch-up's cut-over (3.7); until then nothing there persists.
+        // (step 3.6; in the app from the catch-up's cut-over, 3.7-e). A live session's waits for its End (summaryWaits).
         if (m_diagnosis && m_doors.writeSummary) {
-            const WriteResult ws = m_sessions->writeWorkOns(m_id, analysis::sessionResultsToJson(summary()));
-            if (ws.ok()) {
-                ++m_counts.summaryWrites;
-            } else {
-                ++m_counts.writeFailures;
-                m_lastWriteError = QStringLiteral("The session's work-ons: ") + ws.error;
-                ppWarn() << "[SessionDiagnostics] work_ons.json was not written for" << m_id.toString() << "-" << ws.error;
-                emit writeFailed(m_lastWriteError);
-            }
+            m_summaryOwed = true;
+            if (!summaryWaits())
+                writeSummary();
         }
         emit written();
         return true;
@@ -1229,6 +1310,7 @@ void SessionDiagnostics::deliverReduction(WorkVerdict verdict, WorkResult &&resu
         m_lastReductionMs    = r->ms;
         m_diagnosis          = std::move(r->diagnosis);
         m_diagnosisInput     = m_askedInput;   // kept means latest: the input asked last (refactor 3.7-a)
+        m_summaryFingerprint = summaryFingerprint();   // its Session's shots as they are now (3.7-e)
         m_dirty              = true;   // the diagnosis state is written with what is kept (§4.4 step 8)
         ++m_counts.reductions;
         emit diagnosisApplied();
@@ -1248,27 +1330,42 @@ analysis::BoardAnnotation SessionDiagnostics::boardOf(int swing) const
     return s.ok ? analysis::BoardAnnotation{ s.lmExcluded, s.lmClubOverride } : analysis::BoardAnnotation{};
 }
 
-// WHAT THE SUMMARY WAS WORKED OUT FROM (FIELD-LIST §1.8's fingerprint; step 3.6, K12's settlement): the findings stamp,
-// the derived base stamp (the rest of the snapshot, the intent run, the reduction's version), every kept shot's document
-// stamp and the unread marks — so two summaries with one fingerprint were derived from the same inputs. The catch-up's
-// own freshness hash (WorkOnsController's) goes with it at the cut-over (3.7).
+// WHAT THE SUMMARY WAS WORKED OUT FROM (FIELD-LIST §1.8's fingerprint; R-STAMP-1): ONE RULE with the catch-up's scan
+// (session_reduction.h summaryFingerprintOf; refactor 3.7-e, round 2: J-47) — every rule version, the rule data
+// (summaryRulesStamp over firingInputsOf: pack, norms, grade policy, disabled sets, flight norms), the frozen club baseline,
+// the athlete record's cohort facts, and each swing with the document its kept findings were fired from. Taken when a
+// diagnosis is applied, on the owner thread with its Session alive; summary() reads it.
 QString SessionDiagnostics::summaryFingerprint() const
 {
-    QCryptographicHash h(QCryptographicHash::Sha1);
-    h.addData(QByteArray::number(analysis::kSessionResultsVersion));
-    h.addData(m_findingsStamp.toUtf8());
-    h.addData(derivedBaseStamp().toUtf8());
-    for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it) {
-        h.addData(QByteArray::number(it.key()));
-        h.addData(QByteArray::number(it->document.size));
-        h.addData(QByteArray::number(it->document.mtimeMs));
-        h.addData("|");
+    std::vector<analysis::SummarySwing> swings;
+    if (m_session)
+        for (Shot *shot : m_session->shots()) {
+            analysis::SummarySwing w;
+            w.folder = QFileInfo(shot->folder()).fileName();
+            // The document its kept findings were fired from; a shot with none kept, or marked unread (its last read
+            // failed: review R1-m2 (b)), its document as it is now — the scan's view — so it does not stale the summary for
+            // ever (its own re-ask is the load's, DEC-191).
+            const KeptShot *k = kept(shot->swingNumber());
+            const DocumentStamp d = k && k->document.exists && !m_unread.contains(shot->swingNumber())
+                                        ? k->document
+                                        : (m_doors.reader ? m_doors.reader->stamp(shot->ref()) : DocumentStamp{});
+            w.exists  = d.exists;
+            w.size    = d.size;
+            w.mtimeMs = d.mtimeMs;
+            swings.push_back(std::move(w));
+        }
+    // The rule data's stamp hashes the whole pack and norms (~10 ms): taken once per RuleData snapshot, never per diagnosis
+    // (the bench: the checklist's "no added per-shot GUI-thread cost").
+    if (m_rules != m_contentStampOf) {
+        m_contentStampOf = m_rules;
+        m_contentStamp   = m_rules ? analysis::summaryRulesStamp(firingInputsOf(*m_rules)) : QString();
     }
-    QList<int> unread = m_unread.values();
-    std::sort(unread.begin(), unread.end());
-    for (const int n : unread)
-        h.addData(QByteArray::number(-n));
-    return QString::fromLatin1(h.result().toHex().left(16));
+    analysis::SummaryRules rules;
+    rules.rules    = m_contentStamp;
+    rules.baseline = analysis::clubBaselineStamp(m_baseline);
+    const AthleteRecord rec = m_session && m_session->athlete() ? m_session->athlete()->record() : AthleteRecord();
+    rules.cohort   = summaryCohortFacts(rec.dob, rec.sex);
+    return analysis::summaryFingerprintOf(rules, std::move(swings));
 }
 
 analysis::SessionResults SessionDiagnostics::summary() const
@@ -1276,7 +1373,7 @@ analysis::SessionResults SessionDiagnostics::summary() const
     if (!m_diagnosis)
         return {};
     analysis::SessionResults r = m_diagnosis->results;
-    r.derivedFrom.fingerprint  = summaryFingerprint();
+    r.derivedFrom.fingerprint  = m_summaryFingerprint;
     r.derivedFrom.contentStamp = m_findingsStamp;
     r.derivedFrom.gradePolicy  = m_snapshot ? m_snapshot->inputs.gradePolicy : QString();
     r.derivedFrom.writtenAtMs  = double(QDateTime::currentMSecsSinceEpoch());

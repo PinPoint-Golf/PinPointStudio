@@ -45,10 +45,12 @@
 #include "../../Coaching/session_results.h"
 #include "../../Coaching/shot_outcomes_pack.h"
 
+#include <QCryptographicHash>
 #include <QDate>
 #include <QHash>
 #include <QString>
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -119,5 +121,42 @@ struct SessionDiagnosis {
 };
 
 SessionDiagnosis reduceSession(const SessionReductionInput &in);
+
+// ── FIELD-LIST §1.8's `fingerprint`: WHAT A SESSION SUMMARY WAS WORKED OUT FROM, ONE RULE (refactor 3.7-e; round 2:
+// R-STAMP-1, review R1-B2) ─────────────────────────────────────────────────────────────────────────────────────────────
+// Every version the summary is produced under — today's keys' schema and rule, DEC-192's growth, the facts' rules
+// (`factsRules`), the reduction's (kSessionReductionVersion), the club baseline's schema — and every input both its writer
+// (SessionDiagnostics) and the catch-up's scan (WorkOnsController) can compute: the rule data (`rules`:
+// summaryRulesStamp — the row shape and grid versions, the pack, the norms, the grade policy, the disabled sets, the flight
+// norms), the session's frozen club baseline (`baseline`: clubBaselineStamp), the athlete record's facts its norm cohort
+// is read from (`cohort`: "dob|sex" as stored, DEC-171), and each swing folder of the session by name with its document's
+// size and modification time (or none). Not in it: kOutcomeScopeRuleVersion — Home's shot filter, which no summary field
+// is made under. Any of them moving makes the summary stale, and the catch-up writes it again (R-STAMP-2).
+struct SummaryRules {
+    QString rules;      // summaryRulesStamp over the rule data
+    QString baseline;   // clubBaselineStamp of the session's frozen club baseline
+    QString cohort;     // "dob|sex", the athlete record's, as stored
+};
+inline QString summaryFingerprintOf(const SummaryRules &in, std::vector<SummarySwing> swings)
+{
+    std::sort(swings.begin(), swings.end(), [](const SummarySwing &a, const SummarySwing &b) { return a.folder < b.folder; });
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    h.addData(QByteArrayLiteral("summary2"));
+    for (const int v : { kWorkOnSchemaVersion, kWorkOnRuleVersion, kSessionResultsVersion, kTendencyRuleVersion,
+                         kThemeRuleVersion, kBoardAnnotationRuleVersion, kSessionReductionVersion, kClubBaselineSchemaVersion }) {
+        h.addData(QByteArray::number(v));
+        h.addData("|");
+    }
+    for (const QString *t : { &in.rules, &in.baseline, &in.cohort }) {
+        h.addData(t->toUtf8());
+        h.addData("|");
+    }
+    for (const SummarySwing &s : swings) {
+        h.addData(s.folder.toUtf8());
+        h.addData(s.exists ? QByteArray::number(s.size) + ':' + QByteArray::number(s.mtimeMs) : QByteArrayLiteral("none"));
+        h.addData("|");
+    }
+    return QString::fromLatin1(h.result().toHex().left(16));
+}
 
 } // namespace pinpoint::analysis

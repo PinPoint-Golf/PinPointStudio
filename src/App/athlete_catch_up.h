@@ -44,9 +44,16 @@
 // (released: what it kept is written, its waiting jobs cancelled) and puts it back at the front of the queue;
 // cancel() — the athlete switched — drops the queue too. Neither waits for the session in hand to finish.
 //
-// NOT IN THE APP YET: the composition root wires it at the catch-up's cut-over (step 3.7), when SessionDiagnostics
-// persists there; until then WorkOnsController's own catch-up (its private model) drives Home. athlete_dump
-// --engine new and athlete_diagnostics_test drive it headless (DiagnosticsDoors::synchronous).
+// IN THE APP (refactor step 3.7-e, the catch-up's cut-over): WorkOnsController's scan finds the stale sessions and asks for
+// them (runSessions, by id: main.cpp translates the folders, DEC-90); this service takes each in hand and answers sessionCaughtUp per session, then
+// finished(). WorkOnsController's private model and its work_ons.json write are gone. athlete_dump and
+// athlete_diagnostics_test drive it headless (DiagnosticsDoors::synchronous).
+//
+// IT RELEASES WHAT IT LOADED, AND ONLY THAT (Q-18; 3.7-e's checklist): a session already loaded when it is taken in hand
+// (the live one at its End, one a screen opened) is let go of but not released; one it loaded is released once nobody
+// holds it (a screen's view, a report's make). Every session it takes in hand is also asked for its club baseline at first
+// need again (SessionDiagnostics::freezeClubBaselineIfNeeded: ONE freeze rule, J-a8), so a session ended since its load —
+// the live one at its End — is frozen once its predecessors' summaries allow it (CARRY 3.7-0).
 //
 // Application ring (src/App: DEC-11). GUI thread.
 
@@ -58,8 +65,10 @@
 #include <QObject>
 #include <QPair>
 #include <QPointer>
+#include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
 
 namespace pinpoint {
 
@@ -78,6 +87,19 @@ public:
     // changes nothing. runAll: every athlete the library lists.
     void run(const AthleteId &athlete);
     void runAll();
+    // THESE SESSIONS of `athlete` (WorkOnsController's stale ones, translated from folders at main.cpp's door: DEC-90;
+    // 3.7-e round 2, review R1-m5), in place of any of that athlete's still queued. The order: the newest
+    // kClubDistanceWindowSessions first (a live session's baseline is read from them), then the rest oldest first (J-49).
+    // `baselineOnly`: sessions whose summary is current and which want only their club baseline frozen — not loaded while
+    // the freeze is not computable. Every session asked is answered (sessionCaughtUp), taken or not. A session recorded
+    // here and still live is not taken (it is the capture's).
+    void runSessions(const AthleteId &athlete, const QList<SessionId> &sessions, const QSet<SessionId> &baselineOnly = {});
+    // THE LIVE SESSION'S BASELINE AT START (J-49): its predecessors not yet summed up by this build are taken in hand at
+    // once — even while paused for the live session — and the live owner then asked to freeze; liveBaselineSettled after.
+    // False when nothing can be done (the baseline is not computable for another reason).
+    bool catchUpForBaseline(const AthleteId &athlete, const SessionId &live);
+    // A session someone loaded on demand and could not release because another holder had it: released once free (R1-m7).
+    void releaseWhenFree(const AthleteId &athlete, const SessionId &session);
     void cancel();
     void setPaused(bool on);
     bool paused() const { return m_paused; }
@@ -99,9 +121,22 @@ signals:
     void writeBlocked(const QString &what, const QString &where, const QString &why);
     void runningChanged();
     void finished();   // the queue is empty (not after a cancel)
+    // A session asked for has been let go (written, or not taken: `why` then says so).
+    void sessionCaughtUp(const pinpoint::SessionId &session, const QString &why);
+    // The live session's predecessors are summed up (or could not be) and its owner was asked to freeze (J-49).
+    void liveBaselineSettled(const pinpoint::SessionId &live);
 
 private:
-    struct Item { AthleteId athlete; SessionId session; bool last = false; };
+    struct Item {
+        AthleteId athlete;
+        SessionId session;
+        bool last = false;
+        bool baselineOnly = false;
+        bool forLive = false;   // a live session's baseline waits on it: taken even while paused (J-49)
+        bool again = false;     // asked again at the end of the pass for its baseline (taken before its predecessors)
+    };
+    void settleLiveBaseline();
+    void retryReleases();
     void step();
     void takeNext();
     void settleCurrent();
@@ -121,6 +156,11 @@ private:
     QList<QMetaObject::Connection> m_waits;
     QMetaObject::Connection m_failWatch;   // its writeFailed, heard while in hand and through its release (CN-2)
     bool                 m_blockedThis = false;
+    bool                 m_loadedHere  = false;   // the session in hand was loaded by this service (released after)
+    AthleteId            m_liveAthlete;           // catchUpForBaseline's live session, until its predecessors are done
+    SessionId            m_liveSession;
+    QList<QPair<AthleteId, SessionId>> m_releaseOwed;   // loaded on demand, held by another when let go (R1-m7)
+    QTimer               m_releaseTimer;
     QString              m_where;
     Report               m_report;
 };

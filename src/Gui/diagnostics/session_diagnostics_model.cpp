@@ -630,14 +630,19 @@ SessionDiagnosticsModel::SessionDiagnosticsModel(QObject *parent)
 void SessionDiagnosticsModel::addView()
 {
     if (++m_views != 1) return;
-    if (m_link) m_link->wake();
+    if (m_link) {
+        m_link->viewed(true);   // the Session is held while a screen shows it (refactor 3.7-e; Q-18)
+        m_link->wake();
+    }
     emit viewedChanged();
 }
 
 void SessionDiagnosticsModel::dropView()
 {
     if (m_views == 0) return;
-    if (--m_views == 0) emit viewedChanged();
+    if (--m_views != 0) return;
+    if (m_link) m_link->viewed(false);   // …and let go of once none does: a sweep may release it
+    emit viewedChanged();
 }
 
 void SessionDiagnosticsModel::pointAdapter()
@@ -648,30 +653,10 @@ void SessionDiagnosticsModel::pointAdapter()
     }
     loadProfile();
     scanHistory();
-    m_link->reloadBaseline(/*keepWhenAbsent=*/true);
-    // TODAY'S LIVE FREEZE (the class comment; beginClubBaseline's rule): a live panel, not reviewing, on a session that
-    // has none, freezes it from its predecessors' ledgers, off the GUI thread.
-    if (!m_freezing && beginClubBaseline()) {
-        const QDate day = m_sessionIdentity.localDay();
-        if (m_synchronous) {
-            finishClubBaseline(day, readPredecessors(m_sessionDir, day));
-        } else {
-            m_freezing = true;
-            const int token = ++m_freezeToken;
-            emit busyChanged();
-            const QString sessionDir = m_sessionDir;
-            m_freezePool.start([this, sessionDir, day, token]() {
-                PredecessorRead r = readPredecessors(sessionDir, day);
-                {
-                    const QMutexLocker guard(&m_freezeMutex);
-                    m_freezeResult = std::move(r);
-                }
-                QMetaObject::invokeMethod(this, [this, token]() {
-                    if (m_freezing && token == m_freezeToken) joinFreeze();
-                }, Qt::QueuedConnection);
-            });
-        }
-    }
+    // THE CLUB BASELINE IS THE OWNER'S, BY ONE RULE (refactor 3.7-e; J-a8): a freeze that landed elsewhere is read, else the
+    // owner freezes it at first need from its predecessors' summaries when that is computable. The adapter's own live
+    // freeze from the predecessors' ledgers (J-a2, 3.7-a's interim) is gone with the summaries' new form.
+    m_link->freezeBaselineIfNeeded();
     m_link->mirror();
 }
 
@@ -921,22 +906,11 @@ bool SessionDiagnosticsModel::followNormSave()
     return true;
 }
 
-// The content stamp's one rule (computeContentStamp, currentContentStamp).
+// The content stamp's one rule (computeContentStamp, currentContentStamp): the Rules ring's, which the session's owner
+// hashes its summary's freshness with too (refactor 3.7-e; fire_findings.h contentStamp).
 static QString contentStampOf(const ICharacteristicPackProvider *pack, const INormProvider *norms)
 {
-    if (!pack || !norms) return QString();
-    QCryptographicHash h(QCryptographicHash::Sha1);
-    h.addData(QJsonDocument(savePack(pack->pack())).toJson(QJsonDocument::Compact));
-    h.addData(QJsonDocument(saveNormPack(norms->norms())).toJson(QJsonDocument::Compact));
-    h.addData(QJsonDocument(saveContextTree(norms->contexts())).toJson(QJsonDocument::Compact));
-    // The row shape too: a row written before a field existed regrades to fill it.
-    h.addData(QByteArray::number(kDiagSchemaVersion));
-    h.addData(QByteArrayLiteral("words") + QByteArray::number(kRowWordsVersion));
-    h.addData(QByteArrayLiteral("grading") + QByteArray::number(kRowGradingVersion));
-    // The numbers the rows were graded on: a phase-grid schema bump means the reductions changed (v9:
-    // the extremes at a masked end, issue #1), and a row graded on the old ones regrades.
-    h.addData(QByteArrayLiteral("grid") + QByteArray::number(kPhaseGridSchemaVersion));
-    return QString::fromLatin1(h.result().toHex().left(16));
+    return pinpoint::analysis::contentStamp(pack, norms);
 }
 
 QString SessionDiagnosticsModel::computeContentStamp() const
@@ -2698,10 +2672,8 @@ void SessionDiagnosticsModel::finishClubBaseline(const QDate &day, const Predece
     snap.clubs    = clubBaselineAsOf(r.earlier, day, flightNorms());
     // The thin adapter freezes through its Session's own command (FILE-SESS-04's writer: Session::freezeClubBaseline),
     // never the file door; the owner then reads what was frozen (and fires again).
-    if (m_adapter && !m_link) return;
-    const pinpoint::WriteResult w = m_adapter
-        ? m_link->freezeBaseline(clubBaselineToJson(snap))
-        : pinpoint::SessionDiagnosticsFiles::writeClubBaseline(m_sessionDir, clubBaselineToJson(snap));
+    if (m_adapter) return;   // an adapter freezes nothing: the owner's one rule (3.7-e; J-a8)
+    const pinpoint::WriteResult w = pinpoint::SessionDiagnosticsFiles::writeClubBaseline(m_sessionDir, clubBaselineToJson(snap));
     if (!w.ok()) {
         ppWarn() << "[Diagnostics] could not freeze the club baseline:" << qPrintable(path) << "—" << qPrintable(w.error);
         // Said (DEC-126), unless writes are switched off for this activation anyway (the persist below).
@@ -2710,7 +2682,6 @@ void SessionDiagnosticsModel::finishClubBaseline(const QDate &day, const Predece
     }
     m_baselineFrozen = true;
     adoptClubBaseline(snap.clubs);
-    if (m_adapter && m_link) m_link->reloadBaseline(/*keepWhenAbsent=*/false);
 }
 
 // ── The reduction ───────────────────────────────────────────────────────────────────────

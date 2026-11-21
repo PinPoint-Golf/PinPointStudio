@@ -6,10 +6,11 @@
 // diff byte for byte.
 //
 // THE CATCH-UP IS THE APP'S. WorkOnsController is the object main.cpp binds to the current athlete; with
-// setSynchronous(true) and waitForIdle() it scans, derives each stale session's record through its private
-// SessionDiagnosticsModel (activateSession: back-fills and regrades the ledger), freezes any club baseline a
-// session lacks, and reduces the tendencies — exactly the work_ons_controller_test's drive. Nothing here
-// re-derives anything; the tool only reads the files back.
+// setSynchronous(true) and waitForIdle() it scans and reduces the tendencies, and — since the catch-up's cut-over
+// (refactor 3.7-e) — hands each stale session to the catch-up service exactly as main.cpp wires it (its CatchUpDoor over
+// AthleteCatchUp::runFolders, here over the headless owners below: each Session's SessionDiagnostics re-judges, freezes
+// a club baseline it lacks at first need, reduces and writes the record). Nothing here re-derives anything; the tool only
+// reads the files back.
 //
 // --fresh deletes the CACHES the catch-up would otherwise trust — each session's work_ons.json and the
 // athlete's tendencies.json — first, so the records are re-derived by the code under test and not read back
@@ -41,9 +42,10 @@
 // NOT A TEST, and not registered with ctest — it writes into the folders it is given.
 //
 // --engine old|new (refactor step 3.6; build/refactor/step-3/3.6/NOTES.md, the athlete parity):
-//   old (the default) — the above: WorkOnsController, what Home shows until the catch-up's cut-over (3.7), with the
-//       praise rule and Stage 0.5's follow-up wired through it. Its dump adds `doWell` { themes, praised }: the themes'
-//       "what you do well" condition ids before and after the praise rule.
+//   old (the default) — the above: WorkOnsController, what Home shows, with the praise rule and Stage 0.5's follow-up
+//       wired through it; since 3.7-e its records are the new owners' (its private model is gone), so "old" names Home's
+//       reductions from the ledgers (tendencies, themes), not an older engine. Its dump adds `doWell` { themes, praised }:
+//       the themes' "what you do well" condition ids before and after the praise rule.
 //   new — THE NEW OWNERS: the catch-up service (src/App/athlete_catch_up.h) over the real session store, Athlete,
 //       Session and SessionDiagnostics (headless, every shot fired again: DiagnosticsDoors::rebuild; each session's club
 //       baseline frozen from its predecessors' summaries when it has none or an older rule's), oldest session first,
@@ -63,6 +65,7 @@
 #include "../../src/DomainModel/rule_data.h"
 #include "../../src/DomainModel/session.h"
 #include "../../src/DomainModel/session_diagnostics.h"
+#include "../../src/DomainModel/summary_rules.h"
 #include "../../src/Core/work_pool.h"
 #include "../../src/Export/firing_reader_store.h"
 #include "../../src/Export/recording_loader.h"
@@ -332,10 +335,38 @@ int main(int argc, char **argv)
         QVariantMap newTendencies;
         QVariant themes;
         if (engine == QLatin1String("old")) {
+            // The catch-up as main.cpp wires it (3.7-e): the service, over the headless owners.
+            NewEngine ng;
+            pinpoint::Athlete *a = ng.athleteOf(dir);
+            pinpoint::AthleteCatchUp catchUp(ng.callables());
             WorkOnsController c;
             c.setSynchronous(true);
+            QObject::connect(&catchUp, &pinpoint::AthleteCatchUp::sessionCaughtUp, &c,
+                             [&c, a](const pinpoint::SessionId &id, const QString &) {
+                                 for (const pinpoint::SessionIndexEntry &e : a->index())
+                                     if (e.id() == id) { c.sessionCaughtUp(e.folder); break; }
+                             });
+            QObject::connect(&catchUp, &pinpoint::AthleteCatchUp::finished, &c, [&c] { c.catchUpDone(); });
+            // Folders to ids at the edge, as main.cpp's door does (DEC-90); a folder the index lacks is answered at once.
+            c.setCatchUp({ [&catchUp, &c, a](const QString &, const QList<WorkOnsController::CatchUpAsk> &asks) {
+                               QList<pinpoint::SessionId> ids;
+                               QSet<pinpoint::SessionId> baselineOnly;
+                               for (const WorkOnsController::CatchUpAsk &k : asks) {
+                                   pinpoint::SessionId id;
+                                   for (const pinpoint::SessionIndexEntry &e : a->index())
+                                       if (QDir::cleanPath(e.folder) == QDir::cleanPath(k.sessionDir)) { id = e.id(); break; }
+                                   if (id.isNull()) { c.sessionCaughtUp(k.sessionDir); continue; }
+                                   ids << id;
+                                   if (k.baselineOnly) baselineOnly.insert(id);
+                               }
+                               if (ids.isEmpty()) { c.catchUpDone(); return; }
+                               catchUp.runSessions(a->id(), ids, baselineOnly);
+                           },
+                           [&catchUp](bool on) { catchUp.setPaused(on); }, [&catchUp] { catchUp.cancel(); },
+                           [a] { return pinpoint::summaryCohortFacts(a->record().dob, a->record().sex); } });
             c.setAthleteDir(dir);
             settled = c.waitForIdle(timeoutS * 1000);
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);   // the released sessions go
             sessionsFound   = c.sessionsFound();
             sessionCount    = c.sessionCount();
             tendenciesReady = c.tendenciesReady();

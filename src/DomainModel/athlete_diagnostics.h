@@ -107,6 +107,7 @@ struct ClubBaselineComputation {
     QDate       day;                       // the session's day
     QHash<QString, analysis::ClubBaselineEntry> clubs;   // keys canonical; a club with no qualifying shot: no entry
     QStringList read;                      // the earlier sessions it read (folder names), newest first
+    QList<SessionId> waitingOn;            // not computable: the earlier sessions not summed up yet, newest first (J-49)
 };
 
 class AthleteDiagnostics : public QObject

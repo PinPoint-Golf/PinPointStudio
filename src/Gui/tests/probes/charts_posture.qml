@@ -229,7 +229,7 @@ Item {
                             const prof = probe.one(sec, "chPostureProfile")
                             probe.check(!!prof, "chPostureProfile")
                             const rows = prof ? probe.all(prof, "chPostureRow") : []
-                            probe.check(rows.length === 6, "six chPostureRow (" + rows.length + ")")
+                            probe.check(rows.length === 7, "seven chPostureRow, kPostureRows since 9e6c3257 (" + rows.length + ")")
                             probe.check((prof ? probe.all(prof, "chPostureCol") : []).length === 8, "eight chPostureCol")
                             for (const r of rows) {
                                 const cells = probe.all(r, "chPostureCell")
@@ -303,7 +303,7 @@ Item {
                         if (ses) {
                             const prof = probe.one(ses, "chPostureProfile")
                             const rows = prof ? probe.all(prof, "chPostureRow") : []
-                            probe.check(rows.length === 6, "six chPostureRow in Session (" + rows.length + ")")
+                            probe.check(rows.length === 7, "seven chPostureRow in Session (" + rows.length + ")")
                             for (const r of rows) {
                                 const cells = probe.all(r, "chPostureCell")
                                 probe.log("  row " + r.key + ": " + cells.map(c => c.tag + " " + probe.words(c).join(" ")).join(" | "))

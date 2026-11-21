@@ -137,12 +137,15 @@ public:
     // Queue `job` at the back of `lane`. It runs after every job queued on that lane before it, and
     // never at the same time as another job of that lane. False (and nothing queued) for an empty job,
     // a zero token or a pool being destroyed. Any thread.
-    bool submit(LaneToken lane, Job job, WorkPriority priority = WorkPriority::Normal);
+    // `tag` (refactor 3.7-e round 2): a number the caller may ask cancelLane about (postToOwner passes the ask number).
+    bool submit(LaneToken lane, Job job, WorkPriority priority = WorkPriority::Normal, quint64 tag = 0);
 
     // Drop `lane`'s waiting jobs, unrun (their captured values are released here). A job of the lane
     // that is running finishes; the lane is forgotten (with its foreground mark) once it has. Returns how
     // many were dropped. A later submit with the same token starts the lane again, behind any running job.
-    int cancelLane(LaneToken lane);
+    // `droppedTags` (refactor 3.7-e round 2, review R1-m1): the dropped jobs' tags, decided under the pool's lock — so an
+    // owner knows exactly which of its asks were dropped (a job a worker has taken is never among them).
+    int cancelLane(LaneToken lane, std::vector<quint64> *droppedTags = nullptr);
 
     // A foreground lane's head runs before a background lane's head of the same priority (D24: the live
     // session first). Remembered until the lane is cancelled.
@@ -162,6 +165,7 @@ private:
         Job          job;
         WorkPriority priority = WorkPriority::Normal;
         quint64      seq      = 0;   // submission order across the pool: the last tie-break
+        quint64      tag      = 0;   // the caller's (submit), reported by cancelLane
     };
     struct Lane
     {

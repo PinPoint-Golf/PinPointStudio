@@ -545,6 +545,17 @@ Item {
                 style: "chip"
                 text: root.notJudgedText
             }
+            // THE CLUB BASELINE NOT READY (refactor 3.7-e round 2; J-49): with or without a diagnostics panel up, the session's
+            // usual numbers cannot be worked out (earlier sessions not summed up by this version) — the same existing chip, warn
+            // tone, words; the panel says it at length.
+            PpNotice {
+                objectName: "carouselBaselineWaiting"
+                visible: !root.notJudged && !!root.pipSource && !!root.pipSource.baselineWaiting
+                Layout.alignment: Qt.AlignVCenter
+                tone: "warn"
+                style: "chip"
+                text: qsTr("Usual numbers not ready")
+            }
         }
 
         // ── The transport's own band, when it does not fit beside the chips ───

@@ -117,6 +117,8 @@ public:
     void setDiagnosticsDoors(const DiagnosticsDoors &doors);
     // A Session any held Athlete has loaded, by id (the receiver's lookup, §4.4 step 6); null when none has.
     Session *loadedSession(const SessionId &id) const;
+    // Every Athlete this store has handed out (the quit save writes each one's loaded sessions: refactor 3.7-e).
+    QList<Athlete *> heldAthletes() const;
 
     // The library folder the athletes are listed from (the app-data fallback when SET-03 is empty).
     QString libraryDir() const;

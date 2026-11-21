@@ -76,6 +76,7 @@
 #include <QJsonDocument>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QSemaphore>
 #include <QThread>
 
 #include <algorithm>
@@ -926,6 +927,59 @@ static void testDeriveAcrossArchive()
           d2->counts().deriveFailures == failsBefore + 1 && !d2->unread().contains(2) && d2->kept(2) && d2->kept(2)->deriveFailed);
 }
 
+// ARCR (review R3-M1 of 3.7-a; fixed in 3.7-e): an archive that goes out AFTER the session's reduction has run and posted
+// its result (not yet delivered), with a newer ask waiting and nothing of the lane running. The job the archive drops is
+// the ask, not the reduction: the outstanding count falls to 0 and the owner settles again. (onArchiveOut guessed, and
+// counted one of the dropped jobs as the reduction: the count stayed one too high and the owner never settled again.)
+static void testArchiveAfterReduction()
+{
+    std::printf("\nARCR — an archive after a reduction ran but was not yet delivered (R3-M1)\n");
+    Rig rig;   // a pool of three workers
+    Session *s = rig.session({ spec(kA, 10), spec(kA, 12), spec(kA, 14) });
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    if (!Rig::settled(d) || !pump([d] { return d->idle(); })) { check(QStringLiteral("ARCR setup"), false); return; }
+    pump([] { return false; }, 100);   // the reduction's apply and its debounce armed: nothing left in the lane
+    QSemaphore gate;
+    std::atomic<int> parked{ 0 };
+    const auto park = [&gate, &parked] { ++parked; gate.acquire(); };
+    const auto waitParked = [&parked](int n) {
+        QElapsedTimer t;
+        t.start();
+        while (parked.load() < n && t.elapsed() < 10000) QThread::msleep(1);
+        return parked.load() >= n;
+    };
+    // Two of the three workers busy on lanes of their own; the third free.
+    rig.pool->submit(900001, park);
+    rig.pool->submit(900002, park);
+    const bool two = waitParked(2);
+    const quint64 reductionsBefore = d->counts().reductions;
+    // The session's word moves (EVT-10, the declared miss): a reduction alone, which the free worker runs at once. No
+    // event is processed from here on, so its result is posted and NOT delivered.
+    SessionIntentEdit edit;
+    edit.miss = QStringLiteral("slice");
+    const bool saved = s->setSessionIntent(edit).ok();
+    const bool asked = d->reducing();
+    QElapsedTimer t;
+    t.start();
+    while ((rig.pool->isRunning(d->instance()) || rig.pool->waiting(d->instance()) > 0) && t.elapsed() < 10000)
+        QThread::msleep(1);
+    QThread::msleep(50);
+    rig.pool->submit(900003, park);   // …and now the third is busy too: a new ask can only wait
+    const bool three = waitParked(3);
+    check(QStringLiteral("ARCRa the reduction was asked, ran and posted; nothing of the lane running; every worker busy"),
+          two && saved && asked && three && d->reducing() && !rig.pool->isRunning(d->instance()));
+    d->fire(s->shots().first()->ref());   // a newer ask, waiting in the lane
+    check(QStringLiteral("ARCRb one ask waits in the lane, behind the reduction's undelivered result"),
+          rig.pool->waiting(d->instance()) == 1 && d->outstanding() == 1);
+    emit s->archiveOut();
+    std::printf("    outstanding after the archive went out: %d\n", d->outstanding());
+    check(QStringLiteral("ARCRc the dropped job is counted as the ask it was: nothing outstanding"), d->outstanding() == 0);
+    emit s->archiveBack(false);   // not made: what was owed is asked now
+    gate.release(3);
+    check(QStringLiteral("ARCRd the owner settles again, and a newer diagnosis is applied"),
+          pump([d] { return d->idle(); }, 20000) && d->counts().reductions > reductionsBefore);
+}
+
 // C4: the cohort on the shot's date (DEC-171); a record change re-fires every shot.
 static void testCohortDate()
 {
@@ -1119,7 +1173,10 @@ static void testDiagnosis()
     check(QStringLiteral("DIAGd each shot's own outcome carries no \"because\" (J-14 (b)); the session's reasons do"),
           std::all_of(r.shots.begin(), r.shots.end(), [](const analysis::ShotResult &x) { return x.outcome.driver.id.isEmpty(); }));
     check(QStringLiteral("DIAGe an in-progress session is not closed"), dg->stage != analysis::Stage::Closing);
-    check(QStringLiteral("DIAGf written"), d->flush());
+    // (refactor 3.7-e) the session is still live, so its summary waits for End; a release's or the quit's final write
+    // writes it (flush(final)).
+    check(QStringLiteral("DIAGf written (final: the live session's summary waits for End, a release or the quit writes it)"),
+          d->flush(/*final=*/true));
     const JsonFileRead wo = rig.store.readWorkOns(s->id());
     bool todayOk = false, growthOk = false;
     const analysis::SessionWorkOns today = analysis::sessionWorkOnsFromJson(wo.root, &todayOk);
@@ -1338,6 +1395,7 @@ int main(int argc, char **argv)
     testDeriveFailure(false);
     testDeriveFailure(true);
     testDeriveAcrossArchive();
+    testArchiveAfterReduction();
     testCohortDate();
     testCohortNoInstant();
     testWordCommands();

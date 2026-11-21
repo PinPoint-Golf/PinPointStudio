@@ -279,7 +279,7 @@ struct Rig {
     }
 };
 
-// The old model as the catch-up runs it at End (WorkOnsController::model).
+// The old model as the catch-up ran it at End until 3.7-e (WorkOnsController::model, since deleted: run P's reference now).
 static void runCatchUpModel(SessionDiagnosticsModel &m, const QString &folder)
 {
     m.setSynchronous(true);
@@ -396,7 +396,7 @@ static void testLive()
     // The hook, as main.cpp installs it.
     rig.installHook();
     const QString stampBefore = d->findingsStamp();
-    SessionDiagnosticsModel old;   // the catch-up's model at End (WorkOnsController::model)
+    SessionDiagnosticsModel old;   // the old engine as the catch-up ran it at End until 3.7-e (run P's reference)
     old.setSynchronous(true);
     old.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
     old.setReviewing(true);

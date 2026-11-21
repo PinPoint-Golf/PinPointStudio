@@ -140,8 +140,9 @@ struct DiagnosticsDoors {
     bool                                synchronous     = false;
     int                                 writeDebounceMs = 1500;
     bool                                rebuild         = false;
-    // With `persist`, the session summary (work_ons.json) is written too (refactor 3.7-a): false in the app until the
-    // catch-up's cut-over (3.7-e), where WorkOnsController stays that file's one writer; true in every tool and test.
+    // With `persist`, the session summary (work_ons.json) is written too (refactor 3.7-a; true in the app too since the
+    // catch-up's cut-over, 3.7-e: the owner is that file's one writer). A live session's waits for its End
+    // (SessionDiagnostics::summaryWaits). False only where a caller wants no summary at all (a tool's in-memory run).
     bool                                writeSummary    = true;
     // THE MEASUREMENT-UNCERTAINTY SWITCHES (session_diagnostics_design.md §A8.8), for the gate report alone
     // (tools/diagnostics/diag_uncertainty_report, refactor 3.7-d): σ on the readings a shot fires on (FiringInputs::withSigma,

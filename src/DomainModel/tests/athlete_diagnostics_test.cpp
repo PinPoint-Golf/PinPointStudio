@@ -656,6 +656,8 @@ static void testCatchUpAndFreeze()
                          [&where](const QString &, const QString &w, const QString &) { where << w; });
         second.run(kAthlete);
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        std::printf("        blocked %d, where [%s], why [%s]\n", second.report().blocked, qPrintable(where.join(QStringLiteral(", "))),
+                    qPrintable(second.report().why.join(QStringLiteral(" | "))));
         check(QStringLiteral("BLKa a write block is reported (writeBlocked, with the session's folder) and counted"),
               second.report().blocked == 1 && where.size() == 1 && QDir::cleanPath(where[0]) == QDir::cleanPath(s1));
         QDir(SessionFiles::workOnsFile(s1)).removeRecursively();

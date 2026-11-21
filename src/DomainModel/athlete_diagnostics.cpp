@@ -307,6 +307,7 @@ ClubBaselineComputation AthleteDiagnostics::clubBaselineFor(const SessionId &ses
             if (hasSwings) {
                 ++taken;
                 notCurrent << s.place.folder;
+                out.waitingOn << e.id();
             }
             continue;
         }

@@ -132,10 +132,12 @@ Item {
     readonly property bool deliverySessionShown: deliveryOnShow && deliveryAvailable && register !== "Replay" && !!dSession && dSession.available === true
     // the plot's plane lines: only while the section's curves are on show (the figure draws them on that row only)
     readonly property var planeLayers: deliveryOnShow && dLayers ? dLayers : ({})
-    // A condition named on a chart opens in Session diagnostics, when that panel is up (SessionMode.sessionDiagnostics
+    // The model a Session diagnostics panel shows for this session, or null (the panel's _diagShown; refactor 3.7-e).
+    property var diagnosticsSource: null
+    // A condition named on a chart opens in Session diagnostics, when that panel is up (diagnosticsSource
     // is its model; null while the panel is off — then a name is plain text, never a dead link).
-    readonly property bool canOpenCondition: interactive && !!SessionMode.sessionDiagnostics
-    function openCondition(id) { if (canOpenCondition && id) SessionMode.sessionDiagnostics.openDetail(id) }
+    readonly property bool canOpenCondition: interactive && !!diagnosticsSource
+    function openCondition(id) { if (canOpenCondition && id) diagnosticsSource.openDetail(id) }
     readonly property int pickedOrdinal: tShot && tShot.available ? (tShot.ordinal || -1) : (rStatus && rStatus.pickedOrdinal > 0 ? rStatus.pickedOrdinal : -1)
     readonly property bool busy: (!!tracesP && tracesP.busy) || (!!relationsP && relationsP.busy) || (!!wristP && wristP.busy)
                                  || (!!postureP && postureP.busy) || (!!deliveryP && deliveryP.busy)

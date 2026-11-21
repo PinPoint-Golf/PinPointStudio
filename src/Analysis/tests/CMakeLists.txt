@@ -1983,12 +1983,13 @@ pp_add_test(diag_parallel_live_test
 set_tests_properties(diag_parallel_live_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
-# diag_stage_panel_test — THE STAGE PANEL'S CUT-OVER AND ALWAYS FIRE (refactor step 3.7-a): the app's doors
+# diag_stage_panel_test — THE STAGE PANEL'S CUT-OVER AND ALWAYS FIRE (refactor step 3.7-a; the catch-up's, 3.7-e): the app's doors
 # (appDiagnosticsDoors) over a live-shaped session with no panel, then the panel's thin adapter as the panel reaches
 # it (SessionDiagnosticsAdapters). diag_parallel_live_test's link line plus the adapter's half.
 pp_add_test(diag_stage_panel_test
     SOURCES ${DIAG}/tests/diag_stage_panel_test.cpp ${_diag_parallel_live_sources}
             ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
+            ${SRC}/App/athlete_catch_up.h ${SRC}/App/athlete_catch_up.cpp   # FREEZE, CATCHUP: the catch-up service (3.7-e)
             ${SRC}/Export/session_archiver.cpp   # ARCHIVE: the archive job, as main.cpp wires it (review B2)
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
     LINK    Qt6::Qml ${OpenCV_LIBS}

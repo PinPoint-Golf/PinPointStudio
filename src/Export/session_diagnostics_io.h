@@ -29,7 +29,8 @@
 // write, an atomic write, the older golfer keys carried: J-33) are written there.
 //
 // HEADER-ONLY, like SessionFiles and atomicWrite: a caller links only what it calls (a writer needs
-// folder_lock.cpp). Stateless, so safe from any thread.
+// folder_lock.cpp). Safe from any thread: its one piece of state, the process-wide cache of the files this process last
+// wrote (writeDiagnostics' written-envelope cache, refactor 3.7-a round 2), is guarded by a mutex (review R3-M3).
 
 #include "session_files.h"
 

@@ -28,7 +28,7 @@
 //     presenters (ChartsTracesPresenter, ChartsRelationsPresenter, ChartsWristPresenter), each with a private worker thread. The
 //     model is fed exactly as its header says: the session folder (the same binding as the diagnostics
 //     panel), ShotProcessor.shotProcessed → ingestShot, the carousel's re-analysis → regradeShot, and the
-//     diagnostics ledger written (SessionMode.sessionDiagnostics busy → false) → refreshDiagnostics.
+//     diagnostics ledger written (the shown model's busy, else the session's cards adapter's, → false: _diagWrites) → refreshDiagnostics.
 //   • THE _screenActive GATE STAYS (INVENTORY F41, cbb63aae): every screen lives in one StackLayout,
 //     and the session screen (AppScreen.Session, ScreenWrist) carries this panel. An invisible screen's
 //     presenters are fed nothing: the picked swing, its detail, the span and the playhead are copied in only
@@ -98,6 +98,24 @@ Item {
             : shotProcessor.activeSessionDir !== "" ? shotProcessor.activeSessionDir : sessionReviewController.liveSessionDir
     function _pointAtSession() { if (!SessionMode.sameFolder(sessionDir, seriesModel.sessionDir)) seriesModel.activateSession(sessionDir) }
     onSessionDirChanged: _pointAtSession()
+    // THE MODEL A DIAGNOSTICS PANEL SHOWS FOR THIS SESSION (refactor 3.7-e: the SessionMode.sessionDiagnostics seam is gone),
+    // as the carousel's cards find it: diagnosticsAdapters.shownFor — null while no diagnostics panel is up, as the seam
+    // was; asked of app.sessionAt only while one is (it holds nothing new: the panel already holds that Session).
+    readonly property var _diagShown:
+        (typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters && diagnosticsAdapters.shownCount > 0
+         && typeof app !== "undefined" && !!app && sessionDir !== ""
+         && (typeof athleteController === "undefined" || !athleteController || athleteController.currentUuid !== ""))
+            ? diagnosticsAdapters.shownFor(app.sessionAt(sessionDir), sessionDir) : null
+    // THE OWNER'S WRITES, PANEL OR NOT (refactor 3.7-e round 2; review R1-m4, D-04's last part): with no diagnostics panel
+    // up the session's owner still judges every live shot and rewrites diagnostics.json, so the re-read follows the
+    // session's own adapter for the carousel's pips ("cards": no view half, a busy that falls once the owner has written)
+    // when no panel shows one. Nothing new is held: the carousel already holds this Session.
+    readonly property var _diagWrites: _diagShown ? _diagShown
+        : ((typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters && typeof app !== "undefined" && !!app
+            && sessionDir !== "" && (typeof athleteController === "undefined" || !athleteController || athleteController.currentUuid !== ""))
+               ? (function () { const s = app.sessionAt(sessionDir); return s ? diagnosticsAdapters.of(s, "cards", sessionDir) : null })()
+               : null)
+
 
     SessionSeriesModel { id: seriesModel }
 
@@ -220,9 +238,9 @@ Item {
     }
     // the diagnostics ledger was written: the model re-joins its rows (it posts the read itself)
     Connections {
-        target: SessionMode.sessionDiagnostics
+        target: root._diagWrites
         ignoreUnknownSignals: true
-        function onBusyChanged() { if (SessionMode.sessionDiagnostics && !SessionMode.sessionDiagnostics.busy) seriesModel.refreshDiagnostics() }
+        function onBusyChanged() { if (root._diagWrites && !root._diagWrites.busy) seriesModel.refreshDiagnostics() }
     }
 
     // ── persistence: AppSettings chartPrefs per screen type × mode, written on interaction only ──
@@ -345,6 +363,7 @@ Item {
     PpChartsBody {
         id: body
         anchors.fill: parent
+        diagnosticsSource: root._diagShown
         tracesP: tracesPresenter
         relationsP: relationsPresenter
         wristP: wristPresenter

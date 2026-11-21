@@ -128,6 +128,21 @@ std::shared_ptr<IClubBaselineProvider> canonicalClubBaselineProvider(QHash<QStri
 // them changes it. NOT WRITTEN YET: refactor 3.5 records it in the stamp of each shot's findings.
 QString firingStamp(const FiringInputs &inputs);
 
+// THE CONTENT STAMP (refactor step 3.7-e: ONE rule, the old model's contentStampOf moved here so the owner and the screens'
+// model hash alike): the diagnostic graph, the norms and their contexts, and the row shape's versions (schema, words,
+// grading, the phase grid) — "which pack and norms graded the rows" (FIELD-LIST §1.8). What a session summary's freshness
+// fingerprint carries (Coaching/session_results.h summaryFingerprintOf) and the catch-up's scan compares; the screens'
+// SessionDiagnosticsModel::contentStamp(). Empty without both.
+QString contentStamp(const ICharacteristicPackProvider *pack, const INormProvider *norms);
+
+// THE SESSION SUMMARY'S RULE-DATA STAMP (refactor 3.7-e round 2, R-STAMP-1; review R1-B2): firingStamp over `inputs` with
+// the per-session and per-shot parts made neutral — no usuals, no cohort, no club baseline, σ as tuned — so it covers the
+// row shape's and the grid's versions, the pack, the norms and their contexts, the grade policy (SET-15), the disabled sets
+// (SET-06) and the flight norms: what a session's summary was graded under, computable from the rule data alone.
+QString summaryRulesStamp(FiringInputs inputs);
+// A club baseline's stamp (every entry, as firingStamp hashes it); "none" for none.
+QString clubBaselineStamp(const std::optional<QHash<QString, ClubBaselineEntry>> &baseline);
+
 // ── Layers 4–5: the findings ────────────────────────────────────────────────────────────────────────────────
 
 // One shot's readings, as the caller read them off its Recording. Nothing here is read by this module.

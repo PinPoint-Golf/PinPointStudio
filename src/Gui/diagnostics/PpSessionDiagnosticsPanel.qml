@@ -250,8 +250,6 @@ Item {
         _bindView()
         _pointAtSession()
         _refreshReadout()
-        // The seam follows the panel onto its new adapter (it was ours: the last panel up claims it, below).
-        if (SessionMode.sessionDiagnosticsClaimant === root) SessionMode.sessionDiagnostics = diagModel
     }
 
     Component.onCompleted: {
@@ -265,29 +263,18 @@ Item {
         // with shot 8 selected and readable. Reproduced and verified end to end with
         // --probe-qml (load a session, pick shot 8, enter Analyse).
         _refreshReadout()
-        // THE SEAM, CLAIMED UNCONDITIONALLY BY THE MOST RECENT PANEL (Charts, Consistency and the
-        // charts' "open in Session diagnostics" read it until 3.7-e). The carousel's cards no longer
-        // do (refactor 3.7-c): they find the adapter this panel shows through
+        // NO SEAM (refactor 3.7-e: SessionMode.sessionDiagnostics is gone). The carousel's cards, Charts, Consistency and
+        // the charts' "open in Session diagnostics" find the adapter this panel shows through
         // diagnosticsAdapters.shownFor, which _bindView's addView tells them about.
-        SessionMode.sessionDiagnostics = diagModel
-        SessionMode.sessionDiagnosticsClaimant = root
         if (remembersNav) {
             _restoreNav()
             place.watch()
         }
         place.ready = remembersNav
     }
-    // ...and released only if it is still OURS. A panel being torn down while a second one
-    // holds the seam must not null a pointer it no longer owns — which is exactly what
-    // happens when the user switches screens and the outgoing panel is destroyed after the
-    // incoming one has already claimed it. BY PANEL, NOT BY OBJECT (3.7-a): the incoming panel
-    // claims the SAME adapter, so the object alone cannot say whose claim stands.
+    // The view this panel bound is let go with it (the adapter's use of its Session with it: 3.7-e).
     Component.onDestruction: {
         if (_viewOf) _viewOf.dropView()
-        if (SessionMode.sessionDiagnosticsClaimant === root) {
-            SessionMode.sessionDiagnostics = null
-            SessionMode.sessionDiagnosticsClaimant = null
-        }
     }
 
     // ── keeping the reader's place across a rebuild ──────────────────────────
@@ -476,40 +463,72 @@ Item {
     //
     // An existing PpNotice (warning style) across the top of the panel, the body below it in its empty
     // (cold) state: nothing here is judged, and the golfer is told why and what to do.
-    PpNotice {
-        id: noGolferNotice
-        objectName: "sdNoGolferNotice"
-        visible: root.noGolfer
-        anchors { left: parent.left; right: parent.right; top: parent.top }
-        tone: "warn"
-        style: "warning"
-        title: Theme.caps(qsTr("No diagnostics"))
-        text: root.noGolferText
-    }
-
     // ── a session whose diagnostics are still being read (3.7-c review B3) ───
     //
     // Since 3.7-a a reviewed session's panel shows its Session's owner, which reads the session's
     // diagnostics (and re-judges any shot judged under older rules) off the screen thread. Until its
     // first diagnosis lands the adapter holds nothing, and the body alone would say "No shots yet"
     // over a session that has them. SHOW WITH A WARNING, NEVER HIDE: the same existing PpNotice,
-    // in its para style and the accent, says it is being read; the body stays, below, until the diagnosis replaces it.
+    // in its para style and the accent, says it is being read; the empty body is not drawn until the diagnosis lands (3.7-e).
     readonly property bool loadingDiagnostics: !noGolfer && !!diagModel && !!diagModel.loading
-    PpNotice {
-        id: loadingNotice
-        objectName: "sdLoadingNotice"
-        visible: root.loadingDiagnostics
+    // ── the notices across the top: the no-golfer one, the "being read" one, and the club baseline's (3.7-e round 2) ──
+    // One column, so whichever show stack from the top and the body sits below them (the same place as before when one
+    // shows).
+    Column {
+        id: notices
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        tone: "accent"
-        style: "para"
-        text: qsTr("Reading this session's diagnostics. Its swings appear here in a moment.")
+        spacing: Theme.gap(8)
+
+        PpNotice {
+            id: noGolferNotice
+            objectName: "sdNoGolferNotice"
+            visible: root.noGolfer
+            width: parent.width
+            tone: "warn"
+            style: "warning"
+            title: Theme.caps(qsTr("No diagnostics"))
+            text: root.noGolferText
+        }
+
+        // a session whose diagnostics are still being read (3.7-c review B3; the body below is not drawn meanwhile)
+        PpNotice {
+            id: loadingNotice
+            objectName: "sdLoadingNotice"
+            visible: root.loadingDiagnostics
+            width: parent.width
+            tone: "accent"
+            style: "para"
+            text: qsTr("Reading this session's diagnostics. Its swings appear here in a moment.")
+        }
+
+        // ── the club baseline not ready (refactor 3.7-e round 2; J-49) ──────
+        //
+        // The session's usual numbers (its club baseline, frozen from earlier sessions' summaries) cannot be worked out
+        // because some earlier sessions have not been summed up by this version — still in the catch-up's queue, or one that
+        // cannot be (unreadable, its write blocked): the words say what is true in both cases (review R2-m1). Every shot is
+        // judged; what is judged against the golfer's usual waits. SHOW WITH A WARNING, NEVER HIDE: the existing PpNotice, para style, warn tone, words.
+        PpNotice {
+            id: baselineNotice
+            objectName: "sdBaselineNotice"
+            visible: root.baselineWaiting
+            width: parent.width
+            tone: "warn"
+            style: "para"
+            text: qsTr("Your usual numbers for this session aren't ready: some earlier sessions haven't been summed up by this version. Every swing is judged; comparisons with your usual numbers are left out until those sessions are summed up.")
+        }
     }
+    readonly property bool baselineWaiting: !noGolfer && !!diagModel && !!diagModel.baselineWaiting
 
     PpSessionDiagnosticsBody {
         id: body
+        // WHILE THE SESSION IS READ, ITS EMPTY BODY IS NOT DRAWN (refactor 3.7-e; CARRY 3.7-c B3, review R2-m4): before the
+        // owner's first diagnosis the adapter holds nothing, and the cold body would say "No shots yet · No patterns ·
+        // counted over 0 shots" under the notice over a session that has swings. The notice above says what is happening;
+        // the body comes back with the diagnosis (nothing is withheld: there is nothing in it yet).
+        visible: !root.loadingDiagnostics
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom
-                  top: root.noGolfer ? noGolferNotice.bottom : root.loadingDiagnostics ? loadingNotice.bottom : parent.top
-                  topMargin: (root.noGolfer || root.loadingDiagnostics) ? Theme.gap(8) : 0 }
+                  top: notices.bottom
+                  topMargin: (root.noGolfer || root.loadingDiagnostics || root.baselineWaiting) ? Theme.gap(8) : 0 }
         source: diagModel
         // Where a declaration made on this panel is written back, while it is live (above).
         focusController: root.liveSession ? sessionController : null

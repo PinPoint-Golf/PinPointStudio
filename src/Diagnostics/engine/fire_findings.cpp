@@ -452,6 +452,40 @@ QString firingStamp(const FiringInputs &inputs)
     return QString::fromLatin1(h.result().toHex().left(16));
 }
 
+QString contentStamp(const ICharacteristicPackProvider *pack, const INormProvider *norms)
+{
+    if (!pack || !norms) return QString();
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    h.addData(QJsonDocument(savePack(pack->pack())).toJson(QJsonDocument::Compact));
+    h.addData(QJsonDocument(saveNormPack(norms->norms())).toJson(QJsonDocument::Compact));
+    h.addData(QJsonDocument(saveContextTree(norms->contexts())).toJson(QJsonDocument::Compact));
+    // The row shape too: a row written before a field existed regrades to fill it.
+    h.addData(QByteArray::number(kDiagSchemaVersion));
+    h.addData(QByteArrayLiteral("words") + QByteArray::number(kRowWordsVersion));
+    h.addData(QByteArrayLiteral("grading") + QByteArray::number(kRowGradingVersion));
+    // The numbers the rows were graded on: a phase-grid schema bump means the reductions changed (v9: the extremes at a
+    // masked end, issue #1), and a row graded on the old ones regrades.
+    h.addData(QByteArrayLiteral("grid") + QByteArray::number(kPhaseGridSchemaVersion));
+    return QString::fromLatin1(h.result().toHex().left(16));
+}
+
+QString summaryRulesStamp(FiringInputs inputs)
+{
+    inputs.usuals.clear();
+    inputs.cohort = Cohort{};
+    inputs.clubBaseline.reset();
+    inputs.withSigma = tuned::diagUncertainty::kEnabled;
+    return firingStamp(inputs);
+}
+
+QString clubBaselineStamp(const std::optional<QHash<QString, ClubBaselineEntry>> &baseline)
+{
+    if (!baseline) return QStringLiteral("none");
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    addClubBaseline(h, baseline);
+    return QString::fromLatin1(h.result().toHex().left(16));
+}
+
 QString notLiveWords(const QString &status)
 {
     return status == QLatin1String("held") ? QStringLiteral("held back until it is trusted to grade")

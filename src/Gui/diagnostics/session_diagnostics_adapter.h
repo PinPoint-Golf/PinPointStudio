@@ -70,6 +70,25 @@
 
 #include <functional>
 
+namespace pinpoint {
+class RecordingRepository;
+class RuleData;
+class SessionRepository;
+class WorkPool;
+class WorkReceiver;
+struct DiagnosticsDoors;
+
+// THE APP'S DIAGNOSTICS DOORS (refactor step 3.7-a; DEC-02, 04 step 3 item 4: always fire; here since 3.7-e, review M9):
+// what main.cpp hands every Athlete, put together in one place so diag_stage_panel_test and post_shot_bench wire the owner
+// exactly as the app does. The owner WRITES: diagnostics.json (`persist`), the shots' phase-grid and summary sidecars as
+// the old model's detectShot did (the reader's default policy: parse a miss, write it), and — since the catch-up's
+// cut-over (3.7-e) — the session summary, work_ons.json (`writeSummary`): every file of a session's diagnostics has this
+// one writer. On `pool` with `receiver`, never synchronous. `attach` is SessionDiagnostics::attach (main.cpp wraps it to
+// show each owner's failed writes). Every pointer and reference is borrowed and must outlive every Athlete given the doors.
+DiagnosticsDoors appDiagnosticsDoors(WorkPool *pool, WorkReceiver *receiver, RuleData *ruleData,
+                                     const SessionRepository &sessions, RecordingRepository &recordings);
+} // namespace pinpoint
+
 class SessionDiagnosticsAdapters : public QObject
 {
     Q_OBJECT

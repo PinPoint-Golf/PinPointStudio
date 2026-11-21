@@ -91,7 +91,7 @@ WorkPool::~WorkPool()
     m_threads.clear();
 }
 
-bool WorkPool::submit(LaneToken lane, Job job, WorkPriority priority)
+bool WorkPool::submit(LaneToken lane, Job job, WorkPriority priority, quint64 tag)
 {
     if (!job || lane == 0) return false;
     {
@@ -99,14 +99,14 @@ bool WorkPool::submit(LaneToken lane, Job job, WorkPriority priority)
         if (m_stop) return false;
         Lane &l      = m_lanes[lane];
         l.cancelled  = false;
-        l.waiting.push_back(Entry { std::move(job), priority, ++m_seq });
+        l.waiting.push_back(Entry { std::move(job), priority, ++m_seq, tag });
         ++m_queued;
     }
     m_work.notify_one();
     return true;
 }
 
-int WorkPool::cancelLane(LaneToken lane)
+int WorkPool::cancelLane(LaneToken lane, std::vector<quint64> *droppedTags)
 {
     std::deque<Entry> dropped;   // destroyed after the lock is let go
     {
@@ -115,6 +115,8 @@ int WorkPool::cancelLane(LaneToken lane)
         if (it == m_lanes.end()) return 0;
         dropped.swap(it->second.waiting);
         m_queued -= int(dropped.size());
+        if (droppedTags)
+            for (const Entry &e : dropped) droppedTags->push_back(e.tag);
         if (it->second.running) {
             it->second.cancelled  = true;
             it->second.foreground = false;
@@ -353,6 +355,7 @@ bool postToOwner(WorkPool &pool, WorkReceiver &receiver, LaneToken lane, WorkAdd
 {
     if (!work) return false;
     WorkReceiver *rx = &receiver;
+    const quint64 tag = address.ask;   // read before the address is moved into the job
     return pool.submit(
         lane,
         [rx, address = std::move(address), work = std::move(work)]() mutable {
@@ -371,7 +374,7 @@ bool postToOwner(WorkPool &pool, WorkReceiver &receiver, LaneToken lane, WorkAdd
             work = nullptr;   // the values are released on the worker, not on the receiver's thread
             rx->post(std::move(r));
         },
-        priority);
+        priority, tag);
 }
 
 } // namespace pinpoint

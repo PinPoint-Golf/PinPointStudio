@@ -104,6 +104,8 @@
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "../App/housekeeping.h"             // the one application service that ends things for good (DEC-80)
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
+#include "../App/athlete_catch_up.h"         // the catch-up, an application service (refactor 3.7-e)
+#include "../DomainModel/summary_rules.h"    // summaryCohortFacts (3.7-e round 2)
 #include "../Core/work_pool.h"                // the one pool and its receiver (D15), for the parallel run (3.5-ii)
 #include "../DomainModel/session.h"
 #include "../DomainModel/session_diagnostics.h"   // diagnosticsWorkTarget (3.5-ii)
@@ -359,17 +361,20 @@ int main(int argc, char *argv[])
     // an Athlete loads — the live one at its Start, one a view opens — gets its one diagnostics owner, SessionDiagnostics,
     // which judges each shot as its document lands, whether or not a diagnostics panel is up, on the one pool (D15; J-3's
     // size) with the GUI thread's receiver, and writes diagnostics.json (the stage panel's model, its writer until 3.7-a, is
-    // gone: the panels show this owner through their thin adapters). work_ons.json keeps WorkOnsController as its one
-    // writer until the catch-up's cut-over (3.7-e). Declared BEFORE the athlete store, so the receiver and the pool outlive
-    // every Athlete (DiagnosticsDoors).
+    // gone: the panels show this owner through their thin adapters), and — since the catch-up's cut-over (3.7-e) — the
+    // session's summary, work_ons.json (WorkOnsController's private model and its write are gone: one writer of each).
+    // Declared BEFORE the athlete store, so the receiver and the pool outlive every Athlete (DiagnosticsDoors).
     // THE PARALLEL RUN (refactor step 3.5-ii; BRIEF §4.9; D14: DEC-179, off by default): PINPOINT_DIAG_PARALLEL=1 now only
-    // installs the comparison hook — the old models still made by the catch-up (and the report) are compared with this
-    // owner after each of their reductions, one line per session in the app log ("[DiagParallel]").
+    // installs the comparison hook. Since 3.7-e no old model is left in the app to compare (the catch-up's and the
+    // report's are gone; J-a3's engine model has no owner beside it), so the hook writes nothing; regrade_ledger
+    // --engine=old|new keeps run P's comparison until 3.10.
     const bool diagParallel = pinpoint::parallel::enabledByEnvironment();
     std::function<pinpoint::WorkTarget(const pinpoint::WorkAddress &)> diagLookup;   // set once the store exists
     // What the composition root does with each owner once made (its failed writes shown: DEC-126); set once the
     // notification centre exists, before any session is loaded.
     std::function<void(pinpoint::Session *, pinpoint::SessionDiagnostics *)> diagAttached;
+    // The catch-up's ask for a live session's club baseline at Start (J-49): set once the catch-up exists (below).
+    std::function<void(pinpoint::Session *)> liveBaselineAsk;
     // made before the pool, destroyed after it
     auto diagReceiver = std::make_unique<pinpoint::WorkReceiver>([&diagLookup](const pinpoint::WorkAddress &a) {
         return diagLookup ? diagLookup(a) : pinpoint::WorkTarget{};
@@ -442,13 +447,14 @@ int main(int argc, char *argv[])
     // panel and the cast no longer make a model of their own). Outlives the QML engine (declared before it).
     SessionDiagnosticsAdapters diagnosticsAdapters;
     diagnosticsAdapters.setAthleteFolder([&athleteController] { return athleteController.currentFolder(); });
-    // THE QUIT SAVE (§4.4 step 8; CARRY 3.5-i §6): what the current athlete's loaded sessions' owners kept is written on
-    // aboutToQuit, before any of the app is torn down (the live session's last shots, inside their debounce). Every other
-    // loaded session (another athlete's) is written as before, as its Athlete is destroyed with the athlete store.
-    QObject::connect(&app, &QGuiApplication::aboutToQuit, &athleteController, [&athleteController] {
-        if (pinpoint::Athlete *a = athleteController.currentAthlete())
+    // THE QUIT SAVE (§4.4 step 8; CARRY 3.5-i §6; refactor 3.7-e: EVERY athlete's loaded sessions, not only the current
+    // one's): what each loaded session's owner kept is written on aboutToQuit, before any of the app is torn down (the
+    // live session's last shots inside their debounce, and its summary, which waits for End while it is live:
+    // flush(final)). ~SessionDiagnostics still writes anything left, as the athlete store goes.
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, &athleteController, [&athleteStore] {
+        for (pinpoint::Athlete *a : athleteStore.heldAthletes())
             for (pinpoint::Session *s : a->loadedSessions())
-                if (pinpoint::SessionDiagnostics *d = s->diagnostics()) d->flush();
+                if (pinpoint::SessionDiagnostics *d = s->diagnostics()) d->flush(/*final=*/true);
     });
     if (diagParallel) {
         pinpoint::parallel::install(
@@ -480,7 +486,7 @@ int main(int argc, char *argv[])
     // diagnostics panel is up — the owner now judges and writes with none (always fire) — one notice per session, taken back
     // by its next write that lands. A file it can only read (unopenable, or a newer build's) is said once, at its load. Set
     // before any session can be loaded (the doors above call it from every attach).
-    diagAttached = [&notificationCenter](pinpoint::Session *s, pinpoint::SessionDiagnostics *owner) {
+    diagAttached = [&notificationCenter, &liveBaselineAsk](pinpoint::Session *s, pinpoint::SessionDiagnostics *owner) {
         using N = NotificationCenter;
         const QString id = QStringLiteral("diagnostics.writes-blocked:") + s->id().toString();
         QString name = QObject::tr("a session");
@@ -502,6 +508,12 @@ int main(int argc, char *argv[])
         if (owner->readOnly())
             post(QObject::tr("Its diagnostics file could not be opened, or was saved by a newer version of PinPoint Studio, "
                              "so it is read and not written."));
+        // A SESSION STARTED HERE WITH NO CLUB BASELINE YET (J-49): a turn later (the Session is marked as recorded here
+        // once its start returns), its predecessors are summed up first.
+        QTimer::singleShot(0, owner, [owner, session = QPointer<pinpoint::Session>(s), &liveBaselineAsk] {
+            if (session && session->runningHere() && session->inProgress() && owner->clubBaselineWaiting() && liveBaselineAsk)
+                liveBaselineAsk(session);
+        });
     };
     SessionController       sessionController(&athleteController);
     // No athlete switch while a session runs: the controller refuses it (E-01, Stage 0.8g).
@@ -577,6 +589,12 @@ int main(int argc, char *argv[])
     // whether a session is live; it finds stale session records itself, so "end of session" is
     // nothing more than the pause lifting. The first pass is deferred so it never competes with
     // the launch.
+    // THE CATCH-UP (refactor step 3.7-e, its cut-over; BRIEF §4.6; DEC-60, DEC-167, DEC-190): the application service that
+    // takes each stale ended session of the current athlete in hand — its Session's SessionDiagnostics re-judges what is
+    // stale, freezes its club baseline at first need, reduces and writes diagnostics.json and work_ons.json — and lets it
+    // go (releasing what it loaded). WorkOnsController finds the stale sessions and asks it (its CatchUpDoor, below); its
+    // write blocks go through WorkOnsController's notice route (DEC-126). Declared before workOns, so it outlives it.
+    pinpoint::AthleteCatchUp catchUp(athleteCallables);
     WorkOnsController workOns;
     {
         const auto athleteDir = [&appSettings, &athleteController]() -> QString {
@@ -601,6 +619,58 @@ int main(int argc, char *argv[])
                          [&workOns, &sessionController] { workOns.setPaused(sessionController.activeSessionType() >= 0); },
                          Qt::QueuedConnection);
         QTimer::singleShot(3'000, &workOns, repoint);
+        // The catch-up's door: the folders WorkOnsController's scan found stale, for the athlete whose folder it reads
+        // (the current one; PINPOINT_WORKONS_DIR's dev folder is no athlete's, so nothing is derived there: 3.7-e J-e7).
+        // FOLDERS ARE TRANSLATED TO IDS HERE, AT THE EDGE (DEC-90; review R1-m5): the service takes the current athlete's
+        // SessionIds and answers by id; a folder its index does not hold (J-a3: another athlete id in its file) is answered
+        // at once, and WorkOnsController keeps whatever that folder's file holds.
+        const auto folderToId = [&athleteController](const QString &folder) {
+            pinpoint::Athlete *a = athleteController.currentAthlete();
+            if (a)
+                for (const pinpoint::SessionIndexEntry &e : a->index())
+                    if (QDir::cleanPath(e.folder) == QDir::cleanPath(folder)) return e.id();
+            return pinpoint::SessionId();
+        };
+        workOns.setCatchUp({
+            [&catchUp, &athleteController, &workOns, folderToId](const QString &athleteDir,
+                                                                const QList<WorkOnsController::CatchUpAsk> &asks) {
+                pinpoint::Athlete *a = athleteController.currentAthlete();
+                const bool mine = a && QDir::cleanPath(a->folder()) == QDir::cleanPath(athleteDir);
+                QList<pinpoint::SessionId> ids;
+                QSet<pinpoint::SessionId> baselineOnly;
+                QStringList notHeld;
+                for (const WorkOnsController::CatchUpAsk &k : asks) {
+                    const pinpoint::SessionId id = mine ? folderToId(k.sessionDir) : pinpoint::SessionId();
+                    if (id.isNull()) { notHeld << k.sessionDir; continue; }
+                    ids << id;
+                    if (k.baselineOnly) baselineOnly.insert(id);
+                }
+                for (const QString &f : std::as_const(notHeld)) workOns.sessionCaughtUp(f);
+                if (ids.isEmpty()) { workOns.catchUpDone(); return; }
+                catchUp.runSessions(a->id(), ids, baselineOnly);
+            },
+            [&catchUp](bool on) { catchUp.setPaused(on); },
+            [&catchUp] { catchUp.cancel(); },
+            [&athleteController] {   // the cohort facts the summaries' fingerprint carries (R-STAMP-1; 3.7-e round 2)
+                const pinpoint::Athlete *a = athleteController.currentAthlete();
+                return a ? pinpoint::summaryCohortFacts(a->record().dob, a->record().sex)
+                         : pinpoint::summaryCohortFacts(QString(), QString());
+            },
+        });
+        QObject::connect(&catchUp, &pinpoint::AthleteCatchUp::sessionCaughtUp, &workOns,
+                         [&workOns, &athleteController](const pinpoint::SessionId &id, const QString &) {
+                             if (pinpoint::Athlete *a = athleteController.currentAthlete())
+                                 for (const pinpoint::SessionIndexEntry &e : a->index())
+                                     if (e.id() == id) { workOns.sessionCaughtUp(e.folder); break; }
+                         });
+        QObject::connect(&catchUp, &pinpoint::AthleteCatchUp::finished, &workOns, [&workOns] { workOns.catchUpDone(); });
+        // THE LIVE SESSION'S CLUB BASELINE AT START (J-49; review R1-B1): a session just started here whose owner could
+        // not freeze its baseline (earlier sessions not summed up by this build) has those summed up first, before the
+        // live pause takes hold.
+        liveBaselineAsk = [&catchUp](pinpoint::Session *s) {
+            if (pinpoint::Athlete *a = s ? s->athlete() : nullptr) catchUp.catchUpForBaseline(a->id(), s->id());
+        };
+        QObject::connect(&catchUp, &pinpoint::AthleteCatchUp::writeBlocked, &workOns, &WorkOnsController::storageProblem);
     }
 
     // THE SESSION REPORT (docs/design/session_report_design.md) — the studio and its one coach, the
@@ -616,8 +686,33 @@ int main(int argc, char *argv[])
     // THE SESSION'S OWN DIAGNOSIS (refactor step 3.7-d): the report reads each session's owner through that Session's thin
     // adapter for the "report" surface, reached as the stage panel reaches its own (app.sessionAt, then
     // diagnosticsAdapters.of) — it makes no model of its own. Both outlive the report (declared before it).
-    sessionReport.setDiagnosisDoor([&appObject, &diagnosticsAdapters](const QString &dir) {
-        return diagnosticsAdapters.of(appObject.sessionAt(dir), QStringLiteral("report"), dir);
+    // A SESSION THE MAKE LOADED IS RELEASED AFTER IT (refactor 3.7-e; CARRY 3.7-d M6, Q-18): a bulk make over N sessions
+    // must not leave N Sessions and owners loaded. When the folder's Session was not loaded before the make, it is
+    // released once the report's adapter is gone (its use dropped) — refused, as ever, while anything else holds it.
+    sessionReport.setDiagnosisDoor([&appObject, &diagnosticsAdapters, &athleteController, &catchUp](const QString &dir) {
+        pinpoint::Athlete *a = athleteController.currentAthlete();
+        pinpoint::SessionId id;
+        if (a)
+            for (const pinpoint::SessionIndexEntry &e : a->index())
+                if (QDir::cleanPath(e.folder) == QDir::cleanPath(dir)) { id = e.id(); break; }
+        const bool wasLoaded = !a || id.isNull() || a->loadedSession(id);
+        const pinpoint::AthleteId athleteId = a ? a->id() : pinpoint::AthleteId();
+        SessionDiagnosticsModel *m = diagnosticsAdapters.of(appObject.sessionAt(dir), QStringLiteral("report"), dir);
+        if (!wasLoaded && m && m->isAdapter()) {
+            QPointer<pinpoint::Athlete> athlete(a);
+            QObject::connect(m, &QObject::destroyed, a, [athlete, athleteId, id, &catchUp] {
+                if (!athlete) return;
+                QTimer::singleShot(0, athlete.data(), [athlete, athleteId, id, &catchUp] {
+                    QString why;
+                    if (athlete && athlete->loadedSession(id) && !athlete->releaseSession(id, &why)) {
+                        // Held by another for now (the catch-up, housekeeping): released once free (review R1-m7).
+                        ppInfo() << "[Report] the session a make loaded is held (" << why << "): released once free";
+                        catchUp.releaseWhenFree(athleteId, id);
+                    }
+                });
+            });
+        }
+        return m;
     });
     sessionReportList.setReportModel(&sessionReport);
     // Archive and restore re-stamp a report that was current, so it still reads current (S-D6).

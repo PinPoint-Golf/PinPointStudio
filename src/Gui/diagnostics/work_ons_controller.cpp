@@ -20,7 +20,6 @@
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../../Coaching/tendency_flow_map.h"
 
-#include "session_diagnostics_model.h"
 #include "session_spread.h"
 
 #include "../variability/variability_ledger.h"     // ledgerConsistencyReading/Grade: the rule Home and the report share
@@ -36,6 +35,10 @@
 #include "../../Diagnostics/packs/characteristic_pack.h"
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/engine/pack_io.h"
+#include "../../Diagnostics/engine/fire_findings.h"   // contentStamp: the one rule (refactor 3.7-e)
+#include "../../Coaching/session_results.h"        // the summary's strict read (3.7-e)
+#include "../../DomainModel/summary_rules.h"       // the rule data as the firing reads it; summaryFingerprintOf (3.7-e round 2)
+#include <QMutex>
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/swing_themes_pack.h"
 #include "../../Diagnostics/norms/context_tree.h"
@@ -334,29 +337,43 @@ QString WorkOnsController::tendenciesPath(const QString &athleteDir)
     return pinpoint::AthleteFiles::tendenciesFile(QDir(athleteDir).path());
 }
 
-SessionDiagnosticsModel *WorkOnsController::model()
+// THE CONTENT STAMP THE RECORDS ARE GRADED AGAINST (refactor 3.7-e): the process's RuleData snapshot, hashed by the Rules
+// ring's one rule (fire_findings.h contentStamp) — exactly what each session's owner puts in its summary's fingerprint, so
+// the scan's freshness check and the writer agree. (Until 3.7-e the private model's own stamp.)
+// THE CONTENT STAMP and THE RULE DATA'S SUMMARY STAMP, ONCE PER RuleData SNAPSHOT (review R1-m3 of 3.7-e: each hashes the
+// whole pack and norms, ~10 ms; the refresh and every scope or filter change asked again). Both by the owner's rules
+// (fire_findings.h contentStamp; summary_rules.h + summaryRulesStamp). GUI thread (a mutex anyway: the stand-ins call it).
+QString WorkOnsController::contentStampNow()
 {
-    if (!m_model) {
-        m_model = new SessionDiagnosticsModel(this);
-        m_model->setSynchronous(m_synchronous);
-        // Reaching a session is the moment its baseline is frozen (Contract A): a predecessor that
-        // cannot be read adds no shots, and the session still gets its one snapshot.
-        m_model->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
-        // REVIEWING, because that is what this model does: it reads recorded sessions, never the
-        // live one (deriving pauses while a session runs). It is also the one switch that keeps
-        // the panel-only work off the catch-up: a reviewed session's driver footer is final, so
-        // rebuild() never runs the live debounce — a walk back through the session's prefixes,
-        // a full ledger reduction per step, and the walk behind the startup freeze before it was
-        // capped — for a footer nobody draws.
-        // Reviewing touches only the displayed surfaces: the rows, the ledgers, the persisted
-        // stage and sessionWorkOns() read the same with it on or off.
-        m_model->setReviewing(true);
-        // QUEUED: the model emits busyChanged before it appends the row that made it idle, and
-        // a record read in between would be one shot short.
-        connect(m_model, &SessionDiagnosticsModel::busyChanged,
-                this, &WorkOnsController::onModelSettled, Qt::QueuedConnection);
+    static QMutex lock;
+    static std::shared_ptr<const pinpoint::RuleDataSnapshot> of;
+    static QString stamp;
+    const std::shared_ptr<const pinpoint::RuleDataSnapshot> rules = pinpoint::RuleData::current();
+    const QMutexLocker guard(&lock);
+    if (rules != of) {
+        of    = rules;
+        stamp = rules ? pinpoint::analysis::contentStamp(rules->pack.get(), rules->norms.get()) : QString();
     }
-    return m_model;
+    return stamp;
+}
+
+QString WorkOnsController::rulesStampNow()
+{
+    static QMutex lock;
+    static std::shared_ptr<const pinpoint::RuleDataSnapshot> of;
+    static QString stamp;
+    const std::shared_ptr<const pinpoint::RuleDataSnapshot> rules = pinpoint::RuleData::current();
+    const QMutexLocker guard(&lock);
+    if (rules != of) {
+        of    = rules;
+        stamp = rules ? pinpoint::analysis::summaryRulesStamp(pinpoint::firingInputsOf(*rules)) : QString();
+    }
+    return stamp;
+}
+
+void WorkOnsController::setCatchUp(CatchUpDoor door)
+{
+    m_catchUp = std::move(door);
 }
 
 void WorkOnsController::setAthleteDir(const QString &dir)
@@ -369,6 +386,11 @@ void WorkOnsController::setAthleteDir(const QString &dir)
     m_records.clear();
     m_queue.clear();
     m_sessionsFound = 0;
+    // D-15: the previous golfer's catch-up is let go (the session in hand released unfinished, the queue dropped).
+    if (m_deriving) {
+        m_deriving = false;
+        if (m_catchUp.cancel) m_catchUp.cancel();
+    }
     cancelThemes();
     cancelTendencies();
     // The marks are this golfer's ledgers' alone.
@@ -416,17 +438,10 @@ void WorkOnsController::setPaused(bool on)
     if (on) cancelTendencies();
     // Nor does reading every ledger for the consistency marks; the pause lifting grades them again.
     if (on) cancelMarks();
-    // NOR A DERIVATION IN FLIGHT (audit D-15; refactor step 3.6): a regrade of an old session (whole-document parses on
-    // the model's worker) must not keep running beside capture. The model lets go of the session (its own generation
-    // drops what its workers still deliver), and the session goes back to the front of the queue for the pause lifting.
-    if (on && m_deriving) {
-        const QString again = m_derivingDir;
-        m_deriving = false;
-        m_derivingDir.clear();
-        if (m_model) m_model->activateSession(QString());
-        if (!again.isEmpty() && !m_queue.contains(again)) m_queue.prepend(again);
-        emit updatingChanged();
-    }
+    // NOR THE CATCH-UP IN FLIGHT (audit D-15; refactor 3.7-e): the catch-up service lets go of the session in hand at once
+    // (released: what it kept is written, its waiting jobs cancelled) and keeps it at the front of its queue for the pause
+    // lifting — which rescans anyway (below), so the queue is asked again then.
+    if (m_catchUp.pause) m_catchUp.pause(on);
     // Unpausing is a session ending: the one moment a session is certain to have gone stale.
     if (!on) refresh();
 }
@@ -444,14 +459,17 @@ void WorkOnsController::refresh()
 
     const int generation = ++m_generation;
     const QString dir = m_athleteDir;
-    const QString stamp = model()->contentStamp();
+    // What a summary is produced under, as the owner computes it (R-STAMP-1; refactor 3.7-e round 2): the rule data, taken
+    // on this thread once per RuleData snapshot, and the athlete record's cohort facts (the catch-up's door).
+    const QString rules  = rulesStampNow();
+    const QString cohort = m_catchUp.cohortFacts ? m_catchUp.cohortFacts() : pinpoint::summaryCohortFacts(QString(), QString());
 
     if (m_synchronous) {
-        applyScan(generation, scan(dir, stamp));
+        applyScan(generation, scan(dir, rules, cohort));
         return;
     }
-    m_pool.start([this, generation, dir, stamp]() {
-        std::vector<Scanned> rows = scan(dir, stamp);
+    m_pool.start([this, generation, dir, rules, cohort]() {
+        std::vector<Scanned> rows = scan(dir, rules, cohort);
         QMetaObject::invokeMethod(this, [this, generation, rows = std::move(rows)]() mutable {
             applyScan(generation, std::move(rows));
         }, Qt::QueuedConnection);
@@ -460,13 +478,46 @@ void WorkOnsController::refresh()
 
 // Worker thread. Touches no member.
 //
-// THE FINGERPRINT is everything a record depends on: the selection rule, the content the rows
-// are graded against, and every swing document's identity. Not diagnostics.json's own stamp —
-// the panel rewrites that file for reasons that change no verdict (a focus declared, a screen
-// answered), and the model reconciles the ledger against these same documents anyway. (The
-// consistency marks, which read the ledger itself, fingerprint it in their own job: runMarks.)
-std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &athleteDir,
-                                                                const QString &contentStamp)
+// THE FINGERPRINT is everything a record depends on (FIELD-LIST §1.8, R-STAMP-1; ONE RULE since refactor 3.7-e,
+// session_reduction.h summaryFingerprintOf, which each session's owner writes into its summary): every rule version the
+// summary is produced under, the rule data (pack, norms, grade policy, disabled sets, flight norms), the session's frozen
+// club baseline, the athlete's cohort facts, and every swing document's identity (summaryFingerprintFor). Not diagnostics.json's own stamp — the
+// owner rewrites that file for reasons that change no verdict (a focus declared, a screen answered). (The consistency
+// marks, which read the ledger itself, fingerprint it in their own job: runMarks.)
+// FRESH = this build's summary (read strictly: today's schema and rule), with DEC-192's per-shot facts made under the
+// current facts' rules (`factsRules`: CARRY 3.6 review 2 — so a version bump alone stales it), whose fingerprint is the
+// one the folder gives now.
+QString WorkOnsController::summaryFingerprintFor(const QString &sessionDir, const QString &rulesStamp, const QString &cohort)
+{
+    // The session's swings as its Session holds them: NUMBERED swing folders only (SwingPaths::swingNumberOf; review R1-m2
+    // (a): a stray "swing_tmp" is no shot, so it must not stale the summary for ever).
+    std::vector<SummarySwing> stamps;
+    for (const QString &name : pinpoint::SwingPaths::swingFolders(sessionDir)) {
+        if (pinpoint::SwingPaths::swingNumberOf(name) <= 0) continue;
+        const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(sessionDir + QLatin1Char('/') + name);
+        stamps.push_back(SummarySwing{ name, doc.exists(), doc.size, doc.mtimeMs });
+    }
+    // The frozen club baseline as the owner holds it: a current file's clubs; none for no file, an older rule's or an
+    // unreadable one.
+    std::optional<QHash<QString, ClubBaselineEntry>> baseline;
+    const pinpoint::JsonFileRead b = SessionDiagnosticsFiles::readClubBaseline(sessionDir);
+    if (b.exists && b.ok) {
+        const int schema = b.root.value(QStringLiteral("schema")).toInt(0);
+        if (!(schema > 0 && schema < kClubBaselineSchemaVersion)) {
+            bool ok = false;
+            const ClubBaselineSnapshot snap = clubBaselineFromJson(b.root, &ok);
+            if (ok) baseline = snap.clubs;
+        }
+    }
+    SummaryRules rules;
+    rules.rules    = rulesStamp;
+    rules.baseline = clubBaselineStamp(baseline);
+    rules.cohort   = cohort;
+    return summaryFingerprintOf(rules, std::move(stamps));
+}
+
+std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &athleteDir, const QString &rulesStamp,
+                                                                const QString &cohort)
 {
     std::vector<Scanned> out;
     // Each session's day and place in it, SessionIdentity's (start times; a legacy folder by its name, read
@@ -475,28 +526,16 @@ std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &a
     const QFileInfoList sessions = QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QFileInfo &fi : sessions) {
         const QString sessionDir = fi.absoluteFilePath();
-        const QDir d(sessionDir);
         // SwingPaths' one listing, by name (so by swing number): the fingerprint hashes them in this order.
         QStringList swings = pinpoint::SwingPaths::swingFolders(sessionDir);
         std::sort(swings.begin(), swings.end());
         if (swings.isEmpty()) continue;     // nothing was hit; there is nothing to say
 
         Scanned s;
-        QCryptographicHash h(QCryptographicHash::Sha1);
-        h.addData(QByteArray::number(kWorkOnRuleVersion));
-        h.addData(contentStamp.toUtf8());
-        for (const QString &name : swings) {
-            const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(d.filePath(name));
-            h.addData(name.toUtf8());
-            h.addData(QByteArray::number(doc.size));
-            h.addData(QByteArray::number(doc.mtimeMs));
-        }
-
         s.sessionDir  = sessionDir;
-        s.fingerprint = QString::fromLatin1(h.result().toHex().left(16));
+        s.fingerprint = summaryFingerprintFor(sessionDir, rulesStamp, cohort);
         s.mtimeMs     = fi.lastModified().toMSecsSinceEpoch();
-        // NOT in the fingerprint: a baseline that appears mid-catch-up must not stale every record
-        // again. Its absence simply queues the session (applyScan), and that is the only thing it does.
+        // The baseline's absence queues the session (applyScan) for its freeze; its value is in the fingerprint (R-STAMP-1).
         s.hasBaseline = SessionDiagnosticsFiles::clubBaselineExists(sessionDir)
                      && !clubBaselineIsOutdated(SessionFiles::clubBaselineFile(sessionDir));
         const SessionPlace place = SessionDiagnosticsFiles::placeOf(index, sessionDir);
@@ -505,11 +544,10 @@ std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &a
 
         const pinpoint::JsonFileRead f = SessionDiagnosticsFiles::readWorkOns(sessionDir);
         if (f.exists) {
-            const QJsonObject &root = f.root;
             bool ok = false;
-            s.record = sessionWorkOnsFromJson(root, &ok);
-            s.fresh = ok && root.value(QStringLiteral("derivedFrom")).toObject()
-                                .value(QStringLiteral("fingerprint")).toString() == s.fingerprint;
+            const SessionResults r = sessionResultsFromJson(f.root, SessionResultsRead::Strict, &ok);
+            s.record = r.workOns;
+            s.fresh  = ok && r.hasFacts && r.derivedFrom.fingerprint == s.fingerprint;
         }
         out.push_back(std::move(s));
     }
@@ -547,104 +585,78 @@ void WorkOnsController::applyScan(int generation, std::vector<Scanned> rows)
         std::sort(rows.begin(), rows.end(),
                   [](const Scanned &a, const Scanned &b) { return a.mtimeMs > b.mtimeMs; });
     QStringList queue;
+    QList<CatchUpAsk> asks;
     for (Scanned &s : rows) {
         m_fingerprints.insert(s.sessionDir, s.fingerprint);
         m_dirMtime.insert(s.sessionDir, s.mtimeMs);
         const bool needsDerive = !s.fresh || !s.hasBaseline;
         if (s.fresh) m_records.insert(s.sessionDir, std::move(s.record));
-        if (needsDerive) queue << s.sessionDir;
+        if (needsDerive) {
+            queue << s.sessionDir;
+            asks << CatchUpAsk{ s.sessionDir, /*baselineOnly=*/s.fresh };
+        }
     }
-    // A derivation in flight keeps its place; it will land in the new record set.
-    if (m_deriving) queue.removeAll(m_derivingDir);
+    // A catch-up in flight is asked again with the new set (the service drops an ask it already holds).
     m_queue = queue;
 
     publish();
     emit updatingChanged();
-    deriveNext();
+    if (m_queue.isEmpty() || m_paused) {
+        if (m_queue.isEmpty()) catchUpDone();
+        return;
+    }
+    if (!m_catchUp.run) {
+        // No catch-up service (a test or tool that gave none): nothing derives a stale session here, so its record stays
+        // out of the list, as one that never had one.
+        ppInfo() << "[WorkOns] no catch-up service: " << m_queue.size() << "stale session(s) left as they are";
+        m_queue.clear();
+        catchUpDone();
+        return;
+    }
+    m_deriving = true;
+    emit updatingChanged();
+    m_catchUp.run(m_athleteDir, asks);   // each session's sessionCaughtUp, then catchUpDone (inline when synchronous)
 }
 
-// ── Derive ──────────────────────────────────────────────────────────────────────────────
+// ── The catch-up's answers (refactor 3.7-e) ───────────────────────────────────────────────────────────────────
 
-void WorkOnsController::deriveNext()
+// A SESSION THE CATCH-UP HAS LET GO: its summary was written by its owner (or it could not be taken: another golfer's id in
+// its file, J-a3; no Session for its folder). Its work_ons.json is read again, by today's strict reader, and whatever it
+// holds is this list's record of it — the owner's new one, or the record the file already held (shown, never hidden: a
+// session no Session holds here is summed up by the machine that recorded it).
+void WorkOnsController::sessionCaughtUp(const QString &sessionDir)
 {
-    while (!m_deriving && !m_paused && !m_queue.isEmpty()) {
-        m_derivingDir = m_queue.takeFirst();
-        m_deriving = true;
-
-        SessionDiagnosticsModel *m = model();
-        m->setGradePolicy(m_gradePolicy);
-        m->activateSession(m_derivingDir);       // back-fills and regrades; may go busy
-        if (m->busy()) return;                   // onModelSettled() picks it up
-        finishDerive();
-        if (!m_synchronous) {
-            // One session per turn of the event loop: a ledger that needed no detection still
-            // costs a parse and a reduction on this thread, and a library of them in one go
-            // would be a visible stall on the home screen.
-            QTimer::singleShot(0, this, &WorkOnsController::deriveNext);
-            return;
+    if (!m_queue.removeAll(sessionDir) && !m_deriving)
+        return;   // not one this scan asked for (a cancelled athlete's)
+    const bool ours = !m_athleteDir.isEmpty() && QDir(QFileInfo(sessionDir).absolutePath()) == QDir(m_athleteDir);
+    if (ours) {
+        const pinpoint::JsonFileRead f = SessionDiagnosticsFiles::readWorkOns(sessionDir);
+        bool ok = false;
+        SessionWorkOns rec = f.exists ? sessionWorkOnsFromJson(f.root, &ok) : SessionWorkOns{};
+        if (ok) {
+            // The session's fingerprint is now the one its owner wrote — taken after its load, which may have frozen its
+            // club baseline (an input: R-STAMP-1) — so the swing summary's own fingerprint is the next scan's (3.7-e round 2).
+            const QString written = f.root.value(QStringLiteral("derivedFrom")).toObject().value(QStringLiteral("fingerprint")).toString();
+            if (!written.isEmpty()) m_fingerprints.insert(sessionDir, written);
+            m_records.insert(sessionDir, std::move(rec));
+            publish();
         }
     }
-    if (!m_deriving && m_queue.isEmpty() && m_model && !m_model->sessionDir().isEmpty())
-        m_model->activateSession(QString());     // let go of the last session's rows
-    // Every record current: every ledger is reconciled, so the summary can be read off them, and the
-    // consistency marks too.
+    emit updatingChanged();
+}
+
+// THE CATCH-UP IS DONE (or there was nothing to do): every record is current, every ledger written by its owner, so the
+// swing summary, the consistency marks and the tendencies can be read off them.
+void WorkOnsController::catchUpDone()
+{
+    const bool was = updating();
+    m_deriving = false;
+    if (!m_paused) m_queue.clear();
+    if (was != updating()) emit updatingChanged();
+    if (!m_queue.isEmpty()) return;
     maybeThemes();
     maybeMarks();
     maybeTendencies();
-}
-
-void WorkOnsController::onModelSettled()
-{
-    if (!m_deriving || !m_model || m_model->busy()) return;
-    finishDerive();
-    deriveNext();
-}
-
-void WorkOnsController::finishDerive()
-{
-    const QString dir = m_derivingDir;
-    m_deriving = false;
-    m_derivingDir.clear();
-
-    // The athlete changed underneath it: the record is still true of the session, so it is
-    // written, but it is not this list's.
-    const bool ours = !m_athleteDir.isEmpty() && QDir(QFileInfo(dir).absolutePath()) == QDir(m_athleteDir);
-
-    SessionWorkOns rec = m_model->sessionWorkOns();
-    if (rec.startMs <= 0) {
-        // No shot carried a clock. The session's own start (its session file's), else the start of its day
-        // (a legacy folder's, read by SessionIdentity: step 2.7a), then its mtime — a session with no date
-        // at all would sort before every other and age everything behind it.
-        const pinpoint::SessionIdentity id = m_model->sessionIdentity();
-        const QDate d = id.localDay();
-        rec.startMs = id.startedAtUtc().isValid() ? id.startedAtUtc().toMSecsSinceEpoch()
-                    : d.isValid()                  ? d.startOfDay().toMSecsSinceEpoch()
-                                                   : m_dirMtime.value(dir, QFileInfo(dir).lastModified().toMSecsSinceEpoch());
-        rec.endMs = rec.startMs;
-    }
-
-    QJsonObject root = toJson(rec);
-    root[QStringLiteral("derivedFrom")] = QJsonObject{
-        { QStringLiteral("fingerprint"),  m_fingerprints.value(dir) },
-        { QStringLiteral("contentStamp"), m_model->contentStamp() },
-        { QStringLiteral("gradePolicy"),  m_gradePolicy },
-        { QStringLiteral("writtenAtMs"),  double(QDateTime::currentMSecsSinceEpoch()) },
-    };
-    // Per condition, never per shot: what the tendency reduction needs to re-compose every shot itself.
-    root[QStringLiteral("outcomeEvidence")] = tendencyEvidenceToJson(m_model->outcomeEvidence());
-    // Through the session's one writer, its result checked (DEC-126): said, and the record is still
-    // published from memory (it is re-derived at the next refresh).
-    const pinpoint::WriteResult w = SessionDiagnosticsFiles::writeWorkOns(dir, root);
-    if (!w.ok()) {
-        ppWarn() << "[WorkOns] could not write" << qPrintable(recordPath(dir)) << "—" << qPrintable(w.error);
-        emit storageProblem(tr("The session's work-ons"), dir, w.error);
-    }
-
-    if (ours) {
-        m_records.insert(dir, std::move(rec));
-        publish();
-    }
-    emit updatingChanged();
 }
 
 bool WorkOnsController::waitForIdle(int msTimeout)
@@ -1300,7 +1312,7 @@ void WorkOnsController::maybeMarks()
     keys.sort();
     QCryptographicHash seed(QCryptographicHash::Sha1);
     seed.addData(QByteArray::number(kConsistencyMarksRule));
-    seed.addData((m_model ? m_model->contentStamp() : QString()).toUtf8());
+    seed.addData(contentStampNow().toUtf8());
     seed.addData(m_scope.key.toUtf8());
     for (const QString &key : keys) {
         MarksRequest r = m_markRequests.value(key);
@@ -1517,7 +1529,7 @@ QString WorkOnsController::themesFingerprint() const
     QCryptographicHash h(QCryptographicHash::Sha1);
     h.addData(QByteArray::number(kThemeRuleVersion));
     h.addData(QByteArray::number(kThemeSchemaVersion));
-    h.addData((m_model ? m_model->contentStamp() : QString()).toUtf8());
+    h.addData(contentStampNow().toUtf8());
     QStringList drillIds;
     for (const Drill &d : sharedDrillSet().drills) drillIds.append(d.id);
     drillIds.sort();
@@ -1578,7 +1590,7 @@ void WorkOnsController::maybeThemes()
     job.generation   = ++m_themesGeneration;
     job.athleteDir   = m_athleteDir;
     job.fingerprint  = fp;
-    job.contentStamp = m_model ? m_model->contentStamp() : QString();
+    job.contentStamp = contentStampNow();
     job.sessionDirs  = m_fingerprints.keys();
     std::sort(job.sessionDirs.begin(), job.sessionDirs.end(), [](const QString &a, const QString &b) {
         return QFileInfo(a).fileName() < QFileInfo(b).fileName();
@@ -2030,7 +2042,7 @@ void WorkOnsController::maybeTendencies()
     job.generation   = ++m_tendenciesGeneration;
     job.athleteDir   = m_athleteDir;
     job.previous     = m_tendencyFingerprint;
-    job.contentStamp = m_model ? m_model->contentStamp() : QString();
+    job.contentStamp = contentStampNow();
     job.sessionDirs  = m_fingerprints.keys();
     std::sort(job.sessionDirs.begin(), job.sessionDirs.end(), [](const QString &a, const QString &b) {
         return QFileInfo(a).fileName() < QFileInfo(b).fileName();

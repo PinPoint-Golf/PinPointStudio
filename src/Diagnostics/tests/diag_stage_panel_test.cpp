@@ -24,10 +24,12 @@
 // in late, EVT-22), and the panel's thin adapter as the panel reaches it (SessionDiagnosticsAdapters::of):
 //
 //   ALWAYS  no panel, no old model: every live shot is judged by the Session's owner (DEC-02; closes D-02), and
-//           diagnostics.json is written by it; work_ons.json is not (WorkOnsController's until 3.7-e)
+//           diagnostics.json is written by it; its summary, work_ons.json, waits for End while it is live (3.7-e: no
+//           per-shot summary write), and is written by it at End (the catch-up's cut-over: its one writer)
 //   PANEL   the panel's adapter, made by C++ after the shots, shows them all: its rows are the owner's, its stage is
 //           the owner's while live; the same object for the same (session, surface), another for the cast (LIVE-2: one
-//           owner under both); it holds a use of the Session, so the Session is not released under it
+//           owner under both); it holds a use of the Session WHILE A VIEW IS BOUND (3.7-e), so the Session is not
+//           released under a screen that shows it
 //   READING the newest shot is graded WITH its launch-monitor reading: its row in the adapter has no reading until the
 //           reading is written, then has one, with no panel call (CARRY D22b: HEAD's panel graded on shotProcessed and
 //           readingApplied did not regrade)
@@ -35,8 +37,20 @@
 //           "established" until reopened)
 //   CRASH   a session a crash left in progress (its file says so; not recorded here), opened through the adapter and NOT
 //           in review, shows Closing — the old model on it showed its file's stage (CARRY 3.7-0 review 2)
-//   FREEZE  a live panel pointed at its session freezes club_baseline.json from the predecessors' ledgers, as the
-//           panel's model did, through the Session's own command; the owner reads it (its findings stamp moves)
+//   FREEZE  (refactor 3.7-e: ONE freeze rule, J-a8) a panel's pointing freezes nothing; the catch-up service sums up an
+//           earlier session (its owner writes a summary fresh by the scan's rule), then takes the ended live session in
+//           hand, whose owner freezes club_baseline.json at first need from that summary (its findings stamp moves); it
+//           releases the session it loaded and keeps the one it did not
+//   CATCHUP (refactor 3.7-e; CARRY 3.6 review 2) a summary whose facts were made under a rule one version behind, and
+//           nothing else, is stale; the catch-up takes it in hand and its owner writes it again, current
+//   CATCHUP-TRASH (3.7-e) the session in hand trashed from under the catch-up: answered as gone, the next one taken
+//   FPRINT  (3.7-e round 2) the summary's fingerprint moves with each R-STAMP-1 input on its own
+//   LIVEBASE (3.7-e round 2) old-form predecessors summed up at Start (the catch-up paused); the live session freezes then
+//   LIVEORDER (3.7-e round 3, R2-B1) the app's order: a session in hand, Start, then the pause — frozen without End
+//   USE     (refactor 3.7-e; CARRY 3.7-a, 3.7-c R2-m2) an adapter holds a use of its Session only while a view is bound:
+//           made and not shown it holds none, so the Session can be released; shown, it cannot
+//   EVT13   (3.9's test, now that SessionDiagnostics is live: refactor 3.7-e) a pack edit through RuleData's command
+//           publishes ONE EVT-13 and every loaded session's owner re-fires every shot under the new snapshot
 //   UNHELD  a folder in the golfer's folder whose file names another athlete id: today's engine model, made by C++
 //   LOADING an adapter made while its owner is still reading a reviewed session says so until the first diagnosis
 //           (3.7-c review B3: the panel's "being read" notice)
@@ -76,6 +90,11 @@
 #include "../../Export/rule_data_install.h"
 #include "../../Export/session_archiver.h"
 #include "../../Export/session_store.h"
+#include "../../Export/swing_paths.h"
+#include "../../App/athlete_catch_up.h"
+#include "../../Coaching/session_results.h"
+#include "../../DomainModel/summary_rules.h"
+#include "../../Diagnostics/engine/fire_findings.h"
 #include "../../Export/swing_store.h"
 #include "../../Export/swing_store_repository.h"
 #include "../../Gui/diagnostics/diag_parallel_run.h"
@@ -99,6 +118,8 @@
 #include <QThread>
 
 #include <atomic>
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <functional>
 #include <memory>
@@ -233,7 +254,7 @@ struct Rig {
     std::unique_ptr<SessionDiagnosticsAdapters>    adapters;   // the screens' door (main.cpp's diagnosticsAdapters)
     std::unique_ptr<Athlete>                       athlete;    // destroyed first
 
-    explicit Rig(int writeDebounceMs = 0)
+    explicit Rig(int writeDebounceMs = 0, RuleData *rules = nullptr)
     {
         store.setLockWaitForTest(200);
         store.setOsTrashForTest(false);
@@ -251,7 +272,8 @@ struct Rig {
         athlete->setStored(r, athleteFolder(), SessionOwner{ kAthlete, kName, dir.path() }, Athlete::Source::Library, false);
         athlete->setShotDoors({ recordings.get(), reader });
         // THE APP'S DOORS, from the one function main.cpp calls (a short debounce, so a test need not wait 1.5 s).
-        DiagnosticsDoors d = appDiagnosticsDoors(pool.get(), receiver.get(), RuleData::installed(), store, *recordings);
+        DiagnosticsDoors d = appDiagnosticsDoors(pool.get(), receiver.get(), rules ? rules : RuleData::installed(), store,
+                                                 *recordings);
         d.writeDebounceMs = writeDebounceMs;
         athlete->setDiagnosticsDoors(d);
     }
@@ -264,7 +286,54 @@ struct Rig {
     }
     QString athleteFolder() const { return dir.path() + QLatin1Char('/') + kToken; }
     static bool settled(SessionDiagnostics *d) { return d && pump([d] { return d->idle() && !d->writePending(); }); }
+    // The composition root's callables over this rig's one athlete (the catch-up service's doors: D18 (c)).
+    AthleteCallables callables()
+    {
+        AthleteCallables c;
+        c.listAthletes = [] { return QList<AthleteId>{ kAthlete }; };
+        c.loadAthlete  = [this](const AthleteId &id) -> Athlete * { return id == kAthlete ? athlete.get() : nullptr; };
+        return c;
+    }
 };
+
+// WHAT THE CATCH-UP'S SCAN COMPUTES FOR A FOLDER (WorkOnsController::summaryFingerprintFor, mirrored: this suite does not
+// link the controller): the one rule (session_reduction.h summaryFingerprintOf) over the rule data, the session's frozen club
+// baseline as a current club_baseline.json gives it, the rig athlete's cohort facts (none: "|") and each numbered swing.
+static QString scanFingerprintOf(const QString &folder)
+{
+    std::vector<analysis::SummarySwing> swings;
+    for (const QString &name : SwingPaths::swingFolders(folder)) {
+        if (SwingPaths::swingNumberOf(name) <= 0) continue;
+        const SwingStore::DocInfo doc = SwingStore::info(QDir(folder).filePath(name));
+        swings.push_back(analysis::SummarySwing{ name, doc.exists(), doc.size, doc.mtimeMs });
+    }
+    std::optional<QHash<QString, analysis::ClubBaselineEntry>> baseline;
+    const QJsonObject b = readJson(folder + QStringLiteral("/club_baseline.json"));
+    const int schema = b.value(QStringLiteral("schema")).toInt(0);
+    if (!b.isEmpty() && !(schema > 0 && schema < analysis::kClubBaselineSchemaVersion)) {
+        bool ok = false;
+        const analysis::ClubBaselineSnapshot snap = analysis::clubBaselineFromJson(b, &ok);
+        if (ok) baseline = snap.clubs;
+    }
+    analysis::SummaryRules r;
+    r.rules    = analysis::summaryRulesStamp(firingInputsOf(*RuleData::current()));
+    r.baseline = analysis::clubBaselineStamp(baseline);
+    r.cohort   = summaryCohortFacts(QString(), QString());
+    return analysis::summaryFingerprintOf(r, std::move(swings));
+}
+// FRESH as the scan reads it: this build's summary, read strictly, its facts under the current rules, its fingerprint the
+// folder's now.
+static bool summaryFresh(const QString &folder, QString *why = nullptr)
+{
+    QFile f(folder + QStringLiteral("/work_ons.json"));
+    if (!f.open(QIODevice::ReadOnly)) { if (why) *why = QStringLiteral("no work_ons.json"); return false; }
+    bool ok = false;
+    const analysis::SessionResults r = analysis::sessionResultsFromJson(QJsonDocument::fromJson(f.readAll()).object(),
+                                                                        analysis::SessionResultsRead::Strict, &ok);
+    if (why) *why = QStringLiteral("strict %1, facts %2, fingerprint %3").arg(ok).arg(r.hasFacts)
+                        .arg(r.derivedFrom.fingerprint == scanFingerprintOf(folder) ? QStringLiteral("matches") : QStringLiteral("differs"));
+    return ok && r.hasFacts && r.derivedFrom.fingerprint == scanFingerprintOf(folder);
+}
 
 // PRE: an earlier, legacy session reduced by the old model (as a past session's catch-up left it), so a live session
 // has predecessors whose ledgers a freeze reads.
@@ -337,7 +406,7 @@ static void testAlwaysPanelReadingClosing()
           shots.size() == kShots && d->keptShots().size() == kShots && d->diagnosis() != nullptr);
     check(QStringLiteral("ALWAYSb diagnostics.json is written by the owner (the panel's model, its writer, is gone)"),
           QFile::exists(folder + QStringLiteral("/diagnostics.json")) && d->counts().writes >= 1);
-    check(QStringLiteral("ALWAYSc work_ons.json is NOT written by it (WorkOnsController's until 3.7-e)"),
+    check(QStringLiteral("ALWAYSc its summary (work_ons.json) waits for End while the session is live: no per-shot write (3.7-e)"),
           !QFile::exists(folder + QStringLiteral("/work_ons.json")) && d->counts().summaryWrites == 0);
 
     // PANEL: the adapter, made by C++ now, after the shots.
@@ -355,7 +424,16 @@ static void testAlwaysPanelReadingClosing()
     SessionDiagnosticsModel *cast = rig.adapters->of(s, QStringLiteral("cast"));
     check(QStringLiteral("PANELe the cast gets its own view state over the SAME owner (LIVE-2)"),
           cast && cast != panel && cast->shotCount() == panel->shotCount() && cast->stage() == panel->stage());
-    check(QStringLiteral("PANELf the two adapters hold a use of the Session each"), s->uses() >= 2);
+    {
+        const int uses = s->uses();
+        panel->addView();
+        cast->addView();
+        check(QStringLiteral("PANELf the two adapters hold a use of the Session each while a view is bound (3.7-e)"),
+              s->uses() == uses + 2);
+        panel->dropView();
+        cast->dropView();
+        check(QStringLiteral("PANELf2 …and none once no view is bound"), s->uses() == uses);
+    }
     const QString lastFolder = shots.isEmpty() ? QString() : shots.last()->folder();
     check(QStringLiteral("PANELg the carousel's folder resolves to the adapter's shot (the pips' key)"),
           !lastFolder.isEmpty() && panel->shotIdForSwingDir(lastFolder) == shots.last()->swingNumber());
@@ -388,6 +466,8 @@ static void testAlwaysPanelReadingClosing()
     check(QStringLiteral("CLOSINGb the panel shows Closing right after End, not reviewing (the old panel: still established)"),
           !panel->reviewing() && panel->stage() == QLatin1String("closing"));
     check(QStringLiteral("CLOSINGc busy fell back once the owner wrote (Charts re-reads the file then)"), !panel->busy());
+    check(QStringLiteral("ALWAYSd at End the owner writes the session's summary, its one writer (3.7-e), fresh by the scan's rule"),
+          QFile::exists(folder + QStringLiteral("/work_ons.json")) && d->counts().summaryWrites >= 1 && summaryFresh(folder));
     std::printf("    busy after End: %s\n", qPrintable(busyTrail.join(QStringLiteral(" → "))));
     QString whyNot;
     check(QStringLiteral("CLOSINGd ended, it is still not released while a screen shows it (Q-18: in use)"),
@@ -478,26 +558,338 @@ static void testCrashLeftSession()
     }
 }
 
+static Session *endedSession(Rig &rig);   // below (REPORT's)
+
 static void testFreeze()
 {
-    std::printf("\nFREEZE — a live panel freezes the club baseline through the Session's command\n");
+    std::printf("\nFREEZE — ONE freeze rule, the owner's; the catch-up service sums up and releases (3.7-e)\n");
     Rig rig;
-    check(QStringLiteral("FREEZEa an earlier session of twelve 7-iron shots, reduced by the old model"), earlierSession(rig));
+    check(QStringLiteral("FREEZEa an earlier session of twelve 7-iron shots, reduced by the old model (no summary of the owner's)"),
+          earlierSession(rig));
+    const QString earlier = rig.athleteFolder() + QStringLiteral("/2026-09-01_%1_Swing_01").arg(kToken);
     Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
     SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
     const QString folder = s && s->entry() ? s->entry()->folder : QString();
     if (!d || folder.isEmpty()) { check(QStringLiteral("FREEZE a live session with its owner"), false); return; }
     const QString file = folder + QStringLiteral("/club_baseline.json");
-    check(QStringLiteral("FREEZEb at Start the owner could not freeze one (the predecessors' summaries are an older form)"),
-          !QFile::exists(file));
+    check(QStringLiteral("FREEZEb at Start the owner could not freeze one (the predecessor has no current summary)"),
+          !QFile::exists(file) && !d->holdsClubBaseline());
     const QString stampBefore = d->findingsStamp();
     SessionDiagnosticsModel *panel = rig.adapters->of(s, QStringLiteral("panel"));
     panel->setBaselineAuthorityName(QStringLiteral("live"));
-    panel->activateSession(folder);   // the panel up on the live session (today's rule: a live panel freezes)
-    check(QStringLiteral("FREEZEc the freeze lands (read off the GUI thread)"), pump([panel] { return !panel->busy(); }));
+    panel->activateSession(folder);   // the panel up on the live session
+    pump([panel] { return !panel->busy(); });
+    spin(200);
+    check(QStringLiteral("FREEZEc a panel's pointing freezes nothing itself (the adapter's interim live freeze, J-a2, is gone)"),
+          !QFile::exists(file));
+    const qint64 t0 = QDateTime::currentMSecsSinceEpoch();
+    liveShot(rig, s, t0);
+    Rig::settled(d);
+    check(QStringLiteral("FREEZE the live session ends"), s->end().ok());
+    Rig::settled(d);
+    SessionId earlierId;   // from the index: nothing loads it before the catch-up does
+    for (const SessionIndexEntry &e : rig.athlete->index())
+        if (QDir::cleanPath(e.folder) == QDir::cleanPath(earlier)) earlierId = e.id();
+    check(QStringLiteral("FREEZE the earlier session is in the index, not loaded"),
+          !earlierId.isNull() && !rig.athlete->loadedSession(earlierId));
+    AthleteCatchUp catchUp(rig.callables());
+    QStringList answered;
+    QObject::connect(&catchUp, &AthleteCatchUp::sessionCaughtUp, &catchUp,
+                     [&answered](const SessionId &id, const QString &) { answered << id.toString(); });
+    catchUp.runSessions(kAthlete, { s->id(), earlierId });   // asked newest first: it takes them oldest first
+    check(QStringLiteral("FREEZE the catch-up runs to its end"), pump([&catchUp] { return !catchUp.running(); }, 60000));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QString why;
+    check(QStringLiteral("FREEZEd (CATCHUPa) the earlier session's summary is now its owner's, fresh by the scan's rule (%1)")
+              .arg((summaryFresh(earlier, &why), why)),
+          summaryFresh(earlier));
     const bool has7 = QJsonDocument(readJson(file)).toJson().contains("7 IRON");
-    check(QStringLiteral("FREEZEd club_baseline.json frozen with the 7 iron's usual"), has7);
-    check(QStringLiteral("FREEZEe the owner read it (its findings stamp moved)"), d->findingsStamp() != stampBefore);
+    check(QStringLiteral("FREEZEe the ended live session, taken in hand, froze its baseline at first need from that summary"),
+          has7 && d->holdsClubBaseline() && d->findingsStamp() != stampBefore);
+    check(QStringLiteral("FREEZEf answered oldest first (%1); the session it loaded released, the one it did not kept")
+              .arg(answered.join(QStringLiteral(", "))),
+          answered.size() == 2 && answered.first() == earlierId.toString()
+              && !rig.athlete->loadedSession(earlierId) && rig.athlete->loadedSession(s->id()) == s
+              && catchUp.report().released == 1);
+}
+
+// CATCHUP (refactor 3.7-e; CARRY 3.6 review 2): a catch-up that skips fresh sessions still rewrites one whose summary's
+// facts were made under an older rule — a version bump alone.
+static void testCatchUpVersionBump()
+{
+    std::printf("\nCATCHUP — a facts' rule bump alone stales a summary; the catch-up writes it again\n");
+    Rig rig;
+    Session *s = endedSession(rig);
+    if (!s) { check(QStringLiteral("CATCHUP pre: an ended session"), false); return; }
+    const SessionId id = s->id();
+    const QString folder = s->entry() ? s->entry()->folder : QString();
+    QString why;
+    const bool fresh0 = summaryFresh(folder, &why);
+    check(QStringLiteral("CATCHUPa at End its owner wrote the summary, fresh by the scan's rule (%1)").arg(why), fresh0);
+    rig.athlete->releaseSession(id);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    // The bump: the file's facts made under the theme rule one version behind — nothing else in it changes.
+    QJsonObject root = readJson(folder + QStringLiteral("/work_ons.json"));
+    QJsonObject rules = root.value(QStringLiteral("factsRules")).toObject();
+    rules[QStringLiteral("theme")] = analysis::kThemeRuleVersion - 1;
+    root[QStringLiteral("factsRules")] = rules;
+    writeJson(folder + QStringLiteral("/work_ons.json"), root);
+    check(QStringLiteral("CATCHUPb its facts' rule one version behind, nothing else: no longer fresh (%1)")
+              .arg((summaryFresh(folder, &why), why)),
+          !summaryFresh(folder));
+    AthleteCatchUp catchUp(rig.callables());
+    catchUp.runSessions(kAthlete, { id });
+    pump([&catchUp] { return !catchUp.running(); }, 60000);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    const QJsonObject after = readJson(folder + QStringLiteral("/work_ons.json"));
+    check(QStringLiteral("CATCHUPc the catch-up took it in hand: its owner wrote it again, its facts current and fresh (%1)")
+              .arg((summaryFresh(folder, &why), why)),
+          summaryFresh(folder)
+              && after.value(QStringLiteral("factsRules")).toObject().value(QStringLiteral("theme")).toInt() == analysis::kThemeRuleVersion
+              && catchUp.report().written == 1 && catchUp.report().released == 1 && !rig.athlete->loadedSession(id));
+}
+
+// CATCHUP-TRASH (refactor 3.7-e): a session trashed from the Sessions list while the catch-up has it in hand is answered as
+// gone, and the catch-up goes on to the next (it does not wait for ever on a settle that cannot come).
+static void testCatchUpTrash()
+{
+    std::printf("\nCATCHUP-TRASH — the session in hand trashed\n");
+    Rig rig;
+    Session *a = endedSession(rig);
+    Session *b = endedSession(rig);
+    if (!a || !b) { check(QStringLiteral("CATCHUP-TRASH pre: two ended sessions"), false); return; }
+    const SessionId ia = a->id(), ib = b->id();
+    const QString fa = a->entry() ? a->entry()->folder : QString(), fb = b->entry() ? b->entry()->folder : QString();
+    rig.athlete->releaseSession(ia);
+    rig.athlete->releaseSession(ib);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QFile::remove(fa + QStringLiteral("/work_ons.json"));   // both stale for the scan
+    QFile::remove(fb + QStringLiteral("/work_ons.json"));
+    AthleteCatchUp catchUp(rig.callables());
+    QStringList answered;
+    int finished = 0;
+    QObject::connect(&catchUp, &AthleteCatchUp::sessionCaughtUp, &catchUp,
+                     [&answered](const SessionId &id, const QString &) { answered << id.toString(); });
+    QObject::connect(&catchUp, &AthleteCatchUp::finished, &catchUp, [&finished] { ++finished; });
+    catchUp.runSessions(kAthlete, { ia, ib });
+    const bool inHand = catchUp.running() && rig.athlete->loadedSession(ia);
+    const bool trashed = rig.athlete->trashSession(ia).ok();
+    check(QStringLiteral("CATCHUP-TRASHa the first session in hand, then trashed from under it"), inHand && trashed);
+    const bool done = pump([&catchUp] { return !catchUp.running(); }, 60000);
+    pump([] { return false; }, 200);
+    check(QStringLiteral("CATCHUP-TRASHb it is answered, the next taken and written, and the catch-up finishes (%1)")
+              .arg(answered.join(QStringLiteral(", "))),
+          done && finished == 1 && answered.size() == 2 && summaryFresh(fb) && !rig.athlete->loadedSession(ib));
+}
+
+// FPRINT (refactor 3.7-e round 2; review R1-B2, J-47, R-STAMP-1): the summary's fingerprint moves with each of its inputs on
+// its own — the grade policy, the disabled sets, the flight norms (through the rule data's stamp), the club baseline, the
+// athlete's cohort facts, a swing's document, a swing added — and with nothing the rule data's stamp leaves out (a session's
+// usuals, a shot's cohort). The rule versions are in it by construction (kSessionReductionVersion among them); the pack
+// and norms are firingStamp's, which fire_findings_test moves one by one.
+static void testFingerprintInputs()
+{
+    std::printf("\nFPRINT — the summary's fingerprint moves with each input on its own\n");
+    const auto snap = RuleData::current();
+    const analysis::FiringInputs in = firingInputsOf(*snap);
+    const auto rulesOf = [](const analysis::FiringInputs &x) { return analysis::summaryRulesStamp(x); };
+    const std::vector<analysis::SummarySwing> sw{ { QStringLiteral("swing_0001"), true, 100, 1000 },
+                                                  { QStringLiteral("swing_0002"), true, 200, 2000 } };
+    analysis::SummaryRules base;
+    base.rules    = rulesOf(in);
+    base.baseline = analysis::clubBaselineStamp(std::nullopt);
+    base.cohort   = summaryCohortFacts(QString(), QString());
+    const QString f0 = analysis::summaryFingerprintOf(base, sw);
+    const auto with = [&](const std::function<void(analysis::SummaryRules &, std::vector<analysis::SummarySwing> &)> &move) {
+        analysis::SummaryRules r = base;
+        std::vector<analysis::SummarySwing> w = sw;
+        move(r, w);
+        return analysis::summaryFingerprintOf(r, w);
+    };
+    check(QStringLiteral("FPRINTa the same inputs give the same fingerprint"), with([](auto &, auto &) {}) == f0);
+    analysis::FiringInputs policy = in;   policy.gradePolicy = in.gradePolicy + QStringLiteral("-other");
+    analysis::FiringInputs disabled = in; disabled.disabledNormSets << QStringLiteral("a-set");
+    analysis::FiringInputs flight = in;   flight.flightNorms.notes << QStringLiteral("a flight note");
+    check(QStringLiteral("FPRINTb the grade policy alone moves it"), with([&](auto &r, auto &) { r.rules = rulesOf(policy); }) != f0);
+    check(QStringLiteral("FPRINTc the disabled norm sets alone move it"), with([&](auto &r, auto &) { r.rules = rulesOf(disabled); }) != f0);
+    check(QStringLiteral("FPRINTd the flight norms alone move it"), with([&](auto &r, auto &) { r.rules = rulesOf(flight); }) != f0);
+    QHash<QString, analysis::ClubBaselineEntry> clubs;
+    analysis::ClubBaselineEntry e;
+    e.club = kClub; e.carryMean = 150; e.n = 12;
+    clubs.insert(kClub, e);
+    check(QStringLiteral("FPRINTe the frozen club baseline alone moves it"),
+          with([&](auto &r, auto &) { r.baseline = analysis::clubBaselineStamp(clubs); }) != f0);
+    check(QStringLiteral("FPRINTf the athlete's cohort facts alone move it"),
+          with([](auto &r, auto &) { r.cohort = summaryCohortFacts(QStringLiteral("1971-11-16"), QStringLiteral("female")); }) != f0);
+    check(QStringLiteral("FPRINTg a swing's document alone moves it"), with([](auto &, auto &w) { w[1].mtimeMs += 1; }) != f0);
+    check(QStringLiteral("FPRINTh a swing added alone moves it"),
+          with([](auto &, auto &w) { w.push_back({ QStringLiteral("swing_0003"), false, 0, 0 }); }) != f0);
+    analysis::FiringInputs perSession = in;
+    perSession.usuals.insert(kClub, analysis::ClubFlightUsual{});
+    perSession.cohort = analysis::cohortFor(QDate(1971, 11, 16), QStringLiteral("female"), QDate(2026, 11, 21));
+    check(QStringLiteral("FPRINTi the rule data's stamp leaves a session's usuals and a shot's cohort out"),
+          rulesOf(perSession) == base.rules);
+}
+
+// LIVEBASE (refactor 3.7-e round 2; review R1-B1, J-49): a session started here whose earlier sessions are not summed up by
+// this build (their summaries an older form) freezes its club baseline AT START, not at End: the catch-up sums up just those
+// predecessors — even though it is paused for the live session — and the live owner freezes. Until then the panel's adapter
+// says the baseline is waiting (the notice's state); after, it does not. With the panel up and with it off.
+static void testLiveBaselineAtStart()
+{
+    for (const bool panelUp : { false, true }) {
+        std::printf("\nLIVEBASE (panel %s) — the live session's club baseline at Start\n", panelUp ? "up" : "off");
+        const QString tag = panelUp ? QStringLiteral(" (panel up)") : QStringLiteral(" (panel off)");
+        Rig rig;
+        check(QStringLiteral("LIVEBASE pre: an earlier session reduced by the old model (no summary of this build's)") + tag,
+              earlierSession(rig));
+        const QString earlier = rig.athleteFolder() + QStringLiteral("/2026-09-01_%1_Swing_01").arg(kToken);
+        AthleteCatchUp catchUp(rig.callables());
+        catchUp.setPaused(true);   // the live pause, already in place (WorkOnsController's, at Start)
+        int settled = 0;
+        QObject::connect(&catchUp, &AthleteCatchUp::liveBaselineSettled, &catchUp, [&settled](const SessionId &) { ++settled; });
+        Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
+        SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+        const QString folder = s && s->entry() ? s->entry()->folder : QString();
+        if (!d) { check(QStringLiteral("LIVEBASE a live session with its owner") + tag, false); continue; }
+        SessionDiagnosticsModel *panel = panelUp ? rig.adapters->of(s, QStringLiteral("panel")) : nullptr;
+        if (panel) panel->addView();
+        spin();
+        check(QStringLiteral("LIVEBASEa at Start no baseline could be frozen, and it says so (waiting)") + tag,
+              !d->holdsClubBaseline() && d->clubBaselineWaiting() && (!panel || panel->baselineWaiting()));
+        const QString stampBefore = d->findingsStamp();
+        // What main.cpp's attach hook asks a turn after Start.
+        check(QStringLiteral("LIVEBASEb the catch-up queues just the predecessors it waits on") + tag,
+              catchUp.catchUpForBaseline(kAthlete, s->id()));
+        check(QStringLiteral("LIVEBASEc …and sums them up while paused") + tag, pump([&settled] { return settled == 1; }, 60000));
+        Rig::settled(d);
+        spin(200);
+        const bool has7 = QJsonDocument(readJson(folder + QStringLiteral("/club_baseline.json"))).toJson().contains("7 IRON");
+        check(QStringLiteral("LIVEBASEd the old-form predecessor is rewritten by its owner, fresh by the scan's rule") + tag,
+              summaryFresh(earlier));
+        check(QStringLiteral("LIVEBASEe the live session froze its baseline at Start — still in progress, before End") + tag,
+              s->inProgress() && d->holdsClubBaseline() && has7 && d->findingsStamp() != stampBefore && !d->clubBaselineWaiting());
+        check(QStringLiteral("LIVEBASEf no longer waiting on the panel's adapter; the predecessor it loaded let go") + tag,
+              (!panel || !panel->baselineWaiting()) && catchUp.report().released == 1);
+        if (panel) panel->dropView();
+    }
+}
+
+// LIVEORDER (review R2-B1 of 3.7-e): the app's own order — the catch-up has an ordinary session IN HAND (its launch pass),
+// then Start (its owner attaches and main.cpp's hook asks catchUpForBaseline), and only then does the live pause arrive
+// (WorkOnsController's, queued). The pause puts the session in hand back behind the waited-on predecessors, and while paused
+// those are taken wherever they stand: the live session's baseline freezes without End. With the panel up and off.
+static void testLiveBaselineAppOrder()
+{
+    for (const bool panelUp : { false, true }) {
+        std::printf("\nLIVEORDER (panel %s) — a session in hand, then Start, then the pause\n", panelUp ? "up" : "off");
+        const QString tag = panelUp ? QStringLiteral(" (panel up)") : QStringLiteral(" (panel off)");
+        Rig rig;
+        check(QStringLiteral("LIVEORDER pre: an earlier-day session with no summary of this build's") + tag, earlierSession(rig));
+        // An ordinary session of today, ended and let go, for the launch pass to have in hand.
+        Session *today = endedSession(rig);
+        const SessionId todayId = today ? today->id() : SessionId();
+        if (today) rig.athlete->releaseSession(todayId);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        AthleteCatchUp catchUp(rig.callables());
+        int settled = 0;
+        QObject::connect(&catchUp, &AthleteCatchUp::liveBaselineSettled, &catchUp, [&settled](const SessionId &) { ++settled; });
+        catchUp.runSessions(kAthlete, { todayId });   // the launch pass
+        const bool inHand = catchUp.running() && catchUp.report().sessions == 1 && rig.athlete->loadedSession(todayId);
+        Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);   // Start
+        SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+        if (!d) { check(QStringLiteral("LIVEORDER a live session with its owner") + tag, false); continue; }
+        SessionDiagnosticsModel *panel = panelUp ? rig.adapters->of(s, QStringLiteral("panel")) : nullptr;
+        if (panel) panel->addView();
+        const bool waiting = d->clubBaselineWaiting();
+        const bool asked = catchUp.catchUpForBaseline(kAthlete, s->id());   // main.cpp's attach hook, a turn after Start
+        catchUp.setPaused(true);                                            // …then the live pause arrives
+        check(QStringLiteral("LIVEORDERa a session in hand, Start waiting for its baseline, asked before the pause") + tag,
+              inHand && waiting && asked);
+        check(QStringLiteral("LIVEORDERb the waited-on predecessor is summed up while paused") + tag,
+              pump([&settled] { return settled == 1; }, 60000));
+        Rig::settled(d);
+        spin(200);
+        const QString folder = s->entry() ? s->entry()->folder : QString();
+        const bool has7 = QJsonDocument(readJson(folder + QStringLiteral("/club_baseline.json"))).toJson().contains("7 IRON");
+        check(QStringLiteral("LIVEORDERc the live session froze its baseline without End; nothing waits") + tag,
+              s->inProgress() && d->holdsClubBaseline() && has7 && !d->clubBaselineWaiting() && (!panel || !panel->baselineWaiting()));
+        catchUp.setPaused(false);   // End: the pass takes the session it let go again, and finishes
+        check(QStringLiteral("LIVEORDERd after the pause lifts, the session let go is taken again and the pass finishes") + tag,
+              pump([&catchUp] { return !catchUp.running(); }, 60000));
+        if (panel) panel->dropView();
+    }
+}
+
+// USE (refactor 3.7-e; CARRY 3.7-a "tie the use to the screens", 3.7-c R2-m2): an adapter's use of its Session lasts as
+// long as a view is bound to it — so nothing holds a session for good once no screen shows it.
+static void testUse()
+{
+    std::printf("\nUSE — an adapter holds its Session only while a screen shows it\n");
+    Rig rig;
+    Session *s = endedSession(rig);
+    if (!s) { check(QStringLiteral("USE pre: an ended session"), false); return; }
+    const int uses0 = s->uses();
+    QPointer<SessionDiagnosticsModel> cards = rig.adapters->of(s, QStringLiteral("cards"));
+    QPointer<SessionDiagnosticsModel> panel = rig.adapters->of(s, QStringLiteral("panel"));
+    check(QStringLiteral("USEa made and not shown, the cards' and the panel's adapters hold no use"), cards && panel && s->uses() == uses0);
+    cards->addView();
+    panel->addView();
+    panel->addView();   // a panel rebuilt on a mode switch binds its incoming view before the outgoing one goes
+    panel->dropView();
+    QString whyNot;
+    check(QStringLiteral("USEb shown, one use each (a rebuild counts once), and the Session is not released under them"),
+          s->uses() == uses0 + 2 && !rig.athlete->releaseSession(s->id(), &whyNot) && whyNot.contains(QStringLiteral("in use")));
+    cards->dropView();
+    panel->dropView();
+    const SessionId id = s->id();
+    check(QStringLiteral("USEc no screen shows it: no use held, and it can be released (the catch-up's, a sweep's)"),
+          s->uses() == uses0 && rig.athlete->releaseSession(id, &whyNot));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    check(QStringLiteral("USEd its adapters went with it"), !cards && !panel && !rig.athlete->loadedSession(id));
+}
+
+// EVT13 (3.9's test, which waited for SessionDiagnostics to be live: refactor 3.7-e): an edit through RuleData's command
+// publishes ONE EVT-13, and every LOADED session's owner re-fires every shot under the new snapshot.
+static void testPackEditRefires()
+{
+    std::printf("\nEVT13 — a pack edit publishes EVT-13 and every loaded session re-fires\n");
+    QTemporaryDir data;   // the edit's files land here, never in the user's own diagnostics folder
+    RuleData rules(makeRuleDataRepository(data.path()));
+    Rig rig(0, &rules);
+    Session *a = endedSession(rig);
+    Session *b = endedSession(rig);
+    SessionDiagnostics *da = a ? a->diagnostics() : nullptr;
+    SessionDiagnostics *db = b ? b->diagnostics() : nullptr;
+    if (!da || !db) { check(QStringLiteral("EVT13 pre: two loaded sessions"), false); return; }
+    const size_t asksA = da->asks().size(), asksB = db->asks().size();
+    const QString stampA = da->findingsStamp(), stampB = db->findingsStamp();
+    const quint64 writesA = da->counts().writes, writesB = db->counts().writes;
+    int events = 0;
+    QObject::connect(&rules, &RuleData::packChanged, &rules, [&events](const QString &) { ++events; });
+    const auto first = rules.snapshot();
+    analysis::CharacteristicPack user;
+    user.id      = QStringLiteral("user");
+    user.version = QStringLiteral("1");
+    if (!first->pack->pack().conditions.empty()) {
+        analysis::Condition c = first->pack->pack().conditions.front();
+        c.goal = QStringLiteral("a goal written by diag_stage_panel_test");
+        user.conditions.push_back(c);
+    }
+    QString why;
+    check(QStringLiteral("EVT13a the edit is saved through RuleData's command and ONE EVT-13 is published"),
+          rules.saveUserPack(user, &why) && events == 1);
+    Rig::settled(da);
+    Rig::settled(db);
+    const auto fires = [](SessionDiagnostics *d, size_t from) {
+        int n = 0;
+        for (size_t i = from; i < d->asks().size(); ++i) n += d->asks()[i].derive ? 0 : 1;
+        return n;
+    };
+    std::printf("    fires after the edit: %d and %d (of %d shots each)\n", fires(da, asksA), fires(db, asksB), kShots);
+    check(QStringLiteral("EVT13b every loaded session re-fired every shot, under a new findings stamp"),
+          fires(da, asksA) >= kShots && fires(db, asksB) >= kShots && da->findingsStamp() != stampA && db->findingsStamp() != stampB);
+    check(QStringLiteral("EVT13c …and each wrote what it kept"), da->counts().writes > writesA && db->counts().writes > writesB);
 }
 
 // ARCHIVE (review B2): housekeeping holds an ended session to archive it — loads it (its owner attaches) and asks for the
@@ -658,6 +1050,59 @@ static void testArchiveEvents()
     }
 }
 
+// ARCHIVEj (review R3-M2 of 3.7-a, for 3.7-e): the shot a command reaches while the archive is out is judged again after a
+// made archive from its STUB (the archive thinned its document). Its own findings rows must equal the rows it fired from its
+// full document before the archive (ARCHIVEh4 checked only the other shots).
+static void testArchiveStub()
+{
+    std::printf("\nARCHIVEj — the edited shot judged from its stub fires the rows it fired from its full document\n");
+    Rig rig(300);
+    rig.store.setArchiveJobs(&SessionArchiveRun::archiveInOwnRun);
+    Session *s = endedSession(rig);
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    const QString folder = s && s->entry() ? s->entry()->folder : QString();
+    if (!d || folder.isEmpty()) { check(QStringLiteral("ARCHIVEj pre: an ended session judged from its full documents"), false); return; }
+    Rig::settled(d);
+    const QString file = folder + QStringLiteral("/diagnostics.json");
+    const auto rowsOfShot = [&file](int id) {
+        analysis::LedgerOptions opt;
+        for (const analysis::ShotRecord &r : analysis::fromJson(readJson(file).value(QStringLiteral("ledger")).toObject(), &opt))
+            if (r.shotId == id) return r;
+        return analysis::ShotRecord{};
+    };
+    const int two = s->shots().value(1) ? s->shots().value(1)->swingNumber() : 2;
+    const analysis::ShotRecord before = rowsOfShot(two);
+    QTemporaryDir archiveRoot;
+    const SessionArchiveJob job = s->archiveJob(SessionArchiveOptions{ archiveRoot.path(), true });
+    if (!job) { check(QStringLiteral("ARCHIVEj the archive job is out"), false); return; }
+    SessionArchiveResult r;
+    std::atomic_bool done{ false };
+    std::thread worker([&] { r = job.run({}); done = true; });
+    pump([&] { return done.load(); }, 120000);
+    worker.join();
+    Shot *shot = s->shot(ShotRef(s->id(), two));
+    const WriteResult w = shot ? shot->setShotIntent(QStringLiteral("draw")) : WriteResult{};
+    const quint64 fires = d->asks().size();
+    s->archiveLanded(r);
+    pump([&] { return d->idle() && !d->writePending() && d->asks().size() > fires; }, 30000);
+    spin(500);
+    const analysis::ShotRecord after = rowsOfShot(two);
+    int same = 0, differ = 0;
+    QStringList which;
+    for (const analysis::ConditionRow &b : before.rows) {
+        const auto it = std::find_if(after.rows.begin(), after.rows.end(),
+                                     [&b](const analysis::ConditionRow &a) { return a.conditionId == b.conditionId; });
+        const bool eq = it != after.rows.end() && it->state == b.state
+                     && (std::isnan(it->value) ? std::isnan(b.value) : it->value == b.value);
+        eq ? ++same : ++differ;
+        if (!eq && which.size() < 6) which << b.conditionId;
+    }
+    std::printf("    shot %d after a made archive, judged from its stub: %d rows as before, %d differ (%s)\n", two, same, differ,
+                qPrintable(which.join(QStringLiteral(", "))));
+    check(QStringLiteral("ARCHIVEj its own rows from the stub equal those from its full document (%1 rows)").arg(before.rows.size()),
+          r.ok && w.ok() && !before.rows.empty() && differ == 0 && after.rows.size() == before.rows.size());
+}
+
 static void testNoGolfer()
 {
     std::printf("\nNOGOLF — a session no golfer owns: an empty adapter, nothing judged\n");
@@ -737,7 +1182,7 @@ static void testReport()
     m->activateSession(folder);
     spin();
     check(QStringLiteral("REPORTb it holds a use of the Session while the report holds it (CARRY: every holder addUse()s)"),
-          s->uses() == usesBefore + 1 + 1);   // the report's, and the panel adapter asked for in REPORTa
+          s->uses() == usesBefore + 1);   // the report's view (the panel adapter asked for in REPORTa has none: 3.7-e)
     check(QStringLiteral("REPORTc it shows every shot the owner kept, not busy"), m->shotCount() == kShots && !m->busy());
     const analysis::ShotRecord *two = nullptr, *three = nullptr;
     for (const analysis::ShotRecord &r : m->shotRecords()) {
@@ -765,7 +1210,7 @@ static void testReport()
     m->dropView();
     m->deleteLater();
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
-    check(QStringLiteral("REPORTh let go, its use of the Session is dropped"), !m && s->uses() == usesBefore + 1);
+    check(QStringLiteral("REPORTh let go, its use of the Session is dropped"), !m && s->uses() == usesBefore);
 }
 
 static void testTrashDuringMake()
@@ -1023,8 +1468,16 @@ int main(int argc, char **argv)
     testAlwaysPanelReadingClosing();
     testCrashLeftSession();
     testFreeze();
+    testCatchUpVersionBump();
+    testCatchUpTrash();
+    testFingerprintInputs();
+    testLiveBaselineAtStart();
+    testLiveBaselineAppOrder();
+    testUse();
+    testPackEditRefires();
     testArchive();
     testArchiveEvents();
+    testArchiveStub();
     testNoGolfer();
     testReport();
     testTrashDuringMake();

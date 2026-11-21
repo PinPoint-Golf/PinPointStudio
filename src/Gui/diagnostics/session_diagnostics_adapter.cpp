@@ -23,6 +23,8 @@
 #include "../../DomainModel/session.h"
 #include "../../DomainModel/session_diagnostics.h"
 #include "../../DomainModel/shot.h"
+#include "../../DomainModel/athlete.h"            // DiagnosticsDoors (appDiagnosticsDoors)
+#include "../../Export/firing_reader_store.h"     // the app's firing reader (appDiagnosticsDoors)
 
 #include <QDir>
 #include <algorithm>
@@ -34,8 +36,9 @@
 using namespace pinpoint::analysis;
 
 // THE ADAPTER'S LINK TO ITS SESSION (refactor step 3.7-a; session_diagnostics_model.h, "The thin adapter"): it holds a
-// use of the Session for the adapter's life (Q-18: no sweep releases a session a screen shows), hears the owner, and
-// takes each applied diagnosis into the adapter (mirror).
+// use of the Session WHILE A SCREEN SHOWS IT (a view bound; refactor 3.7-e, CARRY 3.7-a and R2-m2: no sweep releases a
+// session a screen shows, and none is held for good once no screen does), hears the owner, and takes each applied
+// diagnosis into the adapter (mirror).
 class SessionDiagnosticsOwnerLink final : public SessionDiagnosticsModel::AdapterLink
 {
 public:
@@ -43,7 +46,6 @@ public:
         : m_model(model), m_session(session), m_owner(session ? session->diagnostics() : nullptr),
           m_pipsOnly(model->m_adapterSurface == QLatin1String("cards"))
     {
-        if (m_session) m_session->addUse();
         if (!m_owner) return;
         // ONLY WHILE A VIEW IS BOUND (review M2): with none, a new diagnosis is owed and taken in when one binds (wake).
         QObject::connect(m_owner, &pinpoint::SessionDiagnostics::diagnosisApplied, model, [this] {
@@ -61,6 +63,7 @@ public:
         QObject::connect(m_owner, &pinpoint::SessionDiagnostics::batchSettled, model, busyLater);
         QObject::connect(m_owner, &pinpoint::SessionDiagnostics::written,      model, busyLater);
         QObject::connect(m_owner, &pinpoint::SessionDiagnostics::writeFailed,  model, busyLater);
+        QObject::connect(m_owner, &pinpoint::SessionDiagnostics::clubBaselineChanged, model, busyLater);   // J-49
         // The owner heard these first (it connected at its attach, before this adapter was made): its ask is out.
         QObject::connect(m_session, &pinpoint::Session::shotAdded,    model, busyLater);
         QObject::connect(m_session, &pinpoint::Session::shotTrashed,  model, busyLater);
@@ -68,7 +71,15 @@ public:
     }
     ~SessionDiagnosticsOwnerLink() override
     {
-        if (m_session) m_session->dropUse();   // null while the Session itself is going (the adapter is its child)
+        if (m_using && m_session) m_session->dropUse();   // null while the Session itself is going (the adapter is its child)
+    }
+
+    void viewed(bool on) override
+    {
+        if (on == m_using || !m_session) return;
+        m_using = on;
+        if (on) m_session->addUse();
+        else    m_session->dropUse();
     }
 
     bool notRecordedHere() const override
@@ -76,20 +87,21 @@ public:
         return m_session && m_session->inProgress() && !m_session->runningHere();
     }
 
-    pinpoint::WriteResult freezeBaseline(const QJsonObject &root) override
+    void freezeBaselineIfNeeded() override
     {
-        if (!m_session)
-            return { pinpoint::WriteResult::Status::Failed, QStringLiteral("the session is gone") };
-        return m_session->freezeClubBaseline(root, /*rewrite=*/false);
-    }
-
-    void reloadBaseline(bool keepWhenAbsent) override
-    {
-        if (m_owner) m_owner->reloadClubBaseline(keepWhenAbsent);
+        if (m_owner) m_owner->freezeClubBaselineIfNeeded();
     }
 
     void wake() override
     {
+        // THE CARDS' PIP ORDER IS TAKEN AGAIN ON EVERY BIND (refactor 3.7-e; review R2-m1 of 3.7-c): a panel that closed on
+        // a session with no new diagnosis left its card order behind, and the pips must keep it ("the pips do not move when
+        // a panel opens or closes"). Cheap: the rows the pips read and one surfaceChanged.
+        if (m_pipsOnly) {
+            m_owed = false;
+            mirrorPips();
+            return;
+        }
         if (std::exchange(m_owed, false)) mirror();
     }
 
@@ -99,9 +111,11 @@ public:
         const bool b = m_owner && (!m_owner->idle() || m_owner->writePending());
         // Loading (3.7-c review B3): the owner has applied no diagnosis yet while its Session holds shots.
         const bool l = m_owner && !m_owner->diagnosis() && m_session && !m_session->shots().isEmpty();
-        if (b == m.m_adapterBusy && l == m.m_adapterLoading) return;
+        const bool w = m_owner && m_owner->clubBaselineWaiting();   // J-49: the club baseline not ready
+        if (b == m.m_adapterBusy && l == m.m_adapterLoading && w == m.m_adapterBaselineWaiting) return;
         m.m_adapterBusy    = b;
         m.m_adapterLoading = l;
+        m.m_adapterBaselineWaiting = w;
         emit m.busyChanged();
     }
 
@@ -238,6 +252,7 @@ private:
     int  m_newest   = -1;      // the newest swing the last mirror showed
     bool m_mirrored = false;
     bool m_owed     = false;   // a diagnosis landed while no view was bound
+    bool m_using    = false;   // a use of the Session is held (a view is bound: viewed)
     bool m_pipsOnly = false;   // the "cards" surface: mirrorPips, not the view half
 };
 
@@ -371,4 +386,20 @@ bool SessionDiagnosticsAdapters::judgedHere(QObject *session, const QString &fol
     // another golfer's) is judged by nothing here.
     const QString mine = m_athleteFolder ? m_athleteFolder() : QString();
     return !folder.isEmpty() && !mine.isEmpty() && QDir::cleanPath(folder + QStringLiteral("/..")) == QDir::cleanPath(mine);
+}
+
+// ── The app's doors (the header; refactor 3.7-a, here since 3.7-e) ────────────────────────────────────────────────────
+
+pinpoint::DiagnosticsDoors pinpoint::appDiagnosticsDoors(WorkPool *pool, WorkReceiver *receiver, RuleData *ruleData,
+                                                         const SessionRepository &sessions, RecordingRepository &recordings)
+{
+    DiagnosticsDoors d;
+    d.pool         = pool;
+    d.receiver     = receiver;
+    d.ruleData     = ruleData;
+    d.reader       = std::make_shared<SwingStoreFiringReader>(sessions, recordings);   // parses a miss, writes the sidecar
+    d.persist      = true;
+    d.writeSummary = true;   // the catch-up's cut-over (3.7-e): the owner is work_ons.json's one writer too
+    d.attach       = &SessionDiagnostics::attach;
+    return d;
 }
