@@ -35,7 +35,8 @@
 //             reading into this shot (lm.ball: the Shot's command, its lock and document, the row refresh) and the
 //             panel's ingestShot
 //   lm.club   the PREVIOUS shot's club data (Foresight Premier sends it with the next shot): the Shot's command, the
-//             controller's refresh, and the carousel's _swingRewritten (a second refresh and the panel's regradeShot)
+//             controller's refresh, and the carousel's _swingRewritten (a second refresh; on --path old the panel's
+//             regradeShot, which since 3.7-c the carousel no longer asks of an adapter)
 //   (events)  pumped until the panel model and the new owner are idle, so each settle (rebuild, persist, hook) and
 //             each kept result lands inside the shot's window, as live
 //
@@ -44,13 +45,16 @@
 //
 //   cmake --build build/tests --target post_shot_bench -j 6
 //   post_shot_bench --fixtures <dir of swing.ppsw copies> --library <empty scratch dir> [--shots 40] [--parallel 1]
-//                   [--path new|old] [--view 1|0] [--csv out.csv]
+//                   [--path new|old] [--view 1|0] [--cards 12] [--csv out.csv]
 //
 // --path new (the default; refactor 3.7-a): the app since the stage panel's cut-over — the app's doors
 // (appDiagnosticsDoors: the owner always attached, persisting, on the one pool) and the panel's THIN ADAPTER
 // (SessionDiagnosticsAdapters, a view bound), so a shot's window holds the owner's keep and diagnosis (`owner`), its
 // debounced write (`owner.write`, 1.5 s later, as the app) and the adapter's view work (`adapter`, with the panel's QML
 // read under it). --path old: HEAD before 3.7-a (the panel's own engine model; --parallel as before).
+//
+// --cards N (12; 0 none; refactor 3.7-c): the carousel cards whose pip rows read the panel's model on each surfaceChanged
+// (PpShotCard: the swing's id by its folder, its pips, its fired count), timed as `qml.pips` inside the panel's emit.
 //
 // NOT a ctest: it times, it does not check, and it writes a library (refused unless --library is empty or new).
 
@@ -220,6 +224,8 @@ int main(int argc, char **argv)
                   QStringLiteral("new|old"), QStringLiteral("new") });
     p.addOption({ QStringLiteral("view"), QStringLiteral("new path: 1 a panel bound to the adapter, 0 the panel off (1)"),
                   QStringLiteral("0|1"), QStringLiteral("1") });
+    p.addOption({ QStringLiteral("cards"), QStringLiteral("the carousel cards whose pip rows read the panel on each surfaceChanged (12; 0: none)"),
+                  QStringLiteral("n"), QStringLiteral("12") });
     p.addOption({ QStringLiteral("quiet"), QStringLiteral("no [PostShot] line per shot") });
     p.addOption({ QStringLiteral("gc"), QStringLiteral("collect the JS engine's garbage after each shot, outside its window") });
     p.addHelpOption();
@@ -356,6 +362,39 @@ int main(int argc, char **argv)
     };
 
     QList<Shot *> shots;
+    // THE CARDS' PIP ROWS (refactor 3.7-c): each card the strip has built (the newest `--cards`, as the strip scrolls to
+    // the newest live shot) reads its pip row on every surfaceChanged of the model it reads: the swing's id by its folder,
+    // its pips and its fired count (PpShotCard's pipRow) — synchronously, inside that model's emit, as QML reads them.
+    // Panel up: the panel's model (adapter or old engine). Panel off, --path new (review B1: the pips are always there):
+    // the session's CARDS adapter, which takes only what the pips read (`owner/pips`), with the carousel's view bound.
+    const int kCards = std::max(0, p.value(QStringLiteral("cards")).toInt());
+    SessionDiagnosticsModel *pipsModel = panel;
+    if (newPath && p.value(QStringLiteral("view")) == QLatin1String("0") && kCards > 0) {
+        pipsModel = adapters.of(session, QStringLiteral("cards"), folder);
+        pipsModel->addView();   // PpShotCarousel._bindCardsView
+    }
+    if (kCards > 0)
+        QObject::connect(pipsModel, &SessionDiagnosticsModel::surfaceChanged, pipsModel, [&engine, pipsModel, &shots, kCards] {
+            PostShotTrace::Scope t("qml.pips");
+            for (qsizetype k = std::max<qsizetype>(0, shots.size() - kCards); k < shots.size(); ++k) {
+                const int id = pipsModel->shotIdForSwingDir(shots.at(k)->folder());
+                readLikeQml(engine, id >= 0 ? QVariant(pipsModel->pipsFor(id)) : QVariant(QVariantList{}));
+                readLikeQml(engine, QVariant(id >= 0 ? pipsModel->firedCountFor(id) : 0));
+            }
+        });
+    // J-46 (3.7-c review B2): the row a late reading went into, as the carousel shows it — compared, outside the shot's
+    // window, with the same row after one more refresh: equal means the controller's one refresh already shows it.
+    const auto rowOf = [&shotModel](const QString &dir) {
+        QVariantMap out;
+        const QHash<int, QByteArray> names = shotModel.roleNames();
+        for (int r = 0; r < shotModel.rowCount(); ++r) {
+            const QModelIndex ix = shotModel.index(r, 0);
+            if (shotModel.data(ix, names.key("swingDir")).toString() != dir) continue;
+            for (const QByteArray &role : cardRoles()) out.insert(QString::fromLatin1(role), shotModel.data(ix, names.key(role)));
+        }
+        return out;
+    };
+    int lateRowsChecked = 0, lateRowsSame = 0, lateRowsWithReading = 0;
     for (int i = 1; i <= kShots; ++i) {
         // ── the capture worker's part (not the GUI thread's): the swing allocated, its document written ──
         Shot *shot = session->addShot();
@@ -410,16 +449,35 @@ int main(int argc, char **argv)
                 const ForwardResult f = appObject.completeCapture(sessionFolderOf(pdir), prev->ref(), readingOf(pfx.lmBlock, i - 1), {}, &replaced);
                 if (!f.reached || !f.result.ok()) std::printf("  shot %d: the club data did not save: %s\n", i - 1, qPrintable(f.result.error));
             }
-            shotModel.refreshShot(pdir);
+            shotModel.refreshShot(pdir);   // the controller's own refresh of the live row
             PostShotTrace::Scope rewritten("lm.rewritten");   // PpShotCarousel._swingRewritten
-            shotModel.refreshShot(pdir);
-            panel->regradeShot(pdir);
+            // Since 3.7-c (J-46) the carousel neither refreshes the live row again nor asks an adapter to regrade (the
+            // owner hears the late reading itself, EVT-22); --path old keeps HEAD's second refresh and regrade.
+            if (!newPath) {
+                shotModel.refreshShot(pdir);
+                panel->regradeShot(pdir);
+            }
         }
         // ── the queued deliveries: the panel's settles, the new owner's results ──
         pump([&] { return !panel->busy() && (!owner || (owner->idle() && !owner->writePending())); });
         QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
         PostShotTrace::end();
         perShot << tableOf(last);
+        if (i >= 2) {   // J-46's check, outside the window
+            const QString pdir = shots.at(i - 2)->folder();
+            const QVariantMap shown = rowOf(pdir);
+            shotModel.refreshShot(pdir);
+            const QVariantMap again = rowOf(pdir);
+            ++lateRowsChecked;
+            if (!shown.isEmpty() && shown == again) ++lateRowsSame;
+            // the reading in the row: the launch monitor's figures among its metrics (any key the reading wrote)
+            const QVariantMap metrics = shown.value(QStringLiteral("metrics")).toMap();
+            bool reading = false;
+            for (auto it = metrics.constBegin(); it != metrics.constEnd() && !reading; ++it)
+                reading = it.key().startsWith(QLatin1String("lm")) || it.key().contains(QLatin1String("carry"), Qt::CaseInsensitive)
+                          || it.key().contains(QLatin1String("ballSpeed"), Qt::CaseInsensitive);
+            if (reading) ++lateRowsWithReading;
+        }
         if (p.isSet(QStringLiteral("gc"))) engine.collectGarbage();
         diagBytes << QFileInfo(folder + QStringLiteral("/diagnostics.json")).size();
     }
@@ -438,6 +496,8 @@ int main(int argc, char **argv)
         std::printf("  %-56s %7.1f %8.1f %9.1f %10.2f %6d\n", qPrintable(path), y.value(0), mean(1, 5), mean(kShots - 5, kShots - 1),
                     slope(y.mid(1)), perShot.last().value(path).second);
     }
+    std::printf("  late readings (J-46): %d rows checked; %d unchanged by a second refresh; %d show a launch-monitor figure\n",
+                lateRowsChecked, lateRowsSame, lateRowsWithReading);
     std::printf("  diagnostics.json: %lld bytes after shot 10, %lld after shot %d\n", (long long)diagBytes.value(9), (long long)diagBytes.last(), kShots);
 
     if (p.isSet(QStringLiteral("csv"))) {

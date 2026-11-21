@@ -38,6 +38,8 @@
 //   FREEZE  a live panel pointed at its session freezes club_baseline.json from the predecessors' ledgers, as the
 //           panel's model did, through the Session's own command; the owner reads it (its findings stamp moves)
 //   UNHELD  a folder in the golfer's folder whose file names another athlete id: today's engine model, made by C++
+//   LOADING an adapter made while its owner is still reading a reviewed session says so until the first diagnosis
+//           (3.7-c review B3: the panel's "being read" notice)
 //   IDLE    with no view bound the adapter does no view work; a view binding takes in what was owed (review M2)
 //   ARCHIVE a session held only to archive it: its owner asks nothing and writes nothing (review B2)
 //   NOGOLF  no Session (a session with no golfer: N1): an empty adapter, judging nothing — pointing it at the folder
@@ -53,6 +55,11 @@
 //           lands on it afterwards
 //   SIGMA   (refactor 3.7-d) the gate report's switch through the owner's doors (DiagnosticsDoors::withSigma): σ off
 //           moves the findings stamp, so a session loaded under it is judged again, and no row carries a σ
+//   PIPS    the carousel's pips (refactor 3.7-c): diagnosticsAdapters.shownFor answers the adapter a panel shows for the
+//           session (the stage panel's, else the cast's), the engine model a panel shows for a folder no Session holds, or
+//           nothing — and never makes one; each card's pips through it are the owner's; a panel rebuilt tells nothing;
+//           with no panel the cards' own adapter gives every shot its pips with no view half (review B1); a shown
+//           adapter destroyed is no longer answered (M3)
 //
 //   cmake --build build/tests --target diag_stage_panel_test -j 6
 //   ctest --test-dir build/tests -R '^diag_stage_panel_test$' --output-on-failure
@@ -420,6 +427,21 @@ static void testCrashLeftSession()
     Session *s = rig.athlete->sessionAt(folder);
     check(QStringLiteral("CRASHc in progress by its file, but not being recorded here"), s && s->inProgress() && !s->runningHere());
     if (!s) return;
+    // LOADING (3.7-c review B3): an adapter made while the owner is still reading the session says so, and stops saying
+    // so with its first diagnosis — the panel's "being read" notice, never an empty session shown as the session.
+    {
+        SessionDiagnosticsModel *early = rig.adapters->of(s, QStringLiteral("cast"));
+        const bool none = !s->diagnostics() || !s->diagnostics()->diagnosis();
+        std::printf("    the owner had %s diagnosis when the adapter was made\n", none ? "no" : "a");
+        if (early) early->addView();   // a cast up on it
+        check(QStringLiteral("LOADINGa while the owner has no diagnosis of a session with shots, its adapter is loading"),
+              early && early->loading() == none);
+        Rig::settled(s->diagnostics());
+        spin();
+        check(QStringLiteral("LOADINGb its first diagnosis lands: no longer loading, and the shots are there"),
+              early && !early->loading() && early->shotCount() == 2);
+        if (early) early->dropView();
+    }
     Rig::settled(s->diagnostics());
     SessionDiagnosticsModel *panel = rig.adapters->of(s, QStringLiteral("panel"));
     panel->setBaselineAuthorityName(QStringLiteral("live"));
@@ -820,6 +842,175 @@ static void testSigmaDoor()
     check(QStringLiteral("SIGMAb and no row carries a σ"), d2 && quantifiedOff == 0);
 }
 
+// PIPS (refactor 3.7-c): the carousel's pip rows read the Session's owner through the adapter a diagnostics panel SHOWS
+// for the carousel's session — diagnosticsAdapters.shownFor(app.sessionAt(folder), folder) — which never makes one, so a
+// card adds no view work of its own: with no panel up there is nothing to read (the pips off, as before).
+static int firedInOwnerRow(const SessionDiagnostics *d, int swing)
+{
+    const auto in = d ? d->diagnosisInput() : nullptr;
+    if (!in) return -1;
+    for (const analysis::ShotRecord &r : in->shots)
+        if (r.shotId == swing) {
+            int n = 0;
+            for (const analysis::ConditionRow &row : r.rows)
+                if (row.state == analysis::ShotState::Fired) ++n;
+            return n;
+        }
+    return -1;
+}
+
+static void testPips()
+{
+    std::printf("\nPIPS — the carousel's pips read the adapter a panel shows (3.7-c)\n");
+    Rig rig;
+    rig.adapters->setAthleteFolder([&rig] { return rig.athleteFolder(); });
+    Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    const QString folder = s && s->entry() ? s->entry()->folder : QString();
+    if (!d || folder.isEmpty()) { check(QStringLiteral("PIPS a live session with its owner"), false); return; }
+    const qint64 t0 = QDateTime::currentMSecsSinceEpoch();
+    QList<Shot *> shots;
+    for (int i = 1; i <= kShots; ++i) {
+        if (Shot *shot = liveShot(rig, s, t0 + i * 45000)) shots << shot;
+        if (i >= 2) shots.value(i - 2)->completeCapture(fixtureReading(shots.value(i - 2)->swingNumber()));
+        Rig::settled(d);
+    }
+    int told = 0;
+    QObject::connect(rig.adapters.get(), &SessionDiagnosticsAdapters::shownChanged, rig.adapters.get(), [&told] { ++told; });
+    const auto adaptersOf = [s] { return s->findChildren<SessionDiagnosticsModel *>(Qt::FindDirectChildrenOnly).size(); };
+
+    check(QStringLiteral("PIPSa no panel up: the cards find nothing to read (no pips, as with the panel off today)"),
+          rig.adapters->shownFor(s, folder) == nullptr && rig.adapters->shownCount() == 0);
+    check(QStringLiteral("PIPSb ...and asking made no adapter (no view work for a session no panel shows)"), adaptersOf() == 0);
+
+    SessionDiagnosticsModel *panel = rig.adapters->of(s, QStringLiteral("panel"), folder);
+    check(QStringLiteral("PIPSc a panel's adapter with no view bound shows nothing either"),
+          panel && rig.adapters->shownFor(s, folder) == nullptr && told == 0);
+    if (!panel) return;
+    panel->addView();   // PpSessionDiagnosticsPanel._bindView
+    check(QStringLiteral("PIPSd the panel binds: the cards are told once, and find its adapter"),
+          told == 1 && rig.adapters->shownCount() == 1 && rig.adapters->shownFor(s, folder) == panel);
+
+    // Each card's pips through it are the owner's: its shot found by its folder (the carousel row's swingDir), its fired
+    // count the owner's reduced row's.
+    bool same = true;
+    int withPips = 0;
+    for (Shot *shot : std::as_const(shots)) {
+        const int id = panel->shotIdForSwingDir(shot->folder());
+        same = same && id == shot->swingNumber() && panel->firedCountFor(id) == firedInOwnerRow(d, id);
+        if (!panel->pipsFor(id).isEmpty()) ++withPips;
+    }
+    std::printf("    %d of %d cards with pips\n", withPips, int(shots.size()));
+    check(QStringLiteral("PIPSe every card's pips are the owner's (its shot by folder; its fired count the owner's row's)"),
+          same && withPips == int(shots.size()));
+
+    // A mode switch rebuilds the stage panel: the incoming panel binds before the outgoing one goes.
+    const int beforeSwitch = told;
+    panel->addView();
+    panel->dropView();
+    check(QStringLiteral("PIPSf a panel rebuilt on a mode switch tells the cards nothing (no work per switch)"),
+          told == beforeSwitch && rig.adapters->shownFor(s, folder) == panel);
+
+    SessionDiagnosticsModel *cast = rig.adapters->of(s, QStringLiteral("cast"), folder);
+    cast->addView();
+    check(QStringLiteral("PIPSg the stage panel and the wall cast both up: the cards read the stage panel's"),
+          rig.adapters->shownFor(s, folder) == panel && rig.adapters->shownCount() == 2);
+    panel->dropView();
+    check(QStringLiteral("PIPSh the stage panel closed, the cast still up: the cast's (it shows the same owner)"),
+          rig.adapters->shownFor(s, folder) == cast && cast->firedCountFor(shots.last()->swingNumber())
+                                                           == firedInOwnerRow(d, shots.last()->swingNumber()));
+    cast->dropView();
+    const int beforeOff = told;
+    check(QStringLiteral("PIPSi both closed: nothing to read, and the cards were told"),
+          rig.adapters->shownFor(s, folder) == nullptr && rig.adapters->shownCount() == 0 && beforeOff > beforeSwitch);
+
+    // NO PANEL (review B1; BRIEF.md §3.1 "the Session, always there"): the session's CARDS adapter, which takes only what
+    // the pips read from each diagnosis — no view half — and is never answered as a panel.
+    SessionDiagnosticsModel *cards = rig.adapters->of(s, QStringLiteral("cards"), folder);
+    cards->addView();   // PpShotCarousel._bindCardsView
+    bool cardsSame = cards && cards->isAdapter();
+    int cardsWithPips = 0;
+    for (Shot *shot : std::as_const(shots)) {
+        const int id = cards->shotIdForSwingDir(shot->folder());
+        cardsSame = cardsSame && id == shot->swingNumber() && cards->firedCountFor(id) == firedInOwnerRow(d, id);
+        if (!cards->pipsFor(id).isEmpty()) ++cardsWithPips;
+    }
+    check(QStringLiteral("PIPSp with no panel up the cards' adapter gives every shot its pips, the owner's"),
+          cardsSame && cardsWithPips == int(shots.size()));
+    check(QStringLiteral("PIPSq ...with no view half (no cards, no watching list built) and never answered as a panel"),
+          cards->cards().isEmpty() && cards->watching().isEmpty() && rig.adapters->shownFor(s, folder) == nullptr
+              && rig.adapters->shownCount() == 0);
+    check(QStringLiteral("PIPSr anything judges this session here (no N1 warning); a no-golfer folder: nothing does"),
+          rig.adapters->judgedHere(s, folder)
+              && !rig.adapters->judgedHere(nullptr, rig.dir.path() + QStringLiteral("/unknown/2026-11-21_unknown_Swing_01")));
+    {   // a new shot with only the cards bound: its pips come with the owner's diagnosis
+        Shot *next = liveShot(rig, s, t0 + (kShots + 1) * 45000);
+        Rig::settled(d);
+        spin();
+        const int id = next ? cards->shotIdForSwingDir(next->folder()) : -1;
+        check(QStringLiteral("PIPSs a new shot with the panel off: its pips arrive with the owner's diagnosis"),
+              next && id == next->swingNumber() && !cards->pipsFor(id).isEmpty()
+                  && cards->firedCountFor(id) == firedInOwnerRow(d, id));
+        if (next) shots << next;
+    }
+    cards->dropView();
+
+    // A shown adapter that goes (review M3): the cards are told, and nothing stale is answered.
+    {
+        cast->addView();
+        const int beforeGone = told;
+        delete cast;
+        cast = nullptr;
+        spin();
+        check(QStringLiteral("PIPSt a shown adapter destroyed: the cards are told, and it is no longer answered"),
+              told > beforeGone && rig.adapters->shownCount() == 0 && rig.adapters->shownFor(s, folder) == nullptr);
+    }
+
+    // A new live shot with the panel up: its pips come with the owner's diagnosis; the cards' reads made nothing.
+    panel->addView();
+    Shot *fresh = liveShot(rig, s, t0 + (kShots + 2) * 45000);
+    Rig::settled(d);
+    spin();
+    const int freshId = fresh ? panel->shotIdForSwingDir(fresh->folder()) : -1;
+    check(QStringLiteral("PIPSj a new shot's pips come with the owner's diagnosis, and no adapter was made for the cards"),
+          fresh && freshId == fresh->swingNumber() && panel->firedCountFor(freshId) == firedInOwnerRow(d, freshId)
+              && !panel->pipsFor(freshId).isEmpty() && adaptersOf() == 2);   // the panel's and the cards'; the cast went
+    panel->dropView();
+
+    // UNHELD (J-a3): the same session under the golfer's folder, its file naming another athlete id: today's engine model,
+    // shown by a panel, is what the cards read — for its own folder only.
+    check(QStringLiteral("PIPSk the session ended"), s->end().ok());
+    Rig::settled(d);
+    const QString foreign = rig.athleteFolder() + QStringLiteral("/2026-09-03_") + kToken + QStringLiteral("_Swing_01");
+    check(QStringLiteral("PIPSl a copy placed in the golfer's folder"), copyTree(folder, foreign));
+    QJsonObject file = readJson(foreign + QStringLiteral("/session.json"));
+    file[QStringLiteral("athleteId")] = QStringLiteral("b389a703-4c75-4912-8800-828ddc74fbcc");
+    file[QStringLiteral("sessionId")] = QStringLiteral("0b0e5f5e-9c1a-4f1e-9d55-3a4c1f2e7b11");
+    writeJson(foreign + QStringLiteral("/session.json"), file);
+    QFile::remove(foreign + QStringLiteral("/diagnostics.json"));
+    SessionDiagnosticsModel *unheld = rig.adapters->of(nullptr, QStringLiteral("panel"), foreign);
+    if (!unheld || unheld->isAdapter()) { check(QStringLiteral("PIPS an engine-mode model for the unheld folder"), false); return; }
+    unheld->setSynchronous(true);
+    unheld->setBaselineAuthorityName(QStringLiteral("never"));
+    unheld->addView();
+    const int beforePoint = told;
+    unheld->activateSession(foreign);
+    check(QStringLiteral("PIPSm a panel's engine model on an unheld folder: the cards read it, and were told when it moved"),
+          rig.adapters->shownFor(nullptr, foreign) == unheld && told > beforePoint && unheld->shotCount() == kShots + 2);
+    check(QStringLiteral("PIPSn ...for that folder only (another folder finds nothing)"),
+          rig.adapters->shownFor(nullptr, folder) == nullptr);
+    unheld->activateSession(QString());
+    unheld->dropView();
+
+    // NOGOLF (N1): an empty adapter shown by a panel has nothing to read.
+    SessionDiagnosticsModel *empty = rig.adapters->of(nullptr, QStringLiteral("panel"),
+                                                      rig.dir.path() + QStringLiteral("/unknown/2026-11-21_unknown_Swing_01"));
+    empty->addView();
+    check(QStringLiteral("PIPSo a session with no golfer: nothing to read, so no pips (its panel says why)"),
+          rig.adapters->shownFor(nullptr, rig.dir.path() + QStringLiteral("/unknown/2026-11-21_unknown_Swing_01")) == nullptr);
+    empty->dropView();
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -848,6 +1039,7 @@ int main(int argc, char **argv)
         check(QStringLiteral("STAMPa the model-free stamp equals a model's (%1)").arg(stamp),
               !stamp.isEmpty() && stamp == m.contentStamp());
     }
+    testPips();
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;

@@ -81,7 +81,7 @@ Item {
                                                 root.sessionType + ":1:carousel",
                                                 root.sessionType + ":2:carousel"]
     on_CollapseKeyChanged: root._restoreCollapse()
-    Component.onCompleted:  root._restoreCollapse()
+    Component.onCompleted:  { root._restoreCollapse(); root._bindCardsView() }
     // Persisting on the property (not in the button's handler) also captures a
     // host-driven change; a restore writes back what it just read, which the
     // settings setter drops as a no-op.
@@ -126,6 +126,62 @@ Item {
                                                   : shotModel
     // Picks are ids in ONE model; another model's ids name other swings.
     onActiveModelChanged: root.markedIds = []
+
+    // ── what the cards' diagnostics pips read (refactor 3.7-c) ──
+    //
+    // THE PIPS ARE ALWAYS THERE (BRIEF.md §3.1, "the card pips": after the cut-over, "the Session,
+    // always there"; 3.7-c review B1). The Session's one SessionDiagnostics judges every shot
+    // (3.7-a), and the cards read it through 3.7-a's door, diagnosticsAdapters:
+    //   • a panel up on this session (the stage panel, else the wall cast): that panel's adapter
+    //     (shownFor, which makes nothing), so the pips keep the panel's own card order and add no
+    //     view work;
+    //   • no panel: the session's CARDS adapter (of(session, "cards")), which takes only what the
+    //     pips read from each diagnosis — no view half. Its pip order is a panel's card order once
+    //     a panel of the session has worked one out, else the session's patterns first.
+    // The folder is the panel's own choice, the same expression as PpSessionDiagnosticsPanel
+    // .sessionDir, until step 4's sessionOnScreen replaces both. The carousel's own rows already
+    // hold this Session (ShotListModel.loadSessionDir asks app.sessionAt), so asking for it holds
+    // nothing new.
+    readonly property string _diagFolder:
+        (sessionReviewController.reviewActive && sessionReviewController.activeSessionId !== "")
+            ? sessionReviewController.activeSessionId
+            : (typeof shotProcessor !== "undefined" && shotProcessor && shotProcessor.activeSessionDir !== "")
+                ? shotProcessor.activeSessionDir
+                : sessionReviewController.liveSessionDir
+    readonly property bool _golferChosen:
+        typeof athleteController === "undefined" || athleteController === null || athleteController.currentUuid !== ""
+    readonly property bool _hasAdapters: typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters
+    readonly property var _diagSession:
+        (typeof app !== "undefined" && app && _golferChosen && _diagFolder !== "") ? app.sessionAt(_diagFolder) : null
+    readonly property var _shownSource:
+        (_hasAdapters && diagnosticsAdapters.shownCount > 0 && _diagFolder !== "")
+            ? diagnosticsAdapters.shownFor(_diagSession, _diagFolder) : null
+    readonly property var _cardsSource:
+        (_hasAdapters && _diagSession && !_shownSource) ? diagnosticsAdapters.of(_diagSession, "cards", _diagFolder) : null
+    readonly property var pipSource: _shownSource ? _shownSource : _cardsSource
+    // The cards adapter takes each diagnosis only while a view is bound (as a panel's does): this
+    // carousel binds while it reads it, and lets go when a panel takes over or the session changes.
+    property var _cardsViewed: null
+    function _bindCardsView() {
+        if (_cardsViewed === _cardsSource) return
+        if (_cardsViewed) _cardsViewed.dropView()
+        _cardsViewed = _cardsSource
+        if (_cardsViewed) _cardsViewed.addView()
+    }
+    on_CardsSourceChanged: _bindCardsView()
+    Component.onDestruction: if (_cardsViewed) _cardsViewed.dropView()
+    // SHOW WITH A WARNING, NEVER HIDE (Mark's N1; CARRY's first 3.7 line): a session nothing judges
+    // here — no golfer chosen, recorded with no golfer, another golfer's — has no pips, and the
+    // chips row says so where the strip's diagnostic read would be (the panel's notice, shorter).
+    readonly property bool notJudged:
+        _hasAdapters && _diagFolder !== "" && !diagnosticsAdapters.judgedHere(_diagSession, _diagFolder)
+    readonly property string notJudgedText: {
+        const parts = SessionMode.folderKey(_diagFolder).split("/")
+        const owner = parts.length >= 2 ? parts[parts.length - 2] : ""
+        if (!_golferChosen) return qsTr("Not judged · no golfer chosen")
+        if (owner === "unknown") return qsTr("Not judged · recorded with no golfer")
+        return qsTr("Not judged · another golfer's session")
+    }
 
     // Shared popup width for the sessions drawer (~⅓ of the carousel width,
     // clamped) — wide enough that its content doesn't wrap. The floor keeps a
@@ -478,6 +534,17 @@ Item {
                     onClicked: filterPopup.opened ? filterPopup.close() : filterPopup.open()
                 }
             }
+
+            // N1's warning where the strip's diagnostic read would be (notJudged, above): an
+            // existing PpNotice in its chip style, words and the warn tone, no pips.
+            PpNotice {
+                objectName: "carouselNotJudged"
+                visible: root.notJudged
+                Layout.alignment: Qt.AlignVCenter
+                tone: "warn"
+                style: "chip"
+                text: root.notJudgedText
+            }
         }
 
         // ── The transport's own band, when it does not fit beside the chips ───
@@ -503,6 +570,7 @@ Item {
 
             delegate: PpShotCard {
                 id: cardDelegate
+                pipSource: root.pipSource
                 // Highlight follows the swing currently on the stage (filmstrip
                 // → loupe). Single click promotes this swing into Replay; clicking
                 // the already-focused card again deselects it and resets the
@@ -745,17 +813,28 @@ Item {
     // A saved swing's document was rewritten under the screens showing it — by a re-analysis,
     // or by a launch monitor's late club data (Foresight Premier writes a shot's club data with
     // the NEXT shot). Everything that reads that document reads it again.
-    function _swingRewritten(swingDir) {
-        root.activeModel.refreshShot(swingDir)
-        // The session assessment is graded FROM this document, so it is graded again —
-        // otherwise the ledger keeps quoting the metrics the shot was first read with.
-        // Only when a diagnostics panel is up; with none, the next activateSession()
-        // notices the rewritten document and regrades it then.
-        if (SessionMode.sessionDiagnostics)
-            SessionMode.sessionDiagnostics.regradeShot(swingDir)
+    //
+    // THE ROW IS REFRESHED HERE ONLY WHEN NOTHING ELSE HAS (`refreshRow`; J-46, 3.7-c review B2).
+    // A late launch-monitor reading has already refreshed the live carousel's row: the controller
+    // does it right after the write (LaunchMonitorController::flushUpdates, its shot model is the
+    // live `shotModel`), so a second full row refresh here re-read the whole document for nothing
+    // (`lm.rewritten`, 515–763 ms a shot live). It is still refreshed while a past session is
+    // reviewed (the strip then shows the review model, which the controller does not touch), and
+    // always after a re-analysis, which nothing else refreshes.
+    function _swingRewritten(swingDir, refreshRow) {
+        if (refreshRow)
+            root.activeModel.refreshShot(swingDir)
+        // The session assessment is graded FROM this document, so it is graded again — by its
+        // owner, which hears the rewrite itself (a re-analysis, EVT-02; a late reading, EVT-22:
+        // 3.7-a), so a panel's adapter is told nothing (refactor 3.7-c). Only today's engine
+        // model — a folder no Session holds, shown by a panel (session_diagnostics_adapter.h,
+        // J-a3) — is still asked; with no panel up, its next activateSession() notices the
+        // rewritten document and regrades it then.
+        if (root.pipSource && !root.pipSource.adapter)
+            root.pipSource.regradeShot(swingDir)
         // The Replay/Analyse panel reads shotReplay.analysisDetail — a separate,
         // independently cached disk read of swing.json (ShotReplayController /
-        // DiskReplaySource), not this model — so the model-only refresh above
+        // DiskReplaySource), not this model — so a model-only row refresh
         // leaves it showing the pre-rewrite score/metrics/trace/skeleton while
         // the shot stays focused. Force a reload when it's the one open now
         // (mirrors what re-selecting the shot already does).
@@ -768,7 +847,7 @@ Item {
     Connections {
         target: typeof launchMonitor !== "undefined" ? launchMonitor : null
         ignoreUnknownSignals: true
-        function onReadingUpdatedForSwing(swingDir) { root._swingRewritten(swingDir) }
+        function onReadingUpdatedForSwing(swingDir) { root._swingRewritten(swingDir, root.activeModel !== shotModel) }
     }
 
     // Re-analyse feedback — a sticky notice toast for the whole batch (pinned, with a
@@ -788,7 +867,7 @@ Item {
                              : qsTr("Re-analysing · %1 shots").arg(root._reanalyseQueuedCount),
                          "info", "", true)
         }
-        function onReanalysed(swingDir) { root._swingRewritten(swingDir) }
+        function onReanalysed(swingDir) { root._swingRewritten(swingDir, true) }
         function onReanalyseFinished(succeeded, failed, lastError) {
             root._reanalyseQueuedCount = 0
             const severity = failed === 0 ? "info" : succeeded === 0 ? "error" : "warn"

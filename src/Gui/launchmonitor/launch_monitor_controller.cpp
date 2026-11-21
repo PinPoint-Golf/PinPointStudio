@@ -739,7 +739,9 @@ void LaunchMonitorController::flushUpdates()
             m_shotModel->refreshShot(dir);
         m_lastReading = summaryOf(r);
         emit lastReadingChanged();
-        pinpoint::PostShotTrace::Scope traceRewritten("lm.rewritten");   // the carousel's refresh and regrade (QML)
+        // The carousel's _swingRewritten (QML): since 3.7-c the replay's reload only — this refresh above is the row's one
+        // refresh (J-46), and the owner regrades the shot itself on the write's EVT-22 (3.7-a).
+        pinpoint::PostShotTrace::Scope traceRewritten("lm.rewritten");
         emit readingUpdatedForSwing(dir);
     }
 }

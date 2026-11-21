@@ -34,6 +34,25 @@
 //     diagnostics), or no folder yet — an EMPTY adapter for the surface, which judges nothing and shows the panel's cold
 //     state; the panel says why (its no-golfer notice).
 //
+// WHAT A PANEL SHOWS, FOR A SCREEN THAT RIDES ON IT (refactor step 3.7-c: the carousel's per-shot pips):
+//
+//   diagnosticsAdapters.shownFor(app.sessionAt(folder), folder)
+//
+// answers the model a diagnostics panel is SHOWING for that folder (a view bound: addView) — the Session's stage-panel
+// adapter, else its wall-cast adapter; for a folder no Session holds, the engine-mode model a panel has pointed at it
+// (J-a3) — or null. It never makes one, so the cards add no view work of their own: they read the pips of the view half a
+// panel already runs, and with no panel up there is nothing to read. `shownCount` (the models with a view bound) and its
+// `shownChanged` tell a binding when to ask again: a panel's first view bound or last dropped, a shown engine model
+// re-pointed, a model gone. A panel rebuilt on a mode switch (its incoming view bound before its outgoing one goes)
+// tells nothing. Only the "panel" and "cast" surfaces are answered (review M1), and only models handed out by of() are
+// watched: of() is the one door a screen uses (adapterFor is its implementation).
+//
+// THE CARDS' OWN ADAPTER (surface "cards"; 3.7-c review B1: the pips show with no panel up, BRIEF.md §3.1): with no
+// panel showing the session, the carousel reads diagnosticsAdapters.of(session, "cards") and binds a view on it. That
+// adapter takes only what the pips read from each applied diagnosis (the rows, the ledgers, the folders: no view half).
+// Its pip order is a panel's card order once a panel of the session has worked one out, else the session's patterns
+// first, then the ledger's order. Never answered by shownFor.
+//
 // THE ADAPTER'S SESSION-FACING HALF is here too (session_diagnostics_adapter.cpp: SessionDiagnosticsOwnerLink), so the
 // model's own file links nothing of the domain model: only the app and the tests that link the Session and its owner
 // compile this pair. NOT a QML type (not in PP_QML_SOURCES), like diag_parallel_run: the QML suites need none of it.
@@ -44,7 +63,9 @@
 #include "session_diagnostics_model.h"   // whole, for moc (of()'s type)
 
 #include <QHash>
+#include <QList>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 
 #include <functional>
@@ -52,14 +73,32 @@
 class SessionDiagnosticsAdapters : public QObject
 {
     Q_OBJECT
+    // How many models this door handed out have a view bound (a panel up on them). See "What a panel shows", above.
+    Q_PROPERTY(int shownCount READ shownCount NOTIFY shownChanged)
 public:
     explicit SessionDiagnosticsAdapters(QObject *parent = nullptr) : QObject(parent) {}
     // `session`: a pinpoint::Session (app.sessionAt's answer), or null; `folder`: the folder the screen chose. Never null.
     Q_INVOKABLE SessionDiagnosticsModel *of(QObject *session, const QString &surface, const QString &folder = QString());
+    // The model a panel shows for `session` (app.sessionAt's answer) or, with none, for `folder`; null when no panel shows
+    // one. Never makes a model (refactor 3.7-c; above).
+    Q_INVOKABLE SessionDiagnosticsModel *shownFor(QObject *session, const QString &folder = QString()) const;
+    // Whether anything judges this folder's swings here: a Session's owner, or (no Session) today's engine for a folder
+    // in the current golfer's folder (J-a3). False for a session with no golfer (N1) or another golfer's: the carousel
+    // shows N1's warning where the pips would be (3.7-c review B1).
+    Q_INVOKABLE bool judgedHere(QObject *session, const QString &folder) const;
+    int shownCount() const;
     // The current golfer's folder (main.cpp: AthleteController's), for the not-held case above.
     void setAthleteFolder(std::function<QString()> folder) { m_athleteFolder = std::move(folder); }
 
+signals:
+    void shownChanged();
+
 private:
+    // Every model this door hands out is watched for a view bound or dropped, a re-pointing and its end (shownChanged).
+    SessionDiagnosticsModel *watched(SessionDiagnosticsModel *m);
+    void tellShown() { emit shownChanged(); }
+
+    QList<QPointer<SessionDiagnosticsModel>>  m_handedOut;   // the models of() answered, each once
     QHash<QString, SessionDiagnosticsModel *> m_empty;    // one empty adapter per surface, children of this
     QHash<QString, SessionDiagnosticsModel *> m_unheld;   // one engine-mode model per surface (today's path), ditto
     std::function<QString()>                  m_athleteFolder;

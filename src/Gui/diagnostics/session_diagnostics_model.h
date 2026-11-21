@@ -237,6 +237,10 @@ class SessionDiagnosticsModel : public QObject
     // A detection is in flight. The panel shows the previous state while it is true — never
     // an empty one, because a blank panel between balls reads as "nothing is wrong".
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    // An adapter whose Session's owner has not yet applied its first diagnosis of a session that has shots: a reviewed
+    // session is loaded (and a stale shot re-fired) off the GUI thread, so for a moment the adapter holds nothing. The
+    // panel says so rather than show an empty session as if it were the session (3.7-c review B3).
+    Q_PROPERTY(bool loading READ loading NOTIFY busyChanged)
     // A Session's thin adapter (refactor step 3.7-a), not an engine of its own: the panel shows its no-golfer notice when
     // it is handed the EMPTY adapter (session_diagnostics_adapter.h).
     Q_PROPERTY(bool adapter READ isAdapter CONSTANT)
@@ -402,6 +406,7 @@ public:
     // The adapter: its owner has asks or a diagnosis outstanding, or a write waiting (so busy going false means the
     // written file is there), or a live freeze is reading its predecessors.
     bool    busy() const { return m_adapter ? (m_adapterBusy || m_freezing) : m_pending > 0; }
+    bool    loading() const { return m_adapter && m_adapterLoading; }
 
     QString focusConditionId() const { return m_focusConditionId; }
     int     focusFromShot() const { return m_focusFromShot; }
@@ -688,6 +693,9 @@ public:
     Q_INVOKABLE void addView();
     Q_INVOKABLE void dropView();
     int views() const { return m_views; }
+    // The surface an adapter was made for ("panel", "cast"); empty for an engine-mode model. SessionDiagnosticsAdapters
+    // ::shownFor reads it with views() (refactor 3.7-c: the carousel's pips read the adapter a panel shows).
+    QString adapterSurface() const { return m_adapterSurface; }
 
     // The measurement-uncertainty switches (session_diagnostics_design.md §A8.8), for the report
     // tool that grades each stage against the others. Production leaves them at the tuned defaults.
@@ -794,6 +802,9 @@ signals:
     // per zone would be a second chance for two regions of the same panel to disagree about
     // one shot.
     void surfaceChanged();
+    // A first view bound, or the last one dropped (addView / dropView crossing zero; refactor 3.7-c): whether a panel shows
+    // this model changed. Not emitted while a rebuilt panel's incoming view overlaps its outgoing one.
+    void viewedChanged();
     // Which condition the detail is open on, and the detail itself. See the property block.
     void detailChanged();
     // One shot finished reducing. The panel's cue for the after-shot moment; carries whether
@@ -855,6 +866,7 @@ private:
     pinpoint::analysis::SessionResults             m_ownerResults;
     std::vector<pinpoint::analysis::ShotOutcome>   m_ownerComposed;
     bool m_adapterBusy = false;
+    bool m_adapterLoading = false;   // loading(): set by the adapter's link (updateBusy)
     int  m_views = 0;
 
     struct GradedFrom {

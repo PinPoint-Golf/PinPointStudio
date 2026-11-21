@@ -24,12 +24,12 @@
 // reads them back to feed the review panel, so all roles are declared even
 // where this card doesn't render them.
 //
-// ...and, when a session diagnostics panel is up, one more: a PIP ROW — one pip per tracked
+// ...and one more: a PIP ROW (with or without a session diagnostics panel up, since 3.7-c) — one pip per tracked
 // condition for this swing, plus the count that fired (design 13a, brief §6.1). It is what
 // makes the carousel the way INTO the panel post-session rather than a strip of thumbnails
 // beside it: the row is that swing's whole diagnostic read at a glance, so a reader picks the
-// shot they want to open instead of stepping through them. It costs a null check when no
-// panel is up — see the Loader below.
+// shot they want to open instead of stepping through them. It costs a null check when nothing
+// judges the session — see the Loader below.
 //
 // ...and two hover actions beside the ordinal (#56): a tick that picks the swing for the
 // carousel's bulk actions, and a trash can that deletes it — both WITHOUT putting the swing on
@@ -58,6 +58,10 @@ Rectangle {
     // No `analysisDetail` here on purpose: the card never read it, and as a required property it
     // still pulled the whole ~650k-node role value into every delegate (see qml_payload.h).
     required property string swingDir
+    // THE DIAGNOSTICS THE PIPS READ (refactor 3.7-c): the Session's one SessionDiagnostics, the owner — through the adapter
+    // a diagnostics panel shows for this card's session, or with no panel up the session's light cards adapter — handed
+    // down by the carousel (PpShotCarousel.pipSource); null when nothing judges the session here, and then no pips.
+    property var pipSource: null
     required property bool   dataWarning   // an integrity block warns (frames lost in capture, or IMU re-fusion)
     required property var    dataWarningDetail   // { capture, imu, framesLost, worstHoleMs, preImpact, … }
 
@@ -239,14 +243,14 @@ Rectangle {
         mark:  true
     }
 
-    // ── the swing's diagnostic read, when a session diagnostics panel is up ──
+    // ── the swing's diagnostic read, always there (BRIEF.md §3.1; 3.7-c) ──
     //
-    // ZERO COST WHEN IT IS NOT. `SessionMode.sessionDiagnostics` is null unless a panel has
-    // claimed the seam (the user turns the panel on in View), and every binding inside the
-    // Loader — pipsFor(), firedCountFor(), the Connections on surfaceChanged — lives in the
-    // component that null does not instantiate. A card in a session with no panel evaluates
-    // one null check and nothing else, which is the same trade the panel itself makes by not
-    // being a context property in main.cpp.
+    // `pipSource` is the adapter a panel shows for this session, or with no panel the session's
+    // cards adapter (PpShotCarousel), which takes only the pips' facts from each diagnosis — so
+    // the pips add no view work of their own. Every live shot is judged (3.7-a). Null only when
+    // nothing judges the session here; every binding inside the Loader — pipsFor(),
+    // firedCountFor(), the Connections on surfaceChanged — lives in the component that null
+    // does not instantiate.
     //
     // ABOVE THE STAR SCRIM AND BELOW THE ORDINAL CHIP. The card's overlays occupy three
     // corners already; the band immediately over the star scrim is the one clear strip across
@@ -271,7 +275,7 @@ Rectangle {
             id: pipLoader
             anchors { fill: parent
                       leftMargin: Theme.gap(6); rightMargin: Theme.gap(6) }
-            active: SessionMode.sessionDiagnostics !== null
+            active: !!card.pipSource
             sourceComponent: pipComponent
         }
     }
@@ -293,15 +297,15 @@ Rectangle {
             // ⚠ BY SWING FOLDER. card.shotId is the carousel model's own counter, which the
             // diagnostics ledger does not use — asking for it returned another swing's pips, or
             // none. The ledger resolves the folder to its own id.
-            readonly property int _diagId: (SessionMode.sessionDiagnostics && pipRow._rev >= 0)
-                        ? SessionMode.sessionDiagnostics.shotIdForSwingDir(card.swingDir) : -1
-            pips:       (SessionMode.sessionDiagnostics && _diagId >= 0)
-                        ? SessionMode.sessionDiagnostics.pipsFor(_diagId) : []
-            firedCount: (SessionMode.sessionDiagnostics && _diagId >= 0)
-                        ? SessionMode.sessionDiagnostics.firedCountFor(_diagId) : 0
+            readonly property int _diagId: (card.pipSource && pipRow._rev >= 0)
+                        ? card.pipSource.shotIdForSwingDir(card.swingDir) : -1
+            pips:       (card.pipSource && _diagId >= 0)
+                        ? card.pipSource.pipsFor(_diagId) : []
+            firedCount: (card.pipSource && _diagId >= 0)
+                        ? card.pipSource.firedCountFor(_diagId) : 0
 
             Connections {
-                target: SessionMode.sessionDiagnostics
+                target: card.pipSource
                 function onSurfaceChanged() { pipRow._rev = pipRow._rev + 1 }
             }
         }

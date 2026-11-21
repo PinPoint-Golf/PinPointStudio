@@ -99,6 +99,7 @@ Item {
     property var    before: null
     property var    want: ({})
     property int    step: 0
+    property int    waits: 0
     function expectPlace(what, reg) {
         const b = theBody()
         check(!!b, what + ": one Session diagnostics panel is up")
@@ -141,6 +142,20 @@ Item {
                 probe.check(picked, "shot " + probe.ordinal + " is in the carousel")
                 probe.check(cameraManager.ballCueEnabled === false, "ball ting OFF on Replay")
             } else if (s === 3) {
+                // WAIT FOR THE SESSION'S DIAGNOSTICS, ON A CONDITION, BOUNDED (3.7-c review B3). Since 3.7-a a
+                // reviewed session's panel shows its Session's owner, which loads (and re-fires a stale shot) off the
+                // GUI thread; under CPU load that outlasted this step's fixed 2.5 s. Ready = the panel's model has the
+                // session's shots and is no longer busy; up to 24 more steps (60 s).
+                const m = SessionMode.sessionDiagnostics
+                const ready = !!m && !m.busy && m.shotCount > 0
+                if (!ready && probe.waits < 24) {
+                    probe.waits += 1
+                    probe.log("waiting for the session's diagnostics (" + probe.waits + "): "
+                              + (m ? ("busy " + m.busy + ", shots " + m.shotCount) : "no model"))
+                    probe.step -= 1
+                    return
+                }
+                probe.check(ready, "the session's diagnostics are ready")
                 const b = theBody()
                 probe.check(!!b, "the panel is up in Replay")
                 if (!b) { probe.finish(); return }

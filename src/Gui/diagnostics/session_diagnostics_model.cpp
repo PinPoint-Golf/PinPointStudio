@@ -629,12 +629,15 @@ SessionDiagnosticsModel::SessionDiagnosticsModel(QObject *parent)
 // (session_diagnostics_adapter.cpp), so this file links nothing of the domain model.
 void SessionDiagnosticsModel::addView()
 {
-    if (++m_views == 1 && m_link) m_link->wake();
+    if (++m_views != 1) return;
+    if (m_link) m_link->wake();
+    emit viewedChanged();
 }
 
 void SessionDiagnosticsModel::dropView()
 {
-    m_views = std::max(0, m_views - 1);
+    if (m_views == 0) return;
+    if (--m_views == 0) emit viewedChanged();
 }
 
 void SessionDiagnosticsModel::pointAdapter()

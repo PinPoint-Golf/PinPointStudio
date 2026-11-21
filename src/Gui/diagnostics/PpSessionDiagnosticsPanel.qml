@@ -154,6 +154,8 @@ Item {
     // tabs blank over a carousel still showing the day's swings. So when no session is running
     // it reads the folder the carousel is showing (sessionReviewController.liveSessionDir).
     // The running session's own folder comes first: it exists before its first swing does.
+    // KEEP IT EQUAL TO PpShotCarousel._diagFolder (refactor 3.7-c): the cards find this panel's
+    // adapter by that folder, until step 4's sessionOnScreen replaces both.
     readonly property string sessionDir:
         (sessionReviewController.reviewActive
          && sessionReviewController.activeSessionId !== "")
@@ -263,11 +265,10 @@ Item {
         // with shot 8 selected and readable. Reproduced and verified end to end with
         // --probe-qml (load a session, pick shot 8, enter Analyse).
         _refreshReadout()
-        // THE CAROUSEL'S SEAM, CLAIMED UNCONDITIONALLY BY THE MOST RECENT PANEL. Both the
-        // session-mode and the wrist screens can host one of these, and the shot cards read
-        // their pips through the singleton — so the last panel to come up is the one whose
-        // ledger the cards draw. That is the right answer because it is the one the user is
-        // looking at, and it is the only answer that does not need a registry.
+        // THE SEAM, CLAIMED UNCONDITIONALLY BY THE MOST RECENT PANEL (Charts, Consistency and the
+        // charts' "open in Session diagnostics" read it until 3.7-e). The carousel's cards no longer
+        // do (refactor 3.7-c): they find the adapter this panel shows through
+        // diagnosticsAdapters.shownFor, which _bindView's addView tells them about.
         SessionMode.sessionDiagnostics = diagModel
         SessionMode.sessionDiagnosticsClaimant = root
         if (remembersNav) {
@@ -486,11 +487,29 @@ Item {
         text: root.noGolferText
     }
 
+    // ── a session whose diagnostics are still being read (3.7-c review B3) ───
+    //
+    // Since 3.7-a a reviewed session's panel shows its Session's owner, which reads the session's
+    // diagnostics (and re-judges any shot judged under older rules) off the screen thread. Until its
+    // first diagnosis lands the adapter holds nothing, and the body alone would say "No shots yet"
+    // over a session that has them. SHOW WITH A WARNING, NEVER HIDE: the same existing PpNotice,
+    // in its para style and the accent, says it is being read; the body stays, below, until the diagnosis replaces it.
+    readonly property bool loadingDiagnostics: !noGolfer && !!diagModel && !!diagModel.loading
+    PpNotice {
+        id: loadingNotice
+        objectName: "sdLoadingNotice"
+        visible: root.loadingDiagnostics
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        tone: "accent"
+        style: "para"
+        text: qsTr("Reading this session's diagnostics. Its swings appear here in a moment.")
+    }
+
     PpSessionDiagnosticsBody {
         id: body
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom
-                  top: root.noGolfer ? noGolferNotice.bottom : parent.top
-                  topMargin: root.noGolfer ? Theme.gap(8) : 0 }
+                  top: root.noGolfer ? noGolferNotice.bottom : root.loadingDiagnostics ? loadingNotice.bottom : parent.top
+                  topMargin: (root.noGolfer || root.loadingDiagnostics) ? Theme.gap(8) : 0 }
         source: diagModel
         // Where a declaration made on this panel is written back, while it is live (above).
         focusController: root.liveSession ? sessionController : null

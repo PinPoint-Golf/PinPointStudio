@@ -48,9 +48,11 @@ QtObject {
     property int    focusedShotId:   -1
     property string focusedSwingDir: ""
 
-    // The live session diagnostics ledger, if a panel is up — the carousel's shot cards read
-    // their pip row off it. NULLABLE AND NULL BY DEFAULT: the panel is off unless the user
-    // turns it on in View, and a card must cost nothing when it is (see PpShotCard).
+    // The live session diagnostics ledger, if a panel is up. NULLABLE AND NULL BY DEFAULT: the
+    // panel is off unless the user turns it on in View. Its readers now are Charts and
+    // Consistency (busy → re-read the file) and the charts' "open in Session diagnostics";
+    // the carousel's cards stopped reading it in refactor 3.7-c (they ask diagnosticsAdapters
+    // .shownFor), and it goes with 3.7-e.
     property var    sessionDiagnostics: null
     // Which panel claimed the seam above (refactor step 3.7-a): panels on one session share its adapter, so the
     // outgoing panel releases the seam only when the claim is still its own.

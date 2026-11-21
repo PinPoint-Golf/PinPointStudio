@@ -25,6 +25,7 @@
 #include "../../DomainModel/shot.h"
 
 #include <QDir>
+#include <algorithm>
 #include <QMetaObject>
 #include <utility>
 #include <QPointer>
@@ -39,7 +40,8 @@ class SessionDiagnosticsOwnerLink final : public SessionDiagnosticsModel::Adapte
 {
 public:
     SessionDiagnosticsOwnerLink(SessionDiagnosticsModel *model, pinpoint::Session *session)
-        : m_model(model), m_session(session), m_owner(session ? session->diagnostics() : nullptr)
+        : m_model(model), m_session(session), m_owner(session ? session->diagnostics() : nullptr),
+          m_pipsOnly(model->m_adapterSurface == QLatin1String("cards"))
     {
         if (m_session) m_session->addUse();
         if (!m_owner) return;
@@ -47,6 +49,7 @@ public:
         QObject::connect(m_owner, &pinpoint::SessionDiagnostics::diagnosisApplied, model, [this] {
             if (m_model->m_views > 0) mirror();
             else                      m_owed = true;
+            updateBusy();   // `loading` ends with the first diagnosis, whether or not busy moves
         });
         const auto busyLater = [this] {
             // A turn later: the owner starts its write's debounce after it announces, so `busy` falls once the written
@@ -94,8 +97,11 @@ public:
     {
         SessionDiagnosticsModel &m = *m_model;
         const bool b = m_owner && (!m_owner->idle() || m_owner->writePending());
-        if (b == m.m_adapterBusy) return;
-        m.m_adapterBusy = b;
+        // Loading (3.7-c review B3): the owner has applied no diagnosis yet while its Session holds shots.
+        const bool l = m_owner && !m_owner->diagnosis() && m_session && !m_session->shots().isEmpty();
+        if (b == m.m_adapterBusy && l == m.m_adapterLoading) return;
+        m.m_adapterBusy    = b;
+        m.m_adapterLoading = l;
         emit m.busyChanged();
     }
 
@@ -103,6 +109,10 @@ public:
     // stage, composed outcomes and typed results, and the golfer's word it read — then the adapter's view half only.
     void mirror() override
     {
+        if (m_pipsOnly) {
+            mirrorPips();
+            return;
+        }
         SessionDiagnosticsModel &m = *m_model;
         m_owed = false;
         const SessionDiagnosis *d = m_owner ? m_owner->diagnosis() : nullptr;
@@ -179,6 +189,48 @@ public:
         QMetaObject::invokeMethod(m_model, [this] { updateBusy(); }, Qt::QueuedConnection);
     }
 
+    // THE CAROUSEL CARDS' ADAPTER (surface "cards"; refactor 3.7-c, review B1): the pips with no panel up. Only what
+    // pipsFor / firedCountFor / shotIdForSwingDir read — each shot's rows as the owner's reduction read them, the owner's
+    // ledgers and the shots' folders — taken from the owner's applied diagnosis, and a pip order (below). No view half: no
+    // graph, no explanation, no ranking, no surfaces. Then one surfaceChanged for the cards.
+    void mirrorPips()
+    {
+        SessionDiagnosticsModel &m = *m_model;
+        m_owed = false;
+        pinpoint::PostShotTrace::Scope trace("pips");   // [PostShot]: the cards' share of a diagnosis
+        const SessionDiagnosis *d = m_owner ? m_owner->diagnosis() : nullptr;
+        const std::shared_ptr<const SessionReductionInput> in = m_owner ? m_owner->diagnosisInput() : nullptr;
+        m.m_swingDirs.clear();
+        if (d && in) {
+            m.m_ownerInput = in;
+            m.m_shots      = in->shots;
+            m.m_ledgers    = d->ledgers;
+            if (m_session)
+                for (const ShotRecord &r : m.m_shots)
+                    if (pinpoint::Shot *shot = m_session->shot(pinpoint::ShotRef(m_session->id(), r.shotId)))
+                        m.m_swingDirs.insert(r.shotId, shot->folder());
+            // THE PIP ORDER (review B1, "check the order"): the panel's own card order when a panel of this session has
+            // worked one out (its stage panel's, else its cast's), so the pips do not move when a panel opens or closes;
+            // before any has, the session's patterns first, in the ledger's order — what a panel's order leads with —
+            // then (pipsFor) every other tracked condition in the ledger's order.
+            QStringList order;
+            if (m_session)
+                for (const QString surface : { QStringLiteral("panel"), QStringLiteral("cast") })
+                    for (SessionDiagnosticsModel *sib : m_session->findChildren<SessionDiagnosticsModel *>(Qt::FindDirectChildrenOnly))
+                        if (order.isEmpty() && sib != m_model && sib->m_adapterSurface == surface) order = sib->m_displayOrder;
+            if (order.isEmpty())
+                for (const ConditionLedger &l : m.m_ledgers)
+                    if (l.tier == Tier::Pattern) order << l.id;
+            m.m_displayOrder = order;
+        } else {
+            m.m_ownerInput.reset();
+            m.m_shots.clear();
+            m.m_ledgers.clear();
+        }
+        pinpoint::PostShotTrace::Scope t("emit");   // the cards' pip rows (QML) re-read
+        emit m.surfaceChanged();
+    }
+
 private:
     SessionDiagnosticsModel               *m_model = nullptr;
     QPointer<pinpoint::Session>            m_session;
@@ -186,6 +238,7 @@ private:
     int  m_newest   = -1;      // the newest swing the last mirror showed
     bool m_mirrored = false;
     bool m_owed     = false;   // a diagnosis landed while no view was bound
+    bool m_pipsOnly = false;   // the "cards" surface: mirrorPips, not the view half
 };
 
 // ── The adapter (session_diagnostics_model.h) ─────────────────────────────────────────────────────────────────
@@ -229,7 +282,7 @@ SessionDiagnosticsModel *SessionDiagnosticsAdapters::of(QObject *session, const 
     const QString key = surface.isEmpty() ? QStringLiteral("panel") : surface;
     if (auto *s = qobject_cast<pinpoint::Session *>(session))
         if (SessionDiagnosticsModel *m = SessionDiagnosticsModel::adapterFor(s, key))
-            return m;
+            return watched(m);
     // A folder in the current golfer's folder that no Session of theirs holds (another athlete id in its file): today's
     // path, an engine-mode model made here (the header; NOTES-a.md J-a3).
     const QString mine = m_athleteFolder ? m_athleteFolder() : QString();
@@ -241,7 +294,7 @@ SessionDiagnosticsModel *SessionDiagnosticsAdapters::of(QObject *session, const 
             unheld->setObjectName(QStringLiteral("sessionDiagnosticsUnheld:") + key);
             QQmlEngine::setObjectOwnership(unheld, QQmlEngine::CppOwnership);
         }
-        return unheld;
+        return watched(unheld);
     }
     SessionDiagnosticsModel *&empty = m_empty[key];
     if (!empty) {
@@ -249,5 +302,73 @@ SessionDiagnosticsModel *SessionDiagnosticsAdapters::of(QObject *session, const 
         empty->setParent(this);
         QQmlEngine::setObjectOwnership(empty, QQmlEngine::CppOwnership);
     }
-    return empty;
+    return watched(empty);
+}
+
+// ── What a panel shows (refactor 3.7-c; the header) ───────────────────────────────────────────────────────────
+
+SessionDiagnosticsModel *SessionDiagnosticsAdapters::watched(SessionDiagnosticsModel *m)
+{
+    if (!m) return m;
+    for (const QPointer<SessionDiagnosticsModel> &p : std::as_const(m_handedOut))
+        if (p == m) return m;
+    m_handedOut.erase(std::remove_if(m_handedOut.begin(), m_handedOut.end(),
+                                     [](const QPointer<SessionDiagnosticsModel> &p) { return p.isNull(); }),
+                      m_handedOut.end());
+    m_handedOut.append(m);
+    if (m->adapterSurface() == QLatin1String("cards"))
+        return m;   // the cards' own adapter is not a panel: nothing a binding on shownFor needs to hear
+    connect(m, &SessionDiagnosticsModel::viewedChanged, this, &SessionDiagnosticsAdapters::tellShown);
+    // An engine-mode model is re-pointed by its panel (a move between two folders no Session holds keeps the object).
+    connect(m, &SessionDiagnosticsModel::sessionChanged, this, [this, m] { if (m->views() > 0) tellShown(); });
+    connect(m, &QObject::destroyed, this, [this] { tellShown(); });
+    return m;
+}
+
+int SessionDiagnosticsAdapters::shownCount() const
+{
+    int n = 0;
+    for (const QPointer<SessionDiagnosticsModel> &p : m_handedOut)
+        if (p && p->views() > 0 && p->adapterSurface() != QLatin1String("cards")) ++n;
+    return n;
+}
+
+SessionDiagnosticsModel *SessionDiagnosticsAdapters::shownFor(QObject *session, const QString &folder) const
+{
+    // A Session's: its stage panel's adapter first (the screen beside the carousel), else its wall cast's — both show the
+    // Session's one owner. Found among the Session's children (adapterFor's home), so nothing is made.
+    // Only the two panel surfaces count (review M1): the cards' own adapter ("cards") is not a panel.
+    auto *s = qobject_cast<pinpoint::Session *>(session);
+    if (s && s->diagnostics()) {
+        SessionDiagnosticsModel *cast = nullptr;
+        for (SessionDiagnosticsModel *m : s->findChildren<SessionDiagnosticsModel *>(Qt::FindDirectChildrenOnly)) {
+            if (!m->isAdapter() || m->views() == 0) continue;
+            if (m->adapterSurface() == QLatin1String("panel")) return m;
+            if (m->adapterSurface() == QLatin1String("cast")) cast = m;
+        }
+        return cast;
+    }
+    // A Session with no owner (no doors: a tool or test; review M2) gets of()'s engine model, as with no Session.
+    // No Session: today's engine model a panel has pointed at this very folder (J-a3), the stage panel's first. An empty
+    // adapter (no golfer: N1) judges nothing, so it is never answered.
+    if (folder.isEmpty()) return nullptr;
+    const QString want = QDir::cleanPath(folder);
+    SessionDiagnosticsModel *other = nullptr;
+    for (auto it = m_unheld.constBegin(); it != m_unheld.constEnd(); ++it) {
+        SessionDiagnosticsModel *m = it.value();
+        if (!m || m->views() == 0 || QDir::cleanPath(m->sessionDir()) != want) continue;
+        if (it.key() == QLatin1String("panel")) return m;
+        if (it.key() == QLatin1String("cast")) other = m;
+    }
+    return other;
+}
+
+bool SessionDiagnosticsAdapters::judgedHere(QObject *session, const QString &folder) const
+{
+    if (auto *s = qobject_cast<pinpoint::Session *>(session); s && s->diagnostics())
+        return true;
+    // No Session: a folder in the current golfer's folder keeps today's engine (J-a3); any other folder (no golfer: N1;
+    // another golfer's) is judged by nothing here.
+    const QString mine = m_athleteFolder ? m_athleteFolder() : QString();
+    return !folder.isEmpty() && !mine.isEmpty() && QDir::cleanPath(folder + QStringLiteral("/..")) == QDir::cleanPath(mine);
 }
