@@ -162,7 +162,7 @@ QJsonObject loadSummaryBlock(const QString &swingDir, QJsonObject *heads = nullp
 // THE DOCUMENT WITHOUT ITS PER-FRAME TRACKS — everything a reader of the swing's ANALYSIS needs
 // (clock, capture, review, streams, analysis.metrics/phases/kinematicSequence and the rest of the
 // analysis block's small fields) and none of the pose. The pose is the bulk of the ~28 MB
-// document whose full parse froze the GUI at the end of a session (ShotListModel::loadSessionDir,
+// document whose full parse froze the GUI at the end of a session (the carousel's reload of the day,
 // 2026-09-16); a reader of metric curves was paying 150–220 ms a swing on the share to throw
 // nearly all of it away. This reads the root chunk and the chunks on the path to
 // /analysis/metrics only — 6–9 ms a swing (the Charts panel's SessionSeriesModel).

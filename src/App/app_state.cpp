@@ -19,6 +19,7 @@
 #include "app_state.h"
 #include "../DomainModel/shot.h"   // R-APP-7: the landed shot's folder
 
+#include <QDateTime>
 #include <QDir>
 
 namespace pinpoint {
@@ -194,7 +195,11 @@ void AppState::startSession(bool extend)
         call(m_doors.dropPendingFocus);
     call(m_doors.openCaptureSession, extend);
     handOverFocus();
-    call(m_doors.showLiveShots, extend ? captureTargetFolder() : QString());
+    // The live carousel shows the session capture opened (the capture target), empty for a new one; it stays its live
+    // folder when capture lets go of it (a D7 restart, End), so the carousel never passes through no session.
+    m_liveFolder = captureTargetFolder();
+    refreshSessionOnScreen();
+    announceLive();
     call(m_doors.startClock);
     call(m_doors.startCameras);
 }
@@ -214,11 +219,84 @@ void AppState::handOverFocus()
 
 void AppState::endSession(bool reloadCarousel)
 {
+    // The session on screen and the live carousel are settled once, after capture has let go: never through the
+    // capture target's passing emptiness, nor through a session End discarded (empty: DEC-93).
+    const QString ended = captureTargetFolder();
+    m_ending = true;
     call(m_doors.stopCameras);
     call(m_doors.stopClock);
     call(m_doors.closeCaptureSession);
+    m_ending = false;
+    // With the toolbar's End: today's remaining session — the same one, unless End discarded it. The same session is
+    // no change at all: the live carousel keeps its rows (4-a's B3, by design since step 5.2). The close keeps the
+    // ended session on screen, as the carousel's rows did.
     if (reloadCarousel)
-        call(m_doors.showLiveShots, m_doors.todaysFolder ? m_doors.todaysFolder() : QString());
+        m_liveFolder = m_doors.todaysFolder ? m_doors.todaysFolder() : QString();
+    else if (!ended.isEmpty())
+        m_liveFolder = ended;
+    refreshSessionOnScreen();
+    announceLive();
+}
+
+void AppState::refreshCaptureTarget()
+{
+    const QString target = captureTargetFolder();
+    if (!target.isEmpty())
+        m_liveFolder = target;
+    handOverFocus();
+    emit captureTargetChanged();
+    if (m_ending)
+        return;   // endSession settles the session on screen once capture has let go
+    refreshSessionOnScreen();
+    announceLive();
+}
+
+QString AppState::liveSessionFolder() const
+{
+    const QString target = captureTargetFolder();
+    return target.isEmpty() ? m_liveFolder : target;
+}
+
+void AppState::setLiveFolder(const QString &folder)
+{
+    m_liveFolder = folder;
+    refreshSessionOnScreen();
+    announceLive();
+}
+
+void AppState::showLatestSession()
+{
+    setLiveFolder(latestSessionFolder());
+}
+
+// The latest session of the current athlete, from its SessionIndex: the latest start (a session older than step 2,
+// with no session file, by its day). "" for none.
+QString AppState::latestSessionFolder() const
+{
+    const Athlete *a = currentAthlete();
+    if (!a)
+        return {};
+    QString best;
+    QDateTime bestAt;
+    for (const SessionIndexEntry &e : a->index()) {
+        const QDateTime at = e.startedAtUtc.isValid() ? e.startedAtUtc
+                           : e.identity.localDay().isValid() ? QDateTime(e.identity.localDay(), QTime(0, 0))
+                                                            : QDateTime();
+        if (best.isEmpty() || (at.isValid() && (!bestAt.isValid() || at > bestAt))) {
+            best = e.folder;
+            bestAt = at;
+        }
+    }
+    return best;
+}
+
+void AppState::announceLive()
+{
+    const QString now = liveSessionFolder();
+    if (folderKey(now) == folderKey(m_announcedLive))
+        return;
+    m_announcedLive = now;
+    emit liveSessionChanged();
 }
 
 // R-APP-3, today's chain (E-08) in one place: the reviewed session, else the capture target, else the live
@@ -228,7 +306,7 @@ void AppState::refreshSessionOnScreen()
 {
     QString folder = m_doors.reviewFolder ? m_doors.reviewFolder() : QString();
     if (folder.isEmpty()) folder = captureTargetFolder();
-    if (folder.isEmpty() && m_doors.liveFolder) folder = m_doors.liveFolder();
+    if (folder.isEmpty()) folder = m_liveFolder;
     Session *session = (!folder.isEmpty() && m_doors.sessionAt) ? m_doors.sessionAt(folder) : nullptr;
     const SessionId id = session ? session->id() : SessionId();
 
@@ -268,7 +346,10 @@ void AppState::refreshAthlete()
     m_outcome.clear();
     m_scopeId     = {};
     m_scopeFolder.clear();
+    // The live carousel shows the new athlete's latest session (J-a2), as it did from the carousel's own reload.
+    m_liveFolder = latestSessionFolder();
     refreshSessionOnScreen();
+    announceLive();
 }
 
 // The selection cleared because its session went, and the replay of it with it.

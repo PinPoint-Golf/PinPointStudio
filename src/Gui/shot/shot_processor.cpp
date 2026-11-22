@@ -1832,16 +1832,21 @@ void ShotProcessor::onSwingDocWritten()
         const QUrl thumbUrl = m_thumbnailPath.isEmpty()
                                   ? QUrl()
                                   : QUrl::fromLocalFile(m_thumbnailPath);
-        newShotId = m_shotModel->addShot(savedSwingDir,
-                             m_timestampLabel,
-                             shotClub,
-                             exportOk,
-                             thumbUrl,
-                             analysisOk ? m_analysisResult.tracePoints : QVariantList{},
-                             analysisOk ? m_analysisResult.score : 0,
-                             analysisOk ? m_analysisResult.metrics : QVariantMap{},
-                             m_replayAnalysisDetail.map(),
-                             dataWarning, dataWarningDetail);
+        // THE CAROUSEL IS A VIEW (refactor step 5.2; R-QML-5): a shot whose document landed already has its row — made
+        // on the Session's EVT-01 above — and this gives it what capture drew (its thumbnail and trace). A shot that saved
+        // nothing still lands a card, with what the pipeline produced (ShotListModel::landShot).
+        ShotListModel::CapturedShot captured;
+        captured.shot              = m_shot;
+        captured.timestampLabel    = m_timestampLabel;
+        captured.club              = shotClub;
+        captured.hasVideo          = exportOk;
+        captured.thumbnailSource   = thumbUrl;
+        captured.tracePoints       = analysisOk ? m_analysisResult.tracePoints : QVariantList{};
+        captured.score             = analysisOk ? m_analysisResult.score : 0;
+        captured.metrics           = analysisOk ? m_analysisResult.metrics : QVariantMap{};
+        captured.dataWarning       = dataWarning;
+        captured.dataWarningDetail = dataWarningDetail;
+        newShotId = m_shotModel->landShot(captured, !savedSwingDir.isEmpty());
     }
 
     const qint64 tRow = phase.elapsed();

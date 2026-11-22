@@ -23,7 +23,8 @@
 //   nothing picked, the latest has none  → about the latest shot (the board headlines it);
 //   no shot has a reading                → "No launch monitor readings in this session".
 // graphics.has is the headline shot's; graphics.sessionHas the scope's, which gates the Session view.
-// Rows are built in memory (addPersistedShot with an analysisDetail), so nothing is read from disk.
+// Rows are a view of an in-memory session (fake_shot_source.h: the carousel is a view of a Session since refactor
+// step 5.2), and each row's readings come from the board's detail reader, so nothing is read from disk.
 //
 // And the variability marks the panel shows (docs/design/system/variability.md): G, club delivery's
 // grade per club (R4b) — a two-sided corridor's half-width, the CV for club speed, ungraded without a
@@ -40,6 +41,7 @@
 #include "variability/variability_measures.h"
 #include "shot/shot_list_model.h"
 #include "shot/qml_payload.h"
+#include "fake_shot_source.h"
 #include "Analysis/swing_analysis.h"
 #include "norms/norm_provider.h"
 #include "norms/context_tree.h"
@@ -96,6 +98,37 @@ static QVariantMap lmDetail(bool measured)
 
 // Shots 1..n in capture order (the model keeps them newest-first); `measured` lists the ordinals a
 // monitor read; `driverFrom` makes that ordinal and every later one a driver (0: all 7 irons).
+// THE TEST'S SESSION: each carousel here is a view of an in-memory session (its port: MemoryShotSource), and each
+// shot's readings are its "document" — the board reads them through its detail reader (g_details, by folder).
+static QHash<QString, QVariantMap> g_details;
+static QHash<ShotListModel *, pinpoint::testdoc::MemoryShotSource *> g_sources;
+static pinpoint::testdoc::MemoryShotSource *sessionOf(ShotListModel &m)
+{
+    if (pinpoint::testdoc::MemoryShotSource *s = g_sources.value(&m)) return s;
+    auto owned = std::make_unique<pinpoint::testdoc::MemoryShotSource>(QStringLiteral("/nonexistent"));
+    pinpoint::testdoc::MemoryShotSource *s = owned.get();
+    m.setSource(std::move(owned));
+    g_sources.insert(&m, s);
+    QObject::connect(&m, &QObject::destroyed, [&m] { g_sources.remove(&m); });
+    return s;
+}
+static QVariantMap detailOf(const QString &dir) { return g_details.value(dir); }
+// One shot of the session lands (its document: EVT-01), with its readings.
+static void land(ShotListModel &m, int ord, const QString &time, const QString &club, const QVariantMap &detail,
+                 bool measured, bool leftOut)
+{
+    pinpoint::testdoc::MemoryShotSource *src = sessionOf(m);
+    const pinpoint::ShotRef ref = src->allocate(ord);
+    g_details.insert(src->swingFolder(ref), detail);
+    pinpoint::ShotSummary s;
+    s.ordinal = ord;
+    s.timestampLabel = time;
+    s.club = club;
+    s.lmDevice = measured ? QStringLiteral("gcquad") : QString();
+    s.lmExcluded = leftOut;
+    src->land(ref, s);
+}
+
 static void fill(ShotListModel &m, int n, std::initializer_list<int> measured, int driverFrom = 0,
                  std::initializer_list<int> leftOut = {})
 {
@@ -104,10 +137,7 @@ static void fill(ShotListModel &m, int n, std::initializer_list<int> measured, i
         for (int x : measured) lm = lm || x == ord;
         for (int x : leftOut) out = out || x == ord;
         const QString club = driverFrom > 0 && ord >= driverFrom ? QStringLiteral("DRIVER") : QStringLiteral("7 IRON");
-        m.addPersistedShot(QStringLiteral("/nonexistent/swing_%1").arg(ord, 4, 10, QLatin1Char('0')), ord,
-                           QStringLiteral("10:%1").arg(ord, 2, 10, QLatin1Char('0')), club,
-                           false, QUrl(), 0, 0, QString(), {}, lmDetail(lm), false,
-                           lm ? QStringLiteral("gcquad") : QString(), {}, out);
+        land(m, ord, QStringLiteral("10:%1").arg(ord, 2, 10, QLatin1Char('0')), club, lmDetail(lm), lm, out);
     }
 }
 
@@ -137,10 +167,7 @@ static QVariantMap lmDetailOf(const QVariantMap &values)
 static void addShot(ShotListModel &m, const QString &club, const QVariantMap &values, bool leftOut = false)
 {
     const int ord = m.rowCount() + 1;
-    m.addPersistedShot(QStringLiteral("/nonexistent/swing_%1").arg(ord, 4, 10, QLatin1Char('0')), ord,
-                       QStringLiteral("11:%1").arg(ord, 2, 10, QLatin1Char('0')), club,
-                       false, QUrl(), 0, 0, QString(), {}, lmDetailOf(values), false,
-                       QStringLiteral("gcquad"), {}, leftOut);
+    land(m, ord, QStringLiteral("11:%1").arg(ord, 2, 10, QLatin1Char('0')), club, lmDetailOf(values), true, leftOut);
 }
 
 // A club's statistics in graphics.clubs, by its effective club label.
@@ -172,7 +199,7 @@ int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
-    // NO QML engine, on purpose (#173): the board reads the row's C++ slice (ShotListModel::lmDetail)
+    // NO QML engine, on purpose (#173): the board reads each row's slice in C++ (its detail reader)
     // and never touches the engine; reading a detail through QML is what froze the app for minutes
     // on entering Analyse.
     QmlPayload::setEngine(nullptr);
@@ -183,6 +210,7 @@ int main(int argc, char **argv)
         ShotListModel shots;
         fill(shots, 3, { 2, 3 });
         LmSessionModel board;
+        board.setDetailReader(&detailOf);
         board.setReviewing(true);
         board.setShotModel(&shots);
 
@@ -202,6 +230,7 @@ int main(int argc, char **argv)
         ShotListModel shots;
         fill(shots, 3, { 1, 2 });
         LmSessionModel board;
+        board.setDetailReader(&detailOf);
         board.setReviewing(true);
         board.setShotModel(&shots);
         checkStr("B1 no session line", board.emptyText(), QString());
@@ -227,6 +256,7 @@ int main(int argc, char **argv)
         ShotListModel shots;
         fill(shots, 6, { 1, 2, 3, 4 }, 5);
         LmSessionModel board;
+        board.setDetailReader(&detailOf);
         board.setReviewing(true);
         board.setShotModel(&shots);
         checkStr("D1 no session line (the 7 irons have readings)", board.emptyText(), QString());
@@ -243,6 +273,7 @@ int main(int argc, char **argv)
         ShotListModel shots;
         fill(shots, 3, { 1, 2, 3 }, 3, { 3 });
         LmSessionModel board;
+        board.setDetailReader(&detailOf);
         board.setReviewing(true);
         board.setShotModel(&shots);
         checkStr("E1 no \"no readings for this club\" line", board.emptyText(), QString());
@@ -255,6 +286,7 @@ int main(int argc, char **argv)
         ShotListModel shots;
         fill(shots, 3, { 2 }, 0, { 2 });
         LmSessionModel board;
+        board.setDetailReader(&detailOf);
         board.setReviewing(true);
         board.setShotModel(&shots);
         check(QStringLiteral("F1 no read, kept shot: the whole session (scope \"%1\")").arg(board.scopeText()),
@@ -265,6 +297,7 @@ int main(int argc, char **argv)
         ShotListModel shots;
         fill(shots, 2, {});
         LmSessionModel board;
+        board.setDetailReader(&detailOf);
         board.setReviewing(true);
         board.setShotModel(&shots);
         checkStr("C1 nothing picked: the session line", board.emptyText(),
@@ -306,6 +339,7 @@ int main(int argc, char **argv)
                 { QStringLiteral("lm.clubheadSpeed"), 100.0 + i },
                 { QStringLiteral("lm.carryDistance"), 240.0 + 3 * i } });
         LmSessionModel board;
+        board.setDetailReader(&detailOf);
         board.setReviewing(true);
         board.setShotModel(&shots);
 
@@ -383,6 +417,7 @@ int main(int argc, char **argv)
             ShotListModel shots;
             session(shots, 0);
             LmSessionModel board;
+        board.setDetailReader(&detailOf);
             board.setReviewing(true);
             board.setShotModel(&shots);
             board.setFocusedShotId(idOf(shots, 9));
@@ -408,6 +443,7 @@ int main(int argc, char **argv)
             ShotListModel shots;
             session(shots, 3);
             LmSessionModel board;
+        board.setDetailReader(&detailOf);
             board.setReviewing(true);
             board.setShotModel(&shots);
             board.setFocusedShotId(idOf(shots, 9));
@@ -438,6 +474,7 @@ int main(int argc, char **argv)
         for (int i = 0; i < 11; ++i)
             addShot(shots, QStringLiteral("7 IRON"), QVariantMap{ { QStringLiteral("lm.clubPath"), -1.0 + 0.2 * (i % 5) } });
         LmSessionModel board;
+        board.setDetailReader(&detailOf);
         board.setReviewing(true);
         board.setShotModel(&shots);
         const QVariantMap path0 = varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath");

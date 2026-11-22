@@ -137,11 +137,11 @@ struct Rig {
         if (const auto e = session ? store.open(session->id()) : std::nullopt) folder = e->folder;
         AppStateDoors doors;
         doors.sessionAt        = [this](const QString &f) { return f == folder ? session : nullptr; };
-        doors.liveFolder       = [this] { return folder; };
+        doors.currentAthlete   = [this] { return athlete.get(); };   // its latest session, on a switch (step 5.2)
         doors.shotOutcome         = &outcomeSummaryOf;
         doors.watchOutcomeSummary = &watchOutcomeSummary;
         state.setDoors(std::move(doors));
-        state.refreshSessionOnScreen();
+        state.setLiveFolder(folder);   // the live session (AppState's own since refactor step 5.2)
         QObject::connect(&state, &AppState::shotOutcomeChanged, &state, [this] { ++changes; });
     }
     ~Rig() { athlete.reset(); }
@@ -282,7 +282,7 @@ static void testWhichShot()
     Session *next = rig.athlete->startSession(QStringLiteral("swing"), QStringLiteral("date-name-type"));
     const auto e = next ? rig.store.open(next->id()) : std::nullopt;
     if (e) { rig.session = next; rig.folder = e->folder; }
-    rig.state.refreshSessionOnScreen();
+    rig.state.setLiveFolder(rig.folder);
     check(QStringLiteral("SC the session on screen replaced: the outcome is cleared with it"),
           e && !rig.state.outcome()->valid() && !rig.state.shotOutcome().shown);
     // A ShotAdded from the session that left the screen (as if it were late): its connection went with the old watch,

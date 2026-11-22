@@ -72,7 +72,7 @@ namespace {
 struct Rig {
     pinpoint::AppState state;
     QStringList calls;                 // the doors, in the order they were called
-    QString review, capture, live;     // the three folders sessionOnScreen chooses between
+    QString review, capture;           // two of the folders sessionOnScreen chooses between (the third: setLiveFolder)
     QString loaded;                    // the replay's folder
     bool autoSelect = false, running = false;
 
@@ -82,7 +82,6 @@ struct Rig {
         d.sessionRunning = [this] { return running; };
         d.reviewFolder   = [this] { return review; };
         d.captureFolder  = [this] { return capture; };
-        d.liveFolder     = [this] { return live; };
         d.resumeLive     = [this] { calls << "resumeLive"; review.clear(); };
         d.replayStart    = [this](int n, const QString &dir, bool play) {
             calls << QStringLiteral("start %1 %2 %3").arg(n).arg(dir, play ? "play" : "paused");
@@ -92,7 +91,6 @@ struct Rig {
         d.replayFolder   = [this] { return loaded; };
         d.autoReplayAfterSelect = [this] { return autoSelect; };
         d.openCaptureSession  = [this](bool extend) { calls << (extend ? "open extend" : "open new"); capture = "/lib/a/S2"; };
-        d.showLiveShots       = [this](const QString &dir) { calls << "show " + dir; };
         d.startClock          = [this] { calls << "clock"; running = true; };
         d.startCameras        = [this] { calls << "cameras"; };
         d.stopCameras         = [this] { calls << "cameras off"; };
@@ -167,9 +165,8 @@ int main(int argc, char **argv)
     std::printf("\nS3 scoped to the session on screen\n");
     {
         Rig r;
-        r.live = QStringLiteral("/lib/a/S1");
-        r.state.refreshSessionOnScreen();
-        check("S3 nothing captured or reviewed: the live carousel's session", r.state.sessionOnScreenFolder() == r.live);
+        r.state.setLiveFolder(QStringLiteral("/lib/a/S1"));
+        check("S3 nothing captured or reviewed: the live session", r.state.sessionOnScreenFolder() == QStringLiteral("/lib/a/S1"));
         r.state.enterReplay(kShot2, kDir2);
         r.capture = QStringLiteral("/lib/a/S1");   // an extend: the same session becomes the capture target
         r.state.refreshCaptureTarget();
@@ -188,21 +185,33 @@ int main(int argc, char **argv)
     std::printf("\nS4 start and end, one command each\n");
     {
         Rig r;
+        // The live carousel is a view of app.state's live session (refactor step 5.2): the capture target, else the live
+        // folder, announced by liveSessionChanged.
+        QStringList live;
+        QObject::connect(&r.state, &pinpoint::AppState::liveSessionChanged, [&] { live << r.state.liveSessionFolder(); });
         r.state.startSession(false);
-        check("S4 Start: the session, an empty carousel, the clock, the cameras",
-              r.calls == QStringList{ "open new", "show ", "clock", "cameras" });
+        check("S4 Start: the session, the clock, the cameras",
+              r.calls == QStringList{ "open new", "clock", "cameras" });
+        check("S4 …the live carousel shows the new session (the capture target), nothing before it",
+              live == QStringList{ "/lib/a/S2" } && r.state.liveFolder() == QStringLiteral("/lib/a/S2"));
         r.calls.clear();
+        live.clear();
         r.state.startSession(true);
         check("S4 Start (extend): the carousel shows the resumed session",
-              r.calls == QStringList{ "open extend", "show /lib/a/S2", "clock", "cameras" });
+              r.calls == QStringList{ "open extend", "clock", "cameras" } && r.state.liveFolder() == QStringLiteral("/lib/a/S2"));
         r.calls.clear();
         r.state.endSession(true);
-        check("S4 End: cameras, clock, the session's end — and only then today's carousel",
-              r.calls == QStringList{ "cameras off", "clock off", "close", "today", "show /lib/a/S1" });
+        check("S4 End: cameras, clock, the session's end — and only then today's session",
+              r.calls == QStringList{ "cameras off", "clock off", "close", "today" }
+                  && r.state.liveSessionFolder() == QStringLiteral("/lib/a/S1") && live == QStringList{ "/lib/a/S1" });
         r.calls.clear();
+        r.capture = QStringLiteral("/lib/a/S2");
+        r.state.refreshCaptureTarget();
+        live.clear();
         r.state.endSession(false);
-        check("S4 the close ends the same way, with no carousel reload",
-              r.calls == QStringList{ "cameras off", "clock off", "close" });
+        check("S4 the close ends the same way, keeping the ended session on the carousel",
+              r.calls == QStringList{ "cameras off", "clock off", "close" } && live.isEmpty()
+                  && r.state.liveSessionFolder() == QStringLiteral("/lib/a/S2"));
     }
 
     std::printf("\nS5 no athlete switch while a session runs\n");
@@ -275,16 +284,15 @@ int main(int argc, char **argv)
             AppStateDoors d;
             d.currentAthlete = [&current] { return current; };
             d.sessionAt      = [&app](const QString &f) { return app.sessionAt(f); };
-            d.liveFolder     = [&live] { return live; };
             st.setDoors(d);
-            st.refreshSessionOnScreen();
+            st.setLiveFolder(live);
             check("S7 the live folder's Session is on screen (app.session too)", st.sessionOnScreen() == s1 && app.session() == s1);
             st.enterReplay(ShotRef(s1->id(), 1).toString(), live + QStringLiteral("/swing_0001"));
             live += QLatin1Char('/');
-            st.refreshSessionOnScreen();
+            st.setLiveFolder(live);
             check("S7 the same session spelled another way keeps the selection (by SessionId)", st.selection()->valid());
             live = folderOf(s2->id());
-            st.refreshSessionOnScreen();
+            st.setLiveFolder(live);
             check("S7 another session clears it", !st.selection()->valid() && st.sessionOnScreen() == s2);
             st.enterReplay(ShotRef(s2->id(), 1).toString(), live + QStringLiteral("/swing_0001"));
             current = other.get();
@@ -301,7 +309,6 @@ int main(int argc, char **argv)
         pinpoint::AppStateDoors d;
         d.sessionAt     = [&asked](const QString &f) { asked << f; return static_cast<pinpoint::Session *>(nullptr); };
         d.captureFolder = [&r] { return r.capture; };
-        d.liveFolder    = [&r] { return r.live; };
         d.replayStop    = [&r] { r.calls << "stop"; };
         d.replayFolder  = [&r] { return r.loaded; };
         // The capture service's end: the empty session's folder is discarded, and then capture says it has no target
@@ -310,7 +317,6 @@ int main(int argc, char **argv)
         d.stopClock           = [&r] { r.calls << "clock off"; };
         d.closeCaptureSession = [&r] { r.calls << "close (discarded)"; r.capture.clear(); r.state.refreshCaptureTarget(); };
         d.todaysFolder        = [] { return QStringLiteral("/lib/a/S1"); };
-        d.showLiveShots       = [&r](const QString &dir) { r.calls << "show " + dir; r.live = dir; r.state.refreshSessionOnScreen(); };
         r.state.setDoors(d);
         r.capture = QStringLiteral("/lib/a/S2");          // the running session, empty
         r.state.refreshCaptureTarget();
@@ -318,7 +324,8 @@ int main(int argc, char **argv)
         asked.clear();
         r.state.endSession(true);
         check("S8 the End discards it, then shows today's remaining session",
-              r.calls.mid(r.calls.indexOf("cameras off")) == QStringList{ "cameras off", "clock off", "close (discarded)", "show /lib/a/S1" });
+              r.calls.mid(r.calls.indexOf("cameras off")) == QStringList{ "cameras off", "clock off", "close (discarded)" }
+                  && r.state.liveSessionFolder() == QStringLiteral("/lib/a/S1"));
         check("S8 the session on screen is today's remaining one", r.state.sessionOnScreenFolder() == QStringLiteral("/lib/a/S1"));
         check("S8 the discarded folder is never asked for again", !asked.contains(QStringLiteral("/lib/a/S2")));
         check("S8 and nothing of it stays selected", !r.state.selection()->valid());
@@ -327,14 +334,12 @@ int main(int argc, char **argv)
     std::printf("\nS9 a reload of the same session keeps the selection and the replay\n");
     {
         Rig r;
-        r.live = QStringLiteral("/lib/a/S1");
-        r.state.refreshSessionOnScreen();
+        r.state.setLiveFolder(QStringLiteral("/lib/a/S1"));
         r.state.enterReplay(kShot2, kDir2);
         r.calls.clear();
-        r.live.clear();                                   // the carousel's reload passes through empty…
-        r.state.refreshSessionOnScreen();
-        r.live = QStringLiteral("/lib/a/S1");             // …and comes back with the same session
-        r.state.refreshSessionOnScreen();
+        r.state.setLiveFolder(QString());                 // nothing on screen for a moment…
+        r.state.setLiveFolder(QStringLiteral("/lib/a/S1"));   // …and the same session back
+        r.state.setLiveFolder(QStringLiteral("/lib/a/S1/"));  // …and again, spelled another way (re-entering the screen)
         check("S9 a reload passing through an empty carousel keeps the selection", r.state.selection()->shotRef() == kShot2);
         check("S9 …and the replay (not stopped)", !r.calls.contains("stop") && r.loaded == kDir2);
         r.capture = QStringLiteral("/lib/a/S1");          // that session running…
@@ -342,8 +347,7 @@ int main(int argc, char **argv)
         r.capture.clear();                                // …and ended with its shots: the carousel still shows it
         r.state.refreshCaptureTarget();
         check("S9 End of a session with shots keeps both", r.state.selection()->valid() && !r.calls.contains("stop"));
-        r.live.clear();
-        r.state.refreshSessionOnScreen();
+        r.state.setLiveFolder(QString());
         r.state.refreshAthlete();
         check("S9 an athlete switch clears it even with nothing on screen",
               !r.state.selection()->valid() && r.calls.contains("stop"));

@@ -18,13 +18,13 @@
 
 // END-TO-END: THE LAUNCH MONITOR BOARD AFTER THE CAROUSEL'S CHEAP RELOAD (#52).
 //
-// End Session, app start, an athlete change and entering the Wrist screen all reload the live
-// carousel with ShotListModel::loadSessionDir — the summary-only read, which leaves every row's
-// analysisDetail empty. The board read its readings from nothing else, so after any of them it
+// End Session, app start, an athlete change and entering the Wrist screen all show the live
+// carousel a session (app.state.setLiveFolder; since refactor 5.2 a view of its Session), whose rows
+// carry no analysisDetail. The board read its readings from nothing else, so after any of them it
 // said there were none, though every shot's document held them. This drives that path and fails
 // if the board does not show what is on disk:
 //
-//   shotModel.loadSessionDir(<session>) → focus shot N → the real PpLaunchMonitorPanel on the
+//   app.state.setLiveFolder(<session>) → focus shot N → the real PpLaunchMonitorPanel on the
 //   live carousel → the board's shots must carry readings for exactly the shots that have them.
 //
 // --probe-path review does the same through sessionReviewController.loadSession (the full read
@@ -108,7 +108,7 @@ Item {
                 if (probe.path === "review")
                     sessionReviewController.loadSession(probe.sessionDir)
                 else
-                    shotModel.loadSessionDir(probe.sessionDir)   // End Session's reload, verbatim
+                    app.state.setLiveFolder(probe.sessionDir)   // End Session's reload, verbatim
             } else if (probe.step === 2) {
                 probe.check(shots.count > 0, probe.path + " load: " + shots.count + " shots in the carousel")
                 probe.check((probe.path === "review") === sessionReviewController.reviewActive,

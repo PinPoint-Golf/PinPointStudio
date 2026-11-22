@@ -1786,6 +1786,7 @@ pp_add_test(shot_commands_test
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
             ${SRC}/App/app.h ${SRC}/App/app.cpp ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp
             ${SRC}/Gui/shot/shot_list_model.h ${SRC}/Gui/shot/shot_list_model.cpp
+            ${SRC}/App/shot_source.h ${SRC}/App/session_shot_source.h ${SRC}/App/session_shot_source.cpp   # the view's port (5.2)
             # Re-analysis through the Shot (refactor step 3.4b-ii, C16): the controller and the one write-back; the
             # analysis itself is stubbed in the test (reanalyzeShot), as reanalysis_controller_test stubs it.
             ${SRC}/Gui/shot/reanalysis_controller.h ${SRC}/Gui/shot/reanalysis_controller.cpp
@@ -1811,7 +1812,7 @@ pp_add_test(shot_commands_test
             ${SESSION_DIAG_MARKS_SOURCES}
             ${SESSION_DIAG_CATALOGUE_SOURCES}
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui
-    LINK    Qt6::Qml Qt6::Concurrent
+    LINK    Qt6::Qml Qt6::Concurrent Qt6::Test
     AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(shot_commands_test PROPERTIES
@@ -2057,6 +2058,7 @@ add_executable(post_shot_bench
     ${_post_shot_bench_sources}
     ${SRC}/App/app.h ${SRC}/App/app.cpp ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp
     ${SRC}/Gui/shot/shot_list_model.h ${SRC}/Gui/shot/shot_list_model.cpp
+    ${SRC}/App/shot_source.h ${SRC}/App/session_shot_source.h ${SRC}/App/session_shot_source.cpp   # the carousel's port (5.2)
     ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
     ${SRC}/Core/post_shot_trace.h)
 target_include_directories(post_shot_bench PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${OpenCV_INCLUDE_DIRS})

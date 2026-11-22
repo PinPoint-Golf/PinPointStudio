@@ -491,18 +491,10 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
     if (m_documentWritten)
         m_documentWritten(shot);
 
-    if (m_shotModel) {
-        if (existingShotId >= 0) {
-            // The processor already made a row for this shot — an in-memory one with no
-            // folder, because nothing was written. Point it at the folder we just filled.
-            m_shotModel->attachSwingDir(existingShotId, swingDir);
-        } else {
-            const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(swingDir);
-            m_shotModel->addShot(swingDir, ps.timestampLabel, ps.club,
-                                 /*hasVideo*/ false, QUrl(), /*tracePoints*/ {},
-                                 /*score*/ 0, ps.metrics, ps.analysisDetail);
-        }
-    }
+    // The carousel follows that EVT-01 itself (refactor step 5.2; R-QML-5): a standalone shot's row is made, and a camera
+    // shot that saved nothing — whose card the processor already made (existingShotId) — becomes its Shot's row in
+    // place: one row for one swing, never two.
+    Q_UNUSED(existingShotId);
 
     ppInfo() << "LaunchMonitor: device-only shot" << r.deviceShotId << "written to" << swingDir;
     rememberShotDir(r.deviceShotId, swingDir);
@@ -579,12 +571,9 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
             m_reanalyse(swingDir);
     }
 
-    // Re-read the carousel row in place so the shot picks up its new metrics without
-    // losing selection or ordering. The phase-grid sidecar is guarded on swing.json's
-    // size and mtime, which the rewrite just moved, so the measures table regenerates
-    // on its next read rather than serving a grid with no launch monitor rows in it.
-    if (m_shotModel)
-        m_shotModel->refreshShot(swingDir);
+    // The carousel's row re-reads its Shot on the write's EVT-22 (refactor step 5.2), keeping the selection and its
+    // place. The phase-grid sidecar is guarded on swing.json's size and mtime, which the rewrite just moved, so the
+    // measures table regenerates on its next read rather than serving a grid with no launch monitor rows in it.
     rememberShotDir(r.deviceShotId, swingDir);
 
     m_lastReading = summaryOf(r);
@@ -742,12 +731,11 @@ void LaunchMonitorController::flushUpdates()
             continue;
         }
         ppInfo() << "LaunchMonitor: club data for" << r.deviceShotId << "written to" << dir;
-        if (m_shotModel)
-            m_shotModel->refreshShot(dir);
+        // The carousel's row follows the write's EVT-22 (refactor step 5.2).
         m_lastReading = summaryOf(r);
         emit lastReadingChanged();
-        // The carousel's _swingRewritten (QML): since 3.7-c the replay's reload only — this refresh above is the row's one
-        // refresh (J-46), and the owner regrades the shot itself on the write's EVT-22 (3.7-a).
+        // The carousel's _swingRewritten (QML): since 3.7-c the replay's reload only — the row follows the write's EVT-22
+        // itself (refactor 5.2), and the owner regrades the shot on the same event (3.7-a).
         pinpoint::PostShotTrace::Scope traceRewritten("lm.rewritten");
         emit readingUpdatedForSwing(dir);
     }

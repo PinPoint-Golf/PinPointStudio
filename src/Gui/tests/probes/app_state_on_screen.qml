@@ -121,9 +121,9 @@ Item {
             app.state.enterCapture()
         } else if (step === 2) {
             // The live carousel showing a session, as it shows today's (the scratch library has no session of today):
-            // the session screen's own call, ScreenWrist._syncTodayCarousel → shotModel.loadSessionDir.
+            // the session screen's own call, ScreenWrist._syncTodayCarousel → app.state.setLiveFolder.
             if (!check(liveDir !== "", "--probe-live given")) { finish(); return }
-            shotModel.loadSessionDir(liveDir)
+            app.state.setLiveFolder(liveDir)
         } else if (step === 3) {
             log("on screen " + app.state.sessionOnScreenFolder + ", live carousel " + live.count + " shot(s)")
             if (!check(live.count >= 2, "the live carousel holds the session's shots")) { finish(); return }
@@ -134,7 +134,7 @@ Item {
             check(app.state.selection.valid && app.state.selection.swingDir === pickedDir, "B3: the pick is the selection")
             replayBefore = !!app.state.replay && app.state.replay.active
             check(replayBefore, "B3: the pick started a replay (mode " + app.state.mode + ")")   // else the replay checks below prove nothing
-            shotModel.loadSessionDir(liveDir)                                         // B3: a reload of the same session
+            app.state.setLiveFolder(liveDir)                                         // B3: a reload of the same session
         } else if (step === 5) {
             check(app.state.selection.valid && app.state.selection.swingDir === pickedDir,
                   "B3: a reload of the same session keeps the selection (" + app.state.selection.swingDir + ")")
@@ -147,7 +147,7 @@ Item {
             log("after Home and back: on screen '" + app.state.sessionOnScreenFolder + "', carousel " + live.count)
             check(app.state.selection.valid && app.state.selection.swingDir === pickedDir,
                   "B3: entering the session screen keeps the selection (nothing on screen is not another session)")
-            shotModel.loadSessionDir(liveDir)               // the session back on screen
+            app.state.setLiveFolder(liveDir)               // the session back on screen
         } else if (step === 8) {
             check(app.state.selection.valid && app.state.selection.swingDir === pickedDir,
                   "B3: the selection is the same session's when it is back on screen")

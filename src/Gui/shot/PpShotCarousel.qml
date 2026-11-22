@@ -143,8 +143,8 @@ Item {
     //     pips read from each diagnosis — no view half. Its pip order is a panel's card order once
     //     a panel of the session has worked one out, else the session's patterns first.
     // The folder is the session on screen's (app.state.sessionOnScreenFolder: R-APP-3, the one derivation, E-08), as
-    // every session panel's is. The carousel's own rows already hold this Session (ShotListModel.loadSessionDir asks
-    // app.sessionAt); this reads the session on screen, app.session, and asks for none.
+    // every session panel's is. The carousel itself is a view of this Session (refactor step 5.2; R-QML-5); this reads the
+    // session on screen, app.session, and asks for none.
     readonly property string _diagFolder: app.state.sessionOnScreenFolder
     // With no golfer chosen the session is the Unassigned owner's, a full Session (§5.11; step 5.1): no golfer gate.
     readonly property bool _hasAdapters: typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters
@@ -838,16 +838,10 @@ Item {
     // or by a launch monitor's late club data (Foresight Premier writes a shot's club data with
     // the NEXT shot). Everything that reads that document reads it again.
     //
-    // THE ROW IS REFRESHED HERE ONLY WHEN NOTHING ELSE HAS (`refreshRow`; J-46, 3.7-c review B2).
-    // A late launch-monitor reading has already refreshed the live carousel's row: the controller
-    // does it right after the write (LaunchMonitorController::flushUpdates, its shot model is the
-    // live `shotModel`), so a second full row refresh here re-read the whole document for nothing
-    // (`lm.rewritten`, 515–763 ms a shot live). It is still refreshed while a past session is
-    // reviewed (the strip then shows the review model, which the controller does not touch), and
-    // always after a re-analysis, which nothing else refreshes.
-    function _swingRewritten(swingDir, refreshRow) {
-        if (refreshRow)
-            root.activeModel.refreshShot(swingDir)
+    // THE ROW IS NOT REFRESHED HERE (refactor step 5.2; R-QML-5): the carousel is a view of the Session, and its row
+    // re-reads its Shot on the rewrite's own event — a late reading's EVT-22, a re-analysis's EVT-02 — in whichever
+    // carousel shows that session, live or review.
+    function _swingRewritten(swingDir) {
         // The session assessment is graded FROM this document, so it is graded again — by its
         // owner, which hears the rewrite itself (a re-analysis, EVT-02; a late reading, EVT-22:
         // 3.7-a), so a panel's adapter is told nothing (refactor 3.7-c). Only today's engine
@@ -871,7 +865,7 @@ Item {
     Connections {
         target: typeof launchMonitor !== "undefined" ? launchMonitor : null
         ignoreUnknownSignals: true
-        function onReadingUpdatedForSwing(swingDir) { root._swingRewritten(swingDir, root.activeModel !== shotModel) }
+        function onReadingUpdatedForSwing(swingDir) { root._swingRewritten(swingDir) }
     }
 
     // Re-analyse feedback — a sticky notice toast for the whole batch (pinned, with a
@@ -891,7 +885,7 @@ Item {
                              : qsTr("Re-analysing · %1 shots").arg(root._reanalyseQueuedCount),
                          "info", "", true)
         }
-        function onReanalysed(swingDir) { root._swingRewritten(swingDir, true) }
+        function onReanalysed(swingDir) { root._swingRewritten(swingDir) }
         function onReanalyseFinished(succeeded, failed, lastError) {
             root._reanalyseQueuedCount = 0
             const severity = failed === 0 ? "info" : succeeded === 0 ? "error" : "warn"

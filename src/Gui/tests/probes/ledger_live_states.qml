@@ -121,7 +121,7 @@ Item {
             } else if (s === 6) {
                 // PpSessionToolbar._beginSession(true), less the clock and the cameras.
                 shotProcessor.beginSessionFolder(SessionController.Wrist, true)
-                shotModel.loadSessionDir(shotProcessor.activeSessionDir)
+                app.state.setLiveFolder(shotProcessor.activeSessionDir)
             } else if (s === 8) {
                 probe.check(probe.same(shotProcessor.activeSessionDir, probe.sessionDir),
                             "extended: the session resumed in today's folder")
@@ -142,7 +142,7 @@ Item {
             } else if (s === 14) {
                 // The End Session button, less the devices.
                 shotProcessor.endSessionFolder()
-                shotModel.loadSessionDir(shotProcessor.todaySessionDir(SessionController.Wrist))
+                app.state.setLiveFolder(shotProcessor.todaySessionDir(SessionController.Wrist))
             } else if (s === 16) {
                 probe.state("ended", probe.base + 1)
                 probe.finish()

@@ -103,7 +103,7 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; }
 //    the snapshot's content does.
 //
 // 7. STRIKE ORDER IS THE FOLDER NUMBER. The carousel reloads a session from its swing_NNNN
-//    folders in name order (ShotListModel::loadSessionDir via SwingDocReader::findSwingDirs) and
+//    folders in swing-number order (ShotListModel: its Session's Shots, by swing number) and
 //    the diagnostics ledger numbers its shots by the same folder (folderShotId), so ordinal is
 //    the rank of the folder number and shotId IS the folder number — the join key to the ledger.
 //    A caller's shot id is used only for a folder that carries no number.

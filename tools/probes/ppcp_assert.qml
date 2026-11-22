@@ -281,7 +281,7 @@ Item {
         if (!probe.sessionOpened) {
             // Exactly what Main.qml's session-start handler does, in its order.
             shotProcessor.beginSessionFolder(probe.sessionType, false)
-            shotModel.loadSessionDir("")
+            app.state.setLiveFolder("")
             sessionController.start(probe.sessionType)
             cameraManager.startCapture()
             probe.sessionOpened = true

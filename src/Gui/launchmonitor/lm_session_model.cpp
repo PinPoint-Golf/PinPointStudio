@@ -757,8 +757,8 @@ void LmSessionModel::connectShotModel()
     if (!m_shots)
         return;
     // Everything that can change what the board says, and nothing that cannot. A club
-    // edit writes through as dataChanged on the row, a reading arriving does the same
-    // via refreshShot, and loadSessionDir is a model reset.
+    // edit is dataChanged on the row, a reading arriving (its Shot's EVT-22) the same,
+    // and the carousel shown another session is a model reset.
     connect(m_shots, &QAbstractItemModel::rowsInserted,   this, &LmSessionModel::scheduleRebuild);
     connect(m_shots, &QAbstractItemModel::rowsRemoved,    this, &LmSessionModel::scheduleRebuild);
     connect(m_shots, &QAbstractItemModel::modelReset, this, [this]() {
@@ -768,9 +768,8 @@ void LmSessionModel::connectShotModel()
     });
     connect(m_shots, &QAbstractItemModel::dataChanged, this,
             [this](const QModelIndex &topLeft, const QModelIndex &bottomRight, const QVector<int> &roles) {
-                // A reading folded in (refreshShot) or a re-analysis: the cached slice is stale.
+                // A reading folded in (EVT-22) or a re-analysis (EVT-02): the cached slice is stale.
                 if (roles.isEmpty()
-                    || roles.contains(int(ShotListModel::LmDetailRole))
                     || roles.contains(int(ShotListModel::LmDeviceRole)))
                     for (int r = topLeft.row(); r <= bottomRight.row(); ++r)
                         m_diskDetail.remove(m_shots->data(m_shots->index(r),
@@ -778,7 +777,6 @@ void LmSessionModel::connectShotModel()
                 if (m_batching)
                     return;                       // undoMismatch() rebuilds once at the end
                 if (roles.isEmpty()
-                    || roles.contains(int(ShotListModel::LmDetailRole))
                     || roles.contains(int(ShotListModel::MetricsRole))
                     || roles.contains(int(ShotListModel::ClubRole))
                     || roles.contains(int(ShotListModel::LmDeviceRole))
@@ -1028,17 +1026,17 @@ void LmSessionModel::rebuild()
     QHash<QString, QVariantMap> diskDetail;       // becomes m_diskDetail: the rows used, no more
     for (int r = 0; r < nrows; ++r) {
         const QModelIndex ix = m_shots->index(r);
-        // The row's launch monitor slice (ShotListModel::lmDetail; H-07).
-        QVariantMap detail = m_shots->lmDetail(r);
-        // A cheap-loaded row (loadSessionDir) has no detail. Only one a device measured is read:
-        // a shot with no monitor has no readings to find, and the reload must stay cheap for it.
-        if (detail.isEmpty()) {
+        // The row's launch monitor slice, read from its document (the carousel's rows keep none of a Shot's facts since
+        // refactor step 5.2; R-QML-5). Only a row a device measured is read: a shot with no monitor has no readings to
+        // find, and showing a session must stay cheap for it.
+        QVariantMap detail;
+        {
             const QString dir = m_shots->data(ix, ShotListModel::SwingDirRole).toString();
             if (!dir.isEmpty()
                 && !m_shots->data(ix, ShotListModel::LmDeviceRole).toString().isEmpty()) {
                 const auto hit = m_diskDetail.constFind(dir);
-                detail = hit != m_diskDetail.constEnd()
-                             ? *hit : pinpoint::SwingDocReader::readLaunchMonitorDetail(dir);
+                detail = hit != m_diskDetail.constEnd() ? *hit
+                       : m_detailReader ? m_detailReader(dir) : pinpoint::SwingDocReader::readLaunchMonitorDetail(dir);
                 diskDetail.insert(dir, detail);
             }
         }

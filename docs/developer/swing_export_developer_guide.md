@@ -499,7 +499,7 @@ session into the identity map). Where each caller translates:
 | Caller | Its edge |
 |---|---|
 | the live join (`ShotProcessor` → `capture::writeLiveDocument`) | none: the allocation's ShotRef (`SessionRepository::allocateSwing`) |
-| `ShotListModel` (both carousels) | each row's folder, on its first write; kept on the row (cleared by `attachSwingDir`) |
+| `ShotListModel` (every carousel) | none: a row is its Shot's, keyed by the Shot's `ShotRef`, with the Shot's folder |
 | `PpcpClipFiler` | the folder `onSwingReady` announces |
 | `LaunchMonitorController` | the folder each write is handed (its own allocation's, or a failed camera shot's) |
 | `ReanalysisController` | each queued folder as it starts (GUI thread); the worker reads by the ShotRef |

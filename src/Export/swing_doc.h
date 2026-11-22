@@ -384,8 +384,7 @@ private:
 
 };
 
-// A reloaded shot — everything ShotListModel::addPersistedShot needs to rebuild a
-// carousel row from a swing.json on disk. The flat metrics + analysisDetail are
+// A reloaded shot — a swing.json read back whole. The flat metrics + analysisDetail are
 // reconstructed into the same shapes ShotProcessor produces live.
 struct PersistedShot {
     bool        ok = false;
@@ -519,8 +518,8 @@ public:
 
     // The launch monitor's slice of readSwingJson()'s analysisDetail, in the same shape: `series`
     // holding only the `lm.` entries and our own `lowPointAhead`, and `gates`/`gatesVersion` when the
-    // document has them. For a row ShotListModel::loadSessionDir() seeded from the summary, which
-    // carries no analysisDetail at all — the summary's readings are display strings ("9401rpm"),
+    // document has them. For the launch monitor board, whose carousel rows carry no analysisDetail at
+    // all (a row reads its Shot's summary) — the summary's readings are display strings ("9401rpm"),
     // and the board needs the doubles. Read through SwingStore::loadAnalysis(), so it costs the root
     // chunk and the metrics, never a per-frame track (6–9 ms a swing). Empty on no document.
     static QVariantMap readLaunchMonitorDetail(const QString &swingDir);

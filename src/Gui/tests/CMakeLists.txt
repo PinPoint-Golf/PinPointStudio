@@ -129,7 +129,8 @@ pp_add_test(presenter_pool_test
     INCLUDE ${GUI} ${GUI}/charts
     LINK    Qt6::Core)
 
-# ShotListModel::shotSummary — focused-shot metadata map for PpShotActionBar.
+# ShotListModel — the carousel as a view of one Session (refactor step 5.2; R-QML-5), over a test double of its port
+# (fake_shot_source.h): its rows follow the Session's events, and shotSummary, the focused-shot map for PpShotActionBar.
 # Links the model + the swing.json writer it references + the application log
 # (pp_log_stream.cpp + PpMessageLog.cpp — the primitive no longer arrives with
 # pp_debug.cpp's whisper/ggml installer behind it, so this logs for real).
@@ -144,8 +145,8 @@ pp_add_test(shot_list_model_test
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
-    LINK    Qt6::Qml  AUTOMOC)
+    INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Export/tests
+    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # ReanalysisController — the single re-analyse seam the carousel forwards to.
 # The controller's worker body (reanalyzeShot, through the shot's RecordingSource) is satisfied

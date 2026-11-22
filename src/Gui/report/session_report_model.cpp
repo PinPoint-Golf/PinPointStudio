@@ -1027,8 +1027,8 @@ void SessionReportModel::build()
     QVariantMap lmGraphics;
     if (anyLmBlock) {
         ShotListModel lmShots;
-        lmShots.setShotCommands(m_commands);   // the rows through the Session (step 5.1: the carousel reads nothing itself)
-        lmShots.loadSessionDir(job.dir);
+        lmShots.setSourceFactory(m_shotSourceFor);   // a view over the Session being reported (step 5.2; R-QML-5)
+        lmShots.showSession(job.dir);
         LmSessionModel lmModel;
         lmModel.setReviewing(true);
         lmModel.setLeftHanded(x.leftHanded);

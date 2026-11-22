@@ -16,27 +16,45 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// ShotListModel::shotSummary — the focused-shot metadata map that backs the
-// carousel's PpShotActionBar. Asserts: a valid id resolves every identity
-// field; an unknown / -1 id returns { valid:false } (present, false, bindable);
-// a row that would be filtered out of a proxy still resolves (summary is
-// model-scoped); and an IMU-only shot (no video, empty swingDir) reports the
-// right flags without crashing. And lmDetail (#173, H-07): a row keeps only the launch
-// monitor's slice of its detail, read as a C++ map.
+// ShotListModel — the carousel as a VIEW of one Session (refactor step 5.2; R-QML-5), over a test double of its port
+// (fake_shot_source.h: the owner's events, no more). The real path, over a real Session, is shot_commands_test's.
+//   S   shotSummary — the focused-shot metadata map behind PpShotActionBar: a valid id resolves every identity field;
+//       an unknown / -1 id returns { valid:false } (present, false, bindable); a row a proxy would hide still resolves;
+//       a card capture saved nothing for reports its flags without crashing.
+//   V1  EVT-01 inserts one row, in swing-number order (newest first), no reset
+//   V2  a Shot's events change that row only (dataChanged), a rewrite with the board's device role; the row keeps no
+//       fact of the Shot's: it shows what the Shot holds now
+//   V3  EVT-03 removes the row — the carousel's delete or anyone's — and shotTrashed says so once
+//   V4  a rewrite (a re-analysis) keeps the row's id and place
+//   V5  the same session shown again (End, re-entering a screen) changes nothing: no reset, the same ids
+//   V6  another session: one reset; none: empty
+//   V7  the Session gone (released, trashed): empty, and nothing dangles
+//   V8  a card capture saved nothing for, then its document lands (a launch monitor's): one row, the same id
+//   V9  a save that fails: said so, and the row shows the saved value; the rating sends no event (DEC-70)
+//   V10 End lets go of the cards and of the live presentation, without a reset
+//   V11 no row struct holds a Shot's facts: QML has no analysisDetail role, and no lmDetail is kept
 
 #include "shot/shot_list_model.h"
+#include "fake_shot_source.h"
 
-#include <QJSValue>
+#include <QCoreApplication>
+#include <QPointF>
+#include <QSignalSpy>
+#include <QThread>
 #include <QVariantMap>
 #include <QUrl>
 #include <cstdio>
+
+using pinpoint::ShotRef;
+using pinpoint::ShotSummary;
+using pinpoint::testdoc::MemoryShotSource;
 
 static int g_fail = 0;
 
 static void checkBool(const char *label, bool got, bool want)
 {
     const bool ok = got == want;
-    std::printf("  [%s] %-40s got %-5s want %-5s\n",
+    std::printf("  [%s] %-58s got %-5s want %-5s\n",
                 ok ? "PASS" : "FAIL", label, got ? "true" : "false", want ? "true" : "false");
     if (!ok) ++g_fail;
 }
@@ -44,128 +62,286 @@ static void checkBool(const char *label, bool got, bool want)
 static void checkInt(const char *label, long long got, long long want)
 {
     const bool ok = got == want;
-    std::printf("  [%s] %-40s got %4lld  want %4lld\n", ok ? "PASS" : "FAIL", label, got, want);
+    std::printf("  [%s] %-58s got %4lld  want %4lld\n", ok ? "PASS" : "FAIL", label, got, want);
     if (!ok) ++g_fail;
 }
 
 static void checkStr(const char *label, const QString &got, const QString &want)
 {
     const bool ok = got == want;
-    std::printf("  [%s] %-40s got \"%s\"  want \"%s\"\n",
+    std::printf("  [%s] %-58s got \"%s\"  want \"%s\"\n",
                 ok ? "PASS" : "FAIL", label, got.toUtf8().constData(), want.toUtf8().constData());
     if (!ok) ++g_fail;
 }
 
-int main()
+static ShotSummary shot(const char *club, int score, const char *time, bool video = true)
 {
-    std::printf("=== ShotListModel::shotSummary ===\n\n");
+    ShotSummary s;
+    s.club = QString::fromLatin1(club);
+    s.score = score;
+    s.timestampLabel = QString::fromLatin1(time);
+    s.hasVideo = video;
+    return s;
+}
 
-    ShotListModel model;
+static int rowOf(const ShotListModel &m, int id)
+{
+    for (int r = 0; r < m.rowCount(); ++r)
+        if (m.data(m.index(r), ShotListModel::ShotIdRole).toInt() == id) return r;
+    return -1;
+}
+static int ordinalAt(const ShotListModel &m, int r) { return m.data(m.index(r), ShotListModel::OrdinalRole).toInt(); }
 
-    // Two video shots + one IMU-only shot. addShot prepends (newest first) and
-    // assigns ascending ids (1,2,3) and ascending ordinals (1,2,3). We capture
-    // the returned ids so the test never assumes row order.
-    const int id1 = model.addShot(QStringLiteral("/swings/swing_0001"), QStringLiteral("13:42"),
-                                  QStringLiteral("7-iron"), /*hasVideo*/ true,
-                                  QUrl(QStringLiteral("file:///swings/swing_0001/thumb.jpg")),
-                                  /*tracePoints*/ {}, /*score*/ 82, /*metrics*/ {});
-    const int id2 = model.addShot(QStringLiteral("/swings/swing_0002"), QStringLiteral("13:45"),
-                                  QStringLiteral("Driver"), /*hasVideo*/ true,
-                                  QUrl(QStringLiteral("file:///swings/swing_0002/thumb.jpg")),
-                                  /*tracePoints*/ {}, /*score*/ 44, /*metrics*/ {});
-    // IMU-only shot: no video, no on-disk folder.
-    const int id3 = model.addShot(/*swingDir*/ QString(), QStringLiteral("13:48"),
-                                  QStringLiteral("PW"), /*hasVideo*/ false,
-                                  QUrl(), {}, /*score*/ 18, {});
-    // A row with a folder and no door: the edit is refused and said so (step 5.1: the carousel keeps no write of its
-    // own; N1 is gone), so the row keeps what it showed — the shot's rating is its Shot's, never the row's.
-    model.setRating(id1, 4);
-
-    std::printf("-- valid id (full field round-trip) --\n");
+// A view over a fresh fake session holding swings 1 and 2 (shown through the factory, as the app does).
+struct Rig {
+    MemoryShotSource *src = nullptr;   // owned by the view
+    ShotListModel     model;
+    explicit Rig(const QString &folder = QStringLiteral("/mem/s1"))
     {
+        auto s = std::make_unique<MemoryShotSource>(folder);
+        src = s.get();
+        src->put(1, shot("7 IRON", 82, "13:42"));
+        src->put(2, shot("DRIVER", 44, "13:45"));
+        model.setSource(std::move(s));
+    }
+};
+
+int main(int argc, char **argv)
+{
+    QCoreApplication app(argc, argv);
+    std::printf("=== ShotListModel: a view of one Session ===\n\n");
+
+    std::printf("-- S: shotSummary --\n");
+    {
+        Rig rig;
+        ShotListModel &model = rig.model;
+        const int id1 = model.idOfShotRef(rig.src->refOf(1));
+        const int id2 = model.idOfShotRef(rig.src->refOf(2));
+        model.setRating(id1, 4);   // the Shot's command: the row shows what the Shot now holds
         const QVariantMap s = model.shotSummary(id1);
         checkBool("valid",                s.value(QStringLiteral("valid")).toBool(), true);
         checkInt ("ordinal",              s.value(QStringLiteral("ordinal")).toInt(), 1);
-        checkStr ("club",                 s.value(QStringLiteral("club")).toString(), QStringLiteral("7-iron"));
+        checkStr ("club",                 s.value(QStringLiteral("club")).toString(), QStringLiteral("7 IRON"));
         checkStr ("timestampLabel",       s.value(QStringLiteral("timestampLabel")).toString(), QStringLiteral("13:42"));
         checkInt ("score",                s.value(QStringLiteral("score")).toInt(), 82);
-        checkInt ("rating (a refused setRating: unchanged)", s.value(QStringLiteral("rating")).toInt(), 0);
+        checkInt ("rating (the Shot's, after its command)", s.value(QStringLiteral("rating")).toInt(), 4);
         checkBool("hasVideo",             s.value(QStringLiteral("hasVideo")).toBool(), true);
-        checkStr ("swingDir",             s.value(QStringLiteral("swingDir")).toString(), QStringLiteral("/swings/swing_0001"));
+        checkStr ("swingDir (the Shot's folder)", s.value(QStringLiteral("swingDir")).toString(), QStringLiteral("/mem/s1/swing_0001"));
         checkBool("dataWarning (clean)",  s.value(QStringLiteral("dataWarning")).toBool(), false);
-    }
-
-    std::printf("\n-- a warned shot carries its warning to the swing panel --\n");
-    {
-        const int idW = model.addShot(QStringLiteral("/swings/swing_0009"), QStringLiteral("13:50"),
-                                      QStringLiteral("7-iron"), /*hasVideo*/ true, QUrl(), {},
-                                      /*score*/ 70, {}, {}, /*dataWarning*/ true,
-                                      { { QStringLiteral("clubRefused"), QStringLiteral("phaseSuspect") } });
-        const QVariantMap s = model.shotSummary(idW);
-        checkBool("dataWarning",          s.value(QStringLiteral("dataWarning")).toBool(), true);
-        checkStr ("dataWarningDetail.clubRefused",
-                  s.value(QStringLiteral("dataWarningDetail")).toMap()
-                   .value(QStringLiteral("clubRefused")).toString(), QStringLiteral("phaseSuspect"));
-    }
-
-    std::printf("\n-- unknown / -1 id --\n");
-    {
         const QVariantMap none = model.shotSummary(-1);
-        checkBool("(-1) valid present & false", none.value(QStringLiteral("valid")).toBool(), false);
-        checkBool("(-1) valid key present",     none.contains(QStringLiteral("valid")), true);
-        const QVariantMap gone = model.shotSummary(99999);
-        checkBool("(99999) valid present & false", gone.value(QStringLiteral("valid")).toBool(), false);
+        checkBool("(-1) valid present & false", none.contains(QStringLiteral("valid")) && !none.value(QStringLiteral("valid")).toBool(), true);
+        checkBool("(99999) valid false", model.shotSummary(99999).value(QStringLiteral("valid")).toBool(), false);
+        const QVariantMap low = model.shotSummary(id2);   // score 44: a quality≥50 proxy would hide it
+        checkStr ("model-scoped: a hidden row still resolves", low.value(QStringLiteral("club")).toString(), QStringLiteral("DRIVER"));
+        // A warned shot carries its warning to the swing panel.
+        ShotSummary w = shot("7 IRON", 70, "13:50");
+        w.dataWarning = true;
+        w.dataWarningDetail = { { QStringLiteral("clubRefused"), QStringLiteral("phaseSuspect") } };
+        rig.src->land(rig.src->allocate(9), w);
+        const QVariantMap ws = model.shotSummary(model.idOfShotRef(rig.src->refOf(9)));
+        checkBool("dataWarning",          ws.value(QStringLiteral("dataWarning")).toBool(), true);
+        checkStr ("dataWarningDetail.clubRefused",
+                  ws.value(QStringLiteral("dataWarningDetail")).toMap().value(QStringLiteral("clubRefused")).toString(),
+                  QStringLiteral("phaseSuspect"));
+        // An IMU-only shot capture saved nothing for: a card, no folder.
+        ShotListModel::CapturedShot c;
+        c.timestampLabel = QStringLiteral("13:48"); c.club = QStringLiteral("PW"); c.score = 18;
+        const int idC = model.landShot(c, /*documentWritten*/ false);
+        const QVariantMap cs = model.shotSummary(idC);
+        checkBool("card: valid",             cs.value(QStringLiteral("valid")).toBool(), true);
+        checkBool("card: hasVideo == false", cs.value(QStringLiteral("hasVideo")).toBool(), false);
+        checkStr ("card: swingDir empty",    cs.value(QStringLiteral("swingDir")).toString(), QString());
+        checkInt ("card: score",             cs.value(QStringLiteral("score")).toInt(), 18);
+        checkInt ("card: the next number this view has not issued", cs.value(QStringLiteral("ordinal")).toInt(), 10);
     }
 
-    std::printf("\n-- model-scoped: a low-score shot a proxy would hide still resolves --\n");
+    std::printf("\n-- V1: EVT-01 inserts one row, in swing-number order --\n");
     {
-        // id2 (score 44) would be filtered out by a quality>=50 proxy band, yet
-        // the focused-shot summary must still resolve from the source model.
-        const QVariantMap s = model.shotSummary(id2);
-        checkBool("valid",   s.value(QStringLiteral("valid")).toBool(), true);
-        checkStr ("club",    s.value(QStringLiteral("club")).toString(), QStringLiteral("Driver"));
-        checkInt ("score",   s.value(QStringLiteral("score")).toInt(), 44);
+        Rig rig;
+        QSignalSpy resets(&rig.model, &QAbstractItemModel::modelReset);
+        QSignalSpy inserts(&rig.model, &QAbstractItemModel::rowsInserted);
+        checkInt ("shown: the session's two shots", rig.model.rowCount(), 2);
+        checkInt ("newest first", ordinalAt(rig.model, 0), 2);
+        const ShotRef s3 = rig.src->allocate(3);
+        checkInt ("an allocated shot with no document: no row", rig.model.rowCount(), 2);
+        rig.src->land(s3, shot("7 IRON", 60, "13:50"));
+        checkInt ("its document lands (EVT-01): one row", rig.model.rowCount(), 3);
+        checkInt ("…one insert", inserts.count(), 1);
+        checkInt ("…at the top", ordinalAt(rig.model, 0), 3);
+        checkInt ("…no reset", resets.count(), 0);
+        rig.src->land(s3, shot("7 IRON", 60, "13:50"));
+        checkInt ("EVT-01 again for it: still one row", rig.model.rowCount(), 3);
+        const int id = rig.model.landShot({ s3 }, true);
+        checkInt ("capture's call finds that row (no second card)", id, rig.model.idOfShotRef(s3));
+        checkInt ("…and the count is unchanged", rig.model.rowCount(), 3);
     }
 
-    std::printf("\n-- IMU-only shot (no video, empty swingDir) --\n");
+    std::printf("\n-- V2: a Shot's event changes its row only; the row shows the Shot now --\n");
     {
-        const QVariantMap s = model.shotSummary(id3);
-        checkBool("valid",            s.value(QStringLiteral("valid")).toBool(), true);
-        checkBool("hasVideo == false", s.value(QStringLiteral("hasVideo")).toBool(), false);
-        checkStr ("swingDir empty",   s.value(QStringLiteral("swingDir")).toString(), QString());
-        checkInt ("score",            s.value(QStringLiteral("score")).toInt(), 18);
+        Rig rig;
+        QSignalSpy changed(&rig.model, &QAbstractItemModel::dataChanged);
+        const ShotRef s1 = rig.src->refOf(1);
+        rig.src->setDeclaredClub(s1, QStringLiteral("6 IRON"));   // EVT-21, from elsewhere (a panel)
+        checkInt ("one dataChanged", changed.count(), 1);
+        const QModelIndex ix = changed.isEmpty() ? QModelIndex() : changed.first().at(0).toModelIndex();
+        checkInt ("…of that row only", ix.row(), rowOf(rig.model, rig.model.idOfShotRef(s1)));
+        checkStr ("the row shows the Shot's club now",
+                  rig.model.data(rig.model.index(rowOf(rig.model, rig.model.idOfShotRef(s1))), ShotListModel::ClubRole).toString(),
+                  QStringLiteral("6 IRON"));
+        changed.clear();
+        rig.src->rewrite(s1, [](ShotSummary &f) { f.lmDevice = QStringLiteral("gcquad"); f.score = 91; });   // EVT-22
+        const QList<int> roles = changed.isEmpty() ? QList<int>{} : changed.first().at(2).value<QList<int>>();
+        checkInt ("a rewrite: one dataChanged", changed.count(), 1);
+        checkBool("…carrying the board's device role (its cache drops)", roles.contains(ShotListModel::LmDeviceRole), true);
+        checkInt ("…and the new score shows",
+                  rig.model.data(rig.model.index(rowOf(rig.model, rig.model.idOfShotRef(s1))), ShotListModel::ScoreRole).toInt(), 91);
+        changed.clear();
+        rig.model.setClub(rig.model.idOfShotRef(s1), QStringLiteral("5 IRON"));
+        checkInt ("the carousel's own club edit: one dataChanged, not two", changed.count(), 1);
     }
 
-    // H-07: a row keeps only the launch monitor's slice of its detail (the `lm.` series, lowPointAhead and the
-    // gates), read as a C++ map (#173); the rest — the pose, the other curves — is not kept, and QML has no role
-    // for it.
-    std::printf("\n-- lmDetail: a row keeps the launch monitor's slice and nothing else (H-07) --\n");
+    std::printf("\n-- V3: EVT-03 removes the row; shotTrashed once --\n");
     {
-        const QVariantList series{ QVariantMap{ { QStringLiteral("key"), QStringLiteral("lm.carry") } },
-                                   QVariantMap{ { QStringLiteral("key"), QStringLiteral("lowPointAhead") } },
-                                   QVariantMap{ { QStringLiteral("key"), QStringLiteral("hipTurn") } } };
-        const QVariantMap detail{ { QStringLiteral("tier"), QStringLiteral("wrist") },
-                                  { QStringLiteral("series"), series },
-                                  { QStringLiteral("gatesVersion"), 3 } };
-        const int idD = model.addShot(QStringLiteral("/swings/swing_0010"), QStringLiteral("13:52"),
-                                      QStringLiteral("7-iron"), /*hasVideo*/ true, QUrl(), {},
-                                      /*score*/ 61, {}, detail);
-        auto rowOf = [&model](int id) {
-            for (int r = 0; r < model.rowCount(); ++r)
-                if (model.data(model.index(r), ShotListModel::ShotIdRole).toInt() == id)
-                    return r;
-            return -1;
-        };
-        const int row = rowOf(idD);
-        const QVariantMap got = model.lmDetail(row);
-        checkInt ("the slice keeps the lm. series and lowPointAhead",
-                  int(got.value(QStringLiteral("series")).toList().size()), 2);
-        checkInt ("…and the gates' version", got.value(QStringLiteral("gatesVersion")).toInt(), 3);
-        checkBool("…and nothing else of the detail", got.contains(QStringLiteral("tier")), false);
-        checkBool("a row with none: empty", model.lmDetail(rowOf(id1)).isEmpty(), true);
-        checkBool("row -1: empty",          model.lmDetail(-1).isEmpty(), true);
-        checkBool("row past the end: empty", model.lmDetail(model.rowCount()).isEmpty(), true);
-        checkBool("QML has no analysisDetail role", model.roleNames().values().contains("analysisDetail"), false);
+        Rig rig;
+        rig.model.setTrashRetry(5, 200);
+        QSignalSpy trashed(&rig.model, &ShotListModel::shotTrashed);
+        QSignalSpy finished(&rig.model, &ShotListModel::trashFinished);
+        const int id2 = rig.model.idOfShotRef(rig.src->refOf(2));
+        rig.model.trashShots({ id2 });
+        checkInt ("the carousel's delete: the row leaves", rig.model.rowCount(), 1);
+        checkInt ("…shotTrashed once", trashed.count(), 1);
+        checkInt ("…the request reported", finished.count(), 1);
+        rig.src->trashElsewhere(rig.src->refOf(1));
+        checkInt ("anyone's trash (EVT-03): the row leaves", rig.model.rowCount(), 0);
+        checkInt ("…shotTrashed again, once", trashed.count(), 2);
+        // A refused trash keeps the row, and is retried.
+        Rig r2;
+        r2.model.setTrashRetry(5, 400);
+        r2.src->trashRefusals = 1;
+        QSignalSpy fin2(&r2.model, &ShotListModel::trashFinished);
+        r2.model.trashShots({ r2.model.idOfShotRef(r2.src->refOf(1)) });
+        checkInt ("refused at first: the row stays", r2.model.rowCount(), 2);
+        for (int i = 0; i < 50 && fin2.isEmpty(); ++i) { QCoreApplication::processEvents(QEventLoop::AllEvents, 20); QThread::msleep(10); }
+        checkInt ("…and goes on the retry", r2.model.rowCount(), 1);
+        checkInt ("…reported moved", fin2.isEmpty() ? -1 : fin2.first().at(1).toInt(), 1);
+    }
+
+    std::printf("\n-- V4: a re-analysis keeps the row's id and place --\n");
+    {
+        Rig rig;
+        const ShotRef s1 = rig.src->refOf(1);
+        const int id = rig.model.idOfShotRef(s1), row = rowOf(rig.model, id);
+        QSignalSpy resets(&rig.model, &QAbstractItemModel::modelReset);
+        QSignalSpy removed(&rig.model, &QAbstractItemModel::rowsRemoved);
+        rig.src->rewrite(s1, [](ShotSummary &f) { f.score = 55; f.metrics = { { QStringLiteral("k"), 1 } }; });   // EVT-02
+        checkInt ("the same id", rig.model.idOfShotRef(s1), id);
+        checkInt ("the same place", rowOf(rig.model, id), row);
+        checkInt ("no reset, no removal", resets.count() + removed.count(), 0);
+        checkStr ("the shot's ref is still the selection's edge", rig.model.shotRefOf(id), s1.toString());
+    }
+
+    std::printf("\n-- V5/V6/V7: the session shown --\n");
+    {
+        int made = 0;
+        ShotListModel m;
+        m.setSourceFactory([&made](const QString &folder) -> std::unique_ptr<pinpoint::ShotSource> {
+            ++made;
+            auto s = std::make_unique<MemoryShotSource>(folder);
+            s->put(1, shot("7 IRON", 80, "10:00"));
+            return s;
+        });
+        QSignalSpy resets(&m, &QAbstractItemModel::modelReset);
+        m.showSession(QStringLiteral("/mem/today"));
+        const int id = m.idOfShotRef(ShotRef());   // none: -1
+        checkInt ("shown: one reset, its shot", resets.count() * 10 + m.rowCount(), 11);
+        const int id1 = m.data(m.index(0), ShotListModel::ShotIdRole).toInt();
+        m.showSession(QStringLiteral("/mem/today/"));   // End, re-entering the screen: the same session
+        checkInt ("V5 the same session again: no reset", resets.count(), 1);
+        checkInt ("V5 …no new source made", made, 1);
+        checkInt ("V5 …the same id", m.data(m.index(0), ShotListModel::ShotIdRole).toInt(), id1);
+        checkStr ("V5 …its folder", m.sessionFolder(), QStringLiteral("/mem/today"));
+        m.showSession(QStringLiteral("/mem/other"));
+        checkInt ("V6 another session: one reset", resets.count(), 2);
+        m.showSession(QString());
+        checkInt ("V6 none: empty", m.rowCount(), 0);
+        checkBool("V6 …no session", m.sessionFolder().isEmpty() && id < 0, true);
+
+        Rig rig;
+        rig.src->goneNow();   // released, trashed (EVT-20) or moved away
+        checkInt ("V7 the Session gone: empty", rig.model.rowCount(), 0);
+        checkBool("V7 …no session", rig.model.sessionFolder().isEmpty(), true);
+        checkBool("V7 …nothing reads it (a stale id)", rig.model.shotSummary(1).value(QStringLiteral("valid")).toBool(), false);
+        QCoreApplication::processEvents();   // the old source goes on the next turn
+    }
+
+    std::printf("\n-- V8: a card, then its document lands: one row --\n");
+    {
+        Rig rig;
+        const ShotRef s3 = rig.src->allocate(3);
+        ShotListModel::CapturedShot c;
+        c.shot = s3; c.timestampLabel = QStringLiteral("14:00"); c.club = QStringLiteral("7 IRON");
+        const int id = rig.model.landShot(c, /*documentWritten*/ false);
+        checkInt ("nothing saved: a card", rig.model.rowCount(), 3);
+        checkBool("…not a saved shot's", rig.model.data(rig.model.index(rowOf(rig.model, id)), ShotListModel::SwingDirRole).toString().isEmpty(), true);
+        ShotSummary dev = shot("7 IRON", 0, "14:00", false);
+        dev.lmDevice = QStringLiteral("gcquad");
+        rig.src->land(s3, dev);   // the launch monitor's device-only document: EVT-01
+        checkInt ("its document lands: still three rows", rig.model.rowCount(), 3);
+        checkInt ("…the same id", rig.model.idOfShotRef(s3), id);
+        checkStr ("…now its Shot's", rig.model.data(rig.model.index(rowOf(rig.model, id)), ShotListModel::LmDeviceRole).toString(),
+                  QStringLiteral("gcquad"));
+        checkBool("…with its folder", !rig.model.data(rig.model.index(rowOf(rig.model, id)), ShotListModel::SwingDirRole).toString().isEmpty(), true);
+    }
+
+    std::printf("\n-- V9: a failed save; the rating's own refresh --\n");
+    {
+        Rig rig;
+        QSignalSpy failed(&rig.model, &ShotListModel::saveFailed);
+        QSignalSpy changed(&rig.model, &QAbstractItemModel::dataChanged);
+        const int id1 = rig.model.idOfShotRef(rig.src->refOf(1));
+        rig.src->failSaves = true;
+        rig.model.setNote(id1, QStringLiteral("not saved"));
+        checkInt ("said so", failed.count(), 1);
+        checkStr ("…as the edit", failed.isEmpty() ? QString() : failed.first().at(0).toString(), QStringLiteral("The note"));
+        checkStr ("the row shows the saved value", rig.model.data(rig.model.index(rowOf(rig.model, id1)), ShotListModel::NoteRole).toString(), QString());
+        checkInt ("…announced once (the view puts the control back)", changed.count(), 1);
+        rig.src->failSaves = false;
+        changed.clear();
+        rig.model.setRating(id1, 3);
+        checkInt ("the rating (no event: DEC-70): the view's own one refresh", changed.count(), 1);
+        checkInt ("…showing the Shot's", rig.model.data(rig.model.index(rowOf(rig.model, id1)), ShotListModel::RatingRole).toInt(), 3);
+    }
+
+    std::printf("\n-- V10: End lets go of cards and live presentation, no reset --\n");
+    {
+        Rig rig;
+        const ShotRef s3 = rig.src->allocate(3);
+        rig.src->land(s3, shot("7 IRON", 60, "13:50"));
+        ShotListModel::CapturedShot live;
+        live.shot = s3;
+        live.tracePoints = { QPointF(0, 0.5), QPointF(1, 0.5) };
+        live.thumbnailSource = QUrl(QStringLiteral("file:///live/thumb.jpg"));
+        rig.model.landShot(live, true);
+        ShotListModel::CapturedShot nothing;
+        nothing.club = QStringLiteral("PW");
+        rig.model.landShot(nothing, false);
+        QSignalSpy resets(&rig.model, &QAbstractItemModel::modelReset);
+        checkInt ("before End: the session's three and a card", rig.model.rowCount(), 4);
+        rig.model.forgetCapture();
+        checkInt ("after: the card has gone", rig.model.rowCount(), 3);
+        checkInt ("…no reset", resets.count(), 0);
+        checkInt ("…the live trace too", rig.model.data(rig.model.index(rowOf(rig.model, rig.model.idOfShotRef(s3))),
+                                                        ShotListModel::TracePointsRole).toList().size(), 0);
+    }
+
+    std::printf("\n-- V11: the row keeps no Shot facts --\n");
+    {
+        Rig rig;
+        checkBool("QML has no analysisDetail role", rig.model.roleNames().values().contains("analysisDetail"), false);
+        const int reads = rig.src->summaryReads;
+        for (int r = 0; r < rig.model.rowCount(); ++r)
+            (void)rig.model.data(rig.model.index(r), ShotListModel::MetricsRole);
+        checkInt ("showing a row reads the Shot's kept summary, never the document", rig.src->summaryReads, reads);
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",

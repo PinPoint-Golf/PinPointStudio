@@ -105,6 +105,7 @@
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "../App/housekeeping.h"             // the one application service that ends things for good (DEC-80)
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
+#include "../App/session_shot_source.h"      // the carousel's port onto a Session (refactor step 5.2; R-QML-5)
 #include "../App/outcome_summary.h"             // the carousel's shot summary, AppState's doors (refactor 4-b)
 #include "../App/athlete_catch_up.h"         // the catch-up, an application service (refactor 3.7-e)
 #include "../DomainModel/summary_rules.h"    // summaryCohortFacts (3.7-e round 2)
@@ -560,26 +561,21 @@ int main(int argc, char *argv[])
     // auto-resumes the buffer, so restore the user capture intent right after.
     ShotController            shotController(&eventBuffer, &sessionController);
     cameraManager.applyCaptureIntent();
+    // THE CAROUSEL IS A VIEW (refactor step 5.2; R-QML-5): each instance shows one Session through its port, made here.
+    const pinpoint::ShotSourceFor shotSourceFor = [&appObject](const QString &folder) {
+        return pinpoint::shotSourceOf(appObject.sessionAt(folder));
+    };
     ShotListModel             shotModel;
-    shotModel.setShotCommands(&appObject);                     // … forwarded to the row's Shot (step 3.4b-i)
+    shotModel.setSourceFactory(shotSourceFor);   // the session app.state names live (below)
     // Bulk "export selected shots to a zip" for the carousel ⋯ menu — derives
     // everything from the shot dirs it is handed, so it needs no dependencies.
     pinpoint::SwingZipExporter swingZipExporter;
-    // Reload the current athlete's most recent session so prior shots survive a
-    // restart (read-only for now — SwingDocReader parses the unified swing.json;
-    // rating/note aren't persisted yet so they come back cleared).
-    {
-        const QString sessionDir = pinpoint::SwingDocReader::latestSessionDir(athleteController.currentFolder());
-        shotModel.loadSessionDir(sessionDir);   // one disk-load path (also used on wrist entry)
-        if (shotModel.activeCount())
-            ppInfo() << "[Reload] restored" << shotModel.activeCount() << "shots from" << sessionDir;
-    }
-    // Session review: enumerate saved sessions + load one into a private shot
-    // model. Constructed after the reload above so its synthesized live-session
-    // row reflects the just-restored shots.
+    // The live carousel shows the current athlete's latest session from the start (app.state.showLatestSession, below,
+    // once its doors are set: the Athlete's SessionIndex, not a folder scan of its own — step 5.2).
+    // Session review: enumerate saved sessions + show one in its own view of that Session.
     SessionReviewController   sessionReviewController(&shotModel, &appSettings,
                                                       &athleteController);
-    sessionReviewController.setRecordingRepository(&recordingRepository);
+    sessionReviewController.setRecordingRepository(&recordingRepository);   // a JSON-era swing's sidecar, at a load
     // Opening an ARCHIVED session brings it back: its stubs show at once, the restore runs on a
     // worker, and the session re-opens complete when it lands — if it is still the one on screen.
     QObject::connect(&sessionReviewController, &SessionReviewController::archivedSessionOpened,
@@ -770,7 +766,7 @@ int main(int argc, char *argv[])
     // A session with no golfer (the Unassigned owner's, in its folder or its old `unknown/` one: §5.11): its report reads no
     // athlete level and no same-day siblings, and says why (step 5.1 review B1; J-67 7). Path text only, nothing read.
     // The report's private carousel lists the session's shots through `app`, as every carousel does (step 5.1).
-    sessionReport.setShotCommands(&appObject);
+    sessionReport.setShotSourceFor(shotSourceFor);
     sessionReport.setNoGolferTest([&athleteStore](const QString &dir) {
         const QString parent = QDir::cleanPath(QFileInfo(QDir::cleanPath(dir)).absolutePath());
         for (const pinpoint::Athlete *a : athleteStore.heldAthletes()) {
@@ -841,12 +837,7 @@ int main(int argc, char *argv[])
     // athlete's shots. Re-point them whenever the current athlete changes.
     QObject::connect(&athleteController, &AthleteController::currentAthleteChanged,
                      &sessionReviewController, &SessionReviewController::onAthleteChanged);
-    // currentAthleteChanged fires on a SWITCH only (step 2.3): a record edit never reloads the live
-    // carousel mid-session (E-03), so no gate is needed.
-    QObject::connect(&athleteController, &AthleteController::currentAthleteChanged,
-                     &shotModel, [&shotModel, &athleteController]() {
-        shotModel.loadSessionDir(pinpoint::SwingDocReader::latestSessionDir(athleteController.currentFolder()));
-    });
+    // The live carousel follows the switch through app.state (refreshAthlete: the new athlete's latest session; step 5.2).
     // THE WRIST REFERENCE ★ ON THE ATHLETE'S RECORD (D5: DEC-152). The Charts views still carry it as
     // a swing folder (appSettings.wristReferenceSwingDir); the controller translates at its edge. A ★
     // is recorded on the current athlete's record; a switch brings that athlete's ★ back. An athlete
@@ -958,7 +949,6 @@ int main(int argc, char *argv[])
             return sessionReviewController.reviewActive() ? sessionReviewController.activeSessionId() : QString();
         };
         d.captureFolder  = [&shotProcessor] { return shotProcessor.activeSessionDir(); };
-        d.liveFolder     = [&sessionReviewController] { return sessionReviewController.liveSessionDir(); };
         d.resumeLive     = [&sessionReviewController] { sessionReviewController.resumeLive(); };
         d.replayStart    = [&shotReplay](int swingNumber, const QString &dir, bool autoPlay) {
             shotReplay.start(swingNumber, dir, 0.25, autoPlay);
@@ -969,7 +959,6 @@ int main(int argc, char *argv[])
         d.openCaptureSession  = [&shotProcessor, &sessionController](bool extend) {
             shotProcessor.beginSessionFolder(sessionController.defaultType(), extend);
         };
-        d.showLiveShots       = [&shotModel](const QString &dir) { shotModel.loadSessionDir(dir); };
         d.startClock          = [&sessionController] { sessionController.start(sessionController.defaultType()); };
         d.startCameras        = [&cameraManager] { cameraManager.startCapture(); };
         d.stopCameras         = [&cameraManager] { cameraManager.stopCapture(); };
@@ -991,11 +980,21 @@ int main(int argc, char *argv[])
         QObject::connect(&sessionReviewController, &SessionReviewController::liveSessionDirChanged, &state, onScreen);
         QObject::connect(&shotProcessor, &ShotProcessor::activeSessionDirChanged, &state,
                          [&state] { state.refreshCaptureTarget(); });
+        // THE LIVE CAROUSEL, a view of the session app.state names live (step 5.2): the capture target, else the live
+        // folder. The session it already shows is no change (End, re-entering a screen: no reset). Capture letting go
+        // (End) drops the cards of shots that saved nothing and the live presentation, as End's reload did.
+        QObject::connect(&state, &pinpoint::AppState::liveSessionChanged, &shotModel,
+                         [&state, &shotModel] { shotModel.showSession(state.liveSessionFolder()); });
+        QObject::connect(&state, &pinpoint::AppState::captureTargetChanged, &shotModel, [&state, &shotModel] {
+            if (state.captureTargetFolder().isEmpty())
+                shotModel.forgetCapture();
+        });
         QObject::connect(&athleteController, &AthleteController::currentAthleteChanged, &state,
                          [&state] { state.refreshAthlete(); });
         QObject::connect(&sessionController, &SessionController::runningChanged, &state,
                          [&state] { state.refreshAthleteLock(); });
         QObject::connect(&shotReplay, &ShotReplayController::playbackEnded, &state, &pinpoint::AppState::replayEnded);
+        state.showLatestSession();   // launch: the current athlete's latest session on the live carousel
         state.refreshSessionOnScreen();
     }
     // Any review-state transition tears down an on-screen disk replay, so the
@@ -1034,7 +1033,7 @@ int main(int argc, char *argv[])
     // queue still owes a write is refused with the reason.
     for (ShotListModel *m : { &shotModel, qobject_cast<ShotListModel *>(sessionReviewController.shots()) }) {
         if (!m) continue;
-        m->setShotCommands(&appObject);   // the rating, note, club and board edits go to the row's Shot (3.4b-i)
+        m->setSourceFactory(shotSourceFor);   // a view of its Session; the edits go to the row's Shot (step 5.2)
         m->setFolderReleaser([&shotReplay](const QString &dir) {
             if (shotReplay.active() && QDir::cleanPath(shotReplay.swingDir()) == QDir::cleanPath(dir)) {
                 ppInfo() << "[ShotListModel] stopping the replay to release" << dir;

@@ -95,7 +95,7 @@ is published.
 │                       │                                                      │
 │                       ▼                                                      │
 │                      join   writeSwingJson (unified doc)                     │
-│                       │     ShotListModel::addShot (ALWAYS)                  │
+│                       │     ShotListModel::landShot (ALWAYS)                 │
 │                       ▼                                                      │
 │                  REPLAYING (¼×, iff both OK)                                 │
 │                       │                                                      │
@@ -112,8 +112,8 @@ Consumers of the result:
   (`ScreenWrist`) binds to the detail of the shot currently replaying, synced
   to the replay playhead (`replayPositionUs`, same µs domain as the series).
 - **`swing.json`** — the analysis is folded into the one per-shot document so
-  the shot reloads after a restart (`SwingDocReader` →
-  `ShotListModel::addPersistedShot`) and feeds the session-review drawer.
+  the shot reloads after a restart (the Session's Shots, of which the carousel
+  is a view) and feeds the session-review drawer.
 
 ---
 
@@ -188,8 +188,10 @@ in storage.
 ### `ShotAnalysisResult` vs `SwingAnalysis`
 
 The result has two tiers. The flat tier (`score`, `metrics` map,
-`tracePoints`) mirrors the `ShotListModel` roles exactly, so the join hands
-them to `addShot()` unmodified. The rich tier (`detail`, a
+`tracePoints`) mirrors the `ShotListModel` roles exactly. The carousel is a view
+of the Session: a saved shot's row shows its Shot's summary, and the join hands
+`landShot()` only the trace and thumbnail; a shot that saved nothing lands a card
+with the flat tier as it is. The rich tier (`detail`, a
 `shared_ptr<SwingAnalysis>`) carries the series/phases/score-breakdown/faults
 — null from stub analyzers, folded into `swing.json` and the replay graph when
 present.
@@ -285,8 +287,10 @@ the synchronous export-skip path):
    OK → exporter manifest + inline `"analysis"` block. Export
    failed/skipped but analysis OK → a **synthesised minimal manifest**
    (`buildSynthManifest`) so an analysis-only shot still survives a restart.
-2. **`ShotListModel::addShot()` always runs** — with whatever the pipeline
-   produced (trace/score/metrics empty or 0 on analysis failure;
+2. **`ShotListModel::landShot()` always runs**: the shot always lands on the
+   carousel. A shot whose document was written already has its row (the
+   Session's EVT-01). A shot that saved nothing gets a card with whatever the
+   pipeline produced (trace/score/metrics empty or 0 on analysis failure;
    `hasVideo=false` on export failure).
 3. **Replay gating**: the ¼× replay starts only when analysis AND export both
    succeeded and camera tracks exist; otherwise straight to `finishShot()`.
@@ -825,7 +829,7 @@ src/Gui/shot/
 │                                 pre-stage, window, jobs, join, unified write,
 │                                 replay, stop-barriers
 ├── reanalysis_controller.{h,cpp}  The in-app re-analyse funnel (§9a)
-├── shot_list_model.*           Carousel rows: addShot (live) / addPersistedShot (reload)
+├── shot_list_model.*           Carousel: a view of one Session's Shots (landShot: capture's card)
 └── shot_replay_controller.*    The ¼× replay tail
 
 src/Export/

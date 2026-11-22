@@ -30,6 +30,8 @@
 #include <QUrl>
 #include <QtConcurrent/QtConcurrentMap>
 
+#include <optional>
+
 #include "app_settings.h"
 #include "athlete_controller.h"
 #include "session_summary.h"
@@ -66,14 +68,19 @@ SessionReviewController::SessionReviewController(ShotListModel     *liveModel,
     // The loaded session's shot count tracks trashing in the review model.
     connect(&m_reviewModel, &ShotListModel::activeCountChanged,
             this, &SessionReviewController::activeShotCountChanged);
-    // liveSessionDir follows the live model: rows arriving, leaving, the carousel being
-    // re-pointed (a reset), and a row gaining its folder late (attachSwingDir → dataChanged).
+    // liveSessionDir follows the live view: rows arriving, leaving, the view shown another session (a reset), and a
+    // card becoming its Shot's row (a late device-only document: dataChanged).
     if (m_liveModel) {
         connect(m_liveModel, &QAbstractItemModel::rowsInserted, this, &SessionReviewController::updateLiveSessionDir);
         connect(m_liveModel, &QAbstractItemModel::rowsRemoved,  this, &SessionReviewController::updateLiveSessionDir);
         connect(m_liveModel, &QAbstractItemModel::modelReset,   this, &SessionReviewController::updateLiveSessionDir);
         connect(m_liveModel, &QAbstractItemModel::dataChanged,  this, &SessionReviewController::updateLiveSessionDir);
     }
+    // The header's clubs follow the review's rows (a club changed in review, a shot trashed).
+    for (const auto sig : { &QAbstractItemModel::rowsInserted, &QAbstractItemModel::rowsRemoved })
+        connect(&m_reviewModel, sig, this, &SessionReviewController::activeClubMixChanged);
+    connect(&m_reviewModel, &QAbstractItemModel::modelReset, this, &SessionReviewController::activeClubMixChanged);
+    connect(&m_reviewModel, &QAbstractItemModel::dataChanged, this, &SessionReviewController::activeClubMixChanged);
     m_liveSessionDir = liveSessionDir();
     refresh();
 }
@@ -88,16 +95,25 @@ void SessionReviewController::updateLiveSessionDir()
 
 QString SessionReviewController::liveSessionDir() const
 {
-    if (!m_liveModel)
+    // The session the live view shows, while it shows a saved shot of it (as the folder of its first saved row was).
+    if (!m_liveModel || !m_liveModel->hasSavedShots())
         return {};
-    const int n = m_liveModel->rowCount();
-    for (int r = 0; r < n; ++r) {
-        const QString sd = m_liveModel->data(m_liveModel->index(r),
-                                             ShotListModel::SwingDirRole).toString();
-        if (!sd.isEmpty())
-            return QFileInfo(sd).absolutePath();
+    const QString folder = m_liveModel->sessionFolder();
+    return folder.isEmpty() ? QString() : QDir::cleanPath(QFileInfo(folder).absoluteFilePath());
+}
+
+QString SessionReviewController::activeClubMix() const
+{
+    if (!m_reviewActive)
+        return {};
+    // The view's rows, oldest first (the order the session was hit, as the load's documents were read).
+    QVector<pinpoint::ShotSummaryInput> ins;
+    for (int r = m_reviewModel.rowCount() - 1; r >= 0; --r) {
+        pinpoint::ShotSummaryInput in;
+        in.club = m_reviewModel.data(m_reviewModel.index(r), ShotListModel::ClubRole).toString();
+        ins.append(in);
     }
-    return {};
+    return ins.isEmpty() ? QString() : pinpoint::summarizeSession(ins, QDateTime::currentMSecsSinceEpoch()).clubMix;
 }
 
 SessionListModel::Row SessionReviewController::buildLiveRow(qint64 nowMs) const
@@ -235,57 +251,53 @@ void SessionReviewController::loadSession(const QString &sessionId)
     else                     clearReasonFilter();
 
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    m_reviewModel.clear();
+    const QString dir = QFileInfo(sessionId).absoluteFilePath();
 
-    // The full parse (a row keeps only the launch monitor slice of its analysis: H-07; the replay
-    // reads its own). Since the document is in hand anyway, index it — the sidecar costs one
-    // small write and is what keeps the picker cheap from now on. (That this load could be the
-    // summary read, as loadSessionDir's is, is H-07's remainder: a carry, not done here.)
-    //
-    // ⚠ IN PARALLEL, one swing per pool thread, and still before this returns (#173 follow-up).
-    // One after another on the GUI thread the parse was ~1.5 s of a 3.2 s freeze on opening a
-    // 32-shot session — past the 3 s a connected phone waits for a heartbeat. Each swing is its
-    // own document and its own sidecar, and SwingStore's reader already runs on analysis and
-    // charts workers, so nothing is shared between them. The rows are added here, in folder
-    // order, exactly as before; callers still find the session loaded when this returns.
+    // THE SESSION'S INDEX, made in parallel before its rows are read (#173; refactor step 5.2). The review's carousel is
+    // a view of the Session (R-QML-5): each row reads its Shot's summary, which for a JSON-era swing is its summary
+    // sidecar. So, one swing per pool thread: the summary read alone (never a write); a swing with none is parsed whole
+    // and indexed through the swing door (RecordingRepository::writeSummarySidecar), as this load always did — the
+    // sidecar also keeps the Sessions list cheap from now on. One after another on the GUI thread the whole parse was
+    // ~1.5 s of a 3.2 s freeze on opening a 32-shot session. The wallclocks give the header's day and time.
     const QStringList swingDirs = pinpoint::SwingDocReader::findSwingDirs(sessionId);
     pinpoint::RecordingRepository *repo = m_repo;
-    // The edge (DEC-90): each swing folder to its ShotRef HERE, on the GUI thread (the session is read
-    // into the identity map once; the rest find it held); the pool threads write by the ShotRef.
+    // The edge (DEC-90): each swing folder to its ShotRef HERE, on the GUI thread; the pool threads write by the ShotRef.
     QList<QPair<QString, pinpoint::ShotRef>> swings;
     for (const QString &sd : swingDirs)
         swings.append({ sd, repo ? repo->shotOfFolder(sd) : pinpoint::ShotRef() });
-    const QList<pinpoint::PersistedShot> parsed = QtConcurrent::blockingMapped(
-        swings, [repo](const QPair<QString, pinpoint::ShotRef> &sw) {
-            pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sw.first);
-            if (ps.ok && repo)
+    const QList<std::optional<pinpoint::ShotSummaryInput>> read = QtConcurrent::blockingMapped(
+        swings, [repo](const QPair<QString, pinpoint::ShotRef> &sw) -> std::optional<pinpoint::ShotSummaryInput> {
+            const pinpoint::SwingSummary ss = pinpoint::SwingDocReader::readSwingSummary(sw.first, /*writeSidecar=*/false);
+            if (ss.ok)
+                return pinpoint::ShotSummaryInput{ ss.score, ss.hasVideo, ss.wallclockMs, ss.club, ss.thumbnailPath, ss.devices };
+            const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sw.first);
+            if (!ps.ok)
+                return std::nullopt;
+            if (repo)
                 repo->writeSummarySidecar(sw.second, ps);
-            return ps;
+            return pinpoint::ShotSummaryInput{ ps.score, ps.hasVideo, ps.wallclockMs, ps.club, ps.thumbnailPath, ps.devices };
         });
-
     QVector<pinpoint::ShotSummaryInput> ins;
-    for (int i = 0; i < parsed.size(); ++i) {
-        const pinpoint::PersistedShot &ps = parsed.at(i);
-        if (!ps.ok)
-            continue;
-        m_reviewModel.addPersistedShot(
-            ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club, ps.hasVideo,
-            ps.thumbnailPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(ps.thumbnailPath),
-            ps.score, ps.rating, ps.note, ps.metrics, ps.analysisDetail, ps.dataWarning,
-            ps.lmDevice, ps.dataWarningDetail, ps.excluded, ps.clubOverride,
-            swings.at(i).second);   // the ShotRef translated above, once (blockingMapped keeps the order)
-        ins.append({ ps.score, ps.hasVideo, ps.wallclockMs, ps.club, ps.thumbnailPath, ps.devices });
-    }
+    for (const std::optional<pinpoint::ShotSummaryInput> &in : read)
+        if (in)
+            ins.append(*in);
+
+    // The same session again (an archived one restored under the review): its rows read their Shots again, in place.
+    if (!m_loadedSessionDir.isEmpty() && QDir::cleanPath(m_loadedSessionDir) == QDir::cleanPath(dir)
+        && QDir::cleanPath(QFileInfo(m_reviewModel.sessionFolder()).absoluteFilePath()) == QDir::cleanPath(dir))
+        m_reviewModel.rereadShots();
+    else
+        m_reviewModel.showSession(dir);
 
     const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);
     m_activeDayLabel   = sum.dayLabel;
     m_activeTimeLabel  = sum.timeLabel;
-    m_activeClubMix    = sum.clubMix;
-    m_loadedSessionDir = QFileInfo(sessionId).absoluteFilePath();
+    m_loadedSessionDir = dir;
 
     m_reviewActive = true;
-    emit reviewActiveChanged();          // also re-evaluates the activeDay/Time/ClubMix bindings
+    emit reviewActiveChanged();          // also re-evaluates the activeDay/Time bindings
     emit activeShotCountChanged();
+    emit activeClubMixChanged();
 
     // The loop above just indexed this session, so its row can now show full detail
     // instead of the shot count alone. Cheap — refresh() reads sidecars only — but it
@@ -329,11 +341,11 @@ void SessionReviewController::resumeLive()
     m_reviewActive = false;
     m_activeDayLabel.clear();
     m_activeTimeLabel.clear();
-    m_activeClubMix.clear();
     m_loadedSessionDir.clear();
-    m_reviewModel.clear();
+    m_reviewModel.showSession(QString());
     emit reviewActiveChanged();
     emit activeShotCountChanged();
+    emit activeClubMixChanged();
 }
 
 QVariantList SessionReviewController::swingDirsForSession(const QString &sessionId) const

@@ -209,9 +209,9 @@ private:
     bool createStandaloneShot(const pinpoint::lm::LaunchMonitorReading &reading);
     // Write a device-only document into an ALREADY ALLOCATED folder and put it on the
     // carousel. Shared by the rescue path and the standalone path.
-    // `existingShotId` >= 0 points an EXISTING carousel row at the folder instead of
-    // adding one — the rescue path, where the processor already made a row for a shot
-    // that produced nothing. -1 adds a row, which is the standalone path.
+    // `existingShotId`: the processor's card for the shot (the rescue path), -1 for none (the
+    // standalone path). Unused since refactor 5.2: the carousel follows the document's EVT-01,
+    // turning that card into the Shot's row itself.
     // `standalone` records the shot kind (DeviceOnlyMeta::standalone): true only for the
     // standalone path, whose folder no phone clip can join.
     bool writeDeviceOnly(const QString &swingDir, const pinpoint::lm::LaunchMonitorReading &r,

@@ -53,14 +53,16 @@ Item {
         app.state.replay.swingDir !== "" ? app.state.replay.swingDir : app.state.selection.swingDir
 
     // Today-scoped carousel: on entry (before capture) show today's most-recent
-    // session folder, or an empty carousel when none exists for today. Guarded so
-    // it never clobbers a live session's freshly-captured in-memory shots or an
-    // open review — the toolbar reloads the carousel itself at session start/end
-    // (those don't change the nav index, so this handler doesn't fire there).
+    // session, or an empty carousel when none exists for today. Guarded so it never
+    // moves the carousel off a running session or an open review — app.state's start
+    // and end name the live session themselves (those don't change the nav index,
+    // so this handler doesn't fire there).
     function _syncTodayCarousel() {
         if (!root._screenActive) return
         if (sessionController.running || sessionReviewController.reviewActive) return
-        shotModel.loadSessionDir(shotProcessor.todaySessionDir(SessionController.Wrist))
+        // app.state names the live session; the carousel is a view of it, and the session it already shows is no change
+        // (no reset on re-entering the screen: refactor step 5.2).
+        app.state.setLiveFolder(shotProcessor.todaySessionDir(SessionController.Wrist))
     }
     Component.onCompleted: _syncTodayCarousel()
     Connections {

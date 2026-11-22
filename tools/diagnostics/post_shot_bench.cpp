@@ -60,6 +60,7 @@
 // NOT a ctest: it times, it does not check, and it writes a library (refused unless --library is empty or new).
 
 #include "../../src/App/app.h"
+#include "../../src/App/session_shot_source.h"
 #include "../../src/Core/post_shot_trace.h"
 #include "../../src/Core/work_pool.h"
 #include "../../src/DomainModel/athlete.h"
@@ -300,8 +301,7 @@ int main(int argc, char **argv)
     }
     App appObject([&athlete] { return athlete.get(); });
     SessionDiagnosticsModel::setShotCommands(&appObject);
-    ShotListModel shotModel;
-    shotModel.setShotCommands(&appObject);
+    ShotListModel shotModel;   // the live carousel: a view of the session (refactor step 5.2; R-QML-5)
 
     Session *session = athlete->startSession(QStringLiteral("swing"), QStringLiteral("date-name-type"));
     if (!session || !session->entry()) {
@@ -309,6 +309,7 @@ int main(int argc, char **argv)
         return 1;
     }
     const QString folder = session->entry()->folder;
+    shotModel.setSource(shotSourceOf(session));
     // The panel's model: 3.7-a's thin adapter (made by C++, a view bound), or HEAD's own model (made by QML: async).
     SessionDiagnosticsAdapters adapters;
     std::unique_ptr<SessionDiagnosticsModel> oldPanel;
@@ -414,9 +415,13 @@ int main(int argc, char **argv)
                 (void)detail.js();
             }
             {
-                PostShotTrace::Scope t("addShot");
-                shotModel.addShot(dir, built.timestampLabel, built.club, true, QUrl(), QVariantList{}, built.score,
-                                  built.metrics, detail.map(), built.dataWarning, built.dataWarningDetail);
+                PostShotTrace::Scope t("addShot");   // capture's call: the row EVT-01 made, given its presentation
+                ShotListModel::CapturedShot captured;
+                captured.shot = shot->ref();
+                captured.timestampLabel = built.timestampLabel;
+                captured.club = built.club;
+                captured.hasVideo = true;
+                shotModel.landShot(captured, /*documentWritten*/ true);
             }
             PostShotTrace::Scope announce("announce");
             {   // LaunchMonitorController::onShotProcessed → applyToSwing: the ball reading into this shot
@@ -427,7 +432,7 @@ int main(int argc, char **argv)
                     const ForwardResult f = appObject.completeCapture(sessionFolderOf(dir), shot->ref(), readingOf(fx.lmBlock, i), {}, &replaced);
                     if (!f.reached || !f.result.ok()) std::printf("  shot %d: the ball reading did not save: %s\n", i, qPrintable(f.result.error));
                 }
-                shotModel.refreshShot(dir);
+                // the carousel's row follows the write's EVT-22 (step 5.2): no refresh of its own
             }
             panel->ingestShot(i, dir);   // PpSessionDiagnosticsPanel: onShotProcessed → ingestShot
         }
@@ -442,14 +447,12 @@ int main(int argc, char **argv)
                 const ForwardResult f = appObject.completeCapture(sessionFolderOf(pdir), prev->ref(), readingOf(pfx.lmBlock, i - 1), {}, &replaced);
                 if (!f.reached || !f.result.ok()) std::printf("  shot %d: the club data did not save: %s\n", i - 1, qPrintable(f.result.error));
             }
-            shotModel.refreshShot(pdir);   // the controller's own refresh of the live row
+            // the live row follows the write's EVT-22 (step 5.2): the controller no longer refreshes it
             PostShotTrace::Scope rewritten("lm.rewritten");   // PpShotCarousel._swingRewritten
             // Since 3.7-c (J-46) the carousel neither refreshes the live row again nor asks an adapter to regrade (the
             // owner hears the late reading itself, EVT-22); --path old keeps HEAD's second refresh and regrade.
-            if (!newPath) {
-                shotModel.refreshShot(pdir);
+            if (!newPath)
                 panel->regradeShot(pdir);
-            }
         }
         // ── the queued deliveries: the panel's settles, the new owner's results ──
         pump([&] { return !panel->busy() && (!owner || (owner->idle() && !owner->writePending())); });
@@ -459,8 +462,7 @@ int main(int argc, char **argv)
         if (i >= 2) {   // J-46's check, outside the window
             const QString pdir = shots.at(i - 2)->folder();
             const QVariantMap shown = rowOf(pdir);
-            shotModel.refreshShot(pdir);
-            const QVariantMap again = rowOf(pdir);
+            const QVariantMap again = rowOf(pdir);   // a view: nothing to refresh (step 5.2), the row is the Shot's
             ++lateRowsChecked;
             if (!shown.isEmpty() && shown == again) ++lateRowsSame;
             // the reading in the row: the launch monitor's figures among its metrics (any key the reading wrote)

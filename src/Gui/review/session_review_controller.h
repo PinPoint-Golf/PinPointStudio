@@ -40,9 +40,8 @@ namespace pinpoint { class RecordingRepository; }
 //    live session synthesized from the in-memory shotModel (pinned first,
 //    isLive). The live session's own disk dir is excluded so it never appears
 //    twice.
-//  • shots         — a private ShotListModel populated from a loaded session's
-//    swing.json files (same roles + invokables as the live shotModel, so the
-//    carousel's mutation calls and rating/note write-through work unchanged).
+//  • shots         — the review's carousel: a view of the loaded Session (refactor step 5.2; R-QML-5) — the same
+//    roles and invokables as the live shotModel, so the carousel's edits and trash work unchanged.
 //
 // Entering review (loadSession) flips reviewActive true; main.cpp reacts by
 // stopping live capture (which disarms the shot trigger) and gating ShotController
@@ -65,17 +64,19 @@ class SessionReviewController : public QObject
     // (the diagnostics ledger reads its swing_* dirs and diagnostics.json off disk) has one
     // place to read it from instead of re-deriving it from a shot's swingDir.
     Q_PROPERTY(QString  activeSessionId READ activeSessionId NOTIFY reviewActiveChanged)
-    // TODAY'S SESSION AS THE CAROUSEL HOLDS IT: the folder the live model's swings sit in, empty
-    // when it holds none. This is the live session whether or not capture is running — the
-    // carousel is re-pointed at today's folder on entry, at session start and at session end —
-    // where ShotProcessor::activeSessionDir is only set between a session's start and its end.
+    // TODAY'S SESSION AS THE CAROUSEL SHOWS IT: the session the live carousel is a view of (app.state's live session:
+    // refactor step 5.2), empty while it shows no saved shot. This is the live session whether or not capture is
+    // running — app.state names today's on entry, at session start and at session end — where
+    // ShotProcessor::activeSessionDir is only set between a session's start and its end.
     // The diagnostics panel reads this when no session is running, so a session that was ended,
     // or the app relaunched on, still shows its ledger.
     Q_PROPERTY(QString  liveSessionDir READ liveSessionDir NOTIFY liveSessionDirChanged)
     // Loaded-session header bits for the toolbar review strip + carousel chip.
     Q_PROPERTY(QString  activeDayLabel  READ activeDayLabel  NOTIFY reviewActiveChanged)
     Q_PROPERTY(QString  activeTimeLabel READ activeTimeLabel NOTIFY reviewActiveChanged)
-    Q_PROPERTY(QString  activeClubMix   READ activeClubMix   NOTIFY reviewActiveChanged)
+    // The loaded session's clubs, summed over its carousel's rows (the Shots' clubs, first-seen in swing order): a club
+    // changed in review shows here at once (refactor step 5.2).
+    Q_PROPERTY(QString  activeClubMix   READ activeClubMix   NOTIFY activeClubMixChanged)
     Q_PROPERTY(int      activeShotCount READ activeShotCount NOTIFY activeShotCountChanged)
     // THE REASON A REVIEW WAS OPENED ON ("See these shots →" on Home, shot_outcomes_design.md §7.4): a
     // condition id, empty for none. Set it BEFORE loadSession(); the next loadSession keeps it, any other
@@ -89,8 +90,8 @@ public:
                             AthleteController *athlete,
                             QObject           *parent = nullptr);
 
-    // The one door to the swing files (main.cpp's): a JSON-era swing's summary sidecar is written through it. (The
-    // loaded session's rows write their edits through their Shots, never through this: step 5.1.)
+    // The one door to the swing files (main.cpp's): a JSON-era swing's summary sidecar is written through it when the
+    // review load indexes a session. (The rows' edits go to their Shots, never through this.)
     void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
 
     bool     reviewActive()   const { return m_reviewActive; }
@@ -103,7 +104,7 @@ public:
     QString  liveSessionDir() const;
     QString  activeDayLabel()  const { return m_activeDayLabel; }
     QString  activeTimeLabel() const { return m_activeTimeLabel; }
-    QString  activeClubMix()   const { return m_activeClubMix; }
+    QString  activeClubMix()   const;
     int      activeShotCount() const { return m_reviewModel.activeCount(); }
     QString  reasonFilter()    const { return m_reasonFilter; }
     void     setReasonFilter(const QString &conditionId);
@@ -145,6 +146,7 @@ signals:
     void reviewActiveChanged();
     void activeShotCountChanged();
     void liveSessionDirChanged();
+    void activeClubMixChanged();
     void reasonFilterChanged();
     // An ARCHIVED session was opened (SessionArchiver): its stubs are on screen — rows, scores,
     // chips — but no replay. main.cpp routes this to ArchiveController::restoreSession, whose
@@ -163,14 +165,13 @@ private:
     ShotListModel     *m_liveModel = nullptr;
     AppSettings       *m_settings  = nullptr;
     AthleteController *m_athlete   = nullptr;
-    pinpoint::RecordingRepository *m_repo = nullptr;   // stateless: used from the pool too
 
     SessionListModel   m_sessionsModel;
-    ShotListModel      m_reviewModel;     // the loaded session's shots
+    pinpoint::RecordingRepository *m_repo = nullptr;   // stateless: used from the pool too
+    ShotListModel      m_reviewModel;     // a view of the loaded Session
 
     bool    m_reviewActive = false;
     QString m_activeDayLabel;
     QString m_activeTimeLabel;
-    QString m_activeClubMix;
     QString m_loadedSessionDir;        // absolute dir of the reviewed session, empty when live
 };

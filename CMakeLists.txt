@@ -2988,6 +2988,9 @@ target_sources(PinPointStudio PRIVATE
     src/App/app.cpp
     src/App/app_state.h
     src/App/app_state.cpp
+    src/App/shot_source.h          # the carousel's port onto one Session (refactor step 5.2; R-QML-5)
+    src/App/session_shot_source.h  # …over a real Session: links the Session, so not in the QML suites
+    src/App/session_shot_source.cpp
     src/App/outcome_summary.h     # the carousel's shot summary, AppState's doors (refactor 4-b): links the owner
     src/App/outcome_summary.cpp
     src/Coaching/shot_factor_words.h

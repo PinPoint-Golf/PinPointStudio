@@ -76,6 +76,8 @@
 #include "../session.h"
 #include "../shot.h"
 #include "../../App/app.h"
+#include "../../App/app_state.h"
+#include "../../App/session_shot_source.h"
 #include "../../Core/pp_settings.h"
 #include "../../Export/athlete_files.h"
 #include "../../Export/athlete_store.h"
@@ -101,6 +103,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSettings>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QThreadPool>
 
@@ -465,10 +468,9 @@ static void doorAndCarousel()
     f = rig.app->correctClub(sessionFolder, ref, QStringLiteral("8 IRON"));
     check(QStringLiteral("C11e through the door, the Shot's event"), f.reached && f.result.changed() && rig.events == QStringList{ ev("EVT-04", ref) });
 
-    // C12: the carousel, through the door
+    // C12: the carousel, a view of the Session (refactor step 5.2; R-QML-5)
     ShotListModel model;
-    model.setShotCommands(rig.app.get());
-    model.loadSessionDir(sessionFolder);
+    model.setSource(shotSourceOf(s));
     const int id = model.rowCount() == 1 ? model.data(model.index(0), ShotListModel::ShotIdRole).toInt() : -1;
     check(QStringLiteral("C12a the carousel holds the shot"), id > 0);
     rig.events.clear();
@@ -491,21 +493,153 @@ static void doorAndCarousel()
               && rv.value(QStringLiteral("clubOverride")).toString() == QStringLiteral("PITCHING WEDGE")
               && rv.value(QStringLiteral("excluded")).toBool());
 
-    // Without a door (step 5.1: N1's write-through is gone): no rows of its own, and an edit of a row with a folder is
-    // refused and said so — nothing written, no event, the row as it was.
+    // A view no Session is given to (no factory, or none holds the folder): no rows of its own, nothing written.
     ShotListModel plain;
-    plain.loadSessionDir(sessionFolder);
-    const int plainRows = plain.rowCount();
-    plain.addPersistedShot(rig.recordings->swingFolder(ref), 1, QStringLiteral("12:00:00"), QStringLiteral("9 IRON"), false,
-                           QUrl(), 0, 5, QString(), {}, {});
-    QStringList refused;
-    QObject::connect(&plain, &ShotListModel::saveFailed, &plain, [&refused](const QString &what, const QString &) { refused << what; });
+    plain.showSession(sessionFolder);
     rig.events.clear();
     const QJsonObject beforePlain = reviewOf(rig, ref);
-    plain.setNote(plain.data(plain.index(0), ShotListModel::ShotIdRole).toInt(), QStringLiteral("not saved"));
-    check(QStringLiteral("C12g no door: no rows of its own; an edit refused and said so, nothing written, no event"),
-          plainRows == 0 && refused.size() == 1 && reviewOf(rig, ref) == beforePlain && rig.events.isEmpty()
-              && plain.data(plain.index(0), ShotListModel::NoteRole).toString().isEmpty());
+    plain.setNote(1, QStringLiteral("not saved"));
+    check(QStringLiteral("C12g no Session: no rows of its own; nothing written, no event"),
+          plain.rowCount() == 0 && reviewOf(rig, ref) == beforePlain && rig.events.isEmpty());
+}
+
+// ── V1–V8: the carousel as a view of the Session (refactor step 5.2; R-QML-5, DEC-199) ──────────────────────────
+//   V1 EVT-01 (the document lands) inserts one row; no reset
+//   V2 a Shot's event from elsewhere (a panel's club, intent, a late reading: EVT-21, 07, 22) changes its row only
+//   V3 EVT-03 from elsewhere removes the row; shotTrashed once
+//   V4 a re-analysis (EVT-02): the row keeps its id and place; app.state's selection and the replay are kept
+//   V5 End (the capture target lets go, today's session the same): no reset, the same ids, the selection kept
+//   V6 re-entering the screen (the same live folder): no reset
+//   V7 the Session trashed (EVT-20): the view empties, nothing dangles
+//   V8 a camera shot that saved nothing, then its device-only document: one row, the same id
+static void carouselView()
+{
+    std::printf("\nV1–V8: the carousel as a view of the Session\n");
+    Rig rig;
+    Session *s = rig.athlete ? rig.athlete->startSession(kSwing, kPat) : nullptr;
+    Shot *first = s ? shotWithDocument(s, rig) : nullptr;
+    check(QStringLiteral("V0 a session with a shot"), first != nullptr);
+    if (!first) return;
+    s->shotDocumentWritten(first->ref());
+    const QString folder = s->entry()->folder;
+
+    // app.state over this session, as main.cpp wires it: the live carousel follows liveSessionChanged.
+    App &app = *rig.app;
+    AppState &st = *app.state();
+    QString capture = folder, loaded;
+    QStringList stops;
+    AppStateDoors d;
+    d.currentAthlete = [&rig] { return rig.athlete; };
+    d.sessionAt      = [&app](const QString &f) { return app.sessionAt(f); };
+    d.captureFolder  = [&capture] { return capture; };
+    d.closeCaptureSession = [&capture, &st] { capture.clear(); st.refreshCaptureTarget(); };
+    d.todaysFolder   = [&folder] { return folder; };
+    d.replayStart    = [&loaded](int, const QString &dir, bool) { loaded = dir; };
+    d.replayStop     = [&loaded, &stops] { stops << loaded; loaded.clear(); };
+    d.replayFolder   = [&loaded] { return loaded; };
+    st.setDoors(d);
+    ShotListModel live;
+    live.setSourceFactory([&app](const QString &f) { return shotSourceOf(app.sessionAt(f)); });
+    QObject::connect(&st, &AppState::liveSessionChanged, &live, [&st, &live] { live.showSession(st.liveSessionFolder()); });
+    st.refreshCaptureTarget();
+    check(QStringLiteral("V0 the live carousel shows the capture target's session"), live.rowCount() == 1 && live.sessionFolder() == folder);
+    QSignalSpy resets(&live, &QAbstractItemModel::modelReset);
+    QSignalSpy inserted(&live, &QAbstractItemModel::rowsInserted);
+    QSignalSpy changed(&live, &QAbstractItemModel::dataChanged);
+    QSignalSpy trashedRows(&live, &ShotListModel::shotTrashed);
+
+    // V1
+    Shot *second = shotWithDocument(s, rig);
+    check(QStringLiteral("V1 a shot allocated, its document not announced: no row"), second && live.rowCount() == 1);
+    s->shotDocumentWritten(second->ref());
+    check(QStringLiteral("V1 EVT-01: one row inserted, at the top, no reset"),
+          live.rowCount() == 2 && inserted.count() == 1 && resets.isEmpty()
+              && live.data(live.index(0), ShotListModel::OrdinalRole).toInt() == second->summary().ordinal);
+    const int idFirst = live.idOfShotRef(first->ref()), idSecond = live.idOfShotRef(second->ref());
+
+    // V2
+    changed.clear();
+    first->setDeclaredClub(QStringLiteral("6 IRON"));            // EVT-21, as a panel sets it
+    const int rowFirst = live.data(live.index(1), ShotListModel::ShotIdRole).toInt() == idFirst ? 1 : 0;
+    check(QStringLiteral("V2 EVT-21 from elsewhere: that row's dataChanged, showing the Shot's club"),
+          changed.count() == 1 && changed.first().at(0).toModelIndex().row() == rowFirst
+              && live.data(live.index(rowFirst), ShotListModel::ClubRole).toString() == QStringLiteral("6 IRON"));
+    changed.clear();
+    first->setShotIntent(QStringLiteral("fade"));                // EVT-07: the row stale before (survey row 2)
+    check(QStringLiteral("V2 EVT-07: the row is told"), changed.count() == 1);
+    changed.clear();
+    const WriteResult late = first->completeCapture(reading("V2"));   // EVT-22: a late reading
+    const QList<int> roles = changed.isEmpty() ? QList<int>{} : changed.first().at(2).value<QList<int>>();
+    check(QStringLiteral("V2 EVT-22: the row re-reads its Shot, with the board's device role (its cache drops)"),
+          late.ok() && changed.count() == 1 && roles.contains(ShotListModel::LmDeviceRole)
+              && live.data(live.index(rowFirst), ShotListModel::LmDeviceRole).toString() == first->summary().lmDevice);
+
+    // V4 (before V3, while both rows are there): a re-analysis keeps the row, the selection and the replay.
+    st.enterReplay(first->ref().toString(), first->folder());
+    const QString replaying = loaded;
+    changed.clear();
+    QObject::connect(first, &Shot::reanalysed, first, [&rig](const ShotRef &r) { rig.events << QStringLiteral("EVT-02 ") + r.toString(); },
+                     Qt::DirectConnection);
+    analysis::SwingAnalysis fresh;
+    fresh.timeBase      = analysis::TimeBase::Window;
+    fresh.score.overall = 41;
+    AnalysisOutcome outcome;
+    outcome.analysis = &fresh;
+    const WriteResult re = first->applyAnalysis(outcome);
+    check(QStringLiteral("V4 EVT-02: the row changes in place (the same id and place), no reset"),
+          re.changed() && changed.count() == 1 && live.idOfShotRef(first->ref()) == idFirst
+              && live.data(live.index(rowFirst), ShotListModel::ShotIdRole).toInt() == idFirst && resets.isEmpty());
+    check(QStringLiteral("V4 …the score the Shot now holds"),
+          live.data(live.index(rowFirst), ShotListModel::ScoreRole).toInt() == first->summary().score);
+    check(QStringLiteral("V4 …app.state's selection and the replay kept"),
+          st.selection()->shotRef() == first->ref().toString() && !replaying.isEmpty() && loaded == replaying && stops.isEmpty());
+
+    // V5: End — the capture target lets go, today's session is the same one.
+    st.endSession(true);
+    check(QStringLiteral("V5 End: no reset, the same ids, the selection kept"),
+          resets.isEmpty() && live.idOfShotRef(first->ref()) == idFirst && live.idOfShotRef(second->ref()) == idSecond
+              && st.selection()->valid() && stops.isEmpty() && app.session() == s);
+    // V6: re-entering the screen names the same session.
+    st.setLiveFolder(folder + QLatin1Char('/'));
+    check(QStringLiteral("V6 re-entering the screen: no reset"), resets.isEmpty() && live.rowCount() == 2);
+
+    // V3: anyone's trash (EVT-03).
+    QString where;
+    const ShotRef refSecond = second->ref();
+    const WriteResult t = s->trashShot(refSecond, &where);
+    check(QStringLiteral("V3 EVT-03 from elsewhere: the row leaves, shotTrashed once"),
+          t.ok() && live.rowCount() == 1 && live.idOfShotRef(refSecond) < 0 && trashedRows.count() == 1
+              && trashedRows.first().at(0).toInt() == idSecond);
+
+    // V8: a camera shot that saved nothing, then its device-only document (the launch monitor's rescue).
+    capture = folder;
+    st.refreshCaptureTarget();
+    SwingAllocation a;
+    Shot *rescued = s->addShot(recording::ShotKind::Captured, &a);
+    ShotListModel::CapturedShot card;
+    card.shot = rescued ? rescued->ref() : ShotRef();
+    card.club = QStringLiteral("7 IRON");
+    const int cardId = live.landShot(card, /*documentWritten*/ false);
+    const int rowsWithCard = live.rowCount();
+    DeviceOnlyMeta meta;
+    meta.swingId    = QFileInfo(a.swingFolder).fileName();
+    meta.swingIndex = rescued ? rescued->swingNumber() : 0;
+    const bool wrote = rescued && rig.recordings->create(rescued->ref(), reading("V8"), meta).ok();
+    if (wrote) s->shotDocumentWritten(rescued->ref());
+    check(QStringLiteral("V8 the card, then its document: one row, the same id, now its Shot's"),
+          wrote && rowsWithCard == 2 && live.rowCount() == 2 && live.idOfShotRef(rescued->ref()) == cardId
+              && !live.data(live.index(0), ShotListModel::SwingDirRole).toString().isEmpty());
+
+    // V7: the Session trashed by its Athlete (EVT-20): the view empties.
+    capture.clear();
+    st.refreshCaptureTarget();
+    const SessionId sid = s->id();
+    QString gone;
+    s->end();
+    const WriteResult ts = rig.athlete->trashSession(sid, &gone);
+    QCoreApplication::processEvents();
+    check(QStringLiteral("V7 the Session trashed: the view is empty and shows no session"),
+          ts.ok() && live.rowCount() == 0 && live.sessionFolder().isEmpty());
 }
 
 // ── C13: the old model's golfer commands ────────────────────────────────────────────────────────────────
@@ -704,12 +838,10 @@ static void rowsOverShots()
     const QString dir = s->entry()->folder;
 
     ShotListModel model;
-    model.setShotCommands(rig.app.get());
-    model.loadSessionDir(dir);
+    model.setSource(shotSourceOf(s));
     const auto roleOf = [&model](int row, int role) { return model.data(model.index(row), role); };
-    // Today's text: this folder + the swing's folder name (findSwingDirs' composition).
-    const QString dirOne = dir + QStringLiteral("/") + QFileInfo(one->folder()).fileName();
-    check(QStringLiteral("C15b the load lists the Session's Shots, newest first, the swingDir as today's"),
+    const QString dirOne = one->folder();   // the Shot's folder (a property of the Shot)
+    check(QStringLiteral("C15b the view lists the Session's Shots, newest first, the swingDir the Shot's folder"),
           model.rowCount() == 2 && roleOf(0, ShotListModel::OrdinalRole).toInt() == 2
               && roleOf(1, ShotListModel::OrdinalRole).toInt() == 1
               && roleOf(1, ShotListModel::SwingDirRole).toString() == dirOne);
@@ -740,14 +872,20 @@ static void rowsOverShots()
                   && reviewOf(rig, one->ref()).value(QStringLiteral("rating")).toInt() == 4);
     }
 
-    // A live row (addShot): its review facts are its Shot's.
+    // A live view: capture's call finds the Shot's row, whose facts are its Shot's.
     ShotListModel live;
-    live.setShotCommands(rig.app.get());
-    const int liveId = live.addShot(one->folder(), QStringLiteral("12:00:00"), QStringLiteral("DRIVER"), false, QUrl(),
-                                    {}, 0, {});
+    live.setSource(shotSourceOf(s));
+    ShotListModel::CapturedShot captured;
+    captured.shot = one->ref();
+    captured.club = QStringLiteral("DRIVER");   // capture's value: not shown, the Shot's is
+    const int liveId = live.landShot(captured, /*documentWritten*/ true);
+    int liveRow = -1;   // its row: the view shows the session's two shots, newest first
+    for (int r = 0; r < live.rowCount(); ++r)
+        if (live.data(live.index(r), ShotListModel::ShotIdRole).toInt() == liveId) liveRow = r;
     check(QStringLiteral("C15f a live row: its number and review facts from its Shot"),
-          live.ordinalForId(liveId) == 1 && live.data(live.index(0), ShotListModel::RatingRole).toInt() == 4
-              && live.data(live.index(0), ShotListModel::ClubRole).toString() == QStringLiteral("7 IRON"));
+          liveRow >= 0 && live.ordinalForId(liveId) == one->summary().ordinal
+              && live.data(live.index(liveRow), ShotListModel::RatingRole).toInt() == 4
+              && live.data(live.index(liveRow), ShotListModel::ClubRole).toString() == QStringLiteral("7 IRON"));
 
     // The carousel's delete: the Session's trashShot (EVT-03), the Shot let go, the number kept.
     const int idTwo = roleOf(0, ShotListModel::ShotIdRole).toInt();
@@ -764,17 +902,13 @@ static void rowsOverShots()
     Shot *third = s->addShot(recording::ShotKind::Captured, &next);
     check(QStringLiteral("C15i …and its number never reissued (the next is 3)"), third && third->swingNumber() == 3);
 
-    // Without a door (step 5.1: N1's load, write-through and trash are gone): no rows; a folder row's trash is refused —
-    // the swing stays, no event.
+    // A view no Session is given to: no rows of its own, so nothing of it can be trashed — the swing stays, no event.
     ShotListModel plain;
-    plain.loadSessionDir(dir);
-    const int plainRows = plain.rowCount();
-    plain.addPersistedShot(one->folder(), 1, QStringLiteral("12:00:00"), QStringLiteral("7 IRON"), false, QUrl(), 0, 4,
-                           QString(), {}, {});
+    plain.showSession(dir);
     rig.events.clear();
-    const bool plainMoved = plain.moveToTrash(plain.data(plain.index(0), ShotListModel::ShotIdRole).toInt());
-    check(QStringLiteral("C15j no door: no rows of its own; its trash refused (the swing stays, the row too, no event)"),
-          plainRows == 0 && !plainMoved && plain.rowCount() == 1 && QFileInfo::exists(one->folder()) && rig.events.isEmpty()
+    const bool plainMoved = plain.moveToTrash(1);
+    check(QStringLiteral("C15j no Session: no rows of its own; nothing trashed (the swing stays, no event)"),
+          plain.rowCount() == 0 && !plainMoved && QFileInfo::exists(one->folder()) && rig.events.isEmpty()
               && trashed.size() == 1);
 
     // C15k: a held session is answered from memory (round 2: no session.json read per row, edit or refresh).
@@ -974,6 +1108,7 @@ int main(int argc, char **argv)
     oldModel();
     analysisAndSummary();
     rowsOverShots();
+    carouselView();
     reanalysisThroughTheShot();
     lateWriteAfterASwitch();
     std::printf("\n%s: %d of %d checks failed\n", g_fail ? "FAIL" : "PASS", g_fail, g_run);

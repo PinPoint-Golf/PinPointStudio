@@ -70,7 +70,7 @@ class ShotListModel;
 //                             builder) then export (SwingExporter) — QtConcurrent
 //                             workers reading the frozen window (const, zero-copy)
 //                ─► join      the first write through RecordingRepository::create;
-//                             ShotListModel::addShot() always; then
+//                             ShotListModel::landShot() always (5.2); then
 //                ─► REPLAYING ¼× on-screen replay iff analysis AND export
 //                             both succeeded
 //                ─► finish    window destroyed → applyCaptureIntent() → Idle
@@ -199,10 +199,10 @@ public:
     // all — which is exactly when a launch monitor reading has somewhere to go and the
     // rest of the pipeline does not. Empty when no shot has been processed.
     QString lastSwingDir() const { return m_swingDir; }
-    // The carousel row id the last processed shot was given. addShot() runs even when
-    // everything else failed, so a shot that produced no document still HAS a row —
-    // in-memory, with no swingDir. A launch monitor filling that folder must point that
-    // row at it rather than adding a second one. -1 when no shot has been processed.
+    // The carousel row id the last processed shot was given. landShot() runs even when
+    // everything else failed, so a shot that produced no document still HAS a card —
+    // with no swingDir. A launch monitor filling that folder turns that card into its
+    // Shot's row (EVT-01 for the same shot), never a second one. -1 when none processed.
     int lastShotId() const { return m_lastShotId; }
 
     // User-initiated skip (ESC). Only meaningful mid-replay: the shot is

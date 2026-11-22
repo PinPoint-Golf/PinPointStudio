@@ -27,7 +27,7 @@
 //                         refused while a session runs (mayChangeAthlete: the AppState rule that replaced Stage 0.8g's
 //                         check; today's test is SessionController::running, not "a capture target is set": J-a5)
 //   captureTarget         R-APP-2: the capture service's open session, read-only here (captureTargetFolder)
-//   sessionOnScreen       R-APP-3: the reviewed session, else the capture target, else the live carousel's (J-a2)
+//   sessionOnScreen       R-APP-3: the reviewed session, else the capture target, else the live folder (J-a2; refactor step 5.2: kept here, no longer read off the carousel)
 //   mode                  Capture | Replay | Analyse (the ints SessionMode.qml used to hold: 0, 1, 2)
 //   selection             R-APP-4: a shot by its ShotRef, scoped to the session on screen: cleared when that
 //                         session's identity changes (E-05), never matched by folder name
@@ -125,7 +125,6 @@ struct AppStateDoors {
     // The folders sessionOnScreen chooses between (today's three-way chain, E-08)
     std::function<QString()>                        reviewFolder;      // the loaded session's; "" when not reviewing
     std::function<QString()>                        captureFolder;     // ShotProcessor::activeSessionDir
-    std::function<QString()>                        liveFolder;        // SessionReviewController::liveSessionDir
     std::function<void()>                           resumeLive;        // leave a review
     // The replay
     std::function<void(int, const QString &, bool)> replayStart;       // swing number, folder, autoplay
@@ -134,7 +133,6 @@ struct AppStateDoors {
     std::function<bool()>                           autoReplayAfterSelect;
     // A session's start and end (E-12)
     std::function<void(bool)>                       openCaptureSession;   // ShotProcessor::beginSessionFolder(type, extend)
-    std::function<void(const QString &)>            showLiveShots;        // the live carousel loads a folder
     std::function<void()>                           startClock;           // SessionController::start(defaultType)
     std::function<void()>                           startCameras;
     std::function<void()>                           stopCameras;
@@ -194,6 +192,16 @@ public:
     bool athleteLocked() const { return !mayChangeAthlete(); }
 
     QString  captureTargetFolder() const { return m_doors.captureFolder ? m_doors.captureFolder() : QString(); }
+    // THE LIVE SESSION (J-a2's rule, kept by its owner since refactor step 5.2; R-QML-5): the session the live carousel
+    // shows — the capture target while one is set, else the live folder: the latest session at launch and on an
+    // athlete switch (the Athlete's SessionIndex), today's after End or on entering the wrist screen, the capture
+    // target's after it lets go (an End that does not reload keeps the ended session on screen, as before).
+    QString  liveFolder() const { return m_liveFolder; }
+    QString  liveSessionFolder() const;   // the capture target, else the live folder
+    // The live carousel shows `folder` (the wrist screen's entry: today's session of its type, "" for none).
+    Q_INVOKABLE void setLiveFolder(const QString &folder);
+    // The current athlete's latest session (its SessionIndex, by start), "" for none: launch and an athlete switch.
+    void showLatestSession();
     Session *sessionOnScreen() const { return m_onScreen; }
     QString  sessionOnScreenFolder() const { return m_onScreenFolder; }
 
@@ -234,7 +242,9 @@ public:
     void refreshSessionOnScreen();
     // The capture target moved (ShotProcessor::activeSessionDirChanged): every way a session comes into being — Start,
     // the first swing of a Start that opened none, D7's restart — so the pending focus is handed over here first.
-    void refreshCaptureTarget() { handOverFocus(); emit captureTargetChanged(); refreshSessionOnScreen(); }
+    // The live folder takes the capture target's session whenever one is set, so the live carousel never passes
+    // through no session when capture lets go of it (End).
+    void refreshCaptureTarget();
     void refreshAthlete();   // a switch: the selection was the last athlete's, so it clears
     void refreshAthleteLock() { emit athleteLockedChanged(); }
 
@@ -245,6 +255,7 @@ signals:
     void athleteLockedChanged();
     void captureTargetChanged();
     void sessionOnScreenChanged();
+    void liveSessionChanged();  // liveSessionFolder() moved: the live carousel is pointed at it (main.cpp)
     void shotOutcomeChanged();  // the outcome, the selection, the session on screen, or what its owners hold moved
 
 private:
@@ -253,6 +264,11 @@ private:
     void select(const QString &shotRef, const QString &swingDir);
     void loadSelected(bool fromCapture);
     void dropSelection();
+    QString           latestSessionFolder() const;
+    void              announceLive();   // liveSessionChanged, when liveSessionFolder() moved
+    QString           m_liveFolder;
+    bool              m_ending = false;   // inside endSession: capture letting go settles nothing yet
+    QString           m_announcedLive;
 
     AppStateDoors     m_doors;
     QPointer<QObject> m_replay;

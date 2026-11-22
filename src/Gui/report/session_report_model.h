@@ -83,7 +83,7 @@ class AthleteController;
 class SessionDiagnosticsModel;
 class ReportStills;
 
-namespace pinpoint { class AthleteLevel; class ShotCommandDoor; }
+namespace pinpoint { class AthleteLevel; class ShotSource; }
 
 class SessionReportModel : public QObject
 {
@@ -116,10 +116,11 @@ public:
     // Whether the session at `sessionDir` has no golfer (the Unassigned owner's: information_model.md §5.11). Such a
     // report reads no athlete level and no same-day siblings — they are other golfers' — and says so (step 5.1 review B1).
     void setNoGolferTest(std::function<bool(const QString &sessionDir)> test) { m_noGolfer = std::move(test); }
-    // THE SHOT-COMMAND DOOR (`app`) the report's private carousel lists the session's shots through — the launch monitor's
-    // figures come off those rows. Since step 5.1 a carousel keeps no read of its own (N1 is gone), so without the door
-    // it lists nothing and the report has no launch monitor figures. main.cpp sets `app`.
-    void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
+    // THE SESSION'S SHOTS for the report's temporary carousel (refactor step 5.2; R-QML-5): a view over the Session being
+    // reported, made through this (main.cpp: app.sessionAt, then a SessionShotSource) — the launch monitor's figures
+    // come off its rows. Without it the carousel lists nothing and the report has no launch monitor figures.
+    void setShotSourceFor(std::function<std::unique_ptr<pinpoint::ShotSource>(const QString &sessionDir)> sourceFor)
+    { m_shotSourceFor = std::move(sourceFor); }
 
     bool    busy() const;
     QString busySession() const;
@@ -187,7 +188,7 @@ private:
     std::function<SessionDiagnosticsModel *(const QString &)> m_diagnosisDoor;
     std::function<pinpoint::AthleteLevel *(const QString &)> m_athleteDoor;
     std::function<bool(const QString &)>                     m_noGolfer;
-    pinpoint::ShotCommandDoor                               *m_commands = nullptr;
+    std::function<std::unique_ptr<pinpoint::ShotSource>(const QString &)> m_shotSourceFor;
     QPointer<SessionDiagnosticsModel> m_model;          // the job's (the door's answer); null between makes
     QMetaObject::Connection     m_modelBusy;            // its busyChanged, for the job's length
     QMetaObject::Connection     m_modelGone;            // its destroyed: the session went away mid-make (B1)

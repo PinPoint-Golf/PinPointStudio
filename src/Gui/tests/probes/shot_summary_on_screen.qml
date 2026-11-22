@@ -162,7 +162,7 @@ Item {
             navController.navigate(AppScreen.Session)
             app.state.enterCapture()
         } else if (step === 2) {
-            shotModel.loadSessionDir(liveDir)          // the session screen's own call, as for today's session
+            app.state.setLiveFolder(liveDir)          // the session screen's own call, as for today's session
         } else if (step === 3) {
             log("on screen " + app.state.sessionOnScreenFolder + ", carousel " + live.count + " shot(s)")
             if (!check(live.count >= 2, "the live carousel holds the session's shots")) { finish(); return }
