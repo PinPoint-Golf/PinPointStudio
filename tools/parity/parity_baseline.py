@@ -29,6 +29,10 @@ Design: build/refactor/step-G/BRIEF.md section 2.
      run from 3.10 on. The first new-engine baseline is step3.10-baseline.
   3. athlete_dump --fresh --out out/athlete.json <every athlete folder of the copy>
      (that order: the catch-up trusts ledgers stamped current, so step 2 makes them this build's).
+     Each athlete's id is the one its sessions' session.json files name (refactor 5.3c). The half
+     then checks that the dump counted EVERY session copied, athlete by athlete (run_mac.json
+     "athleteSessions"); one short fails the run (exit 1). Until 5.3c a migrated library gave an
+     athlete dump with 0 sessions that exited 0.
   4. Writes out/run_mac.json (commit, binaries, exit codes, seconds per step) and deletes the
      copies unless --keep-copies.
   Needs build/tests/Analysis/{regrade_ledger,athlete_dump} built at the commit under test, and
@@ -52,7 +56,8 @@ Design: build/refactor/step-G/BRIEF.md section 2.
   with no `summary` (the --doc-blocks write failed); its runner log is kept as
   out/logs/<id>.runner.log. `--self-test` checks that rule on built-in cases.
 
-Exit 0 when every tool exited 0; 1 when one did not (the outputs are still written); 2 on a
+Exit 0 when every tool exited 0; 1 when one did not, or (mac) the athlete dump counted fewer
+sessions than were copied (the outputs are still written); 2 on a
 refusal (a used label, a destination outside the parity scratch root, a missing binary).
 """
 import argparse
@@ -188,6 +193,8 @@ def mac_half(a, pset, run_dir):
     rc2, s2 = run_tool([bins["athlete_dump"], "--fresh", "--out", os.path.join(out, "athlete.json")]
                        + athletes, os.path.join(out, "logs", "athlete_dump.log"), env, a.timeout)
     log("athlete_dump --fresh    exit %d  %6.1f s" % (rc2, s2))
+    # 3b. every session copied is counted (refactor 5.3c; REVIEW-5.3 R2)
+    short = count_check(os.path.join(out, "athlete.json"), pset, meta)
     meta["seconds"]["regradeLedgerDump"] = s1
     meta["seconds"]["athleteDump"] = s2
     meta["exit"] = {"regrade_ledger": rc1, "athlete_dump": rc2}
@@ -200,7 +207,30 @@ def mac_half(a, pset, run_dir):
     meta["copiesKept"] = bool(a.keep_copies)
     pc.write_canonical(os.path.join(out, "run_mac.json"), meta)
     log("wrote %s" % out)
-    return 0 if rc1 == 0 and rc2 == 0 else 1
+    return 0 if rc1 == 0 and rc2 == 0 and not short else 1
+
+
+def count_check(dump_path, pset, meta):
+    """Whether the athlete dump counted every session the set copied, athlete by athlete: records
+    meta["athleteSessions"] = {athlete: {"copied": n, "counted": m}} and returns the athletes that
+    fall short (an unreadable dump: every athlete)."""
+    copied = {}
+    for s in pset["sessions"]:
+        athlete = s["path"].split("/")[0]
+        copied[athlete] = copied.get(athlete, 0) + 1
+    counted = {}
+    try:
+        for a in pc.read_json(dump_path).get("athletes", []):
+            counted[a.get("athlete")] = int(a.get("sessionCount") or 0)
+    except (OSError, ValueError) as e:
+        log("athlete dump unreadable (%s): no session is counted" % e)
+    meta["athleteSessions"] = {a: {"copied": n, "counted": counted.get(a, 0)} for a, n in sorted(copied.items())}
+    short = [a for a, n in sorted(copied.items()) if counted.get(a, 0) < n]
+    for a in short:
+        log("FAILED  athlete_dump counted %d of %s's %d session(s)" % (counted.get(a, 0), a, copied[a]))
+    if not short:
+        log("athlete_dump counted every session: %d" % sum(copied.values()))
+    return short
 
 
 # ---------------------------------------------------------------- the analysis half

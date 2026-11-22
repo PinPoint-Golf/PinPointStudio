@@ -54,6 +54,9 @@
 //       each released after; then AthleteDiagnostics (src/DomainModel/athlete_diagnostics.h), which reads the summaries
 //       only: its tendencies (with the distances, from the club windows), its themes and its athlete work-ons (the
 //       summaries' compact per-shot facts: DEC-192 as Mark amended it, 16 Nov "b"). The athlete is the folder's own.
+// Under either engine the athlete's id is the one its sessions' session.json files name, read through the session
+// repository (refactor 5.3c; NewEngine::athleteOf). A folder that holds sessions but leaves 0 counted is a FAILURE
+// (exit 1, with words): until 5.3c a migrated library gave an empty dump that exited 0.
 // Both dumps carry `themes` (every club; the stored swing_themes.json read back for old, AthleteDiagnostics' for new,
 // each through the one serialiser, its provenance left out).
 // Both dumps add `athleteWorkOns` (the athlete work-ons, DEC-138: ids, status and counts — old from the summaries' files
@@ -83,10 +86,12 @@
 
 #include <QCryptographicHash>
 #include <QSemaphore>
+#include <QSet>
 #include <QThreadPool>
 #include <atomic>
 #include <map>
 #include <memory>
+#include <optional>
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -110,6 +115,8 @@ void printUsage(FILE *to)
         "work_ons.json and club_baseline.json, as canonical JSON (keys sorted, %%.17g numbers, no timestamps\n"
         "or fingerprints, folders as <athlete>/<session>), so two runs diff byte for byte.\n"
         "WRITES INTO THE FOLDERS: refuses any whose real path has no 'scratch' component.\n"
+        "Each athlete's id is the one its sessions' session.json files name (refused when they name more than one);\n"
+        "a folder holding sessions that leaves 0 counted fails the run (exit 1).\n"
         "\n"
         "  --out <file>       where the dump goes (required)\n"
         "  --fresh            delete each session's work_ons.json and the athlete's tendencies.json first, so\n"
@@ -349,13 +356,38 @@ public:
     }
     ~NewEngine() { m_athletes.clear(); }
 
-    // The athlete of a folder (no record: an id from the folder's name, no cohort facts), made once.
-    pinpoint::Athlete *athleteOf(const QString &dir)
+    // The athlete of a folder, made once (no record: the folder's name, no cohort facts). ITS ID IS THE ONE ITS SESSIONS'
+    // OWN FILES NAME (refactor 5.3c; REVIEW-5.3 R2): each session folder's session.json (FILE-SESS-01) read through the
+    // session repository, its owner (SessionStore::openFolder, then the index entry's athleteId). Since the 22 Nov
+    // migrations that is the athlete.json id; an id made from the folder's name matches none of them, so the catch-up
+    // took every session for another athlete's and the dump was empty. Only a folder none of whose sessions has a
+    // session file (a library not migrated) keeps the id from the folder's name. Null, with `why`, when the session
+    // files name more than one athlete: whose sessions they are is not this tool's to choose. `from` says which.
+    pinpoint::Athlete *athleteOf(const QString &dir, QString *from = nullptr, QString *why = nullptr)
     {
         using namespace pinpoint;
         const QString name = QFileInfo(dir).fileName();
-        const AthleteId id = AthleteId::fromString(QStringLiteral("00000000-0000-4000-8000-%1")
-            .arg(QString::fromLatin1(QCryptographicHash::hash(name.toUtf8(), QCryptographicHash::Sha1).toHex().left(12))));
+        QSet<QString> named;
+        for (const QString &s : sessionDirs(dir)) {
+            const SessionId sid = m_store.openFolder(s);   // reads only (SessionRepository::openFolder)
+            if (sid.isNull()) continue;
+            if (const std::optional<SessionIndexEntry> e = m_store.open(sid); e && e->hasSessionFile && !e->athlete.isNull())
+                named.insert(e->athlete.toString());
+        }
+        if (named.size() > 1) {
+            QStringList ids = named.values();
+            ids.sort();
+            if (why)
+                *why = QStringLiteral("its sessions' session.json files name %1 athletes (%2): refused, whose they are "
+                                      "is not the tool's to choose").arg(ids.size()).arg(ids.join(QStringLiteral(", ")));
+            return nullptr;
+        }
+        const AthleteId id = named.size() == 1
+            ? AthleteId::fromString(*named.cbegin())
+            : AthleteId::fromString(QStringLiteral("00000000-0000-4000-8000-%1")
+                  .arg(QString::fromLatin1(QCryptographicHash::hash(name.toUtf8(), QCryptographicHash::Sha1).toHex().left(12))));
+        if (from)
+            *from = named.size() == 1 ? QStringLiteral("session.json") : QStringLiteral("the folder's name (no session file)");
         auto it = m_athletes.find(id.toString());
         if (it != m_athletes.end()) return it->second.get();
         auto a = std::make_unique<Athlete>(&m_caches, &m_store, id);
@@ -464,6 +496,16 @@ int main(int argc, char **argv)
         const QString name = QFileInfo(dir).fileName();
         const QStringList sessions = sessionDirs(dir);
 
+        // WHOSE THE SESSIONS ARE (refactor 5.3c): the id their session.json files name, through the session repository.
+        // Refused here, before --fresh deletes anything, when they name more than one athlete.
+        QString idFrom, idWhy;
+        if (NewEngine probe; !probe.athleteOf(dir, &idFrom, &idWhy)) {
+            std::fprintf(stderr, "athlete_dump: %s: %s\n", qPrintable(name), qPrintable(idWhy));
+            std::printf("%-40s REFUSED  %s\n", qPrintable(name), qPrintable(idWhy));
+            ++failures;
+            continue;
+        }
+
         if (fresh) {
             int removed = 0;
             bool ok = removeIfThere(WorkOnsController::tendenciesPath(dir), &removed);
@@ -484,7 +526,7 @@ int main(int argc, char **argv)
         if (engine == QLatin1String("old")) {
             // The catch-up as main.cpp wires it (3.7-e): the service, over the headless owners.
             NewEngine ng;
-            pinpoint::Athlete *a = ng.athleteOf(dir);
+            pinpoint::Athlete *a = ng.athleteOf(dir);   // known (checked above, before anything was written)
             pinpoint::AthleteCatchUp catchUp(ng.callables());
             WorkOnsController c;
             c.setSynchronous(true);
@@ -567,7 +609,7 @@ int main(int argc, char **argv)
             }
         } else {
             NewEngine ng;
-            pinpoint::Athlete *a = ng.athleteOf(dir);
+            pinpoint::Athlete *a = ng.athleteOf(dir);   // known (checked above, before anything was written)
             pinpoint::AthleteCatchUp catchUp(ng.callables());
             QElapsedTimer clock;
             clock.start();
@@ -599,9 +641,19 @@ int main(int argc, char **argv)
             for (const QString &w : r.why) std::printf("%-40s   %s\n", "", qPrintable(w));
         }   // destroyed here: its pools drain before the files are read
         if (!settled || (engine == QLatin1String("old") && !tendenciesReady)) ++failures;
-        std::printf("%-40s %s  sessions %d/%d  tendencies %s\n", qPrintable(name),
+        std::printf("%-40s %s  sessions %d/%d  tendencies %s  (athlete id from %s)\n", qPrintable(name),
                     settled ? "SETTLED" : "TIMEOUT", sessionCount, sessionsFound,
-                    tendenciesReady ? "ready" : engine == QLatin1String("new") ? "not built (new engine: F1)" : "NOT READY");
+                    tendenciesReady ? "ready" : engine == QLatin1String("new") ? "not built (new engine: F1)" : "NOT READY",
+                    qPrintable(idFrom));
+        // AN EMPTY DUMP NEVER PASSES (refactor 5.3c; REVIEW-5.3 R2): a folder holding sessions that leaves none counted
+        // is a failure, said in words. Until 5.3c a migrated library dumped "sessionCount 0" and exited 0.
+        if (!sessions.isEmpty() && sessionCount == 0) {
+            std::fprintf(stderr, "athlete_dump: %s holds %d session folder(s) but 0 sessions were counted: the dump has "
+                                 "nothing of them (are they this athlete's? the log names each session refused)\n",
+                         qPrintable(name), int(sessions.size()));
+            std::printf("%-40s FAILED  %d session folder(s), 0 sessions counted\n", qPrintable(name), int(sessions.size()));
+            ++failures;
+        }
 
         parity::PathTokens tokens;
         parity::addPathToken(tokens, dir, QStringLiteral("<athlete>"));

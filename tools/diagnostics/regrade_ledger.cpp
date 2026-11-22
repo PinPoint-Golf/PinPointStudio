@@ -89,6 +89,8 @@
 // §5.3). old: the old engine above, run P's reference until step 5.4b deletes it.
 //
 // [^1]: Until refactor 5.3 the default was `old` (J-59: the old engine stayed run P's reference to step 5, after M1).
+// [^alias]: Refactor 5.3's review (REVIEW-5.3 R1) found that nine corpus sessions' swings record a second id for one golfer,
+// `52ff45d8-…`, not the library's `b389a703-…`; refactor 5.3c recorded it as that golfer's alias, 22 Nov 2026.
 //
 // Dump mode needs every PINPOINT_CORE_* the diagnostics read (parity_json.h contentVariables(): the flight
 // table and the gate words too, which a plain regrade can do without), because a dump graded without the
@@ -105,6 +107,7 @@
 #include "Export/firing_reader_store.h"
 #include "Export/recording_loader.h"
 #include "Export/swing_paths.h"
+#include "Export/swing_store.h"        // SwingStore::loadParts: the recorded athlete id (5.3c)
 #include "Export/swing_store_repository.h"
 #include "../../src/Export/rule_data_install.h"
 #include "Export/session_diagnostics_files.h"
@@ -185,7 +188,9 @@ DumpEntry dumpEntry(const QString &dir, const QString &status, QVariantMap body,
 // ── --engine new: the new owner, headless, over a scratch library ──────────────────────────────────────────────
 
 // Whose a session is: the athlete's id and record, and where they were read (`from`: "athlete.json" or "ini").
-struct AthleteSeen { pinpoint::AthleteId id; pinpoint::AthleteRecord record; QString from; };
+// `recorded`: for a golfer file's golfer, what the session's swings record of the id when it is not the entry's (an alias
+// of it, or an id the file does not list), in words; empty otherwise.
+struct AthleteSeen { pinpoint::AthleteId id; pinpoint::AthleteRecord record; QString from; QString recorded; };
 
 // THE FALLBACK (an unmigrated library): the record for a session's athlete from a copy of the app's settings
 // ([athletes]/<uuid>/name, dob, sex): the one whose sanitised name is the athlete folder's name, else the one named in
@@ -219,11 +224,33 @@ AthleteSeen athleteFromIni(const QString &sessionDir, const QString &ini)
     return out;   // no record: a null id — never an athlete of the folder's name (a golfer is never pooled)
 }
 
+// The athlete ids a session's swings record: each swing document's `athlete.uuid`, the header its capture wrote (the
+// document's root alone, no chunk read). Read only; for the golfer file's alias check below (refactor 5.3c).
+QStringList recordedAthleteIds(const QString &sessionDir)
+{
+    using namespace pinpoint;
+    QStringList out;
+    for (const QString &w : SwingPaths::swingFolders(sessionDir)) {
+        const AthleteId id = AthleteId::fromString(SwingStore::loadParts(QDir(sessionDir).filePath(w), {})
+                                                       .value(QStringLiteral("athlete")).toObject()
+                                                       .value(QStringLiteral("uuid")).toString());
+        if (!id.isNull() && !out.contains(id.toString())) out << id.toString();
+    }
+    out.sort();
+    return out;
+}
+
 // THE GOLFER FILE BESIDE THE SESSION (refactor 5.3): `athletes.json` in the folder that holds the session, for a folder
 // of several golfers' sessions that has no athlete.json (the corpus, `corpus/swings/`). Schema `pinpoint.athletes/1`:
 //
 //   { "schema": "pinpoint.athletes/1",
-//     "athletes": [ { "athleteId": "<uuid>", "name": "Nick Henn", "sex": "male", "dob": "" }, … ] }
+//     "athletes": [ { "athleteId": "<uuid>", "name": "Nick Henn", "sex": "male", "dob": "",
+//                     "aliases": [ "<uuid>", … ] (optional) }, … ] }
+//
+// `aliases` (refactor 5.3c; REVIEW-5.3 R1)[^alias]: other ids the golfer's swings record, captured under another machine's
+// record of the same golfer. The entry is still matched by name and the session graded as `athleteId`; an alias only
+// tells the tool that swings recording it are the same golfer, and the graded line says so. A recorded id that is
+// neither the entry's nor an alias is said too (not refused: the name decides, as before).
 //
 // An entry names a session when its sanitised name (SwingPaths::sanitise: "Nick-Henn") is the athlete folder's name, or
 // sits between underscores in the session folder's name (2026-10-20_Nick-Henn_Wrist_01): the ini fallback's rule. A null
@@ -269,6 +296,20 @@ AthleteSeen athleteFromGolferFile(const QString &sessionDir, QString *problem = 
         out.record.sex  = e.value(QStringLiteral("sex")).toString();
         out.record.dob  = e.value(QStringLiteral("dob")).toString();
         out.from        = QStringLiteral("athletes.json");
+        QStringList aliases;
+        for (const QJsonValue &v : e.value(QStringLiteral("aliases")).toArray())
+            if (const AthleteId a = AthleteId::fromString(v.toString()); !a.isNull()) aliases << a.toString();
+        QStringList viaAlias, unlisted;
+        for (const QString &r : recordedAthleteIds(sessionDir))
+            if (r != out.id.toString()) (aliases.contains(r) ? viaAlias : unlisted) << r;
+        QStringList words;
+        if (!viaAlias.isEmpty())
+            words << QStringLiteral("its swings record %1, an alias of %2 in athletes.json: the same golfer")
+                         .arg(viaAlias.join(QStringLiteral(", ")), out.record.name);
+        if (!unlisted.isEmpty())
+            words << QStringLiteral("its swings record %1, which athletes.json does not list for %2 (matched by name)")
+                         .arg(unlisted.join(QStringLiteral(", ")), out.record.name);
+        out.recorded = words.join(QStringLiteral("; "));
     }
     return out;
 }
@@ -522,7 +563,8 @@ void printUsage(FILE *to)
         "                     The new engine reads each session's athlete (who it is, sex and date of birth\n"
         "                     for the norm cohort, D6) from its athlete folder's athlete.json, else from\n"
         "                     athletes.json beside the session (pinpoint.athletes/1, the corpus: the entry whose\n"
-        "                     name is in the session folder's name); a session whose athlete no source names\n"
+        "                     name is in the session folder's name; swings recording one of its `aliases` are\n"
+        "                     said to be the same golfer); a session whose athlete no source names\n"
         "                     is SKIPPED untouched, so no golfer is pooled into another's club baseline\n"
         "  --athletes-ini <f> (new engine; the last FALLBACK, for a library not yet migrated) a COPY of the\n"
         "                     app's settings: its [athletes] record matched by the athlete folder's or the\n"
@@ -687,6 +729,8 @@ int main(int argc, char **argv)
                         who.record.dob.isEmpty() ? "-" : qPrintable(who.record.dob), qPrintable(who.from));
             if (dg && !dg->patterns.isEmpty())
                 std::printf("%-48s   patterns: %s\n", "", qPrintable(dg->patterns.join(QLatin1Char(' '))));
+            if (!who.recorded.isEmpty())
+                std::printf("%-48s   %s\n", "", qPrintable(who.recorded));
             if (who.from == QLatin1String("athletes.json")
                 && !QFileInfo::exists(QDir(dir).filePath(QStringLiteral("club_baseline.json"))))
                 std::printf("%-48s   club baseline not frozen: corpus run (graded with no baseline)\n", "");

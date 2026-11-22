@@ -2123,6 +2123,16 @@ get_target_property(_athlete_dump_sources athlete_dump SOURCES)
 list(REMOVE_DUPLICATES _athlete_dump_sources)
 set_property(TARGET athlete_dump PROPERTY SOURCES ${_athlete_dump_sources})
 pp_apply_sanitizers(athlete_dump)
+# The tool itself stays out of ctest (above). One test drives it over a scratch folder in the build tree (refactor 5.3c;
+# REVIEW-5.3 R2): the athlete's id comes from its sessions' session.json files, a folder of sessions that dumps none fails
+# with words, and sessions naming two athletes are refused before --fresh deletes anything.
+add_test(NAME athlete_dump_ids_test
+         COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:athlete_dump>
+                 -DSWING=${DIAG}/tests/data/live_swings/lm_7iron
+                 -DWORK=${CMAKE_CURRENT_BINARY_DIR}/athlete_dump_ids_work
+                 -P ${PP_REPO_ROOT}/tools/diagnostics/athlete_dump_ids_check.cmake)
+set_tests_properties(athlete_dump_ids_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 # work_ons_controller_test READS THE ATHLETE LEVEL (refactor 3.7-f): WorkOnsController adapts the current Athlete's
 # AthleteDiagnostics, over a session store and an Athlete of the test's own — athlete_dump's closure, less the tool.
 set(_woc_owner_sources ${ATHLETE_NEW_ENGINE_SOURCES} ${SESSION_DIAG_CATALOGUE_SOURCES})

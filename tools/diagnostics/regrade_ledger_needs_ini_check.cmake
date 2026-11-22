@@ -5,7 +5,7 @@
 # the app's settings) is only the last fallback, for a library that has not been migrated. A session whose athlete NO
 # source names is refused — SKIP, exit non-zero, nothing written — because the new engine freezes each session's club
 # baseline from its athlete's earlier sessions and, without a record, would count every session of one folder as one
-# golfer. Case 7 runs with no --engine (the default is new); --help says so.
+# golfer. Case 7 runs with no --engine (the default is new); --help says so. Case 5c (refactor 5.3c): an entry's `aliases`.
 #
 #   cmake -DTOOL=<regrade_ledger> -DWORK=<an empty scratch folder> -P regrade_ledger_needs_ini_check.cmake
 #
@@ -85,9 +85,14 @@ foreach(_s IN ITEMS "${_fa}" "${_fb}" "${_fc}")
   file(MAKE_DIRECTORY "${_s}/swing_0001")
   file(WRITE "${_s}/swing_0001/swing.json" "{}")
 endforeach()
+# 5c (refactor 5.3c, an alias): Golfer Three's swing records an id athletes.json lists as one of its `aliases`; Golfer
+#     Four's records an id the file does not list. Both are graded as their entry's id (the name decides), and each says so.
+file(WRITE "${_fa}/swing_0001/swing.json" "{\"athlete\":{\"uuid\":\"52ff45d8-37a6-4474-bdc6-5a4184f78387\"}}")
+file(WRITE "${_fb}/swing_0001/swing.json" "{\"athlete\":{\"uuid\":\"9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a\"}}")
 file(WRITE "${_flat}/athletes.json"
      "{\"schema\":\"pinpoint.athletes/1\",\"athletes\":["
-     "{\"athleteId\":\"0b3c4d5e-6f70-4a81-9b2c-3d4e5f607182\",\"name\":\"Golfer Three\",\"sex\":\"female\",\"dob\":\"1991-02-03\"},"
+     "{\"athleteId\":\"0b3c4d5e-6f70-4a81-9b2c-3d4e5f607182\",\"name\":\"Golfer Three\",\"sex\":\"female\",\"dob\":\"1991-02-03\","
+     "\"aliases\":[\"52ff45d8-37a6-4474-bdc6-5a4184f78387\"]},"
      "{\"athleteId\":\"1c4d5e6f-7081-4b92-8c3d-4e5f60718293\",\"name\":\"Golfer Four\",\"sex\":\"male\",\"dob\":\"\"}]}")
 execute_process(COMMAND "${TOOL}" --engine new --tag check "${_fa}" "${_fb}"
                 RESULT_VARIABLE _rc6 OUTPUT_VARIABLE _out6 ERROR_VARIABLE _err6)
@@ -101,6 +106,13 @@ if(NOT _out6 MATCHES "Golfer-Four_Wrist_01 +(REGRADED|GRADED) +shots[^\n]*cohort
   message(FATAL_ERROR "FAIL: Golfer Four's session graded but not as athletes.json's Golfer Four:\n${_out6}${_err6}")
 endif()
 message(STATUS "PASS: two golfers in one folder are each read from athletes.json as their own entry (exit ${_rc6})")
+if(NOT _out6 MATCHES "its swings record 52ff45d8-37a6-4474-bdc6-5a4184f78387, an alias of Golfer Three in athletes.json: the same golfer")
+  message(FATAL_ERROR "FAIL: a swing recording Golfer Three's alias was not said to be the same golfer:\n${_out6}${_err6}")
+endif()
+if(NOT _out6 MATCHES "its swings record 9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a, which athletes.json does not list for Golfer Four \\(matched by name\\)")
+  message(FATAL_ERROR "FAIL: a swing recording an id athletes.json does not list was not said so:\n${_out6}${_err6}")
+endif()
+message(STATUS "PASS: an alias in athletes.json is the same golfer; an unlisted recorded id is said, not refused")
 # 5b. A corpus run freezes no club baseline (refactor 5.3): in a flat folder no golfer has an earlier session, so a
 #     baseline frozen there would be empty for good. Neither session gets a club_baseline.json, and each says so.
 foreach(_s IN ITEMS "${_fa}" "${_fb}")
