@@ -511,6 +511,15 @@ add_test(NAME headless_probe_test
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/headless_probe_check.cmake)
 set_tests_properties(headless_probe_test PROPERTIES TIMEOUT 400 SKIP_RETURN_CODE 77)
 
+# run_headless_selftest (tooling 5.3d): tools/probe/run_headless.sh, the one launcher for agent probes, refuses a real
+# home, settings file or library, and kills a launch whose process lacks PINPOINT_HEADLESS_PROBE=1. Proved with a stand-in
+# binary the script compiles; it never launches the app, so it needs no app build.
+if(UNIX)
+    add_test(NAME run_headless_selftest
+             COMMAND ${SRC}/../tools/probe/run_headless_selftest.sh ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(run_headless_selftest PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)   # it times a 1 s window
+endif()
+
 # docs/design/system/tokens.json is generated from theme/Theme.qml: fail when it is stale, so the
 # design-system docs cannot drift from the code. Skipped (not failed) where there is no Python 3.
 find_package(Python3 COMPONENTS Interpreter QUIET)

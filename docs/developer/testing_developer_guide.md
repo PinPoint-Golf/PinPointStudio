@@ -513,7 +513,17 @@ reset" state. `shared_norm_provider_test` deliberately installs none: it is the 
 
 ### The headless start for probes — `PINPOINT_HEADLESS_PROBE=1` and `headless_probe_test`
 
-**Every agent probe uses `PINPOINT_HEADLESS_PROBE=1`.**
+**Every agent probe uses `PINPOINT_HEADLESS_PROBE=1`, and every probe launch goes through `tools/probe/run_headless.sh`** (the one exception is `headless_probe_test`, below, which builds its own scratch and passes each variable as a separate argument). Environment assignments typed before a command can reach the app as one word or not at all, and the app then starts for real against the real home, settings and library, so the launcher builds the environment itself, refuses a home, settings file or library outside scratch, and kills within a second an app whose process lacks the switch.
+
+    tools/probe/run_headless.sh --app <PinPointStudio> --home <scratch>/home \
+      --settings <scratch>/cfg/PinPointStudio/PinPointStudio.ini --probe <abs path to the probe> [--timeout 120] \
+      [--env PINPOINT_<seam>=<value>]... -- [app args]
+
+- **Refused (exit 2, nothing launched)** unless `--home`, `--settings`, `--log` and the settings file's `[%General]` `athleteLibraryPath` are strictly beneath `/mnt/swingdata/scratch/`, the repository's `build/`, or the session scratchpad `/private/tmp/claude-<uid>/`, after symlinks are resolved (a `..` component or whitespace is refused; so are `/mnt/swingdata` itself, an athlete folder, and any other setting pointing into the share). The app reads its settings as `$XDG_CONFIG_HOME/PinPointStudio/PinPointStudio.ini`, so `--settings` must be named that way; the launcher sets `XDG_CONFIG_HOME` to the folder above it. A binary named PinPointStudio that lacks the switch's log text is refused too.
+- **The environment** is passed through `/usr/bin/env -i`, one argument each: `PINPOINT_HEADLESS_PROBE=1`, `QT_QPA_PLATFORM=offscreen`, `PINPOINT_LOG_STDERR=1`, `HOME` and `CFFIXED_USER_HOME` (the scratch home), `XDG_CONFIG_HOME`, `PINPOINT_DIAGNOSTICS_DIR=<home>/diagnostics`, `TMPDIR=<home>/tmp`, a system `PATH`, `LANG`, and each `--env` (`PINPOINT_*` names only, for seams such as `PINPOINT_WORKONS_DIR`; a path value must be scratch or inside the repository).
+- **The check (exit 3).** Within a second of the launch the running process's own environment is read (macOS `ps -E`, Linux `/proc/<pid>/environ`); without `PINPOINT_HEADLESS_PROBE=1` and the scratch `HOME`, or if it cannot be read, the process is killed with SIGKILL.
+- **The run.** stderr is teed to a log whose path is printed first (default `<home>/run_headless-<time>-<pid>.log`); `--timeout` (default 120 s) stops the app and exits 124; otherwise the app's exit code passes through.
+- **`run_headless_selftest`** (ctest, Gui suite; `tools/probe/run_headless_selftest.sh`, about 10 s) proves the refusals, the kill path (through the `--_test_drop_switch` and `--_test_wrong_home` hooks, which the launcher refuses for the real app), the exact environment, the exit code and the timeout, with a stand-in binary it compiles. It never launches the app.
 
 A plain launch of PinPoint Studio, offscreen included, starts the device side at once, and on macOS that raises the Bluetooth, Speech Recognition and Microphone permission prompts on whoever's screen the session is on. With `PINPOINT_HEADLESS_PROBE=1` the app starts with none of it (refactor 4-c; `src/Core/headless_probe.h`):
 
@@ -522,7 +532,7 @@ A plain launch of PinPoint Studio, offscreen included, starts the device side at
 - **A backstop below them.** The macOS permission requests and the Bluetooth adapter list and scan refuse under the switch and log `[HeadlessProbe] REFUSED <call>`, so a path the switch missed raises no prompt either.
 - **Only the exact value `1` turns it on.** Unset, or any other value, it changes nothing. A golfer never sets it.
 
-A probe run, with its saves kept off the real files (`HOME`, `CFFIXED_USER_HOME` and `XDG_CONFIG_HOME` at a scratch home whose `PinPointStudio/PinPointStudio.ini` points `athleteLibraryPath` (under `[%General]`: AppSettings' `General/` keys) at a scratch library, and `PINPOINT_DIAGNOSTICS_DIR`, above):
+What the launcher sets up, by hand (for reading, not for launching): a probe run, with its saves kept off the real files (`HOME`, `CFFIXED_USER_HOME` and `XDG_CONFIG_HOME` at a scratch home whose `PinPointStudio/PinPointStudio.ini` points `athleteLibraryPath` (under `[%General]`: AppSettings' `General/` keys) at a scratch library, and `PINPOINT_DIAGNOSTICS_DIR`, above):
 
     PINPOINT_HEADLESS_PROBE=1 QT_QPA_PLATFORM=offscreen PINPOINT_LOG_STDERR=1 \
       HOME=<scratch> CFFIXED_USER_HOME=<scratch> XDG_CONFIG_HOME=<scratch>/.config PINPOINT_DIAGNOSTICS_DIR=<scratch>/diag \
