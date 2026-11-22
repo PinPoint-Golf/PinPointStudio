@@ -648,7 +648,7 @@ SessionCameras camerasOf(const QString &sessionDir)
 
 // A measure's graded reading on one ledger shot: a row driven or read by it that the engine could assess, else a
 // composite's part read by it. NaN when the shot carries none.
-// A shot with a DATA WARNING (session_diagnostics_model detectShot) has every row turned NotAssessable after it was read,
+// A shot with a DATA WARNING (fireFindings) has every row turned NotAssessable after it was read,
 // its value kept: such a row counts when the corridor was applied to it (corridorHi > corridorLo) — it was measured
 // and then withheld, unlike a row the engine never assessed, whose 0 nobody measured.
 double ledgerReading(const pa::ShotRecord &shot, const QString &measureId)

@@ -1676,7 +1676,7 @@ set_tests_properties(club_baseline_provider_test PROPERTIES
 # session_diagnostics_model.cpp links these: the model test and the regrade / report / rank-diff tools.
 set(SESSION_DIAG_MARKS_SOURCES
     # The shot's findings and derived data, pure (Diagnostics/engine/fire_findings.*, refactor step 3.3): the
-    # model's detectShot and its factor compositions call them.
+    # model's the per-shot firing and its factor compositions call them.
     ${SRC}/Diagnostics/engine/fire_findings.cpp
     # The wrist checkpoint profile fireFindings computes (refactor 3.8-ii; DEC-123): the profile's rule and the wrist engine.
     ${SRC}/Wrist/wrist_profile_assess.cpp ${SRC}/Wrist/wrist_assessment_engine.cpp ${SRC}/Wrist/assessment_rules.cpp

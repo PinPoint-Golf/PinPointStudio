@@ -299,7 +299,6 @@ int main(int argc, char **argv)
     SessionDiagnosticsModel *panel = adapters.of(session, QStringLiteral("panel"), folder);
     if (p.value(QStringLiteral("view")) != QLatin1String("0"))
         panel->addView();   // --view 0: the panel off — the adapter exists (as after a panel was once up) and idles
-    panel->setBaselineAuthorityName(QStringLiteral("live"));
     panel->activateSession(folder);
     panel->waitForIdle(60000);
     // The QML readers' floor (readLikeQml): the panel's every property on each surfaceChanged, the carousel's new row
@@ -411,7 +410,7 @@ int main(int argc, char **argv)
                 }
                 // the carousel's row follows the write's EVT-22 (step 5.2): no refresh of its own
             }
-            panel->ingestShot(i, dir);   // PpSessionDiagnosticsPanel: onShotProcessed → ingestShot
+            // (The panel fed its old model here, onShotProcessed → ingestShot, until refactor 5.4b; the owner hears EVT-01.)
         }
         if (i >= 2) {   // LaunchMonitorController::flushUpdates: the previous shot's club data
             Shot *prev = shots.at(i - 2);

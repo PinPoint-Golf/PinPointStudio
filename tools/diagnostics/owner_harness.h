@@ -8,7 +8,7 @@
 // (SessionDiagnosticsModel::adapterFor) for the view half a tool reads — the explanation's roots, the links, the rows as
 // the reduction read them. regrade_ledger reads each session's athlete from the library's athlete.json, else from
 // athletes.json beside the session (the corpus; 5.3), --athletes-ini only as the last fallback, and refuses a session
-// none names (3.10 review B1; refactor 4-c, J-61); its `--engine old` stays until 5.4b.
+// none names (3.10 review B1; refactor 4-c, J-61); its `--engine old` went in 5.4b.
 //
 // NOTHING IS WRITTEN: the owner runs in memory (DiagnosticsDoors::persist off — no diagnostics.json, no work_ons.json,
 // no club_baseline.json; the firing reader is the parallel run's, which parses a swing whose sidecar is missing or stale
@@ -125,8 +125,6 @@ public:
         if (!m) return nullptr;
         m->setSynchronous(true);
         m->setReviewing(true);
-        m->setPersistEnabled(false);
-        m->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);   // a tool: no club_baseline.json
         // The explanation's ranking is the view half's (ExplainOptions); σ and the soft tier are the owner's (above).
         m->setUncertaintyModes(m_options.withSigma.value_or(tuned::diagUncertainty::kEnabled),
                                m_options.softTier.value_or(tuned::diagUncertainty::kSoftTier), posteriorRank);

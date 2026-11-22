@@ -17,9 +17,8 @@
 //     byte for byte;
 //   · the focus contract and the declared miss move no tier, no count and no corridor;
 //   · no fault profile is read or written (retired in 3.8-ii), and an old file of its name moves no tier;
-//   · a shot whose document is rewritten (a re-analysis) is REGRADED in place — live through
-//     regradeShot(), even in a closed session, and on the next activation otherwise — and a
-//     shot whose document has not changed is left exactly as it was.
+//   · (until refactor 5.4a a shot regraded in place after a re-analysis: since then the owner's EVT-02 re-fire,
+//     outcome_summary_test RE and session_diagnostics_test T4.)
 //
 // The fixtures are live_measure_source_test's, staged into a temporary session so the model sees
 // the swing-library shape it will see in the app (<athlete>/<session>/swing_NNNN/swing.json): a
@@ -519,7 +518,7 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
         check(same, "signal rows and clubhead speed survive diagnostics.json");
     }
 
-    // The engine's refusal causes, through evaluateSignal (the call detectShot makes).
+    // The engine's refusal causes, through evaluateSignal (the call the per-shot firing makes).
     {
         CharacteristicPack p;
         Signal r;
@@ -823,7 +822,7 @@ static void sequenceConsistencySuite(const QTemporaryDir &tmp)
               "…and say what they need");
     }
 
-    // spread_absent_time_skipped — a swing whose node was not placed (or whose time detectShot
+    // spread_absent_time_skipped — a swing whose node was not placed (or whose time the per-shot firing
     // withheld as implausible) has no peakTimes row and is simply not in the spread.
     {
         std::vector<ShotRecord> shots = consistencySession(6, 0);
@@ -2048,6 +2047,42 @@ static void adapterCommandsSuite(const QTemporaryDir &tmp)
               && !after.last().value(QStringLiteral("measures")).toObject().isEmpty(),
           "C13k flagForReview → through the door to the Athlete, one \"flag\" line, today's keys");
     check(events.isEmpty(), "C13l …and no event (the reference names none for a flag)");
+}
+
+// ── SAV (refactor 5.4b, review B1; DUTIES-5.4.md H16): AN EDIT THE ADAPTER COULD NOT SAVE IS SAID. Since 5.4b an adapter
+// writes nothing itself: with no door (or none reached) the edit is refused, and `ledgerWritesBlocked` (the panel's
+// "not being saved" notice) is the golfer's only sign. Said once while it keeps failing; `ledgerWritesResumed` when an
+// edit lands again. ─────────────────────────────────────────────────────────────────────────────────────────────────
+static void savSuite(const QTemporaryDir &tmp)
+{
+    std::printf("\nSAV — an edit the adapter could not save is said once; saving resumes when the door is back\n");
+    owner_rig::ViewRig &rig = owner_rig::rigFor(QDir(tmp.path()).filePath(QStringLiteral("athlete_sav")));
+    pinpoint::Session *s = rig.startLive();
+    check(s && rig.addLive(s, fixtureDoc("rich_7iron")) && rig.addLive(s, fixtureDoc("rich_7iron")), "SAVa a live session with two shots");
+    const QString dir = s && s->entry() ? s->entry()->folder : QString();
+    SessionDiagnosticsModel *m = rig.viewOf(s);
+    if (!m) return;
+    int blocked = 0, resumed = 0;
+    QString reason;
+    QObject::connect(m, &SessionDiagnosticsModel::ledgerWritesBlocked, m,
+                     [&blocked, &reason](const QString &, const QString &why) { ++blocked; reason = why; });
+    QObject::connect(m, &SessionDiagnosticsModel::ledgerWritesResumed, m, [&resumed](const QString &) { ++resumed; });
+
+    SessionDiagnosticsModel::setShotCommands(nullptr);   // no door: nothing reaches a Session
+    m->setShotIntent(1, QStringLiteral("draw"));
+    m->declareFocus(QStringLiteral("over_the_top"));
+    owner_rig::pump([] { return false; }, 50);   // the notices are queued to the next turn
+    std::printf("      blocked %d · resumed %d · \"%s\"\n", blocked, resumed, qPrintable(reason));
+    check(blocked == 1 && resumed == 0 && !reason.isEmpty(), "SAVb with no door: the notice appears once, with its reason");
+    check(!reviewOf(dir, 1).hasShotIntent && !sessionInputOf(dir).contains(QStringLiteral("declaredFocus")),
+          "SAVc …and nothing is written: no intent on the shot's review, no focus in session_input.json");
+
+    SessionDiagnosticsModel::setShotCommands(rig.app.get());   // the door is back
+    m->setShotIntent(1, QStringLiteral("fade"));
+    owner_rig::ViewRig::settle(s->diagnostics());
+    owner_rig::pump([] { return false; }, 50);
+    check(resumed == 1 && blocked == 1, "SAVd the door back: an edit lands and the notice is taken back, once");
+    check(reviewOf(dir, 1).shotIntent == QStringLiteral("fade"), "SAVe …and that edit is saved on the shot's review");
 }
 
 // ── #176 ON THE ADAPTER (refactor 5.4a, review B1 and E2): a held measure's page says it is held, never that a producer is
@@ -3788,6 +3823,7 @@ int main(int argc, char **argv)
     shotOutcomesSuite(tmp);
     flightCheckedStrikesSuite(tmp);
     adapterCommandsSuite(tmp);
+    savSuite(tmp);
     heldMeasureOnAdapterSuite(tmp);   // last: it reloads the process's packs
 
     std::printf("\npatterns at close: %d\n", patternsAtClose);

@@ -18,7 +18,6 @@
 
 #include "diag_parallel_run.h"
 
-#include "session_diagnostics_model.h"
 #include "../../DomainModel/athlete.h"   // DiagnosticsDoors
 #include "../../DomainModel/session.h"
 #include "../../DomainModel/session_diagnostics.h"
@@ -167,79 +166,7 @@ QJsonObject carryJson(const QString &club, double mean, double sd, int n, double
                         { QStringLiteral("baselineN"), bN } };
 }
 
-double mapNum(const QVariantMap &m, const char *key)
-{
-    const QVariant v = m.value(QLatin1String(key));
-    return v.isValid() ? v.toDouble() : std::numeric_limits<double>::quiet_NaN();
-}
-
 } // namespace
-
-// ── The old model's form ──────────────────────────────────────────────────────────────────────────────────────────
-QJsonObject formOf(const SessionDiagnosticsModel &m, bool withStamp)
-{
-    QJsonObject out;
-    out.insert(QStringLiteral("stage"), m.stage());
-    out.insert(QStringLiteral("reachedEstablished"), m.reachedEstablished());
-    out.insert(QStringLiteral("shotCount"), int(m.shotRecords().size()));
-    out.insert(QStringLiteral("patternSet"), patternSet(m.ledgerRows()));
-    if (withStamp) out.insert(QStringLiteral("stamp"), m.contentStamp());
-    out.insert(QStringLiteral("conditions"), conditionsJson(m.ledgerRows()));
-
-    QJsonArray shots;
-    std::vector<ShotOutcome> composed;
-    for (const ShotRecord &s : m.shotRecords()) {
-        composed.push_back(m.composedOutcomeOf(s.shotId));
-        shots.append(shotJson(s, composed.back(), m.shotFactorsOf(s.shotId)));
-    }
-    out.insert(QStringLiteral("shots"), shots);
-    const ShotMix mix = composeSessionMix(composed);
-    out.insert(QStringLiteral("shotMix"), QJsonObject{ { QStringLiteral("corrections"), mix.corrections },
-                                                       { QStringLiteral("fromFlight"), mix.fromFlight } });
-
-    QJsonArray clubMix;
-    for (const QVariant &v : m.clubMix()) {
-        const QVariantMap c = v.toMap();
-        clubMix.append(QJsonObject{
-            { QStringLiteral("clubId"), c.value(QStringLiteral("clubId")).toString() },
-            { QStringLiteral("judged"), c.value(QStringLiteral("judged")).toInt() },
-            { QStringLiteral("strike"), shotMixBarFactsToJson(shotMixBarFromJson(QJsonObject::fromVariantMap(c.value(QStringLiteral("strike")).toMap()))) },
-            { QStringLiteral("direction"), shotMixBarFactsToJson(shotMixBarFromJson(QJsonObject::fromVariantMap(c.value(QStringLiteral("direction")).toMap()))) },
-            { QStringLiteral("flight"), shotMixBarFactsToJson(shotMixBarFromJson(QJsonObject::fromVariantMap(c.value(QStringLiteral("flight")).toMap()))) } });
-    }
-    out.insert(QStringLiteral("clubMix"), clubMix);
-
-    QJsonArray carry;
-    for (const QVariant &v : m.carryToday()) {
-        const QVariantMap c = v.toMap();
-        carry.append(carryJson(c.value(QStringLiteral("clubId")).toString(), mapNum(c, "mean"), mapNum(c, "sd"),
-                               c.value(QStringLiteral("n")).toInt(), mapNum(c, "usualMean"), mapNum(c, "usualSd"),
-                               c.value(QStringLiteral("usualN")).toInt()));
-    }
-    out.insert(QStringLiteral("carryToday"), carry);
-
-    QJsonArray reasons;
-    for (const QVariant &v : m.reasons()) {
-        const QVariantMap r = v.toMap();
-        QJsonArray produced, ticks;
-        for (const QVariant &p : r.value(QStringLiteral("produced")).toList())
-            produced.append(QJsonObject{ { QStringLiteral("phrase"), p.toMap().value(QStringLiteral("phrase")).toString() },
-                                         { QStringLiteral("count"), p.toMap().value(QStringLiteral("count")).toInt() } });
-        for (const QVariant &t : r.value(QStringLiteral("ticks")).toList())
-            ticks.append(QJsonObject{ { QStringLiteral("state"), t.toMap().value(QStringLiteral("state")).toString() },
-                                      { QStringLiteral("shotId"), t.toMap().value(QStringLiteral("shotId")).toInt() } });
-        reasons.append(reasonJson(r.value(QStringLiteral("conditionId")).toString(), r.value(QStringLiteral("shots")).toInt(),
-                                  produced, mapNum(r, "cost"), r.value(QStringLiteral("tier")).toString(),
-                                  r.value(QStringLiteral("strength")).toString(),
-                                  r.value(QStringLiteral("chainConfirmed")).toBool(), r.value(QStringLiteral("trend")).toInt(),
-                                  ticks));
-    }
-    out.insert(QStringLiteral("reasons"), reasons);
-    out.insert(QStringLiteral("workOns"), workOnsJson(m.sessionWorkOns()));
-    out.insert(QStringLiteral("outcomeEvidence"), tendencyEvidenceToJson(m.outcomeEvidence()));
-    out.insert(QStringLiteral("usuals"), usualsJson(sessionFlightUsuals(m.shotRecords())));   // the old model's, recomputed (G-10)
-    return out;
-}
 
 // ── The new owner's form ──────────────────────────────────────────────────────────────────────────────────────────
 QJsonObject formOf(const SessionDiagnostics &d, bool withStamp)

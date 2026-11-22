@@ -52,7 +52,7 @@
 //           made and not shown it holds none, so the Session can be released; shown, it cannot
 //   EVT13   (3.9's test, now that SessionDiagnostics is live: refactor 3.7-e) a pack edit through RuleData's command
 //           publishes ONE EVT-13 and every loaded session's owner re-fires every shot under the new snapshot
-//   UNHELD  a folder in the golfer's folder whose file names another athlete id: today's engine model, made by C++
+//   UNHELD′ (5.4b) a folder in the golfer's folder whose file names another athlete id: the empty adapter, nothing judged
 //   LOADING an adapter made while its owner is still reading a reviewed session says so until the first diagnosis
 //           (3.7-c review B3: the panel's "being read" notice)
 //   IDLE    with no view bound the adapter does no view work; a view binding takes in what was owed (review M2)
@@ -439,7 +439,6 @@ static void testAlwaysPanelReadingClosing()
     check(QStringLiteral("PANELa the panel's adapter is made by C++ for the Session, as its child"),
           panel && panel->isAdapter() && panel->parent() == s);
     if (!panel) return;
-    panel->setBaselineAuthorityName(QStringLiteral("live"));
     panel->activateSession(folder);   // the panel's pointing
     spin();
     check(QStringLiteral("PANELb it shows every shot the owner judged before it existed"), panel->shotCount() == kShots);
@@ -539,7 +538,6 @@ static void testCrashLeftSession()
     }
     Rig::settled(s->diagnostics());
     SessionDiagnosticsModel *panel = rig.adapters->of(s, QStringLiteral("panel"));
-    panel->setBaselineAuthorityName(QStringLiteral("live"));
     panel->activateSession(folder);   // NOT reviewing: e.g. the carousel's live folder after a relaunch
     spin();
     std::printf("    the adapter's stage: %s (owner: %s)\n", qPrintable(panel->stage()),
@@ -548,29 +546,7 @@ static void testCrashLeftSession()
     check(QStringLiteral("CRASHd the adapter shows Closing, not reviewing (a view mapping: the session stays in progress)"),
           !panel->reviewing() && panel->stage() == QLatin1String("closing") && s->inProgress());
 
-    // ⚠ 5.4b: DELETED WITH THE J-a3 PATH (DUTIES-5.4.md Q1; J-72), replaced by UNHELD′ (the empty adapter).
-    // UNHELD (J-a3): the same session under the golfer's folder, its file naming ANOTHER athlete id (a cabin session read
-    // on a machine whose record of the golfer has another id, until M1): no Session holds it, and the screens keep
-    // today's path for it — an engine-mode model made by C++, which judges it as the panel's model did.
-    const QString foreign = rig.athleteFolder() + QStringLiteral("/2026-09-02_") + kToken + QStringLiteral("_Swing_01");
-    check(QStringLiteral("UNHELDa a copy placed in the golfer's folder"), copyTree(copied, foreign));
-    QJsonObject file = readJson(foreign + QStringLiteral("/session.json"));
-    file[QStringLiteral("athleteId")] = QStringLiteral("b389a703-4c75-4912-8800-828ddc74fbcc");
-    file[QStringLiteral("sessionId")] = QStringLiteral("0b0e5f5e-9c1a-4f1e-9d55-3a4c1f2e7b10");
-    writeJson(foreign + QStringLiteral("/session.json"), file);
-    QFile::remove(foreign + QStringLiteral("/diagnostics.json"));
-    check(QStringLiteral("UNHELDb the golfer's Athlete holds no Session for it"), rig.athlete->sessionAt(foreign) == nullptr);
-    rig.adapters->setAthleteFolder([&rig] { return rig.athleteFolder(); });
-    SessionDiagnosticsModel *unheld = rig.adapters->of(nullptr, QStringLiteral("panel"), foreign);
-    check(QStringLiteral("UNHELDc today's path: an engine-mode model (not an adapter), so no no-golfer notice"),
-          unheld && !unheld->isAdapter());
-    if (unheld) {
-        unheld->setSynchronous(true);
-        unheld->setBaselineAuthorityName(QStringLiteral("never"));
-        unheld->activateSession(foreign);
-        check(QStringLiteral("UNHELDd ...which judges its two shots as the panel's model did"), unheld->shotCount() == 2);
-        unheld->activateSession(QString());
-    }
+    // (UNHELD, the J-a3 path, went in refactor 5.4b: UNHELD′ in PIPS checks a folder no Session holds.)
 }
 
 static Session *endedSession(Rig &rig);   // below (REPORT's)
@@ -591,7 +567,6 @@ static void testFreeze()
           !QFile::exists(file) && !d->holdsClubBaseline());
     const QString stampBefore = d->findingsStamp();
     SessionDiagnosticsModel *panel = rig.adapters->of(s, QStringLiteral("panel"));
-    panel->setBaselineAuthorityName(QStringLiteral("live"));
     panel->activateSession(folder);   // the panel up on the live session
     pump([panel] { return !panel->busy(); });
     spin(200);
@@ -1311,8 +1286,6 @@ static void testReport()
           m && m->isAdapter() && m->parent() == s && m != rig.adapters->of(s, QStringLiteral("panel"), folder));
     if (!m) return;
     m->setReviewing(true);
-    m->setPersistEnabled(false);
-    m->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);
     m->addView();
     m->activateSession(folder);
     spin();
@@ -1443,7 +1416,6 @@ static void testPips()
 {
     std::printf("\nPIPS — the carousel's pips read the adapter a panel shows (3.7-c)\n");
     Rig rig;
-    rig.adapters->setAthleteFolder([&rig] { return rig.athleteFolder(); });
     Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
     SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
     const QString folder = s && s->entry() ? s->entry()->folder : QString();
@@ -1557,9 +1529,9 @@ static void testPips()
               && !panel->pipsFor(freshId).isEmpty() && adaptersOf() == 2);   // the panel's and the cards'; the cast went
     panel->dropView();
 
-    // ⚠ 5.4b: DELETED WITH THE J-a3 PATH (DUTIES-5.4.md Q1; J-72).
-    // UNHELD (J-a3): the same session under the golfer's folder, its file naming another athlete id: today's engine model,
-    // shown by a panel, is what the cards read — for its own folder only.
+    // UNHELD′ (refactor 5.4b; J-72 Q1): the same session under the golfer's folder, its file naming another athlete id. No
+    // Session holds it, and since the old engine went nothing judges it: the screens get the EMPTY adapter (its panel's
+    // notice), the cards nothing to read, and no file is written there.
     check(QStringLiteral("PIPSk the session ended"), s->end().ok());
     Rig::settled(d);
     const QString foreign = rig.athleteFolder() + QStringLiteral("/2026-09-03_") + kToken + QStringLiteral("_Swing_01");
@@ -1569,19 +1541,22 @@ static void testPips()
     file[QStringLiteral("sessionId")] = QStringLiteral("0b0e5f5e-9c1a-4f1e-9d55-3a4c1f2e7b11");
     writeJson(foreign + QStringLiteral("/session.json"), file);
     QFile::remove(foreign + QStringLiteral("/diagnostics.json"));
-    SessionDiagnosticsModel *unheld = rig.adapters->of(nullptr, QStringLiteral("panel"), foreign);
-    if (!unheld || unheld->isAdapter()) { check(QStringLiteral("PIPS an engine-mode model for the unheld folder"), false); return; }
-    unheld->setSynchronous(true);
-    unheld->setBaselineAuthorityName(QStringLiteral("never"));
-    unheld->addView();
-    const int beforePoint = told;
-    unheld->activateSession(foreign);
-    check(QStringLiteral("PIPSm a panel's engine model on an unheld folder: the cards read it, and were told when it moved"),
-          rig.adapters->shownFor(nullptr, foreign) == unheld && told > beforePoint && unheld->shotCount() == kShots + 2);
-    check(QStringLiteral("PIPSn ...for that folder only (another folder finds nothing)"),
-          rig.adapters->shownFor(nullptr, folder) == nullptr);
-    unheld->activateSession(QString());
-    unheld->dropView();
+    QFile::remove(foreign + QStringLiteral("/work_ons.json"));
+    SessionDiagnosticsModel *unheld = rig.adapters->of(rig.athlete->sessionAt(foreign), QStringLiteral("panel"), foreign);
+    check(QStringLiteral("UNHELD′a no Session holds it, and the panel gets the empty adapter (its notice), not a model of its own"),
+          rig.athlete->sessionAt(foreign) == nullptr && unheld && unheld->isAdapter() && unheld->sessionDir().isEmpty()
+              && unheld == rig.adapters->of(nullptr, QStringLiteral("panel")));
+    if (unheld) {
+        unheld->addView();
+        unheld->activateSession(foreign);
+        spin();
+        check(QStringLiteral("UNHELD′b it judges nothing (no shots), the cards read nothing, judgedHere says so"),
+              unheld->shotCount() == 0 && rig.adapters->shownFor(nullptr, foreign) == nullptr
+                  && !rig.adapters->judgedHere(nullptr, foreign));
+        unheld->dropView();
+    }
+    check(QStringLiteral("UNHELD′c …and nothing is written into the folder"),
+          !QFile::exists(foreign + QStringLiteral("/diagnostics.json")) && !QFile::exists(foreign + QStringLiteral("/work_ons.json")));
 
     // NOGOLF (N1): an empty adapter shown by a panel has nothing to read.
     SessionDiagnosticsModel *empty = rig.adapters->of(nullptr, QStringLiteral("panel"),

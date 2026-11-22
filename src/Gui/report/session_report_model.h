@@ -51,20 +51,16 @@
 // prepare() runs 1–4 without the print, for the probe that dumps the map (tools/session-report-mock/
 // dump_report.qml) and for any surface that wants the words without a PDF.
 //
-// A folder no Session holds: one in the current golfer's folder whose file names another athlete id (a cabin session
-// on the Mac, until M1) keeps TODAY'S PATH — the door answers the engine-mode model C++ makes for it
-// (SessionDiagnosticsAdapters; build/refactor/step-3/3.7/NOTES-a.md J-a3), which the report points at the session as it
-// pointed its own; any other (a folder no athlete of the library lists; a session with no golfer is the Unassigned owner's
-// and reported since step 5.1) has no diagnostics, so no report is made and
+// A folder no Session holds (one no athlete of the library lists; a session with no golfer is the Unassigned owner's and
+// reported since step 5.1; refactor 5.4b removed the old engine's model for a folder another athlete id names) has no
+// diagnostics, so no report is made and
 // the sheet says why (NOTES-d.md J-d2).
 //
 // ── What it never does ──────────────────────────────────────────────────────────────────────────
 // It writes nothing of the session's analysis: no diagnostics.json, no ratchet, no work_ons.json, no
-// club_baseline.json (its adapter judges and writes nothing; it never freezes: reviewing, baseline
-// authority Never). The one write a report can CAUSE is not its own: asking for a session no screen has loaded loads it,
+// club_baseline.json (its adapter judges and writes nothing; it reviews). The one write a report can CAUSE is not its own: asking for a session no screen has loaded loads it,
 // and its owner — the session's one writer of diagnostics.json (DEC-135) — re-judges the shots whose stamps are stale
-// and writes them, exactly as it does when the panel or the catch-up loads the same session. On the J-a3 path the
-// engine model's persist is off, as the report's own model's was.
+// and writes them, exactly as it does when the panel or the catch-up loads the same session.
 //
 // state() and preflight() are cheap and synchronous — report_meta.json, the fingerprint (the work-on
 // record's recipe plus the studio's and the photo rule's inputs) and a directory listing — and never
@@ -107,7 +103,7 @@ public:
     void setStudioProfile(StudioProfile *studio);
     void setAthleteController(AthleteController *athletes);
     // THE SESSION'S DIAGNOSIS (refactor step 3.7-d): the model a make reads for `sessionDir` — the Session's thin adapter
-    // for the "report" surface, or the J-a3 engine model, or the empty adapter when no Session holds it (the header).
+    // for the "report" surface, or the empty adapter when no Session holds it (the header).
     // main.cpp: diagnosticsAdapters.of(app.sessionAt(dir), "report", dir). Never null when set.
     void setDiagnosisDoor(std::function<SessionDiagnosticsModel *(const QString &sessionDir)> door) { m_diagnosisDoor = std::move(door); }
     // THE ATHLETE LEVEL A MAKE READS (refactor 3.7-f): the session's athlete's AthleteDiagnostics — its Tendencies page as
@@ -166,7 +162,7 @@ private:
 
     void start(const QString &sessionDir, const QVariantMap &options, bool print);
     void onModelSettled();
-    void letModelGo();   // the job's model let go: an adapter deleted (its use of the Session dropped), J-a3's unpointed
+    void letModelGo();   // the job's model let go: an adapter deleted (its use of the Session dropped)
     void onDocsRead();
     void onChartsRead();
     void maybeBuild();

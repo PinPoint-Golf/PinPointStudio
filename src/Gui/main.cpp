@@ -462,7 +462,6 @@ int main(int argc, char *argv[])
     // THE SCREENS' WAY TO A SESSION'S DIAGNOSTICS (refactor 3.7-a): each Session's thin adapter, made by C++ (the stage
     // panel and the cast no longer make a model of their own). Outlives the QML engine (declared before it).
     SessionDiagnosticsAdapters diagnosticsAdapters;
-    diagnosticsAdapters.setAthleteFolder([&athleteController] { return athleteController.currentFolder(); });
     // THE QUIT SAVE (§4.4 step 8; CARRY 3.5-i §6; refactor 3.7-e: EVERY athlete's loaded sessions, not only the current
     // one's): what each loaded session's owner kept is written on aboutToQuit, before any of the app is torn down (the
     // live session's last shots inside their debounce, and its summary, which waits for End while it is live:
@@ -631,8 +630,7 @@ int main(int argc, char *argv[])
         // The catch-up's door: the folders WorkOnsController's scan found stale, for the athlete whose folder it reads
         // (the current one; PINPOINT_WORKONS_DIR's dev folder is no athlete's, so nothing is derived there: 3.7-e J-e7).
         // FOLDERS ARE TRANSLATED TO IDS HERE, AT THE EDGE (DEC-90; review R1-m5): the service takes the current athlete's
-        // SessionIds and answers by id; a folder its index does not hold (J-a3: another athlete id in its file) is answered
-        // at once, and WorkOnsController keeps whatever that folder's file holds.
+        // SessionIds and answers by id; a folder its index does not hold is answered at once, and WorkOnsController keeps whatever that folder's file holds.
         const auto folderToId = [&athleteController](const QString &folder) {
             pinpoint::Athlete *a = athleteController.currentAthlete();
             if (a)

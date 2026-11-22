@@ -5,7 +5,7 @@
 # the app's settings) is only the last fallback, for a library that has not been migrated. A session whose athlete NO
 # source names is refused — SKIP, exit non-zero, nothing written — because the new engine freezes each session's club
 # baseline from its athlete's earlier sessions and, without a record, would count every session of one folder as one
-# golfer. Case 7 runs with no --engine (the default is new); --help says so. Case 5c (refactor 5.3c): an entry's `aliases`.
+# golfer. Case 7 runs with no --engine (the default is new); --help says so. Case 8 (refactor 5.4b): --engine old is refused. Case 5c (refactor 5.3c): an entry's `aliases`.
 #
 #   cmake -DTOOL=<regrade_ledger> -DWORK=<an empty scratch folder> -P regrade_ledger_needs_ini_check.cmake
 #
@@ -147,8 +147,15 @@ if(_rc9 EQUAL 0 OR NOT _out9 MATCHES "refused, so no golfer is pooled")
   message(FATAL_ERROR "FAIL: with no --engine a session no source names was not refused (exit ${_rc9}):\n${_out9}${_err9}")
 endif()
 execute_process(COMMAND "${TOOL}" --help RESULT_VARIABLE _rc5 OUTPUT_VARIABLE _help)
-if(NOT _rc5 EQUAL 0 OR NOT _help MATCHES "new \\(the default\\)")
-  message(FATAL_ERROR "FAIL: --help does not name the new engine as the default (exit ${_rc5}):\n${_help}")
+if(NOT _rc5 EQUAL 0 OR NOT _help MATCHES "--engine new +\\(the default, and the only engine")
+  message(FATAL_ERROR "FAIL: --help does not name the new engine as the default and the only one (exit ${_rc5}):\n${_help}")
 endif()
 message(STATUS "PASS: the default engine is new (a session no source names is refused with no --engine), and --help says so")
+
+# 8. (refactor 5.4b) --engine old is gone: refused with its sentence, nothing read or written.
+execute_process(COMMAND "${TOOL}" --engine old "${_two}" RESULT_VARIABLE _rc10 OUTPUT_VARIABLE _out10 ERROR_VARIABLE _err10)
+if(NOT _rc10 EQUAL 2 OR NOT _err10 MATCHES "--engine old was removed in refactor 5.4b")
+  message(FATAL_ERROR "FAIL: --engine old was not refused with its sentence (exit ${_rc10}):\n${_out10}${_err10}")
+endif()
+message(STATUS "PASS: --engine old is refused with its sentence (removed in refactor 5.4b)")
 file(REMOVE_RECURSE "${WORK}")

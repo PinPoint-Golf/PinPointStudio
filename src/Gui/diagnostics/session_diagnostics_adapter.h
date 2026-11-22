@@ -25,25 +25,20 @@
 //
 // answers the Session's thin adapter for that surface ("panel": the stage panel; "cast": the wall cast) — a
 // SessionDiagnosticsModel MADE BY C++ (SessionDiagnosticsModel::adapterFor), the Session's child, showing the Session's
-// one SessionDiagnostics (LIVE-2). QML never creates one (lint A2). With no Session:
-//   • a folder IN THE CURRENT GOLFER'S FOLDER that the golfer's Athlete does not hold — today a session whose file names
-//     another athlete id (a session recorded on the cabin PC, opened on a machine whose record of the same golfer has
-//     another id, until migration M1 gives one id: 3.0's gate) — keeps TODAY'S PATH: an engine-mode model, made here by
-//     C++ (not by QML), that judges the folder as the panel's private model did (NOTES-a.md J-a3; for Mark);
-//   • any other folder — a session captured with no golfer (the library's `unknown` folder: Mark's N1, kept with no
-//     diagnostics), or no folder yet — an EMPTY adapter for the surface, which judges nothing and shows the panel's cold
-//     state; the panel says why (its no-golfer notice).
-//
+// one SessionDiagnostics (LIVE-2). QML never creates one (lint A2). With no Session — a folder no athlete of the library
+// holds, or no folder yet — an EMPTY adapter for the surface, which judges nothing and shows the panel's cold state; the
+// panel says why (its notice). (Until refactor 5.4b a folder in the current golfer's folder that the golfer's Athlete did
+// not hold — a session whose file named another athlete id, J-a3 — kept the old engine's model: none is left on the
+// library since migration M1, and the old engine is deleted.)
+
 // WHAT A PANEL SHOWS, FOR A SCREEN THAT RIDES ON IT (refactor step 3.7-c: the carousel's per-shot pips):
 //
 //   diagnosticsAdapters.shownFor(app.sessionAt(folder), folder)
 //
 // answers the model a diagnostics panel is SHOWING for that folder (a view bound: addView) — the Session's stage-panel
-// adapter, else its wall-cast adapter; for a folder no Session holds, the engine-mode model a panel has pointed at it
-// (J-a3) — or null. It never makes one, so the cards add no view work of their own: they read the pips of the view half a
+// adapter, else its wall-cast adapter — or null. It never makes one, so the cards add no view work of their own: they read the pips of the view half a
 // panel already runs, and with no panel up there is nothing to read. `shownCount` (the models with a view bound) and its
-// `shownChanged` tell a binding when to ask again: a panel's first view bound or last dropped, a shown engine model
-// re-pointed, a model gone. A panel rebuilt on a mode switch (its incoming view bound before its outgoing one goes)
+// `shownChanged` tell a binding when to ask again: a panel's first view bound or last dropped, a model gone. A panel rebuilt on a mode switch (its incoming view bound before its outgoing one goes)
 // tells nothing. Only the "panel" and "cast" surfaces are answered (review M1), and only models handed out by of() are
 // watched: of() is the one door a screen uses (adapterFor is its implementation).
 //
@@ -81,7 +76,7 @@ struct DiagnosticsDoors;
 // THE APP'S DIAGNOSTICS DOORS (refactor step 3.7-a; DEC-02, 04 step 3 item 4: always fire; here since 3.7-e, review M9):
 // what main.cpp hands every Athlete, put together in one place so diag_stage_panel_test and post_shot_bench wire the owner
 // exactly as the app does. The owner WRITES: diagnostics.json (`persist`), the shots' phase-grid and summary sidecars as
-// the old model's detectShot did (the reader's default policy: parse a miss, write it), and — since the catch-up's
+// the old engine's per-shot read did (the reader's default policy: parse a miss, write it), and — since the catch-up's
 // cut-over (3.7-e) — the session summary, work_ons.json (`writeSummary`): every file of a session's diagnostics has this
 // one writer. On `pool` with `receiver`, never synchronous. `attach` is SessionDiagnostics::attach (main.cpp wraps it to
 // show each owner's failed writes). Every pointer and reference is borrowed and must outlive every Athlete given the doors.
@@ -101,13 +96,10 @@ public:
     // The model a panel shows for `session` (app.sessionAt's answer) or, with none, for `folder`; null when no panel shows
     // one. Never makes a model (refactor 3.7-c; above).
     Q_INVOKABLE SessionDiagnosticsModel *shownFor(QObject *session, const QString &folder = QString()) const;
-    // Whether anything judges this folder's swings here: a Session's owner, or (no Session) today's engine for a folder
-    // in the current golfer's folder (J-a3). False for a session with no golfer (N1) or another golfer's: the carousel
-    // shows N1's warning where the pips would be (3.7-c review B1).
+    // Whether anything judges this folder's swings here: a Session's owner. False for a folder no Session holds: the
+    // carousel shows its warning where the pips would be (3.7-c review B1). `folder` is kept for the callers' shape.
     Q_INVOKABLE bool judgedHere(QObject *session, const QString &folder) const;
     int shownCount() const;
-    // The current golfer's folder (main.cpp: AthleteController's), for the not-held case above.
-    void setAthleteFolder(std::function<QString()> folder) { m_athleteFolder = std::move(folder); }
 
 signals:
     void shownChanged();
@@ -119,6 +111,4 @@ private:
 
     QList<QPointer<SessionDiagnosticsModel>>  m_handedOut;   // the models of() answered, each once
     QHash<QString, SessionDiagnosticsModel *> m_empty;    // one empty adapter per surface, children of this
-    QHash<QString, SessionDiagnosticsModel *> m_unheld;   // one engine-mode model per surface (today's path), ditto
-    std::function<QString()>                  m_athleteFolder;
 };

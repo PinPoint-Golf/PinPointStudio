@@ -20,13 +20,9 @@
 //      model reads them as the fallback and every write of the file carries them over unchanged, so the
 //      regrade keeps them without a seed (step 2.5 deleted the seed) — the lead's call J-33; migration M3
 //      moves them. The tool checks it: the older keys after must equal those before, or it WARNs and exits 1.
-//   4. The regrade itself. By default (`--engine new`, since refactor 5.3) each session's own SessionDiagnostics,
-//      headless, every shot fired again (below). `--engine old` (until step 5.4b deletes it):
-//      SessionDiagnosticsModel::activateSession(dir), synchronously, with setRebuildCache(true) — the file's rows and
-//      session block are ignored (the older golfer keys are still read), so every shot is re-ingested and the stage
-//      starts from Cold, and a fresh diagnostics.json is written after each one; it writes no club_baseline.json and no
-//      work_ons.json. Either way, a session with no swing_* folders, or whose every write failed, keeps its original
-//      untouched.
+//   4. The regrade itself: each session's own SessionDiagnostics, headless, every shot fired again (below). A session
+//      with no swing_* folders, or whose every write failed, keeps its original untouched. (`--engine old`, the old
+//      engine, was removed with it in refactor 5.4b.)
 //   0. A SESSION IN PROGRESS IS REFUSED (D11: DEC-158; H-14): one whose session.json says inProgress — being
 //      recorded here or on the other machine — is SKIPPED untouched (exit 1), unless --allow-in-progress (for one
 //      a crash left open).
@@ -61,12 +57,13 @@
 // timestamps, folders as "<session>"/"<athlete>") so two runs diff clean, in THE PARALLEL RUN'S FORM ("P",
 // dumpVersion 2: src/Gui/diagnostics/diag_parallel_run.h — ids and numbers both engines own; no words, no view state),
 // read off the engine that just ran. tools/parity/parity_diff.py compares two dumps (parity_baseline.py's diagnostics
-// half, which runs --engine new since 3.10, and an `old` run against a `new` one: run P). Until
+// half, which runs --engine new since 3.10). Until
 // 3.10 a plain regrade dumped the old engine's own form v1 (every ConditionRow field, the composed outcome's words, the
 // card order, the coverage line); 3.10 deleted that form (J-59), so a v1 baseline does not compare with a dump from
 // this build.
 //
-// --engine new|old — new (the default since refactor 5.3)[^1]: each session's own SessionDiagnostics, headless, every shot
+// --engine new — the only engine (the default since refactor 5.3[^1]; `old` removed in 5.4b): each session's own
+// SessionDiagnostics, headless, every shot
 // fired again (DiagnosticsDoors::rebuild), writing diagnostics.json (each shot's findings and derived data) and
 // work_ons.json (the typed summary, DEC-192), and freezing each session's club_baseline.json at first need from ITS
 // ATHLETE'S earlier sessions' summaries (DEC-46, DEC-172) — a recorded input, never rewritten once current. So `new`
@@ -86,9 +83,10 @@
 // ini did not know after its folder; since the 22 Nov migrations the ini holds no athletes, so that pooled every one.
 // `new` also prints, per session, D7's check: the club baseline from the
 // earlier sessions' SUMMARIES against the one from their LEDGERS (refactor 3.5-ii; build/refactor/step-3/BRIEF.md §4.9,
-// §5.3). old: the old engine above, run P's reference until step 5.4b deletes it.
+// §5.3).
 //
-// [^1]: Until refactor 5.3 the default was `old` (J-59: the old engine stayed run P's reference to step 5, after M1).
+// [^1]: Until refactor 5.3 the default was `old` (J-59: the old engine stayed run P's reference to step 5, after M1); refactor
+// 5.4b deleted it.
 // [^alias]: Refactor 5.3's review (REVIEW-5.3 R1) found that nine corpus sessions' swings record a second id for one golfer,
 // `52ff45d8-…`, not the library's `b389a703-…`; refactor 5.3c recorded it as that golfer's alias, 22 Nov 2026.
 //
@@ -133,33 +131,7 @@
 #include <map>
 #include <memory>
 
-// SessionDiagnosticsModel is a QML_ELEMENT façade in the global namespace, as the app registers it.
-
 namespace {
-
-// The golfer's half of an envelope, in words: what must read the same before and after the regrade.
-QString golferSummary(const QJsonObject &g)
-{
-    QStringList parts;
-    const QJsonObject intent = g.value(QStringLiteral("intent")).toObject();
-    const QString focus = intent.value(QStringLiteral("focusConditionId")).toString();
-    if (!focus.isEmpty())
-        parts << QStringLiteral("focus %1 from row %2").arg(focus).arg(intent.value(QStringLiteral("focusFromShot")).toInt(-1));
-    const QString miss = intent.value(QStringLiteral("declaredMiss")).toString();
-    if (!miss.isEmpty()) parts << QStringLiteral("miss %1").arg(miss);
-    if (const auto n = g.value(QStringLiteral("screens")).toObject().size(); n > 0)
-        parts << QStringLiteral("%1 screen answer(s)").arg(n);
-    if (const auto n = g.value(QStringLiteral("shotIntent")).toObject().size(); n > 0)
-        parts << QStringLiteral("%1 shot intent(s)").arg(n);
-    const QJsonObject run = g.value(QStringLiteral("intentFrom")).toObject();
-    if (run.value(QStringLiteral("fromShot")).toInt(-1) >= 0 && !run.value(QStringLiteral("shape")).toString().isEmpty())
-        parts << QStringLiteral("%1 from shot %2").arg(run.value(QStringLiteral("shape")).toString())
-                                                 .arg(run.value(QStringLiteral("fromShot")).toInt());
-    if (const auto n = g.value(QStringLiteral("corrections")).toObject().size(); n > 0)
-        parts << QStringLiteral("corrections on %1 shot(s)").arg(n);
-    return parts.join(QStringLiteral(" · "));
-}
-
 
 // ── The parity dump (--dump) ─────────────────────────────────────────────────────────────────
 
@@ -540,7 +512,7 @@ QString baselineText(const QHash<QString, pinpoint::analysis::ClubBaselineEntry>
 void printUsage(FILE *to)
 {
     std::fprintf(to,
-        "usage: regrade_ledger [--engine new|old] [--athletes-ini <f>] [--tag <backup-suffix>] [--dump <out.json>]\n"
+        "usage: regrade_ledger [--engine new] [--athletes-ini <f>] [--tag <backup-suffix>] [--dump <out.json>]\n"
         "                     [--allow-in-progress] [--parallel-reader] <session-dir>...\n"
         "\n"
         "Re-reduces each session's diagnostics.json under the CURRENT pack (PINPOINT_CORE_* at the checkout's\n"
@@ -557,9 +529,9 @@ void printUsage(FILE *to)
         "                     (PACK NORMS FLIGHT_NORMS CONTEXTS SCREENS DRILLS GATE_WORDS REFERENCES).\n"
         "  --allow-in-progress  also regrade a session whose session.json says it is in progress (one a crash\n"
         "                     left open); without it such a session is skipped untouched (D11)\n"
-        "  --engine new|old   new (the default): each session's own SessionDiagnostics, headless, writing\n"
-        "                     diagnostics.json, work_ons.json and a missing club_baseline.json; old (until\n"
-        "                     step 5.4b): the old engine, run P's reference, writing diagnostics.json only\n"
+        "  --engine new       (the default, and the only engine: `old` was removed in refactor 5.4b) each\n"
+        "                     session's own SessionDiagnostics, headless, writing diagnostics.json,\n"
+        "                     work_ons.json and a missing club_baseline.json\n"
         "                     The new engine reads each session's athlete (who it is, sex and date of birth\n"
         "                     for the norm cohort, D6) from its athlete folder's athlete.json, else from\n"
         "                     athletes.json beside the session (pinpoint.athletes/1, the corpus: the entry whose\n"
@@ -590,7 +562,7 @@ int main(int argc, char **argv)
     QString     dumpPath;
     QStringList dirs;
     bool        allowInProgress = false;
-    QString     engine = QStringLiteral("new");   // the default (refactor 5.3): each session's own SessionDiagnostics; "old" until 5.4b
+    QString     engine = QStringLiteral("new");   // each session's own SessionDiagnostics (the only engine since 5.4b)
     QString     athletesIni;
     bool        parallelReader = false;   // 3.7-0: the app's parallel-run reader (--parallel-reader)
     for (int i = 1; i < argc; ++i) {
@@ -610,11 +582,17 @@ int main(int argc, char **argv)
         }
         dirs << a;
     }
-    if (dirs.isEmpty() || (engine != QLatin1String("old") && engine != QLatin1String("new"))) {
+    if (engine == QLatin1String("old")) {
+        std::fprintf(stderr, "regrade_ledger: --engine old was removed in refactor 5.4b with the old diagnostics engine; "
+                             "every session is regraded by its own owner (--engine new, the default). Nothing was read "
+                             "or written.\n");
+        return 2;
+    }
+    if (dirs.isEmpty() || engine != QLatin1String("new")) {
         printUsage(stderr);
         return 2;
     }
-    const bool newEngine = engine == QLatin1String("new");
+    const bool newEngine = true;   // the only engine since refactor 5.4b
     // THE NEW ENGINE NEEDS THE ATHLETES (3.10 review B1): it freezes each session's club baseline from its athlete's
     // earlier sessions, and without a record every session of one folder is one athlete — one golfer's usuals frozen
     // into another's sessions, for good. Since refactor 4-c (J-61) they come from the library's athlete.json files, then
@@ -774,58 +752,6 @@ int main(int argc, char **argv)
             continue;
         }
 
-        SessionDiagnosticsModel m;
-        m.setSynchronous(true);
-        m.setCadence(QStringLiteral("everyShot"));
-        m.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);   // a tool: no club_baseline.json
-        m.setRebuildCache(true);      // every shot graded again; the older golfer keys still read and carried
-        m.activateSession(dir);
-
-        std::printf("%-48s %s  shots %2d  stage %-11s patterns %2d  %s\n",
-                    qPrintable(QFileInfo(dir).fileName()),
-                    hadLedger ? "REGRADED" : "GRADED  ",
-                    m.shotCount(), qPrintable(m.stage()), m.patternCount(),
-                    qPrintable(m.coverageLine()));
-        QStringList patterns;
-        for (const QVariant &v : m.cards()) {
-            const QVariantMap card = v.toMap();
-            const QString id = card.value(QStringLiteral("id"),
-                                          card.value(QStringLiteral("conditionId"))).toString();
-            if (!id.isEmpty()) patterns << id;
-        }
-        if (!patterns.isEmpty())
-            std::printf("%-48s   patterns: %s\n", "", qPrintable(patterns.join(QLatin1Char(' '))));
-        // Did the model write a ledger? Its write attempts are counted, not its successes, so the file
-        // itself is asked.
-        const DiagnosticsRead now = SessionDiagnosticsFiles::readDiagnostics(dir);
-        const bool modelWrote = m.persistCount() > 0 && now.parsed() && !now.envelope.ledger.isEmpty()
-                             && (!hadLedger || now.envelope.session != before.envelope.session);
-        if (!modelWrote) {
-            QString what = QStringLiteral("no diagnostics.json was written (no swing_* directories?)");
-            if (hadLedger) {
-                // Nothing was regraded: the session keeps the file it had, which never moved; the copy goes.
-                what += QFile::remove(backup) ? QStringLiteral(" — the original is kept as it was")
-                                              : QStringLiteral(" — the original is kept as it was; its copy %1 is left")
-                                                    .arg(QFileInfo(backup).fileName());
-            }
-            std::printf("%-48s WARN  %s\n", qPrintable(name), qPrintable(what));
-        } else if (!carried.isEmpty()) {
-            // The older golfer keys the rebuilt file carries, against what the old one held: they must be the same.
-            const QString summary = golferSummary(carried);
-            if (!summary.isEmpty()) std::printf("%-48s   carried: %s\n", "", qPrintable(summary));
-            if (now.envelope.legacyGolferInput != carried) {
-                const QString after = golferSummary(now.envelope.legacyGolferInput);
-                std::printf("%-48s WARN  the golfer's input did not survive: now %s — the old file is %s\n",
-                            qPrintable(name), after.isEmpty() ? "nothing" : qPrintable(after),
-                            qPrintable(QFileInfo(backup).fileName()));
-                ++failures;
-            }
-        }
-        if (!dumpPath.isEmpty()) {
-            QVariantMap body = pinpoint::parallel::formOf(m).toVariantMap();
-            body.insert(QStringLiteral("ledgerWritten"), modelWrote);
-            dump.push_back(dumpEntry(dir, hadLedger ? QStringLiteral("regraded") : QStringLiteral("graded"), body));
-        }
     }
 
     // D7's check (DEC-172; run P case 7): for every session, the club baseline as of its day from the earlier

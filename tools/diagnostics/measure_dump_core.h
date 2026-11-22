@@ -35,7 +35,7 @@
 // parsed, NO sidecar is written, because this tool must never write into a session directory), and with
 // Cohort{} — no athlete is named, so the unisex norms — where the owner grades with the golfer's cohort.
 // measure_dump_test pins the readings against the owner's own reader. Until 5.3 this mirrored the old
-// engine's per-shot construction (SessionDiagnosticsModel::detectShot) with a hand copy of readPhaseGrid.
+// engine's per-shot construction (the firing read (SwingStoreFiringReader, then fireFindings)) with a hand copy of readPhaseGrid.
 //
 // Namespace `measure_dump`, deliberately outside pinpoint::analysis ([[odr-collision-in-pinpoint-analysis]]).
 

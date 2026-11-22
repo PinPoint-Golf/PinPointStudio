@@ -295,23 +295,11 @@ SessionDiagnosticsModel *SessionDiagnosticsModel::adapterFor(pinpoint::Session *
 
 SessionDiagnosticsModel *SessionDiagnosticsAdapters::of(QObject *session, const QString &surface, const QString &folder)
 {
+    Q_UNUSED(folder);   // the folder the screen chose names the Session it passes; with none, the empty adapter
     const QString key = surface.isEmpty() ? QStringLiteral("panel") : surface;
     if (auto *s = qobject_cast<pinpoint::Session *>(session))
         if (SessionDiagnosticsModel *m = SessionDiagnosticsModel::adapterFor(s, key))
             return watched(m);
-    // A folder in the current golfer's folder that no Session of theirs holds (another athlete id in its file): today's
-    // path, an engine-mode model made here (the header; NOTES-a.md J-a3).
-    const QString mine = m_athleteFolder ? m_athleteFolder() : QString();
-    if (!folder.isEmpty() && !mine.isEmpty()
-        && QDir::cleanPath(folder + QStringLiteral("/..")) == QDir::cleanPath(mine)) {
-        SessionDiagnosticsModel *&unheld = m_unheld[key];
-        if (!unheld) {
-            unheld = new SessionDiagnosticsModel(this);
-            unheld->setObjectName(QStringLiteral("sessionDiagnosticsUnheld:") + key);
-            QQmlEngine::setObjectOwnership(unheld, QQmlEngine::CppOwnership);
-        }
-        return watched(unheld);
-    }
     SessionDiagnosticsModel *&empty = m_empty[key];
     if (!empty) {
         empty = new SessionDiagnosticsModel(static_cast<pinpoint::Session *>(nullptr), key);
@@ -335,8 +323,6 @@ SessionDiagnosticsModel *SessionDiagnosticsAdapters::watched(SessionDiagnosticsM
     if (m->adapterSurface() == QLatin1String("cards"))
         return m;   // the cards' own adapter is not a panel: nothing a binding on shownFor needs to hear
     connect(m, &SessionDiagnosticsModel::viewedChanged, this, &SessionDiagnosticsAdapters::tellShown);
-    // An engine-mode model is re-pointed by its panel (a move between two folders no Session holds keeps the object).
-    connect(m, &SessionDiagnosticsModel::sessionChanged, this, [this, m] { if (m->views() > 0) tellShown(); });
     connect(m, &QObject::destroyed, this, [this] { tellShown(); });
     return m;
 }
@@ -364,29 +350,15 @@ SessionDiagnosticsModel *SessionDiagnosticsAdapters::shownFor(QObject *session, 
         }
         return cast;
     }
-    // A Session with no owner (no doors: a tool or test; review M2) gets of()'s engine model, as with no Session.
-    // No Session: today's engine model a panel has pointed at this very folder (J-a3), the stage panel's first. An empty
-    // adapter (no golfer: N1) judges nothing, so it is never answered.
-    if (folder.isEmpty()) return nullptr;
-    const QString want = QDir::cleanPath(folder);
-    SessionDiagnosticsModel *other = nullptr;
-    for (auto it = m_unheld.constBegin(); it != m_unheld.constEnd(); ++it) {
-        SessionDiagnosticsModel *m = it.value();
-        if (!m || m->views() == 0 || QDir::cleanPath(m->sessionDir()) != want) continue;
-        if (it.key() == QLatin1String("panel")) return m;
-        if (it.key() == QLatin1String("cast")) other = m;
-    }
-    return other;
+    Q_UNUSED(folder);
+    return nullptr;   // no Session's owner: nothing judges the folder here, so no panel shows a model for it
 }
 
 bool SessionDiagnosticsAdapters::judgedHere(QObject *session, const QString &folder) const
 {
-    if (auto *s = qobject_cast<pinpoint::Session *>(session); s && s->diagnostics())
-        return true;
-    // No Session: a folder in the current golfer's folder keeps today's engine (J-a3); any other folder (no golfer: N1;
-    // another golfer's) is judged by nothing here.
-    const QString mine = m_athleteFolder ? m_athleteFolder() : QString();
-    return !folder.isEmpty() && !mine.isEmpty() && QDir::cleanPath(folder + QStringLiteral("/..")) == QDir::cleanPath(mine);
+    Q_UNUSED(folder);
+    auto *s = qobject_cast<pinpoint::Session *>(session);
+    return s && s->diagnostics();   // a Session's owner judges it; nothing else does (refactor 5.4b: J-a3 went)
 }
 
 // ── The app's doors (the header; refactor 3.7-a, here since 3.7-e) ────────────────────────────────────────────────────

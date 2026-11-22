@@ -272,7 +272,6 @@ static void testStartAndExtend()
     SessionDiagnosticsModel *panel = rig.adapters->of(again, QStringLiteral("panel"));
     check(QStringLiteral("L2b the panel's adapter is made for it"), panel && panel->isAdapter());
     if (!panel) return;
-    panel->setBaselineAuthorityName(QStringLiteral("live"));
     panel->activateSession(folder);   // the panel's pointing, as each rebuilt stage panel points
     spin();
     panel->activateSession(folder);   // a Capture↔Replay flip rebuilds the panel: pointed again

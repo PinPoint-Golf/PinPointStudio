@@ -1309,7 +1309,7 @@ int main()
     }
 
     // ── One parse shared with the phase-grid reader (issue #142) ───────────────────────────────
-    // SessionDiagnosticsModel::detectShot hands the phase grid and this reader one LazyDocument, so
+    // the firing read (SwingStoreFiringReader, then fireFindings) hands the phase grid and this reader one LazyDocument, so
     // a fresh swing is parsed once. "Shared" below means the other reader already paid for the
     // parse (root() was called first); the summary must be exactly what its own parse would give.
     const auto sameSummary = [](const SwingSummary &a, const SwingSummary &b) {

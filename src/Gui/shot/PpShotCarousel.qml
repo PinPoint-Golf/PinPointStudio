@@ -844,12 +844,8 @@ Item {
     function _swingRewritten(swingDir) {
         // The session assessment is graded FROM this document, so it is graded again — by its
         // owner, which hears the rewrite itself (a re-analysis, EVT-02; a late reading, EVT-22:
-        // 3.7-a), so a panel's adapter is told nothing (refactor 3.7-c). Only today's engine
-        // model — a folder no Session holds, shown by a panel (session_diagnostics_adapter.h,
-        // J-a3) — is still asked; with no panel up, its next activateSession() notices the
-        // rewritten document and regrades it then.
-        if (root.pipSource && !root.pipSource.adapter)
-            root.pipSource.regradeShot(swingDir)
+        // 3.7-a), so a panel's adapter is told nothing (refactor 3.7-c; 5.4b deleted the old
+        // engine's regrade here).
         // The Replay/Analyse panel reads app.state.replay.analysisDetail — a separate,
         // independently cached disk read of swing.json (ShotReplayController /
         // DiskReplaySource), not this model — so a model-only row refresh

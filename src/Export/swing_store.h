@@ -98,7 +98,7 @@ QJsonObject load(const QString &swingDir, QString *error = nullptr);
 // handed to another thread. The document it holds is the one on disk at the moment of the parse. A
 // second reader that runs later gets THAT document, not a re-read: under a concurrent rewrite it
 // can be the older one. That is harmless for anything it returns (a caller that stamps the
-// document before reading, as SessionDiagnosticsModel::detectShot does, regrades on the next
+// document before reading, as the firing read (SwingStoreFiringReader, then fireFindings) does, regrades on the next
 // activation) and is never indexed: stillCurrent() below gates every sidecar write.
 //
 // ONLY A GOOD PARSE IS KEPT. An empty result (no document, a sharing violation, a scanner holding

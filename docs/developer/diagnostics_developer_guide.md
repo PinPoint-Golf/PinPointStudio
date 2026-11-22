@@ -568,16 +568,17 @@ summary sidecar caches it rebuilds, under the swing's lock, never during an arch
   shows it no athlete-level figures. Only a folder no athlete of the library holds has no diagnostics, and every place
   its findings would appear says so (show with a warning).
 
-**What still runs the OLD engine** (the engine half of `SessionDiagnosticsModel`: `detectShot`, its own reduction, stores,
-pools and baseline authorities). Until step 5.4 deletes it (`build/refactor/step-3/JUDGEMENT-CALLS.md`)[^j59]: a folder in the golfer's folder that no `Session` holds (on the Mac, a session recorded on the cabin PC,
-whose file names the cabin's athlete id)[^ja3], which keeps today's engine and writes `diagnostics.json` in the old form;
-`regrade_ledger --engine old`, run P's reference; and the tests written against it. Do not add a caller. `regrade_ledger`
-(by default), `diag_rank_diff`, `diag_uncertainty_report` and `post_shot_bench` run the session's owner; `measure_dump`
-reads each shot as the owner's firing reader does and builds its readings as `fireFindings` does, with no cohort; the
-session report mock dumps the owner's thin adapter[^r53-tools].
+**The old engine is gone.** The engine half of `SessionDiagnosticsModel` (its per-shot read, its own reduction, stores,
+two of its pools and its baseline authorities) and `regrade_ledger --engine old` were deleted in refactor 5.4b[^r54b].
+`SessionDiagnosticsModel` is only the Session's thin adapter now. A folder no `Session` holds, including one whose file
+names another athlete id[^ja3], gets the empty adapter and is judged by nothing; the panel and the carousel say so. The
+golfer's edits through an adapter go to the Session's and the Shot's commands; when no Session is reached, nothing is
+written and the panel's notice says so. `regrade_ledger`, `diag_rank_diff`, `diag_uncertainty_report` and
+`post_shot_bench` run the session's owner; `measure_dump` reads each shot as the owner's firing reader does and builds its
+readings as `fireFindings` does, with no cohort; the session report mock dumps the owner's thin adapter[^r53-tools].
 
-**The tools.** `regrade_ledger` re-judges each session through its own `SessionDiagnostics` by default (`--engine new`;
-`--engine old`, the old engine and run P's reference, stays until step 5.4b)[^r53-tools]. The new engine **must know each
+**The tools.** `regrade_ledger` re-judges each session through its own `SessionDiagnostics` (`--engine new`, the only
+engine; `--engine old` is refused with a sentence)[^r53-tools][^r54b]. The new engine **must know each
 session's athlete**, because it freezes each session's club baseline from its own athlete's earlier sessions: without a record, every
 session of one folder (the corpus's `swings`) would count as one golfer, and one golfer's usuals would be frozen into
 another's sessions for good. Since refactor 4-c[^j61] the athlete is read from the library, the athlete folder's
@@ -587,7 +588,7 @@ another's sessions for good. Since refactor 4-c[^j61] the athlete is read from t
 source names is refused, untouched (3.10 review B1; `regrade_ledger_new_needs_ini_test`). In a folder of several golfers'
 sessions each golfer's Athlete lists no earlier session, so a session read from `athletes.json` freezes no club baseline:
 it is graded with none (no usual numbers, as under the old engine), an existing `club_baseline.json` is read as it is, and
-the tool says "club baseline not frozen: corpus run". Either engine `--dump`s
+the tool says "club baseline not frozen: corpus run". It `--dump`s
 the parallel run's form P (`Gui/diagnostics/diag_parallel_run.h`, ids and numbers only); `tools/parity/parity_baseline.py`
 runs `--engine new` for the session half over session copies that carry their athlete folders' `athlete.json` (a copy of
 the settings as `--athletes-ini` only for a library not yet migrated: refactor 4-c), and `athlete_dump` for the athlete half.
@@ -1170,7 +1171,9 @@ All in the analyzer suite: `cmake -S src/Analysis/tests -B build/analyzer-tests`
 | `session_test`, `shot_commands_test` | the `Session` and `Shot` commands and their events, in command order |
 | `rule_data_test`, `work_pool_test` | one snapshot shared, an edit publishes a new one; a lane keeps order, two lanes do not block each other, the receiver drops what it cannot resolve |
 | `diag_stage_panel_test` | the thin adapters over the owner: the panel, cast, cards and report surfaces, no golfer, a folder no `Session` holds |
-| `diag_parallel_live_test` | the old engine against the new owner over a live-shaped session: form P equal (the old engine's reference until step 5) |
+| `diag_parallel_live_test` | a live owner against a stored owner of the same live-shaped session: form P equal (D22: a live shot read with no sidecar reads as the stored session does) |
+| `session_diagnostics_model_test`, `golfer_input_test`, `shot_number_test` | the thin adapter's view half over the owners (`src/Diagnostics/tests/owner_rig.h`): cards, chains, detail, spread and history, shot outcomes, sequence and composite words, variability marks, the golfer's edits and their events |
+| `diag_footer_test` | a finished session's driver footer is its final diagnosis's; live it moves only with the pattern set (§A5) |
 
 The `norm_model_test` / `norm_editor_model_test` / `characteristic_editor_test` targets no longer exist; their assertions were ported onto `ModelBrowser` when the old façades were deleted (§10). One was *not* ported and is called out rather than quietly dropped: the old model returned the roadmap markdown as a string and the test checked its headings. The new panel exports to a file, and a test that wrote into the developer's Documents folder to read it back would be a test with a side effect on the product.
 
@@ -1227,9 +1230,9 @@ src/DomainModel/                the owners: session · shot · session_diagnosti
 src/App/athlete_catch_up.*      the catch-up (an application service)
 src/Core/work_pool.*            the one pool, its lanes, the ask counter, the receiver
 src/Export/firing_reader_store.* the firing reader (a shot's grid and summary from its Recording)
-src/Gui/diagnostics/            the thin adapters: session_diagnostics_model (+ its old engine until step 5),
+src/Gui/diagnostics/            the thin adapters: session_diagnostics_model (its view half; the old engine went in 5.4b),
                                 session_diagnostics_adapter (diagnosticsAdapters), work_ons_controller,
-                                diag_parallel_run (the parallel run's form P and in-memory doors)
+                                diag_parallel_run (form P, the parity dump's, and the in-memory doors)
 src/Gui/diagnosticmodel/        ModelBrowser + DiagnosticModel.qml + the Model*.qml views
 src/Resources/diagnostics/      core.json · norms.json · contexts.json · screens.json · drills.json · gate_words.json
 src/Wrist/reference_bands.{h,cpp}      NormBandProvider — Norm -> Band for the wrist grid
@@ -1262,3 +1265,4 @@ src/Gui/review/metric_catalog.cpp      corridors for the metric + dashboard surf
 [^j61]: J-61.
 [^ps-d2]: Plane stack D2, 13 Nov 2026.
 [^r53-tools]: Refactor item 5.3, 22 Nov 2026 (`build/refactor/step-5/BRIEF-5.3.md`); the corpus golfer file is the Product Owner's answer 1 to step 5's questions, 22 Nov 2026.
+[^r54b]: Refactor 5.4b, 22 Nov 2026: the old diagnostics engine deleted once migration M1 left no session of the library naming another athlete id (build/refactor/step-5/DUTIES-5.4.md). Coordinator judgement call (J-72), 22 Nov 2026.

@@ -678,7 +678,7 @@ void SessionSeriesModel::evictOtherSessions()
 
 void SessionSeriesModel::ensureShot(const QString &swingDir, bool force)
 {
-    // STAMPED BEFORE THE READ (SessionDiagnosticsModel::detectShot's order). A re-analysis that
+    // STAMPED BEFORE THE READ (the firing read's order). A re-analysis that
     // rewrites the document after this point leaves a stamp that no longer matches, so the next
     // look reads it again; the opposite order would file the new stamp against the old reading.
     const pinpoint::SwingStore::DocInfo info = pinpoint::SwingStore::info(swingDir);

@@ -21,7 +21,7 @@
 // SwingStoreFiringReader — FiringReader (src/DomainModel/firing_reader.h) over the swing documents (refactor step
 // 3.5-i). Adapters ring.
 //
-// THE READ IS detectShot's, MOVED, NOT REWRITTEN (session_diagnostics_model.cpp, detectShot; refactor 3.3 left it
+// THE READ IS THE OLD ENGINE'S PER-SHOT READ, MOVED, NOT REWRITTEN (that engine was deleted in refactor 5.4b; refactor 3.3 left it
 // there): the document's stamp taken BEFORE the read; no document → not read ("no document yet"); one lazy parse
 // shared by the phase grid (readLivePhaseGrid, its sidecar written unless the policy says not) and the summary
 // (readSwingSummary, likewise); the capture instant from clock.wallclock, else the file's mtime; the document released straight after;
@@ -44,7 +44,7 @@ class SessionRepository;
 class SwingStoreFiringReader final : public FiringReader
 {
 public:
-    // `writeSidecars`: ONLY whether the read may write the phase-grid and summary sidecars it rebuilds (detectShot's
+    // `writeSidecars`: ONLY whether the read may write the phase-grid and summary sidecars it rebuilds (the firing read's
     // behaviour, a known interim against R-CON-3: CARRY C5). The read ALWAYS parses the document when no current
     // sidecar serves it — a firing job runs on a worker, never a GUI thread — so true is SidecarPolicy::ParseAndWrite
     // and false is ParseNoWrite (src/Core/sidecar_policy.h). FALSE for the parallel run (refactor 3.5-ii; §4.9 "in

@@ -20,13 +20,10 @@
 
 // THE PARALLEL RUN (refactor step 3.5-ii; build/refactor/step-3/BRIEF.md §4.9; D14: DEC-179, D22: DEC-180).
 //
-// The new owner of a session's diagnostics (SessionDiagnostics) runs beside the old model (SessionDiagnosticsModel),
-// IN MEMORY ONLY — it writes no file, so diagnostics.json and work_ons.json keep the old model as their one writer
-// until the cut-over (3.7) — and the two are compared:
-//   • in the app, until 3.10, with PINPOINT_DIAG_PARALLEL=1 (a hook after each old-model reduction, one log line per
-//     session): deleted in 3.10, as nothing was left to compare (below);
-//   • over a set of sessions, by regrade_ledger --engine=old|new, which dumps each engine in this same form for
-//     tools/parity/parity_diff.py (run P).
+// Until refactor 5.4b the new owner of a session's diagnostics (SessionDiagnostics) ran beside the old model, in memory
+// only, and the two were compared: in the app until 3.10 (PINPOINT_DIAG_PARALLEL=1), and over a set of sessions by
+// regrade_ledger --engine=old|new. 5.4b deleted the old engine; the form below is now the owner's alone, the parity
+// dump's (regrade_ledger --dump, compared with tools/parity/parity_diff.py against a baseline such as step5-baseline).
 //
 // THE FORM ("P"): what both engines own, in ids and numbers — the stage, the pattern set, every condition's ledger
 // figures, every shot's rows, its outcome's facts (its "because" joined from the session's reasons on the new side:
@@ -37,19 +34,15 @@
 // The stamp (`stamp`) is in the dump and left out of the app's line: it differs on every session by design (run P
 // case 1, R-STAMP-1).
 //
-// FROM 3.7-a the stage panel and the cast show the owner through its thin adapter; 3.7-d cut the report over and 3.7-e the
-// catch-up, so NO OLD MODEL IS LEFT IN THE APP TO COMPARE: the app's hook was deleted in 3.10, and run P's comparison is
-// regrade_ledger --engine=old|new while the old engine stays (to step 5, after M1: build/refactor/step-3/JUDGEMENT-CALLS.md
-// J-59). `doors()`'s in-memory wiring is the tests' and the tools' (diag_parallel_live_test, owner_harness.h).
+// `doors()`'s in-memory wiring is the tests' and the tools' (diag_parallel_live_test, owner_harness.h).
 //
-// Adapters ring (src/Gui): reads the old model and the new owner; writes nothing.
+// Adapters ring (src/Gui): reads the owner; writes nothing.
 
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QString>
 #include <QStringList>
 
-class SessionDiagnosticsModel;
 
 namespace pinpoint {
 
@@ -77,8 +70,8 @@ namespace parallel {
 DiagnosticsDoors doors(WorkPool *pool, WorkReceiver *receiver, RuleData *ruleData,
                        const SessionRepository &sessions, RecordingRepository &recordings);
 
-// The form of one session, from each engine. `withStamp`: the findings stamp under "stamp" (the dump keeps it).
-QJsonObject formOf(const SessionDiagnosticsModel &model, bool withStamp = true);
+// The form of one session's owner. `withStamp`: the findings stamp under "stamp" (the dump keeps it). (Refactor 5.4b
+// deleted the old model's form with the old engine.)
 QJsonObject formOf(const SessionDiagnostics &owner, bool withStamp = true);   // empty before its first diagnosis
 
 // Every difference between two forms: arrays of objects matched by their identity (shotId, conditionId, id, clubId),
@@ -87,7 +80,7 @@ QStringList differences(const QJsonValue &oldForm, const QJsonValue &newForm, do
 
 // THE APP'S HOOK IS GONE (refactor 3.10; CARRY 3.7-e R1-m9): since 3.7-e no old model is left in the app beside an owner,
 // so PINPOINT_DIAG_PARALLEL=1 compared nothing; install/uninstall and their test seams were deleted with the switch.
-// Run P's comparison stays regrade_ledger --engine=old|new, and diag_parallel_live_test compares the two forms directly.
+// Parity is regrade_ledger --dump against a baseline; diag_parallel_live_test compares a live owner's form with a stored one's.
 
 } // namespace parallel
 } // namespace pinpoint

@@ -128,7 +128,7 @@ struct ShotDoors {
 // (R-HL-2: the jobs run on the calling thread). `writeDebounceMs`: how long after a batch settles the write waits.
 // `rebuild` (refactor step 3.5-ii; regrade_ledger --engine=new): a regrade — the file's rows, derived data and
 // diagnosis state are not kept, so every shot fires and the stage ratchet replays from Cold; the older golfer keys
-// are still read and carried (J-33), as the old model's setRebuildCache does. With `persist` the session summary
+// are still read and carried (J-33), as the old model's setRebuildCache did until refactor 5.4b. With `persist` the session summary
 // (work_ons.json, FILE-SESS-05; DEC-55, DEC-192) is written too, with what it is of: SessionDiagnostics is that file's
 // one writer (refactor step 3.6; in the app from the catch-up's cut-over, 3.7). With `persist` the club baseline is
 // also frozen (Session::freezeClubBaseline) when the session has none or an older rule's (DEC-46; 3.6).

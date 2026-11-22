@@ -587,21 +587,18 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
             if (m_job.get() == job) fail(QStringLiteral("The session went away while its report was being made."));
         }, Qt::QueuedConnection);
     });
-    // REVIEWING, as WorkOnsController's model is: it reads recorded sessions, never the live one, and a reviewed
-    // session's footer is final. A reader: no club_baseline.json (Never), and nothing persisted. The rows, the ledgers
-    // and sessionWorkOns() read the same with these on or off; an adapter judges and writes nothing either way.
+    // REVIEWING: it reads recorded sessions, never the live one, and a reviewed session's footer is final. The adapter
+    // judges and writes nothing of the session (refactor 5.4b: the old engine's switches went with it).
     m->setReviewing(true);
-    m->setPersistEnabled(false);
-    m->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);
     m->setGradePolicy(gradePolicyName());
     m->setSelectedSwingDir(QString());
     m->setSelectedShot(QString());
     m->closeDetail();
     // The adapter does its view work only while a view is bound (3.7-a, review M2): the report is one for the job's
     // length, so the owner's diagnosis that lands while it waits is taken in.
-    if (m->isAdapter()) m->addView();
+    m->addView();
     // Pointed at the session as the panel points its adapter (the profile and history read; the owner's club baseline
-    // brought up to date, read only) — or, on J-a3's engine model, judged as the report's own model judged it, persist off.
+    // brought up to date at first need).
     m->activateSession(dir);
     if (!m->busy())
         QTimer::singleShot(0, this, [this] { if (m_job && !m_job->modelReady && m_model && !m_model->busy()) { m_job->modelReady = true; maybeBuild(); } });
@@ -617,16 +614,15 @@ void SessionReportModel::letModelGo()
     m->closeDetail();
     m->setSelectedSwingDir(QString());
     m->setSelectedShot(QString());
-    if (m->isAdapter()) {
-        // The report's adapter is the Session's child, made for this make: let go of it, and with it its use of the
-        // Session (Q-18; CARRY 3.5-i §6: every holder addUse()s while it holds — the report for the job's length).
-        // Out of the Session's children first, so a make of the same session in this same turn gets a fresh one rather
-        // than this one, which is about to go (adapterFor finds a Session's adapters among its children).
-        m->dropView();
+    m->dropView();
+    // The report's adapter is the Session's child, made for this make: let go of it, and with it its use of the Session
+    // (Q-18; CARRY 3.5-i §6: every holder addUse()s while it holds — the report for the job's length). Out of the
+    // Session's children first, so a make of the same session in this same turn gets a fresh one rather than this one,
+    // which is about to go (adapterFor finds a Session's adapters among its children). The EMPTY adapter (no Session
+    // holds the folder) is the door's, shared, and is never deleted here (refactor 5.4b).
+    if (m->parent() && m->parent()->inherits("pinpoint::Session")) {
         m->setParent(nullptr);
         m->deleteLater();
-    } else {
-        m->activateSession(QString());      // J-a3's engine model: let the session's rows go
     }
 }
 

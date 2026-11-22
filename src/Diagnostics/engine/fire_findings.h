@@ -38,7 +38,7 @@
 //
 // NO QObject, no file or settings access, no reader or repository include, no global or singleton read: the
 // caller reads the Recording (readLivePhaseGrid, the document's summary) and hands the values in. Today's
-// caller is SessionDiagnosticsModel::detectShot and the factor compositions; refactor 3.5's firing job calls
+// caller is the firing read (SwingStoreFiringReader, then fireFindings) and the factor compositions; refactor 3.5's firing job calls
 // the same functions on a worker with a FiringSnapshot (build/refactor/step-3/BRIEF.md §4.4).
 //
 // THE INPUTS ARE THE STAMP'S (R-STAMP-1). FiringInputs names every input a shot's findings and derived data
@@ -185,8 +185,8 @@ ShotDerivedData deriveShotData(const ShotRecord &shot, const std::vector<ShotCor
                                const QString &intent, const ShotOutcomePack &outcomePack,
                                const ShotOutcomeSessionFacts &diagnosis, const FiringInputs &inputs);
 
-// The three factors of a shot whose outcome is already composed (deriveShotData's second half): the session
-// model's club mix and its shotFactorsOf() call this on the outcome it holds.
+// The three factors of a shot whose outcome is already composed (deriveShotData's second half): the session's owner
+// calls this on the outcome it holds (until refactor 5.4b the old session model's club mix did too).
 ShotFactors deriveShotFactors(const ShotRecord &shot, const ShotOutcome &outcome, const ShotOutcomePack &outcomePack,
                               const FiringInputs &inputs);
 

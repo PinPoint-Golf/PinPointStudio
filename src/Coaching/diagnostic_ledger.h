@@ -739,7 +739,7 @@ struct ShotRecord {
     QString contextId;
     qint64  timestampMs = 0;
     bool    dataWarning = false;    // recording known broken: every row NotAssessable, shot
-                                    // drawn but weightless (session_diagnostics_model detectShot)
+                                    // drawn but weightless (fireFindings)
     std::vector<ConditionRow> rows;
     // Schema 5: the signals whose own verdicts a surface lists (SignalRow), and the shot's
     // clubhead speed in mph (NaN = none read) — the sequence ranking's last tie-break.
@@ -781,7 +781,7 @@ struct ShotRecord {
     WristProfile wrist;
 };
 
-// The readings above, by the measure each is read from — the ONE table detectShot fills them from
+// The readings above, by the measure each is read from — the ONE table the per-shot firing fills them from
 // and GradedReadings hides them by, so the two cannot name different measures.
 struct ShotReadingField {
     const char *measureId;

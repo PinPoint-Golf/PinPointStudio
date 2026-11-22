@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Firing a shot's findings: see fire_findings.h. Extracted from SessionDiagnosticsModel::detectShot
+// Firing a shot's findings: see fire_findings.h. Extracted from the firing read (SwingStoreFiringReader, then fireFindings)
 // (refactor step 3.3) line for line — every rule and every word below is the one that ran there, so the
 // ledger the model writes is byte-identical (parity A).
 

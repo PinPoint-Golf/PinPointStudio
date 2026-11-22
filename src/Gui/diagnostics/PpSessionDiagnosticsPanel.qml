@@ -102,8 +102,6 @@ Item {
         (typeof diagnosticsAdapters !== "undefined" && diagnosticsAdapters) ? diagnosticsAdapters.of(session, surface, sessionDir) : null
     // SHOW WITH A WARNING, NEVER HIDE: a folder the panel is pointed at that no Session holds has no diagnostics; the
     // panel says so instead of drawing an empty panel as if nothing had happened.
-    // (A folder in the golfer's own folder that no Session of theirs holds — another athlete id in its file — gets
-    // today's engine model instead, made by C++: not an adapter, so no notice. session_diagnostics_adapter.h.)
     readonly property bool noGolfer: sessionDir !== "" && session === null && !!diagModel && diagModel.adapter
     readonly property string noGolferText:
         qsTr("No golfer's session holds these swings, so they are not judged here.")
@@ -149,16 +147,6 @@ Item {
     // Cheap: the adapter reads no swing and re-judges nothing unless that baseline moved.
     function _pointAtSession() {
         if (!diagModel) return
-        // Today's engine model (a folder no Session holds): a disk scan and a back-fill, so only for a new folder, as
-        // before 3.7-a — compared as folders, not strings (SessionMode.sameFolder).
-        if (!diagModel.adapter && SessionMode.sameFolder(sessionDir, diagModel.sessionDir)) return
-        // …and only for a folder no Session holds: the two change handlers above may run before `diagModel` has moved
-        // to a held folder's adapter, and an engine model must never judge (and write) a session its owner holds.
-        if (!diagModel.adapter && typeof app !== "undefined" && app && sessionDir !== "" && app.session) return
-        // WHO MAY FREEZE THE BASELINE, set by hand before the pointing reads it (a binding's order isn't
-        // pinned): a reviewed session never freezes one, a live panel may (today's rule).
-        diagModel.baselineAuthority = (typeof sessionReviewController !== "undefined" && sessionReviewController
-                                       && sessionReviewController.reviewActive) ? "never" : "live"
         diagModel.activateSession(sessionDir)
     }
 
@@ -308,9 +296,9 @@ Item {
     //
     // WHO POSTS IT (refactor 3.10; the model is made by C++ since 3.7-e): a session a Session holds has
     // its owner's failed writes posted by the composition root (main.cpp's diagAttached, DEC-126), keyed
-    // by the session's id. This block serves the model's own writes: the engine-mode model of a folder
-    // no Session holds (J-a3), and a write with no shot-command door. It goes with that engine (step 5,
-    // after M1: J-59). Guarded: a test engine may not provide `notifications`.
+    // by the session's id. This block serves the golfer's edits the adapter forwards: one the Session or the
+    // Shot could not save, or that reached no Session (refactor 5.4b). Guarded: a test may not provide
+    // `notifications`.
     // THE ID IS THE FOLDER, THE WORDS ARE THE SESSION'S NAME: golfers never see folder names. The name is
     // the one the app already shows — the reviewing strip's and carousel chip's "Tue 18 Aug · 21:38"
     // (SessionReviewController's activeDayLabel/activeTimeLabel), or the session list's "Today" for the
@@ -341,18 +329,9 @@ Item {
         }
     }
 
-    // NO SHOT OF A SESSION IS FED FROM HERE (3.7-a): its owner hears each shot's document land (EVT-01),
-    // its late reading (EVT-22), a re-analysis (EVT-02) and a trash (EVT-03) itself, with or without
-    // this panel, and an adapter ignores both calls below. They reach only today's engine model, for a
-    // folder no Session holds, exactly as before.
-    Connections {
-        target: shotProcessor
-        function onShotProcessed(shotId, swingDir) { if (root.diagModel) root.diagModel.ingestShot(shotId, swingDir) }
-    }
-    Connections {
-        target: SessionMode
-        function onSwingTrashed(swingDir) { if (root.diagModel) root.diagModel.forgetShot(swingDir) }
-    }
+    // NO SHOT OF A SESSION IS FED FROM HERE (3.7-a): its owner hears each shot's document land (EVT-01), its late reading
+    // (EVT-22), a re-analysis (EVT-02) and a trash (EVT-03) itself, with or without this panel. (Refactor 5.4b deleted the
+    // shotProcessed and swingTrashed connections that fed the old engine's model.)
 
     // shotReadout() IS AN INVOKABLE, SO IT CANNOT BE BOUND — somebody has to call it, and
     // this is the only file with the model's signals in front of it. Re-fetched on all three

@@ -645,7 +645,7 @@ static void testRealReader()
     const KeptShot *k = d->kept(1);
     Shot *shot = s->shot(ShotRef(s->id(), 1));
     const QString folder = shot ? shot->folder() : QString();
-    // The read detectShot makes, by hand, against the same snapshot.
+    // The read the per-shot firing makes, by hand, against the same snapshot.
     analysis::FiringReadings r;
     r.grid = analysis::readLivePhaseGrid(folder, d->snapshot()->inputs.pack->pack());
     const SwingSummary sum = SwingDocReader::readSwingSummary(folder);

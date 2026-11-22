@@ -1072,7 +1072,7 @@ int main()
     }
 
     // ── One parse shared with the summary reader (issue #142) ─────────────────────────────────
-    // SessionDiagnosticsModel::detectShot hands readPhaseGrid() and the summary reader one
+    // the firing read (SwingStoreFiringReader, then fireFindings) hands readPhaseGrid() and the summary reader one
     // SwingStore::LazyDocument. "Shared" below means the other reader already paid for the parse;
     // the grid must be exactly what its own parse gives, and a sidecar is only ever written under
     // the guard of the document the grid was built from.

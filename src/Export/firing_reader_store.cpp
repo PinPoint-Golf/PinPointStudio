@@ -89,7 +89,7 @@ FiringRead SwingStoreFiringReader::read(const ShotRef &shot, const analysis::Cha
         out.error = QStringLiteral("the session of %1 is not open").arg(shot.toString());
         return out;
     }
-    // STAMPED BEFORE THE READ (detectShot's order): a re-analysis that rewrites the document after this point leaves a
+    // STAMPED BEFORE THE READ (the firing read's order): a re-analysis that rewrites the document after this point leaves a
     // stamp that no longer matches, so the next load asks the shot again.
     const SwingStore::DocInfo doc = SwingStore::info(swingDir);
     out.stamp = { doc.exists(), doc.size, doc.mtimeMs };
@@ -99,13 +99,13 @@ FiringRead SwingStoreFiringReader::read(const ShotRef &shot, const analysis::Cha
         return out;
     }
 
-    // ONE PARSE FOR BOTH READERS (issue #142), released straight after them (detectShot's comment holds).
+    // ONE PARSE FOR BOTH READERS (issue #142), released straight after them (the firing read's comment holds).
     SwingStore::LazyDocument parsed(swingDir);
     // Always parsed on a miss or a stale sidecar (3.7-0, the D22 fix), and NEVER written by the read: ParseAndWrite's
     // sidecars are written below, under the session's lock and outside the archive window (R1-m6).
     out.readings.grid = analysis::readLivePhaseGrid(swingDir, pack, SidecarPolicy::ParseNoWrite, analysis::PhaseGridConfig{}, &parsed);
     const bool gridParsed = parsed.loaded();   // the grid came from the document, not from a current sidecar
-    // The capture instant the document records, not the file's mtime (detectShot's ⚠); the mtime as the fallback.
+    // The capture instant the document records, not the file's mtime (the firing read's ⚠); the mtime as the fallback.
     const SwingSummary summary = SwingDocReader::readSwingSummary(swingDir, SidecarPolicy::ParseNoWrite, &parsed);
     out.timestampMs = summary.wallclockMs > 0 ? summary.wallclockMs : SwingStore::info(swingDir).mtimeMs;
     out.captureMs   = summary.wallclockMs > 0 ? summary.wallclockMs : 0;   // the cohort's date: never the mtime
