@@ -757,9 +757,16 @@ Item {
     // sink. A one-shot bind in onCompleted is not enough: the player is recreated on
     // every load(), and tiles get churned by mode/layout transitions — so we also
     // rebind when the replay (re)starts and when our stream index resolves.
-    // Qt.callLater coalesces the triggers and never fires for a tile that has already
-    // been destroyed, so the surviving (visible) tile is the one that ends up bound.
+    // Qt.callLater coalesces the triggers, so the surviving (visible) tile is the one
+    // that ends up bound. It skips a tile already DELETED, but not one only torn down:
+    // a released Repeater / Loader item loses its QML context at once (onDestruction
+    // runs) and is deleted later, so a bind queued just before its teardown still runs,
+    // with no `app` in scope (#209). A torn-down tile never binds: it is off screen, and
+    // its sink is about to go.
+    property bool _tornDown: false
     function _bindReplaySink() {
+        if (root._tornDown)
+            return
         if (root._isReplay && videoOut.videoSink)
             app.state.replay.setVideoSink(root.replayStreamIndex, videoOut.videoSink)
     }
@@ -778,6 +785,7 @@ Item {
         function onActiveChanged() { if (app.state.replay.active) Qt.callLater(root._bindReplaySink) }
     }
     Component.onDestruction: {
+        root._tornDown = true          // a bind still queued for this tile is dropped (#209)
         if (root._subscribed) {
             root._subscribed.removeVideoSink(videoOut.videoSink)
             root._subscribed.removeBayerItem(bayerView)
