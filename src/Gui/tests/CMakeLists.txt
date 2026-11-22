@@ -470,6 +470,46 @@ pp_add_test(architecture_lint_test
     COMPILE_OPTIONS -DPP_SRC_ROOT="${SRC}"
                     -DPP_ARCH_ALLOWLIST="${CMAKE_CURRENT_SOURCE_DIR}/architecture_allowlist.txt")
 
+# THE HEADLESS START (refactor 4-c; testing_developer_guide.md "The headless start for probes"): the APP BINARY launched
+# with PINPOINT_HEADLESS_PROBE=1, offscreen, over a scratch home, settings and library, with the probe
+# probes/headless_start.qml (every screen and Settings panel). Fails on a device part made, a part refused at the device
+# layer, a QML ReferenceError or TypeError, or (macOS) a display_prompt in tccd's log, or an unreadable tccd log.
+# THE BINARY (the app is a different CMake project, so no $<TARGET_FILE:PinPointStudio> here): PP_APP_BINARY, else the
+# first that exists of the app tree beside this one (a worktree's build/app) and the main tree's Qt Creator build
+# (build/Qt_*_for_macOS_Debug, the newest name). A binary that is missing, or built before the switch, FAILS the test
+# and is never launched (its startup would raise the Bluetooth, Speech and Microphone prompts). The one way to skip:
+# -DPP_APP_BINARY=OFF, which ctest reports as "Not Run" (SKIP_RETURN_CODE 77), never as passed.
+set(PP_APP_BINARY "" CACHE STRING "The PinPointStudio binary headless_probe_test launches; OFF skips the test (default: found)")
+set(_pp_app_binary "${PP_APP_BINARY}")
+if(NOT _pp_app_binary AND NOT PP_APP_BINARY STREQUAL "OFF")
+    set(_pp_app_candidates)
+    if(APPLE)
+        list(APPEND _pp_app_candidates "${CMAKE_BINARY_DIR}/../app/PinPointStudio.app/Contents/MacOS/PinPointStudio")
+        file(GLOB _pp_app_main LIST_DIRECTORIES true "${PP_REPO_ROOT}/build/Qt_*_for_macOS_Debug")
+        list(SORT _pp_app_main ORDER DESCENDING)
+        foreach(_d IN LISTS _pp_app_main)
+            list(APPEND _pp_app_candidates "${_d}/PinPointStudio.app/Contents/MacOS/PinPointStudio")
+        endforeach()
+    elseif(WIN32)
+        list(APPEND _pp_app_candidates "${CMAKE_BINARY_DIR}/../app/PinPointStudio.exe")
+    else()
+        list(APPEND _pp_app_candidates "${CMAKE_BINARY_DIR}/../app/PinPointStudio")
+    endif()
+    list(GET _pp_app_candidates 0 _pp_app_binary)        # none exists: the first is named in the failure
+    foreach(_c IN LISTS _pp_app_candidates)
+        if(EXISTS "${_c}")
+            set(_pp_app_binary "${_c}")
+            break()
+        endif()
+    endforeach()
+    message(STATUS "headless_probe_test launches ${_pp_app_binary}")
+endif()
+add_test(NAME headless_probe_test
+         COMMAND ${CMAKE_COMMAND} "-DAPP=${_pp_app_binary}" -DPROBE=${CMAKE_CURRENT_SOURCE_DIR}/probes/headless_start.qml
+                 -DWORK=${CMAKE_CURRENT_BINARY_DIR}/headless_probe_work
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/headless_probe_check.cmake)
+set_tests_properties(headless_probe_test PROPERTIES TIMEOUT 400 SKIP_RETURN_CODE 77)
+
 # docs/design/system/tokens.json is generated from theme/Theme.qml: fail when it is stale, so the
 # design-system docs cannot drift from the code. Skipped (not failed) where there is no Python 3.
 find_package(Python3 COMPONENTS Interpreter QUIET)

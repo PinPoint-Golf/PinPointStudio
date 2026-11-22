@@ -20,6 +20,7 @@
 #include "ble_adapter_pool.h"
 #include "wt9011dcl_base.h"
 #include "pp_debug.h"
+#include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE's backstop (refactor 4-c)
 #include <QCoreApplication>
 
 #include <QBluetoothAddress>
@@ -336,6 +337,12 @@ void DeviceEnumerator::registerImuDevice(ImuBase::Transport transport,
 
 bool DeviceEnumerator::scanImu()
 {
+    // THE BACKSTOP (refactor 4-c): a headless probe scans no Bluetooth. ImuManager already skips the scan under the
+    // switch; a caller that did not is named, and refused.
+    if (pinpoint::headlessProbe()) {
+        ppWarn() << "[HeadlessProbe] REFUSED DeviceEnumerator::scanImu - a Bluetooth scan was asked for under the switch";
+        return false;
+    }
     if (m_imuScanActive) return false;
     m_imuScanActive = true;
     // New scan generation — devices re-discovered below get stamped with it, so

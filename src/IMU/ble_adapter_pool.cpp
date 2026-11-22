@@ -18,6 +18,7 @@
 
 #include "ble_adapter_pool.h"
 #include "pp_debug.h"
+#include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE's backstop (refactor 4-c)
 
 #include <QBluetoothLocalDevice>
 
@@ -31,6 +32,13 @@ void BleAdapterPool::initialize()
 {
     if (m_initialized) return;
     m_initialized = true;
+
+    // THE BACKSTOP (refactor 4-c): a headless probe lists no adapter — the list is what first touches Bluetooth on
+    // macOS. ImuManager already skips this call under the switch; a caller that did not is named, and refused.
+    if (pinpoint::headlessProbe()) {
+        ppWarn() << "[HeadlessProbe] REFUSED BleAdapterPool::initialize - Bluetooth reached under the switch";
+        return;
+    }
 
     const QList<QBluetoothHostInfo> hosts = QBluetoothLocalDevice::allDevices();
     for (const QBluetoothHostInfo &info : hosts)

@@ -1949,6 +1949,7 @@ set(REGRADE_NEW_ENGINE_SOURCES
     ${SRC}/DomainModel/session.h ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/athlete.h
     ${SRC}/Diagnostics/engine/session_reduction.cpp
     ${SRC}/Export/firing_reader_store.cpp
+    ${SRC}/Export/athlete_store.cpp   # the athletes from the library's athlete.json (refactor 4-c, J-61)
     ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
     ${PP_RECORDING_STORE_SOURCES})
 add_executable(regrade_ledger
@@ -1984,11 +1985,15 @@ list(REMOVE_DUPLICATES _regrade_sources)
 set_property(TARGET regrade_ledger PROPERTY SOURCES ${_regrade_sources})
 pp_apply_sanitizers(regrade_ledger)
 # Note: the tool itself is NOT added to add_test() — manual run only; it rewrites diagnostics.json. One test drives its
-# REFUSAL only, which reads and writes nothing (refactor 3.10, review B1): --engine new without --athletes-ini.
+# REFUSALS and its athlete sources (refactor 3.10, review B1; re-worded in 4-c, J-61) over a scratch folder in the build
+# tree: a session whose athlete neither the library's athlete.json nor --athletes-ini names is refused and nothing is
+# written; athlete.json, and the ini as the fallback, are not refused.
 add_test(NAME regrade_ledger_new_needs_ini_test
          COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:regrade_ledger>
                  -DWORK=${CMAKE_CURRENT_BINARY_DIR}/regrade_ledger_needs_ini_work
                  -P ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger_needs_ini_check.cmake)
+set_tests_properties(regrade_ledger_new_needs_ini_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # THE PARALLEL RUN, LIVE (refactor step 3.7-0, the D22 fix): the parallel run's doors (pinpoint::parallel::doors; the
 # app's switch went in 3.10) over a live-shaped session on a temporary library — EVT-01 with no sidecar, the late

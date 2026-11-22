@@ -22,6 +22,7 @@
 #include "camera_manager.h"
 #include "launch_monitor_factory.h"
 #include "pp_debug.h"
+#include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE (refactor 4-c)
 #include "session_controller.h"
 #include "standalone_gate.h"
 #include "shot_list_model.h"
@@ -106,7 +107,13 @@ void LaunchMonitorController::reconfigure()
     // ⚠ AND IT RELEASES PORT 921. That is why this connector needs the switch more
     // than the GCQuad does: a user who wants GSPro itself to run has to hand the
     // port back, and reconfiguring the connector to do it would lose the setup.
-    const bool enabled = !m_settings || m_settings->launchMonitorEnabled();
+    //
+    // ⚠ A HEADLESS PROBE (PINPOINT_HEADLESS_PROBE=1, refactor 4-c) is Kind::None too, whatever the settings say: no
+    // connector, no folder watched, no port held. Said once, at the first configure.
+    const bool headless = pinpoint::headlessProbe();
+    if (headless && !m_monitor)
+        ppInfo() << "[HeadlessProbe] not started: launch monitor (the launch monitor's connector)";
+    const bool enabled = !headless && (!m_settings || m_settings->launchMonitorEnabled());
     const Kind kind = (m_settings && enabled) ? kindFromKey(m_settings->launchMonitorKind())
                                               : Kind::None;
 

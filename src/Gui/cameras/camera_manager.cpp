@@ -24,6 +24,7 @@
 #include "event_buffer.h"
 #include "../Core/pp_debug.h"
 #include "../Core/pp_settings.h"
+#include "../Core/headless_probe.h"   // PINPOINT_HEADLESS_PROBE (refactor 4-c)
 #include "../Video/camera_capabilities.h"
 #include "../Video/frame_crop.h"
 #include "camera_roi.h"
@@ -42,7 +43,12 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, AppSettings *appSett
     , m_eventBuffer(buffer)
     , m_appSettings(appSettings)
 {
-    VideoInputFactory::enumerateDevices();
+    // A HEADLESS PROBE (PINPOINT_HEADLESS_PROBE=1, refactor 4-c) lists no camera, so none is ever opened, started or
+    // asked permission for; the manager stays, with an empty list, for the QML that reads it.
+    if (pinpoint::headlessProbe())
+        ppInfo() << "[HeadlessProbe] not started: cameras (the camera manager's device list)";
+    else
+        VideoInputFactory::enumerateDevices();
 
     const QList<Device> allDevices = DeviceEnumerator::instance()->devices();
     for (const Device &dev : allDevices) {
@@ -514,6 +520,8 @@ QString CameraManager::bufferState() const
 
 void CameraManager::enumerate()
 {
+    if (pinpoint::headlessProbe())
+        return;   // a headless probe lists no camera (refactor 4-c)
     VideoInputFactory::enumerateDevices();
 
     // Merge any newly discovered video devices into m_cameras.

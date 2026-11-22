@@ -26,6 +26,7 @@
 #include "imu_role_map.h"
 #include "paced_connect_queue.h"
 #include "pp_debug.h"
+#include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE (refactor 4-c)
 #include "../../IMU/hm_unit_id.h"
 #include "pp_os_metrics.h"
 
@@ -36,7 +37,13 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
 {
     // Enumerate local BT adapters before scanning so multi-adapter discovery
     // and round-robin connection assignment are both ready from the start.
-    BleAdapterPool::instance()->initialize();
+    // A HEADLESS PROBE (PINPOINT_HEADLESS_PROBE=1, refactor 4-c) touches no Bluetooth: no adapter list, no scan
+    // (below), so no device is ever listed or connected and macOS asks for nothing.
+    const bool headless = pinpoint::headlessProbe();
+    if (headless)
+        ppInfo() << "[HeadlessProbe] not started: bluetooth (the IMU manager's adapter list and scan)";
+    else
+        BleAdapterPool::instance()->initialize();
 
     // The shared IMU I/O thread — always running (an idle event loop is free);
     // every instance's driver + worker is moved onto it at creation.
@@ -158,8 +165,8 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
     // first read picks the value up. isImuScanActive() may be true already if
     // another manager instance armed a scan (tests); either way the flag
     // reflects the enumerator's truth at construction.
-    m_imuScanActive = DeviceEnumerator::instance()->scanImu()
-                      || DeviceEnumerator::instance()->isImuScanActive();
+    m_imuScanActive = !headless
+                      && (DeviceEnumerator::instance()->scanImu() || DeviceEnumerator::instance()->isImuScanActive());
 
     // Emit property-change signals when new devices are registered so QML
     // Repeaters rebuild their chips / rows.
@@ -536,6 +543,8 @@ bool ImuManager::pacedConnectActive() const
 
 void ImuManager::rescanImu()
 {
+    if (pinpoint::headlessProbe())
+        return;   // a headless probe scans nothing (refactor 4-c)
     setImuScanError(QString());   // clear any stale error; a fresh scan may succeed
     // Push the HackMotion discovery flag immediately before arming the scan.
     // Every path that starts a scan does this — here and the first-run scan in

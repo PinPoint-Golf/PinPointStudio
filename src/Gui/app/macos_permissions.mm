@@ -19,9 +19,23 @@
 #import <AVFoundation/AVFoundation.h>
 #import <Speech/Speech.h>
 #include "macos_permissions.h"
+#include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE's backstop (refactor 4-c)
+#include "pp_debug.h"
+
+// THE BACKSTOP (refactor 4-c): under a headless probe no permission is asked for — not even its status read — and the
+// caller hears "not granted", exactly as for a denial. The controllers already skip these calls under the switch; a
+// path that did not is named, and refused, so it raises no dialog on anyone's screen.
+static bool refusedHeadless(const char *what)
+{
+    if (!pinpoint::headlessProbe())
+        return false;
+    ppWarn() << "[HeadlessProbe] REFUSED" << what << "- a permission was asked for under the switch";
+    return true;
+}
 
 void requestMicrophonePermission(std::function<void(bool granted)> callback)
 {
+    if (refusedHeadless("requestMicrophonePermission")) { callback(false); return; }
     AVAuthorizationStatus status =
         [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
 
@@ -40,6 +54,7 @@ void requestMicrophonePermission(std::function<void(bool granted)> callback)
 
 void requestCameraPermission(std::function<void(bool granted)> callback)
 {
+    if (refusedHeadless("requestCameraPermission")) { callback(false); return; }
     AVAuthorizationStatus status =
         [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
 
@@ -57,6 +72,7 @@ void requestCameraPermission(std::function<void(bool granted)> callback)
 
 void requestSpeechRecognitionPermission(std::function<void(bool granted)> callback)
 {
+    if (refusedHeadless("requestSpeechRecognitionPermission")) { callback(false); return; }
     SFSpeechRecognizerAuthorizationStatus status = [SFSpeechRecognizer authorizationStatus];
 
     if (status == SFSpeechRecognizerAuthorizationStatusAuthorized) {

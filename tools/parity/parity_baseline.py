@@ -12,16 +12,19 @@ Design: build/refactor/step-G/BRIEF.md section 2.
 
 --half mac (default; the Mac)
   1. Copies every session of the parity set (parity_set.json, from parity_select.py) from the
-     library to <label>/lib/<Athlete>/<session> (a copy; the library is only read). With
-     --athlete-files, also every plain file directly in each of those athlete folders (athlete.json,
-     the athlete's caches), so a run on a migrated copy carries M1's athlete.json (refactor step 2.8b,
-     parity run B); off by default, so a baseline run copies exactly what it always did.
-  2. regrade_ledger --engine new --athletes-ini <a copy> --tag parity --dump out/diagnostics.json
+     library to <label>/lib/<Athlete>/<session> (a copy; the library is only read), and each of
+     those athlete folders' athlete.json (FILE-ATH-01, M1's output): the record the new engine reads
+     to tell the golfers apart (refactor 4-c, J-61). With --athlete-files, also every other plain file
+     directly in each athlete folder (the athlete's caches: refactor step 2.8b, parity run B); off by
+     default, so a baseline copies the sessions and the athlete records only.
+  2. regrade_ledger --engine new [--athletes-ini <a copy>] --tag parity --dump out/diagnostics.json
      <every session copy> (the session's own SessionDiagnostics, the engine the app runs, dumped in
-     the parallel run's form P; refactor 3.10, J-59). The ini is a COPY of the app's settings
-     (--athletes-ini, default ~/.config/PinPointStudio/PinPointStudio.ini, only read), put in
-     <label>/lib/ and deleted with the copies: the new engine needs it to tell the golfers apart when
-     it freezes each session's club baseline, and refuses to run without it (3.10 review B1).
+     the parallel run's form P; refactor 3.10, J-59). The new engine reads each session's athlete
+     from the copied athlete.json and freezes each session's club baseline from that athlete's
+     earlier sessions; a session whose athlete it cannot name is SKIPPED (exit 1), so golfers are
+     never pooled (3.10 review B1). --athletes-ini <a copy of the app's settings> is only the
+     fallback for a library not yet migrated: COPIED into <label>/lib/ (the original only read) and
+     deleted with the copies. Since the 22 Nov migrations the app's settings hold no athletes.
      Baselines taken before 3.10 ran the old engine and dumped form v1: they do not compare with a
      run from 3.10 on. The first new-engine baseline is step3.10-baseline.
   3. athlete_dump --fresh --out out/athlete.json <every athlete folder of the copy>
@@ -144,28 +147,31 @@ def mac_half(a, pset, run_dir):
             athletes.append(ad)
         log("copied  %-55s %5.1f s" % (s["path"], copy_s[s["path"]]))
     athlete_files = []
-    if a.athlete_files:
-        for ad in athletes:
-            src_ad = os.path.join(a.library, os.path.relpath(ad, lib))
-            for name in sorted(os.listdir(src_ad)):
-                sp = os.path.join(src_ad, name)
-                if os.path.isfile(sp) and not os.path.islink(sp):
-                    shutil.copy2(sp, os.path.join(ad, name))
-                    athlete_files.append(os.path.relpath(os.path.join(ad, name), lib).replace(os.sep, "/"))
-                    log("copied  %s" % athlete_files[-1])
+    for ad in athletes:
+        src_ad = os.path.join(a.library, os.path.relpath(ad, lib))
+        for name in sorted(os.listdir(src_ad)):
+            sp = os.path.join(src_ad, name)
+            # athlete.json always (the athlete's record: refactor 4-c); every other plain file with --athlete-files
+            if (name == "athlete.json" or a.athlete_files) and os.path.isfile(sp) and not os.path.islink(sp):
+                shutil.copy2(sp, os.path.join(ad, name))
+                athlete_files.append(os.path.relpath(os.path.join(ad, name), lib).replace(os.sep, "/"))
+                log("copied  %s" % athlete_files[-1])
     meta["athleteFiles"] = athlete_files
     meta["seconds"]["copy"] = round(time.time() - t0, 1)
     meta["seconds"]["copyPerSession"] = copy_s
 
-    # the athletes: a copy of the app's settings, with the session copies (deleted with them)
-    if not os.path.isfile(a.athletes_ini):
-        log("refusing: no athletes ini at %s (--athletes-ini): the new engine needs it" % a.athletes_ini)
-        shutil.rmtree(lib)
-        return 2
-    ini = os.path.join(lib, "athletes.ini")
-    shutil.copy2(a.athletes_ini, ini)
+    # the fallback for an unmigrated library: a copy of the given settings, with the session copies (deleted with them)
+    ini_args = []
     meta["athletesIni"] = a.athletes_ini
-    log("copied  the athletes ini (%s)" % a.athletes_ini)
+    if a.athletes_ini:
+        if not os.path.isfile(a.athletes_ini):
+            log("refusing: --athletes-ini %s is not a file" % a.athletes_ini)
+            shutil.rmtree(lib)
+            return 2
+        ini = os.path.join(lib, "athletes.ini")
+        shutil.copy2(a.athletes_ini, ini)
+        ini_args = ["--athletes-ini", ini]
+        log("copied  the athletes ini (%s)" % a.athletes_ini)
 
     env = dict(os.environ)
     res = os.path.join(pc.REPO, "src", "Resources", "diagnostics")
@@ -174,7 +180,7 @@ def mac_half(a, pset, run_dir):
         env["PINPOINT_CORE_" + k] = os.path.join(res, f + ".json")
 
     # 2. the session level: the new owner, as the app (refactor 3.10, J-59)
-    rc1, s1 = run_tool([bins["regrade_ledger"], "--engine", "new", "--athletes-ini", ini, "--tag", "parity", "--dump",
+    rc1, s1 = run_tool([bins["regrade_ledger"], "--engine", "new"] + ini_args + ["--tag", "parity", "--dump",
                         os.path.join(out, "diagnostics.json")] + sessions,
                        os.path.join(out, "logs", "regrade_ledger.log"), env, a.timeout)
     log("regrade_ledger --engine new --dump   exit %d  %6.1f s" % (rc1, s1))
@@ -383,10 +389,12 @@ def main():
     ap.add_argument("--bin-dir", default=os.path.join(pc.REPO, "build", "tests", "Analysis"),
                     help="mac: where regrade_ledger and athlete_dump are (default %(default)s)")
     ap.add_argument("--keep-copies", action="store_true", help="mac: keep <label>/lib after the dumps")
-    ap.add_argument("--athletes-ini", default=os.path.expanduser("~/.config/PinPointStudio/PinPointStudio.ini"),
-                    help="mac: the app's settings, COPIED for regrade_ledger --engine new (default %(default)s; only read)")
+    ap.add_argument("--athletes-ini", default=None,
+                    help="mac: the fallback for a library not yet migrated: a copy of the app's settings, COPIED for "
+                         "regrade_ledger --engine new (only read; default none: the athletes come from athlete.json)")
     ap.add_argument("--athlete-files", action="store_true",
-                    help="mac: also copy the plain files of each athlete folder (athlete.json: M1's output)")
+                    help="mac: also copy every other plain file of each athlete folder (its caches); athlete.json is "
+                         "always copied")
     ap.add_argument("--swinglab", help="analysis: the swinglab_run binary")
     ap.add_argument("--only", nargs="+", metavar="ID", help="analysis: just these swing ids (a smoke test)")
     ap.add_argument("--keep-results", action="store_true", help="analysis: keep <label>/analysis/")

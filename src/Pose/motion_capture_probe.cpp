@@ -26,6 +26,7 @@
 #include "pose_backend.h"
 #include "pp_gpu_metrics.h"
 #include "pp_debug.h"
+#include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE (refactor 4-c)
 #include "session_controller.h"
 #include "../TTS/ModelDownloader.h"   // generic URL->path downloader (reused in place)
 
@@ -127,6 +128,12 @@ void MotionCaptureProbe::kickTimingBenchmark()
     // per-tier seconds unknown (-1); a later refresh() (panel re-open) retries.
     if (m_session && m_session->running()) {
         ppInfo() << "[MotionCaptureProbe] session active — deferring benchmark";
+        return;
+    }
+    // A headless probe (refactor 4-c) loads no pose model to time it: the two ORT loads are the launch's heaviest,
+    // and a probe that opens Settings ▸ General must not pay them. The tiers' seconds stay unknown (-1).
+    if (pinpoint::headlessProbe()) {
+        ppInfo() << "[HeadlessProbe] not started: the pose timing benchmark";
         return;
     }
     if (m_worker.joinable())

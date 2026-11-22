@@ -7,7 +7,8 @@
 // regrade_ledger --engine new runs it), then the Session's thin adapter for the "tool" surface
 // (SessionDiagnosticsModel::adapterFor) for the view half a tool reads — the explanation's roots, the links, the rows as
 // the reduction read them. regrade_ledger keeps the old engine as its default and run P's reference while it stays (to
-// step 5, after M1: J-59); its --engine new needs --athletes-ini (3.10 review B1).
+// step 5, after M1: J-59); its --engine new reads each session's athlete from the library's athlete.json, --athletes-ini
+// only as the fallback, and refuses a session neither names (3.10 review B1; refactor 4-c, J-61).
 //
 // NOTHING IS WRITTEN: the owner runs in memory (DiagnosticsDoors::persist off — no diagnostics.json, no work_ons.json,
 // no club_baseline.json; the firing reader is the parallel run's, which parses a swing whose sidecar is missing or stale

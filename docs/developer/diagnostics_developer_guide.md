@@ -574,12 +574,15 @@ whose file names the cabin's athlete id), which keeps today's engine and writes 
 `regrade_ledger`'s default (`--engine old`), run P's reference and the corpus sweep; and the tests written against it. Do not add a caller.
 
 **The tools.** `regrade_ledger` regrades with the old engine by default (`--engine old`, run P's reference while it
-stays); `--engine new` re-judges each session through its own `SessionDiagnostics` and **needs `--athletes-ini`**, a copy of
-the app's settings, because it freezes each session's club baseline from its own athlete's earlier sessions: without it,
-every session of one folder (the corpus's `swings`) would count as one golfer, and one golfer's usuals would be frozen into
-another's sessions for good, so it refuses (3.10 review B1; `regrade_ledger_new_needs_ini_test`). Either engine `--dump`s
+stays); `--engine new` re-judges each session through its own `SessionDiagnostics` and **must know each session's
+athlete**, because it freezes each session's club baseline from its own athlete's earlier sessions: without a record, every
+session of one folder (the corpus's `swings`) would count as one golfer, and one golfer's usuals would be frozen into
+another's sessions for good. Since refactor 4-c (J-61) the athlete is read from the library, the athlete folder's
+`athlete.json` through `AthleteRepository`; `--athletes-ini` (a copy of the app's settings) is only the fallback for a
+library not yet migrated. A session neither names is refused, untouched (3.10 review B1; `regrade_ledger_new_needs_ini_test`). Either engine `--dump`s
 the parallel run's form P (`Gui/diagnostics/diag_parallel_run.h`, ids and numbers only); `tools/parity/parity_baseline.py`
-runs `--engine new` with a copy of the app's settings for the session half, and `athlete_dump` for the athlete half.
+runs `--engine new` for the session half over session copies that carry their athlete folders' `athlete.json` (a copy of
+the settings as `--athletes-ini` only for a library not yet migrated: refactor 4-c), and `athlete_dump` for the athlete half.
 `diag_rank_diff` and `diag_uncertainty_report` read a session's owner and its `tool` adapter (`tools/diagnostics/owner_harness.h`).
 
 ### `detect()` — `characteristic_engine.h`

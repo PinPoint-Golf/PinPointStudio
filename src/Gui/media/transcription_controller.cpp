@@ -31,6 +31,7 @@
 #include <QMediaDevices>
 #include <QMetaObject>
 #include "pp_debug.h"
+#include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE (refactor 4-c)
 #include <QThread>
 #include <QVariantMap>
 
@@ -105,6 +106,14 @@ TranscriptionController::TranscriptionController(AppSettings *settings, QObject 
     // on macOS where startAudio() is deferred until mic permission) takes effect.
     connect(m_audioThread, &QThread::started,
             this, &TranscriptionController::updateCapture);
+
+    // A HEADLESS PROBE (PINPOINT_HEADLESS_PROBE=1, refactor 4-c): neither pipeline starts — no Speech Recognition or
+    // Microphone permission is asked for, and neither thread runs, so nothing is ever captured (updateCapture needs
+    // the audio thread running). The controller stays, inert, for the QML that reads it.
+    if (pinpoint::headlessProbe()) {
+        ppInfo() << "[HeadlessProbe] not started: microphone and speech recognition (the transcription controller)";
+        return;
+    }
 
 #ifdef Q_OS_MACOS
     // On macOS both permissions must be resolved before their respective pipelines

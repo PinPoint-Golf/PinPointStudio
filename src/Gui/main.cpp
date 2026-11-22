@@ -46,6 +46,7 @@
 #include <cmath>
 
 #include "pp_debug.h"
+#include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE=1: a probe's start, no device side (refactor 4-c)
 #include "app_settings.h"
 #include "notification_center.h"
 #ifdef HAVE_PPCP_TRANSPORT
@@ -1768,7 +1769,12 @@ int main(int argc, char *argv[])
     // peer so far (CameraInstance::ppcpAttachIfNeeded()) — real capture stays
     // exactly as unable to start a PPCP camera as it already was.
     cameraManager.setPpcpHostService(&ppcpHost);
-    if (!ppcpHost.start(7788)) ppcpHost.start(0);
+    // A HEADLESS PROBE (PINPOINT_HEADLESS_PROBE=1, refactor 4-c) opens no phone link: no listener, no advertising, no
+    // discovery, so no phone camera or microphone. The host stays, stopped, for the QML that reads it.
+    if (pinpoint::headlessProbe())
+        ppInfo() << "[HeadlessProbe] not started: phone link (the PPCP host's listener, discovery and advertising)";
+    else if (!ppcpHost.start(7788))
+        ppcpHost.start(0);
     // A paired phone is a device, so it goes in the one device list beside the
     // cameras and the IMUs.  Handed over as a plain QObject: the monitor reads
     // its `phones` property and knows nothing about PPCP (see setPhoneSource).
@@ -1915,17 +1921,23 @@ int main(int argc, char *argv[])
     // thread, this thread waiting for it (J-43). Nothing on the GUI thread waits for it either:
     // the first run() that needs the session takes it from the cache, waiting there if the
     // warm-up is still building it.
-    QTimer::singleShot(1500, &app, [&appSettings]() {
-        const QString quality = appSettings.motionCaptureQuality();
-        g_poseWarmUpInFlight.store(true);
-        std::thread([quality]() {
-            {
-                pinpoint::osmetrics::ThreadScope _tscope("Pose.WarmUp");
-                PoseRunner::warmUp(quality);
-            }
-            g_poseWarmUpInFlight.store(false);
-        }).detach();
-    });
+    // A HEADLESS PROBE (refactor 4-c) loads no pose model at launch: the warm-up is the launch's one heavy load (a cold
+    // CoreML compile is ~97 s and gigabytes), and a probe's scratch home has no compiled cache. A re-analysis the probe
+    // asks for still loads it on first use.
+    if (pinpoint::headlessProbe())
+        ppInfo() << "[HeadlessProbe] not started: the pose model's launch warm-up";
+    else
+        QTimer::singleShot(1500, &app, [&appSettings]() {
+            const QString quality = appSettings.motionCaptureQuality();
+            g_poseWarmUpInFlight.store(true);
+            std::thread([quality]() {
+                {
+                    pinpoint::osmetrics::ThreadScope _tscope("Pose.WarmUp");
+                    PoseRunner::warmUp(quality);
+                }
+                g_poseWarmUpInFlight.store(false);
+            }).detach();
+        });
 
     exitCode = QCoreApplication::exec();
     archiveController.stopJobs();         // its housekeeping pass reaches the Athletes: stopped before they go (step 3.8)

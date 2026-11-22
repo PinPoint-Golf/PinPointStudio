@@ -29,6 +29,7 @@
 #include <QCoreApplication>
 #include <QFile>
 #include "pp_debug.h"
+#include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE (refactor 4-c)
 #include <QMetaObject>
 #include <QFileInfo>
 #include <QStandardPaths>
@@ -99,7 +100,13 @@ TtsController::TtsController(AppSettings *settings, QObject *parent)
     ttsFormat.setChannelCount(1);
     ttsFormat.setSampleFormat(QAudioFormat::Float);
     m_audioOutput->setPreferredFormat(ttsFormat);
-    m_audioOutput->start();
+    // A HEADLESS PROBE (PINPOINT_HEADLESS_PROBE=1, refactor 4-c) says nothing: no speaker opened, no worker, no voice
+    // loaded or downloaded. The controller stays, inert, for the QML that reads it.
+    const bool headless = pinpoint::headlessProbe();
+    if (headless)
+        ppInfo() << "[HeadlessProbe] not started: speech output (the TTS controller's speaker, worker and voice)";
+    else
+        m_audioOutput->start();
 
     // ---- Worker signals (also used when hot-swapping to Azure) --------------
     connectWorkerSignals();
@@ -113,6 +120,9 @@ TtsController::TtsController(AppSettings *settings, QObject *parent)
             this, &TtsController::onDownloadFinished);
     connect(m_downloader, &ModelDownloader::failed,
             this, &TtsController::onDownloadFailed);
+
+    if (headless)
+        return;
 
     // ---- Start worker thread ------------------------------------------------
     m_workerThread->start();

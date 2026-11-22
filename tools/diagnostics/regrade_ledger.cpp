@@ -44,10 +44,11 @@
 //                                                                    DRILLS, REFERENCES likewise)
 //   ./build/tests/Analysis/regrade_ledger --tag pre-headsway-fix /mnt/swingdata/corpus/swings/*/
 //
-// (The old engine, the default. With --engine new the same sweep also needs --athletes-ini: see below.)
+// (The old engine, the default. With --engine new each session's athlete must be known: see below.)
 //
-// NOT A TEST, and not registered with ctest — it writes into the swing library. One ctest drives only its refusal,
-// which reads and writes nothing: regrade_ledger_new_needs_ini_test (--engine new without --athletes-ini; 3.10 review B1).
+// NOT A TEST, and not registered with ctest — it writes into the swing library. One ctest drives only its refusals,
+// which write nothing: regrade_ledger_new_needs_ini_test (--engine new and a session whose athlete neither source names;
+// 3.10 review B1, re-worded in refactor 4-c).
 //
 // --dump <out.json> — THE PARITY DUMP (refactor Step G; since 3.5-ii the parallel run's form). After the regrade above,
 // one JSON file over every session named, written by parity_json.h's canonical writer (keys sorted, numbers "%.17g", no
@@ -64,11 +65,17 @@
 // fired again (DiagnosticsDoors::rebuild), writing diagnostics.json (each shot's findings and derived data) and
 // work_ons.json (the typed summary, DEC-192), and freezing each session's club_baseline.json at first need from ITS
 // ATHLETE'S earlier sessions' summaries (DEC-46, DEC-172) — a recorded input, never rewritten once current. So `new`
-// NEEDS --athletes-ini, a COPY of the app's settings: it tells the golfers apart (and gives each one's sex and date of
-// birth for the norm cohort, D6), matched by the athlete folder's or the session folder's name. Without one, every
-// session of a folder such as corpus/swings would be one athlete, and one golfer's club usuals would be frozen into
-// another's sessions (3.10 review B1), so `new` without --athletes-ini REFUSES to run (exit 2). A session the ini names
-// no record for is still named after its folder. `new` also prints, per session, D7's check: the club baseline from the
+// must tell the golfers apart (and know each one's sex and date of birth for the norm cohort, D6). THE ATHLETE COMES
+// FROM THE LIBRARY (refactor 4-c, J-61): the session's athlete folder's athlete.json (FILE-ATH-01), read through its
+// owner, AthleteRepository (AthleteStore over the folder that holds the athlete folder, as the app reads it); the
+// Session is that store's Athlete's. --athletes-ini <a COPY of the app's settings> stays only as the FALLBACK for a
+// library M1 has not migrated: its [athletes] record matched by the athlete folder's or the session folder's name (the
+// corpus). This machine's own settings are never read for a record. A SESSION WHOSE ATHLETE NEITHER SOURCE NAMES IS
+// REFUSED (SKIP, exit 1, nothing read past its folder, nothing written): without a record every session of a folder
+// such as corpus/swings would be one athlete, and one golfer's club usuals would be frozen into another's sessions
+// (3.10 review B1), so a golfer is never pooled. Until 4-c, `new` refused to run without the ini and named a session the
+// ini did not know after its folder; since the 22 Nov migrations the ini holds no athletes, so that pooled every one.
+// `new` also prints, per session, D7's check: the club baseline from the
 // earlier sessions' SUMMARIES against the one from their LEDGERS (refactor 3.5-ii; build/refactor/step-3/BRIEF.md §4.9,
 // §5.3).
 //
@@ -91,12 +98,12 @@
 #include "../../src/Export/rule_data_install.h"
 #include "Export/session_diagnostics_files.h"
 #include "Export/session_store.h"          // SessionStore::fileSaysInProgress (D11)
+#include "Export/athlete_store.h"          // the athletes, from the library (refactor 4-c, J-61)
 #include "Coaching/shot_factors.h"
 #include "Core/PpMessageLog.h"
 #include "parity_json.h"
 
 #include <QCoreApplication>
-#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -165,11 +172,13 @@ DumpEntry dumpEntry(const QString &dir, const QString &status, QVariantMap body,
 
 // ── --engine new: the new owner, headless, over a scratch library ──────────────────────────────────────────────
 
-struct AthleteSeen { pinpoint::AthleteId id; pinpoint::AthleteRecord record; };
+// Whose a session is: the athlete's id and record, and where they were read (`from`: "athlete.json" or "ini").
+struct AthleteSeen { pinpoint::AthleteId id; pinpoint::AthleteRecord record; QString from; };
 
-// The record for a session's athlete from a copy of the app's settings ([athletes]/<uuid>/name, dob, sex): the one
-// whose sanitised name is the athlete folder's name, else the one named in the session folder's name (the corpus).
-AthleteSeen athleteFor(const QString &sessionDir, const QString &ini)
+// THE FALLBACK (an unmigrated library): the record for a session's athlete from a copy of the app's settings
+// ([athletes]/<uuid>/name, dob, sex): the one whose sanitised name is the athlete folder's name, else the one named in
+// the session folder's name (the corpus). A null id: the ini names no record for it (the caller refuses the session).
+AthleteSeen athleteFromIni(const QString &sessionDir, const QString &ini)
 {
     using namespace pinpoint;
     const QString athleteFolder = QFileInfo(QFileInfo(sessionDir).absolutePath()).fileName();
@@ -195,13 +204,7 @@ AthleteSeen athleteFor(const QString &sessionDir, const QString &ini)
         }
         s.endGroup();
     }
-    if (out.id.isNull()) {   // no record: an athlete of the folder's name, with no cohort facts
-        out.id = AthleteId::fromString(QStringLiteral("00000000-0000-4000-8000-%1")
-                                           .arg(QString::fromLatin1(QCryptographicHash::hash(
-                                                    athleteFolder.toUtf8(), QCryptographicHash::Sha1).toHex().left(12))));
-        out.record.name = athleteFolder;
-    }
-    return out;
+    return out;   // no record: a null id — never an athlete of the folder's name (a golfer is never pooled)
 }
 
 class NewEngine
@@ -220,18 +223,67 @@ public:
                                std::make_shared<const pinpoint::SwingStoreFiringReader>(m_store, *m_recordings));
         m_receiver   = std::make_unique<pinpoint::WorkReceiver>([this](const pinpoint::WorkAddress &a) {
             const pinpoint::SessionId id = pinpoint::SessionId::fromString(a.owner);
+            for (auto &it : m_libraries)
+                if (pinpoint::Session *s = it.second->loadedSession(id)) return pinpoint::diagnosticsWorkTarget(s, a);
             for (auto &it : m_athletes)
                 if (pinpoint::Session *s = it.second->loadedSession(id)) return pinpoint::diagnosticsWorkTarget(s, a);
             return pinpoint::diagnosticsWorkTarget(nullptr, a);
         });
     }
-    ~NewEngine() { m_athletes.clear(); }
+    ~NewEngine() { m_athletes.clear(); m_libraries.clear(); }
+
+    // Whose `dir` is (refactor 4-c, J-61): the athlete folder's athlete.json, through the athlete repository over the
+    // folder that holds it; else the ini's record (the fallback). Null — and `why` says so — when neither names one.
+    // Reads only: list() and load() write nothing (AthleteRepository's rule).
+    pinpoint::Athlete *libraryAthlete(const QString &dir)
+    {
+        using namespace pinpoint;
+        const QString athleteDir = QDir::cleanPath(QFileInfo(dir).absolutePath());
+        const QString root       = QDir::cleanPath(QFileInfo(athleteDir).absolutePath());
+        auto it = m_libraries.find(root);
+        if (it == m_libraries.end()) {
+            auto store = std::make_unique<AthleteStore>([root] { return root; }, &m_store);
+            store->setOsTrashForTest(false);
+            store->setShotDoors({ m_recordings.get(), m_reader });
+            store->setDiagnosticsDoors(doors());
+            it = m_libraries.emplace(root, std::move(store)).first;
+        }
+        for (const AthleteId &id : it->second->list()) {
+            Athlete *a = it->second->load(id);
+            // athlete.json only: a settings record (an unmigrated athlete) is this machine's, never the tool's to read.
+            if (a && a->source() == Athlete::Source::Library && QDir::cleanPath(a->folder()) == athleteDir)
+                return a;
+        }
+        return nullptr;
+    }
+    bool resolve(const QString &dir, AthleteSeen *who, QString *why)
+    {
+        if (pinpoint::Athlete *a = libraryAthlete(dir)) {
+            if (who) *who = AthleteSeen{ a->id(), a->record(), QStringLiteral("athlete.json") };
+            return true;
+        }
+        const AthleteSeen seen = athleteFromIni(dir, m_ini);
+        if (!seen.id.isNull()) {
+            if (who) { *who = seen; who->from = QStringLiteral("ini"); }
+            return true;
+        }
+        if (why)
+            *why = m_ini.isEmpty()
+                ? QStringLiteral("no athlete.json in %1 names its athlete, and no --athletes-ini was given: refused, so no "
+                                 "golfer is pooled").arg(QFileInfo(QFileInfo(dir).absolutePath()).fileName())
+                : QStringLiteral("neither %1/athlete.json nor --athletes-ini names its athlete: refused, so no golfer is "
+                                 "pooled").arg(QFileInfo(QFileInfo(dir).absolutePath()).fileName());
+        return false;
+    }
 
     pinpoint::Session *open(const QString &dir, AthleteSeen *who)
     {
         using namespace pinpoint;
-        const AthleteSeen seen = athleteFor(dir, m_ini);
+        AthleteSeen seen;
+        if (!resolve(dir, &seen, nullptr)) return nullptr;
         if (who) *who = seen;
+        if (Athlete *a = libraryAthlete(dir)) return a->sessionAt(dir);   // the library's own Athlete (FILE-ATH-01)
+        // The fallback: an Athlete made here from the ini's record, as before 4-c.
         const QString folder = QFileInfo(dir).absolutePath();
         const QString key = seen.id.toString() + QLatin1Char('|') + folder;
         auto it = m_athletes.find(key);
@@ -240,16 +292,7 @@ public:
             a->setStored(seen.record, folder, SessionOwner{ seen.id, seen.record.name, QFileInfo(folder).absolutePath() },
                          Athlete::Source::Library, false);
             a->setShotDoors({ m_recordings.get(), m_reader });
-            DiagnosticsDoors d;
-            d.receiver     = m_receiver.get();
-            d.ruleData     = RuleData::installed();
-            d.reader       = m_firing;
-            d.synchronous  = true;    // §4.4 step 11 (R-HL-2)
-            d.persist      = true;    // into the session NAMED: a scratch copy (the tool's own warning)
-            // with persist, work_ons.json (the typed summary, DEC-192) is written too: its one writer (step 3.6)
-            d.rebuild      = true;    // every shot fired again, the ratchet replayed from Cold
-            d.attach       = &SessionDiagnostics::attach;
-            a->setDiagnosticsDoors(d);
+            a->setDiagnosticsDoors(doors());
             it = m_athletes.emplace(key, std::move(a)).first;
         }
         return it->second->sessionAt(dir);
@@ -263,13 +306,29 @@ public:
     const pinpoint::SessionStore &store() const { return m_store; }
 
 private:
+    pinpoint::DiagnosticsDoors doors()
+    {
+        using namespace pinpoint;
+        DiagnosticsDoors d;
+        d.receiver     = m_receiver.get();
+        d.ruleData     = RuleData::installed();
+        d.reader       = m_firing;
+        d.synchronous  = true;    // §4.4 step 11 (R-HL-2)
+        d.persist      = true;    // into the session NAMED: a scratch copy (the tool's own warning)
+        // with persist, work_ons.json (the typed summary, DEC-192) is written too: its one writer (step 3.6)
+        d.rebuild      = true;    // every shot fired again, the ratchet replayed from Cold
+        d.attach       = &SessionDiagnostics::attach;
+        return d;
+    }
+
     QString                                                     m_ini;
     pinpoint::SessionStore                                      m_store;
     std::unique_ptr<pinpoint::SwingStoreRecordingRepository>    m_recordings;
     std::shared_ptr<pinpoint::SwingStoreRecordingReader>        m_reader;
     std::shared_ptr<const pinpoint::FiringReader>               m_firing;
     std::unique_ptr<pinpoint::WorkReceiver>                     m_receiver;
-    std::map<QString, std::unique_ptr<pinpoint::Athlete>>       m_athletes;   // destroyed before the receiver
+    std::map<QString, std::unique_ptr<pinpoint::Athlete>>       m_athletes;    // the ini's; destroyed before the receiver
+    std::map<QString, std::unique_ptr<pinpoint::AthleteStore>>  m_libraries;   // by library root; likewise
 };
 
 // D7's check (DEC-172), per athlete: each session's earlier sessions, from their summaries and from their ledgers.
@@ -317,9 +376,13 @@ void printUsage(FILE *to)
         "  --engine old|new   old (the default): the old engine, run P's reference, writing diagnostics.json\n"
         "                     only; new: each session's own SessionDiagnostics, headless, writing\n"
         "                     diagnostics.json, work_ons.json and a missing club_baseline.json\n"
-        "  --athletes-ini <f> (REQUIRED with --engine new) a COPY of the app's settings: tells the golfers\n"
-        "                     apart for each club baseline, and gives sex and date of birth for the norm\n"
-        "                     cohort (D6); matched by the athlete folder's or the session folder's name\n"
+        "                     The new engine reads each session's athlete (who it is, sex and date of birth\n"
+        "                     for the norm cohort, D6) from its athlete folder's athlete.json; a session whose\n"
+        "                     athlete neither that nor --athletes-ini names is SKIPPED untouched, so no golfer\n"
+        "                     is pooled into another's club baseline\n"
+        "  --athletes-ini <f> (new engine; the FALLBACK for a library not yet migrated) a COPY of the app's\n"
+        "                     settings: its [athletes] record matched by the athlete folder's or the session\n"
+        "                     folder's name\n"
         "  --parallel-reader  (new engine; refactor 3.7-0) read the shots with the app's parallel-run reader\n"
         "                     (parallel::doors): a missing or stale sidecar is parsed and NO sidecar is written\n"
         "  --help             this text\n");
@@ -368,15 +431,10 @@ int main(int argc, char **argv)
     const bool newEngine = engine == QLatin1String("new");
     // THE NEW ENGINE NEEDS THE ATHLETES (3.10 review B1): it freezes each session's club baseline from its athlete's
     // earlier sessions, and without a record every session of one folder is one athlete — one golfer's usuals frozen
-    // into another's sessions, for good. Refused before any folder is read or written.
-    if (newEngine && athletesIni.isEmpty()) {
-        std::fprintf(stderr, "regrade_ledger: --engine new needs --athletes-ini <a copy of the app's settings>. The new\n"
-                             "engine freezes each session's club baseline from its athlete's earlier sessions, so it must\n"
-                             "tell the golfers apart; without the ini every session of one folder would count as one\n"
-                             "golfer. Nothing was read or written.\n");
-        return 2;
-    }
-    if (newEngine && !QFileInfo(athletesIni).isFile()) {
+    // into another's sessions, for good. Since refactor 4-c (J-61) they come from the library's athlete.json files, the
+    // ini only as the fallback; a session neither names is refused below, before its folder is written. An ini named
+    // but missing is refused here, before any folder is read or written.
+    if (newEngine && !athletesIni.isEmpty() && !QFileInfo(athletesIni).isFile()) {
         std::fprintf(stderr, "regrade_ledger: --athletes-ini %s is not a file. Nothing was read or written.\n",
                      qPrintable(athletesIni));
         return 2;
@@ -416,6 +474,17 @@ int main(int argc, char **argv)
             dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("in progress (D11)")));
             ++failures;
             continue;
+        }
+        // THE GOLFER MUST BE KNOWN (3.10 review B1; refactor 4-c): a session whose athlete neither the library's
+        // athlete.json nor --athletes-ini names is refused here, before its ledger is backed up or anything is written.
+        if (newEngine) {
+            QString why;
+            if (!ng->resolve(dir, nullptr, &why)) {
+                std::printf("%-48s SKIP  %s\n", qPrintable(name), qPrintable(why));
+                dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("its athlete is not known")));
+                ++failures;
+                continue;
+            }
         }
         bool hadLedger = false;
         QString backup;
@@ -464,13 +533,13 @@ int main(int argc, char **argv)
             d->flush();
             const pinpoint::analysis::SessionDiagnosis *dg = d->diagnosis();
             std::printf("%-48s %s  shots %2d  stage %-11s patterns %2d  (new owner: %llu asks, %llu reductions, %lld ms, "
-                        "cohort %s %s)\n",
+                        "cohort %s %s, athlete from %s)\n",
                         qPrintable(name), hadLedger ? "REGRADED" : "GRADED  ", int(d->keptShots().size()),
                         dg ? qPrintable(pinpoint::parallel::formOf(*d).value(QStringLiteral("stage")).toString()) : "-",
                         dg ? int(dg->patterns.size()) : 0, (unsigned long long)d->asks().size(),
                         (unsigned long long)d->counts().reductions, (long long)d->lastReductionMs(),
                         who.record.sex.isEmpty() ? "-" : qPrintable(who.record.sex),
-                        who.record.dob.isEmpty() ? "-" : qPrintable(who.record.dob));
+                        who.record.dob.isEmpty() ? "-" : qPrintable(who.record.dob), qPrintable(who.from));
             if (dg && !dg->patterns.isEmpty())
                 std::printf("%-48s   patterns: %s\n", "", qPrintable(dg->patterns.join(QLatin1Char(' '))));
             const DiagnosticsRead now = SessionDiagnosticsFiles::readDiagnostics(dir);
