@@ -118,6 +118,7 @@ public:
                                  const SessionArchiveProgress &progress = {}) override;
     SessionArchiveResult restore(const SessionId &id, const SessionArchiveProgress &progress = {}) override;
     WriteResult          trash(const SessionId &id, QString *where = nullptr) override;
+    WriteResult moveToAthlete(const SessionId &id, const SessionOwner &to, QString *newFolder = nullptr) override;
     WriteResult          trashShot(const ShotRef &shot, QString *where = nullptr) override;
 
     // The session's diagnostics files by its id (J-42): session_diagnostics_io.h's file work on the held
@@ -155,8 +156,17 @@ public:
     SessionArchiveJob archiveJob(const SessionId &id, const SessionArchiveOptions &options) override;
     void              archiveLanded(const SessionId &id) override;
 
-    // Today's athlete-folder derivation (until 2.3's Athlete::folder()).
+    // Today's athlete-folder derivation (until 2.3's Athlete::folder()). The Unassigned owner's is its own fixed name,
+    // taken verbatim, never sanitised (R-UNASSIGNED-2: `sanitise` would make it "unassigned", a golfer's possible name).
     static QString athleteFolder(const SessionOwner &owner);
+    // THE UNASSIGNED OWNER'S FOLDERS (information_model.md §5.11, R-UNASSIGNED-2/4; DEC-198; J-66, J-67): its own,
+    // `<library>/(unassigned)`, a name SwingPaths::sanitise can never produce (it keeps only A-Z a-z 0-9 . _ -); and the
+    // folder no-golfer sessions were captured into before step 5.1, `<library>/unknown`, held where it is (J-66: never
+    // moved) — but only while it is a NO-GOLFER folder: it has no athlete.json (with one it is a golfer's, whose name
+    // sanitised to "unknown"). Of that folder only the sessions whose file names no athlete (or Unassigned), or that
+    // have no file, are Unassigned's.
+    static QString unassignedFolderName() { return QStringLiteral("(unassigned)"); }
+    static QString legacyNoGolferFolder(const QString &libraryRoot);   // "" when there is none, or it is a golfer's
     // The folder name's type token for a type by name (SET-04): "swing" → "Swing", "grf" → "GRF";
     // "" for none (the name then says "session").
     static QString folderTypeLabel(const QString &type);

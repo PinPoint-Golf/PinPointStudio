@@ -27,7 +27,7 @@
 
 #include "../Analysis/swing_reanalyzer.h"   // pinpoint::analysis::ReanalyzeResult
 #include "../Analysis/reanalyse_and_persist.h"   // pinpoint::analysis::AnalysisWrite
-#include "../DomainModel/recording_repository.h"
+#include "../Identity/identity.h"   // ShotRef
 
 namespace pinpoint { class ShotCommandDoor; }
 
@@ -44,9 +44,8 @@ namespace pinpoint { class ShotCommandDoor; }
 // THROUGH THE SHOT (refactor step 3.4b-ii; DEC-103; 04 step 3 item 8): for a shot a Session holds, the worker reads
 // it through the Shot's RecordingSource and the write-back is the Shot's applyAnalysis (EVT-02), both reached
 // through `app` (ShotCommandDoor). Whether it is launch-monitor-only is its document's classification
-// (RecordingRepository::isDeviceOnly), as before. A shot no Session holds — or no
-// door (the tests, the tools) — keeps today's path over the RecordingRepository and RecordingReader main.cpp hands
-// it (N1's interim, Mark's "keep today's path").
+// (Shot::documentIsDeviceOnly, through the door), as before. A shot no Session holds — or no door (a test) — is
+// not read and not written, and says so (step 5.1: the controller keeps no reader or write of its own; N1 is gone).
 //
 // It is MODEL-AGNOSTIC: callers pass already-resolved swing DIRS (the carousel
 // resolves them from its active model — live shotModel or a loaded session's
@@ -67,12 +66,8 @@ class ReanalysisController : public QObject
 public:
     explicit ReanalysisController(QObject *parent = nullptr);
 
-    // The one door to the swing files (main.cpp's). Without one every write-back fails, loudly.
-    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
-    // The reading door the worker reads the shot through (step 2.4: by its ShotRef) — N1's interim only.
-    void setRecordingReader(pinpoint::RecordingReader *reader) { m_reader = reader; }
-    // `app` (refactor step 3.4b-ii): a held shot is read through its Shot's RecordingSource and written back by
-    // Shot::applyAnalysis. Unset (tests): today's path for every shot.
+    // `app` (refactor step 3.4b-ii): the shot is found (shotOfFolder), read through its Shot's RecordingSource and
+    // written back by Shot::applyAnalysis. Unset (a test): every swing fails, and says why.
     void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
     // How a write-back is persisted, asked at each write (the "Save pose keypoints" setting can
     // change mid-batch). Unset: PersistOptions' defaults (pose kept).
@@ -125,11 +120,9 @@ private:
     pinpoint::PersistOptions persistOptions() const
     { return m_persistOptions ? m_persistOptions() : pinpoint::PersistOptions{}; }
 
-    // The write-back of `shot` (in `dir`): through its Shot when a Session holds it, else the repository (N1).
+    // The write-back of `shot` (in `dir`): through its Shot (the door); Failed when no Session holds it.
     pinpoint::analysis::AnalysisWrite writeBackOf(const QString &dir, const pinpoint::ShotRef &shot) const;
 
-    pinpoint::RecordingRepository             *m_repo = nullptr;
-    pinpoint::RecordingReader                 *m_reader = nullptr;
     pinpoint::ShotCommandDoor                 *m_commands = nullptr;
     pinpoint::ShotRef                          m_currentShot;   // m_current's key, while in flight
     std::function<pinpoint::PersistOptions()>  m_persistOptions;

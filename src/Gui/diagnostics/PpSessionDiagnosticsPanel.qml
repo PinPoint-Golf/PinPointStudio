@@ -91,35 +91,22 @@ Item {
 
     // ── the Session this panel shows, and its thin adapter (3.7-a) ──────────────
     //
-    // app.session is the session on screen (app.state.sessionOnScreen: the CURRENT athlete's Session of
-    // sessionDir); null when no athlete holds it — a session captured with no golfer (the `unknown`
-    // folder: Mark's N1, kept with no diagnostics), no folder yet, or a folder that is gone (an empty
-    // session's discard: no Session is ever made for it). Re-read when the athlete changes. The adapter for that Session and this surface is never null: with no
-    // Session it is an EMPTY one, which judges nothing, and the panel says why (noGolferNotice).
+    // app.session is the session on screen (app.state.sessionOnScreen: the Session of sessionDir, through the athlete
+    // that holds it whoever is current — J-67 — the Unassigned owner's for a session captured with no golfer: §5.11,
+    // step 5.1); null when no athlete of the library holds it, no folder yet, or a folder that is gone (an empty
+    // session's discard: no Session is ever made for it). The adapter for that Session and this surface is never null:
+    // with no Session it is an EMPTY one, which judges nothing, and the panel says why (noGolferNotice).
     readonly property var session:
-        (typeof app !== "undefined" && app && sessionDir !== ""
-         && (typeof athleteController === "undefined" || athleteController === null
-             || athleteController.currentUuid !== ""))   // a golfer chosen (and asked again when it changes)
-            ? app.session : null
+        (typeof app !== "undefined" && app && sessionDir !== "") ? app.session : null
     readonly property var diagModel:
         (typeof diagnosticsAdapters !== "undefined" && diagnosticsAdapters) ? diagnosticsAdapters.of(session, surface, sessionDir) : null
-    // SHOW WITH A WARNING, NEVER HIDE (Mark's N1): a folder the panel is pointed at that no Session
-    // of the current golfer owns has no diagnostics; the panel says so instead of drawing an empty
-    // panel as if nothing had happened.
+    // SHOW WITH A WARNING, NEVER HIDE: a folder the panel is pointed at that no Session holds has no diagnostics; the
+    // panel says so instead of drawing an empty panel as if nothing had happened.
     // (A folder in the golfer's own folder that no Session of theirs holds — another athlete id in its file — gets
     // today's engine model instead, made by C++: not an adapter, so no notice. session_diagnostics_adapter.h.)
     readonly property bool noGolfer: sessionDir !== "" && session === null && !!diagModel && diagModel.adapter
-    // What is true of the folder (review M6): no golfer chosen here; a session recorded with no golfer (the library's
-    // `unknown` folder); or another golfer's session.
-    readonly property string noGolferText: {
-        const parts = SessionMode.folderKey(sessionDir).split("/")
-        const owner = parts.length >= 2 ? parts[parts.length - 2] : ""
-        if (typeof athleteController !== "undefined" && athleteController && athleteController.currentUuid === "")
-            return qsTr("No golfer is chosen, so this session's swings are not judged. Choose a golfer to see its diagnostics.")
-        if (owner === "unknown")
-            return qsTr("This session was recorded with no golfer, so its swings are not judged. Move it to a golfer to see its diagnostics.")
-        return qsTr("This session is not one of the chosen golfer's, so its swings are not judged here.")
-    }
+    readonly property string noGolferText:
+        qsTr("No golfer's session holds these swings, so they are not judged here.")
 
     // NEVER RESTORED (RestoreNone): the adapter outlives this panel, and the stage builds the incoming
     // panel before it destroys the outgoing one, so a restore would undo the incoming panel's values.

@@ -111,6 +111,12 @@ public:
     // The collection, by swing number (P10).
     QList<Shot *> shots();
     Shot         *shot(const ShotRef &ref);
+    // The Shot whose folder is `swingFolder` (path text against each Shot's folder, nothing read): the edge translation
+    // a view that still holds a folder needs (DEC-90), asked of the Session that holds it. Null for none.
+    Shot         *shotAtFolder(const QString &swingFolder);
+    // Whether the session's folder is still there (the repository's read; nothing written) — a library gone (a dropped
+    // share) against one still present (D7's report: DEC-140).
+    bool          folderPresent() const;
 
     // The commands.
     Shot       *addShot(WriteResult *result = nullptr);   // a captured shot

@@ -146,11 +146,10 @@ Item {
     // every session panel's is. The carousel's own rows already hold this Session (ShotListModel.loadSessionDir asks
     // app.sessionAt); this reads the session on screen, app.session, and asks for none.
     readonly property string _diagFolder: app.state.sessionOnScreenFolder
-    readonly property bool _golferChosen:
-        typeof athleteController === "undefined" || athleteController === null || athleteController.currentUuid !== ""
+    // With no golfer chosen the session is the Unassigned owner's, a full Session (§5.11; step 5.1): no golfer gate.
     readonly property bool _hasAdapters: typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters
     readonly property var _diagSession:
-        (typeof app !== "undefined" && app && _golferChosen && _diagFolder !== "") ? app.session : null
+        (typeof app !== "undefined" && app && _diagFolder !== "") ? app.session : null
     readonly property var _shownSource:
         (_hasAdapters && diagnosticsAdapters.shownCount > 0 && _diagFolder !== "")
             ? diagnosticsAdapters.shownFor(_diagSession, _diagFolder) : null
@@ -168,18 +167,13 @@ Item {
     }
     on_CardsSourceChanged: _bindCardsView()
     Component.onDestruction: if (_cardsViewed) _cardsViewed.dropView()
-    // SHOW WITH A WARNING, NEVER HIDE (Mark's N1; CARRY's first 3.7 line): a session nothing judges
-    // here — no golfer chosen, recorded with no golfer, another golfer's — has no pips, and the
-    // chips row says so where the strip's diagnostic read would be (the panel's notice, shorter).
+    // SHOW WITH A WARNING, NEVER HIDE (CARRY's first 3.7 line): a session nothing judges here has no pips, and the
+    // chips row says so where the strip's diagnostic read would be (the panel's notice, shorter). Since step 5.1 a
+    // session captured with no golfer is the Unassigned owner's and judged like any other, and a session is found
+    // through its own athlete whoever is current (J-67): only a folder no athlete of the library lists is not judged.
     readonly property bool notJudged:
         _hasAdapters && _diagFolder !== "" && !diagnosticsAdapters.judgedHere(_diagSession, _diagFolder)
-    readonly property string notJudgedText: {
-        const parts = SessionMode.folderKey(_diagFolder).split("/")
-        const owner = parts.length >= 2 ? parts[parts.length - 2] : ""
-        if (!_golferChosen) return qsTr("Not judged · no golfer chosen")
-        if (owner === "unknown") return qsTr("Not judged · recorded with no golfer")
-        return qsTr("Not judged · another golfer's session")
-    }
+    readonly property string notJudgedText: qsTr("Not judged · no golfer's session")
 
     // Shared popup width for the sessions drawer (~⅓ of the carousel width,
     // clamped) — wide enough that its content doesn't wrap. The floor keeps a
@@ -760,6 +754,35 @@ Item {
                                      : qsTr("Could not move session to trash"),
                              ok ? "info" : "error")
             }
+            onMoveRequested: (sessionId, toUuid, toName) => {
+                moveConfirm.sessionDir = sessionId
+                moveConfirm.toUuid     = toUuid
+                moveConfirm.title      = qsTr("Move this session to %1?").arg(toName)
+                moveConfirm.open()
+            }
+        }
+    }
+
+    // "Move to golfer…" (a session with no golfer: information_model.md §5.11, R-UNASSIGNED-4; J-67). Asked first: its
+    // swings are judged as the golfer's from then on.
+    PpConfirm {
+        id: moveConfirm
+        objectName: "moveToGolferConfirm"
+        property string sessionDir: ""
+        property string toUuid: ""
+        body: qsTr("Its swings will be judged as this golfer's and counted in their figures. The swings themselves are not changed.")
+        confirmText: qsTr("Move")
+        tone: "attention"
+        onConfirmed: {
+            const dir = moveConfirm.sessionDir
+            const onScreen = sessionReviewController.reviewActive
+                             && SessionMode.sameFolder(sessionReviewController.activeSessionId, dir)
+            if (onScreen)
+                sessionReviewController.resumeLive()   // the session leaves this athlete: as a trash, the screen goes back
+            const why = athleteController.moveSessionToAthlete(dir, moveConfirm.toUuid)
+            sessionReviewController.refresh()
+            root._notify("→", why === "" ? qsTr("Session moved") : qsTr("Could not move the session: %1").arg(why),
+                         why === "" ? "info" : "error")
         }
     }
 

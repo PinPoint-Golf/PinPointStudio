@@ -104,6 +104,17 @@ QList<AthleteStore::Found> AthleteStore::scan() const
         }
         const QJsonObject &o  = rd.json;
         const AthleteId    id = rd.id;
+        if (isUnassigned(id)) {
+            // R-UNASSIGNED-2: found like any athlete's folder, but only in its own (its name is no sanitised name).
+            if (name != SessionStore::unassignedFolderName() || seen.contains(id)) {
+                ppWarn() << "[AthleteStore]" << AthleteFiles::athleteFile(dir)
+                         << "names the Unassigned owner outside its own folder - not listed";
+                continue;
+            }
+            seen.insert(id);
+            out.append(unassignedFound(o, rd.readOnly));
+            continue;
+        }
         if (seen.contains(id)) {
             ppWarn() << "[AthleteStore]" << AthleteFiles::athleteFile(dir) << "names athlete" << id.toString()
                      << "whose record is already in another folder - not listed twice";
@@ -123,6 +134,20 @@ QList<AthleteStore::Found> AthleteStore::scan() const
         fd.readOnly = rd.readOnly;
         fd.file     = o;
         out.append(fd);
+    }
+
+    // THE UNASSIGNED OWNER HELD IN MEMORY (R-UNASSIGNED-4; J-66, J-67): no record of it yet, but the no-golfer `unknown/`
+    // folder an older build captured into holds a session of it. Listed, and nothing written (a read never writes):
+    // its athlete.json is written at the first write — a capture's Start or a move (unassigned(true)).
+    if (!seen.contains(unassignedAthleteId())) {
+        const Found u = unassignedFound({}, false);
+        if (!u.otherFolders.isEmpty()) {
+            SessionStore reader;   // a reader of its own (readActivity's rule): this store's identity map is untouched
+            if (!reader.enumerate(u.owner).isEmpty()) {
+                seen.insert(u.id);
+                out.append(u);
+            }
+        }
     }
 
     // This machine's settings records that have no athlete.json yet (until M1).
@@ -149,6 +174,70 @@ QList<AthleteStore::Found> AthleteStore::scan() const
     }
     s.endGroup();
     return out;
+}
+
+AthleteStore::Found AthleteStore::unassignedFound(const QJsonObject &file, bool readOnly) const
+{
+    Found fd;
+    fd.id       = unassignedAthleteId();
+    fd.owner    = ownerFor(fd.id, SessionStore::unassignedFolderName());
+    fd.folder   = SessionStore::athleteFolder(fd.owner);   // `(unassigned)`, verbatim for the fixed id
+    fd.record   = AthleteRecord::fromMap(file.value(QStringLiteral("record")).toObject().toVariantMap());
+    if (fd.record.name.trimmed().isEmpty())
+        fd.record.name = QStringLiteral("Unassigned");
+    fd.source   = Athlete::Source::Library;
+    fd.readOnly = readOnly;
+    fd.file     = file;
+    const QString legacy = SessionStore::legacyNoGolferFolder(m_root ? m_root() : QString());
+    if (!legacy.isEmpty())
+        fd.otherFolders << legacy;
+    return fd;
+}
+
+Athlete *AthleteStore::unassigned(bool create, WriteResult *result)
+{
+    if (result)
+        *result = written();
+    const AthleteId id = unassignedAthleteId();
+    const QList<AthleteId> ids = list();
+    Athlete *a = ids.contains(id) ? m_held.value(id) : nullptr;
+    const bool hasFile = a && !m_files.value(id).isEmpty();
+    if (!create || hasFile)
+        return a;
+    // The record, written at the first write (J-67): only its id and its name (R-UNASSIGNED-2) — no sex or date of birth
+    // (so no norm cohort: R-UNASSIGNED-5), no bag.
+    const Found base   = unassignedFound({}, false);
+    const QString folder = base.folder;
+    if (!QDir().mkpath(folder)) {
+        if (result)
+            *result = failed(QStringLiteral("The folder %1 could not be made.").arg(folder));
+        return nullptr;
+    }
+    const QJsonObject file{
+        { QStringLiteral("schema"), QString::fromLatin1(kSchema) },
+        { QStringLiteral("athleteId"), id.toString() },
+        { QStringLiteral("record"), QJsonObject{ { QStringLiteral("name"), base.record.name } } },
+    };
+    FolderLock lock(folder);
+    if (lock.lock(lockWait()) != FolderLock::Result::Acquired) {
+        if (result)
+            *result = failed(lock.errorString().isEmpty() ? QStringLiteral("The folder %1 is locked.").arg(folder)
+                                                          : lock.errorString());
+        return nullptr;
+    }
+    const AtomicWriteResult w = atomicWrite(AthleteFiles::athleteFile(folder),
+                                            QJsonDocument(file).toJson(QJsonDocument::Indented),
+                                            AtomicWriteOptions::intoExistingFolder());
+    lock.unlock();
+    if (!w.ok) {
+        ppWarn() << "[AthleteStore] the Unassigned owner's record:" << w.error << w.detail;
+        if (result)
+            *result = failed(w.error);
+        return nullptr;
+    }
+    ppInfo() << "[AthleteStore] the Unassigned owner's record written in" << folder;
+    Found f = unassignedFound(file, false);
+    return hold(f);
 }
 
 void AthleteStore::setShotDoors(const ShotDoors &doors)
@@ -199,6 +288,7 @@ Athlete *AthleteStore::hold(const Found &f)
         m_files.remove(f.id);
     }
     a->setStored(f.record, f.folder, f.owner, f.source, f.readOnly);
+    a->setOtherFolders(f.otherFolders);
     return a;
 }
 
@@ -324,6 +414,8 @@ AthleteCreateResult AthleteStore::create(const AthleteRecord &record)
 
 WriteResult AthleteStore::save(Athlete &athlete, const AthleteRecord &record)
 {
+    if (athlete.isUnassigned())   // R-UNASSIGNED-2/5: its record is its id and name only, never a golfer's facts
+        return failed(QStringLiteral("The Unassigned sessions' record is not edited; move its sessions to a golfer."));
     if (athlete.readOnly())
         return { WriteResult::Status::ReadOnly,
                  QStringLiteral("The record of %1 was saved by a newer PinPoint Studio and is not changed by this one.")
@@ -385,6 +477,10 @@ bool AthleteStore::trashPath(const QString &path, const QString &athleteDir, QSt
 AthleteRemoval AthleteStore::trash(const AthleteId &id)
 {
     AthleteRemoval out;
+    if (isUnassigned(id)) {   // its sessions are moved to golfers, never deleted with it
+        out.result = failed(QStringLiteral("The Unassigned sessions are not deleted as an athlete; move or trash each session."));
+        return out;
+    }
     list();   // every athlete as it is now: who else resolves to this folder
     Athlete *a = load(id);
     if (!a) {

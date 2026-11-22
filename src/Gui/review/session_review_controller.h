@@ -89,10 +89,9 @@ public:
                             AthleteController *athlete,
                             QObject           *parent = nullptr);
 
-    // The one door to the swing files (main.cpp's): the loaded session's rows write their review
-    // edits through it, and a JSON-era swing's summary sidecar is written through it.
-    void setRecordingRepository(pinpoint::RecordingRepository *repo)
-    { m_repo = repo; m_reviewModel.setRecordingRepository(repo); }
+    // The one door to the swing files (main.cpp's): a JSON-era swing's summary sidecar is written through it. (The
+    // loaded session's rows write their edits through their Shots, never through this: step 5.1.)
+    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
 
     bool     reviewActive()   const { return m_reviewActive; }
     QObject *sessionsModel()        { return &m_sessionsModel; }

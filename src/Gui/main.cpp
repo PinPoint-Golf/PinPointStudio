@@ -427,6 +427,8 @@ int main(int argc, char *argv[])
             return made.athlete;
         },
         [&athleteStore](const pinpoint::SessionOwner &owner) { return athleteStore.readActivity(owner); },   // thread-safe
+        // THE UNASSIGNED OWNER (step 5.1; §5.11; DEC-198; J-67): its record written at the first need when `create`.
+        [&athleteStore](bool create, pinpoint::WriteResult *result) { return athleteStore.unassigned(create, result); },
     };
     // HOUSEKEEPING (refactor step 3.8; DEC-80, DEC-137): the one application service that ends things for good — the one
     // purge, the startup pass (a session an Athlete holds archived through its Session) — and the library's size for the
@@ -448,6 +450,10 @@ int main(int argc, char *argv[])
     // `app` (D1: DEC-164): app.sessionAt(folder), the Session of a folder a view still chooses itself, asked of
     // the current athlete. The diagnostics panel and the cast call it (refactor 3.7-a).
     pinpoint::App           appObject([&athleteController] { return athleteController.currentAthlete(); });
+    // A session belongs to its athlete whoever is current (step 5.1; J-67): app.sessionAt and the door find a folder
+    // through whichever athlete the repository holds — a late clip, reading or re-analysis after a switch of golfer, and
+    // the Unassigned owner's sessions (a capture with no golfer chosen: §5.11).
+    appObject.setAthletes([&athleteStore] { return athleteStore.heldAthletes(); });
     // THE SHOT'S AND THE SESSION'S COMMANDS (refactor step 3.4b-i): today's writers of a shot's facts forward to
     // them through `app` (ShotCommandDoor) and write nothing themselves. The diagnostics panel's model is made by
     // QML, so its door is process-wide; reset after exec (it outlives this local).
@@ -555,7 +561,6 @@ int main(int argc, char *argv[])
     ShotController            shotController(&eventBuffer, &sessionController);
     cameraManager.applyCaptureIntent();
     ShotListModel             shotModel;
-    shotModel.setRecordingRepository(&recordingRepository);   // rating / note / club / board edits
     shotModel.setShotCommands(&appObject);                     // … forwarded to the row's Shot (step 3.4b-i)
     // Bulk "export selected shots to a zip" for the carousel ⋯ menu — derives
     // everything from the shot dirs it is handed, so it needs no dependencies.
@@ -608,6 +613,9 @@ int main(int argc, char *argv[])
             const QString forced = qEnvironmentVariable("PINPOINT_WORKONS_DIR");
             if (!forced.isEmpty()) return forced;
             if (appSettings.athleteLibraryPath().isEmpty()) return QString();
+            // NO ATHLETE-LEVEL FIGURES FOR THE UNASSIGNED OWNER (J-67; R-UNASSIGNED-5's principle): its sessions are
+            // different golfers', and pooling them into tendencies, themes and work-ons is wrong data. Home says so.
+            if (athleteController.currentIsUnassigned()) return QString();
             return athleteController.currentFolder();   // D4: the folder chosen once, kept on a rename
         };
         const auto repoint = [&workOns, athleteDir] { workOns.setAthleteDir(athleteDir()); };
@@ -759,6 +767,23 @@ int main(int argc, char *argv[])
     sessionReport.setAthleteDoor([&athleteStore](const QString &dir) -> pinpoint::AthleteLevel * {
         return pinpoint::athleteLevelOfSession(athleteStore.heldAthletes(), dir);
     });
+    // A session with no golfer (the Unassigned owner's, in its folder or its old `unknown/` one: §5.11): its report reads no
+    // athlete level and no same-day siblings, and says why (step 5.1 review B1; J-67 7). Path text only, nothing read.
+    // The report's private carousel lists the session's shots through `app`, as every carousel does (step 5.1).
+    sessionReport.setShotCommands(&appObject);
+    sessionReport.setNoGolferTest([&athleteStore](const QString &dir) {
+        const QString parent = QDir::cleanPath(QFileInfo(QDir::cleanPath(dir)).absolutePath());
+        for (const pinpoint::Athlete *a : athleteStore.heldAthletes()) {
+            if (!a || !a->isUnassigned())
+                continue;
+            if (QDir::cleanPath(QFileInfo(a->folder()).absoluteFilePath()) == parent)
+                return true;
+            for (const QString &o : a->otherFolders())
+                if (QDir::cleanPath(QFileInfo(o).absoluteFilePath()) == parent)
+                    return true;
+        }
+        return false;
+    });
     sessionReportList.setReportModel(&sessionReport);
     // Archive and restore re-stamp a report that was current, so it still reads current (S-D6).
     archiveController.setReportFingerprint([&sessionReport] { return sessionReport.fingerprintFunction(); });
@@ -869,7 +894,9 @@ int main(int argc, char *argv[])
                                             &appSettings, &athleteController,
                                             &sessionController, &shotModel);
     shotProcessor.setRecordingRepository(&recordingRepository);   // the live join's first write (step 1.5)
-    shotProcessor.setSessionRepository(&sessionStore);            // the interim: a session no Athlete holds (3.4a-ii)
+    // With no golfer chosen (or a library re-pointed to one that does not list the golfer: D7, J-67), capture's session
+    // is the library's Unassigned owner's, a full Session (§5.11; DEC-198); its record is written at the first Start.
+    shotProcessor.setUnassignedAthlete(athleteCallables.unassigned);
     // D7 (DEC-154): a library re-pointed mid-session ends the session and starts a new one, same type and
     // club, the declared focus carried — the ShotProcessor reads it from the ending Session and hands it here as the
     // pending pick, which AppState hands to the first Session that opens, from its first shot (refactor 4-d).
@@ -988,10 +1015,8 @@ int main(int argc, char *argv[])
     // result back, and emits reanalysed(dir) so the carousel refreshes the row in
     // whichever model is active (live or review). Owns no live shot state.
     ReanalysisController      reanalysisController;
-    reanalysisController.setRecordingRepository(&recordingRepository);
-    reanalysisController.setRecordingReader(&recordingReader);
-    // A held shot is read through its Shot's RecordingSource and written back by Shot::applyAnalysis (EVT-02;
-    // refactor step 3.4b-ii); a shot no Session holds keeps the two doors above (N1).
+    // The shot is found, read through its Shot's RecordingSource and written back by Shot::applyAnalysis (EVT-02;
+    // refactor step 3.4b-ii), through the Session that holds it; one no Session holds is refused (step 5.1: N1 gone).
     reanalysisController.setShotCommands(&appObject);
     // Storage → Save pose keypoints, honoured by the write-back as by the live save (asked at each
     // write, on the GUI thread).

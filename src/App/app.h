@@ -23,9 +23,10 @@
 //
 //   sessionAt(folder)   THE ONE INTERIM MEMBER (D1): the Session whose folder a view still chooses itself
 //                       (the diagnostics panel's sessionDir, until step 4's sessionOnScreen replaces the
-//                       choice), asked of the CURRENT Athlete, which translates the folder at the edge
-//                       (Athlete::sessionAt; DEC-90). Null with no current athlete, or for a folder that is
-//                       not one of its sessions. The Session stays its Athlete's child: QML never owns it
+//                       choice), asked of the current Athlete, then of whichever library athlete's folder holds it —
+//                       the Unassigned owner's included (refactor step 5.1; J-67: a session belongs to its athlete
+//                       whoever is current) — which translates the folder at the edge (Athlete::sessionAt; DEC-90).
+//                       Null for a folder no athlete lists. The Session stays its Athlete's child: QML never owns it
 //
 //   ShotCommandDoor     (refactor step 3.4b-i; shot_command_door.h) how today's writers of a shot's facts, which
 //                       still hold a folder, reach the Shot's and the Session's commands: through sessionAt, then
@@ -69,6 +70,9 @@ struct AthleteCallables {
     // An athlete's activity (its sessions with a swing, the latest one's start: DEC-89), read from its
     // SessionIndex. SAFE FROM ANY THREAD (AthleteRepository::readActivity): the picker's read runs on a pool.
     std::function<AthleteActivity(const SessionOwner &)>           readActivity;
+    // THE UNASSIGNED OWNER (refactor step 5.1; information_model.md §5.11; DEC-198; J-67): AthleteRepository::unassigned
+    // — `create` true writes its record at the first need (a capture's Start, a move); false hands it only when listed.
+    std::function<Athlete *(bool create, WriteResult *result)>    unassigned;
 };
 
 class App : public QObject, public ShotCommandDoor
@@ -117,6 +121,13 @@ public:
     std::optional<RecordingSource> recordingSourceOf(const QString &sessionFolder, const ShotRef &shot) override;
     ForwardResult applyAnalysis(const QString &sessionFolder, const ShotRef &shot, const AnalysisOutcome &outcome,
                                 const PersistOptions &options) override;
+    ShotRef shotOfFolder(const QString &swingFolder) override;
+    std::optional<bool> isDeviceOnly(const QString &sessionFolder, const ShotRef &shot) override;
+
+    // THE LIBRARY'S ATHLETES (refactor step 5.1; J-67): a session belongs to its athlete whoever is current, so
+    // sessionAt finds a folder through whichever of them holds it — the Unassigned owner included. Every athlete the
+    // repository has handed out (AthleteStore::heldAthletes: the listed ones, and Unassigned once capture made it).
+    void setAthletes(std::function<QList<Athlete *>()> athletes) { m_athletes = std::move(athletes); }
 
 signals:
     void athleteChanged();
@@ -124,6 +135,7 @@ signals:
 
 private:
     std::function<Athlete *()> m_currentAthlete;
+    std::function<QList<Athlete *>()> m_athletes;
     AppState                   m_state;
 
     // The Session's own Shot for `shot`, through the Session at `sessionFolder` (P10). Null: not held (N1).

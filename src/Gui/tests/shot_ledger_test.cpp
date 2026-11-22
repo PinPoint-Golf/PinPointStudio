@@ -33,6 +33,7 @@
 #include "shot/shot_list_model.h"
 #include "swing_doc.h"
 #include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
+#include "fake_shot_door.h"   // the carousel reaches a shot only through the door (step 5.1)
 #include "session_store.h"   // the one allocator (step 2.2)
 #include "temp_library.h"
 #include "swing_store.h"
@@ -141,7 +142,9 @@ static void testOrdinals()
     std::printf("\nO — the ordinal identifies one shot\n");
 
     {
+        pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel m;
+        m.setShotCommands(&mDoor);
         const int a = m.addShot(QStringLiteral("/s/swing_0001"), QStringLiteral("13:00"),
                                 QStringLiteral("7-iron"), true, QUrl(), {}, 70, {});
         const int b = m.addShot(QStringLiteral("/s/swing_0002"), QStringLiteral("13:01"),
@@ -158,7 +161,9 @@ static void testOrdinals()
     // The golfer trashes a bad shot and hits another; both are announced as
     // "Shot 3", and the second one's toast points at a row that is gone.
     {
+        pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel m;
+        m.setShotCommands(&mDoor);
         QSet<int> issued;
         for (int i = 1; i <= 3; ++i) {
             const int id = m.addShot(QStringLiteral("/s/swing_%1").arg(i),
@@ -211,7 +216,9 @@ static void testOrdinalAgreement()
                   base.addSecs(240));
 
     // The carousel reloads that session ...
+    pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel m;
+    m.setShotCommands(&mDoor);
     m.loadSessionDir(session);
     checkInt(QStringLiteral("X1 both surviving swings reload"), m.rowCount(), 2);
 
@@ -230,7 +237,9 @@ static void testOrdinalAgreement()
     // And the same swing must keep that number across a restart — this is the
     // sharper form of the same claim: the number is a property of the shot, not
     // of when you happen to look at it.
+    pinpoint::testdoc::FolderDoor reloadedDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel reloaded;
+    reloaded.setShotCommands(&reloadedDoor);
     reloaded.loadSessionDir(session);
     int reloadedOrdinal = 0;
     for (int row = 0; row < reloaded.rowCount(); ++row) {
@@ -261,7 +270,9 @@ static void testLoadSessionDir()
         writeSwingDoc(session + QStringLiteral("/swing_%1").arg(i, 4, 10, QLatin1Char('0')),
                       i, QStringLiteral("7-iron"), i % 2 == 0, base.addSecs(i * 60));
 
+    pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel m;
+    m.setShotCommands(&mDoor);
     m.loadSessionDir(session);
     checkInt(QStringLiteral("L1 every swing reloads"), m.rowCount(), kCount);
     checkInt(QStringLiteral("L2 activeCount agrees with the row count"), m.activeCount(), kCount);
@@ -292,7 +303,9 @@ static void testLoadSessionDir()
     checkInt(QStringLiteral("L7 an empty session dir clears the carousel"), m.rowCount(), 0);
 
     // A folder with no readable documents in it is an empty session, not a crash.
+    pinpoint::testdoc::FolderDoor m2Door;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel m2;
+    m2.setShotCommands(&m2Door);
     m2.loadSessionDir(lib.root());
     checkInt(QStringLiteral("L8 a folder with no swings loads as empty"), m2.rowCount(), 0);
 
@@ -301,7 +314,9 @@ static void testLoadSessionDir()
     QDir().mkpath(broken);
     QFile bad(broken + QStringLiteral("/swing.json"));
     if (bad.open(QIODevice::WriteOnly)) { bad.write("{ this is not json"); bad.close(); }
+    pinpoint::testdoc::FolderDoor m3Door;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel m3;
+    m3.setShotCommands(&m3Door);
     m3.loadSessionDir(session);
     checkInt(QStringLiteral("L9 a corrupt document is skipped, the rest still load"),
              m3.rowCount(), kCount);
@@ -322,8 +337,9 @@ static void testReviewWriteThrough()
     const QString swing = session + QStringLiteral("/swing_0001");
     writeSwingDoc(swing, 1, QStringLiteral("7-iron"), true, QDateTime::currentDateTime());
 
+    pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel m;
-    m.setRecordingRepository(&pinpoint::testdoc::repo());   // the edits write through the one door
+    m.setShotCommands(&mDoor);
     m.loadSessionDir(session);
     checkInt(QStringLiteral("W0 the fixture swing loaded"), m.rowCount(), 1);
     const int id = m.data(m.index(0), ShotListModel::ShotIdRole).toInt();
@@ -334,7 +350,9 @@ static void testReviewWriteThrough()
     m.setClub(id, QStringLiteral("DRIVER"));   // as the picker offers it
 
     // Round-trip through a fresh model, exactly as the next session would.
+    pinpoint::testdoc::FolderDoor reloadedDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel reloaded;
+    reloaded.setShotCommands(&reloadedDoor);
     reloaded.loadSessionDir(session);
     checkInt(QStringLiteral("W1 the rating comes back"),
              reloaded.data(reloaded.index(0), ShotListModel::RatingRole).toInt(), 4);
@@ -369,7 +387,9 @@ static void testReviewWriteThrough()
     // A shot that never reached disk has nowhere to write through to, and the
     // contract is that this is harmless rather than an error.
     {
+        pinpoint::testdoc::FolderDoor memDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel mem;
+        mem.setShotCommands(&memDoor);
         const int memId = mem.addShot(QString(), QStringLiteral("13:00"),
                                       QStringLiteral("7-iron"), false, QUrl(), {}, 0, {});
         mem.setRating(memId, 3);
@@ -400,8 +420,9 @@ static void testLmAnnotationsWriteThrough()
     const QString swing = session + QStringLiteral("/swing_0001");
     writeSwingDoc(swing, 1, QStringLiteral("DRIVER"), true, QDateTime::currentDateTime());
 
+    pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel m;
-    m.setRecordingRepository(&pinpoint::testdoc::repo());   // the edits write through the one door
+    m.setShotCommands(&mDoor);
     m.loadSessionDir(session);
     checkInt(QStringLiteral("M0 the fixture swing loaded"), m.rowCount(), 1);
     const int id = m.data(m.index(0), ShotListModel::ShotIdRole).toInt();
@@ -417,7 +438,9 @@ static void testLmAnnotationsWriteThrough()
 
     // The cheap path: loadSessionDir reads the summary, never the document.
     {
+        pinpoint::testdoc::FolderDoor reloadedDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel reloaded;
+        reloaded.setShotCommands(&reloadedDoor);
         reloaded.loadSessionDir(session);
         check(QStringLiteral("M4 left out comes back through the summary path"),
               reloaded.data(reloaded.index(0), ShotListModel::LmExcludedRole).toBool());
@@ -439,7 +462,9 @@ static void testLmAnnotationsWriteThrough()
     // A star rating rewrites the review block — and must merge, not replace.
     m.setRating(id, 4);
     {
+        pinpoint::testdoc::FolderDoor reloadedDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel reloaded;
+        reloaded.setShotCommands(&reloadedDoor);
         reloaded.loadSessionDir(session);
         checkInt(QStringLiteral("M9 the rating landed"),
                  reloaded.data(reloaded.index(0), ShotListModel::RatingRole).toInt(), 4);
@@ -459,7 +484,9 @@ static void testLmAnnotationsWriteThrough()
     checkStr(QStringLiteral("M13 a club outside the bag is refused"),
              m.data(m.index(0), ShotListModel::LmClubOverrideRole).toString(), QStringLiteral("DRIVER"));
     {
+        pinpoint::testdoc::FolderDoor reloadedDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel reloaded;
+        reloaded.setShotCommands(&reloadedDoor);
         reloaded.loadSessionDir(session);
         checkStr(QStringLiteral("M14 the decline survives a reload"),
                  reloaded.data(reloaded.index(0), ShotListModel::LmClubOverrideRole).toString(),
@@ -478,7 +505,9 @@ static void testLmAnnotationsWriteThrough()
               !review.contains(QStringLiteral("clubOverride")));
         checkInt(QStringLiteral("M17 and the rating beside them is still there"),
                  review.value(QStringLiteral("rating")).toInt(), 4);
+        pinpoint::testdoc::FolderDoor reloadedDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel reloaded;
+        reloaded.setShotCommands(&reloadedDoor);
         reloaded.loadSessionDir(session);
         check(QStringLiteral("M18 restored reads back as not left out"),
               !reloaded.data(reloaded.index(0), ShotListModel::LmExcludedRole).toBool());
@@ -486,7 +515,9 @@ static void testLmAnnotationsWriteThrough()
 
     // In memory only: no folder, nothing to write, nothing goes wrong.
     {
+        pinpoint::testdoc::FolderDoor memDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel mem;
+        mem.setShotCommands(&memDoor);
         const int memId = mem.addShot(QString(), QStringLiteral("13:00"), QStringLiteral("DRIVER"),
                                       false, QUrl(), {}, 0, {});
         mem.setLmExcluded(memId, true);
@@ -582,7 +613,9 @@ static void testLmReadingsAfterCheapReload()
 
     // The precondition the bug lived in: the cheap reload knows a device measured the shot, and
     // holds none of what it measured.
+    pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel m;
+    m.setShotCommands(&mDoor);
     m.loadSessionDir(session);
     checkInt(QStringLiteral("R2 both swings reloaded"), m.rowCount(), 2);
     const QModelIndex lmRow = m.index(0), plainRow = m.index(1);   // newest first
@@ -641,7 +674,9 @@ static void testAttachSwingDir()
     const QString swing = session + QStringLiteral("/swing_0001");
     writeSwingDoc(swing, 1, QStringLiteral("Driver"), false, QDateTime::currentDateTime());
 
+    pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel m;
+    m.setShotCommands(&mDoor);
     const int id = m.addShot(QString(), QStringLiteral("13:00"), QStringLiteral("7-iron"),
                              false, QUrl(), {}, 0, {});
     checkInt(QStringLiteral("A1 the shot has a row before the reading arrives"), m.rowCount(), 1);
@@ -672,7 +707,9 @@ static void testActiveCountSignal()
 {
     std::printf("\nC — activeCount announces every change\n");
 
+    pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
     ShotListModel m;
+    m.setShotCommands(&mDoor);
     QSignalSpy spy(&m, &ShotListModel::activeCountChanged);
 
     const int a = m.addShot(QString(), QStringLiteral("13:00"), QStringLiteral("7-iron"),
@@ -741,7 +778,9 @@ static void testTrashOpenSwing()
     // D1–D6: a real file held open, released by the releaser, a real move.
     {
         const QString dir = makeSwing(session, 1);
+        pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel m;
+        m.setShotCommands(&mDoor);
         const int id = m.addShot(dir, QStringLiteral("13:00"), QStringLiteral("7-iron"),
                                  true, QUrl(), {}, 70, {});
         auto *video = new QFile(dir + QStringLiteral("/dtl.mp4"));
@@ -762,7 +801,7 @@ static void testTrashOpenSwing()
                 QTimer::singleShot(250, &m, [&video] { delete video; video = nullptr; });
             }
         });
-        m.setTrashFunction([&](const QString &d) { order << QStringLiteral("move"); return renameAway(d); });
+        mDoor.trashMove = ([&](const QString &d) { order << QStringLiteral("move"); return renameAway(d); });
         m.setTrashRetry(50, 4000);
         QSignalSpy trashed(&m, &ShotListModel::shotTrashed);
         QSignalSpy finished(&m, &ShotListModel::trashFinished);
@@ -786,13 +825,15 @@ static void testTrashOpenSwing()
     // D7–D9: the retry, on every platform — a move refused while the "file" is held.
     {
         const QString dir = makeSwing(session, 2);
+        pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel m;
+        m.setShotCommands(&mDoor);
         const int id = m.addShot(dir, QStringLiteral("13:01"), QStringLiteral("7-iron"),
                                  true, QUrl(), {}, 70, {});
         bool held = true;
         int attempts = 0;
         m.setFolderReleaser([&](const QString &) { QTimer::singleShot(300, &m, [&held] { held = false; }); });
-        m.setTrashFunction([&](const QString &d) { ++attempts; return !held && renameAway(d); });
+        mDoor.trashMove = ([&](const QString &d) { ++attempts; return !held && renameAway(d); });
         m.setTrashRetry(40, 4000);
         QSignalSpy finished(&m, &ShotListModel::trashFinished);
         m.trashShots({ id });
@@ -806,10 +847,12 @@ static void testTrashOpenSwing()
     // D10–D12: never let go — it gives up, says why, and keeps the row.
     {
         const QString dir = makeSwing(session, 3);
+        pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel m;
+        m.setShotCommands(&mDoor);
         const int id = m.addShot(dir, QStringLiteral("13:02"), QStringLiteral("7-iron"),
                                  true, QUrl(), {}, 70, {});
-        m.setTrashFunction([](const QString &) { return false; });
+        mDoor.trashMove = ([](const QString &) { return false; });
         m.setTrashRetry(20, 200);
         QSignalSpy finished(&m, &ShotListModel::trashFinished);
         m.trashShots({ id });
@@ -828,7 +871,9 @@ static void testTrashOpenSwing()
     {
         const QString busy = makeSwing(session, 4);
         const QString free = makeSwing(session, 5);
+        pinpoint::testdoc::FolderDoor mDoor;   // the shot-command door (step 5.1: no path of the carousel's own)
         ShotListModel m;
+        m.setShotCommands(&mDoor);
         const int a = m.addShot(busy, QStringLiteral("13:03"), QStringLiteral("7-iron"), true, QUrl(), {}, 70, {});
         const int b = m.addShot(free, QStringLiteral("13:04"), QStringLiteral("7-iron"), true, QUrl(), {}, 70, {});
         const int c = m.addShot(QString(), QStringLiteral("13:05"), QStringLiteral("7-iron"), false, QUrl(), {}, 0, {});
@@ -837,7 +882,7 @@ static void testTrashOpenSwing()
         m.setFolderBusyCheck([&](const QString &d) {
             return d == busy ? QStringLiteral("is being re-analysed") : QString();
         });
-        m.setTrashFunction(renameAway);
+        mDoor.trashMove = (renameAway);
         QSignalSpy trashed(&m, &ShotListModel::shotTrashed);
         QSignalSpy finished(&m, &ShotListModel::trashFinished);
         m.trashShots({ a, b, c });

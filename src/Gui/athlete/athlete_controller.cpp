@@ -26,6 +26,7 @@
 #include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
 #include "../../DomainModel/session_repository.h"
 #include "../../Export/swing_paths.h"           // a swing folder's number, at the Wrist ★'s edge
+#include "../../DomainModel/session.h"   // the move: the Unassigned session by its folder (step 5.1)
 #include "../../DomainModel/athlete_diagnostics.h"   // AthleteLevel: Your distances, the athlete level's (3.7-f)
 #include "../../Coaching/tendencies.h"           // clubDistanceItemToJson
 #include <QDate>
@@ -210,9 +211,16 @@ void AthleteController::rebuild()
 {
     QVariantList list;
     list.reserve(m_ids.size());
+    const AthleteId wantedNow = AthleteId::fromString(ppSettings().value(kCurrentUuid, QString()).toString());
     for (const AthleteId &id : std::as_const(m_ids)) {
         Athlete *a = m_athletesDoor.loadAthlete ? m_athletesDoor.loadAthlete(id) : nullptr;
         if (!a) continue;
+        // R-UNASSIGNED-3 (DEC-198, step 5's question 2 (a)): the Unassigned owner is listed only while its SessionIndex
+        // holds a session — read with the activity (off the GUI thread: the index is a folder walk), so it shows once
+        // that read lands — and while it is the athlete on screen (a last session trashed under it), so the picker still
+        // finds the current athlete; a last MOVE switches to the golfer instead (J-68: moveSessionToAthlete).
+        if (a->isUnassigned() && m_activity.value(id.toString()).indexed == 0 && id != wantedNow)
+            continue;
         // An edit is announced by the Athlete itself (the interim for EVT-14).
         connect(a, &Athlete::recordChanged, this, &AthleteController::rebuild, Qt::UniqueConnection);
         list.append(mapOf(*a));
@@ -738,6 +746,44 @@ bool AthleteController::removeClubRecord(const QString &uuid, const QString &clu
         return false;
     const WriteResult w = a->editBag(clubs);
     return w.ok();
+}
+
+bool AthleteController::isUnassignedSession(const QString &sessionDir) const
+{
+    if (sessionDir.trimmed().isEmpty() || !m_athletesDoor.loadAthlete)
+        return false;
+    Athlete *u = m_athletesDoor.loadAthlete(pinpoint::unassignedAthleteId());
+    return u && u->sessionAt(QDir::cleanPath(sessionDir)) != nullptr;
+}
+
+QString AthleteController::moveSessionToAthlete(const QString &sessionDir, const QString &toUuid)
+{
+    Athlete *to = athleteFor(toUuid);
+    if (!to || to->isUnassigned())
+        return tr("Choose a golfer to move the session to.");
+    // The record is written at the first move if it is not there yet (J-67: held in memory until a write).
+    pinpoint::WriteResult made;
+    Athlete *from = m_athletesDoor.unassigned ? m_athletesDoor.unassigned(/*create=*/true, &made) : nullptr;
+    if (!from)
+        return made.error.isEmpty() ? tr("The session could not be moved.") : made.error;
+    pinpoint::Session *session = from->sessionAt(QDir::cleanPath(sessionDir));
+    if (!session)
+        return tr("Only a session with no golfer can be moved to a golfer.");
+    QString moved;
+    const pinpoint::WriteResult r = from->moveSessionTo(session->id(), *to, &moved);
+    if (!r.ok()) {
+        ppWarn() << "[Athlete] could not move" << sessionDir << "to" << to->record().name << "-" << r.error;
+        return r.error.isEmpty() ? tr("The session could not be moved.") : r.error;
+    }
+    ppInfo() << "[Athlete] moved" << sessionDir << "to" << to->record().name << "at" << moved;
+    // J-68 (step 5.1 review B3): the last session moved out of Unassigned while it is the athlete on screen — the app goes
+    // to the golfer it went to (where the golfer's attention goes next), so Unassigned, empty, leaves the picker
+    // (R-UNASSIGNED-3). A switch refused (a session running) keeps it until the next switch.
+    if (m_current == from && from->index().isEmpty() && !selectAthlete(toUuid))
+        ppInfo() << "[Athlete] Unassigned is empty but stays on screen: the switch to" << to->record().name << "was refused";
+    refreshActivity();   // both golfers' counts; Unassigned leaves the picker once it holds none (R-UNASSIGNED-3)
+    emit sessionMoved(QDir::cleanPath(sessionDir), moved);
+    return {};
 }
 
 bool AthleteController::deleteAthlete(const QString &uuid)

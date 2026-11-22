@@ -19,7 +19,6 @@
 #include "shot_list_model.h"
 
 #include "../Export/swing_doc.h"
-#include "../DomainModel/recording_repository.h"
 #include "../../App/shot_command_door.h"
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
@@ -164,20 +163,14 @@ int ShotListModel::addShot(const QString &swingDir, const QString &timestampLabe
     // pose track) and the file was written moments ago by the join.
     //
     // A SHOT A SESSION HOLDS (refactor step 3.4b-ii): the number, and the review facts, are its Shot's — its summary,
-    // read by the Shot through its repository (the same cheap read). Otherwise (N1) the carousel reads it, as today.
+    // read by the Shot through its repository (the same cheap read). A shot no Session holds (no door: a tool or a
+    // test) reads nothing here (step 5.1: the carousel keeps no read of its own) and takes the next number below.
     int ordinal = 0;
     pinpoint::ShotRef     ref;
     pinpoint::ShotSummary facts;
     const bool held = !swingDir.isEmpty() && shotFacts(swingDir, ref, pinpoint::SummaryRead::AgainCheap, facts);
-    if (held) {
-        if (facts.ok)
-            ordinal = facts.ordinal;
-    } else if (!swingDir.isEmpty()) {
-        const pinpoint::SwingSummary sum =
-            pinpoint::SwingDocReader::readSwingSummary(swingDir, /*writeSidecar=*/false);
-        if (sum.ok)
-            ordinal = sum.ordinal;
-    }
+    if (held && facts.ok)
+        ordinal = facts.ordinal;
     // A shot with no document — export and analysis both produced nothing — has
     // no number of its own, so it takes the next one this model has not issued.
     // ⚠ NOT max(ordinal) + 1 OVER THE ROWS: trash the newest shot and hit
@@ -308,23 +301,10 @@ void ShotListModel::seedFrom(const QString &dir)
             return;
         }
     }
-    // A session no Athlete holds (N1): the carousel reads it itself, as today.
-    // ⚠ THE CHEAP READ, and it has to be (2026-09-16). This ran the FULL parse on every swing in
-    // the session — ~28 MB of document each, whose analysis.pose2d alone is ~13 MB, deep-converted
-    // to QVariant — on the GUI thread, over a network share, in a debug build. Ending a session
-    // froze the UI for ~10 s and grew with every shot taken. The summary sidecar carries everything
-    // a row shows; the only thing it omits is the launch monitor's slice, which the board reads on demand.
-    for (const QString &sd : pinpoint::SwingDocReader::findSwingDirs(dir)) {
-        const pinpoint::SwingSummary s = pinpoint::SwingDocReader::readSwingSummary(sd);
-        if (!s.ok)
-            continue;
-        addPersistedShot(s.swingDir, s.ordinal, s.timestampLabel, s.club, s.hasVideo,
-                         s.thumbnailPath.isEmpty() ? QUrl()
-                                                   : QUrl::fromLocalFile(s.thumbnailPath),
-                         s.score, s.rating, s.note, s.metrics, QVariantMap{},
-                         s.dataWarning, s.lmDevice, s.dataWarningDetail,
-                         s.excluded, s.clubOverride);
-    }
+    // A session no athlete of the library holds (a folder none lists; no door: a tool or a test): no rows. Since step
+    // 5.1 every session capture or review shows is a Session (the Unassigned owner's with no golfer: §5.11), and the
+    // carousel keeps no read of its own (N1 is gone).
+    ppWarn() << "[ShotListModel] no Session holds" << dir << "- its shots are not listed";
 }
 
 void ShotListModel::refreshShot(const QString &swingDir)
@@ -446,29 +426,9 @@ void ShotListModel::clear()
 pinpoint::ShotRef ShotListModel::shotOf(int row)
 {
     Shot &s = m_shots[row];
-    if (s.shot.isNull() && m_repo && !s.swingDir.isEmpty())
-        s.shot = m_repo->shotOfFolder(s.swingDir);
+    if (s.shot.isNull() && m_commands && !s.swingDir.isEmpty())
+        s.shot = m_commands->shotOfFolder(s.swingDir);   // through the Session that holds it
     return s.shot;
-}
-
-void ShotListModel::persistReview(int row)
-{
-    const Shot &s = m_shots.at(row);
-    if (s.swingDir.isEmpty())
-        return;
-    if (!m_repo) {
-        ppWarn() << "[ShotListModel] review write-through skipped — no recording repository:" << s.swingDir;
-        return;
-    }
-    pinpoint::ReviewEdit edit;
-    edit.rating = s.rating;
-    edit.note   = s.note;
-    edit.club   = s.club;
-    const pinpoint::WriteResult w = m_repo->editReview(shotOf(row), edit);
-    if (!w.ok()) {
-        ppWarn() << "[ShotListModel] review write-through failed:" << w.error;
-        emit saveFailed(tr("The shot's rating, note or club"), w.error);
-    }
 }
 
 ShotListModel::Edit ShotListModel::forwarded(int row, const char *what, const Forward &command)
@@ -476,19 +436,28 @@ ShotListModel::Edit ShotListModel::forwarded(int row, const char *what, const Fo
     Shot &s = m_shots[row];
     if (s.swingDir.isEmpty())
         return Edit::InMemory;   // in memory only, as today: nothing to save, and no Shot to tell
-    if (!m_commands)
+    QString words = QString::fromLatin1(what);
+    if (!words.isEmpty()) words[0] = words[0].toUpper();
+    // NOT HELD (no athlete of the library holds the shot's session, or no door: a tool or a test): REFUSED, and it says
+    // so — the row keeps what it showed (step 5.1: the carousel writes nothing itself; N1's write-through is gone).
+    const auto notHeld = [this, &s, &words, what] {
+        s.held = false;
+        const QString why = tr("No golfer's session holds this shot, so nothing was saved.");
+        ppWarn() << "[ShotListModel]" << what << "not saved: no Session holds" << s.swingDir;
+        emit saveFailed(words, why);
         return Edit::NotHeld;
+    };
+    if (!m_commands)
+        return notHeld();
     const pinpoint::ShotRef ref = shotOf(row);
     if (ref.isNull())
-        return Edit::NotHeld;
+        return notHeld();
     const pinpoint::ForwardResult f = command(*m_commands, pinpoint::sessionFolderOf(s.swingDir), ref);
     s.held = f.reached;
     if (!f.reached)
-        return Edit::NotHeld;   // no Session holds it (N1): today's write-through
+        return notHeld();
     if (!f.result.ok()) {
         ppWarn() << "[ShotListModel]" << what << "not saved:" << f.result.error;
-        QString words = QString::fromLatin1(what);
-        if (!words.isEmpty()) words[0] = words[0].toUpper();
         emit saveFailed(words, f.result.error);
     }
     return Edit::Shot;
@@ -501,8 +470,8 @@ bool ShotListModel::shotFacts(const QString &swingDir, pinpoint::ShotRef &ref, p
 {
     if (!m_commands || swingDir.isEmpty())
         return false;
-    if (ref.isNull() && m_repo)
-        ref = m_repo->shotOfFolder(swingDir);   // the edge (DEC-90), once per row
+    if (ref.isNull())
+        ref = m_commands->shotOfFolder(swingDir);   // the edge (DEC-90), once per row, through the Session
     if (ref.isNull())
         return false;
     const std::optional<pinpoint::ShotSummary> f =
@@ -573,7 +542,7 @@ void ShotListModel::setRating(int id, int n)
     switch (forwarded(row, "the rating", [n](pinpoint::ShotCommandDoor &d, const QString &f, const pinpoint::ShotRef &r) {
                 return d.rate(f, r, n); })) {
     case Edit::Shot:     takeShotReview(row, pinpoint::SummaryRead::Kept); break;   // the row shows what the Shot holds
-    case Edit::NotHeld:  m_shots[row].rating = n; persistReview(row); break;
+    case Edit::NotHeld:  break;   // refused, and said so (forwarded): the row keeps what it showed
     case Edit::InMemory: m_shots[row].rating = n; break;
     }
     emit dataChanged(index(row), index(row), { RatingRole });
@@ -587,7 +556,7 @@ void ShotListModel::setNote(int id, const QString &text)
     switch (forwarded(row, "the note", [&text](pinpoint::ShotCommandDoor &d, const QString &f, const pinpoint::ShotRef &r) {
                 return d.note(f, r, text); })) {
     case Edit::Shot:     takeShotReview(row, pinpoint::SummaryRead::Kept); break;
-    case Edit::NotHeld:  m_shots[row].note = text; persistReview(row); break;
+    case Edit::NotHeld:  break;   // refused, and said so (forwarded): the row keeps what it showed
     case Edit::InMemory: m_shots[row].note = text; break;
     }
     emit dataChanged(index(row), index(row), { NoteRole });
@@ -610,32 +579,10 @@ void ShotListModel::setClub(int id, const QString &club)
     switch (forwarded(row, "the declared club", [&club](pinpoint::ShotCommandDoor &d, const QString &f,
                                                         const pinpoint::ShotRef &r) { return d.setDeclaredClub(f, r, club); })) {
     case Edit::Shot:     takeShotReview(row, pinpoint::SummaryRead::Kept); break;
-    case Edit::NotHeld:  m_shots[row].club = club; persistReview(row); break;
+    case Edit::NotHeld:  break;   // refused, and said so (forwarded): the row keeps what it showed
     case Edit::InMemory: m_shots[row].club = club; break;
     }
     emit dataChanged(index(row), index(row), { ClubRole });
-}
-
-// Persist the row's launch monitor annotations. Same rule as persistReview: no swingDir, no
-// write, no error — the row simply keeps them for the life of the session.
-void ShotListModel::persistLmAnnotations(int row)
-{
-    const Shot &s = m_shots.at(row);
-    if (s.swingDir.isEmpty())
-        return;
-    if (!m_repo) {
-        ppWarn() << "[ShotListModel] launch monitor annotation write-through skipped — no recording repository:"
-                 << s.swingDir;
-        return;
-    }
-    pinpoint::ReviewEdit edit;
-    edit.excluded     = s.lmExcluded;
-    edit.clubOverride = s.lmClubOverride;
-    const pinpoint::WriteResult w = m_repo->editReview(shotOf(row), edit);
-    if (!w.ok()) {
-        ppWarn() << "[ShotListModel] launch monitor annotation write-through failed:" << w.error;
-        emit saveFailed(tr("The launch monitor reading's exclusion or club"), w.error);
-    }
 }
 
 void ShotListModel::setLmExcluded(int id, bool excluded)
@@ -647,7 +594,7 @@ void ShotListModel::setLmExcluded(int id, bool excluded)
                                                                  const pinpoint::ShotRef &r) {
                 return d.excludeReading(f, r, excluded); })) {
     case Edit::Shot:     takeShotReview(row, pinpoint::SummaryRead::Kept); break;
-    case Edit::NotHeld:  m_shots[row].lmExcluded = excluded; persistLmAnnotations(row); break;
+    case Edit::NotHeld:  break;   // refused, and said so (forwarded): the row keeps what it showed
     case Edit::InMemory: m_shots[row].lmExcluded = excluded; break;
     }
     emit dataChanged(index(row), index(row), { LmExcludedRole });
@@ -676,7 +623,7 @@ void ShotListModel::setLmClubOverride(int id, const QString &club)
                                                             const pinpoint::ShotRef &r) {
                 return d.correctClub(f, r, stored); })) {
     case Edit::Shot:     takeShotReview(row, pinpoint::SummaryRead::Kept); break;
-    case Edit::NotHeld:  m_shots[row].lmClubOverride = stored; persistLmAnnotations(row); break;
+    case Edit::NotHeld:  break;   // refused, and said so (forwarded): the row keeps what it showed
     case Edit::InMemory: m_shots[row].lmClubOverride = stored; break;
     }
     emit dataChanged(index(row), index(row), { LmClubOverrideRole });
@@ -693,7 +640,8 @@ QStringList ShotListModel::clubOptions()
 //
 // A SHOT A SESSION HOLDS IS TRASHED BY ITS SESSION (refactor step 3.4b-ii; BRIEF §3.3: Session::trashShot, EVT-03):
 // the same move (SessionRepository::trashShot → SwingPaths::trashPath, its number kept as the high-water) under the
-// session's lock, and the Session's collection lets the Shot go. Otherwise (N1) the move itself, as today.
+// session's lock, and the Session's collection lets the Shot go; a swing already gone counts as gone (the store's
+// rule since step 5.1). A shot no Session holds is not moved (step 5.1: no trash of the carousel's own; N1 is gone).
 bool ShotListModel::trashFolder(const QString &dir, const pinpoint::ShotRef &shot) const
 {
     if (m_commands && !shot.isNull()) {
@@ -705,7 +653,8 @@ bool ShotListModel::trashFolder(const QString &dir, const pinpoint::ShotRef &sho
             return f.result.ok();
         }
     }
-    return m_trashFn ? m_trashFn(dir) : pinpoint::SwingPaths::trashPath(dir);
+    ppWarn() << "[ShotListModel] not moved to the trash: no Session holds" << dir;
+    return false;
 }
 
 void ShotListModel::removeTrashedRow(int id, const QString &dir)
@@ -786,8 +735,8 @@ void ShotListModel::attemptPendingTrash()
     for (int i = 0; i < m_trashPending.size(); ) {
         PendingTrash &p = m_trashPending[i];
         ++p.attempts;
-        // Gone already counts as gone: someone else moved it while we waited.
-        if (trashFolder(p.dir, p.shot) || !QFileInfo::exists(p.dir)) {
+        // Gone already counts as gone: someone else moved it while we waited (the Session's trash says so: the store).
+        if (trashFolder(p.dir, p.shot)) {
             if (p.attempts > 1)
                 ppInfo() << "[ShotListModel] moved to trash on attempt" << p.attempts
                          << "after" << m_trashClock.elapsed() << "ms:" << p.dir;

@@ -74,6 +74,11 @@ Column {
     // The Sessions page, for the selection bar and toast ScreenHome floats over it.
     readonly property alias sessions: sessions
 
+    // THE UNASSIGNED OWNER on screen (information_model.md §5.11; DEC-198; J-67): its sessions are different golfers', so
+    // pooling them into Coaching, Your swing, Tendencies or Matchups is wrong data (R-UNASSIGNED-5's principle). Only
+    // Sessions shows — they list, open and play — and a notice says why the figures are not there.
+    readonly property bool noGolfer: typeof athleteController !== "undefined" && !!athleteController
+                                     && athleteController.currentIsUnassigned
     readonly property var tabKeys: ["coaching", "swing", "tendencies", "matchups", "sessions"]
     // The tab showing. Read from the settings for each athlete; "coaching" when none was chosen.
     property string current: "coaching"
@@ -107,7 +112,7 @@ Column {
     }
 
     function _read() {
-        const tab = String(ViewStore.read(root.settings, root.athleteUuid, "tab", "coaching"))
+        const tab = root.noGolfer ? "sessions" : String(ViewStore.read(root.settings, root.athleteUuid, "tab", "coaching"))
         root.current = root.tabKeys.indexOf(tab) >= 0 ? tab : "coaching"
         if (root.hasClubScope) root.controller.clubScope = String(ViewStore.read(root.settings, root.athleteUuid, "clubScope", "all"))
         if (root.hasShotFilter) root.controller.shotFilter = String(ViewStore.read(root.settings, root.athleteUuid, "shotFilter", "all"))
@@ -116,12 +121,14 @@ Column {
     function select(key) {
         key = String(key)
         if (root.tabKeys.indexOf(key) < 0) return
+        if (root.noGolfer && key !== "sessions") return
         root.current = key
         ViewStore.write(root.settings, root.athleteUuid, "tab", key)
     }
     Component.onCompleted: root._read()
     onAthleteUuidChanged:  root._read()
     onSettingsChanged:     root._read()
+    onNoGolferChanged:     root._read()
 
     width:   parent ? parent.width : 0
     spacing: Theme.gap(16)
@@ -133,9 +140,11 @@ Column {
         roles:  homeTs
         size:   "title"
         noteAfterTabs: true
-        tabs: [{ key: "coaching", label: qsTr("Coaching") }, { key: "swing", label: qsTr("Your swing") },
-               { key: "tendencies", label: qsTr("Tendencies") }, { key: "matchups", label: qsTr("Matchups") },
-               { key: "sessions", label: qsTr("Sessions"), end: true }]
+        tabs: root.noGolfer
+              ? [{ key: "sessions", label: qsTr("Sessions"), end: true }]
+              : [{ key: "coaching", label: qsTr("Coaching") }, { key: "swing", label: qsTr("Your swing") },
+                 { key: "tendencies", label: qsTr("Tendencies") }, { key: "matchups", label: qsTr("Matchups") },
+                 { key: "sessions", label: qsTr("Sessions"), end: true }]
         current: root.current
         // The evidence each tab reads: "From N swings over M sessions"; Tendencies counts its shots.
         // With no table to back, Tendencies says why in its own card and the bar stays quiet. Sessions says
@@ -172,6 +181,16 @@ Column {
     // swing, Tendencies or Matchups; the controller says how many and why (notSummedUpNote: "Bringing 24 sessions up to
     // date…" while the catch-up works, "left out" for a newer build's; refactor 4-e), in the existing notice (PpNotice,
     // its `warning` style, as Home's resource warning). Words only: no new component, variant or token.
+    PpNotice {
+        id: noGolferNotice
+        objectName: "homeNoGolfer"
+        width:   root.width
+        visible: root.noGolfer
+        style:   "warning"
+        title:   Theme.caps(qsTr("No golfer"))
+        text:    qsTr("These sessions have no golfer. Move them to a golfer to see them in their figures.")
+    }
+
     PpNotice {
         id: notSummedUp
         objectName: "homeNotSummedUp"

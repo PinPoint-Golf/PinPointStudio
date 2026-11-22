@@ -49,6 +49,9 @@ Item {
     // session dir; never emitted for the live row (it carries no '...' menu).
     signal exportRequested(string sessionId)
     signal trashRequested(string sessionId)
+    // "Move to golfer…" on a session with no golfer (the Unassigned owner's: information_model.md §5.11, R-UNASSIGNED-4;
+    // J-67): the golfer picked from the row's second menu. The host asks first (PpConfirm) and moves it.
+    signal moveRequested(string sessionId, string toUuid, string toName)
 
     // Natural content height the host popup uses to size itself (it clamps this
     // so the drawer never reaches the toolbar). list.contentHeight is independent
@@ -309,7 +312,8 @@ Item {
                         y: -height - Theme.gap(4)         // open upward, like the carousel
                         padding: Theme.gap(5)
                         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-                        contentWidth: Math.max(exportItem.contentImplicitWidth, trashItem.contentImplicitWidth)
+                        contentWidth: Math.max(exportItem.contentImplicitWidth, trashItem.contentImplicitWidth,
+                                               moveItem.visible ? moveItem.contentImplicitWidth : 0)
                                       + Theme.sp(28)
                         background: PpPopoverCard {}
 
@@ -322,6 +326,25 @@ Item {
                                 onTriggered: {
                                     rowMenu.close()
                                     drawer.exportRequested(rowBg.sessionId)
+                                }
+                            }
+
+                            // A session with no golfer (the Unassigned owner's) can be moved to a golfer (R-UNASSIGNED-4).
+                            PpMenuItem {
+                                id: moveItem
+                                objectName: "moveToGolferItem"
+                                visible: !rowBg.isLive && rowMenu.opened
+                                         && typeof athleteController !== "undefined" && !!athleteController
+                                         && athleteController.isUnassignedSession(rowBg.sessionId)
+                                height: visible ? implicitHeight : 0
+                                glyph: "→"
+                                text: qsTr("Move to golfer…")
+                                active: golferRepeater.count > 0
+                                note: active ? "" : qsTr("· no golfer yet")
+                                fontWeight: Font.Normal
+                                onTriggered: {
+                                    rowMenu.close()
+                                    moveMenu.open()
                                 }
                             }
 
@@ -338,6 +361,42 @@ Item {
                                 onTriggered: {
                                     rowMenu.close()
                                     drawer.trashRequested(rowBg.sessionId)
+                                }
+                            }
+                        }
+                    }
+
+                    // The golfers a session with no golfer can go to: the row menu's pattern again, one line each.
+                    Popup {
+                        id: moveMenu
+                        objectName: "moveToGolferMenu"
+                        parent: kebab.face
+                        x: kebab.face.width - width
+                        y: -height - Theme.gap(4)
+                        padding: Theme.gap(5)
+                        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+                        readonly property var golfers: {
+                            const all = (typeof athleteController !== "undefined" && athleteController)
+                                        ? athleteController.athletes : []
+                            const u = athleteController ? athleteController.unassignedUuid : ""
+                            return all.filter(function (a) { return a.uuid !== u })
+                        }
+                        contentWidth: Theme.sp(220)
+                        background: PpPopoverCard {}
+
+                        contentItem: Column {
+                            Repeater {
+                                id: golferRepeater
+                                model: moveMenu.golfers
+                                delegate: PpMenuItem {
+                                    required property var modelData
+                                    width: moveMenu.contentWidth
+                                    text: modelData.name
+                                    fontWeight: Font.Normal
+                                    onTriggered: {
+                                        moveMenu.close()
+                                        drawer.moveRequested(rowBg.sessionId, modelData.uuid, modelData.name)
+                                    }
                                 }
                             }
                         }

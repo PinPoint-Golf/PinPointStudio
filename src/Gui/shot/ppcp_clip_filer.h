@@ -75,14 +75,13 @@ public:
     // Borrowed, never owned — the one ledger PpcpHostService loads.
     void setLedger(Ppcp::PpcpImportLedger *ledger) { m_ledger = ledger; }
 
-    // Borrowed — the one door to the swing files (main.cpp's). A clip's stream origin is a late
-    // part of the Recording (RecordingRepository::completeCapture, IM-4); the placeholder document
-    // for a shot that produced none is its create(). Without one nothing is recorded in the swing.
+    // Borrowed — the one door to the swing files (main.cpp's): the folder's ShotRef (the edge, DEC-90) and the
+    // placeholder document for a shot that produced none (its create(); capture's write, J-15). The late part itself
+    // is never written through it (the Shot's command, below).
     void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
     // THE SHOT'S COMMAND FOR ITS LATE PART (refactor step 3.4b-i; src/App/shot_command_door.h): the clip's stream
-    // FORWARDS to its Shot (Shot::completeCapture, EVT-22), which saves it; the filer writes the late part itself
-    // only for a shot no Session holds, or with no door (the tests) — N1's interim. The placeholder document
-    // stays capture's create (J-15). main.cpp sets `app`.
+    // FORWARDS to its Shot (Shot::completeCapture, EVT-22), which saves it. A shot no Session holds — or no door (a
+    // test) — is refused and said so (step 5.1: the filer keeps no write of its own; N1 is gone). main.cpp sets `app`.
     void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
 
     // Sent when the payload is DURABLY held (MSG 8.4a).  Supplied by main.cpp

@@ -31,11 +31,13 @@
 // DEC-90) and runs the command on the Session's own Shot, which is reachable only through its Session (P10).
 //
 // NOT REACHED (`reached` false; for setShotIntent / correctLabel the call answers false and `later.done` is not
-// called): no Session holds the shot — no current athlete, a session that is not the current athlete's, a
-// session in the `unknown` folder (captured with no golfer), a corpus folder the markup tool opened — or the
-// session holds no such shot. THE CALLER THEN KEEPS TODAY'S PATH (Mark, 15 Nov 2026: build/refactor/step-3/
-// ANSWERS.md N1 of 3.4a-ii, "keep today's path" for a session no Athlete holds). A tool or test that sets no door
-// keeps today's path everywhere. Both are the interim N1 names; they go when every session has its Athlete.
+// called): no athlete of the library holds the shot's session — a folder no athlete lists (a corpus folder the markup
+// tool opened, an athlete this machine does not list) — or the session holds no such shot. A session belongs to its
+// athlete whoever is current (J-67): the door finds it through whichever athlete's folder holds it, the Unassigned
+// owner's included (a session captured with no golfer: information_model.md §5.11, DEC-198). Since step 5.1 the
+// carousel, the phone-clip filer, re-analysis and capture keep NO path of their own for a session not reached (N1 is
+// gone): they refuse the write and say so. (The LM board, markup and the diagnostics model still keep theirs for a
+// folder no athlete lists, or no door.)
 //
 // THE ROWS AND THE READERS (refactor step 3.4b-ii): the carousel's rows read a held shot's facts from its Shot
 // (shotSummary, sessionShots — the Shot's summary, never a copy the view made), trash it through its Session
@@ -137,6 +139,12 @@ public:
     virtual std::optional<RecordingSource> recordingSourceOf(const QString &sessionFolder, const ShotRef &shot) = 0;
     virtual ForwardResult applyAnalysis(const QString &sessionFolder, const ShotRef &shot,
                                         const AnalysisOutcome &outcome, const PersistOptions &options) = 0;
+    // THE EDGE (DEC-90) for a caller that still holds a swing folder: its Shot's ref, through the Session that holds it
+    // (Session::shotAtFolder). Null: not reached. GUI thread.
+    virtual ShotRef shotOfFolder(const QString &swingFolder) = 0;
+    // Whether the shot's DOCUMENT says the launch monitor alone recorded it (Shot::documentIsDeviceOnly, R-REC-8; review
+    // 1 of 3.4b-ii: CN-1, a rescued camera shot is device-only by its document). nullopt: not reached.
+    virtual std::optional<bool> isDeviceOnly(const QString &sessionFolder, const ShotRef &shot) = 0;
 
     // The Session's commands for its intent (Session::setSessionIntent, setIntentRun).
     virtual ForwardResult setSessionIntent(const QString &sessionFolder, const SessionIntentEdit &edit,

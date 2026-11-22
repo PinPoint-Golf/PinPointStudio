@@ -70,37 +70,36 @@ void ReanalysisController::reanalyse(const QVariantList &swingDirs)
 
 pinpoint::analysis::AnalysisWrite ReanalysisController::writeBackOf(const QString &dir, const pinpoint::ShotRef &shot) const
 {
-    // A shot a Session holds: the Shot's own write-back (Shot::applyAnalysis, EVT-02), reached through `app`. The
-    // door is asked again at the write, on this thread: a shot trashed or a session let go mid-batch is not reached,
-    // and then today's write keeps the repository's empty-document guard (the folder gone: nothing written).
-    pinpoint::ShotCommandDoor     *door = m_commands;
-    pinpoint::RecordingRepository *repo = m_repo;
-    return [door, repo, dir, shot](const pinpoint::AnalysisOutcome &outcome, const pinpoint::PersistOptions &options) {
+    // The Shot's own write-back (Shot::applyAnalysis, EVT-02), reached through `app` — the Session that holds it, the
+    // golfer's whoever is current now (J-67) or the Unassigned owner's (§5.11). The door is asked again at the write, on
+    // this thread: a shot trashed or a session let go mid-batch is not reached, and nothing is written (step 5.1: no
+    // write of the controller's own; N1 is gone).
+    pinpoint::ShotCommandDoor *door = m_commands;
+    return [door, dir, shot](const pinpoint::AnalysisOutcome &outcome, const pinpoint::PersistOptions &options) {
         if (door) {
             const pinpoint::ForwardResult f =
                 door->applyAnalysis(pinpoint::sessionFolderOf(dir), shot, outcome, options);
             if (f.reached)
                 return f.result;
         }
-        if (!repo)
-            return pinpoint::WriteResult{ pinpoint::WriteResult::Status::Failed,
-                                          QStringLiteral("no swing store is connected") };
-        return repo->writeAnalysis(shot, outcome, options);   // N1's interim: no Session holds the shot
+        return pinpoint::WriteResult{ pinpoint::WriteResult::Status::Failed,
+                                      QStringLiteral("no session holds the shot now (trashed, or its session let go)") };
     };
 }
 
 bool ReanalysisController::refreshIfDeviceOnly(const QString &dir)
 {
-    if (!m_repo)
+    if (!m_commands)
         return false;
-    // The edge (DEC-90): the queued folder to its ShotRef, on this (the owner) thread.
-    const pinpoint::ShotRef shot = m_repo->shotOfFolder(dir);
+    // The edge (DEC-90): the queued folder to its ShotRef, on this (the owner) thread, through the Session that holds it.
+    const pinpoint::ShotRef shot = m_commands->shotOfFolder(dir);
     // LAUNCH MONITOR ONLY is the DOCUMENT's classification (RecordingRepository::isDeviceOnly: the recorded kind,
     // else the content rule, R-REC-8), as before — not the Shot's kind: a camera shot whose export failed and whose
     // folder the launch monitor then filled (the rescue) is device-only by its document while its Shot was allocated
     // as captured (53a3bb0a's case; review 1, CN-1). Its rows are then derived again, through its Shot if held.
-    if (!m_repo->isDeviceOnly(shot))
-        return false;
+    const std::optional<bool> deviceOnly = m_commands->isDeviceOnly(pinpoint::sessionFolderOf(dir), shot);
+    if (!deviceOnly || !*deviceOnly)
+        return false;   // a camera shot, or one no Session holds (the worker's turn then says so)
     const pinpoint::analysis::PersistedReanalysis p =
         pinpoint::analysis::persistReanalysis(writeBackOf(dir, shot), nullptr, persistOptions());
     if (p.ok()) {
@@ -152,23 +151,18 @@ void ReanalysisController::startNext()
     // escape hatch for SwingLab/debugging only.
     // The edge (DEC-90): translated here, on the owner thread; the worker reads by the ShotRef, whose
     // folder the session repository resolves from any thread.
-    m_currentShot = m_repo ? m_repo->shotOfFolder(dir) : pinpoint::ShotRef();
-    // HOW THE WORKER READS IT (04 step 3 item 8, "they ask the Shot"): the Shot's RecordingSource for a shot a
-    // Session holds; else (N1) the same reader main.cpp hands the Shots, wrapped as a source (not owned).
+    m_currentShot = m_commands ? m_commands->shotOfFolder(dir) : pinpoint::ShotRef();
+    // HOW THE WORKER READS IT (04 step 3 item 8, "they ask the Shot"): the Shot's RecordingSource, through the Session
+    // that holds it. A shot no Session holds is not read (step 5.1: no reader of the controller's own; N1 is gone).
     const std::optional<pinpoint::RecordingSource> held =
         m_commands ? m_commands->recordingSourceOf(pinpoint::sessionFolderOf(dir), m_currentShot) : std::nullopt;
-    const pinpoint::RecordingSource source =
-        held ? *held
-             : pinpoint::RecordingSource(m_currentShot,
-                                         m_reader ? std::shared_ptr<pinpoint::RecordingReader>(
-                                                        m_reader, [](pinpoint::RecordingReader *) {})
-                                                  : std::shared_ptr<pinpoint::RecordingReader>());
-    const bool noReader = !held && !m_reader;
-    m_watcher.setFuture(QtConcurrent::run([source, noReader] {
+    const pinpoint::RecordingSource source = held ? *held : pinpoint::RecordingSource(m_currentShot, {});
+    const bool notHeld = !held;
+    m_watcher.setFuture(QtConcurrent::run([source, notHeld] {
         pinpoint::osmetrics::ThreadScope _tscope("Analysis.Worker");
-        if (noReader) {
+        if (notHeld) {
             pinpoint::analysis::ReanalyzeResult none;
-            none.error = QStringLiteral("This shot couldn't be re-analysed: no swing reader is connected.");
+            none.error = QStringLiteral("This shot couldn't be re-analysed: no golfer's session holds it.");
             return none;
         }
         return pinpoint::analysis::reanalyzeShot(source, pinpoint::analysis::ReanalyzeOptions{});
@@ -192,14 +186,6 @@ void ReanalysisController::onWorkerFinished()
         startNext();
         return;
     }
-    if (!m_repo) {
-        ++m_failed;
-        m_lastError = QStringLiteral("Couldn't save the re-analysis: no swing store is connected.");
-        ppError() << "[Reanalysis] write-back failed for" << dir << ": no RecordingRepository wired";
-        startNext();
-        return;
-    }
-
     // The one write-back, here on the GUI thread as always: the repository reads the document
     // fresh (preserving capture / streams / review), sets both integrity verdicts this pass reached
     // (a verdict it could not reach is withdrawn — carrying the capture-time block forward is what

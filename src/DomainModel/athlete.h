@@ -85,6 +85,7 @@
 #include <QList>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariant>
 #include <QVariantMap>
 
@@ -215,6 +216,7 @@ struct AthleteRemoval {
 struct AthleteActivity {
     int    sessions  = 0;
     qint64 lastAtSec = 0;
+    int    indexed   = 0;   // every session its SessionIndex holds, a swing or none (R-UNASSIGNED-3: the picker's rule)
 };
 
 class Athlete : public QObject
@@ -241,6 +243,14 @@ public:
     // for an athlete with athlete.json (so a rename leaves its sessions where they are), today's name
     // for a settings athlete.
     SessionOwner         sessionOwner() const { return m_owner; }
+    // THE UNASSIGNED OWNER (information_model.md §5.11; DEC-198): the athlete a session captured with no golfer chosen
+    // belongs to, identified by its fixed id (R-UNASSIGNED-1). It has no norm cohort and freezes no club baseline
+    // (R-UNASSIGNED-5), and its record holds only its id and name: it is never edited.
+    bool                 isUnassigned() const { return pinpoint::isUnassigned(m_id); }
+    // THE REPOSITORY'S SIDE: other folders this athlete's sessions are found in, besides folder() — for Unassigned, the
+    // no-golfer `unknown/` folder an older build captured into, held where it is (R-UNASSIGNED-4; J-66).
+    void                 setOtherFolders(const QStringList &folders) { m_otherFolders = folders; }
+    QStringList          otherFolders() const { return m_otherFolders; }
 
     // OBJ-SESSION-INDEX (DEC-136): every session of the athlete, through SessionRepository. Reads only.
     QList<SessionIndexEntry> index() const;
@@ -275,6 +285,12 @@ public:
     SessionId   todaysSession(const QString &type) const;
     Session    *resumeSession(const SessionId &id, const QString &type, WriteResult *result = nullptr);
     WriteResult trashSession(const SessionId &id, QString *where = nullptr);
+    // THE MOVE TO A GOLFER (information_model.md §5.11, R-UNASSIGNED-4; DEC-198; J-67): the session's folder goes into
+    // `to`'s folder, keeping its name and SessionId; only session.json's athleteId is rewritten (the swing headers keep
+    // what capture recorded: R-REC-1). Refused while it is in progress (P3), archived, locked or read-only. Its Session
+    // is released first (its diagnostics write what they kept, as any release), so nothing is written into the old
+    // folder after it moves; `to` loads it afresh. sessionMovedOut here, sessionMovedIn on `to`, after the write.
+    WriteResult moveSessionTo(const SessionId &id, Athlete &to, QString *newFolder = nullptr);
     Session    *sessionAt(const QString &folder);
     Session    *session(const SessionId &id);
     QList<Session *> sessions();
@@ -307,6 +323,9 @@ signals:
     void sessionStarted(const pinpoint::SessionId &session);   // EVT-17
     void sessionResumed(const pinpoint::SessionId &session);   // EVT-23
     void sessionTrashed(const pinpoint::SessionId &session);   // EVT-20
+    // The move to another athlete (§5.11 R-UNASSIGNED-4; J-67): the session left this athlete / arrived at this one.
+    void sessionMovedOut(const pinpoint::SessionId &session);
+    void sessionMovedIn(const pinpoint::SessionId &session);
     // Not a domain event (refactor step 3.6): a Session is now held (loaded), its diagnostics attached — for its
     // AthleteDiagnostics, which hears the session's events so the athlete level is marked stale (DEC-60), and so this
     // file links none of it.
@@ -329,6 +348,11 @@ private:
     ShotDoors          m_shotDoors;
     DiagnosticsDoors   m_diagnosticsDoors;
     QHash<SessionId, Session *> m_loaded;   // each Session loaded, a child of this Athlete (one per id)
+    QStringList        m_otherFolders;      // setOtherFolders
+
+    // Whether an index entry is this athlete's session: its file names this athlete — or, for Unassigned, no athlete at
+    // all (a no-golfer session an older build wrote: R-UNASSIGNED-4).
+    bool owns(const SessionIndexEntry &e) const { return e.athlete == m_id || (isUnassigned() && e.athlete.isNull()); }
 
     // The Session object for a session the repository holds, made once; `startedHere` marks the one this
     // run's startSession made. Null when the repository does not hold it or it is not this athlete's.

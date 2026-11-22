@@ -42,8 +42,9 @@
 //   H7  nothing switched on: the pass does nothing (no purge, no athlete listed)
 //   H9  CANCEL WHILE A GUI STEP RUNS (review 2, A2): the started step is waited for, its session finished and landed, no
 //       Session is left "in use", and nothing after it is archived
-//   H8  A FOLDER NO ATHLETE HOLDS (the no-golfer `unknown` folder): archived by today's path (Mark's N1), in the one
-//       oldest-first order with the athletes' sessions
+//   H8  A FOLDER NO ATHLETE HOLDS (an athlete this machine does not list): archived by today's path, in the one
+//       oldest-first order with the athletes' sessions. The no-golfer `unknown` folder is no longer one: since step 5.1
+//       its sessions are the Unassigned owner's (§5.11; J-66: held where they are), archived through their Sessions
 //
 //   cmake --build build/tests --target housekeeping_test -j 6
 //   ctest --test-dir build/tests -R '^housekeeping_test$' --output-on-failure
@@ -411,12 +412,13 @@ int main(int argc, char **argv)
                   && r.archived == 0 && !plan.anythingOn());
     }
 
-    std::printf("\n=== H8 a folder no Athlete holds: today's path (N1), in the one oldest-first order ===\n");
+    std::printf("\n=== H8 a folder no Athlete holds: today's path, in the one oldest-first order ===\n");
     {
         Library lib;
         check("H8 the scratch library and its athlete", lib.valid());
-        // The no-golfer folder: sessions captured with no athlete selected.
-        const QString unknownDir = lib.root + "/unknown";
+        // A folder no athlete of the library lists (no athlete.json; not the no-golfer `unknown` folder, which is the
+        // Unassigned owner's since step 5.1: H8u).
+        const QString unknownDir = lib.root + "/stranger";
         const QString lone   = makeSession(unknownDir, AthleteId(), today.addDays(-35), 1, false, 1);
         const QString mine40 = makeSession(lib.athleteDir, lib.athlete, today.addDays(-40), 1, false, 1);
         const QString mine30 = makeSession(lib.athleteDir, lib.athlete, today.addDays(-30), 1, false, 1);
@@ -429,16 +431,31 @@ int main(int argc, char **argv)
             plan.archiveAfterDays = 20;
             plan.archiveLocation  = lib.archive;
             const Housekeeping::Report r = hk.run(plan, AppRig::walk(), &app.owner);
-            check("H8 the no-golfer session is archived (its marker, its mirror under unknown/)", archivedMark(lone)
-                      && QFileInfo::exists(lib.archive + "/unknown/" + QFileInfo(lone).fileName() + "/swing_0001/Face-On.mp4"));
+            check("H8 the unheld session is archived (its marker, its mirror under stranger/)", archivedMark(lone)
+                      && QFileInfo::exists(lib.archive + "/stranger/" + QFileInfo(lone).fileName() + "/swing_0001/Face-On.mp4"));
             check("H8 …by today's path, counted as such; the athlete's two through their Sessions",
                   r.archived == 3 && r.archivedUnheld == 1 && archivedMark(mine40) && archivedMark(mine30));
         }
     }
     {
+        // H8u (step 5.1): a no-golfer session an older build left in `unknown/` is the Unassigned owner's, held where it
+        // is (J-66), so it is archived through its Session — not by today's path.
+        Library lib;
+        const QString lone = makeSession(lib.root + "/unknown", AthleteId(), today.addDays(-35), 1, false, 1);
+        AppRig app(lib.root);
+        const Housekeeping hk(app.doors());
+        Housekeeping::Plan plan;
+        plan.libraryRoot      = lib.root;
+        plan.archiveAfterDays = 20;
+        plan.archiveLocation  = lib.archive;
+        const Housekeeping::Report r = hk.run(plan, AppRig::walk(), &app.owner);
+        check("H8u a no-golfer session in unknown/: archived through the Unassigned owner's Session, none by today's path",
+              archivedMark(lone) && r.archived == 1 && r.archivedUnheld == 0);
+    }
+    {
         // Below the floor, one session's room: the oldest of the WHOLE library goes first, whoever holds it.
         Library lib;
-        const QString unknownDir = lib.root + "/unknown";
+        const QString unknownDir = lib.root + "/stranger";
         const QString lone   = makeSession(unknownDir, AthleteId(), today.addDays(-50), 1, false, 1);
         const QString mine40 = makeSession(lib.athleteDir, lib.athlete, today.addDays(-40), 1, false, 1);
         AppRig app(lib.root);
@@ -449,7 +466,7 @@ int main(int argc, char **argv)
         plan.archiveLocation = lib.archive;
         plan.freeBytes = [&]() -> qint64 { return archivedMark(lone) ? qint64(100) << 30 : 0; };
         const Housekeeping::Report r = hk.run(plan, AppRig::walk(), &app.owner);
-        check("H8 below the floor the no-golfer session, the oldest, goes first; then there is room",
+        check("H8 below the floor the unheld session, the oldest, goes first; then there is room",
               archivedMark(lone) && !archivedMark(mine40) && r.archived == 1 && r.archivedUnheld == 1);
     }
 

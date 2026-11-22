@@ -297,6 +297,19 @@ public:
     // lock (Locked). `where`, when given, names where it went. The identity map lets the session go.
     virtual WriteResult trash(const SessionId &id, QString *where = nullptr) = 0;
 
+    // THE MOVE TO ANOTHER ATHLETE (information_model.md §5.11, R-UNASSIGNED-4; DEC-198; J-67): the session's folder
+    // renamed into `to`'s athlete folder, keeping its folder NAME and its SessionId (ID-SESSION is immutable); only
+    // session.json's athleteId is rewritten (the swing headers keep what capture recorded: R-REC-1). Refused while it
+    // is in progress (P3: never change the athlete under a running session), read-only, archived, locked, or when
+    // `to`'s folder already holds a folder of that name. `newFolder`: where it now is. The identity map keeps it, at
+    // its new folder.
+    virtual WriteResult moveToAthlete(const SessionId &id, const SessionOwner &to, QString *newFolder = nullptr)
+    {
+        Q_UNUSED(id); Q_UNUSED(to);
+        if (newFolder) newFolder->clear();
+        return { WriteResult::Status::Failed, QStringLiteral("This library cannot move a session.") };
+    }
+
     // ONE SHOT TO THE TRASH (refactor step 3.4a; J-24; behind Session::trashShot): its swing folder to the
     // recoverable trash (the OS trash, else the library's own: FILE-LIB-01; where it goes is unchanged, D11:
     // DEC-175), its number recorded first as the session's high-water (FILE-SESS-10), so it is never issued

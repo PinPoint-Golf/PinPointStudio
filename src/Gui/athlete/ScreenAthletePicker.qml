@@ -60,6 +60,10 @@ Item {
     // session count is the athlete's SessionIndex's (sessions with a swing), as the rows show it.
     // Only confirmed() deletes.
     property string _deleteUuid: ""
+    // THE UNASSIGNED OWNER (information_model.md §5.11; DEC-198): its record is its id and name only — never edited or
+    // deleted (its sessions are moved to golfers, or trashed one by one). Its card still selects and switches.
+    function isUnassigned(uuid) { return uuid !== "" && uuid === athleteController.unassignedUuid }
+    function edit(uuid) { if (!root.isUnassigned(uuid)) root.editAthleteRequested(uuid) }
     function askToDelete(uuid) {
         const a = athleteController.athletes.find(function(x) { return x.uuid === uuid })
         if (!a) return
@@ -224,7 +228,7 @@ Item {
                         onClicked:   root.selectedUuid = modelData.uuid
                         onEditRequested: {
                             root.selectedUuid = modelData.uuid
-                            root.editAthleteRequested(modelData.uuid)
+                            root.edit(modelData.uuid)
                         }
                         canSwitch:   !root.sessionRunning
                                      && modelData.uuid !== athleteController.currentUuid
@@ -263,14 +267,14 @@ Item {
                 }
                 PpButton {
                     label:   qsTr("Edit athlete")
-                    enabled: root.selectedUuid !== ""
-                    onClicked: root.editAthleteRequested(root.selectedUuid)
+                    enabled: root.selectedUuid !== "" && !root.isUnassigned(root.selectedUuid)
+                    onClicked: root.edit(root.selectedUuid)
                 }
                 Item { Layout.fillWidth: true }
                 PpButton {
                     label:       qsTr("Delete athlete")
                     destructive: true
-                    enabled:     root.selectedUuid !== "" && !root.sessionRunning
+                    enabled:     root.selectedUuid !== "" && !root.sessionRunning && !root.isUnassigned(root.selectedUuid)
                     // Asks first: a delete moves the golfer's whole folder, every session in it (DEC-79).
                     onClicked: root.askToDelete(root.selectedUuid)
                 }

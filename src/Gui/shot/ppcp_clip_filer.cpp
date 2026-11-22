@@ -287,18 +287,19 @@ bool PpcpClipFiler::ensureSwingDocument(const Shot &s)
 bool PpcpClipFiler::recordArrival(const Shot &s, const pinpoint::StreamArrival &arrival,
                                   QString *error)
 {
-    if (!m_repo) {
-        if (error) *error = QStringLiteral("no recording repository");
-        return false;
-    }
-    // The Shot's own command (EVT-22), through its Session; today's write only for a shot no Session holds (N1).
+    // The Shot's own command (EVT-22), through the Session that holds it — the golfer's whoever is current now (a clip
+    // lands 15–40 s after the shot, maybe after End and a switch of golfer: J-67), or the Unassigned owner's (§5.11).
+    // A shot no Session holds is refused and said so (step 5.1: the filer keeps no write of its own; N1 is gone).
     pinpoint::ForwardResult f;
     if (m_commands)
         f = m_commands->completeCapture(pinpoint::sessionFolderOf(s.swingDir), s.shot, arrival);
-    const pinpoint::WriteResult w = f.reached ? f.result : m_repo->completeCapture(s.shot, arrival);
-    if (!w.ok() && error)
-        *error = w.error;
-    return w.ok();
+    if (!f.reached) {
+        if (error) *error = QStringLiteral("no session holds the shot");
+        return false;
+    }
+    if (!f.result.ok() && error)
+        *error = f.result.error;
+    return f.result.ok();
 }
 
 bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
@@ -416,7 +417,7 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
     // season fills up and cannot clear itself without it.
     m_ledger->setLocalPath(rec.key, path.toStdString());
     m_ledger->setSwingRef(rec.key,
-        Ppcp::SwingRef{ QFileInfo(s.swingDir).dir().dirName().toStdString(),
+        Ppcp::SwingRef{ QFileInfo(QFileInfo(s.swingDir).path()).fileName().toStdString(),
                         QFileInfo(s.swingDir).fileName().toStdString(),
                         alias.toStdString() });
     // The Shot anchor rides along (CR-03): a later decline of this Shot finds

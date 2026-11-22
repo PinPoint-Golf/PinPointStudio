@@ -54,7 +54,8 @@
 // A folder no Session holds: one in the current golfer's folder whose file names another athlete id (a cabin session
 // on the Mac, until M1) keeps TODAY'S PATH — the door answers the engine-mode model C++ makes for it
 // (SessionDiagnosticsAdapters; build/refactor/step-3/3.7/NOTES-a.md J-a3), which the report points at the session as it
-// pointed its own; any other (a session recorded with no golfer, Mark's N1) has no diagnostics, so no report is made and
+// pointed its own; any other (a folder no athlete of the library lists; a session with no golfer is the Unassigned owner's
+// and reported since step 5.1) has no diagnostics, so no report is made and
 // the sheet says why (NOTES-d.md J-d2).
 //
 // ── What it never does ──────────────────────────────────────────────────────────────────────────
@@ -82,7 +83,7 @@ class AthleteController;
 class SessionDiagnosticsModel;
 class ReportStills;
 
-namespace pinpoint { class AthleteLevel; }
+namespace pinpoint { class AthleteLevel; class ShotCommandDoor; }
 
 class SessionReportModel : public QObject
 {
@@ -112,6 +113,13 @@ public:
     // THE ATHLETE LEVEL A MAKE READS (refactor 3.7-f): the session's athlete's AthleteDiagnostics — its Tendencies page as
     // of the session (tendenciesAsOf) and the earlier sessions of the day ("Earlier today", their summaries) — or null.
     void setAthleteDoor(std::function<pinpoint::AthleteLevel *(const QString &sessionDir)> door) { m_athleteDoor = std::move(door); }
+    // Whether the session at `sessionDir` has no golfer (the Unassigned owner's: information_model.md §5.11). Such a
+    // report reads no athlete level and no same-day siblings — they are other golfers' — and says so (step 5.1 review B1).
+    void setNoGolferTest(std::function<bool(const QString &sessionDir)> test) { m_noGolfer = std::move(test); }
+    // THE SHOT-COMMAND DOOR (`app`) the report's private carousel lists the session's shots through — the launch monitor's
+    // figures come off those rows. Since step 5.1 a carousel keeps no read of its own (N1 is gone), so without the door
+    // it lists nothing and the report has no launch monitor figures. main.cpp sets `app`.
+    void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
 
     bool    busy() const;
     QString busySession() const;
@@ -178,6 +186,8 @@ private:
     QPointer<AthleteController> m_athletes;
     std::function<SessionDiagnosticsModel *(const QString &)> m_diagnosisDoor;
     std::function<pinpoint::AthleteLevel *(const QString &)> m_athleteDoor;
+    std::function<bool(const QString &)>                     m_noGolfer;
+    pinpoint::ShotCommandDoor                               *m_commands = nullptr;
     QPointer<SessionDiagnosticsModel> m_model;          // the job's (the door's answer); null between makes
     QMetaObject::Connection     m_modelBusy;            // its busyChanged, for the job's length
     QMetaObject::Connection     m_modelGone;            // its destroyed: the session went away mid-make (B1)

@@ -196,6 +196,8 @@ AthleteDiagnostics::AthleteDiagnostics(Athlete *athlete)
     connect(athlete, &Athlete::sessionStarted, this, index, Qt::DirectConnection);   // EVT-17
     connect(athlete, &Athlete::sessionResumed, this, index, Qt::DirectConnection);   // EVT-23
     connect(athlete, &Athlete::sessionTrashed, this, index, Qt::DirectConnection);   // EVT-20
+    connect(athlete, &Athlete::sessionMovedOut, this, index, Qt::DirectConnection);  // the move (§5.11; J-67)
+    connect(athlete, &Athlete::sessionMovedIn, this, index, Qt::DirectConnection);
     connect(athlete, &Athlete::recordChanged, this, [this] { markStale(); }, Qt::DirectConnection);   // EVT-14's interim
     connect(athlete, &Athlete::sessionHeld, this, &AthleteDiagnostics::hearSession, Qt::DirectConnection);
     for (Session *s : athlete->loadedSessions())
@@ -556,6 +558,13 @@ QString AthleteDiagnostics::summaryFingerprintNow(const SessionIndexEntry &e)
 ClubBaselineComputation AthleteDiagnostics::clubBaselineFor(const SessionId &session)
 {
     ClubBaselineComputation out;
+    // R-UNASSIGNED-5 (DEC-198; J-66): the Unassigned owner freezes no club baseline. It is not one golfer, and pooling
+    // different golfers' shots into one baseline is the fault 3.10's review found (J-59). Not computable and waiting on
+    // nothing, so its sessions have no usual numbers and no "not ready yet" notice.
+    if (m_athlete && m_athlete->isUnassigned()) {
+        out.why = QStringLiteral("a session with no golfer has no club baseline");
+        return out;
+    }
     SessionRepository *repo = repository();
     const auto me = repo ? repo->open(session) : std::nullopt;
     if (!me) {

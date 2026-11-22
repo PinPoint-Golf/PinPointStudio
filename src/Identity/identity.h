@@ -85,6 +85,16 @@ private:
     QUuid m_uuid;
 };
 
+// THE UNASSIGNED OWNER'S ID (information_model.md §5.11, R-UNASSIGNED-1; DEC-198; J-66 (coordinator, 22 Nov)): the
+// athlete a session captured with no golfer chosen belongs to. One fixed, well-known uuid, the same in every library
+// and on every machine, named here once. It is identified by this id only — never by its name or its folder (P7).
+inline AthleteId unassignedAthleteId()
+{
+    static const AthleteId id(QUuid(QStringLiteral("a55164ed-0000-4000-8000-000000000000")));
+    return id;
+}
+inline bool isUnassigned(const AthleteId &id) { return !id.isNull() && id == unassignedAthleteId(); }
+
 // ID-SESSION. A new session's is random (v4), minted at Start (DEC-41); a session older than step 2
 // gets a name-based (v5) one from its athlete's id and its folder name (DEC-150), computed by
 // `SessionIdentity::legacySessionId` — never here, because that is the one place a folder name is

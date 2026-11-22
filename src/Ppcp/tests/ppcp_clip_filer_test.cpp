@@ -27,6 +27,7 @@
 #include "../../Export/swing_doc.h"
 #include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "../ppcp_import_ledger.h"
+#include "../../Gui/tests/fake_shot_door.h"   // the shot-command door (step 5.1)
 
 #include <QCoreApplication>
 #include <QDir>
@@ -38,6 +39,13 @@
 #include <QTemporaryDir>
 #include <cstdio>
 #include <vector>
+
+// The door the filer reaches a shot's late part through (step 5.1: the filer writes nothing itself; N1 is gone).
+static pinpoint::testdoc::FolderDoor &clipDoor()
+{
+    static pinpoint::testdoc::FolderDoor door;
+    return door;
+}
 
 static int g_fail = 0;
 static void check(bool c, const char *label)
@@ -103,6 +111,7 @@ int main(int argc, char **argv)
 
         PpcpClipFiler filer;
         filer.setRecordingRepository(&pinpoint::testdoc::repo());
+        filer.setShotCommands(&clipDoor());   // the late part is its Shot\'s (step 5.1: no write of the filer\'s own)
         filer.setLedger(&led);
         int filed = 0;
         QObject::connect(&filer, &PpcpClipFiler::clipFiled,
@@ -156,6 +165,7 @@ int main(int argc, char **argv)
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
         filer.setRecordingRepository(&pinpoint::testdoc::repo());
+        filer.setShotCommands(&clipDoor());   // the late part is its Shot\'s (step 5.1: no write of the filer\'s own)
         filer.setLedger(&led);
 
         filer.onCaptureAsked(QStringLiteral("shot:2"), QStringLiteral("peer:phone-1"),
@@ -193,6 +203,7 @@ int main(int argc, char **argv)
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
         filer.setRecordingRepository(&pinpoint::testdoc::repo());
+        filer.setShotCommands(&clipDoor());   // the late part is its Shot\'s (step 5.1: no write of the filer\'s own)
         filer.setLedger(&led);
         int filed = 0;
         QObject::connect(&filer, &PpcpClipFiler::clipFiled,
@@ -254,6 +265,7 @@ int main(int argc, char **argv)
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
         filer.setRecordingRepository(&pinpoint::testdoc::repo());
+        filer.setShotCommands(&clipDoor());   // the late part is its Shot\'s (step 5.1: no write of the filer\'s own)
         filer.setLedger(&led);
 
         filer.onCaptureAsked(QStringLiteral("shot:3"), QStringLiteral("peer:phone-1"),
@@ -286,6 +298,7 @@ int main(int argc, char **argv)
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
         filer.setRecordingRepository(&pinpoint::testdoc::repo());
+        filer.setShotCommands(&clipDoor());   // the late part is its Shot\'s (step 5.1: no write of the filer\'s own)
         filer.setLedger(&led);
         int filed = 0;
         QObject::connect(&filer, &PpcpClipFiler::clipFiled,
@@ -309,6 +322,7 @@ int main(int argc, char **argv)
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
         filer.setRecordingRepository(&pinpoint::testdoc::repo());
+        filer.setShotCommands(&clipDoor());   // the late part is its Shot\'s (step 5.1: no write of the filer\'s own)
         filer.setLedger(&led);
 
         filer.onCaptureAsked(QStringLiteral("shot:5"), QStringLiteral("peer:phone-1"),
@@ -347,6 +361,7 @@ int main(int argc, char **argv)
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
         filer.setRecordingRepository(&pinpoint::testdoc::repo());
+        filer.setShotCommands(&clipDoor());   // the late part is its Shot\'s (step 5.1: no write of the filer\'s own)
         filer.setLedger(&led);
         std::vector<Declined> said;
         QObject::connect(&filer, &PpcpClipFiler::shotDeclined,
@@ -388,6 +403,7 @@ int main(int argc, char **argv)
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
         filer.setRecordingRepository(&pinpoint::testdoc::repo());
+        filer.setShotCommands(&clipDoor());   // the late part is its Shot\'s (step 5.1: no write of the filer\'s own)
         filer.setLedger(&led);
         std::vector<Declined> said;
         QObject::connect(&filer, &PpcpClipFiler::shotDeclined,
@@ -425,6 +441,7 @@ int main(int argc, char **argv)
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
         filer.setRecordingRepository(&pinpoint::testdoc::repo());
+        filer.setShotCommands(&clipDoor());   // the late part is its Shot\'s (step 5.1: no write of the filer\'s own)
         filer.setLedger(&led);
         int said = 0;
         QObject::connect(&filer, &PpcpClipFiler::shotDeclined,

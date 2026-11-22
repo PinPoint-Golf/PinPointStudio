@@ -291,7 +291,8 @@ Column {
         readonly property int skip: Math.max(0, (t.sessions || []).length - 6)
         readonly property var sessions: (t.sessions || []).slice(skip)
         readonly property real colW: (sg.width - sg.nameW) / Math.max(1, sessions.length)
-        visible: sessions.length > 0 && sg.todayRows.length > 0
+        // `alone` (a session with no golfer: step 5.1 review B1): the heading and the note only, saying why nothing is compared.
+        visible: (sessions.length > 0 && sg.todayRows.length > 0) || !!t.alone
         width: sg.width
         Item {
             property bool atom: true

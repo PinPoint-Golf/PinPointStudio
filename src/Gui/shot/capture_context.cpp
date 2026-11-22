@@ -29,6 +29,7 @@
 #include "../../Buffer/format_descriptor.h"
 #include "../../Core/club_vocabulary.h"
 #include "../../Core/pp_debug.h"
+#include "../../DomainModel/athlete.h"   // isUnassigned: a capture into Unassigned records no golfer (J-67)
 #include "../../DomainModel/recording_repository.h"
 #include "../../Export/recording_header.h"   // captureAnalysisContext — the one builder of the context
 #include "../../Export/swing_doc.h"          // the integrity blocks, the data warning, the one projection
@@ -54,7 +55,11 @@ using pinpoint::analysis::ImuSegmentBinding;
 CaptureAthlete readCaptureAthlete(const AthleteController *athlete, const SessionController *session)
 {
     CaptureAthlete a;
-    if (athlete) {
+    // A capture into the Unassigned owner records NO golfer (J-67; information_model.md §5.11): its swing header's athlete
+    // block stays empty, as with no golfer chosen — whether or not Unassigned is the athlete picked — so no handedness,
+    // height, cohort, bag or club-length prior of "Unassigned" is ever recorded or learned.
+    const pinpoint::Athlete *picked = athlete ? athlete->currentAthlete() : nullptr;
+    if (athlete && !(picked && picked->isUnassigned())) {
         a.name       = athlete->currentName();
         a.uuid       = athlete->currentUuid();
         a.handedness = athlete->currentHandedness();

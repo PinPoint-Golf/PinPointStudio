@@ -31,14 +31,27 @@ App::App(std::function<Athlete *()> currentAthlete, QObject *parent)
 
 Session *App::sessionAt(const QString &folder) const
 {
+    if (folder.isEmpty())
+        return nullptr;
     Athlete *athlete = m_currentAthlete ? m_currentAthlete() : nullptr;
-    return athlete ? athlete->sessionAt(folder) : nullptr;
+    if (athlete)
+        if (Session *s = athlete->sessionAt(folder))
+            return s;
+    // A session belongs to its athlete whoever is current (J-67): a late write after a switch of golfer (a phone clip,
+    // a reading, a re-analysis batch) and a session captured with no golfer (the Unassigned owner's: §5.11) are found
+    // through the athlete whose folder holds them. Athlete::sessionAt reads nothing for a folder not its own.
+    if (m_athletes)
+        for (Athlete *a : m_athletes())
+            if (a && a != athlete)
+                if (Session *s = a->sessionAt(folder))
+                    return s;
+    return nullptr;
 }
 
 // ── ShotCommandDoor (refactor step 3.4b-i) ──────────────────────────────────────────────────────────────────
 //
-// The folder translated once, here, through the current Athlete (sessionAt; DEC-90); the command run on the
-// Session's own Shot (P10). Not reached (N1): the caller keeps today's path.
+// The folder translated once, here, through the athlete that holds it (sessionAt; DEC-90); the command run on the
+// Session's own Shot (P10). Not reached: no athlete of the library holds it.
 
 Shot *App::shotAt(const QString &sessionFolder, const ShotRef &shot) const
 {
@@ -191,6 +204,21 @@ std::optional<RecordingSource> App::recordingSourceOf(const QString &sessionFold
     if (!s)
         return std::nullopt;
     return s->recordingSource();
+}
+
+ShotRef App::shotOfFolder(const QString &swingFolder)
+{
+    Session *s = sessionAt(sessionFolderOf(swingFolder));
+    Shot    *shot = s ? s->shotAtFolder(swingFolder) : nullptr;
+    return shot ? shot->ref() : ShotRef();
+}
+
+std::optional<bool> App::isDeviceOnly(const QString &sessionFolder, const ShotRef &shot)
+{
+    Shot *s = shotAt(sessionFolder, shot);
+    if (!s)
+        return std::nullopt;
+    return s->documentIsDeviceOnly();
 }
 
 ForwardResult App::applyAnalysis(const QString &sessionFolder, const ShotRef &shot, const AnalysisOutcome &outcome,

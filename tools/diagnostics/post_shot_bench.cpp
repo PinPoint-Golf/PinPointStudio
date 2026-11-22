@@ -301,7 +301,6 @@ int main(int argc, char **argv)
     App appObject([&athlete] { return athlete.get(); });
     SessionDiagnosticsModel::setShotCommands(&appObject);
     ShotListModel shotModel;
-    shotModel.setRecordingRepository(&recordings);
     shotModel.setShotCommands(&appObject);
 
     Session *session = athlete->startSession(QStringLiteral("swing"), QStringLiteral("date-name-type"));

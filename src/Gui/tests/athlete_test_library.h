@@ -46,6 +46,7 @@ inline pinpoint::AthleteCallables callablesOver(pinpoint::AthleteStore &store)
             return made.athlete;
         },
         [&store](const pinpoint::SessionOwner &owner) { return store.readActivity(owner); },
+        [&store](bool create, pinpoint::WriteResult *result) { return store.unassigned(create, result); },
     };
 }
 

@@ -219,20 +219,15 @@ public:
     //   trashFn    — the move itself; SwingPaths::trashPath by default.
     using FolderFn  = std::function<void(const QString &swingDir)>;
     using ReasonFn  = std::function<QString(const QString &swingDir)>;
-    using TrashFn   = std::function<bool(const QString &swingDir)>;
     void setFolderReleaser(FolderFn fn) { m_releaser = std::move(fn); }
-    // The one door to the swing files (main.cpp's; the tests make their own). The rating, note,
-    // club and board annotations write through it. Without one a row with a folder keeps its edits
-    // in memory and says so in the log.
-    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
     // THE SHOT'S COMMANDS (refactor step 3.4b-i; src/App/shot_command_door.h): the rating, note and declared club
     // and the board's club and exclusion FORWARD to the row's Shot (Shot::rate, note, setDeclaredClub, correctClub,
     // excludeReading), which saves them and emits EVT-21 / 04 / 05; this model then writes nothing itself (one
-    // writer, P10). A row whose session no Athlete holds — or no door (the tests) — keeps today's write-through
-    // above (N1's interim). main.cpp sets `app`.
+    // writer, P10). The rows, the edge (shotOfFolder) and the trash go through it too. A row whose session no athlete
+    // of the library holds — or no door (a tool or a test) — is refused and says so (saveFailed); since step 5.1 the
+    // carousel keeps no read, write or trash of its own (N1 is gone). main.cpp sets `app`.
     void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
     void setFolderBusyCheck(ReasonFn fn) { m_busyCheck = std::move(fn); }
-    void setTrashFunction(TrashFn fn)    { m_trashFn = std::move(fn); }
     // The retry's first interval (it doubles) and how long a refused folder is
     // tried for in all. Tests shorten them.
     void setTrashRetry(int firstIntervalMs, int giveUpMs)
@@ -313,11 +308,9 @@ private:
     void prependRow(const Shot &shot);
     void seedFrom(const QString &dir);   // loadSessionDir's rows, inside its one model reset
     pinpoint::ShotRef shotOf(int row);   // the row's ShotRef (translated on first use, then kept)
-    void persistReview(int row);   // write-through rating/note/club to swing.json (N1's interim)
-    void persistLmAnnotations(int row);   // write-through excluded/clubOverride (N1's interim)
     // What became of a golfer's edit of a row: its Shot took the command (Shot; a failed save is logged, and the row
-    // then shows what the Shot holds), no Session holds it (NotHeld: today's in-memory edit and write-through), or
-    // the row has no folder (InMemory: the row is all there is, as today).
+    // then shows what the Shot holds), no Session holds it (NotHeld: refused and said so; the row keeps what it
+    // showed), or the row has no folder (InMemory: the row is all there is, as today).
     enum class Edit { Shot, NotHeld, InMemory };
     using Forward = std::function<pinpoint::ForwardResult(pinpoint::ShotCommandDoor &, const QString &sessionFolder,
                                                           const pinpoint::ShotRef &)>;
@@ -331,9 +324,8 @@ private:
     void takeShotReview(int row, pinpoint::SummaryRead how);
     // A row made from a Shot's summary (the session load over its Session's Shots).
     void addHeldRow(const QString &swingDir, const pinpoint::ShotRef &ref, const pinpoint::ShotSummary &f);
-    pinpoint::RecordingRepository *m_repo = nullptr;
     pinpoint::ShotCommandDoor     *m_commands = nullptr;
-    // A held shot: Session::trashShot (through `app`); else m_trashFn, or SwingPaths::trashPath (N1).
+    // Session::trashShot (through `app`); false for a shot no Session holds.
     bool trashFolder(const QString &dir, const pinpoint::ShotRef &shot) const;
     void removeTrashedRow(int id, const QString &dir);
     void attemptPendingTrash();
@@ -352,7 +344,6 @@ private:
     int           m_trashGiveUpMs     = 6000;
     FolderFn      m_releaser;
     ReasonFn      m_busyCheck;
-    TrashFn       m_trashFn;
 
     QVector<Shot> m_shots;
     int           m_nextId = 1;

@@ -606,6 +606,17 @@ inline QString tendenciesUnread()
 {
     return QStringLiteral("Your tendencies couldn't be read when this report was made. Make the report again to include them.");
 }
+// A SESSION WITH NO GOLFER (the Unassigned owner's: step 5.1 review B1): its day's other sessions are other golfers', so
+// Earlier today compares nothing; and it has no tendencies, which are one golfer's over their sessions.
+inline QString todayNoGolfer()
+{
+    return QStringLiteral("This session has no golfer, so it isn't compared with other sessions. Move it to a golfer to see that.");
+}
+inline QString tendenciesNoGolfer()
+{
+    return QStringLiteral("This session has no golfer, so it has no tendencies: they are a golfer's, over their sessions. "
+                          "Move it to a golfer to see them.");
+}
 // Past the six-session cap: "3 earlier sessions not shown".
 inline QString todayMore(int more)
 {

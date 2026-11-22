@@ -70,6 +70,11 @@ class AthleteController : public QObject
     Q_PROPERTY(QString      currentInitials   READ currentInitials   NOTIFY athletesChanged)
     Q_PROPERTY(QString      currentHandedness READ currentHandedness NOTIFY athletesChanged)
     Q_PROPERTY(QString      currentUuid       READ currentUuid       NOTIFY currentAthleteChanged)
+    // THE UNASSIGNED OWNER is the athlete on screen (information_model.md §5.11; DEC-198; J-67): its sessions list, open
+    // and play, but it shows no athlete-level figures (pooling different golfers' shots is wrong data) and its record is
+    // never edited or deleted. The fixed id itself, for the views that compare a row's uuid.
+    Q_PROPERTY(bool         currentIsUnassigned READ currentIsUnassigned NOTIFY currentAthleteChanged)
+    Q_PROPERTY(QString      unassignedUuid      READ unassignedUuid      CONSTANT)
     // The two demographic fields, RAW — an ISO date and a token, not a resolved cohort.
     //
     // Raw because the age band depends on the DAY, and the day belongs to whatever is being graded,
@@ -306,6 +311,16 @@ public:
     Q_INVOKABLE bool selectAthlete(const QString &uuid);
     Q_INVOKABLE void clearCurrentAthlete();
 
+    bool    currentIsUnassigned() const { return m_current && m_current->isUnassigned(); }
+    QString unassignedUuid() const { return pinpoint::unassignedAthleteId().toString(); }
+    // Whether the session at `sessionDir` is the Unassigned owner's (the drawer offers "Move to golfer…" for it).
+    Q_INVOKABLE bool isUnassignedSession(const QString &sessionDir) const;
+    // THE MOVE TO A GOLFER (information_model.md §5.11, R-UNASSIGNED-4; DEC-198; J-67): the Unassigned session at
+    // `sessionDir` to the golfer `toUuid` — Athlete::moveSessionTo (the folder into the golfer's, its name and SessionId
+    // kept; only session.json's athleteId rewritten). "" when moved (sessionMoved follows); else the golfer's words
+    // for why not (in progress, archived, locked, a name already there).
+    Q_INVOKABLE QString moveSessionToAthlete(const QString &sessionDir, const QString &toUuid);
+
 signals:
     // A SWITCH only: another athlete, or none, became current (R-APP-1). Never on an edit.
     void currentAthleteChanged();
@@ -314,6 +329,8 @@ signals:
     // but its folder kept because another athlete shares it. main.cpp posts it as a notice.
     void deleteNotice(const QString &title, const QString &detail);
     void clubDistancesChanged();
+    // A session moved to a golfer: where it was and where it now is (the views that showed it reload).
+    void sessionMoved(const QString &fromDir, const QString &toDir);
 
 private:
     std::function<pinpoint::AthleteLevel *(pinpoint::Athlete *)> m_athleteLevelDoor;

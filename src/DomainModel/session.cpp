@@ -22,6 +22,8 @@
 
 #include "../Core/pp_debug.h"
 
+#include <QDir>
+
 namespace pinpoint {
 
 namespace {
@@ -102,6 +104,22 @@ Shot *Session::shot(const ShotRef &ref)
         return nullptr;
     loadShots();
     return m_shots.value(ref.swingNumber());
+}
+
+Shot *Session::shotAtFolder(const QString &swingFolder)
+{
+    if (swingFolder.isEmpty())
+        return nullptr;
+    const QString clean = QDir::cleanPath(swingFolder);
+    for (Shot *s : shots())
+        if (QDir::cleanPath(s->folder()) == clean)
+            return s;
+    return nullptr;
+}
+
+bool Session::folderPresent() const
+{
+    return m_sessions && m_sessions->folderPresent(m_id);
 }
 
 // ── The commands ─────────────────────────────────────────────────────────────────────────────────

@@ -30,6 +30,8 @@
 #include <QVariantMap>
 #include <QHash>
 #include <QVector>
+
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -46,7 +48,7 @@
 #include "../DomainModel/recording_repository.h"   // WriteResult (the allocation's, J-22)
 #include "shot_outcome.h"
 
-namespace pinpoint { class Athlete; class EventBuffer; class RecordingRepository; class Session; class SessionRepository;
+namespace pinpoint { class Athlete; class EventBuffer; class RecordingRepository; class Session;
                      struct SwingAllocation; }
 namespace pinpoint::capture { struct CaptureSnapshot; }
 class AppSettings;
@@ -159,12 +161,14 @@ public:
     // THE SESSION CAPTURE WRITES INTO (refactor step 3.4a-ii; BRIEF §4.8): a Session of the current
     // Athlete, started, resumed and ended through the Athlete's and the Session's commands (DEC-78,
     // DEC-134, DEC-143), every shot allocated by Session::addShot (DEC-142), each shot's first document
-    // reported to it (EVT-01's moment: D19, DEC-168). INTERIM: a session no Athlete holds — no golfer
-    // selected (the "unknown" folder), or a library re-pointed mid-session that does not list the golfer —
-    // still runs through the session repository directly, as before (NOTES-3.4a-ii N1). The repository is
-    // held by the composition root (main.cpp); without one no session starts and no swing is saved. Also
-    // follows the library setting (D7).
-    void setSessionRepository(pinpoint::SessionRepository *sessions);
+    // reported to it (EVT-01's moment: D19, DEC-168). WITH NO GOLFER CHOSEN — or a library re-pointed mid-session
+    // that does not list the golfer (D7; J-67) — the session is the library's UNASSIGNED OWNER's, a full Session like
+    // any other (information_model.md §5.11; DEC-198; step 5.1 replaced N1's repository path). `unassigned(create,
+    // result)` hands it over (the composition root's callable over the athlete repository; `create` writes its record
+    // at the first need: J-67). Without it, and with no golfer, no session starts and no swing is saved. Also follows
+    // the library setting (D7).
+    using UnassignedAthlete = std::function<pinpoint::Athlete *(bool create, pinpoint::WriteResult *result)>;
+    void setUnassignedAthlete(UnassignedAthlete unassigned);
     // A DEVICE-ONLY SHOT in the session a swing captured NOW is written into (the launch monitor's
     // standalone shot: one allocator, D10: DEC-157): Session::addShot of the running session — started
     // when a session is in progress whose folder could not be made at Start, or, outside a session, on
@@ -479,25 +483,22 @@ private:
     // Its folder is fixed for its life: never re-resolved per shot (E-01). A rename, midnight or a
     // changed naming pattern or type keep it; a re-pointed library ends it and starts another (D7).
     void setOpenSession(pinpoint::Session *session);          // an Athlete's Session (or none)
-    void setOpenSessionId(const pinpoint::SessionId &id);     // a session no Athlete holds (the interim)
     void onLibraryChanged();
     // The session a swing captured NOW is written into (D10): started when a session is in progress
     // whose folder could not be made at Start, or, outside a session, on demand; null when none can be.
     pinpoint::SessionId captureSession();
     // The Athlete capture starts its sessions through: the current one, when its sessions live in the
-    // library capture writes to (SET-03); else null (the interim: the repository directly).
-    pinpoint::Athlete *captureAthlete() const;
-    // A new session of `type`: through captureAthlete() (DEC-78), or the repository. False when none started.
+    // library capture writes to (SET-03); else the library's Unassigned owner (§5.11; J-67), its record written first
+    // when `create` (a Start) and it has none yet. Null when neither can be had (`*result` says why).
+    pinpoint::Athlete *captureAthlete(bool create, pinpoint::WriteResult *result = nullptr) const;
+    // A new session of `type`: through captureAthlete() (DEC-78). False when none started.
     bool startOpenSession(const QString &type, bool onDemand, pinpoint::WriteResult *result = nullptr);
     // The open session ended (null after). `golferEnd`: the End (the empty discard may take it, DEC-93,
     // DEC-143); else an end before another start (never discards, as today).
     pinpoint::WriteResult endOpenSession(bool golferEnd);
-    pinpoint::SessionRepository *m_sessions = nullptr;
-    QPointer<pinpoint::Session>  m_openSessionObject;   // the Athlete's Session capture writes into; null: none,
-                                                         // or one no Athlete holds (m_openSession alone)
+    UnassignedAthlete            m_unassigned;
+    QPointer<pinpoint::Session>  m_openSessionObject;   // the Athlete's Session capture writes into; null: none
     QPointer<pinpoint::Session>  m_shotSession;         // the Session the shot being processed was added to
-    bool    m_openStartedHere = false;     // a session no Athlete holds, started (not resumed) here: the
-                                           // empty discard's, at End (DEC-93; the interim's own copy of it)
     pinpoint::SessionId m_openSession;     // null: none
     QString m_openSessionDir;              // its folder, as the repository spells it
     QString m_openLibraryKey;              // the library (cleaned) it was started in, for D7

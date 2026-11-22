@@ -37,6 +37,8 @@
 
 #include "../../Core/folder_lock.h"
 #include "../../Export/athlete_files.h"
+#include "../../Export/session_files.h"
+#include "../../DomainModel/session.h"
 #include "../../Export/swing_paths.h"
 
 #include <QDateTime>
@@ -551,6 +553,142 @@ private slots:
 
         AthleteController &c = lib.makeController();                                                // the controller's rows
         QCOMPARE(c.athletes().first().toMap().value(QStringLiteral("sessionCount")).toInt(), 2);
+    }
+
+    // U1–U8 (refactor step 5.1; information_model.md §5.11, R-UNASSIGNED-1..5; DEC-198; J-66, J-67): the Unassigned
+    // owner — its record at the first write (id and name only, its own folder verbatim), a no-golfer session found on
+    // disk held where it is with nothing written, a capture's session a full Session of it, never edited or deleted.
+    void unassignedOwnerRecordAndFolder()
+    {
+        AthleteTestLibrary lib;
+        QVERIFY(lib.athletes->unassigned(/*create=*/false) == nullptr);                                // U1 nothing on first need
+        QVERIFY(!lib.athletes->list().contains(unassignedAthleteId()));
+        QVERIFY(!QFileInfo::exists(lib.root() + QStringLiteral("/(unassigned)")));                    // …and a read writes nothing
+
+        WriteResult made;
+        Athlete *u = lib.athletes->unassigned(/*create=*/true, &made);
+        QVERIFY2(u, qPrintable(made.error));
+        QCOMPARE(u->id(), unassignedAthleteId());                                                      // U2 the fixed id
+        QVERIFY(u->isUnassigned());
+        QCOMPARE(clean(u->folder()), clean(lib.root() + QStringLiteral("/(unassigned)")));              // U3 verbatim, never sanitised
+        const QJsonObject file = readJson(AthleteFiles::athleteFile(u->folder()));
+        QCOMPARE(file.value(QStringLiteral("athleteId")).toString(), unassignedAthleteId().toString());
+        QCOMPARE(file.value(QStringLiteral("record")).toObject().keys(), QStringList{ QStringLiteral("name") });   // U4 id and name only
+        QCOMPARE(file.value(QStringLiteral("record")).toObject().value(QStringLiteral("name")).toString(), QStringLiteral("Unassigned"));
+        QVERIFY(u->record().sex.isEmpty() && u->record().dob.isEmpty());                              // …no norm cohort
+
+        // U5 a golfer called "unassigned" gets the sanitised folder, never Unassigned's.
+        Athlete *g = lib.athletes->create(named(QStringLiteral("(unassigned)"))).athlete;
+        QVERIFY(g && !g->isUnassigned());
+        QCOMPARE(QFileInfo(g->folder()).fileName(), QStringLiteral("unassigned"));
+
+        // U6 a capture's session: a full Session of it, its file naming the fixed id; never edited, never deleted.
+        Session *s = u->startSession(QStringLiteral("swing"), QStringLiteral("date-name-type"));
+        QVERIFY(s && s->entry());
+        QCOMPARE(QFileInfo(s->entry()->folder).absolutePath(), QFileInfo(u->folder()).absoluteFilePath());
+        QCOMPARE(readJson(SessionFiles::sessionFile(s->entry()->folder)).value(QStringLiteral("athleteId")).toString(),
+                 unassignedAthleteId().toString());
+        QVERIFY(lib.sessions.allocateSwing(s->id()).ok());
+        QVERIFY(s->end().ok());
+        AthleteRecord edited = u->record();
+        edited.sex = QStringLiteral("male");
+        QVERIFY(!u->editRecord(edited).ok());
+        QVERIFY(!lib.athletes->trash(unassignedAthleteId()).ok());
+        QVERIFY(QFileInfo::exists(u->folder()));
+
+        // U7 another store over the same library lists it (found like any athlete's folder).
+        AthleteStore other([&lib] { return lib.root(); }, &lib.sessions);
+        QVERIFY(other.list().contains(unassignedAthleteId()));
+        QCOMPARE(clean(other.load(unassignedAthleteId())->folder()), clean(u->folder()));
+    }
+
+    void unassignedHoldsAnOldNoGolferFolderWhereItIs()
+    {
+        AthleteTestLibrary lib;
+        // A session an older build captured with no golfer: <library>/unknown, no athlete.json, a file naming no athlete.
+        SessionStore older;
+        older.setOsTrashForTest(false);
+        const SessionStartResult s = older.start(SessionOwner{ AthleteId(), QString(), lib.root() }, QStringLiteral("swing"),
+                                                 QStringLiteral("date-name-type"));
+        QVERIFY(s.ok());
+        QVERIFY(QFileInfo(s.folder).absolutePath().endsWith(QStringLiteral("/unknown")));
+        QVERIFY(older.allocateSwing(s.id).ok());
+        QVERIFY(older.end(s.id).ok());
+
+        QVERIFY(lib.athletes->list().contains(unassignedAthleteId()));                                 // U8 listed, in memory…
+        QVERIFY(!QFileInfo::exists(lib.root() + QStringLiteral("/(unassigned)")));                    // …nothing written
+        Athlete *u = lib.athletes->load(unassignedAthleteId());
+        QVERIFY(u);
+        Session *held = u->sessionAt(s.folder);
+        QVERIFY(held);                                                                                 // U9 held where it is (J-66)
+        QCOMPARE(held->id(), s.id);
+        QCOMPARE(u->index().size(), 1);
+    }
+
+    // P1–P4: the picker lists Unassigned only while its SessionIndex holds a session (R-UNASSIGNED-3; DEC-198, (a)).
+    void pickerShowsUnassignedOnlyWithSessions()
+    {
+        AthleteTestLibrary lib;
+        Athlete *golfer = lib.athletes->create(named(QStringLiteral("Real Golfer"))).athlete;
+        QVERIFY(golfer);
+        Athlete *u = lib.athletes->unassigned(/*create=*/true);
+        QVERIFY(u);
+        AthleteController &c = lib.makeController();
+        const auto listed = [&c](const AthleteId &id) {
+            for (const QVariant &v : c.athletes())
+                if (v.toMap().value(QStringLiteral("uuid")).toString() == id.toString()) return true;
+            return false;
+        };
+        QVERIFY(listed(golfer->id()));
+        QVERIFY(!listed(unassignedAthleteId()));                                                       // P1 empty: hidden
+        Session *s = u->startSession(QStringLiteral("swing"), QStringLiteral("date-name-type"));
+        QVERIFY(s && lib.sessions.allocateSwing(s->id()).ok() && s->end().ok());
+        c.refreshActivity();
+        QVERIFY(listed(unassignedAthleteId()));                                                        // P2 holds a session: shown
+        QVERIFY(c.isUnassignedSession(s->entry()->folder));
+        QVERIFY(!c.isUnassignedSession(golfer->folder() + QStringLiteral("/nothing")));
+
+        // M1–M5: the move to a golfer (R-UNASSIGNED-4; J-67).
+        const QString from = s->entry()->folder;
+        const SessionId id = s->id();
+        QSignalSpy moved(&c, &AthleteController::sessionMoved);
+        QCOMPARE(c.moveSessionToAthlete(from, golfer->id().toString()), QString());                    // M1 moved
+        QCOMPARE(moved.count(), 1);
+        const QString to = moved.first().at(1).toString();
+        QCOMPARE(QFileInfo(to).fileName(), QFileInfo(from).fileName());                                // M2 its folder name kept…
+        QCOMPARE(clean(QFileInfo(to).absolutePath()), clean(golfer->folder()));                        // …in the golfer's folder
+        QVERIFY(!QFileInfo::exists(from) && QFileInfo::exists(to + QStringLiteral("/swing_0001")));
+        QCOMPARE(readJson(SessionFiles::sessionFile(to)).value(QStringLiteral("athleteId")).toString(), golfer->id().toString());
+        QCOMPARE(readJson(SessionFiles::sessionFile(to)).value(QStringLiteral("sessionId")).toString(), id.toString());   // M3 its id kept
+        Session *there = golfer->sessionAt(to);
+        QVERIFY(there && there->id() == id);                                                           // M4 the golfer's now
+        QVERIFY(u->index().isEmpty());
+        QVERIFY(!listed(unassignedAthleteId()));                                                       // P3 empty again: hidden
+
+        // J1 (J-68, review B3): the last session moved out while Unassigned is the athlete on screen — the app goes to the
+        // golfer it went to, and Unassigned, empty, leaves the picker (R-UNASSIGNED-3).
+        Session *s2 = u->startSession(QStringLiteral("swing"), QStringLiteral("date-name-type"));
+        QVERIFY(s2 && lib.sessions.allocateSwing(s2->id()).ok() && s2->end().ok());
+        const QString from2 = s2->entry()->folder;
+        c.refreshActivity();
+        QVERIFY(c.selectAthlete(unassignedAthleteId().toString()));
+        QVERIFY(c.currentIsUnassigned() && listed(unassignedAthleteId()));
+        // To a second golfer: a same-day Unassigned session takes the moved one's folder name again (…_Swing_01), which
+        // the first golfer's folder already holds — that refusal is its own finding (NOTES-5.1 E-8), not J-68's.
+        Athlete *second = lib.athletes->create(named(QStringLiteral("Second Golfer"))).athlete;
+        QVERIFY(second);
+        c.refreshActivity();
+        QCOMPARE(c.moveSessionToAthlete(from2, second->id().toString()), QString());
+        QCOMPARE(c.currentUuid(), second->id().toString());
+        QVERIFY(!c.currentIsUnassigned());
+        QVERIFY(!listed(unassignedAthleteId()));
+
+        // M5 a session in progress is not moved (P3).
+        Session *live = u->startSession(QStringLiteral("swing"), QStringLiteral("date-name-type"));
+        QVERIFY(live && live->inProgress());
+        QVERIFY(!c.moveSessionToAthlete(live->entry()->folder, golfer->id().toString()).isEmpty());
+        QVERIFY(QFileInfo::exists(live->entry()->folder));
+        live->end();
     }
 };
 

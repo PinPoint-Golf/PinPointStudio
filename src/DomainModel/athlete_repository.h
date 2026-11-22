@@ -76,6 +76,19 @@ public:
     virtual WriteResult save(Athlete &athlete, const AthleteRecord &record) = 0;
     virtual AthleteRemoval trash(const AthleteId &id) = 0;
 
+    // THE UNASSIGNED OWNER (information_model.md §5.11, R-UNASSIGNED-1..5; DEC-198; J-66, J-67): the athlete a session
+    // captured with no golfer chosen belongs to — its fixed id, its folder `<library>/(unassigned)`, an athlete.json
+    // holding only its id and the name "Unassigned". HELD IN MEMORY while the library holds no record of it (a read never
+    // writes): listed by list() once it holds a session — its own folder's, or a no-golfer one an older build left in
+    // `unknown/` (held where it is). `create` true (capture's Start, a move): the record is written first if it is not
+    // there yet. Null when it cannot be had (`*result` says why).
+    virtual Athlete *unassigned(bool create, WriteResult *result = nullptr)
+    {
+        Q_UNUSED(create);
+        if (result) *result = { WriteResult::Status::Failed, QStringLiteral("This library has no Unassigned owner.") };
+        return nullptr;
+    }
+
     // Reads only, keeps no state: safe from a worker thread.
     virtual AthleteActivity readActivity(const SessionOwner &owner) const = 0;
 

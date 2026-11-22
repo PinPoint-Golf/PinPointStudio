@@ -185,6 +185,7 @@ bool Athlete::hasSessionInProgress() const
 AthleteActivity Athlete::activityOf(const QList<SessionIndexEntry> &index, const SessionRepository &sessions)
 {
     AthleteActivity a;
+    a.indexed = static_cast<int>(index.size());
     for (const SessionIndexEntry &e : index) {
         if (sessions.shots(e.id()).isEmpty())
             continue;   // nothing was hit in it: not a session (the Sessions list's rule)
@@ -265,7 +266,7 @@ Session *Athlete::hold(const SessionId &id, bool startedHere, bool onDemand)
     if (Session *s = m_loaded.value(id))
         return s;
     const auto e = m_sessions ? m_sessions->open(id) : std::nullopt;
-    if (!e || e->athlete != m_id)
+    if (!e || !owns(*e))
         return nullptr;   // not held, or another athlete's session
     Session *s = new Session(this, m_sessions, m_shotDoors, id, startedHere, onDemand);
     m_loaded.insert(id, s);
@@ -395,7 +396,7 @@ WriteResult Athlete::trashSession(const SessionId &id, QString *where)
 {
     if (!ensureHeld(id))
         return refused(QStringLiteral("That session is not known."));
-    if (m_sessions->open(id)->athlete != m_id)
+    if (!owns(*m_sessions->open(id)))
         return refused(QStringLiteral("That session is another athlete's."));
     const WriteResult r = m_sessions->trash(id, where);   // refused while in progress (J-46)
     if (!r.ok())
@@ -408,6 +409,36 @@ WriteResult Athlete::trashSession(const SessionId &id, QString *where)
     return r;
 }
 
+WriteResult Athlete::moveSessionTo(const SessionId &id, Athlete &to, QString *newFolder)
+{
+    if (newFolder)
+        newFolder->clear();
+    if (!ensureHeld(id))
+        return refused(QStringLiteral("That session is not known."));
+    if (!owns(*m_sessions->open(id)))
+        return refused(QStringLiteral("That session is another athlete's."));
+    if (to.id() == m_id || to.id().isNull())
+        return refused(QStringLiteral("Choose another golfer to move the session to."));
+    if (to.readOnly())
+        return { WriteResult::Status::ReadOnly,
+                 QStringLiteral("%1's record was saved by a newer PinPoint Studio.").arg(to.record().name) };
+    if (Session *s = m_loaded.value(id); s && s->inProgress())
+        return refused(QStringLiteral("The session is still in progress; end it before moving it."));   // P3
+    // Released FIRST (its diagnostics write what they kept and cancel their waiting jobs: §4.4 steps 8–9), so nothing is
+    // written into the old folder after the move; a refused move only means the session is loaded again when next asked.
+    if (Session *s = m_loaded.take(id)) {
+        emit s->releasing();
+        s->deleteLater();   // a view still bound to it reads a live object until the event loop runs
+    }
+    const WriteResult r = m_sessions->moveToAthlete(id, to.sessionOwner(), newFolder);
+    if (!r.ok())
+        return r;
+    ppInfo() << "[Athlete] session moved:" << id.toString() << "from" << m_id.toString() << "to" << to.id().toString();
+    emit sessionMovedOut(id);
+    emit to.sessionMovedIn(id);
+    return r;
+}
+
 Session *Athlete::sessionAt(const QString &folder)
 {
     if (!m_sessions || folder.isEmpty())
@@ -415,7 +446,11 @@ Session *Athlete::sessionAt(const QString &folder)
     // The folder translated ONCE, here, at the edge (DEC-90): the session file's id, or D3's for a session
     // older than step 2, named for this athlete as its folder's owner.
     // Only a session folder in this athlete's folder is one of its sessions (path text only, nothing read).
-    if (QDir::cleanPath(folder + QStringLiteral("/..")) != QDir::cleanPath(m_folder))
+    // Unassigned's sessions are also found in its other folders (the no-golfer `unknown/` folder: R-UNASSIGNED-4).
+    const QString parent = QDir::cleanPath(folder + QStringLiteral("/.."));
+    if (parent != QDir::cleanPath(m_folder)
+        && std::none_of(m_otherFolders.cbegin(), m_otherFolders.cend(),
+                        [&parent](const QString &f) { return QDir::cleanPath(f) == parent; }))
         return nullptr;
     // A SESSION ALREADY HELD IS ANSWERED FROM MEMORY (refactor step 3.4b-ii, review 1: CN-2): the repository's
     // identity map knows its folder, so no session.json is read again. Every row, edit and refresh asks this; only a

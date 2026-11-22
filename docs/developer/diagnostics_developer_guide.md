@@ -564,8 +564,10 @@ summary sidecar caches it rebuilds, under the swing's lock, never during an arch
   golfer's other sessions (`historyOf`). `QML_UNCREATABLE`. It holds a use of its `Session` only while a view is bound.
 - `WorkOnsController` for Home: it reads `AthleteDiagnostics` (through the `AthleteLevel` interface) and words it.
 - `SessionReportModel` reads the session's `report` adapter and `AthleteDiagnostics::tendenciesAsOf`.
-- No golfer (the `unknown` folder): no `Session` holds the session, so it has no diagnostics; every place its findings
-  would appear says so (Mark's N1: show with a warning).
+- No golfer chosen: the session is the Unassigned owner's full `Session` (information_model.md §5.11; step 5.1), judged
+  like any other with no norm cohort, and it freezes no club baseline (`AthleteDiagnostics::clubBaselineFor`); Home
+  shows it no athlete-level figures. Only a folder no athlete of the library holds has no diagnostics, and every place
+  its findings would appear says so (show with a warning).
 
 **What still runs the OLD engine** (the engine half of `SessionDiagnosticsModel`: `detectShot`, its own reduction, stores,
 pools and baseline authorities). Three things, until step 5 after migration M1 (`build/refactor/step-3/JUDGEMENT-CALLS.md`

@@ -133,11 +133,13 @@ struct DocFacts {
 // { posture, wrist, delivery, consistency, tendencies }, each empty when nothing reads. `tendencies`: the athlete level's
 // tendencies AS OF this session (AthleteDiagnostics::tendenciesAsOf, taken on the GUI thread: refactor 3.7-f, from the
 // summaries, the board's annotations applied by each session's own reduction), null when no owner reads it; then
-// `tendenciesUnread` keeps the page with W::tendenciesUnread() as its standfirst (R1-m6), else there is none.
+// `tendenciesWhy` keeps the page with those words as its standfirst — W::tendenciesUnread() (R1-m6), or, for a session
+// with no golfer, W::tendenciesNoGolfer() (step 5.1 review B1: the Unassigned owner has no athlete level) — else there is
+// none.
 QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::ConsistencyEnv &env, const QString &gradePolicy,
                             const std::shared_ptr<const INormProvider> &norms, const ShotOutcomePack &outcomePack,
                             const std::optional<TendencySet> &tendencies, int tendenciesLeftOut, int tendenciesLeftOutNewer,
-                            bool tendenciesUnread)
+                            const QString &tendenciesWhy)
 {
     pinpoint::charts::SessionSeriesModel series;
     series.setSynchronous(true);
@@ -162,8 +164,8 @@ QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::C
                        t[QStringLiteral("standfirst")] = t.value(QStringLiteral("standfirst")).toString() + QLatin1Char(' ')
                                                          + W::tendenciesNotSummedUp(tendenciesLeftOutNewer);
                    return t;
-               }()) : tendenciesUnread ? QVariant(pinpoint::report::tendenciesUnreadBlock(W::tendenciesUnread()))   // R1-m6: kept, saying why
-                                       : kNull } };
+               }()) : !tendenciesWhy.isEmpty() ? QVariant(pinpoint::report::tendenciesUnreadBlock(tendenciesWhy))   // kept, saying why
+                                              : kNull } };
 }
 
 QVector<DocFacts> readDocs(const QString &sessionDir)
@@ -500,14 +502,11 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     // door — which loads the session if no screen has (its owner then judges what is stale, and writes it: its own write).
     SessionDiagnosticsModel *m = m_diagnosisDoor ? m_diagnosisDoor(dir) : nullptr;
     if (!m || (m->isAdapter() && m->sessionDir().isEmpty())) {
-        // NO SESSION HOLDS IT (Mark's N1: a session recorded with no golfer has no diagnostics; or another golfer's): no
-        // report, and the sheet says why — never a report with its findings silently missing (show with a warning).
-        const QString owner = QFileInfo(QFileInfo(dir).absolutePath()).fileName();   // the folder it is in
-        const QString why = owner == QLatin1String("unknown")
-            ? QStringLiteral("This session was recorded with no golfer, so its swings are not judged and there is nothing to "
-                             "report. Move it to a golfer to report on it.")
-            : QStringLiteral("This session is not one of the chosen golfer's, so its swings are not judged here and there is "
-                             "nothing to report.");
+        // NO SESSION HOLDS IT (a folder no athlete of the library lists; a session with no golfer is the Unassigned
+        // owner's and reported like any other since step 5.1, §5.11): no report, and the sheet says why — never a report
+        // with its findings silently missing (show with a warning).
+        const QString why = QStringLiteral("No golfer's session holds these swings, so they are not judged here and there "
+                                           "is nothing to report.");
         ppWarn() << "[Report] no Session holds" << dir << "- no report:" << why;
         if (print) emit made(dir, false, QString(), why);
         else       emit prepared(dir, false, {}, why);
@@ -542,8 +541,11 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     // build's (4-e: the owner's newerFolders), said apart.
     int tendenciesLeftOut = 0, tendenciesLeftOutNewer = 0;
     bool tendenciesUnread = false;
-    pinpoint::AthleteLevel *ad = m_athleteDoor ? m_athleteDoor(dir) : nullptr;
-    if (m_athleteDoor && !ad) {
+    // A SESSION WITH NO GOLFER (the Unassigned owner's: information_model.md §5.11; step 5.1 review B1, J-67 7): no athlete
+    // level — its other sessions are other golfers' — so the page is kept and says why, and nothing is pooled.
+    const bool noGolfer = m_noGolfer && m_noGolfer(dir);
+    pinpoint::AthleteLevel *ad = (m_athleteDoor && !noGolfer) ? m_athleteDoor(dir) : nullptr;
+    if (m_athleteDoor && !ad && !noGolfer) {
         ppWarn() << "[Report] no athlete level holds" << dir << "- the Tendencies page says it can't be read";
         tendenciesUnread = true;
     }
@@ -565,10 +567,11 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
         }
     }
     connect(&m_job->chartsWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onChartsRead);
+    const QString tendenciesWhy = noGolfer ? W::tendenciesNoGolfer() : tendenciesUnread ? W::tendenciesUnread() : QString();
     m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
-                                                      tendenciesLeftOutNewer, tendenciesUnread] {
+                                                      tendenciesLeftOutNewer, tendenciesWhy] {
         return readChartsPages(dir, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
-                               tendenciesLeftOutNewer, tendenciesUnread);
+                               tendenciesLeftOutNewer, tendenciesWhy);
     }));
 
     m_model = m;
@@ -1024,6 +1027,7 @@ void SessionReportModel::build()
     QVariantMap lmGraphics;
     if (anyLmBlock) {
         ShotListModel lmShots;
+        lmShots.setShotCommands(m_commands);   // the rows through the Session (step 5.1: the carousel reads nothing itself)
         lmShots.loadSessionDir(job.dir);
         LmSessionModel lmModel;
         lmModel.setReviewing(true);
@@ -1078,7 +1082,11 @@ void SessionReportModel::build()
     // Earlier sessions of the day with swings and no summary this build reads (J-51: said, below), by the owner's cause
     // (refactor 4-e): a newer build's (`notSummedUpNewer`), or stale or missing — the catch-up's (`notSummedUp`).
     int notSummedUp = 0, notSummedUpNewer = 0;
-    pinpoint::AthleteLevel *athleteLevel = m_athleteDoor ? m_athleteDoor(job.dir) : nullptr;
+    // A session with no golfer (step 5.1 review B1): its day's other sessions are other golfers' — never a sibling, never
+    // numbered with it; Earlier today says why instead (when there were any), and the kicker has no "n of m".
+    const bool noGolfer = m_noGolfer && m_noGolfer(job.dir);
+    int otherGolfersToday = 0;
+    pinpoint::AthleteLevel *athleteLevel = (m_athleteDoor && !noGolfer) ? m_athleteDoor(job.dir) : nullptr;
     const QStringList newerFolders = athleteLevel ? athleteLevel->notSummedUp().newerFolders : QStringList();
     {
         const QList<pinpoint::SessionIndexEntry> index =
@@ -1099,6 +1107,10 @@ void SessionReportModel::build()
             Sibling s;
             s.dir = QDir::cleanPath(QFileInfo(e.folder).absoluteFilePath());
             s.self = s.dir == job.dir;
+            if (!s.self && noGolfer) {
+                ++otherGolfersToday;
+                continue;
+            }
             if (!s.self) {
                 // THE EARLIER SESSION'S SUMMARY AS THE ATHLETE LEVEL READS IT (refactor 3.7-f; CARRY 3.7-d M5): this
                 // build's, read strictly (AthleteDiagnostics). One with none (an older rule's, none yet, another build's on
@@ -1391,7 +1403,9 @@ void SessionReportModel::build()
         QVariant today = kNull;
         std::vector<const Sibling *> cols;
         for (const Sibling &s : day) { if (s.self) { cols.push_back(&s); break; } if (s.ok && s.swings >= kNoteBelowSwings) cols.push_back(&s); }
-        if (!isNote && (cols.size() > 1 || notSummedUp > 0 || notSummedUpNewer > 0)) {
+        if (!isNote && noGolfer && otherGolfersToday > 0) {
+            today = QVariantMap{ { QStringLiteral("alone"), true }, { QStringLiteral("note"), W::todayNoGolfer() } };
+        } else if (!isNote && (cols.size() > 1 || notSummedUp > 0 || notSummedUpNewer > 0)) {
             const int more = std::max(0, int(cols.size()) - kTodayCap);
             if (more > 0) cols.erase(cols.begin(), cols.begin() + more);
             // the rows: today's work-ons, then habits that made an earlier list and not today's

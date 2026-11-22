@@ -43,6 +43,11 @@
 #include "shot/qml_payload.h"
 #include "Analysis/swing_analysis.h"
 #include "LaunchMonitor/launch_monitor_reading.h"
+#include "fake_shot_door.h"   // the report's carousel lists the session through a door (step 5.1)
+
+#include <QDir>
+#include <QFile>
+#include <QTemporaryDir>
 
 #include <QCoreApplication>
 #include <QUrl>
@@ -358,6 +363,44 @@ int main(int argc, char **argv)
     }
 
     board.setShotModel(nullptr);
+
+    // Z (refactor step 5.1 fix, 5.2's inventory): THE REPORT'S CAROUSEL LISTS THE SESSION THROUGH A DOOR. The report's
+    // launch monitor figures come off a private ShotListModel loaded from the session folder (SessionReportModel::build)
+    // and the board over it. Since step 5.1 a carousel reads nothing itself, so that model needs the shot-command door —
+    // main.cpp hands the report `app` (SessionReportModel::setShotCommands) and the report hands it on. Over real swing
+    // documents: with a door the board has the readings; without one it has none (what the report showed before the fix).
+    std::printf("\nZ — the report's carousel over a real session folder, through the door\n");
+    {
+        QTemporaryDir tmp;
+        const QString session = tmp.path() + QStringLiteral("/2026-11-22_Golfer_Swing_01");
+        bool staged = tmp.isValid();
+        for (int n = 1; n <= 3 && staged; ++n) {
+            const QString sw = session + QStringLiteral("/swing_%1").arg(n, 4, 10, QLatin1Char('0'));
+            staged = QDir().mkpath(sw) && QFile::copy(QStringLiteral(PP_LM_SWING_FIXTURE), sw + QStringLiteral("/swing.json"));
+        }
+        check(QStringLiteral("Z0 a session of three launch-monitor swings staged"), staged);
+        const auto readings = [&session](pinpoint::ShotCommandDoor *door) {
+            ShotListModel shots;
+            shots.setShotCommands(door);
+            shots.loadSessionDir(session);
+            LmSessionModel lm;
+            lm.setReviewing(true);
+            lm.setShotModel(&shots);
+            int inFigures = 0;
+            for (const lm::LmBoardShot &b : lm.boardShots()) if (b.inFigures()) ++inFigures;
+            lm.setShotModel(nullptr);
+            return std::pair<int, int>{ shots.rowCount(), inFigures };
+        };
+        pinpoint::testdoc::FolderDoor door;
+        const auto withDoor = readings(&door);
+        check(QStringLiteral("Z1 with the door: every swing listed and read by the board (rows %1, in the figures %2)")
+                  .arg(withDoor.first).arg(withDoor.second),
+              withDoor.first == 3 && withDoor.second == 3);
+        const auto none = readings(nullptr);
+        check(QStringLiteral("Z2 without one: nothing listed, so no launch monitor figures (why the report needs it)"),
+              none.first == 0 && none.second == 0);
+    }
+
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

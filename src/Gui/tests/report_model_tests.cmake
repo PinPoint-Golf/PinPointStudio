@@ -60,7 +60,9 @@ set_tests_properties(report_model_test PROPERTIES
 # on the board. Links the board exactly as lm_session_model_test does (PP_LM_BOARD_SOURCES, CMakeLists.txt).
 pp_add_test(report_lm_test
     SOURCES report_lm_test.cpp ${GUI}/report/report_lm.cpp ${PP_LM_BOARD_SOURCES}
-    INCLUDE ${PP_LM_BOARD_INCLUDES} ${GUI}/report
-    LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC)
+    INCLUDE ${PP_LM_BOARD_INCLUDES} ${GUI}/report ${SRC}/Export/tests
+    LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
+    # Z: a real launch-monitor swing document (the fixture the diagnostics tests read).
+    COMPILE_OPTIONS -DPP_LM_SWING_FIXTURE="${SRC}/Diagnostics/tests/data/live_swings/lm_7iron/swing.json")
 set_tests_properties(report_lm_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")

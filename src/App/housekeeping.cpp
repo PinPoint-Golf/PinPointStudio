@@ -179,7 +179,8 @@ Housekeeping::Report Housekeeping::run(const Plan &plan, const LibraryWalk &walk
         return f.archived || f.dateMs >= todayMs || (!live.isEmpty() && f.folder == live);
     };
 
-    // One folder: its Session's archive (the app's instance) when an Athlete holds it, else N1's path. False: not archived.
+    // One folder: its Session's archive (the app's instance) when an Athlete holds it (the Unassigned owner's for a no-golfer
+    // session: §5.11), else today's path for a folder no Athlete holds. False: not archived.
     const auto archiveOne = [&](LibraryWalk::Folder &f) -> bool {
         auto prep = std::make_shared<Prepared>();
         const QString folder = f.folder;
@@ -192,8 +193,15 @@ Housekeeping::Report Housekeeping::run(const Plan &plan, const LibraryWalk &walk
                             athletes->all.append(a);
             }
             for (const QPointer<Athlete> &a : std::as_const(athletes->all)) {
-                // Only a folder in this athlete's folder can be one of its sessions (path text: nothing read).
-                if (!a || QDir::cleanPath(folder + QStringLiteral("/..")) != QDir::cleanPath(a->folder()))
+                // Only a folder in this athlete's folder can be one of its sessions (path text: nothing read) — or, for the
+                // Unassigned owner, in its other folder (the no-golfer `unknown/` an older build left: §5.11, J-66).
+                if (!a)
+                    continue;
+                const QString parent = QDir::cleanPath(folder + QStringLiteral("/.."));
+                const QStringList others = a->otherFolders();
+                if (parent != QDir::cleanPath(a->folder())
+                    && std::none_of(others.cbegin(), others.cend(),
+                                    [&parent](const QString &o) { return QDir::cleanPath(o) == parent; }))
                     continue;
                 const auto loaded = a->loadedSessions();
                 prep->wasLoaded = std::any_of(loaded.cbegin(), loaded.cend(), [&folder](Session *s) {

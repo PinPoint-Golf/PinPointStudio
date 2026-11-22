@@ -43,6 +43,11 @@ Shot::Shot(const ShotRef &ref, std::optional<recording::ShotKind> kind, const Sh
 {
 }
 
+bool Shot::documentIsDeviceOnly() const
+{
+    return m_doors.recordings && m_doors.recordings->isDeviceOnly(m_ref);
+}
+
 recording::ShotKind Shot::kind() const
 {
     // Read once, then kept: the kind never changes (CLS-SHOT). Without a door it is not known to be

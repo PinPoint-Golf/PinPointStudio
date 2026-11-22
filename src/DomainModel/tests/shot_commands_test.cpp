@@ -457,7 +457,7 @@ static void doorAndCarousel()
     ForwardResult f = rig.app->rate(sessionFolder, ref, 2);
     check(QStringLiteral("C11b a held shot: reached, saved"), f.reached && f.result.ok() && reviewOf(rig, ref).value(QStringLiteral("rating")).toInt() == 2);
     f = rig.app->rate(rig.dir.path() + QStringLiteral("/elsewhere"), ref, 5);
-    check(QStringLiteral("C11c a folder no Session holds: not reached, nothing written (N1)"),
+    check(QStringLiteral("C11c a folder no athlete holds: not reached, nothing written"),
           !f.reached && reviewOf(rig, ref).value(QStringLiteral("rating")).toInt() == 2);
     f = rig.app->rate(sessionFolder, ShotRef(SessionId::create(), 1), 5);
     check(QStringLiteral("C11d another session's ShotRef: not reached"), !f.reached);
@@ -467,7 +467,6 @@ static void doorAndCarousel()
 
     // C12: the carousel, through the door
     ShotListModel model;
-    model.setRecordingRepository(rig.recordings.get());
     model.setShotCommands(rig.app.get());
     model.loadSessionDir(sessionFolder);
     const int id = model.rowCount() == 1 ? model.data(model.index(0), ShotListModel::ShotIdRole).toInt() : -1;
@@ -492,17 +491,21 @@ static void doorAndCarousel()
               && rv.value(QStringLiteral("clubOverride")).toString() == QStringLiteral("PITCHING WEDGE")
               && rv.value(QStringLiteral("excluded")).toBool());
 
-    // Without a door: today's write-through (the interim N1 path), rating with the note and club.
+    // Without a door (step 5.1: N1's write-through is gone): no rows of its own, and an edit of a row with a folder is
+    // refused and said so — nothing written, no event, the row as it was.
     ShotListModel plain;
-    plain.setRecordingRepository(rig.recordings.get());
     plain.loadSessionDir(sessionFolder);
+    const int plainRows = plain.rowCount();
+    plain.addPersistedShot(rig.recordings->swingFolder(ref), 1, QStringLiteral("12:00:00"), QStringLiteral("9 IRON"), false,
+                           QUrl(), 0, 5, QString(), {}, {});
+    QStringList refused;
+    QObject::connect(&plain, &ShotListModel::saveFailed, &plain, [&refused](const QString &what, const QString &) { refused << what; });
     rig.events.clear();
-    plain.setNote(plain.data(plain.index(0), ShotListModel::ShotIdRole).toInt(), QStringLiteral("today's path"));
-    const QJsonObject pv = reviewOf(rig, ref);
-    check(QStringLiteral("C12g no door: today's write-through (note, with rating and club), no event"),
-          pv.value(QStringLiteral("note")).toString() == QStringLiteral("today's path")
-              && pv.value(QStringLiteral("rating")).toInt() == 5 && pv.value(QStringLiteral("club")).toString() == QStringLiteral("9 IRON")
-              && rig.events.isEmpty());
+    const QJsonObject beforePlain = reviewOf(rig, ref);
+    plain.setNote(plain.data(plain.index(0), ShotListModel::ShotIdRole).toInt(), QStringLiteral("not saved"));
+    check(QStringLiteral("C12g no door: no rows of its own; an edit refused and said so, nothing written, no event"),
+          plainRows == 0 && refused.size() == 1 && reviewOf(rig, ref) == beforePlain && rig.events.isEmpty()
+              && plain.data(plain.index(0), ShotListModel::NoteRole).toString().isEmpty());
 }
 
 // ── C13: the old model's golfer commands ────────────────────────────────────────────────────────────────
@@ -701,7 +704,6 @@ static void rowsOverShots()
     const QString dir = s->entry()->folder;
 
     ShotListModel model;
-    model.setRecordingRepository(rig.recordings.get());
     model.setShotCommands(rig.app.get());
     model.loadSessionDir(dir);
     const auto roleOf = [&model](int row, int role) { return model.data(model.index(row), role); };
@@ -740,7 +742,6 @@ static void rowsOverShots()
 
     // A live row (addShot): its review facts are its Shot's.
     ShotListModel live;
-    live.setRecordingRepository(rig.recordings.get());
     live.setShotCommands(rig.app.get());
     const int liveId = live.addShot(one->folder(), QStringLiteral("12:00:00"), QStringLiteral("DRIVER"), false, QUrl(),
                                     {}, 0, {});
@@ -763,19 +764,18 @@ static void rowsOverShots()
     Shot *third = s->addShot(recording::ShotKind::Captured, &next);
     check(QStringLiteral("C15i …and its number never reissued (the next is 3)"), third && third->swingNumber() == 3);
 
-    // Without a door: today's paths (its own load, edit and trash).
+    // Without a door (step 5.1: N1's load, write-through and trash are gone): no rows; a folder row's trash is refused —
+    // the swing stays, no event.
     ShotListModel plain;
-    plain.setRecordingRepository(rig.recordings.get());
-    QStringList moved;
-    plain.setTrashFunction([&moved](const QString &d) { moved << d; return true; });
     plain.loadSessionDir(dir);
+    const int plainRows = plain.rowCount();
+    plain.addPersistedShot(one->folder(), 1, QStringLiteral("12:00:00"), QStringLiteral("7 IRON"), false, QUrl(), 0, 4,
+                           QString(), {}, {});
     rig.events.clear();
-    const int plainId = plain.rowCount() > 0 ? plain.data(plain.index(plain.rowCount() - 1), ShotListModel::ShotIdRole).toInt() : -1;
-    plain.setNote(plainId, QStringLiteral("today's path"));
-    plain.moveToTrash(plainId);
-    check(QStringLiteral("C15j no door: its own load and write-through (no event), its own trash function"),
-          reviewOf(rig, one->ref()).value(QStringLiteral("note")).toString() == QStringLiteral("today's path")
-              && rig.events.isEmpty() && moved.size() == 1 && trashed.size() == 1);
+    const bool plainMoved = plain.moveToTrash(plain.data(plain.index(0), ShotListModel::ShotIdRole).toInt());
+    check(QStringLiteral("C15j no door: no rows of its own; its trash refused (the swing stays, the row too, no event)"),
+          plainRows == 0 && !plainMoved && plain.rowCount() == 1 && QFileInfo::exists(one->folder()) && rig.events.isEmpty()
+              && trashed.size() == 1);
 
     // C15k: a held session is answered from memory (round 2: no session.json read per row, edit or refresh).
     {
@@ -819,7 +819,6 @@ static void reanalysisThroughTheShot()
     WriteBackCountingApp door([&rig] { return rig.athlete; });
 
     ReanalysisController ctrl;
-    ctrl.setRecordingRepository(rig.recordings.get());
     ctrl.setShotCommands(&door);
     int ok = -1, failed = -1;
     QObject::connect(&ctrl, &ReanalysisController::reanalyseFinished, &ctrl,
@@ -848,9 +847,8 @@ static void reanalysisThroughTheShot()
     check(QStringLiteral("C16d launch monitor only (its Shot's kind): rows through the Shot, current — no analysis, no event"),
           ok == 1 && g_stubCalls == 0 && door.writeBacks == 2 && rig.events.isEmpty());
 
-    // A shot no Session holds (no door): today's write through the repository.
+    // No door (step 5.1: N1's reader and write-back are gone): refused, nothing read or written, no event.
     ReanalysisController plain;
-    plain.setRecordingRepository(rig.recordings.get());
     ok = failed = -1;
     QObject::connect(&plain, &ReanalysisController::reanalyseFinished, &plain,
                      [&ok, &failed](int a, int b, const QString &) { ok = a; failed = b; });
@@ -858,7 +856,7 @@ static void reanalysisThroughTheShot()
     g_stubCalls = 0;
     plain.reanalyse(QVariantList{ shot->folder() });
     waitFor([&ok] { return ok >= 0; }, 5000);
-    check(QStringLiteral("C16e no door: today's path — read through the controller's reader (none here: refused), nothing written, no event"),
+    check(QStringLiteral("C16e no door: refused — nothing read, nothing written, no event"),
           ok == 0 && failed == 1 && g_stubCalls == 0 && door.writeBacks == 2 && rig.events.isEmpty());
 
     // C16f (round 2, CN-1): the rescue — a camera shot (allocated captured) whose export failed and whose folder the
@@ -925,6 +923,38 @@ static void reanalysisThroughTheShot()
     }
 }
 
+// C17 (refactor step 5.1; J-67 1: a session belongs to its athlete whoever is current): a late reading — the launch
+// monitor's, a phone clip's, a re-analysis' — that lands after End and a switch of golfer reaches its own session through
+// the door, and is saved there, never refused or written elsewhere.
+static void lateWriteAfterASwitch()
+{
+    std::printf("\nC17 a late reading after End and a switch of golfer: its own session's Shot\n");
+    Rig rig;
+    rig.app->setAthletes([&rig] { return rig.athletes->heldAthletes(); });   // main.cpp's
+    Athlete *first = rig.athlete;
+    Session *s = first ? first->startSession(kSwing, kPat) : nullptr;
+    Shot *shot = s ? shotWithDocument(s, rig) : nullptr;
+    check(QStringLiteral("C17a the first golfer's session and shot"), shot != nullptr);
+    if (!shot) return;
+    const ShotRef ref = shot->ref();
+    const QString folder = s->entry()->folder;
+    check(QStringLiteral("C17b End"), s->end().ok());
+    AthleteRecord other;
+    other.name = QStringLiteral("Next Golfer");
+    rig.athlete = rig.athletes->create(other).athlete;   // the switch: `app`'s current athlete is now the next golfer
+    check(QStringLiteral("C17c the next golfer is current"), rig.athlete && rig.athlete != first);
+    rig.events.clear();
+    bool replaced = false;
+    const ForwardResult f = rig.app->completeCapture(folder, ref, reading("c17"), QJsonObject(), &replaced);
+    check(QStringLiteral("C17d the late reading reaches the first golfer's Shot and is saved (EVT-22 once)"),
+          f.reached && f.result.ok() && rig.events == QStringList{ ev("EVT-22", ref) });
+    const ForwardResult r = rig.app->rate(folder, ref, 3);
+    check(QStringLiteral("C17e …and so does a late edit: saved in its own session's swing"),
+          r.reached && r.result.ok() && reviewOf(rig, ref).value(QStringLiteral("rating")).toInt() == 3);
+    check(QStringLiteral("C17f the next golfer holds no session for that folder (nothing written elsewhere)"),
+          rig.athlete->sessionAt(folder) == nullptr && rig.athlete->index().isEmpty());
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -945,6 +975,7 @@ int main(int argc, char **argv)
     analysisAndSummary();
     rowsOverShots();
     reanalysisThroughTheShot();
+    lateWriteAfterASwitch();
     std::printf("\n%s: %d of %d checks failed\n", g_fail ? "FAIL" : "PASS", g_fail, g_run);
     return g_fail ? 1 : 0;
 }

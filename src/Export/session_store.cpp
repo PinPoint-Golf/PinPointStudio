@@ -20,6 +20,7 @@
 
 #include "session_diagnostics_io.h"   // the diagnostics files' file work (J-42)
 #include "session_files.h"
+#include "athlete_files.h"   // athlete.json's name: whether `unknown/` is a golfer's (R-UNASSIGNED-2)
 #include "swing_paths.h"
 
 #include "../Core/atomic_write.h"
@@ -129,7 +130,21 @@ QString SessionStore::athleteFolder(const SessionOwner &owner)
     // Cleaned (REVIEW-f R1-m10): a library path set with a trailing slash ("/mnt/swingdata/") gave "lib//<athlete>", so the
     // index's folders disagreed with their own SessionIdentity::folder() and with every other source's spelling (the
     // 2aa5bc72 double count). No identity moves: a legacy session's id is its athlete's and its folder NAME's.
+    // The Unassigned owner's folder is its own fixed name, verbatim (R-UNASSIGNED-2).
+    if (isUnassigned(owner.athlete))
+        return QDir::cleanPath(root + QLatin1Char('/') + unassignedFolderName());
     return QDir::cleanPath(root + QLatin1Char('/') + athleteToken(owner));
+}
+
+QString SessionStore::legacyNoGolferFolder(const QString &libraryRoot)
+{
+    const QString root = libraryRoot.trimmed();
+    if (root.isEmpty())
+        return {};
+    const QString dir = QDir::cleanPath(root + QStringLiteral("/unknown"));
+    if (!QFileInfo(dir).isDir() || QFileInfo::exists(AthleteFiles::athleteFile(dir)))
+        return {};   // none, or a golfer's (one whose name sanitised to "unknown")
+    return dir;
 }
 
 QString SessionStore::folderTypeLabel(const QString &type)
@@ -261,6 +276,16 @@ SessionStore::Held &SessionStore::hold(const SessionIndexEntry &entry, const QJs
 QList<SessionIndexEntry> SessionStore::enumerate(const SessionOwner &owner)
 {
     QList<SessionIndexEntry> entries;
+    if (isUnassigned(owner.athlete)) {
+        // R-UNASSIGNED-4 (J-66): the no-golfer sessions an older build captured into `unknown/` are held where they
+        // are — the ones whose file names no athlete (or this one), and the ones with no file (D3's id, named for
+        // Unassigned: a read, nothing written). A session there naming a golfer stays that golfer's matter.
+        const QString legacy = legacyNoGolferFolder(owner.libraryRoot);
+        if (!legacy.isEmpty() && QDir::cleanPath(legacy) != QDir::cleanPath(athleteFolder(owner)))
+            for (const SessionIndexEntry &e : enumerateFolder(legacy, owner.athlete))
+                if (!e.identity.isNull() && (e.athlete.isNull() || e.athlete == owner.athlete))
+                    entries.append(e);
+    }
     for (const SessionIndexEntry &e : enumerateFolder(athleteFolder(owner), owner.athlete)) {
         if (e.identity.isNull())
             continue;   // a legacy session with no athlete to name it (no athlete selected): as before step 2.7a
@@ -852,6 +877,82 @@ WriteResult SessionStore::trash(const SessionId &id, QString *where)
     return written();
 }
 
+// ── A session to another athlete (step 5.1; §5.11 R-UNASSIGNED-4; J-67) ─────────────────────────────
+
+WriteResult SessionStore::moveToAthlete(const SessionId &id, const SessionOwner &to, QString *newFolder)
+{
+    if (newFolder)
+        newFolder->clear();
+    const auto it = m_held.constFind(id);
+    if (it == m_held.constEnd())
+        return failed(QStringLiteral("That session is not known."));
+    const QString folder = it->entry.folder;
+    if (!QFileInfo::exists(folder))
+        return failed(QStringLiteral("The session %1 is no longer there.").arg(folder));
+    if (it->entry.archived)
+        return failed(QStringLiteral("The session %1 is archived; restore it before moving it.").arg(folder));
+    if (to.athlete.isNull() || to.athlete == it->entry.athlete)
+        return failed(QStringLiteral("Choose another golfer to move the session to."));
+    // P3: never change the athlete under a running session; a newer build's file is not rewritten either.
+    if (const WriteResult c = checkNotLive(*it, /*refuseReadOnly=*/true); !c.ok()) {
+        ppWarn() << "[SessionStore] not moved:" << c.error;
+        return c;
+    }
+    {
+        // As the trash: no other writer mid-write in it, the lock let go BEFORE the rename (a lock file must not
+        // travel with the folder, and Windows will not rename a folder that holds an open file).
+        FolderLock lock(folder);
+        if (lock.lock(m_lockWaitMs < 0 ? FolderLock::kWaitMs : m_lockWaitMs) == FolderLock::Result::Locked) {
+            ppWarn() << "[SessionStore] not moved, the folder is locked by" << lock.holder() << ":" << folder;
+            return locked(folder, lock.holder());
+        }
+    }
+    const QString destDir = athleteFolder(to);
+    if (!QDir().mkpath(destDir))
+        return failed(QStringLiteral("The golfer's folder %1 could not be made.").arg(destDir));
+    const QString target = QDir::cleanPath(destDir + QLatin1Char('/') + QFileInfo(folder).fileName());
+    if (QFileInfo::exists(target))
+        return failed(QStringLiteral("The golfer's folder already holds a session called %1.").arg(QFileInfo(folder).fileName()));
+    if (!QDir().rename(folder, target)) {
+        ppWarn() << "[SessionStore] could not move the session folder" << folder << "to" << target;
+        return failed(QStringLiteral("The session %1 could not be moved.").arg(folder));
+    }
+
+    Held &h = m_held[id];
+    const Held before = h;
+    if (!h.entry.hasSessionFile) {
+        // The first write to a session older than step 2 (resume's rule): its file, with D3's id, its start inferred.
+        const QDateTime start = inferredLegacyStart(target);
+        h.entry.startedAtUtc  = start;
+        h.file.insert(QStringLiteral("origin"), QJsonObject{
+            { QStringLiteral("kind"), QStringLiteral("backfilled") },
+            { QStringLiteral("tool"), QCoreApplication::applicationName() },
+            { QStringLiteral("version"), QCoreApplication::applicationVersion() },
+            { QStringLiteral("at"), isoUtc(nowUtc()) },
+            { QStringLiteral("read"), QStringLiteral("the folder's name (the id and type); its swing folders' "
+                                                     "creation times (the start)") },
+        });
+    }
+    h.entry.identity = SessionIdentity::fromSessionFile(id, target, before.entry.identity.type(), h.entry.startedAtUtc, m_zone);
+    h.entry.folder   = target;
+    h.entry.athlete  = to.athlete;
+    const WriteResult w = write(h);
+    if (!w.ok()) {
+        // Put it back as it was: the folder where it was, the file unchanged (the write failed before replacing it).
+        h = before;
+        if (!QDir().rename(target, folder))
+            ppError() << "[SessionStore] the moved session" << target << "could not be put back at" << folder;
+        ppWarn() << "[SessionStore] the session was not moved, its file could not be written:" << w.error;
+        return w;
+    }
+    h.createdHere = false;
+    publish(id, target);
+    ppInfo() << "[SessionStore] session moved to athlete" << to.athlete.toString() << ":" << folder << "->" << target;
+    if (newFolder)
+        *newFolder = target;
+    return written();
+}
+
 // ── One shot to the trash (step 3.4a; J-24) ──────────────────────────────────────────────────────────
 
 WriteResult SessionStore::trashShot(const ShotRef &shot, QString *where)
@@ -860,8 +961,15 @@ WriteResult SessionStore::trashShot(const ShotRef &shot, QString *where)
     if (shot.isNull() || folder.isEmpty())
         return failed(QStringLiteral("That shot's session is not open."));
     const QString swingDir = folder + QLatin1Char('/') + SwingPaths::swingFolderName(shot.swingNumber());
-    if (!QFileInfo::exists(swingDir))
-        return failed(QStringLiteral("The swing %1 is no longer there.").arg(swingDir));
+    if (!QFileInfo::exists(swingDir)) {
+        // GONE ALREADY COUNTS AS GONE (the carousel's rule since #56, moved here with N1 in step 5.1): someone else moved
+        // it while the trash waited. Nothing to move; its number is still recorded (best effort), and the Session lets
+        // the Shot go.
+        if (QFileInfo::exists(folder))
+            SessionFiles::raiseSwingHighWater(folder, shot.swingNumber());
+        ppInfo() << "[SessionStore] swing already gone from the session:" << swingDir;
+        return { WriteResult::Status::Unchanged, QStringLiteral("The swing %1 is no longer there.").arg(swingDir) };
+    }
     // One write under the session's lock: the number recorded, then the folder moved (allocateSwing's rule
     // for a folder where no lock file can be made: the move decides).
     FolderLock lock(folder);

@@ -520,7 +520,7 @@ never outlives them); it hands them to the callers above.
 | `create(shot, reading, DeviceOnlyMeta)` | a shot the launch monitor alone recorded; `shotKind: "deviceOnly"` only when `meta.standalone` (the rescue of a failed camera shot's folder records no kind: a phone clip may still join it) | `LaunchMonitorController` |
 | `completeCapture(shot, reading, followedClub, &clubReplaced)` | a late LM reading (IM-4: capture writes in stages); follow-club may replace `capture.club` | `LaunchMonitorController`, `lm_repair` |
 | `completeCapture(shot, StreamArrival)` | a phone clip's stream origin, then its file, frames and clock | `PpcpClipFiler` |
-| `writeAnalysis(shot, AnalysisOutcome{analysis, imu, capture}, PersistOptions)` | the re-analysis write-back: the document read fresh (**the empty-document guard**: nothing read → `NoDocument`, nothing written), both verdicts set from this pass (`nullptr` withdraws one), `savePose` honoured. **No analysis** = the launch monitor rows derived again from the recorded reading (a launch-monitor-only shot; `lm_repair`, with `dryRun`) | `Shot::applyAnalysis` (the app's re-analysis write-back, refactor step 3.4b-ii; `persistReanalysis` hands it the outcome), swinglab `--write-back`, `lm_repair`; `ReanalysisController` itself only for a shot no `Session` holds (N1) |
+| `writeAnalysis(shot, AnalysisOutcome{analysis, imu, capture}, PersistOptions)` | the re-analysis write-back: the document read fresh (**the empty-document guard**: nothing read → `NoDocument`, nothing written), both verdicts set from this pass (`nullptr` withdraws one), `savePose` honoured. **No analysis** = the launch monitor rows derived again from the recorded reading (a launch-monitor-only shot; `lm_repair`, with `dryRun`) | `Shot::applyAnalysis` (the app's re-analysis write-back, refactor step 3.4b-ii; `persistReanalysis` hands it the outcome), swinglab `--write-back`, `lm_repair`; never `ReanalysisController` itself since step 5.1 (it writes back through the `Shot` only) |
 | `editReview(shot, ReviewEdit)` | merges rating / note / club / `excluded` / `clubOverride` and — IM-S2-3 — `shotIntent` / `labelCorrections` into `review` (an unset field is left alone; the annotations and the two golfer-input keys are removed when set back to none — except with `keepEmptyGolferInput`, which keeps an empty value as the golfer's explicit "none" while `diagnostics.json`'s older copy holds an answer: step 2.5, J-33) | `ShotListModel`, `SessionArchiver` (restore), `SessionDiagnosticsModel` (shot intent, label corrections: step 2.5) |
 | `readSummary(shot, parseIfUnindexed)` | the shot's summary (`ShotSummary`: what a carousel row shows of it — its number, time, club, video, thumbnail, score, metrics, rating, note, device, warning and the board's annotations), by the cheap read (`SwingDocReader::readSwingSummary`; `parseIfUnindexed` is its `writeSidecar`) — refactor step 3.4b-ii | `Shot::summary` / `rereadSummary` (the carousel's rows over the `Shot`s) |
 | `readReview(shot)` | the shot's golfer input on its review (`shotIntent`, `labelCorrections [{family, from, to}]`), from the document's root alone; a document without the keys reads as none, and `hasShotIntent` / `hasLabelCorrections` say whether the review holds each key (absent: the reader falls back to `diagnostics.json`'s older keys until M3) | `SessionDiagnosticsFiles::golferInput` (step 2.5): the diagnostics model, the club baseline's predecessors, the tendencies, the scratch tools |
@@ -565,7 +565,8 @@ in the app `Shot::applyAnalysis` (EVT-02, reached through `app`), in a tool its 
 `writeAnalysis`; it names no repository. The app's `ReanalysisController` analyses on a worker
 (`reanalyzeShot`, reading through the `Shot`'s `RecordingSource`) and persists on the GUI thread (so an
 edit made meanwhile on the GUI thread is never lost to a write-back that read the document before it); a
-shot no `Session` holds keeps the controller's own reader and repository (N1). swinglab's `--write-back`
+shot no `Session` holds is not re-analysed and says so (step 5.1: the controller keeps no reader or write of its
+own; the shot is found through the door, `app`, whichever athlete holds it). swinglab's `--write-back`
 calls `reanalyseAndPersist` over its own repository and a `RecordingSource` over its own reader. **"Save pose keypoints" is honoured by re-analysis** as by the live save
 (`PersistOptions::savePose`, read from the setting at each write; swinglab keeps the app's default, on).
 
@@ -898,10 +899,11 @@ posted as `session.file.failed`, a gone library is not) and a Start of the same 
 `SessionController`'s and carries over; the declared focus is the ending `Session`'s, read from it before its End
 and declared on the new one from its first shot; a restart that fails keeps it pending (`focusCarried`), and the session
 the next swing opens takes it (`AppState::handOverFocus`; `src/App/session_focus.h`; refactor 4-d).
-**THE INTERIM:** a session no `Athlete` holds — no golfer selected (the `unknown` folder), or a library
-re-pointed mid-session that does not list the golfer — is started, resumed, ended and allocated through the
-repository directly, exactly as before, the empty discard made by `ShotProcessor` with the same rule
-(`build/refactor/step-3/3.4a/NOTES-3.4a-ii.md` N1).
+**NO GOLFER CHOSEN** (step 5.1; information_model.md §5.11; DEC-198): the session is the library's **Unassigned
+owner**'s, a full `Session` started, resumed, ended and allocated through its `Athlete` like any other
+(`ShotProcessor::captureAthlete` falls back to the composition root's `unassigned` callable, whose record is written
+at the first Start in `<library>/(unassigned)/`). A library re-pointed mid-session that does not list the golfer
+starts under that library's Unassigned too (J-67). The swing header records no golfer, as before.
 
 **The folder is fixed for the session's life** (E-01): `allocateSwing` takes only the `SessionId`, so a
 rename, midnight or a changed pattern or type cannot move it; nothing relocates (D7). The 0.3 stopgap

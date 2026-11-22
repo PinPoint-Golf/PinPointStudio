@@ -98,6 +98,7 @@ public:
     AthleteCreateResult create(const AthleteRecord &record) override;
     WriteResult         save(Athlete &athlete, const AthleteRecord &record) override;
     AthleteRemoval      trash(const AthleteId &id) override;
+    Athlete            *unassigned(bool create, WriteResult *result = nullptr) override;
     AthleteActivity     readActivity(const SessionOwner &owner) const override;
     // The Athlete's own append (refactor step 3.4b-i): appendTuningLog() on its folder's log (FILE-ATH-04).
     WriteResult         appendTuningLine(const Athlete &athlete, const QByteArray &line) override;
@@ -143,9 +144,13 @@ private:
         bool            readOnly = false;
         QJsonObject     file;          // athlete.json as read (unknown keys kept)
         QString         settingsKey;   // the settings group's name, for a settings athlete
+        QStringList     otherFolders;  // Unassigned: the no-golfer `unknown/` folder its sessions are also in
     };
 
     QList<Found> scan() const;
+    // The Unassigned owner as found (R-UNASSIGNED-2): its folder and the record its file holds (or, held in memory, the
+    // name alone), with the no-golfer `unknown/` folder when there is one.
+    Found        unassignedFound(const QJsonObject &file, bool readOnly) const;
     Athlete     *hold(const Found &f);
     SessionOwner ownerFor(const AthleteId &id, const QString &token) const;
     bool         folderTaken(const QString &token) const;

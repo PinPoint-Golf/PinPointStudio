@@ -135,6 +135,9 @@ public:
     ShotRef               ref() const { return m_ref; }
     int                   swingNumber() const { return m_ref.swingNumber(); }
     recording::ShotKind   kind() const;
+    // The DOCUMENT's classification as it stands now (RecordingRepository::isDeviceOnly, R-REC-8), read afresh: unlike
+    // kind(), a camera shot the launch monitor then filled (the rescue) reads device-only here (re-analysis's question).
+    bool                  documentIsDeviceOnly() const;
     // The row's summary (above): read once when first asked, else as kept; rereadSummary() reads it again.
     const ShotSummary    &summary();
     const ShotSummary    &rereadSummary(bool parseIfUnindexed = true);   // RecordingRepository::readSummary's flag

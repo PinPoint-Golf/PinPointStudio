@@ -77,6 +77,8 @@ int main()
     const int id3 = model.addShot(/*swingDir*/ QString(), QStringLiteral("13:48"),
                                   QStringLiteral("PW"), /*hasVideo*/ false,
                                   QUrl(), {}, /*score*/ 18, {});
+    // A row with a folder and no door: the edit is refused and said so (step 5.1: the carousel keeps no write of its
+    // own; N1 is gone), so the row keeps what it showed — the shot's rating is its Shot's, never the row's.
     model.setRating(id1, 4);
 
     std::printf("-- valid id (full field round-trip) --\n");
@@ -87,7 +89,7 @@ int main()
         checkStr ("club",                 s.value(QStringLiteral("club")).toString(), QStringLiteral("7-iron"));
         checkStr ("timestampLabel",       s.value(QStringLiteral("timestampLabel")).toString(), QStringLiteral("13:42"));
         checkInt ("score",                s.value(QStringLiteral("score")).toInt(), 82);
-        checkInt ("rating (after setRating)", s.value(QStringLiteral("rating")).toInt(), 4);
+        checkInt ("rating (a refused setRating: unchanged)", s.value(QStringLiteral("rating")).toInt(), 0);
         checkBool("hasVideo",             s.value(QStringLiteral("hasVideo")).toBool(), true);
         checkStr ("swingDir",             s.value(QStringLiteral("swingDir")).toString(), QStringLiteral("/swings/swing_0001"));
         checkBool("dataWarning (clean)",  s.value(QStringLiteral("dataWarning")).toBool(), false);

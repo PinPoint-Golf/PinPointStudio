@@ -57,8 +57,9 @@
 //           (3.7-c review B3: the panel's "being read" notice)
 //   IDLE    with no view bound the adapter does no view work; a view binding takes in what was owed (review M2)
 //   ARCHIVE a session held only to archive it: its owner asks nothing and writes nothing (review B2)
-//   NOGOLF  no Session (a session with no golfer: N1): an empty adapter, judging nothing — pointing it at the folder
-//           writes no file there
+//   NOGOLF  no Session (a folder no athlete of the library holds): an empty adapter, judging nothing — pointing it at
+//           the folder writes no file there
+//   UNASSIGNED (step 5.1) a capture with no golfer is the Unassigned owner's full Session: judged, no club baseline
 //   REPORT  (refactor 3.7-d) the session report's adapter, set up as SessionReportModel sets it: the owner's rows AS
 //           THE GOLFER ANNOTATED THEM on the launch monitor board (a club override is the row's club; a reading left out
 //           leaves its monitor-driven rows not assessable), the work-on list over them; it holds a use of the Session
@@ -80,6 +81,7 @@
 //   ctest --test-dir build/tests -R '^diag_stage_panel_test$' --output-on-failure
 
 #include "../../DomainModel/athlete.h"
+#include "../../DomainModel/athlete_diagnostics.h"   // the Unassigned owner freezes no baseline (step 5.1)
 #include "../../DomainModel/session.h"
 #include "../../DomainModel/session_diagnostics.h"
 #include "../../DomainModel/shot.h"
@@ -1179,6 +1181,38 @@ static Session *endedSession(Rig &rig)
     return s;
 }
 
+// UNASSIGNED (refactor step 5.1; information_model.md §5.11; DEC-198; J-67): a capture with no golfer chosen is a full
+// Session of the Unassigned owner — its session.json names the fixed id, its shots are judged like any golfer's (no norm
+// cohort: no sex or date of birth), and it freezes no club baseline (R-UNASSIGNED-5): none is written, and none waits.
+static void testUnassigned()
+{
+    std::printf("\nUNASSIGNED — a capture with no golfer: the Unassigned owner's full Session, judged, no club baseline\n");
+    Rig rig;
+    // The rig's athlete made the Unassigned owner, on the app's doors (as AthleteStore::unassigned hands it over).
+    const QString folder = rig.dir.path() + QStringLiteral("/(unassigned)");
+    QDir().mkpath(folder);
+    rig.athlete = std::make_unique<Athlete>(nullptr, &rig.store, unassignedAthleteId());
+    AthleteRecord r;
+    r.name = QStringLiteral("Unassigned");
+    rig.athlete->setStored(r, folder, SessionOwner{ unassignedAthleteId(), QStringLiteral("(unassigned)"), rig.dir.path() },
+                           Athlete::Source::Library, false);
+    rig.athlete->setShotDoors({ rig.recordings.get(), rig.reader });
+    rig.athlete->setDiagnosticsDoors(appDiagnosticsDoors(rig.pool.get(), rig.receiver.get(), RuleData::installed(),
+                                                         rig.store, *rig.recordings));
+    Session *s = endedSession(rig);
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    const QString dir = s && s->entry() ? s->entry()->folder : QString();
+    check(QStringLiteral("UNASSa its session is in (unassigned)/ and its file names the fixed id"),
+          !dir.isEmpty() && QDir::cleanPath(dir + QStringLiteral("/..")) == QDir::cleanPath(folder)
+              && fileBytes(dir + QStringLiteral("/session.json")).contains(unassignedAthleteId().toString().toUtf8()));
+    check(QStringLiteral("UNASSb its shots are judged like any golfer's (the owner's diagnosis, its diagnostics.json)"),
+          d && int(d->keptShots().size()) == kShots && QFile::exists(dir + QStringLiteral("/diagnostics.json")));
+    const ClubBaselineComputation c = AthleteDiagnostics::of(rig.athlete.get())->clubBaselineFor(s ? s->id() : SessionId());
+    check(QStringLiteral("UNASSc no club baseline: none frozen, none computable, none waited on (no notice)"),
+          !QFile::exists(dir + QStringLiteral("/club_baseline.json")) && !c.computable && c.waitingOn.isEmpty()
+              && d && !d->clubBaselineWaiting() && !d->holdsClubBaseline());
+}
+
 static void testReport()
 {
     std::printf("\nREPORT — the session report's adapter (refactor 3.7-d)\n");
@@ -1511,6 +1545,7 @@ int main(int argc, char **argv)
     testArchiveEvents();
     testArchiveStub();
     testNoGolfer();
+    testUnassigned();
     testReport();
     testTrashDuringMake();
     testSigmaDoor();
