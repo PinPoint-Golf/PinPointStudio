@@ -71,7 +71,9 @@ Item {
         function makeSetup() {
             var props = {}
             for (var k in fx) props[k] = fx[k]
-            props.shotReplay    = createTemporaryObject(shotReplayComp, tc)
+            props.app = ({ state: { replay: createTemporaryObject(shotReplayComp, tc), mode: 0, captureMode: 0, replayMode: 1,
+                                    analyseMode: 2, autoReturnToCapture: false,
+                                    selection: { valid: false, shotRef: "", swingDir: "" } } })
             props.shotProcessor = createTemporaryObject(shotProcessorComp, tc)
             wiz = harness.createWithContext("ScreenSessionSetup", props, host,
                                             { width: host.width, height: host.height, visible: false })

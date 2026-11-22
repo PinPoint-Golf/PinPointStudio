@@ -34,7 +34,7 @@ import PinPointStudio
 Item {
     id: layer
 
-    // Active only on the analyse stage (host sets this from SessionMode.analyse).
+    // Active only on the analyse stage (host sets this from app.state.analyseMode).
     // Named `active` (not `enabled`) so it doesn't shadow QQuickItem.enabled.
     property bool active: false
     // The video rectangle inside the tile (x,y,w,h in tile pixels); bound from

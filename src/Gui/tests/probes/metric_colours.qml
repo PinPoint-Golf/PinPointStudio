@@ -134,14 +134,14 @@ Item {
                 probe.check(u1 !== "" && u1 === u2, "an uncatalogued key gets one stable name (" + u1 + ")")
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
                 navController.navigate(AppScreen.Session)
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (s === 2) {
                 probe.check(sessionReviewController.reviewActive, "the session loaded for review")
                 let picked = false
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) { SessionMode.enterReplay(o.shotId, o.swingDir); picked = true }
+                    if (o.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir); picked = true }
                 }
                 probe.check(picked, "shot " + probe.ordinal + " is in the carousel")
             } else if (s === 3) {

@@ -20,7 +20,7 @@
 // mode. Capture is the only live-video mode: it shows one live tile per session-
 // enabled camera (plus the degraded-shot ¼× auto-replay metric graph). Review AND
 // Analyse both show the LOADED shot's video — one tile per stream of that swing,
-// enumerated from the swing's own swing.json (shotReplay.streams), never the local
+// enumerated from the swing's own swing.json (app.state.replay.streams), never the local
 // camera rig, so a swing recorded on a different setup still plays and the playback
 // follows the Review↔Analyse toggle. Hosted by PpModeStage as the "camera" panel.
 //
@@ -40,8 +40,8 @@ Item {
     // annotation palette's open/collapse button, so the affordance lives beside
     // the footage rather than on top of it. Reserved whenever the palette can show
     // (regardless of open/closed) so the tiles never reflow as you toggle it.
-    readonly property bool _annotate: SessionMode.mode === SessionMode.analyse
-                                      && shotReplay.active && shotReplay.streams.length > 0
+    readonly property bool _annotate: app.state.mode === app.state.analyseMode
+                                      && app.state.replay.active && app.state.replay.streams.length > 0
     property real _leftGutter: _annotate ? Theme.sp(46) : 0
     Behavior on _leftGutter {
         enabled: !Theme.reduceMotion
@@ -50,8 +50,8 @@ Item {
 
     // Live cameras show ONLY in Capture; Review and Analyse both render the loaded
     // shot's disk streams. The fork is data-source-driven (not Review-specific), so
-    // one loaded shotReplay carries the video across the Review↔Analyse mode toggle.
-    readonly property bool _replay: SessionMode.mode !== SessionMode.capture
+    // one loaded app.state.replay carries the video across the Review↔Analyse mode toggle.
+    readonly property bool _replay: app.state.mode !== app.state.captureMode
 
     // Every screen stays instantiated in the StackLayout, but a disk-replay stream
     // has ONE QMediaPlayer with ONE sink — so only a VISIBLE session screen may
@@ -88,9 +88,9 @@ Item {
     // Replay streams likewise: the loaded swing's non-impact streams fill the
     // row; its impact stream (setup.perspective 4), if any, floats.
     readonly property var _replayStreams:
-        shotReplay.streams.filter(function(s) { return s.perspective !== CameraInstance.Impact })
+        app.state.replay.streams.filter(function(s) { return s.perspective !== CameraInstance.Impact })
     readonly property var _replayImpact: {
-        var s = shotReplay.streams
+        var s = app.state.replay.streams
         for (var i = 0; i < s.length; ++i)
             if (s[i].perspective === CameraInstance.Impact) return s[i]
         return null
@@ -106,7 +106,7 @@ Item {
     // the card's heading row, and only while those marks can be on screen.
     readonly property string cardAside:
         (root._replayArmed && root._replayStreams.length > 0
-         && ViewLayout.elementMode(SessionMode.mode, "shaft") === "frame")
+         && ViewLayout.elementMode(app.state.mode, "shaft") === "frame")
         ? Theme.caps(qsTr("P  ● fitted  ○ sampled")) : ""
 
     // ── Best fit ────────────────────────────────────────────────────────────
@@ -298,13 +298,13 @@ Item {
                 // Capture-mode ¼× post-shot auto-replay overlay follows the view's
                 // Pose overlay toggle (Capture setting == current mode here). Chrome
                 // bindings above are left EXACTLY as-is (capture chrome unchanged v1).
-                showReplayOverlay: ViewLayout.overlaysOn(SessionMode.mode)
+                showReplayOverlay: ViewLayout.overlaysOn(app.state.mode)
                 // Per-element motion modes for that ¼× auto-replay overlay. The
                 // Capture guard inside ViewLayout forces every body/shaft element to
                 // "off" (ball only), so the live skeleton is untouched by this.
-                motionOn:          ViewLayout.motionOn(SessionMode.mode)
-                motionModes:       ViewLayout.motionFor(SessionMode.mode).modes
-                motionTraceTarget: ViewLayout.motionTraceTarget(SessionMode.mode)
+                motionOn:          ViewLayout.motionOn(app.state.mode)
+                motionModes:       ViewLayout.motionFor(app.state.mode).modes
+                motionTraceTarget: ViewLayout.motionTraceTarget(app.state.mode)
                 leadIsLeft:        ViewLayout.leadIsLeft()
             }
         }
@@ -340,13 +340,13 @@ Item {
                 // switch — covers both Replay and Analyse (this Repeater serves both).
                 // showReplayOverlay gates the Canvas visibility; motionOn is the same
                 // value (master off ⇒ nothing draws), with per-element modes below.
-                showReplayOverlay: ViewLayout.motionOn(SessionMode.mode)
-                motionOn:          ViewLayout.motionOn(SessionMode.mode)
-                motionModes:       ViewLayout.motionFor(SessionMode.mode).modes
-                motionTraceTarget: ViewLayout.motionTraceTarget(SessionMode.mode)
+                showReplayOverlay: ViewLayout.motionOn(app.state.mode)
+                motionOn:          ViewLayout.motionOn(app.state.mode)
+                motionModes:       ViewLayout.motionFor(app.state.mode).modes
+                motionTraceTarget: ViewLayout.motionTraceTarget(app.state.mode)
                 leadIsLeft:        ViewLayout.leadIsLeft()
                 // Telestrator is an Analyse-only affordance (not plain Replay).
-                annotationsEnabled: SessionMode.mode === SessionMode.analyse
+                annotationsEnabled: app.state.mode === app.state.analyseMode
             }
         }
 
@@ -510,9 +510,9 @@ Item {
             z: 11   // over the move/resize MouseArea
             color: Theme.colorScrim
 
-            readonly property real  t0:   shotReplay.impactLoopStartUs
-            readonly property real  t1:   shotReplay.impactLoopEndUs
-            readonly property real  pos:  shotReplay.impactPositionUs
+            readonly property real  t0:   app.state.replay.impactLoopStartUs
+            readonly property real  t1:   app.state.replay.impactLoopEndUs
+            readonly property real  pos:  app.state.replay.impactPositionUs
             readonly property real  frac: (t1 > t0 && pos >= 0) ? Math.max(0, Math.min(1, (pos - t0) / (t1 - t0))) : 0
 
             Row {
@@ -521,9 +521,9 @@ Item {
                 anchors.leftMargin: Theme.gap(4)
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.gap(2)
-                PpButton { style: "scrim"; size: "iconSmall"; glyph: shotReplay.impactLoopPlaying ? "⏸" : "▶"; onClicked: shotReplay.toggleImpactLoop() }
-                PpButton { style: "scrim"; size: "iconSmall"; glyph: "◂"; onClicked: shotReplay.stepImpactFrame(-1) }
-                PpButton { style: "scrim"; size: "iconSmall"; glyph: "▸"; onClicked: shotReplay.stepImpactFrame(1) }
+                PpButton { style: "scrim"; size: "iconSmall"; glyph: app.state.replay.impactLoopPlaying ? "⏸" : "▶"; onClicked: app.state.replay.toggleImpactLoop() }
+                PpButton { style: "scrim"; size: "iconSmall"; glyph: "◂"; onClicked: app.state.replay.stepImpactFrame(-1) }
+                PpButton { style: "scrim"; size: "iconSmall"; glyph: "▸"; onClicked: app.state.replay.stepImpactFrame(1) }
             }
 
             // The scrub track — the loop band, with the clip's own playhead.
@@ -564,7 +564,7 @@ Item {
                     function scrubTo(mx) {
                         if (!(pipBar.t1 > pipBar.t0)) return
                         var f = Math.max(0, Math.min(1, mx / width))
-                        shotReplay.seekImpactToUs(pipBar.t0 + f * (pipBar.t1 - pipBar.t0))
+                        app.state.replay.seekImpactToUs(pipBar.t0 + f * (pipBar.t1 - pipBar.t0))
                     }
                     onPressed: (m) => scrubTo(m.x)
                     onPositionChanged: (m) => { if (pressed) scrubTo(m.x) }
@@ -688,11 +688,11 @@ Item {
         anchors.top: parent.top
         spacing: Theme.gap(6)
         visible: (!root._replay && root._liveCameras.length === 0 && root._liveImpact === null)
-                 || (root._replayHere && shotReplay.streams.length === 0)
+                 || (root._replayHere && app.state.replay.streams.length === 0)
         PpCardNote {
             width: parent.width
             text: !root._replay                     ? qsTr("No cameras enabled")
-                : SessionMode.focusedShotId >= 0    ? qsTr("No video for this swing")
+                : app.state.selection.valid        ? qsTr("No video for this swing")
                 :                                     qsTr("Select a swing to review")
         }
         PpMicro {

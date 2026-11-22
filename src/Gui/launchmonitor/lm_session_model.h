@@ -109,16 +109,14 @@ bool lmClubBagLess(const QString &a, const QString &b);
 // keys — but its values are DISPLAY STRINGS, and SwingDocReader rounds every degree
 // metric to a whole degree on the way in. Fifteen of the twenty-five reading fields are
 // in degrees, so a standard deviation computed from that map would not be a suppressed
-// statistic, it would be a wrong one printed confidently. AnalysisDetailRole's `series`
+// statistic, it would be a wrong one printed confidently. The row's launch monitor slice (`series`)
 // carries the raw doubles the writer put there, and it is populated by the same code
 // path for a live shot (updateLaunchMonitor → refreshShot) and a reloaded one
-// (readSwingJson), so there is one source here and not two. It is read as the C++ map
-// (ShotListModel::analysisDetailMap), NEVER through data(AnalysisDetailRole): the role is the
-// row's JavaScript object for QML, and going through it built every shot's whole detail in the
-// QML heap and copied it back on each rebuild — a 2–2.5 minute freeze on entering Analyse with a
-// 32-shot session open (#173).
+// (readSwingJson), so there is one source here and not two. It is the row's C++ map
+// (ShotListModel::lmDetail): the row keeps nothing else of the detail (H-07; the whole detail
+// through QML was the 2–2.5 minute freeze of #173).
 //
-// EXCEPT THAT A CHEAP-LOADED ROW HAS NO analysisDetail. ShotListModel::loadSessionDir — End
+// EXCEPT THAT A CHEAP-LOADED ROW HAS NO SLICE. ShotListModel::loadSessionDir — End
 // Session, app start, an athlete change, entering the Wrist screen — seeds rows from the
 // summary and leaves it empty, and the board then said "no readings" over a session full of
 // them (#52). Such a row, if a device measured it, is read from its document with
@@ -147,7 +145,7 @@ class LmSessionModel : public QAbstractListModel
     // The session's shots. Any ShotListModel — the panel passes whichever list the
     // screen it sits on is showing, so a review screen boards its own session.
     Q_PROPERTY(ShotListModel *shotModel READ shotModel WRITE setShotModel NOTIFY shotModelChanged)
-    // The swing the rest of the stage is showing (SessionMode.focusedShotId). -1 for
+    // The swing the rest of the stage is showing (app.state.selection, as the shot model's row id). -1 for
     // "nothing focused", which falls back to the newest shot in scope.
     Q_PROPERTY(int focusedShotId READ focusedShotId WRITE setFocusedShotId NOTIFY focusedShotIdChanged)
 

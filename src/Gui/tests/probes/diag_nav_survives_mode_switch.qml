@@ -130,13 +130,13 @@ Item {
             if (s === 1) {
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
                 // Split in both stage modes, diagnostics on: the arrangement that rebuilds.
-                for (const m of [SessionMode.replay, SessionMode.analyse]) {
+                for (const m of [app.state.replayMode, app.state.analyseMode]) {
                     ViewLayout.setArrangement(m, "split")
                     if (!ViewLayout.isPanelOn(m, "sessionDiagnostics"))
                         ViewLayout.setPanel(m, "sessionDiagnostics", true)
                 }
                 navController.navigate(AppScreen.Session)                 // the session screen
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 probe.check(cameraManager.ballCueEnabled === true, "ball ting ON on Capture")
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (s === 2) {
@@ -144,7 +144,7 @@ Item {
                 let picked = false
                 for (let i = 0; i < shots.count; ++i) {
                     const sh = shots.objectAt(i)
-                    if (sh.ordinal === probe.ordinal) { SessionMode.enterReplay(sh.shotId, sh.swingDir); picked = true }
+                    if (sh.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(sh.shotId), sh.swingDir); picked = true }
                 }
                 probe.check(picked, "shot " + probe.ordinal + " is in the carousel")
                 probe.check(cameraManager.ballCueEnabled === false, "ball ting OFF on Replay")
@@ -189,20 +189,20 @@ Item {
                 probe.check(probe.want.detail === cards[0].id, "opened the detail of '" + cards[0].id + "'")
                 probe.before = b
             } else if (s === 5) {
-                SessionMode.enterAnalyse()
+                app.state.enterAnalyse()
                 probe.check(cameraManager.ballCueEnabled === false, "ball ting OFF on Analyse")
             } else if (s === 6) {
                 probe.expectPlace("Replay → Analyse", "Analyse")
-                SessionMode.showReplay()
+                app.state.showReplay()
             } else if (s === 7) {
                 probe.expectPlace("Analyse → Replay", "Analyse")
-                probe.check(SessionMode.mode === SessionMode.replay, "Analyse → Replay: the stage stays in Replay under the detail")
+                probe.check(app.state.mode === app.state.replayMode, "Analyse → Replay: the stage stays in Replay under the detail")
                 probe.theBody()._closeDetail()
             } else if (s === 8) {
                 // A place saved in another session is not this one's: take the panel down,
                 // re-stamp the save with another folder, then bring a panel up.
                 probe.before = probe.theBody()
-                ViewLayout.setPanel(SessionMode.replay, "sessionDiagnostics", false)
+                ViewLayout.setPanel(app.state.replayMode, "sessionDiagnostics", false)
             } else if (s === 9) {
                 probe.check(probe.theBody() === null, "panel taken down")
                 const nav = SessionMode.diagnosticsNav
@@ -211,13 +211,13 @@ Item {
                 // Re-open a detail in the save so the other-session check below has one to refuse.
                 nav.detailConditionId = probe.want.detail
                 SessionMode.diagnosticsNav = Object.assign({}, nav, { sessionDir: "/somewhere/else" })
-                ViewLayout.setPanel(SessionMode.replay, "sessionDiagnostics", true)
+                ViewLayout.setPanel(app.state.replayMode, "sessionDiagnostics", true)
             } else if (s === 10) {
                 const b = probe.theBody()
                 probe.check(!!b && b !== probe.before, "rebuilt for the other-session case")
                 probe.check(!!b && b.detailConditionId === "", "another session's open detail is NOT restored")
                 probe.check(!!b && b.watchingExpanded === false, "…nor its Watching fold")
-                SessionMode.enterCapture()
+                app.state.enterCapture()
             } else if (s === 11) {
                 probe.check(cameraManager.ballCueEnabled === true, "ball ting back ON on Capture")
                 probe.finish()

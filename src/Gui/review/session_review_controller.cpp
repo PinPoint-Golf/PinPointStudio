@@ -237,9 +237,10 @@ void SessionReviewController::loadSession(const QString &sessionId)
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     m_reviewModel.clear();
 
-    // The full parse is unavoidable here: analysisDetail carries the pose2d keypoint
-    // track the replay overlays read. Since the document is in hand anyway, index it —
-    // the sidecar costs one small write and is what keeps the picker cheap from now on.
+    // The full parse (a row keeps only the launch monitor slice of its analysis: H-07; the replay
+    // reads its own). Since the document is in hand anyway, index it — the sidecar costs one
+    // small write and is what keeps the picker cheap from now on. (That this load could be the
+    // summary read, as loadSessionDir's is, is H-07's remainder: a carry, not done here.)
     //
     // ⚠ IN PARALLEL, one swing per pool thread, and still before this returns (#173 follow-up).
     // One after another on the GUI thread the parse was ~1.5 s of a 3.2 s freeze on opening a

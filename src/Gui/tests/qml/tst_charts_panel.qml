@@ -97,8 +97,8 @@ Item {
         }
         // "Replay" is the glance register: the auto-replay after a shot (a Replay the golfer opens reads Analyse)
         function useMode(m) {
-            SessionMode.autoReturnToCapture = m === "Replay"
-            SessionMode.mode = m === "Analyse" ? SessionMode.analyse : SessionMode.replay
+            app.state.autoReturnToCapture = m === "Replay"
+            app.state.mode = m === "Analyse" ? app.state.analyseMode : app.state.replayMode
             settle()
             compare(hn.body.register, m, "the body loaded the " + m + " register")
         }
@@ -126,14 +126,14 @@ Item {
         function init() {
             Theme.themeIndex = 12
             Theme.fontScale = 1.0
-            SessionMode.mode = SessionMode.analyse
+            app.state.mode = app.state.analyseMode
             SessionMode.chartsNav = null
             appSettings.chartPrefs = ({})
             appSettings.sectionCollapse = ({})
             appSettings.wristReferenceSwingDir = ""
             hn.defaultTab = "shot"
             hn.defaultPreset = ""
-            SessionMode.autoReturnToCapture = false
+            app.state.autoReturnToCapture = false
             hn.nav.currentIndex = AppScreen.Session
             hn.replay.seeks = 0; hn.replay.lastSeekUs = -1; hn.replay.scrubs = 0
             hn.unpick()
@@ -145,8 +145,8 @@ Item {
             wait(0)
         }
         function cleanupTestCase() {
-            SessionMode.mode = SessionMode.capture
-            SessionMode.autoReturnToCapture = false
+            app.state.mode = app.state.captureMode
+            app.state.autoReturnToCapture = false
             SessionMode.chartsNav = null
             appSettings.chartPrefs = was.chartPrefs
             appSettings.sectionCollapse = was.sectionCollapse
@@ -404,7 +404,7 @@ Item {
             intoView(seek)
             mouseClick(seek, seek.width * 0.6, seek.height / 2)
             settle()
-            verify(hn.replay.seeks >= 1, "shotReplay.seekToUs was called")
+            verify(hn.replay.seeks >= 1, "app.state.replay.seekToUs was called")
             verify(hn.replay.lastSeekUs >= 0 && hn.replay.lastSeekUs <= hn.replay.endUs, "inside the recording: " + hn.replay.lastSeekUs)
             compare(hn.replay.scrubs, 1, "the press brackets a scrub")
             // the playhead follows the replay
@@ -417,8 +417,8 @@ Item {
             const members = hn.findAll(oneShown("chKindMembers"), "").filter(function (t) { return hn.isText(t) && t.no === 3 && hn.shown(t) })
             verify(members.length === 1, "shot 3 is listed as a kind member")
             press(members[0])
-            compare(SessionMode.focusedShotId, 3)
-            compare(SessionMode.mode, SessionMode.analyse, "Analyse stays Analyse")
+            compare(app.state.selection.swingDir.slice(-4), "0003")
+            compare(app.state.mode, app.state.analyseMode, "Analyse stays Analyse")
             compare(hn.replay.swingDir, chartsFixture.dirOf(3), "the replay opened it")
             settle()
             compare(hn.body.tShot.ordinal, 3, "This shot follows")
@@ -428,7 +428,7 @@ Item {
         function test_14_choices_persist_per_screen_and_mode() {
             clickOption("draw", "overlay")
             compare(hn.body.overlay, true)
-            const b = hn.sessionType + ":" + SessionMode.analyse + ":"
+            const b = hn.sessionType + ":" + app.state.analyseMode + ":"
             compare(appSettings.chartPrefs[b + "split"], false, "saved as today's key")
             clickOption("against", "open"); pickInline("chAgainstOption", "median")
             compare(appSettings.chartPrefs[b + "against"], "median")
@@ -664,7 +664,7 @@ Item {
             compare(hn.body.wristSessionShown, false)
             compare(shownAll("chWristSession").length, 0)
             // a "wrist" saved by the retired Wrist tab reads This shot
-            const b = hn.sessionType + ":" + SessionMode.analyse + ":"
+            const b = hn.sessionType + ":" + app.state.analyseMode + ":"
             appSettings.chartPrefs = ({ [b + "view"]: "wrist" })
             fresh({ wrist: true }, 8)
             compare(hn.body.tab, "shot")
@@ -675,7 +675,7 @@ Item {
         function test_23_the_wrist_choices_persist_per_screen_and_mode() {
             fresh({ wrist: true }, 8)
             useWristPreset()
-            const b = hn.sessionType + ":" + SessionMode.analyse + ":"
+            const b = hn.sessionType + ":" + app.state.analyseMode + ":"
             clickOption("against", "previous")
             compare(hn.body.wristAgainst, "previous")
             compare(appSettings.chartPrefs[b + "wristAgainst"], "previous")
@@ -919,7 +919,7 @@ Item {
         function test_32_the_posture_fold_and_choices_persist() {
             fresh({ posture: true }, 8)
             usePosturePreset()
-            const b = hn.sessionType + ":" + SessionMode.analyse + ":"
+            const b = hn.sessionType + ":" + app.state.analyseMode + ":"
             clickOption("pattern", "1")
             compare(hn.body.posturePattern, 1)
             compare(appSettings.chartPrefs[b + "posturePattern"], 1)
@@ -1140,7 +1140,7 @@ Item {
         function test_39_the_delivery_folds_persist() {
             fresh({ delivery: true }, 8)
             useDeliveryPreset()
-            const b = hn.sessionType + ":" + SessionMode.analyse + ":"
+            const b = hn.sessionType + ":" + app.state.analyseMode + ":"
             press(oneShown("chFold:delivery"))
             compare(hn.body.collapsed.delivery, true)
             compare(appSettings.sectionCollapse[b + "delivery"], true)

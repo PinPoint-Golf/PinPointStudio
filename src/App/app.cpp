@@ -25,6 +25,8 @@ namespace pinpoint {
 App::App(std::function<Athlete *()> currentAthlete, QObject *parent)
     : QObject(parent), m_currentAthlete(std::move(currentAthlete))
 {
+    connect(&m_state, &AppState::currentAthleteChanged, this, &App::athleteChanged);
+    connect(&m_state, &AppState::sessionOnScreenChanged, this, &App::sessionChanged);
 }
 
 Session *App::sessionAt(const QString &folder) const

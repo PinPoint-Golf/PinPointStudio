@@ -59,7 +59,7 @@ Item {
     property string shotEmptyText: ""          // LmSessionModel.shotEmptyText: the headline shot has no reading
     property string liveDeviceName: ""         // the live connector's name, when graphics.device is absent
     property bool reviewing: false
-    property int focusedShotId: -1             // SessionMode.focusedShotId
+    property int focusedShotId: -1             // app.state's selected shot, as the shot list's row id
     property bool interactive: true            // false on the cast and in print
     property string tab: "shot"                // "shot" | "session"
     property string medium: "screen"           // "screen" | "print"
@@ -78,7 +78,7 @@ Item {
     readonly property real embedHeight: printCol.height
     readonly property int printPageCount: medium === "print" ? printPlan.length : 1
     readonly property string register: medium === "print" ? "Print"
-                                      : (surface === "cast" || SessionMode.mode !== SessionMode.analyse) ? "Replay" : "Analyse"
+                                      : (surface === "cast" || app.state.mode !== app.state.analyseMode) ? "Replay" : "Analyse"
 
     // ═══ intents (the panel turns these into the model's and SessionMode's calls) ═══
     signal shotRequested(int shotId)                          // focus that shot (SessionMode)

@@ -770,7 +770,7 @@ void LmSessionModel::connectShotModel()
             [this](const QModelIndex &topLeft, const QModelIndex &bottomRight, const QVector<int> &roles) {
                 // A reading folded in (refreshShot) or a re-analysis: the cached slice is stale.
                 if (roles.isEmpty()
-                    || roles.contains(int(ShotListModel::AnalysisDetailRole))
+                    || roles.contains(int(ShotListModel::LmDetailRole))
                     || roles.contains(int(ShotListModel::LmDeviceRole)))
                     for (int r = topLeft.row(); r <= bottomRight.row(); ++r)
                         m_diskDetail.remove(m_shots->data(m_shots->index(r),
@@ -778,7 +778,7 @@ void LmSessionModel::connectShotModel()
                 if (m_batching)
                     return;                       // undoMismatch() rebuilds once at the end
                 if (roles.isEmpty()
-                    || roles.contains(int(ShotListModel::AnalysisDetailRole))
+                    || roles.contains(int(ShotListModel::LmDetailRole))
                     || roles.contains(int(ShotListModel::MetricsRole))
                     || roles.contains(int(ShotListModel::ClubRole))
                     || roles.contains(int(ShotListModel::LmDeviceRole))
@@ -1028,10 +1028,8 @@ void LmSessionModel::rebuild()
     QHash<QString, QVariantMap> diskDetail;       // becomes m_diskDetail: the rows used, no more
     for (int r = 0; r < nrows; ++r) {
         const QModelIndex ix = m_shots->index(r);
-        // The map, not data(AnalysisDetailRole): that is the row's JavaScript object, and reading
-        // it here built every shot's whole detail in the QML heap and copied it back — the
-        // minutes-long freeze on entering Analyse (#173). shot_list_model.h analysisDetailMap.
-        QVariantMap detail = m_shots->analysisDetailMap(r);
+        // The row's launch monitor slice (ShotListModel::lmDetail; H-07).
+        QVariantMap detail = m_shots->lmDetail(r);
         // A cheap-loaded row (loadSessionDir) has no detail. Only one a device measured is read:
         // a shot with no monitor has no readings to find, and the reload must stay cheap for it.
         if (detail.isEmpty()) {

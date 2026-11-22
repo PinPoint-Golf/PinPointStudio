@@ -21,8 +21,8 @@
 // field; an unknown / -1 id returns { valid:false } (present, false, bindable);
 // a row that would be filtered out of a proxy still resolves (summary is
 // model-scoped); and an IMU-only shot (no video, empty swingDir) reports the
-// right flags without crashing. And analysisDetailMap (#173): the C++ read of a row's
-// detail, which never goes through the QML engine.
+// right flags without crashing. And lmDetail (#173, H-07): a row keeps only the launch
+// monitor's slice of its detail, read as a C++ map.
 
 #include "shot/shot_list_model.h"
 
@@ -134,13 +134,17 @@ int main()
         checkInt ("score",            s.value(QStringLiteral("score")).toInt(), 18);
     }
 
-    // #173: C++ reads a row's analysisDetail as the map, with no QML engine involved. The role
-    // is QML's (the row's JavaScript object, qml_payload.h): with no engine registered — as here
-    // — it is undefined, and a C++ reader that went through it would see nothing.
-    std::printf("\n-- analysisDetailMap: the C++ read of a row's detail, no QML engine --\n");
+    // H-07: a row keeps only the launch monitor's slice of its detail (the `lm.` series, lowPointAhead and the
+    // gates), read as a C++ map (#173); the rest — the pose, the other curves — is not kept, and QML has no role
+    // for it.
+    std::printf("\n-- lmDetail: a row keeps the launch monitor's slice and nothing else (H-07) --\n");
     {
+        const QVariantList series{ QVariantMap{ { QStringLiteral("key"), QStringLiteral("lm.carry") } },
+                                   QVariantMap{ { QStringLiteral("key"), QStringLiteral("lowPointAhead") } },
+                                   QVariantMap{ { QStringLiteral("key"), QStringLiteral("hipTurn") } } };
         const QVariantMap detail{ { QStringLiteral("tier"), QStringLiteral("wrist") },
-                                  { QStringLiteral("overall"), 61 } };
+                                  { QStringLiteral("series"), series },
+                                  { QStringLiteral("gatesVersion"), 3 } };
         const int idD = model.addShot(QStringLiteral("/swings/swing_0010"), QStringLiteral("13:52"),
                                       QStringLiteral("7-iron"), /*hasVideo*/ true, QUrl(), {},
                                       /*score*/ 61, {}, detail);
@@ -151,15 +155,15 @@ int main()
             return -1;
         };
         const int row = rowOf(idD);
-        const QVariantMap got = model.analysisDetailMap(row);
-        checkStr ("detail.tier",            got.value(QStringLiteral("tier")).toString(), QStringLiteral("wrist"));
-        checkInt ("detail.overall",         got.value(QStringLiteral("overall")).toInt(), 61);
-        checkBool("a row with none: empty", model.analysisDetailMap(rowOf(id1)).isEmpty(), true);
-        checkBool("row -1: empty",          model.analysisDetailMap(-1).isEmpty(), true);
-        checkBool("row past the end: empty", model.analysisDetailMap(model.rowCount()).isEmpty(), true);
-        checkBool("the role is QML's: undefined with no engine",
-                  model.data(model.index(row), ShotListModel::AnalysisDetailRole)
-                      .value<QJSValue>().isUndefined(), true);
+        const QVariantMap got = model.lmDetail(row);
+        checkInt ("the slice keeps the lm. series and lowPointAhead",
+                  int(got.value(QStringLiteral("series")).toList().size()), 2);
+        checkInt ("…and the gates' version", got.value(QStringLiteral("gatesVersion")).toInt(), 3);
+        checkBool("…and nothing else of the detail", got.contains(QStringLiteral("tier")), false);
+        checkBool("a row with none: empty", model.lmDetail(rowOf(id1)).isEmpty(), true);
+        checkBool("row -1: empty",          model.lmDetail(-1).isEmpty(), true);
+        checkBool("row past the end: empty", model.lmDetail(model.rowCount()).isEmpty(), true);
+        checkBool("QML has no analysisDetail role", model.roleNames().values().contains("analysisDetail"), false);
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",

@@ -17,13 +17,13 @@
  */
 // PPCHSEEK — the ONE way a Charts block moves the video: a press on a position, a frame, a ledger row or a trace's
 // scrub asks `PpChSeek.to(us)`, and this owns the guard every caller used to repeat — a render, a test or a probe
-// without the app's shotReplay (or with none bound yet) seeks nothing, and a time the presenter could not place
+// without the app's app.state.replay (or with none bound yet) seeks nothing, and a time the presenter could not place
 // (us < 0) is never sent. Scrub begin / end stay with the scrubbing MouseArea (its geometry is its own).
 pragma Singleton
 import QtQuick
 
 QtObject {
     // the app's ShotReplay (main.cpp, a root context property), when there is one
-    function available() { return typeof shotReplay !== "undefined" && !!shotReplay }
-    function to(us) { if (us >= 0 && available()) shotReplay.seekToUs(us) }
+    function available() { return typeof app !== "undefined" && !!app && !!app.state.replay }
+    function to(us) { if (us >= 0 && available()) app.state.replay.seekToUs(us) }
 }

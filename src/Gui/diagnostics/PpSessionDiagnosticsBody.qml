@@ -397,7 +397,7 @@ Item {
     // hover where they were. A Consistency cell open over the glance is read the same way.
     readonly property string _baseRegister: forceRegister !== "" ? forceRegister
                                           : surface === "cast" ? "Replay"
-                                          : SessionMode.mode === SessionMode.analyse ? "Analyse" : "Replay"
+                                          : app.state.mode === app.state.analyseMode ? "Analyse" : "Replay"
     readonly property string register: _baseRegister === "Replay" && (detailOpen || consistencyOverGlance || shotWhyOverGlance) && forceRegister === ""
                                        && surface !== "cast" ? "Analyse" : _baseRegister
     readonly property Item registerItem: register === "Analyse" ? analyseLoader.item : replayLoader.item

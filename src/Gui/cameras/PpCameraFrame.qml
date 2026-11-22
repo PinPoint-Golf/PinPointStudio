@@ -39,7 +39,7 @@ Item {
     // Live CameraInstance, or null while the camera is not connected.
     property QtObject instance: null
 
-    // Replay-stream mode: when >= 0 this tile renders shotReplay stream N — the
+    // Replay-stream mode: when >= 0 this tile renders app.state.replay stream N — the
     // reviewed swing's OWN video (disk-backed, source-agnostic) — instead of a
     // live CameraInstance. Default -1 = live-camera tile (instance path).
     property int replayStreamIndex: -1
@@ -57,13 +57,13 @@ Item {
     // Replay-overlay source — resolves to the disk replay (Review tile) or the
     // live in-window transient (Capture tile), so the analyzed skeleton/club
     // overlay reads ONE set of values regardless of which surface is driving it.
-    readonly property bool _replayActive:     _isReplay ? shotReplay.active        : shotProcessor.isReplaying
+    readonly property bool _replayActive:     _isReplay ? app.state.replay.active        : shotProcessor.isReplaying
     // Both sources publish ONE shared JavaScript object per shot (qml_payload.h) — read-only.
-    readonly property var  _replayDetail:     _isReplay ? shotReplay.analysisDetail : shotProcessor.replayAnalysisDetail
-    readonly property real _replayPlayheadUs: _isReplay ? shotReplay.positionUs     : shotProcessor.replayPositionUs
+    readonly property var  _replayDetail:     _isReplay ? app.state.replay.analysisDetail : shotProcessor.replayAnalysisDetail
+    readonly property real _replayPlayheadUs: _isReplay ? app.state.replay.positionUs     : shotProcessor.replayPositionUs
     readonly property int  _replayPerspective: _isReplay
-            ? (shotReplay.streams[replayStreamIndex] !== undefined
-               ? shotReplay.streams[replayStreamIndex].perspective : -1)
+            ? (app.state.replay.streams[replayStreamIndex] !== undefined
+               ? app.state.replay.streams[replayStreamIndex].perspective : -1)
             : (instance ? instance.perspective : -1)
     // The replay-overlay detail FOR THIS TILE. Face-on reads the top-level blocks
     // (pose2d / club / ball — measured on that camera); a down-the-line tile reads the
@@ -85,7 +85,7 @@ Item {
     // impact overlay nothing without a path — and opens the reason (TrustFocus, else in place). A
     // downgrade (the clubhead's position assumed) is a caveat on a drawn path, so it shows only then.
     // An old swing has no records: no chip, as before.
-    readonly property string _gateSwingDir: _isReplay ? (shotReplay.swingDir || "") : (SessionMode.focusedSwingDir || "")
+    readonly property string _gateSwingDir: _isReplay ? (app.state.replay.swingDir || "") : (app.state.selection.swingDir || "")
     readonly property var _overlayGate: {
         var d = root._replayDetail
         if (!d || !d.gates || !root._replayActive) return null
@@ -761,7 +761,7 @@ Item {
     // been destroyed, so the surviving (visible) tile is the one that ends up bound.
     function _bindReplaySink() {
         if (root._isReplay && videoOut.videoSink)
-            shotReplay.setVideoSink(root.replayStreamIndex, videoOut.videoSink)
+            app.state.replay.setVideoSink(root.replayStreamIndex, videoOut.videoSink)
     }
     Component.onCompleted: {
         _syncSubscription()
@@ -772,10 +772,10 @@ Item {
     onReplayStreamIndexChanged: if (root._isReplay) Qt.callLater(root._bindReplaySink)
 
     Connections {
-        target: shotReplay
+        target: app.state.replay
         enabled: root._isReplay
         // Every (re)load creates a fresh player that needs this tile's sink.
-        function onActiveChanged() { if (shotReplay.active) Qt.callLater(root._bindReplaySink) }
+        function onActiveChanged() { if (app.state.replay.active) Qt.callLater(root._bindReplaySink) }
     }
     Component.onDestruction: {
         if (root._subscribed) {
@@ -1068,8 +1068,8 @@ Item {
 
             // The clip-local time to draw at.
             function _clipTime() {
-                if (root._isReplay && shotReplay.impactPositionUs >= 0)
-                    return shotReplay.impactPositionUs
+                if (root._isReplay && app.state.replay.impactPositionUs >= 0)
+                    return app.state.replay.impactPositionUs
                 var s = _impact.samples
                 var first = s[0].t_us, last = s[s.length - 1].t_us
                 if (s.length < 2 || last <= first) return first
@@ -1098,7 +1098,7 @@ Item {
                 function onReplayPositionChanged() { if (impactOverlay.visible) impactOverlay.requestPaint() }
             }
             Connections {
-                target: shotReplay
+                target: app.state.replay
                 enabled: root._isReplay
                 function onPositionChanged() { if (impactOverlay.visible) impactOverlay.requestPaint() }
             }
@@ -1333,7 +1333,7 @@ Item {
             // from the detail and the address instant, never per paint.
             readonly property var _annotations: {
                 var d = root._det
-                if (!d || !root._isReplay || !ViewLayout.coachLinesOn(SessionMode.mode)) return []
+                if (!d || !root._isReplay || !ViewLayout.coachLinesOn(app.state.mode)) return []
                 // aspect = the drawn image's width / height (the rect the paint maps normalised
                 // coordinates into), for the shoulder plane's offset measured in pixels
                 var cr = videoOut.contentRect
@@ -1341,7 +1341,7 @@ Item {
                 return AutoAnnotations.filterSets(
                             AutoAnnotations.build(d, root._isDtl, root._addressUs, root.leadIsLeft,
                                                   cr.height > 0 ? cr.width / cr.height : NaN),
-                            ViewLayout.coachSetsFor(SessionMode.mode))
+                            ViewLayout.coachSetsFor(app.state.mode))
             }
 
             // Greatest index with t_us <= t (−1 when empty).
@@ -1385,7 +1385,7 @@ Item {
                 }
             }
             Connections {
-                target: shotReplay
+                target: app.state.replay
                 enabled: root._isReplay
                 function onPositionChanged() {
                     if (replayOverlay.visible) replayOverlay.requestPaint()
@@ -1923,8 +1923,8 @@ Item {
             z: 28
             active: root.annotationsEnabled
             contentRect: root.contentRect
-            tileKey: (root.annotationsEnabled && root._isReplay && shotReplay.swingDir !== "")
-                     ? shotReplay.swingDir + "#" + root.replayStreamIndex : ""
+            tileKey: (root.annotationsEnabled && root._isReplay && app.state.replay.swingDir !== "")
+                     ? app.state.replay.swingDir + "#" + root.replayStreamIndex : ""
         }
 
         // ── Faint hitting-area hint ───────────────────────────────────────

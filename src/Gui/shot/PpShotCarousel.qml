@@ -109,8 +109,12 @@ Item {
         appSettings.sectionCollapse = m
     }
 
-    property int  selectedShotId: -1
-    property Item selectedCard:   null   // live delegate; nulled by QML when it is destroyed
+    // THE SELECTED SHOT, as this carousel's row id: app.state.selection (by ShotRef; R-APP-4) found among the active
+    // model's rows (ShotListModel.idOfShot). The carousel keeps no selection of its own. Re-found when the rows change.
+    readonly property int _focusedId: {
+        void root.activeModel.activeCount
+        return root.activeModel.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir)
+    }
 
     // Swings PICKED on the cards for a bulk action (the tick, or Ctrl/⌘-click) — ids in the
     // active model. Not the focused swing: picking leaves the stage alone, which is the point
@@ -138,21 +142,15 @@ Item {
     //   • no panel: the session's CARDS adapter (of(session, "cards")), which takes only what the
     //     pips read from each diagnosis — no view half. Its pip order is a panel's card order once
     //     a panel of the session has worked one out, else the session's patterns first.
-    // The folder is the panel's own choice, the same expression as PpSessionDiagnosticsPanel
-    // .sessionDir, until step 4's sessionOnScreen replaces both. The carousel's own rows already
-    // hold this Session (ShotListModel.loadSessionDir asks app.sessionAt), so asking for it holds
-    // nothing new.
-    readonly property string _diagFolder:
-        (sessionReviewController.reviewActive && sessionReviewController.activeSessionId !== "")
-            ? sessionReviewController.activeSessionId
-            : (typeof shotProcessor !== "undefined" && shotProcessor && shotProcessor.activeSessionDir !== "")
-                ? shotProcessor.activeSessionDir
-                : sessionReviewController.liveSessionDir
+    // The folder is the session on screen's (app.state.sessionOnScreenFolder: R-APP-3, the one derivation, E-08), as
+    // every session panel's is. The carousel's own rows already hold this Session (ShotListModel.loadSessionDir asks
+    // app.sessionAt); this reads the session on screen, app.session, and asks for none.
+    readonly property string _diagFolder: app.state.sessionOnScreenFolder
     readonly property bool _golferChosen:
         typeof athleteController === "undefined" || athleteController === null || athleteController.currentUuid !== ""
     readonly property bool _hasAdapters: typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters
     readonly property var _diagSession:
-        (typeof app !== "undefined" && app && _golferChosen && _diagFolder !== "") ? app.sessionAt(_diagFolder) : null
+        (typeof app !== "undefined" && app && _golferChosen && _diagFolder !== "") ? app.session : null
     readonly property var _shownSource:
         (_hasAdapters && diagnosticsAdapters.shownCount > 0 && _diagFolder !== "")
             ? diagnosticsAdapters.shownFor(_diagSession, _diagFolder) : null
@@ -229,7 +227,7 @@ Item {
     readonly property var _focusSummary: {
         void root.activeModel.activeCount
         void root._editTick
-        return root.activeModel.shotSummary(SessionMode.focusedShotId)
+        return root.activeModel.shotSummary(root._focusedId)
     }
     // The scope-aware action bar shows when there is a focused shot OR a filter
     // is active; hidden otherwise (fresh Capture, nothing picked). Gating on the
@@ -256,20 +254,9 @@ Item {
     // One-click select / deselect of a swing, shared by the film-strip cards and the
     // filter menu's shot picker (which is the ONLY way in while the strip is folded).
     // Clicking the swing already on the stage takes it off; anything else promotes it.
-    // `card` is the live delegate when the click came from a card and null when it came
-    // from the picker — the strip is folded then, so there is no delegate to point at,
-    // and pointing at the previous one would misname the focused swing to the screens
-    // that read selectedCard.swingDir as their fallback.
-    function _toggleShot(shotId, swingDir, card) {
-        if (shotId === SessionMode.focusedShotId) {
-            root.selectedShotId = -1
-            root.selectedCard   = null
-            SessionMode.clearFocus()
-        } else {
-            root.selectedShotId = shotId
-            root.selectedCard   = card || null
-            SessionMode.enterReplay(shotId, swingDir)
-        }
+    function _toggleShot(shotId, swingDir) {
+        if (shotId === root._focusedId) app.state.clearSelection()
+        else                            app.state.enterReplay(root.activeModel.shotRefOf(shotId), swingDir)
     }
 
     function _toggleMark(shotId) {
@@ -293,7 +280,7 @@ Item {
             root._notify("🗑", qsTr("No shots to trash"), "info")
             return
         }
-        if (ids.indexOf(SessionMode.focusedShotId) >= 0)
+        if (ids.indexOf(root._focusedId) >= 0)
             root._refocusAway(ids)
         root.markedIds = root.markedIds.filter(function (id) { return ids.indexOf(id) < 0 })
         root.activeModel.trashShots(ids)
@@ -303,20 +290,17 @@ Item {
     // none — skipping every swing going with it. The view (Replay / Analyse) stays as it is.
     function _refocusAway(ids) {
         const order = filterProxy.visibleShotIds()       // as the strip shows them, newest first
-        const at = order.indexOf(SessionMode.focusedShotId)
+        const at = order.indexOf(root._focusedId)
         let next = -1
         for (let i = at + 1; i < order.length && next < 0; ++i)
             if (ids.indexOf(order[i]) < 0) next = order[i]
         for (let j = at - 1; j >= 0 && next < 0; --j)
             if (ids.indexOf(order[j]) < 0) next = order[j]
-        root.selectedCard = null
         if (next < 0) {
-            root.selectedShotId = -1
-            SessionMode.clearFocus()
+            app.state.clearSelection()
             return
         }
-        root.selectedShotId = next
-        SessionMode.moveFocus(next, root.activeModel.shotSummary(next).swingDir)
+        app.state.moveSelection(root.activeModel.shotRefOf(next), root.activeModel.shotSummary(next).swingDir)
     }
 
     // Every notice goes through here. The toast is shared by export, trash and re-analysis,
@@ -387,13 +371,13 @@ Item {
             onEditRequested: editPopup.open()
 
             onExportShot: root._openExportSheet(
-                              root.activeModel.swingDirsForIds([SessionMode.focusedShotId]),
+                              root.activeModel.swingDirsForIds([root._focusedId]),
                               qsTr("Nothing to export"))
             onExportShown: root._openExportSheet(
                               root.activeModel.swingDirsForIds(filterProxy.visibleShotIds()),
                               qsTr("No saved shots to export"))
 
-            onTrashShot:   root._trash([SessionMode.focusedShotId])
+            onTrashShot:   root._trash([root._focusedId])
             onTrashShown:  root._trash(filterProxy.visibleShotIds())
             onTrashMarked: root._trash(root.markedIds.slice())
             onClearMarks:  root.markedIds = []
@@ -404,7 +388,7 @@ Item {
             // model and silently no-op. The controller drains them sequentially,
             // writing each fresh analysis back to swing.json.
             onReanalyseShot:  reanalysisController.reanalyse(
-                                  root.activeModel.swingDirsForIds([SessionMode.focusedShotId]))
+                                  root.activeModel.swingDirsForIds([root._focusedId]))
             onReanalyseShown: reanalysisController.reanalyse(
                                   root.activeModel.swingDirsForIds(filterProxy.visibleShotIds()))
         }
@@ -586,12 +570,12 @@ Item {
                 // → loupe). Single click promotes this swing into Replay; clicking
                 // the already-focused card again deselects it and resets the
                 // Replay/Analyse stage to its empty state.
-                selected: shotId === SessionMode.focusedShotId
+                selected: shotId === root._focusedId
                 marked:    root.markedIds.indexOf(shotId) >= 0
                 selecting: root.markedIds.length > 0
                 // While swings are picked a plain click picks too — the selection is being built.
                 onTapped:  root.markedIds.length > 0 ? root._toggleMark(shotId)
-                                                     : root._toggleShot(shotId, swingDir, cardDelegate)
+                                                     : root._toggleShot(shotId, swingDir)
                 onMarkToggled:    root._toggleMark(shotId)
                 onTrashRequested: root._trash([shotId])
                 onRated: (n) => root.activeModel.setRating(shotId, n)
@@ -683,7 +667,7 @@ Item {
             id: filterPanel
             proxy:          filterProxy
             showShots:      !root.expanded
-            focusedShotId:  SessionMode.focusedShotId
+            focusedShotId:  root._focusedId
             focusedSummary: root._focusSummary
             // Picking a swing is what the folded-strip picker is FOR, so the click that
             // picks one closes it — the popover is a stand-in for the film strip, and a
@@ -691,7 +675,7 @@ Item {
             // just promoted. (Deselecting the on-stage swing closes it too: same click,
             // same answer given.)
             onShotToggled:  (shotId, swingDir) => {
-                root._toggleShot(shotId, swingDir, null)
+                root._toggleShot(shotId, swingDir)
                 filterPopup.close()
             }
         }
@@ -719,9 +703,9 @@ Item {
             summary:     root._focusSummary
             clubOptions: root.activeModel.clubOptions
 
-            onClubChosen:  (c) => { root.activeModel.setClub(SessionMode.focusedShotId, c);   root._editTick++ }
-            onRated:       (n) => { root.activeModel.setRating(SessionMode.focusedShotId, n);  root._editTick++ }
-            onNoteChanged: (t) => { root.activeModel.setNote(SessionMode.focusedShotId, t);    root._editTick++ }
+            onClubChosen:  (c) => { root.activeModel.setClub(root._focusedId, c);   root._editTick++ }
+            onRated:       (n) => { root.activeModel.setRating(root._focusedId, n);  root._editTick++ }
+            onNoteChanged: (t) => { root.activeModel.setNote(root._focusedId, t);    root._editTick++ }
             onCloseRequested: editPopup.close()
         }
     }
@@ -790,12 +774,11 @@ Item {
         function onShotTrashed(shotId, swingDir) {
             if (root.markedIds.indexOf(shotId) >= 0)
                 root.markedIds = root.markedIds.filter(function (id) { return id !== shotId })
-            // Belt and braces: _trash hands the stage on first, but nothing focused may be gone.
-            if (shotId === SessionMode.focusedShotId) {
-                root.selectedShotId = -1
-                root.selectedCard   = null
-                SessionMode.clearFocus()
-            }
+            // Belt and braces: _trash hands the stage on first, but nothing focused may be gone. By folder too: the
+            // row may already be gone from _focusedId's rows.
+            if (shotId === root._focusedId
+                    || (swingDir !== "" && SessionMode.sameFolder(swingDir, app.state.selection.swingDir)))
+                app.state.clearSelection()
             if (swingDir !== "")
                 SessionMode.swingTrashed(swingDir)
         }
@@ -843,14 +826,14 @@ Item {
         // rewritten document and regrades it then.
         if (root.pipSource && !root.pipSource.adapter)
             root.pipSource.regradeShot(swingDir)
-        // The Replay/Analyse panel reads shotReplay.analysisDetail — a separate,
+        // The Replay/Analyse panel reads app.state.replay.analysisDetail — a separate,
         // independently cached disk read of swing.json (ShotReplayController /
         // DiskReplaySource), not this model — so a model-only row refresh
         // leaves it showing the pre-rewrite score/metrics/trace/skeleton while
         // the shot stays focused. Force a reload when it's the one open now
         // (mirrors what re-selecting the shot already does).
-        if (shotReplay.active && shotReplay.swingDir === swingDir)
-            shotReplay.start(shotReplay.shotId, swingDir, shotReplay.speed, shotReplay.playing)
+        if (app.state.replay.active && app.state.replay.swingDir === swingDir)
+            app.state.replay.start(app.state.replay.shotId, swingDir, app.state.replay.speed, app.state.replay.playing)
     }
 
     // The launch monitor's late club data. No toast and no chime: the reading already

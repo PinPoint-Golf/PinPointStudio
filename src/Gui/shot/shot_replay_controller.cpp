@@ -48,19 +48,6 @@ ShotReplayController::ShotReplayController(AppSettings *appSettings, QObject *pa
 
 ShotReplayController::~ShotReplayController() = default;
 
-QVariantList ShotReplayController::streams() const
-{
-    QVariantList out;
-    for (const ReplayStreamInfo &s : m_source->streams())
-        out.append(QVariantMap{
-            { QStringLiteral("index"),       s.index },
-            { QStringLiteral("perspective"), s.perspective },
-            { QStringLiteral("aspect"),      s.aspect },
-            { QStringLiteral("hasAnalysis"), s.hasAnalysis },
-            { QStringLiteral("viewGain"),    s.viewGain } });
-    return out;
-}
-
 bool ShotReplayController::start(int shotId, const QString &swingDir, double speed, bool autoPlay)
 {
     if (swingDir.isEmpty())

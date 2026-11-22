@@ -48,7 +48,7 @@ Item {
     property bool coverageCollapsed: false
     property bool tableCollapsed:    false
 
-    readonly property string _sectionKeyBase: root.sessionType + ":" + SessionMode.mode + ":"
+    readonly property string _sectionKeyBase: root.sessionType + ":" + app.state.mode + ":"
     on_SectionKeyBaseChanged: root._restoreSections()
     Component.onCompleted:    root._restoreSections()
 
@@ -370,18 +370,18 @@ Item {
             colorFn: root.srcColor
 
             // Temporal navigation: click/drag a coverage block to seek. The shared cursor
-            // (shotReplay.positionUs) drives the table, timeline, charts and replay video —
+            // (app.state.replay.positionUs) drives the table, timeline, charts and replay video —
             // they all follow for free. Only meaningful with a shot loaded (active).
-            interactive:  shotReplay.active
-            positionUs:   shotReplay.active ? shotReplay.positionUs : -1
-            onScrubBegin: shotReplay.beginScrub()
-            onScrubEnd:   shotReplay.endScrub()
+            interactive:  app.state.replay.active
+            positionUs:   app.state.replay.active ? app.state.replay.positionUs : -1
+            onScrubBegin: app.state.replay.beginScrub()
+            onScrubEnd:   app.state.replay.endScrub()
             onSeek: (us) => {
-                if (!shotReplay.active) return
+                if (!app.state.replay.active) return
                 // Global navigator: a click outside the current table window widens it to
                 // Full so the table always jumps to the click (playback never resets it).
                 if (us < src.windowStartUs || us > src.windowEndUs) src.setWindow(0, src.spanUs)
-                shotReplay.seekToUs(us)
+                app.state.replay.seekToUs(us)
             }
         }
 
@@ -470,10 +470,10 @@ Item {
             // playhead is outside a phase-windowed table; we leave the row alone then,
             // and keyboard nav still moves it between playhead updates.
             Connections {
-                target: shotReplay
+                target: app.state.replay
                 function onPositionChanged() {
-                    if (!shotReplay.active) return
-                    var r = src.table.rowForTimeUs(shotReplay.positionUs)
+                    if (!app.state.replay.active) return
+                    var r = src.table.rowForTimeUs(app.state.replay.positionUs)
                     if (r >= 0) tableArea.currentRow = r
                 }
             }

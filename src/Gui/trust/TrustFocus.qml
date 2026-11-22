@@ -35,7 +35,7 @@ QtObject {
     property string subject: ""
     property string swingDir: ""
     property int    nonce: 0
-    readonly property bool panelOn: ViewLayout.isPanelOn(SessionMode.mode, "trust")
+    readonly property bool panelOn: ViewLayout.isPanelOn(app.state.mode, "trust")
     function open(subject, swingDir) {
         if (!panelOn) return false
         tf.subject = subject || ""

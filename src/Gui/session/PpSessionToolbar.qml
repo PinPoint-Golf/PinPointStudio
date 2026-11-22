@@ -41,7 +41,7 @@ Item {
     // so the controller knows which type owns the running session.
     property int sessionType: -1
 
-    // Mode-switch labels, indexed by SessionMode.mode (capture/review/analyse).
+    // Mode-switch labels, indexed by app.state.mode (capture/review/analyse).
     readonly property var modeNames: [qsTr("Capture"), qsTr("Replay"), qsTr("Analyse")]
 
     // Live capture truth — mirrors the actual EventBuffer state (same source as
@@ -150,8 +150,8 @@ Item {
     // preset's label, or "Custom" once the user hand-edits an element away
     // from any catalogue preset (ViewLayout.motionPreset flips to "custom").
     readonly property string motionPillLabel: {
-        if (!ViewLayout.motionOn(SessionMode.mode)) return qsTr("Off")
-        var id = ViewLayout.motionPreset(SessionMode.mode)
+        if (!ViewLayout.motionOn(app.state.mode)) return qsTr("Off")
+        var id = ViewLayout.motionPreset(app.state.mode)
         if (id === "custom") return qsTr("Custom")
         var cat = ViewLayout.presetCatalog()
         for (var i = 0; i < cat.length; ++i)
@@ -178,19 +178,13 @@ Item {
         return ClubFormat.isTaped(rec)
     }
 
-    // Start a session: choose its on-disk folder, then start the clock + capture.
-    // extend appends to today's most-recent folder (its prior swings load into the
-    // carousel); otherwise a fresh "_NN" folder is created and the carousel clears.
-    // Every session starts as sessionController.defaultType, the same as the wizard's
-    // Start (Main.qml). The todaySessionDir(root.sessionType) lookups below (the
-    // extend prompt, the carousel after End) name the same type: the one session
-    // screen sets sessionType to it.
-    function _beginSession(extend) {
-        shotProcessor.beginSessionFolder(sessionController.defaultType, extend)
-        shotModel.loadSessionDir(extend ? shotProcessor.activeSessionDir : "")
-        sessionController.start(sessionController.defaultType)
-        cameraManager.startCapture()
-    }
+    // Start a session: app.state's one command (app_state.h) chooses its on-disk folder, shows it in the
+    // carousel, then starts the clock + capture. extend appends to today's most-recent session (its prior
+    // swings load into the carousel); otherwise a fresh "_NN" folder is created and the carousel clears.
+    // Every session starts as sessionController.defaultType, the same as the wizard's Start (Main.qml).
+    // The todaySessionDir(root.sessionType) lookup below (the extend prompt) names the same type: the
+    // one session screen sets sessionType to it.
+    function _beginSession(extend) { app.state.startSession(extend) }
 
     Rectangle {
         anchors.fill: parent
@@ -425,15 +419,11 @@ Item {
                             label: qsTr("End")
                             onClicked: {
                                 endPopup.close()
-                                cameraManager.stopCapture()
-                                sessionController.endSession()
-                                // Discard the session folder if it captured no
-                                // new swings (moved to the OS trash — recoverable),
-                                // then re-point the carousel at today's remaining
-                                // most-recent session, or empty it.
-                                shotProcessor.endSessionFolder()
-                                shotModel.loadSessionDir(
-                                    shotProcessor.todaySessionDir(root.sessionType))
+                                // app.state's one command: capture and the clock stop, the session
+                                // folder is discarded if it captured no new swings (to the OS trash —
+                                // recoverable), then the carousel shows today's remaining most-recent
+                                // session, or empties.
+                                app.state.endSession(true)
                                 // Ending the session releases the devices:
                                 // cameras stop + deselect, IMUs disconnect
                                 // (BLE battery). The next session's wizard
@@ -492,7 +482,7 @@ Item {
         // ── View pill — edits the CURRENT mode's saved layout ─────────────────
         PpToolPill {
             id: viewPill
-            label: root.modeNames[SessionMode.mode]
+            label: root.modeNames[app.state.mode]
             active: viewPopup.opened
             onClicked: {
                 camPopup.close(); imuPopup.close(); motionPopup.close(); clubPopup.close()
@@ -583,12 +573,12 @@ Item {
         width: Theme.sp(220)
         solid: false
         options:  root.modeNames
-        selected: root.modeNames[SessionMode.mode]
+        selected: root.modeNames[app.state.mode]
         onActivated: (value) => {
             var i = root.modeNames.indexOf(value)
-            if (i === SessionMode.replay)       SessionMode.showReplay()
-            else if (i === SessionMode.analyse) SessionMode.enterAnalyse()
-            else                                SessionMode.enterCapture()
+            if (i === app.state.replayMode)       app.state.showReplay()
+            else if (i === app.state.analyseMode) app.state.enterAnalyse()
+            else                                app.state.enterCapture()
         }
     }
 

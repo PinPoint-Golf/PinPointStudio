@@ -50,6 +50,7 @@
 //   S13 (3.4a-ii) resuming the session already running here: the same object, Unchanged, no write, no event —
 //       and it is resumed work from then on, so ended empty it stays (today's extend ended and resumed it); as
 //       another type it is refused (DEC-134), review 1
+//   S3i–k (4-a review) a trashed folder gives no Session, holds none and makes nothing on disk
 //   S14 (3.4a-ii) addShot hands the capture service the whole allocation (its ShotRef, folder and names) for a
 //       device-only shot as for a captured one; its kind is the caller's; EVT-01 only on the document's report
 //
@@ -297,6 +298,12 @@ static void testEmptyEnd()
     check(QStringLiteral("S3e its object lives until the event loop runs"), !watch.isNull());
     flushDeletes();
     check(QStringLiteral("S3f then it is deleted"), watch.isNull());
+    // The trashed folder is no session any more (refactor 4-a review): asked for again — as a view's binding asked for
+    // it during the discard — it gives none, holds none, and nothing is made where it was.
+    const int heldBefore = int(rig.athlete->loadedSessions().size());
+    check(QStringLiteral("S3i the trashed folder gives no Session"), rig.athlete->sessionAt(folder) == nullptr);
+    check(QStringLiteral("S3j …none is held for it"), int(rig.athlete->loadedSessions().size()) == heldBefore);
+    check(QStringLiteral("S3k …and nothing is made on disk where it was"), !QFileInfo::exists(folder));
 
     // With a swing: EVT-09, kept.
     Session *k = rig.athlete->startSession(kSwing, kPat);

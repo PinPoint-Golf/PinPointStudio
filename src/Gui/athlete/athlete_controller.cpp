@@ -360,7 +360,7 @@ QString AthleteController::saveAthlete(
     const QString newUuid = created->id().toString();
 
     // A new athlete becomes current — except while a session runs, when the session's athlete
-    // must stay current (its swings are being saved under them; see setSessionRunningCheck).
+    // must stay current (its swings are being saved under them; see setAppState).
     if (sessionRunning()) {
         ppInfo() << "[Athlete] created" << r.name << newUuid
                  << "but kept" << m_currentName << "current: a session is running for them";
@@ -393,55 +393,26 @@ QString AthleteController::createAthlete(
 
 // ── Demographics, for norm cohorts ──────────────────────────────────────────
 
-QVariantMap AthleteController::cohortFor(const QString &uuid, const QString &onIsoDate) const
-{
-    using namespace pinpoint::analysis;
-
-    for (const QVariant &v : m_athletes) {
-        const QVariantMap a = v.toMap();
-        if (a.value(QStringLiteral("uuid")).toString() != uuid) continue;
-
-        // Both dates parsed rather than defaulted. An unparseable or absent swing date yields an
-        // invalid QDate, and ageBandFor answers "unknown" for it — which is right: substituting
-        // today would grade an old swing against the band this golfer is in NOW, and that is the
-        // one mistake deriving-at-the-swing-date exists to prevent.
-        const QDate dob = QDate::fromString(a.value(QStringLiteral("dob")).toString(), Qt::ISODate);
-        const QDate on  = QDate::fromString(onIsoDate, Qt::ISODate);
-
-        // Qualified: this member has the same name, so unqualified lookup would find it in class
-        // scope, stop there, and suppress ADL.
-        return cohortToMap(
-            pinpoint::analysis::cohortFor(dob, a.value(QStringLiteral("sex")).toString(), on));
-    }
-    return {};                     // no such athlete: unqualified, which grades against everyone
-}
-
 QString AthleteController::cohortLabelFor(const QString &dobIsoDate, const QString &sex,
                                           const QString &onIsoDate) const
 {
     using namespace pinpoint::analysis;
-    // Qualified for the reason cohortFor() above is: the member of the same name is found by
+    // Qualified, as a member of the same name once was: unqualified lookup would find it by
     // ordinary lookup in class scope, which stops the search and suppresses ADL.
     return cohortLabel(pinpoint::analysis::cohortFor(
         QDate::fromString(dobIsoDate, Qt::ISODate), sex,
         QDate::fromString(onIsoDate, Qt::ISODate)));
 }
 
-QVariantList AthleteController::sexOptions() const
+QList<SexOption> AthleteController::sexOptions() const
 {
     // "Prefer not to say" is stored as its own token rather than as an empty string. The two mean
     // the same thing to a norm — only rows unqualified on that axis can match — but they do not
     // mean the same thing to the person: an answer they gave has to survive re-opening the form,
     // and a blank field would read as never having been asked.
-    auto opt = [](const char *value, const char *label) {
-        QVariantMap m;
-        m.insert(QStringLiteral("value"), QString::fromLatin1(value));
-        m.insert(QStringLiteral("label"), label ? QObject::tr(label) : QString());
-        return QVariant(m);
-    };
-    return { opt("female",   QT_TR_NOOP("Female")),
-             opt("male",     QT_TR_NOOP("Male")),
-             opt("declined", QT_TR_NOOP("Prefer not to say")) };
+    return { { QStringLiteral("female"),   QObject::tr("Female") },
+             { QStringLiteral("male"),     QObject::tr("Male") },
+             { QStringLiteral("declined"), QObject::tr("Prefer not to say") } };
 }
 
 bool AthleteController::updateAthlete(const QString &uuid, const QString &fieldName, const QVariant &value)

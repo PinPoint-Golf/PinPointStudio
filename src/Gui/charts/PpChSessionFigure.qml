@@ -334,9 +334,9 @@ Item {
                                 sf.brush.hoveredShot = hit ? hit.ordinal : -1
                             }
                             onExited: { hit = null; if (sf.brush && sf.band === "every") sf.brush.hoveredShot = -1 }
-                            onPressed: (e) => { if (hit) return; if (typeof shotReplay !== "undefined") shotReplay.beginScrub(); seekTo(e.x) }
-                            onReleased: { if (hit) sf.shotActivated(hit.ordinal); else if (typeof shotReplay !== "undefined") shotReplay.endScrub() }
-                            onCanceled: if (!hit && typeof shotReplay !== "undefined") shotReplay.endScrub()
+                            onPressed: (e) => { if (hit) return; if ((typeof app !== "undefined" && !!app)) app.state.replay.beginScrub(); seekTo(e.x) }
+                            onReleased: { if (hit) sf.shotActivated(hit.ordinal); else if ((typeof app !== "undefined" && !!app)) app.state.replay.endScrub() }
+                            onCanceled: if (!hit && (typeof app !== "undefined" && !!app)) app.state.replay.endScrub()
                         }
                     }
                 }

@@ -92,20 +92,18 @@ Item {
 
     // ── the session, its model and the presenters ──
     readonly property bool _screenActive: SessionMode.sessionScreenActive
-    readonly property string sessionDir:
-        (sessionReviewController.reviewActive && sessionReviewController.activeSessionId !== "")
-            ? sessionReviewController.activeSessionId
-            : shotProcessor.activeSessionDir !== "" ? shotProcessor.activeSessionDir : sessionReviewController.liveSessionDir
+    readonly property string sessionDir: app.state.sessionOnScreenFolder
     function _pointAtSession() { if (!SessionMode.sameFolder(sessionDir, seriesModel.sessionDir)) seriesModel.activateSession(sessionDir) }
     onSessionDirChanged: _pointAtSession()
     // THE MODEL A DIAGNOSTICS PANEL SHOWS FOR THIS SESSION (refactor 3.7-e: the SessionMode.sessionDiagnostics seam is gone),
     // as the carousel's cards find it: diagnosticsAdapters.shownFor — null while no diagnostics panel is up, as the seam
-    // was; asked of app.sessionAt only while one is (it holds nothing new: the panel already holds that Session).
+    // was; the session on screen's (app.session: a binding never asks for a Session itself, so none is made for a
+    // folder an End has just trashed).
     readonly property var _diagShown:
         (typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters && diagnosticsAdapters.shownCount > 0
          && typeof app !== "undefined" && !!app && sessionDir !== ""
          && (typeof athleteController === "undefined" || !athleteController || athleteController.currentUuid !== ""))
-            ? diagnosticsAdapters.shownFor(app.sessionAt(sessionDir), sessionDir) : null
+            ? diagnosticsAdapters.shownFor(app.session, sessionDir) : null
     // THE OWNER'S WRITES, PANEL OR NOT (refactor 3.7-e round 2; review R1-m4, D-04's last part): with no diagnostics panel
     // up the session's owner still judges every live shot and rewrites diagnostics.json, so the re-read follows the
     // session's own adapter for the carousel's pips ("cards": no view half, a busy that falls once the owner has written)
@@ -113,7 +111,7 @@ Item {
     readonly property var _diagWrites: _diagShown ? _diagShown
         : ((typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters && typeof app !== "undefined" && !!app
             && sessionDir !== "" && (typeof athleteController === "undefined" || !athleteController || athleteController.currentUuid !== ""))
-               ? (function () { const s = app.sessionAt(sessionDir); return s ? diagnosticsAdapters.of(s, "cards", sessionDir) : null })()
+               ? (app.session ? diagnosticsAdapters.of(app.session, "cards", sessionDir) : null)
                : null)
 
 
@@ -121,7 +119,7 @@ Item {
 
     // what the presenters are told of the replay: copied only while this screen is the visible one
     property string _swingDir: ""
-    // The picked shot's detail as an OPAQUE ref (shotReplay.analysisDetailRef, qml_map_ref.h): passed on to the
+    // The picked shot's detail as an OPAQUE ref (app.state.replay.analysisDetailRef, qml_map_ref.h): passed on to the
     // presenters, never looked inside here. The JS detail written to their QVariantMap property was copied back
     // whole on every shot change — 1–2 s on entering Analyse (#173).
     property var _detailRef: ({})
@@ -129,17 +127,17 @@ Item {
     property real _playUs: -1
     function _syncPick() {
         if (!_screenActive) return
-        _swingDir = shotReplay.active ? shotReplay.swingDir : ""
-        _detailRef = shotReplay.active ? shotReplay.analysisDetailRef : ({})
-        _spanUs = shotReplay.active ? shotReplay.endUs - shotReplay.startUs : -1
-        _playUs = shotReplay.active ? shotReplay.positionUs : -1
+        _swingDir = app.state.replay.active ? app.state.replay.swingDir : ""
+        _detailRef = app.state.replay.active ? app.state.replay.analysisDetailRef : ({})
+        _spanUs = app.state.replay.active ? app.state.replay.endUs - app.state.replay.startUs : -1
+        _playUs = app.state.replay.active ? app.state.replay.positionUs : -1
     }
     on_ScreenActiveChanged: _syncPick()
     Connections {
-        target: shotReplay
+        target: app.state.replay
         function onActiveChanged()   { root._syncPick() }
-        function onSpanChanged()     { if (root._screenActive) root._spanUs = shotReplay.active ? shotReplay.endUs - shotReplay.startUs : -1 }
-        function onPositionChanged() { if (root._screenActive) root._playUs = shotReplay.active ? shotReplay.positionUs : -1 }
+        function onSpanChanged()     { if (root._screenActive) root._spanUs = app.state.replay.active ? app.state.replay.endUs - app.state.replay.startUs : -1 }
+        function onPositionChanged() { if (root._screenActive) root._playUs = app.state.replay.active ? app.state.replay.positionUs : -1 }
     }
     readonly property string _register: body.register === "Analyse" ? "analyse" : "replay"
 
@@ -244,7 +242,7 @@ Item {
     }
 
     // ── persistence: AppSettings chartPrefs per screen type × mode, written on interaction only ──
-    readonly property string _keyBase: root.sessionType + ":" + SessionMode.mode + ":"
+    readonly property string _keyBase: root.sessionType + ":" + app.state.mode + ":"
     on_KeyBaseChanged: { _restorePrefs(); _restoreFolds() }
     readonly property var _prefKey: ({ tab: "view", overlay: "split", showDots: "dots", showCursor: "cursor", upId: "up", acrossId: "across" })
     function _restorePrefs(keepTab) {

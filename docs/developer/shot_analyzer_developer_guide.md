@@ -467,7 +467,7 @@ holds the three to one another key by key. Each series is the stored `analysis.m
 Every instant in the map is **window time** (µs from the capture window's start). The in-window
 replay runs on the ring clock, so `shotProcessor.replayPositionUs` / `replayStartUs` /
 `replayEndUs` / `replayImpactUs` are published minus the window's start (`m_replayT0Us`): the
-one view-boundary offset, and the same domain as `shotReplay.positionUs`. The one difference
+one view-boundary offset, and the same domain as `app.state.replay.positionUs`. The one difference
 between the live map and the file: with "Save pose keypoints" off the file has no pose tracks,
 the live map does.
 

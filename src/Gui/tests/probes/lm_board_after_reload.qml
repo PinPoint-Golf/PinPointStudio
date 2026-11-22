@@ -117,8 +117,7 @@ Item {
                 for (let i = 0; i < shots.count; ++i) {
                     const s = shots.objectAt(i)
                     if (s.ordinal !== probe.ordinal) continue
-                    SessionMode.focusedShotId   = s.shotId
-                    SessionMode.focusedSwingDir = s.swingDir
+                    app.state.moveSelection(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
                     picked = true
                 }
                 probe.check(picked, "shot " + probe.ordinal + " is in the carousel")

@@ -49,14 +49,14 @@ Item {
         // a corridor the app does not grade against.
         libraryRoot: appSettings.athleteLibraryPath
         gradePolicy: appSettings.diagnosticsGradePolicy
-        // The swing a session screen has loaded, if any. Bound through the same context-property
-        // seam the two above use, so the façade never learns what a session screen is — it is
-        // handed a path and reads a phase grid off it.
+        // The swing the session screen has loaded, if any: the active replay, else app.state's selection
+        // (ScreenWrist's _focusedSwingDir, which CurrentSwing used to publish; refactor step 4-a). The façade
+        // never learns what a session screen is — it is handed a path and reads a phase grid off it.
         //
         // Settings is reachable while a session runs, and this panel lives in Settings → Reference,
         // which is what makes this worth binding: an author can have a swing on the session stage and this
         // panel open at the same time, and that is exactly when a corridor is worth arguing with.
-        currentSwingDir: currentSwing.swingDir
+        currentSwingDir: app.state.replay.swingDir !== "" ? app.state.replay.swingDir : app.state.selection.swingDir
         // The athlete's two demographic fields, raw. The BAND is derived inside the façade from the
         // swing's own date — passing a resolved cohort from here would have to pick a date, and the
         // only one QML could pick is today, which is the mistake deriving-at-the-swing-date exists

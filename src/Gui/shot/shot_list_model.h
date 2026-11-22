@@ -17,7 +17,6 @@
  */
 
 #pragma once
-#include "qml_payload.h"
 
 #include <QAbstractListModel>
 #include <QElapsedTimer>
@@ -61,8 +60,8 @@ class RecordingRepository; class ShotCommandDoor; struct ForwardResult; struct S
 //     that failed leaves the row showing what the shot still is (the failure is logged, as before);
 //   - a refresh (re-analysis, a late reading) and a live shot's row take those facts from the Shot too;
 //   - the carousel's delete is the Session's (Session::trashShot, EVT-03), so its collection follows.
-// The row keeps only what a view needs: its id, the thumbnail's URL, a live shot's trace, the analysis detail's
-// payload (the multi-MB detail the Shot never keeps: qml_payload.h), and the folder it still carries until step 4.
+// The row keeps only what a view needs: its id, the thumbnail's URL, a live shot's trace, the launch monitor's slice
+// of the analysis (H-07), and its folder.
 // A row whose session no Athlete holds — or with no door (the tests, the tools) — keeps today's path: its own
 // read, its in-memory edit and write-through, its own trash (N1's interim, Mark's "keep today's path").
 
@@ -89,7 +88,7 @@ public:
         RatingRole,
         NoteRole,
         MetricsRole,
-        AnalysisDetailRole,
+        LmDetailRole,      // C++ only, no role name: the launch monitor's slice of the detail (lmDetail; H-07)
         SwingDirRole,
         DataWarningRole,   // an integrity block warns (IMU re-fusion, or frames lost in capture)
         LmDeviceRole,      // the DEVICE that measured it (lm_device.h key, "gcquad" whichever connector); empty for none
@@ -109,15 +108,11 @@ public:
 
     int activeCount()   const;
 
-    // ⚠ C++ READERS OF A ROW'S analysisDetail USE THIS, NEVER data(AnalysisDetailRole).
-    // The role is QML-facing: it answers the row's JavaScript object (qml_payload.h), so a C++
-    // `data(ix, AnalysisDetailRole).toMap()` first builds the whole detail in the QML engine's
-    // heap (~650k nodes a swing, kept for the life of the row) and then copies it all back into
-    // a QVariantMap — on the GUI thread, every call. The launch monitor board did that for every
-    // row of a 32-shot session on entering Analyse: a 2–2.5 minute freeze, the process at a 2.2 GB
-    // footprint during it (#173, #20). This is the map itself, implicitly shared: free to copy.
-    // Empty for an out-of-range row or a cheap-loaded one (loadSessionDir).
-    QVariantMap analysisDetailMap(int row) const;
+    // The row's launch monitor slice of its analysis (the `lm.` series, lowPointAhead and the gates:
+    // readLaunchMonitorDetail's shape), the one thing LmSessionModel reads of a row's detail. A row keeps
+    // no more of it (H-07: the whole detail, ~650k nodes a live shot, was kept for this one reader).
+    // Empty for an out-of-range row or a cheap-loaded one (loadSessionDir): the board reads that from disk.
+    QVariantMap lmDetail(int row) const;
 
     // The standard golf bag, driver → putter — the shared canonical club
     // vocabulary (club_vocabulary.h), also used by the Markup Lab picker.
@@ -200,7 +195,7 @@ public:
     // take a refusal.
     Q_INVOKABLE bool moveToTrash(int id);
     // Trash each id with moveToTrash(); returns the number actually moved.
-    Q_INVOKABLE int  moveAllToTrash(const QVariantList &ids);
+    Q_INVOKABLE int  moveAllToTrash(const QList<int> &ids);
 
     // THE CAROUSEL'S DELETE: any set of shots, by id, focused or not.
     //   1. A shot the busy check refuses (it is being re-analysed) stays, with
@@ -214,7 +209,7 @@ public:
     // Each row leaves as its folder does (shotTrashed); trashFinished reports
     // the whole request once nothing is left to try. A call while one is still
     // retrying joins it, and is reported with it.
-    Q_INVOKABLE void trashShots(const QVariantList &ids);
+    Q_INVOKABLE void trashShots(const QList<int> &ids);
     bool trashPending() const { return !m_trashPending.isEmpty(); }
 
     // The hooks trashShots() runs through, set in main.cpp (and by the tests).
@@ -246,7 +241,7 @@ public:
     // Resolve a list of shot ids (e.g. ShotFilterProxyModel::visibleShotIds()) to
     // their absolute swing_NNNN directories, skipping analysis-only shots with no
     // on-disk folder. Backs the carousel's bulk export-to-zip flow.
-    Q_INVOKABLE QVariantList swingDirsForIds(const QVariantList &ids) const;
+    Q_INVOKABLE QStringList swingDirsForIds(const QList<int> &ids) const;
 
     // Focused-shot metadata for the carousel's PpShotActionBar (the scope-aware
     // action header). Returns a map with the identity fields the bar renders:
@@ -257,14 +252,13 @@ public:
     // bind `summary.valid` safely without a null guard.
     Q_INVOKABLE QVariantMap shotSummary(int id) const;
 
-    // The analysisDetail of the swing at `swingDir`, from this model if it holds that row and
-    // FROM DISK IF IT DOES NOT. Its app caller (the retired WristDiagnosticsModel's "compare to reference"
-    // ghost) is gone (refactor 3.8-i); the dev probes read a swing's detail through it
-    // (tools/probes/instant_cards.qml, ks_overlay_chart.qml, plumb_bob_chart.qml). A swing outside
-    // the list is read from its document, not answered as absent. Empty only when the document cannot
-    // be read; one full parse on the miss. (Its sibling previousAnalysisDetail, test-only, was deleted
-    // in 3.8-ii: C-15, E-15.)
-    Q_INVOKABLE QVariantMap analysisDetailForSwingDir(const QString &swingDir) const;
+    // THE SELECTION'S EDGE (refactor step 4-a; R-APP-4). app.state.selection holds a shot by its ShotRef (its text
+    // form, identity.h); this model numbers its rows with its own ids. shotRefOf: the row's ShotRef ("" for an
+    // unknown id, or a row whose session cannot be named). idOfShot: the row holding that ShotRef, else -1; a
+    // shot with no ShotRef ("") is found by its exact folder in THIS model's rows (the selection is cleared on
+    // any change of session, so no other session's folder can match: E-05).
+    Q_INVOKABLE QString shotRefOf(int id);
+    Q_INVOKABLE int     idOfShot(const QString &shotRef, const QString &swingDir);
 
 signals:
     void activeCountChanged();
@@ -292,12 +286,10 @@ private:
         int          rating = 0;      // 0–5 user stars
         QString      note;
         QVariantMap  metrics;         // key → { label, value }
-        QmlPayload   analysisDetail;  // { tier, overall, series:[…], phases:[…] } — ~650k nodes on a
-                                      // live shot; the role hands QML ONE JavaScript object per row
-                                      // rather than a copy per read (see qml_payload.h)
+        QVariantMap  lmDetail;        // the launch monitor slice of the analysis (lmDetail(); H-07)
         QString      swingDir;        // on-disk folder, for reloaded shots (replay-from-MP4 later)
         pinpoint::ShotRef shot;       // the row's key for the swing door, from swingDir once (step 2.4;
-                                      // until step 4's selection carries it, rows still carry the folder)
+                                      // the selection's edge: shotRefOf / idOfShot)
         bool         dataWarning = false;  // an integrity block warns (swing_doc.h dataWarningDetailFrom)
         QVariantMap  dataWarningDetail;    // its facts: { capture, imu, framesLost, worstHoleMs, … }
         QString      lmDevice;        // which device measured it (lm_device.h key); only reloaded shots carry it
@@ -317,6 +309,9 @@ public:
 private:
 
     int  rowForId(int id) const;
+    static QVariantMap lmSlice(const QVariantMap &detail);
+    void prependRow(const Shot &shot);
+    void seedFrom(const QString &dir);   // loadSessionDir's rows, inside its one model reset
     pinpoint::ShotRef shotOf(int row);   // the row's ShotRef (translated on first use, then kept)
     void persistReview(int row);   // write-through rating/note/club to swing.json (N1's interim)
     void persistLmAnnotations(int row);   // write-through excluded/clubOverride (N1's interim)
@@ -366,4 +361,5 @@ private:
     // again, so "Shot 7" names one shot for the life of the session. Reset by
     // clear(), and moved past every reloaded ordinal by addPersistedShot().
     int           m_nextOrdinal = 1;
+    bool          m_reloading = false;   // inside loadSessionDir's reset: rows are added without an insert each
 };

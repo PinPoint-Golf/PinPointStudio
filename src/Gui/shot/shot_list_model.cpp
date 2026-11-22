@@ -25,6 +25,7 @@
 #include "../Core/pp_debug.h"
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include "../../Export/swing_paths.h"
@@ -62,9 +63,7 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
     case RatingRole:          return s.rating;
     case NoteRole:            return s.note;
     case MetricsRole:         return s.metrics;
-    // QML only. By reference — qml_payload.h. C++ reads analysisDetailMap(): this converts the
-    // whole detail into the JS heap (#173).
-    case AnalysisDetailRole:  return QVariant::fromValue(s.analysisDetail.js());
+    case LmDetailRole:        return s.lmDetail;   // C++ only (no role name): QML never read a row's detail (H-07)
     case SwingDirRole:        return s.swingDir;
     case DataWarningRole:     return s.dataWarning;
     case DataWarningDetailRole: return s.dataWarningDetail;
@@ -89,7 +88,6 @@ QHash<int, QByteArray> ShotListModel::roleNames() const
         { RatingRole,          "rating"          },
         { NoteRole,            "note"            },
         { MetricsRole,         "metrics"         },
-        { AnalysisDetailRole,  "analysisDetail"  },
         { SwingDirRole,        "swingDir"        },
         { DataWarningRole,     "dataWarning"     },
         { LmDeviceRole,    "lmDevice"        },
@@ -104,11 +102,31 @@ int ShotListModel::activeCount() const
     return m_shots.size();
 }
 
-QVariantMap ShotListModel::analysisDetailMap(int row) const
+QVariantMap ShotListModel::lmDetail(int row) const
 {
     if (row < 0 || row >= m_shots.size())
         return {};
-    return m_shots.at(row).analysisDetail.map();
+    return m_shots.at(row).lmDetail;
+}
+
+// The launch monitor's slice of a shot's analysisDetail, in readLaunchMonitorDetail's shape: the `lm.` series and
+// our own lowPointAhead, and the gates. All a row keeps (H-07): the whole detail (~650k nodes a live shot) was kept
+// per row for this one reader.
+QVariantMap ShotListModel::lmSlice(const QVariantMap &detail)
+{
+    if (detail.isEmpty())
+        return {};
+    QVariantList series;
+    for (const QVariant &v : detail.value(QStringLiteral("series")).toList()) {
+        const QString key = v.toMap().value(QStringLiteral("key")).toString();
+        if (key.startsWith(QLatin1String("lm.")) || key == QLatin1String("lowPointAhead"))
+            series.append(v);
+    }
+    QVariantMap out{ { QStringLiteral("series"), series } };
+    for (const char *k : { "gatesVersion", "gates" })
+        if (detail.contains(QLatin1String(k)))
+            out.insert(QLatin1String(k), detail.value(QLatin1String(k)));
+    return out;
 }
 
 int ShotListModel::rowForId(int id) const
@@ -180,7 +198,7 @@ int ShotListModel::addShot(const QString &swingDir, const QString &timestampLabe
     shot.tracePoints     = tracePoints;
     shot.score           = score;
     shot.metrics         = metrics;
-    shot.analysisDetail  = analysisDetail;
+    shot.lmDetail        = lmSlice(analysisDetail);
     shot.dataWarning     = dataWarning;
     shot.dataWarningDetail = dataWarningDetail;
     shot.shot            = ref;
@@ -191,10 +209,7 @@ int ShotListModel::addShot(const QString &swingDir, const QString &timestampLabe
         showShotReview(shot, facts);
 
     // Newest first, matching the mockup's right-of-cap ordering.
-    beginInsertRows(QModelIndex(), 0, 0);
-    m_shots.prepend(shot);
-    endInsertRows();
-    emit activeCountChanged();
+    prependRow(shot);
     return shot.id;
 }
 
@@ -225,7 +240,7 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
     shot.rating          = rating;           // restored from the "review" block
     shot.note            = note;
     shot.metrics         = metrics;
-    shot.analysisDetail  = analysisDetail;
+    shot.lmDetail        = lmSlice(analysisDetail);
     shot.dataWarning     = dataWarning;
     shot.dataWarningDetail = dataWarningDetail;
     shot.lmDevice        = lmDevice;
@@ -245,18 +260,41 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
     }
 
     // Prepend (newest first); callers reload ascending so the highest ordinal lands first.
-    beginInsertRows(QModelIndex(), 0, 0);
-    m_shots.prepend(shot);
-    endInsertRows();
-    emit activeCountChanged();
+    prependRow(shot);
 }
 
 void ShotListModel::loadSessionDir(const QString &dir)
 {
     // Point the live carousel at a specific session folder — today's, on wrist
     // entry and at session start/end. An empty dir just clears (empty carousel).
-    // Never called during live capture; clears then re-seeds from disk truth.
-    clear();
+    // Never called during live capture; re-seeds from disk truth IN ONE MODEL RESET (refactor 4-a, review B3):
+    // the model is never seen empty mid-reload, so a reload of the same session is not read as another session
+    // (the live folder would pass through "" and app.state would clear the selection and stop the replay).
+    m_nextOrdinal = 1;
+    beginResetModel();
+    m_shots.clear();
+    m_reloading = true;
+    seedFrom(dir);
+    m_reloading = false;
+    endResetModel();
+    emit activeCountChanged();
+}
+
+// A row added at the top (newest first): one insert, or nothing to announce inside loadSessionDir's reset.
+void ShotListModel::prependRow(const Shot &shot)
+{
+    if (m_reloading) {
+        m_shots.prepend(shot);
+        return;
+    }
+    beginInsertRows(QModelIndex(), 0, 0);
+    m_shots.prepend(shot);
+    endInsertRows();
+    emit activeCountChanged();
+}
+
+void ShotListModel::seedFrom(const QString &dir)
+{
     if (dir.isEmpty())
         return;
     // THE ROWS OVER THE SESSION'S SHOTS (refactor step 3.4b-ii): a session an Athlete holds is listed by its Session,
@@ -275,8 +313,7 @@ void ShotListModel::loadSessionDir(const QString &dir)
     // the session — ~28 MB of document each, whose analysis.pose2d alone is ~13 MB, deep-converted
     // to QVariant — on the GUI thread, over a network share, in a debug build. Ending a session
     // froze the UI for ~10 s and grew with every shot taken. The summary sidecar carries everything
-    // a row shows; the only thing it omits is analysisDetail, whose single consumer
-    // (analysisDetailForSwingDir) parses on demand.
+    // a row shows; the only thing it omits is the launch monitor's slice, which the board reads on demand.
     for (const QString &sd : pinpoint::SwingDocReader::findSwingDirs(dir)) {
         const pinpoint::SwingSummary s = pinpoint::SwingDocReader::readSwingSummary(sd);
         if (!s.ok)
@@ -315,7 +352,7 @@ void ShotListModel::refreshShot(const QString &swingDir)
     Shot &s = m_shots[row];
     s.score          = p.score;
     s.metrics        = p.metrics;
-    s.analysisDetail = p.analysisDetail;
+    s.lmDetail       = lmSlice(p.analysisDetail);
     // Re-read alongside the readings it belongs to: this is the path a live row takes when
     // a monitor's numbers are folded in, so it is where the row learns which device sent them.
     s.lmDevice       = p.lmDevice;
@@ -338,7 +375,7 @@ void ShotListModel::refreshShot(const QString &swingDir)
     }
     pinpoint::PostShotTrace::Scope traceEmit("emit");   // the carousel's delegates (QML)
     emit dataChanged(index(row), index(row),
-                     { ScoreRole, MetricsRole, AnalysisDetailRole, LmDeviceRole,
+                     { ScoreRole, MetricsRole, LmDetailRole, LmDeviceRole,
                        DataWarningRole, DataWarningDetailRole,
                        LmExcludedRole, LmClubOverrideRole, ClubRole, RatingRole, NoteRole });
 }
@@ -370,7 +407,7 @@ void ShotListModel::attachSwingDir(int id, const QString &swingDir)
     s.shot           = {};   // translated afresh from the new folder (shotOf)
     s.score          = p.score;
     s.metrics        = p.metrics;
-    s.analysisDetail = p.analysisDetail;
+    s.lmDetail       = lmSlice(p.analysisDetail);
     s.club           = p.club;
     s.timestampLabel = p.timestampLabel;
     s.lmDevice       = p.lmDevice;
@@ -381,7 +418,7 @@ void ShotListModel::attachSwingDir(int id, const QString &swingDir)
     // A shot a Session holds: the golfer's facts are its Shot's (refactor step 3.4b-ii).
     takeShotReview(row, pinpoint::SummaryRead::Again);
     emit dataChanged(index(row), index(row),
-                     { SwingDirRole, ScoreRole, MetricsRole, AnalysisDetailRole,
+                     { SwingDirRole, ScoreRole, MetricsRole, LmDetailRole,
                        ClubRole, TimestampLabelRole, LmDeviceRole,
                        DataWarningRole, DataWarningDetailRole,
                        LmExcludedRole, LmClubOverrideRole, RatingRole, NoteRole });
@@ -522,10 +559,7 @@ void ShotListModel::addHeldRow(const QString &swingDir, const pinpoint::ShotRef 
     showShotReview(shot, f);
     // No analysisDetail: as the cheap load always was (its one consumer parses on demand).
 
-    beginInsertRows(QModelIndex(), 0, 0);
-    m_shots.prepend(shot);
-    endInsertRows();
-    emit activeCountChanged();
+    prependRow(shot);
 }
 
 void ShotListModel::setRating(int id, int n)
@@ -708,10 +742,9 @@ bool ShotListModel::moveToTrash(int id)
     return true;
 }
 
-void ShotListModel::trashShots(const QVariantList &ids)
+void ShotListModel::trashShots(const QList<int> &ids)
 {
-    for (const QVariant &v : ids) {
-        const int id  = v.toInt();
+    for (const int id : ids) {
         const int row = rowForId(id);
         if (row < 0)
             continue;
@@ -797,22 +830,22 @@ void ShotListModel::finishTrash()
     emit trashFinished(requested, moved, reasons.join(QStringLiteral("; ")));
 }
 
-int ShotListModel::moveAllToTrash(const QVariantList &ids)
+int ShotListModel::moveAllToTrash(const QList<int> &ids)
 {
     // Delegate per id — moveToTrash() re-resolves the row each time, so the
     // index shift from each removeAt() can't stale a cached row.
     int moved = 0;
-    for (const QVariant &v : ids)
-        if (moveToTrash(v.toInt()))
+    for (const int id : ids)
+        if (moveToTrash(id))
             ++moved;
     return moved;
 }
 
-QVariantList ShotListModel::swingDirsForIds(const QVariantList &ids) const
+QStringList ShotListModel::swingDirsForIds(const QList<int> &ids) const
 {
-    QVariantList dirs;
-    for (const QVariant &v : ids) {
-        const int row = rowForId(v.toInt());
+    QStringList dirs;
+    for (const int id : ids) {
+        const int row = rowForId(id);
         if (row < 0)
             continue;
         const QString &dir = m_shots.at(row).swingDir;
@@ -843,16 +876,20 @@ QVariantMap ShotListModel::shotSummary(int id) const
     };
 }
 
-QVariantMap ShotListModel::analysisDetailForSwingDir(const QString &swingDir) const
+QString ShotListModel::shotRefOf(int id)
 {
-    if (swingDir.isEmpty())
-        return {};
-    for (const Shot &s : m_shots)
-        if (s.swingDir == swingDir)
-            return s.analysisDetail.map();
-    // Not in this list is not "does not exist" — see the header. The row is the fast path
-    // (it is already parsed); the document is the truth.
-    const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(swingDir);
-    return ps.ok ? ps.analysisDetail : QVariantMap{};
+    const int row = rowForId(id);
+    return row < 0 ? QString() : shotOf(row).toString();
+}
+
+int ShotListModel::idOfShot(const QString &shotRef, const QString &swingDir)
+{
+    const pinpoint::ShotRef want = pinpoint::ShotRef::fromString(shotRef);
+    for (int row = 0; row < m_shots.size(); ++row) {
+        if (!want.isNull() ? shotOf(row) == want
+                           : (!swingDir.isEmpty() && QDir::cleanPath(m_shots.at(row).swingDir) == QDir::cleanPath(swingDir)))
+            return m_shots.at(row).id;
+    }
+    return -1;
 }
 

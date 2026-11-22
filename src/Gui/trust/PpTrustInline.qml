@@ -49,7 +49,7 @@ Item {
                 text: "Show in the Trust panel"
                 font: ti.roles ? ti.roles.fSmallL : Qt.application.font; color: ti.roles ? ti.roles.link : "grey"
                 MouseArea { anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor
-                            onClicked: { ViewLayout.setPanel(SessionMode.mode, "trust", true)
+                            onClicked: { ViewLayout.setPanel(app.state.mode, "trust", true)
                                          const r = (ti.readings || [])[0]
                                          Qt.callLater(function () { TrustFocus.open(r ? r.subject : "", ti.swingDir); ti.closed() }) } }
             }

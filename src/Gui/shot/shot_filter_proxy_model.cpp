@@ -115,11 +115,11 @@ void ShotFilterProxyModel::clearAll()
     emit countsChanged();
 }
 
-QVariantList ShotFilterProxyModel::visibleShotIds() const
+QList<int> ShotFilterProxyModel::visibleShotIds() const
 {
-    QVariantList ids;
+    QList<int> ids;
     for (int row = 0; row < rowCount(); ++row)
-        ids.append(index(row, 0).data(ShotListModel::ShotIdRole));
+        ids.append(index(row, 0).data(ShotListModel::ShotIdRole).toInt());
     return ids;
 }
 

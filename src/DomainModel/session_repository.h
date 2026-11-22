@@ -253,7 +253,8 @@ public:
 
     virtual std::optional<SessionIndexEntry> open(const SessionId &id) const = 0;
     // A session folder's SessionId: its session file's, or D3's from `legacyAthlete` and its name
-    // (null when it has no file and `legacyAthlete` is null). Reads only.
+    // (null when it has no file and `legacyAthlete` is null, and null when the folder does not exist:
+    // a trashed or missing folder is never held, so no Session is made for it). Reads only.
     virtual SessionId openFolder(const QString &folder, const AthleteId &legacyAthlete = {}) = 0;
     // A swing folder's ShotRef: its session's id and its swing number (SwingPaths reads the number; null
     // when the folder is not named as a swing). The session is the held one at that folder if there is

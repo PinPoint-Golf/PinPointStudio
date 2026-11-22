@@ -19,7 +19,7 @@
 // PpMetricChart — reusable, prop-driven metric chart. Toggles between a single overlaid
 // plot (all series, shared Y) and small multiples (one PpChartPlot per series, each Y
 // auto-scaled). Owns the chart-LOCAL view window [viewStartUs,viewEndUs] (it never touches
-// shotReplay / SwingDataSource, so different chart instances scope independently). The
+// app.state.replay / SwingDataSource, so different chart instances scope independently). The
 // playhead and the view window are conceptually distinct — the window never moves the
 // playhead; the playhead is simply clipped when outside the window.
 //
@@ -53,7 +53,7 @@ import "chart_samples.js" as ChartSamples
 Item {
     id: root
 
-    // ── Data (host wires these from shotReplay) ───────────────────────────────────
+    // ── Data (host wires these from app.state.replay) ───────────────────────────────────
     property var  seriesList: []         // [{ key, label, unit, t_us, value, phaseSamples }]
     property var  phases:     []         // [{ phase, t_us, conf }]
     // analysisDetail.kinematicSequence — the ordered peaks of the four segment angular-speed
@@ -71,7 +71,7 @@ Item {
     property real playheadUs: 0
     property bool showPlayhead: true
 
-    // ── Chart-local view state (NOT bound to shotReplay / SwingDataSource) ─────────
+    // ── Chart-local view state (NOT bound to app.state.replay / SwingDataSource) ─────────
     // The window OPENS on the swing, not on the recording — see _defaultSeg.
     property real viewStartUs: root._defaultStart   // segment/brush window (Phase 2)
     property real viewEndUs:   root._defaultEnd
@@ -91,7 +91,7 @@ Item {
     property bool showSigmaBand: false
 
     // Click/drag on a plot seeks the replay to that time — the host wires these to
-    // shotReplay (seekToUs / beginScrub / endScrub) so the video, overlay, timeline
+    // app.state.replay (seekToUs / beginScrub / endScrub) so the video, overlay, timeline
     // and every other panel scrub together. Off by default: the chart stays prop-
     // driven and never touches the replay facade itself, and the compact transient
     // graph stays non-interactive.
@@ -120,7 +120,7 @@ Item {
     property bool chartCollapsed:    false
     property bool summaryCollapsed:  false
 
-    readonly property string _sectionKeyBase: root.sessionType + ":" + SessionMode.mode + ":"
+    readonly property string _sectionKeyBase: root.sessionType + ":" + app.state.mode + ":"
     on_SectionKeyBaseChanged: { root._restoreSections(); root._restorePrefs() }
     Component.onCompleted:    { root._restoreSections(); root._restorePrefs() }
 
@@ -1270,7 +1270,7 @@ Item {
                             Math.max(root.viewStartUs, Math.min(root.viewEndUs, t))
                         onHoverExited: root._cursorUs = -1
 
-                        // Seek forwarding (host wires to shotReplay). Clamp to the
+                        // Seek forwarding (host wires to app.state.replay). Clamp to the
                         // active view window — the same window the plot is drawn over.
                         seekEnabled: root.seekable
                         onSeekRequested: (t) => root.seekRequested(

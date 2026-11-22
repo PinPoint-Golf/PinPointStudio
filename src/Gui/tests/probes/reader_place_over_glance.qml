@@ -55,7 +55,7 @@ Item {
     function place(key) { const n = SessionMode.diagnosticsNav; return n && n.scroll ? n.scroll[key] : undefined }
     function val(tag, name) { const f = flick(name), b = body(), n = SessionMode.diagnosticsNav
         log("VALUE " + tag + " " + name + " contentY=" + (f ? Math.round(f.contentY) : "missing") + " most=" + Math.round(most(f))
-            + " register=" + (b ? b.register : "-") + " scope=" + (b ? b.placeScope : "-") + " mode=" + SessionMode.mode
+            + " register=" + (b ? b.register : "-") + " scope=" + (b ? b.placeScope : "-") + " mode=" + app.state.mode
             + " detail=" + (b ? b.detailConditionId : "-") + " nav=" + (n ? JSON.stringify(n.scroll) : "null")); return f }
     function steps(list) { if (!list.length) { log(failures === 0 ? "RESULT PASS" : "RESULT FAIL (" + failures + ")"); Qt.exit(failures === 0 ? 0 : 1); return }
         const s = list.shift(); s(() => after(250, () => steps(list))) }
@@ -78,17 +78,17 @@ Item {
     property real d1: 0
     property real sess: 0
     property var plan: [
-        (done) => { navController.navigate(AppScreen.Session); SessionMode.enterCapture(); sessionReviewController.loadSession(probe.sessionDir)
+        (done) => { navController.navigate(AppScreen.Session); app.state.enterCapture(); sessionReviewController.loadSession(probe.sessionDir)
             after(5000, () => { const l = []; for (let i = 0; i < shotList.count; ++i) l.push(shotList.objectAt(i)); l.sort((a, b) => a.ordinal - b.ordinal)
                 probe.shotA = l[1] || l[0]; log("shots " + l.length + " A #" + (shotA ? shotA.ordinal : "-")); if (!shotA) { Qt.exit(2); return } done() }) },
-        (done) => { for (const m of [SessionMode.replay, SessionMode.analyse]) { for (const k of ["camera", "swing3d", "launchMonitor", "sessionDiagnostics", "table", "markup", "trust", "charts"]) ViewLayout.setPanel(m, k, k === "sessionDiagnostics"); ViewLayout.setArrangement(m, "tabs") }
-            SessionMode.enterReplay(shotA.shotId, shotA.swingDir); after(2500, () => { SessionMode.enterAnalyse(); after(3500, () => { const b = body(); if (b) b.tab = "shot"; after(2000, done) }) }) },
+        (done) => { for (const m of [app.state.replayMode, app.state.analyseMode]) { for (const k of ["camera", "swing3d", "launchMonitor", "sessionDiagnostics", "table", "markup", "trust", "charts"]) ViewLayout.setPanel(m, k, k === "sessionDiagnostics"); ViewLayout.setArrangement(m, "tabs") }
+            app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(shotA.shotId), shotA.swingDir); after(2500, () => { app.state.enterAnalyse(); after(3500, () => { const b = body(); if (b) b.tab = "shot"; after(2000, done) }) }) },
         // G1
         (done) => { const f = flick("sdShotCardsFlick"); check(most(f) > 400, "G1: This shot has room to scroll (" + Math.round(most(f)) + ")")
             if (f) f.contentY = Math.round(most(f) * 0.75); probe.deep = f ? f.contentY : 0
             after(500, () => expect(() => "G1: Analyse's place is " + Math.round(probe.deep) + " (" + place("Analyse/sdShotCardsFlick") + ")",
                                     () => near(place("Analyse/sdShotCardsFlick"), probe.deep), () => { val("G1-analyse-scrolled", "sdShotCardsFlick"); done() })) },
-        (done) => { SessionMode.enterReplay(shotA.shotId, shotA.swingDir); after(3500, () => { val("G1-glance", "sdShotCardsFlick"); const b = body(); probe.cards = b ? (b.cards || []).map(c => c.id) : []
+        (done) => { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(shotA.shotId), shotA.swingDir); after(3500, () => { val("G1-glance", "sdShotCardsFlick"); const b = body(); probe.cards = b ? (b.cards || []).map(c => c.id) : []
             if (b) b._openShotWhy(); after(2500, () => {
                 expect(() => "G1: This shot is read over the glance (" + (body() ? body().placeScope : "-") + ")", () => !!flick("sdShotCardsFlick") && body().placeScope === "Replay>Analyse", () => {
                     expect(() => "G1: over the glance This shot opens at its top (" + yOf("sdShotCardsFlick") + ")", () => near(yOf("sdShotCardsFlick"), 0), () => {
@@ -109,7 +109,7 @@ Item {
                                                      () => probe.d1 > 0 && near(yOf("sdDetailFlick"), probe.d1), () => {
                                 val("G3-detail1-again", "sdDetailFlick"); body()._closeDetail(); after(1500, done) })) }) })) }) }) })) },
         // G4
-        (done) => { SessionMode.enterAnalyse(); after(3500, () => { const b = body(); if (b) b.tab = "shot"; after(1500, () =>
+        (done) => { app.state.enterAnalyse(); after(3500, () => { const b = body(); if (b) b.tab = "shot"; after(1500, () =>
             expect(() => "G4: back in Analyse, This shot at " + Math.round(probe.deep) + " (" + yOf("sdShotCardsFlick") + ")",
                    () => { const f = flick("sdShotCardsFlick"); return !!f && near(f.contentY, Math.min(probe.deep, most(f))) }, () => { val("G4-back-in-analyse", "sdShotCardsFlick"); done() })) }) },
         // G5: Analyse places on two tabs; the glance; a detail over it; the stage goes to Analyse WITH the detail open
@@ -117,8 +117,8 @@ Item {
         (done) => { const b = body(); b.tab = "session"; after(2000, () => { const f = flick("sdCardsFlick"); if (f) f.contentY = Math.round(most(f) * 0.5); probe.sess = f ? f.contentY : 0
             after(500, () => expect(() => "G5: Analyse's Session place is " + Math.round(probe.sess), () => probe.sess > 0 && near(place("Analyse/sdCardsFlick"), probe.sess), () => {
                 b.tab = "shot"; after(1500, () => { val("G5-analyse-shot", "sdShotCardsFlick"); done() }) })) }) },
-        (done) => { SessionMode.enterReplay(shotA.shotId, shotA.swingDir); after(3500, () => { body()._openDetail(probe.cards[0]); after(2500, () => {
-            val("G5-detail-over-glance", "sdDetailFlick"); SessionMode.enterAnalyse(); after(3500, () => {
+        (done) => { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(shotA.shotId), shotA.swingDir); after(3500, () => { body()._openDetail(probe.cards[0]); after(2500, () => {
+            val("G5-detail-over-glance", "sdDetailFlick"); app.state.enterAnalyse(); after(3500, () => {
                 val("G5-analyse-detail-open", "sdDetailFlick")
                 check(near(place("Analyse/sdShotCardsFlick"), probe.deep) && near(place("Analyse/sdCardsFlick"), probe.sess),
                       "G5: with the detail open in Analyse, Analyse's places stand (" + JSON.stringify(SessionMode.diagnosticsNav ? SessionMode.diagnosticsNav.scroll : null) + ")")

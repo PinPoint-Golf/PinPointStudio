@@ -77,7 +77,7 @@ public:
     Q_INVOKABLE void setQualityBand(int lo, int hi);
     Q_INVOKABLE void clearAll();
     // Shot ids of the currently visible (filtered) rows — the bulk-action set.
-    Q_INVOKABLE QVariantList visibleShotIds() const;
+    Q_INVOKABLE QList<int> visibleShotIds() const;
 
 protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override;

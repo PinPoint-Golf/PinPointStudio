@@ -33,7 +33,7 @@ Item {
     property QtObject presenter: null            // ChartsRelationsPresenter: seekUsAtShotMs, ticks
     property var trace: null
     property bool interactive: false
-    property real playMs: NaN                    // (shotReplay.positionUs − status.pickedImpactUs) / 1000
+    property real playMs: NaN                    // (app.state.replay.positionUs − status.pickedImpactUs) / 1000
     property string playText: ""                 // playhead.openValueText / leadValueText
     property real plotH: roles ? roles.u(roles.isPrint ? 110 : 120) : 120
     property bool atom: true
@@ -103,14 +103,14 @@ Item {
         ]
     }
     MouseArea {
-        enabled: tr.interactive && !!tr.presenter && typeof shotReplay !== "undefined"
+        enabled: tr.interactive && !!tr.presenter && (typeof app !== "undefined" && !!app)
         x: tr.gutL; y: tr.pTop; width: tr.pw; height: tr.plotH
         cursorShape: Qt.SizeHorCursor
         function seekTo(px) { const us = tr.presenter.seekUsAtShotMs(tr.tAt(px + tr.gutL)); PpChSeek.to(us) }
-        onPressed: (e) => { shotReplay.beginScrub(); seekTo(e.x) }
+        onPressed: (e) => { app.state.replay.beginScrub(); seekTo(e.x) }
         onPositionChanged: (e) => { if (pressed) seekTo(e.x) }
-        onReleased: shotReplay.endScrub()
-        onCanceled: shotReplay.endScrub()
+        onReleased: app.state.replay.endScrub()
+        onCanceled: app.state.replay.endScrub()
     }
     // the session at each instant the reading is taken
     Repeater {

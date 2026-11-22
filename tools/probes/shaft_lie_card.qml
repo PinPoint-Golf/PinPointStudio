@@ -83,19 +83,19 @@ Item {
             if (o && o.sdir === probe.swingDir) { probe.shotId = o.sid; break }
         }
         if (probe.shotId < 0) { probe.w("NOTE: no review row matches; using shotId 0"); probe.shotId = 0 }
-        SessionMode.enterReplay(probe.shotId, probe.swingDir, false)
+        app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(probe.shotId), probe.swingDir, false)
     }
     function stepCollect() {
         probe.w("═══ 3. COLLECT ═══")
-        var d = shotReplay.analysisDetail
+        var d = app.state.replay.analysisDetail
         if (!d || !d.series || d.series.length === 0) {
-            probe.w("shotReplay gave no series — document reader fallback")
-            d = sessionReviewController.activeShots.analysisDetailForSwingDir(probe.swingDir)
+            probe.w("app.state.replay gave no series — document reader fallback")
+            d = ({})   // the row's detail fallback went with H-07 (refactor 4-a): the replay's detail only
         }
         if (!d || !d.series || d.series.length === 0) { probe.w("⛔ no analysisDetail.series"); return }
         probe.series = d.series
         probe.phases = d.phases || []
-        probe.axStartUs = shotReplay.startUs; probe.axEndUs = shotReplay.endUs; probe.impactUs = shotReplay.impactUs
+        probe.axStartUs = app.state.replay.startUs; probe.axEndUs = app.state.replay.endUs; probe.impactUs = app.state.replay.impactUs
         if (!(probe.axEndUs > probe.axStartUs)) {
             var lo = Infinity, hi = -Infinity
             for (var i = 0; i < probe.series.length; ++i) {

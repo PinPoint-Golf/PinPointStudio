@@ -44,6 +44,7 @@
 #include "../packs/pack_provider.h"                // makeCharacteristicPackProvider (#16 side checks)
 #include "../norms/norm_provider.h"                // a saved corridor edit (audit B-01, Stage 0.4b)
 
+#include <QUuid>
 #include <QCoreApplication>
 #include <QSet>
 #include <QDateTime>
@@ -3102,12 +3103,13 @@ int main(int argc, char **argv)
               "a shifted mtime changes no evidence — the stamp is clock.wallclock");
     }
 
-    // ── 4b'. The selection is by swing folder ───────────────────────────────────────
+    // ── 4b'. The selection is by ShotRef, else by this session's own folder ──────────
     //
     // The carousel numbers its shots with its own counter; this model numbers them by swing
-    // folder (back-fill) or by the processor's id (live). A selection passed by id missed and
-    // THIS SHOT read nothing, so the panel passes the FOLDER and the model resolves it.
-    std::printf("\nselection by swing folder\n");
+    // number. A selection passed by id missed and THIS SHOT read nothing, so the panel passes the
+    // ShotRef (and the folder it was picked with) and the model resolves it — never by a folder's
+    // name alone (E-05).
+    std::printf("\nselection by ShotRef and swing folder\n");
     {
         const QString dir = makeSession(tmp, "athlete_sel", "session_sel");
         check(stageShot(dir, 1, "rich_7iron") && stageShot(dir, 2, "sparse_noclub"),
@@ -3120,10 +3122,26 @@ int main(int argc, char **argv)
         check(m->selectedShotId() == 2, "the folder resolves to the ledger's own id");
         check(!m->shotReadout(m->selectedShotId()).isEmpty(), "…and the shot can be read");
 
-        // The same swing under another mount — a ledger and a carousel on different hosts.
+        // A swing folder of the same name elsewhere is NOT this session's (E-05; the basename fallback is gone,
+        // refactor step 4-a): another session's swing_0001 must never be presented as this one's shot 1.
         m->setSelectedSwingDir(QStringLiteral("/elsewhere/athlete_sel/session_sel/")
                                + QFileInfo(swingDirFor(dir, 1)).fileName());
-        check(m->selectedShotId() == 1, "a different root still finds the swing by its folder name");
+        check(m->selectedShotId() == -1, "a folder of the same name in another place selects nothing");
+        m->setSelectedSwingDir(QString());
+
+        // The selection by ShotRef (R-APP-4): this session's shot 2 resolves; another session's shot 2 never does.
+        const pinpoint::SessionId mine = m->sessionIdentity().id();
+        m->setSelectedShot(pinpoint::ShotRef(pinpoint::SessionId(QUuid::createUuid()), 2).toString());
+        check(m->selectedShotId() == -1, "another session's shot 2 selects nothing");
+        if (!mine.isNull()) {
+            m->setSelectedShot(pinpoint::ShotRef(mine, 2).toString());
+            check(m->selectedShotId() == 2, "this session's ShotRef resolves to its swing number");
+        } else {
+            m->setSelectedShot(QString());
+            m->setSelectedSwingDir(swingDirFor(dir, 2));
+            check(m->selectedShotId() == 2, "with no session id, the exact folder still resolves (J-a4)");
+        }
+        m->setSelectedShot(QString());
 
         m->setSelectedSwingDir(QStringLiteral("/nowhere/swing_999"));
         check(m->selectedShotId() == -1, "a swing this ledger does not hold selects nothing");

@@ -724,9 +724,23 @@ void SessionDiagnosticsModel::setSelectedSwingDir(const QString &dir)
     if (resolveSelectedSwingDir()) rebuild();
 }
 
+void SessionDiagnosticsModel::setSelectedShot(const QString &shotRef)
+{
+    if (m_selectedShot == shotRef) return;
+    m_selectedShot = shotRef;
+    emit selectedSwingDirChanged();
+    if (resolveSelectedSwingDir()) rebuild();
+}
+
 bool SessionDiagnosticsModel::resolveSelectedSwingDir()
 {
-    const int id = m_selectedSwingDir.isEmpty() ? -1 : shotIdForSwingDir(m_selectedSwingDir);
+    int id = -1;
+    const pinpoint::ShotRef ref  = pinpoint::ShotRef::fromString(m_selectedShot);
+    const pinpoint::SessionId mine = m_sessionIdentity.id();
+    if (!ref.isNull() && !mine.isNull())
+        id = (ref.session() == mine && indexOfShot(ref.swingNumber()) >= 0) ? ref.swingNumber() : -1;
+    else if (!m_selectedSwingDir.isEmpty())
+        id = shotIdForSwingDir(m_selectedSwingDir);
     if (id == m_selectedShotId) return false;
     m_selectedShotId = id;
     emit selectedShotIdChanged();
@@ -740,14 +754,9 @@ int SessionDiagnosticsModel::shotIdForSwingDir(const QString &dir) const
     for (auto it = m_swingDirs.constBegin(); it != m_swingDirs.constEnd(); ++it)
         if (QDir::cleanPath(it.value()) == want && indexOfShot(it.key()) >= 0)
             return it.key();
-
-    const QString name = QFileInfo(want).fileName();
-    for (auto it = m_swingDirs.constBegin(); it != m_swingDirs.constEnd(); ++it)
-        if (QFileInfo(QDir::cleanPath(it.value())).fileName() == name && indexOfShot(it.key()) >= 0)
-            return it.key();
-
-    // The swing number, read by SwingPaths (step 2.7a). ⚠ Like the name match above, this does not ask
-    // whether the swing is this session's (audit E-05, R-APP-4): the selection by ShotRef is step 4's.
+    // A folder of this session that the ledger spells differently: its swing number (step 2.7a), only inside this
+    // model's own session folder (E-05).
+    if (m_sessionDir.isEmpty() || QFileInfo(want).path() != QDir::cleanPath(m_sessionDir)) return -1;
     const int n = swingNumberOfFolder(want);
     return (n >= 0 && indexOfShot(n) >= 0) ? n : -1;
 }

@@ -378,7 +378,7 @@ Item {
             navController:     navComp.createObject(drv),
             launchMonitor:     lmComp.createObject(drv),
             appLog:            appLogComp.createObject(drv),
-            shotReplay:        shotReplayComp.createObject(drv),
+            app: ({ state: { replay: shotReplayComp.createObject(drv), mode: 0, captureMode: 0, replayMode: 1, analyseMode: 2, autoReturnToCapture: false, selection: { valid: false, shotRef: "", swingDir: "" } } }),
             shotProcessor:     shotProcessorComp.createObject(drv),
             trunkCeremony:     ceremonyComp.createObject(drv)
         }

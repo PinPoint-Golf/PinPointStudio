@@ -349,7 +349,9 @@ std::optional<SessionIndexEntry> SessionStore::open(const SessionId &id) const
 
 SessionId SessionStore::openFolder(const QString &folder, const AthleteId &legacyAthlete)
 {
-    if (folder.isEmpty())
+    // A folder that is not there — trashed (an empty session's discard), moved, or a share gone away — is no session:
+    // nothing is held for it, so no Session is made for it and nothing is ever written there (refactor 4-a review).
+    if (folder.isEmpty() || !QFileInfo(folder).isDir())
         return {};
     QJsonObject             file;
     const SessionIndexEntry e = readFolder(folder, legacyAthlete, file, false);

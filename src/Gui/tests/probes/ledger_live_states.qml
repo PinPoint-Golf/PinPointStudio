@@ -108,14 +108,14 @@ Item {
             const s = probe.step
             if (s === 1) {
                 navController.navigate(AppScreen.Session)                 // the session screen: today's swings load
-                SessionMode.enterCapture()
+                app.state.enterCapture()
             } else if (s === 2) {
                 probe.base = live.count
                 probe.check(live.count > 0, "relaunched: today's swings are on the carousel (" + live.count + ")")
                 const newest = live.objectAt(0)
-                SessionMode.enterReplay(newest.shotId, newest.swingDir)   // the carousel's click path
+                app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(newest.shotId), newest.swingDir)   // the carousel's click path
             } else if (s === 3) {
-                SessionMode.enterAnalyse()
+                app.state.enterAnalyse()
             } else if (s === 5) {
                 probe.state("relaunched", probe.base)
             } else if (s === 6) {

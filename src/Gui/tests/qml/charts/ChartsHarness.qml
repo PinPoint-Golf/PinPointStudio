@@ -25,13 +25,13 @@ import PinPointStudio
 // The REAL PpChartsPanel (its wiring, persistence and place-keeping), its REAL body, registers and views,
 // and its REAL presenters, fed the REAL 4 July session (the trimmed fixture the presenter unit tests read)
 // by `chartsFixture` (qml_ui_test.cpp). Only the app's controllers are faked, in QML, and put on THIS
-// file's engine under the names the panel reads (shotReplay, navController, sessionReviewController,
+// file's engine under the names the panel reads (app.state.replay, navController, sessionReviewController,
 // shotProcessor, reanalysisController): the stage, the carousel and the replay are not under test here.
 //
 //   install()            once, before the first build()
 //   build()              a fresh panel (the stage rebuilding it); the previous one is destroyed
 //   feed(opts)           the fixture into the panel's presenters (chartsFixture.feed options)
-//   pick(ordinal[, detail])   the replay opens that shot (as SessionMode.enterReplay does)
+//   pick(ordinal[, detail])   the replay opens that shot (as app.state.enterReplay does)
 //   settle(tc)           the presenters idle, then a frame (tc: the TestCase, for waitForRendering)
 // Tree helpers walk from the body: findAll, shown (every ancestor visible), shownAll, texts.
 Item {
@@ -69,13 +69,46 @@ Item {
         function seekToUs(us) { seeks += 1; lastSeekUs = us; positionUs = us; positionChanged() }
         function beginScrub() { scrubs += 1 }
         function endScrub() {}
-        // SessionMode._loadFocused → the replay opens the swing (the fixture's own detail)
+        // app.state's loadSelected → the replay opens the swing (the fixture's own detail)
         function start(id, dir, rate) {
             const ord = parseInt(String(dir).slice(-4))
             h.open(ord, chartsFixture.detailOf(ord), id)
         }
         function stop() { active = false; shotId = -1 }
     }
+    // app.state, faked: the mode and the selection the panels read, and the transitions they call (AppState's, same
+    // effect: the selection before the mode; the replay loaded unless it already holds the swing).
+    QtObject {
+        id: fakeState
+        readonly property int captureMode: 0
+        readonly property int replayMode: 1
+        readonly property int analyseMode: 2
+        property int mode: 0
+        property bool autoReturnToCapture: false
+        readonly property var replay: fakeReplay
+        // R-APP-3 over the fakes: the reviewed session, else the running one, else the carousel's.
+        readonly property string sessionOnScreenFolder:
+            (fakeReview.reviewActive && fakeReview.activeSessionId !== "") ? fakeReview.activeSessionId
+            : fakeProcessor.activeSessionDir !== "" ? fakeProcessor.activeSessionDir : fakeReview.liveSessionDir
+        readonly property QtObject selection: QtObject {
+            property string shotRef: ""
+            property string swingDir: ""
+            readonly property bool valid: swingDir !== ""
+        }
+        readonly property QtObject castSelection: selection
+        function _select(ref, dir) { selection.shotRef = ref || ""; selection.swingDir = dir || "" }
+        function _load() {
+            if (selection.valid && !(fakeReplay.active && fakeReplay.swingDir === selection.swingDir))
+                fakeReplay.start(-1, selection.swingDir, 0.25)
+        }
+        function enterReplay(ref, dir) { _select(ref, dir); autoReturnToCapture = false; mode = replayMode; _load() }
+        function pickShot(ref, dir) { if (mode === analyseMode) { _select(ref, dir); _load() } else enterReplay(ref, dir) }
+        function enterCapture() { autoReturnToCapture = false; mode = captureMode; fakeReplay.stop() }
+        function enterAnalyse() { autoReturnToCapture = false; mode = analyseMode; _load() }
+        function showReplay() { autoReturnToCapture = false; mode = replayMode; _load() }
+        function clearSelection() { _select("", ""); fakeReplay.stop() }
+    }
+    QtObject { id: fakeApp; readonly property var state: fakeState; readonly property var session: null; function sessionAt(folder) { return null } }
     QtObject { id: fakeNav; property int currentIndex: AppScreen.Session }   // the gate: the session screen is up
     ListModel { id: carouselShots }
     QtObject {
@@ -91,7 +124,7 @@ Item {
     QtObject { id: fakeReanalysis; signal reanalysed(string swingDir) }
 
     function install() {
-        chartsFixture.provide("shotReplay", fakeReplay)
+        chartsFixture.provide("app", fakeApp)
         chartsFixture.provide("navController", fakeNav)
         chartsFixture.provide("sessionReviewController", fakeReview)
         chartsFixture.provide("shotProcessor", fakeProcessor)

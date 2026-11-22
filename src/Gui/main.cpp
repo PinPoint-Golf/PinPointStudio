@@ -116,7 +116,6 @@
 #include "diagnostics/session_diagnostics_model.h"   // its golfer commands' door (step 3.4b-i)
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
-#include "current_swing.h"
 #include "shot_replay_controller.h"
 #include "reanalysis_controller.h"
 #include "../Pose/pose_runner.h"
@@ -516,8 +515,8 @@ int main(int argc, char *argv[])
         });
     };
     SessionController       sessionController(&athleteController);
-    // No athlete switch while a session runs: the controller refuses it (E-01, Stage 0.8g).
-    athleteController.setSessionRunningCheck([&sessionController] { return sessionController.running(); });
+    // No athlete switch while a session runs: AppState's rule (R-APP-1), which the controller asks (E-01; step 4-a).
+    athleteController.setAppState(appObject.state());
     NavigationController    navController;
     // In-app updater façade: Linux AppImage engine, WinSparkle on Windows, Sparkle on
     // macOS (all behind this one QML context property). Constructed on all platforms
@@ -918,11 +917,52 @@ int main(int argc, char *argv[])
     // Disk-backed replay of saved shots (MP4 + swing.json) — independent of the
     // live SwingWindow that ShotProcessor owns for the just-captured shot.
     ShotReplayController      shotReplay(&appSettings);
-    // Which swing is on screen, app-wide. Written by the session screen that has one
-    // loaded (replay if active, else the carousel's selection); read by anything that
-    // is not that screen — today the Diagnostic Model panel, which grades its measures
-    // table against it. Deliberately not a second dir on shotReplay; see current_swing.h.
-    CurrentSwing              currentSwing;
+    // APP.STATE (refactor step 4-a; src/App/app_state.h): the mode, the selection, the session on screen and the
+    // session's start and end, over today's objects. Each door is one call; AppState fixes the order.
+    {
+        pinpoint::AppState &state = *appObject.state();
+        state.setReplay(&shotReplay);
+        pinpoint::AppStateDoors d;
+        d.currentAthlete = [&athleteController] { return athleteController.currentAthlete(); };
+        d.sessionAt      = [&appObject](const QString &folder) { return appObject.sessionAt(folder); };
+        d.sessionRunning = [&sessionController] { return sessionController.running(); };
+        d.reviewFolder   = [&sessionReviewController] {
+            return sessionReviewController.reviewActive() ? sessionReviewController.activeSessionId() : QString();
+        };
+        d.captureFolder  = [&shotProcessor] { return shotProcessor.activeSessionDir(); };
+        d.liveFolder     = [&sessionReviewController] { return sessionReviewController.liveSessionDir(); };
+        d.resumeLive     = [&sessionReviewController] { sessionReviewController.resumeLive(); };
+        d.replayStart    = [&shotReplay](int swingNumber, const QString &dir, bool autoPlay) {
+            shotReplay.start(swingNumber, dir, 0.25, autoPlay);
+        };
+        d.replayStop     = [&shotReplay] { shotReplay.stop(); };
+        d.replayFolder   = [&shotReplay] { return shotReplay.swingDir(); };
+        d.autoReplayAfterSelect = [&appSettings] { return appSettings.autoReplayAfterSelect(); };
+        d.openCaptureSession  = [&shotProcessor, &sessionController](bool extend) {
+            shotProcessor.beginSessionFolder(sessionController.defaultType(), extend);
+        };
+        d.showLiveShots       = [&shotModel](const QString &dir) { shotModel.loadSessionDir(dir); };
+        d.startClock          = [&sessionController] { sessionController.start(sessionController.defaultType()); };
+        d.startCameras        = [&cameraManager] { cameraManager.startCapture(); };
+        d.stopCameras         = [&cameraManager] { cameraManager.stopCapture(); };
+        d.stopClock           = [&sessionController] { sessionController.endSession(); };
+        d.closeCaptureSession = [&shotProcessor] { shotProcessor.endSessionFolder(); };
+        d.todaysFolder        = [&shotProcessor, &sessionController] {
+            return shotProcessor.todaySessionDir(sessionController.defaultType());
+        };
+        state.setDoors(std::move(d));
+        const auto onScreen = [&state] { state.refreshSessionOnScreen(); };
+        QObject::connect(&sessionReviewController, &SessionReviewController::reviewActiveChanged, &state, onScreen);
+        QObject::connect(&sessionReviewController, &SessionReviewController::liveSessionDirChanged, &state, onScreen);
+        QObject::connect(&shotProcessor, &ShotProcessor::activeSessionDirChanged, &state,
+                         [&state] { state.refreshCaptureTarget(); });
+        QObject::connect(&athleteController, &AthleteController::currentAthleteChanged, &state,
+                         [&state] { state.refreshAthlete(); });
+        QObject::connect(&sessionController, &SessionController::runningChanged, &state,
+                         [&state] { state.refreshAthleteLock(); });
+        QObject::connect(&shotReplay, &ShotReplayController::playbackEnded, &state, &pinpoint::AppState::replayEnded);
+        state.refreshSessionOnScreen();
+    }
     // Any review-state transition tears down an on-screen disk replay, so the
     // previous shot's replay stage + metric graph don't linger over the newly
     // selected (or resumed-live) session. reviewActiveChanged fires on every
@@ -1790,8 +1830,6 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("reportMailer"),      &reportMailer);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
-    engine.rootContext()->setContextProperty(QStringLiteral("shotReplay"),        &shotReplay);
-    engine.rootContext()->setContextProperty(QStringLiteral("currentSwing"),      &currentSwing);
     engine.rootContext()->setContextProperty(QStringLiteral("shotModel"),         &shotModel);
     engine.rootContext()->setContextProperty(QStringLiteral("reanalysisController"), &reanalysisController);
     engine.rootContext()->setContextProperty(QStringLiteral("swingExporter"),     &swingZipExporter);

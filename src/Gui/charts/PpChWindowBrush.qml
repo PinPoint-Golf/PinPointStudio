@@ -25,19 +25,19 @@ import PinPointStudio
 // stronger, tags thinned by width, impact kept), the reader's window as the one darker span with two
 // handles, and the playhead. Drag the window to move it, an edge to resize it, or sweep anywhere else for a
 // new one; the result is a CUSTOM window handed to the body (customRequested), which the presenter then reads
-// and reduces for. Pixels ↔ µs only: every time it shows is the presenter's or shotReplay's.
+// and reduces for. Pixels ↔ µs only: every time it shows is the presenter's or app.state.replay's.
 // objectName: chWindowBrush.
 Item {
     id: wb
     objectName: "chWindowBrush"
     property QtObject roles: null
     property bool interactive: true
-    property real spanUs: 0                      // the recording: 0 … spanUs (shotReplay.endUs − startUs)
+    property real spanUs: 0                      // the recording: 0 … spanUs (app.state.replay.endUs − startUs)
     property real winStartUs: 0                  // thisShot.window.startUs
     property real winEndUs: 0                    // thisShot.window.endUs
     property var ticks: []                       // thisShot.recordingTicks [{ phase, tag, us, landmark }]
     property var overview: []                    // thisShot.overview [{ key, t (µs), v, vLo, vHi }]
-    property real playUs: -1                     // shotReplay.positionUs
+    property real playUs: -1                     // app.state.replay.positionUs
     signal customRequested(real startUs, real endUs)
     readonly property real trackH: roles ? roles.u(10) : 10
     readonly property real sparkH: (overview || []).length && roles ? roles.u(18) : 0

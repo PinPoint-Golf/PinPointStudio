@@ -486,7 +486,7 @@ PpChViewBase {
     }
     // Every reading against the session moved to its own tab, Readings (Mark, 17 Oct 2026)
 
-    // ── the playhead and the recording, from shotReplay (pixels only) ──
+    // ── the playhead and the recording, from app.state.replay (pixels only) ──
     readonly property real spanUs: body ? body.spanUs : 0
     readonly property real playUs: body ? body.playUs : -1
     readonly property real relPlayMs: body && body.rStatus && body.rStatus.pickedImpactUs >= 0 && playUs >= 0 ? (playUs - body.rStatus.pickedImpactUs) / 1000 : NaN

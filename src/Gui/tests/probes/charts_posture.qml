@@ -137,20 +137,20 @@ Item {
             const root = probe.Window.window.contentItem
             if (probe.step === 1) {
                 navController.navigate(AppScreen.Session)
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (probe.step === 2) {
                 let found = false
                 for (let i = 0; i < shots.count; ++i) {
                     const s = shots.objectAt(i)
-                    if (s.ordinal === probe.ordinal) { SessionMode.enterReplay(s.shotId, s.swingDir); found = true }
+                    if (s.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir); found = true }
                 }
                 probe.log("shot " + probe.ordinal + (found ? " picked" : " NOT in the carousel"))
                 if (!found) Qt.exit(1)
             } else if (probe.step === 3) {
-                if (!probe.glance) SessionMode.enterAnalyse()
-                else SessionMode.autoReturnToCapture = true   // the auto-replay after a shot: the glance
-                const m = probe.glance ? SessionMode.replay : SessionMode.analyse
+                if (!probe.glance) app.state.enterAnalyse()
+                else app.state.enterReplay(app.state.selection.shotRef, app.state.selection.swingDir, true)   // the auto-replay after a shot: the glance
+                const m = probe.glance ? app.state.replayMode : app.state.analyseMode
                 const besideArg = probe.arg("--probe-panels", "")
                 const asked = besideArg === "" ? [] : besideArg.split(",")
                 // the grading phase: Session diagnostics is up (its model is what grades a freshly copied session on
@@ -170,7 +170,7 @@ Item {
                 probe.body = bodies.filter(b => probe.shown(b, root))[0] || bodies[0] || null
                 if (!probe.body) { probe.log("FAIL no Charts body"); Qt.exit(1); return }
                 const b = probe.body
-                probe.log("mode " + SessionMode.mode + " register " + b.register)
+                probe.log("mode " + app.state.mode + " register " + b.register)
                 b.choose("preset", "Posture")
                 b.tab = probe.tab
                 // the section's choices, set without saving (the probe's settings are a copy either way)
@@ -281,7 +281,7 @@ Item {
                                                      : (m.pts || []).map(q => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" "))
                                                   + " (frame px; drawn ×" + f.s.toFixed(3) + ")")
                             }
-                            if (!probe.glance && frames.length > 0 && typeof shotReplay !== "undefined" && shotReplay) {
+                            if (!probe.glance && frames.length > 0 && typeof app !== "undefined" && !!app && !!app.state.replay) {
                                 probe.log("picture seek target of " + frames[0].camera + " " + frames[0].tag + ": " + frames[0].seekUs + " (the profile's P1: " + b.postureP.seekUsFor("P1") + ")")
                             }
                         }

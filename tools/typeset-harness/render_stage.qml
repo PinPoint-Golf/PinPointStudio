@@ -71,7 +71,7 @@ Item {
             probe.frame.grabToImage(function (img) { img.saveToFile(path); then() })
         })
     }
-    function mode() { return probe.modeName === "replay" ? SessionMode.replay : SessionMode.analyse }
+    function mode() { return probe.modeName === "replay" ? app.state.replayMode : app.state.analyseMode }
     // half: the panel + one neighbour; third: + two. Neighbours are cheap canvases.
     function neighbours(key, n) {
         const pool = ["charts", "table", "camera"].filter(k => k !== key)
@@ -139,18 +139,18 @@ Item {
             // start with no heavy panel on while the session loads
             const m = probe.mode()
             for (const k of probe.allKeys) ViewLayout.setPanel(m, k, k === "charts")
-            ViewLayout.setPanel(SessionMode.replay, "sessionDiagnostics", false)
-            ViewLayout.setPanel(SessionMode.analyse, "sessionDiagnostics", false)
+            ViewLayout.setPanel(app.state.replayMode, "sessionDiagnostics", false)
+            ViewLayout.setPanel(app.state.analyseMode, "sessionDiagnostics", false)
             navController.navigate(probe.navIndex)
-            SessionMode.enterCapture()
+            app.state.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) SessionMode.enterReplay(o.shotId, o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
                 probe.after(3000, () => {
-                    if (probe.modeName !== "replay") SessionMode.enterAnalyse()
+                    if (probe.modeName !== "replay") app.state.enterAnalyse()
                     probe.after(3000, () => probe.next())
                 })
             })

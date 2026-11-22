@@ -373,28 +373,22 @@ qint64 ShotController::nowUs() const
     return static_cast<qint64>(pinpoint::EventBuffer::nowMicros());
 }
 
-QVariantMap ShotController::shotStats() const
+ShotStats ShotController::shotStats() const
 {
-    QVariantMap m;
-    m[QStringLiteral("detections")]      = m_counters.detections;
-    m[QStringLiteral("injected")]        = m_counters.injected;
-    m[QStringLiteral("arbitratedSeen")]  = m_counters.arbitratedSeen;
-    m[QStringLiteral("corroboratePass")] = m_counters.corroboratePass;
-    m[QStringLiteral("corroborateFail")] = m_counters.corroborateFail;
-    m[QStringLiteral("droppedBusy")]     = m_counters.droppedBusy;
-    m[QStringLiteral("committed")]       = m_counters.committed;
-    // The per-detector deltas behind the last decision — the thing the debug
-    // log carries and a release build does not.
-    m[QStringLiteral("lastVerdict")]     = m_lastVerdict;
-    m[QStringLiteral("armed")]           = armed();
-    QStringList avail;
-    for (int raw : m_availableDetectors) avail << QLatin1String(sourceName(static_cast<Source>(raw)));
-    avail.sort();
-    m[QStringLiteral("availableDetectors")] = avail;
+    ShotStats m;
+    m.detections      = m_counters.detections;
+    m.injected        = m_counters.injected;
+    m.arbitratedSeen  = m_counters.arbitratedSeen;
+    m.corroboratePass = m_counters.corroboratePass;
+    m.corroborateFail = m_counters.corroborateFail;
+    m.droppedBusy     = m_counters.droppedBusy;
+    m.committed       = m_counters.committed;
+    m.lastVerdict     = m_lastVerdict;
+    m.armed           = armed();
+    for (int raw : m_availableDetectors) m.availableDetectors << QLatin1String(sourceName(static_cast<Source>(raw)));
+    m.availableDetectors.sort();
 #ifdef HAVE_PPCP
-    m[QStringLiteral("bridgeActive")] = (m_ppcpBridge && m_ppcpBridge->active());
-#else
-    m[QStringLiteral("bridgeActive")] = false;
+    m.bridgeActive = (m_ppcpBridge && m_ppcpBridge->active());
 #endif
     return m;
 }

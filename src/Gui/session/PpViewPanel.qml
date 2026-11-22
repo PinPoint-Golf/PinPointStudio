@@ -18,7 +18,7 @@
 
 // View panel for the session toolbar. Two sections: an ARRANGEMENT schematic
 // group (tabs/split/stage) and a PANELS toggle grid. Both edit the CURRENT
-// session mode's layout via ViewLayout, persisted per SessionMode.mode.
+// session mode's layout via ViewLayout, persisted per app.state.mode.
 
 import QtQuick
 import QtQuick.Layouts
@@ -117,7 +117,7 @@ Item {
                 height: Theme.sp(20)
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: SessionMode.mode === SessionMode.capture ? qsTr("Auto-replay after capture")
+                    text: app.state.mode === app.state.captureMode ? qsTr("Auto-replay after capture")
                                                                    : qsTr("Auto-replay after select")
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                     color: _replayToggle.checked ? Theme.colorText : Theme.colorText2
@@ -126,10 +126,10 @@ Item {
                     id: _replayToggle
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                     largeKnob: true
-                    checked: SessionMode.mode === SessionMode.capture ? appSettings.autoReplayAfterCapture
+                    checked: app.state.mode === app.state.captureMode ? appSettings.autoReplayAfterCapture
                                                                       : appSettings.autoReplayAfterSelect
                     onToggled: {
-                        if (SessionMode.mode === SessionMode.capture) appSettings.autoReplayAfterCapture = !checked
+                        if (app.state.mode === app.state.captureMode) appSettings.autoReplayAfterCapture = !checked
                         else                                          appSettings.autoReplayAfterSelect  = !checked
                     }
                 }
@@ -155,10 +155,10 @@ Item {
             // so they live here, per mode, Replay and Analyse only. Capture never draws them.
             // Three independent sets (§1c), so the picture is never all the lines at once.
             Text {
-                visible: SessionMode.mode !== SessionMode.capture
+                visible: app.state.mode !== app.state.captureMode
                 text: qsTr("Coach lines")
                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                color: ViewLayout.coachLinesOn(SessionMode.mode) ? Theme.colorText : Theme.colorText2
+                color: ViewLayout.coachLinesOn(app.state.mode) ? Theme.colorText : Theme.colorText2
             }
             Repeater {
                 model: [
@@ -168,9 +168,9 @@ Item {
                 ]
                 delegate: Item {
                     required property var modelData
-                    readonly property bool _on: ViewLayout.coachSetOn(SessionMode.mode, modelData.key)
+                    readonly property bool _on: ViewLayout.coachSetOn(app.state.mode, modelData.key)
                     objectName: modelData.name
-                    visible: SessionMode.mode !== SessionMode.capture
+                    visible: app.state.mode !== app.state.captureMode
                     width: parent.width
                     height: Theme.sp(20)
                     Text {
@@ -186,7 +186,7 @@ Item {
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                         largeKnob: true
                         checked: parent._on
-                        onToggled: ViewLayout.setCoachSet(SessionMode.mode, modelData.key, !checked)
+                        onToggled: ViewLayout.setCoachSet(app.state.mode, modelData.key, !checked)
                     }
                 }
             }
@@ -211,7 +211,7 @@ Item {
                         // Capture has no timeline concept — hide that toggle there.
                         // The Grid skips invisible items, so the others reflow.
                         readonly property bool _avail: !(modelData.key === "timeline"
-                                                         && SessionMode.mode === SessionMode.capture)
+                                                         && app.state.mode === app.state.captureMode)
                         visible: _avail
                         width: (parent.width - Theme.gap(14)) / 2
                         height: Theme.sp(20)
@@ -223,14 +223,14 @@ Item {
                             elide: Text.ElideRight
                             text: modelData.label
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                            color: ViewLayout.isPanelOn(SessionMode.mode, modelData.key)
+                            color: ViewLayout.isPanelOn(app.state.mode, modelData.key)
                                    ? Theme.colorText : Theme.colorText2
                         }
                         PpSwitch {
                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                             largeKnob: true
-                            checked: ViewLayout.isPanelOn(SessionMode.mode, modelData.key)
-                            onToggled: ViewLayout.setPanel(SessionMode.mode, modelData.key, !checked)
+                            checked: ViewLayout.isPanelOn(app.state.mode, modelData.key)
+                            onToggled: ViewLayout.setPanel(app.state.mode, modelData.key, !checked)
                         }
                     }
                 }
@@ -244,10 +244,10 @@ Item {
     component ArrangeCard: PpSelectTile {
         property string value: ""
         property string label: ""
-        readonly property bool active: ViewLayout.arrangementFor(SessionMode.mode) === value
+        readonly property bool active: ViewLayout.arrangementFor(app.state.mode) === value
         height: Theme.sp(46)
         selected: active
-        onClicked: ViewLayout.setArrangement(SessionMode.mode, value)
+        onClicked: ViewLayout.setArrangement(app.state.mode, value)
 
         Column {
             anchors.centerIn: parent

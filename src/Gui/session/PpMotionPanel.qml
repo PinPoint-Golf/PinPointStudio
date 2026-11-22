@@ -28,7 +28,7 @@
 // zeroed when reduceMotion is set):
 //   Page 1 — Presets: master toggle + preset list + "Customise…" disclosure.
 //   Page 2 — Customise: back chevron + per-element segmented controls, gated
-//            on data availability for the loaded swing (shotReplay.analysisDetail).
+//            on data availability for the loaded swing (app.state.replay.analysisDetail).
 //
 // Capture is heavily guarded: only the "Ball only" preset row is offered and
 // Customise is unreachable (fan/trace are meaningless without a completed
@@ -48,8 +48,8 @@ Item {
     // 0 = Presets (default landing page), 1 = Customise.
     property int page: 0
 
-    readonly property int  _mode:      SessionMode.mode
-    readonly property bool _isCapture: _mode === SessionMode.capture
+    readonly property int  _mode:      app.state.mode
+    readonly property bool _isCapture: _mode === app.state.captureMode
 
     // Presets offered on Page 1 — Capture only ever offers "Ball only" (fan/
     // trace are meaningless without a completed swing, and every other element
@@ -77,12 +77,12 @@ Item {
         return false
     }
     readonly property bool _smoothedMissing: {
-        var d = shotReplay.analysisDetail
+        var d = app.state.replay.analysisDetail
         // Either camera's smoothed track counts (the DTL one is nested under `dtl`).
         var fo  = !!(d && d.pose2d && d.pose2d.smoothed && d.pose2d.smoothed.length > 0)
         var dtl = !!(d && d.dtl && d.dtl.pose2d && d.dtl.pose2d.smoothed
                      && d.dtl.pose2d.smoothed.length > 0)
-        return !(shotReplay.active && (fo || dtl))
+        return !(app.state.replay.active && (fo || dtl))
     }
 
     readonly property var _bodyRows: [
@@ -108,7 +108,7 @@ Item {
     // close this popup on its own).
     onVisibleChanged: if (!visible) page = 0
     Connections {
-        target: SessionMode
+        target: app.state
         function onModeChanged() { if (root._isCapture) root.page = 0 }
     }
 
@@ -176,7 +176,7 @@ Item {
                         visible: root._wantsSmoothed && root._smoothedMissing
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: shotReplay.active
+                        text: app.state.replay.active
                               ? qsTr("This swing has no smoothed track — re-analyse it to enable fan · trace")
                               : qsTr("Load a swing to see fan · trace")
                         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
@@ -317,7 +317,7 @@ Item {
         property string presetLabel: ""
         property string presetHint:  ""
         selected: {
-            var cur = ViewLayout.motionPreset(SessionMode.mode)
+            var cur = ViewLayout.motionPreset(app.state.mode)
             return cur !== "custom" && cur === presetId
         }
 
@@ -325,7 +325,7 @@ Item {
         height: Theme.sp(46)
         title: presetLabel
         text:  presetHint
-        onClicked: ViewLayout.applyPreset(SessionMode.mode, presetId)
+        onClicked: ViewLayout.applyPreset(app.state.mode, presetId)
     }
 
     // ── element row: label + 4-segment off/frame/fan/trace control ─────────
@@ -371,7 +371,7 @@ Item {
     // fan/trace are ALWAYS disabled; any mode missing analysed data for the
     // loaded swing is disabled too) and a glyph≠value mapping, both of which it
     // takes as object options. Self-contained — reads SessionMode and
-    // shotReplay (both globally reachable) directly rather than needing values
+    // app.state.replay (both globally reachable) directly rather than needing values
     // threaded in from the panel root.
     component ElementSegmented: PpSegmentedControl {
         id: seg
@@ -383,12 +383,12 @@ Item {
             { value: "fan",   label: "⧉", disabled: !seg._available("fan")   },
             { value: "trace", label: "∿", disabled: !seg._available("trace") }
         ]
-        selected: ViewLayout.elementMode(SessionMode.mode, elementKey)
-        onActivated: (value) => ViewLayout.setElementMode(SessionMode.mode, seg.elementKey, value)
+        selected: ViewLayout.elementMode(app.state.mode, elementKey)
+        onActivated: (value) => ViewLayout.setElementMode(app.state.mode, seg.elementKey, value)
 
         // Why some of this element's modes are dimmed, in words ("" when every mode can draw).
         readonly property string reason: {
-            if (!shotReplay.active) return qsTr("load a swing to draw it")
+            if (!app.state.replay.active) return qsTr("load a swing to draw it")
             var key    = seg.elementKey
             var frame  = seg._available("frame")
             var motion = seg._available("fan") || seg._available("trace")
@@ -404,7 +404,7 @@ Item {
             return ""
         }
 
-        // Data-availability for the loaded swing. shotReplay is the global
+        // Data-availability for the loaded swing. app.state.replay is the global
         // Review/Analyse replay facade (ShotReplayController) — Capture never
         // reaches this control, so shotProcessor's transient in-window replay
         // detail is irrelevant here. "off" is always available; Ball's
@@ -413,10 +413,10 @@ Item {
         // meaningful fan/trace).
         function _available(m) {
             if (m === "off") return true
-            if (!shotReplay.active) return false
+            if (!app.state.replay.active) return false
             // The plane is frame-only, and whether a shot has one the 3-D panel says itself.
             if (seg.elementKey === "plane") return m === "frame"
-            var d = shotReplay.analysisDetail
+            var d = app.state.replay.analysisDetail
             // The synthetic shaft: frame-only, and only a two-camera swing analysed since
             // 2026-10-01 carries it (dtl.club.synth3d).
             if (seg.elementKey === "synth")

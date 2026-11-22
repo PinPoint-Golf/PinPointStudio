@@ -91,16 +91,16 @@ Item {
 
     // ── the Session this panel shows, and its thin adapter (3.7-a) ──────────────
     //
-    // app.sessionAt(folder) asks the CURRENT athlete for the Session of the folder; null when no
-    // athlete holds it — a session captured with no golfer (the `unknown` folder: Mark's N1, kept
-    // with no diagnostics), or no folder yet. Asked again when the athlete changes (the folder may
-    // stay the same string). The adapter for that Session and this surface is never null: with no
+    // app.session is the session on screen (app.state.sessionOnScreen: the CURRENT athlete's Session of
+    // sessionDir); null when no athlete holds it — a session captured with no golfer (the `unknown`
+    // folder: Mark's N1, kept with no diagnostics), no folder yet, or a folder that is gone (an empty
+    // session's discard: no Session is ever made for it). Re-read when the athlete changes. The adapter for that Session and this surface is never null: with no
     // Session it is an EMPTY one, which judges nothing, and the panel says why (noGolferNotice).
     readonly property var session:
         (typeof app !== "undefined" && app && sessionDir !== ""
          && (typeof athleteController === "undefined" || athleteController === null
              || athleteController.currentUuid !== ""))   // a golfer chosen (and asked again when it changes)
-            ? app.sessionAt(sessionDir) : null
+            ? app.session : null
     readonly property var diagModel:
         (typeof diagnosticsAdapters !== "undefined" && diagnosticsAdapters) ? diagnosticsAdapters.of(session, surface, sessionDir) : null
     // SHOW WITH A WARNING, NEVER HIDE (Mark's N1): a folder the panel is pointed at that no Session
@@ -136,10 +136,13 @@ Item {
     // control on the panel would be a second answer to "which shot", and the two would disagree
     // the moment either was used.
     //
-    // BY SWING FOLDER, NOT BY ID. SessionMode.focusedShotId is the carousel model's own counter and
-    // the ledger numbers shots by swing number, so the folder is the identity both sides share; the
-    // adapter resolves it to its own id (SessionDiagnosticsModel::selectedSwingDir).
-    Binding { restoreMode: Binding.RestoreNone; target: root.diagModel; property: "selectedSwingDir"; value: SessionMode.focusedSwingDir }
+    // BY ShotRef, NOT BY ID (R-APP-4). The carousel numbers its rows with its own counter and the ledger numbers
+    // shots by swing number, so the selection's ShotRef is the identity both sides share; the adapter resolves it
+    // to its own id only within its own session (SessionDiagnosticsModel::selectedShot; E-05). The folder goes too,
+    // for a session no id can be named for. The cast reads app.state.castSelection (today the same shot: Q-07).
+    readonly property var _selection: surface === "cast" ? app.state.castSelection : app.state.selection
+    Binding { restoreMode: Binding.RestoreNone; target: root.diagModel; property: "selectedShot";     value: root._selection.shotRef }
+    Binding { restoreMode: Binding.RestoreNone; target: root.diagModel; property: "selectedSwingDir"; value: root._selection.swingDir }
 
     // THE SESSION THE PANEL IS POINTED AT — the loaded one while reviewing, the live one
     // otherwise. The folder names the Session (app.sessionAt, above); the Session's owner has
@@ -148,21 +151,10 @@ Item {
     // landed). activateSession() on the adapter only brings what the panel shows up to date
     // (pointAdapter: the club baseline, the athlete's history).
     //
-    // LIVE IS TODAY'S SESSION WHETHER OR NOT IT IS RUNNING. shotProcessor.activeSessionDir is
-    // set only between a session's start and its end, and this used to read nothing else: end
-    // the session, or relaunch the app, and the panel was pointed at "" and cleared — all three
-    // tabs blank over a carousel still showing the day's swings. So when no session is running
-    // it reads the folder the carousel is showing (sessionReviewController.liveSessionDir).
-    // The running session's own folder comes first: it exists before its first swing does.
-    // KEEP IT EQUAL TO PpShotCarousel._diagFolder (refactor 3.7-c): the cards find this panel's
-    // adapter by that folder, until step 4's sessionOnScreen replaces both.
-    readonly property string sessionDir:
-        (sessionReviewController.reviewActive
-         && sessionReviewController.activeSessionId !== "")
-            ? sessionReviewController.activeSessionId
-            : shotProcessor.activeSessionDir !== ""
-                ? shotProcessor.activeSessionDir
-                : sessionReviewController.liveSessionDir
+    // It is the session on screen (app.state.sessionOnScreenFolder: R-APP-3; the one derivation, E-08): the reviewed
+    // session, else the running one (its folder exists before its first swing does), else the folder the carousel
+    // shows — live is today's session whether or not it is running, so an ended session's panel still reads its swings.
+    readonly property string sessionDir: app.state.sessionOnScreenFolder
 
     // ON EVERY POINTING, NOT ONLY A NEW FOLDER: the adapter outlives this panel (PpModeStage rebuilds
     // the panel on every mode switch), and each pointing is when a club baseline frozen elsewhere
@@ -175,7 +167,7 @@ Item {
         if (!diagModel.adapter && SessionMode.sameFolder(sessionDir, diagModel.sessionDir)) { _adoptFocus(); return }
         // …and only for a folder no Session holds: the two change handlers above may run before `diagModel` has moved
         // to a held folder's adapter, and an engine model must never judge (and write) a session its owner holds.
-        if (!diagModel.adapter && typeof app !== "undefined" && app && sessionDir !== "" && app.sessionAt(sessionDir)) return
+        if (!diagModel.adapter && typeof app !== "undefined" && app && sessionDir !== "" && app.session) return
         // WHO MAY FREEZE THE BASELINE, set by hand before the pointing reads it (a binding's order isn't
         // pinned): a reviewed session never freezes one, a live panel may (today's rule).
         diagModel.baselineAuthority = (typeof sessionReviewController !== "undefined" && sessionReviewController

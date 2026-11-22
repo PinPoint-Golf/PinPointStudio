@@ -47,14 +47,14 @@ Item {
     readonly property bool _horizontal: orientation !== "vertical"
 
     // ── Replay-derived model (one µs domain: window-relative, t0 subtracted) ──────
-    readonly property var  _detail:  shotReplay.analysisDetail
+    readonly property var  _detail:  app.state.replay.analysisDetail
     readonly property var  _phases:  (_detail && _detail.phases) ? _detail.phases : []
     readonly property var  _series0: (_detail && _detail.series && _detail.series.length)
                                      ? _detail.series[0] : null
-    readonly property real _span:    Math.max(1, shotReplay.endUs - shotReplay.startUs)
+    readonly property real _span:    Math.max(1, app.state.replay.endUs - app.state.replay.startUs)
     readonly property real _playFrac: Math.max(0, Math.min(1,
-                                       (shotReplay.positionUs - shotReplay.startUs) / _span))
-    readonly property int  _activeIdx: solver.activeStation(_phases, shotReplay.positionUs)
+                                       (app.state.replay.positionUs - app.state.replay.startUs) / _span))
+    readonly property int  _activeIdx: solver.activeStation(_phases, app.state.replay.positionUs)
 
     // ── Geometry (cross-axis offsets fixed; main-axis = the line direction) ──────
     // The cross-axis stack, from the rail's top (horizontal) or left (vertical) edge: the readout
@@ -80,8 +80,8 @@ Item {
 
     // The full render model — recomputed only on layout/orientation/data change (NOT
     // on playhead movement). Each entry: {phase,tUs,frac,center,label,name,isImpact,elbow}.
-    readonly property var _stations: shotReplay.active
-        ? solver.stationLayout(_phases, shotReplay.startUs, shotReplay.endUs, _horizontal,
+    readonly property var _stations: app.state.replay.active
+        ? solver.stationLayout(_phases, app.state.replay.startUs, app.state.replay.endUs, _horizontal,
                                _lineLen, Theme.sp(12), Theme.fontData, Theme.fontSzLabel)
         : []
 
@@ -94,8 +94,8 @@ Item {
     readonly property var _positions: (_detail && _detail.club) ? (_detail.club.positions || []) : []
     // gap arg reserves a PpChip's padding (sp(12)) plus a hair between neighbours, so
     // clustered chips (the P5/P6/P7 downswing group) never touch.
-    readonly property var _pTicks: (shotReplay.active && _positions.length > 0)
-        ? solver.positionLayout(_positions, shotReplay.startUs, shotReplay.endUs, _horizontal,
+    readonly property var _pTicks: (app.state.replay.active && _positions.length > 0)
+        ? solver.positionLayout(_positions, app.state.replay.startUs, app.state.replay.endUs, _horizontal,
                                 _lineLen, Theme.sp(14), Theme.fontData, Theme.fontSzMicro)
         : []
     readonly property bool _anyFitted:  _pTicks.some(function (t) { return t.source === 1 })
@@ -106,20 +106,20 @@ Item {
     // actually on-screen (panelVisible) and focused on THIS swing — so the diamonds
     // are a live markup-workflow affordance that disappears when the panel is toggled
     // out of the View, not always-on chrome.
-    readonly property var _markupMarkers: (shotReplay.active
+    readonly property var _markupMarkers: (app.state.replay.active
         && markupController.panelVisible
         && markupController.hasSwing
-        && markupController.currentSwingDir === shotReplay.swingDir)
+        && markupController.currentSwingDir === app.state.replay.swingDir)
         ? markupController.eventList : []
 
     // Every frame on the current swing that has a club/shaft laid, same domain and
     // visibility gate as the diamonds above. Drawn as thin ticks straddling the line
     // so the spread of shaft markings reads at a glance — complementing the diamonds,
     // which only flag the named P-positions.
-    readonly property var _shaftMarkers: (shotReplay.active
+    readonly property var _shaftMarkers: (app.state.replay.active
         && markupController.panelVisible
         && markupController.hasSwing
-        && markupController.currentSwingDir === shotReplay.swingDir)
+        && markupController.currentSwingDir === app.state.replay.swingDir)
         ? markupController.shaftList : []
 
     // Readout chip values at the playhead.
@@ -127,7 +127,7 @@ Item {
                                           ? _stations[_activeIdx].name : ""
     readonly property real   _metricVal:  _series0
                                           ? solver.valueAtNearest(_series0.t_us, _series0.value,
-                                                                  shotReplay.positionUs) : 0
+                                                                  app.state.replay.positionUs) : 0
     readonly property string _metricUnit: (_series0 && _series0.unit) ? _series0.unit : ""
 
     // The one value-formatting rule, shared with PpMetricChart and PpChartSummary.
@@ -141,17 +141,17 @@ Item {
         var main = root._horizontal ? pt.x : pt.y
         var frac = Math.max(0, Math.min(1, (main - root._insetMain) / root._lineLen))
         if (root.snapToPhases)
-            shotReplay.seekToUs(solver.snap(root._phases,
-                                            shotReplay.startUs + frac * root._span,
+            app.state.replay.seekToUs(solver.snap(root._phases,
+                                            app.state.replay.startUs + frac * root._span,
                                             0.03 * root._span))
         else
-            shotReplay.seekToFraction(frac)
+            app.state.replay.seekToFraction(frac)
     }
 
     // ── Active timeline ──────────────────────────────────────────────────────────
     Item {
         anchors.fill: parent
-        visible: shotReplay.active
+        visible: app.state.replay.active
 
         // Backing line.
         Rectangle {
@@ -183,7 +183,7 @@ Item {
                 id: tick
                 required property var modelData
                 readonly property real frac: Math.max(0, Math.min(1,
-                    (tick.modelData.tUs - shotReplay.startUs) / root._span))
+                    (tick.modelData.tUs - app.state.replay.startUs) / root._span))
                 readonly property real tickMain: root._insetMain + frac * root._lineLen
                 readonly property real len:  Theme.sp(11)
                 readonly property real thick: Theme.sp(2)
@@ -287,7 +287,7 @@ Item {
             DragHandler {
                 target: null
                 dragThreshold: 0
-                onActiveChanged: active ? shotReplay.beginScrub() : shotReplay.endScrub()
+                onActiveChanged: active ? app.state.replay.beginScrub() : app.state.replay.endScrub()
                 onCentroidChanged: if (active)
                     root._scrubTo(scrubBand.mapToItem(root, centroid.position.x, centroid.position.y))
             }
@@ -319,7 +319,7 @@ Item {
                     enabled: !Theme.reduceMotion
                     NumberAnimation { duration: Theme.durationFast }
                 }
-                TapHandler { onTapped: shotReplay.seekToUs(dot.modelData.tUs) }
+                TapHandler { onTapped: app.state.replay.seekToUs(dot.modelData.tUs) }
                 HoverHandler { cursorShape: Qt.PointingHandCursor }
             }
         }
@@ -340,7 +340,7 @@ Item {
                 color: (lbl.active || lbl.modelData.isImpact) ? Theme.colorAccent : Theme.colorText2
                 x: root._horizontal ? (labelMain - width / 2) : (root._labelBand + Theme.sp(6))
                 y: root._horizontal ? (root._labelBand + Theme.sp(2)) : (labelMain - height / 2)
-                TapHandler { onTapped: shotReplay.seekToUs(lbl.modelData.tUs) }
+                TapHandler { onTapped: app.state.replay.seekToUs(lbl.modelData.tUs) }
                 HoverHandler { cursorShape: Qt.PointingHandCursor }
             }
         }
@@ -369,7 +369,7 @@ Item {
                 y: root._horizontal ? (root._lineCross - root._chipGap - height)
                                     : (labelMain - height / 2)
 
-                TapHandler { onTapped: shotReplay.seekToUs(pchip.modelData.tUs) }
+                TapHandler { onTapped: app.state.replay.seekToUs(pchip.modelData.tUs) }
                 HoverHandler { id: pchipHover; cursorShape: Qt.PointingHandCursor }
             }
         }
@@ -417,7 +417,7 @@ Item {
                 required property var modelData
                 anchors.fill: parent
                 readonly property real frac: Math.max(0, Math.min(1,
-                    (mk.modelData.tUs - shotReplay.startUs) / root._span))
+                    (mk.modelData.tUs - app.state.replay.startUs) / root._span))
                 readonly property real markMain:  root._insetMain + frac * root._lineLen
                 readonly property real markCross: root._lineCross - root._diamondGap
 
@@ -440,7 +440,7 @@ Item {
                     width: hsz; height: hsz
                     x: (root._horizontal ? mk.markMain : mk.markCross) - hsz / 2
                     y: (root._horizontal ? mk.markCross : mk.markMain) - hsz / 2
-                    TapHandler { onTapped: shotReplay.seekToUs(mk.modelData.tUs) }
+                    TapHandler { onTapped: app.state.replay.seekToUs(mk.modelData.tUs) }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
             }
@@ -509,7 +509,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 PpMicro {
-                    text: ((shotReplay.positionUs - shotReplay.startUs) / 1000000).toFixed(2) + "s"
+                    text: ((app.state.replay.positionUs - app.state.replay.startUs) / 1000000).toFixed(2) + "s"
                     color: Theme.colorText2
                     font.letterSpacing: Theme.trackingData
                     anchors.verticalCenter: parent.verticalCenter
@@ -530,7 +530,7 @@ Item {
     // ── Empty state ──────────────────────────────────────────────────────────────
     PpCardNote {
         anchors.centerIn: parent
-        visible: !shotReplay.active
+        visible: !app.state.replay.active
         text: qsTr("Select a swing to review")
     }
 }

@@ -156,10 +156,10 @@ ApplicationWindow {
     // inert otherwise (enabled gating keeps Esc free for popups/text fields).
     Shortcut {
         sequence: "Esc"
-        enabled: shotProcessor.isReplaying || SessionMode.mode === SessionMode.replay
+        enabled: shotProcessor.isReplaying || app.state.mode === app.state.replayMode
         onActivated: {
             if (shotProcessor.isReplaying) shotProcessor.cancelReplay()
-            else SessionMode.enterCapture()
+            else app.state.enterCapture()
         }
     }
 
@@ -188,13 +188,10 @@ ApplicationWindow {
         body: qsTr("You're still mid-session — closing now will end your session and stop capture. Close PinPoint Studio?")
         confirmText: qsTr("End session & close")
         onConfirmed: {
-            // Session-level teardown; the deeper shutdown (swing-save wait, capture-thread barriers,
-            // merger stop) runs in the controller destructors and the aboutToQuit hook.
-            cameraManager.stopCapture()
-            sessionController.endSession()
-            // Discard the session folder if it captured nothing (to the OS trash — recoverable),
-            // same as the End Session flow.
-            shotProcessor.endSessionFolder()
+            // Session-level teardown, the End's one command (app_state.h: it discards a session that captured
+            // nothing, to the OS trash), with no carousel reload; the deeper shutdown (swing-save wait,
+            // capture-thread barriers, merger stop) runs in the controller destructors and the aboutToQuit hook.
+            app.state.endSession(false)
             root._quitConfirmed = true
             root.close()
         }
@@ -244,8 +241,8 @@ ApplicationWindow {
     Connections {
         target: sessionReviewController
         function onReviewActiveChanged() {
-            if (sessionReviewController.reviewActive) SessionMode.enterLoadedSession()
-            else                                      SessionMode.enterCapture()
+            if (sessionReviewController.reviewActive) app.state.enterLoadedSession()
+            else                                      app.state.enterCapture()
         }
     }
 
@@ -254,30 +251,20 @@ ApplicationWindow {
     // from Capture — if the user is already in Replay/Analyse studying an earlier
     // shot, the new one just lands in the carousel rather than yanking them away.
     // The `true` marks this as the post-shot auto-replay so it returns to Capture
-    // when it finishes (see onPlaybackEnded below).
+    // when it finishes (AppState::replayEnded).
     // Gated on the View-menu "Auto-replay after capture" setting: off means the
     // shot just lands in the carousel and the user stays live at the mat (corpus
     // capture, or when instant playback isn't wanted).
     Connections {
         target: shotProcessor
         function onShotProcessed(shotId, swingDir) {
-            if (swingDir !== "" && SessionMode.mode === SessionMode.capture
+            if (swingDir !== "" && app.state.mode === app.state.captureMode
                     && appSettings.autoReplayAfterCapture)
-                SessionMode.enterReplay(shotId, swingDir, true)
+                app.state.enterReplay(shotModel.shotRefOf(shotId), swingDir, true)
         }
     }
-
-    // …and when that auto-replay plays to its end, drop straight back to live
-    // Capture — the user is at the mat ready to hit again. Gated on
-    // autoReturnToCapture so a user-initiated Replay reaching its end stays put;
-    // the source reports the fact, SessionMode owns the policy.
-    Connections {
-        target: shotReplay
-        function onPlaybackEnded() {
-            if (SessionMode.autoReturnToCapture && SessionMode.mode === SessionMode.replay)
-                SessionMode.enterCapture()
-        }
-    }
+    // (When that auto-replay plays to its end, app.state drops back to live Capture: AppState::replayEnded, connected
+    // in main.cpp — a user-initiated Replay reaching its end stays put.)
 
     // True while the user is on the session screen (AppScreen.Session). The session
     // screen owns everything that faces the athlete at the mat — the header DETECT
@@ -295,9 +282,10 @@ ApplicationWindow {
     //   • WINDOW — a TEMPORARY windowed overlay that pops after a freshly captured shot
     //     (postShotDelay) and auto-closes after the dwell.
     //
-    // The diagnostics panel is per SESSION and cumulative, and follows the carousel
-    // through SessionMode.focusedShotId on its own. shotReplay is still started below
-    // on a fresh shot because the in-app stage reads it — the cast does not depend on it.
+    // The diagnostics panel is per SESSION and cumulative, and follows app.state.castSelection
+    // on its own. app.state.replay is still started below on a fresh shot, without selecting
+    // it, because the in-app stage reads it — the cast does not depend on it (today's
+    // behaviour, kept: a judgement call for Mark, R-APP-6).
     //
     // postShotContent IS NOT READ HERE. It chose between "replay" and "metrics" for a
     // predecessor surface that had both; the cast is always the diagnostics panel, so the
@@ -428,12 +416,12 @@ ApplicationWindow {
                 // Persistent already up (or opened at config) — focus the new shot for the
                 // in-app stage and ensure the cast surface exists. The cast's own panel
                 // ingests the shot off the same shotProcessor signal.
-                if (shotReplay.swingDir !== swingDir)
-                    shotReplay.start(shotId, swingDir)
+                if (app.state.replay.swingDir !== swingDir)
+                    app.state.replay.start(shotId, swingDir)
                 root._syncPersistent()
             } else if (mode === "window") {
-                if (shotReplay.swingDir !== swingDir)
-                    shotReplay.start(shotId, swingDir)
+                if (app.state.replay.swingDir !== swingDir)
+                    app.state.replay.start(shotId, swingDir)
                 castDwellTimer.stop()
                 castShowTimer.interval = Math.max(0, appSettings.postShotDelay) * 1000
                 castShowTimer.restart()
@@ -449,7 +437,7 @@ ApplicationWindow {
     Binding {
         target:   cameraManager
         property: "livePoseEnabled"
-        value:    ViewLayout.overlaysOn(SessionMode.capture)
+        value:    ViewLayout.overlaysOn(app.state.captureMode)
     }
 
     // The ball-ready ting is for a golfer at the mat about to hit, so it sounds only there:
@@ -461,7 +449,7 @@ ApplicationWindow {
         target:   cameraManager
         property: "ballCueEnabled"
         value:    !shotProcessor.busy
-                  && !(root.sessionScreenActive && SessionMode.mode !== SessionMode.capture)
+                  && !(root.sessionScreenActive && app.state.mode !== app.state.captureMode)
     }
 
     // Header screen names, keyed by AppScreen (src/Gui/shell/app_screen.h), which is
@@ -686,10 +674,7 @@ ApplicationWindow {
                         // The wizard always starts a NEW session folder (a deliberate
                         // fresh session); the carousel begins empty. The toolbar
                         // Capture button is the path that offers extend-vs-new.
-                        shotProcessor.beginSessionFolder(sessionController.defaultType, false)
-                        shotModel.loadSessionDir("")
-                        sessionController.start(sessionController.defaultType)
-                        cameraManager.startCapture()    // buffer capturing → SHOT arms
+                        app.state.startSession(false)   // folder, empty carousel, clock, capture → SHOT arms
                     }
                     onNavigateToSettings: function(panelIndex) {
                         settingsScreen.activeNavIndex = panelIndex

@@ -93,7 +93,7 @@ Item {
         walkPred(probe.Window.window.contentItem, it => it._defs !== undefined && it.tabIndex !== undefined && it.active !== undefined && it.visible, st)
         for (const s of st) {
             const idx = s.active.findIndex(d => d.key === probe.panelKey)
-            if (idx >= 0 && s.tabIndex !== idx && ViewLayout.arrangementFor(SessionMode.mode) === "tabs") s.tabIndex = idx
+            if (idx >= 0 && s.tabIndex !== idx && ViewLayout.arrangementFor(app.state.mode) === "tabs") s.tabIndex = idx
         }
     }
     function has(o, p) { try { return !!o && (p in o) } catch (e) { return false } }
@@ -138,7 +138,7 @@ Item {
         onTriggered: {
             for (let i = 0; i < shots.count; ++i) {
                 const o = shots.objectAt(i)
-                if (o.ordinal === probe.ordinal) SessionMode.enterReplay(o.shotId, o.swingDir)
+                if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
             }
             probe.after(2000, () => probe.selectTab())
         }
@@ -201,7 +201,7 @@ Item {
         probe.after(10000, () => {
             probe.checkAttached("Replay", "Replay")
             probe.driveTabs("Replay", () => {
-                SessionMode.enterAnalyse()
+                app.state.enterAnalyse()
                 probe.after(2500, () => probe.selectTab())
                 probe.after(6000, () => {
                     probe.checkAttached("Analyse", "Analyse")
@@ -254,12 +254,12 @@ Item {
         log("ready — open a session, pick a shot, switch Replay / Analyse")
         // The try-out runs on a COPY of the settings: make sure the panel is on in Replay and Analyse.
         if (probe.panelKey !== "") {
-            ViewLayout.setPanel(SessionMode.replay, probe.panelKey, true)
-            ViewLayout.setPanel(SessionMode.analyse, probe.panelKey, true)
+            ViewLayout.setPanel(app.state.replayMode, probe.panelKey, true)
+            ViewLayout.setPanel(app.state.analyseMode, probe.panelKey, true)
         }
         if (probe.sessionDir !== "") {
             navController.navigate(probe.navIndex)
-            SessionMode.enterCapture()
+            app.state.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             openShot.start()
         }

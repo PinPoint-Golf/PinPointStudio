@@ -35,43 +35,22 @@ import PinPointStudio
 Item {
     id: root
 
-    readonly property bool _timelineOn:  ViewLayout.isPanelOn(SessionMode.mode, "timeline")
+    readonly property bool _timelineOn:  ViewLayout.isPanelOn(app.state.mode, "timeline")
     // Replay AND Analyse use the Transit timeline; Capture has no timeline rail.
-    readonly property bool _transitMode: SessionMode.mode === SessionMode.replay
-                                         || SessionMode.mode === SessionMode.analyse
+    readonly property bool _transitMode: app.state.mode === app.state.replayMode
+                                         || app.state.mode === app.state.analyseMode
     readonly property bool _vertical:    appSettings.timelineOrientation === "vertical"
     // Every screen stays alive in the StackLayout (this one at index AppScreen.Session).
     // The transit timeline's stationLayout recompute is heavy and fires on every
-    // shotReplay span change, so keep it UNLOADED unless this screen is visible —
+    // app.state.replay span change, so keep it UNLOADED unless this screen is visible —
     // otherwise an off-screen timeline re-lays-out on every swing reload.
     readonly property bool _screenActive: SessionMode.sessionScreenActive
 
-    // THE focused swing — the active replay, else the carousel's selection. One definition, because
-    // three panels here bind it (data viewer, markup, and the app-wide `currentSwing` below) and it
-    // was previously written out twice; a third copy is how they start disagreeing about which
-    // swing a screen is showing.
+    // THE focused swing — the active replay, else app.state's selection. One definition, because the
+    // data viewer, markup and 3-D here bind it (the Diagnostic Model panel in Settings reads the same two:
+    // DiagnosticModel.qml).
     readonly property string _focusedSwingDir:
-        shotReplay.swingDir !== "" ? shotReplay.swingDir
-                                   : (wristCarousel.selectedCard ? wristCarousel.selectedCard.swingDir : "")
-
-    // Publish it app-wide.
-    //
-    // NOT gated on _screenActive, and that is the whole point rather than an oversight. Every
-    // reader of this is BY DEFINITION on another screen — the Diagnostic Model panel lives in
-    // Settings, reachable mid-session — so clearing it when this
-    // screen stops being the visible one clears it exactly when somebody goes to look. It shipped
-    // that way for one build and the column was never once on screen.
-    //
-    // What it means is therefore "the swing THIS SCREEN has loaded", not "the swing on the screen
-    // you are looking at". It empties on its own when the screen genuinely has none — no replay and
-    // nothing selected in the carousel — which is the honest condition. (The setter guards against
-    // re-announcing the same path, so re-evaluating on every carousel change costs nothing.)
-    Binding {
-        target: currentSwing
-        property: "swingDir"
-        value: root._focusedSwingDir
-        restoreMode: Binding.RestoreNone
-    }
+        app.state.replay.swingDir !== "" ? app.state.replay.swingDir : app.state.selection.swingDir
 
     // Today-scoped carousel: on entry (before capture) show today's most-recent
     // session folder, or an empty carousel when none exists for today. Guarded so
@@ -203,7 +182,7 @@ Item {
         PpShotCarousel {
             id: wristCarousel
             Layout.fillWidth: true
-            visible: ViewLayout.isPanelOn(SessionMode.mode, "carousel")
+            visible: ViewLayout.isPanelOn(app.state.mode, "carousel")
             sessionType: SessionController.Wrist   // keys its collapsed state per screen+mode
             transport: Component { PpReplayTransport {} }
             transportActive: root._transitMode
@@ -218,11 +197,11 @@ Item {
         objectName: "swing3dHost"
         swingDir: root._focusedSwingDir
         sessionAvailable: sessionReviewController.reviewActive    // a session opened from the library
-        positionUs: shotReplay.active ? shotReplay.positionUs : -1     // −1: rest at address
+        positionUs: app.state.replay.active ? app.state.replay.positionUs : -1     // −1: rest at address
         // The same Motion setting the replay tiles draw with (PpCameraTiles.qml).
-        motionOn:          ViewLayout.motionOn(SessionMode.mode)
-        motionModes:       ViewLayout.motionFor(SessionMode.mode).modes
-        motionTraceTarget: ViewLayout.motionTraceTarget(SessionMode.mode)
+        motionOn:          ViewLayout.motionOn(app.state.mode)
+        motionModes:       ViewLayout.motionFor(app.state.mode).modes
+        motionTraceTarget: ViewLayout.motionTraceTarget(app.state.mode)
         leadIsLeft:        ViewLayout.leadIsLeft()
     }
 

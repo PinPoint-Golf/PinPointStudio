@@ -138,7 +138,7 @@ Item {
             probe.frame.grabToImage(function (img) { img.saveToFile(path); probe.log("saved " + path); then() })
         })
     }
-    function mode() { return probe.modeName === "replay" ? SessionMode.replay : SessionMode.analyse }
+    function mode() { return probe.modeName === "replay" ? app.state.replayMode : app.state.analyseMode }
     // full / cast: the stage's tabs, on the target's tab. half: the target + one neighbour; third and
     // stage: + two; stagecam: the target in the side column beside a dominant camera. The timeline and
     // carousel are on, as Mark uses the stage (so height is what it really is).
@@ -306,15 +306,15 @@ Item {
             for (const t of probe.themes) for (const vw of probe.views) for (const st of (probe.states.length ? probe.states : [""])) probe.jobs.push({ theme: t, view: vw, state: st })
             probe.applyLayout()
             navController.navigate(probe.navIndex)
-            SessionMode.enterCapture()
+            app.state.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) SessionMode.enterReplay(o.shotId, o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
                 probe.after(3000, () => {
-                    if (probe.modeName !== "replay") SessionMode.enterAnalyse()
+                    if (probe.modeName !== "replay") app.state.enterAnalyse()
                     probe.after(4000, () => {
                         probe.selectTab()
                         probe.after(500, () => {

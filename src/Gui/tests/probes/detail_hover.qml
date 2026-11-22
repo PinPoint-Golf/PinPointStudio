@@ -23,7 +23,7 @@
 // panel as a stage panel on the REPLAY view, a swing playing beside it, the condition detail
 // open. This probe stands that up exactly — the Wrist screen's PpModeStage hosting the panel
 // alongside the camera and charts, in each arrangement the stage offers (split, stage, tabs),
-// with shotReplay playing — clicks through to Over the top, then moves a REAL pointer (QtTest's
+// with app.state.replay playing — clicks through to Over the top, then moves a REAL pointer (QtTest's
 // synthesized events, delivered through the window) onto a box mark and a run mark and HOLDS it
 // there for a couple of seconds while the replay runs, checking at every tick that:
 //   · the chart's pick area still has the pointer,
@@ -113,7 +113,7 @@ Item {
         function onSurfaceChanged() { probe.surfaceChanges += 1 }
     }
     Connections {
-        target: shotReplay
+        target: app.state.replay
         function onPositionChanged() { probe.positionTicks += 1 }
     }
     function resetCounts() { detailChanges = 0; surfaceChanges = 0; positionTicks = 0 }
@@ -212,19 +212,19 @@ Item {
                 probe.Window.window.width  = parseInt(probe.arg("--probe-width", "1920"))
                 probe.Window.window.height = parseInt(probe.arg("--probe-height", "1080"))
                 navController.navigate(AppScreen.Session)
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (step === 3) {
                 // The analyse view, with the panel on beside the camera and the charts.
-                ViewLayout.setPanel(SessionMode.analyse, "sessionDiagnostics", true)
-                ViewLayout.setPanel(SessionMode.analyse, "camera", true)
-                ViewLayout.setPanel(SessionMode.analyse, "charts", true)
+                ViewLayout.setPanel(app.state.analyseMode, "sessionDiagnostics", true)
+                ViewLayout.setPanel(app.state.analyseMode, "camera", true)
+                ViewLayout.setPanel(app.state.analyseMode, "charts", true)
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) SessionMode.enterReplay(o.shotId, o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
             } else if (step === 4) {
-                SessionMode.enterAnalyse()               // the replay stays loaded (SessionMode._loadFocused)
+                app.state.enterAnalyse()               // the replay stays loaded (AppState::loadSelected)
             } else if (step === 5) {
                 probe.startArrangement()
             } else if (step > 5) {
@@ -239,8 +239,8 @@ Item {
         // dominant slot and the panel shares the side column with everything else on — a sliver.
         // This probe is about HOVER, not about that squeeze, so the stage pass turns the camera off
         // and the panel leads; the other arrangements keep the camera on beside it.
-        ViewLayout.setPanel(SessionMode.analyse, "camera", arr !== "stage")
-        ViewLayout.setArrangement(SessionMode.analyse, arr)
+        ViewLayout.setPanel(app.state.analyseMode, "camera", arr !== "stage")
+        ViewLayout.setArrangement(app.state.analyseMode, arr)
         phase = 0
     }
 
@@ -259,8 +259,8 @@ Item {
             }
             // LOOPING, as the replay view does it: the impact clip's own loop runs on its own clock
             // for as long as it is on, so the stage is never still while the pointer is held.
-            if (!shotReplay.playing && shotReplay.active) shotReplay.togglePlay()
-            if (!shotReplay.impactLoopPlaying && shotReplay.active) shotReplay.toggleImpactLoop()
+            if (!app.state.replay.playing && app.state.replay.active) app.state.replay.togglePlay()
+            if (!app.state.replay.impactLoopPlaying && app.state.replay.active) app.state.replay.toggleImpactLoop()
             phase = 1
         } else if (phase === 1) {
             body = appBody()
@@ -270,8 +270,8 @@ Item {
             // LIVE, as Mark's session is: the model in the live tense over the same ledger.
             if (arg("--probe-live", "1") === "1") model.reviewing = false
             model.openDetail(condition)
-            log(arr + ": replay active " + shotReplay.active + " · playing " + shotReplay.playing
-                + " · swing " + shotReplay.swingDir.substring(shotReplay.swingDir.lastIndexOf("/") + 1)
+            log(arr + ": replay active " + app.state.replay.active + " · playing " + app.state.replay.playing
+                + " · swing " + app.state.replay.swingDir.substring(app.state.replay.swingDir.lastIndexOf("/") + 1)
                 + " · panel " + Math.round(body.width) + "×" + Math.round(body.height))
             phase = 2
         } else if (phase === 2) {
@@ -305,7 +305,7 @@ Item {
         } else if (phase === 4 || phase === 7) {
             // held: three ticks, ~2 s, while the replay runs
             // keep the replay moving: restart the window playhead whenever it reaches its end
-            if (shotReplay.active && !shotReplay.playing) { shotReplay.seekToFraction(0); shotReplay.togglePlay() }
+            if (app.state.replay.active && !app.state.replay.playing) { app.state.replay.seekToFraction(0); app.state.replay.togglePlay() }
             const st = hoverState()
             const good = st.contains && st.idx === target && (wantLine === "" || st.text === wantLine)
             const what = chart === strip ? "box" : "run"
@@ -315,7 +315,7 @@ Item {
                 + st.idx + " (want shot id " + target + ") · line \"" + st.text + "\" · replay ticks " + positionTicks
                 + " · detail republished " + detailChanges + "× · surface " + surfaceChanges
                 + "× · delegates rebuilt " + rebuilt + " · same panel " + (appBody() === body)
-                + " · loop " + shotReplay.impactLoopPlaying)
+                + " · loop " + app.state.replay.impactLoopPlaying)
             if (!good && holds === 0 && mark) {
                 const sp = mark.mapToItem(null, 0, 0)
                 log(arr + " · under the pointer (" + Math.round(sp.x) + "," + Math.round(sp.y) + "): " + underPoint(probe.Window.window.contentItem, sp.x, sp.y, 0))

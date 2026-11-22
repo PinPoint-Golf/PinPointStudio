@@ -1269,7 +1269,7 @@ class ModelBrowser : public QObject
     // they were typing, but not the reading in front of them on the session screen — so "is this
     // corridor right?" was answerable only in aggregate, one measure at a time.
     //
-    // Bound by the panel from the `currentSwing` context property, the same seam `libraryRoot` and
+    // Bound by the panel from app.state (the replay, else the selection), as `libraryRoot` and
     // `gradePolicy` use, so this object keeps no dependency on what a session screen is.
     Q_PROPERTY(QString currentSwingDir READ currentSwingDir WRITE setCurrentSwingDir
                NOTIFY currentSwingChanged)

@@ -66,7 +66,7 @@ Item {
     property var shotA: null
     property var shotB: null
     function layout(only) {
-        for (const m of [SessionMode.replay, SessionMode.analyse]) {
+        for (const m of [app.state.replayMode, app.state.analyseMode]) {
             for (const k of ["camera", "swing3d", "launchMonitor", "sessionDiagnostics", "table", "markup", "trust", "charts"])
                 ViewLayout.setPanel(m, k, k === only)
             ViewLayout.setArrangement(m, "tabs")
@@ -78,7 +78,7 @@ Item {
         const f = flickOf(bodyName, name)
         log("VALUE " + tag + " " + name + " contentY=" + (f ? Math.round(f.contentY) : "missing") + " want=" + Math.round(want)
             + " most=" + Math.round(most(f)) + " contentHeight=" + (f ? Math.round(f.contentHeight) : "-")
-            + " mode=" + SessionMode.mode + " shot=" + SessionMode.focusedShotId)
+            + " mode=" + app.state.mode + " shot=" + sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir))
         return f
     }
     function nav(kind) { const n = kind === "charts" ? SessionMode.chartsNav : SessionMode.diagnosticsNav
@@ -104,8 +104,8 @@ Item {
             then()
         })
     }
-    function carousel(s) { SessionMode.enterReplay(s.shotId, s.swingDir) }   // PpShotCarousel._toggleShot
-    function figure(s) { SessionMode.pickShot(s.shotId, s.swingDir) }        // a shot picked on a figure: Analyse keeps Analyse
+    function carousel(s) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir) }   // PpShotCarousel._toggleShot
+    function figure(s) { app.state.pickShot(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir) }        // a shot picked on a figure: Analyse keeps Analyse
 
     // ── the cases ──
     property real want: 0
@@ -113,7 +113,7 @@ Item {
     // C1 / D1 / C2 / C3: through the carousel. depth: "fit" (min(most/2, 700)), "deep" (most/2); reader: scroll on shot B to 300
     function carouselCase(id, kind, only, bodyName, name, prep, depth, reader) {
         return [
-            (done) => { layout(only); carousel(shotA); after(2500, () => { SessionMode.enterAnalyse(); after(3500, () => {
+            (done) => { layout(only); carousel(shotA); after(2500, () => { app.state.enterAnalyse(); after(3500, () => {
                 const b = bodyNamed(bodyName)
                 check(!!b, id + ": the panel is up in Analyse")
                 if (!b) { done(); return }
@@ -141,7 +141,7 @@ Item {
                 else { value(id + "-shotB", bodyName, name, probe.want); nav(kind); next() }
             }) },
             (done) => { carousel(shotA); after(3500, () => { value(id + "-shotA-replay", bodyName, name, probe.want); nav(kind); done() }) },
-            (done) => { SessionMode.enterAnalyse(); after(3500, () => {
+            (done) => { app.state.enterAnalyse(); after(3500, () => {
                 expectAt(id + "-back", bodyName, name, reader ? probe.readerY : probe.want, kind, () => grabBody(bodyName, id + "-back", done))
             }) }
         ]
@@ -152,7 +152,7 @@ Item {
     property var shortShot: null
     property var scan: ({})
     function scanSteps() {
-        const out = [ (done) => { layout("sessionDiagnostics"); carousel(shotA); after(2500, () => { SessionMode.enterAnalyse(); after(3500, () => {
+        const out = [ (done) => { layout("sessionDiagnostics"); carousel(shotA); after(2500, () => { app.state.enterAnalyse(); after(3500, () => {
             const b = bodyNamed("sdBody"); if (b) b.tab = "shot"; after(1500, done) }) }) } ]
         const idx = [1, 2, 3, 4, 5, 6, 7, 8]          // resolved when they run: the shots load after the plan is made
         for (const k of idx)
@@ -211,7 +211,7 @@ Item {
     property var plan: [
         (done) => {
             navController.navigate(AppScreen.Session)
-            SessionMode.enterCapture()
+            app.state.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             after(5000, () => {
                 const list = []

@@ -90,16 +90,16 @@ Item {
             const root = probe.Window.window.contentItem
             if (probe.step === 1) {
                 navController.navigate(AppScreen.Session)
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (probe.step === 2) {
                 for (let i = 0; i < shots.count; ++i) {
                     const s = shots.objectAt(i)
-                    if (s.ordinal === probe.ordinal) SessionMode.enterReplay(s.shotId, s.swingDir)
+                    if (s.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
                 }
             } else if (probe.step === 3) {
-                if (probe.mode === "analyse") SessionMode.enterAnalyse()
-                const m = probe.mode === "analyse" ? SessionMode.analyse : SessionMode.mode
+                if (probe.mode === "analyse") app.state.enterAnalyse()
+                const m = probe.mode === "analyse" ? app.state.analyseMode : app.state.mode
                 for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup", "sessionDiagnostics"])
                     ViewLayout.setPanel(m, k, probe.panels.indexOf(k) >= 0)
                 ViewLayout.setPanel(m, "trust", probe.trustPanel)

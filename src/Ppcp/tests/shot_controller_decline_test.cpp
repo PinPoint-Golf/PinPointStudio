@@ -98,14 +98,14 @@ TEST(ShotControllerDecline, AnUncorroboratedShotIsDeclinedNotCorroborated)
     C.ctl->setDetectorAvailable(Source::Acoustic, true);
     QSignalSpy declined(C.ctl.get(), &ShotController::shotDeclined);
     QSignalSpy captured(C.ctl.get(), &ShotController::captureRequested);
-    const int failBefore = C.ctl->shotStats().value("corroborateFail").toInt();
+    const int failBefore = C.ctl->shotStats().corroborateFail;
 
     C.ctl->commitArbitratedShot(nowHostNs(), QStringLiteral("S1"));
 
     ASSERT_EQ(declined.count(), 1);
     EXPECT_EQ(shotOf(declined), QStringLiteral("S1"));
     EXPECT_EQ(reasonOf(declined), QStringLiteral("not_corroborated"));
-    EXPECT_EQ(C.ctl->shotStats().value("corroborateFail").toInt(), failBefore + 1);
+    EXPECT_EQ(C.ctl->shotStats().corroborateFail, failBefore + 1);
     EXPECT_EQ(captured.count(), 0) << "footage asked for on a Shot this host refused";
 }
 
@@ -126,7 +126,7 @@ TEST(ShotControllerDecline, AShotWhileTheProcessorIsBusyIsDeclinedBusy)
     ASSERT_EQ(declined.count(), 1);
     EXPECT_EQ(shotOf(declined), QStringLiteral("S1"));
     EXPECT_EQ(reasonOf(declined), QStringLiteral("busy"));
-    EXPECT_EQ(C.ctl->shotStats().value("droppedBusy").toInt(), 1);
+    EXPECT_EQ(C.ctl->shotStats().droppedBusy, 1);
     EXPECT_EQ(captured.count(), 0);
 }
 
@@ -241,7 +241,7 @@ TEST(ShotControllerDecline, ACorroboratedShotWhileArmedIsRequestedAndNeverDeclin
         // Microsecond precision at the local store, nanoseconds restored on the
         // way out: a truncation, never a shift.
         EXPECT_EQ(captured.at(0).at(1).toLongLong(), (t0Ns / 1000) * 1000);
-        EXPECT_EQ(C.ctl->shotStats().value("corroboratePass").toInt(), 1);
+        EXPECT_EQ(C.ctl->shotStats().corroboratePass, 1);
     }
     // With nothing listening: accepted unweighed (the honest exemption).
     {

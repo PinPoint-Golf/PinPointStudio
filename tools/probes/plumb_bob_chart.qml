@@ -18,8 +18,8 @@
 //      A session's id IS its absolute directory path (session_review_controller.h:63), so no
 //      library-root setting has to be right for this to find the swing.
 //   2. navController.navigate(AppScreen.Session)            — the one session screen.
-//   3. SessionMode.enterReplay(shotId, swingDir, false)     — promotes the swing onto the stage,
-//      which is what makes shotReplay.analysisDetail the focused swing's.
+//   3. app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(shotId), swingDir, false)     — promotes the swing onto the stage,
+//      which is what makes app.state.replay.analysisDetail the focused swing's.
 //   4. Feeds that analysisDetail into a PRIVATE PpMetricChart instance and calls its own
 //      _applyPreset("Plumb Bob") — see the note on that below.
 //   5. Reports, per series, everything the chart layer decorates and derives — including the
@@ -195,10 +195,10 @@ Item {
         }
         probe.w("shotId              = " + probe.shotId)
         if (typeof SessionMode === "undefined") return probe.miss("SessionMode singleton")
-        SessionMode.enterReplay(probe.shotId, probe.swingDir, false)
+        app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(probe.shotId), probe.swingDir, false)
         try {
-            probe.w("SessionMode.mode    = " + SessionMode.mode + " (1 = replay)"
-                    + "   focusedSwingDir = " + SessionMode.focusedSwingDir)
+            probe.w("app.state.mode    = " + app.state.mode + " (1 = replay)"
+                    + "   focusedSwingDir = " + app.state.selection.swingDir)
         } catch (e) {}
     }
 
@@ -206,20 +206,20 @@ Item {
         probe.w("═══ 3. COLLECT analysisDetail ═══")
         var d = null
         try {
-            probe.w("shotReplay.active   = " + shotReplay.active
-                    + "   streams = " + shotReplay.streamCount
-                    + "   swingDir = " + shotReplay.swingDir)
-            probe.w("shotReplay span     = [" + probe.ms(shotReplay.startUs) + ", "
-                    + probe.ms(shotReplay.endUs) + "]  impact = " + probe.ms(shotReplay.impactUs))
-            d = shotReplay.analysisDetail
+            probe.w("app.state.replay.active   = " + app.state.replay.active
+                    + "   streams = " + app.state.replay.streamCount
+                    + "   swingDir = " + app.state.replay.swingDir)
+            probe.w("app.state.replay span     = [" + probe.ms(app.state.replay.startUs) + ", "
+                    + probe.ms(app.state.replay.endUs) + "]  impact = " + probe.ms(app.state.replay.impactUs))
+            d = app.state.replay.analysisDetail
             if (d && d.series && d.series.length > 0) {
                 probe.detail     = d
-                probe.detailFrom = "shotReplay.analysisDetail (disk_replay_source)"
-                probe.axStartUs  = shotReplay.startUs
-                probe.axEndUs    = shotReplay.endUs
-                probe.impactUs   = shotReplay.impactUs
+                probe.detailFrom = "app.state.replay.analysisDetail (disk_replay_source)"
+                probe.axStartUs  = app.state.replay.startUs
+                probe.axEndUs    = app.state.replay.endUs
+                probe.impactUs   = app.state.replay.impactUs
             }
-        } catch (e) { probe.miss("shotReplay (" + e + ")") }
+        } catch (e) { probe.miss("app.state.replay (" + e + ")") }
 
         // ⚠ FALLBACK, AND WHY IT IS NOT A CHEAT. DiskReplaySource::load() refuses a swing with
         // no PLAYABLE video stream and InvalidMedia tears the source down — offscreen, with no
@@ -228,12 +228,12 @@ Item {
         // through SwingDocReader and yields the same window-relative shape (shot_list_model.cpp
         // :392), so the chart layer can still be exercised. The line below SAYS which was used.
         if (!probe.detail || !probe.detail.series || probe.detail.series.length === 0) {
-            probe.w("shotReplay gave no series — falling back to the document reader")
+            probe.w("app.state.replay gave no series — falling back to the document reader")
             try {
-                d = sessionReviewController.activeShots.analysisDetailForSwingDir(probe.swingDir)
+                d = ({})   // the row's detail fallback went with H-07 (refactor 4-a): the replay's detail only
             } catch (e) {
                 probe.miss("activeShots.analysisDetailForSwingDir (" + e + ")")
-                try { d = shotModel.analysisDetailForSwingDir(probe.swingDir) }
+                try { d = ({}) }
                 catch (e2) { probe.miss("shotModel.analysisDetailForSwingDir (" + e2 + ")") }
             }
             if (d && d.series && d.series.length > 0) {

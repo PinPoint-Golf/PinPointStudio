@@ -106,19 +106,19 @@ Item {
             const s = probe.step
             if (s === 1) {
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
-                for (const m of [SessionMode.replay, SessionMode.analyse]) {
+                for (const m of [app.state.replayMode, app.state.analyseMode]) {
                     ViewLayout.setArrangement(m, "split")
                     if (!ViewLayout.isPanelOn(m, "sessionDiagnostics"))
                         ViewLayout.setPanel(m, "sessionDiagnostics", true)
                 }
                 navController.navigate(AppScreen.Session)
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (s === 2) {
                 let ok = false
                 for (let i = 0; i < shots.count; ++i) {
                     const sh = shots.objectAt(i)
-                    if (sh.ordinal === probe.ordinal) { SessionMode.enterReplay(sh.shotId, sh.swingDir); ok = true }
+                    if (sh.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(sh.shotId), sh.swingDir); ok = true }
                 }
                 probe.check(ok, "shot " + probe.ordinal + " is in the carousel")
             } else if (s === 3) {
@@ -138,7 +138,7 @@ Item {
                 probe.check(ms.length === 2, ms.length + " measure tabs in the model")
                 probe.check(probe.register(b) === "Analyse" && probe.visibleTabs(b).length === 2,
                             "Replay reads the open detail in place: two measure tabs drawn")
-                probe.check(SessionMode.mode === SessionMode.replay, "with the stage still in Replay")
+                probe.check(app.state.mode === app.state.replayMode, "with the stage still in Replay")
                 let most = null
                 for (const m of ms) {
                     probe.log("tab " + m.id + " '" + m.label + "' " + m.countText)
@@ -162,7 +162,7 @@ Item {
                 probe.picked = other.id
                 probe.before = b
             } else if (s === 5) {
-                SessionMode.enterAnalyse()
+                app.state.enterAnalyse()
             } else if (s === 6) {
                 const b = probe.theBody()
                 probe.check(!!b && b !== probe.before, "Analyse: the panel WAS rebuilt")
@@ -174,7 +174,7 @@ Item {
                             "Analyse: the picked tab is the ruled one: " + (on.length ? on[0].measureId : "-")
                             + " (want " + probe.picked + ")")
                 probe.before = b
-                SessionMode.showReplay()
+                app.state.showReplay()
             } else if (s === 7) {
                 const b = probe.theBody()
                 probe.check(!!b && b !== probe.before, "the panel WAS rebuilt")
@@ -185,7 +185,7 @@ Item {
                 const on = b ? probe.visibleTabs(b).filter(function (t) { return t.on }) : []
                 probe.check(on.length === 1 && on[0].measureId === probe.picked,
                             "Replay: the picked tab is drawn ruled: " + (on.length ? on[0].measureId : "-"))
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 probe.finish()
             }
         }

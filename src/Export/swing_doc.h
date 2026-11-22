@@ -479,8 +479,8 @@ struct SwingSummary {
     // session load simply dropping them. All small: metrics is a few dozen key→{label,value}.
     //
     // analysisDetail is deliberately NOT here — the multi-MB pose track is the thing this read
-    // exists to avoid. A reloaded row carries none, and its one consumer
-    // (ShotListModel::analysisDetailForSwingDir) already falls back to the full parse on demand.
+    // exists to avoid. A reloaded row carries none; its one reader, the launch monitor board, reads
+    // its slice from the document on demand (readLaunchMonitorDetail).
     QVariantMap metrics;
     int         rating = 0;         // 0–5 user stars, from the "review" block
     QString     note;               // free-text user note, same block

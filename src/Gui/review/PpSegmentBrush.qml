@@ -21,7 +21,7 @@
 // across the full extent, then a movable/resizable window the user drags to scope the
 // chart. Emits windowChanged(startUs,endUs) as the body is dragged, an edge handle is
 // pulled, or a fresh window is swept out — the parent writes that into its chart-local
-// viewStartUs/viewEndUs (never shotReplay / SwingDataSource). Pure scale/path binding;
+// viewStartUs/viewEndUs (never app.state.replay / SwingDataSource). Pure scale/path binding;
 // per-series ranges come from ChartMetrics.summaryMasked, phase tags from TimelineLabels.
 //
 // It obeys the same validity contract as the chart it scopes (design

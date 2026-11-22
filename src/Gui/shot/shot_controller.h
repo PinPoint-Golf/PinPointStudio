@@ -21,6 +21,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QSet>
+#include <QStringList>
 #include <QVariantMap>
 #include <QTimer>
 #include <QVector>
@@ -35,6 +36,29 @@ class SessionController;
 // entity vocabulary in, and this header is included by half of src/Gui.
 namespace Ppcp { class PpcpShotBridge; }
 #endif
+
+// What ShotController::shotStats answers: the counters an automated run asserts on (probes, tests).
+struct ShotStats {
+    Q_GADGET
+    Q_PROPERTY(int detections MEMBER detections)
+    Q_PROPERTY(int injected MEMBER injected)
+    Q_PROPERTY(int arbitratedSeen MEMBER arbitratedSeen)
+    Q_PROPERTY(int corroboratePass MEMBER corroboratePass)
+    Q_PROPERTY(int corroborateFail MEMBER corroborateFail)
+    Q_PROPERTY(int droppedBusy MEMBER droppedBusy)
+    Q_PROPERTY(int committed MEMBER committed)
+    Q_PROPERTY(QString lastVerdict MEMBER lastVerdict)   // the per-detector deltas behind the last decision
+    Q_PROPERTY(bool armed MEMBER armed)
+    Q_PROPERTY(QStringList availableDetectors MEMBER availableDetectors)
+    Q_PROPERTY(bool bridgeActive MEMBER bridgeActive)
+public:
+    int         detections = 0, injected = 0, arbitratedSeen = 0, corroboratePass = 0, corroborateFail = 0,
+                droppedBusy = 0, committed = 0;
+    QString     lastVerdict;
+    bool        armed = false;
+    QStringList availableDetectors;
+    bool        bridgeActive = false;
+};
 
 // Central application-level shot trigger. The toolbar SHOT button calls
 // triggerShot() (direct commit — manual bypasses the arbiter hold); the auto
@@ -196,7 +220,7 @@ public:
     // What an automated run needs in order to ASSERT rather than scrape a log.
     // The corroboration verdict is otherwise a `ppDebug()` line that a release
     // build does not even emit.
-    Q_INVOKABLE QVariantMap shotStats() const;
+    Q_INVOKABLE ShotStats shotStats() const;
     // The host clock a detector stamps with, for a probe acting as one.
     Q_INVOKABLE qint64 nowUs() const;
 

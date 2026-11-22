@@ -31,6 +31,13 @@ class QVideoSink;
 // camera list. The tiles enumerate these, degrading gracefully when data is
 // missing (no face-on stream → no club overlay; unknown aspect → 16:9).
 struct ReplayStreamInfo {
+    Q_GADGET   // QML reads ShotReplayController::streams as a list of these (typed, step 4-a)
+    Q_PROPERTY(int    index       MEMBER index)
+    Q_PROPERTY(int    perspective MEMBER perspective)
+    Q_PROPERTY(double aspect      MEMBER aspect)
+    Q_PROPERTY(bool   hasAnalysis MEMBER hasAnalysis)
+    Q_PROPERTY(double viewGain    MEMBER viewGain)
+public:
     int    index       = 0;        // stream index (== setVideoSink index)
     int    perspective = -1;       // swing.json setup.perspective (0..4); 2 = FaceOn, 4 = Impact
     double aspect      = 16.0 / 9.0;   // source width / height

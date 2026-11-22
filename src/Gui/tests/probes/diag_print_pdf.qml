@@ -163,19 +163,19 @@ Item {
             probe.log("muted " + muted + " ting players")
             for (const t of probe.themes) probe.jobs.push(t)
             // the only panel, so in tabs it is the one on screen (else another tab hides sdBody)
-            for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup", "trust"]) ViewLayout.setPanel(SessionMode.analyse, k, false)
-            ViewLayout.setPanel(SessionMode.analyse, "sessionDiagnostics", true)
-            ViewLayout.setArrangement(SessionMode.analyse, "tabs")
+            for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup", "trust"]) ViewLayout.setPanel(app.state.analyseMode, k, false)
+            ViewLayout.setPanel(app.state.analyseMode, "sessionDiagnostics", true)
+            ViewLayout.setArrangement(app.state.analyseMode, "tabs")
             navController.navigate(AppScreen.Session)
-            SessionMode.enterCapture()
+            app.state.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) SessionMode.enterReplay(o.shotId, o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
                 probe.after(3000, () => {
-                    SessionMode.enterAnalyse()
+                    app.state.enterAnalyse()
                     probe.after(4000, () => {
                         const bs = []
                         probe.walk(probe.Window.window.contentItem, "sdBody", bs)

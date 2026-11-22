@@ -47,6 +47,11 @@ Item {
     clip: true
 
     readonly property var sessionShots: sessionReviewController.activeShots
+    // app.state's selected shot as this list's row id (ShotListModel.idOfShot, by ShotRef), re-found as rows change.
+    readonly property int _focusedId: {
+        void root.sessionShots.activeCount
+        return root.sessionShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir)
+    }
     readonly property bool reviewing:   sessionReviewController.reviewActive
 
     // The body's view and registers, reachable from the panel (the stage, a print or cast host, the
@@ -63,7 +68,7 @@ Item {
     LmSessionModel {
         id: board
         shotModel:     root.sessionShots
-        focusedShotId: SessionMode.focusedShotId
+        focusedShotId: root._focusedId
         // The two live-capture gates, and they answer for the LIVE session only — see emptyText(). A
         // saved session's readings are on disk whatever the device is doing now.
         reviewing:     root.reviewing
@@ -130,7 +135,7 @@ Item {
     function _focusShot(shotId) {
         for (const s of root.shotList) {
             if (s.shotId !== shotId) continue
-            SessionMode.pickShot(s.shotId, s.swingDir)
+            app.state.pickShot(root.sessionShots.shotRefOf(s.shotId), s.swingDir)
             return true
         }
         return false
@@ -161,7 +166,7 @@ Item {
         shotEmptyText: board.shotEmptyText
         liveDeviceName: board.deviceName
         reviewing: root.reviewing
-        focusedShotId: SessionMode.focusedShotId
+        focusedShotId: root._focusedId
         onShotRequested: (shotId) => root._focusShot(shotId)
         onExcludeRequested: (shotId, excluded) => root._exclude(shotId, excluded)
         onClubRequested: (shotId, club) => root._club(shotId, club)

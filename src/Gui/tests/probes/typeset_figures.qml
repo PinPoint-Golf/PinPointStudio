@@ -94,7 +94,7 @@ Item {
         })
     }
     function applyLayout() {
-        const m = probe.modeName === "replay" ? SessionMode.replay : SessionMode.analyse
+        const m = probe.modeName === "replay" ? app.state.replayMode : app.state.analyseMode
         const others = ["camera", "swing3d", "launchMonitor", "charts", "table", "markup"]
         if (probe.layout === "full" || probe.layout === "cast") {
             ViewLayout.setPanel(m, "sessionDiagnostics", true)
@@ -198,15 +198,15 @@ Item {
             for (const t of probe.themes) for (const vw of probe.views) for (const st of (probe.states.length ? probe.states : [""])) probe.jobs.push({ theme: t, view: vw, state: st })
             probe.applyLayout()
             navController.navigate(AppScreen.Session)
-            SessionMode.enterCapture()
+            app.state.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) SessionMode.enterReplay(o.shotId, o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
                 probe.after(3000, () => {
-                    if (probe.modeName !== "replay") SessionMode.enterAnalyse()
+                    if (probe.modeName !== "replay") app.state.enterAnalyse()
                     probe.after(4000, () => {
                         const bs = []
                         probe.walk(probe.Window.window.contentItem, "sdBody", bs)

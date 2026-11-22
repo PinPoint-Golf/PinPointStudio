@@ -39,7 +39,7 @@ Column {
     readonly property int labelW: Theme.sp(150)
 
     // Temporal navigation: when interactive, clicking/dragging a lane's bins emits seek()
-    // in window-relative µs and a playhead line tracks positionUs. Both wired to shotReplay
+    // in window-relative µs and a playhead line tracks positionUs. Both wired to app.state.replay
     // by the host (PpDataViewer); -1 hides the playhead.
     property real   positionUs: -1
     property bool   interactive: false

@@ -378,8 +378,8 @@ Item {
     // ── the register ──
     // the glance (Replay register) is for the mat: live Capture and the auto-replay after a shot, which drops back to
     // Capture on its own. A Replay the golfer opened to review a session reads in depth, as Analyse does (Mark, 16 Oct).
-    readonly property bool _atTheMat: SessionMode.mode === SessionMode.capture
-                                      || (SessionMode.mode === SessionMode.replay && SessionMode.autoReturnToCapture)
+    readonly property bool _atTheMat: app.state.mode === app.state.captureMode
+                                      || (app.state.mode === app.state.replayMode && app.state.autoReturnToCapture)
     readonly property string register: forceRegister !== "" ? forceRegister
                                      : surface === "cast" ? "Replay"
                                      : _atTheMat ? "Replay" : "Analyse"

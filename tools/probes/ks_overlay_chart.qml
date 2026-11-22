@@ -60,15 +60,15 @@ Item {
     function stepFocusSwing() {
         probe.shotId = 0
         for (var i = 0; i < rows.count; ++i) { var o = rows.objectAt(i); if (o && o.sdir === probe.swingDir) { probe.shotId = o.sid; break } }
-        SessionMode.enterReplay(probe.shotId, probe.swingDir, false)
+        app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(probe.shotId), probe.swingDir, false)
         probe.w("focused shotId " + probe.shotId)
     }
     function stepCollectDetail() {
-        var d = shotReplay.analysisDetail
+        var d = app.state.replay.analysisDetail
         if (d && d.series && d.series.length > 0) {
-            probe.detail = d; probe.axStartUs = shotReplay.startUs; probe.axEndUs = shotReplay.endUs; probe.impactUs = shotReplay.impactUs
+            probe.detail = d; probe.axStartUs = app.state.replay.startUs; probe.axEndUs = app.state.replay.endUs; probe.impactUs = app.state.replay.impactUs
         } else {
-            d = sessionReviewController.activeShots.analysisDetailForSwingDir(probe.swingDir)
+            d = ({})   // the row's detail fallback went with H-07 (refactor 4-a): the replay's detail only
             probe.detail = d; probe.axStartUs = 0; probe.axEndUs = 0
             var ps = d.phases || []; for (var i = 0; i < ps.length; ++i) if (ps[i].phase === 5) probe.impactUs = ps[i].t_us
         }

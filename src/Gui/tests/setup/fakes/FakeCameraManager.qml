@@ -83,7 +83,7 @@ QtObject {
     // PpCameraFrame reads when the wizard instantiates one over it (the frame/pose/level
     // fields and the four sink methods, all inert). `props` overrides any field.
     // ⚠ A live instance makes the wizard build PpCameraFrame, which also needs a
-    // `shotReplay` context property — SetupDriver supplies an inert one.
+    // `app.state.replay` context property — SetupDriver supplies an inert one.
     property Component _instComp: Component {
         QtObject {
             property string cameraKey:       ""

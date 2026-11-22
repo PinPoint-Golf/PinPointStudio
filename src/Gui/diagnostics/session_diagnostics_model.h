@@ -219,12 +219,13 @@ class SessionDiagnosticsModel : public QObject
     // it never owns a selection of its own (brief §8).
     Q_PROPERTY(int selectedShotId READ selectedShotId WRITE setSelectedShotId NOTIFY selectedShotIdChanged)
 
-    // ⚠ THE SELECTION BY SWING FOLDER, which is how the panel should set it. The carousel's
-    // shot ids are ShotListModel's own counter, and this model's are the swing_NNN folder number
-    // (back-fill) or the processor's id (live) — three numbering schemes that only coincide by
-    // luck, so a selection passed by id missed and THIS SHOT read nothing. The folder is the one
-    // identity every side agrees on; setting it resolves selectedShotId here, and re-resolves
-    // as shots arrive. Empty clears the selection.
+    // ⚠ THE SELECTION BY ShotRef (R-APP-4; refactor step 4-a), which is how the panel sets it: app.state.selection's
+    // `shotRef` (ShotRef's text form) and the folder it was picked with. The carousel's shot ids are its own counter,
+    // and this model's are the swing number, so the ShotRef is the identity both sides share: it resolves to this
+    // model's shot only when its session is this model's session (a selection never reaches another session's shot
+    // of the same number: E-05). The folder is used only when either side has no id (a session no owner can be named
+    // for: J-a4), and then only as shotIdForSwingDir allows. Both re-resolve as shots arrive. Empty clears.
+    Q_PROPERTY(QString selectedShot     READ selectedShot     WRITE setSelectedShot     NOTIFY selectedSwingDirChanged)
     Q_PROPERTY(QString selectedSwingDir READ selectedSwingDir WRITE setSelectedSwingDir NOTIFY selectedSwingDirChanged)
 
     // ── Session identity and lifecycle ──────────────────────────────────────────────
@@ -392,11 +393,13 @@ public:
     void    setSelectedShotId(int id);
     QString selectedSwingDir() const { return m_selectedSwingDir; }
     void    setSelectedSwingDir(const QString &dir);
+    QString selectedShot() const { return m_selectedShot; }
+    void    setSelectedShot(const QString &shotRef);
 
-    // This model's id for a swing folder, or -1. Exact path first, then the folder's name (a
-    // ledger written on another host records the same swing under a different mount), then the
-    // swing number (SwingPaths) when that is a shot this ledger holds. Neither fallback asks whether
-    // the folder is this session's (audit E-05): the selection by ShotRef is step 4's (R-APP-4).
+    // This model's id for a swing folder, or -1: the exact path, else — for a folder inside this
+    // model's own session folder — its swing number (SwingPaths) when that is a shot this ledger
+    // holds. Never by the folder's name alone: a swing_0003 of another session is not this one's
+    // (E-05; the basename fallback is gone, refactor step 4-a).
     Q_INVOKABLE int shotIdForSwingDir(const QString &dir) const;
 
     QString sessionDir() const { return m_sessionDir; }
@@ -1236,7 +1239,8 @@ private:
     QThreadPool m_reviewPool;           // maxThreadCount 1: a shot's edits land in the order they were made
     int     m_selectedShotId = -1;
     QString m_selectedSwingDir;
-    // Re-points m_selectedShotId at m_selectedSwingDir without a rebuild of its own — for the
+    QString m_selectedShot;
+    // Re-points m_selectedShotId at m_selectedShot (else m_selectedSwingDir) without a rebuild of its own — for the
     // callers that are about to rebuild anyway. True when the id changed.
     bool    resolveSelectedSwingDir();
     QString m_cadence = QStringLiteral("bandwidth");

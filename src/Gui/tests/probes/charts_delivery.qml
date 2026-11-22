@@ -128,20 +128,20 @@ Item {
                 const th = probe.arg("--probe-theme", "")
                 if (th !== "") Theme.themeIndex = Number(th)
                 navController.navigate(AppScreen.Session)
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (probe.step === 2) {
                 let found = false
                 for (let i = 0; i < shots.count; ++i) {
                     const s = shots.objectAt(i)
-                    if (s.ordinal === probe.ordinal) { SessionMode.enterReplay(s.shotId, s.swingDir); found = true; probe.log("swing " + s.swingDir) }
+                    if (s.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir); found = true; probe.log("swing " + s.swingDir) }
                 }
                 probe.log("shot " + probe.ordinal + (found ? " picked" : " NOT in the carousel"))
                 if (!found) Qt.exit(1)
             } else if (probe.step === 3) {
-                if (!probe.glance) SessionMode.enterAnalyse()
-                else SessionMode.autoReturnToCapture = true   // the auto-replay after a shot: the glance
-                const m = probe.glance ? SessionMode.replay : SessionMode.analyse
+                if (!probe.glance) app.state.enterAnalyse()
+                else app.state.enterReplay(app.state.selection.shotRef, app.state.selection.swingDir, true)   // the auto-replay after a shot: the glance
+                const m = probe.glance ? app.state.replayMode : app.state.analyseMode
                 // Charts alone (the widest section)
                 for (const k of ["camera", "swing3d", "launchMonitor", "sessionDiagnostics", "table", "markup", "trust"])
                     ViewLayout.setPanel(m, k, false)
@@ -153,7 +153,7 @@ Item {
                 probe.body = bodies.filter(b => probe.shown(b, root))[0] || bodies[0] || null
                 if (!probe.body) { probe.log("FAIL no Charts body"); Qt.exit(1); return }
                 const b = probe.body
-                probe.log("mode " + SessionMode.mode + " register " + b.register + " · theme " + Theme.themeIndex + (Theme.dark ? " (dark)" : " (light)"))
+                probe.log("mode " + app.state.mode + " register " + b.register + " · theme " + Theme.themeIndex + (Theme.dark ? " (dark)" : " (light)"))
                 b.choose("preset", probe.arg("--probe-preset", "Club delivery"))
                 b.tab = probe.tab
                 const c = {}
@@ -167,8 +167,8 @@ Item {
                     probe.log("this build has no body.deliveryP: the probe makes its own presenter (BEFORE)")
                     probe.dp = ownC.createObject(probe, {
                         model: b.tracesP.model,
-                        pickedSwingDir: Qt.binding(function () { return shotReplay.active ? shotReplay.swingDir : "" }),
-                        pickedDetailRef: Qt.binding(function () { return shotReplay.active ? shotReplay.analysisDetailRef : ({}) }),
+                        pickedSwingDir: Qt.binding(function () { return app.state.replay.active ? app.state.replay.swingDir : "" }),
+                        pickedDetailRef: Qt.binding(function () { return app.state.replay.active ? app.state.replay.analysisDetailRef : ({}) }),
                         register: b.register === "Analyse" ? "analyse" : "replay",
                         scope: probe.tab === "session" ? "session" : "shot" })
                 }

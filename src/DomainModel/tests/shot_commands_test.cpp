@@ -753,7 +753,7 @@ static void rowsOverShots()
     const ShotRef refTwo = two->ref();
     int finished = -1;
     QObject::connect(&model, &ShotListModel::trashFinished, &model, [&finished](int, int moved, const QString &) { finished = moved; });
-    model.trashShots(QVariantList{ idTwo });
+    model.trashShots({ idTwo });
     waitFor([&finished] { return finished >= 0; }, 3000);
     check(QStringLiteral("C15g the delete is the Session's: EVT-03 once, the row gone"),
           finished == 1 && trashed == QStringList{ refTwo.toString() } && model.rowCount() == 1);

@@ -16,20 +16,10 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Session-screen MODE — the layout/activity axis (Capture | Replay | Analyse).
-// Effectively global: only one session screen is visible at a time, so a single
-// singleton holds the active mode and the focused swing that Replay/Analyse show.
-//
-// Mode is ORTHOGONAL to the data-source axis (Live vs Loaded, owned by
-// SessionReviewController.reviewActive — kept under its legacy "review" name for
-// now). Replay/Analyse work on either data-source; only Capture forces Live, so
-// entering Capture returns to the live current session. The two compose — do not
-// fuse them.
-//
-// Enum values are plain ints (a QML singleton can't host a Q_ENUM cleanly):
-//   capture = 0, replay = 1, analyse = 2. Compare with `=== SessionMode.replay`.
-//
-// shotReplay (a context property) is reachable from this singleton's root context.
+// The session screens' VIEW state, effectively global: only one session screen is visible at a time. The mode,
+// the selected shot, the replay and their transitions are app.state's (src/App/app_state.h; refactor step 4-a);
+// what stays here is the readers' place in the panels a mode switch rebuilds, the trash notice, whether the session
+// screen is on show, and folder comparison.
 
 pragma Singleton
 import QtQuick
@@ -37,16 +27,6 @@ import PinPointStudio
 
 QtObject {
     id: sm
-
-    readonly property int capture: 0
-    readonly property int replay:  1
-    readonly property int analyse: 2
-
-    property int    mode: capture
-
-    // The swing currently promoted onto the stage (Replay/Analyse). -1 / "" = none.
-    property int    focusedShotId:   -1
-    property string focusedSwingDir: ""
 
     // (The "last panel up wins" sessionDiagnostics seam and its claimant are gone, refactor 3.7-e: a screen reaches the
     // model a diagnostics panel shows for its session through diagnosticsAdapters.shownFor(app.sessionAt(folder), folder).)
@@ -66,13 +46,6 @@ QtObject {
     // Stamped with the session folder (a different session starts at the defaults). Not persisted: the
     // reader's CHOICES (view, preset, window, against, facet …) persist in AppSettings chartPrefs instead.
     property var    chartsNav: null
-
-    // True only while the active Replay was auto-promoted from a just-captured shot
-    // (post-shot instant playback). When that replay reaches its natural end the
-    // host returns to Capture; EVERY other transition below clears it, so a
-    // user-initiated Replay/Analyse — or a carousel pick — never auto-exits. The
-    // return itself is wired in Main.qml (shotReplay.onPlaybackEnded).
-    property bool   autoReturnToCapture: false
 
     // A swing's folder went to the trash (the carousel's delete, #56). The session panels forget
     // it on this — the coaching ledger and the charts — so neither goes on counting a swing that
@@ -95,107 +68,4 @@ QtObject {
     // from the processor and "…/lib/athlete/…" from the carousel), no trailing slash. "" for none.
     function folderKey(p) { return String(p || "").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "") }
     function sameFolder(a, b) { return folderKey(a) === folderKey(b) }
-
-    // A shot picked on a figure (a value run, a dot, a reading) goes the carousel's own click path, so
-    // the stage, the carousel and every panel follow one change. Analyse keeps Analyse: promote the
-    // swing and reload, without the detour through Replay that enterReplay() would take.
-    function pickShot(shotId, swingDir) {
-        if (mode === analyse) {
-            focusedShotId   = shotId
-            focusedSwingDir = swingDir
-            enterAnalyse()
-        } else {
-            enterReplay(shotId, swingDir)
-        }
-    }
-
-    // Capture IS the live current session: it shows live tiles, never the disk
-    // replay. Returning to Capture exits any loaded past session (resumeLive is
-    // idempotent) and drops that session's focused swing; the live-capture record
-    // state is remembered/restored around that excursion in main.cpp. When toggling
-    // from Replay/Analyse within the LIVE session, the focused swing is kept so
-    // re-entering Replay/Analyse re-shows it.
-    function enterCapture() {
-        autoReturnToCapture = false
-        mode = capture
-        shotReplay.stop()
-        if (sessionReviewController.reviewActive) {
-            focusedShotId   = -1
-            focusedSwingDir = ""
-            sessionReviewController.resumeLive()
-        }
-    }
-
-    // Analyse shows the focused swing's charts/table (its analysisDetail), so the
-    // replay must stay loaded — ensure it is.
-    function enterAnalyse() { autoReturnToCapture = false; mode = analyse; _loadFocused() }
-
-    // Show Replay for the currently-focused swing (the mode-switch path). With no
-    // focused swing the stage shows its empty-state — Replay is never blocked.
-    function showReplay() {
-        autoReturnToCapture = false
-        mode = replay
-        _loadFocused()
-    }
-
-    // Focus a swing and replay it. `fromCapture` is true ONLY on the post-shot
-    // instant-playback path (Main.qml.onShotProcessed) — that replay auto-returns
-    // to Capture when it ends. The carousel-click path passes nothing → false, so
-    // a user-picked replay stays on the stage. Re-clicking the same card in Replay
-    // just keeps it on the stage (no reload — see _loadFocused).
-    function enterReplay(shotId, swingDir, fromCapture) {
-        focusedShotId   = shotId
-        focusedSwingDir = swingDir
-        autoReturnToCapture = false
-        mode = replay
-        _loadFocused(fromCapture === true)
-        autoReturnToCapture = (fromCapture === true)
-    }
-
-    // Deselect the focused swing — re-clicking the on-stage card in the carousel
-    // clears the stage. Replay and Analyse fall back to their empty state (nothing
-    // focused, replay stopped); the active mode is left unchanged so the user stays
-    // on the same view, just emptied. Mirrors the "fresh, nothing focused" half of
-    // enterLoadedSession without forcing a mode switch.
-    function clearFocus() {
-        autoReturnToCapture = false
-        focusedShotId   = -1
-        focusedSwingDir = ""
-        shotReplay.stop()
-    }
-
-    // Hand the stage to another swing WITHOUT changing the view — the focused swing is being
-    // deleted and this is its neighbour (#56). Replay and Analyse load it as a carousel pick does
-    // (so it plays only with "Auto-replay after select" on); Capture just remembers it, as
-    // Capture always does with the focused swing.
-    function moveFocus(shotId, swingDir) {
-        autoReturnToCapture = false
-        focusedShotId   = shotId
-        focusedSwingDir = swingDir
-        if (mode !== capture) _loadFocused()
-    }
-
-    // A past session was just loaded (data-source → Loaded): show it in Replay,
-    // fresh — its own carousel supplies the swings, nothing focused yet. Capture is
-    // live-only, so a loaded session never lands there.
-    function enterLoadedSession() {
-        autoReturnToCapture = false
-        focusedShotId   = -1
-        focusedSwingDir = ""
-        mode = replay
-        shotReplay.stop()
-    }
-
-    // Load the focused swing onto the stage, unless it is already the loaded one
-    // (so toggling Replay↔Analyse, or re-clicking the focused card, never restarts
-    // playback). One replay surface now (the session stage) — no target arg.
-    // The post-shot replay always plays (it is already gated on "Auto-replay after
-    // capture"); a swing picked in Replay or Analyse plays only with "Auto-replay
-    // after select" on, else it loads paused on its first frame.
-    function _loadFocused(fromCapture) {
-        if (focusedShotId >= 0 && focusedSwingDir !== ""
-                && shotReplay.shotId !== focusedShotId)
-            shotReplay.start(focusedShotId, focusedSwingDir, 0.25,
-                             fromCapture === true || appSettings.autoReplayAfterSelect)
-    }
 }

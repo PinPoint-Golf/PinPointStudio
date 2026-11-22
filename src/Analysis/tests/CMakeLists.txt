@@ -834,7 +834,7 @@ pp_add_test(session_test
             ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
-            ${SRC}/App/app.h ${SRC}/App/app.cpp
+            ${SRC}/App/app.h ${SRC}/App/app.cpp ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     STD 20
@@ -855,6 +855,22 @@ pp_add_test(housekeeping_test
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
+    STD 20
+    AUTOMOC)
+
+# AppState (refactor step 4-a; src/App/app_state.h): the selection by ShotRef scoped to the session on screen, the mode's
+# transitions, the session's start and end as one command each, the athlete-switch rule, and the typed values QML reads
+# (a gadget list, a QList<int>) through a QQmlEngine — over recording doors, no app.
+pp_add_test(app_state_test
+    SOURCES ${SRC}/App/tests/app_state_test.cpp ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp ${SRC}/App/app.h ${SRC}/App/app.cpp
+            ${SRC}/Gui/shot/replay_source.h ${PP_RECORDING_STORE_SOURCES}
+            ${SRC}/Export/athlete_store.cpp ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
+            ${SRC}/Identity/identity.h
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS} Qt6::Qml
     STD 20
     AUTOMOC)
 
@@ -1768,7 +1784,7 @@ pp_add_test(shot_commands_test
             ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp ${SRC}/Export/athlete_store.cpp
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
-            ${SRC}/App/app.h ${SRC}/App/app.cpp
+            ${SRC}/App/app.h ${SRC}/App/app.cpp ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp
             ${SRC}/Gui/shot/shot_list_model.h ${SRC}/Gui/shot/shot_list_model.cpp
             # Re-analysis through the Shot (refactor step 3.4b-ii, C16): the controller and the one write-back; the
             # analysis itself is stubbed in the test (reanalyzeShot), as reanalysis_controller_test stubs it.
@@ -2018,7 +2034,7 @@ list(REMOVE_ITEM _post_shot_bench_sources ${PP_REPO_ROOT}/tools/diagnostics/regr
 add_executable(post_shot_bench
     ${PP_REPO_ROOT}/tools/diagnostics/post_shot_bench.cpp
     ${_post_shot_bench_sources}
-    ${SRC}/App/app.h ${SRC}/App/app.cpp
+    ${SRC}/App/app.h ${SRC}/App/app.cpp ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp
     ${SRC}/Gui/shot/shot_list_model.h ${SRC}/Gui/shot/shot_list_model.cpp
     ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
     ${SRC}/Core/post_shot_trace.h)

@@ -97,7 +97,7 @@ Item {
     Component { id: workOnsComp;   FakeWorkOns {} }
     // N17's test page (support/pages/ExtraPage.qml) reports to `pageJournal`.
     Component { id: journalComp;   PageJournal {} }
-    // PpCameraFrame (the camera rows' thumbnails, the Ball frame) reads `shotReplay`…
+    // PpCameraFrame (the camera rows' thumbnails, the Ball frame) reads `app.state.replay`…
     Component {
         id: shotReplayComp
         QtObject {
@@ -193,7 +193,7 @@ Item {
             navController:     nav,
             launchMonitor:     lm,
             appLog:            appLogFake,
-            shotReplay:        _shotReplay,
+            app: ({ state: { replay: _shotReplay, mode: 0, captureMode: 0, replayMode: 1, analyseMode: 2, autoReturnToCapture: false, selection: { valid: false, shotRef: "", swingDir: "" } } }),
             shotProcessor:     _shotProcessor,
             pageJournal:       journal,
             trunkCeremony:     ceremony

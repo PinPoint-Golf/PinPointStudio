@@ -54,6 +54,7 @@ class ShotReplayController : public QObject
     // The clip's own scrub range (-1 when no impact clip).
     Q_PROPERTY(qint64       impactLoopStartUs READ impactLoopStartUs NOTIFY spanChanged)
     Q_PROPERTY(qint64       impactLoopEndUs   READ impactLoopEndUs   NOTIFY spanChanged)
+    // The swing number of the shot started (app.state's replay: refactor step 4-a), or what start() was handed.
     Q_PROPERTY(int          shotId         READ shotId         NOTIFY activeChanged)
     // On-disk folder of the focused (replaying/scrubbing) shot, for the data viewer.
     // Empty when no replay is active — the viewer then falls back to the carousel's
@@ -61,8 +62,8 @@ class ShotReplayController : public QObject
     Q_PROPERTY(QString      swingDir       READ swingDir       NOTIFY activeChanged)
     Q_PROPERTY(int          streamCount    READ streamCount    NOTIFY activeChanged)
     // Per-stream metadata for the Review camera tiles, from the swing's own
-    // swing.json: list of { index, perspective, aspect, hasAnalysis }.
-    Q_PROPERTY(QVariantList streams        READ streams        NOTIFY activeChanged)
+    // swing.json (replay_source.h ReplayStreamInfo: index, perspective, aspect, hasAnalysis, viewGain).
+    Q_PROPERTY(QList<ReplayStreamInfo> streams READ streams NOTIFY activeChanged)
     Q_PROPERTY(double       speed          READ speed          NOTIFY speedChanged)
     Q_PROPERTY(qint64       positionUs     READ positionUs     NOTIFY positionChanged)
     Q_PROPERTY(qint64       startUs        READ startUs        NOTIFY spanChanged)
@@ -88,7 +89,7 @@ public:
     int          shotId()         const { return m_shotId; }
     QString      swingDir()       const { return m_active ? m_swingDir : QString(); }
     int          streamCount()    const { return m_source->streamCount(); }
-    QVariantList streams()        const;
+    QList<ReplayStreamInfo> streams() const { return m_source->streams(); }
     qint64       positionUs()     const { return m_source->positionUs(); }
     qint64       startUs()        const { return m_source->startUs(); }
     qint64       endUs()          const { return m_source->endUs(); }

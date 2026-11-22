@@ -288,7 +288,7 @@ Item {
     PpDetectCluster {
         anchors.centerIn: parent
         visible: root.sessionScreenActive
-                 && SessionMode.mode === SessionMode.capture
+                 && app.state.mode === app.state.captureMode
                  && !sessionReviewController.reviewActive
                  && !root._analysisActive   // yields the slot to the ANALYSING badge
     }

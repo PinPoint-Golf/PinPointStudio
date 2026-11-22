@@ -27,7 +27,7 @@ import "data/diag_session.js" as Real
 // THE BODY HOSTS A REGISTER. PpSessionDiagnosticsBody keeps its data and state API (source, readout,
 // tab, cardFilter, detailOpen, pulseCue, _openDetail … shotRequested) and loads ONE of two registers:
 //   · PpDiagReplay  — the glance: Capture, Replay, and the second-screen cast (surface "cast", D4);
-//   · PpDiagAnalyse — the read: SessionMode.analyse.
+//   · PpDiagAnalyse — the read: 2 /* Analyse */.
 // So every test says which register it presses (useRegister), and asserts both where the behaviour
 // belongs to both. A view (This shot / Session / Watching / the Analyse detail) is its own named
 // Flickable, built on first show and never torn down (D8), so a view is found by its objectName only
@@ -87,6 +87,33 @@ import "data/diag_session.js" as Real
 Item {
     id: probe
     width: 1168; height: 560
+
+    // app.state, faked (refactor step 4-a): the mode is the test's to set, as SessionMode.mode was; nothing is selected
+    // and nothing plays. Put on this file's engine by the fixture (chartsFixture.provide), as the charts tests do.
+    QtObject {
+        id: fakeState
+        readonly property int captureMode: 0
+        readonly property int replayMode: 1
+        readonly property int analyseMode: 2
+        property int mode: 0
+        property bool autoReturnToCapture: false
+        readonly property QtObject selection: QtObject {
+            property string shotRef: ""
+            property string swingDir: ""
+            readonly property bool valid: swingDir !== ""
+            signal changed()
+        }
+        readonly property QtObject castSelection: selection
+        readonly property QtObject replay: QtObject {
+            property bool active: false
+            property string swingDir: ""
+            property real positionUs: 0
+        }
+        property string sessionOnScreenFolder: ""
+        readonly property var sessionOnScreen: null
+    }
+    QtObject { id: fakeApp; readonly property var state: fakeState; readonly property var session: null; function sessionAt(f) { return null } }
+    Component.onCompleted: chartsFixture.provide("app", fakeApp)
 
     property var src: null
     // shotReadout() is an invokable, so the panel fetches it and hands it down; the body takes it as a
@@ -781,7 +808,7 @@ Item {
         // Which register the body loads is SessionMode's (or the cast's) choice, never the test's: the
         // test sets the mode the app would be in, and checks the body followed it.
         function useRegister(name) {
-            SessionMode.mode = name === "Analyse" ? SessionMode.analyse : SessionMode.replay
+            app.state.mode = name === "Analyse" ? 2 /* Analyse */ : 1 /* Replay */
             laidOut()
             compare(reg().register, name, "the body loaded the " + name + " register")
         }
@@ -903,7 +930,7 @@ Item {
             Theme.themeIndex = 5          // studio dark
             Theme.fontScale = 1.0
             Theme.reduceMotion = false
-            SessionMode.mode = SessionMode.capture
+            app.state.mode = 0 /* Capture */
             body.surface = "panel"
             body.forceRegister = ""
             body.interactive = true
@@ -954,7 +981,7 @@ Item {
             was = { themeIndex: Theme.themeIndex, fontScale: Theme.fontScale, reduceMotion: Theme.reduceMotion }
         }
         function cleanupTestCase() {
-            SessionMode.mode = SessionMode.capture
+            app.state.mode = 0 /* Capture */
             Theme.themeIndex = was.themeIndex
             Theme.fontScale = was.fontScale
             Theme.reduceMotion = was.reduceMotion
@@ -1339,7 +1366,7 @@ Item {
 
             // The auto-closing cast: no tabs to press, This shot held, the Replay register whatever the
             // stage is in (D4), and its own head in place of the body's frame (S30).
-            SessionMode.mode = SessionMode.analyse
+            app.state.mode = 2 /* Analyse */
             body.surface = "cast"
             body.interactive = false
             setReview(spied(formingSource(false)), null)
@@ -1998,7 +2025,7 @@ Item {
             laidOut()
             compare(probe.detailCalls, 1, "a glance's row opens its condition")
             compare(probe.lastDetailId, id)
-            compare(SessionMode.mode, SessionMode.replay, "and the stage stays in Replay")
+            compare(app.state.mode, 1 /* Replay */, "and the stage stays in Replay")
         }
 
         // KEPT, rewritten: the page itself — Back and the crumb, the feature head, both headlines in the
@@ -2882,7 +2909,7 @@ Item {
             compare(body.register, "Analyse", "read in Analyse")
             // #129: Analyse read OVER the glance keeps its lists' places apart from Analyse's own
             compare(body.placeScope, "Replay>Analyse", "over the glance, a place of its own")
-            compare(SessionMode.mode, SessionMode.replay, "the stage has not moved")
+            compare(app.state.mode, 1 /* Replay */, "the stage has not moved")
             oneShown(body, "sdOutcomeLead")
             press(oneShown(body, "sdShotWhyBack"))
             compare(body.register, "Replay", "and the chip is the way back")
@@ -3147,14 +3174,14 @@ Item {
         // hands its state through, and the reader's tab survives a register swap.
         function test_50_theRegisterFollowsTheSurfaceThenTheMode() {
             setSource(spied(formingSource(false)))
-            SessionMode.mode = SessionMode.capture
+            app.state.mode = 0 /* Capture */
             laidOut()
             compare(reg().register, "Replay", "Capture reads at a glance")
             compare(body.register, "Replay")
-            SessionMode.mode = SessionMode.replay
+            app.state.mode = 1 /* Replay */
             laidOut()
             compare(reg().register, "Replay", "so does Replay")
-            SessionMode.mode = SessionMode.analyse
+            app.state.mode = 2 /* Analyse */
             laidOut()
             compare(reg().register, "Analyse", "Analyse is the read")
             compare(body.registerItem, reg(), "the body exposes the register it loaded")
@@ -3162,13 +3189,13 @@ Item {
             body.tab = "watching"
             laidOut()
             compare(reg().view, "watching")
-            SessionMode.mode = SessionMode.replay
+            app.state.mode = 1 /* Replay */
             laidOut()
             compare(reg().register, "Replay")
             compare(reg().view, "watching", "the reader's tab survives the swap")
             verify(shown(viewOf("watching")))
 
-            SessionMode.mode = SessionMode.analyse
+            app.state.mode = 2 /* Analyse */
             body.surface = "cast"
             laidOut()
             compare(reg().register, "Replay", "the cast is the glance whatever the stage is in")
@@ -3217,7 +3244,7 @@ Item {
             compare(body.tab, "session", "a tab takes no press")
 
             // The auto-closing cast.
-            SessionMode.mode = SessionMode.analyse
+            app.state.mode = 2 /* Analyse */
             body.surface = "cast"
             setReview(spied(formingSource(false)), newestReadout())
             compare(reg().register, "Replay")
@@ -3227,7 +3254,7 @@ Item {
             mouseClick(dot)
             laidOut()
             compare(probe.detailCalls, 0, "a condition opens nothing from the cast")
-            compare(SessionMode.mode, SessionMode.analyse, "and the main stage is never flipped")
+            compare(app.state.mode, 2 /* Analyse */, "and the main stage is never flipped")
             const cell = findAll(oneShown(viewOf("shot"), "sdShotRuler"), "sdRulerCell")[1]
             intoView(cell)
             mouseClick(cell)
@@ -3504,7 +3531,7 @@ Item {
             setSource(s)
             compare(body.view, "detail")
             compare(reg().register, "Analyse", "an open detail is read in the Analyse register")
-            compare(SessionMode.mode, SessionMode.replay, "without the stage leaving Replay")
+            compare(app.state.mode, 1 /* Replay */, "without the stage leaving Replay")
             verify(shown(viewOf("detail")), "the detail page is drawn")
             verify(shown(one(body, "sdDetailBack")), "with a way back")
             const held = findAll(body, "sdRegisterHeld")

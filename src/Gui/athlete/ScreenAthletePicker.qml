@@ -32,10 +32,10 @@ Item {
 
     // A running session's swings are being saved to the current golfer, so the golfer cannot be
     // switched (or deleted) until it ends. This is the UI of the rule (Select and Delete greyed,
-    // the line below saying why); AthleteController enforces it too (setSessionRunningCheck:
-    // select / delete refused, a new athlete saved but not made current), since the rail has
-    // no session lock and "＋ New athlete" stays open.
-    readonly property bool sessionRunning: typeof sessionController !== "undefined" && sessionController.running
+    // the line below saying why); the rule is app.state's (R-APP-1: AppState::mayChangeAthlete), which
+    // AthleteController asks too (select / delete refused, a new athlete saved but not made current),
+    // since the rail has no session lock and "＋ New athlete" stays open.
+    readonly property bool sessionRunning: typeof app !== "undefined" && !!app && app.state.athleteLocked
 
     property var filteredAthletes: {
         const q = searchField.text.trim().toLowerCase()

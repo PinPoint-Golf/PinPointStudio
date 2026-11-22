@@ -349,10 +349,10 @@ QtObject {
 
     // ── a shot picked on a figure: the carousel's own click path ─────────────
     //
-    // The carousel owns the selection and numbers its shots with its own counter, so the request (by
-    // swing folder, the identity both sides share) is resolved against the shots the app is SHOWING —
-    // the loaded session's in review, the live carousel's otherwise — and handed to SessionMode.pickShot,
-    // which does exactly what tapping that swing's card does. Not gated on `active`: a cast picks too.
+    // The request (by swing folder, which the presenters hold) is resolved against the shots the app is SHOWING —
+    // the loaded session's in review, the live carousel's otherwise — by its exact folder, never by a folder's name
+    // (E-05), and handed to app.state.pickShot by the row's ShotRef, which does exactly what tapping that swing's
+    // card does. Not gated on `active`: a cast picks too.
     readonly property Instantiator _carouselShots: Instantiator {
         id: carouselShots
         model: sessionReviewController.activeShots
@@ -363,16 +363,10 @@ QtObject {
     }
     function pickShot(swingDir) {
         if (!swingDir) return false
-        const want = SessionMode.folderKey(swingDir)
-        const name = want.substring(want.lastIndexOf("/") + 1)
         for (let i = 0; i < carouselShots.count; ++i) {
             const s = carouselShots.objectAt(i)
-            if (!s || !s.swingDir) continue
-            const have = SessionMode.folderKey(s.swingDir)
-            // The folder first; its name when the ledger was written on another host and records the
-            // same swing under a different mount (shotIdForSwingDir's rule, the same reason).
-            if (have === want || have.substring(have.lastIndexOf("/") + 1) === name) {
-                SessionMode.pickShot(s.shotId, s.swingDir)
+            if (s && s.swingDir && SessionMode.sameFolder(s.swingDir, swingDir)) {
+                app.state.pickShot(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
                 return true
             }
         }

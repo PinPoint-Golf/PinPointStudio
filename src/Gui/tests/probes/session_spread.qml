@@ -167,14 +167,14 @@ Item {
                 probe.startTheme = Theme.themeIndex
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
                 navController.navigate(AppScreen.Session)
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (s === 2) {
                 probe.check(sessionReviewController.reviewActive, "the session loaded for review")
                 let picked = false
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) { SessionMode.enterReplay(o.shotId, o.swingDir); picked = true }
+                    if (o.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir); picked = true }
                 }
                 probe.check(picked, "shot " + probe.ordinal + " is in the carousel")
             } else if (s === 3) {
@@ -182,9 +182,9 @@ Item {
                 // layout says. The probe used to take the stage as it found it: a layout without the panel
                 // failed before anything was checked, a split squeezed the row to a sliver, and a theme
                 // switch rebuilds the panels (and their model) in split and stage, never in tabs.
-                ViewLayout.setPanel(SessionMode.analyse, "sessionDiagnostics", true)
-                ViewLayout.setArrangement(SessionMode.analyse, "tabs")
-                SessionMode.enterAnalyse()
+                ViewLayout.setPanel(app.state.analyseMode, "sessionDiagnostics", true)
+                ViewLayout.setArrangement(app.state.analyseMode, "tabs")
+                app.state.enterAnalyse()
             } else if (s === 4) {
                 const stages = []
                 walk(probe.Window.window.contentItem, it => it.arrangement !== undefined && it.tabIndex !== undefined, stages)
@@ -382,10 +382,10 @@ Item {
                 vr.shotActivated(run[target].swingDir, run[target].shotId)
             } else if (s === 15) {
                 const name = probe._wantDir.substring(probe._wantDir.lastIndexOf("/") + 1)
-                probe.check(SessionMode.focusedSwingDir.endsWith(name),
+                probe.check(app.state.selection.swingDir.endsWith(name),
                             "the tap moved the carousel's selection to " + name
-                            + " (" + SessionMode.focusedSwingDir.substring(SessionMode.focusedSwingDir.lastIndexOf("/") + 1) + ")")
-                probe.check(SessionMode.mode === SessionMode.analyse, "…and stayed in Analyse")
+                            + " (" + app.state.selection.swingDir.substring(app.state.selection.swingDir.lastIndexOf("/") + 1) + ")")
+                probe.check(app.state.mode === app.state.analyseMode, "…and stayed in Analyse")
                 const sp = probe.model.spreadOf(probe.condition)
                 const cur = sp.dots.filter(d => d.current)
                 probe.check(cur.length === 1 && cur[0].index === 4, "…and the ringed dot followed it to shot 5")
@@ -426,7 +426,7 @@ Item {
             // in Analyse it keeps Analyse — enterReplay() would switch the stage and rebuild the
             // panel, model and all. This probe is in Analyse (set up above), so that is the branch taken.
             if (o.ordinal === n) {
-                SessionMode.pickShot(o.shotId, o.swingDir)
+                app.state.pickShot(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 return
             }
         }

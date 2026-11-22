@@ -477,7 +477,7 @@ Item {
                             if (!tf.presenter || !PpChSeek.available()) return
                             PpChSeek.to(tf.presenter.seekUsForShotMs(plot.tOf(Math.max(0, Math.min(width, px)))))
                         }
-                        onPressed: (e) => { if (!tf.seekable) return; if (typeof shotReplay !== "undefined") shotReplay.beginScrub(); seekTo(e.x) }
+                        onPressed: (e) => { if (!tf.seekable) return; if ((typeof app !== "undefined" && !!app)) app.state.replay.beginScrub(); seekTo(e.x) }
                         function hoverHere(px) { tf.hoverArea = seekArea; tf.hoverAtMs(plot.tOf(px)) }
                         // the pointer arriving with no move of its own (a row laid out under a still pointer) reads too
                         onEntered: if (tf.showCursor && !pressed) hoverHere(mouseX)
@@ -485,8 +485,8 @@ Item {
                             if (pressed && tf.seekable) { seekTo(e.x); return }
                             if (tf.showCursor) hoverHere(e.x)
                         }
-                        onReleased: if (tf.seekable && typeof shotReplay !== "undefined") shotReplay.endScrub()
-                        onCanceled: if (tf.seekable && typeof shotReplay !== "undefined") shotReplay.endScrub()
+                        onReleased: if (tf.seekable && (typeof app !== "undefined" && !!app)) app.state.replay.endScrub()
+                        onCanceled: if (tf.seekable && (typeof app !== "undefined" && !!app)) app.state.replay.endScrub()
                         onExited: if (tf.demoHoverMs === undefined && tf.hoverArea === seekArea) { tf.hover = null; tf.hoverArea = null }
                     }
                 }

@@ -90,22 +90,22 @@ Item {
             const root = probe.Window.window.contentItem
             if (probe.step === 1) {
                 navController.navigate(AppScreen.Session)
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (probe.step === 2) {
                 let found = false
                 for (let i = 0; i < shots.count; ++i) {
                     const s = shots.objectAt(i)
-                    if (s.ordinal === probe.ordinal) { SessionMode.enterReplay(s.shotId, s.swingDir); found = true }
+                    if (s.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir); found = true }
                 }
                 probe.log("shot " + probe.ordinal + (found ? " picked" : " NOT in the carousel"))
                 if (!found) Qt.exit(1)
             } else if (probe.step === 3) {
                 const mode = probe.arg("--probe-mode", "analyse")
-                if (mode === "analyse") SessionMode.enterAnalyse()
-                else if (mode === "glance") SessionMode.autoReturnToCapture = true   // the auto-replay after a shot
+                if (mode === "analyse") app.state.enterAnalyse()
+                else if (mode === "glance") app.state.enterReplay(app.state.selection.shotRef, app.state.selection.swingDir, true)   // the auto-replay after a shot
                 // camera beside Charts, nothing else (the probe's config is a copy: this changes no real layout)
-                const m = mode === "analyse" ? SessionMode.analyse : SessionMode.replay
+                const m = mode === "analyse" ? app.state.analyseMode : app.state.replayMode
                 const beside = probe.arg("--probe-panels", "camera").split(",")
                 for (const k of ["camera", "swing3d", "launchMonitor", "sessionDiagnostics", "table", "markup"])
                     ViewLayout.setPanel(m, k, beside.indexOf(k) >= 0 && !probe.trustPanel)
@@ -117,7 +117,7 @@ Item {
                 probe.walk(root, "chBody", bodies)
                 probe.body = bodies.filter(b => probe.shown(b, root))[0] || bodies[0] || null
                 if (!probe.body) { probe.log("no Charts body"); Qt.exit(1); return }
-                probe.log("mode " + SessionMode.mode + " register " + probe.body.register)
+                probe.log("mode " + app.state.mode + " register " + probe.body.register)
                 probe.log("window on first display: '" + probe.body.window + "'")
                 probe.body.customStartUs = 0; probe.body.customEndUs = 376000; probe.body.window = "custom"
                 probe.body.choose("preset", probe.arg("--probe-preset", "Kinematic sequence"))   // a chart change: must reset the window

@@ -37,10 +37,7 @@ Item {
     property bool framed: true
 
     readonly property bool _screenActive: root.sessionType < 0 || SessionMode.sessionScreenActive
-    readonly property string sessionDir:
-        (sessionReviewController.reviewActive && sessionReviewController.activeSessionId !== "")
-            ? sessionReviewController.activeSessionId
-            : shotProcessor.activeSessionDir !== "" ? shotProcessor.activeSessionDir : sessionReviewController.liveSessionDir
+    readonly property string sessionDir: app.state.sessionOnScreenFolder
     function _pointAtSession() { if (!SessionMode.sameFolder(sessionDir, seriesModel.sessionDir)) seriesModel.activateSession(sessionDir) }
     onSessionDirChanged: _pointAtSession()
     Component.onCompleted: { _pointAtSession(); _syncPick() }
@@ -48,17 +45,17 @@ Item {
     SessionSeriesModel { id: seriesModel }
 
     property string _swingDir: ""
-    // The picked shot's detail as an OPAQUE ref (shotReplay.analysisDetailRef, qml_map_ref.h): passed on to the
+    // The picked shot's detail as an OPAQUE ref (app.state.replay.analysisDetailRef, qml_map_ref.h): passed on to the
     // presenters, never looked inside here. The JS detail written to their QVariantMap property was copied back
     // whole on every shot change — 1–2 s on entering Analyse (#173).
     property var _detailRef: ({})
     function _syncPick() {
         if (!_screenActive) return
-        _swingDir = shotReplay.active ? shotReplay.swingDir : ""
-        _detailRef = shotReplay.active ? shotReplay.analysisDetailRef : ({})
+        _swingDir = app.state.replay.active ? app.state.replay.swingDir : ""
+        _detailRef = app.state.replay.active ? app.state.replay.analysisDetailRef : ({})
     }
     on_ScreenActiveChanged: _syncPick()
-    Connections { target: shotReplay; function onActiveChanged() { root._syncPick() } }
+    Connections { target: app.state.replay; function onActiveChanged() { root._syncPick() } }
 
     TrustPresenter {
         id: presenter

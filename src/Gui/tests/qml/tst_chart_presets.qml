@@ -115,12 +115,12 @@ Item {
         function traceKeys() { return shownAll(/^chTrace:/).map(function (t) { return t.objectName.slice(8) }).sort().join(",") }
         function useMode(m) {
             // "Replay" is the glance at the mat: the auto-replay after a shot (a Replay opened to review reads Analyse)
-            SessionMode.autoReturnToCapture = m === "Replay"
-            SessionMode.mode = m === "Analyse" ? SessionMode.analyse : SessionMode.replay
+            app.state.autoReturnToCapture = m === "Replay"
+            app.state.mode = m === "Analyse" ? app.state.analyseMode : app.state.replayMode
             settle()
             compare(hn.body.register, m)
         }
-        function base() { return hn.sessionType + ":" + SessionMode.mode + ":" }
+        function base() { return hn.sessionType + ":" + app.state.mode + ":" }
         function fresh(opts, ordinal, detail) {
             hn.build()
             hn.feed(opts || {})
@@ -147,7 +147,7 @@ Item {
         function init() {
             Theme.themeIndex = 12
             Theme.fontScale = 1.0
-            SessionMode.mode = SessionMode.analyse
+            app.state.mode = app.state.analyseMode
             SessionMode.chartsNav = null
             appSettings.chartPrefs = ({})
             appSettings.sectionCollapse = ({})
@@ -161,7 +161,7 @@ Item {
             wait(0)
         }
         function cleanupTestCase() {
-            SessionMode.mode = SessionMode.capture
+            app.state.mode = app.state.captureMode
             appSettings.chartPrefs = was.chartPrefs
             appSettings.sectionCollapse = was.sectionCollapse
             Theme.themeIndex = was.themeIndex
@@ -318,12 +318,12 @@ Item {
         function test_013b_the_preset_can_be_changed_with_controls_folded_in_every_register() {
             if (hn.body.collapsed.controls !== true) press(oneShown("chFold:controls"))
             compare(hn.body.collapsed.controls, true)
-            const modes = [{ mode: SessionMode.analyse, auto: false, reg: "Analyse", why: "Analyse" },
-                           { mode: SessionMode.replay, auto: false, reg: "Analyse", why: "a Replay opened to review" },
-                           { mode: SessionMode.replay, auto: true, reg: "Replay", why: "the auto-replay after a shot" }]
+            const modes = [{ mode: app.state.analyseMode, auto: false, reg: "Analyse", why: "Analyse" },
+                           { mode: app.state.replayMode, auto: false, reg: "Analyse", why: "a Replay opened to review" },
+                           { mode: app.state.replayMode, auto: true, reg: "Replay", why: "the auto-replay after a shot" }]
             for (const m of modes) {
-                SessionMode.autoReturnToCapture = m.auto
-                SessionMode.mode = m.mode
+                app.state.autoReturnToCapture = m.auto
+                app.state.mode = m.mode
                 settle()
                 compare(hn.body.register, m.reg, m.why + " reads " + m.reg)
                 const before = hn.body.tChoices.preset

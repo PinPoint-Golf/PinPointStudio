@@ -17,7 +17,7 @@
  */
 
 // Centre-stage arranger. Shows the enabled, host-wired stage panels (camera/charts/
-// table and kin) packed per ViewLayout.arrangementFor(SessionMode.mode): tabs | split |
+// table and kin) packed per ViewLayout.arrangementFor(app.state.mode): tabs | split |
 // stage. A panel a screen does not provide a delegate for is omitted (see `active`).
 //
 // Each arrangement's Loaders are gated on the active `arrangement` (not just the
@@ -53,7 +53,7 @@ Item {
     property Component swing3dDelegate:     null
 
     // Layout resolves on the active session MODE, not the session type.
-    readonly property string arrangement: ViewLayout.arrangementFor(SessionMode.mode)
+    readonly property string arrangement: ViewLayout.arrangementFor(app.state.mode)
 
     // ⚠ THE ORDER IS THE PRIORITY: camera leads, session diagnostics follows it.
     //
@@ -99,7 +99,7 @@ Item {
     // delegate for (e.g. "markup" on a screen that never wires it) is simply omitted rather
     // than shown as an empty placeholder.
     readonly property var active: _defs.filter(function(d) {
-        return ViewLayout.isPanelOn(SessionMode.mode, d.key) && d.comp !== null
+        return ViewLayout.isPanelOn(app.state.mode, d.key) && d.comp !== null
     })
 
     property int tabIndex: 0
@@ -171,7 +171,7 @@ Item {
     readonly property real _stageMainDefault: 0.62 / 0.92
 
     // The stored sizes for this mode (one read per change: the map is a deep copy).
-    readonly property var _sizes: ViewLayout.sizesFor(SessionMode.mode)
+    readonly property var _sizes: ViewLayout.sizesFor(app.state.mode)
     property var  _dragSplit: null   // { key: px } while a split separator is held
     property real _dragMain:  -1     // the dominant card's width in px while its separator is held
     property var  _dragSide:  null   // { key: px } while a side separator is held
@@ -241,7 +241,7 @@ Item {
 
     function _resetSizes(arr) {
         stage._dragSplit = null; stage._dragMain = -1; stage._dragSide = null
-        ViewLayout.setSizes(SessionMode.mode, arr, null)
+        ViewLayout.setSizes(app.state.mode, arr, null)
     }
 
     // An invisible separator: the split cursor on hover and while held, nothing drawn. `vertical`
@@ -319,7 +319,7 @@ Item {
                 onEnd: {
                     if (!stage._dragSplit) return
                     const px = splitBox.keys.map(function (k) { return stage._dragSplit[k] })
-                    ViewLayout.setSizes(SessionMode.mode, "split",
+                    ViewLayout.setSizes(app.state.mode, "split",
                                         stage._normalised(splitBox.keys, px, stage._sizes.split))
                     stage._dragSplit = null
                 }
@@ -411,7 +411,7 @@ Item {
                         const old = stage._sizes.stage || {}
                         const out = { side: stage._normalised(stageBox.sideKeys, px, old.side) }
                         if (old.main !== undefined) out.main = old.main
-                        ViewLayout.setSizes(SessionMode.mode, "stage", out)
+                        ViewLayout.setSizes(app.state.mode, "stage", out)
                         stage._dragSide = null
                     }
                     onReset: stage._resetSizes("stage")
@@ -433,7 +433,7 @@ Item {
                 const old = stage._sizes.stage || {}
                 const out = { main: Math.round(stage._dragMain / Math.max(1, stageBox.avail) * 1e4) / 1e4 }
                 if (old.side !== undefined) out.side = old.side
-                ViewLayout.setSizes(SessionMode.mode, "stage", out)
+                ViewLayout.setSizes(app.state.mode, "stage", out)
                 stage._dragMain = -1
             }
             onReset: stage._resetSizes("stage")

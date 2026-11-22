@@ -580,6 +580,7 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     m->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);
     m->setGradePolicy(gradePolicyName());
     m->setSelectedSwingDir(QString());
+    m->setSelectedShot(QString());
     m->closeDetail();
     // The adapter does its view work only while a view is bound (3.7-a, review M2): the report is one for the job's
     // length, so the owner's diagnosis that lands while it waits is taken in.
@@ -600,6 +601,7 @@ void SessionReportModel::letModelGo()
     if (!m) return;
     m->closeDetail();
     m->setSelectedSwingDir(QString());
+    m->setSelectedShot(QString());
     if (m->isAdapter()) {
         // The report's adapter is the Session's child, made for this make: let go of it, and with it its use of the
         // Session (Q-18; CARRY 3.5-i §6: every holder addUse()s while it holds — the report for the job's length).

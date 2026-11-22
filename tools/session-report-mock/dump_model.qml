@@ -20,17 +20,17 @@ Item {
             const seen = new Set()
             function mute(o) { if (!o || seen.has(o)) return; seen.add(o); if (String(o).indexOf("TingPlayer") === 0) { o.volume = 0; o.frequency = 1 } const ds = o.data || []; for (let i = 0; i < ds.length; ++i) mute(ds[i]) }
             mute(probe.Window.window.contentItem)
-            for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup", "trust"]) ViewLayout.setPanel(SessionMode.analyse, k, false)
-            ViewLayout.setPanel(SessionMode.analyse, "sessionDiagnostics", true)
-            ViewLayout.setArrangement(SessionMode.analyse, "tabs")
+            for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup", "trust"]) ViewLayout.setPanel(app.state.analyseMode, k, false)
+            ViewLayout.setPanel(app.state.analyseMode, "sessionDiagnostics", true)
+            ViewLayout.setArrangement(app.state.analyseMode, "tabs")
             navController.navigate(AppScreen.Session)
-            SessionMode.enterCapture()
+            app.state.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             probe.after(5000, () => {
                 const o = shots.objectAt(0)
-                SessionMode.enterReplay(o.shotId, o.swingDir)
+                app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 probe.after(3000, () => {
-                    SessionMode.enterAnalyse()
+                    app.state.enterAnalyse()
                     probe.after(6000, () => {
                         const bs = []; probe.walk(probe.Window.window.contentItem, "sdBody", bs)
                         if (!bs.length) { probe.log("no sdBody"); Qt.exit(1); return }

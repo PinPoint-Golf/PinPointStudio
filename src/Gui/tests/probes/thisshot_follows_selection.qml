@@ -92,7 +92,7 @@ Item {
             if (probe.step === 1) {
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
                 navController.navigate(AppScreen.Session)                 // the session screen
-                SessionMode.enterCapture()
+                app.state.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (probe.step === 2) {
                 probe.check(sessionReviewController.reviewActive, "the session loaded for review")
@@ -100,12 +100,12 @@ Item {
                     const s = shots.objectAt(i)
                     if (s.ordinal === probe.ordinal) {
                         probe.pickedDir = s.swingDir
-                        SessionMode.enterReplay(s.shotId, s.swingDir)   // the carousel's click path
+                        app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)   // the carousel's click path
                     }
                 }
                 probe.check(probe.pickedDir !== "", "shot " + probe.ordinal + " is in the carousel")
             } else if (probe.step === 3) {
-                SessionMode.enterAnalyse()
+                app.state.enterAnalyse()
             } else if (probe.step === 4) {
                 const bodies = []
                 probe.walk(probe.Window.window.contentItem, "sdBody", bodies)

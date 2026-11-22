@@ -75,6 +75,6 @@ QtObject {
     // ── Lifecycle: wipe everything when the focused swing changes ─────────────
     // Fires on both a new swing and a deselect (focusedSwingDir → ""). Layers
     // reload from the now-empty store via cleared().
-    property string _focusedSwing: SessionMode.focusedSwingDir
+    property string _focusedSwing: app.state.selection.swingDir
     on_FocusedSwingChanged: clearAll()
 }

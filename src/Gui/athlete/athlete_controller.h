@@ -33,6 +33,15 @@
 
 namespace pinpoint { class SessionRepository; }
 
+// One choice the athlete form's sex picker offers: the stored token and its words (sexOptions).
+struct SexOption {
+    Q_GADGET
+    Q_PROPERTY(QString value MEMBER value)
+    Q_PROPERTY(QString label MEMBER label)
+public:
+    QString value, label;
+};
+
 // AthleteController — THE QML ADAPTER OVER THE CURRENT ATHLETE (refactor step 2.3; brief §4.5). The
 // record lives on a pinpoint::Athlete, read and written through pinpoint::AthleteRepository (the one
 // writer, IM-S2-4); this class keeps today's QML surface — the same 14 properties and invokables — and
@@ -84,7 +93,6 @@ class AthleteController : public QObject
     Q_PROPERTY(bool         currentPhotosApproved   READ currentPhotosApproved   NOTIFY athletesChanged)
     Q_PROPERTY(QString      currentPhotosApprovedOn READ currentPhotosApprovedOn NOTIFY athletesChanged)
     Q_PROPERTY(QVariantList athletes          READ athletes          NOTIFY athletesChanged)
-    Q_PROPERTY(QVariantList recentSessions   READ recentSessions    NOTIFY athletesChanged)
 
 public:
     explicit AthleteController(QObject *parent = nullptr);
@@ -141,28 +149,23 @@ public:
     // Standing height in metres, 0 = unknown. Stored in feet whatever unit the form used.
     double       currentHeightM()    const { return currentField(QStringLiteral("heightValue")).toDouble() * 0.3048; }
     QVariantList athletes()          const { return m_athletes; }
-    QVariantList recentSessions()    const { return {}; }
     QString      currentReportEmail()      const { return currentField(QStringLiteral("reportEmail")); }
     QString      currentReportGreeting()   const;
     bool         currentIsJunior()         const;
     bool         currentPhotosApproved()   const { return currentField(QStringLiteral("reportPhotosApproved")) == QLatin1String("true"); }
     QString      currentPhotosApprovedOn() const { return currentField(QStringLiteral("reportPhotosApprovedOn")); }
 
-    // ── No athlete switch while a session runs (SWE audit E-01, Stage 0.8g) ──────────────────
-    // A running session's swings are saved under the CURRENT athlete's folder and analysed with
-    // their handedness, height and clubs, so the current athlete must not change until the
-    // session ends. The rule lives HERE, not only in the picker's QML (which greys Select and
-    // Delete and says "A session is running for … End it to switch or delete a golfer."):
-    // while the check answers true,
+    // ── No athlete switch while a session runs (R-APP-1: the AppState rule, which replaced Stage 0.8g's check) ──
+    // A running session's swings are saved under the CURRENT athlete's folder and analysed with their handedness,
+    // height and clubs, so the current athlete must not change until it ends. AppState::mayChangeAthlete answers;
+    // while it answers false,
     //   selectAthlete(another)   is refused — returns false, logs why (ppInfo), changes nothing;
     //   deleteAthlete(current)   is refused the same way (another athlete may still be deleted);
     //   clearCurrentAthlete()    is refused the same way;
     //   saveAthlete("", …)       still CREATES the athlete, but does not make it current.
-    // Editing a record (saveAthlete with a uuid, updateAthlete, the club records) is not a switch
-    // and is always allowed. main.cpp hands in SessionController::running; unset (the tests'
-    // default) means no session is ever running.
-    void setSessionRunningCheck(std::function<bool()> running) { m_sessionRunning = std::move(running); }
-    bool sessionRunning() const { return m_sessionRunning && m_sessionRunning(); }
+    // Editing a record is not a switch and is always allowed. Unset (the tests' default): never locked.
+    void setAppState(const pinpoint::AppState *state) { m_appState = state; }
+    bool sessionRunning() const { return m_appState && !m_appState->mayChangeAthlete(); }
 
     // Upsert: empty uuid creates a new athlete (returns its new uuid); a non-empty,
     // existing uuid updates in place (returns that uuid). Returns "" on failure
@@ -207,15 +210,8 @@ public:
     // the corridor that describes everyone. Never NotMeasured — "we don't know your age" and "we
     // could not assess this" are different statements.
     //
-    // The COHORT for this athlete on a given day, spelled as the norm set spells it
-    // ({ sex, age }, each key present only when known). `onIsoDate` is the SWING's date, and passing
-    // it is the whole point: an athlete ages across their own history, so a swing from four years
-    // ago must resolve the band they were in then. An empty date yields no age band at all rather
-    // than silently substituting today — a caller that does not know when the swing happened must
-    // not be answered as though it were now.
-    Q_INVOKABLE QVariantMap cohortFor(const QString &uuid, const QString &onIsoDate) const;
-
-    // The same answer in words — "women 55–64", or EMPTY when neither field is known — from raw
+    // The COHORT for this athlete on a given day (pinpoint::analysis::cohortFor, with the swing's own date:
+    // an athlete ages across their own history), in words — "women 55–64", or EMPTY when neither field is known — from raw
     // values rather than from a saved record, so the form can show it while it is being typed.
     //
     // The form is where these two fields are otherwise abstract: a date and a word, with no visible
@@ -226,7 +222,7 @@ public:
                                        const QString &onIsoDate) const;
 
     // The stable tokens the form's picker offers, so QML never spells them itself.
-    Q_INVOKABLE QVariantList sexOptions() const;
+    Q_INVOKABLE QList<SexOption> sexOptions() const;
 
     // Per-athlete club records (the record's bag, `clubs`: a
     // QVariantMap keyed by the canonical club-vocabulary name — the same id
@@ -303,7 +299,7 @@ public:
                                    const QVariantMap &record);
     Q_INVOKABLE bool removeClubRecord(const QString &uuid, const QString &clubId);
     // deleteAthlete / selectAthlete answer false when refused while a session runs (see
-    // setSessionRunningCheck above). deleteAthlete moves the athlete's WHOLE folder, sessions and all, to
+    // the AppState rule above). deleteAthlete moves the athlete's WHOLE folder, sessions and all, to
     // the recoverable trash (DEC-79), and is refused while one of its sessions is InProgress (DEC-99).
     // selectAthlete of the athlete already current is not a switch.
     Q_INVOKABLE bool deleteAthlete(const QString &uuid);
@@ -354,7 +350,7 @@ private:
     pinpoint::SessionRepository *m_sessions = nullptr;
     QList<pinpoint::AthleteId>   m_ids;     // the last list(), in its order
     QPointer<pinpoint::Athlete>  m_current;
-    std::function<bool()> m_sessionRunning;   // SessionController::running, from main.cpp
+    const pinpoint::AppState *m_appState = nullptr;   // the switch rule (R-APP-1), from main.cpp
     QHash<QString, pinpoint::AthleteActivity> m_activity;   // uuid → last read
     int  m_activityGeneration = 0;
     bool m_syncActivity = false;

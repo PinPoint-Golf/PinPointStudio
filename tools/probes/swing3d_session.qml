@@ -156,8 +156,8 @@ Item {
         if (phase === "review") {
             if (!sessionReviewController.reviewActive && step < 1100) return
             say("library session open: reviewActive=" + sessionReviewController.reviewActive
-                + " screen host sessionAvailable=" + (screenHost ? screenHost.sessionAvailable : "none") + " mode=" + SessionMode.mode)
-            SessionMode.enterCapture()
+                + " screen host sessionAvailable=" + (screenHost ? screenHost.sessionAvailable : "none") + " mode=" + app.state.mode)
+            app.state.enterCapture()
             say("back in Capture: reviewActive=" + sessionReviewController.reviewActive
                 + " screen host sessionAvailable=" + (screenHost ? screenHost.sessionAvailable : "none"))
             say("DONE")

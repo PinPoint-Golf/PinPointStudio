@@ -35,19 +35,19 @@ Item {
     implicitHeight: Theme.sp(40)
 
     function _fmt(us) { return (Math.max(0, us) / 1e6).toFixed(2) + "s" }
-    property string _posText: _fmt(shotReplay.positionUs - shotReplay.startUs)
-    property string _durText: _fmt(shotReplay.endUs - shotReplay.startUs)
+    property string _posText: _fmt(app.state.replay.positionUs - app.state.replay.startUs)
+    property string _durText: _fmt(app.state.replay.endUs - app.state.replay.startUs)
 
     RowLayout {
         id: bar
         anchors.centerIn: parent
         spacing: Theme.gap(4)
 
-        PpButton { style: "glyph"; size: "icon"; glyph: "⏮"; onClicked: shotReplay.seekToUs(shotReplay.startUs) }
-        PpButton { style: "glyph"; size: "icon"; glyph: "◂"; onClicked: shotReplay.stepFrame(-1) }
-        PpButton { style: "glyph"; size: "icon"; glyph: shotReplay.playing ? "⏸" : "▶"; active: true
-                   onClicked: shotReplay.togglePlay() }
-        PpButton { style: "glyph"; size: "icon"; glyph: "▸"; onClicked: shotReplay.stepFrame(1) }
+        PpButton { style: "glyph"; size: "icon"; glyph: "⏮"; onClicked: app.state.replay.seekToUs(app.state.replay.startUs) }
+        PpButton { style: "glyph"; size: "icon"; glyph: "◂"; onClicked: app.state.replay.stepFrame(-1) }
+        PpButton { style: "glyph"; size: "icon"; glyph: app.state.replay.playing ? "⏸" : "▶"; active: true
+                   onClicked: app.state.replay.togglePlay() }
+        PpButton { style: "glyph"; size: "icon"; glyph: "▸"; onClicked: app.state.replay.stepFrame(1) }
 
         // Playback speed (capture-time multiplier; 1× = real time) — honoured by
         // the running replay immediately.
@@ -59,10 +59,10 @@ Item {
             style:    "speed"
             options:  speeds.map(sp => ({ label: (sp >= 1 ? "1" : Number(sp).toString()) + "×", value: String(sp) }))
             selected: {
-                const near = speeds.filter(sp => Math.abs(shotReplay.speed - sp) < 0.01)
+                const near = speeds.filter(sp => Math.abs(app.state.replay.speed - sp) < 0.01)
                 return near.length > 0 ? String(near[0]) : ""
             }
-            onActivated: (value) => shotReplay.setSpeed(parseFloat(value))
+            onActivated: (value) => app.state.replay.setSpeed(parseFloat(value))
         }
 
         // Position / duration. Sized to the duration's text in both halves, so the readout (and

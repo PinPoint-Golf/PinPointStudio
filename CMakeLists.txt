@@ -774,7 +774,6 @@ qt_add_executable(PinPointStudio
     src/Gui/shot/shot_processor.h           src/Gui/shot/shot_processor.cpp
     src/Gui/shot/capture_context.h          src/Gui/shot/capture_context.cpp
     src/Gui/shot/shot_replay_controller.h   src/Gui/shot/shot_replay_controller.cpp
-    src/Gui/shot/current_swing.h
     src/Gui/shot/reanalysis_controller.h    src/Gui/shot/reanalysis_controller.cpp
     src/Gui/markup/markup_truth.h           src/Gui/markup/markup_truth.cpp
     src/Gui/markup/markup_controller.h      src/Gui/markup/markup_controller.cpp
@@ -2987,6 +2986,8 @@ target_sources(PinPointStudio PRIVATE
     src/Gui/diagnostics/session_diagnostics_adapter.cpp
     src/App/app.h
     src/App/app.cpp
+    src/App/app_state.h
+    src/App/app_state.cpp
     src/Analysis/effective_context.h
     src/Analysis/effective_context.cpp
     src/Analysis/reuse_gate.h

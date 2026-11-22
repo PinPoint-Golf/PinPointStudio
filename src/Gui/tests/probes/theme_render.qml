@@ -81,7 +81,7 @@ Item {
         else if (name === "system") { navController.navigate(AppScreen.System); after(1200, then) }
         else if (name === "wrist" || name === "wristreplay") {
             navController.navigate(AppScreen.Session)
-            if (name === "wrist") SessionMode.enterAnalyse()
+            if (name === "wrist") app.state.enterAnalyse()
             after(3500, then)
         } else { probe.log("unknown screen " + name); then() }
     }
@@ -101,12 +101,12 @@ Item {
             const needSession = probe.screens.some(s => s.startsWith("wrist"))
             if (!needSession) { probe.next(); return }
             navController.navigate(AppScreen.Session)
-            SessionMode.enterCapture()
+            app.state.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) SessionMode.enterReplay(o.shotId, o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
                 probe.after(4000, () => probe.next())
             })

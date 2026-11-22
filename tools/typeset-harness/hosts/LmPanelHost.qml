@@ -50,7 +50,7 @@ Item {
         // club3_WOOD, club4_HYBRID, clubSAND_WEDGE; clubreset restores its default. It is SAVED with the slot's copy.
         for (const t of toks) {
             const m = t.match(/^club(.+)$/)
-            if (m) b.clubRequested(SessionMode.focusedShotId, m[1] === "reset" ? "" : m[1].replace(/_/g, " "))
+            if (m) b.clubRequested(sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir), m[1] === "reset" ? "" : m[1].replace(/_/g, " "))
         }
         Qt.callLater(() => pinStep(toks, 0))
     }

@@ -32,8 +32,11 @@
 //                       the Session's own Shot (P10); and (3.4b-ii) how the carousel's rows read a held shot's
 //                       summary and trash it, and how re-analysis reads and writes it back. C++ only; no QML calls it
 //
-// Step 4 grows it (app.session, app.athlete, app.state: R-QML-1); nothing is re-pointed twice. It includes no
-// repository (P11): the current athlete comes from the composition root as a function.
+//   state               (refactor step 4-a) the AppState (app_state.h): the current athlete, the capture target, the
+//                       session on screen, the mode, the selections and the replay. app.athlete and app.session are
+//                       shorthand for state.currentAthlete and state.sessionOnScreen (R-QML-1; DEC-63)
+//
+// It includes no repository (P11): the current athlete comes from the composition root as a function.
 //
 // THE COMPOSITION ROOT'S CALLABLES (D18 (c); DEC-167) are declared here, beside it, for the application
 // services and AthleteController that take them (AthleteController from run 3.4a-ii; steps 3.6, 3.8): functions over the
@@ -43,6 +46,7 @@
 #include "../DomainModel/athlete.h"   // Athlete, AthleteRecord, WriteResult
 #include "../DomainModel/session.h"   // Session (sessionAt's type, whole for moc)
 #include "../Identity/identity.h"
+#include "app_state.h"
 #include "shot_command_door.h"
 
 #include <QList>
@@ -70,9 +74,16 @@ struct AthleteCallables {
 class App : public QObject, public ShotCommandDoor
 {
     Q_OBJECT
+    Q_PROPERTY(pinpoint::AppState *state   READ state   CONSTANT)
+    Q_PROPERTY(pinpoint::Athlete  *athlete READ athlete NOTIFY athleteChanged)
+    Q_PROPERTY(pinpoint::Session  *session READ session NOTIFY sessionChanged)
 public:
-    // `currentAthlete`: the athlete the app is on (today AthleteController's; step 4's app.athlete).
+    // `currentAthlete`: the athlete the app is on (AthleteController's; app.athlete).
     explicit App(std::function<Athlete *()> currentAthlete, QObject *parent = nullptr);
+
+    AppState *state() { return &m_state; }
+    Athlete  *athlete() const { return m_state.currentAthlete(); }
+    Session  *session() const { return m_state.sessionOnScreen(); }
 
     Q_INVOKABLE pinpoint::Session *sessionAt(const QString &folder) const;
 
@@ -107,8 +118,13 @@ public:
     ForwardResult applyAnalysis(const QString &sessionFolder, const ShotRef &shot, const AnalysisOutcome &outcome,
                                 const PersistOptions &options) override;
 
+signals:
+    void athleteChanged();
+    void sessionChanged();
+
 private:
     std::function<Athlete *()> m_currentAthlete;
+    AppState                   m_state;
 
     // The Session's own Shot for `shot`, through the Session at `sessionFolder` (P10). Null: not held (N1).
     Shot *shotAt(const QString &sessionFolder, const ShotRef &shot) const;

@@ -17,7 +17,7 @@
  */
 
 // No athlete switch while a session runs, and an edit is not a switch (SWE audit E-01 / E-03,
-// Stage 0.8g; refactor step 2.3). The contract is athlete_controller.h (setSessionRunningCheck, and
+// Stage 0.8g; refactor step 2.3; the rule is AppState's since step 4-a). The contract is athlete_controller.h (setAppState, and
 // currentAthleteChanged on a SWITCH only):
 //
 //   G — while the session check answers true, selectAthlete(another) and deleteAthlete(current)
@@ -77,7 +77,11 @@ private slots:
         AthleteTestLibrary lib;
         AthleteController &a = lib.makeController();
         bool running = false;
-        a.setSessionRunningCheck([&running] { return running; });
+        pinpoint::AppState state;
+        pinpoint::AppStateDoors doors;
+        doors.sessionRunning = [&running] { return running; };
+        state.setDoors(doors);
+        a.setAppState(&state);
 
         const QString nick = a.saveAthlete(QString(), QStringLiteral("Nick Henn"));
         QVERIFY(!nick.isEmpty());
@@ -90,7 +94,7 @@ private slots:
         QVERIFY(a.currentUuid().isEmpty());
         QVERIFY(!listed(a, nick));
 
-        AthleteController unset;                                  // G4 no check given = never running
+        AthleteController unset;                                  // G4 no AppState given = never running
         unset.setSynchronousActivity(true);
         unset.setCallables(callablesOver(*lib.athletes), &lib.sessions);
         QVERIFY(!unset.sessionRunning());
@@ -104,7 +108,11 @@ private slots:
         AthleteTestLibrary lib;
         AthleteController &a = lib.makeController();
         bool running = false;
-        a.setSessionRunningCheck([&running] { return running; });
+        pinpoint::AppState state;
+        pinpoint::AppStateDoors doors;
+        doors.sessionRunning = [&running] { return running; };
+        state.setDoors(doors);
+        a.setAppState(&state);
         const QString nick  = a.saveAthlete(QString(), QStringLiteral("Nick Henn"));
         const QString chris = a.saveAthlete(QString(), QStringLiteral("Chris Marriott"));
         QVERIFY(a.selectAthlete(nick));

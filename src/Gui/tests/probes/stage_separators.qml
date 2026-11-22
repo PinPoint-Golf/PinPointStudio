@@ -29,7 +29,7 @@ Item {
     readonly property int ordinal: 8
     readonly property var allKeys: ["sessionDiagnostics", "camera", "swing3d", "launchMonitor", "charts", "table", "markup"]
     readonly property var onKeys: ["charts", "table", "markup"]
-    readonly property int mode: SessionMode.analyse
+    readonly property int mode: app.state.analyseMode
     property int fails: 0
     property int writes: 0
 
@@ -330,17 +330,17 @@ Item {
             Qt.createQmlObject('import QtQuick; import PinPointStudio; Rectangle { z: -1000; anchors.fill: parent; color: Theme.colorBg }', probe.root())
             // nothing heavy on while the session loads
             for (const k of probe.allKeys) ViewLayout.setPanel(probe.mode, k, k === "charts")
-            ViewLayout.setPanel(SessionMode.replay, "sessionDiagnostics", false)
+            ViewLayout.setPanel(app.state.replayMode, "sessionDiagnostics", false)
             navController.navigate(AppScreen.Session)
-            SessionMode.enterCapture()
+            app.state.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) SessionMode.enterReplay(o.shotId, o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
                 probe.after(3000, () => {
-                    SessionMode.enterAnalyse()
+                    app.state.enterAnalyse()
                     probe.after(3000, () => {
                         if (probe.step === "render") renders("rest", finish)
                         else if (probe.step === "drag") renders("rest", dragStep)

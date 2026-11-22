@@ -1,7 +1,7 @@
 # The athlete through its one door (refactor step 2.3; build/refactor/step-2/BRIEF.md §4.5, §6 row 2.3).
 #
 # athlete_session_guard_test — no athlete switch while a session runs (SWE audit E-01, Stage 0.8g):
-# AthleteController's session check (selectAthlete / deleteAthlete / clearCurrentAthlete refused, a new
+# AthleteController's session check, the AppState rule since step 4-a (selectAthlete / deleteAthlete / clearCurrentAthlete refused, a new
 # athlete saved but not selected), and a record edit is not a switch (E-03, Stage 0.7): currentAthleteChanged
 # fires on a switch only, so the listeners that reload on it need no gate (AthleteSwitchGate is gone).
 #
@@ -16,6 +16,7 @@
 # cohortFor().
 set(ATHLETE_TEST_SOURCES
     ${GUI}/athlete/athlete_controller.cpp
+    ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp   # the switch rule (R-APP-1; step 4-a)
     ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
     ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp   # the Athlete's sessions (step 3.4a)
     ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp

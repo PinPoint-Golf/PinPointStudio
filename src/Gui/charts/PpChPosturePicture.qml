@@ -31,6 +31,6 @@ import PinPointStudio
 PpChPictureStrip {
     prefix: "chPosture"
     title: "Address, the top and impact"
-    sets: ViewLayout.coachLinesOn(SessionMode.mode) ? ViewLayout.coachSetsFor(SessionMode.mode)
+    sets: ViewLayout.coachLinesOn(app.state.mode) ? ViewLayout.coachSetsFor(app.state.mode)
                                                     : (on && picture.defaultSets ? picture.defaultSets : ({}))
 }

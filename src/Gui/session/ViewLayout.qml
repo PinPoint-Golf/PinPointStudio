@@ -102,9 +102,9 @@ QtObject {
     // mode → sensible default layout (used until the user edits a mode's layout).
     function defaultLayout(mode) {
         switch (mode) {
-            case SessionMode.replay:
+            case app.state.replayMode:
                 return { panels: ["camera", "charts", "timeline", "carousel"], arrangement: "split", motion: _defaultMotion(mode) }
-            case SessionMode.analyse:
+            case app.state.analyseMode:
                 // Analyse plays the loaded shot's video (same disk source as Replay)
                 // alongside the deeper-analysis panels — camera included so playback
                 // follows the Replay↔Analyse toggle.
@@ -265,7 +265,7 @@ QtObject {
     // stored state.
     function motionFor(mode) {
         var mo = _rawMotion(mode)
-        if (mode !== SessionMode.capture) return mo
+        if (mode !== app.state.captureMode) return mo
 
         var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands", "plane", "synth"]
         var modes = {}
@@ -310,7 +310,7 @@ QtObject {
 
     // { posture, plane, headHips } for a mode — all false in Capture.
     function coachSetsFor(mode) {
-        if (mode === SessionMode.capture) return { posture: false, plane: false, headHips: false }
+        if (mode === app.state.captureMode) return { posture: false, plane: false, headHips: false }
         return _coachSetsOf(_layout(mode))
     }
 
@@ -483,7 +483,7 @@ QtObject {
     }
 
     function _modeDefaultPresetId(mode) {
-        return (mode === SessionMode.capture) ? "ballOnly" : "clean"
+        return (mode === app.state.captureMode) ? "ballOnly" : "clean"
     }
 
     function _presetById(id) {
