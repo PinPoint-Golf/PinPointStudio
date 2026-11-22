@@ -18,7 +18,7 @@
 
 // The Charts panel's traces presenter (src/Gui/charts/charts_traces_presenter.h) on the trimmed 4 July
 // fixture (synchronous: every job inline) and, when /mnt/swingdata is mounted, on the real scratch
-// 4 July session and the 50-shot 7 Oct session through SessionSeriesModel (read-only) — where the
+// 4 July session and the 50-shot 7 Oct session through FolderSeries (read-only) — where the
 // budgets of build/charts-build/STEP2A.md are MEASURED and reported, not asserted.
 
 #include "charts_maths_fixture.h"
@@ -27,7 +27,7 @@
 #include "charts/charts_traces_presenter.h"
 #include "charts/charts_words.h"
 #include "charts/session_sequence.h"
-#include "charts/session_series_model.h"
+#include "folder_series.h"   // the old loader, a test double (5.5a)
 #include "charts/session_warp.h"
 #include "charts/variability_env.h"
 #include "Metrics/metric_catalogue.h"
@@ -1591,7 +1591,7 @@ private slots:
         for (const QString &state : QDir(root).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
             const QStringList ses = QDir(root + state).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
             if (ses.isEmpty()) continue;
-            SessionSeriesModel model;
+            FolderSeries model;
             model.setSynchronous(true);
             model.activateSession(root + state + QLatin1Char('/') + ses.first());
             const auto snap = model.snapshot();
@@ -1646,7 +1646,7 @@ private slots:
         int measured = 0;
         for (const QString &dir : dirs) {
             if (!QFileInfo(dir).isDir()) continue;
-            SessionSeriesModel model;
+            FolderSeries model;
             model.setSynchronous(true);
             model.activateSession(dir);
             const auto snap = model.snapshot();

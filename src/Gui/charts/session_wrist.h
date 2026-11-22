@@ -22,7 +22,7 @@
 //
 // THE PROFILE IS THE FINDINGS' (refactor step 3.8-ii; DEC-123, J-58): fireFindings() runs the wrist engine over the
 // shot's wrist series (Wrist/wrist_profile_assess.h, the one rule) and the shot's row keeps the result
-// (ShotDiagnostics::wrist, diagnostics.json schema 16): the Δ from address at each checkpoint, and each cell's band and
+// (ChartShotFindings::wrist, diagnostics.json schema 16): the Δ from address at each checkpoint, and each cell's band and
 // RAG under each style with the style Auto resolved. This file GRADES NOTHING: it lays that profile out as the payload
 // below — picking the cells of the style asked for — with the DOFs' words (wrist_dof_metadata.h) and the checkpoint
 // times from the shot's own phases (wristCheckpoints(), on the series' window clock).

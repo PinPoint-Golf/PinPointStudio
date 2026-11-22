@@ -8,7 +8,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
 pp_add_test(session_posture_test
     SOURCES session_posture_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${GUI}/charts/session_series_model.cpp
+            ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp
@@ -49,7 +49,7 @@ pp_add_test(charts_posture_presenter_test
             ${GUI}/report/report_stills_pure.cpp
             ${GUI}/markup/markup_truth.cpp
             ${SRC}/Body/head_track.cpp
-            ${GUI}/charts/session_series_model.cpp
+            ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp

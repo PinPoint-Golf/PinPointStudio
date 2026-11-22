@@ -88,6 +88,9 @@
 #include "report/report_stills.h"
 #include "charts/charts_posture_presenter.h"
 #include "charts/charts_delivery_presenter.h"
+#include "charts/charts_work.h"       // ChartsLane: the charts' lanes on the one pool (refactor 5.5a)
+#include "charts/session_series.h"   // SessionSeries: every loaded Session's series (refactor 5.5a)
+#include "../Export/series_store.h"  // its read door
 #include "report/session_report_list_model.h"
 #include "report/report_mailer.h"
 #include "../Diagnostics/packs/pack_provider.h"
@@ -383,6 +386,10 @@ int main(int argc, char *argv[])
         return diagLookup ? diagLookup(a) : pinpoint::WorkTarget{};
     });
     auto diagPool = std::make_unique<pinpoint::WorkPool>();
+    // THE CHARTS' LANES ON THE ONE POOL (refactor 5.5a; R-CON-5; J-74 Q6): every presenter's, still's and session series'
+    // job runs here and comes back through the one receiver (charts_work.h). Uninstalled before the pool goes.
+    pinpoint::charts::ChartsLane::install(diagPool.get(), diagReceiver.get());
+    struct ChartsLaneUninstall { ~ChartsLaneUninstall() { pinpoint::charts::ChartsLane::uninstall(); } } chartsLaneUninstall;
     // THE ONE DOOR TO THE ATHLETE'S RECORD (AthleteRepository, step 2.3): athlete.json in each athlete's
     // folder, or this machine's settings record until migration M1. GUI thread only; declared before the
     // controller, so it outlives every Athlete the controller holds.
@@ -392,6 +399,9 @@ int main(int argc, char *argv[])
     athleteStore.setShotDoors({ &recordingRepository,
                                 std::shared_ptr<pinpoint::RecordingReader>(&recordingReader, [](pinpoint::RecordingReader *) {}) });
     diagLookup = [&athleteStore](const pinpoint::WorkAddress &a) {
+        // A Charts lane's result (refactor 5.5a): its owner, by instance number, while it lives.
+        if (pinpoint::charts::ChartsLane::owns(a))
+            return pinpoint::charts::ChartsLane::target(a);
         // THE ATHLETE LEVEL'S OWN LANE (refactor 3.7-f; J-53): a Home job's result goes to that athlete's AthleteDiagnostics.
         if (pinpoint::isAthleteWorkOwner(a.owner)) {
             const pinpoint::AthleteId id = pinpoint::athleteOfWorkOwner(a.owner);
@@ -406,10 +416,16 @@ int main(int argc, char *argv[])
         // diag_stage_panel_test drives too; the attach told to the composition root (diagAttached, below).
         pinpoint::DiagnosticsDoors doors = pinpoint::appDiagnosticsDoors(diagPool.get(), diagReceiver.get(), &ruleData,
                                                                           sessionStore, recordingRepository);
-        doors.attach = [&diagAttached](pinpoint::Session *s, const pinpoint::DiagnosticsDoors &d) {
+        // EVERY SESSION'S SERIES (refactor 5.5a; J-74 Q1): attached with its diagnostics, created and ended with the
+        // Session; its contents are read only when a view first asks (SessionSeries, charts/session_series.h).
+        pinpoint::charts::SeriesDoors seriesDoors;
+        seriesDoors.reader   = std::make_shared<pinpoint::SwingStoreSeriesReader>(sessionStore);
+        seriesDoors.ruleData = &ruleData;
+        doors.attach = [&diagAttached, seriesDoors](pinpoint::Session *s, const pinpoint::DiagnosticsDoors &d) {
             pinpoint::SessionDiagnostics *owner = pinpoint::SessionDiagnostics::attach(s, d);
             if (owner && diagAttached)
                 diagAttached(s, owner);
+            pinpoint::charts::SessionSeries::attach(s, seriesDoors);
             return owner;
         };
         athleteStore.setDiagnosticsDoors(doors);

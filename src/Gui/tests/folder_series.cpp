@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "session_series_model.h"
+#include "folder_series.h"
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
@@ -33,7 +33,7 @@
 #include "../../Export/swing_paths.h"
 #include "../../Export/session_diagnostics_files.h"   // diagnostics.json's one reader (step 2.5)
 #include "../../Kinematics/kinematic_sequence_json.h"  // retimeKinematicSequence — one shape, four paths
-#include "session_wrist.h"                               // the wrist checkpoint profile (CONTRACT I3)
+#include "../charts/session_wrist.h"                               // the wrist checkpoint profile (CONTRACT I3)
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
@@ -83,7 +83,7 @@ bool sameNumber(double a, double b)
     return (std::isnan(a) && std::isnan(b)) || a == b;
 }
 
-bool sameDiagnostics(const ShotDiagnostics &a, const ShotDiagnostics &b)
+bool sameDiagnostics(const ChartShotFindings &a, const ChartShotFindings &b)
 {
     if (a.club != b.club || a.dataWarning != b.dataWarning
         || a.fired != b.fired || a.clean != b.clean || a.values.size() != b.values.size())
@@ -100,7 +100,7 @@ bool sameDiagnostics(const ShotDiagnostics &a, const ShotDiagnostics &b)
     for (auto it = a.values.constBegin(); it != a.values.constEnd(); ++it) {
         const auto o = b.values.constFind(it.key());
         if (o == b.values.constEnd()) return false;
-        const ShotDiagnostics::Value &x = it.value(), &y = o.value();
+        const ChartShotFindings::Value &x = it.value(), &y = o.value();
         if (!sameNumber(x.value, y.value) || !sameNumber(x.z, y.z) || !sameNumber(x.lo, y.lo)
             || !sameNumber(x.hi, y.hi) || x.dir != y.dir || !sameNumber(x.confidence, y.confidence))
             return false;
@@ -128,11 +128,11 @@ pinpoint::analysis::ConditionReading readingFor(const pinpoint::analysis::Charac
     return all.empty() ? ConditionReading{} : all.front();
 }
 
-ShotDiagnostics diagnosticsOf(const pinpoint::analysis::ShotRecord &s,
+ChartShotFindings diagnosticsOf(const pinpoint::analysis::ShotRecord &s,
                               const pinpoint::analysis::CharacteristicPack *pack)
 {
     using pinpoint::analysis::ShotState;
-    ShotDiagnostics d;
+    ChartShotFindings d;
     d.club        = s.club;
     d.dataWarning = s.dataWarning;
     for (const pinpoint::analysis::ConditionRow &r : s.rows)
@@ -146,7 +146,7 @@ ShotDiagnostics diagnosticsOf(const pinpoint::analysis::ShotRecord &s,
         if (r.state == ShotState::Fired)      d.fired << r.conditionId;
         else if (r.state == ShotState::Clean) d.clean << r.conditionId;
         else continue;
-        ShotDiagnostics::Value v;
+        ChartShotFindings::Value v;
         v.value = r.value;
         v.z     = r.z;
         // ⚠ The row's corridorLo/Hi, which design §7 already records are NOT the corridor the
@@ -158,7 +158,7 @@ ShotDiagnostics diagnosticsOf(const pinpoint::analysis::ShotRecord &s,
         v.confidence = std::isfinite(r.confidence) ? double(r.confidence) : kNaN;
         d.values.insert(r.conditionId, v);
         const pinpoint::analysis::ConditionReading cr = readingFor(pack, r.conditionId, r.drivingMeasureId);
-        ShotDiagnostics::Reading rd;
+        ChartShotFindings::Reading rd;
         rd.measureId = r.drivingMeasureId;
         rd.metricKey = cr.metricKey;
         rd.phase     = cr.found ? cr.phase : -1;
@@ -192,7 +192,7 @@ qint64 stringBytes(const QString &s)
 
 // ── The pure halves ─────────────────────────────────────────────────────────────────────────
 
-qint64 SessionSeriesModel::relUs(const QJsonValue &v, qint64 originUs)
+qint64 FolderSeries::relUs(const QJsonValue &v, qint64 originUs)
 {
     // The one rule (windowTimeUs), against the document's analysis origin — what the replay's map
     // (analysisDetailFor) is built with, and it has to be: the panel seeks shotReplay with these
@@ -200,7 +200,7 @@ qint64 SessionSeriesModel::relUs(const QJsonValue &v, qint64 originUs)
     return qint64(pinpoint::analysis::windowTimeUs(int64_t(v.toDouble()), originUs));
 }
 
-int SessionSeriesModel::folderShotId(const QString &swingDir)
+int FolderSeries::folderShotId(const QString &swingDir)
 {
     // The swing number (ID-SWING-NUMBER, DEC-91), read by SwingPaths — the one reader of a swing folder's
     // name (step 2.7b, lint A3), as the diagnostics model reads it (step 2.7a).
@@ -208,7 +208,7 @@ int SessionSeriesModel::folderShotId(const QString &swingDir)
     return n > 0 ? n : -1;
 }
 
-QString SessionSeriesModel::swingLabelOf(const QString &swingDir)
+QString FolderSeries::swingLabelOf(const QString &swingDir)
 {
     const int id = folderShotId(swingDir);
     const QDate d = swingDir.isEmpty() ? QDate()
@@ -219,7 +219,7 @@ QString SessionSeriesModel::swingLabelOf(const QString &swingDir)
     return parts.join(QStringLiteral(", "));
 }
 
-std::shared_ptr<ShotSeries> SessionSeriesModel::extractShot(const QJsonObject &root,
+std::shared_ptr<ShotSeries> FolderSeries::extractShot(const QJsonObject &root,
                                                            const QString &swingDir, QString *whyNot)
 {
     const auto fail = [whyNot](const QString &why) {
@@ -363,7 +363,7 @@ std::shared_ptr<ShotSeries> SessionSeriesModel::extractShot(const QJsonObject &r
     return shot;
 }
 
-qint64 SessionSeriesModel::approxBytes(const ShotSeries &s)
+qint64 FolderSeries::approxBytes(const ShotSeries &s)
 {
     qint64 b = qint64(sizeof(ShotSeries));
     b += stringBytes(s.swingDir) + stringBytes(s.club);
@@ -383,19 +383,19 @@ qint64 SessionSeriesModel::approxBytes(const ShotSeries &s)
     if (!s.kinematicSequence.isEmpty())
         b += 2 * qint64(QJsonDocument(QJsonObject::fromVariantMap(s.kinematicSequence))
                             .toJson(QJsonDocument::Compact).size());
-    const ShotDiagnostics &d = s.diagnostics;
+    const ChartShotFindings &d = s.diagnostics;
     // the wrist checkpoint profile (≤ 5 DOFs × 8 cells × 3 styles, small)
     b += qint64(d.wrist.rows.size()) * qint64(sizeof(pinpoint::analysis::WristProfileRow) + 3 * 8 * 16);
     b += stringBytes(d.club);
     b += qint64(d.fired.size() + d.clean.size()) * qint64(sizeof(QString));
-    b += qint64(d.values.capacity()) * qint64(sizeof(QString) + sizeof(ShotDiagnostics::Value) + 8);
+    b += qint64(d.values.capacity()) * qint64(sizeof(QString) + sizeof(ChartShotFindings::Value) + 8);
     return b;
 }
 
 // ── Construction ────────────────────────────────────────────────────────────────────────────
 
-SessionSeriesModel::SessionSeriesModel(QObject *parent)
-    : QObject(parent)
+FolderSeries::FolderSeries(QObject *parent)
+    : SeriesSource(parent)
     , m_snapshot(std::make_shared<SessionSnapshot>())
 {
     // ONE worker thread (decision 2). Two would let a re-analysed shot's read overtake the
@@ -403,14 +403,14 @@ SessionSeriesModel::SessionSeriesModel(QObject *parent)
     m_pool.setMaxThreadCount(1);
 }
 
-SessionSeriesModel::~SessionSeriesModel()
+FolderSeries::~FolderSeries()
 {
     // The jobs capture `this`. Their deliveries die with the object (queued to it), but a job
     // still running must not outlive the members it reads.
     m_pool.waitForDone();
 }
 
-QVariantList SessionSeriesModel::skipped() const
+QVariantList FolderSeries::skippedList() const
 {
     QVariantList out;
     out.reserve(qsizetype(m_skipped.size()));
@@ -421,24 +421,24 @@ QVariantList SessionSeriesModel::skipped() const
     return out;
 }
 
-void SessionSeriesModel::setSynchronous(bool on)
+void FolderSeries::setSynchronous(bool on)
 {
     m_synchronous = on;
 }
 
-void SessionSeriesModel::setDocLoader(DocLoader loader)
+void FolderSeries::setDocLoader(DocLoader loader)
 {
     QMutexLocker lk(&m_workerMutex);
     m_loader = std::move(loader);
 }
 
-SessionSeriesModel::LoadStats SessionSeriesModel::loadStats() const
+FolderSeries::LoadStats FolderSeries::loadStats() const
 {
     QMutexLocker lk(&m_workerMutex);
     return m_stats;
 }
 
-bool SessionSeriesModel::waitForIdle(int msTimeout)
+bool FolderSeries::waitForIdle(int msTimeout)
 {
     if (m_synchronous) return true;
     QDeadlineTimer deadline(msTimeout);
@@ -452,7 +452,7 @@ bool SessionSeriesModel::waitForIdle(int msTimeout)
 
 // ── Feeding (owner thread) ──────────────────────────────────────────────────────────────────
 
-void SessionSeriesModel::activateSession(const QString &sessionDir)
+void FolderSeries::activateSession(const QString &sessionDir)
 {
     const QString dir = sessionDir.trimmed().isEmpty() ? QString() : cleanDir(sessionDir);
     ++m_generation;
@@ -472,7 +472,7 @@ void SessionSeriesModel::activateSession(const QString &sessionDir)
     queue(Job{ JobKind::Activate, m_generation, dir, -1 });
 }
 
-void SessionSeriesModel::ingestShot(int shotId, const QString &swingDir)
+void FolderSeries::ingestShot(int shotId, const QString &swingDir)
 {
     if (swingDir.isEmpty() || m_sessionDir.isEmpty()) return;
     const QString dir = cleanDir(swingDir);
@@ -481,7 +481,7 @@ void SessionSeriesModel::ingestShot(int shotId, const QString &swingDir)
     queue(Job{ JobKind::Ingest, m_generation, dir, shotId });
 }
 
-void SessionSeriesModel::regradeShot(const QString &swingDir)
+void FolderSeries::regradeShot(const QString &swingDir)
 {
     if (swingDir.isEmpty() || m_sessionDir.isEmpty()) return;
     const QString dir = cleanDir(swingDir);
@@ -489,7 +489,7 @@ void SessionSeriesModel::regradeShot(const QString &swingDir)
     queue(Job{ JobKind::Regrade, m_generation, dir, -1 });
 }
 
-void SessionSeriesModel::forgetShot(const QString &swingDir)
+void FolderSeries::forgetShot(const QString &swingDir)
 {
     if (swingDir.isEmpty() || m_sessionDir.isEmpty()) return;
     const QString dir = cleanDir(swingDir);
@@ -497,7 +497,7 @@ void SessionSeriesModel::forgetShot(const QString &swingDir)
     queue(Job{ JobKind::Forget, m_generation, dir, -1 });
 }
 
-void SessionSeriesModel::refreshDiagnostics()
+void FolderSeries::refreshDiagnostics()
 {
     if (m_sessionDir.isEmpty()) return;
     if (m_synchronous) {
@@ -518,7 +518,7 @@ void SessionSeriesModel::refreshDiagnostics()
     }, Qt::QueuedConnection);
 }
 
-void SessionSeriesModel::queue(const Job &jobIn)
+void FolderSeries::queue(const Job &jobIn)
 {
     const Job job = jobIn;
     if (m_synchronous) {
@@ -537,7 +537,7 @@ void SessionSeriesModel::queue(const Job &jobIn)
     });
 }
 
-void SessionSeriesModel::apply(const Result &r, bool counted)
+void FolderSeries::apply(const Result &r, bool counted)
 {
     if (counted) m_pending = std::max(0, m_pending - 1);
     // A delivery for an activation that has since been replaced is dropped: the job queued by the
@@ -553,19 +553,19 @@ void SessionSeriesModel::apply(const Result &r, bool counted)
 
 // ── The worker ──────────────────────────────────────────────────────────────────────────────
 
-struct SessionSeriesModel::SharedCache {
+struct FolderSeries::SharedCache {
     QMutex mutex;
     QHash<QString, CacheEntry> entries;      // key: cleaned absolute swing dir
     QStringList recent;                      // sessions, most recently activated first, at most two
 };
 
-SessionSeriesModel::SharedCache &SessionSeriesModel::shared()
+FolderSeries::SharedCache &FolderSeries::shared()
 {
     static SharedCache c;
     return c;
 }
 
-void SessionSeriesModel::clearSharedCache()
+void FolderSeries::clearSharedCache()
 {
     QMutexLocker lk(&shared().mutex);
     shared().entries.clear();
@@ -574,7 +574,7 @@ void SessionSeriesModel::clearSharedCache()
 
 static void annotateForBoard(ShotSeries &shot, const pinpoint::analysis::BoardAnnotation &a);   // below (J-45)
 
-SessionSeriesModel::Result SessionSeriesModel::runJob(const Job &job)
+FolderSeries::Result FolderSeries::runJob(const Job &job)
 {
     QMutexLocker lk(&m_workerMutex);
     // Always in this order (instance, then shared), so two instances' jobs cannot deadlock. A job
@@ -665,7 +665,7 @@ SessionSeriesModel::Result SessionSeriesModel::runJob(const Job &job)
     return Result{ job.generation, false, m_wLast, m_wLastSkipped };
 }
 
-void SessionSeriesModel::evictOtherSessions()
+void FolderSeries::evictOtherSessions()
 {
     // The cache holds what the last two activations read (decision 5): the live session and the
     // one being reviewed, the pair a golfer flips between. Anything older is a session nobody is
@@ -676,7 +676,7 @@ void SessionSeriesModel::evictOtherSessions()
     }
 }
 
-void SessionSeriesModel::ensureShot(const QString &swingDir, bool force)
+void FolderSeries::ensureShot(const QString &swingDir, bool force)
 {
     // STAMPED BEFORE THE READ (the firing read's order). A re-analysis that
     // rewrites the document after this point leaves a stamp that no longer matches, so the next
@@ -755,7 +755,7 @@ static void annotateForBoard(ShotSeries &shot, const pinpoint::analysis::BoardAn
     shot.metricOrder.removeIf([](const QString &k) { return isLaunchMonitorKey(k); });
 }
 
-void SessionSeriesModel::keep(const QString &swingDir, const CacheEntry &e)
+void FolderSeries::keep(const QString &swingDir, const CacheEntry &e)
 {
     m_own.insert(swingDir, e);
     // The shared cache gets a reading only once it is complete (a fresh shot is finished in
@@ -764,7 +764,7 @@ void SessionSeriesModel::keep(const QString &swingDir, const CacheEntry &e)
         shared().entries.insert(swingDir, e);
 }
 
-bool SessionSeriesModel::readLedgerIfChanged()
+bool FolderSeries::readLedgerIfChanged()
 {
     const QFileInfo fi(pinpoint::SessionFiles::diagnosticsFile(m_wSessionDir));
     const bool exists = fi.exists();
@@ -808,7 +808,7 @@ bool SessionSeriesModel::readLedgerIfChanged()
 // rule (board_annotations.h annotateShots: the board's club; a left-out reading's monitor-driven rows not assessable),
 // then the shot rows, the session tiers and the work-on order from them — so the Charts tab says what Session diagnostics
 // and the report say. Joined again only when the rows were read again or the boards moved.
-void SessionSeriesModel::joinLedger(const QHash<int, pinpoint::analysis::BoardAnnotation> &boards)
+void FolderSeries::joinLedger(const QHash<int, pinpoint::analysis::BoardAnnotation> &boards)
 {
     if (m_ledgerJoined && boards == m_ledgerBoards) return;
     m_ledgerJoined = true;
@@ -840,7 +840,7 @@ void SessionSeriesModel::joinLedger(const QHash<int, pinpoint::analysis::BoardAn
         m_ledgerWorkOnOrder << e.id;
 }
 
-SessionSeriesModel::Result SessionSeriesModel::buildSnapshot(int generation, bool forcePublish)
+FolderSeries::Result FolderSeries::buildSnapshot(int generation, bool forcePublish)
 {
     // STRIKE ORDER (decision 7): the folder number, then the folder name for anything unnumbered.
     QStringList dirs = m_wDirs;
@@ -894,7 +894,7 @@ SessionSeriesModel::Result SessionSeriesModel::buildSnapshot(int generation, boo
             continue;
         }
         const int ordinal = snap->count() + 1;
-        const ShotDiagnostics diag = id >= 0 ? m_ledger.value(id) : ShotDiagnostics();
+        const ChartShotFindings diag = id >= 0 ? m_ledger.value(id) : ChartShotFindings();
         if (e.fresh) {
             // Just read and held by nobody else: completed in place, then frozen and shared.
             e.fresh->ordinal     = ordinal;
@@ -922,7 +922,7 @@ SessionSeriesModel::Result SessionSeriesModel::buildSnapshot(int generation, boo
     // readings (early extension: pelvis thrust OR spine-angle loss) is linked to the one the
     // session's fired rows name most often as their driving measure — ties to the pack's
     // detectedBy order — and, where no row names one, to its first reading with a curve key. Each
-    // shot's own driving reading stays on the shot (ShotDiagnostics::drivenBy).
+    // shot's own driving reading stays on the shot (ChartShotFindings::drivenBy).
     const pinpoint::analysis::CharacteristicPack *pack = m_pack ? &m_pack->pack() : nullptr;
     QHash<QString, QHash<QString, int>> named;          // condition → driving measure → fired rows
     for (const auto &shot : snap->shots)

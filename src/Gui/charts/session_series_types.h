@@ -22,7 +22,7 @@
 // (docs/design/charts_panel_traces_relations.md §6.1), as plain value types.
 //
 // Two halves meet here and nowhere else:
-//   · SessionSeriesModel (session_series_model.h) FILLS these, off the GUI thread, from each
+//   · SessionSeries (session_series.h) FILLS these, off the GUI thread, from each
 //     swing's analysis block. It holds the series, phases, sequence and diagnostics only — never
 //     pose, never the rest of the analysis blob (the 28 MB document froze the GUI once).
 //   · The session maths (session_traces.h, session_relations.h) READS them and nothing else, so it
@@ -37,7 +37,7 @@
 // re-analysed, so a reader holding a SessionSnapshot never sees a shot change under it.
 
 #include "../../Metrics/series_reduce.h"   // reduceInstantOver
-#include "../../Wrist/wrist_profile.h"      // ShotDiagnostics::wrist (DEC-123)
+#include "../../Wrist/wrist_profile.h"      // ChartShotFindings::wrist (DEC-123)
 
 #include <QHash>
 #include <QString>
@@ -99,7 +99,7 @@ struct MetricSeries {
 };
 
 // The shot's diagnostics row (session diagnostics ledger, diagnostics.json).
-struct ShotDiagnostics {
+struct ChartShotFindings {
     struct Value {
         double value = kNaN, z = kNaN, lo = kNaN, hi = kNaN;
         int    dir   = 0;
@@ -169,7 +169,7 @@ struct ShotSeries {
     // re-timing. gatesVersion 0 = analysed before records existed (the reader says so and falls back).
     QVariantList gates;
     int          gatesVersion = 0;
-    ShotDiagnostics diagnostics;
+    ChartShotFindings diagnostics;
     // The analysis' own wrist resemblance index (analysis.score.resemblance: { neutral, bowed, cupped } ints, %), {} when it
     // carries none — a reading of the analysis, carried beside the profile the findings hold (diagnostics.wrist; the
     // Wrist chart's payload is built from both, session_wrist.h). Until 3.8-ii this was the view's own graded payload.
@@ -183,7 +183,7 @@ struct ShotSeries {
 
 // A diagnostics condition and, when the catalogue knows it, the reading it grades
 // (design §6.4: the link from a condition to { metricKey, phase }; phase -1 = unknown). Filled by
-// SessionSeriesModel from condition_reading.h: the reading the session's fired rows name most
+// the series from condition_reading.h: the reading the session's fired rows name most
 // often (ties → detectedBy order), else the condition's first reading with a key.
 struct ConditionInfo {
     QString name;

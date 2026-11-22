@@ -89,7 +89,7 @@ pp_add_test(chart_metrics_test
     LINK    Qt6::Qml  AUTOMOC)
 
 # The Charts panel's session half (src/Gui/charts/): the session series model and the session maths.
-include(${CMAKE_CURRENT_LIST_DIR}/charts_series_tests.cmake OPTIONAL)
+include(${CMAKE_CURRENT_LIST_DIR}/folder_series_tests.cmake OPTIONAL)
 include(${CMAKE_CURRENT_LIST_DIR}/charts_maths_tests.cmake OPTIONAL)
 include(${CMAKE_CURRENT_LIST_DIR}/charts_traces_tests.cmake OPTIONAL)
 include(${CMAKE_CURRENT_LIST_DIR}/charts_relations_tests.cmake OPTIONAL)
@@ -122,12 +122,15 @@ pp_add_test(swing_series_model_test
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core
     LINK    Qt6::Qml  AUTOMOC)
 
-# PresenterPool (charts/presenter_pool.h) — the chart presenters' jobs on a pool they do not own, so
-# destroying a presenter (every mode switch rebuilds the panels) never waits for its job (#173).
-pp_add_test(presenter_pool_test
-    SOURCES presenter_pool_test.cpp
-    INCLUDE ${GUI} ${GUI}/charts
-    LINK    Qt6::Core)
+# ChartsLane (charts/charts_work.h; refactor 5.5a, re-pointed from presenter_pool_test) — the charts' one threading
+# idiom: a lane per owner on the one WorkPool, results through the one WorkReceiver, so destroying a presenter (every mode
+# switch rebuilds the panels) never waits for its job (#173), and only a lane's latest ask is applied.
+pp_add_test(charts_work_test
+    SOURCES charts_work_test.cpp ${GUI}/charts/charts_work.cpp ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core
+    LINK    Qt6::Qml
+    AUTOMOC)
 
 # ShotListModel — the carousel as a view of one Session (refactor step 5.2; R-QML-5), over a test double of its port
 # (fake_shot_source.h): its rows follow the Session's events, and shotSummary, the focused-shot map for PpShotActionBar.

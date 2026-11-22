@@ -35,7 +35,7 @@
 #include "../../Export/rule_data_install.h"
 #include "charts/posture_picture.h"
 #include "charts/session_posture.h"
-#include "charts/session_series_model.h"
+#include "charts/session_series_extract.h"   // extractShot (refactor 5.5a)
 #include "charts/session_series_types.h"
 #include "charts/session_wrist.h"
 #include "report/report_posture.h"
@@ -73,10 +73,10 @@ QJsonObject readJson(const char *env)
     return QJsonDocument::fromJson(f.readAll()).object();
 }
 
-// The ledger row → the shot's ShotDiagnostics, as the model's join fills the fields the presenter reads.
-ShotDiagnostics diagnosticsOf(const QJsonObject &row)
+// The ledger row → the shot's ChartShotFindings, as the model's join fills the fields the presenter reads.
+ChartShotFindings diagnosticsOf(const QJsonObject &row)
 {
-    ShotDiagnostics d;
+    ChartShotFindings d;
     d.club = row.value(QStringLiteral("club")).toString();
     for (const QJsonValue &rv : row.value(QStringLiteral("rows")).toArray()) {
         const QJsonObject r = rv.toObject();
@@ -85,14 +85,14 @@ ShotDiagnostics diagnosticsOf(const QJsonObject &row)
         if (st == QLatin1String("fired")) d.fired << id;
         else if (st == QLatin1String("clean")) d.clean << id;
         else continue;
-        ShotDiagnostics::Value v;
+        ChartShotFindings::Value v;
         v.value = r.value(QStringLiteral("value")).toDouble();
         v.z = r.value(QStringLiteral("z")).toDouble();
         v.lo = r.value(QStringLiteral("corridorLo")).toDouble();
         v.hi = r.value(QStringLiteral("corridorHi")).toDouble();
         v.confidence = r.value(QStringLiteral("confidence")).toDouble();
         d.values.insert(id, v);
-        ShotDiagnostics::Reading g;
+        ChartShotFindings::Reading g;
         g.measureId = r.value(QStringLiteral("drivingMeasureId")).toString();
         g.contextId = r.value(QStringLiteral("contextId")).toString();
         d.gradedBy.insert(id, g);
@@ -282,7 +282,7 @@ private slots:
         const QJsonObject ledger = readJson("PP_POSTURE_DIAGNOSTICS");
         QVERIFY2(!ledger.isEmpty(), "PP_POSTURE_DIAGNOSTICS");
         QString why;
-        auto shot = SessionSeriesModel::extractShot(root, dirOf(2), &why);
+        auto shot = extractShot(root, dirOf(2), &why);
         QVERIFY2(shot, qPrintable(why));
         shot->diagnostics = diagnosticsOf(ledger);
         QVERIFY(shot->diagnostics.fired.contains(QStringLiteral("trail_knee_straighten")));

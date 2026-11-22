@@ -118,6 +118,10 @@ struct SessionDiagnosis {
     // shows, and what the reasons were tallied from.
     std::vector<ShotOutcome>     composed;
     SessionResults               results;
+    // THE WORK-ON ORDER OF EVERY SESSION PATTERN, UNCAPPED (refactor 5.5a; J-74 Q2): the work-on list's own reduction
+    // with no cap — the cap cuts after the sort, so its first five are results.workOns' five, in their order. In memory
+    // only, never persisted: the Charts Wrist sections order their findings by it.
+    QStringList                  workOnOrder;
 };
 
 SessionDiagnosis reduceSession(const SessionReductionInput &in);

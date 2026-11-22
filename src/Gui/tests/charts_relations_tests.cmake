@@ -4,7 +4,7 @@
 #
 # The read-at instants are the REAL metric catalogue's card readAt (the presenter calls
 # makeMetricCatalogue directly), so the catalogue chain chart_metrics_test links comes along; the session
-# loader (SessionSeriesModel) and its pack stack come along for the real-data cases, which QSKIP when
+# loader (FolderSeries, the old loader as a test double since 5.5a) and its pack stack come along for the real-data cases, which QSKIP when
 # /mnt/swingdata is not mounted. The fixtures are the maths suite's trimmed 4 July session and, for
 # "Apart from the session", the 5 Oct one with a launch monitor and its Consistency golden.
 include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
@@ -25,7 +25,7 @@ pp_add_test(charts_relations_presenter_test
             ${GUI}/charts/session_relations.cpp
             ${GUI}/charts/session_sequence.cpp
             ${GUI}/trust/trust_readings.cpp
-            ${GUI}/charts/session_series_model.cpp
+            ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
             ${SRC}/Metrics/metric_catalogue.cpp
@@ -82,7 +82,7 @@ pp_add_test(charts_consistency_presenter_test
             ${GUI}/charts/session_relations.cpp
             ${GUI}/charts/session_sequence.cpp
             ${GUI}/trust/trust_readings.cpp
-            ${GUI}/charts/session_series_model.cpp
+            ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
             ${SRC}/Metrics/metric_catalogue.cpp

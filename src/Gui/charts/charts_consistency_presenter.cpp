@@ -22,7 +22,8 @@
 #include "consistency_env.h"
 #include "consistency_grades.h"
 #include "session_consistency.h"
-#include "session_series_model.h"
+#include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
+#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "variability_env.h"
 
 #include "../variability/variability_facade.h"           // VariabilityResultView, typicalityPayload
@@ -779,30 +780,30 @@ QVariantMap ChartsConsistencyPresenter::headline(const ConsistencyHead &head)
 ChartsConsistencyPresenter::ChartsConsistencyPresenter(QObject *parent)
     : QObject(parent), m_cache(std::make_shared<Cache>())
 {
-    m_normsGeneration = pa::sharedNormProviderGeneration();   // read first: a save in between only re-makes them
+    m_normsGeneration = consistencyEnvGeneration();   // read first: a save in between only re-makes them
     m_env = consistencyEnvFromPacks();      // on the GUI thread, for the worker to hold by value
     m_scales = makeVariabilityScaleProvider();     // on the GUI thread too; then safe on any thread (variability_env.h)
 }
 
 ChartsConsistencyPresenter::~ChartsConsistencyPresenter()
 {
-    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
+    // No wait: a job still running finishes into nothing (charts_work.h: the lane is cancelled, #173).
 }
 
 #define PP_SET(member, value, sig) \
     do { if (member == value) return; member = value; emit sig(); schedule(); } while (0)
 
-void ChartsConsistencyPresenter::setModel(QObject *m)
+void ChartsConsistencyPresenter::setModel(SeriesSource *m)
 {
     if (m_model == m) return;
     if (m_model) disconnect(m_model, nullptr, this, nullptr);
     m_model = m;
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m))
+    if (m)
     {
         // Queued: activateSession publishes its empty snapshot before it counts the load as begun, so taken at once
         // that snapshot would pass for a session with no shots.
-        connect(sm, &SessionSeriesModel::snapshotChanged, this, &ChartsConsistencyPresenter::onSnapshotChanged, Qt::QueuedConnection);
-        connect(sm, &SessionSeriesModel::busyChanged, this, &ChartsConsistencyPresenter::onSnapshotChanged);
+        connect(m, &SeriesSource::snapshotChanged, this, &ChartsConsistencyPresenter::onSnapshotChanged, Qt::QueuedConnection);
+        connect(m, &SeriesSource::busyChanged, this, &ChartsConsistencyPresenter::onSnapshotChanged);
     }
     emit modelChanged();
     onSnapshotChanged();
@@ -837,15 +838,22 @@ void ChartsConsistencyPresenter::onSnapshotChanged()
 
 std::shared_ptr<const SessionSnapshot> ChartsConsistencyPresenter::currentSnapshot() const
 {
-    if (m_directSnapshot) return m_directSnapshot;
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m_model.data())) return sm->snapshot();
-    return nullptr;
+    return chosenSnapshot(m_directSnapshot, m_model.data());   // P2: a direct snapshot wins
 }
 
 void ChartsConsistencyPresenter::schedule()
 {
-    if (m_running) { m_dirty = true; return; }
-    start();
+    // THE ONE SCHEDULER (refactor 5.5a, charts_presenter_core.h P3): coalesced — one job in flight, a change meanwhile
+    // marks it dirty and one more runs with the latest inputs — and busy from the ask (P11). Synchronous: at once.
+    if (m_synchronous) { start(); return; }
+    m_dirty = true;
+    if (m_running || m_scheduled) return;
+    m_scheduled = true;
+    emit busyChanged();
+    QMetaObject::invokeMethod(this, [this] {
+        m_scheduled = false;
+        if (!m_running) start();
+    }, Qt::QueuedConnection);
 }
 
 void ChartsConsistencyPresenter::start()
@@ -854,8 +862,8 @@ void ChartsConsistencyPresenter::start()
     // A corridor saved in the Diagnostic Model since the last job: start again as a new presenter would — the env,
     // the scales and the cache (its consistency run read the old corridors) — so this job reads ONE norm set, the new.
     // A job still running keeps the cache and env it was handed.
-    if (m_normsGeneration != pa::sharedNormProviderGeneration()) {
-        m_normsGeneration = pa::sharedNormProviderGeneration();
+    if (m_normsGeneration != consistencyEnvGeneration()) {
+        m_normsGeneration = consistencyEnvGeneration();
         m_env = consistencyEnvFromPacks();
         m_scales = makeVariabilityScaleProvider();
         m_cache = std::make_shared<Cache>();
@@ -870,7 +878,7 @@ void ChartsConsistencyPresenter::start()
     const ConsistencyEnv env = m_env;
     const std::shared_ptr<const IVariabilityScaleProvider> scales = m_scales;
     // Still reading it. A live session's next shot keeps the model busy too, but it has shots to show meanwhile.
-    const auto *model = m_directSnapshot ? nullptr : qobject_cast<SessionSeriesModel *>(m_model.data());
+    const SeriesSource *model = m_directSnapshot ? nullptr : m_model.data();
     const bool loading = model && model->busy() && (!snap || snap->shots.empty());
     auto cache = m_cache;
     if (m_synchronous) {
@@ -880,15 +888,12 @@ void ChartsConsistencyPresenter::start()
     }
     m_running = true;
     emit busyChanged();
-    auto post = m_pool.poster();
-    m_pool.start([post, this, snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, scales, cache]() {
-        auto out = computeConsistency(snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, *scales, *cache);
-        post([this, out]() {
+    askLane(m_pool, [snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, scales, cache]() { return computeConsistency(snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, *scales, *cache); },
+            [this](auto out) {
             m_running = false;
             deliver(out);
             if (m_dirty) start(); else emit busyChanged();
         });
-    });
 }
 
 void ChartsConsistencyPresenter::deliver(std::shared_ptr<const Output> out)
@@ -917,12 +922,12 @@ bool ChartsConsistencyPresenter::waitForIdle(int msTimeout)
 {
     if (m_synchronous) return true;
     QDeadlineTimer deadline(msTimeout);
-    while ((m_running || m_dirty) && !deadline.hasExpired()) {
+    while ((m_running || m_scheduled || m_dirty) && !deadline.hasExpired()) {
         QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
         m_pool.waitForDone(20);
     }
     QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-    return !m_running && !m_dirty;
+    return !m_running && !m_scheduled && !m_dirty;
 }
 
 int ChartsConsistencyPresenter::sessionRuns() const { return m_cache->rows.runs(); }

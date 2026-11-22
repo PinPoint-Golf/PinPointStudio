@@ -1,7 +1,7 @@
 # The Charts panel's traces presenter (src/Gui/charts/charts_traces_presenter.h) — This shot, Against
 # and Session of direction A, on the trimmed 4 July fixture (data/charts/session_0704.json, synchronous)
 # and, when /mnt/swingdata is mounted, the real 4 July scratch session and the 50-shot 7 Oct session
-# through SessionSeriesModel (read-only), where the STEP2A budgets are measured and printed.
+# through FolderSeries (the old loader, a test double since 5.5a; read-only), where the STEP2A budgets are measured and printed.
 #
 # It links the REAL metric catalogue (ChartMetrics: presets, domains, card specs, sequenceTable) — the
 # chart_metrics_test chain — plus the session maths and the session model with its pack chain, and the
@@ -12,7 +12,7 @@ pp_add_test(charts_traces_presenter_test
     SOURCES charts_traces_presenter_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_traces_presenter.cpp
-            ${GUI}/charts/session_series_model.cpp
+            ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/charts/session_curves.cpp
             ${GUI}/charts/session_warp.cpp

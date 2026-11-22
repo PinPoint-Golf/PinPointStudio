@@ -26,7 +26,7 @@
 #include <QPointer>
 #include <QSet>
 #include <QString>
-#include "presenter_pool.h"   // the jobs' shared pool: destroying a presenter never waits (#173)
+#include "charts_presenter_core.h"   // the one base and idiom (refactor 5.5a)   // the jobs' shared pool: destroying a presenter never waits (#173)
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -41,7 +41,7 @@
 // only places what it is given.
 //
 // ── INPUTS ───────────────────────────────────────────────────────────────────────────────────
-// model (SessionSeriesModel), pickedSwingDir + pickedDetailRef (shotReplay.analysisDetailRef: a shot not yet in the
+// model (the session's SeriesSource: its SessionSeries), pickedSwingDir + pickedDetailRef (shotReplay.analysisDetailRef: a shot not yet in the
 // snapshot still reads), register ("analyse" | "replay"), playheadUs (the picked shot's window-relative clock),
 // scope ("shot" | "session", following body.shownView).
 //
@@ -145,7 +145,7 @@ class ChartsDeliveryPresenter : public QObject
     QML_ELEMENT
 
     // ── inputs ──
-    Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY inputsChanged)
+    Q_PROPERTY(pinpoint::charts::SeriesSource *model READ model WRITE setModel NOTIFY inputsChanged)
     Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY inputsChanged)
     // The picked shot's detail, as QML passes it on: shotReplay.analysisDetailRef, OPAQUE to QML
     // (qml_map_ref.h). Never a QVariantMap property: writing the JS detail to one copied all
@@ -169,8 +169,8 @@ public:
     explicit ChartsDeliveryPresenter(QObject *parent = nullptr);
     ~ChartsDeliveryPresenter() override;
 
-    QObject *model() const;
-    void setModel(QObject *m);
+    SeriesSource *model() const;
+    void setModel(SeriesSource *m);
     QString pickedSwingDir() const { return m_in.pickedSwingDir; }
     void setPickedSwingDir(const QString &d);
     QVariantMap pickedDetail() const { return m_in.pickedDetail; }
@@ -239,7 +239,7 @@ private:
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
 
     Inputs m_in;
-    QPointer<QObject> m_model;
+    QPointer<SeriesSource> m_model;
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     qint64 m_playheadUs = -1;
     int m_selected = 0;
@@ -253,7 +253,8 @@ private:
     std::shared_ptr<Worker> m_worker;
     bool m_stillsBusy = false;
     QSet<QString> m_stillsAsked;                       // outPaths handed to the maker (once each)
-    PresenterPool m_pool{ this };
+    ChartsLane m_pool{ this };          // the one idiom (charts_work.h)
+    ChartsLane m_stillsLane{ this };    // the stills: a lane of their own (P10)
 };
 
 } // namespace pinpoint::charts

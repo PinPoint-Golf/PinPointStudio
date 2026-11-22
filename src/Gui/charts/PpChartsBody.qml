@@ -23,7 +23,7 @@ import PinPointStudio
 // round them, and the TYPESET REGISTER that draws everything else (design system §15; docs/design/
 // charts_panel_traces_relations.md; build/charts-build/STEP2B.md).
 //
-// IT TAKES THE PRESENTERS AS SOURCES AND OWNS NONE OF THEM. PpChartsPanel owns the SessionSeriesModel and the
+// IT TAKES THE PRESENTERS AS SOURCES AND OWNS NONE OF THEM. PpChartsPanel reads the session's series (refactor 5.5a: the Session's own) and owns the
 // presenters (ChartsTracesPresenter, ChartsRelationsPresenter, ChartsWristPresenter), feeds them, persists what this body
 // chooses, and keeps the reader's place; this file binds each presenter output map ONCE (every read of a
 // QVariantMap property is a deep copy) and hands the views those bindings: t* (traces), r* (relations) and

@@ -24,11 +24,10 @@
 //
 // THIS FILE IS THE WIRING AND NOTHING ELSE (the Session diagnostics pattern, INVENTORY §7). Everything the
 // panel LOOKS like is PpChartsBody, which takes the presenters as sources and owns none of them. Here:
-//   • THE MODEL AND THE PRESENTERS ARE INSTANTIATED, NOT REACHED FOR: one SessionSeriesModel and the three
-//     presenters (ChartsTracesPresenter, ChartsRelationsPresenter, ChartsWristPresenter), each with a private worker thread. The
-//     model is fed exactly as its header says: the session folder (the same binding as the diagnostics
-//     panel), ShotProcessor.shotProcessed → ingestShot, the carousel's re-analysis → regradeShot, and the
-//     diagnostics ledger written (the shown model's busy, else the session's cards adapter's, → false: _diagWrites) → refreshDiagnostics.
+//   • THE SERIES IS THE SESSION'S, THE PRESENTERS ARE MADE HERE: the session on screen's own series (SessionSeries,
+//     ChartsSeries.of(app.session): one per Session, fed by the Session's events and its diagnostics owner, never by
+//     this file; refactor 5.5a) and the five presenters (Traces, Relations, Wrist, Posture, Club delivery), each on a
+//     lane of the app's one pool.
 //   • THE _screenActive GATE STAYS (INVENTORY F41, cbb63aae): every screen lives in one StackLayout,
 //     and the session screen (AppScreen.Session, ScreenWrist) carries this panel. An invisible screen's
 //     presenters are fed nothing: the picked swing, its detail, the span and the playhead are copied in only
@@ -93,8 +92,6 @@ Item {
     // ── the session, its model and the presenters ──
     readonly property bool _screenActive: SessionMode.sessionScreenActive
     readonly property string sessionDir: app.state.sessionOnScreenFolder
-    function _pointAtSession() { if (!SessionMode.sameFolder(sessionDir, seriesModel.sessionDir)) seriesModel.activateSession(sessionDir) }
-    onSessionDirChanged: _pointAtSession()
     // THE MODEL A DIAGNOSTICS PANEL SHOWS FOR THIS SESSION (refactor 3.7-e: the SessionMode.sessionDiagnostics seam is gone),
     // as the carousel's cards find it: diagnosticsAdapters.shownFor — null while no diagnostics panel is up, as the seam
     // was; the session on screen's (app.session: a binding never asks for a Session itself, so none is made for a
@@ -104,18 +101,11 @@ Item {
          && typeof app !== "undefined" && !!app && sessionDir !== ""
          && (typeof athleteController === "undefined" || !athleteController || athleteController.currentUuid !== ""))
             ? diagnosticsAdapters.shownFor(app.session, sessionDir) : null
-    // THE OWNER'S WRITES, PANEL OR NOT (refactor 3.7-e round 2; review R1-m4, D-04's last part): with no diagnostics panel
-    // up the session's owner still judges every live shot and rewrites diagnostics.json, so the re-read follows the
-    // session's own adapter for the carousel's pips ("cards": no view half, a busy that falls once the owner has written)
-    // when no panel shows one. Nothing new is held: the carousel already holds this Session.
-    readonly property var _diagWrites: _diagShown ? _diagShown
-        : ((typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters && typeof app !== "undefined" && !!app
-            && sessionDir !== "" && (typeof athleteController === "undefined" || !athleteController || athleteController.currentUuid !== ""))
-               ? (app.session ? diagnosticsAdapters.of(app.session, "cards", sessionDir) : null)
-               : null)
 
-
-    SessionSeriesModel { id: seriesModel }
+    // THE SESSION'S OWN SERIES (refactor 5.5a: one per Session, its child, kept current by the Session's own events and
+    // its diagnostics owner): read through the Session, never made here.
+    readonly property var seriesModel: (typeof ChartsSeries !== "undefined" && typeof app !== "undefined" && !!app)
+                                       ? ChartsSeries.of(app.session) : null
 
     // what the presenters are told of the replay: copied only while this screen is the visible one
     property string _swingDir: ""
@@ -221,26 +211,6 @@ Item {
         scope: body.shownView === "session" ? "session" : "shot"
     }
 
-    Connections {
-        target: shotProcessor
-        function onShotProcessed(shotId, swingDir) { seriesModel.ingestShot(shotId, swingDir) }
-    }
-    Connections {
-        target: reanalysisController
-        function onReanalysed(swingDir) { seriesModel.regradeShot(swingDir) }
-    }
-    // a swing moved to the trash leaves the session (#56); the model ignores one of another session
-    Connections {
-        target: SessionMode
-        function onSwingTrashed(swingDir) { seriesModel.forgetShot(swingDir) }
-    }
-    // the diagnostics ledger was written: the model re-joins its rows (it posts the read itself)
-    Connections {
-        target: root._diagWrites
-        ignoreUnknownSignals: true
-        function onBusyChanged() { if (root._diagWrites && !root._diagWrites.busy) seriesModel.refreshDiagnostics() }
-    }
-
     // ── persistence: AppSettings chartPrefs per screen type × mode, written on interaction only ──
     readonly property string _keyBase: root.sessionType + ":" + app.state.mode + ":"
     on_KeyBaseChanged: { _restorePrefs(); _restoreFolds() }
@@ -344,15 +314,11 @@ Item {
         function onDemoReset() { root._restorePrefs(true); root._restoreFolds() }   // a render keeps the view it is on
         function onViewChanged() { if (root.remembersNav) place.watch() }   // the register swap it watches itself
     }
-    Connections {
-        target: seriesModel
-        // a different session: the place does not carry over
-        function onSessionChanged() { if (place.ready && root._nav() && !place.matches(root._nav())) body.openId = "" }
-    }
+    // a different session (another session's series): the place does not carry over
+    onSeriesModelChanged: if (place.ready && root._nav() && !place.matches(root._nav())) body.openId = ""
 
     Component.onCompleted: {
         _restorePrefs(); _restoreFolds()
-        _pointAtSession()
         _syncPick()
         if (remembersNav) { _restoreNav(); place.watch() }
         place.ready = remembersNav

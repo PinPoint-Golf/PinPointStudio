@@ -37,7 +37,7 @@
 
 #include "charts/session_posture.h"
 #include "../../Export/rule_data_install.h"
-#include "charts/session_series_model.h"
+#include "charts/session_series_extract.h"   // extractShot (refactor 5.5a)
 #include "charts/session_series_types.h"
 #include "charts/session_wrist.h"
 #include "gate_record.h"                // a substitute record, written as swing.json writes it
@@ -337,7 +337,7 @@ private slots:
         QVERIFY2(f.open(QIODevice::ReadOnly), "PP_POSTURE_FIXTURE");
         const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
         QString why;
-        const auto shot = SessionSeriesModel::extractShot(
+        const auto shot = extractShot(
             root, QStringLiteral("/fixture/2026-10-20_Nick-Henn_Wrist_03/swing_0002"), &why);
         QVERIFY2(shot, qPrintable(why));
         const PostureShotInput in = postureInputFromShot(*shot, *m_env);
@@ -419,7 +419,7 @@ private slots:
         QFile f(qEnvironmentVariable("PP_POSTURE_FIXTURE"));
         QVERIFY2(f.open(QIODevice::ReadOnly), "PP_POSTURE_FIXTURE");
         QString why;
-        const auto shot = SessionSeriesModel::extractShot(
+        const auto shot = extractShot(
             QJsonDocument::fromJson(f.readAll()).object(), QStringLiteral("/fixture/2026-10-20_Nick-Henn_Wrist_03/swing_0002"), &why);
         QVERIFY2(shot, qPrintable(why));
         const PostureShotInput base = postureInputFromShot(*shot, *m_env);
@@ -466,7 +466,7 @@ private slots:
         QFile f(qEnvironmentVariable("PP_POSTURE_FIXTURE"));
         QVERIFY2(f.open(QIODevice::ReadOnly), "PP_POSTURE_FIXTURE");
         QString why;
-        const auto shot = SessionSeriesModel::extractShot(
+        const auto shot = extractShot(
             QJsonDocument::fromJson(f.readAll()).object(), QStringLiteral("/fixture/2026-10-20_Nick-Henn_Wrist_03/swing_0002"), &why);
         QVERIFY2(shot, qPrintable(why));
         QVERIFY(shot->metric(QStringLiteral("hipDepthButt")));

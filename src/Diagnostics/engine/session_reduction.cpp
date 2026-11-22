@@ -238,6 +238,12 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in)
 
     // ── The work-ons and the evidence (sessionWorkOnsForPack, as SessionDiagnosticsModel::sessionWorkOns) ──
     r.workOns = sessionWorkOnsForPack(pack, in.shots, out.ledgers);
+    {   // the order uncapped (5.5a): what the Charts' Wrist sections order by (SessionDiagnosis::workOnOrder)
+        WorkOnOptions uncapped;
+        uncapped.maxPerSession = std::numeric_limits<int>::max();
+        for (const WorkOnEntry &e : sessionWorkOnsForPack(pack, in.shots, out.ledgers, uncapped).entries)
+            out.workOnOrder << e.id;
+    }
     r.workOns.sessionId = in.sessionId;
     for (WorkOnEntry &e : r.workOns.entries) {
         const Condition *c = pack ? pack->condition(e.id) : nullptr;

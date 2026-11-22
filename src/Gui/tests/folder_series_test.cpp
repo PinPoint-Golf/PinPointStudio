@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// SessionSeriesModel against a session written by SwingStore's own writer, and (when the share is
+// FolderSeries against a session written by SwingStore's own writer, and (when the share is
 // mounted) against the 4 July scratch session the Charts mocks were drawn from.
 //
 // The synthetic session is four swings:
@@ -26,7 +26,7 @@
 //   swing_0004  absolute again
 // and a diagnostics.json ledger with rows for shot 1.
 
-#include "session_series_model.h"
+#include "folder_series.h"
 #include "session_wrist.h"
 #include "../../Diagnostics/norms/norm.h"           // gradePolicyByName
 #include "../../Diagnostics/norms/norm_provider.h"  // sharedNormProvider
@@ -208,7 +208,7 @@ std::vector<pinpoint::analysis::ShotRecord> ledgerShot1()
 
 // A swing with the wrist unit's two lead-wrist series (hm.*, every 10 ms), a phase at every wrist
 // checkpoint (P2 both at Takeaway and at shaft-parallel back, so the test holds whichever the engine
-// reads) and the analysis' resemblance index — what SessionSeriesModel grades into ShotSeries::wrist.
+// reads) and the analysis' resemblance index — what FolderSeries grades into ShotSeries::wrist.
 QJsonObject makeWristDoc()
 {
     QJsonObject root;
@@ -310,7 +310,7 @@ private slots:
 
     // Each case rewrites the session, so none may inherit another's shots from the process-wide
     // cache (decision 5 of the model's header).
-    void init() { SessionSeriesModel::clearSharedCache(); }
+    void init() { FolderSeries::clearSharedCache(); }
 
     // J-45 (Mark, 21 Nov; refactor 3.7-d): THE CHARTS TAB FOLLOWS THE LAUNCH MONITOR BOARD, by the session reduction's own
     // rule. Swing 1's reading left out, swing 2 re-labelled 8 IRON on the board (the documents' review blocks, as the
@@ -361,7 +361,7 @@ private slots:
         }
         writeLedger(m_session, rows);
 
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(m_session);
         const auto snap = m.snapshot();
@@ -399,7 +399,7 @@ private slots:
     void extractsTheAnalysisOnTheReplayClock()
     {
         stage();
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(m_session);
         const auto snap = m.snapshot();
@@ -469,8 +469,8 @@ private slots:
         QCOMPARE(r.kinematicSequence.value(QStringLiteral("impactUs")).toLongLong(), qlonglong(120000));
 
         // relUs itself, both branches.
-        QCOMPARE(SessionSeriesModel::relUs(QJsonValue(double(kT0 + 5)), kT0), qint64(5));
-        QCOMPARE(SessionSeriesModel::relUs(QJsonValue(5.0), kT0), qint64(5));
+        QCOMPARE(FolderSeries::relUs(QJsonValue(double(kT0 + 5)), kT0), qint64(5));
+        QCOMPARE(FolderSeries::relUs(QJsonValue(5.0), kT0), qint64(5));
     }
 
     // ── The wrist checkpoint profile (build/wrist-tab CONTRACT I3; since refactor 3.8-ii the FINDINGS', DEC-123) ─────
@@ -497,7 +497,7 @@ private slots:
         QVERIFY(rec.wrist.present);
         writeLedger(dir, { rec });
 
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(dir);
         const auto snap = m.snapshot();
@@ -555,7 +555,7 @@ private slots:
 
         // a swing with no wrist DOF carries none
         stage();
-        SessionSeriesModel plain;
+        FolderSeries plain;
         plain.setSynchronous(true);
         plain.activateSession(m_session);
         QVERIFY(shotWristPayload(*plain.snapshot()->shots[0], -1).isEmpty());
@@ -564,12 +564,12 @@ private slots:
     void skipsAShotWithNoAnalysisAndCountsIt()
     {
         stage();
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(m_session);
         QCOMPARE(m.shotCount(), 3);
         QCOMPARE(m.skippedCount(), 1);
-        const QVariantMap sk = m.skipped().value(0).toMap();
+        const QVariantMap sk = m.skippedList().value(0).toMap();
         QCOMPARE(sk.value(QStringLiteral("shotId")).toInt(), 3);
         QVERIFY(sk.value(QStringLiteral("reason")).toString().startsWith(QStringLiteral("not analysed")));
         // Ordinals are dense over the shots that are in: 1, 2, 3 for folders 1, 2, 4.
@@ -581,17 +581,17 @@ private slots:
     void joinsTheLedgerAndNamesConditionsFromTheCatalogue()
     {
         stage();
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(m_session);
         const auto snap = m.snapshot();
-        const ShotDiagnostics &d = snap->shots[0]->diagnostics;
+        const ChartShotFindings &d = snap->shots[0]->diagnostics;
         QCOMPARE(d.club, QStringLiteral("7 IRON"));
         QCOMPARE(d.fired, (QStringList{ QStringLiteral("early_extension"), QStringLiteral("lie_steep_at_impact"),
                                         QStringLiteral("over_the_top"), QStringLiteral("s_posture") }));
         QCOMPARE(d.clean, QStringList{ QStringLiteral("c_posture") });
         QCOMPARE(d.values.size(), 5);                      // not-assessable rows carry no value
-        const ShotDiagnostics::Value v = d.values.value(QStringLiteral("s_posture"));
+        const ChartShotFindings::Value v = d.values.value(QStringLiteral("s_posture"));
         QCOMPARE(v.value, 12.5);
         QCOMPARE(v.z, 2.1);
         QCOMPARE(v.hi, 10.0);
@@ -631,12 +631,12 @@ private slots:
         QCOMPARE(link("s_posture").reducer, kAt);
 
         // Per shot: which reading drove each fired condition, and what the ledger named.
-        const ShotDiagnostics::Reading ee = d.drivenBy.value(QStringLiteral("early_extension"));
+        const ChartShotFindings::Reading ee = d.drivenBy.value(QStringLiteral("early_extension"));
         QCOMPARE(ee.measureId, QStringLiteral("m_spineBendLossDown"));
         QCOMPARE(ee.metricKey, QStringLiteral("spineForwardBend"));
         QCOMPARE(ee.phase, kImpact);
         QCOMPARE(ee.reducer, kExtremum);
-        const ShotDiagnostics::Reading ls = d.drivenBy.value(QStringLiteral("lie_steep_at_impact"));
+        const ChartShotFindings::Reading ls = d.drivenBy.value(QStringLiteral("lie_steep_at_impact"));
         QVERIFY(ls.measureId.isEmpty());                         // the row named none…
         QCOMPARE(ls.metricKey, QStringLiteral("shaftLie"));      // …so the first reading with a key
         QCOMPARE(ls.reducer, kDelta);
@@ -662,7 +662,7 @@ private slots:
                                 sig("sig_thoraxGainLow", ShotState::NotAssessable, -1.f, false,
                                     "chest peak not placed from these cameras") };
         writeLedger(m_session, shots);
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(m_session);
         const auto snap = m.snapshot();
@@ -678,7 +678,7 @@ private slots:
     {
         stage();
         std::atomic<int> reads{ 0 };
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.setDocLoader([&reads](const QString &dir, QString *err) {
             ++reads;
@@ -713,13 +713,13 @@ private slots:
         stage();
         std::shared_ptr<const SessionSnapshot> first;
         {
-            SessionSeriesModel a;
+            FolderSeries a;
             a.setSynchronous(true);
             a.activateSession(m_session);
             first = a.snapshot();
         }
         std::atomic<int> reads{ 0 };
-        SessionSeriesModel b;
+        FolderSeries b;
         b.setSynchronous(true);
         b.setDocLoader([&reads](const QString &dir, QString *err) {
             ++reads;
@@ -745,8 +745,8 @@ private slots:
             QVERIFY(writeSwing(d, 1, true, true));
             QVERIFY(writeSwing(d, 2, false, true));
         }
-        SessionSeriesModel ma, mb, mc;
-        for (SessionSeriesModel *m : { &ma, &mb, &mc }) m->setSynchronous(true);
+        FolderSeries ma, mb, mc;
+        for (FolderSeries *m : { &ma, &mb, &mc }) m->setSynchronous(true);
         ma.activateSession(m_session);
         const auto before = ma.snapshot();
         QCOMPARE(before->count(), 3);
@@ -774,14 +774,14 @@ private slots:
     void reanalysisReplacesTheShotAndBumpsTheRevision()
     {
         stage();
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(m_session);
         const auto before = m.snapshot();
 
         QVERIFY(writeSwing(m_session, 2, false, true, 2.0));       // re-analysed: values doubled
         bumpMtime(pinpoint::SwingStore::ppswPath(m_session + QStringLiteral("/swing_0002")), 5);
-        QSignalSpy changed(&m, &SessionSeriesModel::snapshotChanged);
+        QSignalSpy changed(&m, &FolderSeries::snapshotChanged);
         m.regradeShot(m_session + QStringLiteral("/swing_0002"));
         QCOMPARE(changed.count(), 1);
 
@@ -799,13 +799,13 @@ private slots:
     void aLiveShotAppendsAndStrikeOrderHolds()
     {
         stage();
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(m_session);
         const auto before = m.snapshot();
 
         QVERIFY(writeSwing(m_session, 5, true, true));
-        QSignalSpy changed(&m, &SessionSeriesModel::snapshotChanged);
+        QSignalSpy changed(&m, &FolderSeries::snapshotChanged);
         m.ingestShot(99, m_session + QStringLiteral("/swing_0005"));   // the processor's id: the folder wins
         QCOMPARE(changed.count(), 1);
         auto snap = m.snapshot();
@@ -836,7 +836,7 @@ private slots:
     void ignoresShotsOutsideTheSession()
     {
         stage();
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(m_session);
         QVERIFY(writeSwing(m_other, 1, true, true));
@@ -853,7 +853,7 @@ private slots:
     void aTrashedSwingLeavesTheSession()
     {
         stage();
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(m_session);
         const auto before = m.snapshot();
@@ -861,7 +861,7 @@ private slots:
         QCOMPARE(m.skippedCount(), 1);                               // swing 3 has no analysis
 
         QVERIFY(QDir(m_session + QStringLiteral("/swing_0002")).removeRecursively());
-        QSignalSpy changed(&m, &SessionSeriesModel::snapshotChanged);
+        QSignalSpy changed(&m, &FolderSeries::snapshotChanged);
         m.forgetShot(m_session + QStringLiteral("/swing_0002"));
         QCOMPARE(changed.count(), 1);
         auto snap = m.snapshot();
@@ -890,7 +890,7 @@ private slots:
     void refreshDiagnosticsRejoinsOnlyWhatMoved()
     {
         stage();
-        SessionSeriesModel m;
+        FolderSeries m;
         m.setSynchronous(true);
         m.activateSession(m_session);
         const auto before = m.snapshot();
@@ -918,9 +918,9 @@ private slots:
     void deliversOffTheGuiThread()
     {
         stage();
-        SessionSeriesModel m;                                       // asynchronous, as in the app
-        QSignalSpy busy(&m, &SessionSeriesModel::busyChanged);
-        QSignalSpy changed(&m, &SessionSeriesModel::snapshotChanged);
+        FolderSeries m;                                       // asynchronous, as in the app
+        QSignalSpy busy(&m, &FolderSeries::busyChanged);
+        QSignalSpy changed(&m, &FolderSeries::snapshotChanged);
         m.activateSession(m_session);
         QVERIFY(m.busy());
         QCOMPARE(m.shotCount(), 0);                                 // the interim: a new session, empty
@@ -980,8 +980,8 @@ void ChartsSeriesModelTest::measure(const QString &dir, const QString &label, bo
     } flush{ report };
 
     for (const bool partial : { false, true }) {
-        SessionSeriesModel::clearSharedCache();         // each pass reads every document
-        SessionSeriesModel m;
+        FolderSeries::clearSharedCache();         // each pass reads every document
+        FolderSeries m;
         m.setSynchronous(true);
         // The default reads SwingStore::loadAnalysis; the comparison pass reads whole documents.
         if (!partial) m.setDocLoader([](const QString &d, QString *e) { return pinpoint::SwingStore::load(d, e); });
@@ -993,11 +993,11 @@ void ChartsSeriesModelTest::measure(const QString &dir, const QString &label, bo
         const qint64 heap1 = heapInUse();
         const auto snap = m.snapshot();
         QVERIFY(snap->count() > 0);
-        const SessionSeriesModel::LoadStats st = m.loadStats();
+        const FolderSeries::LoadStats st = m.loadStats();
         qint64 approx = 0, samples = 0;
         int curves = 0;
         for (const auto &s : snap->shots) {
-            approx += SessionSeriesModel::approxBytes(*s);
+            approx += FolderSeries::approxBytes(*s);
             for (const MetricSeries &ms2 : s->metrics) { samples += qint64(ms2.tUs.size()); curves += ms2.hasCurve(); }
         }
         const int n = snap->count();
@@ -1011,7 +1011,7 @@ void ChartsSeriesModelTest::measure(const QString &dir, const QString &label, bo
                             "%3 curves/shot, %4 samples/shot")
                  .arg(approx / n / 1024).arg(heap0 >= 0 ? (heap1 - heap0) / n / 1024 : -1)
                  .arg(curves / n).arg(samples / n));
-        for (const QVariant &v : m.skipped())
+        for (const QVariant &v : m.skippedList())
             line(QStringLiteral("    skipped: %1 — %2").arg(v.toMap().value(QStringLiteral("swingDir")).toString(),
                                                          v.toMap().value(QStringLiteral("reason")).toString()));
 
@@ -1115,4 +1115,4 @@ void ChartsSeriesModelTest::measure(const QString &dir, const QString &label, bo
 }
 
 QTEST_GUILESS_MAIN(ChartsSeriesModelTest)
-#include "charts_series_model_test.moc"
+#include "folder_series_test.moc"

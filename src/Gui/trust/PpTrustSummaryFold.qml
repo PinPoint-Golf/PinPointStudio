@@ -24,7 +24,7 @@ import PinPointStudio
 // opens to the summary trust_readings.h says once — the routes that timed the sequence, what passed in the
 // Setup page's words, and per gate the readings it acted on, what it kept from being judged and what would
 // lift it. A gated line's "Why ›" opens that reading in the Trust panel, or in place when the panel is off
-// (TrustFocus, §7.0). Reads the session through its own SessionSeriesModel (the process-wide cache) and a
+// (TrustFocus, §7.0). Reads the session's own series (refactor 5.5a: ChartsSeries.of, the one Charts reads) through a
 // TrustPresenter, as PpTrustInlineFor does.
 //   scope     "shot" (swingDir picks the shot) | "session"
 //   extraLines a surface's own lines, said before the presenter's (a composite's coverage)
@@ -64,12 +64,13 @@ Column {
 
     function _sessionOf(d) { const s = SessionMode.folderKey(d); return s.substring(0, s.lastIndexOf("/")) }
     readonly property string _session: sessionDir !== "" ? sessionDir : _sessionOf(swingDir)
-    on_SessionChanged: _point()
-    Component.onCompleted: { _ready = true; _point(); _read() }
-    function _point() { if (_session !== "" && !SessionMode.sameFolder(_session, sm.sessionDir)) sm.activateSession(_session) }
+    Component.onCompleted: { _ready = true; _read() }
+    // THE SWING'S SESSION'S OWN SERIES (refactor 5.5a): the session on screen's, else the Session that holds the folder
+    // (app.sessionAt: asked only for a folder that is not the one on screen).
+    readonly property var _series: (typeof ChartsSeries === "undefined" || typeof app === "undefined" || !app || fold._session === "") ? null
+        : ChartsSeries.of(SessionMode.sameFolder(fold._session, app.state.sessionOnScreenFolder) ? app.session : app.sessionAt(fold._session))
 
-    SessionSeriesModel { id: sm }
-    TrustPresenter { id: tp; model: sm; pickedSwingDir: fold.scope === "shot" ? fold.swingDir : ""
+    TrustPresenter { id: tp; model: fold._series; pickedSwingDir: fold.scope === "shot" ? fold.swingDir : ""
                      onResultsChanged: fold._read() }
 
     // the closed line: ▸ How far can I trust this?  pelvis and chest out of sight

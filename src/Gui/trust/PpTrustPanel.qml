@@ -38,11 +38,12 @@ Item {
 
     readonly property bool _screenActive: root.sessionType < 0 || SessionMode.sessionScreenActive
     readonly property string sessionDir: app.state.sessionOnScreenFolder
-    function _pointAtSession() { if (!SessionMode.sameFolder(sessionDir, seriesModel.sessionDir)) seriesModel.activateSession(sessionDir) }
-    onSessionDirChanged: _pointAtSession()
-    Component.onCompleted: { _pointAtSession(); _syncPick() }
+    Component.onCompleted: _syncPick()
 
-    SessionSeriesModel { id: seriesModel }
+    // THE SESSION'S OWN SERIES (refactor 5.5a: one per Session, its child, kept current by the Session's own events and
+    // its diagnostics owner): read through the Session, never made here.
+    readonly property var seriesModel: (typeof ChartsSeries !== "undefined" && typeof app !== "undefined" && !!app)
+                                       ? ChartsSeries.of(app.session) : null
 
     property string _swingDir: ""
     // The picked shot's detail as an OPAQUE ref (app.state.replay.analysisDetailRef, qml_map_ref.h): passed on to the

@@ -102,6 +102,8 @@ else()
         ${PP_ROOT}/src/Metrics/variability/variability_grader.cpp
         ${PP_ROOT}/src/Metrics/variability/variability_typicality.cpp
         ${PP_ROOT}/src/Metrics/variability/variability_trend.cpp
+        # the charts' one idiom (charts_work.cpp: ChartsLane on the one WorkPool) and the ★ label's store (refactor 5.5a)
+        ${PP_ROOT}/src/Core/work_pool.cpp ${PP_ROOT}/src/Export/series_store.cpp
         ${PP_ROOT}/src/Core/pp_log_stream.cpp
         ${PP_ROOT}/src/Core/PpMessageLog.cpp)
 
@@ -244,6 +246,7 @@ else()
             ${PP_ROOT}/src/Metrics/variability/variability_grader.cpp
             ${PP_ROOT}/src/Metrics/variability/variability_typicality.cpp
             ${PP_ROOT}/src/Metrics/variability/variability_trend.cpp
+            ${PP_ROOT}/src/Core/work_pool.cpp ${PP_ROOT}/src/Export/series_store.cpp   # refactor 5.5a
             ${PP_ROOT}/src/Core/pp_log_stream.cpp
             ${PP_ROOT}/src/Core/PpMessageLog.cpp)
 

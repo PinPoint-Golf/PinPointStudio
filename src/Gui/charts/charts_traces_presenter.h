@@ -27,7 +27,7 @@
 #include <QPointer>
 #include <QString>
 #include <QStringList>
-#include "presenter_pool.h"   // the jobs' shared pool: destroying a presenter never waits (#173)
+#include "charts_presenter_core.h"   // the one base and idiom (refactor 5.5a)   // the jobs' shared pool: destroying a presenter never waits (#173)
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -51,14 +51,14 @@ class TimelineLabels;
 // calls only the invokables below.
 //
 // ── WHAT IT IS GIVEN ─────────────────────────────────────────────────────────────────────────
-// `model` (a SessionSeriesModel), the reviewed shot (`pickedSwingDir` + `pickedDetailRef` =
+// `model` (a SeriesSource: the session's SessionSeries), the reviewed shot (`pickedSwingDir` + `pickedDetailRef` =
 // shotReplay.analysisDetailRef, so This shot works when the shot is not in the snapshot: a live shot
 // arriving, another session, n < 3), `register`, and the reader's choices (persisted by the QML body
 // in AppSettings, as today — NOT here): preset + metricsOff ("Custom"), window, band, facet, against,
 // difference, view. `playheadUs` is the playhead on the picked shot's window-relative clock
 // (shotReplay.positionUs); it drives only `now`.
 //
-// ── THREADING (STEP2A, the SessionSeriesModel pattern) ──────────────────────────────────────
+// ── THREADING (STEP2A, the series' pattern) ──────────────────────────────────────
 // Any input change or snapshot change schedules ONE coalesced recompute (posted, so a burst of
 // property writes in one event-loop turn costs one job) on a private single-thread pool. The job
 // reads an immutable snapshot and the choices, and returns complete QVariantMaps that are swapped
@@ -214,7 +214,7 @@ class ChartsTracesPresenter : public QObject
     QML_ELEMENT
 
     // ── inputs ──
-    Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY inputsChanged)
+    Q_PROPERTY(pinpoint::charts::SeriesSource *model READ model WRITE setModel NOTIFY inputsChanged)
     Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY inputsChanged)
     // The picked shot's detail, as QML passes it on: shotReplay.analysisDetailRef, OPAQUE to QML
     // (qml_map_ref.h). Never a QVariantMap property: writing the JS detail to one copied all
@@ -238,7 +238,7 @@ class ChartsTracesPresenter : public QObject
     Q_PROPERTY(QString align READ align WRITE setAlign NOTIFY inputsChanged)
     // ADDED 15 Oct (build/wrist-tab): the ★ reference swing for Against "reference" — a swing dir in ANY
     // session (QML binds appSettings.wristReferenceSwingDir). Read off the GUI thread through
-    // SwingStore::loadAnalysis + SessionSeriesModel::extractShot, cached by its document stamp, and lined
+    // SwingStore::loadAnalysis + extractShot, cached by its document stamp, and lined
     // up on the picked shot's own clock by their shared P-positions (warpAgainst). "" = none set.
     Q_PROPERTY(QString referenceSwingDir READ referenceSwingDir WRITE setReferenceSwingDir NOTIFY inputsChanged)
     Q_PROPERTY(qint64 playheadUs READ playheadUs WRITE setPlayheadUs NOTIFY playheadChanged)
@@ -255,8 +255,8 @@ public:
     explicit ChartsTracesPresenter(QObject *parent = nullptr);
     ~ChartsTracesPresenter() override;
 
-    QObject *model() const;
-    void setModel(QObject *m);
+    SeriesSource *model() const;
+    void setModel(SeriesSource *m);
     QString pickedSwingDir() const { return m_in.pickedSwingDir; }
     void setPickedSwingDir(const QString &d);
     QVariantMap pickedDetail() const { return m_in.pickedDetail; }
@@ -316,7 +316,7 @@ public:
     Q_INVOKABLE QVariantMap hoverAt(double shotMs) const;
 
     // ── test and measurement seams ──
-    // A snapshot given directly, used while no SessionSeriesModel is set (tests; the fixture).
+    // A snapshot given directly, used while no series is set (tests; the fixture).
     void setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot);
     // The variability scales in place of the catalogue's (tests), set before the first snapshot. A trace is graded, and
     // has a TypicalityTrace, only against a scale of its own (R16): the norm it borrows (R31) or a variabilityScale. A
@@ -368,7 +368,7 @@ private:
     void onSnapshotChanged();
 
     Inputs m_in;
-    QPointer<QObject> m_model;
+    QPointer<SeriesSource> m_model;
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
     qint64 m_playheadUs = -1;
@@ -385,7 +385,7 @@ private:
     std::shared_ptr<Worker> m_worker;   // the worker's caches; touched only by jobs
     quint64 m_normsGeneration = 0;      // the shared norm set's generation the worker's scale provider was made at
     bool m_ownScales = true;            // false once a test injected its own (setVariabilityScalesForTest)
-    PresenterPool m_pool{ this };
+    ChartsLane m_pool{ this };          // the one idiom (charts_work.h)
 };
 
 } // namespace pinpoint::charts

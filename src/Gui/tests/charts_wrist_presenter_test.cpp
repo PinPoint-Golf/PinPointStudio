@@ -113,10 +113,10 @@ void fire(ShotSeries &s, const QString &id, int phase)
 {
     s.diagnostics.fired << id;
     s.diagnostics.fired.sort();
-    ShotDiagnostics::Value v;
+    ChartShotFindings::Value v;
     v.value = -30; v.lo = -20; v.hi = 10; v.z = -2; v.dir = -1; v.confidence = 0.75;
     s.diagnostics.values.insert(id, v);
-    ShotDiagnostics::Reading r;
+    ChartShotFindings::Reading r;
     r.metricKey = QStringLiteral("hm.leadWristFlexExt");
     r.phase = phase;
     s.diagnostics.drivenBy.insert(id, r);
@@ -125,7 +125,7 @@ void clean(ShotSeries &s, const QStringList &ids)
 {
     for (const QString &id : ids) {
         s.diagnostics.clean << id;
-        ShotDiagnostics::Value v;
+        ChartShotFindings::Value v;
         v.value = 0; v.lo = -20; v.hi = 10; v.z = 0.1;
         s.diagnostics.values.insert(id, v);
     }

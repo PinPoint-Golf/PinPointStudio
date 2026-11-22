@@ -18,7 +18,8 @@
 
 #pragma once
 
-#include "session_series_types.h"
+#include "../charts/session_series_types.h"
+#include "../charts/charts_work.h"   // SeriesSource (refactor 5.5a)
 #include "../../Coaching/board_annotations.h"   // the launch monitor board's rule (J-45)
 
 #include <QHash>
@@ -114,48 +115,33 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; }
 //
 // 9. THE CONDITION LINK IS THE PACK'S. Each condition in the snapshot carries the reading it grades
 //    (ConditionInfo.metricKey/phase) and each shot the reading that drove each of its fired
-//    conditions (ShotDiagnostics::drivenBy), both through condition_reading.h — the one walk of
+//    conditions (ChartShotFindings::drivenBy), both through condition_reading.h — the one walk of
 //    detectedBy → signal → measure → key and reducer — so a fired mark is placed by the catalogue,
 //    never by matching values.
 //
 // Unit-tested standalone in src/Gui/tests/charts_series_model_test.cpp.
 namespace pinpoint::charts {
 
-class SessionSeriesModel : public QObject
+// ⚠ A TEST DOUBLE SINCE REFACTOR 5.5a. This is the Charts panel's old view-owned loader (FolderSeries), moved
+// verbatim into the tests tree and renamed: a SeriesSource that reads a folder (its swing documents and diagnostics.json)
+// by itself, for the presenter tests that point a presenter at a real or synthetic folder, and as the OLD half of the
+// parity dump (tools/diagnostics/charts_series_dump). The app reads each Session's own series (session_series.h) and
+// never makes one of these: it is not in the app or its QML module.
+class FolderSeries : public SeriesSource
 {
     Q_OBJECT
-    QML_ELEMENT
-
-    // The session the snapshot describes (cleaned, absolute). Empty when none is loaded.
-    Q_PROPERTY(QString sessionDir READ sessionDir NOTIFY sessionChanged)
-    // A read is in flight. The previous snapshot stays published meanwhile — except across a
-    // change of session, where the old session's shots are withdrawn at once (a stale session
-    // drawn under a new name is worse than an empty one for a moment).
-    Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
-    // The shots in the snapshot, and the shots left out of it (decision 8).
-    Q_PROPERTY(int shotCount READ shotCount NOTIFY snapshotChanged)
-    Q_PROPERTY(int skippedCount READ skippedCount NOTIFY snapshotChanged)
-    // [{ swingDir, shotId, reason }], strike order. The reason is a sentence for the panel.
-    Q_PROPERTY(QVariantList skipped READ skipped NOTIFY snapshotChanged)
-    // SessionSnapshot::revision, for QML bindings that need to re-ask a C++ question.
-    Q_PROPERTY(int revision READ revision NOTIFY snapshotChanged)
-    // (Until 3.8-ii: `closed`, set by a closeSession() nothing called, and `wristArchetype`, the style every shot's wrist
-    // cells were graded against here. The cells are the findings' now, each style kept (DEC-123): the Wrist chart's
-    // style choice is the presenter's pick.)
 
 public:
-    explicit SessionSeriesModel(QObject *parent = nullptr);
-    ~SessionSeriesModel() override;
+    explicit FolderSeries(QObject *parent = nullptr);
+    ~FolderSeries() override;
 
-    QString sessionDir() const { return m_sessionDir; }
-    bool    busy() const { return m_pending > 0; }
-    int     shotCount() const { return m_snapshot ? m_snapshot->count() : 0; }
-    int     skippedCount() const { return int(m_skipped.size()); }
-    QVariantList skipped() const;
-    int     revision() const { return m_snapshot ? int(m_snapshot->revision & 0x7fffffff) : 0; }
+    QString sessionDir() const override { return m_sessionDir; }
+    bool    busy() const override { return m_pending > 0; }
+    int     skippedCount() const override { return int(m_skipped.size()); }
+    QVariantList skippedList() const;
 
     // What the session maths reads. Never null; an empty session is an empty snapshot.
-    std::shared_ptr<const SessionSnapshot> snapshot() const { return m_snapshot; }
+    std::shared_ptr<const SessionSnapshot> snapshot() const override { return m_snapshot; }
 
     // ── Feeding (decision 1) ────────────────────────────────────────────────────────────
 
@@ -237,12 +223,6 @@ public:
     // A part that is unknown is left out.
     static QString swingLabelOf(const QString &swingDir);
 
-signals:
-    void sessionChanged();
-    void busyChanged();
-    // The snapshot was replaced. Every property above that reads it is re-read on this.
-    void snapshotChanged();
-
 private:
     // ── Worker half. Touched only by jobs, which run one at a time (decision 2). ──────────
     struct Skip {
@@ -296,7 +276,7 @@ private:
     QStringList m_wDirs;                         // the session's swing dirs
     qint64      m_ledgerSize    = -1;
     qint64      m_ledgerMtimeMs = -1;
-    QHash<int, ShotDiagnostics> m_ledger;        // shotId → the shot's ledger row, joined
+    QHash<int, ChartShotFindings> m_ledger;        // shotId → the shot's ledger row, joined
     // THE LEDGER AS READ, joined to the shots as the golfer annotated them on the board (joinLedger; J-45): the rows as
     // the file holds them, its options, the boards it was last joined under, and whether it has been joined since read.
     std::vector<pinpoint::analysis::ShotRecord>    m_ledgerRows;

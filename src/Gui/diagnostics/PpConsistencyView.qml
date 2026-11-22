@@ -26,8 +26,8 @@ import PinPointStudio
 // here. The technical layer: a cell shows its grade's word (R1), its opened readings a Dispersion Cell badge with the
 // basis string, a picked shot's rows a Typicality Icon badge.
 //
-// IT OWNS ITS DATA. A SessionSeriesModel, the presenter, a PpChRoles and a PpBrush, kept current as Charts' panel keeps
-// its own (ingest, re-analysis, trash, the ledger written). A register builds this inside a PpViewFlick, which makes a
+// IT READS THE SESSION'S SERIES (refactor 5.5a: ChartsSeries.of(app.session), kept current by the Session) and makes the
+// presenter, a PpChRoles and a PpBrush. A register builds this inside a PpViewFlick, which makes a
 // view on first show and keeps it, so nobody pays for this who never opens the tab.
 //   glance false (Analyse)  the head and ball line; the table; the opened cell's readings; the picked shot in full.
 //   glance true  (Replay)   the head, the table and the picked shot's one sentence (doc §3). A cell pressed here opens
@@ -70,7 +70,7 @@ Column {
     // no table yet, and the model or the presenter is still on its way to one; `ready` alone is not enough, because the
     // presenter publishes for the model's empty snapshot too. There is no gap between the two busies: the model's
     // snapshotChanged makes the presenter busy before the model's own busy goes false.
-    readonly property bool settling: (!ready || presenter.busy || seriesModel.busy) && !(status.shotCount > 0)
+    readonly property bool settling: (!ready || presenter.busy || (!!seriesModel && seriesModel.busy)) && !(status.shotCount > 0)
     readonly property var settlingLine: status.settling || null
 
     // ── the vocabularies' words into the presenter's grades (THE GRADES in charts_consistency_presenter.h) ──
@@ -106,7 +106,6 @@ Column {
 
     // ── the session ──
     readonly property string sessionDir: app.state.sessionOnScreenFolder
-    function _pointAtSession() { if (!SessionMode.sameFolder(sessionDir, seriesModel.sessionDir)) seriesModel.activateSession(sessionDir) }
     // THE MODEL A DIAGNOSTICS PANEL SHOWS FOR THIS SESSION (refactor 3.7-e: the SessionMode.sessionDiagnostics seam is gone),
     // as the carousel's cards find it: diagnosticsAdapters.shownFor — null while no diagnostics panel is up, as the seam
     // was; the session on screen's (app.session: a binding never asks for a Session itself, so none is made for a
@@ -116,15 +115,10 @@ Column {
          && typeof app !== "undefined" && !!app && sessionDir !== ""
          && (typeof athleteController === "undefined" || !athleteController || athleteController.currentUuid !== ""))
             ? diagnosticsAdapters.shownFor(app.session, sessionDir) : null
-    // THE OWNER'S WRITES, PANEL OR NOT (refactor 3.7-e round 2; review R1-m4, D-04's last part): with no diagnostics panel
-    // up the session's owner still judges every live shot and rewrites diagnostics.json, so the re-read follows the
-    // session's own adapter for the carousel's pips ("cards": no view half, a busy that falls once the owner has written)
-    // when no panel shows one. Nothing new is held: the carousel already holds this Session.
-    readonly property var _diagWrites: _diagShown ? _diagShown
-        : ((typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters && typeof app !== "undefined" && !!app
-            && sessionDir !== "" && (typeof athleteController === "undefined" || !athleteController || athleteController.currentUuid !== ""))
-               ? (app.session ? diagnosticsAdapters.of(app.session, "cards", sessionDir) : null)
-               : null)
+    // THE SESSION'S OWN SERIES (refactor 5.5a: one per Session, its child, kept current by the Session's own events and
+    // its diagnostics owner): read through the Session, never made here.
+    readonly property var seriesModel: (typeof ChartsSeries !== "undefined" && typeof app !== "undefined" && !!app)
+                                       ? ChartsSeries.of(app.session) : null
     // A session change is one real session to a different real one. The last real folder is kept apart from the model,
     // whose sessionDir is empty in a new view, and a view's first binding writes nothing: a view built by a press on the
     // glance must not clear the cell that press has just opened.
@@ -136,35 +130,13 @@ Column {
             _closeRow()
             if (root.body) { root.body.consistencyCell = ""; root.body.consistencyGlanceCell = "" }
         }
-        _pointAtSession()
     }
-    Component.onCompleted: { _lastSessionDir = sessionDir; _pointAtSession(); _syncPick() }
+    Component.onCompleted: { _lastSessionDir = sessionDir; _syncPick() }
 
-    SessionSeriesModel { id: seriesModel }
-
-    Connections {
-        target: shotProcessor
-        function onShotProcessed(shotId, swingDir) { seriesModel.ingestShot(shotId, swingDir) }
-    }
-    Connections {
-        target: reanalysisController
-        function onReanalysed(swingDir) { seriesModel.regradeShot(swingDir) }
-    }
-    // a swing moved to the trash leaves the session (#56); the model ignores one of another session
-    Connections {
-        target: SessionMode
-        function onSwingTrashed(swingDir) { seriesModel.forgetShot(swingDir) }
-    }
     // the selection moved (app.state's: R-APP-4): the picked shot follows it while this screen is up
     Connections {
         target: app.state.selection
         function onChanged() { root._syncPick() }
-    }
-    // the diagnostics ledger was written: the model re-joins its rows (it posts the read itself)
-    Connections {
-        target: root._diagWrites
-        ignoreUnknownSignals: true
-        function onBusyChanged() { if (root._diagWrites && !root._diagWrites.busy) seriesModel.refreshDiagnostics() }
     }
 
     // ── the picked shot: the carousel's selection, as Session diagnostics' This shot takes it, not the replay's, because

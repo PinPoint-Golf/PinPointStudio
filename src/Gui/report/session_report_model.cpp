@@ -38,7 +38,9 @@
 #include "../charts/charts_relations_presenter.h"
 #include "../charts/charts_wrist_presenter.h"
 #include "../charts/consistency_env.h"
-#include "../charts/session_series_model.h"
+#include "../charts/session_series.h"   // the session's own series (refactor 5.5a)
+#include <QPointer>
+#include <functional>
 #include "../charts/session_wrist.h"
 #include "../diagnostics/session_diagnostics_model.h"
 #include "../launchmonitor/lm_session_model.h"
@@ -123,8 +125,8 @@ struct DocFacts {
 };
 
 // THE CHARTS PAGES' READING (posture_chart_design.md §5.7; the Wrist page; club_delivery_chart_design.md §4.8): the
-// Charts panel's own session snapshot of the swings (a private SessionSeriesModel, run inline on this worker: the
-// analysis' series, phases and the ledger rows, never the pose blob), built ONCE, and over it the Posture presenter's
+// session's own series' snapshot (SessionSeries, the one the Charts tab reads: refactor 5.5a; the analysis' series, phases
+// and the owner's findings, never the pose blob), and over it the Posture presenter's
 // session payload (nothing picked, Auto pattern), the Wrist presenter's (nothing picked, Auto style, the dominant
 // style's wash) and the Club delivery presenter's (nothing picked; its fits over the golfer's day, read from the day's
 // other sessions' swing_phasegrid.json). The same numbers and words the Charts Posture, Wrist and Club delivery
@@ -136,18 +138,16 @@ struct DocFacts {
 // `tendenciesWhy` keeps the page with those words as its standfirst — W::tendenciesUnread() (R1-m6), or, for a session
 // with no golfer, W::tendenciesNoGolfer() (step 5.1 review B1: the Unassigned owner has no athlete level) — else there is
 // none.
-QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::ConsistencyEnv &env, const QString &gradePolicy,
+QVariantMap readChartsPages(const std::shared_ptr<const pinpoint::charts::SessionSnapshot> &snap,
+                            const pinpoint::charts::ConsistencyEnv &env, const QString &gradePolicy,
                             const std::shared_ptr<const INormProvider> &norms, const ShotOutcomePack &outcomePack,
                             const std::optional<TendencySet> &tendencies, int tendenciesLeftOut, int tendenciesLeftOutNewer,
                             const QString &tendenciesWhy)
 {
-    pinpoint::charts::SessionSeriesModel series;
-    series.setSynchronous(true);
-    series.activateSession(sessionDir);
-    // THE SWINGS AS THE GOLFER ANNOTATED THEM ON THE BOARD (refactor 3.7-d; J-45): the Charts snapshot is published that
-    // way (SessionSeriesModel: annotateForBoard, a static in session_series_model.cpp), for the Charts tab and every Charts page here
-    // alike, so no page groups or norms a re-labelled swing under another club than the work-on facts and the kicker do.
-    const std::shared_ptr<const pinpoint::charts::SessionSnapshot> snap = series.snapshot();
+    // THE SESSION'S OWN SERIES (refactor 5.5a): the snapshot the Charts tab reads, taken on the GUI thread once the series
+    // was idle and handed here by value. THE SWINGS AS THE GOLFER ANNOTATED THEM ON THE BOARD (refactor 3.7-d; J-45): the
+    // series publishes them that way (seriesAnnotateForBoard), so no page groups or norms a re-labelled swing under another
+    // club than the work-on facts and the kicker do.
     if (!snap || snap->count() == 0) return {};
     return { { QStringLiteral("posture"), pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings")) },   // the report says swings
              { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) },
@@ -295,6 +295,12 @@ struct SessionReportModel::Job {
     QFutureWatcher<QVector<DocFacts>> docsWatcher;
     QVector<DocFacts> docs;
     QFutureWatcher<QVariantMap> chartsWatcher;      // the Posture, Wrist, Club delivery and Consistency pages' payloads (readChartsPages)
+    // THE SESSION'S SERIES (refactor 5.5a): the charts pages are read from its snapshot once the diagnosis is in and the
+    // series is idle (launchCharts); a series busy then is waited for (seriesWait).
+    QPointer<pinpoint::charts::SessionSeries>                                  series;
+    std::function<void(std::shared_ptr<const pinpoint::charts::SessionSnapshot>)> launchCharts;
+    bool                                                                       chartsLaunched = false;
+    QMetaObject::Connection                                                    seriesWait;
     QVariantMap posture, wrist, delivery, consistency, tendencies;
 
     QVariantMap         map;
@@ -568,11 +574,19 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     }
     connect(&m_job->chartsWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onChartsRead);
     const QString tendenciesWhy = noGolfer ? W::tendenciesNoGolfer() : tendenciesUnread ? W::tendenciesUnread() : QString();
-    m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
-                                                      tendenciesLeftOutNewer, tendenciesWhy] {
-        return readChartsPages(dir, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
-                               tendenciesLeftOutNewer, tendenciesWhy);
-    }));
+    Job *jobp = m_job.get();
+    m_job->launchCharts = [jobp, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut, tendenciesLeftOutNewer,
+                           tendenciesWhy](std::shared_ptr<const pinpoint::charts::SessionSnapshot> snap) {
+        jobp->chartsWatcher.setFuture(QtConcurrent::run([snap, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
+                                                         tendenciesLeftOutNewer, tendenciesWhy] {
+            return readChartsPages(snap, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
+                                   tendenciesLeftOutNewer, tendenciesWhy);
+        }));
+    };
+    // The adapter is its Session's child: that Session's series (attached with it by the composition root).
+    m_job->series = m->parent() ? pinpoint::charts::SessionSeries::of(m->parent()) : nullptr;
+    if (m_job->series) (void)m_job->series->snapshot();   // its read starts now, beside the diagnosis
+    else ppWarn() << "[Report] no series is attached to the session of" << dir << "- its Charts pages read nothing";
 
     m_model = m;
     // QUEUED: an engine model emits busyChanged before it appends the row that made it idle; an adapter's busy falls a
@@ -657,6 +671,21 @@ void SessionReportModel::onChartsRead()
 
 void SessionReportModel::maybeBuild()
 {
+    // THE CHARTS PAGES (refactor 5.5a): read once the diagnosis is in and the session's series is idle, from its snapshot.
+    if (m_job && m_job->modelReady && !m_job->chartsLaunched) {
+        pinpoint::charts::SessionSeries *series = m_job->series.data();
+        if (series && series->busy()) {
+            if (!m_job->seriesWait)
+                m_job->seriesWait = connect(series, &pinpoint::charts::SeriesSource::busyChanged, this, [this] {
+                    QTimer::singleShot(0, this, [this] { maybeBuild(); });
+                });
+            return;
+        }
+        disconnect(m_job->seriesWait);
+        m_job->chartsLaunched = true;
+        m_job->launchCharts(series ? series->snapshot() : std::make_shared<const pinpoint::charts::SessionSnapshot>());
+        return;
+    }
     // The three halves call here as they land, and the last may find the build already begun.
     if (!m_job || !m_job->modelReady || !m_job->docsReady || !m_job->chartsReady || m_job->built) return;
     m_job->built = true;

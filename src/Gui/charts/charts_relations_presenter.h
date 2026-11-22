@@ -26,7 +26,7 @@
 // (session_relations.h, session_traces.h, session_warp.h, session_sequence.h) and is never repeated.
 //
 // ── THE INPUTS ───────────────────────────────────────────────────────────────────────────────
-// `model` (a SessionSeriesModel), `pickedSwingDir` (= shotReplay.swingDir), `register` ("replay" |
+// `model` (a SeriesSource: the session's SessionSeries), `pickedSwingDir` (= shotReplay.swingDir), `register` ("replay" |
 // "analyse"), and the reader's choices: `family` (a catalogue group or preset name; "" = the register's
 // default, Club delivery in Replay, Kinematic sequence in Analyse), `upId` / `acrossId` (reading ids
 // "key@phase"; "" = the defaults: clubhead speed at P7 up, its strongest partner that is not the same
@@ -45,7 +45,7 @@
 //
 // ── FIRED ────────────────────────────────────────────────────────────────────────────────────
 // Only from the condition link, never by matching values: per shot, a fired condition marks the reading
-// its ShotDiagnostics::drivenBy names (the reading that drove it on that shot), else the reading
+// its ChartShotFindings::drivenBy names (the reading that drove it on that shot), else the reading
 // ConditionInfo names; a link with phase −1 lands only on a key read at one instant. A link whose
 // key@phase is not a reading marks nothing (it is listed in thisShot.firedElsewhere for the picked shot).
 // The condition is said with how it read the reading (ConditionInfo / drivenBy `reducer`): "at P7" for an
@@ -250,7 +250,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
-#include "presenter_pool.h"   // the jobs' shared pool: destroying a presenter never waits (#173)
+#include "charts_presenter_core.h"   // the one base and idiom (refactor 5.5a)   // the jobs' shared pool: destroying a presenter never waits (#173)
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -272,7 +272,7 @@ class ChartsRelationsPresenter : public QObject
     QML_ELEMENT
 
     // ── inputs ──
-    Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY modelChanged)
+    Q_PROPERTY(pinpoint::charts::SeriesSource *model READ model WRITE setModel NOTIFY modelChanged)
     Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY pickedSwingDirChanged)
     Q_PROPERTY(QString register READ registerMode WRITE setRegisterMode NOTIFY registerChanged)
     Q_PROPERTY(QString family READ family WRITE setFamily NOTIFY familyChanged)
@@ -305,8 +305,8 @@ public:
     explicit ChartsRelationsPresenter(QObject *parent = nullptr);
     ~ChartsRelationsPresenter() override;
 
-    QObject *model() const { return m_model; }
-    void     setModel(QObject *m);
+    SeriesSource *model() const { return m_model; }
+    void     setModel(SeriesSource *m);
     QString  pickedSwingDir() const { return m_picked; }
     void     setPickedSwingDir(const QString &d);
     QString  registerMode() const { return m_register; }
@@ -330,7 +330,7 @@ public:
     QVariant pickedDetailRef() const { return qmlMapRef(pickedDetail()); }
     void     setPickedDetailRef(const QVariant &v) { setPickedDetail(qmlMapRefValue(v)); }
 
-    bool busy() const { return m_running; }
+    bool busy() const { return m_running || m_scheduled; }
     bool ready() const;
     QVariantMap  status() const;
     QVariantList families() const;
@@ -358,7 +358,7 @@ public:
     // Test seams.
     Q_INVOKABLE void setSynchronous(bool on) { m_synchronous = on; }
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);
-    // Feed a snapshot directly (no SessionSeriesModel): tests on the fixture. Replaces `model`'s.
+    // Feed a snapshot directly (no series): tests on the fixture. Replaces `model`'s.
     void setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot);
     // The read-at instants (default: the metric catalogue's card readAt).
     using ReadAt = std::function<std::vector<int>(const QString &key)>;
@@ -413,7 +413,7 @@ private:
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
 
     // inputs
-    QPointer<QObject> m_model;
+    QPointer<SeriesSource> m_model;
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     QString m_picked, m_register = QStringLiteral("analyse"), m_family, m_upId, m_acrossId, m_facetId, m_openId;
     QString m_gradePolicy = QStringLiteral("standard");
@@ -427,12 +427,13 @@ private:
     QVariantMap m_playheadMap;
 
     // the worker
-    PresenterPool m_pool{ this };
+    ChartsLane m_pool{ this };          // the one idiom (charts_work.h)
     std::shared_ptr<Cache> m_cache;        // touched only inside a job (jobs never overlap)
     ConsistencyEnv m_consistencyEnv;       // taken on the GUI thread; a job holds a copy
     quint64 m_normsGeneration = 0;         // the shared norm set's generation the env and cache were made at
     bool m_synchronous = false;
     bool m_running = false;
+    bool m_scheduled = false;   // a start is posted (refactor 5.5a: the one scheduler)
     bool m_dirty = false;
     int  m_generation = 0;
 };

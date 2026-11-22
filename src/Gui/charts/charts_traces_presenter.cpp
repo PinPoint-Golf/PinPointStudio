@@ -25,9 +25,11 @@
 #include "../trust/trust_readings.h"         // the readings a gate touched (the marks open them)
 #include "session_sequence.h"
 #include "session_bridge.h"     // the chest's probable peak (Session only)
-#include "session_series_model.h"
+#include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
+#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "variability_clubs.h"      // perClubTraceInputs (R2b: one window per club)
 #include "variability_env.h"        // the scale provider: each curve's scale type
+#include "consistency_env.h"        // consistencyEnvGeneration: a norm or pack save makes the scales again (5.5a)
 #include "../../Diagnostics/norms/norm_provider.h"   // sharedNormProviderGeneration: re-make the scales after a save
 #include "../variability/variability_facade.h"                 // variabilityResult, typicalityTracePayload
 #include "../../Metrics/variability/variability_grader.h"      // the trace and ordinal graders
@@ -538,10 +540,10 @@ ShotWarp warpOnto(const ShotSeries &ref, const ShotSeries &picked)
 }
 
 // "shot 3, 18 Aug 2026": which swing the ★ is — its swing number and its session's day (SessionIdentity).
-QString referenceLabelOf(const QString &dir) { return SessionSeriesModel::swingLabelOf(dir); }
+QString referenceLabelOf(const QString &dir) { return pinpoint::seriesSwingLabelOf(dir); }
 
 // The reference swing, read on the worker: the session's own copy when it is one of the session's
-// shots, else SwingStore::loadAnalysis → SessionSeriesModel::extractShot (the loader's own path, never
+// shots, else SwingStore::loadAnalysis → extractShot (the loader's own path, never
 // the pose), cached by the document's stamp. Null with *why when it cannot be read.
 std::shared_ptr<const ShotSeries> referenceShot(ChartsTracesPresenter::Worker &w, const QString &rawDir,
                                                 const std::shared_ptr<const SessionSnapshot> &snap, QString *why)
@@ -559,9 +561,9 @@ std::shared_ptr<const ShotSeries> referenceShot(ChartsTracesPresenter::Worker &w
     } else {
         QString err, whyNot;
         const QJsonObject root = pinpoint::SwingStore::loadAnalysis(dir, &err);
-        auto shot = root.isEmpty() ? nullptr : SessionSeriesModel::extractShot(root, dir, &whyNot);
+        auto shot = root.isEmpty() ? nullptr : extractShot(root, dir, &whyNot);
         if (shot) {
-            shot->shotId = SessionSeriesModel::folderShotId(dir);
+            shot->shotId = folderShotId(dir);
             w.refShot = shot;
         } else {
             w.refWhy = QStringLiteral("The reference swing cannot be read: ") + (whyNot.isEmpty() ? QStringLiteral("the swing document could not be read") : whyNot) + QStringLiteral(".");
@@ -3483,7 +3485,7 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
             if (sh->kinematicSequence.isEmpty()) sh->kinematicSequence = s.kinematicSequence;
         } else {
             sh->ordinal = (c.snap ? c.snap->count() : 0) + 1;
-            sh->shotId = SessionSeriesModel::folderShotId(want);
+            sh->shotId = folderShotId(want);
             sh->swingDir = want;
         }
         c.shot = fromAddr ? fromAddress(*sh, relKeys) : std::shared_ptr<const ShotSeries>(sh);
@@ -3561,25 +3563,25 @@ ChartsTracesPresenter::ChartsTracesPresenter(QObject *parent)
 {
     // the scale provider is made HERE, on the GUI thread (variability_env.h), before any job can read it; the generation
     // is read first, so a save in between only re-makes it (followNormSave)
-    m_normsGeneration = pinpoint::analysis::sharedNormProviderGeneration();
+    m_normsGeneration = consistencyEnvGeneration();
     m_worker->scales = makeVariabilityScaleProvider();
     schedule();
 }
 
 ChartsTracesPresenter::~ChartsTracesPresenter()
 {
-    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
+    // No wait: a job still running finishes into nothing (charts_work.h: the lane is cancelled, #173).
 }
 
-QObject *ChartsTracesPresenter::model() const { return m_model.data(); }
+SeriesSource *ChartsTracesPresenter::model() const { return m_model.data(); }
 
-void ChartsTracesPresenter::setModel(QObject *m)
+void ChartsTracesPresenter::setModel(SeriesSource *m)
 {
     if (m_model == m) return;
     if (m_model) disconnect(m_model, nullptr, this, nullptr);
     m_model = m;
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m))
-        connect(sm, &SessionSeriesModel::snapshotChanged, this, &ChartsTracesPresenter::onSnapshotChanged);
+    if (m)
+        connect(m, &SeriesSource::snapshotChanged, this, &ChartsTracesPresenter::onSnapshotChanged);
     emit inputsChanged();
     schedule();
 }
@@ -3594,8 +3596,7 @@ void ChartsTracesPresenter::setSnapshot(std::shared_ptr<const SessionSnapshot> s
 
 std::shared_ptr<const SessionSnapshot> ChartsTracesPresenter::currentSnapshot() const
 {
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m_model.data())) return sm->snapshot();
-    return m_directSnapshot;
+    return chosenSnapshot(m_directSnapshot, m_model.data());   // P2: a direct snapshot wins
 }
 
 #define PP_SETTER(Type, name, field)                                       \
@@ -3667,11 +3668,8 @@ void ChartsTracesPresenter::startJob()
     m_running = true;
     emit busyChanged();
     auto w = m_worker;
-    auto post = m_pool.poster();
-    m_pool.start([post, this, w, in]() {
-        auto r = computeAll(*w, in);
-        post([this, r]() { apply(r); });
-    });
+    askLane(m_pool, [w, in]() { return computeAll(*w, in); },
+            [this](auto r) { apply(r); });
 }
 
 void ChartsTracesPresenter::apply(std::shared_ptr<Result> r)
@@ -3698,7 +3696,7 @@ void ChartsTracesPresenter::flushIfSynchronous()
 
 void ChartsTracesPresenter::followNormSave()
 {
-    const quint64 gen = pinpoint::analysis::sharedNormProviderGeneration();
+    const quint64 gen = consistencyEnvGeneration();
     if (!m_ownScales || gen == m_normsGeneration) return;
     m_normsGeneration = gen;
     // No job is running (both callers check), and the lock makes the hand-over explicit. Nothing the worker caches

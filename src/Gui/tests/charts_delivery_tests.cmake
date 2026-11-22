@@ -40,7 +40,7 @@ pp_add_test(charts_delivery_presenter_test
             ${GUI}/charts/charts_delivery_presenter.cpp
             ${DELIVERY_PICTURE_SRC}
             ${GUI}/charts/session_delivery.cpp
-            ${GUI}/charts/session_series_model.cpp
+            ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp
@@ -66,7 +66,7 @@ pp_add_test(delivery_picture_test
             ${GUI}/charts/charts_delivery_presenter.cpp
             ${DELIVERY_PICTURE_SRC}
             ${GUI}/charts/session_delivery.cpp
-            ${GUI}/charts/session_series_model.cpp
+            ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp

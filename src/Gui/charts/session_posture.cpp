@@ -857,14 +857,20 @@ PostureEnv postureEnv(const pa::CharacteristicPack *pack, std::shared_ptr<const 
 
 std::shared_ptr<const PostureEnv> postureSharedEnv()
 {
-    static const std::unique_ptr<pa::ICharacteristicPackProvider> provider = pa::makeCharacteristicPackProvider();
-    static QMutex                            lock;
-    static std::shared_ptr<const PostureEnv> env;
-    static quint64                           builtAt = 0;
+    // THE PACK FOLLOWS ITS SAVES (refactor 5.5a; J-74 Q9; survey row 7): built over RuleData's current pack, and again
+    // when a saved pack edit (EVT-13) has published another; the env keeps the pack it points into alive.
+    static QMutex                                                  lock;
+    static std::shared_ptr<const PostureEnv>                       env;
+    static std::shared_ptr<const pa::ICharacteristicPackProvider> provider;
+    static quint64                                                 builtAt = 0;
+    const std::shared_ptr<const pinpoint::RuleDataSnapshot> now = pinpoint::RuleData::current();
+    const std::shared_ptr<const pa::ICharacteristicPackProvider> pack = now ? now->pack : nullptr;
     QMutexLocker lk(&lock);
-    if (!env || builtAt != pa::sharedNormProviderGeneration()) {
+    if (!env || builtAt != pa::sharedNormProviderGeneration() || pack != provider) {
+        provider = pack;
         std::shared_ptr<const pa::INormProvider> norms = pa::sharedNormProvider(&builtAt);
-        env = std::make_shared<const PostureEnv>(postureEnv(provider ? &provider->pack() : nullptr, std::move(norms)));
+        env = std::shared_ptr<const PostureEnv>(new PostureEnv(postureEnv(provider ? &provider->pack() : nullptr, std::move(norms))),
+                                                [keep = provider](const PostureEnv *e) { delete e; });
     }
     return env;
 }
@@ -1049,7 +1055,7 @@ PostureShotInput postureInputFromShot(const ShotSeries &shot, const PostureEnv &
         if (const pa::Measure *m = env.pack ? env.pack->measure(env.absolutes[i].measureId) : nullptr)
             if (const std::optional<double> o = pa::reduceOverGrid(grid, *m); o && fin(*o)) in.absolutes[i] = *o;
 
-    const ShotDiagnostics &d = shot.diagnostics;
+    const ChartShotFindings &d = shot.diagnostics;
     in.fired = d.fired; in.clean = d.clean;
     in.graded = !d.fired.isEmpty() || !d.clean.isEmpty();
     for (const QString &id : d.fired) in.conditionPos.insert(id, postureConditionPos(&shot, env, id));

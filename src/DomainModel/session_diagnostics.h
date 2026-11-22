@@ -219,6 +219,10 @@ public:
     const QHash<QString, analysis::ClubFlightUsual> &usuals() const { return m_usuals; }
     int             outstanding() const { return m_outstanding; }   // asks not yet come back
     bool            readOnly() const { return m_readOnly; }
+    // WHAT THE LOAD FOUND OF diagnostics.json (refactor 5.5a; J-74 Q2): the state this object already holds, read only —
+    // for a screen that says why nothing is graded yet (the Charts Wrist sections' "not graded" sentence).
+    enum class FileState { Missing, Read, Newer, Unopenable, Unparseable };
+    FileState       fileState() const { return m_fileState; }
     bool            dirty() const { return m_dirty; }
 
     // What was asked, in order (the tests' and the log's view of §4.4 step 2).
@@ -387,6 +391,7 @@ private:
     QJsonObject             m_legacyGolfer;
     analysis::LedgerOptions m_ledgerOptions;
     bool                    m_readOnly = false;
+    FileState               m_fileState = FileState::Missing;   // what the last load read (fileState())
     bool                    m_dirty    = false;
     bool                    m_retired  = false;
     // THE ARCHIVE WINDOW (refactor 3.7-a, review B2): an archive job of the session is out (nothing asked or written);

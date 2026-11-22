@@ -404,6 +404,11 @@ void SessionDiagnostics::load()
     QHash<int, DocumentStamp> stamps;
     QHash<int, QString>       contents;
     const DiagnosticsRead read = m_sessions->readDiagnostics(m_id);
+    m_fileState = read.state == DiagnosticsRead::State::Read        ? FileState::Read
+                : read.state == DiagnosticsRead::State::Newer       ? FileState::Newer
+                : read.state == DiagnosticsRead::State::Unopenable  ? FileState::Unopenable
+                : read.state == DiagnosticsRead::State::Unparseable ? FileState::Unparseable
+                                                                    : FileState::Missing;
     switch (read.state) {
     case DiagnosticsRead::State::Missing:
         break;

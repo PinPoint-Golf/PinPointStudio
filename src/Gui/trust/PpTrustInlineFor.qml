@@ -20,8 +20,8 @@ import QtQuick
 import PinPointStudio
 
 // PPTRUSTINLINEFOR — the in-place reason (PpTrustInline) for a surface that holds no readings of its own:
-// given a swing and a subject ("ks.pelvis"), it reads the swing's session through a SessionSeriesModel
-// (the process-wide cache the Charts panel fills, so usually a stat per swing) and a TrustPresenter, and
+// given a swing and a subject ("ks.pelvis"), it reads the swing's session's own series (refactor 5.5a:
+// the one the Charts panel reads, ChartsSeries.of) through a TrustPresenter, and
 // shows that one reading. Built only while open. Session diagnostics uses it for a finding a gate kept
 // from being judged, when the Trust panel is off (TrustFocus).
 // objectName: trustInlineFor.
@@ -39,6 +39,11 @@ Item {
     visible: open
 
     function _sessionOf(d) { const s = SessionMode.folderKey(d); return s.substring(0, s.lastIndexOf("/")) }
+    readonly property string _session: open ? _sessionOf(swingDir) : ""
+    // THE SWING'S SESSION'S OWN SERIES (refactor 5.5a): the session on screen's, else the Session that holds the folder
+    // (app.sessionAt: asked only for a folder that is not the one on screen).
+    readonly property var _series: (typeof ChartsSeries === "undefined" || typeof app === "undefined" || !app || tf._session === "") ? null
+        : ChartsSeries.of(SessionMode.sameFolder(tf._session, app.state.sessionOnScreenFolder) ? app.session : app.sessionAt(tf._session))
 
     Loader {
         id: ld
@@ -47,8 +52,7 @@ Item {
         sourceComponent: Item {
             width: tf.width
             implicitHeight: inl.implicitHeight
-            SessionSeriesModel { id: sm; Component.onCompleted: activateSession(tf._sessionOf(tf.swingDir)) }
-            TrustPresenter { id: tp; model: sm; pickedSwingDir: tf.swingDir }
+            TrustPresenter { id: tp; model: tf._series; pickedSwingDir: tf.swingDir }
             PpTrustInline {
                 id: inl
                 width: parent.width

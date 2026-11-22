@@ -71,7 +71,7 @@
 //      ranking by ρ live in the presenter (charts_posture_presenter.cpp); the core only says which readings count.
 //   7. Figures: cm to one decimal, ° and % stance in whole units; U+2212 minus; "-" when missing.
 //   8. AN EXIT IS NAMED BY A DEPARTURE ONLY WHEN ONE OF THAT DEPARTURE'S CONDITIONS FIRED (§8: "it
-//      grades nothing new"). This shot: the shot's own ShotDiagnostics.fired. Session (the medians):
+//      grades nothing new"). This shot: the shot's own ChartShotFindings.fired. Session (the medians):
 //      the condition's session tier is "pattern" (SessionSnapshot::tiers, the ledger's own reduction);
 //      for a condition the tiers do not hold, the ledger's own gate (diagnostic_ledger.h conditionTier
 //      over wilsonLowerBound) on the shots' fired / clean counts. An exit no fired condition names keeps
@@ -342,7 +342,7 @@ struct PostureShotInput {
     PostureFlags gateWarn{};                  // a gate refused or bounded the reading: drawn with ⚠, not matched
     PostureWords gateWords;                   // the gate's words (also the reason for a "-")
     bool        graded = false;               // the shot carries a diagnostics row
-    QStringList fired, clean;                 // ShotDiagnostics' own: the exits are named from `fired`
+    QStringList fired, clean;                 // ChartShotFindings' own: the exits are named from `fired`
     QHash<QString, int> conditionPos;         // each fired condition's position on this shot (postureConditionPos)
     std::array<QString, kPostureRows> gateWhy;   // the refusing gate's evidence for the row ("No ball to measure
                                                  // with in either view."), "" none — the trust fold's reason

@@ -24,7 +24,8 @@
 #include "session_consistency.h"
 #include "session_relations.h"
 #include "session_sequence.h"
-#include "session_series_model.h"
+#include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
+#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "session_traces.h"
 #include "session_warp.h"
 
@@ -170,7 +171,7 @@ std::shared_ptr<ShotSeries> shotFromDetail(const QVariantMap &d, const QString &
     auto s = std::make_shared<ShotSeries>();
     s->ordinal = ordinal;
     s->swingDir = swingDir;
-    s->shotId = SessionSeriesModel::folderShotId(swingDir);
+    s->shotId = folderShotId(swingDir);
     s->kinematicSequence = d.value(QStringLiteral("kinematicSequence")).toMap();
     s->gatesVersion = d.value(QStringLiteral("gatesVersion")).toInt();
     s->gates = d.value(QStringLiteral("gates")).toList();
@@ -419,7 +420,7 @@ void linkFired(const SessionSnapshot &s, std::vector<SessionReading> &rs, QHash<
         if (t >= 0 && !rs[size_t(t)].conditionIds.contains(it.key())) rs[size_t(t)].conditionIds << it.key();
     }
     for (int i = 0; i < N; ++i) {
-        const ShotDiagnostics &d = s.shots[size_t(i)]->diagnostics;
+        const ChartShotFindings &d = s.shots[size_t(i)]->diagnostics;
         for (const QString &c : d.fired) {
             QString key; int ph = -1, red = -1;
             const auto dv = d.drivenBy.constFind(c);
@@ -676,9 +677,9 @@ QVariantMap corridorOf(const Ctx &x, const SessionReading &r)
     for (int k = -1; k < N; ++k) {
         const int idx = k < 0 ? x.pick : k;
         if (idx < 0 || idx >= N || (k >= 0 && idx == x.pick)) continue;
-        const ShotDiagnostics &d = x.S.shots[size_t(idx)]->diagnostics;
+        const ChartShotFindings &d = x.S.shots[size_t(idx)]->diagnostics;
         for (auto it = d.gradedBy.constBegin(); it != d.gradedBy.constEnd(); ++it) {
-            const ShotDiagnostics::Reading &g = it.value();
+            const ChartShotFindings::Reading &g = it.value();
             if (g.measureId.isEmpty() || g.metricKey != r.key || g.phase != r.phase) continue;
             if (!g.sameQuantity) continue;
             const pinpoint::analysis::NormResolution res = x.norms->resolve(g.measureId, g.contextId);
@@ -2664,25 +2665,25 @@ QString ConsistencyReadingRows::guardNote()
 ChartsRelationsPresenter::ChartsRelationsPresenter(QObject *parent)
     : QObject(parent), m_cache(std::make_shared<Cache>())
 {
-    m_normsGeneration = pinpoint::analysis::sharedNormProviderGeneration();   // read first, as the consistency presenter
+    m_normsGeneration = consistencyEnvGeneration();   // read first, as the consistency presenter
     m_consistencyEnv = consistencyEnvFromPacks();     // on the GUI thread, for the worker to hold by value
 }
 
 ChartsRelationsPresenter::~ChartsRelationsPresenter()
 {
-    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
+    // No wait: a job still running finishes into nothing (charts_work.h: the lane is cancelled, #173).
 }
 
 #define PP_SET(member, value, sig, recompute) \
     do { if (member == value) return; member = value; emit sig(); if (recompute) schedule(); } while (0)
 
-void ChartsRelationsPresenter::setModel(QObject *m)
+void ChartsRelationsPresenter::setModel(SeriesSource *m)
 {
     if (m_model == m) return;
     if (m_model) disconnect(m_model, nullptr, this, nullptr);
     m_model = m;
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m))
-        connect(sm, &SessionSeriesModel::snapshotChanged, this, &ChartsRelationsPresenter::onSnapshotChanged);
+    if (m)
+        connect(m, &SeriesSource::snapshotChanged, this, &ChartsRelationsPresenter::onSnapshotChanged);
     emit modelChanged();
     schedule();
 }
@@ -2727,15 +2728,22 @@ void ChartsRelationsPresenter::onSnapshotChanged() { schedule(); }
 
 std::shared_ptr<const SessionSnapshot> ChartsRelationsPresenter::currentSnapshot() const
 {
-    if (m_directSnapshot) return m_directSnapshot;
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m_model.data())) return sm->snapshot();
-    return nullptr;
+    return chosenSnapshot(m_directSnapshot, m_model.data());   // P2: a direct snapshot wins
 }
 
 void ChartsRelationsPresenter::schedule()
 {
-    if (m_running) { m_dirty = true; return; }
-    start();
+    // THE ONE SCHEDULER (refactor 5.5a, charts_presenter_core.h P3): coalesced — one job in flight, a change meanwhile
+    // marks it dirty and one more runs with the latest inputs — and busy from the ask (P11). Synchronous: at once.
+    if (m_synchronous) { start(); return; }
+    m_dirty = true;
+    if (m_running || m_scheduled) return;
+    m_scheduled = true;
+    emit busyChanged();
+    QMetaObject::invokeMethod(this, [this] {
+        m_scheduled = false;
+        if (!m_running) start();
+    }, Qt::QueuedConnection);
 }
 
 void ChartsRelationsPresenter::start()
@@ -2743,8 +2751,8 @@ void ChartsRelationsPresenter::start()
     m_dirty = false;
     // A corridor saved in the Diagnostic Model since the last job: the env and the cache start again, as a new
     // presenter's would, so this job reads ONE norm set, the new (ChartsConsistencyPresenter::start, the same rule).
-    if (m_normsGeneration != pinpoint::analysis::sharedNormProviderGeneration()) {
-        m_normsGeneration = pinpoint::analysis::sharedNormProviderGeneration();
+    if (m_normsGeneration != consistencyEnvGeneration()) {
+        m_normsGeneration = consistencyEnvGeneration();
         m_consistencyEnv = consistencyEnvFromPacks();
         m_cache = std::make_shared<Cache>();
     }
@@ -2765,15 +2773,12 @@ void ChartsRelationsPresenter::start()
     }
     m_running = true;
     emit busyChanged();
-    auto post = m_pool.poster();
-    m_pool.start([post, this, snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, cache]() {
-        auto out = computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, *cache);
-        post([this, out]() {
+    askLane(m_pool, [snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, cache]() { return computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, *cache); },
+            [this](auto out) {
             m_running = false;
             deliver(out);
             if (m_dirty) start(); else emit busyChanged();
         });
-    });
 }
 
 void ChartsRelationsPresenter::deliver(std::shared_ptr<const Output> out)
@@ -2870,12 +2875,12 @@ bool ChartsRelationsPresenter::waitForIdle(int msTimeout)
 {
     if (m_synchronous) return true;
     QDeadlineTimer deadline(msTimeout);
-    while ((m_running || m_dirty) && !deadline.hasExpired()) {
+    while ((m_running || m_scheduled || m_dirty) && !deadline.hasExpired()) {
         QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
         m_pool.waitForDone(20);
     }
     QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-    return !m_running && !m_dirty;
+    return !m_running && !m_scheduled && !m_dirty;
 }
 
 // ── What moves with one reading (the Wrist tab's "what moves with the lead wrist at impact") ──────

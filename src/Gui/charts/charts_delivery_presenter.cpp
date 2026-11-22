@@ -22,7 +22,8 @@
 #include "delivery_picture.h"
 #include "charts_words.h"
 #include "session_delivery.h"
-#include "session_series_model.h"
+#include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
+#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
 
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"
@@ -130,7 +131,7 @@ std::shared_ptr<ShotSeries> deliveryShotFromDetail(const QVariantMap &d, const Q
     const QStringList &keys = deliveryMetricKeys();
     auto sh = std::make_shared<ShotSeries>();
     sh->swingDir = dir;
-    sh->shotId = SessionSeriesModel::folderShotId(dir);
+    sh->shotId = folderShotId(dir);
     sh->club = d.value(QStringLiteral("club")).toString();
     for (const QVariant &pv : d.value(QStringLiteral("phases")).toList()) {
         const QVariantMap p = pv.toMap();
@@ -272,8 +273,8 @@ DeliveryDay readDay(const std::vector<DaySibling> &siblings, const QString &date
             in.session = QFileInfo(sd).fileName();
             in.sessionOfDay = sib.nOfDay;
             in.thisSession = false;
-            if (in.ordinal <= 0) in.ordinal = SessionSeriesModel::folderShotId(swingDir);
-            in.shotId = SessionSeriesModel::folderShotId(swingDir);
+            if (in.ordinal <= 0) in.ordinal = folderShotId(swingDir);
+            in.shotId = folderShotId(swingDir);
             const QJsonObject src = root.value(QStringLiteral("source")).toObject();
             const SwingStore::DocInfo doc = SwingStore::info(swingDir);   // swing.ppsw, else swing.json; none: nothing to be stale against
             if (doc.exists()
@@ -890,26 +891,25 @@ ChartsDeliveryPresenter::ChartsDeliveryPresenter(QObject *parent)
 
 ChartsDeliveryPresenter::~ChartsDeliveryPresenter()
 {
-    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
+    // No wait: a job still running finishes into nothing (charts_work.h: the lane is cancelled, #173).
 }
 
-QObject *ChartsDeliveryPresenter::model() const { return m_model.data(); }
+SeriesSource *ChartsDeliveryPresenter::model() const { return m_model.data(); }
 
-void ChartsDeliveryPresenter::setModel(QObject *m)
+void ChartsDeliveryPresenter::setModel(SeriesSource *m)
 {
     if (m_model == m) return;
     if (m_model) disconnect(m_model, nullptr, this, nullptr);
     m_model = m;
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m))
-        connect(sm, &SessionSeriesModel::snapshotChanged, this, &ChartsDeliveryPresenter::schedule);
+    if (m)
+        connect(m, &SeriesSource::snapshotChanged, this, &ChartsDeliveryPresenter::schedule);
     emit inputsChanged();
     schedule();
 }
 
 std::shared_ptr<const SessionSnapshot> ChartsDeliveryPresenter::currentSnapshot() const
 {
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m_model.data())) return sm->snapshot();
-    return m_directSnapshot;
+    return chosenSnapshot(m_directSnapshot, m_model.data());   // P2: a direct snapshot wins
 }
 
 void ChartsDeliveryPresenter::setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot)
@@ -987,11 +987,8 @@ void ChartsDeliveryPresenter::startJob()
     m_running = true;
     emit busyChanged();
     auto w = m_worker;
-    auto post = m_pool.poster();
-    m_pool.start([post, this, w, in]() {
-        auto r = computeDelivery(*w, in);
-        post([this, r]() { apply(r); });
-    });
+    askLane(m_pool, [w, in]() { return computeDelivery(*w, in); },
+            [this](auto r) { apply(r); });
 }
 
 void ChartsDeliveryPresenter::apply(std::shared_ptr<Result> r)
@@ -1043,20 +1040,18 @@ void ChartsDeliveryPresenter::makeStills()
     }
     if (todo.isEmpty()) return;
     m_stillsBusy = true;
-    QPointer<ChartsDeliveryPresenter> self(this);
     auto w = m_worker;
     const StillMaker maker = stillMaker();
-    QThreadPool::globalInstance()->start([self, w, todo, maker]() {
+    askLane(m_stillsLane, [w, todo, maker]() {
         const QHash<QString, QString> errs = maker(todo);
         {
             QMutexLocker sl(&w->stillMutex);
             for (auto it = errs.cbegin(); it != errs.cend(); ++it) if (!it.value().isEmpty()) w->stillErrors.insert(it.key(), it.value());
         }
-        QMetaObject::invokeMethod(qApp, [self]() {
-            if (!self) return;
-            self->m_stillsBusy = false;
-            self->schedule();
-        }, Qt::QueuedConnection);
+        return true;
+    }, [this](bool) {
+        m_stillsBusy = false;
+        schedule();
     });
 }
 

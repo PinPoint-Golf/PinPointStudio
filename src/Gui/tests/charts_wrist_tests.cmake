@@ -12,7 +12,7 @@ pp_add_test(charts_wrist_presenter_test
             ${GUI}/charts/charts_relations_presenter.cpp
             ${GUI}/charts/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
-            ${GUI}/charts/session_series_model.cpp
+            ${GUI}/tests/folder_series.cpp
             ${GUI}/charts/session_curves.cpp
             ${GUI}/charts/session_warp.cpp
             ${GUI}/charts/session_traces.cpp

@@ -23,7 +23,7 @@
 // Charts' Apart builds (ConsistencyReadingRows, charts_relations_presenter.h), so the two surfaces cannot disagree.
 //
 // ── THE INPUTS ───────────────────────────────────────────────────────────────────────────────
-// `model` (a SessionSeriesModel), `pickedSwingDir` (shotReplay.swingDir) or `pickedOrdinal`. A swing folder wins, and
+// `model` (a SeriesSource: the session's SessionSeries), `pickedSwingDir` (shotReplay.swingDir) or `pickedOrdinal`. A swing folder wins, and
 // one that is not in the session is no pick. A new session clears `pickedOrdinal` and `openCell`. `openCell` ("area:column", the column 0-based, or ""); `medium`
 // ("screen", else paper: nothing to press); `gradePolicy` (AppSettings.diagnosticsGradePolicy, as Charts takes it, for
 // the rows' fired words).
@@ -95,7 +95,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
-#include "presenter_pool.h"   // the jobs' shared pool: destroying a presenter never waits (#173)
+#include "charts_presenter_core.h"   // the one base and idiom (refactor 5.5a)   // the jobs' shared pool: destroying a presenter never waits (#173)
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -112,7 +112,7 @@ class ChartsConsistencyPresenter : public QObject
     QML_ELEMENT
 
     // ── inputs ──
-    Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY modelChanged)
+    Q_PROPERTY(pinpoint::charts::SeriesSource *model READ model WRITE setModel NOTIFY modelChanged)
     Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY pickedSwingDirChanged)
     Q_PROPERTY(int pickedOrdinal READ pickedOrdinal WRITE setPickedOrdinal NOTIFY pickedOrdinalChanged)
     Q_PROPERTY(QString openCell READ openCell WRITE setOpenCell NOTIFY openCellChanged)
@@ -136,8 +136,8 @@ public:
     explicit ChartsConsistencyPresenter(QObject *parent = nullptr);
     ~ChartsConsistencyPresenter() override;
 
-    QObject *model() const { return m_model; }
-    void     setModel(QObject *m);
+    SeriesSource *model() const { return m_model; }
+    void     setModel(SeriesSource *m);
     QString  pickedSwingDir() const { return m_pickedDir; }
     void     setPickedSwingDir(const QString &d);
     int      pickedOrdinal() const { return m_pickedOrdinal; }
@@ -149,7 +149,7 @@ public:
     QString  gradePolicy() const { return m_gradePolicy; }
     void     setGradePolicy(const QString &p);
 
-    bool busy() const { return m_running; }
+    bool busy() const { return m_running || m_scheduled; }
     bool ready() const;
     QVariantMap  status() const;
     QVariantMap  head() const;
@@ -193,7 +193,7 @@ private:
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
 
     // inputs
-    QPointer<QObject> m_model;
+    QPointer<SeriesSource> m_model;
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     QString m_pickedDir, m_openCell, m_medium = QStringLiteral("screen"), m_gradePolicy = QStringLiteral("standard");
     int     m_pickedOrdinal = 0;
@@ -203,13 +203,14 @@ private:
     std::shared_ptr<const Output> m_out;
 
     // the worker
-    PresenterPool m_pool{ this };
+    ChartsLane m_pool{ this };          // the one idiom (charts_work.h)
     std::shared_ptr<Cache> m_cache;     // touched only inside a job (jobs never overlap)
     ConsistencyEnv m_env;               // taken on the GUI thread; a job holds a copy
     std::shared_ptr<const IVariabilityScaleProvider> m_scales;   // made on the GUI thread; a job holds a reference
     quint64 m_normsGeneration = 0;      // the shared norm set's generation the three above were made at
     bool m_synchronous = false;
     bool m_running = false;
+    bool m_scheduled = false;   // a start is posted (refactor 5.5a: the one scheduler)
     bool m_dirty = false;
 };
 

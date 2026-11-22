@@ -516,7 +516,7 @@ All of it is in the working tree, uncommitted. Commits come after the Product Ow
 **Corrections to the 6 Nov plan:**
 
 - The area field went in `metric_catalogue_manifest.cpp`, not `metric_catalog.cpp`.
-- The tab owns a `SessionSeriesModel`, as `PpTrustPanel.qml` does, because the diagnostics body has none.
+- The tab reads its session's own series (`SessionSeries`, through `ChartsSeries.of(app.session)`), as every Charts tab and the Trust views do; it makes none (refactor 5.5a).
 - Print is a client report page, not `PpDiagPrint.qml`.
 - "Goldens match the tally" could not hold for sampling, so C++ does the sampling and the tally checks the rules on it.
 - `session_relations.{h,cpp}`, `swing_areas.h`, `PpChartsRelationsView.qml` and `PpDiagPrint.qml` did not change. `envelope`

@@ -235,6 +235,10 @@ The rule (now in spec §15.4 item 1, written after round 1 drew every curve in i
    `conditions{ id: { name, group } }`. It must load off the GUI thread and hold only the series, phases,
    sequence and diagnostics, never pose or the rest of the 20 MB analysis blob (the 28 MB document froze
    the GUI before). It must be cached, update when a live shot lands, and be sized for 50+ shot sessions.
+   *Since refactor 5.5a it is the session's own series, `SessionSeries` (`src/Gui/charts/session_series.h`): one per
+   Session, attached with it, read lazily through its `SeriesReader`, following the Session's events and showing its
+   diagnostics owner's findings; a view reaches it through its Session (`ChartsSeries.of(app.session)`) and never makes
+   one. Its jobs run on the app's one pool (`charts_work.h`), as every presenter's do.*[^r55a]
 2. **Session maths (C++, with tests),** probably ChartMetrics plus a new session-statistics class:
    - A: `canonicalPhases`, `warp` / `warpMs` / `unwarpMs`, `envelope` (type-7 quantiles, at least 3
      shots), `partAt`, `pooledFit` (the §4 engine: keys, shots, window, align, half-width 20 ms, tricube,
@@ -302,3 +306,5 @@ for the curves"), and round 1b restored `Theme.metricColor`, made warn a mark pl
 signature renders because the thumbnail grid did not let him tell the designs apart. Lesson for the
 next panel: brief what the shipped panel already does that the Product Owner asked for, and show signatures at his
 window size, not only a grid.
+
+[^r55a]: Refactor 5.5a (Charts onto the session; coordinator judgement call J-74).

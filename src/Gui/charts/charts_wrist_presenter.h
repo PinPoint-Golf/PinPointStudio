@@ -24,7 +24,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
-#include "presenter_pool.h"   // the jobs' shared pool: destroying a presenter never waits (#173)
+#include "charts_presenter_core.h"   // the one base and idiom (refactor 5.5a)   // the jobs' shared pool: destroying a presenter never waits (#173)
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -39,7 +39,7 @@
 //
 // ── ONE VERDICT (CONTRACT decisions 1–4) ─────────────────────────────────────────────────────
 //   · THE CELLS are the findings' (refactor 3.8-ii; DEC-123): each DOF at each checkpoint against its norm band, graded
-//     by fireFindings() under each style and kept on the shot's row (ShotDiagnostics::wrist, diagnostics.json schema 16);
+//     by fireFindings() under each style and kept on the shot's row (ChartShotFindings::wrist, diagnostics.json schema 16);
 //     the payload (session_wrist.h) picks the style asked for. Nothing is graded here. A shot with wrist readings and no
 //     profile yet says "not graded yet" in its cells, with why (J-58: show, never hide).
 //   · THE FINDINGS AND THE SCORE are the diagnostics conditions' in the wrist domain
@@ -48,7 +48,7 @@
 //     (src/Diagnostics/engine/wrist_domain_score.h) over this shot's verdicts. The engine's rules and
 //     score do not reach the tab.
 //   · THE VERDICTS ARE READ OFF THE SNAPSHOT — the ledger SessionDiagnosticsModel writes
-//     (diagnostics.json), joined per shot by SessionSeriesModel (ShotDiagnostics: fired / clean,
+//     (diagnostics.json), joined per shot by the session's series (ChartShotFindings: fired / clean,
 //     graded value, corridor, confidence, driving reading) with the session tiers
 //     (SessionSnapshot::tiers). So no diagnostics object is an input: the panel already refreshes the
 //     snapshot when that model writes (PpChartsPanel: busy → false → refreshDiagnostics). The
@@ -60,7 +60,7 @@
 //     it: "No finding fired; 2 checkpoints sat outside a band".
 //
 // ── INPUTS ───────────────────────────────────────────────────────────────────────────────────
-// model (SessionSeriesModel), pickedSwingDir + pickedDetailRef (shotReplay.analysisDetailRef: a shot not
+// model (the session's SeriesSource: its SessionSeries), pickedSwingDir + pickedDetailRef (shotReplay.analysisDetailRef: a shot not
 // yet in the snapshot still reads), register ("analyse" | "replay"), playheadUs (the picked shot's
 // window-relative clock), scope ("shot" | "session"), against ("address" | "previous" | "reference" |
 // "median"), curvesBehind, archetype (-1 Auto | 0 Neutral | 1 Bowed | 2 Cupped: which of the styles the findings graded
@@ -224,7 +224,7 @@ class ChartsWristPresenter : public QObject
     QML_ELEMENT
 
     // ── inputs ──
-    Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY inputsChanged)
+    Q_PROPERTY(pinpoint::charts::SeriesSource *model READ model WRITE setModel NOTIFY inputsChanged)
     Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY inputsChanged)
     // The picked shot's detail, as QML passes it on: shotReplay.analysisDetailRef, OPAQUE to QML
     // (qml_map_ref.h). Never a QVariantMap property: writing the JS detail to one copied all
@@ -252,8 +252,8 @@ public:
     explicit ChartsWristPresenter(QObject *parent = nullptr);
     ~ChartsWristPresenter() override;
 
-    QObject *model() const;
-    void setModel(QObject *m);
+    SeriesSource *model() const;
+    void setModel(SeriesSource *m);
     QString pickedSwingDir() const { return m_in.pickedSwingDir; }
     void setPickedSwingDir(const QString &d);
     QVariantMap pickedDetail() const { return m_in.pickedDetail; }
@@ -323,7 +323,7 @@ private:
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
 
     Inputs m_in;
-    QPointer<QObject> m_model;
+    QPointer<SeriesSource> m_model;
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     qint64 m_playheadUs = -1;
     int m_selected = 0;
@@ -335,7 +335,7 @@ private:
 
     std::shared_ptr<Result> m_result;
     std::shared_ptr<Worker> m_worker;
-    PresenterPool m_pool{ this };
+    ChartsLane m_pool{ this };          // the one idiom (charts_work.h)
 };
 
 } // namespace pinpoint::charts

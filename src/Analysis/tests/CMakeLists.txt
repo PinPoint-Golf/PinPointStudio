@@ -1790,7 +1790,6 @@ pp_add_test(work_ons_controller_test
             ${SRC}/Gui/diagnostics/work_ons_controller.cpp
             ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
             ${SESSION_DIAG_MARKS_SOURCES}
-            ${SRC}/Gui/charts/session_series_model.cpp
             ${SRC}/Gui/charts/session_wrist.cpp
             ${SRC}/Gui/charts/session_posture.cpp
             ${SRC}/Wrist/wrist_analysis_adapter.cpp
@@ -2003,6 +2002,33 @@ foreach(_owner_view_test session_diagnostics_model_test golfer_input_test shot_n
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 endforeach()
 
+# session_series_test — THE SESSION'S OWN SERIES (refactor 5.5a; src/Gui/charts/session_series.h): attached with every
+# Session through the owners' hook, read lazily through its read door, fed by the Session's events and joined to its
+# SessionDiagnostics' findings, on the charts' one idiom (ChartsLane). Over 5.4's owner rig: the owner view tests' link
+# line plus the series, its pure half and the test double of the old folder loader (FolderSeries, OLDNEW).
+set(_session_series_sources ${_owner_view_test_sources}
+    ${SRC}/Gui/charts/session_series.h ${SRC}/Gui/charts/session_series.cpp
+    ${SRC}/Gui/charts/charts_work.h ${SRC}/Gui/charts/charts_work.cpp
+    ${SRC}/Gui/charts/session_series_extract.cpp ${SRC}/Gui/charts/session_wrist.cpp
+    ${SRC}/Gui/tests/folder_series.h ${SRC}/Gui/tests/folder_series.cpp
+    ${SRC}/Export/series_store.cpp)
+pp_add_test(session_series_test
+    SOURCES ${SRC}/Gui/tests/session_series_test.cpp ${_session_series_sources}
+    INCLUDE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${SRC}/Gui/charts ${OpenCV_INCLUDE_DIRS}
+    LINK    Qt6::Gui Qt6::Qml Qt6::Concurrent ${OpenCV_LIBS}
+    STD 20
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(session_series_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+# charts_series_dump — THE CHARTS SERIES, OLD AGAINST NEW (refactor 5.5a, deliverable 7): not a ctest. It holds each
+# session it is given, so its owner writes into it: run it on a scratch copy of the parity set only.
+add_executable(charts_series_dump ${PP_REPO_ROOT}/tools/diagnostics/charts_series_dump.cpp ${_session_series_sources})
+target_include_directories(charts_series_dump PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${SRC}/Gui/charts ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(charts_series_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent pinpoint_swingstore ${OpenCV_LIBS})
+target_compile_definitions(charts_series_dump PRIVATE PP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
+set_target_properties(charts_series_dump PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+
 # THE PARITY DUMPS (refactor Step G; docs/developer/testing_developer_guide.md "Parity dumps"). The session
 # half is regrade_ledger --dump, above. athlete_dump is the athlete half: the app's work-ons catch-up
 # (WorkOnsController, driven synchronously as work_ons_controller_test drives it) over a SCRATCH athlete
@@ -2023,7 +2049,6 @@ add_executable(athlete_dump
     ${SRC}/Gui/diagnostics/work_ons_controller.cpp
     ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
     ${SESSION_DIAG_MARKS_SOURCES}
-    ${SRC}/Gui/charts/session_series_model.cpp
     ${SRC}/Gui/charts/session_wrist.cpp
     ${SRC}/Gui/charts/session_posture.cpp
     ${SRC}/Wrist/wrist_analysis_adapter.cpp

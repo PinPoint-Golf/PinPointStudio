@@ -18,9 +18,8 @@
 
 #pragma once
 
-// THE TRUST PANEL'S PRESENTER (docs/design/trust_and_gates_design.md §7). Reads the session through a
-// SessionSeriesModel (whose process-wide cache the Charts panel's model shares, so a second instance costs
-// a stat per swing) and publishes, for the picked shot and for the session, the readings a gate touched —
+// THE TRUST PANEL'S PRESENTER (docs/design/trust_and_gates_design.md §7). Reads the session through its own
+// series (SessionSeries: one per Session, so every Trust view follows the same snapshot as Charts; refactor 5.5a) and publishes, for the picked shot and for the session, the readings a gate touched —
 // trust_readings.h, the one statement every surface reads.
 //
 //   shot:    { available, ordinal, kicker ("Shot 4 of 6 · 7 iron"), swingDir, recorded, head, readings, counts }
@@ -35,7 +34,7 @@
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
-namespace pinpoint::charts { class SessionSeriesModel; }
+#include "../charts/charts_work.h"   // SeriesSource (refactor 5.5a)
 
 namespace pinpoint::trust {
 
@@ -44,7 +43,7 @@ class TrustPresenter : public QObject
     Q_OBJECT
     QML_ELEMENT
 
-    Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY inputsChanged)
+    Q_PROPERTY(pinpoint::charts::SeriesSource *model READ model WRITE setModel NOTIFY inputsChanged)
     Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY inputsChanged)
     // The picked shot's detail, as QML passes it on: shotReplay.analysisDetailRef, OPAQUE to QML
     // (qml_map_ref.h). Never a QVariantMap property: writing the JS detail to one copied all
@@ -56,8 +55,8 @@ class TrustPresenter : public QObject
 public:
     explicit TrustPresenter(QObject *parent = nullptr);
 
-    QObject *model() const;
-    void setModel(QObject *m);
+    charts::SeriesSource *model() const;
+    void setModel(charts::SeriesSource *m);
     QString pickedSwingDir() const { return m_pickedSwingDir; }
     void setPickedSwingDir(const QString &d);
     QVariantMap pickedDetail() const { return m_pickedDetail; }
@@ -74,7 +73,7 @@ signals:
 private:
     void recompute();
 
-    QPointer<charts::SessionSeriesModel> m_model;
+    QPointer<charts::SeriesSource> m_model;
     QString     m_pickedSwingDir;
     QVariantMap m_pickedDetail;
     QVariantMap m_shot, m_session;

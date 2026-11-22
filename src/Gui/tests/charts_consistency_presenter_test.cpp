@@ -10,7 +10,7 @@
 #include "charts/consistency_grades.h"
 #include "charts/variability_env.h"
 #include "charts/session_consistency.h"
-#include "charts/session_series_model.h"
+#include "folder_series.h"   // the old loader, a test double (5.5a)
 #include "charts/session_warp.h"
 #include "charts_maths_fixture.h"
 #include "Diagnostics/norms/norm_provider.h"
@@ -981,7 +981,7 @@ private slots:
         doc.write("{}");
         doc.close();
         QSemaphore gate;
-        SessionSeriesModel model;
+        FolderSeries model;
         model.setDocLoader([&gate](const QString &, QString *error) {
             gate.acquire();
             if (error) *error = QStringLiteral("held by the test");

@@ -19,7 +19,7 @@
 #include "trust_presenter.h"
 #include "trust_readings.h"
 
-#include "../charts/session_series_model.h"
+#include "../charts/charts_work.h"   // SeriesSource (refactor 5.5a)
 
 #include <QDir>
 
@@ -34,15 +34,14 @@ TrustPresenter::TrustPresenter(QObject *parent) : QObject(parent)
     connect(this, &TrustPresenter::inputsChanged, this, &TrustPresenter::recompute);
 }
 
-QObject *TrustPresenter::model() const { return m_model.data(); }
+charts::SeriesSource *TrustPresenter::model() const { return m_model.data(); }
 
-void TrustPresenter::setModel(QObject *m)
+void TrustPresenter::setModel(charts::SeriesSource *m)
 {
-    auto *sm = qobject_cast<charts::SessionSeriesModel *>(m);
-    if (sm == m_model) return;
+    if (m == m_model) return;
     if (m_model) disconnect(m_model, nullptr, this, nullptr);
-    m_model = sm;
-    if (m_model) connect(m_model, &charts::SessionSeriesModel::snapshotChanged, this, &TrustPresenter::recompute);
+    m_model = m;
+    if (m_model) connect(m_model, &charts::SeriesSource::snapshotChanged, this, &TrustPresenter::recompute);
     emit inputsChanged();
 }
 

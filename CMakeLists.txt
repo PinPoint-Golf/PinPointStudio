@@ -2962,6 +2962,10 @@ target_sources(PinPointStudio PRIVATE
     src/DomainModel/golfer_input_rules.h
     src/Export/firing_reader_store.h
     src/Export/firing_reader_store.cpp
+    # The session's series' read door (refactor 5.5a; Domain model interface, Adapters store).
+    src/DomainModel/series_reader.h
+    src/Export/series_store.h
+    src/Export/series_store.cpp
     src/Diagnostics/engine/session_reduction.h
     src/Diagnostics/engine/session_reduction.cpp
     src/Coaching/session_results.h
@@ -2984,6 +2988,9 @@ target_sources(PinPointStudio PRIVATE
     # the same reason — it links the Session and its SessionDiagnostics, which the QML suites do not compile.
     src/Gui/diagnostics/session_diagnostics_adapter.h
     src/Gui/diagnostics/session_diagnostics_adapter.cpp
+    # Every Session's own series (refactor 5.5a; its QML door ChartsSeries is in the QML module, charts_work.h).
+    src/Gui/charts/session_series.h
+    src/Gui/charts/session_series.cpp
     src/App/app.h
     src/App/app.cpp
     src/App/app_state.h

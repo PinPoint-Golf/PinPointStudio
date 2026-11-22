@@ -80,7 +80,9 @@ struct ViewRig {
     pinpoint::Athlete                                       *athlete = nullptr;
     std::unique_ptr<pinpoint::App>                           app;
 
-    explicit ViewRig(const QString &dir) : athleteDir(QDir::cleanPath(dir))
+    // `athleteId`: the athlete the folder's sessions name (a parity copy's athlete.json, refactor 5.5a's
+    // charts_series_dump); empty, a new one (the suites' own folders).
+    explicit ViewRig(const QString &dir, const QString &athleteId = QString()) : athleteDir(QDir::cleanPath(dir))
     {
         using namespace pinpoint;
         store.setLockWaitForTest(200);
@@ -99,7 +101,7 @@ struct ViewRig {
         athletes = std::make_unique<AthleteStore>([lib] { return lib; }, &store);
         athletes->setOsTrashForTest(false);
         athletes->setLockWaitForTest(200);
-        const AthleteId id = AthleteId::fromString(QUuid::createUuid().toString(QUuid::WithoutBraces));
+        const AthleteId id = AthleteId::fromString(athleteId.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : athleteId);
         owned = std::make_unique<Athlete>(athletes.get(), &store, id);
         athlete = owned.get();
         AthleteRecord r;

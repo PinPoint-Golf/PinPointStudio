@@ -33,6 +33,11 @@ set(CHARTS_WRIST_SRC
     # A session's day and place (SessionDiagnosticsFiles::identityOf / sessionPlaces, step 2.7b): the session store
     # reads the session file, SessionIdentity a legacy folder's name, SwingPaths the swing numbers and the listing.
     ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Export/swing_paths.cpp
-    ${SRC}/Core/folder_lock.cpp)
+    ${SRC}/Core/folder_lock.cpp
+    # The charts' one threading idiom and the series' pure half (refactor 5.5a): every presenter's lane is a ChartsLane on
+    # the one WorkPool (charts_work.h; SeriesSource there too), every snapshot shot is extractShot's, and the ★ label is
+    # the series store's (seriesSwingLabelOf).
+    ${GUI}/charts/charts_work.cpp ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+    ${GUI}/charts/session_series_extract.cpp ${SRC}/Export/series_store.cpp)
 set(CHARTS_NORM_ENV
     "PINPOINT_CORE_NORMS=${SRC}/Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${SRC}/Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${SRC}/Resources/diagnostics/contexts.json")

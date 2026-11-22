@@ -40,11 +40,11 @@ Update/update_controller.cpp | A1 | 2 | DEC-146: the updater takes the app's set
 Update/win_sparkle_update.cpp | A1 | 2 | DEC-146: the updater takes the app's settings object and the session controller (Gui/app/app_settings.h, Gui/session/session_controller.h) to hold off while a session runs; the platform refactor (settings, 05 §2), outside steps 1-8  # platform refactor (settings)
 
 # ── A2 QML creating a session/athlete-scoped type ──
-Gui/charts/PpChartsPanel.qml | A2 | 6 | the Charts panel creates its own SessionSeriesModel and the five presenters; step 5 gives each session one SessionSeries and the presenters to it  # step 5
-Gui/diagnostics/PpConsistencyView.qml | A2 | 3 | the Consistency view creates its own SessionSeriesModel and presenters; step 5 moves them onto the session  # step 5
-Gui/trust/PpTrustInlineFor.qml | A2 | 2 | a trust view creates its own SessionSeriesModel and TrustPresenter; step 5 moves them onto the session  # step 5
-Gui/trust/PpTrustPanel.qml | A2 | 2 | a trust view creates its own SessionSeriesModel and TrustPresenter; step 5 moves them onto the session  # step 5
-Gui/trust/PpTrustSummaryFold.qml | A2 | 2 | a trust view creates its own SessionSeriesModel and TrustPresenter; step 5 moves them onto the session  # step 5
+Gui/charts/PpChartsPanel.qml | A2 | 5 | the Charts panel creates its five presenters (5.5a: the series is the session's, no longer made here); the typed presenters items (5.5b, 5.5c) take them  # step 5
+Gui/diagnostics/PpConsistencyView.qml | A2 | 2 | the Consistency view creates its two presenters (5.5a: the series is the session's); the typed presenters items (5.5b, 5.5c) take them  # step 5
+Gui/trust/PpTrustInlineFor.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's); the typed Trust presenter (5.5b) takes it  # step 5
+Gui/trust/PpTrustPanel.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's); the typed Trust presenter (5.5b) takes it  # step 5
+Gui/trust/PpTrustSummaryFold.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's); the typed Trust presenter (5.5b) takes it  # step 5
 Gui/session/PpLaunchMonitorPanel.qml | A2 | 1 | the LM board creates its own LmSessionModel; step 6 makes the board a presenter over the session's measurements  # step 6
 Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates a SwingDataSource that reads a swing document itself; step 5 makes it a presenter over the shot, like the Charts panel (triage, Mark 14 Nov 2026)  # step 5
 
@@ -75,7 +75,6 @@ Gui/charts/charts_delivery_presenter.cpp | A5 | 9 | P11: a Charts presenter/mode
 Gui/charts/charts_posture_presenter.cpp | A5 | 9 | P11: a Charts presenter/model reads swings, phase grids and diagnostics through the store itself; step 5 gives each session one SessionSeries and reads other sessions through session results (DEC-74)  # step 5
 Gui/charts/charts_traces_presenter.cpp | A5 | 1 | P11: a Charts presenter/model reads swings, phase grids and diagnostics through the store itself; step 5 gives each session one SessionSeries and reads other sessions through session results (DEC-74)  # step 5
 Gui/charts/charts_wrist_presenter.cpp | A5 | 1 | P11: a Charts presenter/model reads swings, phase grids and diagnostics through the store itself; step 5 gives each session one SessionSeries and reads other sessions through session results (DEC-74)  # step 5
-Gui/charts/session_series_model.cpp | A5 | 3 | P11: a Charts presenter/model reads swings, phase grids and diagnostics through the store itself; step 5 gives each session one SessionSeries and reads other sessions through session results (DEC-74)  # step 5
 Gui/report/report_mailer.cpp | A5 | 4 | P11: the report reads the session's files and saves its documents (meta, stills, PDF) itself; step 5 makes the report a Session command through SessionRepository (DEC-81; FILE-SESS-07…09)  # step 5
 Gui/report/report_meta.h | A5 | 8 | P11: the report reads the session's files and saves its documents (meta, stills, PDF) itself; step 5 makes the report a Session command through SessionRepository (DEC-81; FILE-SESS-07…09)  # step 5
 Gui/report/report_stills.cpp | A5 | 3 | P11: the report reads the session's files and saves its documents (meta, stills, PDF) itself; step 5 makes the report a Session command through SessionRepository (DEC-81; FILE-SESS-07…09)  # step 5
@@ -145,7 +144,6 @@ Gui/charts/charts_posture_presenter.h | A6 | 4 | a presenter/model hands QML QVa
 Gui/charts/charts_relations_presenter.h | A6 | 10 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/charts/charts_traces_presenter.h | A6 | 8 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/charts/charts_wrist_presenter.h | A6 | 5 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
-Gui/charts/session_series_model.h | A6 | 1 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/print/pdf_document_writer.h | A6 | 1 | the report's PDF writer takes its page options as a QVariantMap; step 5 moves the report onto the session with typed results  # step 5
 Gui/report/report_mailer.h | A6 | 4 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/report/session_report_list_model.h | A6 | 3 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5

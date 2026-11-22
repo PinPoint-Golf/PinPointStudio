@@ -22,7 +22,8 @@
 #include "charts_words.h"
 #include "posture_picture.h"
 #include "session_posture.h"
-#include "session_series_model.h"
+#include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
+#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "variability_clubs.h"                              // perClubInputs: one window per club (R2b)
 
 #include "../variability/variability_facade.h"              // VariabilityResultView: the `variabilityResult` QML reads
@@ -213,7 +214,7 @@ std::shared_ptr<ShotSeries> postureShotFromDetail(const QVariantMap &d, const QS
 {
     auto sh = std::make_shared<ShotSeries>();
     sh->swingDir = dir;
-    sh->shotId = SessionSeriesModel::folderShotId(dir);
+    sh->shotId = folderShotId(dir);
     sh->club = d.value(QStringLiteral("club")).toString();
     sh->gatesVersion = d.value(QStringLiteral("gatesVersion")).toInt();
     sh->gates = d.value(QStringLiteral("gates")).toList();
@@ -271,7 +272,7 @@ std::shared_ptr<ShotSeries> postureShotFromDetail(const QVariantMap &d, const QS
 }
 
 // "shot 3, 18 Aug 2026": which swing the ★ is — its swing number and its session's day (SessionIdentity).
-QString referenceLabelOf(const QString &dir) { return SessionSeriesModel::swingLabelOf(dir); }
+QString referenceLabelOf(const QString &dir) { return pinpoint::seriesSwingLabelOf(dir); }
 
 // ── the job's context ───────────────────────────────────────────────────────────────────────
 
@@ -322,7 +323,7 @@ void resolveReference(Ctx &c)
             QString err, whyNot;
             const QJsonObject root = pinpoint::SwingStore::loadAnalysis(dir, &err);
             std::shared_ptr<ShotSeries> shot;
-            if (!root.isEmpty()) shot = SessionSeriesModel::extractShot(root, dir, &whyNot);
+            if (!root.isEmpty()) shot = extractShot(root, dir, &whyNot);
             if (shot) { w.refOk = true; w.refIn = postureInputFromShot(*shot, c.env); }
             else w.refWhy = QStringLiteral("The reference swing cannot be read: %1.")
                                 .arg(whyNot.isEmpty() ? QStringLiteral("the swing document could not be read") : whyNot);
@@ -849,7 +850,7 @@ QVariantMap findingMap(const PostureEnv &env, const SessionSnapshot *snap, const
     const QString why = c ? golferSafe(c->golferWhy) : QString();
     const QString tier = sessionTier(snap, id, !working);
     const QString severity = working ? QStringLiteral("good") : tier == QLatin1String("pattern") ? QStringLiteral("pattern") : QStringLiteral("watching");
-    ShotDiagnostics::Value val;
+    ChartShotFindings::Value val;
     if (s) val = s->diagnostics.values.value(id);
     const QString unit = unitOfCondition(env, s, id);
     const bool figure = !working && rowUnit(env, s, id, unit);
@@ -1709,26 +1710,25 @@ ChartsPosturePresenter::ChartsPosturePresenter(QObject *parent)
 
 ChartsPosturePresenter::~ChartsPosturePresenter()
 {
-    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
+    // No wait: a job still running finishes into nothing (charts_work.h: the lane is cancelled, #173).
 }
 
-QObject *ChartsPosturePresenter::model() const { return m_model.data(); }
+SeriesSource *ChartsPosturePresenter::model() const { return m_model.data(); }
 
-void ChartsPosturePresenter::setModel(QObject *m)
+void ChartsPosturePresenter::setModel(SeriesSource *m)
 {
     if (m_model == m) return;
     if (m_model) disconnect(m_model, nullptr, this, nullptr);
     m_model = m;
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m))
-        connect(sm, &SessionSeriesModel::snapshotChanged, this, &ChartsPosturePresenter::schedule);
+    if (m)
+        connect(m, &SeriesSource::snapshotChanged, this, &ChartsPosturePresenter::schedule);
     emit inputsChanged();
     schedule();
 }
 
 std::shared_ptr<const SessionSnapshot> ChartsPosturePresenter::currentSnapshot() const
 {
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m_model.data())) return sm->snapshot();
-    return m_directSnapshot;
+    return chosenSnapshot(m_directSnapshot, m_model.data());   // P2: a direct snapshot wins
 }
 
 void ChartsPosturePresenter::setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot)
@@ -1816,11 +1816,8 @@ void ChartsPosturePresenter::startJob()
     m_running = true;
     emit busyChanged();
     auto w = m_worker;
-    auto post = m_pool.poster();
-    m_pool.start([post, this, w, in]() {
-        auto r = computePosture(*w, in);
-        post([this, r]() { apply(r); });
-    });
+    askLane(m_pool, [w, in]() { return computePosture(*w, in); },
+            [this](auto r) { apply(r); });
 }
 
 void ChartsPosturePresenter::apply(std::shared_ptr<Result> r)
@@ -1872,20 +1869,18 @@ void ChartsPosturePresenter::makeStills()
     }
     if (todo.isEmpty()) return;
     m_stillsBusy = true;
-    QPointer<ChartsPosturePresenter> self(this);
     auto w = m_worker;
     const StillMaker maker = stillMaker();
-    QThreadPool::globalInstance()->start([self, w, todo, maker]() {
+    askLane(m_stillsLane, [w, todo, maker]() {
         const QHash<QString, QString> errs = maker(todo);
         {
             QMutexLocker sl(&w->stillMutex);
             for (auto it = errs.cbegin(); it != errs.cend(); ++it) if (!it.value().isEmpty()) w->stillErrors.insert(it.key(), it.value());
         }
-        QMetaObject::invokeMethod(qApp, [self]() {
-            if (!self) return;
-            self->m_stillsBusy = false;
-            self->schedule();
-        }, Qt::QueuedConnection);
+        return true;
+    }, [this](bool) {
+        m_stillsBusy = false;
+        schedule();
     });
 }
 

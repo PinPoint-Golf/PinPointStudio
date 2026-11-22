@@ -65,5 +65,8 @@ namespace pinpoint::charts {
 // the rule is kept as it was until Charts reads the session's snapshot (step 5). A first call from any
 // other thread asserts in a debug build and writes ppError in a release one.
 ConsistencyEnv consistencyEnvFromPacks();
+// Moves whenever an env taken now would differ from one taken before: the norm set (a corridor save, EVT-12) or the
+// pack (a pack save, EVT-13) has been published again since (refactor 5.5a). A presenter takes a new env when it moves.
+quint64 consistencyEnvGeneration();
 
 } // namespace pinpoint::charts

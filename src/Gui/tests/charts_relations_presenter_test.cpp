@@ -18,7 +18,7 @@
 
 // The Charts panel's relations presenter (src/Gui/charts/charts_relations_presenter.h) on the trimmed
 // 4 July fixture — the session variant B's mock was drawn from — read at the metric catalogue's card
-// instants, and on the real scratch session through SessionSeriesModel (QSKIP when the share is not
+// instants, and on the real scratch session through FolderSeries (QSKIP when the share is not
 // mounted). The mock's own sentences and counts are the expectations: clubhead speed's ledger with 4 of 67 clearing chance, shaft lean at P7 drifting at r −.88, the kinds
 // with no structure (silhouette .02) and an 8 mph split of 6 and 9. Apart from the session is the Consistency
 // stand-out rule (consistency_design.md §5): its rows are checked against the rule itself, and on the 5 Oct
@@ -30,7 +30,7 @@
 #include "charts/consistency_env.h"
 #include "charts/session_consistency.h"
 #include "charts/session_relations.h"
-#include "charts/session_series_model.h"
+#include "folder_series.h"   // the old loader, a test double (5.5a)
 #include "charts/session_warp.h"
 #include "charts_maths_fixture.h"
 #include "Metrics/metric_catalogue.h"
@@ -581,7 +581,7 @@ private slots:
         s->conditions[QStringLiteral("over_the_top")].phase = 2;
         // shot 3's row names another reading as the one that drove it: drivenBy wins over the condition's
         auto c3 = std::make_shared<ShotSeries>(*s->shots[2]);
-        c3->diagnostics.drivenBy.insert(QStringLiteral("over_the_top"), ShotDiagnostics::Reading{ QStringLiteral("m_x"), QStringLiteral("leadHandWidth"), 2 });
+        c3->diagnostics.drivenBy.insert(QStringLiteral("over_the_top"), ChartShotFindings::Reading{ QStringLiteral("m_x"), QStringLiteral("leadHandWidth"), 2 });
         s->shots[2] = c3;
         auto p = make(s, 8);
         const QVariantMap row = rowOf(p->thisShot(), QStringLiteral("handPathLoop@2"));
@@ -645,7 +645,7 @@ private slots:
         // graded clean through the row's own reading → inside; nothing graded it → no verdict
         auto c = std::make_shared<ShotSeries>(*s->shots[size_t(cleanShot - 1)]);
         c->diagnostics.clean << QStringLiteral("sway");
-        c->diagnostics.gradedBy.insert(QStringLiteral("sway"), ShotDiagnostics::Reading{ QStringLiteral("m_x"), QStringLiteral("handPathLoop"), 2 });
+        c->diagnostics.gradedBy.insert(QStringLiteral("sway"), ChartShotFindings::Reading{ QStringLiteral("m_x"), QStringLiteral("handPathLoop"), 2 });
         s->shots[size_t(cleanShot - 1)] = c;
         QCOMPARE(row(cleanShot).value(QStringLiteral("verdict")).toString(), QStringLiteral("inside"));
         QCOMPARE(row(plainShot).value(QStringLiteral("verdict")).toString(), QString());
@@ -1413,7 +1413,7 @@ private slots:
         if (!root.exists()) QSKIP("live-state sessions not reachable (is /mnt/swingdata mounted?)");
         const QStringList dirs = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
         QVERIFY(!dirs.isEmpty());
-        SessionSeriesModel model;
+        FolderSeries model;
         model.setSynchronous(true);
         model.activateSession(root.filePath(dirs.first()));
         const auto snap = model.snapshot();
@@ -1473,7 +1473,7 @@ private slots:
         const QString dir = QStringLiteral("/mnt/swingdata/Mark-Liversedge/2026-07-04_Mark-Liversedge_Wrist_01");
         if (!QFileInfo(dir).isDir()) QSKIP("session not reachable (is /mnt/swingdata mounted?)");
         if (qEnvironmentVariableIsEmpty("PINPOINT_CORE_PACK")) QSKIP("no shipped pack in this environment");
-        SessionSeriesModel model;           // reads only; never writes
+        FolderSeries model;           // reads only; never writes
         model.setSynchronous(true);
         model.activateSession(dir);
         const auto snap = model.snapshot();
@@ -1511,7 +1511,7 @@ private:
     void measureReal(const QString &dir, int pickOrdinal)
     {
         if (!QFileInfo(dir).isDir()) QSKIP("session not reachable (is /mnt/swingdata mounted?)");
-        SessionSeriesModel model;           // reads only; never writes
+        FolderSeries model;           // reads only; never writes
         model.setSynchronous(true);
         model.activateSession(dir);
         const auto snap = model.snapshot();

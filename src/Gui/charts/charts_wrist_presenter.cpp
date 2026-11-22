@@ -24,7 +24,8 @@
 #include "charts_words.h"
 #include "session_curves.h"
 #include "session_relations.h"              // boxStats, pearson
-#include "session_series_model.h"
+#include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
+#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "session_warp.h"
 #include "session_wrist.h"
 #include "variability_clubs.h"                    // perClubInputs: one window per club (R2b)
@@ -143,7 +144,7 @@ struct ChartsWristPresenter::Result {
 struct ChartsWristPresenter::Worker {
     QMutex mutex;                                            // held for a whole job
     std::unique_ptr<TimelineLabels> tl;
-    std::unique_ptr<pa::ICharacteristicPackProvider> pack;  // the shipped pack, for the conditions' words
+    std::shared_ptr<const pa::ICharacteristicPackProvider> pack;  // RuleData's pack, for the conditions' words (5.5a: follows EVT-13)
     bool condsBuilt = false;
     std::vector<Cond> conds;                                 // the wrist domain, in pack order
 
@@ -162,8 +163,11 @@ struct ChartsWristPresenter::Worker {
     void ensure()
     {
         if (!tl) tl = std::make_unique<TimelineLabels>();
-        if (!pack) pack = pa::makeCharacteristicPackProvider();
-        if (condsBuilt) return;
+        // THE PACK FOLLOWS ITS SAVES (refactor 5.5a; J-74 Q9): RuleData's current pack (any thread), the conditions'
+        // words made again when a saved pack edit (EVT-13) has published another.
+        const std::shared_ptr<const pinpoint::RuleDataSnapshot> now = pinpoint::RuleData::current();
+        if (now && now->pack != pack) { pack = now->pack; condsBuilt = false; conds.clear(); }
+        if (condsBuilt || !pack) return;
         condsBuilt = true;
         const pa::CharacteristicPack &p = pack->pack();
         for (const pa::Condition &c : p.conditions) {
@@ -312,7 +316,7 @@ std::shared_ptr<ShotSeries> wristShotFromDetail(const QVariantMap &d, const QStr
 {
     auto sh = std::make_shared<ShotSeries>();
     sh->swingDir = dir;
-    sh->shotId = SessionSeriesModel::folderShotId(dir);
+    sh->shotId = folderShotId(dir);
     // the records, so an empty value can name the gate behind it (trust stage 6 session 2)
     sh->gatesVersion = d.value(QStringLiteral("gatesVersion")).toInt();
     sh->gates = d.value(QStringLiteral("gates")).toList();
@@ -368,7 +372,7 @@ std::shared_ptr<const ShotSeries> referenceShot(ChartsWristPresenter::Worker &w,
         QString err, whyNot;
         const QJsonObject root = pinpoint::SwingStore::loadAnalysis(dir, &err);
         std::shared_ptr<ShotSeries> shot;
-        if (!root.isEmpty()) shot = SessionSeriesModel::extractShot(root, dir, &whyNot);
+        if (!root.isEmpty()) shot = extractShot(root, dir, &whyNot);
         if (shot) w.refShot = shot;
         else w.refWhy = QStringLiteral("The reference swing cannot be read: %1.")
                             .arg(whyNot.isEmpty() ? QStringLiteral("the swing document could not be read") : whyNot);
@@ -379,7 +383,7 @@ std::shared_ptr<const ShotSeries> referenceShot(ChartsWristPresenter::Worker &w,
 }
 
 // "shot 3, 18 Aug 2026": which swing the ★ is — its swing number and its session's day (SessionIdentity).
-QString referenceLabelOf(const QString &dir) { return SessionSeriesModel::swingLabelOf(dir); }
+QString referenceLabelOf(const QString &dir) { return pinpoint::seriesSwingLabelOf(dir); }
 
 // ── the job's context ───────────────────────────────────────────────────────────────────────
 
@@ -498,7 +502,7 @@ QVariantMap findingMap(const Ctx &c, const ShotSeries &s, const Profile &p, cons
     const int ph = condPhase(s, k);
     const QString tag = ph >= 0 ? c.tagOf(ph, p) : QString();
     const qint64 seek = ph >= 0 ? phaseUsOf(s, ph) : -1;
-    const ShotDiagnostics::Value val = s.diagnostics.values.value(k.id);
+    const ChartShotFindings::Value val = s.diagnostics.values.value(k.id);
     const QString key = condKey(s, k);
     const MetricSeries *ms = key.isEmpty() ? nullptr : s.metric(key);
     const QString unit = ms ? ms->unit : QString();
@@ -2108,26 +2112,25 @@ ChartsWristPresenter::ChartsWristPresenter(QObject *parent)
 
 ChartsWristPresenter::~ChartsWristPresenter()
 {
-    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
+    // No wait: a job still running finishes into nothing (charts_work.h: the lane is cancelled, #173).
 }
 
-QObject *ChartsWristPresenter::model() const { return m_model.data(); }
+SeriesSource *ChartsWristPresenter::model() const { return m_model.data(); }
 
-void ChartsWristPresenter::setModel(QObject *m)
+void ChartsWristPresenter::setModel(SeriesSource *m)
 {
     if (m_model == m) return;
     if (m_model) disconnect(m_model, nullptr, this, nullptr);
     m_model = m;
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m))
-        connect(sm, &SessionSeriesModel::snapshotChanged, this, &ChartsWristPresenter::schedule);
+    if (m)
+        connect(m, &SeriesSource::snapshotChanged, this, &ChartsWristPresenter::schedule);
     emit inputsChanged();
     schedule();
 }
 
 std::shared_ptr<const SessionSnapshot> ChartsWristPresenter::currentSnapshot() const
 {
-    if (auto *sm = qobject_cast<SessionSeriesModel *>(m_model.data())) return sm->snapshot();
-    return m_directSnapshot;
+    return chosenSnapshot(m_directSnapshot, m_model.data());   // P2: a direct snapshot wins
 }
 
 void ChartsWristPresenter::setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot)
@@ -2214,11 +2217,8 @@ void ChartsWristPresenter::startJob()
     m_running = true;
     emit busyChanged();
     auto w = m_worker;
-    auto post = m_pool.poster();
-    m_pool.start([post, this, w, in]() {
-        auto r = computeWrist(*w, in);
-        post([this, r]() { apply(r); });
-    });
+    askLane(m_pool, [w, in]() { return computeWrist(*w, in); },
+            [this](auto r) { apply(r); });
 }
 
 void ChartsWristPresenter::apply(std::shared_ptr<Result> r)

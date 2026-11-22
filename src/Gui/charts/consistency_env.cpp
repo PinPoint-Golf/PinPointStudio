@@ -47,11 +47,12 @@ namespace pa = pinpoint::analysis;
 
 double consistencyHalfSigma(const pa::Norm &n) { return 0.5 * (n.sigmaLo + n.sigmaHi); }
 
-// The pack half of what the env reads: built ONCE and never changed after, so its readers take no lock.
-// It does not follow a Diagnostic Model save (pack edits reach the app at the next launch, audit B-02).
+// The pack half of what the env reads, built from ONE pack snapshot and never changed after, so its readers take no lock.
+// A saved pack edit (EVT-13) publishes a new RuleData snapshot, and the next env is built over it (refactor 5.5a, J-74
+// Q9: until then it was built once and followed nothing until relaunch, audit B-02 / survey row 7).
 class ConsistencyPackFacts {
 public:
-    ConsistencyPackFacts() : m_provider(pa::makeCharacteristicPackProvider())
+    explicit ConsistencyPackFacts(std::shared_ptr<const pa::ICharacteristicPackProvider> provider) : m_provider(std::move(provider))
     {
         if (m_provider) {
             m_areas = pa::metricAreasForPack(m_provider->pack());
@@ -70,14 +71,24 @@ public:
     bool afterBall(const QString &key) const { return m_afterBall.contains(key); }
 
 private:
-    std::unique_ptr<pa::ICharacteristicPackProvider> m_provider;
-    QHash<QString, QString>                          m_areas;       // key -> area token
-    QSet<QString>                                    m_afterBall;   // keys graded after the ball has gone
+    std::shared_ptr<const pa::ICharacteristicPackProvider> m_provider;
+    QHash<QString, QString>                                m_areas;       // key -> area token
+    QSet<QString>                                          m_afterBall;   // keys graded after the ball has gone
 };
 
-const ConsistencyPackFacts &consistencyPackFacts()
+// The current pack half: made again when RuleData has published another pack since the last one was made.
+std::shared_ptr<const ConsistencyPackFacts> consistencyPackFacts()
 {
-    static const ConsistencyPackFacts facts;     // C++ builds a function-local static once, under its own lock
+    static QMutex                                      lock;
+    static std::shared_ptr<const ConsistencyPackFacts> facts;
+    static const void                                 *builtFor = nullptr;
+    const std::shared_ptr<const RuleDataSnapshot> now = RuleData::current();
+    const void *key = now && now->pack ? now->pack.get() : nullptr;
+    QMutexLocker lk(&lock);
+    if (!facts || key != builtFor) {
+        facts = std::make_shared<const ConsistencyPackFacts>(now ? now->pack : nullptr);
+        builtFor = key;
+    }
     return facts;
 }
 
@@ -86,8 +97,8 @@ const ConsistencyPackFacts &consistencyPackFacts()
 // saved in the Diagnostic Model makes a NEW one (consistencyNorms), never changes this.
 class ConsistencyNorms {
 public:
-    ConsistencyNorms(const ConsistencyPackFacts *facts, std::shared_ptr<const pa::INormProvider> norms)
-        : m_facts(facts), m_norms(std::move(norms))
+    ConsistencyNorms(std::shared_ptr<const ConsistencyPackFacts> facts, std::shared_ptr<const pa::INormProvider> norms)
+        : m_facts(std::move(facts)), m_norms(std::move(norms))
     {
     }
 
@@ -135,7 +146,7 @@ private:
         return kNaN;
     }
 
-    const ConsistencyPackFacts              *m_facts;     // process lifetime
+    std::shared_ptr<const ConsistencyPackFacts> m_facts;   // the pack half it was made with
     std::shared_ptr<const pa::INormProvider> m_norms;
 
     mutable QMutex                  m_memoLock;
@@ -144,13 +155,15 @@ private:
 
 // The current norm half, made again when the shared norm set has moved since the last one was made
 // (a Diagnostic Model save resets it). An env already handed out keeps the half it was given.
-std::shared_ptr<const ConsistencyNorms> consistencyNorms(const ConsistencyPackFacts *facts)
+std::shared_ptr<const ConsistencyNorms> consistencyNorms(const std::shared_ptr<const ConsistencyPackFacts> &facts)
 {
     static QMutex                                  lock;
     static std::shared_ptr<const ConsistencyNorms> current;
     static quint64                                 builtAt = 0;
+    static const ConsistencyPackFacts             *builtOn = nullptr;
     QMutexLocker lk(&lock);
-    if (!current || builtAt != pa::sharedNormProviderGeneration()) {
+    if (!current || builtAt != pa::sharedNormProviderGeneration() || builtOn != facts.get()) {
+        builtOn = facts.get();
         std::shared_ptr<const pa::INormProvider> norms = pa::sharedNormProvider(&builtAt);
         current = std::make_shared<const ConsistencyNorms>(facts, std::move(norms));
     }
@@ -167,7 +180,7 @@ ConsistencyEnv consistencyEnvFromPacks()
         ppError() << "Consistency: the first consistencyEnvFromPacks() came from a worker; take it on the GUI thread";
         Q_ASSERT_X(false, "consistencyEnvFromPacks", "the first call must be on the GUI thread");
     }
-    const ConsistencyPackFacts *facts = &consistencyPackFacts();
+    const std::shared_ptr<const ConsistencyPackFacts> facts = consistencyPackFacts();
     const std::shared_ptr<const ConsistencyNorms> norms = consistencyNorms(facts);
     ConsistencyEnv env;
     env.areaOf = [facts](const QString &key) { return facts->areaOf(key); };
@@ -176,6 +189,24 @@ ConsistencyEnv consistencyEnvFromPacks()
         return norms->normSigma(key, phase, club);
     };
     return env;
+}
+
+quint64 consistencyEnvGeneration()
+{
+    // A new number whenever the norm set or the pack an env would be built over has moved (refactor 5.5a).
+    static QMutex      lock;
+    static quint64     epoch = 1, normsAt = 0;
+    static const void *packAt = nullptr;
+    const std::shared_ptr<const RuleDataSnapshot> now = RuleData::current();
+    const void   *pack  = now && now->pack ? now->pack.get() : nullptr;
+    const quint64 norms = pa::sharedNormProviderGeneration();
+    QMutexLocker lk(&lock);
+    if (pack != packAt || norms != normsAt) {
+        packAt = pack;
+        normsAt = norms;
+        ++epoch;
+    }
+    return epoch;
 }
 
 } // namespace pinpoint::charts
