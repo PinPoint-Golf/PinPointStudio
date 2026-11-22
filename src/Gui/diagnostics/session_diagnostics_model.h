@@ -1194,6 +1194,9 @@ private:
     pinpoint::analysis::Coverage                     m_coverage;
     pinpoint::analysis::Explanation                  m_explanation;
     QStringList m_patternSet;      // the set explain() last ran over
+    // A new diagnosis of the session has landed since explain() last ran (refactor 5.4x): at Closing the footer is
+    // explained again from it, whatever the membership (refreshExplanation; §B7 "definitive").
+    bool        m_explainOwed = true;
     QStringList m_displayOrder;    // hystereticOrder()'s previous order — the anti-churn state
 
     // ── Lifecycle + intent ──────────────────────────────────────────────────────────

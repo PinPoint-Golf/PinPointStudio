@@ -198,6 +198,7 @@ public:
         m_mirrored = true;
 
         if (wordMoved) emit m.intentChanged();
+        m.m_explainOwed = true;   // a new diagnosis: a finished session's footer is explained from it (5.4x)
         m.rebuild();
         if (arrived) emit m.shotIngested(newest, !m.m_quiet);
         QMetaObject::invokeMethod(m_model, [this] { updateBusy(); }, Qt::QueuedConnection);

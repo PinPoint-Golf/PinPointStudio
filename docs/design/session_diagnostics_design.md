@@ -226,7 +226,8 @@ Honest limits, encoded as states rather than hidden:
 
 `explain()` runs over the **pattern-tier** fired set, not per shot — per-shot root
 ranking would churn the greedy set cover on every ball. Re-rank only when pattern
-membership changes. Inputs include `knownScreenResults` entered during the session
+membership changes, while the session is live; at Closing re-rank on every new diagnosis, since the footer is then
+definitive (B7).[^a5-closing] Inputs include `knownScreenResults` entered during the session
 (screens done at the range count immediately). Outputs consumed: ranked roots with
 coverage, offered (Asserted) causes phrased as questions, screen recommendations,
 corroborations, suppressions — all already produced by `relation_resolver`.
@@ -800,3 +801,5 @@ frozen, so every state from Cold to Closing must feel like one object maturing, 
 five screens. Link-grade visual encoding (dotted/solid/arrowed/ghost), the honest-
 recurrence caption style, delta emphasis, and the six-theme compatibility are the
 hard problems. Nothing may reorder without a decisive reason (B8).
+
+[^a5-closing]: The Closing exception: Coaching Lead, 22 Nov 2026 (J-73). Built in refactor 5.4x (SessionDiagnosticsModel::refreshExplanation).

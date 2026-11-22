@@ -2676,6 +2676,7 @@ void SessionDiagnosticsModel::rebuild()
             m_rails = extractChains(m_nodes, m_edges, m_ledgers, m_links, m_opt);
         }
     } else {
+    m_explainOwed = true;   // the engine's own reduction: a new diagnosis (5.4x)
     {
         pinpoint::PostShotTrace::Scope t("ledgers");
         m_ledgers  = conditionLedgers(m_shots, m_opt);
@@ -2975,7 +2976,14 @@ void SessionDiagnosticsModel::refreshExplanation()
         if (l.tier == Tier::Pattern) patterns.push_back(l.id);
     patterns.sort();
 
-    if (patterns == m_patternSet) return;      // membership unchanged: no re-rank (§A5)
+    // LIVE, MEMBERSHIP ALONE MOVES IT (§A5): per-diagnosis re-ranking would churn the greedy set cover under the golfer's
+    // eyes. A FINISHED SESSION'S FOOTER IS DEFINITIVE (§B7; refactor 5.4x): at Closing it is explained again from every new
+    // diagnosis of the session (m_explainOwed), whatever its membership, so the panel after End reads what a reload of the
+    // session reads — explain() reads each condition's P(Pattern) and the assessed set, not only which are patterns, so a
+    // membership cache kept from earlier in the session left the footer naming a root the final evidence does not.
+    const bool definitive = effectiveStage() == Stage::Closing && m_explainOwed;
+    m_explainOwed = false;
+    if (patterns == m_patternSet && !definitive) return;      // membership unchanged, live: no re-rank (§A5)
     m_patternSet = patterns;
 
     if (!m_packProv) { m_explanation = Explanation(); return; }
