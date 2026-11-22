@@ -349,8 +349,10 @@ static void testAddShot()
     check(QStringLiteral("S4c the high-water recorded (FILE-SESS-10)"), SessionFiles::recordedSwingHighWater(folder) == 1);
     check(QStringLiteral("S4d the Shot is in the collection, its Session's child"),
           s->shots() == QList<Shot *>{ shot } && s->shot(shot->ref()) == shot && shot->parent() == s);
-    check(QStringLiteral("S4e a captured shot; its diagnostics empty (\"-\")"),
-          shot->kind() == recording::ShotKind::Captured && !shot->diagnostics().fired());
+    // No diagnostics owner in this suite: the view names none, so it has no value ("-"). Its reads are the owner's
+    // (session_diagnostics.cpp, not linked here); outcome_summary_test reads them over a real owner (refactor 4-b).
+    check(QStringLiteral("S4e a captured shot; its diagnostics empty (\"-\": no owner to read)"),
+          shot->kind() == recording::ShotKind::Captured && !shot->diagnostics().attached());
     check(QStringLiteral("S4f no EVT-01 at the allocation (D19)"), rig.events.isEmpty());
 
     // Capture writes the document (here a launch monitor shot, through the one swing door), then says so.

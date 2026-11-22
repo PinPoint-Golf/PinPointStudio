@@ -2988,6 +2988,9 @@ target_sources(PinPointStudio PRIVATE
     src/App/app.cpp
     src/App/app_state.h
     src/App/app_state.cpp
+    src/App/outcome_summary.h     # the carousel's shot summary, AppState's doors (refactor 4-b): links the owner
+    src/App/outcome_summary.cpp
+    src/Coaching/shot_factor_words.h
     src/Analysis/effective_context.h
     src/Analysis/effective_context.cpp
     src/Analysis/reuse_gate.h

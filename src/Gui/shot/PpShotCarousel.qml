@@ -234,7 +234,13 @@ Item {
     // summary's validity (not the raw focused id) means a just-trashed focused
     // shot hides the bar cleanly rather than leaving a stale identity.
     readonly property bool _barShown: (_focusSummary.valid === true) || filterProxy.filterActive
-                                      || root.markedIds.length > 0
+                                      || root.markedIds.length > 0 || root._outcome.shown === true
+    // THE SHOT SUMMARY (refactor 4-b): app.state.shotOutcome, the summary of app.state.outcome's shot (R-APP-7: the
+    // selection's on a pick, move or clear; the newest shot the session on screen adds, even over an older selection) —
+    // read from the owners on each change, never kept here. It shows the band on its own when nothing is focused (the
+    // bar's state 5), so a shot that lands with auto-replay off shows its outcome. The band is not part of the strip,
+    // so a minimised carousel keeps it.
+    readonly property var _outcome: (typeof app !== "undefined" && app && app.state) ? app.state.shotOutcome : ({ shown: false })
     // One band (sp 36), or two when the bar stacks its actions under it on a narrow window.
     readonly property real _barBandHeight: actionBar.implicitHeight
 
@@ -366,6 +372,7 @@ Item {
             sourceCount:  filterProxy.sourceCount
             filterLabel:  filterProxy.filterActive ? filterProxy.filterSummary : ""
             markedCount:  root.markedIds.length
+            outcome:      root._outcome
 
             // Clicking the focused identity chip opens the swing-edit popover.
             onEditRequested: editPopup.open()

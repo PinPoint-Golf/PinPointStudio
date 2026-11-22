@@ -613,6 +613,41 @@ Not built. The frozen panel already is the summary (B7). The two follow-ons in t
 away: `reasons[0]` had no work-on button to offer it from (dropped, §12), and there is no exemplar
 retention mechanism to wire "keep the clearest shot" into.
 
+### 6.5 The carousel's shot summary (refactor 4-b)
+
+Mark, 14 Nov 2026: "when a shot has just been selected or analysis has been completed for it we should show a summary
+of the shot on the carousel (next to the other shot details) it will only be there if LM data is available and show the
+3 tendencies- strike, direction and flight and carry." The look was agreed on 22 Nov
+(`build/refactor/step-4/DESIGN-b.md`, the sheet beside it).
+
+- **Where.** The carousel's top band (`PpShotActionBar`), right of the selected shot's identity
+  (`SWING #N · club · time · ★ · score`), after a hairline: `STRIKE Thin   DIRECTION Straight   FLIGHT Low   CARRY 141.8 yd`.
+  The band is not part of the strip, so a minimised carousel keeps it (Mark's condition, 22 Nov).
+- **Which shot** (`app.state.outcome`, R-APP-7; Mark, 22 Nov 2026, DEC-196: with auto-replay off "we want to see
+  the outcome"):
+  - the selection's, on every pick, move or clear;
+  - a new shot when it lands in the session on screen (EVT-01), even over an older selection;
+  - a re-analysis refreshes the summary in place and never moves it; a new session on screen clears it.
+  - When its shot is not the selected one, the summary names it (`SWING #8 ·`, the identity's own style). With
+    nothing selected, the band shows the summary alone, with no actions (its state 5): nothing is focused for them
+    to act on.
+  - With auto-replay on, a processed shot is selected, so its outcome shows as the selection's. With it off, each new
+    shot's outcome shows as it lands, named, until the golfer clicks a shot.
+- **Only a launch-monitor shot.** A shot with no reading shows no summary, and the band is exactly as before.
+- **The words.** Each factor's value or values in the golfer's words (§3.8's table; the pack's golferShort). A combined
+  miss shows once, never with its halves ("Push slice"), and several values are joined by " + " ("Toe + Weak strike").
+  Every word carries its tone, as in the tendency flow: a fault `colorWarn`, a value to watch (Low) the watch tone, a
+  value on the good path `colorGood`.
+- **Not read, or not judged yet: "-"** in `colorText3`, never a blank or a 0 (DEC-96). Carry is the launch monitor's,
+  in yards to one decimal, as the owner's findings hold it. It therefore lands with the factors, not before them
+  (4-b decision: no new field in the summary file).
+- **The model.** `app.state.shotOutcome`, a typed value (`ShotOutcomeSummary`, `src/App/app_state.h`) worked out on
+  each read from `app.state.outcome`'s shot and its own diagnostics (`ShotDiagnostics` over its
+  Session's `SessionDiagnostics`). The words and tone kinds are `src/Coaching/shot_factor_words.h`'s; QML maps a kind
+  to a colour and nothing else. The summary is kept nowhere: it moves with the outcome, the selection, the session on screen, the Session's
+  `ShotTrashed`, and its owner's kept results, so a re-analysis (EVT-02) or a correction refreshes it in place;
+  `ShotAdded` moves `app.state.outcome` to the new shot. Tests: `outcome_summary_test`; on screen: `src/Gui/tests/probes/shot_summary_on_screen.qml`.
+
 ---
 
 ## 7. Home

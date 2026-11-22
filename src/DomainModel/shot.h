@@ -32,8 +32,8 @@
 //                      3.4b-ii). rereadSummary() reads it again (the carousel's session load and refresh: the
 //                      document is the truth, as the carousel has always read it). A read that finds no
 //                      document is not kept, so a shot whose document capture is still writing is read again
-//   diagnostics()      ShotDiagnostics: a read-only view of its findings, EMPTY until the views move to it
-//                      (step 3.7; its Session's SessionDiagnostics keeps them from step 3.5-i) ("-", never a zero: DEC-96)
+//   diagnostics()      ShotDiagnostics: a read-only view of its findings and derived data, as its Session's
+//                      SessionDiagnostics keeps them (refactor 4-b); no value before they land ("-", never a zero: DEC-96)
 //   recordingSource()  a RecordingSource (recording_source.h): how any thread reads this shot's Recording
 //   folder()           its folder, as a property only (its media; a row's swingDir until step 4)
 //
@@ -73,7 +73,7 @@
 // summary's field (nothing is read again); a late part or a re-analysis saved marks it to be read again on the next
 // summary() (their write changes what the summary block holds). A failed save changes nothing in it.
 // ITS FINDINGS (step 3.5-i): fired by its Session's SessionDiagnostics, which keeps them (DEC-135); the Shot holds its
-// latest ask number (latestAsk). ShotDiagnostics, the view, reads nothing yet: the views move in step 3.7.
+// latest ask number (latestAsk). ShotDiagnostics, the view, reads what the owner keeps (refactor 4-b).
 //
 // Domain model ring (src/DomainModel): names no store type.
 
@@ -97,14 +97,35 @@ namespace pinpoint {
 class Session;
 
 // ShotDiagnostics (OBJ-SHOT-DIAG, CLS-SHOT-DIAG): a read-only view of the shot's findings and derived data,
-// reached through the Shot; owns and caches nothing. EMPTY UNTIL STEP 3.7: its Session's SessionDiagnostics keeps the
-// findings from step 3.5-i (DEC-135), and this view reads them when the views move (3.7); until then it has no
-// value, and a view shows "-" for it, never a zero (DEC-96).
+// reached through the Shot; owns and caches nothing (refactor 4-b). It names its Session's SessionDiagnostics (the
+// owner, DEC-135) and the shot's swing number, and every read goes to what the owner keeps NOW: a value taken from it
+// lives only as long as the caller's statement. Before the owner has kept a result for the shot (or with no owner: a
+// session nothing judges) it has no value, and a view shows "-" for it, never a zero (DEC-96).
+//
+// THE READS ARE DEFINED WITH THE OWNER (session_diagnostics.cpp), so only a target that links the owner can call them;
+// `attached()` is inline, for the ones that do not.
+class SessionDiagnostics;
+namespace analysis { struct ShotFactors; struct ShotRecord; struct ShotOutcomePack; }
+
 class ShotDiagnostics
 {
 public:
-    // Whether the shot's findings have fired. False until the views move to it (step 3.7).
-    bool fired() const { return false; }
+    ShotDiagnostics() = default;
+    ShotDiagnostics(const SessionDiagnostics *owner, int swingNumber) : m_owner(owner), m_swing(swingNumber) {}
+
+    bool attached() const { return m_owner != nullptr; }   // its Session has a diagnostics owner
+    bool fired() const;                                    // the owner keeps findings for the shot
+    bool hasLaunchMonitor() const;                         // …and they were read off a launch-monitor reading
+    // Its findings as fired (the launch monitor's readings among them: carry, in yards); null before they fire.
+    const analysis::ShotRecord  *findings() const;
+    // Its derived data's three factors (strike · direction · flight); null until its layer 3 is computed.
+    const analysis::ShotFactors *factors() const;
+    // The outcome pack the factors' words come from (the owner's snapshot's); null with no owner.
+    const analysis::ShotOutcomePack *outcomePack() const;
+
+private:
+    const SessionDiagnostics *m_owner = nullptr;
+    int                       m_swing = 0;
 };
 
 class Shot : public QObject
@@ -118,7 +139,7 @@ public:
     const ShotSummary    &summary();
     const ShotSummary    &rereadSummary(bool parseIfUnindexed = true);   // RecordingRepository::readSummary's flag
     bool                  summaryKept() const { return m_summaryRead; }   // a read summary is kept (no read needed)
-    const ShotDiagnostics &diagnostics() const { return m_diagnostics; }
+    ShotDiagnostics       diagnostics() const;   // a view over its Session's owner, made on each call (4-b)
     RecordingSource       recordingSource() const { return RecordingSource(m_ref, m_doors.reader); }
     // Its folder, AS A PROPERTY (its media; the swingDir a carousel row still carries until step 4), through its
     // repository (RecordingRepository::swingFolder); "" when its session is not open. Never its key (CLS-SHOT).
@@ -193,7 +214,6 @@ private:
     mutable std::optional<recording::ShotKind> m_kind;
     ShotSummary                                m_summary;
     bool                                       m_summaryRead = false;   // m_summary holds a read (ok) summary
-    ShotDiagnostics                            m_diagnostics;
     LabelCorrectionNote                        m_lastCorrection;
     quint64                                    m_latestAsk = 0;
 };

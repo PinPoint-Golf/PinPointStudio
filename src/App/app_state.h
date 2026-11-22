@@ -34,6 +34,12 @@
 //   castSelection         R-APP-5: follows the selection (today's behaviour; Q-07 is Mark's: J-a1)
 //   replay                R-APP-6: what is playing (the ShotReplayController). In the cast modes a new shot is
 //                         replayed without being selected (Main.qml), as before (J-a3)
+//   outcome               R-APP-7 (refactor 4-b; Mark, 22 Nov 2026, DEC-196): the shot whose outcome the carousel's
+//                         summary shows — the selection's on every pick, move or clear; the newest shot when the session
+//                         on screen adds one (EVT-01), even over an older selection. A ShotRef only, scoped to the
+//                         session on screen and cleared with it. A re-analysis does not move it
+//   shotOutcome           its summary (ShotOutcomeSummary below): a VIEW worked out on each read from `outcome` and that
+//                         Shot's diagnostics; nothing of it is kept
 //
 // The transitions between modes (enterCapture … enterLoadedSession) are SessionMode.qml's, moved here unchanged in
 // effect; the session's start and end are one command each (E-12's QML half: startSession, endSession), their order
@@ -81,6 +87,36 @@ private:
     QString m_swingDir;
 };
 
+// THE CAROUSEL'S SHOT SUMMARY (refactor 4-b; Mark, 14 Nov 2026: "strike, direction and flight and carry", only for a
+// shot with launch-monitor data). Which shot: AppState's `outcome` (R-APP-7, above). Worked out on each read by the
+// composition root's door (src/App/outcome_summary.h) from that Shot's own diagnostics (ShotDiagnostics over its
+// Session's owner): the summary itself is kept nowhere.
+// Every string is final: a factor not read, or not judged yet, is "-" with no tone (DEC-96); the tones are
+// shot_factor_words.h's kinds ("fault" | "watch" | "good" | ""), which QML maps to colours and nothing else.
+struct ShotOutcomeSummary {
+    Q_GADGET
+    Q_PROPERTY(bool    shown         MEMBER shown)          // a launch-monitor shot to summarise
+    Q_PROPERTY(bool    selected      MEMBER selected)       // it is the selection (else a newer shot: name it)
+    Q_PROPERTY(QString shotRef       MEMBER shotRef)
+    Q_PROPERTY(int     swingNumber   MEMBER swingNumber)
+    Q_PROPERTY(bool    judged        MEMBER judged)         // its three factors are worked out
+    Q_PROPERTY(QString strikeText    MEMBER strikeText)
+    Q_PROPERTY(QString strikeTone    MEMBER strikeTone)
+    Q_PROPERTY(QString directionText MEMBER directionText)
+    Q_PROPERTY(QString directionTone MEMBER directionTone)
+    Q_PROPERTY(QString flightText    MEMBER flightText)
+    Q_PROPERTY(QString flightTone    MEMBER flightTone)
+    Q_PROPERTY(QString carryText     MEMBER carryText)      // "164.5 yd", or "-"
+public:
+    bool    shown = false, selected = false, judged = false;
+    QString shotRef;
+    int     swingNumber = 0;
+    QString strikeText = QStringLiteral("-"), strikeTone;
+    QString directionText = QStringLiteral("-"), directionTone;
+    QString flightText = QStringLiteral("-"), flightTone;
+    QString carryText = QStringLiteral("-");
+};
+
 // The composition root's callables (main.cpp). Each is one call on today's objects; AppState fixes the order.
 struct AppStateDoors {
     std::function<Athlete *()>                      currentAthlete;
@@ -105,6 +141,11 @@ struct AppStateDoors {
     std::function<void()>                           stopClock;            // SessionController::endSession
     std::function<void()>                           closeCaptureSession;  // ShotProcessor::endSessionFolder
     std::function<QString()>                        todaysFolder;         // ShotProcessor::todaySessionDir(defaultType)
+    // The shot summary (refactor 4-b; src/App/outcome_summary.h): worked out from the session on screen, the outcome's
+    // shot and whether that is the selection, and the owners' change signals that refresh it, heard for as long as
+    // `context` lives. Unset (the tests' default): no summary.
+    std::function<ShotOutcomeSummary(Session *, const ShotRef &shot, bool isSelection)>       shotOutcome;
+    std::function<void(Session *, QObject *context, std::function<void()> changed)>          watchOutcomeSummary;
 };
 
 class AppState : public QObject
@@ -123,13 +164,15 @@ class AppState : public QObject
     Q_PROPERTY(QString sessionOnScreenFolder READ sessionOnScreenFolder NOTIFY sessionOnScreenChanged)
     Q_PROPERTY(pinpoint::ShotSelection *selection READ selection CONSTANT)
     Q_PROPERTY(pinpoint::ShotSelection *castSelection READ castSelection CONSTANT)
+    Q_PROPERTY(pinpoint::ShotSelection *outcome READ outcome CONSTANT)
     Q_PROPERTY(QObject *replay READ replay CONSTANT)
+    Q_PROPERTY(pinpoint::ShotOutcomeSummary shotOutcome READ shotOutcome NOTIFY shotOutcomeChanged)
 public:
     enum Mode { Capture = 0, Replay = 1, Analyse = 2 };
 
     explicit AppState(QObject *parent = nullptr);
 
-    void setDoors(AppStateDoors doors) { m_doors = std::move(doors); }
+    void setDoors(AppStateDoors doors) { m_doors = std::move(doors); watchOutcome(); }
     void setReplay(QObject *replay) { m_replay = replay; }
 
     int  captureMode() const { return Capture; }
@@ -150,7 +193,10 @@ public:
 
     ShotSelection *selection() { return &m_selection; }
     ShotSelection *castSelection() { return &m_castSelection; }
+    ShotSelection *outcome() { return &m_outcome; }
     QObject       *replay() const { return m_replay; }
+    // The carousel's shot summary (above), worked out now.
+    ShotOutcomeSummary shotOutcome() const;
 
     // ── The selection and the mode (SessionMode.qml's transitions, same effect) ──
     // `shotRef` is ShotRef's text form ("" for a shot whose session cannot be named: J-a4); `swingDir` the folder
@@ -189,6 +235,7 @@ signals:
     void athleteLockedChanged();
     void captureTargetChanged();
     void sessionOnScreenChanged();
+    void shotOutcomeChanged();  // the outcome, the selection, the session on screen, or what its owners hold moved
 
 private:
     void setMode(Mode m);
@@ -208,6 +255,10 @@ private:
     QString           m_scopeFolder;
     ShotSelection     m_selection;
     ShotSelection     m_castSelection;
+    ShotSelection     m_outcome;       // R-APP-7: the summary's shot
+    QPointer<QObject> m_outcomeWatch;  // the connections heard for the session on screen (dropped with it)
+    void              watchOutcome();
+    void              shotLanded(const ShotRef &shot);   // EVT-01 of the session on screen: the outcome moves to it
 };
 
 } // namespace pinpoint

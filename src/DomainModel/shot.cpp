@@ -53,6 +53,15 @@ recording::ShotKind Shot::kind() const
     return *m_kind;
 }
 
+// ── Its diagnostics (refactor 4-b): a view over its Session's owner, never a copy ─────────────────────────────
+
+ShotDiagnostics Shot::diagnostics() const
+{
+    // Its parent is its Session (P10: Session is the one friend that makes it). No owner: no value ("-").
+    const auto *session = static_cast<const Session *>(parent());
+    return ShotDiagnostics(session ? session->diagnostics() : nullptr, swingNumber());
+}
+
 // ── The summary (refactor step 3.4b-ii: the carousel's rows over the Shots) ─────────────────────────────────
 
 const ShotSummary &Shot::summary()

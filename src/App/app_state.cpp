@@ -17,6 +17,7 @@
  */
 
 #include "app_state.h"
+#include "../DomainModel/shot.h"   // R-APP-7: the landed shot's folder
 
 #include <QDir>
 
@@ -36,7 +37,43 @@ void ShotSelection::set(const ShotRef &shot, const QString &swingDir)
     emit changed();
 }
 
-AppState::AppState(QObject *parent) : QObject(parent) {}
+AppState::AppState(QObject *parent) : QObject(parent)
+{
+    // The shot summary is a view of the outcome's shot, and names it unless it is the selection: either moving, or the
+    // session on screen, moves it (refactor 4-b).
+    connect(&m_outcome, &ShotSelection::changed, this, &AppState::shotOutcomeChanged);
+    connect(&m_selection, &ShotSelection::changed, this, &AppState::shotOutcomeChanged);
+    connect(this, &AppState::sessionOnScreenChanged, this, &AppState::shotOutcomeChanged);
+}
+
+// THE CAROUSEL'S SHOT SUMMARY (refactor 4-b): worked out now, from the owners, by the composition root's door.
+ShotOutcomeSummary AppState::shotOutcome() const
+{
+    if (!m_doors.shotOutcome || !m_onScreen || !m_outcome.valid()) return {};
+    const bool isSelection = m_selection.valid() && m_selection.shot() == m_outcome.shot();
+    return m_doors.shotOutcome(m_onScreen.data(), m_outcome.shot(), isSelection);
+}
+
+// The session on screen, heard through a context object of its own, so the last session's connections go with it:
+// its EVT-01 moves the outcome (R-APP-7), and what its owners say (a result kept or unread, a shot gone) refreshes the
+// summary in place.
+void AppState::watchOutcome()
+{
+    delete m_outcomeWatch.data();
+    if (!m_onScreen) return;
+    m_outcomeWatch = new QObject(this);
+    connect(m_onScreen.data(), &Session::shotAdded, m_outcomeWatch.data(), [this](const ShotRef &shot) { shotLanded(shot); });
+    if (m_doors.watchOutcomeSummary)
+        m_doors.watchOutcomeSummary(m_onScreen.data(), m_outcomeWatch.data(), [this] { emit shotOutcomeChanged(); });
+}
+
+// R-APP-7: a shot the session on screen adds (its document written, EVT-01) is the outcome now, over an older selection
+// (Mark, 22 Nov 2026). The folder is the Shot's own (a property: the replay and the folder readers), as a pick's is.
+void AppState::shotLanded(const ShotRef &shot)
+{
+    Shot *s = m_onScreen ? m_onScreen->shot(shot) : nullptr;
+    if (s) m_outcome.set(shot, s->folder());
+}
 
 void AppState::setMode(Mode m)
 {
@@ -58,6 +95,7 @@ void AppState::select(const QString &shotRef, const QString &swingDir)
     const ShotRef ref = ShotRef::fromString(shotRef);
     m_selection.set(ref, swingDir);
     m_castSelection.set(ref, swingDir);
+    m_outcome.set(ref, swingDir);   // R-APP-7: every pick, move or clear
 }
 
 // Load the selected shot onto the stage unless it is already the loaded one (so Replay↔Analyse, or a re-click,
@@ -193,8 +231,13 @@ void AppState::refreshSessionOnScreen()
         if (session)
             m_onScreenGone = connect(session, &QObject::destroyed, this, &AppState::sessionOnScreenChanged);
     }
+    const bool sessionMoved = session != m_onScreen.data();
     m_onScreen       = session;
-    if (!sameSession) dropSelection();
+    if (sessionMoved) watchOutcome();
+    if (!sameSession) {
+        dropSelection();
+        m_outcome.clear();   // R-APP-7: scoped to the session on screen, cleared with it
+    }
     if (changed) emit sessionOnScreenChanged();
 }
 
@@ -203,6 +246,7 @@ void AppState::refreshAthlete()
 {
     emit currentAthleteChanged();
     dropSelection();
+    m_outcome.clear();
     m_scopeId     = {};
     m_scopeFolder.clear();
     refreshSessionOnScreen();

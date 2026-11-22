@@ -2229,6 +2229,31 @@ pp_add_test(session_diagnostics_test
 set_tests_properties(session_diagnostics_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
+# THE CAROUSEL'S SHOT SUMMARY (refactor 4-b; src/App/outcome_summary.h): app.state.shotOutcome over the real store, Athlete,
+# Session, Shot and SessionDiagnostics, the real firing reader, headless — the values are the Shot's diagnostics', follow
+# a re-analysis, and which shot it is (selected; else the newest landed), auto-replay on and off. The owner's link line
+# plus AppState and the summary's door, and Qt Qml for the typed value's read.
+pp_add_test(outcome_summary_test
+    SOURCES ${SRC}/App/tests/outcome_summary_test.cpp ${SESSION_DIAGNOSTICS_TEST_SOURCES}
+            ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+            ${SRC}/DomainModel/session_diagnostics.h ${SRC}/DomainModel/session_diagnostics.cpp
+            ${SRC}/DomainModel/athlete_diagnostics.h ${SRC}/DomainModel/athlete_diagnostics.cpp
+            ${SRC}/Diagnostics/engine/session_reduction.cpp
+            ${SRC}/Export/firing_reader_store.cpp
+            ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+            ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp
+            ${SRC}/App/outcome_summary.h ${SRC}/App/outcome_summary.cpp ${SRC}/Coaching/shot_factor_words.h
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS} Qt6::Qml
+    STD 20
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(outcome_summary_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
 # THE ATHLETE LEVEL'S OWNER AND THE CATCH-UP (refactor step 3.6; BRIEF §4.6, §6 row 3.6): AthleteDiagnostics over the
 # real store, Athlete, Session and SessionDiagnostics (headless and on the pool), the catch-up service (src/App), the
 # praise rule and the board's annotations. Reads summaries only (a spying repository); lazy; the freeze; D-15.

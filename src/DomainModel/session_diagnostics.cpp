@@ -1444,6 +1444,37 @@ const KeptShot *SessionDiagnostics::kept(int swingNumber) const
     return it == m_kept.constEnd() ? nullptr : &it.value();
 }
 
+// ── ShotDiagnostics, the Shot's view of what this owner keeps for it (refactor 4-b; shot.h) ──────────────────
+
+bool ShotDiagnostics::fired() const
+{
+    return m_owner && m_owner->kept(m_swing);
+}
+
+bool ShotDiagnostics::hasLaunchMonitor() const
+{
+    const KeptShot *k = m_owner ? m_owner->kept(m_swing) : nullptr;
+    return k && k->hasLaunchMonitor;
+}
+
+const analysis::ShotRecord *ShotDiagnostics::findings() const
+{
+    const KeptShot *k = m_owner ? m_owner->kept(m_swing) : nullptr;
+    return k ? &k->findings : nullptr;
+}
+
+const analysis::ShotFactors *ShotDiagnostics::factors() const
+{
+    const KeptShot *k = m_owner ? m_owner->kept(m_swing) : nullptr;
+    return k && k->derived ? &k->derived->data.factors : nullptr;
+}
+
+const analysis::ShotOutcomePack *ShotDiagnostics::outcomePack() const
+{
+    const auto snap = m_owner ? m_owner->snapshot() : nullptr;
+    return snap && snap->outcomePack ? snap->outcomePack.get() : nullptr;
+}
+
 // ── The composition root's lookup (§4.4 step 6) ────────────────────────────────────────────────────────────
 
 WorkTarget diagnosticsWorkTarget(Session *session, const WorkAddress &address)

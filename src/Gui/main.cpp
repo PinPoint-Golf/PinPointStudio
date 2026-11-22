@@ -105,6 +105,7 @@
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "../App/housekeeping.h"             // the one application service that ends things for good (DEC-80)
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
+#include "../App/outcome_summary.h"             // the carousel's shot summary, AppState's doors (refactor 4-b)
 #include "../App/athlete_catch_up.h"         // the catch-up, an application service (refactor 3.7-e)
 #include "../DomainModel/summary_rules.h"    // summaryCohortFacts (3.7-e round 2)
 #include "../Core/work_pool.h"                // the one pool and its receiver (D15): every session's owner (3.5)
@@ -951,6 +952,9 @@ int main(int argc, char *argv[])
         d.todaysFolder        = [&shotProcessor, &sessionController] {
             return shotProcessor.todaySessionDir(sessionController.defaultType());
         };
+        // The carousel's shot summary (refactor 4-b): worked out from the owners on each read, never kept.
+        d.shotOutcome         = &pinpoint::outcomeSummaryOf;
+        d.watchOutcomeSummary = &pinpoint::watchOutcomeSummary;
         state.setDoors(std::move(d));
         const auto onScreen = [&state] { state.refreshSessionOnScreen(); };
         QObject::connect(&sessionReviewController, &SessionReviewController::reviewActiveChanged, &state, onScreen);
