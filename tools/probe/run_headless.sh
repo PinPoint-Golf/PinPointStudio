@@ -230,7 +230,7 @@ say "home: $HOME_DIR  settings: $SETTINGS  library: $LIB_GENERAL  timeout: ${TIM
 # The check decides only once the pid's argv[0] is the app (read_env). The nonce is a second guard: env -i strips it,
 # so an environment that still holds it is not the app's.
 export PP_RUN_HEADLESS_NONCE="nonce-$$-$RANDOM$RANDOM"
-FIFO_DIR=$(mktemp -d "$HOME_DIR/tmp/run_headless.XXXXXX") || refuse "cannot make a fifo folder"
+FIFO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/run_headless.XXXXXX") || refuse "cannot make a fifo folder"   # local disk: a network share (the scratch home on /mnt/swingdata) cannot hold a fifo
 FIFO="$FIFO_DIR/stderr"
 mkfifo "$FIFO" || refuse "cannot make a fifo"
 tee "$LOG" < "$FIFO" >&2 &
