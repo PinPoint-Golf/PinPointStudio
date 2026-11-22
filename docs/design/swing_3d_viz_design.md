@@ -12,7 +12,7 @@ audit — for planning.*
 `BodyPoseAdapter`, `tools/extract_body_segments.py`, the shaft fusion stage, the kinematic
 sequence's pair route and the DTL posture stage).*
 
-*Revised the same day, after Mark's review:*
+*Revised the same day, after the Design Lead's review:*
 - **(1) No overlap with the calibration views.** The new view shares no QML, no C++ and no
   resource files with `BodyVizView`, `ArmVizView`, `ImuVizView`, `CapturePage` or the
   wizard (§6.1).
@@ -365,7 +365,7 @@ It projects the markers (with known offsets) through two perspective cameras at 
 
 ### 8.2 Corpus (two-camera: 07-04 s4–15, 06-11)
 
-Judged per swing, by count, never by one score. Mark judges the table before anything is
+Judged per swing, by count, never by one score. The Product Owner judges the table before anything is
 committed.
 
 | Check | Against | Pass |
@@ -384,7 +384,7 @@ committed.
 
 `--probe-qml` offscreen checks: the panel is instantiated, the rig has 19 models, the
 presets move the camera, and the tier chip text is right. Then a paused P4 in all five
-presets, for Mark to judge.
+presets, for the Design Lead to judge.
 
 ## 9. When camera calibration lands
 
@@ -397,7 +397,7 @@ target line. The schema does not change; `camera.calibrated` flips to true.
 | Phase | Deliverable | Done when |
 |---|---|---|
 | 1 | `ybot_rig.h` + `tools/extract_swing3d_rig.py` + forward kinematics + the synthetic generator | §8.1 (a) passes |
-| 2 | The estimator with r_2D, lengths, markers, limits, smoothness, contact; swinglab output | §8.1 (b)–(e) pass; §8.2 table filled and judged by Mark |
+| 2 | The estimator with r_2D, lengths, markers, limits, smoothness, contact; swinglab output | §8.1 (b)–(e) pass; §8.2 table filled and judged by the Product Owner |
 | 3 | r_shaft, r_grip, r_IMU, r_HM; session pooling of lengths and camera parameters | lead-forearm roll through the straight-arm band passes §8.1 (b) *with* the shaft term and is shown to fail without it |
 | 4 | `SwingRigDriver`, `SwingViz3DView`, panel wiring, presets, club, ball | §8.3 passes; soak clean on Mac and GOLFSIMPC |
 | 5 | Traces, 3-D LM flight, optional X-bot skin | shown on a swing carrying the data |
@@ -407,7 +407,7 @@ Phases 1–3 carry all the risk. The panel is deliberately last, because a pictu
 ungraded fit would be judged by eye, and by eye is exactly how a plausible wrong skeleton
 gets through.
 
-## 11. Open questions for Mark
+## 11. Open questions for the Design Lead
 
 1. **"Z-bot":** did you mean Mixamo's **X-bot**? It is not in the repo. The Y-bot is enough.
 2. **Face-on-only swings:** decided by the §8.2 face-on-only row rather than now. Agreed?
@@ -486,7 +486,7 @@ Nothing in `src/Gui/viz/`, `src/Resources/body/`, `CapturePage.qml`, the session
 14. **Frame times are window-relative whatever the domain.** A re-analysed swing is already
     relative; the first writer subtracted `clock.t0` again and the 4 July library swings played
     a frozen figure. Writer and reader now apply the document's idempotent rule (≥ t0 ⇒ subtract).
-15. **The figure is a mannequin, not the Y-bot** (Mark, 26 Sept: "a transformer swinging a golf
+15. **The figure is a mannequin, not the Y-bot** (Design Lead, 26 Sept: "a transformer swinging a golf
     club"). `tools/generate_swing3d_mannequin.py` builds smooth tapered capsules and ellipsoids —
     one continuous torso, a neck that turns with the head, mitten hands, rounded shoes — on the
     same skeleton, in each joint's local frame; the Y-bot segment meshes are gone (the extraction
@@ -496,7 +496,7 @@ Nothing in `src/Gui/viz/`, `src/Resources/body/`, `CapturePage.qml`, the session
     pelvis tilt, so tilt, hip flexion and spine flexion traded freely: on the 4 July swings the
     pelvis seesawed a median 70° per swing (swing 5: 5°→55° and back every ~0.3 s) against the
     hips and spine — smooth frame to frame, invisible in the video, and a figure that "looks so
-    wrong it would lose us any credibility" (Mark). Fixed with a pelvis-tilt smoothness of its own
+    wrong it would lose us any credibility" (Design Lead). Fixed with a pelvis-tilt smoothness of its own
     (`pelvisTiltAccRad` 25 rad/s², never loosened through the downswing) and a tighter spine
     flexion prior (7°). ⚠ First tried as "the pelvis stays near the swing's mean tilt": that let
     the fit tilt the whole world to fake a constant tilt while the golfer turned (synthetic
@@ -507,7 +507,7 @@ Nothing in `src/Gui/viz/`, `src/Resources/body/`, `CapturePage.qml`, the session
     playing, not on the first kept frame. Residual: 4 July swing 2 still leans its pelvis to ~50°
     in the 100 ms before address (its DTL keypoints fit worst of the fifteen); from address on it
     is sane.
-18. **The figure is ONE skinned hull** (Mark: "the paunch needs fixing… a hull over the top to
+18. **The figure is ONE skinned hull** (Design Lead: "the paunch needs fixing… a hull over the top to
     tidy up the stack of beads"). `tools/generate_swing3d_hull.py` models the body as a smooth
     union of anatomical shapes — pelvis, buttocks, a FLAT abdomen blended wide into the rib cage,
     pecs, trapezius, deltoids, tapered limbs, calves, mitten hands, shoes — as a signed-distance
@@ -555,7 +555,7 @@ Medians over the 24 (per-swing table: `docs/research/data/skeleton3d/grade_20260
 | Lead / trail knee flex at address | `lead/trailKneeFlexion` | +5.0° / +8.0° | inside its sd — **missed (a bias)** |
 | Pelvis turn rate | `pelvisAngularSpeed` (pair route) | corr 0.51, rms 88 °/s | ≤ 5° rms of the turn — not comparable (rates only are persisted) |
 | Thorax turn rate | `thoraxAngularSpeed` | corr 0.35, rms 324 °/s | **poor** — which route is wrong is not known |
-| Face-on only vs two views | the full fit | body bone p90 33° | — this is Mark's §11 q2 number |
+| Face-on only vs two views | the full fit | body bone p90 33° | — this is the Design Lead's §11 q2 number |
 | DTL roll | — | 5.2° (2.4–6.5) | — |
 | Frames at a joint limit / foot slip p90 | — | 16 / 22 mm | — |
 
@@ -599,7 +599,7 @@ accuracy.
 ## 13. A leaner fit (proposed, 28 September 2026 — for planning)
 
 *Status: **APPROVED 28 Sept, being built** — all four changes, in order, each graded before the
-next. Prompted by Mark ("how parsimonious is the 3-D swing modelling?") after the depth-branch fix
+next. Prompted by the Solution Architect ("how parsimonious is the 3-D swing modelling?") after the depth-branch fix
 (`skeleton3d_shaft_branch_design.md`). His answers to §13.4 are recorded there, and §13.2a is how
 the changes reach the fit without touching the viewer.*
 
@@ -718,7 +718,7 @@ the synthetic suite, with the tools that exist (`skeleton3d_run.sh`, `skeleton3d
 | Unknowns, `FitConfig` fields, solve time | reported: **the point of the exercise** |
 | (C) only: fitted club length vs the club record; lengths across a session's swings | reported: the pooled length should be steadier and nearer 0.94 m |
 
-**Done when** each change's table is filled and judged by Mark. A change that fails its gates is
+**Done when** each change's table is filled and judged by the Product Owner. A change that fails its gates is
 written up and not merged: a documented "no" counts as done.
 
 ### 13.4 Order, risks, open questions
@@ -739,7 +739,7 @@ last, once the model is settled.
 - Pooling assumes the cameras did not move within an epoch; detecting a move is part of (C).
 - One golfer: (D)'s split tuning is a mitigation, not a cure.
 
-**Questions for Mark — answered 28 Sept:**
+**Questions for the Solution Architect — answered 28 Sept:**
 1. **Clavicles:** coupled to the humerus (as proposed), or kept free with the prior? Coupling
    removes a knob; freedom keeps a shoulder shrug the rhythm cannot make. **Answer: coupled to the
    upper arm.**
@@ -787,7 +787,7 @@ unknowns are q, and θ₄₈ = M·q (`Problem::M`, `qRep`):
 **The finding:** the clavicles following the upper arm (§13.4 q1) **fails** the gates. It costs
 the DTL 1.2 px and face-on-only 3° (p90 +20°). The single spine alone passes all of them. So
 (A) is **built as spine-only: 48 → 42 angles, the clavicles free with their prior**, and
-`leanClavicles` stays off by default. ⚠ This departs from Mark's answer to q1, on the numbers above.
+`leanClavicles` stays off by default. ⚠ This departs from the Solution Architect's answer to q1, on the numbers above.
 It is his call whether to revisit the rhythm, for example a gain measured from DTL pose.
 
 ### 13.6 (B) Spline trajectories — built and graded (28 September)
@@ -934,7 +934,7 @@ step was not run: with 24 swings from one golfer, it would tune to noise.
 
 ### 13.9 (C) removed from the app (7 October 2026)
 
-Mark, after a 50-swing cabin session re-analysed itself unasked at End Session: the session-end and
+Product Owner, after a 50-swing cabin session re-analysed itself unasked at End Session: the session-end and
 batch-end pool are gone. Neither trigger exists, re-analysis no longer reads
 `skeleton3d_session.json`, and `poolSkeletonSession` / `swinglab_run --pool-session` are deleted.
 `skeleton3d_pool.h`, `swinglab_run --pool` and `--skeleton-calib` stay as research tools.
@@ -1188,11 +1188,11 @@ the solved ball 1.7 cm from the truth, the body unchanged.
 
 ## 17. Hands on the club, arms in front, and two cameras or no skeleton (19 October 2026) — skeleton3d v11–v15
 
-Three defects found after §16, in Mark's review of the 3-D view, and how they were settled. The
+Three defects found after §16, in the Design Lead's review of the 3-D view, and how they were settled. The
 commit messages carry the full measurements.
 
 **The hands came apart (v11–v13).** The grip term let each hand slide along the shaft, stopped at
-impact + 60 ms, and let the fitted palm offsets wander up to 15 cm. Mark's rule: the hands are locked
+impact + 60 ms, and let the fitted palm offsets wander up to 15 cm. The Coaching Lead's rule: the hands are locked
 together on the butt of the club, and anything else means something is wrong.
 - v11: the palm points are fixed (`gripOffsetSigmaM` 0), the spacing between the hands is held
   (`gripSpacingSigmaM`, prior 8 cm), and the grip holds for the whole swing (`gripThroughSwing`).
@@ -1208,7 +1208,7 @@ and forearms stay in front of Spine2, in its own frame, with a margin of `handsB
 exact-lock projection carries the same rule for the trail wrist and elbow. Inside the window the 3-D
 view plays, swings showing it fell from 32 of 90 to 1.
 
-**Two cameras or no skeleton (v15, Mark's decision).** The cost of v11–v14 was measured by
+**Two cameras or no skeleton (v15, the Product Owner's decision).** The cost of v11–v14 was measured by
 projecting the skeleton's joints back through each fit's own cameras onto the confident pose
 keypoints:
 - On two-camera swings, nothing moved.

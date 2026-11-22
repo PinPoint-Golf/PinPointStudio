@@ -17,7 +17,7 @@ grade); the face-on tracker is `club_tracking_v3_design.md` and
 `docs/research/club_detection_from_video.md`. This document assumes all three and
 repeats only what it changes.
 
-Premise, from Mark: the first DTL tracker may **depend on the face-on tracker** —
+Premise, from the Product Owner: the first DTL tracker may **depend on the face-on tracker** —
 knowing the shaft's orientation from face-on should shrink the DTL search — and a
 standalone DTL tracker comes later. The design takes that literally and then asks
 what, exactly, face-on knows that DTL can use. The answer turned out to be larger
@@ -883,7 +883,7 @@ SwingLab still writes its sibling files, from the same code.
   stage ran, valid or not — its reasons are why the tile shows no shaft.
 - **Reuse**: re-analysis reloads `poseDtl` under `pose2d`'s rule
   (`kDtlPoseStageVersion`, no pose/ball/address override; since 2026-11-14 the model
-  identity is provenance only, Mark's pose rule, `reuse_gate.h`). The DTL
+  identity is provenance only, the Solution Architect's pose rule, `reuse_gate.h`). The DTL
   club track is never reused; it is recomputed every time (≈ 0.3 s).
 - **Drawn, not synthesised**: no DTL shaft synth, no predicted tier, no bridge across
   an end-on gap (§5.9). The shaft appears on the DTL tile only on frames that
@@ -1035,7 +1035,7 @@ Mac.
 | **1 — plumbing** | assessment §5 items 1–2: `CameraPlacement::DownTheLine` populated (perspective name, alias fallback for 06-11), the never-populated invariant in `analysis_stage_test.cpp` retired, stream-keyed pose cache; `swinglab_run --dtl` runs face-on as today, then poses the DTL stream | face-on output byte-identical on the 61 pinned swings; DTL pose cached for the 21 |
 | **2 — tracker v0** | `DtlShaftTracker`: witness interpolation, anchor quarantine, phase-aware clean plate, schedule, per-band solve with D1–D4 + D6, tiering, trace; corridor behind `shaft.dtl.corridor.enabled` (default from Stage 0); unit tests on synthetic two-view swings with a planted forearm at the top and a planted alignment stick | dev-six table of §6 produced; every §2 failure frame now END-ON or correct |
 | **3 — adjudicate and iterate** | montage review of every confidently-wrong and every corridor-escape frame on the dev six; rules added only against adjudicated counterfeits | dev six meets the §6 gates |
-| **4 — held-out** | 07-04 s0010–s0015, run once | gates met or the misses written up; results to Mark **before** any commit of tuned defaults |
+| **4 — held-out** | 07-04 s0010–s0015, run once | gates met or the misses written up; results to the Product Owner **before** any commit of tuned defaults |
 | **5 — transfer** | 06-11 bare wedge, run once | finding recorded; research paper gains the DTL phase |
 | **6 — standalone** | §9 | separate design |
 
@@ -1083,7 +1083,7 @@ Stage 0 and Stage 1 are independent and can run in parallel.
 > - **Inter-camera latency.** *Open, unchanged.* Stage 0's grip-row
 >   cross-correlation is not constant across swings (+2,726…+6,866 µs) and a
 >   grip row will not settle it; no offset is applied.
-> - **Open — for Mark: marks before or after Stage 2.** *Answered by events:
+> - **Open — for the Product Owner: marks before or after Stage 2.** *Answered by events:
 >   after, and it cost nothing, because the band-template instrument arrived
 >   instead and turned out to cover one band of four.* The question is now
 >   sharper and more urgent: the DTL markup panel exists, no marks have been
@@ -1170,7 +1170,7 @@ Stage 0 and Stage 1 are independent and can run in parallel.
 - **Inter-camera latency** may not be constant on host-stamped streams. If Stage 0
   finds it drifting within a session, the corridor widens by `ω_F · jitter` and
   impact-band claims weaken accordingly.
-- **Open — for Mark:** should the sparse DTL hand marks be made before Stage 2
+- **Open — for the Product Owner:** should the sparse DTL hand marks be made before Stage 2
   (so the instrument is cross-checked before anything is tuned against it) or
   after the first montage shows where the band lock is doubtful? The design
   assumes before, on the dev six only.

@@ -48,7 +48,7 @@ distances, the swing summary (every club, and under a club scope or shot filter)
 by the current Athlete's `AthleteDiagnostics` from the session summaries — on its own lane of the one pool, never beside a
 live session — and it writes `tendencies.json` and every `swing_themes*.json`. Under a club scope or a shot filter it reads
 each session's judged rows through that session's own `SessionDiagnostics` (the Session held for the read, released after;
-Mark, 21 Nov 2026: DEC-195). `WorkOnsController` is its thin adapter: the scan that asks the catch-up for stale sessions,
+Solution Architect, 21 Nov 2026: DEC-195). `WorkOnsController` is its thin adapter: the scan that asks the catch-up for stale sessions,
 and the words. A session whose summary this build does not read (none yet, another rule's, another machine's), or whose
 rows cannot be read for a scoped view, is counted and said on Home ("N sessions aren't in these figures yet"): never
 left out without a word (J-51).

@@ -10,8 +10,8 @@ run root and commands below, and can be reproduced from the CSVs committed besid
 | **V1** face-on trunk rise against down-the-line bend | **Failed**: Spearman 0.12 / 0.15 / 0.23 (bar 0.7) | `m_trunkRiseImpact` held; a face-on-only shot cannot assess the posture held into impact |
 | **V2** ρ per composite | Measured: 0.17 impact, 0.11 top, 0 setup | Written to the composites' norm rows (`source: measured`) |
 | **V3** norms for the parts | Measured; three golfers of unknown standard cannot seat a good-swing norm | Part norms kept as authored, each citing what the three golfers read; axis tilt at address re-seated for the 2-D producer |
-| **V4** firing table | Written; agrees with Mark's coach labels at impact and at the top | `loss_of_posture` and both knee-flex conditions to active, as the design said; everything else stays draft |
-| **V5** repeatability | Head pitch passes (0 flips, p90 2.5°); impact composite 1 flip in 15 (bar 1 in 20), borderline | `m_headPitchAddress` live; the unstable part is named (pelvis thrust), not held — Mark's call |
+| **V4** firing table | Written; agrees with the Coaching Lead's coach labels at impact and at the top | `loss_of_posture` and both knee-flex conditions to active, as the design said; everything else stays draft |
+| **V5** repeatability | Head pitch passes (0 flips, p90 2.5°); impact composite 1 flip in 15 (bar 1 in 20), borderline | `m_headPitchAddress` live; the unstable part is named (pelvis thrust), not held — the Coaching Lead's call |
 
 Two content changes came out of the measurement rather than the gates:
 
@@ -129,14 +129,14 @@ now cites this table, with how far off centre each golfer sits. Two exceptions:
   curve sits about 8° below Mark's at every position (address −6.1°, impact −1.6° against Mark's +6.9°),
   which is either camera roll or her body; nothing here can separate them. Absolute face-on tilt is
   camera-sensitive.
-- **Absolute address bend is rig-dependent.** Mark judges all three "marginally too bent" at address,
+- **Absolute address bend is rig-dependent.** The Coaching Lead judges all three "marginally too bent" at address,
   yet they read 36.5°, 38.3° and 29.4°. The 40 ± 8 row fires `posture_too_bent` on none of them, which
-  fits "marginally", but the 9° spread between golfers Mark sees alike says camera height and position
+  fits "marginally", but the 9° spread between golfers the Coaching Lead sees alike says camera height and position
   move this number.
 
-## V4 — firing, and Mark's labels
+## V4 — firing, and the Coaching Lead's labels
 
-Mark's coach labels (22 Oct, golfer-level): Mark and Nick stand up going back and lose their posture into
+The Coaching Lead's coach labels (22 Oct, golfer-level): Mark and Nick stand up going back and lose their posture into
 early extension coming down; Jess has an excellent swing posture-wise apart from a dip going back; all
 three are marginally too bent at address.
 
@@ -169,7 +169,7 @@ Family without a member firing / a member firing without the family:
 
 **What it says.**
 
-- The two posture-change families agree with Mark at impact and at the top on all three golfers. As §9
+- The two posture-change families agree with the Coaching Lead at impact and at the top on all three golfers. As §9
   expected, they fire on nearly every Mark and Nick swing with the single faults as drivers.
 - The case the family exists for — losses spread thinly, no single member firing — barely occurs: 1
   Jess swing at impact, 3 Mark swings at the top. The family is acting as a hub. Its weights and ρ are
@@ -180,7 +180,7 @@ Family without a member firing / a member firing without the family:
   a sink. When the belt-line producer lands, that part comes back.
 - **The setup family fires on Jess through the balance reading, and the labels cannot say whether
   that is right.** Jess reads 77.7 % toward the toes (z +4.1) on every swing, against 57 % (Mark) and
-  62 % (Nick). Mark's labels speak about her posture in the swing and say nothing about where her weight
+  62 % (Nick). The Coaching Lead's labels speak about her posture in the swing and say nothing about where her weight
   sits at address, so this may well be true. What is not known is whether the number is the golfer or
   the camera: the proxy's absolute value has never been checked against a pressure plate, and other
   absolute readings here (address bend, side tilt) do shift between golfers by camera-sized amounts.
@@ -217,13 +217,13 @@ Mark only**, 15 from 2026-07-04 (two cameras) and 7 from 2026-09-09 (face-on).
   instead of 4 (2.86 against 1.76). The unstable part is **pelvis thrust**: between two pose runs it moves
   by a median 1.9 cm against a norm σ of 2.5 cm, and the shipped early-extension thrust flips at the same
   rate. The design's rule says hold the unstable part; holding thrust would also take away the hips' half
-  of standing up, and the control shows the shipped fault already lives with it. **Not held; Mark's
+  of standing up, and the control shows the shipped fault already lives with it. **Not held; the Coaching Lead's
   call.** 15 swings cannot tell 1 in 15 from 1 in 20.
 
 ## Not claimed
 
 - There is no truth for any posture number. V1 graded face-on against down-the-line, which is not truth;
-  V4 graded against Mark's coach eye at the level of a golfer, not a swing.
+  V4 graded against the Coaching Lead's coach eye at the level of a golfer, not a swing.
 - ρ rests on within-golfer variation of three golfers; the part norms on authored judgement; V5 on 15
   swings of one golfer.
 - Several absolute readings (address bend, balance, axis tilt) differ between golfers by amounts that

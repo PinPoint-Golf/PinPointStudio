@@ -1,11 +1,11 @@
 # Charts and print: reuse, duplication and what to rationalise
 
-> **Date:** 2026-11-19 · **Status:** proposal, nothing built. Parts B and C change the design system, so each needs Mark's approval before it is built: the need, the screens affected and a before/after sheet (CLAUDE.md, "UI and design system"). · **Scope:** `src/Gui/charts`, `src/Gui/typeset`, `src/Gui/components`, `src/Gui/report`, `src/Gui/diagnostics` at main `3620840d` + working tree, 18–19 Nov 2026.
+> **Date:** 2026-11-19 · **Status:** proposal, nothing built. Parts B and C change the design system, so each needs the Design Lead's approval before it is built: the need, the screens affected and a before/after sheet (CLAUDE.md, "UI and design system"). · **Scope:** `src/Gui/charts`, `src/Gui/typeset`, `src/Gui/components`, `src/Gui/report`, `src/Gui/diagnostics` at main `3620840d` + working tree, 18–19 Nov 2026.
 
 > **Relation to the refactor (19 Nov 2026):** Part A is already planned as step 5's "one presenter base and one threading
 > idiom for the six presenters" (`docs/implementation/swe-audit/04-remediation-plan.md`, step 5), which also moves the
 > presenters' model/snapshot wiring and per-shot input cache onto the Session — so Part A is done there, not on its own.
-> Parts B and C are design-system changes outside the plan: post-refactor (feature freeze) unless Mark adds them.
+> Parts B and C are design-system changes outside the plan: post-refactor (feature freeze) unless the Product Owner adds them.
 
 ## 1. Summary
 
@@ -97,7 +97,7 @@ The client pages of the session report (cover, About, Order, Tendencies, work-on
 
 The chart blocks on those same pages, and the whole technical appendix (`PpDiagPrint`), draw with the typeset print medium instead (`PpChRoles` / `PpDiagRoles` on `Theme.typesetPrint`: `printScale` 1.18, `hair` 0.5, the A4 margins). So a report page holds two style objects (`ro` and `roles`), and the PDF changes typographic system at the appendix. The `PpReportProfile` header says it outright: "INKS: `ro` (the report's palette and type…) and `roles` (the Charts print roles…)".
 
-`rr` also sits outside the project's rule that every colour, font and size comes from `Theme` tokens. Its values are real decisions — Mark judged the mock's sizes — so the fix is to move them, not change them.
+`rr` also sits outside the project's rule that every colour, font and size comes from `Theme` tokens. Its values are real decisions — the Design Lead judged the mock's sizes — so the fix is to move them, not change them.
 
 ### 3.5 Duplication 3 — print versions of screen components
 
@@ -126,17 +126,17 @@ Each family keeps its `Inputs`, `Result` and compute function, and supplies them
 - **Size:** an estimated 600–900 lines removed across the three `.cpp`s. The headers shrink to their family parts. The estimate is soft: §2's matcher over-counts.
 - **Behaviour:** none. QML property names and objectNames are unchanged.
 - **Tests:** the existing presenter tests (via `setSynchronous` / `waitForIdle`) must pass unchanged. Add one test of the base's lifecycle with a trivial compute.
-- **Approval:** not a design-system change. A refactor needs only Mark's usual go-ahead.
+- **Approval:** not a design-system change. A refactor needs only the Product Owner's usual go-ahead.
 
 ### Part B — one print style for the whole report (design-system change)
 
 Move `rr`'s values into `Theme` as print tokens, under `Theme.typesetPrint` (for example a `report` key, the way `ch` is merged for Charts). Then give the client pages a `PpTypeset`-based roles object on the print medium — `PpReportRoles`, beside `PpChRoles` and `PpDiagRoles` — in place of `rr`. Then the client pages, the chart blocks on them and the appendix share one palette, one set of type roles, one hairline and one accent rule.
 
-- Carry the current values over first, so the client pages draw as they do now. Settle the open differences (hairline 0.75 vs 0.5, `lead` vs the typeset leading, the literal `#FFFFFF`, Folio pinned vs the print medium's own palette) as explicit decisions, page by page, with Mark.
+- Carry the current values over first, so the client pages draw as they do now. Settle the open differences (hairline 0.75 vs 0.5, `lead` vs the typeset leading, the literal `#FFFFFF`, Folio pinned vs the print medium's own palette) as explicit decisions, page by page, with the Design Lead.
 - Keep `Font.PreferNoHinting` (the reason is in `rr`'s comment: column fitting on Windows). It belongs in the print font roles for every print block.
 - After changing `Theme.qml`: run `python3 tools/theme/make_design_system.py` and commit `tokens.json`.
 - **Screens affected:** every page of the session report PDF; nothing on screen.
-- **Before/after:** owed before approval. Render the stress set (`session_report_design.md` §9.2) old vs new and show a per-page diff sheet. If no value changed, it should be pixel-identical except for decisions Mark takes.
+- **Before/after:** owed before approval. Render the stress set (`session_report_design.md` §9.2) old vs new and show a per-page diff sheet. If no value changed, it should be pixel-identical except for decisions the Design Lead takes.
 
 ### Part C — one component per thing, the medium as a setting (design-system change; after B)
 
@@ -154,13 +154,13 @@ Move `rr`'s values into `Theme` as print tokens, under `Theme.typesetPrint` (for
 
 ## 5. Risks
 
-- **Report layout is tuned and judged.** Mark accepted the client pages' look, and the pager depends on atom heights. B and C must start pixel-identical and change only by decision, proven with the stress renders, not a single fixture.
+- **Report layout is tuned and judged.** The Design Lead accepted the client pages' look, and the pager depends on atom heights. B and C must start pixel-identical and change only by decision, proven with the stress renders, not a single fixture.
 - **Teardown order.** Pages keep their roles object last among their children so boxes go before their inks (`PpReportProfile` header). A shared roles object must keep that rule.
 - **Two media in one window.** `PpTypeset` is per-instance precisely so a panel and its printed form can coexist. A shared row component must take its inks from the `roles` it is given, never from a live theme token.
 - **Windows.** Font metrics differ (the hinting note). Part B needs one render on the cabin PC before it is called done.
 - **Another session is active in `src/Gui`.** Coordinate before starting A, which touches the three presenter files.
 
-## 6. Open decisions for Mark
+## 6. Open decisions for the Design Lead
 
 1. Approve Part A as a refactor (no visible change)?
 2. Part B: one print style for the whole PDF? If yes, for each difference — hairline, leading, paper colour, Folio-pinned palette — keep the client pages' value or the typeset print value?

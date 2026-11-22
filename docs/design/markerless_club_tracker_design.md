@@ -1,7 +1,7 @@
 # Markerless club tracking — design
 
 **Status: design 2026-09-08; P0–P3b built and graded the same day (§6). P2 missed its targets and redefined Phase 3; P3a meets the direction, position and scale gates; P3b wires the lock into the tracker's consumers, dark behind `shaft.seg.enabled`. Every result is reported against the marked club's band lock on the same frames (§5.1). P4 adds the two club-record fields, the UI, the persistence and the still-frame probe. P5 graded 2026-09-09 on an unmarked 6-iron (§5.1): the segment lock covers 40% of span frames against the taped club's 54% segment / 26% band, at 1.0° from the tracker's direction; club length matches the ball to 3% when a ball exists and is unsolved without one. Open: the scale tail, the held finish, length without a ball, P6 (flip).** Successor to club tracking v3 (`club_tracking_v3_design.md`,
-as-built `shaft_track_assembly.*` / `shaft_tracker_math.*`). Premise, from Mark: the
+as-built `shaft_track_assembly.*` / `shaft_tracker_math.*`). Premise, from the Product Owner: the
 retroreflective bands on the shaft change the club's swing weight, and a club whose swing
 weight has changed produces a different swing. The tracker must therefore reach today's
 instrumented-grade detection on a **bare club**, using the reflective properties of the
@@ -58,7 +58,7 @@ to the club record; and ports the address-phase profile machinery that never lef
 Python exemplar. Everything ships dark behind `shaft.seg.enabled` and is graded on the
 existing taped corpus first, because the segment landmarks exist on taped clubs too.
 
-Explicitly out of scope: shortening the exposure (Mark's 2026-07-05 ruling, recorded in
+Explicitly out of scope: shortening the exposure (the Product Owner's 2026-07-05 ruling, recorded in
 `stripe_fusion_design.md:21-26`, stands), IR illumination (launch-monitor conflict), a
 learned shaft detector, and graphite shafts as a gated target (§8).
 
@@ -856,7 +856,7 @@ O(rmax). Address-hold stacking already exists. No new decode pass.
 ## 6. Implementation plan
 
 v3 was exemplar-first (Python in `tools/shaftlab`, then a numerically-identical C++
-port). Mark's decision 2026-09-08: the shaftlab exemplar is superseded by the C++ and is
+port). The Solution Architect's decision 2026-09-08: the shaftlab exemplar is superseded by the C++ and is
 no longer used, so this work goes straight to C++ — the engine is unit-tested on
 synthetic profiles and graded on the taped corpus through the tracker's own trace, with
 the band lock as the per-frame reference. The porting invariants of
@@ -912,14 +912,14 @@ without tape".
   makes no claim.
 - **Open:** should `shaftLengthMm` be the setting the user enters, or should the UI ask for
   "grip length" (easier to measure on a club with the grip on)? Both derive the same
-  `gripEndFromButtMm`. This document picks shaft length per Mark's request; the field name
+  `gripEndFromButtMm`. This document picks shaft length per the Product Owner's request; the field name
   is the only thing that changes if the other is preferred.
 
 ---
 
 ## 8. Deliberately not done
 
-- **Exposure.** Mark's ruling of 2026-07-05 (`stripe_fusion_design.md:21-26`): 150 fps is
+- **Exposure.** The Product Owner's ruling of 2026-07-05 (`stripe_fusion_design.md:21-26`): 150 fps is
   the camera's maximum, the 6.57 ms exposure is the light budget, do not revisit. Nothing
   here depends on it. For the record, the bare shaft is clipped at 255 in the lit arc, so
   the *shaft* has exposure headroom the body does not; that is a fact, not a proposal.

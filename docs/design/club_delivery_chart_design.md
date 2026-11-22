@@ -1,6 +1,6 @@
 # Club delivery chart: the swing plane, read the way a coach reads it, and what it does to the ball
 
-Status: DESIGN, 29 Oct 2026. Nothing built. Mark's brief (29 Oct): "the club delivery chart is silent on the
+Status: DESIGN, 29 Oct 2026. Nothing built. The Product Owner's brief (29 Oct): "the club delivery chart is silent on the
 swing plane curve. We also do not have any domain specific insight on this chart. Given the importance of
 these data series and their impact on ball flight, we should do better."
 
@@ -214,7 +214,7 @@ page in the session report.
 - the **shoulder plane**: a hairline at the shoulder-plane value, labelled "shoulders";
 - the **slot**: a faint wash between them;
 - the hands' stretches: a light shade over the stretches where the swing plane curve is the hands' (§1.3), with
-  no words on the plot (a label there hid the curve; Mark, 29 Oct). The trust fold says what the shade is.
+  no words on the plot (a label there hid the curve; Design Lead, 29 Oct). The trust fold says what the shade is.
 - the swing plane curve and the hand plane in their own colours (orchid, crimson); the gap between them in the
   downswing is the club under (or over) the hands, said on hover, not shaded.
 
@@ -408,7 +408,7 @@ decisions.
 
 ## 9. Build plan
 
-Commits only at the end of a stage, after Mark has judged its results. Every UI stage: annotated before/after
+Commits only at the end of a stage, after the Product Owner has judged its results. Every UI stage: annotated before/after
 review sheets, `--probe-qml` before it is called done, then a windowed run. Two to three app builds per stage.
 
 | Stage | What | Done when |
@@ -421,7 +421,7 @@ review sheets, `--probe-qml` before it is called done, then a windowed run. Two 
 | **5. Release** (its own section, §8.4) | Lag at P6, the club passing the hands, clubhead peak timing, against attack and low point. | Its own review |
 | **6. The picture strip** | Address, top, P6 down-the-line frames with the address and shoulder planes drawn (the DTL coach-line sets exist). | Review sheet |
 
-Stages 1–3 are the chart Mark asked for. 4 is print. 5 and 6 follow.
+Stages 1–3 are the chart the Product Owner asked for. 4 is print. 5 and 6 follow.
 
 **Stage 6 as built (29 Oct, uncommitted).** `Gui/charts/delivery_picture.{h,cpp}`, the Posture strip's twin: pure C++ over the
 swing document, on the presenter's `thisShot.picture`, drawn by `PpChDeliveryPicture.qml` (each frame a `PpChPostureFrame`,
@@ -527,7 +527,7 @@ Wrist pages in `PpSessionReport.qml`; `report_model_test.cpp` and `tst_session_r
 ### Order and cost
 
 Stage 1 is independent and small; it can land while stage 2 is written. Stages 2 → 3 → 4 run in order. Each
-stage: at most three app builds, the affected tests once, results shown to Mark before its commit.
+stage: at most three app builds, the affected tests once, results shown to the Product Owner before its commit.
 
 ---
 

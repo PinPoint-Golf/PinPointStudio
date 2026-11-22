@@ -1,6 +1,6 @@
 # Session report — design
 
-*20 October 2026. Status: designed and mocked with real data. Built 20–21 October (uncommitted, awaiting Mark's review).*
+*20 October 2026. Status: designed and mocked with real data. Built 20–21 October (uncommitted, awaiting the Product Owner's review).*
 
 A **session report** is a PDF that a coach sends to a golfer at the end of a session. It is made
 on demand from the session list, from that session's diagnostics. It carries the studio's brand,
@@ -14,7 +14,7 @@ so it has to be good enough for a professional to put their name to.
 | **The mock** | Rendered to `/mnt/swingdata/scratch/session-report/out/<name>/` by `tools/session-report-mock/render-session.sh` (README there); first made as `build/run-me/session-report/session-report-mock.pdf`: 10 pages of A4 from a real session (Nick Henn, 20 October, session 3, 10 swings with a 7 iron, two cameras, GC Quad). It is printed through the app's own PDF path (`PpPdfPrinter` → `PdfDocumentWriter`) at 300 dpi. To reproduce it: `build/run-me/session-report/render-mock.sh`. |
 | **The mock's data contract** | `tools/session-report-mock/assemble.py` produces `report.json`, the single map the report binds to. It is a prototype of the C++ `SessionReportModel` (§11). Every sentence in the mock comes from a template over model and pack fields, except the coach's note, which the coach types. Content that the pack does not hold yet is marked **PROPOSED** in `assemble.py` (§5). |
 
-**Done means:** Mark has judged the mock. The decisions in §14 have answers. The build (§13) then
+**Done means:** The Product Owner has judged the mock. The decisions in §14 have answers. The build (§13) then
 runs phase by phase, each phase judged in the app before it is committed.
 
 ---
@@ -39,7 +39,7 @@ tests them hardest:
    model", or as "followed it in the right order on 7 swings". It is never described as cause,
    unless the session supports the link (`linkSupported`), and even then only as "goes away when
    the first one does".
-4. **Measured before inferred, and the unmeasured are named, never dropped** (Mark, 20 October). A
+4. **Measured before inferred, and the unmeasured are named, never dropped** (Product Owner, 20 October). A
    cause the cameras could not see is never a headline. On Nick's session the model's likely driver
    is *S-posture*, labelled "inferred, not measured" (its lumbar-curve measure has no producer). But
    when the evidence for a cause is thin, the causes we **could not check** are the most useful thing
@@ -155,7 +155,7 @@ why*, and *Worth checking next time*.
 mock first put both on one page; with the causes block they no longer fit, and the real register
 flows on `PpPager` anyway.)
 
-**The Posture page** (added 22 October, Mark: the Charts Posture section prints as a page of the report,
+**The Posture page** (added 22 October, Product Owner: the Charts Posture section prints as a page of the report,
 `posture_chart_design.md` §5.7). After the work-on pages and before "Between now and next time": it is a client
 page about this session's swings, so it sits with the work-ons, and the back matter (practice and numbers, About,
 the appendices) follows it. It starts a fresh page and may run on ("Posture, continued"). It is the Charts Posture
@@ -171,7 +171,7 @@ contact). `SessionReportModel` reads it on a worker while the documents are read
 (the Charts panel's loader, inline) builds the session snapshot and the presenter's payload is cut to the map's
 `posture` block by `report_posture.h` (the strip renumbered to the report's swings, the lists capped).
 
-**The Wrist page** (added 23 October, Mark: the Charts Wrist section's Session view prints as a page, after the
+**The Wrist page** (added 23 October, Product Owner: the Charts Wrist section's Session view prints as a page, after the
 Posture page, mirroring its order). The head ("Graded as a Cupped wrist on every swing"), a Style line and a Score
 line; "Checkpoints across the session", one row per banded wrist DOF, P1 to P8, the band of the **dominant style**
 (the style most swings were graded as; a tie goes to Neutral, then Bowed, then Cupped, and the trust note says so only
@@ -202,7 +202,7 @@ versus data; not fitted to you). What we could not check today, from `notJudged`
 words, ending with "Nothing in this report depends on them" only when that is true. A short
 glossary. Then the studio sign-off box.
 
-**Launch monitor appendix** (added 21 October, Mark: "an appendix which a) reproduces the figures
+**Launch monitor appendix** (added 21 October, Product Owner: "an appendix which a) reproduces the figures
 as a headline then b) lists out every shot's LM data across ball and club then c) provides
 summary statistics for the set, including SD"). Drawn whenever the session has launch monitor
 readings, after About and before the technical appendix, as part of the client galley
@@ -254,7 +254,7 @@ name the session's clubs from the diagnostics ledger, which does not read the bo
 Consistency and Tendencies pages read the Charts snapshot and the diagnostics ledger, which do not read
 "Leave out" either.
 
-**Launch monitor readings: one name each, the golfer's** (14 November 2026, Mark's decision). The printed
+**Launch monitor readings: one name each, the golfer's** (14 November 2026, the Coaching Lead's decision). The printed
 report is the golfer's document, so it names each launch monitor reading one way, in plain golfer words,
 on these pages: the cover's ball tiles, the "Your numbers" heads, the swing grid's carry row ("Carry,
 yards"), the Consistency page's launch monitor rows under "Swings the launch monitor flagged"
@@ -357,7 +357,7 @@ which is the most useful sentence the report can give a coach about the next ses
 
 ## 4. Why the work-ons are in this order
 
-This is the section Mark asked for, and the report has to explain the **real** rule, not a
+This is the section the Product Owner asked for, and the report has to explain the **real** rule, not a
 nicer-sounding one.
 
 ### 4.1 The rule today (`reduceSessionWorkOns`, rule v3)
@@ -388,7 +388,7 @@ The rules are part of the report's data, not just its explanation. `WorkOnEntry`
 Page 3 prints each rule with a **"Today"** line generated from those reasons, plus the bars of
 the quantity that decided. Nothing on page 3 is written by hand.
 
-### 4.3 What Nick's session shows, and a decision for Mark
+### 4.3 What Nick's session shows, and a decision for the Coaching Lead
 
 On Nick's session, as on most habitual golfers' sessions, **every habit fired on every swing**.
 So rule 2 can never apply (no variance to compare), and the order falls through to rule 3,
@@ -519,7 +519,7 @@ colour replaces `Theme.colorAccent` in the report's roles only. **Faults stay
 
 ### 7.2 The coach (Settings → Studio)
 
-**One coach per studio** (Mark, 20 October). The coach's details sit on the Studio page beside the
+**One coach per studio** (Solution Architect, 20 October). The coach's details sit on the Studio page beside the
 studio's own:
 - name;
 - title ("Head coach");
@@ -568,7 +568,7 @@ report's PDF goes only where the coach sends it. Deleting the athlete deletes th
 
 ### 8.0 Where the coach finds it: a session list with three links
 
-Mark, 20 October: the report lives in **a list of the golfer's sessions**, shown in two places:
+Design Lead, 20 October: the report lives in **a list of the golfer's sessions**, shown in two places:
 
 1. **At the bottom of the Home screen**, under the current golfer's other sections, as
    **"Sessions"**. It shows the newest ten, then "Show all N sessions", which opens the tab
@@ -688,9 +688,9 @@ A `mailto:` link cannot carry an attachment, so sending needs more than that. Th
 | **B. Send from the app (SMTP)** (later, if A is not enough) | Settings → Studio → Email: server, port, user name, and an app password kept in the system keychain (Keychain or Windows Credential Manager), never in the INI. **Send** goes straight from the sheet | One click; works for webmail users via an app password | Credentials to store and protect; Gmail and Microsoft 365 increasingly need OAuth rather than passwords; failures (blocked port, expired password) need clear, in-app explanations |
 | **C. Always available** | **Copy email address** and **Show in Finder/Explorer**, so the coach can attach the file by hand | Works everywhere | Manual |
 
-**Decided (Mark, 20 October): A, with C always shown beside it.** B stays designed but unbuilt.
+**Decided (Product Owner, 20 October): A, with C always shown beside it.** B stays designed but unbuilt.
 
-**Changed (Mark, 21 October): B is built, A becomes the fallback.** "The function to email the report
+**Changed (Product Owner, 21 October): B is built, A becomes the fallback.** "The function to email the report
 to the golfer should just do it." Set up once per machine in Settings → Studio → Sending reports:
 provider (Gmail, iCloud, Microsoft 365, Other; presets fill the server, port and security), the login,
 and its password (an app password for Gmail and iCloud) kept in the system's secure store (Keychain,
@@ -739,7 +739,7 @@ reason for the 3 MB budget in §9.4. The row shows the file size beside the Repo
 
 ### 8.4 Dates: when the session was, and when the report was prepared
 
-Mark, 20 October: every report shows **both** dates, and never confuses them.
+Design Lead, 20 October: every report shows **both** dates, and never confuses them.
 
 - **The session date** comes from the session's swings: the first swing's wall-clock time, in
   the machine's local time zone. The time a report is opened or made does not change it.
@@ -850,7 +850,7 @@ the page count recorded for each case (`expectedPages` in `test_01`) must be re-
 that moves is a layout change, not just new data.
 
 The overflow check already used on the mock (`tools/session-report-mock/overflow_check.py`)
-becomes the probe's first test. The visual review for Mark uses annotated sheets of the stress
+becomes the probe's first test. The visual review for the Design Lead uses annotated sheets of the stress
 cases, not just the happy one ([feedback_annotated_review_sheets]).
 
 ### 9.3 The first stress test: Jess Ratcliffe, 20 October, session 3 (done 20 October)
@@ -894,7 +894,7 @@ page. What the test found:
 2. **That lead reading looks implausible.** The lead-arm-to-torso angle at P8 is 106° typical,
    with swings from 49° to 163°, against a target of 40° or less. The swing-to-swing spread and the
    dark, turned-away face-on frames at P8 suggest a measurement or norm problem. It should be
-   checked before any report headlines it. *For Mark: is chicken wing at P8 trustworthy from
+   checked before any report headlines it. *For the Coaching Lead: is chicken wing at P8 trustworthy from
    face-on?*
 3. **Content is the biggest gap.** Four of Jess's five work-ons have no drill, feel or
    self-check (the mock prints a red "content gate" note in their place). "Stance too wide" also
@@ -988,7 +988,7 @@ app's own fonts, roles and PDF writer. It is not the build:
 - the Studio profile is a placeholder ("Northfield Golf Studio", "Alex Morgan" are invented);
 - the coach's note is sample text written to show the slot;
 - the PROPOSED content in `assemble.py` (goals, cues, checks, two drills, measure names) is a
-  first draft for Mark's review, not finished pack content.
+  first draft for the Coaching Lead's review, not finished pack content.
 
 ## 13. Build plan (when the mock is approved)
 
@@ -1005,7 +1005,7 @@ sessions are in `/mnt/swingdata/scratch/session-report/dumps/`.
    Also check whether chicken wing measured after impact from face-on can be trusted (§9.3, item
    2), because a suspect reading must not headline a client report.
 1. **Content.** Add the pack fields, grow thin cause lists (§3.3), then author goal, cue, check, picture and golfer text for
-   every listable condition, and drills to cover them. Add the `core_pack_test` gate. Mark reviews
+   every listable condition, and drills to cover them. Add the `core_pack_test` gate. The Coaching Lead reviews
    the wording as a table before it lands.
 2. **Pure reductions.** `session_report.h` and the work-on `reasons` (plus rule v4 if chosen),
    with tests.
@@ -1015,7 +1015,7 @@ sessions are in `/mnt/swingdata/scratch/session-report/dumps/`.
    exposure lifted on the golfer's crop (Jess's face-on frames are very dark, §9.3). Judged on
    Nick, Jess and Mark sessions, with annotated sheets ([feedback_annotated_review_sheets]).
 5. **Register.** `PpSessionReport` on `PpPager` under the §9 layout contract, every variant in §3.1,
-   plus `tst_session_report` printing the whole §9.2 stress set. Mark judges annotated sheets of
+   plus `tst_session_report` printing the whole §9.2 stress set. The Design Lead judges annotated sheets of
    the stress cases, not only Nick's.
 6. **Writer encoding** and the 3 MB budget.
 7. **Scaffolding:** the Studio page (studio and coach), the golfer details page's tabs and its
@@ -1031,16 +1031,16 @@ Alongside, not blocking: **issue #58** (the "Sequence not repeatable" card count
 test that was not assessed). The report's session-level page reads the model's consistency fields
 directly, so it does not depend on the fix, but the panel does.
 
-## 14. Decisions for Mark
+## 14. Decisions for the Product Owner
 
 1. ~~The order~~ **Decided 20 Oct: rule v4** (§4.3), swing order when links cannot be tested. Built with sharp
    findings kept ahead of swing position (without that, v4 dropped Mark's sharp sequence faults off the list).
 2. **The mock's look:** the page plan, the length (10 pages for a 10-swing session), the cover's
    three columns, and the stills.
 3. ~~The technical appendix~~ **Decided 20 Oct: always** appended, from a fresh page, printed at 200 dpi.
-4. **Brand:** built as proposed (one accent colour, logo or monogram, Folio light only); still Mark's call.
+4. **Brand:** built as proposed (one accent colour, logo or monogram, Folio light only); still the Design Lead's call.
 5. ~~Who writes the content~~ **Decided 20 Oct:** drafted for every listable condition in the build, reviewed by
-   Mark as a wording table before it is committed.
+   the Coaching Lead as a wording table before it is committed.
 6. **Club path:** `in_to_out_path` and `out_to_in_path` read `m_clubPathAtImpact` (the camera's
    own estimate, planned, no producer). So they are never judged, even when the GC Quad measured
    path on every swing (`m_lmClubPath` is live). `ball_speed_deficit` is the same, against
@@ -1048,7 +1048,7 @@ directly, so it does not depend on the fix, but the panel does.
    deliberate. But `closed_face_to_path` does read the LM's `lm.faceToPath`. Should the path
    conditions fall back to the LM reading when ours is absent? (On Nick's page 5 this is why the
    hips page has no "what came with it", though path ran in-to-out.)
-   **Decided 20 Oct (Mark): "LM is always the primary source for the metrics it delivers — our estimates will
+   **Decided 20 Oct (Solution Architect): "LM is always the primary source for the metrics it delivers — our estimates will
    never be better."** Every measure with an `m_lm*` twin reads the LM first (`preferKeys`); ours is the fallback.
 7. ~~Sending~~ **Decided 20 Oct:** hand off to the coach's mail app (option A, §8.3).
    **Changed 21 Oct:** send directly over SMTP (option B), with the hand-off as the fallback (§8.3).

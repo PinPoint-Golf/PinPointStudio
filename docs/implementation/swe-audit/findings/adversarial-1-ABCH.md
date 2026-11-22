@@ -93,7 +93,7 @@ I tried to disprove each finding. One read-only check was made on the share (`/m
 - **What stands:**
   - Nothing stamps the flight rule. `computeContentStamp()` (`session_diagnostics_model.cpp:929-944`) hashes the pack, norms, contexts, schema, words and grid. It does not include `flightNorms()` or the `strike_from_flight.h` thresholds.
   - So a threshold change leaves stored verdicts stale for the readers that do not re-run the check (`work_ons_controller.cpp:196/1396`, Charts).
-  - The persistence was Mark's 10 Nov choice, made so that every reader counts one verdict (`strike_from_flight.h:519-523`).
+  - The persistence was the Solution Architect's 10 Nov choice, made so that every reader counts one verdict (`strike_from_flight.h:519-523`).
 - This is a missing version input, which is Medium.
 
 ### C-04 · golfer English built and persisted in the domain — **Partly wrong** (High stands on the rest)
@@ -111,7 +111,7 @@ I tried to disprove each finding. One read-only check was made on the share (`/m
 - `swing_themes_pack.h:156` `info.fault = c.kind == ConditionKind::Fault`, and there is no `reportHold` in either themes file.
 - Themes count ledger rows directly (`swing_themes.h:1437-1453`).
 - `chicken_wing` is active, kind fault, held, and its measure `m_leadElbowFoldAfterImpact` is `live`. It can therefore fire and reach the themes' needs-work list while it stays off Work-ons. The scenario is reachable.
-- Whether Your swing should honour `reportHold` is Mark's call.
+- Whether Your swing should honour `reportHold` is the Solution Architect's call.
 
 ## H · Persistence
 
@@ -144,4 +144,4 @@ I tried to disprove each finding. One read-only check was made on the share (`/m
 - **Mitigations:**
   - The data survives in the backup, because the tool refuses to overwrite one (`regrade_ledger.cpp:80-85`).
   - The session is corpus test material, and the focus may have been probe input.
-- Mark should say whether that focus was his.
+- The Product Owner should say whether that focus was his.

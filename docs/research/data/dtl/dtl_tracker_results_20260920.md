@@ -763,7 +763,7 @@ two different configurations rather than two runs of one.
 
 On 06-11 the mat under the ball is blown out and the ball has no edge on it. The
 bright-blob cue is not failing on a visible ball — it is looking at a ball that
-is not there to find. What **is** there, as Mark pointed out, is the small dark
+is not there to find. What **is** there, as the Product Owner pointed out, is the small dark
 crescent the ball casts at its own lower rim.
 
 Measured while the cue was built, and recorded in

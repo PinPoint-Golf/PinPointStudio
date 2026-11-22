@@ -1,6 +1,6 @@
 # Posture chart, stage 1: measures, bands and the lead-knee condition, measured
 
-*2026-10-22. Stage 1 of `docs/design/posture_chart_design.md` §10. Run on the Mac (Mark, 22 Oct: stage 1 is
+*2026-10-22. Stage 1 of `docs/design/posture_chart_design.md` §10. Run on the Mac (Product Owner, 22 Oct: stage 1 is
 light, so it does not need the cabin PC), on video-free copies of the three golfers' libraries at
 `/mnt/swingdata/scratch/posture-chart-20261022/copies/` (Mark 10 sessions, Nick 5, Jess 3; 18 ledgers).*
 
@@ -73,11 +73,11 @@ differ, and every one is the new condition's first appearance:
 | Nick | 0 | 28 | 0 |
 
 In all three of Jess's sessions `lead_knee_folds_backswing` is a session pattern listed ahead of
-`head_drop_backswing`. Her report now leads with the knee, the root, as Mark asked.
+`head_drop_backswing`. Her report now leads with the knee, the root, as the Coaching Lead asked.
 
 ## "Well within" on home (carried-over decision C3)
 
-The rule was built and then reverted with Mark's agreement. A ledger row stores the Ideal band
+The rule was built and then reverted with the Coaching Lead's agreement. A ledger row stores the Ideal band
 (|z| ≤ 1) as its corridor, so home's "inside the corridor by value" already means "well within".
 On the copies, 14,987 two-sided readings were checked and none sits inside its stored corridor at
 |z| > 1. Mark's "what you do well" list and its shares are the same under both rules. Nick and Jess

@@ -1522,7 +1522,7 @@ SwingWindow lifetime, zero-copy read safety — see
 [^dec160]: IM-S2-2, DEC-160.
 [^dec90]: DEC-90.
 [^dec150]: DEC-150.
-[^j39]: J-39; confirmed by Mark, 15 Nov 2026.
+[^j39]: J-39; confirmed by the Solution Architect, 15 Nov 2026.
 [^j33]: J-33.
 [^dec83]: DEC-83.
 [^dec34]: DEC-34.
@@ -1531,7 +1531,7 @@ SwingWindow lifetime, zero-copy read safety — see
 [^j11]: J-11.
 [^dec86]: DEC-86.
 [^dec88]: DEC-88.
-[^j18]: J-18: Mark, 15 Nov 2026; `build/refactor/step-2/JUDGEMENT-ANSWERS.md`.
+[^j18]: J-18: Solution Architect, 15 Nov 2026; `build/refactor/step-2/JUDGEMENT-ANSWERS.md`.
 [^dec151]: DEC-151.
 [^j40]: J-40.
 [^dec134]: MD-05: DEC-134.

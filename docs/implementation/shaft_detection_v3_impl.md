@@ -29,7 +29,7 @@ claim.
 
 ## 2. Corpus strategy — start from what we have; capture only on demonstrated need
 
-**Principle (Mark, 2026-07-05):** the existing 10-swing taped corpus is enough to *get started*. New
+**Principle (Product Owner, 2026-07-05):** the existing 10-swing taped corpus is enough to *get started*. New
 capture is **not** planned up front — a new corpus is introduced **only when a specific gate cannot be met
 with data already in hand** (i.e. the existing corpus has been genuinely defeated on that gate). This
 avoids capture work for corpora the algorithm has not yet earned.
@@ -65,7 +65,7 @@ than re-deriving them. Ordered by how early the trigger is likely to bite.
 | **IMU-bound instrumented subset** | starting **v3.11** (the existing tape corpus is vision-only) | ~8 taped swings, wrist IMU bound + calibrated, 200 Hz | auto | v3.11 |
 | **Untaped accuracy** | making an **absolute θ-RMSE product-path claim** on unmarked clubs beyond s0008/0009 | 10–12 untaped, raw, blinded sparse markup + 5 re-labelled (`shaft_validation_protocol.md §6`) | **required** | a validation milestone |
 | **Coverage soak (~35)** | stating a **coverage-proportion** statistic (≥0.6 on ≥90%, ±10%) | ~35 clean face-on MP4 | none | a coverage claim |
-| **Left-handed** | **v3.0 freeze**, and **only once v3.0 is proven on RH** (per Mark: no LH golfer until something is proven) | ~3 taped LH swings, 1 golfer | auto | v3.0 freeze / RH proven |
+| **Left-handed** | **v3.0 freeze**, and **only once v3.0 is proven on RH** (per the Product Owner: no LH golfer until something is proven) | ~3 taped LH swings, 1 golfer | auto | v3.0 freeze / RH proven |
 
 ### 2.3 Capture settings + per-swing gate (apply *whenever* a trigger does fire)
 
@@ -314,7 +314,7 @@ fixture freeze on the studio PC.
 
 ### v3.0-r1 — C4 ψ-monotonicity transition rail  *(dev MBP design; gate studio PC)*
 
-**The insight (Mark, 2026-07-06).** The shipped C4 (design §1) is a *magnitude* cone on ψ=θ−φ, which
+**The insight (Coaching Lead, 2026-07-06).** The shipped C4 (design §1) is a *magnitude* cone on ψ=θ−φ, which
 the as-built widened to 150° and part-timed under pose-φ noise — leaving C3 to do the real
 search-collapse. The double pendulum's *stronger* fact was never encoded: **ψ is monotone with a
 single reversal at the top**, exactly as C3 constrains θ. ψ cocks (address→top), reverses once at
@@ -359,7 +359,7 @@ fast release.
 Built the DP transition rail first (Δψ sign-lock + smoothness + rate bound; `club_track_v3.py`). It
 passed synth + s01 but had to be **scoped release-only + band-protected** because a per-frame ψ-sign
 penalty *fires on the pose-φ noise floor* (`…/scratchpad/dpsi_noise.py`: 25–62% of backswing steps show
-a ~3° apparent un-cock that is pure noise — even on hand-marked θ). Mark's reframe closed it: **the
+a ~3° apparent un-cock that is pure noise — even on hand-marked θ). The Solution Architect's reframe closed it: **the
 monotone law is TRUTH, so a violation *measures* error → FIT the truth (isotonic), don't penalise the
 measurement.** Proven on real s01 first (`…/scratchpad/isotonic_demo.py`: fitting monotone ψ to the v3.0
 release flattens the f521–525 re-hinge and the residual spikes exactly there). The rail was **replaced**.
@@ -387,7 +387,7 @@ determinism byte-identical, down bad 1→0, medians held — **but thru p90 3.9�
 (follow-through, ~30–45f post-impact)** where the club is re-tracked but the folding arm φ degrades →
 `ψ_iso+φ` pulls a good ray off truth.
 
-**The physics behind it (Mark, 2026-07-07):** ψ is a **double reversal** — cock (top) → release to ≈0
+**The physics behind it (Coaching Lead, 2026-07-07):** ψ is a **double reversal** — cock (top) → release to ≈0
 (impact) → passive centripetal **re-hinge** (follow-through), with **forearm rotation** (a third DOF,
 near-unobservable face-on: axially-symmetric shaft carries no roll signal) dominating the middle. The
 single-tent monotone-release law is only valid **address→impact**. Roll as a real third dimension is
@@ -481,7 +481,7 @@ rise) handles it, watch the noisier corpus swings. (3) **`WMAX≈7`** is a s01 e
 / fuller swings) sets the real value; tune there, not on s01 ([[single-swing-never-judges-model-accuracy]]).
 
 > **Ordering:** the C4 exploration is now scoped and gate-0-proven — the **ψ-monotonicity rail**
-> (v3.0-r1 above, Mark 2026-07-06). Revisit this takeaway fix *together with* that rail in one
+> (v3.0-r1 above, Coaching Lead 2026-07-06). Revisit this takeaway fix *together with* that rail in one
 > v3.0-internal corpus re-gate: the ψ-rail already de-throttles and carries the near-still early
 > takeaway (grip barely translates, but ψ evolves and the arm moves), so the two share a single
 > synth → s01 → corpus → freeze cycle rather than each paying for one. Re-check `tk0`/`WMAX["takeaway"]`
@@ -489,7 +489,7 @@ rise) handles it, watch the noisier corpus swings. (3) **`WMAX≈7`** is a s01 e
 
 ### v3.4 — ball far-end anchor: address & impact endpoints  *(app stream first; dev-MBP exemplar; corpus gate deferred to post-release)*
 
-**Picked up as new development once the current release ships** (Mark, 2026-07-08). Design: club_tracking_v3
+**Picked up as new development once the current release ships** (Product Owner, 2026-07-08). Design: club_tracking_v3
 [`§9`](../design/club_tracking_v3_design.md). C1 anchors the club's *butt* to the hands every frame; nothing
 has ever anchored the *head*. The reliable **v2 ball detector** — already running per-frame on the same
 face-on `CameraInstance`, in the same normalized frame as the pose anchor + skeleton the tracker consumes —
@@ -497,7 +497,7 @@ is the missing head-end anchor at the two instants the clubhead is presented to 
 impact**, the tracker's two weakest zones (address abstained → `pred`; impact bridged from the arm, §8.1).
 `θ_ball = atan2(B_y−G_y, B_x−G_x)` is a **direct** shaft-angle measurement needing no ridge/band evidence.
 
-**Sequencing (Mark).** We are still in **build/verify** for the whole v3 stack — **validation waits**. So this
+**Sequencing (Product Owner).** We are still in **build/verify** for the whole v3 stack — **validation waits**. So this
 phase is *build + self-verify* now (synth + s01); the **corpus gate is deferred to the post-release validation
 pass**. And the app ball stream (P0) is plumbed **up front, before the next corpus**, so the corpus — whenever
 it runs — sees real recorded ball data, not a bolt-on.
@@ -514,7 +514,7 @@ has no consumer; the offline `"ballTrajectory"` block of `ball_detector_design.m
 
 **Exemplar — `ball_anchor_v3.py`** (additive companion: reads the frozen v3.0 track + `ball.csv`, works only
 the address + impact spans, never rewrites v3.0):
-1. **Angular address-end / takeaway boundary — angular only (Mark: "likely all we will ever need").** `tk0` =
+1. **Angular address-end / takeaway boundary — angular only (Product Owner: "likely all we will ever need").** `tk0` =
    the frame the measured `θ(f)` first departs `θ_ball` beyond `τ_addr` (the club rotates away while the grip
    is still). Landmark form of the ACTION `tk0` — no `SW_SPD` tuning; waggle-immune by construction (a waggle
    returns the clubhead to `B`; the swing leaves it once). Address = the still hold up to `tk0`. No
@@ -523,7 +523,7 @@ the address + impact spans, never rewrites v3.0):
    returning → `θ(f_imp) ≈ θ_ball`: a **measured** downstream endpoint for the §8.1 isotonic bridge (today
    reconstruction only), bracketing the impact blur with two real measurements (last pre-blur band lock +
    ball anchor). Corroborates the shot-arbiter impact instant (acoustic/IMU/ball coincide).
-3. **Measure shaft lean NOW (Mark: "we need to build and learn").** Do **not** defer `δ`. Per swing, log
+3. **Measure shaft lean NOW (Product Owner: "we need to build and learn").** Do **not** defer `δ`. Per swing, log
    `δ = θ_ball − θ_truth` at address and impact (θ_truth from the v2 fusion/band tier where it exists);
    accumulate `δ(handedness, club, address|impact)` across s01 + corpus into a small constant table
    (`shaftType` already plumbed through `ShotAnalysisJob`). Ship `θ_ball` as a **soft** anchor (σ covers

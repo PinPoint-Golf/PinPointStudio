@@ -19,7 +19,7 @@ Not for: one tab of a stock TabBar in the app's chrome (`PpTabButton`), or choos
 | brush | var | null | |
 | medium | string | `roles.medium` | |
 | interactive | bool | `medium === "screen"` | false on an auto-closing cast: drawn, never pressed. |
-| tabs | var | [] | `[{ key, label, count, end }]`. `end: true` puts the tab at the right of the bar (left of the chip), looking the same as the others (Mark, 11 Nov 2026). |
+| tabs | var | [] | `[{ key, label, count, end }]`. `end: true` puts the tab at the right of the bar (left of the chip), looking the same as the others (Design Lead, 11 Nov 2026). |
 | current | string | "" | The current tab's key. |
 | note | string | "" | e.g. the review note (tier 3). |
 | chip | string | "" | e.g. "‹ Back", a chart preset; "" = none. |

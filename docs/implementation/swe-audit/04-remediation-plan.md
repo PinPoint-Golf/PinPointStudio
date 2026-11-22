@@ -1,19 +1,19 @@
 # 04 · The refactor plan
 
 **Status (14 Nov 2026):**
-- Mark has agreed the overall architecture in `03-target-architecture.md` (draft 2.1, and decisions 1–30: 19–23 his
+- The Solution Architect has agreed the overall architecture in `03-target-architecture.md` (draft 2.1, and decisions 1–30: 19–23 his
   14 Nov decisions in draft 2.2, 24–30 step 1's information-model decisions in draft 2.3).
 - **The information model is `docs/developer/information_model.md` (the reference), version 1.7: canonical**; 03 is
-  its frozen rationale (Mark, 14 Nov 2026; reference DEC-40). Decisions are cited here by the reference's ids
-  (DEC-nn, register §13) and open questions by Q-nn (§14). Mark's decisions on the information-model audit (14 Nov
+  its frozen rationale (Solution Architect, 14 Nov 2026; reference DEC-40). Decisions are cited here by the reference's ids
+  (DEC-nn, register §13) and open questions by Q-nn (§14). The Solution Architect's decisions on the information-model audit (14 Nov
   2026, its D1–D8 = DEC-40…DEC-47) are applied to the steps below: the session file and `SessionId` (DEC-41, steps 2
   and 3), P3's wording (DEC-42), the tuning log (DEC-43, step 3), the shot kind (DEC-44, step 1), every written file
   listed (DEC-45, steps 2, 3 and 5), the club baseline (DEC-46, step 3); the lead's clarifications are ratified
   (DEC-47).
 - This page is how we get there. It replaces the first remediation plan.
-- Stage 0, local defect fixes, is committed (below). Nothing structural starts until Mark approves the first
+- Stage 0, local defect fixes, is committed (below). Nothing structural starts until the Product Owner approves the first
   step's brief.
-- Mark's decisions of 14 Nov 2026 are applied here: step 1's brief answered (`build/refactor/step-1/BRIEF.md` §9;
+- The Product Owner's decisions of 14 Nov 2026 are applied here: step 1's brief answered (`build/refactor/step-1/BRIEF.md` §9;
   03 decisions 24–30); the triage of the unscheduled core findings approved as proposed
   (`build/refactor/TRIAGE-PROPOSALS.md`), each footnoted below as the triage's; a new step 8 splits the
   long analysis and coaching functions; the gate catalogues stay code; the metric manifest becomes data in step 7;
@@ -23,7 +23,7 @@
 ## 1. How the work runs
 
 **For every step:**
-1. **A design brief, approved by Mark before anything is built.** It is short and carries the ownership section
+1. **A design brief, approved by the Product Owner before anything is built.** It is short and carries the ownership section
    of the reference, §10: its seven questions (the kind of fact; the owner and level; lifetime and identity; inputs,
    rule version and invalidating events; persistence and the one writer; the ring of each new file; how a view
    reaches it), the ids it touches, and whether it is an information-model change as §1.2 defines it.
@@ -33,8 +33,8 @@
    who signs off or sends it back. The lead holds the contracts, reviews every diff and runs the builds: at most
    2–3 per piece, bounded at `-j 6`, tests through ctest, only the targets touched.
 3. **The parity run** (step G) against the baseline. Every difference is either explained in the step's report
-   and accepted by Mark, or treated as a regression.
-4. **Mark tests the UI-visible changes** in the running app, from a short list of what to try.
+   and accepted by the Product Owner, or treated as a regression.
+4. **The Product Owner tests the UI-visible changes** in the running app, from a short list of what to try.
 5. **One commit per fix or step, pre-approved for the refactor**[^m14nov]. It is committed and pushed by the
    lead only when all of these hold:
    - the reviewer has signed off;
@@ -57,7 +57,7 @@
 
 **Library and corpus re-runs** run on GOLFSIMPC, started and watched by the lead over ssh (the cabin-PC sweep
 workflow), with a dry-run first. They are grouped: after steps 1 and 6, plus a re-fire of the findings after step 3 if the stamps
-change. That is about two to three re-runs in the whole refactor. Each one is reported to Mark before its results
+change. That is about two to three re-runs in the whole refactor. Each one is reported to the Product Owner before its results
 are written back.
 
 **HARD FREEZE:**[^m14nov] no new functionality, anywhere, unless it is explicitly stated in this plan —
@@ -65,12 +65,12 @@ are written back.
 issue labelled for after the refactor) and waits. When a request comes close to new functionality, the lead names
 the plan line that covers it, or says that none does and holds it. The freeze ends when step 8 is done[^m14nov-ext].
 
-### Running unattended (proposed 14 Nov, for Mark to agree)
+### Running unattended (proposed 14 Nov, for the Product Owner to agree)
 
 - **The dashboard.** `build/refactor/DASHBOARD.md` is the living status. It opens with a one-page summary:
   - phase and progress;
   - what is running, and what is next;
-  - decisions waiting for Mark, each with its options, consequences and a recommendation;
+  - decisions waiting for the Product Owner, each with its options, consequences and a recommendation;
   - change sets awaiting his test and commit;
   - blockers; the freeze; any library or corpus writes.
 
@@ -81,7 +81,7 @@ the plan line that covers it, or says that none does and holds it. The freeze en
   mid-way. Long jobs run on GOLFSIMPC under a watchdog.
 - **Reversible decisions** (uncommitted code, scratch copies, docs): take the safest option, record it on the
   dashboard with its consequences, and continue with independent work.
-- **Irreversible actions always wait for Mark:**
+- **Irreversible actions always wait for the Product Owner:**
   - writes into the live library or corpus;
   - migrations on the share;
   - commits and pushes;
@@ -98,7 +98,7 @@ the plan line that covers it, or says that none does and holds it. The freeze en
   - a dashboard line per fix or step;
   - a plain-language summary at each boundary (Stage 0 done, each step done): what changed, what to test, the
     consequences of each open decision, and the change sets awaiting commit;
-  - the session summary when Mark is back.
+  - the session summary when the Product Owner is back.
 
 ## 2. Stage 0, adjusted
 
@@ -125,7 +125,7 @@ today.
 | 0.14 | Your swing's words say what listed a habit ("…in your latest session"); a set-up can be praised by the same rule as a fault, and for being consistent using the app's existing consistency grade | **Keep**[^m14nov-014] | Committed (9d2ac92d) |
 | 0.4c | When a session's diagnostics cannot be saved (unopenable file, failed set-aside), say so in the app through the existing notifications, not only in the log (show with a warning, never hide)[^mrule-warn] | **Keep** (a defect 0.4b exposed) | Committed (0a019783) |
 
-**Stage 0 is committed.** Mark tests the change sets from the dashboard's "to try" list.
+**Stage 0 is committed.** The Product Owner tests the change sets from the dashboard's "to try" list.
 
 ## 3. The steps
 
@@ -150,7 +150,7 @@ today.
 
 ### Step 1 · The Recording contract (3–4 days + the library re-analysis)
 
-The agreed scope is the design brief, `build/refactor/step-1/BRIEF.md`, with Mark's answers in its §9[^m14nov].
+The agreed scope is the design brief, `build/refactor/step-1/BRIEF.md`, with the Solution Architect's answers in its §9[^m14nov].
 In this step "D1"…"D9" are that brief's choices[^dec31-39], not the information-model audit's.
 Step 1 makes a shot's analysis a function of one thing, the **Recording**: a shot analysed live and the same shot
 re-analysed a year later are built from the same job and cannot disagree; a shot whose club the golfer corrected on
@@ -163,7 +163,7 @@ test and pass parity on their own.
 Mac half of the parity run at `363925e6` agrees with `stageG-aa5aee15` exactly (the diagnostics and athlete dumps); the
 cabin half (the analysis digests) is run separately. Still to do before the step is done: the cabin parity half; the
 live-equals-re-analysis check on three real shots (§5.2 step 2: needs Mark's shots); the backfill's real run, after
-Mark reads its dry-run report[^dec34]; the library re-analysis; and **the shot kind**[^dec44], which no work item
+the Product Owner reads its dry-run report[^dec34]; the library re-analysis; and **the shot kind**[^dec44], which no work item
 built (reference §11.1, R-REC-8).
 
 - **The Recording** (brief §4.1): the frozen window, the sources by role (one perspective mapping, no magic ints), the
@@ -199,7 +199,7 @@ built (reference §11.1, R-REC-8).
   source, height, club set, handedness[^dec75]; `kAnalysisInputsVersion = 1`). No `k*StageVersion` moves, because no stage's code changes.
   The reuse gate reuses the shaft track, the ladder and the DTL club track only when the stamp's club inputs match.
   Pose is re-run only when its stage version changes, and is reused whatever pose model file the machine has
-  (item 1.6)[^dec64]. The stamp includes handedness (item 1.6)[^dec75]. Whether it also names the session type is the reference's RAT-06, for Mark.
+  (item 1.6)[^dec64]. The stamp includes handedness (item 1.6)[^dec75]. Whether it also names the session type is the reference's RAT-06, for the Solution Architect.
 - **The shot kind** (added to step 1 with item 1.5)[^dec44]: an LM-only shot is a Recording with no
   streams; the Recording gains a shot-kind field (captured or device-only), written by the one header writer; a
   document without it is classified once, in the repository's reader (today's `isDeviceOnly`).
@@ -214,7 +214,7 @@ built (reference §11.1, R-REC-8).
   step 3's (IM-7); the archive stub moves with the archive in step 2; the "stale stages" view on the sessions screen
   (A-08) is new UI and waits for the freeze to end.
 - **The backfill** (D4)[^m14nov]: height and club set written once into the old library's swings from the
-  athlete record, so every camera swing's 3-D skeleton is scaled by height. A dry-run report goes to Mark first (per
+  athlete record, so every camera swing's 3-D skeleton is scaled by height. A dry-run report goes to the Product Owner first (per
   swing: what would be written); backups on the share; its own pass, diffed apart from the refactor's parity run.
 - **Closes:** H-02, A-01, E-11, the parity half of E-09, A-09 (one write-back path), A-02 (its four converters; the
   re-parsers are steps 5–6's), H-01, E-10, A-03; A-05, A-08, A-14, A-16, A-17, A-18, H-08 (the swing-document half),
@@ -225,7 +225,7 @@ built (reference §11.1, R-REC-8).
   projection key-parity test and the reuse test (brief §6). A live-equals-re-analysis check on three real shots.
 - **Re-run:** the parity run against `stageG-aa5aee15` (only the expected differences, brief §5.3); the backfill
   (D4); then one library re-analysis on GOLFSIMPC of every swing without an input stamp, span-bounded, with a dry-run
-  list first and backups on the share, run by the lead; Mark judges the results before they are written back.
+  list first and backups on the share, run by the lead; the Product Owner judges the results before they are written back.
 
 ### Step 2 · Identity and repositories (~1 day)
 
@@ -236,10 +236,10 @@ lint A4 over every session and athlete file name, J-18's inferred end, the repor
 every writing tool refusing a session in progress unless `--allow-in-progress`: D11)[^dec158].
 Parity, the Mac half (`build/refactor/step-2/parity-step2-vs-G.md`): run A (unmigrated copies) and run B (M1–M3
 written on scratch copies first) both agree with `stageG-aa5aee15` and with step 1's closing run exactly; the expected
-set of run B was empty. Still to do before the step is done: the cabin PC's dry run and export, Mark's id picks
+set of run B was empty. Still to do before the step is done: the cabin PC's dry run and export, the Solution Architect's id picks
 (answered — each athlete keeps the id its swings record)[^j58] and the **real migrations** on the Mac and the cabin
-PC, each after Mark reads its dry run (`build/refactor/step-2/MIGRATION-DRY-RUN.md`); and J-55's
-`PpTypeset.shotNo` sheets (a design-system change, waiting for Mark).
+PC, each after the Product Owner reads its dry run (`build/refactor/step-2/MIGRATION-DRY-RUN.md`); and J-55's
+`PpTypeset.shotNo` sheets (a design-system change, waiting for the Design Lead).
 
 - **Before this step's brief** the reference's open questions MD-01…MD-12 (§14), from the final re-audit, were
   decided[^dec130-140]; MD-05 (resume)[^dec134], MD-07 (the index entry)[^dec136] and MD-08
@@ -327,7 +327,7 @@ the old engine in `SessionDiagnosticsModel` (`detectShot`, its reduction, stores
 which J-a3's folders (cabin sessions on the Mac), `regrade_ledger --engine old` and the tests still run, goes in step 5 after
 migration M1 (step 5's list); E-12's QML half goes to step 4; D-14's four remaining ⚠ comments go with step 4's AppState. **Still to do before
 the step is done:** step 3.0 (its gate: the real M1–M4 runs), the re-fire on GOLFSIMPC (not run: the app re-judges every stale
-session on load, on Mark's "try the app" list), and H-06's command rewrites (open, for Mark to place)[^dec183].
+session on load, on the Product Owner's "try the app" list), and H-06's command rewrites (open, for the Solution Architect to place)[^dec183].
 
 **Split in two**[^dec162]: **3A** = items 3.0–3.4b, **3B** = items 3.5–3.10, as numbered in step 3's
 brief (`build/refactor/step-3/BRIEF.md` §6)[^brief3].
@@ -336,17 +336,17 @@ brief (`build/refactor/step-3/BRIEF.md` §6)[^brief3].
 "the only user is me, so the migration tool is a one off right now" … "yes, put it in the plan at the
 start of step 3- so long as we know the migration works and no data is lost"[^m15nov].
 
-**Entry gate — all must hold first, each shown to Mark:**
-1. The real M1–M4 runs on the Mac and on GOLFSIMPC are done, each after its dry-run report and Mark's approval.
+**Entry gate — all must hold first, each shown to the Product Owner:**
+1. The real M1–M4 runs on the Mac and on GOLFSIMPC are done, each after its dry-run report and the Product Owner's approval.
 2. **The migration works:** each run's read-back check passes; the written counts match the dry run's; a second run writes
    nothing; the app opens every migrated session and the parity dumps of the live library (analysis, diagnostics, athlete)
    are identical before and after the migration.
 3. **No data is lost:** every golfer key moved by M3 is present at its new home, field by field, before any is removed
    (H-04); every athlete record's fields are present in `athlete.json`; the backups (`step2-backup-<stamp>`) are kept on the
-   share until Mark says they can go.
+   share until the Product Owner says they can go.
 
 **Then:**
-- The corpus and the archive mirror are migrated the same way (dry run → Mark's OK → write → the same checks).
+- The corpus and the archive mirror are migrated the same way (dry run → the Product Owner's OK → write → the same checks).
 - Deleted: `pps_migrate_step2` and its tests; the golfer-input fallback and carry-over[^j33]; reading athletes from settings[^j27];
   the legacy D3 id derivation and folder-name day/order for sessions without `session.json`[^j56] — each only once
   no folder anywhere still needs it (a check over the library, archive and corpus proves it). The JSON-era library
@@ -438,7 +438,7 @@ start of step 3- so long as we know the migration works and no data is lost"[^m1
 6. **A norm's standing is a typed field**[^m14nov]: provisional or decided, by whom and when, read by
    everyone instead of parsed from prose (B-05). The release dashboard's two misreads (`m_takeawayPlane`,
    `m_clubSlotTop`) are fixed and checked.
-7. **Decisions for Mark in this step's brief:** the owner and repository of packs and norms (the user's pack,
+7. **Decisions for the Solution Architect in this step's brief:** the owner and repository of packs and norms (the user's pack,
    corridor and content edits, today `<AppData>/diagnostics/`, and the disabled norm sets; Q-02). Also for this
    step's brief: whether firing findings reads the norm cohort (sex, age band) from the Recording (step 1 does not record it;
    Q-05)[^dec30]; and, from the triage[^m14nov-triage], where `AthleteDiagnostics` caches the athlete baselines
@@ -476,7 +476,7 @@ start of step 3- so long as we know the migration works and no data is lost"[^m1
   A-19, B-04, B-11, B-13, B-20, B-22, C-10, C-15, C-16, D-12, D-14, D-15, D-17, D-18, D-19, E-12, E-13 (the athlete
   half), G-08, G-09, G-10, G-14[^m14nov-triage]; H-06 in part[^dec183]: the re-fires and
   the diagnosis leave the GUI thread, and the commands' whole-document rewrites stay on it, recorded open
-  (`information_model.md` §11.1) for Mark to place.
+  (`information_model.md` §11.1) for the Solution Architect to place.
 - **Re-run:** a re-fire of the findings, if the stamps change.
 
 ### Step 4 · AppState, the selection, the carousel summary (~½ day)
@@ -491,12 +491,12 @@ start of step 3- so long as we know the migration works and no data is lost"[^m1
 
   It lives in `src/App`[^m14nov] and replaces `SessionMode`'s focus fields, `CurrentSwing` and the carousel's
   copy. With nothing being captured, the cast selection shows the session on screen (03 decision 22)[^m14nov].
-  **Decision for Mark in this step's brief:** which shot of that session the cast shows (the newest, or whatever the
+  **Decision for the Solution Architect in this step's brief:** which shot of that session the cast shows (the newest, or whatever the
   selection holds); decision 22 picks only the session.
 - **Folds in 0.9.**
 - **No athlete switch while capture runs** (03 §4, an application rule in `AppState`): it replaces Stage 0.8g's guard (E-01).
 - **The carousel shot summary**, the request that started this work: strike · direction · flight · carry, for LM
-  shots. Its look goes to Mark first if it needs anything new.
+  shots. Its look goes to the Design Lead first if it needs anything new.
 - **The QML APIs of the carousel, the replay and the shot controller** are typed with the selection (allowlist A6:
   `shot_list_model.h`, `shot_filter_proxy_model.h`, `shot_replay_controller.h`, `shot_controller.h`)[^m14nov-triage].
 - **The athlete controller's QML API** (allowlist A6: `athlete_controller.h`) is typed when `app.athlete` arrives, not in
@@ -629,7 +629,7 @@ start of step 3- so long as we know the migration works and no data is lost"[^m1
     the vocabulary;
   - `layoutDag` (852 lines) moves to the UI ring with the pixel layout (B-10); it is split in step 8 in its new home[^lead14nov];
   - today's long Gui functions that move down into the rules (for example `SessionDiagnosticsModel::conditionDetail`,
-    461 lines) are planned for: split in step 8, or new allowlist lines asked of Mark.
+    461 lines) are planned for: split in step 8, or new allowlist lines asked of the Solution Architect.
 - **Closes:** F-11/D-09/C-08, C-07/B-12/B-06, C-04/B-10, C-14/B-15/A-20, A-11, B-08, A-15; A-06[^m14nov];
   A-07, A-12, B-09, B-16, B-17, B-19, C-12, C-13, and the June review's `metric_keys.h` and π / `wrapPi` rows[^m14nov-triage].
 
@@ -684,13 +684,13 @@ context for each item, is `05-deferred-worklist.md`. Its **capture** part is a r
 ring buffer, connectors and calibration, against the Recording contract; Studio/Rig is designed there. The rest is
 settings, monitoring and tool APIs, build and test infrastructure, and platform code hygiene.
 
-**Proposed for this list, for Mark** (the reference's Q-20): a machine-readable form of the information model and a
+**Proposed for this list, for the Solution Architect** (the reference's Q-20): a machine-readable form of the information model and a
 check that its §11 matches the code. The PPCP import files (FILE-LIB-04, FILE-LIB-05) and the trunk ceremony
 recorder's pool-thread write (FILE-SESS-11) are capture's, here.
 
 ## 4. Time
 
-These are wall-clock estimates at agent pace, assuming Mark reviews each step within about a day.
+These are wall-clock estimates at agent pace, assuming the Product Owner reviews each step within about a day.
 
 | Step | Estimate |
 |---|---|
@@ -709,12 +709,12 @@ These are wall-clock estimates at agent pace, assuming Mark reviews each step wi
 The 14 Nov triage adds scope to steps 1–7 that these estimates do not yet include; each step's brief re-estimates.
 
 **What limits the pace:** builds and tests on one machine; file overlap in step 3; the hours a GOLFSIMPC re-run
-takes (machine time, run by the lead); review rounds; and Mark's testing. It is not the typing.
+takes (machine time, run by the lead); review rounds; and the Product Owner's testing. It is not the typing.
 
-**How it could be compressed:** steps 5 and 7 can overlap step 3's cut-over, and Mark can review two steps at
+**How it could be compressed:** steps 5 and 7 can overlap step 3's cut-over, and the Product Owner can review two steps at
 once. That gives about 10–13 working days, plus step 8.
 
-## 5. What Mark is asked for
+## 5. What the Product Owner is asked for
 
 | When | What |
 |---|---|
@@ -725,87 +725,87 @@ once. That gives about 10–13 working days, plus step 8.
 
 ## Notes
 
-[^m14nov]: Mark, 14 Nov 2026.
-[^m14nov-ext]: Mark extended it from step 7 on 14 Nov 2026, with the commit pre-approval.
-[^m-012]: Mark's decision.
-[^m14nov-014]: Mark, 14 Nov 2026: option A; "praise setup, esp. a consistent setup"; "we have consistency grading in the app".
-[^mrule-warn]: Mark's rule.
+[^m14nov]: Product Owner, 14 Nov 2026.
+[^m14nov-ext]: The Product Owner extended it from step 7 on 14 Nov 2026, with the commit pre-approval.
+[^m-012]: The Product Owner's decision.
+[^m14nov-014]: Coaching Lead, 14 Nov 2026: option A; "praise setup, esp. a consistent setup"; "we have consistency grading in the app".
+[^mrule-warn]: The Design Lead's rule.
 [^dec40]: DEC-40.
 [^dec31-39]: Reference DEC-31…DEC-39.
 [^dec34]: DEC-34.
-[^dec44]: Mark, 14 Nov 2026; DEC-44.
-[^dec86]: Mark, 14 Nov 2026; DEC-86.
-[^dec75]: Mark, 14 Nov 2026; DEC-75.
-[^dec64]: Mark, 14 Nov 2026; DEC-64.
-[^m14nov-triage]: The triage (`build/refactor/TRIAGE-PROPOSALS.md`), approved by Mark, 14 Nov 2026.
-[^dec158]: Mark, 15 Nov 2026; DEC-158.
+[^dec44]: Solution Architect, 14 Nov 2026; DEC-44.
+[^dec86]: Solution Architect, 14 Nov 2026; DEC-86.
+[^dec75]: Solution Architect, 14 Nov 2026; DEC-75.
+[^dec64]: Solution Architect, 14 Nov 2026; DEC-64.
+[^m14nov-triage]: The triage (`build/refactor/TRIAGE-PROPOSALS.md`), approved by the Product Owner, 14 Nov 2026.
+[^dec158]: Solution Architect, 15 Nov 2026; DEC-158.
 [^j58]: J-58.
-[^dec130-140]: Mark, from the final re-audit (15 Nov 2026; reference v1.8, DEC-130…DEC-140).
-[^dec134]: Mark, 15 Nov 2026; DEC-134.
+[^dec130-140]: Solution Architect, from the final re-audit (15 Nov 2026; reference v1.8, DEC-130…DEC-140).
+[^dec134]: Solution Architect, 15 Nov 2026; DEC-134.
 [^dec136]: DEC-136.
 [^dec137]: DEC-137.
-[^dec148]: Mark, 15 Nov 2026; DEC-148.
-[^dec41]: Mark, 14 Nov 2026; DEC-41.
-[^dec149]: Mark, 15 Nov 2026; DEC-149.
-[^dec150]: Mark, 15 Nov 2026; DEC-150.
-[^dec69]: Mark, 14 Nov 2026; DEC-69.
-[^dec77]: Mark, 14 Nov 2026; DEC-77.
+[^dec148]: Solution Architect, 15 Nov 2026; DEC-148.
+[^dec41]: Solution Architect, 14 Nov 2026; DEC-41.
+[^dec149]: Solution Architect, 15 Nov 2026; DEC-149.
+[^dec150]: Solution Architect, 15 Nov 2026; DEC-150.
+[^dec69]: Solution Architect, 14 Nov 2026; DEC-69.
+[^dec77]: Solution Architect, 14 Nov 2026; DEC-77.
 [^dec88]: DEC-88.
-[^dec79]: Mark, 14 Nov 2026; DEC-79.
-[^dec83]: Mark, 14 Nov 2026; DEC-83.
-[^dec152]: Mark, 15 Nov 2026; DEC-152.
-[^dec151]: Mark, 15 Nov 2026; DEC-151.
-[^dec156]: Mark, 15 Nov 2026; DEC-156.
+[^dec79]: Solution Architect, 14 Nov 2026; DEC-79.
+[^dec83]: Solution Architect, 14 Nov 2026; DEC-83.
+[^dec152]: Solution Architect, 15 Nov 2026; DEC-152.
+[^dec151]: Solution Architect, 15 Nov 2026; DEC-151.
+[^dec156]: Solution Architect, 15 Nov 2026; DEC-156.
 [^dec45]: DEC-45.
-[^lead-proposal-m14nov]: The lead's proposal; Mark agreed 14 Nov 2026.
-[^dec155]: Mark, 15 Nov 2026; DEC-155.
-[^dec154]: Mark, 15 Nov 2026; DEC-154.
-[^m15nov]: Mark, 15 Nov 2026.
+[^lead-proposal-m14nov]: The lead's proposal; the Product Owner agreed 14 Nov 2026.
+[^dec155]: Solution Architect, 15 Nov 2026; DEC-155.
+[^dec154]: Solution Architect, 15 Nov 2026; DEC-154.
+[^m15nov]: Product Owner, 15 Nov 2026.
 [^dec159]: DEC-159.
 [^dec157]: DEC-157.
-[^dec153]: Mark, 15 Nov 2026; DEC-153.
+[^dec153]: Solution Architect, 15 Nov 2026; DEC-153.
 [^j59]: J-59 (`build/refactor/step-3/JUDGEMENT-CALLS.md`).
-[^dec183]: Mark, 15 Nov 2026; DEC-183.
-[^dec162]: Mark, 15 Nov 2026; DEC-162.
+[^dec183]: Solution Architect, 15 Nov 2026; DEC-183.
+[^dec162]: Product Owner, 15 Nov 2026; DEC-162.
 [^brief3]: Approved 15 Nov 2026; its §8 answered as DEC-162…DEC-189.
 [^j33]: J-33.
 [^j27]: J-27.
 [^j56]: J-56.
-[^m15nov-p11]: Mark, 15 Nov 2026: `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint".
-[^dec100]: Mark, 14 Nov 2026; DEC-100, superseding decision 19's "`SessionDiagnostics` grades every shot".
-[^dec135]: Mark, 15 Nov 2026; DEC-135, superseding DEC-102 and moving DEC-124.
-[^dec130]: Mark, 15 Nov 2026; DEC-130.
-[^dec121]: Mark, 14 Nov 2026; DEC-121.
+[^m15nov-p11]: Solution Architect, 15 Nov 2026: `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint".
+[^dec100]: Solution Architect, 14 Nov 2026; DEC-100, superseding decision 19's "`SessionDiagnostics` grades every shot".
+[^dec135]: Solution Architect, 15 Nov 2026; DEC-135, superseding DEC-102 and moving DEC-124.
+[^dec130]: Solution Architect, 15 Nov 2026; DEC-130.
+[^dec121]: Solution Architect, 14 Nov 2026; DEC-121.
 [^dec132]: DEC-132.
-[^dec124]: DEC-124, moved by Mark, 15 Nov 2026 (DEC-135).
+[^dec124]: DEC-124, moved by the Solution Architect, 15 Nov 2026 (DEC-135).
 [^dec125]: DEC-125.
-[^dec123]: Mark, 14 Nov 2026; DEC-123.
-[^dec86-94-95]: Mark, 14 Nov 2026; DEC-86, DEC-94, DEC-95.
-[^dec141]: Mark, 15 Nov 2026; DEC-141.
+[^dec123]: Solution Architect, 14 Nov 2026; DEC-123.
+[^dec86-94-95]: Solution Architect, 14 Nov 2026; DEC-86, DEC-94, DEC-95.
+[^dec141]: Solution Architect, 15 Nov 2026; DEC-141.
 [^dec142]: DEC-142.
 [^dec143]: DEC-143.
-[^dec103-104]: Mark, 14 Nov 2026; DEC-103, DEC-104.
-[^dec55]: Ratified by Mark, 14 Nov 2026; DEC-55.
-[^dec43]: Mark, 14 Nov 2026; DEC-43.
-[^dec46]: Mark, 14 Nov 2026; DEC-46.
-[^dec71]: Mark, 14 Nov 2026; DEC-71.
-[^dec69-70]: Mark, 14 Nov 2026; DEC-69, DEC-70.
-[^dec73]: Mark, 14 Nov 2026; DEC-73.
+[^dec103-104]: Solution Architect, 14 Nov 2026; DEC-103, DEC-104.
+[^dec55]: Ratified by the Solution Architect, 14 Nov 2026; DEC-55.
+[^dec43]: Solution Architect, 14 Nov 2026; DEC-43.
+[^dec46]: Solution Architect, 14 Nov 2026; DEC-46.
+[^dec71]: Solution Architect, 14 Nov 2026; DEC-71.
+[^dec69-70]: Solution Architect, 14 Nov 2026; DEC-69, DEC-70.
+[^dec73]: Solution Architect, 14 Nov 2026; DEC-73.
 [^dec30]: DEC-30.
 [^dec42]: DEC-42.
 [^dec78]: DEC-78.
 [^dec80]: DEC-80.
-[^dec81]: Mark, 14 Nov 2026; DEC-81.
-[^dec177]: The lead's call, 14 Nov 2026; kept by Mark against the brief's recommendation, 15 Nov 2026; DEC-177.
-[^dec176]: Mark, 15 Nov 2026; DEC-176, D12, reversing J-68.
-[^n2]: Mark, N2 at 3.4a-ii.
-[^m22nov]: Mark, 22 Nov 2026.
-[^dec140]: Mark, 15 Nov 2026; DEC-140, T5.
-[^dec74]: Mark, 14 Nov 2026; DEC-74.
-[^m22nov-n1]: Mark, 22 Nov 2026, changing his N1 answer.
-[^im-approved]: Approved by Mark.
-[^dec72]: Mark, 14 Nov 2026; DEC-72.
-[^dec133]: Mark, 15 Nov 2026; DEC-133, superseding DEC-82's rewrite.
-[^dec122]: Mark, 14 Nov 2026; DEC-122, superseding decision 6's "session-level overlay".
+[^dec81]: Solution Architect, 14 Nov 2026; DEC-81.
+[^dec177]: The lead's call, 14 Nov 2026; kept by the Product Owner against the brief's recommendation, 15 Nov 2026; DEC-177.
+[^dec176]: Solution Architect, 15 Nov 2026; DEC-176, D12, reversing J-68.
+[^n2]: Product Owner, N2 at 3.4a-ii.
+[^m22nov]: Solution Architect, 22 Nov 2026.
+[^dec140]: Solution Architect, 15 Nov 2026; DEC-140, T5.
+[^dec74]: Solution Architect, 14 Nov 2026; DEC-74.
+[^m22nov-n1]: Solution Architect, 22 Nov 2026, changing his N1 answer.
+[^im-approved]: Approved by the Solution Architect.
+[^dec72]: Solution Architect, 14 Nov 2026; DEC-72.
+[^dec133]: Solution Architect, 15 Nov 2026; DEC-133, superseding DEC-82's rewrite.
+[^dec122]: Solution Architect, 14 Nov 2026; DEC-122, superseding decision 6's "session-level overlay".
 [^lead14nov]: The lead's call, 14 Nov 2026.
-[^m14nov-triage-s8]: Triage, Mark 14 Nov 2026: the triage proposed them for step 7 as a scope addition, with a step of their own as its recommendation, which Mark chose; `layoutDag` and `swing_themes.h` in step 8: the lead's call, 14 Nov 2026.
+[^m14nov-triage-s8]: Triage, Product Owner 14 Nov 2026: the triage proposed them for step 7 as a scope addition, with a step of their own as its recommendation, which the Product Owner chose; `layoutDag` and `swing_themes.h` in step 8: the lead's call, 14 Nov 2026.

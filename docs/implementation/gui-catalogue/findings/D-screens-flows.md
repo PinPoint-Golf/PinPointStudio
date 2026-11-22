@@ -58,7 +58,7 @@ Ranking logic: first things that can produce wrong behaviour (D1), then the larg
 - **Where:** `shell/PpAboutDialog.qml:47-62` (the `pal` switch) and `:143-197` (badge + action button + status line); `settings/GeneralPanel.qml:888-950` (same switch and badge, settings panel, covered by another report's scope); `shell/PpUpdateBanner.qml:35-99` (banner: the `uState` predicates `isReady/isWorking/offerFresh`, the same "Downloading %1%" and "Verifying…" strings).
 - **What is duplicated:** the dialog and the settings row are line-for-line the same logic. Drift already visible: "Checking for updates…" (dialog) vs "Checking…" (panel); the dialog has an explicit `unsupported` case and a comment saying it must not borrow "Up to date", the panel folds `unsupported` into "✓ Up to date" (`GeneralPanel.qml:902`); the action reads "Check for updates" in the dialog and "Check now" in the panel; the dialog uses `PpButton`, the panel hand-builds the chip. Three places must be edited for any new updater state.
 - **Shared component it should fold into:** NEW `shell/PpUpdateStatus.qml` (`compact: bool`) exposing the badge and the contextual action, with the state table in one place (or a `Theme`-style `UpdateStates.js` returning `{text, fg, bg}`); `PpUpdateBanner` keeps its card but reads the same predicates.
-- **Effort / risk:** S. Low risk; a user-visible wording decision (which of the drifted strings wins) needs Mark.
+- **Effort / risk:** S. Low risk; a user-visible wording decision (which of the drifted strings wins) needs the Design Lead.
 - **Confidence:** high
 
 ### D6. Home's "finding" row (badge, headline, caption/meter/chip/pips) is built by hand in four files, with the helper functions copied alongside
@@ -107,7 +107,7 @@ Ranking logic: first things that can produce wrong behaviour (D1), then the larg
   - `media/FilmPage.qml` (596 lines) is not in `PlayPage`'s `StackLayout` and nothing else loads it; it is in `cmake/PinPointQmlModule.cmake:59` only. It is the only QML user of `filmController`, which `main.cpp:241,860` still constructs and publishes, so `media/film_controller.{h,cpp}` is a dead chain behind it. Not referenced by tests or tools.
   - `home/PpcpGuidedPairDialog.qml` (376 lines): deliberately withdrawn, not forgotten. `home/ScreenHome.qml:88-97` and `:631-640` carry the exact lines to restore it and say it waits for RT-20c; `src/Ppcp/tests/ppcp_bootstrap_test.cpp:1088-1193` reads its source text as a safety test (a test referencing a file is not production use). It still compiles into the module (`cmake/PinPointQmlModule.cmake:154`). I would not delete it; the catalogue should mark it "parked, tested as text".
 - **Shared component it should fold into:** n/a (delete or keep). For `ScreenSessionMode`, either delete it and the cmake line, or generalise `ScreenWrist` by `sessionType`/`defaultPreset`/`metricKeys` and have `Main.qml` instantiate it for each type (that is what would justify keeping the file).
-- **Effort / risk:** S to delete the two dead ones (plus `film_controller` if Mark agrees); no risk beyond the cmake list. The decision on `FilmPage` is Mark's (it may be a future feature).
+- **Effort / risk:** S to delete the two dead ones (plus `film_controller` if the Product Owner agrees); no risk beyond the cmake list. The decision on `FilmPage` is the Product Owner's (it may be a future feature).
 - **Confidence:** high (dead); high (parked)
 
 ### D12. Global-singleton coupling: which screens reach for context properties directly

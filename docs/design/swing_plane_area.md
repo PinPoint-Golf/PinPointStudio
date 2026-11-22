@@ -1,6 +1,6 @@
 # The Swing plane chart and the Plane & path area
 
-Decided with Mark, 8 Nov 2026. The Charts panel listed ten plane readings under names that overlapped, built on about
+Decided with the Coaching Lead, 8 Nov 2026. The Charts panel listed ten plane readings under names that overlapped, built on about
 four measurements. This note says what each one is, where it now lives, and what the conditions grade.
 
 Nothing here changed a producer. Keys and saved documents are as they were; labels, groups, cards and the four

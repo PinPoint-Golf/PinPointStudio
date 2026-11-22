@@ -20,7 +20,7 @@ plan), `tools/shaftlab/README.md` (exemplar rules), lab
 
 ## 1. The environment is fixed — the fusion has to happen in software
 
-Hardware ceiling (per Mark, 2026-07-05; do not revisit): 150 fps is the
+Hardware ceiling (per the Product Owner, 2026-07-05; do not revisit): 150 fps is the
 camera's max; ~6.57 ms exposure is effectively full-frame and cannot
 shorten (light budget); the blown hitting-area highlights ARE the studio
 downlight doing its job; a ring light is mounted at the camera.

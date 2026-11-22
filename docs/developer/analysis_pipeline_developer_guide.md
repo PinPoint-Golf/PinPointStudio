@@ -729,7 +729,7 @@ reanalyzer then reloads it through the blocks' typed readers. The rules:
 | Shaft track + resolved ladder | on top of a reloaded pose AND ball, `kShaftStageVersion` matches, no tuning override at all, **the club inputs match** (below) and **the lead side matches** (the tracker reads the lead elbow from the handedness, `shaft_tracker.cpp`) | re-tracked (`club changed` / `handedness changed`) |
 | DTL club track, and everything downstream | never | recomputed from the reloaded tracks |
 
-**Mark's pose rule (14 Nov 2026, DEC-64).** Pose re-runs **only** when its stage version
+**The Solution Architect's pose rule (14 Nov 2026, DEC-64).** Pose re-runs **only** when its stage version
 changes. The recorded model identity (`versions.pose.model`, `name@bytes`) is provenance, not
 a reuse key: a saved pose is reused whatever pose model file this machine has, so a shot posed
 with the Large model on GOLFSIMPC is not re-inferred on a Mac without that file (and vice
@@ -777,7 +777,7 @@ session type the run used (SwingLab may override the type).
   on the club, height or session type.
 - **Handedness.** The pose's keypoints do not depend on it, only its lead/trail hand labels
   (`pose_runner.cpp`: the left hand leads unless the golfer is left-handed). A reused pose (and DTL
-  pose) whose stamp led with the other hand is relabelled, not re-inferred (Mark's pose rule); the
+  pose) whose stamp led with the other hand is relabelled, not re-inferred (the Solution Architect's pose rule); the
   shaft track and ladder re-run. Right and unknown lead with the same hand: stale, nothing re-runs.
 - **Follow-club** (a late LM reading naming the club, R-REC-2(a), DEC-82) rewrites
   `analysisContext.club` (`withFollowedClub`, `recording_header.h`) beside `capture.club`, so

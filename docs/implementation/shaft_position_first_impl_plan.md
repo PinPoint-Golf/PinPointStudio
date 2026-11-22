@@ -138,7 +138,7 @@ regressions on the lab run.
 
 ### B4 — flag-flip: `positions.enabled` + `positions.fitEnabled` default ON
 
-Dedicated commit citing B1/B2/B3 gate numbers, after Mark's review of the per-P
+Dedicated commit citing B1/B2/B3 gate numbers, after the Product Owner's review of the per-P
 table.
 
 ---
@@ -167,9 +167,9 @@ table.
   the existing measured-vs-projected split); data viewer Club lanes show
   synthesized samples at conf 0 styling.
 - Any new visibility toggle goes in the View menu via ViewLayout (standing
-  rule), deferred to a UX pass with Mark — C2 only extends existing styling.
+  rule), deferred to a UX pass with the Design Lead — C2 only extends existing styling.
 
-**Gate:** continuity at anchors (< ε discontinuity), visual review by Mark,
+**Gate:** continuity at anchors (< ε discontinuity), visual review by the Design Lead,
 synth-off soak byte-identical. ~400 LoC across C1+C2.
 
 ---
@@ -209,6 +209,6 @@ synth-off soak byte-identical. ~400 LoC across C1+C2.
 | C1+C2 | ~400 | 1 run + visual |
 
 Suggested execution: A and B1 in one working session (A2 gate overnight-able);
-B2 is its own session; B3/B4 short; C after Mark reviews the per-P numbers —
+B2 is its own session; B3/B4 short; C after the Product Owner reviews the per-P numbers —
 the per-P table from B1 may itself reshape priorities (e.g. if P4/P7 are the
 only weak spots, B2 can start there and defer P2/P8 fits).

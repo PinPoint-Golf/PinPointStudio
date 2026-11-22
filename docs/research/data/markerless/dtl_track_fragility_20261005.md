@@ -1,7 +1,7 @@
 # The down-the-line track on the 5 Oct cabin session: the arm at the top, the leg after impact, and a length that did not shorten
 
 **Status:** results, 5 Oct 2026. Three `shaft.dtl.*` rules, each a switch with a bit-identical OFF,
-on by default; `kDtlShaftStageVersion` 4 → 5. Not committed at the time of writing — Mark reviews first.
+on by default; `kDtlShaftStageVersion` 4 → 5. Not committed at the time of writing — the Product Owner reviews first.
 
 Every number is reproducible from `/mnt/swingdata/scratch/dtlfix-1005/` with
 `build/run-me/dtl-fragility-grade.sh`. Frame sheets looked at by eye: `build/run-me/dtl-track-1005/`.
@@ -10,7 +10,7 @@ Every number is reproducible from `/mnt/swingdata/scratch/dtlfix-1005/` with
 
 | | |
 |---|---|
-| Asked | Mark, on `2026-10-05_Mark-Liversedge_Wrist_01` (31 swings, gap wedge, DTL 576×988): "the DTL camera truncates the shaft at the top … the track veers off wildly on most swings at or near P4 and between P7 and P8" |
+| Asked | Product Owner, on `2026-10-05_Mark-Liversedge_Wrist_01` (31 swings, gap wedge, DTL 576×988): "the DTL camera truncates the shaft at the top … the track veers off wildly on most swings at or near P4 and between P7 and P8" |
 | Found | (1) the club is not seen from just after P3 to about P5 on any swing; (2) at the top the tracker publishes the LEAD ARM on 5 of 28 swings; (3) after impact the direction is right for ~40 ms and the drawn LENGTH is 1.6× the club's, then on 6 swings the line jumps to the trail leg; (4) P8 is 355–471 ms after impact on 8 of 29 swings |
 | Built | `armChain`, `postImpactContinuity`, `postImpactRunLength` in `dtl_shaft_post.cpp`; tests C5–C7 in `dtl_shaft_post_test` |
 | Gate, 21 DTL corpus swings, studio Release, pinned poses | OFF byte-identical 21/21; held-out truth 425 pairs, p50 0.25° / p90 0.65° unchanged, 0 frames worse; 43 frames no longer published, 34 of them the arm on four 07-04 swings (looked at); fused planes move ≤ 0.25°; face-on identical; no metric count change |

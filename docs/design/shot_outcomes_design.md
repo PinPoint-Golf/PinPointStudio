@@ -123,7 +123,7 @@ Gaps found while reading:
 
 ### 3.1 Outcome families (new condition field)
 
-Add `family` to every outcome-kind condition. Three families, matching Mark's browse axes
+Add `family` to every outcome-kind condition. Three families, matching the Coaching Lead's browse axes
 (*where it goes · how you strike it · how it flies*):
 
 | Family | Key | Conditions |
@@ -334,7 +334,7 @@ for each factor, and none ranks above another (`shot_factors.h`).
   sticker-offset "thin" on a normal flight is Solid. A shot can carry two strike faults (toe and weak strike).
 - **Direction:** a compound miss brings its halves (a push slice is also a slice and a push). Fade and Draw are
   values, not faults, and count whether or not they were intended.
-- **Flight** follows Mark's spec, `docs/design/ball-flight-classification.md`: height is relative to ball speed
+- **Flight** follows the Coaching Lead's spec, `docs/design/ball-flight-classification.md`: height is relative to ball speed
   and club, never to handicap and never launch angle alone. By club category (driver, fairway/hybrid, long, mid
   and short irons, wedges), the first method the shot can use decides, and the shot keeps the method and the raw
   value:
@@ -535,7 +535,7 @@ foots: `scaled` says a part was cut, and a part cut to nothing is dropped.
 | Launch / spin | 0.8 % of the usual per degree outside the launch window, 3 % per 1000 rpm outside the spin window, when those outcomes fired | "Launch / spin (estimate)"; **modelled**, capped at the remainder |
 | Residual | what is left | printed when ≥ 1 yd |
 
-The two launch/spin constants have no source. They are provisional and flagged for Mark to confirm or
+The two launch/spin constants have no source. They are provisional and flagged for the Coaching Lead to confirm or
 replace from the corpus.
 
 Shown in Analyse as the waterfall and in the glance and on paper as one line ("24 yd short of your
@@ -1056,7 +1056,7 @@ early-extension shot after 13 except 19. Stored in yards.
 | D17 | Work-on button | **Decided in planning: dropped; the row shows work-on status and offers Practice. §6.4 not built** |
 | D18 | Left-handers | **Decided in planning: labels mirrored so a left-hander's slice is a slice; rows and `offline` aren't mirrored** |
 | D19 | E3's ✓ | **Decided in planning: ✓ means clean (mock wins over the first text); an intended shape shows its name and ✓** |
-| D20 | Launch/spin loss constants (§5.3) | **Provisional, no source: 0.8 %/°, 3 %/1000 rpm; for Mark** |
+| D20 | Launch/spin loss constants (§5.3) | **Provisional, no source: 0.8 %/°, 3 %/1000 rpm; for the Coaching Lead** |
 
 ---
 
@@ -1086,15 +1086,15 @@ Hovering a box reads out its average ± spread ("188 ± 20 yd"), over the box in
 
 ## Notes
 
-[^m8nov]: Decided by Mark, 8 Nov 2026.
-[^m10nov]: Decided with Mark, 10 Nov 2026.
-[^m10nov-m]: Mark, 10 Nov 2026.
-[^m14nov]: Mark, 14 Nov 2026.
+[^m8nov]: Decided by the Coaching Lead, 8 Nov 2026.
+[^m10nov]: Decided with the Coaching Lead, 10 Nov 2026.
+[^m10nov-m]: Coaching Lead, 10 Nov 2026.
+[^m14nov]: Design Lead, 14 Nov 2026.
 [^look22nov]: The look was agreed on 22 Nov 2026.
-[^m22nov-cond]: Mark's condition, 22 Nov 2026.
-[^dec196]: Mark, 22 Nov 2026; DEC-196.
+[^m22nov-cond]: The Design Lead's condition, 22 Nov 2026.
+[^dec196]: Solution Architect, 22 Nov 2026; DEC-196.
 [^dec96]: DEC-96.
 [^d4b]: Refactor 4-b decision.
-[^m10nov-tone]: Approved by Mark, 10 Nov 2026.
-[^m10nov-match]: Superseded 10 Nov 2026 (Mark: "match the row … we need to be consistent").
+[^m10nov-tone]: Approved by the Design Lead, 10 Nov 2026.
+[^m10nov-match]: Superseded 10 Nov 2026 (Design Lead: "match the row … we need to be consistent").
 [^dec192b]: DEC-192 "b".

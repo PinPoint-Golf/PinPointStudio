@@ -308,7 +308,7 @@ floor 10–12, nothing clipped, and the bright end doubled over 12 dB
 
 **No gamma.** impact_camera_design.md §10.3's in-camera gamma 0.7 never
 reached a Chameleon3: there is no gamma node in raw Bayer (only in `Mono8`,
-the ISP's processed mono). The control was dropped (Mark, 8 Oct 2026); the
+the ISP's processed mono). The control was dropped (Solution Architect, 8 Oct 2026); the
 writer no longer asks for gamma, and the factory set decides it.
 
 **Strobe.** With the strobe on, Line1 is at its active level for ~7 % of

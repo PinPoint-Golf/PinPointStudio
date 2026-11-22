@@ -258,7 +258,7 @@ back queued to `applyIngested` then `settleBatch`, which calls `rebuild()` and `
   (`PpDiagReplayCold.qml`, `PpExpectations.qml`) and the `profileBias` tiebreak (`cpp:2992`) read a file that
   only predates the four-modes refactor, or never exists. The feature is inert, and nothing says so. Because
   no session is ever "closed", `closed` and the Closing bookends appear only through `reviewing`.
-- Fix: decide with Mark. Either wire the close into the session owner's End (D-02 makes that one call), or
+- Fix: decide with the Solution Architect. Either wire the close into the session owner's End (D-02 makes that one call), or
   retire the profile, the expectations block and `rankScores`' profile term together.
 - Effort: S — Related: D-02, D-06
 
@@ -447,7 +447,7 @@ back queued to `applyIngested` then `settleBatch`, which calls `rebuild()` and `
   handler type the lint does not know.
 - Fix: candidates are `PpButton` with `size: "micro"`, a quiet or ghost `style` and `active: win.pinned`
   (`docs/design/system/components/PpButton.md`). Its "chromeless until hovered" look is not obviously an
-  existing style, so whether one fits is **Mark's decision**. If none does, a new variant is a design-system
+  existing style, so whether one fits is **the Design Lead's decision**. If none does, a new variant is a design-system
   change that needs his approval before it is built. Separately, the lint could learn `TapHandler`.
 - Effort: S — Related: —
 

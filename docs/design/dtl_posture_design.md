@@ -89,7 +89,7 @@ series, as `late_buckle` already did in practice (the plain signal path did not 
 so stored verdicts regrade).
 The catalogue's `dtl` rung for the lead knee is Estimated, below the fit's `faceOn+dtl` rung.
 
-**13 November 2026 (planned-metrics second pass, W5; Mark's rule).** The trail knee has a 3-D
+**13 November 2026 (planned-metrics second pass, W5; the Solution Architect's rule).** The trail knee has a 3-D
 route too, but this series stays the answer whenever it exists while the cameras are uncalibrated,
 which is every swing today. On 2026-07-04 s8 the self-solved fit read the trail knee 21.8° at impact
 against this camera's 30.5°: the hands and the shaft cover the trail knee in the face-on view there.
@@ -147,7 +147,7 @@ is invariant to distance, not to yaw.
 `armLiftTop` (°): at the top only, the angle between the lead UPPER ARM (lead shoulder → lead ELBOW, COCO
 5 → 7 for a right-hander, 6 → 8 for a left-hander) and the shoulder line (lead → trail shoulder) in the
 picture, + with the elbow on the upper side of the shoulder line. **Measured to the elbow, never the wrist**
-(Mark, 13 Nov): a bent lead arm folds the forearm up and makes the arms look lifted; it is graded as its own
+(Coaching Lead, 13 Nov): a bent lead arm folds the forearm up and makes the arms look lifted; it is graded as its own
 fault (`bent_lead_arm`). It is layer 3 of the plane stack (`plane_stack_design.md` §3.2) and the coach's own
 check from down the line: one-plane with the elbow on the shoulder line, two-plane above it.
 
@@ -171,7 +171,7 @@ check from down the line: one-plane with the elbow on the shoulder line, two-pla
 
 ## 3b. Shaft lie — the shaft's angle to the ground at address and at impact (2026-10-01)
 
-Mark asked for the lie-like reading a down-the-line frame gives for free: how upright the shaft
+The Product Owner asked for the lie-like reading a down-the-line frame gives for free: how upright the shaft
 stands at address, how upright it comes back at impact, and the change between the two. It is
 `shaftLie` (`src/Analysis/dtl_shaft_lie.h`, `DtlShaftLieStage` after the posture stage), on the
 Club & speed preset beside shaft lean, and it shares shaft lean's summary card.
@@ -183,7 +183,7 @@ lie, a constant per club, so the Δ is the same number either way. The launch mo
 `lm.lieAngle` — the sole toe-up at impact — is a different quantity and keeps its name.
 
 **Sign.** Δ = impact − address. Positive is the shaft coming back STEEPER than it was set up,
-negative flatter — "+ve delta is steepening" (Mark). This runs the other way from `swingPlane`'s
+negative flatter — "+ve delta is steepening" (Solution Architect). This runs the other way from `swingPlane`'s
 Δ PLANE, which was set positive-for-shallowing on 29 Sept; the two are different questions (a
 plane's average over a half-swing against the whole-swing path convention, versus a reading at two
 instants) and each carries its sign in the catalogue and in `pinpoint_sign_conventions.md`.
@@ -222,7 +222,7 @@ not on the chart the companion keeps its own card, so nothing disappears.
 the `shaft_lie` axis: `lie_steep_at_impact` ("Returns steep", the high tail) and `lie_flat_at_impact`
 ("Returns flat", the low tail), both kind Delivery, group impact, state draft, down-the-line only.
 The norm at `any` is mu 3.5 ± 0.5, so under the Standard policy Action begins at exactly +2.0 and
-+5.0 — Mark's band, "two to five degrees steeper is normal" — and the `driver` row doubles the width
++5.0 — the Coaching Lead's band, "two to five degrees steeper is normal" — and the `driver` row doubles the width
 because a lie error barely turns a driver's face. Edges: `early_extension` → returns steep (the
 hands lifting to make room for a pelvis that has moved toward the ball), `casting` → returns flat
 (the clubhead passing the hands flattens the shaft), returns steep → `pull` and `strike_heel`,
@@ -231,7 +231,7 @@ points the face left, toe down right, and the shift scales with the sine of the 
 lie error matters more on a wedge than a 4-iron. That physics runs the OTHER way from the
 plane/path reading of "steep" and "shallow" (a shallowed plane delivers in-to-out and draws), and
 the pack states the lie mechanism because the measure is a lie; which reading a coach wants
-reported is Mark's call and the text is one edit.
+reported is the Coaching Lead's call and the text is one edit.
 
 **What the instrument can hold.** The address reading sits within 0.5° of the hand-marked band
 truth on all six 07-04 corpus swings that have it (truth 54.0–54.75°, track 54.0–54.5°). The impact
@@ -275,7 +275,7 @@ planned.** What would close it is in §6.
   rotational component by ~11 % — on a speed that already reads 0.959 of the launch monitor.
   Either the face-on club length is short by about as much, or the composed formula is
   compensating somewhere; both are guesses, and no swing in the library has BOTH a launch
-  monitor and a DTL camera to settle it. (Mark, same day: the GC Quad is known to OVER-read
+  monitor and a DTL camera to settle it. (Solution Architect, same day: the GC Quad is known to OVER-read
   clubhead speed by about 2 mph at 70–100 mph. Against the true speed the face-on reading is
   therefore nearer 0.98 than 0.959 — which makes the puzzle sharper, not softer: the
   uncorrected number is almost right, and the geometrically honest correction would take it

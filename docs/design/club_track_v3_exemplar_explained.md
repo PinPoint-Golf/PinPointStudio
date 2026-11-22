@@ -299,7 +299,7 @@ estimator's smoothness.
 > **Evolution — the ψ-monotonicity reconciliation (v3.0-r1, 2026-07-07; built).** The cone above is a
 > *magnitude* bound. The double pendulum's stronger fact is that ψ = θ − φ is **monotone with one
 > reversal at the top** — C3's law on the wrist. First built as a DP **transition rail** on Δψ, this was
-> then **superseded** by a cleaner form on Mark's reframe: *monotone ψ is truth, so a violation measures
+> then **superseded** by a cleaner form on the Solution Architect's reframe: *monotone ψ is truth, so a violation measures
 > error → FIT the truth (per-phase robust isotonic regression, PAVA + Huber-IRLS) after a pure-C3 DP,
 > reading the error off the residual*, rather than penalising Δψ per frame (which fires on the pose-φ
 > noise floor — 25–62% of backswing steps show sub-degree "reversals" that are noise). The fit gives a

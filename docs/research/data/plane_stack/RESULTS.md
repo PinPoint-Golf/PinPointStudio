@@ -252,7 +252,7 @@ So these quantities separate golfers. With four golfers they cannot say where "g
 
 ## D2 (13 Nov 2026): the arm lift measured to the ELBOW, and the 3-D lead elbow
 
-Mark, 13 Nov: arm lift is measured on the lead UPPER ARM (shoulder → elbow), never to the wrist, because a
+Coaching Lead, 13 Nov: arm lift is measured on the lead UPPER ARM (shoulder → elbow), never to the wrist, because a
 bent lead arm makes the arms look lifted and is its own fault. `d2_upper_arm.py` repeats the definitions above
 with the wrist replaced by the elbow (COCO 7 / joint `LeftForeArm` 9 for a right-hander), and reads the 3-D lead
 elbow where the fit really measured it. `d2_summary.py` makes the tables; its output is `d2_summary_out.txt`.

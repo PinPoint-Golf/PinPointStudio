@@ -113,7 +113,7 @@ call site, or by a second rule.
 - **Fix.** Pick one per-shot direction and strike verdict, owned at shot level.
   - Either express `lmShapeClass`'s thresholds as the pack's signals, or have the pack read `lmShapeClass`'s output, as `compoundMiss` already does.
   - The LM card then shows the shot's checked strike and direction values (G-03's per-shot record) and keeps its own words only as "inferred" evidence.
-  - The thresholds are coach config. Changing them needs Mark.
+  - The thresholds are coach config. Changing them needs the Coaching Lead.
 - **Effort:** M. **Related:** G-03, G-06.
 
 ### G-02 · Handedness is glossed per surface, three surfaces miss it, and the hand comes from three places
@@ -185,7 +185,7 @@ call site, or by a second rule.
   - Session mix: "n clean".
   - Same panel's Driver flight bar: one **Sky**.
   - Tendencies: a Sky fault.
-- **Fix.** The composed record carries the factors (G-03), and `clean` / "Good shot" means no fault in any factor. Or Sky stays a label for display while being counted once as a factor. Which is intended is Mark's call.
+- **Fix.** The composed record carries the factors (G-03), and `clean` / "Good shot" means no fault in any factor. Or Sky stays a label for display while being counted once as a factor. Which is intended is the Coaching Lead's call.
 - **Effort:** S once G-03 exists. **Related:** G-03.
 
 ### G-05 · The per-shot "score" is the wrist estimand, shown on every card as a quality score, and is 0 when nothing scored it
@@ -203,7 +203,7 @@ call site, or by a second rule.
   - Make "not scored" a state (NaN or a `has` flag) carried from `ScoreBreakdown` through the summary and the model, and have the pill show "-".
   - Name the number for what it is (the wrist score), or decide what a per-shot quality number should be.
   
-  The pill's look is a design-system matter, so Mark approves before anything visual changes.
+  The pill's look is a design-system matter, so the Design Lead approves before anything visual changes.
 - **Effort:** S–M. **Related:** June review Theme I (placeholder surface).
 
 ### G-06 · The strike-versus-flight check is applied in memory per instance, persisted only when something else is written, and its Sky half is missing from every staleness stamp
@@ -248,7 +248,7 @@ call site, or by a second rule.
 - **Fix.**
   - One resolved club per shot (declared → golfer's board override → nothing), carried on the shot record and read by every surface.
   - The stub becomes a display-only fallback word.
-  - Whether a board override should re-club the shot for diagnostics is Mark's decision.
+  - Whether a board override should re-club the shot for diagnostics is the Solution Architect's decision.
 - **Effort:** M. **Related:** June review Export item "club hardcoded DRIVER on reload" (partly fixed: see §6).
 
 ### G-08 · "Carry this session" and "your usual carry" each exist twice with different rules, and the short-of-usual loss ignores the usual's own minimum

@@ -1087,7 +1087,7 @@ the root application `Rectangle` to animate the transition.
 ## 13. THE COACHING-CARD LOOK
 
 The home screen's YOUR SWING section and the Swing diagnostics screen (October 2026) set a
-look that Mark approved for the whole app: "SO MUCH BETTER", then "it looks excellent". **It is
+look that the Design Lead approved for the whole app: "SO MUCH BETTER", then "it looks excellent". **It is
 the target for every panel.** The Wrist session screen carries it (October 2026, 13.11), and the
 rest follow it. It is built only from Theme tokens, so it works in every aesthetic. The reference
 renders below are Instrument.
@@ -1284,7 +1284,7 @@ The card's foot holds "6 more" (a link) and "2 cleared" (Micro, `colorGood`).
 - **Make each panel a card** with one tone chosen by role (13.2), a Micro title in that tone, and an
   aside where a column needs a heading. A panel inside a frame it does not own draws no frame or
   title of its own (13.11).
-  *Superseded for stage panels (Mark, 11 October 2026; section 15).* A stage card always takes
+  *Superseded for stage panels (Design Lead, 11 October 2026; section 15).* A stage card always takes
   the quiet tone, and its colour comes only from its content. Home-screen cards keep their tones.
 - **Keep the numbers on session screens.** They are the technical layer, so values stay in `fontData`.
   But wherever a value is judged against an ideal, give it a mark as well (a badge, meter, pips or a
@@ -1311,9 +1311,9 @@ The card's foot holds "6 more" (a link) and "2 cleared" (Micro, `colorGood`).
   row through `readonly property string cardAside`; a panel also shown outside the stage carries
   `property bool framed` and is told it is framed already.
 
-  > **Superseded by section 15 (Mark, 11 October 2026): every stage card takes the quiet tone.**
+  > **Superseded by section 15 (Design Lead, 11 October 2026): every stage card takes the quiet tone.**
   > The warn tone on SESSION DIAGNOSTICS and WRIST MOTION is gone. On a swing with no faults it
-  > made "warn" mean "this panel", not "out". Mark: *"Quiet tone please. The previous design
+  > made "warn" mean "this panel", not "out". Design Lead: *"Quiet tone please. The previous design
   > system was confused and noisy."*
   > - This build changes `PpModeStage._defs`: `sessionDiagnostics` and `wristMotion` take the quiet
   >   role, so every card title is `colorText3`.
@@ -1339,7 +1339,7 @@ filled shapes, not borders, and the tick is a `Shape` path. Borders themselves s
 
 ## 14. THEMES AS DATA, AND FOLIO
 
-October 2026. Mark liked the look of a set of repository charts: warm neutral greys, hairline grids,
+October 2026. The Design Lead liked the look of a set of repository charts: warm neutral greys, hairline grids,
 no boxes, generous whitespace, one neo-grotesk for everything including the numbers, small grey
 sentence-case labels, and one restrained blue. **Folio** is that look as a seventh aesthetic. To make
 it possible, theming was widened. It used to cover colour, fonts and radii; it now also covers spacing,
@@ -1460,7 +1460,7 @@ The rules for using them:
 
 ## 15. THE TYPESET SYSTEM
 
-October 2026. After three design rounds on the Session diagnostics panel, Mark approved a second
+October 2026. After three design rounds on the Session diagnostics panel, the Design Lead approved a second
 look for the app: the **typeset** system. It sets a panel the way a typesetter sets a page, where
 the old panels were dashboards of boxes. Session diagnostics is being built in it now. It is the
 target for every other stage panel and, later, for whole screens. To apply it to a panel, follow
@@ -1476,14 +1476,14 @@ How it fits with sections 13 and 14:
     frequency meters;
   - the selected tab's rule is ink, not the panel's tone, because a warn rule would spend "out" on
     chrome;
-  - every stage card takes the quiet tone (decided by Mark, 11 October; see 15.11).
+  - every stage card takes the quiet tone (decided by the Design Lead, 11 October; see 15.11).
 - **"Colour is never the only channel" (13.1) still holds.** Here an out-of-corridor state also has
   a position (a dot past the fault line), a shape (a bar where a clean shot has a tick) or a
   heading it sits under ("Outside the corridor").
 
 ### 15.1 Why it exists
 
-Mark, on the old panel (11 October 2026): *"far too noisy, dense walls of text with no finesse
+Design Lead, on the old panel (11 October 2026): *"far too noisy, dense walls of text with no finesse
 and fonts that are too large. I would prefer something more akin to a typeset published
 document."* He liked Folio and the matplotlib growth-chart look: Inter, generous spacing,
 hairlines, a professional finish. He wanted future aesthetic changes to be driven from theming.
@@ -1606,7 +1606,7 @@ toggles and the subject's name never do.
 
 **12. Height is a resource too.** A list splits into columns only when its rows don't fit the
 height. Spare height admits the next tier of content, never bigger type.
-- *Why:* added in round 3, after Mark's live try-out showed a list split in two with 900 px
+- *Why:* added in round 3, after the Design Lead's live try-out showed a list split in two with 900 px
   empty below it.
 - *Example:* Replay's This shot continues below the fired conditions with the clean ones, closest
   to their edge first, until the space runs out. Replay's Session shows the small multiples once all
@@ -1661,7 +1661,7 @@ The mock library holds the roles in `Roles.qml`. The build moves them into Theme
 - **Weights:** text Normal, strong Medium. **Leading:** 1.32, small 1.25; Vector 1.28 and 1.22.
 - **Limits:** a view uses at most four sizes and two weights, and nothing renders under 10 px.
 - **Folio's display and standfirst are serif.** That is Georgia, else Gelasio (14.3), the
-  editorial voice Mark liked.
+  editorial voice the Design Lead liked.
 - **Vector's display is Space Grotesk Light, not the theme's Space Mono.** Headlines are prose, and
   Space Mono at 20 px reads as a terminal, not a headline.
 
@@ -1744,7 +1744,7 @@ bind every panel.
 1. **Colour means "out".** Warn appears on values, fired marks, strip bars and the fault line,
    and nowhere else.
 
-   **Except identity: a metric keeps its own colour** (Mark, 14 Oct 2026, after the Charts round 1
+   **Except identity: a metric keeps its own colour** (Design Lead, 14 Oct 2026, after the Charts round 1
    drew every curve in ink). A curve, line, dot or box that stands for a METRIC is drawn in
    `Theme.metricColor(key)`: the named per-metric colours (b1c1975e), user re-pointable in Settings.
    That is identity, not judgement, and losing it made overlaid curves hard to tell apart.
@@ -1935,7 +1935,7 @@ opening a different app.
     laid-out page, so there is no layout loop.
   - It never takes the page below compact.
 
-**A detail opened in Replay is read in place** (D9, revised 11 Oct after Mark's try-out: a click
+**A detail opened in Replay is read in place** (D9, revised 11 Oct after the Design Lead's try-out: a click
 that flipped the stage to Analyse read as a wiring fault). An open detail always loads the Analyse
 register, whatever the stage's mode, so the stage stays in Replay; the Replay glance is held, hidden,
 under it, and Back returns to it with its tab and scroll intact. The cast never drills: it stays on the
@@ -1986,7 +1986,7 @@ The registers choose blocks and voice. They never choose their own colours, mark
 
 ### 15.7 Interaction
 
-Mark asked for interactivity used *"sensitively — getting into the UX a little and guiding the
+The Design Lead asked for interactivity used *"sensitively — getting into the UX a little and guiding the
 user to understand the data and ask sharper questions."*
 
 - **Quiet by default.** Nothing moves or appears until the reader moves.
@@ -2057,13 +2057,13 @@ user to understand the data and ask sharper questions."*
 - **Interactive states must be renderable.** Each register declares `property string demoState`
   and a short list of named states (`hoverShot12`, `hoverCondition`, `question-clean`,
   `question-together`, `question-worse`) that put the panel in that state statically. Review
-  renders use them, and Mark clicks the real thing.
+  renders use them, and the Design Lead clicks the real thing.
 - **Print has none of this.** Affordances become cross-references. The answers can appear as
   footnotes ("Clean on shots 2, 9 and 11"), because the answer itself is content.
 
 ### 15.8 The fault-forward figure grammar
 
-Mark, mid-round: *"in figures the detail view has a lot of wasted space when the characteristic
+Design Lead, mid-round: *"in figures the detail view has a lot of wasted space when the characteristic
 is a fault (the below the line space is dead). bear in mind that users will drill into faults
 not things that are going well (!)"*
 
@@ -2149,7 +2149,7 @@ multiples and the Replay sparklines.
   - Caption: "median 22", at the axis's own precision, with a symbol unit only.
   - At rest the median's value also stands just right of the box, in ink; the box steps left of
     centre when that number would otherwise reach the zone labels.
-- **Hover to examine** (Mark, 12 Oct: *"labels appeared on box plots when you hovered over them —
+- **Hover to examine** (Design Lead, 12 Oct: *"labels appeared on box plots when you hovered over them —
   that way the ui is clean but you can examine them with the mouse"*). The pointer anywhere over a
   box's column (the Spread box, or any session's mini box) reveals its full reading
   (`PpBoxReading`): upper whisker end, Q3, median (ink), Q1 and lower whisker end, each a number at
@@ -2173,14 +2173,14 @@ multiples and the Replay sparklines.
 - The run's distance labels stay inside its plot: they go right of the dimension line unless that
   side is short and the left has more room, and they wrap on their side rather than cross the line.
 
-> **Changed (Mark, 12 October 2026): the spread strip became a box plot.** Mark: *"I think the
+> **Changed (Design Lead, 12 October 2026): the spread strip became a box plot.** Design Lead: *"I think the
 > spread chart isn't adding anything there and can be replaced with a box plot alongside the session
 > plot. It would use less screen estate and actually provide more meaning."*
 > - `PpSpreadStrip` (a beeswarm of the session's shots at the left of the run, with the norm's
 >   density curve standing in from its edge) is gone. The corridor bands already carry the norm's
 >   judgement, so the curve went with it: the model no longer publishes `spread.curve`, and the norm
 >   note reads "The corridor is the norm's claim, …".
-> - The same day, from Mark's screenshot of Across sessions: each column's bar became a small box
+> - The same day, from the Design Lead's screenshot of Across sessions: each column's bar became a small box
 >   plot with its median labelled, and an unmeasured session shows "-".
 
 ### 15.9 Print
@@ -2241,7 +2241,7 @@ top.
 
 **A "full report"**, with every pattern's feature in rank order before the index, is ready as an
 option. Each feature starts a fresh page and each session entry cross-refers to its own feature.
-It runs to about 23 portrait pages. Whether to offer it is Mark's call (15.11).
+It runs to about 23 portrait pages. Whether to offer it is the Product Owner's call (15.11).
 
 ### 15.10 How it was made, and how the next one is made
 
@@ -2260,7 +2260,7 @@ app, fed the real data: the 4 July 2026 session (7 iron, 15 shots, shot 8 picked
   arrangement (full, stage, half or third), Replay or Analyse, the cast, or A4 pages. `--dump` writes
   the panel's live data as JSON;
 - `render_stage.sh` renders every real stage panel at full, half and third, for the "before" audit;
-- `try.sh` (probe `try_overlay.qml`) is the live try-out, in which Mark uses the real app with the
+- `try.sh` (probe `try_overlay.qml`) is the live try-out, in which the Design Lead uses the real app with the
   new panel laid over the real one. Its `--selftest` drives every tab, both modes and the detail, and
   must pass first;
 - `assemble_review.py` builds the review PDF;
@@ -2273,7 +2273,7 @@ The playbook (`docs/design/stage_typeset_playbook.md`, section 5) describes how 
 - the interaction states as renders;
 - the print pages;
 - the notes;
-- Mark's live try-out, which produced rule 12.
+- The Design Lead's live try-out, which produced rule 12.
 
 **The build follows the same order:**
 1. The role table goes into Theme (15.3).
@@ -2308,7 +2308,7 @@ Verify by driving every tab, mode and detail page with `--probe-qml`, not by att
   - a KeyFigures `exclude`.
 - **The hover wash on strips** (`hoverWash`) is hard to see, and may need to be stronger.
 - **Themes other than Folio and Vector** take the default typeset block, unjudged.
-- **DECIDED (Mark, 11 October): every stage card takes the quiet tone.** Mark: *"Quiet tone
+- **DECIDED (Design Lead, 11 October): every stage card takes the quiet tone.** Design Lead: *"Quiet tone
   please. The previous design system was confused and noisy."*
   - This build implements it: `PpModeStage._defs` gives `sessionDiagnostics` and `wristMotion`
     the quiet role, like every other panel. Card titles are `colorText3`.
@@ -2324,7 +2324,7 @@ Verify by driving every tab, mode and detail page with `--probe-qml`, not by att
 
 Decisions D1–D11 (the after-shot pulse, the quiet shot, live with nothing picked, the cast,
 not-measured stubs, link grades, session length, place-keeping, no detail in Replay, port don't
-drop, and the drops) were taken for Mark on 11 October, in the build brief for round 4. They are
+drop, and the drops) were taken for the Design Lead on 11 October, in the build brief for round 4. They are
 written into 15.4, 15.6 and 15.7 above.
 
 ### 15.12 Reference renders

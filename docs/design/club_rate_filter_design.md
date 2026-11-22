@@ -1,8 +1,8 @@
 # Club rate filter — one estimate of the shaft angle and its rate
 
-**Status:** ON by default at σ_jerk 6000 since 24 October 2026 (Mark, after the §7 gate and the off/on
+**Status:** ON by default at σ_jerk 6000 since 24 October 2026 (Solution Architect, after the §7 gate and the off/on
 angular-speed plots); the library re-analysed with it.
-**Owner:** Mark. **Started:** 24 October 2026.
+**Owner:** Solution Architect. **Started:** 24 October 2026.
 **Code:** `src/Club/club_rate_filter.{h,cpp}`, `src/Core/kf3_smoother.h`, wired in
 `src/Club/shaft_track_assembly.cpp` (`applyClubRateFilter`), `src/Club/shaft_synthesis.h` (`synthDraws`),
 `src/Kinematics/segment_rates.cpp` (the KS club channel). Test: `club_rate_filter_test`.
@@ -66,7 +66,7 @@ Where the filter ran, the synth ticks carry its θ and θ̇ and the flag `ShaftR
 - **clubhead speed, hand speed, clubhead peak lead, lag** read the synth already — no code change;
 - **the KS club angular speed** reads the tick's θ̇ directly, de-projected by the plane gain dψ/dθ at
   the tick's image angle, its σ the filter's σθ̇ times the same gain — not differentiated or windowed
-  again. The club node's withhold and its σ widening are unchanged (Mark decides on verdicts from §7);
+  again. The club node's withhold and its σ widening are unchanged (the Solution Architect decides on verdicts from §7);
 - **the uncertainty draws** (`synthDraws`) take θ and θ̇ on filtered ticks from a backward sample of the
   filter's posterior (forward-filter backward-sample), so the σ of clubhead speed, peak lead, attack
   angle and low point is the filter's own;

@@ -1,8 +1,8 @@
 # Charts panel — Traces + Relations
 
-**Status:** design chosen 14 Oct 2026 (Mark: "I like A and B and want both. The Reads are for another
+**Status:** design chosen 14 Oct 2026 (Design Lead: "I like A and B and want both. The Reads are for another
 day"). Not built. This document records the chosen design, how A and B combine, what the build needs,
-and what is still Mark's call. The decisions in §8 are proposals until he confirms them.
+and what is still the Design Lead's call. The decisions in §8 are proposals until he confirms them.
 
 **Where the work is** (local, `build/` is not in git):
 - Signature review: `build/run-me/chart-variants/charts-round1b-signatures.pdf` (25 pages).
@@ -30,7 +30,7 @@ The new panel keeps that and adds the session behind it, in two voices:
 - **Relations (B), the workbench.** Every metric is a variable read at its instant. Where does this swing
   sit among my swings, number by number, and which numbers move together?
 
-**Reads (C), the coach's notebook, is parked** (Mark: "for another day"). It is one golf question at a
+**Reads (C), the coach's notebook, is parked** (Product Owner: "for another day"). It is one golf question at a
 time: Sequence, Speed, Rotation, Wrist (with a wrist-style classification), Body and Tempo, each answered
 in a sentence built from the data. Its mocks and notes stay in `qml/variant_c/`. Two of its ideas are
 worth keeping in view: the one-line written answer as a Replay headline, and change-point detection
@@ -70,7 +70,7 @@ falls back to Session there.
 ### 2.2 Session (A)
 - Every shot's curve for each metric of the preset: this shot full strength, the others the same hue
   faint, a middle-half ribbon and the median. Or the group fit (§4).
-- **P-aligned time only** (Mark, 14 Oct: "I would prefer we just keep P alignment"). Every shot is
+- **P-aligned time only** (Design Lead, 14 Oct: "I would prefer we just keep P alignment"). Every shot is
   warped onto the session's P-positions (§4.1), so timing drops out and the curves compare shape. There is
   no clock-time view and no side-by-side "two clocks" (round 1b's `sigTwoClocks` is dropped). The timing
   the warp removes is kept as one quiet annotation under each P tag: the middle half of when that
@@ -83,9 +83,9 @@ falls back to Session there.
   peak-time dot plot on one ms axis.
 - Up to three data-backed questions ("which shots lie outside the middle half where the curves part?").
 
-### 2.2.1 Lined up at impact, overlaid, and the chest's probable peak (Mark, 25 Oct 2026)
+### 2.2.1 Lined up at impact, overlaid, and the chest's probable peak (Design Lead, 25 Oct 2026)
 
-Mark: "for the KS chart (and probably them all) it would be good to have an option in controls to see them
+Design Lead: "for the KS chart (and probably them all) it would be good to have an option in controls to see them
 overlayed aligned to impact. For the KS chart especially it adds robustness to the sequencing." Then, on the
 chest: "the area of the chart that is missing, especially when we use all swings, is relatively short and I
 would argue cannot plausibly spike during the swing … bridge the gap and use that as an estimator (with a
@@ -114,10 +114,10 @@ This amends D9 for Session only; This shot, Against and every other cross-shot a
     1–4 ms; only the GP's ± is honest and only it caught the still-rising case). Seeded per shot, so the same
     session draws the same estimate on every machine. Cost: ~3–4 ms a shot, once per snapshot, off the GUI
     thread.
-  - **Option A (Mark, 25 Oct):** the probable peak is the hump the hole hides. A taller MEASURED hump earlier
+  - **Option A (Solution Architect, 25 Oct):** the probable peak is the hump the hole hides. A taller MEASURED hump earlier
     in the downswing (10-20: −150…−220 ms, 780–1345 °/s, where the face-on shoulder keypoints jump as the
     line squares to the camera; pp_tuned_constants.h kPairTrunkThoraxPlacement) is read as the measurement and
-    said so in the trust fold; it stays drawn on the curve. Mark: the complete sequence is the coaching point
+    said so in the trust fold; it stays drawn on the curve. Coaching Lead: the complete sequence is the coaching point
     ("the sequence of the pelvis is about opening the hips during impact, not stalling and snapping").
   - **How it shows (show with a warning, never hide):** the bridge dashed in the chest's hue (the picked
     shot's with its ± 1 sd wash) in place of the straight bridge; the session median dashed where a third or
@@ -167,9 +167,9 @@ This amends D9 for Session only; This shot, Against and every other cross-shot a
   no affordances, nothing split across pages. Round-1 lengths: A 6–8 pages, B 11–12; combined, expect
   about 15.
 
-## 4. The group fit (Mark, 14 Oct)
+## 4. The group fit (Design Lead, 14 Oct)
 
-Mark: "fitting curves to shots that have a similar pattern — that way we have a lot more data and this
+Design Lead: "fitting curves to shots that have a similar pattern — that way we have a lot more data and this
 will help resolve areas where the data is sparse (ideally we fix the sparsity at source, but the
 generalised chart is still useful)."
 
@@ -183,9 +183,9 @@ generalised chart is still useful)."
   is labelled with its group and n ("7 shots with Returns steep"), left blank where fewer than 3 shots
   contribute, and refused for a group under 3. Band choice: decision D2.
 
-### 4.1 Alignment: every cross-shot analysis runs on P-aligned time (Mark, 14 Oct)
+### 4.1 Alignment: every cross-shot analysis runs on P-aligned time (Design Lead, 14 Oct)
 
-Mark: "when working with multiple shots they should be aligned to P positions before doing the next
+Design Lead: "when working with multiple shots they should be aligned to P positions before doing the next
 level of analysis." Both mocks already do this; the build makes it the rule for the envelope, where the
 curves part, the group fit, shape groups and the kinds' curves.
 
@@ -278,7 +278,7 @@ placed; shot 6 orders club, pelvis, lead arm, and on one shot the lead arm peaks
 two-camera measurement; it cannot yet tell them apart" (see `docs/research/data/kinematic_sequence/
 thorax_pair_20261014.md`). IMUs (vest + belt) will settle it.
 
-## 8. Decisions for Mark (proposals)
+## 8. Decisions for the Design Lead (proposals)
 
 | | Decision | Proposal |
 |---|---|---|
@@ -290,15 +290,15 @@ thorax_pair_20261014.md`). IMUs (vest + belt) will settle it.
 | D6 | Replay Session | follows the playhead (both mocks built it so) |
 | D7 | Kinds with no structure | say so, then the largest gap in the most separating reading, as B did |
 | D8 | Print | one combined report, sections in view order, the index at the back |
-| D9 | Alignment (§4.1) | DECIDED (Mark, 14 Oct): P-aligned time only, no clock-time view. Proposed: PCHIP warp with gated anchors; impact-only falls back to curve landmarks, then a labelled tempo scale. AMENDED 25 Oct (§2.2.1): Session may also line up at impact (each shot on its own clock), by choice |
+| D9 | Alignment (§4.1) | DECIDED (Design Lead, 14 Oct): P-aligned time only, no clock-time view. Proposed: PCHIP warp with gated anchors; impact-only falls back to curve landmarks, then a labelled tempo scale. AMENDED 25 Oct (§2.2.1): Session may also line up at impact (each shot on its own clock), by choice |
 
 ## 9. How this was made
 
 Inventory and data dump, then three directions by three agents in parallel (A Traces, B Relations,
 C Reads), each with This shot / Session and Replay / Analyse / Print, mocked over the live panel with the
-typeset harness and fed a real 15-shot session fixture. Mark asked mid-round for the group fit. Round 1
-drew every curve in ink because the brief over-read "colour means out"; Mark caught it ("color has been lost
+typeset harness and fed a real 15-shot session fixture. The Product Owner asked mid-round for the group fit. Round 1
+drew every curve in ink because the brief over-read "colour means out"; the Design Lead caught it ("color has been lost
 for the curves"), and round 1b restored `Theme.metricColor`, made warn a mark plus a word, and added
 signature renders because the thumbnail grid did not let him tell the designs apart. Lesson for the
-next panel: brief what the shipped panel already does that Mark asked for, and show signatures at his
+next panel: brief what the shipped panel already does that the Product Owner asked for, and show signatures at his
 window size, not only a grid.

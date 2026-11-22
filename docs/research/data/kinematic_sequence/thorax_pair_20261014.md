@@ -63,7 +63,7 @@ sternum can tell those apart.**
    were then traced and are sound on device-stamped sessions; the wrist-vertical fit that read +10…+12 ms
    is biased, not the clocks (§9).
 
-**What Mark should decide:**
+**What the Product Owner should decide:**
 
 * **(a)** Keep `sequence.pairTrunk.thoraxPlacement` off. Nothing here justifies switching it on.
 * **(b)** The IMU placement on the sternum is the only way to settle G-g. It should come before any

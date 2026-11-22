@@ -230,7 +230,7 @@ Steps 1–4 of the storage roadmap are pushed:
 
 This phase switches PinPoint Studio to `.ppsw`. **It ends with every swing document in the new format**: 115 in `/mnt/swingdata/corpus/swings` and 55 in `/mnt/swingdata/Mark-Liversedge`, with no `swing.json` left. After that it measures higher-quality video, investigates the club-arc metrics, and builds archiving.
 
-**Run rules (Mark, 23 Sept):**
+**Run rules (Product Owner, 23 Sept):**
 - The plan runs unattended to the end.
 - Everything is committed and pushed **at the end**, with no mid-plan approval stops.
 - This explicit instruction overrides the results-before-commit rule for this run. The decision rules below are pre-agreed instead.
@@ -341,7 +341,7 @@ Add the "Phase 2 plan" section to `swing_storage_impl.md`: the decisions, stages
 
   That is about 2 h on the M4, run detached with the per-swing watchdog.
 - **Output.** `tools/swinglab/raw_vs_mp4.py` extended with a `--arms` list, writing `swing_storage/raw_vs_crf*.csv`, plus the size per swing for each CRF.
-- **Decision rule:** report and recommend only. The default `videoQuality` stays at CRF 23 in this run, because it is a disk-cost trade-off for Mark. The write-up names the CRF (if any) at which pose-driven deltas fall to a body-keypoint mean-px median of 1 px or less.
+- **Decision rule:** report and recommend only. The default `videoQuality` stays at CRF 23 in this run, because it is a disk-cost trade-off for the Product Owner. The write-up names the CRF (if any) at which pose-driven deltas fall to a body-keypoint mean-px median of 1 px or less.
 - The rig tree is deleted once the CSVs are in the repo.
 
 ### Stage 5: attackAngle and the club-arc family
@@ -509,7 +509,7 @@ A `swinglab_run --write-back` on a copy of a converted swing rewrote `swing.ppsw
 
 **The question.** Re-analysis of a default swing runs on its mp4, and the 22 Sept study found CRF 23 moves the numbers. Two things needed answering:
 - does a better encode buy a faithful re-analysis?
-- how much would a smaller one (Mark, 23 Sept: "I like the idea of … a lower CRF") cost?
+- how much would a smaller one (Product Owner, 23 Sept: "I like the idea of … a lower CRF") cost?
 
 **The rig** (`build/rawcrf`, deleted after the CSVs were committed):
 - **Swings:** the 38 corpus swings that have `Face-On.raw`.
@@ -576,14 +576,14 @@ x265's CRF scale is not x264's. At the same CRF, H.265 was *bigger* here, and it
    - H.265 CRF 28, at almost the same size, keeps `clubheadPeakLead` but moves pelvis speed more (86°/s).
 4. **H.265 CRF 23 is the best quality per byte measured.** At 8 MB it beats H.264 CRF 23 on pose, pelvis and thorax, and on the pinned club track (0.37 px against 1.03). But it is *not* smaller than today, and it costs about 2× the encode time on the capture machine.
 
-**Decision (Mark, 23 Sept, after stage 5b): the default is now CRF 28** ("low", relabelled "Compact"; `AppSettings`). An install that saved a quality keeps it; neither the Mac nor the studio had one saved. The analysis before the decision: The recommendation, if disk is the goal:
+**Decision (Product Owner, 23 Sept, after stage 5b): the default is now CRF 28** ("low", relabelled "Compact"; `AppSettings`). An install that saved a quality keeps it; neither the Mac nor the studio had one saved. The analysis before the decision: The recommendation, if disk is the goal:
 - **H.264 CRF 28 is the simple saving.** Its one outlier above, `clubheadPeakLead`, turned out to be fragile at *every* quality, and was then fixed (stage 5b): raw-vs-CRF 28 went 23.2 → 1.2 ms.
 - **Leave the default at CRF 23** if the remaining ~0.5 px pose and ~10°/s pelvis-speed cost matters more than 0.5 GB an hour.
 - Either way, the measurements say video quality is the wrong lever for faithful re-analysis. The producers are the right one, one by one, as with attackAngle and clubheadPeakLead.
 
 ### Stage 4b: trimming the pre-roll (tested and rejected, 23 Sept)
 
-**The question** (Mark): the saved clips carry seconds of the golfer standing still before address. Should they be cut, keeping a quarter-second?
+**The question** (Product Owner): the saved clips carry seconds of the golfer standing still before address. Should they be cut, keeping a quarter-second?
 
 **Measured** over the 144 swings with video, address and impact:
 
@@ -621,7 +621,7 @@ The mean hides two eras: about **2.5 s** before address in the June–July sessi
 - **12 of 38 swings lost a metric, and about as many gained one.** The setup family (ball position, stance width, lead-heel lift, plumb-bob) flickers in and out: it is measured in the still moment at address.
 - Option B (cut at the detected address − 0.25 s) would leave even less before address.
 
-**Decision (Mark): reverted, not shipped.** Live analysis never depended on it (it reads the frames in RAM), but every later re-analysis would; the library was just swept twice. The saving (~17 %) is smaller than the harm, and CRF 28 had already cut the video ~65 %.
+**Decision (Product Owner): reverted, not shipped.** Live analysis never depended on it (it reads the frames in RAM), but every later re-analysis would; the library was just swept twice. The saving (~17 %) is smaller than the harm, and CRF 28 had already cut the video ~65 %.
 
 **What would make trimming safe:** make takeaway detection and the setup metrics independent of how much pre-roll exists. Then a trimmed clip, or any clip that starts late, stops mattering, and the trim could be reconsidered. A gentler cut (impact − 2.0 s, ~1 s before address, ~9 % saving) was not tested.
 
@@ -703,7 +703,7 @@ The arc window was also checked at k = 1, 2, 3, 4 and 6 steps, giving median err
 - Across the library's 143 attackAngle swings: 112 read off the arc; 25 fall back on a jump, and 5 on coverage.
 - On the rig the guard never fires (its arcs are clean), so the stability figures above are unchanged.
 - `club_delivery_test` section 9 pins the behaviour: a jumped arc yields exactly the measured estimate.
-- **Open, for a follow-up:** the 30 fallback swings still carry the ill-conditioned measured estimate. The options are to read the continuous side of a broken arc, or to decide that no value beats a wrong one; the latter is a coverage-rule question for Mark.
+- **Open, for a follow-up:** the 30 fallback swings still carry the ill-conditioned measured estimate. The options are to read the continuous side of a broken arc, or to decide that no value beats a wrong one; the latter is a coverage-rule question for the Product Owner.
 
 **Landing rule (pre-agreed): all four met, so it landed**, and re-checked with the guard (median error 2.7°, stability unchanged).
 1. The median error was cut by **90%** (36.5° → 3.6°), against the ≥ 30% required.

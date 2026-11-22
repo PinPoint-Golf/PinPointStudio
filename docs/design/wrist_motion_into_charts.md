@@ -1,10 +1,10 @@
 # Wrist motion → Charts
 
 **Status:** design chosen 15 Oct 2026: B (the Wrist tab), with the one-vocabulary alignment of §7
-(Mark: "your proposal is correct, let's add that in"). Three designs were mocked over the real panels
+(Design Lead: "your proposal is correct, let's add that in"). Three designs were mocked over the real panels
 with real data. Nothing built.
 
-Mark, 15 Oct 2026: "look at the wrist motion chart and see how it can be deprecated and the
+Design Lead, 15 Oct 2026: "look at the wrist motion chart and see how it can be deprecated and the
 functionality incorporated into the chart panel. Ideally we would not retire any functionality and
 the wrist chart would gain features we added to the chart panel."
 
@@ -187,7 +187,7 @@ all: a per-shot wrist assessment in the session-series model (off the GUI thread
 held), `{ dof, metricKey }` on the wrist strips so nothing joins by display name, and the checkpoint's
 own `t_us` for seeking.
 
-## 6. Decisions for Mark
+## 6. Decisions for the Design Lead
 
 | | Decision | Proposal |
 |---|---|---|
@@ -202,7 +202,7 @@ own `t_us` for seeking.
 | W-D9 | Bands and corridors | **DECIDED (§7.3):** the diagnostics norms are the one table; the Wrist tab draws the resolved context's corridor as its band |
 | W-D10 | Forearm roll (takeaway, top, impact) | **DECIDED (§7.3):** the roll measures read `forearmRotation` / `hm.forearmRotation` with their own norm rows; `early_face_roll` = roll from address to shaft-parallel back; starts wide and monitored; sign checked on a directed capture before it grades anyone |
 
-**Chosen 15 Oct (Mark): B is the base.** He asked next for the wrist chart, the reference bands and
+**Chosen 15 Oct (Design Lead): B is the base.** He asked next for the wrist chart, the reference bands and
 the diagnostics measures and corridors to be aligned: §7.
 
 The data in §4.1 is a separate question from the panel: the P8 band and the score/mark contradictions
@@ -211,7 +211,7 @@ the trap the per-swing wrist work hit). Lead-wrist data in the library is 11 swi
 
 ## 7. One wrist vocabulary: chart, bands, measures, corridors
 
-Mark, 15 Oct 2026: "do we have metrics for positions outside of those bands at the top and impact.
+Coaching Lead, 15 Oct 2026: "do we have metrics for positions outside of those bands at the top and impact.
 also do we have a characteristic for rolling the forearm from P0–P2 … a really common fault of
 opening the clubface at the takeaway. Would be good to align the wrist chart, the reference bands and
 the metrics and measures corridors."
@@ -243,7 +243,7 @@ the metrics and measures corridors."
    `forearmPronation`, the ISB radioulnar angle, which needs an upper-arm sensor: no swing in the
    library has it (the norm rows say "SIGN UNVERIFIED … no swing carries a forearm-rotation reading").
    The reading that does exist, `hm.forearmRotation` (the wG3 lower-arm unit's twist from address; its
-   card already shows the takeaway peak, Mark 1 Oct: "watching it between P1 and P2 is quite
+   card already shows the takeaway peak, Coaching Lead 1 Oct: "watching it between P1 and P2 is quite
    informative"), feeds no measure. The same is true of the face at the top and at impact (P4, P7 roll).
 2. **Two P2s.** Diagnostics reads P2 at shaft-parallel back; the engine reads the SAME norm row at
    Takeaway, which lands on Address, so its P2 is 0° on every joint.
@@ -254,7 +254,7 @@ the metrics and measures corridors."
    The engine's "cast" reads hinge P5–P6; diagnostics' Casting reads lag angle P5–P6.
 4. **Two scores.** The engine's 0–100 comes from its own rule penalties, not from the conditions.
 
-### 7.3 Decided (Mark, 15 Oct 2026)
+### 7.3 Decided (Coaching Lead, 15 Oct 2026)
 
 - **The norms are the one table** (already true); the Wrist tab draws `monitorLo…monitorHi` of the
   resolved context as the band, so chart, band and corridor are one number by construction.
@@ -326,9 +326,9 @@ conditions (the engine said 84).
 the directed capture for the rotation sign; the conditions' `consequence` texts carry author notes with ids
 (Session diagnostics still shows them; the Wrist tab no longer does).
 
-### 8.1 Reworked after Mark's review (16 Oct 2026): the wrist folds into the standard views
+### 8.1 Reworked after the Design Lead's review (16 Oct 2026): the wrist folds into the standard views
 
-Mark's review of the tab: the wrist should not be a page of its own. Charts keeps one standard way of
+The Design Lead's review of the tab: the wrist should not be a page of its own. Charts keeps one standard way of
 showing the data (the curves), and domain insight is added where it is meaningful. So there is **no Wrist
 tab**. A **Wrist section** (`PpChWristShotSection`, `PpChWristSession`) appears under the curves on This shot,
 and after the standard content on Session, when the shot (or session) carries a wrist reading **and** a wrist

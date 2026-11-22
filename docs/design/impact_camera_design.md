@@ -281,7 +281,7 @@ items 15–16):
 
 A tripod on the face-on side, the camera 1–2 m up and looking down at the ball at ≥ 45° (≥ 60°
 preferred), the frame's long axis along the target line.
-- **Its job (Mark, 2026-09-15):** to validate and verify path estimates, ours and `lm.clubPath`. It
+- **Its job (Product Owner, 2026-09-15):** to validate and verify path estimates, ours and `lm.clubPath`. It
   is a check, not a production source.
 - **Why a tripod:** the original idea was a ceiling mount looking straight down. A tripod is what the
   studio will actually use, and the angle it looks down at has a price, set out below.
@@ -576,7 +576,7 @@ anchor; that timing question is open and separate.
 **What the impact row in Settings → Cameras now carries.** The mode chips (crop size, rate,
 resolution) and Set crop stay on the row; everything below sits behind a **TUNING** disclosure,
 closed by default — it is for the operator tuning a room, not for choosing a camera, and shown
-always it overwhelmed the row (Mark, 2026-09-15). All persisted per camera and, for
+always it overwhelmed the row (Design Lead, 2026-09-15). All persisted per camera and, for
 the ones the camera holds, written the moment they are clicked while it streams (`applyLiveTuning`
 on the backend's thread — ExposureTime, Gain and Gamma are all writable during acquisition) and
 primed again at the next connect:
@@ -647,7 +647,7 @@ on every frame the shaft is, whereas the head body is dark under a 100 µs expos
 as an edge that comes and goes (kept as a separate marker when it does); departure as the first
 frame the resting ball's spot goes dark; the ball afterwards as the round blob nearest its
 predicted position — and then the path is **synthesised**, not fitted through detections
-(Mark, 2026-09-15: detection is too error-prone for the club to be highlighted frame by frame;
+(Design Lead, 2026-09-15: detection is too error-prone for the club to be highlighted frame by frame;
 the space the head travels through wants a smooth curve and a feedback loop). Robust quadratics
 in time for the hosel and the shaft angle over the run (30 frames before departure to 3 after,
 edge frames predicted but never fitted, hosels more than max(8 px, 3 MAD) off the fit dropped —
@@ -662,7 +662,7 @@ the track gave was read on the uncalibrated ball ruler and settles nothing — s
 the end of this section)
 — the loop finds ~37 mm along the shaft and a few mm across on every swing, which is a wedge blade
 from its hosel; the agreement between swings is the evidence. Written as `analysis.impact` and drawn on the
-impact tile at the clip's **own** playhead (it loops, and can be held). **v0.1 (Mark, end of 2026-09-15): the central arc alone, translucent,
+impact tile at the clip's **own** playhead (it loops, and can be held). **v0.1 (Design Lead, end of 2026-09-15): the central arc alone, translucent,
 this frame's synthesised head as a ring with a cross riding it, and the ball's outline — at half
 opacity, so the footage reads first.** The band of head half-width, its edges, the ghosted heads,
 the raw shaft/hosel and the hull are all in the data (`analysis.impact`) and the lab, not on the
@@ -684,7 +684,7 @@ high/low strike from the arc's tangent at the ball (§4), and the ball's own lau
 from the post-departure samples. **These wait for the card calibration** (evening note below).
 
 **The first graded attempt, evening of 2026-09-15 — set aside, and what it taught.** Seven full
-pitching-wedge swings with the GCQuad, camera on a tripod as low as it went, looking down. Mark set
+pitching-wedge swings with the GCQuad, camera on a tripod as low as it went, looking down. The Product Owner set
 the session aside as a rig mistake, not data.
 
 What it established, all of which the design now carries:

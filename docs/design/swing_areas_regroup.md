@@ -1,6 +1,6 @@
 # Swing areas: one axis, what moves
 
-Decided with Mark, 8 Nov 2026. This note is the record of why the condition groups changed, what they are now, and what the
+Decided with the Coaching Lead, 8 Nov 2026. This note is the record of why the condition groups changed, what they are now, and what the
 two side-bend conditions rest on. The condition-by-condition table is `tools/diagnostics/area_regroup_map.json`. The
 results of the checks are at the end.
 
@@ -91,14 +91,14 @@ section visibility is keyed on the metrics on show, not on areas.
 
 ## Areas only classify
 
-**Link grading has no temporal check** (Mark, 8 Nov 2026). The old check took a group's position in the enum as swing order,
+**Link grading has no temporal check** (Coaching Lead, 8 Nov 2026). The old check took a group's position in the enum as swing order,
 so moving a condition between groups changed link grades. It wrongly blocked 38 of 605 causal links. It is dropped entirely.
 A link's direction is the graph's authored direction.
 
 **One edge was wrong and is removed:** `hips_too_open_at_impact → over_the_top`. Hips at impact cannot cause a move that
 starts earlier.
 
-**The after-ball rule is per reading** (Mark, 8 Nov 2026). P7-P8 used to be fully graded only for the area `finish`, and that
+**The after-ball rule is per reading** (Coaching Lead, 8 Nov 2026). P7-P8 used to be fully graded only for the area `finish`, and that
 area is gone. A reading is now graded after the ball when a condition reads its measure at the `finish` anchor. The set is
 derived from the pack (`afterBallKeysForPack`) and is `comOverLeadFoot` and `thoraxRotation`. `comOverLeadFoot` is the reading
 the old rule graded; `thoraxRotation` at P7-P8 newly grades, and that is the one intended change. In a mixed P7-P8 cell only
@@ -125,7 +125,7 @@ reports, which is why it stays in Posture.
 **Provenance of the two conditions.** `insufficient_side_bend_impact` cites `ref.chu2010` at `indirect`.
 `excessive_side_bend_impact` is `practice`, because the literature does not support "too much".
 
-**The causal edges.** All thirteen are `tier: practice`. No literature supports them. Mark's changes to the brief's list, 8 Nov: `insufficient_side_bend_impact → lie_steep_at_impact` added, because too little side bend raises the shaft; `poor_pelvic_disassociation`, `limited_shoulder_flexion` (for tight lats and stiff shoulders) and `poor_setup_posture` added as causes of too little side bend; `early_extension → insufficient_side_bend_impact` dropped, because with the shaft link it completes a causal path between `over_the_top` and `steep_downswing_shaft`, which already corroborate each other and so may not also be causally linked.
+**The causal edges.** All thirteen are `tier: practice`. No literature supports them. The Coaching Lead's changes to the brief's list, 8 Nov: `insufficient_side_bend_impact → lie_steep_at_impact` added, because too little side bend raises the shaft; `poor_pelvic_disassociation`, `limited_shoulder_flexion` (for tight lats and stiff shoulders) and `poor_setup_posture` added as causes of too little side bend; `early_extension → insufficient_side_bend_impact` dropped, because with the shaft link it completes a causal path between `over_the_top` and `steep_downswing_shaft`, which already corroborate each other and so may not also be causally linked.
 
 | Condition | Edges in | Edges out |
 |---|---|---|
@@ -138,11 +138,11 @@ difference is the point: see the reading table below.
 ### On the Posture section, out of the pattern match
 
 The Posture section used to leave side bend off, because a reading that grows into impact would read a working swing as a
-loss if drawn against address. Mark's ruling meets that with the corridor: the row is the change from address against its
+loss if drawn against address. The Coaching Lead's ruling meets that with the corridor: the row is the change from address against its
 expected-gain corridor, never against zero. It is on This shot, Session and the
 report's Posture page, and not in the "At address" block. `posture_chart_design.md` has the row's detail.
 
-**It is drawn and graded, and never matched** (Mark, 8 Nov 2026). It does not count toward which posture pattern a golfer
+**It is drawn and graded, and never matched** (Coaching Lead, 8 Nov 2026). It does not count toward which posture pattern a golfer
 matches, and it has no `posture_level` or `posture_squat_push` norm rows. There is one wash for all clubs; the fault lines
 follow the club, as on every other row.
 
@@ -243,7 +243,7 @@ None of these planned routes is built in this change.
 
 ### Appendix A: why side bend is not a posture-pattern signature
 
-**The decision** (Mark, 8 Nov 2026). `spineSideBend` is not used to tell the Level pattern from Squat and push. It gets no
+**The decision** (Coaching Lead, 8 Nov 2026). `spineSideBend` is not used to tell the Level pattern from Squat and push. It gets no
 pattern-node norm rows. The one adjacent comparison read found no difference at impact, and no source read compares swing
 styles on side bend or pelvis tilt. In the library the gain follows the hip line's change for some golfers and not for others
 (above), so using it in the match could let pelvis tilt pass for a pattern.

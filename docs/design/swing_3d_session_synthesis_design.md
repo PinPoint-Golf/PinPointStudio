@@ -1,6 +1,6 @@
 # 3-D swing panel — the session's usual swing
 
-*2026-11-09. Status: **shipped; results in §8; Mark's six decisions are in §2.** Follows
+*2026-11-09. Status: **shipped; results in §8; the Design Lead's six decisions are in §2.** Follows
 `swing_3d_viz_design.md` (the panel, `skeleton3d`) and `swing_3d_annotations_design.md` (the
 annotations and the fused plane).*
 
@@ -27,7 +27,7 @@ figure, the club, the traces and the P-marks work with no special cases.
 **Done means** every gate in §7 has been run and its result written into §8. A gate that fails and is
 written up honestly counts as complete. A skipped gate does not.
 
-## 2. Decisions (Mark, 9 Nov 2026)
+## 2. Decisions (Design Lead, 9 Nov 2026)
 
 1. **Which shots:** only those with the same club as the selected shot.
 2. **Orbit:** allowed when at least 5 of the shots used have a fused downswing plane; otherwise
@@ -202,7 +202,7 @@ Each step's files. No step waits for a judgement mid-way; the gates are in §7.
 ## 7. Gates
 
 Builds at most three, bounded `-j`. Tests through `ctest`, affected targets once. Probes run offscreen,
-where View3D draws nothing: Mark judges how the figure looks in the app himself (his call, 9 Nov 2026,
+where View3D draws nothing: the Design Lead judges how the figure looks in the app himself (his call, 9 Nov 2026,
 in place of review sheets).
 
 | # | Gate | Pass |
@@ -215,7 +215,7 @@ in place of review sheets).
 | G6 | First-open time, 7 Oct (50 shots), Mac over the share | At most 5 s, off the GUI thread |
 | G7 | Design system | `design_system_lint_test` and `design_system_tokens_check` green, no allowlist line added |
 
-Mark judges the result in the app before any commit. The full GUI suite runs only if he asks.
+The Product Owner judges the result in the app before any commit. The full GUI suite runs only if he asks.
 
 ## 8. Results
 
@@ -240,6 +240,6 @@ display stabiliser runs after the synthesis, as it does for one shot. 8 Oct: 5.8
 **7 Oct, a second session:** 50 shots, 33 with a plane, a plane angle of 62.0°, no warnings. Only G3's
 counts were compared to a prototype, and that on 8 Oct alone.
 
-**Seen in the app (Mark, 9 Nov 2026):** better than the single shot, so it stays, but still not great.
+**Seen in the app (Product Owner, 9 Nov 2026):** better than the single shot, so it stays, but still not great.
 Errors shared by every swing do not average out (§3, Limits), and the hope is that camera calibration
 helps there.

@@ -1102,7 +1102,7 @@ takes bulk over the cable, a USB 2 phone may not, and the UI can say *"USB 2"*
 honestly instead of implying the cable is fast.
 
 If the measurement says what we expect, the answer is unusually clean, and it is
-the place where Mark's *"different approaches by platform if it brings performance
+the place where the Solution Architect's *"different approaches by platform if it brings performance
 and accuracy"* actually cashes out:
 
 > **Split-transport link.** Channel 0 (control, sync probes, shot events) over the

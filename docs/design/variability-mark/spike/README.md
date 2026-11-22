@@ -28,10 +28,10 @@
 ## Notes for later items
 
 - **Hosting tables need a real model.** With an integer model (`model: 500`), Qt's row context object answered unqualified names. `Math`, `qsTr` and `probe` came out undefined inside the mark in about 20 rows. A ListModel or C++ model is fine.
-- **Tone fade on delegate reuse.** With `reuseItems`, a reused row's new grade fades from the previous row's tone over `durationSlow`, as §4.2 asks. In a scrolling table this shows as colour lag. This needs Mark's ruling.
+- **Tone fade on delegate reuse.** With `reuseItems`, a reused row's new grade fades from the previous row's tone over `durationSlow`, as §4.2 asks. In a scrolling table this shows as colour lag. This needs the Design Lead's ruling.
 - **No pixel snapping.** Snapping isn't asked for; at dpr 2 it isn't needed.
 
 ## Open
 
-- **Windows D3D11 not measured** (Mark, 7 Nov). The cabin PC has only a shipping build, with the probe hook compiled out, and an ssh session has no GPU desktop. Check it when Session 5 puts the marks on real screens.
+- **Windows D3D11 not measured** (Product Owner, 7 Nov). The cabin PC has only a shipping build, with the probe hook compiled out, and an ssh session has no GPU desktop. Check it when Session 5 puts the marks on real screens.
 - **The clip counter** in `build/run-me/variability-spike/clip_check.py` read the band in the wrong coordinates at dpr 2, so it flagged even the plain-Rectangle control as leaking. The figures above were counted again at the right scale.

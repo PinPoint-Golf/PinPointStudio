@@ -121,8 +121,8 @@ Render every combination before anyone looks at it:
   state;
 - Mark's own window: the 2560 × 1560 "At your size" screen, where height is generous.
 
-Look at every render. Use the checklist (section 3). Then assemble a review PDF and give Mark the
-live try-out. Mark judges the result before anything is committed.
+Look at every render. Use the checklist (section 3). Then assemble a review PDF and give the Design Lead the
+live try-out. The Product Owner judges the result before anything is committed.
 
 ### Step 7. Build
 
@@ -131,7 +131,7 @@ live try-out. Mark judges the result before anything is committed.
 3. Replace the panel view by view.
 4. After each view, render it with `--probe-qml`, driving every tab, mode and detail page.
    Compare it with the approved mock, and judge it in the app.
-5. Commit only after Mark has seen the result.
+5. Commit only after the Product Owner has seen the result.
 
 Keep to the build economy: two or three builds per task.
 
@@ -145,7 +145,7 @@ The stage audit (section 7) confirmed most of the first reading and corrected th
 - **Corrected: the frame breaks the rules, not only the content.** The card tone, Vector's orange
   selection, and pills or capsules as the default control break rule 7 on every panel. Fix them
   once, as foundations, before any panel.
-  - **The card tone is decided and done.** Mark (11 October): *"Quiet tone please. The previous
+  - **The card tone is decided and done.** Design Lead (11 October): *"Quiet tone please. The previous
     design system was confused and noisy."* Every stage card takes the quiet tone, implemented in
     this build in `PpModeStage._defs`.
   - A panel's colour comes only from its content, and only for "out".
@@ -341,7 +341,7 @@ loads your file.
 |---|---|
 | `render.sh` (probe `render_overlay.qml`) | Step 5: one render run of a mock over the target panel. It also renders the real panel (overlay `none`), the cast and A4 print pages at 2×. `--dump` writes the panel's live data as JSON for step 1. |
 | `render_stage.sh` (probe `render_stage.qml`) | Step 1's "before" renders: each real stage panel at full, half and third. |
-| `try.sh` (probe `try_overlay.qml`) | Step 6's live try-out for Mark, and its `--selftest`, which must pass first. |
+| `try.sh` (probe `try_overlay.qml`) | Step 6's live try-out for the Design Lead, and its `--selftest`, which must pass first. |
 | `assemble_review.py` | Step 6's review PDF. |
 | `guard.sh` | Wraps every app run: at most two instances machine-wide, and a kill above 6 GB (8 GB for the try-out). |
 | `panels/<name>.env` | One profile per stage panel: the target, the data fed to the mock, the tab and view properties, the views. |
@@ -381,7 +381,7 @@ $H/render.sh --panel charts --states hover my/Analyse.qml r1_analyse half
 $H/render.sh --panel charts --screen mark my/Analyse.qml r1_big half    # Mark's window
 $H/render.sh --mode replay my/Replay.qml f3_replay cast                 # diagnostics is the default profile
 $H/render.sh --themes 6,12 my/Print.qml f3_print print-portrait
-$H/try.sh --selftest charts my/Panel.qml                                # must pass before Mark looks
+$H/try.sh --selftest charts my/Panel.qml                                # must pass before the Design Lead looks
 /opt/homebrew/bin/python3 $H/assemble_review.py --src /mnt/swingdata/scratch/typeset-harness/out \
     --dest <dir> --title "Charts — round 1" --tags r1_a,r1_b,r1_c
 ```
@@ -396,7 +396,7 @@ $H/try.sh --selftest charts my/Panel.qml                                # must p
   - print: `<tag>_print-<orient>_<aesthetic>_<light|dark>_p<N>.png`.
 - **Time:** about 40–90 s per run. Two lanes can run at once, because the guard allows two apps.
 
-**For Mark,** each try-out is a one-line script in `build/run-me/`. The diagnostics one,
+**For the Design Lead,** each try-out is a one-line script in `build/run-me/`. The diagnostics one,
 `build/run-me/try-diag-registers.sh`, calls `try.sh diagnostics` on the round-3 `Panel.qml`. Name new
 ones `try-<panel>-typeset.sh`.
 
@@ -465,7 +465,7 @@ Still open from that plan:
   - The harness now re-finds the body after every switch and re-attaches.
   - In panel code, never hold a body across a switch. State that must survive the switch lives on
     the controller. That is why Replay's door into depth opens the detail before it switches mode.
-- **A try-out wrapper must bind the view, not only the data.** Mark's first try-out showed little
+- **A try-out wrapper must bind the view, not only the data.** The Design Lead's first try-out showed little
   change, and the design was not the cause. The wrapper had three faults:
   - it fed `readout`, `cards` and the rest, but never told the new panel which tab was selected, so
     only This shot ever showed;
@@ -477,7 +477,7 @@ Still open from that plan:
 - **Verify by driving every tab and mode, not by attaching once.** One clean attach proves nothing
   about the second tab, the other mode, or opening and closing a detail.
   - The try-out now runs a self-test of every tab, both modes, and opening and closing a detail.
-    It must pass before Mark is asked to look.
+    It must pass before the Design Lead is asked to look.
   - Reproduce with `--probe-qml` before claiming anything is fixed.
 - **Height is a resource too.** The renders at 1680 × 1050 looked right. In Mark's 2560 × 1560
   window, a list split into two columns with 900 px empty below it. That became rule 12.
@@ -529,7 +529,7 @@ What could not be seen offscreen:
    774 × 553 (55 em, compact) and third 511 × 553 (36 em, narrow).
 2. **The card tone spends colour on chrome** (rule 7). `PpModeStage._defs` gives Wrist motion and
    Session diagnostics the warn tone, so the Wrist card's title is orange on a 100/100 swing.
-   **Decided (Mark, 11 October) and implemented in this build:** both entries in `_defs` take the
+   **Decided (Design Lead, 11 October) and implemented in this build:** both entries in `_defs` take the
    quiet role, so every card title is `colorText3`, and colour comes only from content.
 3. **In Vector, orange is the selection colour everywhere:**
    - selected segments, the playhead and P7 line, the whole Transit track;
@@ -750,7 +750,7 @@ by default. Audited from source.
 
 | Step | What | Effort | Why this order |
 |---|---|---|---|
-| 0 | **Foundations**, landing with the diagnostics build: roles into Theme (type roles, em size classes, ink roles); every stage card's tone quiet (**decided by Mark on 11 October, and done in this build**: `sessionDiagnostics` and `wristMotion` become quiet in `PpModeStage._defs`); a Vector selection style that is not orange; one quiet selection control (Tabs) for capsules and chip clouds; `sizeClass(width)` in place of panel px thresholds | S | every later step depends on them, and they alone fix stage-wide facts 2–4 |
+| 0 | **Foundations**, landing with the diagnostics build: roles into Theme (type roles, em size classes, ink roles); every stage card's tone quiet (**decided by the Design Lead on 11 October, and done in this build**: `sessionDiagnostics` and `wristMotion` become quiet in `PpModeStage._defs`); a Vector selection style that is not orange; one quiet selection control (Tabs) for capsules and chip clouds; `sizeClass(width)` in place of panel px thresholds | S | every later step depends on them, and they alone fix stage-wide facts 2–4 |
 | 1 | Charts | L | on by default in both registers; its grammar breaks at every width; its figures are below the fold |
 | 2 | Wrist motion | M | the Wrist screen's own read; its colour contradicts its verdict; the diagnostics blocks already exist |
 | 3 | Carousel and timeline | M | on screen in every mode; 15 identical alarms; the home of the shared shot Brush |

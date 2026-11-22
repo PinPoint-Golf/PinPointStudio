@@ -1,6 +1,6 @@
 # 05 · Deferred worklist: the technical and platform layer
 
-**Status:** 14 Nov 2026, at HEAD `3b0ead97`. Updated the same day with Mark's decisions: the triage approved as
+**Status:** 14 Nov 2026, at HEAD `3b0ead97`. Updated the same day with the Product Owner's decisions: the triage approved as
 proposed (its platform-shaped items and the three it could not place are added here); the later review of capture is
 called **the platform refactor (capture)**; a new step 8 in 04.
 
@@ -25,7 +25,7 @@ held here only so they are not lost.
 | 1 | Pick one group (one section below). Don't mix groups in one plan. |
 | 2 | Re-check it against the tree. Run `ctest -R '^architecture_lint_test$'` and `grep '# unplanned' src/Gui/tests/architecture_allowlist.txt`. |
 | 3 | Read the row's evidence: the allowlist line, the design section, the notes file. |
-| 4 | Propose a plan to Mark, with the ownership section (03 §14a). Any information-model change (a new owner, file, identity key, event, or anything created by a view) and any design-system change needs his approval **before** it is built. Both rules are in `CLAUDE.md`. |
+| 4 | Propose a plan to the Product Owner, with the ownership section (03 §14a). Any information-model change (a new owner, file, identity key, event, or anything created by a view) and any design-system change needs the Solution Architect's or the Design Lead's approval **before** it is built. Both rules are in `CLAUDE.md`. |
 | 5 | Until the freeze ends (04 §1), nothing here is built unless it is in the plan. |
 | 6 | When a row is done, delete it here in the same commit, and lower or delete its allowlist line. |
 
@@ -36,7 +36,7 @@ held here only so they are not lost.
   - **platform refactor (capture)**: the capture part of 04's "Later · the platform refactor": transports, devices,
     the ring buffer, connectors, calibration and Studio/Rig;
   - **platform refactor**: the rest of the technical/platform-layer refactor that follows this one;
-  - **later decision**: Mark has to decide what it should be first.
+  - **later decision**: the Product Owner has to decide what it should be first.
 
 ---
 
@@ -57,7 +57,7 @@ internals as they are.
 | `Gui/shot/shot_controller.cpp` (A1 ×2), `shot_controller.h` (A1 ×1) | The shot trigger, an Application service, listens to the devices and the ring itself | L30–31 | Application keeps depending on Adapters | platform refactor (capture) |
 | The capture half of `ShotProcessor` (`Gui/shot/shot_processor.cpp` A1 ×16, `.h` A1 ×4) | Tagged `# step 1`. Step 1 moves the analysis-job half out (the store, athlete and session includes) and the lines shrink; what remains is re-tagged[^d8]: the device and ring includes (`camera_*`, `imu_*`, `hm_instance`, `device_enumerator`, ring payload sources) → `# unplanned`, the platform refactor (capture); the carousel → step 3; the session folder → step 2 | L20–21; G3-REVIEW-2 item B; 04 §1 "done"; step 1 brief §4.10, D8 | Application keeps device includes until the platform refactor (capture) | step 1 (re-tag), then platform refactor (capture) |
 | E-09, the capture half (High) | Step 1 closes "the parity half of E-09" only | 04 step 1 Closes | `ShotProcessor`'s capture, carousel rows and replay player stay mixed | platform refactor (capture) |
-| A-13 (Med): camera roles defined in the GUI, passed down as magic ints (the triage offered this home or step 1, and step 1's brief does not claim A-13; for Mark)[^lead14nov] | A device identity that analysis consumes. Step 1's Recording carries one perspective mapping, so analysis stops reading magic ints (step 1 brief §4.1); where the roles are defined, and device identity itself, is capture's | finding A-13; 03 §0.1 | Roles stay a Gui enum | platform refactor (capture) |
+| A-13 (Med): camera roles defined in the GUI, passed down as magic ints (the triage offered this home or step 1, and step 1's brief does not claim A-13; for the Product Owner)[^lead14nov] | A device identity that analysis consumes. Step 1's Recording carries one perspective mapping, so analysis stops reading magic ints (step 1 brief §4.1); where the roles are defined, and device identity itself, is capture's | finding A-13; 03 §0.1 | Roles stay a Gui enum | platform refactor (capture) |
 | `Pose/motion_capture_probe.h` (A6 ×1)[^triage4] | The hardware probe behind the "Motion capture quality" setting: platform and execution-provider code that happens to live in `src/Pose`, not pose analysis | L136; the file's header | Its QVariant contract is documented only in comments (D-10) | platform refactor (capture) |
 | `Gui/cameras/buffer_controller.h` (A6 ×1), `camera_instance.h` (A6 ×2), `camera_manager.h` (A6 ×2) | The QML API of a device or capture object; no step types it | L108–110 | QVariantMap contracts documented only in comments (D-10) | platform refactor (capture) |
 | `Gui/imu/imu_instance.h` (A6 ×2), `imu_manager.h` (A6 ×3), `trunk_ceremony_recorder.h` (A6 ×2) | As above | L112–114 | As above | platform refactor (capture) |
@@ -118,26 +118,26 @@ These objects are not presenters, so step 5's typed presenters don't reach them,
 | Bugs found during the refactor | `build/refactor/TO-FILE.md`, filed as GitHub issues at session end |
 | New ideas held by the freeze | GitHub issues labelled for after the refactor (for example "See more" on Your swing and Coaching, in #182) |
 
-## Decisions waiting for Mark
+## Decisions waiting for the Product Owner
 
 | Decision | Options and context | Source | When |
 |---|---|---|---|
 | The 23 platform-layer `# unplanned` allowlist lines (sections 1 and 2: 4 A1 and 19 A6, the motion-capture probe among them; `model_browser.h`, the pack and corridor editor, moved to step 3 as core scope)[^lead-mb] | For each line: fold it into a step, plan it separately, or re-tag it `# kept` | G3-NOTES §5; G3-REVIEW-3 | before the platform refactor |
 | The lint-scope calls the lead took in Step G | A6 on every header, not only presenters (and, since the follow-up, slots and signals too); A7 on the Vocabulary and Rules rings only. The `# unplanned` and `# kept` tags themselves | G3-NOTES §2, §4–5 | any time |
 | The pre-commit hook | On or off | 03 §14, decision 3 | any time |
-| G-05 (High): the per-shot "score" is the wrist resemblance, a red "0" on every non-wrist card | **Not platform**: a design proposal (decision 8 defers it), and its UI half is a design-system change, which needs Mark's approval before it is built. Nearest fit: step 4, which already changes what a card shows | triage §1 "Could not place" | when a design proposal is made |
-| D-20 (Low): the cast window hand-draws its Pin button | **Not platform**: a design-system fix (CLAUDE.md: no hand-drawn controls). Nearest fit: step 4 (the cast), with Mark's design-system approval | triage §1 "Could not place" | any time, with approval |
+| G-05 (High): the per-shot "score" is the wrist resemblance, a red "0" on every non-wrist card | **Not platform**: a design proposal (decision 8 defers it), and its UI half is a design-system change, which needs the Design Lead's approval before it is built. Nearest fit: step 4, which already changes what a card shows | triage §1 "Could not place" | when a design proposal is made |
+| D-20 (Low): the cast window hand-draws its Pin button | **Not platform**: a design-system fix (CLAUDE.md: no hand-drawn controls). Nearest fit: step 4 (the cast), with the Design Lead's design-system approval | triage §1 "Could not place" | any time, with approval |
 | E-16 (Low): `PpModeStage` hand-draws its tab strip while `PpTabs` exists | **Not platform**: a design-system fix, as D-20. Nearest fit: step 4 (the mode) | triage §1 "Could not place" | any time, with approval |
 
 ## Notes
 
-[^m14nov]: Mark, 14 Nov 2026.
-[^m14nov-rule]: Mark's rule, 14 Nov 2026.
-[^m14nov-triage]: The triage (`build/refactor/TRIAGE-PROPOSALS.md`), approved by Mark, 14 Nov 2026.
-[^dec193]: IM DEC-193; Mark, 21 Nov 2026.
-[^d8]: Step 1 brief D8; Mark, 14 Nov 2026.
+[^m14nov]: Product Owner, 14 Nov 2026.
+[^m14nov-rule]: The Product Owner's rule, 14 Nov 2026.
+[^m14nov-triage]: The triage (`build/refactor/TRIAGE-PROPOSALS.md`), approved by the Product Owner, 14 Nov 2026.
+[^dec193]: IM DEC-193; Solution Architect, 21 Nov 2026.
+[^d8]: Step 1 brief D8; Solution Architect, 14 Nov 2026.
 [^lead14nov]: The lead's call, 14 Nov 2026.
-[^triage4]: Triage §4; Mark, 14 Nov 2026.
-[^m15nov-p11]: Mark, 15 Nov 2026: `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint".
+[^triage4]: Triage §4; Product Owner, 14 Nov 2026.
+[^m15nov-p11]: Solution Architect, 15 Nov 2026: `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint".
 [^dec146]: DEC-146.
 [^lead-mb]: The lead's call.

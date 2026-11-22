@@ -705,7 +705,7 @@ applies these two keys and nothing else. The frozen fields were validated *toget
 nudged up from the pure best-window value for 3σ-gate robustness on fast joints — and a sweep that
 moved one of them alone would break that balance silently.
 
-**Promotion is phase 4.3 and it is Mark's decision, not a sweep's.** The gate is a corpus
+**Promotion is phase 4.3 and it is the Product Owner's decision, not a sweep's.** The gate is a corpus
 before/after **with a control run** (pose is non-deterministic: ~20 metrics differ at 1e-14 between
 identical runs, so a diff without a control attributes nothing), judged on residual jitter of the hip
 series, the amplitude of the P1→P4 sway excursion (it must not shrink beyond the control's spread) and

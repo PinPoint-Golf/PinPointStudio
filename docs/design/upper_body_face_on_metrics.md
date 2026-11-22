@@ -174,7 +174,7 @@ signal; the fault reads the lead elbow's fold after impact (next subsection).
 
 ### `leadArmFlexion` from the face-on camera: the lead elbow, gated on its two segments (13 November 2026)
 
-Mark, 13 Nov: chicken wing "should be visible immediately between impact and 100 ms after (before
+Coaching Lead, 13 Nov: chicken wing "should be visible immediately between impact and 100 ms after (before
 P8) … and crucially it should be easily visible from the face-on camera. There is no reason to need
 3-D for this one." The coach's chicken wing is the lead elbow folding through and after impact with the
 elbow jutting out, so the reading is the elbow's own angle, not the arm against the torso.

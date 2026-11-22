@@ -2,7 +2,7 @@
 
 **Re-audited 31 Oct 2026 at `9ac19450`** (first audit 19 Oct at `8f5225a8`; 80 commits to `src/Gui` since). Sources: four read-only re-check reports, one per cluster, which re-counted every original finding on both trees with one method and then read the code added since — [A interactive primitives](findings/2026-10-31-A-interactive-primitives.md), [B containers & scaffolding](findings/2026-10-31-B-containers-scaffolding.md), [C charts & data-viz](findings/2026-10-31-C-charts-dataviz.md), [D screens & flows](findings/2026-10-31-D-screens-flows.md) — plus the regenerated scripted evidence in [data/duplicate-evidence.md](data/duplicate-evidence.md). The 19 Oct reports ([A](findings/A-interactive-primitives.md), [B](findings/B-containers-scaffolding.md), [C](findings/C-charts-dataviz.md), [D](findings/D-screens-flows.md)) hold the original file:line detail and proposed APIs; the 31 Oct reports hold the current locations. Finding IDs (`A1`, `B3`…) point into them; IDs above the old ranges (A20–A24, B26–B34, C23–C36, D16–D24) are new.
 
-**Nothing here has been changed in the repo, and no finding was run in the app.** Visual-difference and drift claims are read from code, not rendered. Anything that changes how something looks needs Mark's eye before it is unified.
+**Nothing here has been changed in the repo, and no finding was run in the app.** Visual-difference and drift claims are read from code, not rendered. Anything that changes how something looks needs the Design Lead's eye before it is unified.
 
 ## Headline
 
@@ -31,7 +31,7 @@ cards' chrome, the shown-session `sessionDir` expression ×3. Existing bugs foun
 
 ## Status after the 1 Nov collapse run (uncommitted at the time of writing)
 
-Mark reversed the hold on the look-bearing items: collapse them all **in today's look**, so each control exists once and the
+The Design Lead reversed the hold on the look-bearing items: collapse them all **in today's look**, so each control exists once and the
 typeset restyle ([#131](https://github.com/PinPoint-Golf/PinPointStudio/issues/131)) is one file per control. Six groups, each
 implemented, independently reviewed and shown on a before/after sheet (`build/run-me/gui-dedupe2/REVIEW.md`, `sheets/`):
 
@@ -96,7 +96,7 @@ Status key: **WORSE** = more copies than 19 Oct · STILL · PARTLY · FIXED/MOOT
 - **C24 (new):** the Posture, Wrist and Delivery shot sections (and their Session twins) repeat the same ≈30-line shell: 8-line preamble, `seekTo`, fold head and folded height, `sets` builder, trust fold. **Every future Charts section will copy it again.** → `PpChSection`.
 - **C10:** view preamble 5 → 8; **C12:** value→pixel maps 19 → **27**; **C7:** run charts 2 → **3** (C28). C9, B15, B17 unchanged.
 
-### 5. The old `review/` chart stack — *C1, C2, C8, C4* — PARTLY  ⚠ Mark's call
+### 5. The old `review/` chart stack — *C1, C2, C8, C4* — PARTLY  ⚠ the Design Lead's call
 722cf3c2 deleted `PpReplayCharts` and `PpSequenceStrip` (C8 moot). Still dead: `MetricLibrary`, `MetricDetail`, `MetricRow`, `NormativeBar` (≈1,316 lines) and `PpGateNote`, all still in `cmake/PinPointQmlModule.cmake`. `PpMetricChart` (1,521) is still mounted only at `PpCameraTiles.qml:367` (compact) — the commit says it stays as the short replay graph. C4 (two curve painters) unchanged.
 
 ### 6. `ScreenResourceMonitor.qml` copy-paste of itself — *D2* — STILL
@@ -216,7 +216,7 @@ Built since 19 Oct; reuses `PpChBoxCell`, `PpChScatter`, `PpChRunBox`, `PpChPost
 | `AthleteController` | `bagClubIds`, `greetingDefault`, `normaliseReportEmails`, `validDob` | bag sort ×4; form rules | D7, D23 |
 | `AppSettings` | `homeView(uuid)` / `setHomeView` | the two read-modify-writes | D20 |
 
-### 18c. Merge only after a decision from Mark (look, behaviour, or product)
+### 18c. Merge only after a decision from the Design Lead (look, behaviour, or product)
 
 | Candidate | Why it needs a decision | Finding |
 |---|---|---|
@@ -320,7 +320,7 @@ Built since 19 Oct; reuses `PpChBoxCell`, `PpChScatter`, `PpChRunBox`, `PpChPost
 | `trust/PpGateNote.qml` | 74 | C13 | still unreferenced |
 | `media/FilmPage.qml` | 597 | D11 | still dead; `filmController` still built in `main.cpp` |
 | `home/PpcpGuidedPairDialog.qml` | 377 | D11 | parked on purpose |
-| `review/PpMetricChart` + `PpChartSummary`, `PpSegmentBrush`, `PpChartPlot` | ≈2,600 | C2 | production-reachable only as the compact plot in `PpCameraTiles`; Mark's call |
+| `review/PpMetricChart` + `PpChartSummary`, `PpSegmentBrush`, `PpChartPlot` | ≈2,600 | C2 | production-reachable only as the compact plot in `PpCameraTiles`; the Design Lead's call |
 | ~~`review/PpReplayCharts.qml`, `review/PpSequenceStrip.qml`~~ | — | C1, C8 | deleted 722cf3c2 |
 | ~~`session/ScreenSessionMode.qml`, `shell/ScreenPlaceholder.qml`~~ | — | B18, B20 | deleted 785f1c2f, ab1f795e |
 | ~~`diagnostics/PpDiagPrint.qml`, `print/PpPdfPrinter.qml`~~ | — | overview | now reached from the app (print path) |
@@ -329,7 +329,7 @@ Built since 19 Oct; reuses `PpChBoxCell`, `PpChScatter`, `PpChRunBox`, `PpChPost
 
 ## Suggested order for fixing (31 Oct)
 
-1. **Cheap, high-certainty collapses (S each):** `Main.qml` → `PpConfirm` (A20); `bytesWords`/`plural` → one helper each (B26/B27, after Mark picks SI or binary); `faultFor`/`HmFaultRow` (D19); `CheckTrunkPage` onto `SetupStepIntro` + shared readings box and link (D16); `PpTextArea` (A23); promote `MenuLine` (A22); promote StudioPanel's `SettingRow`/`RowTitle` (B28); `PpLink` disabled state (A21); `PpScopedAction` (A5); `fin`/`withPlane` helpers (C35); delete the dead `HmGoesTogether` helpers (D6).
+1. **Cheap, high-certainty collapses (S each):** `Main.qml` → `PpConfirm` (A20); `bytesWords`/`plural` → one helper each (B26/B27, after the Design Lead picks SI or binary); `faultFor`/`HmFaultRow` (D19); `CheckTrunkPage` onto `SetupStepIntro` + shared readings box and link (D16); `PpTextArea` (A23); promote `MenuLine` (A22); promote StudioPanel's `SettingRow`/`RowTitle` (B28); `PpLink` disabled state (A21); `PpScopedAction` (A5); `fin`/`withPlane` helpers (C35); delete the dead `HmGoesTogether` helpers (D6).
 2. **Fix the drifted rules (decisions first):** shot shape (C32), unit joining and "at impact" (C33/C34), trunk heading → C++ (D17), `file://` encoding (D22), capability-row colours (D21), session-action reasons (B29), updater wording (D5), Witmotion 15°/25° → C++ constants (D18).
 3. **The three-way copies before a fourth arrives:** `CalibrationRoutineBase` (D3) and the status column (D4); `PpChSection` + `PpChPositionProfile` + `PpChPictureStrip` + `PpChFindingsLedger` (C23–C26) — before the next Charts section is built.
 4. **Highest line count:** `SettingsPanelBase` then adopt `SettingsRow` across the panels (B1/B2, ≈1,600 lines); `PpSwitch` (A1); the monitor's in-file clean-up (D2).

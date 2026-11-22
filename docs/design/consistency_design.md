@@ -2,8 +2,8 @@
 
 Status: BUILT 6 Nov 2026; **retrofitted to the variability marks 7 Nov 2026** (variability marks, Session 5): the cells,
 the headline, the opened rows, the stand-outs and Home now take the design system's grades, and the old verdicts, the stored
-Home tables and the tally are retired (§10). The grade rules are `docs/design/system/variability.md`; Mark's rulings R1–R19
-are `docs/design/variability-mark/decisions.md` §2. Where a section below still describes the 6 Nov build, it says so. Mark's brief (6 Nov): "for each area, e.g. setup, posture there are curves where there is a clear
+Home tables and the tally are retired (§10). The grade rules are `docs/design/system/variability.md`; the Design Lead's rulings R1–R19
+are `docs/design/variability-mark/decisions.md` §2. Where a section below still describes the 6 Nov build, it says so. The Product Owner's brief (6 Nov): "for each area, e.g. setup, posture there are curves where there is a clear
 and consistent pattern at each phase of the swing … there are also some where there is a lot of movement and
 inconsistency from one swing to the next … let the non-statistical expert golfer [see] where their patterns look
 consistent … and where there is variance … where does your swing keep falling out of the same pattern. Secondly, when
@@ -36,7 +36,7 @@ first, then the club, then the swing. A shot the launch monitor reads as short o
 
 ## 1. What we already have
 
-Most of this exists, in pieces, and that was the risk Mark named. The gap is an overview, and a way in from the ball.
+Most of this exists, in pieces, and that was the risk the Product Owner named. The gap is an overview, and a way in from the ball.
 This table is the app as it stood on 6 Nov; §5 says what changed in Charts.
 
 | Question | Already in the app | What it lacks |
@@ -168,7 +168,7 @@ P8's confidence is 0.30 on about 60 % of shots on four of these, under the warp'
 time at all. Aligned on P8, those sessions would have no P7–P8 column and Finish would be blank. Confidence does not
 separate the modes either: among shots at 0.35 or over, the split is 10 and 1 on 5 Oct, 8 and 6 on 7 Oct, 6 and 7 on 8 Oct.
 
-Hence the rule (§4.1; Mark, 6 Nov): P7–P8 is a fixed 100 ms after impact on every shot of every session
+Hence the rule (§4.1; Coaching Lead, 6 Nov): P7–P8 is a fixed 100 ms after impact on every shot of every session
 (`kConsistencyAfterImpactMs`). A length of the session's own would not do: the median of marks 40 to 200 ms after impact ran 84
 to 122 ms across sessions, so no two sessions read the same window. Where P8 lands is #24.
 
@@ -179,7 +179,7 @@ alignment anchor, so it can slightly affect P6–P7 on that shot.
 ### 2.7 All golfers
 
 Five golfers, 23 sessions, 285 shots, tallied with `--min-shots 7`, which judges 15 sessions. The thresholds are unchanged.
-Mark kept them on 6 Nov, as first guesses. Share of a golfer's cells:
+The Coaching Lead kept them on 6 Nov, as first guesses. Share of a golfer's cells:
 
 | Golfer | Sessions judged | Shots | Steady | Some | Loose | ⚠ | "-" |
 |---|---|---|---|---|---|---|---|
@@ -341,7 +341,7 @@ Only readings that reached the table count, in a column their area applies to. *
 row carries this shot's typicality badge (Your usual, A little off, Unusual) against the session's other shots of the same
 club, at least 8, a guarded shot left out of a reading on its P-ladder; with fewer, none. A ball row never has one (R4). The
 typicality is mean and SD while the stand-out test is the robust z, so a stood-out row can still read "Your usual" (open for
-Mark, decisions.md). **A stand-out row shows the sample tested:**
+the Design Lead, decisions.md). **A stand-out row shows the sample tested:**
 the value at that weakest point, with the median and box of the other shots there, so value less median is exactly what was
 judged. A span's row carries no fired mark, because a condition grades an instant. An opened cell's rows are different:
 each shows the middle of its span against every shot.
@@ -386,7 +386,7 @@ with the same 8, so a long carry is a row though only a short one is a flag.
 
 Descriptive only: PPS does not model intent, so a shot deliberately aimed elsewhere can read offline. With carry and no
 offline (Premier), it flags short only and the tab says so. With no launch monitor, nothing is flagged and every shot
-can still be picked. Mark, 6 Nov: LM data for now, "we can fix it later". `review.rating` exists on every swing as a
+can still be picked. Coaching Lead, 6 Nov: LM data for now, "we can fix it later". `review.rating` exists on every swing as a
 possible later route; two of the 204 shots carry one.
 
 ### 4.5 The house rules that apply
@@ -410,7 +410,7 @@ changes what Charts shows on existing sessions; its tests and `goldens_0704.json
 
 ## 6. Design-system changes
 
-Mark approved these as one package on 6 Nov (§8), and the `PpChProfile` change, the last row, with his rulings that day.
+The Design Lead approved these as one package on 6 Nov (§8), and the `PpChProfile` change, the last row, with his rulings that day.
 Nothing else was changed.
 
 | Change | As built | Screens |
@@ -432,7 +432,7 @@ Why one hue: it says how much, not good or bad. Red and green would say a steady
 not `colorWarn`, which means a fault. A picked cell takes an outline, because the wash has taken over its old highlight.
 
 **The ◆ is ink, not warn.** The mock drew it in warn red. Rule 7 keeps warn for "outside its corridor". A shot leaving its own
-pattern is not that, and the amendment covers the wash and nothing else. So the build sets it in ink. Mark, 6 Nov: ink.
+pattern is not that, and the amendment covers the wash and nothing else. So the build sets it in ink. Design Lead, 6 Nov: ink.
 
 **The plain-word ⚠ reaches rows through their existing caution.** A guarded shot's readings carry "⚠ the timing of this
 swing's positions looks unusual" in the row's own `caution` and `cautionText`, added to any caution already there. No new row
@@ -458,32 +458,32 @@ a print one on the Folio aesthetic. No line was added to `design_system_allowlis
 
 | # | Decision | State |
 |---|---|---|
-| 1 | Roll up the existing maths; no second engine | Mark, 6 Nov ("this is excellent") |
-| 2 | Both the session and Home | Mark, 6 Nov |
-| 3 | Bad shots come from launch-monitor data for now | Mark, 6 Nov |
-| 4 | Extend `PpChMatrix`, not a new component | Mark, 6 Nov ("this looks good") |
-| 5 | Words: steady, some, loose | Mark, 6 Nov. **Superseded 7 Nov:** the Consistency vocabulary (R1, R11) |
-| 6 | The one-hue wash, and the exception to the wash rule | Mark, 6 Nov: approved, with #8 and #9 as one package (§6) |
-| 7 | The tab sits in Session diagnostics, is called Consistency and comes before Watching | Mark, 6 Nov ("move the consistency tab to before Watching") |
-| 8 | P7–P8 lighter, and out of the headline and Home except Finish | Mark, 6 Nov: approved in that package |
-| 9 | Narrow panels use marks on the wash | Mark, 6 Nov: approved in that package. **Superseded 7 Nov:** the grade's figure, ⚠ and "-" |
-| 10 | The Home column's width comes from the Habits bar | Mark, 6 Nov: Habits gives the width. The mock took it from Biggest fault, which cut off two names in Folio |
-| 11 | The 28 hand-placed readings (Appendix B) | Mark, 6 Nov: accepted as written, to be read on the sheets. `leadArmToTorso` added 13 Nov (D5) in Arms: **CONFIRMED by Mark, 13 Nov 2026** (plane stack D6) |
-| 12 | Charts' Apart moves to the stricter rule (§5) | Mark, 6 Nov: Apart moves |
-| 13 | Print | Mark, 6 Nov: a client report page only; the technical appendix (`PpDiagPrint`) is unchanged |
-| 14 | The ◆ | Mark, 6 Nov: ink (§6) |
-| 15 | P7–P8's length | Mark, 6 Nov: a fixed 100 ms after impact, every shot of every session (§2.6) |
-| 16 | The thresholds, with all golfers read | Mark, 6 Nov: kept, as first guesses (§2.7). **Superseded 7 Nov:** the grader's bands and `kNMin` |
-| 17 | A `PpChProfile` row with nothing to open | Mark, 6 Nov: approved, an arrow cursor and no click (§6) |
-| 18 | The size of the committed `session_1005.json` | Mark, 6 Nov: accepted at 4.2 MB |
-| 19 | The no-camera headline | Mark, 6 Nov: "This session has no camera shots, so only launch monitor readings can be judged." |
+| 1 | Roll up the existing maths; no second engine | Solution Architect, 6 Nov ("this is excellent") |
+| 2 | Both the session and Home | Product Owner, 6 Nov |
+| 3 | Bad shots come from launch-monitor data for now | Coaching Lead, 6 Nov |
+| 4 | Extend `PpChMatrix`, not a new component | Design Lead, 6 Nov ("this looks good") |
+| 5 | Words: steady, some, loose | Coaching Lead, 6 Nov. **Superseded 7 Nov:** the Consistency vocabulary (R1, R11) |
+| 6 | The one-hue wash, and the exception to the wash rule | Design Lead, 6 Nov: approved, with #8 and #9 as one package (§6) |
+| 7 | The tab sits in Session diagnostics, is called Consistency and comes before Watching | Design Lead, 6 Nov ("move the consistency tab to before Watching") |
+| 8 | P7–P8 lighter, and out of the headline and Home except Finish | Design Lead, 6 Nov: approved in that package |
+| 9 | Narrow panels use marks on the wash | Design Lead, 6 Nov: approved in that package. **Superseded 7 Nov:** the grade's figure, ⚠ and "-" |
+| 10 | The Home column's width comes from the Habits bar | Design Lead, 6 Nov: Habits gives the width. The mock took it from Biggest fault, which cut off two names in Folio |
+| 11 | The 28 hand-placed readings (Appendix B) | Coaching Lead, 6 Nov: accepted as written, to be read on the sheets. `leadArmToTorso` added 13 Nov (D5) in Arms: **CONFIRMED by the Coaching Lead, 13 Nov 2026** (plane stack D6) |
+| 12 | Charts' Apart moves to the stricter rule (§5) | Coaching Lead, 6 Nov: Apart moves |
+| 13 | Print | Product Owner, 6 Nov: a client report page only; the technical appendix (`PpDiagPrint`) is unchanged |
+| 14 | The ◆ | Design Lead, 6 Nov: ink (§6) |
+| 15 | P7–P8's length | Coaching Lead, 6 Nov: a fixed 100 ms after impact, every shot of every session (§2.6) |
+| 16 | The thresholds, with all golfers read | Coaching Lead, 6 Nov: kept, as first guesses (§2.7). **Superseded 7 Nov:** the grader's bands and `kNMin` |
+| 17 | A `PpChProfile` row with nothing to open | Design Lead, 6 Nov: approved, an arrow cursor and no click (§6) |
+| 18 | The size of the committed `session_1005.json` | Product Owner, 6 Nov: accepted at 4.2 MB |
+| 19 | The no-camera headline | Coaching Lead, 6 Nov: "This session has no camera shots, so only launch monitor readings can be judged." |
 
 
 ---
 
 ## 9. What shipped
 
-All of it is in the working tree, uncommitted. Commits come after Mark has judged the sheets.
+All of it is in the working tree, uncommitted. Commits come after the Product Owner has judged the sheets.
 
 1. **The maths.** `src/Gui/charts/session_consistency.{h,cpp}`, in two layers: sampling (snapshot to readings) and rules
    (readings to cells, stand-outs, flags). `src/Gui/charts/consistency_env.{h,cpp}` is the one place those reach the shipped
@@ -493,7 +493,7 @@ All of it is in the working tree, uncommitted. Commits come after Mark has judge
    `swing_areas_pack.h` places the rest. Five rules in `gate_catalogue_rules.h` and `gate_words.json`.
 2. **The check.** `consistency_extract.py` (extract v2) and `consistency_trim_fixture.py` (cuts the committed
    `session_1005.json`) stay. `consistency_dump.cpp`, `consistency_tally.py`, `consistency_make_goldens.sh` and
-   `goldens_home_consistency.json` were retired on 7 Nov; `goldens_1005_consistency.json` is frozen (replaced once, with Mark's approval, for the swing areas regroup on 8 Nov: `swing_areas_regroup.md`), and only its readings,
+   `goldens_home_consistency.json` were retired on 7 Nov; `goldens_1005_consistency.json` is frozen (replaced once, with the Product Owner's approval, for the swing areas regroup on 8 Nov: `swing_areas_regroup.md`), and only its readings,
    stand-outs, flags and shuffle figures are still read.
 3. **The shared rule.** Charts' Apart moved to the stand-out rule (§5): `charts_relations_presenter.{h,cpp}`,
    `PpChartsShotView.qml`, with `ConsistencyReadingRows` as the row builder both surfaces share.
@@ -527,7 +527,7 @@ reproduces both goldens byte for byte. Before the rulings: Relations pixel-ident
 dark; 4 July, 5 Oct); a real catch-up on a copy, 6 sessions and 152 shots in 29 s of jobs, worst GUI gap 358 ms, Home's words
 equal to the tally's; all golfers read (§2.7).
 
-**Done means, still to come:** the cells the rulings moved re-shown to Mark; a windowed run; then the commits, and #66's
+**Done means, still to come:** the cells the rulings moved re-shown to the Product Owner; a windowed run; then the commits, and #66's
 cleanest vs worst item closed as replaced.
 
 ---
@@ -571,7 +571,7 @@ once this design is accepted, as the CSVs hold what the doc quotes.
 ## Appendix B: readings placed by hand
 
 A reading's area normally comes from the conditions that detect on it, taking the group that uses it most (50 of the 82
-readings on 5 Oct). These 29 have no such condition. Mark accepted the first 28 as written on 6 Nov, to be read on the
+readings on 5 Oct). These 29 have no such condition. The Coaching Lead accepted the first 28 as written on 6 Nov, to be read on the
 sheets; `leadArmToTorso` joined on 13 Nov 2026 (plane stack D5, below the table):
 
 | Area | Readings |
@@ -587,7 +587,7 @@ sheets; `leadArmToTorso` joined on 13 Nov 2026 (plane stack D5, below the table)
 
 `leadArmToTorso` (the lead upper arm against the torso, the change P7 to P8) was placed in Arms by `chicken_wing`
 until 13 Nov 2026, when that condition moved to the lead elbow's fold after impact (`plane_stack_design.md` §11 D5). It is
-still read and shown beside the fold, so it keeps the area it had rather than leaving the Consistency table. **Mark
+still read and shown beside the fold, so it keeps the area it had rather than leaving the Consistency table. **The Coaching Lead
 confirmed it on 13 Nov 2026** (decision 11; `plane_stack_design.md` §11 D6).
 
 `spineSideBend` is not on this list: two conditions detect on it, both in Posture, so it derives Posture. It stays in Posture

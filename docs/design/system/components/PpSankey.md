@@ -2,7 +2,7 @@
 
 A Sankey: things flowing left to right through three columns of nodes, each flow a ribbon as thick as its count, the nodes named and counted, a legend under it, and the ribbons examined in place.
 
-Source: `src/Gui/components/PpSankey.qml`. Added 10 Nov 2026 for the tendency flow, on screen and in the report ([tendencies_flow_design.md](../../tendencies_flow_design.md)); approved by Mark as a new component.
+Source: `src/Gui/components/PpSankey.qml`. Added 10 Nov 2026 for the tendency flow, on screen and in the report ([tendencies_flow_design.md](../../tendencies_flow_design.md)); approved by the Design Lead as a new component.
 
 ## When to use
 Where shots (or anything counted) pass through a fixed sequence of categories and the question is where they go: the tendency flow on Home's Tendencies tab (strike → direction → flight, `HmTendencyFlow`). Not for a share of one category (use `PpBandBar`) or a value over time (a chart).
@@ -38,7 +38,7 @@ Ribbons: the link's `tone` at its `strength`, a `colorSurface` edge of 0.6 px be
 ## States
 - **Examined node** (pointer or keyboard focus): every ribbon in its `through` lit, the rest at 25 % of their strength. Every other node's label says how many of the examined node's shots pass through it and what share (its `withSub`, "2 · 67%"), in `colorText`; a node none reach dims to 35 % with its label. The examined node keeps its own count.
 - **Examined ribbon** (pointer; where ribbons overlap, the one drawn last): it alone lit; the node labels say its shots the same way (its `bySub`).
-- **Nothing is laid over the plot** while examining (Mark, 10 Nov 2026: readouts on the ribbons covered the plot). The counts move into the labels already there; under `compactWidth` the subs come back while examining.
+- **Nothing is laid over the plot** while examining (Design Lead, 10 Nov 2026: readouts on the ribbons covered the plot). The counts move into the labels already there; under `compactWidth` the subs come back while examining.
 - **Data change:** the plot fades in over `Theme.durationNormal` (0 under reduced motion). Geometry never animates.
 - Colour is never the only channel: every node is named and counted, the legend names each tone with its count.
 

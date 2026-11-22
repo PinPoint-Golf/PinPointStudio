@@ -1,10 +1,10 @@
 # Trust stage 6: every per-swing gate recorded (plan, 16 October 2026)
 
-Stage 6 of `trust_and_gates_design.md`, done as one pass instead of one session per area (Mark, 16 Oct). The
+Stage 6 of `trust_and_gates_design.md`, done as one pass instead of one session per area (Product Owner, 16 Oct). The
 audit of the census (`docs/research/data/gates/census_20261016.md`) against today's code drives the plan.
 Session 1 is **record everything**; session 2 is **show it everywhere** (a gated "-" says the gate's words).
 
-## Decisions (Mark, 16 Oct)
+## Decisions (Solution Architect, 16 Oct)
 
 - A gate that acts on stretches of samples many times per swing leaves **one summary record per reading**
   (effect `masked`, evidence: fraction of the reading's frames and the stretch). Filters that only widen σ
@@ -14,7 +14,7 @@ Session 1 is **record everything**; session 2 is **show it everywhere** (a gated
   code site, no per-swing record).
 - The launch monitor import **keeps a list of the fields it dropped** from now on; analysis turns it into
   records. Older swings stay unexplained (the values were never kept).
-- The code is **pushed once green locally**, so the studio can re-analyse the library; Mark judges the per-area
+- The code is **pushed once green locally**, so the studio can re-analyse the library; the Product Owner judges the per-area
   firing table afterwards.
 
 ## Decision rules (applied without asking)
@@ -56,7 +56,7 @@ Session 1 is **record everything**; session 2 is **show it everywhere** (a gated
 
 Gate catalogue test both ways (records and rules); a unit case per area on a fixture; the two test sessions
 (18 Aug Wrist_02, 4 Jul Wrist_01) re-analysed locally and read with the trust readings; then the library on
-the studio and a per-area firing table (gate × shots fired / shots) for Mark.
+the studio and a per-area firing table (gate × shots fired / shots) for the Product Owner.
 
 ## Conventions for the producers (what every area follows)
 
@@ -95,7 +95,7 @@ parallel executor, spliced in stage order); the whole-swing records (capture hol
 the manifest on every write (`manifest_gates.h`); the launch monitor's from the stored drop list
 (`lm_gates.h`); a HackMotion lane that would not bind, from the loader. Masks share one "Partly drawn" line in
 the trust summary and stay out of the closed fold's words. Test sessions: 4 Jul Wrist_01 (15 shots) and
-18 Aug Wrist_02 (6) re-analysed; library sweep on the studio next, its firing table for Mark.
+18 Aug Wrist_02 (6) re-analysed; library sweep on the studio next, its firing table for the Product Owner.
 
 ## Session 2: show it everywhere (conventions)
 

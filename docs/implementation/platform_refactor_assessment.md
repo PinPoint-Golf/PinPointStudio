@@ -28,8 +28,8 @@ Adapters); this page uses the names, not numbers. "The lint" is `architecture_li
 
 Two hard rules apply to everything below (`CLAUDE.md`):
 
-- **Any information-model change needs Mark's approval before it is built** (IM §1.2, C1–C11).
-- **Any design-system change needs Mark's approval before it is built**: a new component, a new variant, a changed
+- **Any information-model change needs the Solution Architect's approval before it is built** (IM §1.2, C1–C11).
+- **Any design-system change needs the Design Lead's approval before it is built**: a new component, a new variant, a changed
   look or behaviour, a new or changed Theme token.
 
 Each is marked "(proposed, for Mark)" where it appears, and each stage lists its own. Every stage brief carries both
@@ -50,10 +50,10 @@ rules and the IM §10 ownership section, as 04 §1 does for the current refactor
 | Amending R-CON-5 to allow a helper for long-lived hardware and media threads | IMC C11 | E |
 | Narrowing lint A6 back to P9's wording | IMC (a change to a lint rule's scope)[^dec120] | E, any time |
 | PPCP's files: retiring FILE-LIB-05, a PPCP repository, FILE-SHOT-11's owner | IMC C1, C3, C4 | F |
-| The pairing key (`ppcp/pairings`, SET-09): any change of store | IMC C3; a question for Mark only, citing E56/E57 | none proposed |
+| The pairing key (`ppcp/pairings`, SET-09): any change of store | IMC C3; a question for the Solution Architect only, citing E56/E57 | none proposed |
 | #105: a "not ready" state on a sensor's device card (`PpDeviceCard`) | design system | A |
 | Notification coalescing (#79) in `PpNotificationHost`, `PpNotificationCard`, `PpToast` | design system | F |
-| #53's coverage rule in `recording_integrity` / `capture_integrity_check` (Rules ring) | a rule change; an IMC if the integrity verdict is a recorded product (IM §7.2): for Mark | A |
+| #53's coverage rule in `recording_integrity` / `capture_integrity_check` (Rules ring) | a rule change; an IMC if the integrity verdict is a recorded product (IM §7.2): for the Solution Architect | A |
 | #183: recording gain, compensation, black level and gamma per stream per swing | IMC C3 (a field family in the swing file) | A |
 
 ---
@@ -87,7 +87,7 @@ What this assessment adds to 05:
 05 already splits the work into "platform refactor (capture)", "platform refactor", "(settings)" and "(build)"
 (05 "Conventions", §1–§3), and its first step is "Pick one group … Don't mix groups in one plan" (05 "How to use it").
 This page agrees, and proposes that capture (Stages C, D and F) runs as its own plan, with its hardware testing on the
-cabin PC, apart from the build and settings work (Stages B and E) (proposed, for Mark).
+cabin PC, apart from the build and settings work (Stages B and E) (proposed, for the Product Owner).
 
 The size of each group, measured as above:
 
@@ -166,10 +166,10 @@ spanning directories are split. Its estimate is made in its brief (Stage B).
 
 P9 forbids "a new `QVariantMap`/`QVariantList` in a presenter's or domain type's public API" (IM §3), and A6 is
 written the same way (IM §1.4). In step G the lead widened A6 to every header (and, since the follow-up, slots and
-signals), and that call is waiting for Mark (05 "Decisions waiting": "The lint-scope calls … A6 on every header, not
+signals), and that call is waiting for the Solution Architect (05 "Decisions waiting": "The lint-scope calls … A6 on every header, not
 only presenters").
 
-**Recommendation.** Ask Mark to narrow A6 back to P9's wording (proposed, for Mark; a lint-scope change is an IMC[^dec120]). That one decision settles most of 05 §2's A6 lines, instead of re-tagging them `# kept` one at a time. The
+**Recommendation.** Ask the Solution Architect to narrow A6 back to P9's wording (proposed, for the Solution Architect; a lint-scope change is an IMC[^dec120]). That one decision settles most of 05 §2's A6 lines, instead of re-tagging them `# kept` one at a time. The
 lines it would take out of A6's scope are settings, monitoring and tool objects, which are not presenters or domain
 types: `app_settings.h` ×26, `markup_controller.h` ×11, `profiler_controller.h` ×8, `resource_monitor_controller.h`
 ×4, `swing_zip_exporter.h` ×2, `app_info.h` ×1, `llm_controller.h` ×1, `transcription_controller.h` ×1,
@@ -177,7 +177,7 @@ types: `app_settings.h` ×26, `markup_controller.h` ×11, `profiler_controller.h
 
 Whatever the ruling, the shapes that carry rig and capture facts are worth typing, because they will hold domain facts
 once the Rig exists: the camera and IMU device objects, the trunk ceremony recorder and the buffer controller (Stages
-C and D), the PPCP host service (Stage F), and the rig keys inside `AppSettings` (Stage C) (proposed, for Mark).
+C and D), the PPCP host service (Stage F), and the rig keys inside `AppSettings` (Stage C) (proposed, for the Solution Architect).
 Appendix A places every line.
 
 ### Premise 5: PPCP is in 05; June's concurrency, secrets and execution-provider items are not
@@ -231,7 +231,7 @@ The project's rule is that a bug needs an observed failure. So each item is eith
 | `ppDebug()` (`src/Core/pp_debug.h:59`) | a dangling-`else` bug | The hazard is real: `if (false) PpLogStream(…)` captures a following `else`. A scan for `if (…) ppDebug() …; else` found no such site. Latent, not observed | Harden the macro | A (after the freeze) |
 | Gemini key in the URL (`src/LLM/GeminiLlmEngine.cpp:66–70`) | key in the query string; default model id broken | The key in the URL is confirmed. No evidence is given that the default model id (`GeminiLlmEngine.h:44`) is broken | Move the key to a request header; check the model id before changing it | E |
 | API keys in plaintext settings (`src/Secrets/SecretsManager.cpp:37–50`, seeding at `:60–84`) | Azure, Gemini and AssemblyAI keys in the settings file | Shown: `secrets/*` through `ppSettings()`, with a compile-time AssemblyAI default and environment overrides | Move the API keys to a keychain-backed store (Stage E) | E |
-| The PPCP pairing root key | June did not raise it; the first draft of this page did | It is stored in settings through `ppSettings()` on purpose, "NOT `src/Secrets/SecretsManager`", and the reasons are recorded at `src/Ppcp/ppcp_pairing_store.cpp:19–70` (libppcp errata E56 and E57, commit `1616016d`): in the keychain, Windows and Linux could persist no pairing at all, and macOS prompted on every relink. The cost, a key readable by anything running as the user, was "judged and accepted" | Leave it where it is. A change is only a question for Mark, citing E56/E57 (§9, Q7) | none |
+| The PPCP pairing root key | June did not raise it; the first draft of this page did | It is stored in settings through `ppSettings()` on purpose, "NOT `src/Secrets/SecretsManager`", and the reasons are recorded at `src/Ppcp/ppcp_pairing_store.cpp:19–70` (libppcp errata E56 and E57, commit `1616016d`): in the keychain, Windows and Linux could persist no pairing at all, and macOS prompted on every relink. The cost, a key readable by anything running as the user, was "judged and accepted" | Leave it where it is. A change is only a question for the Solution Architect, citing E56/E57 (§9, Q7) | none |
 | The PPCP statics in `main.cpp` | exit-crash bugs | The crash was observed on 23 Aug and **is fixed**: `aboutToQuit` stops the host and drops the borrowed ledger while everything is alive (`src/Gui/main.cpp:1568–1595`, "Stopping here fixes it at the root"). What remains is design debt: three function-local statics whose order of destruction matters | Own them in the composition root (Stage E) | E |
 | The pose warm-up at exit (`main.cpp:136–157`) | — | A quit during the warm-up ends the process early, on purpose. The Windows path is "NOT TESTED" (`main.cpp:153–157`) | Test a quit during the warm-up on the cabin PC before Stage E changes teardown | E |
 
@@ -250,25 +250,25 @@ Two facts apply to every stage:
   teardown, threading or devices is tested on the cabin PC, not only on the Mac.
 
 Estimates are made in each stage's brief. What limits the pace is what 04 §4 names: builds on one machine, the hours a
-GOLFSIMPC re-run takes, review rounds and Mark's testing; and here, the cabin PC with real cameras, IMUs and phones.
+GOLFSIMPC re-run takes, review rounds and the Product Owner's testing; and here, the cabin PC with real cameras, IMUs and phones.
 
 ### Stage A · Bug fixes
 
 04 §1 says "Bug fixes go to Stage 0 or to the step that owns the area". So the observed bugs below can go now, inside
-the current refactor, if Mark agrees (§9, Q4). The rest are refactors or unobserved, and wait for the freeze to end.
+the current refactor, if the Product Owner agrees (§9, Q4). The rest are refactors or unobserved, and wait for the freeze to end.
 
 **Now (observed on hardware or in the code):**
 - **#184**: the swing-detection sensitivity subtitle says the opposite of what the setting does (`GeneralPanel.qml:222`,
   `SettingsIndex.qml:71`). Wording only.
 - **#105**: a Witmotion can connect without its vertical-install setting, and nothing notices (`src/IMU/`). Log the
   read-back with `ppInfo`/`ppWarn`, retry the write, and show the sensor as not ready. Showing "not ready" on the
-  device card is a design-system change (`PpDeviceCard`) (proposed, for Mark).
+  device card is a design-system change (`PpDeviceCard`) (proposed, for the Design Lead).
 - **#183**: the cameras pick their own brightness target. The issue's own first step comes before any change: compare
   the camera's settings after Swing Catalyst opens it and after PinPoint does, with the bay lit and a bag standing in.
   Then take control of exposure compensation on connect (`src/Video/spinnaker_settings.cpp:190`,
   `applyConnectSettings`). The issue says the 2 Nov darkness "has two causes mixed together" (one bay light was on),
   so the fix is not claimed to explain all of it. Recording gain, compensation, black level and gamma per stream per
-  swing is a field family in the swing file: an IMC (C3) (proposed, for Mark), and a `swing_json_schema.md` change.
+  swing is a field family in the swing file: an IMC (C3) (proposed, for the Solution Architect), and a `swing_json_schema.md` change.
 - **#53, the detection half**: a swing whose video starts after impact passes the capture check. Add a coverage check
   in `recording_integrity` / `capture_integrity_check` (Rules ring). The capture cause is unknown (the issue says
   "perhaps because …"); finding it is Stage D's.
@@ -276,14 +276,14 @@ the current refactor, if Mark agrees (§9, Q4). The rest are refactors or unobse
 **After the freeze:**
 - The `fetch_add`, the `BleAdapterPool` check, the `ppDebug()` macro, and the MediaPipe image (§4).
 - The pose back-ends' execution-provider cascade, shared by the three estimators and the segmenter (proposed, for
-  Mark: §9, Q10, because it changes segmentation output).
+  the Solution Architect: §9, Q10, because it changes segmentation output).
 
 | | |
 |---|---|
 | Closes | #184, #105, #183 (its settings half), #53 (its detection half); June's `source_published_`, `ppDebug()`, MediaPipe and segmenter rows |
 | Deletes | the three copies of the execution-provider cascade; the debug image write |
 | Test | #105 and #183 on the cabin PC's sensors and cameras; #53 against a swing known to start after impact; `ctest` for the touched targets |
-| Re-run | the segmenter's GPU path: a stage-version bump, a library re-run on GOLFSIMPC with a dry-run first, and a control run, because pose runs are non-deterministic. #53's coverage rule: Mark decides whether existing swings are re-graded |
+| Re-run | the segmenter's GPU path: a stage-version bump, a library re-run on GOLFSIMPC with a dry-run first, and a control run, because pose runs are non-deterministic. #53's coverage rule: the Product Owner decides whether existing swings are re-graded |
 | Docs | `docs/design/flir_camera_settings.md` and `docs/reference/swing_json_schema.md` (#183) |
 
 **Ownership.** #183's new per-stream fields: source facts of the Recording (shot level), written once by capture
@@ -296,27 +296,27 @@ R-REC-2, RING-RULES.
 
 After step 7, and after the spanning directories it touches are split (Premise 3). Its measurements are redone then.
 
-- **Ring libraries** (proposed, for Mark): one static library per ring, starting with Platform, then Vocabulary,
+- **Ring libraries** (proposed, for the Solution Architect): one static library per ring, starting with Platform, then Vocabulary,
   Rules (B-14 is the Diagnostics part of it), Domain model and the stores. Each links only inward; its include
   directories are `PRIVATE`. The 411 quoted includes that rely on the global paths are rewritten as each library is
   cut.
-- **`Core` holds only the Platform ring** (proposed, for Mark; IMC C9), in `src/Core/` or a new `src/Platform/`.
+- **`Core` holds only the Platform ring** (proposed, for the Solution Architect; IMC C9), in `src/Core/` or a new `src/Platform/`.
   `kf3_smoother.h` moves to a Rules directory (it is already Rules by IM's RING-RULES); `pp_tuned_constants.h` and the
   other Vocabulary files of `Core` move with the Vocabulary library. The studio profile's directory is §9 Q11; the device
   enumerator moves with Stage D, because it is capture work.
 - **Tests link libraries** instead of hand-listing sources.
 - **#187**: one test-isolation helper for every suite (`QStandardPaths::setTestModeEnabled` or a temporary
   directory), in place of `XDG_DATA_HOME`, which Qt ignores on macOS.
-- **#90**: the stale `session_setup_ui` and `qml_ui` suites. UI tests are run only when Mark asks, so greening
+- **#90**: the stale `session_setup_ui` and `qml_ui` suites. UI tests are run only when the Product Owner asks, so greening
   `qml_ui` needs his say-so.
 - **Tools**: `swinglab_run --doc-blocks` exits non-zero when its document write fails; `parity_baseline.py
   --self-test` works with other arguments (05 §3). Both need a build or a tools change, which this stage has.
 - **The per-release re-run of the audit tools** (05 §3, 03 §14b) gets an owner: the release runbooks (proposed, for
-  Mark).
+  the Product Owner).
 
 | | |
 |---|---|
-| Closes | B-14; 05 §3's tool rows; #187; #90's suites (with Mark's say-so) |
+| Closes | B-14; 05 §3's tool rows; #187; #90's suites (with the Product Owner's say-so) |
 | Deletes | the hand-listed source lists in test targets; the header-only workarounds such as `atomic_write.h`'s |
 | Test | a clean build and the full `ctest` on the Mac and on the cabin PC (Microsoft's compiler, MSVC, links static libraries differently) |
 | Re-run | none to analysis expected; the parity run must show 0 differences |
@@ -328,14 +328,14 @@ directory, and the RING-* rows that name `Core`). Ids: RING-PLATFORM, RING-VOCAB
 ### Stage C · The Rig and calibration
 
 The first stage of the capture plan. The IM correction of Premise 2 is made[^dec193]; the Rig's design is an IMC
-(C1, C3, C4, C5, C7, C8) for Mark before anything is built.
+(C1, C3, C4, C5, C7, C8) for the Solution Architect before anything is built.
 
 Where rig facts live today (IM §2.3): settings SET-09 (`camera/*`, `imu/*`, `ppcp/studioName`, `ppcp/pairings`);
 SET-05 (`analysis/clubLenPrior`, learned rig state per machine[^dec153]); the trunk ceremony FILE-SESS-11; and
 assumptions in code ("fixed cameras are square", the uncalibrated down-the-line yaw σ, `pp_tuned_constants.h`). 3,978
 lines of calibration QML run state machines, quaternion maths and pass/fail thresholds.
 
-What to design (all proposed, for Mark):
+What to design (all proposed, for the Solution Architect):
 - **OBJ-RIG with an identity, a versioned snapshot and one writer**, persisted per machine, in the library, or as a
   copy embedded in each Recording (§9, Q2). For N cameras and sensors (#180, #74, #178).
 - **A rig reference in each Recording.** Today only IM prose reserves it; the code says "There is no rig reference
@@ -374,18 +374,18 @@ After Stage C, so the capture service writes rig references from the start.
 
 - **The frozen window stops being a view onto the ring.** `swing_window.h` and `swing_payload_source.h` (Vocabulary
   ring) include `source_ring.h` (Adapters) for `SourceRing::ReadHandle`. A value type for the handle, in the
-  Vocabulary ring, closes their two A1 lines (proposed, for Mark).
+  Vocabulary ring, closes their two A1 lines (proposed, for the Solution Architect).
 - **Split `ShotProcessor`** (2,153 + 503 lines; 17 A1 findings). Its five jobs today: post-roll and late-source
   gathering over the event buffer and the device managers; the export and the frozen window; session and shot
   bookkeeping; starting the analysis; live replay. IM puts the capture service in the Application ring (IM §4:
   "services that run work: capture, …"; RING-APPLICATION lists `shot_processor`), and says the capture services'
-  device half leaves in this refactor (IM §4.1). So (proposed, for Mark; IMC C9): the capture service stays in
+  device half leaves in this refactor (IM §4.1). So (proposed, for the Solution Architect; IMC C9): the capture service stays in
   Application, and its device half moves to an Adapters-ring collaborator behind an interface the inner ring
   defines. That removes the device and ring includes behind the A1 lines.
 - **The shot is allocated by `Session::addShot`** (allocate, then create through
   `RecordingRepository::create`, then capture writes)[^dec142], not by the capture service. The capture service binds the
   target session when the shot is triggered, so a shot in flight when End is pressed lands in that session (#188).
-  Whether `addShot` is called at the freeze rather than after the export is a change of timing (C8) for Mark (§9,
+  Whether `addShot` is called at the freeze rather than after the export is a change of timing (C8) for the Solution Architect (§9,
   Q8). #188 itself has not been re-checked since step 3.4a-ii (the issue says so); check it first.
 - **Late launch-monitor readings arrive through `Shot::completeCapture` only** (R-REC-2, EVT-22). #192 was found in
   step 3.4b-ii's probe; ask the lead whether step 3 or 4 closes it before planning it here.
@@ -393,12 +393,12 @@ After Stage C, so the capture service writes rig references from the start.
 - **`ShotController`** (640 + 346 lines; 3 A1 findings) takes narrow interfaces instead of the event buffer and the
   session controller; one arbiter for all phones (#78: "today two phones make two shots in two sessions from one
   ball"); the shot source becomes an explicit persisted type instead of an enum whose order matters
-  (`Source::Acoustic == 4`) (proposed, for Mark; IMC C3/C9).
+  (`Source::Acoustic == 4`) (proposed, for the Solution Architect; IMC C3/C9).
 - **`CameraInstance`** (2,186 lines, up from 1,721 in June) gives its pipeline construction and its ball-presence
   monitor to collaborators, as June proposed; `CameraManager` (1,052) and `ImuManager` (1,041) share their
   device-selection and producer mechanics.
 - **The device enumerator** moves out of `Core` into an Adapters capture directory, and its `Device` struct, which
-  couples Video, IMU and Bluetooth types, is split (proposed, for Mark; IMC C9).
+  couples Video, IMU and Bluetooth types, is split (proposed, for the Solution Architect; IMC C9).
 - **The motion-capture probe** (`Pose/motion_capture_probe.*`): its A1 line (it includes `SessionController`) and its
   A6 line go with the probe's move out of `src/Pose` and an injected "is a session running" question. #86's items
   (it benchmarks a different pose format; opening Settings runs it) are fixed with it.
@@ -418,24 +418,24 @@ R-REC-2, EVT-01, EVT-22, DEC-142, A-13, E-09.
 
 ### Stage E · App host, settings, threading and secrets
 
-The second half of the non-capture plan (05 §2 and §4's settings-fallback row; proposed, for Mark, as one plan,
+The second half of the non-capture plan (05 §2 and §4's settings-fallback row; proposed, for the Product Owner, as one plan,
 because they are one change: inject the settings object from `app_settings.h`, and delete each local fallback). The
 composition root and the updater's injection can start any time after Stage B. The settings split waits for Stages C
 and D: 20 of the 24 `AppSettings fallback` declarations are in `camera_manager.cpp` (11) and `imu_manager.cpp` (9),
 which Stage D edits, and the rig keys leave `AppSettings` in Stage C. The alternative is to delete each manager's
-fallbacks in Stage D, as that file is edited (for Mark).
+fallbacks in Stage D, as that file is edited (for the Product Owner).
 
-- **The composition root** (proposed, for Mark; IMC C9). One owning object for what `main.cpp` builds today (1,662
+- **The composition root** (proposed, for the Solution Architect; IMC C9). One owning object for what `main.cpp` builds today (1,662
   lines, 43 `setContextProperty` calls), with members declared in the order they must be torn down, and no
   function-local static services (the three PPCP statics, §4). It cannot sit in `src/App`, which is the Application
   ring (RING-APPLICATION): a composition root includes adapters, so lint A1 would fail. It stays beside `main.cpp`,
-  which is `# kept (composition root)` in the allowlist, unless Mark gives it a ring of its own. The probe harnesses
+  which is `# kept (composition root)` in the allowlist, unless the Solution Architect gives it a ring of its own. The probe harnesses
   (`PINPOINT_PROBE_*`) move to their own file.
 - **The updater** takes an injected "is a session running" question and its one setting, which deletes its A1 lines
   (`Update/linux_appimage_backend.cpp` ×1, `mac_sparkle_update.mm`, `update_controller.cpp`, `win_sparkle_update.cpp`
   ×2 each).
 - **`AppSettings`** (1,958-line header, 163-line `.cpp`): implementations out of the header; split into groups
-  backed by one injected settings object (proposed, for Mark); no stack-local `AppSettings fallback;`. Today the
+  backed by one injected settings object (proposed, for the Solution Architect); no stack-local `AppSettings fallback;`. Today the
   fallback idiom has 24 declarations in production code (grep `AppSettings +\w*[fF]allback`, tests excluded, gives 27 hits;
   three are comments: `app_settings.cpp:58`, `imu_manager.cpp:616`, `stt_processor.h:49`). Its setters write `ppSettings()` directly (for example `app_settings.h:1024–1030`), so a
   write through a fallback persists; what is lost is the live object's cached value and its change signal. Where a
@@ -454,17 +454,17 @@ fallbacks in Stage D, as that file is edited (for Mark).
     and `TrunkCeremonyRecorder` on the global `QThreadPool` (`trunk_ceremony_recorder.cpp:424`). These are pool work
     by R-CON-5 as it stands, so moving them is making code match the IM, not a change to it.
   - **The proposal: amend R-CON-5 to allow one helper for long-lived hardware and media threads** (proposed, for
-    Mark; IMC C11). R-CON-5 says "One threading idiom … Never: a new pool, thread or idiom" (IM §9.1). The real-time
+    the Solution Architect; IMC C11). R-CON-5 says "One threading idiom … Never: a new pool, thread or idiom" (IM §9.1). The real-time
     capture loops (§3) are the case for the amendment: they cannot run on the pool, so today each owner hand-writes
     the same start, drain and `quit()`/`wait()` teardown. One tested helper would replace those copies. The
     alternative is to keep one idiom and name the capture threads as exceptions (§9, Q9).
 - **Secrets**: move `SecretsManager`'s API keys (Azure TTS and STT, Gemini, AssemblyAI) to a keychain-backed store
-  generalised from `mail_credentials_*`, into `src/Secrets/` (proposed, for Mark); drop the compile-time AssemblyAI
+  generalised from `mail_credentials_*`, into `src/Secrets/` (proposed, for the Solution Architect); drop the compile-time AssemblyAI
   default (`SecretsManager.cpp:64–70`); move the Gemini key to a header. The pairing key is not in this item (§4).
   #89's "no keychain prompt on a signed upgrade" check applies.
 - **Media duplication**: the cloud-fallback pair (`applyCloudFallbackPref`, `refreshCloudAvailability`) appears in
   the TTS, transcription and LLM controllers; one shared piece. `STTBackendAssemblyAI` (296 lines) is built but
-  referenced by nothing outside its own files: delete it, or wire it (for Mark).
+  referenced by nothing outside its own files: delete it, or wire it (for the Product Owner).
 - **#193** (the app's own trash always): new behaviour, held by the freeze, and it overlaps step 3's housekeeping
   (SET-14)[^dec80]. Ask after step 3 (§9, Q6).
 
@@ -486,14 +486,14 @@ The last stage of the capture plan, after Stage E's composition root, which take
 - **PPCP's files** (all "design: the platform refactor (capture)" in IM §8.1): the import ledger FILE-LIB-03, the
   imported clips FILE-LIB-04, the legacy ledger FILE-LIB-05, and the annotations FILE-SHOT-11. Retire FILE-LIB-05 once
   it is shown unused, or migrate it once; one repository for the ledger; decide whether FILE-SHOT-11 joins the
-  `Shot` (as FILE-SHOT-12 did[^dec187]) or is a peer cache (all proposed, for Mark; IMC C1, C3, C4).
+  `Shot` (as FILE-SHOT-12 did[^dec187]) or is a peer cache (all proposed, for the Solution Architect; IMC C1, C3, C4).
 - **`PpcpHostService`** (3,709 + 1,191 lines) splits into the headless engine it already builds on (`makeHostEngine`,
   `src/Ppcp/ppcp_host_peer.cpp:558`) and a typed presenter for QML (its A6 ×6).
 - **#78 and #79's defects**: a disabled camera still gets a preview; the wired preview channel drops about every 50
   s; a cabled phone connects twice; MP4 timestamps not rebased; the misleading "still processing the previous shot"
   message (`shot_controller.cpp:577`). The shared arbiter is Stage D's.
 - **Notification coalescing** (#79: "one unmounted share once produced 10 identical toasts"): a change to how
-  `PpNotificationHost`, `PpNotificationCard` and `PpToast` behave, a design-system change (proposed, for Mark).
+  `PpNotificationHost`, `PpNotificationCard` and `PpToast` behave, a design-system change (proposed, for the Design Lead).
 
 | | |
 |---|---|
@@ -517,16 +517,16 @@ The last stage of the capture plan, after Stage E's composition root, which take
 | Rewriting the ring buffer's internals | Leave them | §3 |
 | Forcing real-time capture loops onto the pool | Do not | §3; Stage E |
 | Rewriting the STT and TTS workers' parallelism | Leave it | Their payloads differ (the June review) |
-| Moving the pairing key into a keychain | Do not, unless Mark reopens E56/E57 | §4 |
+| Moving the pairing key into a keychain | Do not, unless the Solution Architect reopens E56/E57 | §4 |
 | Hardening the lint's A1 blind spots now | Wait for Stage B; then decide whether the A1 rows stay or go (§9, Q12) | Libraries cover A1 only for single-ring directories; A2, A4, A5 and A7's limits are not affected by libraries and stay as 05 §3's rows |
-| A machine-readable IM (Q-20) | Reconsider, rather than defer indefinitely | The first draft said "unless doc drift becomes a recurring real failure". The review found drift in 05 (counts, line numbers), in IM (FILE-APP-06, since corrected by DEC-193; EXT-10; `post_shot_trace` missing from RING-PLATFORM) and in the first draft of this page. That is the failure the condition names (for Mark) |
+| A machine-readable IM (Q-20) | Reconsider, rather than defer indefinitely | The first draft said "unless doc drift becomes a recurring real failure". The review found drift in 05 (counts, line numbers), in IM (FILE-APP-06, since corrected by DEC-193; EXT-10; `post_shot_trace` missing from RING-PLATFORM) and in the first draft of this page. That is the failure the condition names (for the Solution Architect) |
 
 ---
 
 ## 7. Order
 
 ```
-Stage A (now: observed bugs, under 04 §1, if Mark agrees)
+Stage A (now: observed bugs, under 04 §1, if the Product Owner agrees)
    │
    ▼  the current refactor's steps 3–8; the freeze ends
 Stage A (the rest)          Stage B · build libraries and the Core split (after step 7)
@@ -562,7 +562,7 @@ Stage A (the rest)          Stage B · build libraries and the Core split (after
 | #188 a shot in flight at End goes to a stray folder | open; not re-checked since step 3.4a-ii (the issue); the dashboard says it "belongs with step 1" | D, after a re-check |
 | #192 a live row's launch-monitor device flips until End | open; found in step 3.4b-ii's probe | ask the lead first; else D |
 | #187 `model_browser_test` writes to the real macOS app data | open | B |
-| #90 tests, corpus and library upkeep | open | B (the stale suites, with Mark's say-so) |
+| #90 tests, corpus and library upkeep | open | B (the stale suites, with the Product Owner's say-so) |
 | #31 3-D views go blank after a while | open; "The root cause is not known … Hiding is a strong lead but not a proven cause" | its own track, until a cause is found; no stage owns it |
 | #78, #79 phone capture | open programmes; their listed defects | D (the arbiter), F (the rest, and coalescing) |
 | #85 devices and session setup | open programme; "Calibrate mag" and "Save to flash" have no engine function | C |
@@ -575,7 +575,7 @@ The other open bugs are analysis, tracker, diagnostics or UI issues outside the 
 
 ---
 
-## 9. Open questions for Mark
+## 9. Open questions for the Solution Architect
 
 Answered: the first draft's Q1, "correct IM's Studio/Rig entry now?", is answered by DEC-193 (Premise 2)[^dec193]. Its number is kept free so the other questions keep theirs.
 
@@ -605,7 +605,7 @@ Added:
     directory does it move to, with Stage B's `Core` split?
 12. **After Stage B**: keep the lint's A1 limits as 05 rows or retire them; and the pre-commit hook (05 "Decisions
     waiting") and the per-release audit re-run (05 §3)?
-13. **Windows testing**: which cabin-PC tests does each stage need? This page names them per stage; Mark sets the bar.
+13. **Windows testing**: which cabin-PC tests does each stage need? This page names them per stage; the Product Owner sets the bar.
 14. **Q-20**: given the drift the review found, plan the machine-readable IM after all (§6)?
 
 ---
@@ -650,7 +650,7 @@ Added:
 | §3 `swinglab_run --doc-blocks` exit code | Stage B |
 | §3 `parity_baseline.py --self-test` | Stage B |
 | §3 the per-release re-run of the audit tools | Stage B (an owner), §9 Q12 |
-| §3 the pre-commit hook | §9 Q12 (Mark's decision) |
+| §3 the pre-commit hook | §9 Q12 (the Solution Architect's decision) |
 | §3 B-14 | Stage B |
 | §4 the settings-fallback idiom | Stage E |
 | §4 the device key | Stage C |
@@ -677,11 +677,11 @@ Added:
 
 ## Notes
 
-[^dec193]: DEC-193: approved by Mark, 21 Nov 2026; applied in IM v1.9.12.
+[^dec193]: DEC-193: approved by the Solution Architect, 21 Nov 2026; applied in IM v1.9.12.
 [^dec142]: DEC-142.
 [^dec120]: DEC-120.
-[^m21nov]: Mark, 21 Nov 2026.
-[^m15nov]: Mark's decision of 15 Nov 2026.
+[^m21nov]: Solution Architect, 21 Nov 2026.
+[^m15nov]: The Solution Architect's decision of 15 Nov 2026.
 [^dec153]: DEC-153.
 [^dec80]: DEC-80.
 [^dec187]: DEC-187.

@@ -101,7 +101,7 @@ negative cases are untested is a validator that passes everything.
 The characteristics (§8), cause library (§8b), edges (§8c).
 
 Author in the repo as reviewable JSON; generate the Qt resource from it at build time (brief §13
-recommendation — do this unless Mark says otherwise, since it is the only shape that lets community
+recommendation — do this unless the Solution Architect says otherwise, since it is the only shape that lets community
 contributions arrive as pull requests).
 
 The three content questions that gated this phase are **now answered** (brief revision 3): C-posture,
@@ -222,7 +222,7 @@ edit-test loops build only the diagnostics test target; do the full app build on
 | **`core.json` authored with the graph inverted.** §8c reads effect-first; `Edge` is cause-first. | Structural orientation assertion in `core_pack_test` (Phase 3 gate). The coverage assertion cannot catch this. |
 | **Duplicate measures proliferate.** The failure mode that makes the library worthless within a month. | Series-level structural identity, "did you mean" at creation, usage counts on every picker row, blast radius before editing. |
 | **The engine drifts into the analysis path.** Scope creep with a plausible-sounding justification. | No call site outside tests. If someone needs it live, that is a separate change with its own review. |
-| **Phase 3 blocks on Mark's §13 answers.** | Ask before Phase 3 starts, not during. Phases 1–2 do not depend on them. |
+| **Phase 3 blocks on the Product Owner's §13 answers.** | Ask before Phase 3 starts, not during. Phases 1–2 do not depend on them. |
 | **Seeded content is uncitable and quietly badged `active`.** | Every direction inferred rather than sourced lands at tier `proposed` and the UI badges it. Do not launder it with a loosely-related citation. |
 
 ---
@@ -296,7 +296,7 @@ swing. The two hand-synced copies still exist.
 
 ### Phases 6–8 notes
 
-- The panel is labelled **Diagnostics** (Mark's call); the folder and class names stay
+- The panel is labelled **Diagnostics** (the Design Lead's call); the folder and class names stay
   `Characteristic*`, which names the object rather than the panel's purpose.
 - **The roadmap ranks by series, not by reduced measure.** The first implementation ranked reduced
   measures, so pelvis lateral sway appeared three times at "unblocks 1" instead of once at

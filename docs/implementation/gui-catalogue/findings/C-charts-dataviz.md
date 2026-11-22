@@ -25,7 +25,7 @@ Paths are relative to `src/Gui/` unless a full path is given.
 - **What is duplicated:** The metric directory and detail screen were replaced by the Diagnostic Model panel. `settings/ScreenSettings.qml:90-95 showMetricDetail()` now routes to `diagnosticModelPanel.showMetric(key)`, not to MetricLibrary. `review/MetricRoute.qml` is a live singleton and the receiving side in `shell/Main.qml:747` is wired. The four-file chain is ~1,316 lines that nothing mounts. The three identical `_typeName(t)` switches that `duplicates.json` reports (`review/MetricDetail.qml:53`, `review/MetricRow.qml:46`, `review/MetricLibrary.qml:73`) are copies inside this dead chain, so deleting it removes that duplicate hit entirely. `PpReplayCharts` is superseded by `charts/PpChartsPanel` (hosted by `session/ScreenSessionMode.qml:141` and `session/ScreenWrist.qml:151`), per the stage typeset audit that lists "Charts (`review/PpReplayCharts.qml` → `PpMetricChart.qml`)" as the surface to replace.
 - **Shared component/module it should fold into:** Delete the chain. Keep `MetricRoute.qml` (live). `NormativeBar`'s domain maths already lives in C++ (`review/chart_metrics.h:465`, `Coaching/dashboard_reductions.h`), so nothing is lost.
 - **Effort / risk:** S. Check that the test CMake lists do not reference them (`session_setup_lint_test` and others grep QML paths) and that `PP_QML_FILES` is edited together.
-- **Confidence:** high for MetricLibrary, MetricRow, MetricDetail, NormativeBar and PpReplayCharts. Medium that Mark has no plan to revive the Metric Library (the `MetricRoute` header says "CURRENTLY NO PRODUCER" but keeps the receiving side "for the next surface").
+- **Confidence:** high for MetricLibrary, MetricRow, MetricDetail, NormativeBar and PpReplayCharts. Medium that the Product Owner has no plan to revive the Metric Library (the `MetricRoute` header says "CURRENTLY NO PRODUCER" but keeps the receiving side "for the next surface").
 
 ### C2. The review/ chart stack is, in production, only a compact plot inside the camera tiles
 - **Verdict:** DEAD / SUPERSEDED (largely) and PARALLEL IMPLEMENTATION (of the Charts panel)
@@ -43,7 +43,7 @@ Paths are relative to `src/Gui/` unless a full path is given.
   - Then drop PpChartSummary, PpSegmentBrush, PpSequenceStrip and the full-mode half of PpMetricChart, roughly 1,364 lines plus about 1,000 in PpMetricChart. They are only reachable by probes today.
   - If the full-mode screen is meant to return, say so, because the chart stack is then two live parallel implementations (C4, C8 to C10).
 - **Effort / risk:** M to L. Seven probes and tests pin it, and PpChartPlot's honesty contracts (`tst_chart_presets`, `metric_presentation_honesty`) would need to move to PpChPlot or be re-pinned.
-- **Confidence:** high on the reachability facts. Medium on the recommendation, which is Mark's call.
+- **Confidence:** high on the reachability facts. Medium on the recommendation, which is the Product Owner's call.
 
 ### C3. The measured / mean / nearest-sample predicates are re-written in four QML files, with a C++ reference implementation beside them
 - **Verdict:** TRUE DUPLICATE

@@ -282,7 +282,7 @@ Inside each file the code is careful. The pure session maths is tested, threadin
   - One `canonicalSwingDir()` used by C++ and exposed to QML.
   - Read settings through `AppSettings`.
   - Compute the content stamp from the pack and norms without a model.
-  - Whether D4 should also match colour names, and whether the fallbacks should become `Theme` tokens, is a design-system decision for Mark, not a fix to apply here.
+  - Whether D4 should also match colour names, and whether the fallbacks should become `Theme` tokens, is a design-system decision for the Design Lead, not a fix to apply here.
   - A `pp_charts` static library for the tests.
 - Effort: S        - Related: F-08
 
@@ -298,7 +298,7 @@ Inside each file the code is careful. The pure session maths is tested, threadin
   - `PpChartsPanel` is wiring only, and the look lives in `PpChartsBody`.
   - The typeset roles carry every colour and space (`g(n)`, `u(n)`).
   - The report pages' allowlist entries are reasoned print exceptions (`design_system_allowlist.txt:14-32`).
-  - The one held raw input (`PpChartsReadingsView.qml:107`) is waiting on Mark's approval, as the rules require.
+  - The one held raw input (`PpChartsReadingsView.qml:107`) is waiting on the Design Lead's approval, as the rules require.
   - I found no Rectangle + Text + MouseArea controls outside the sanctioned typeset link style.
 - **The report writes nothing to the session.** `setPersistEnabled(false)` and `BaselineAuthority::Never` (`session_report_model.cpp:308`, `:505`). Only the comments have not caught up (F-02).
 
@@ -311,7 +311,7 @@ The June review (2026-06-20) predates both directories. `session_series_model.h`
 
 ## 6. Questions
 
-1. Should a shot's direction in the Club delivery section be the shot's Direction factor (pack corridors) or the LM classifier's thresholds (F-05)? Both are coaching judgements, so this is Mark's to rule. The code currently has both.
+1. Should a shot's direction in the Club delivery section be the shot's Direction factor (pack corridors) or the LM classifier's thresholds (F-05)? Both are coaching judgements, so this is the Coaching Lead's to rule. The code currently has both.
 2. The report's Posture page picks a "typical swing" by median distance to the pattern (`charts_posture_presenter.cpp:1648-1668`), while the grid's reference swing comes from `R::referenceSwing` over the work-ons and carry (`session_report_model.cpp:1410-1418`). Are two different "typical" swings in one PDF intended?
 3. Is the LM-only standalone path's session type token (`launch_monitor_controller.cpp:513-517`, empty → "session") meant to produce a separate session folder on the same day? It changes the name order F-06 depends on.
 4. `SessionSeriesModel`'s shared cache keeps "the last two activated sessions". With one owner per open session (F-01), is the cache still needed, or was it only compensating for panel rebuilds (header decision 5)?

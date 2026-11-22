@@ -286,11 +286,11 @@ gate's literal "≥5/7 on the original seven" reads 3/7 — but the other four a
 the two downstream defects above, not path fabrications; against all
 truth-visible P6s the arm reads 7/11 with every hit ≤4 ms, and both residual
 classes are now isolated, reproducible, and independently fixable. Flip
-decision + the two follow-up defects left to Mark's review.
+decision + the two follow-up defects left to the Product Owner's review.
 
 ### Re-validation with the P6 last-crossing fix (2026-08-10, sha f447b03, runs `p6s2\{dark2,armwk2}`)
 
-Mark approved fixing the crossing pick. `positions.p6LastCrossing` (dark, new
+The Product Owner approved fixing the crossing pick. `positions.p6LastCrossing` (dark, new
 sibling `findLastHorizontalCrossing` — the first-crossing body untouched under
 its pins) makes P6 the LAST horizontal transit in (P4, P7): delivery is
 definitionally the final parallel before impact, and the fold's θ≈0 dip after

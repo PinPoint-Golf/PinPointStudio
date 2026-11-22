@@ -133,7 +133,7 @@ one.
 
 ## 8. The follow-up on s8 — the cause is observability, not a fit bug
 
-Mark chose "fix skeleton3d first". Every test below is on s8 alone, the fresh `pose3` / `pose2_dtl`
+The Product Owner chose "fix skeleton3d first". Every test below is on s8 alone, the fresh `pose3` / `pose2_dtl`
 fit, through `swinglab_run`. Two temporary knobs were added for the tests and then **reverted**:
 `skeleton3d.ankleDorsiMaxDeg` and `skeleton3d.gncStartC`. Each was checked first with a control
 identical to production. Run trees are in `/mnt/swingdata/scratch/ks-skel-k0/`.
@@ -208,9 +208,9 @@ coast, not evidence of a stall.
 **The lead arm is unaffected.** Its 6.7 ms agreement with the face-on arm involves no square-up
 geometry, and the arm rung remains clean.
 
-## 9. Parts B and C (2 October, after Mark's decision)
+## 9. Parts B and C (2 October, after the Product Owner's decision)
 
-Mark ruled that the cameras stay where they are and that the camera route must do its best while
+The Product Owner ruled that the cameras stay where they are and that the camera route must do its best while
 staying honest. Three parts were agreed: A, the arm rung (`skeleton_arm_g3_20261002.md`); B, a
 time-boxed look at what holds the pelvis back; C, an honesty guard on the rotation route.
 
@@ -258,13 +258,13 @@ time-boxed look at what holds the pelvis back; C, an honesty guard on the rotati
 
   The 10% camera-scale term is what carries this.
 - **No σ guard was built.** Adding one would double-count. The exposure that remains is VISUAL: the
-  3-D view shows the hips pausing at the ball. Whether to mark that in the view is Mark's call.
+  3-D view shows the hips pausing at the ball. Whether to mark that in the view is the Design Lead's call.
 - **Caveat.** The alternative fits exist for s8 only. The 15-swing statements above are about the
   dip, not about the σ coverage.
 
 ## 10. The lower-body follow-up, and K0 re-run (2 October, later)
 
-Mark asked for the lower body to be fixed and K0 re-run. On s8 first, then all 15.
+The Product Owner asked for the lower body to be fixed and K0 re-run. On s8 first, then all 15.
 
 **The term ledger.** A debug-only dump, `PINPOINT_SKEL_TERMS=<path>`, scores every keypoint,
 anchor, limit, smoothness and prior term per frame under one loss (C = 3). It compared the
@@ -361,7 +361,7 @@ what the rung places with its real σ_t.
 - **So it does not belong above the pair.** The pair remains the two-camera trunk route; the
   skeleton remains the two-camera lead-arm route.
 
-**Moved below the pair and turned on (Mark: "if it does no harm we may see benefits as new swings
+**Moved below the pair and turned on (Product Owner: "if it does no harm we may see benefits as new swings
 are recorded").** The order is now IMU → pair → skeleton → face-on span. The rung costs nothing
 where the pair produces, and it replaces the span, which is blind at square, where the pair cannot.
 
@@ -420,7 +420,7 @@ sequence, the spine chain is the clavicle-free candidate, to be decided against 
 
 ## 13. The feet (item 6, 2 October): the shod foot
 
-Mark saw this in the 3-D view: "the feet look quite wrong (no lift and toes in the air)".
+The Product Owner saw this in the 3-D view: "the feet look quite wrong (no lift and toes in the air)".
 
 **The cause.** The rig's foot markers sit where a BARE sole's toe and heel are: 1.3 cm and 2.5 cm off
 the floor, with the ankle joint at 10.5 cm. The pose model marks a SHOE's toe and heel, up on the

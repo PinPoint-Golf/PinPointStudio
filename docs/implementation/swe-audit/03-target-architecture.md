@@ -1,7 +1,7 @@
-# 03 · Target architecture — draft 2.1 **agreed by Mark, 14 Nov 2026**; draft 2.2 adds his 14 Nov decisions and the lead's clarifications for him to read; draft 2.3 adds step 1's information-model decisions; draft 2.4 freezes it as the rationale
+# 03 · Target architecture — draft 2.1 **agreed by the Solution Architect, 14 Nov 2026**; draft 2.2 adds his 14 Nov decisions and the lead's clarifications for him to read; draft 2.3 adds step 1's information-model decisions; draft 2.4 freezes it as the rationale
 
 **Status:**
-- **Draft 2.4, 14 Nov 2026: frozen rationale; the reference is canonical (Mark, 14 Nov 2026, D1).** The information
+- **Draft 2.4, 14 Nov 2026: frozen rationale; the reference is canonical (Solution Architect, 14 Nov 2026, D1).** The information
   model is `docs/developer/information_model.md` (the reference), version 1.0 and later; this page records why it is
   so, and is never edited to change the model. Where the two disagree, the reference wins and the line here is
   marked "→ reference". The decisions below are registered there with stable ids (03 decision *n* = DEC-*n*; step
@@ -9,7 +9,7 @@
   reference: `SessionId` is a uuid minted at Start, kept with the status and start/end times in a session file
   (DEC-41); P3's wording for the derived owners (DEC-42); the tuning log is a source fact of the `Athlete` (DEC-43);
   an LM-only shot is a Recording (DEC-44); every written file is listed (DEC-45); the club baseline's producer and
-  rewrite (DEC-46); the lead's clarifications below are ratified (DEC-47). Reference v1.1 (Mark, 14 Nov 2026;
+  rewrite (DEC-46); the lead's clarifications below are ratified (DEC-47). Reference v1.1 (Solution Architect, 14 Nov 2026;
   DEC-68…DEC-75) adds the change definition, the event delivery rule and six events, the `Athlete` trashing a
   session, the crash rule for an InProgress session, the club interim until step 6, cross-session reads through
   session results, and handedness in the input stamp. Reference v1.2 (DEC-76…DEC-85) adds session resume,
@@ -23,16 +23,16 @@
   decision 6). Reference v1.6 (DEC-123…DEC-125): the wrist model retires into the findings; derived data and findings
   share one shot cache; "assessment" is the shot's layer and the old cross-shot use is "diagnosis". Reference v1.7
   marks the final re-audit's open questions (MD-01…MD-12) and registers DEC-126…DEC-128. This page is not changed for
-  them. Reference v1.8 (DEC-130…DEC-160) records Mark's answers of 15 Nov 2026 to those questions and to step 2's
+  them. Reference v1.8 (DEC-130…DEC-160) records the Solution Architect's answers of 15 Nov 2026 to those questions and to step 2's
   brief; only "→ reference" pointers are added here, on the lines they contradict.
-- Draft 2.3, 14 Nov 2026: Mark's answers to step 1's brief (its §8.2 and §9; reference DEC-24…DEC-39) recorded as
+- Draft 2.3, 14 Nov 2026: the Solution Architect's answers to step 1's brief (its §8.2 and §9; reference DEC-24…DEC-39) recorded as
   decisions 24–30 (§13): the analysis context in the swing file, the input stamp and time base, the club rule until
   step 6, capture writing in stages, the interim writers, the two new directories, and no norm cohort in step 1
-  (Mark, 14 Nov 2026). The later review of capture is called **the platform refactor (capture)** everywhere (Mark,
+  (Solution Architect, 14 Nov 2026). The later review of capture is called **the platform refactor (capture)** everywhere (Product Owner,
   14 Nov 2026); its worklist is `05-deferred-worklist.md`.
 - Draft 2.2, 14 Nov 2026: clarifications from the information-model review (`docs/developer/information_model.md`).
-  Decisions 1–23 (§13) are Mark's; 19–23 record his 14 Nov decisions below. Each change says who decided it.
-  - **Mark, 14 Nov:**
+  Decisions 1–23 (§13) are the Solution Architect's; 19–23 record his 14 Nov decisions below. Each change says who decided it.
+  - **Solution Architect, 14 Nov:**
     - **Grading** (the code's `detectShot`; step 3 renames it `gradeShot`): `SessionDiagnostics` grades every shot
       of its session, each number against its corridor, with the session's club baseline and the effective club,
       and keeps the rows (`diagnostics.json`, one writer). The rows are shot-level facts, exposed through the shot
@@ -41,7 +41,7 @@
     - A "from here on" intent run pre-fills each shot as it is taken; each shot can override it; an edited run
       affects only shots taken after the edit (§7).
     - P1 gains a third kind, the **recorded input**: written once at first need, never regenerated, never deleted
-      with the caches. The club baseline is one; it is rewritten only when its format is older than the current (→ reference DEC-46, DEC-84: on a rule-version change, recorded, with Mark's approval first.)
+      with the caches. The club baseline is one; it is rewritten only when its format is older than the current (→ reference DEC-46, DEC-84: on a rule-version change, recorded, with the Solution Architect's approval first.)
       rule, as today (§1, §3, §7).
     - Five events: `ShotTrashed`, `SessionEnded`, `IntentRunChanged`, `SessionRelocated`, `RigChanged` (§5). (→ reference DEC-154: `SessionRelocated` removed.)
     - With nothing being captured, the cast shows the session on screen (§4).
@@ -53,7 +53,7 @@
     - `AppState` lives in `src/App` (decision 11).
     - The **Platform** ring is added as ring 0, inside Vocabulary: logging (`ppInfo`/`ppWarn`), profiling and
       machine queries; every ring may include it, and nothing domain-shaped goes in it (§2).
-  - **The lead's clarifications, consistent with P1–P9 (ratified by Mark, 14 Nov 2026; reference DEC-47…DEC-63):**
+  - **The lead's clarifications, consistent with P1–P9 (ratified by the Solution Architect, 14 Nov 2026; reference DEC-47…DEC-63):**
     - the Recording's analysis context is the only source of athlete facts for analysis; `Session.athleteSnapshot`
       is removed (§0.1, §3);
     - measurements carry a kind: a reading (source) or derived (the recorded product) (§1, §3);
@@ -67,13 +67,13 @@
     - the persistence table's added rows and their kinds (§7);
     - contexts and rings are different cuts (§0);
     - §10 is numbered as the steps of `04-remediation-plan.md`.
-  - **Open, to decide (Mark, step 3):** the owner and repository of packs and norms (the user's pack and corridor
+  - **Open, to decide (Solution Architect, step 3):** the owner and repository of packs and norms (the user's pack and corridor
     edits) → reference Q-02, closed by DEC-170 (`RuleData`); where session status and start/end times are stored → settled, reference DEC-41.
 - Draft 2.1, 14 Nov 2026. It adds §0, the context map: three contexts, the Recording contract and Studio/Rig.
 - Draft 2. It is rewritten around design principles. Draft 1 was organised around the findings,
-  and it put the selection in the domain model, which Mark rightly challenged.
-- Mark has agreed draft 2.1 and decisions 1–30. Nothing in a structural step of `04-remediation-plan.md` is built
-  until Mark has approved that step's brief.
+  and it put the selection in the domain model, which the Solution Architect rightly challenged.
+- The Solution Architect has agreed draft 2.1 and decisions 1–30. Nothing in a structural step of `04-remediation-plan.md` is built
+  until the Product Owner has approved that step's brief.
 - Stage 0, local defect fixes that need no new structure, is committed.
 
 ## 0. The context map: three contexts and the contracts between them
@@ -284,7 +284,7 @@ Session  (aggregate root · id: SessionId)
  │                                InProgress per athlete — a domain rule)
  │  clubBaseline: club baselines from the athlete level, written once at first need, never at Open; rewritten
  │                only when its format is older than the current rule   ← recorded input, club_baseline.json
- │                (→ reference DEC-46, DEC-84: on a rule-version change, recorded, with Mark's approval first)
+ │                (→ reference DEC-46, DEC-84: on a rule-version change, recorded, with the Solution Architect's approval first)
  │  sessionIntent: declared focus / work-on, declared miss, screen answers, intent runs   ← source fact
  ├─ shots: Shot*  (entities · id: ShotRef)
  │    recording handle (SwingStore) · analysis (recorded product, versioned — §5)
@@ -342,7 +342,7 @@ AppState  (one per app, in src/App)
  ├─ replay : ReplayState               what is playing — of the selected shot, not a second "selected"
  └─ castSelection : ShotSelection?     the wall cast follows the newest shot captured while the stage replays
                                        another; with nothing being captured, it shows the session on screen
-                                       (Mark, 14 Nov)
+                                       (Solution Architect, 14 Nov)
 ```
 
 - **Selections are application state.** Like Qt's `QItemSelectionModel` beside an item model, they refer to
@@ -425,12 +425,12 @@ step 3).
 | `<session>/work_ons.json` | derived (cache): the session summary the athlete level reads | `SessionDiagnostics` | `SessionRepository` |
 | `<session>/archived.json` | marker | `Session` (the archive is a `Session` command)[^m14nov] | `SessionRepository` |
 | the session report (report documents under the session) | derived (product) | `Session` (saved by a `Session` command)[^m14nov] | `SessionRepository` |
-| session status and start/end times | source | `Session` | to decide (Mark, step 3); today not persisted (→ reference[^dec41]: the session file, `SessionRepository`) |
+| session status and start/end times | source | `Session` | to decide (Solution Architect, step 3); today not persisted (→ reference[^dec41]: the session file, `SessionRepository`) |
 | `<athlete>/athlete.json` — the record[^m14nov] | source | `Athlete` | `AthleteRepository` |
 | `<athlete>/tendencies.json`, `swing_themes.json` | derived (cache) | `AthleteDiagnostics` | `AthleteRepository` |
 | `<athlete>/outcome_corrections.jsonl` | derived: the tuning log, append-only (→ reference[^dec43]: a source fact) | the athlete level (`AthleteDiagnostics`), on `LabelCorrected`, never the session[^m14nov] (→ reference[^dec43]: the `Athlete` root) | `AthleteRepository` |
 | `<athlete>/fault_profile.json` | to be deleted (H-11, step 3) | — | — |
-| `<AppData>/diagnostics/user.json`, `user.norms.json`, community `*.json` (packs and norms; the corridor editor writes `user.norms.json`) | source (the user's edits); community sets read-only | owner: to decide (Mark, step 3) (→ reference[^dec170]: `RuleData`) | to decide (Mark, step 3) (→ reference[^dec170]: `RuleDataRepository`) |
+| `<AppData>/diagnostics/user.json`, `user.norms.json`, community `*.json` (packs and norms; the corridor editor writes `user.norms.json`) | source (the user's edits); community sets read-only | owner: to decide (Solution Architect, step 3) (→ reference[^dec170]: `RuleData`) | to decide (Solution Architect, step 3) (→ reference[^dec170]: `RuleDataRepository`) |
 | `SessionSeries` | in memory only, not persisted | — | — |
 
 The table covers the athlete, session and shot files and the rule data they are graded against. Studio and
@@ -524,7 +524,7 @@ The steps are numbered as in `04-remediation-plan.md` §3.
 | A7 | a new function over 300 lines in rings 1–2 |
 | A8 | Analysis code reaching past the Recording contract into Acquisition (device classes, the ring buffer, live controllers) or into application state (the athlete controller, settings) |
 
-The allowlist is tagged by the migration step that removes each entry. Adding an entry needs Mark's approval.
+The allowlist is tagged by the migration step that removes each entry. Adding an entry needs the Solution Architect's approval.
 
 ## 12. Where the carousel shot summary lands
 
@@ -541,7 +541,7 @@ updates when `ShotReanalysed` or `ShotAdded` lands for the selected `ShotRef`.
 
 ## 13. Decisions
 
-**Agreed by Mark, 14 Nov 2026:**
+**Agreed by the Solution Architect, 14 Nov 2026:**
 
 | # | Decision | Answer |
 |---|---|---|
@@ -556,15 +556,15 @@ updates when `ShotReanalysed` or `ShotAdded` lands for the selected `ShotRef`.
 | 9 | Held conditions | One rule: Your swing follows Work-ons. |
 | 10 | The new layer | `src/DomainModel`. |
 
-**New in drafts 2 to 2.2, decided by Mark on 14 Nov:**
+**New in drafts 2 to 2.2, decided by the Solution Architect on 14 Nov:**
 
 | # | Decision | Proposal |
 |---|---|---|
-| 11 | Application state | A separate `AppState` (current athlete, capture target, session on screen, mode, selections, replay), not part of the domain, in `src/App` (Mark, 14 Nov). Sessions have a status (in progress/ended), not live/open slots, and the repository is an identity map. |
+| 11 | Application state | A separate `AppState` (current athlete, capture target, session on screen, mode, selections, replay), not part of the domain, in `src/App` (Solution Architect, 14 Nov). Sessions have a status (in progress/ended), not live/open slots, and the repository is an identity map. |
 | 12 | Commands | All domain changes go through aggregate-root commands, with domain events (§3, §5). |
 | 13 | Shot label corrections | Move them from the session file to the shot's `review` block, with shot intent. That puts every shot-level source fact on the shot (§7). |
 | 14 | Migration | The strangler order in §10 (the steps of `04-remediation-plan.md`), with the lint first. |
-| 15 | Instruments | The launch monitor is one device among the others. A shot has one set of source-tagged measurements; one rule decides which source wins for a metric; the LM board, Charts and the report are presenters over the session's measurements. No separate LM model. (Mark, draft 2 review.) |
+| 15 | Instruments | The launch monitor is one device among the others. A shot has one set of source-tagged measurements; one rule decides which source wins for a metric; the LM board, Charts and the report are presenters over the session's measurements. No separate LM model. (Solution Architect, draft 2 review.) |
 | 16 | The Recording contract | The layering contract between Acquisition and Analysis (§0.1): analysis only ever runs on a Recording, which carries its analysis context. Today's `src/Export` is renamed for what it is (e.g. `src/Recording`). |
 | 17 | Studio/Rig | A domain entity owning the rig and its calibrations, versioned and referenced by each Recording. Named now; designed in the platform refactor (capture). |
 | 18 | A corrected club | Re-analysis uses the effective (corrected) club, its length and norms; the captured club stays in the Recording; a correction marks the shot's analysis stale. Same Recording + same effective context → same job (§0.1). |
@@ -574,19 +574,19 @@ updates when `ShotReanalysed` or `ShotAdded` lands for the selected `ShotRef`.
 | 22 | Events, cast, writers | The five new events (§5); the cast shows the session on screen when nothing is captured (§4); every file is written only through its root, the archive and the report as `Session` commands, a swing file once by capture then by its `Session`; the tuning log appended by the athlete level on `LabelCorrected` (§7). |
 | 23 | Platform ring | Ring 0 holds logging, profiling and machine queries; every ring may include it; nothing domain-shaped goes in it (§2). |
 
-**New in draft 2.3: step 1's information-model changes, decided by Mark on 14 Nov 2026** (IM-1…IM-7 of step 1's
+**New in draft 2.3: step 1's information-model changes, decided by the Solution Architect on 14 Nov 2026** (IM-1…IM-7 of step 1's
 brief, §8.2, each asked separately and approved as recommended; registered in the reference as DEC-24…DEC-30, with
 step 1's choices D1–D9 as DEC-31…DEC-39):
 
 | # | Decision | Answer |
 |---|---|---|
-| 24 | The analysis context in the swing file (IM-1) | A new field family: one schema-tagged `analysisContext` block, written once by capture through the one header writer, the only source of the context for analysis: handedness, height, the club set (men / women / junior) as the cohort analysis consumes, the captured club with its geometry, length prior and standard length, and a snapshot of the bag's geometry so a corrected club is resolvable without a live profile. `capture.club` stays, as provenance (§0.1). (Mark, 14 Nov 2026) |
-| 25 | The input stamp and the time base (IM-2) | `analysis.versions.inputs` stamps the effective context an analysis used (`kAnalysisInputsVersion`): a corrected club makes the analysis known-stale, and no `k*StageVersion` moves when no stage changes. `analysis.timeBase: "window"`: the analysis is window-relative on disk, rebased once in the pipeline; older documents are guessed in one place, the repository's reader (§5, §7). (Mark, 14 Nov 2026) |
-| 26 | The club rule, until step 6 (IM-3) | The golfer's correction is the LM board's override (`review.clubOverride`); the swing-edit popover's `review.club` is the declared club. The effective club is the correction if set, else the captured club; undeclared stays undeclared (decision 18). (Mark, 14 Nov 2026) (→ reference R-CLUB-3: the effective club field by field) |
-| 27 | Capture writes in stages (IM-4) | "Written once by capture" means the shot first, then its late parts (a late LM reading, a phone clip's stream origin) through `RecordingRepository::completeCapture`; follow-club may rewrite the captured club, because the device named it (§0.1, §7). (Mark, 14 Nov 2026) (→ reference DEC-133: follow-club stores the device club beside the captured club and never overwrites it; today's overwrite a known interim until step 6.) |
-| 28 | The interim writers (IM-5) | Until step 3 the swing file's later writers are today's callers, through `RecordingRepository`; the `Session` takes them over in step 3 (§7). (Mark, 14 Nov 2026) |
-| 29 | Two new directories (IM-6) | `src/Recording` (Vocabulary: the Recording contract's types) and `src/DomainModel` (the repository interfaces) are created in step 1; step 7 then renames only the store (§2, decision 16). (Mark, 14 Nov 2026) |
-| 30 | No norm cohort in step 1 (IM-7) | The norm cohort (sex, age band) is not recorded in the Recording in step 1; whether grading reads it from the Recording is step 3's decision. (Mark, 14 Nov 2026) (→ reference DEC-171: from the athlete record on the shot's date, recorded in the stamp.) |
+| 24 | The analysis context in the swing file (IM-1) | A new field family: one schema-tagged `analysisContext` block, written once by capture through the one header writer, the only source of the context for analysis: handedness, height, the club set (men / women / junior) as the cohort analysis consumes, the captured club with its geometry, length prior and standard length, and a snapshot of the bag's geometry so a corrected club is resolvable without a live profile. `capture.club` stays, as provenance (§0.1). (Solution Architect, 14 Nov 2026) |
+| 25 | The input stamp and the time base (IM-2) | `analysis.versions.inputs` stamps the effective context an analysis used (`kAnalysisInputsVersion`): a corrected club makes the analysis known-stale, and no `k*StageVersion` moves when no stage changes. `analysis.timeBase: "window"`: the analysis is window-relative on disk, rebased once in the pipeline; older documents are guessed in one place, the repository's reader (§5, §7). (Solution Architect, 14 Nov 2026) |
+| 26 | The club rule, until step 6 (IM-3) | The golfer's correction is the LM board's override (`review.clubOverride`); the swing-edit popover's `review.club` is the declared club. The effective club is the correction if set, else the captured club; undeclared stays undeclared (decision 18). (Solution Architect, 14 Nov 2026) (→ reference R-CLUB-3: the effective club field by field) |
+| 27 | Capture writes in stages (IM-4) | "Written once by capture" means the shot first, then its late parts (a late LM reading, a phone clip's stream origin) through `RecordingRepository::completeCapture`; follow-club may rewrite the captured club, because the device named it (§0.1, §7). (Solution Architect, 14 Nov 2026) (→ reference DEC-133: follow-club stores the device club beside the captured club and never overwrites it; today's overwrite a known interim until step 6.) |
+| 28 | The interim writers (IM-5) | Until step 3 the swing file's later writers are today's callers, through `RecordingRepository`; the `Session` takes them over in step 3 (§7). (Solution Architect, 14 Nov 2026) |
+| 29 | Two new directories (IM-6) | `src/Recording` (Vocabulary: the Recording contract's types) and `src/DomainModel` (the repository interfaces) are created in step 1; step 7 then renames only the store (§2, decision 16). (Solution Architect, 14 Nov 2026) |
+| 30 | No norm cohort in step 1 (IM-7) | The norm cohort (sex, age band) is not recorded in the Recording in step 1; whether grading reads it from the Recording is step 3's decision. (Solution Architect, 14 Nov 2026) (→ reference DEC-171: from the athlete record on the shot's date, recorded in the stamp.) |
 
 ## 14. Keeping it this way
 
@@ -609,7 +609,7 @@ The fix has the same two halves that work for the design system.
   6. Which layer does each new file go in?
 
   (→ reference §10: seven questions; the seventh is "how does a view reach it?".)
-- **HARD, as for the design system:** any change to the information model needs Mark's approval before it is
+- **HARD, as for the design system:** any change to the information model needs the Solution Architect's approval before it is
   built (→ reference §1.2: the definition, C1–C10, is there). That covers:
   - a new first-class object or owner;
   - a new persisted file or field family;
@@ -634,9 +634,9 @@ The fix has the same two halves that work for the design system.
 
 ## Notes
 
-[^draft2]: Mark and the lead, draft 2 review.
+[^draft2]: Solution Architect and the lead, draft 2 review.
 [^lead-clar]: The lead's clarification.
-[^m14nov]: Mark, 14 Nov 2026.
+[^m14nov]: Solution Architect, 14 Nov 2026.
 [^dec86]: Reference DEC-86.
 [^dec121]: Reference DEC-121.
 [^dec122]: Reference DEC-122.
@@ -644,15 +644,15 @@ The fix has the same two halves that work for the design system.
 [^dec125]: Reference DEC-125.
 [^dec46]: Reference DEC-46.
 [^dec42]: Reference DEC-42.
-[^m-draft2]: Mark, draft 2 review.
+[^m-draft2]: Solution Architect, draft 2 review.
 [^dec94]: Reference DEC-94.
-[^m14nov-events]: `ShotTrashed`, `SessionEnded`, `IntentRunChanged`, `SessionRelocated` and `RigChanged` are Mark's, 14 Nov 2026.
+[^m14nov-events]: `ShotTrashed`, `SessionEnded`, `IntentRunChanged`, `SessionRelocated` and `RigChanged` are the Solution Architect's, 14 Nov 2026.
 [^dec112]: Reference DEC-112.
 [^dec130]: Reference DEC-130.
-[^dec70]: Mark, 14 Nov 2026; reference DEC-70.
+[^dec70]: Solution Architect, 14 Nov 2026; reference DEC-70.
 [^dec131]: Reference DEC-131.
 [^dec154]: Reference DEC-154.
-[^dec69]: Mark, 14 Nov 2026; reference DEC-69.
+[^dec69]: Solution Architect, 14 Nov 2026; reference DEC-69.
 [^dec151]: Reference DEC-151.
 [^dec41]: Reference DEC-41.
 [^dec72]: Reference DEC-72.
@@ -660,5 +660,5 @@ The fix has the same two halves that work for the design system.
 [^dec170]: Reference DEC-170.
 [^dec193]: Reference DEC-193.
 [^dec45]: Reference DEC-45.
-[^mark]: Mark.
-[^dec40]: Mark, 14 Nov 2026; reference DEC-40.
+[^mark]: Solution Architect.
+[^dec40]: Solution Architect, 14 Nov 2026; reference DEC-40.

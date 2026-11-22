@@ -115,7 +115,7 @@ its square edges are slanted edges. Its job is to give every arm the same still 
 golfer cannot.
 
 Every arm also gets a **comparison sheet**: the same frame of each variant side by side, at 1:1
-and with crops of the face, hands and club at address, P6 and impact. Mark judges from these.
+and with crops of the face, hands and club at address, P6 and impact. The Product Owner judges from these.
 
 ## 6. Recording session (Mark as subject)
 
@@ -252,7 +252,7 @@ Any arm that changes the saved clip (P1–P6) is re-analysed against the raw run
   - before the session: exposure and gain on every camera role, with a Full frame lock (§6.4);
   - KB-30 fixed;
   - the display sharpen/gamma shader on the live tile and replay, with its setting;
-  - any change of default (encode, denoise, exposure) that the results and §7.3 support. Mark
+  - any change of default (encode, denoise, exposure) that the results and §7.3 support. The Product Owner
     judges these from the sheets before anything is committed.
 
 ## 9. Results

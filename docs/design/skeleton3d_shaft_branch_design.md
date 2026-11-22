@@ -2,14 +2,14 @@
 
 *2026-09-28. Status: **APPROVED, being built.** It was briefly deferred when the 3-D panel was cut
 to end at P8 (`swing_3d_annotations_design.md` §11), then reinstated the same day: "get a plan to fix
-the real issue". Mark's answers are in §8. The P8 cut-off in the panel stays until he decides.
+the real issue". The Solution Architect's answers are in §8. The P8 cut-off in the panel stays until he decides.
 It follows `swing_3d_viz_design.md` (the fit; §12 is what was built) and
-`swing_3d_annotations_design.md` §10 (where Mark found it).*
+`swing_3d_annotations_design.md` §10 (where the Product Owner found it).*
 
 ## 0. Summary
 
 In the 3-D swing panel, seen from down the line, the club veers far off its plane through the
-follow-through, and sometimes at the top (Mark, 28 Sept: "this looks like a bug rather than a
+follow-through, and sometimes at the top (Product Owner, 28 Sept: "this looks like a bug rather than a
 measurement error"). It is a bug in the fit. **Wherever the DTL camera does not see the club, the
 fit is free to choose between two mirror-image clubs that look the same to the face-on camera, and
 after impact it picks the wrong one almost every time.** The fix gives the fit the one piece of
@@ -25,7 +25,7 @@ explicitly, because the two are separated by a barrier that a local solver canno
 
 **Done when:**
 - The synthetic tests of §6.1 pass.
-- The corpus table of §6.2 is filled for the 24 two-camera swings and judged by Mark. An honestly
+- The corpus table of §6.2 is filled for the 24 two-camera swings and judged by the Product Owner. An honestly
   written-up miss counts as done; a skipped table does not.
 - The 15 library swings of 4 July have been re-analysed through the reuse path (no `--full-window`).
 
@@ -101,10 +101,10 @@ off-plane position, laid off or across at the top, costs a bounded amount, not a
   the club stays near through P8, and the Cauchy tail lets the finish leave it.
 - **"Blind"** means the frame has no DTL shaft angle *and* no DTL clubhead observation. On a swing
   with no DTL every frame is blind, and the plane is the catalogue one (§3.1a).
-- **The span** is the whole blind span, address → finish (Mark, §8 q1). The finish frames are
+- **The span** is the whole blind span, address → finish (Solution Architect, §8 q1). The finish frames are
   held too, so that junk past P8 cannot drag the P8 pose through the smoothness coupling.
 
-### 3.1a The catalogue plane (Mark, §8 q2)
+### 3.1a The catalogue plane (Solution Architect, §8 q2)
 
 The catalogue plane is used on face-on-only swings, and on any DTL swing whose self-plane is refused
 (thin or scattered).
@@ -226,7 +226,7 @@ against what DTL saw.
 
 ### 6.3 UI
 The same P4 and P8 grabs from down the line (swing 5 and Mark's two screenshots' swing) before and
-after, for Mark.
+after, for the Product Owner.
 
 ## 7. Build order
 
@@ -234,10 +234,10 @@ after, for Mark.
 |---|---|---|
 | 1 | The blind mask, the self-planes, r_plane + its exact Jacobian (checked by the debug Jacobian pass); synthetic (a), (d), (e) | Those tests pass; the Jacobian check < 1e-6 |
 | 2 | The branch pass and the flags; synthetic (b), (c) | (b) recovers; (c) shows the barrier |
-| 3 | Tuning keys, diagnostics, version bump; `skeleton3d_run.sh` config `dtlDropThrough`; grade rows | The §6.2 table filled on the 24; Mark judges it |
+| 3 | Tuning keys, diagnostics, version bump; `skeleton3d_run.sh` config `dtlDropThrough`; grade rows | The §6.2 table filled on the 24; the Product Owner judges it |
 | 4 | Library re-analysis of the 15 swings of 4 July (reuse path); the grabs | The panel shows the club on plane through P8 |
 
-## 8. Questions for Mark — answered 28 Sept
+## 8. Questions for the Solution Architect — answered 28 Sept
 1. **σ_plane 15° with a Cauchy tail.** It is generous enough for a laid-off or across top. Do you want
    the follow-through held to the *delivery* plane (as designed), or left freer after P8, e.g. the
    term only up to P8 and the finish unconstrained? **Answer: the whole blind span, address → finish.
@@ -245,7 +245,7 @@ after, for Mark.
 2. **Face-on-only swings** stay unchanged in v2 (no seen frames, no plane). A catalogue plane for the
    club, oriented by the stance, could stand in later. Agreed to leave it? **Answer: use a catalogue
    plane (§3.1a).**
-3. **The panel's P8 cut-off** stays after the fix. Mark decides later.
+3. **The panel's P8 cut-off** stays after the fix. The Solution Architect decides later.
 
 ## 9. Built and graded (28 September 2026)
 
@@ -345,9 +345,9 @@ swing, **12.7° → 4.5°** median over the 15 (p90s roughly halved). The branch
 line at the top, where it pointed far behind the golfer (Mark's first screenshot). At P8 the
 follow-through loop that swung out across the line is gone, and the path runs back up the plane.
 
-## 10. Mark's test, and the second round (28 September 2026)
+## 10. The Product Owner's test, and the second round (28 September 2026)
 
-**Mark, after §9: "P8 still looks like the club veers wildly off plane"** (screenshot: the club
+**Product Owner, after §9: "P8 still looks like the club veers wildly off plane"** (screenshot: the club
 across the chest, square to the line). §9 reported *medians over blind frames*. At the **P8 instant**
 the first build was right on 9 of the 15 library swings and still 42–63° off on 3, 4, 7, 9, 11 and
 14: exactly the swings where the branch pass had tried the mirror and **not kept it**. The medians

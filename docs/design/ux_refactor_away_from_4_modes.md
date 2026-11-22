@@ -2,7 +2,7 @@
 
 Status: **Phases 1–4 implemented** (commits `785f1c2f`, `a45ffdf0`, `2cab28f2`, `f24da90d`,
 `20615b8e`). **Phase 5 is done but not yet committed**, apart from the `ScreenWrist` →
-`ScreenSession` rename, which is left for its own mechanical commit after Mark's review.
+`ScreenSession` rename, which is left for its own mechanical commit after the Product Owner's review.
 Written 26 Oct 2026 against `91c6cac4`. A research
 pass on 27 Oct at `ab5c4d9a` checked every claim against the code and corrected this document;
 its findings are folded in below (§3 and §9 hold the evidence). Since `91c6cac4`, only
@@ -15,7 +15,7 @@ goal, the files it touches, what it reuses, what it adds, the tests that must ch
 acceptance checks. Phases are ordered so that each one ships on its own and leaves the app working.
 In each session the orchestrator holds the contracts, runs the builds (2–3 at most) and the gates,
 and reviews every diff; Opus agents write the code, one work item per agent, in parallel only on
-disjoint files. Commits come at the end of the phase, after Mark has judged the results.
+disjoint files. Commits come at the end of the phase, after the Product Owner has judged the results.
 
 Visual reference (for humans): the Design canvas "PinPoint Studio — UX restructure", board
 **1a · Home — Coaching tab** and **1b · Home — Your swing tab** —
@@ -364,7 +364,7 @@ every assessed condition.** So:
 - **`workOn`:** derive it only when `sessionsListed > 0`. A never-listed Pattern would otherwise
   read "active".
 
-### 5.2 Rating and trend — **D1 decided: habit counts** (Mark, 28 Oct)
+### 5.2 Rating and trend — **D1 decided: habit counts** (Coaching Lead, 28 Oct)
 
 **The rule.** An area is rated by counting its conditions in four frequency bands. There is no
 0–100 score. Per condition, `share` = recency-weighted fired / assessable (the work-ons
@@ -524,14 +524,14 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
     the spacer while locked (Settings below it stays enabled);
   - Settings highlight unchanged (Settings/System/Developer);
   - drop Home's `|| 11` highlight.
-- **Changed (Mark, 28 Oct, after Phase 5): no session lock.** The rail's Session button is now
+- **Changed (Design Lead, 28 Oct, after Phase 5): no session lock.** The rail's Session button is now
   **Live**, always shown, and opens the session screen. A running session locks nothing:
   `sessionLocked` and `blockedDuringSession()` are gone, and `NavigationController` holds history only.
   Two guards remain. The athlete picker will not switch or delete a golfer while a session runs,
   because that session's swings are being saved to the current golfer. Home's Start (and a work-on's
   Practise) goes to Live while a session runs, rather than opening the wizard over it.
-- **Changed (Mark, 28 Oct, after Phase 5): no Work-ons, no Swing diagnostics screen.** The rail
-  is Home, Live, Sessions and Settings (**changed 11 Nov 2026, Mark:** Sessions is now Home's fifth tab, at
+- **Changed (Design Lead, 28 Oct, after Phase 5): no Work-ons, no Swing diagnostics screen.** The rail
+  is Home, Live, Sessions and Settings (**changed 11 Nov 2026, Design Lead:** Sessions is now Home's fifth tab, at
   the right of the bar — `HmSessions`; the rail is Home, Live and Settings). A fault on Home opens its detail **in place**, under its
   row (`HmFaultDetail`): what it costs, Now / Latest / Swings / Sessions / Linked, the drill, and
   "Review the … session →". That holds for Coaching's focus ("Right now") and "Next on your list",
@@ -771,7 +771,7 @@ Decided:
 
 - **D1 — Area rating.** *28 Oct:* habit counts, no 0–100 score (§5.2).
 - **D9 — Typical value for unlisted conditions.** *28 Oct:* median of all judged readings (§5.2).
-- **D12 — Home's identity row and first-run onboarding.** *28 Oct (Mark, after Phase 5):* the old
+- **D12 — Home's identity row and first-run onboarding.** *28 Oct (Design Lead, after Phase 5):* the old
   header is back above the Start card — the identity row (avatar, name and details, Switch →) and
   the "PinPoint Studio" banner. The first-run onboarding is unchanged.
 - **D4 — "Your focus" and "What you do well".** *27 Oct:* kept, as the Coaching tab.
@@ -779,7 +779,7 @@ Decided:
   one click away; the last choice remembered per athlete.
 - **D7 — Way back to a running session.** *27 Oct:* a Session rail button, visible only while a
   session runs.
-- **D14 — Where the Swing model lives.** *28 Oct (Mark):* "Swing model" is the DiagnosticModel
+- **D14 — Where the Swing model lives.** *28 Oct (Design Lead):* "Swing model" is the DiagnosticModel
   editor's name wherever users see it. It stays in Settings → Reference (slot 10) and is reached
   mid-session through Settings, which the lock leaves open. No rail button and no screen of its
   own: "I don't want the swing model on the main rail, that makes no sense. I just want it in the

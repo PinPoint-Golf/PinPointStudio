@@ -1,14 +1,14 @@
 # Session setup wizard — audit and refactor design
 
 **Status:** implemented 5 October 2026 (§11). The suite and the app probes pass; Mark ran a Witmotion session through it. The hardware checklist (§7.6, §11.5) is still to be run in the cabin, including Windows, which has not built this yet. Written 5 October 2026 as the preparation for the trunk IMU work (`trunk_imu_sequence_grf_design.md` §6.7, §8.7), which needs new wizard pages.
-**Amended 5 October** after Mark's answers to §10. Three things changed, and where this document's earlier sections disagree with them, these win:
+**Amended 5 October** after the Design Lead's answers to §10. Three things changed, and where this document's earlier sections disagree with them, these win:
 - **There is one setup flow for every session**, and it is renamed **Session setup** (`src/Gui/setup/`, `ScreenSessionSetup.qml`, `session_setup_ui_test`). Wherever this document says `wizard_ui_test` or "keeps the file name", read the new names. See §4.12.
 - **Role-keyed placement and the in-wizard mount question are in this refactor** (§4.13), not left to the trunk work.
 - **The closing page says what is mounted and what that does to the recording** (§4.14).
 
 The stage plan in §8 is replaced by §8a.
 **Amended 28 October** by `ux_refactor_away_from_4_modes.md` §2.4. Sessions no longer have a type picked on Home, so the wizard's `presets` and its **Goals** step are gone. In their place is an optional **Focus** step (step key `intent`, `pages/IntentPage.qml`): open assessment, or one condition to work on, carried into the session as `sessionController.focusConditionId`. Wherever this document talks about goals, presets or the session type choosing them, read the Focus step instead.
-**Owner:** Mark.
+**Owner:** Product Owner.
 **Who does the work:** Fable orchestrates, reviews and runs the tests. Opus agents write the code, one work item each.
 **Protected files:** `src/Gui/session/ScreenSessionWizard.qml` and `src/Gui/calibration/ImuCalibrationFlow.qml` (memory note `do-not-touch-the-session-wizard`). The refactor session is the approval context for changing them. Each stage in §8 is shown with its test run before the next stage starts.
 **Builds on:**
@@ -56,13 +56,13 @@ The same suite runs before and after every change. Cases that encode a known def
 
 | Deliverable | Done when |
 |---|---|
-| This document | Mark has read it and answered §10's decisions. |
+| This document | The Design Lead has read it and answered §10's decisions. |
 | `wizard_ui_test` + fakes + lint (Stage 0) | It builds and runs against **today's** wizard. The baseline pass/expected-fail table is recorded in §11. F1–F5 are confirmed or refuted by a test, not by reading. |
-| Refactored wizard (Stages 1–6) | Every test that passed in the baseline still passes, and every expected failure for a defect Mark chose to fix now passes. There are no QML warnings in any test. A dummy step added in a test needs only a registry entry and a page file (test N17). |
+| Refactored wizard (Stages 1–6) | Every test that passed in the baseline still passes, and every expected failure for a defect the Product Owner chose to fix now passes. There are no QML warnings in any test. A dummy step added in a test needs only a registry entry and a page file (test N17). |
 | Render and hardware verification (Stage 7) | H2 probes pass: guide frame grabs, and a 6-minute soak with no blank View3D. Mark runs the H3 checklist on Witmotion ×3, wG3, and no-IMU setups, and every row matches its expected outcome and log lines. |
-| Commit | Only at the end, after Mark has tested in the app (memory note `feedback_commit_only_at_the_end`). |
+| Commit | Only at the end, after the Product Owner has tested in the app (memory note `feedback_commit_only_at_the_end`). |
 
-A stage whose tests fail is **not** worked around. It stops, the failure is written up in §11, and Mark decides.
+A stage whose tests fail is **not** worked around. It stops, the failure is written up in §11, and the Product Owner decides.
 
 ---
 
@@ -328,7 +328,7 @@ StepDescriptor {
 | `checkTrunk` *(new)* | sensors | as `calibrateTrunk` | — |
 | `ready` | ready | always | — |
 
-`calibrateArm` keeps today's W-none behaviour: a Wrist session with no sensor still shows the step with the "no sensor assigned" warning. The `or` clause preserves that. Mark can drop it (D6).
+`calibrateArm` keeps today's W-none behaviour: a Wrist session with no sensor still shows the step with the "no sensor assigned" warning. The `or` clause preserves that. The Design Lead can drop it (D6).
 
 ### 4.5 The flow engine — `SetupFlow` + `setup_flow.mjs`
 
@@ -469,7 +469,7 @@ Every new `Q_INVOKABLE` goes in a `public:` section, and lint rule W5 checks it.
 
 ### 4.12 One setup flow: instrument groups, not session types (added 5 Oct)
 
-Mark, 5 Oct: the modal session type is being replaced in the new UX. A session may look at wrist, trunk and ground forces together if the hardware is there. There will only ever be one start-session flow. He asked for the model to be thought through; this is it.
+Design Lead, 5 Oct: the modal session type is being replaced in the new UX. A session may look at wrist, trunk and ground forces together if the hardware is there. There will only ever be one start-session flow. He asked for the model to be thought through; this is it.
 
 - **Instrument groups own steps.** `arm` and `trunk` (later `legs`) each have a Calibrate step and a Check step. A measurement does not own a step: trunk sensors feed both body rotation and the kinematic sequence, and are calibrated once.
 - **A group is in the session** when a device that is enabled for this session holds one of the group's roles.
@@ -496,7 +496,7 @@ Today `imu/placement` maps a device or unit key to a slot letter, and every slot
 
 ### 4.14 The closing page: what this session will record (added 5 Oct)
 
-Mark, 5 Oct: the flow should close with a page describing what is mounted and how that affects the recording.
+Design Lead, 5 Oct: the flow should close with a page describing what is mounted and how that affects the recording.
 
 - **No new table.** The metric catalogue already holds an ordered route ladder per metric (`MetricRequirement`, `MetricRoute`, `metric_descriptor.h`), and a resolver that turns a `ShotContext` into Measured, Bridged or Unavailable with a reason. What is missing is a `ShotContext` built from the live setup instead of a recorded swing.
 - **`SetupCapability`** builds that context from the session's cameras (face-on, DTL), roles (assigned, enabled, connected, calibrated), HackMotion and `launchMonitor.configured`, runs the resolver over the catalogue, and summarises by family: wrist, body rotation and sequence, club, ball, video.
@@ -511,7 +511,7 @@ Mark, 5 Oct: the flow should close with a page describing what is mounted and ho
 ## 5. What the refactor keeps exactly
 
 These behaviours must survive byte-for-byte or test-for-test:
-- Every user-visible string, colour and layout on every page, except the tab strip (replaced) and the defect fixes Mark approves.
+- Every user-visible string, colour and layout on every page, except the tab strip (replaced) and the defect fixes the Product Owner approves.
 - The Witmotion maths: stillness 15 °/s, 2,000 ms holds, slerp averaging, `setNominalCalibration` on A/B/C at arm-down, the φ refinement, and the mount gate (dev ≤ 15°, grav ≤ 25°).
 - The HackMotion choreography and every ⚠ comment on it: no wall-clock fallback on the raise; the travel gate (15°) before `a2 01`; the verdict only from `calibrationState` at hmStep ≥ 4; the stale-verdict guard at steps 0–2; the presence-wait bound; the abort wording at VERIFYING.
 - The guide pacing durations (3000 / 3000 / 2000 / 2000 / 800 / 1500 / 2000; HM 1500 / 2000 / 3000 / 500 / 1500 / 1500 / 6000).
@@ -522,7 +522,7 @@ These behaviours must survive byte-for-byte or test-for-test:
 
 ---
 
-## 6. Behaviour changes proposed (each needs Mark's yes — §10)
+## 6. Behaviour changes proposed (each needs the Design Lead's yes — §10)
 
 | Change | Fixes |
 |---|---|
@@ -575,7 +575,7 @@ Neither should leak into the other suites.
 
 Columns:
 - **Base**: what the case is expected to do against **today's** code. `P` = pass. `X` = expected failure, with the finding it encodes. `—` = not applicable before the refactor (new API).
-- **After**: what it must do after the refactor. `P` everywhere unless Mark declines the behaviour change.
+- **After**: what it must do after the refactor. `P` everywhere unless the Design Lead declines the behaviour change.
 
 The "Base" column is the before-test. Stage 0 records the actual results in §11.
 
@@ -733,18 +733,18 @@ Every stage ends with the H1 suite run (offscreen; windowed for the `needsRender
 
 | Stage | Change | Protected files touched | Gate |
 |---|---|---|---|
-| **0** | `wizard_ui_test` target, fakes, injection helper, enum stand-ins, lint W5/W6, the full catalogue written against **today's** API (an adapter maps the catalogue's `flow.*` calls onto today's `currentStep` / `goNext` / `goBack`). Run it. Confirm or refute F1–F7. | none | The baseline recorded in §11. Every `X` either fails for the stated reason or is re-labelled with what actually happened. Mark sees the table. |
+| **0** | `wizard_ui_test` target, fakes, injection helper, enum stand-ins, lint W5/W6, the full catalogue written against **today's** API (an adapter maps the catalogue's `flow.*` calls onto today's `currentStep` / `goNext` / `goBack`). Run it. Confirm or refute F1–F7. | none | The baseline recorded in §11. Every `X` either fails for the stated reason or is re-labelled with what actually happened. The Product Owner sees the table. |
 | 1 | C++ seams: `connectPaced`, `fullyCalibrated` property, `appLog`. Unit tests for the first two. | none | Existing suites green. |
 | 2 | Split `ImuCalibrationFlow` into `WitmotionArmRoutine`, `HackMotionArmRoutine`, `CalibrationGuide`, `ArmCalibrationStatus`, keeping the public API. Add `active`. `PpImuPanel` binds `active`. | `ImuCalibrationFlow.qml` | CW/CH all at baseline or better. CH9/L5 now pass. RS1/RS2 grabs. The app build runs the toolbar calibration on the probe. |
 | 3 | `SetupFlow`, `setup_flow.mjs`, `SetupSteps`, `SetupContext`, `SetupDraft`, `WizardPage`, as new files, tested on a dummy shell (N1–N5, N16, N17, N19, L3). | none | Green. |
 | 4 | Move the panels into pages one at a time (Goals → Ready, Calibrate/Check last). `ScreenSessionWizard.qml` becomes the shell. `Main` → `flow.*`. | `ScreenSessionWizard.qml` | After **each** page: the full H1 suite at baseline or better. |
 | 5 | `PpFlowIndicator` replaces the tab strip. | `ScreenSessionWizard.qml` | P1–P5. N1/N2 numbering. |
 | 6 | The approved behaviour changes (§6, §10). | both | The chosen `X` cases flip to `P`. Nothing else changes. |
-| 7 | H2 probes and soak on the Mac, RS4 on the studio PC. Mark runs H3. | — | All rows match. Then commit (Mark's approval), push on his word. |
+| 7 | H2 probes and soak on the Mac, RS4 on the studio PC. Mark runs H3. | — | All rows match. Then commit (the Product Owner's approval), push on his word. |
 
 ### 8a. The stage plan as approved on 5 Oct (replaces the table above)
 
-| Stage | Change | Protected files touched | Gate | Shown to Mark |
+| Stage | Change | Protected files touched | Gate | Shown to the Product Owner |
 |---|---|---|---|---|
 | **0** | This amendment. `session_setup_ui_test`, fakes, injection, enum stand-ins, the warning trap, `session_setup_lint_test` (W5, W6). The catalogue against today's code. | none | Baseline in §11. F1–F7 confirmed or refuted by test. | yes |
 | 1 | C++ seams: paced connect, `fullyCalibrated`, `appLog`. Role-keyed placement and its migration (§4.13). `SetupCapability` (§4.14). Unit tests for each. | none | Existing suites and the new unit tests green. | with Stage 2 |
@@ -754,7 +754,7 @@ Every stage ends with the H1 suite run (offscreen; windowed for the `needsRender
 | 5 | Panels into pages, one at a time. The shell, renamed `ScreenSessionSetup.qml`. `PpFlowIndicator`. App build. | `ScreenSessionWizard.qml` | Suite at baseline or better after each page. P1–P5. | yes |
 | 6 | Behaviour changes: D1–D3, the Settings round trip, hardware-driven arm steps, the mount picker, the closing page. | both | Only the chosen cases change. R1/R3 re-baselined on purpose, old and new tables both recorded. | yes |
 | 7 | Render probes and the six-minute soak on the Mac. RS4 on the studio PC. | — | All pass. | yes |
-| 8 | Remove the `…ForSlot` shims. Final app build. Mark's checklist (§7.6, plus mounts migrated, the mount picker, a refused conflict, the closing page for five setups). | — | Every row matches. Then commit on Mark's word. | yes |
+| 8 | Remove the `…ForSlot` shims. Final app build. Mark's checklist (§7.6, plus mounts migrated, the mount picker, a refused conflict, the closing page for five setups). | — | Every row matches. Then commit on the Product Owner's word. | yes |
 
 Added lint rules: **W8** no `applies` or `gate` mentions `sessionType` or the preset. **W9** no QML or C++ outside `ImuManager` calls a `…ForSlot` method (enforced at Stage 8).
 
@@ -777,7 +777,7 @@ Added lint rules: **W8** no `applies` or `gate` mentions `sessionType` or the pr
 
 ---
 
-## 10. Decisions for Mark
+## 10. Decisions for the Design Lead
 
 | # | Question | Recommendation |
 |---|---|---|
@@ -789,7 +789,7 @@ Added lint rules: **W8** no `applies` or `gate` mentions `sessionType` or the pr
 | D6 | A Wrist session with no arm sensor: keep showing Calibrate with "no sensor" (today), or drop the step? | Drop it once trunk roles exist. Until then keep today's behaviour. |
 | D7 | Triangulate's stub readiness issues (F11): keep as today, or stop reporting an unbuildable check? | Keep as today in this refactor (out of scope), then fix with the camera calibration work. |
 
-**Mark's answers, 5 Oct:**
+**The Design Lead's answers, 5 Oct:**
 
 | # | Answer |
 |---|---|
@@ -872,11 +872,11 @@ Added lint rules: **W8** no `applies` or `gate` mentions `sessionType` or the pr
 
 | Stage | Date | Suite result | Notes |
 |---|---|---|---|
-| 5b–5e, 6, 7, 8 (shims) | 5 Oct | **Final gate:** `session_setup_ui` 283 passed, 0 failed, 4 skipped, **no expected failures left**, 505 s; `session_setup_lint_test` (W1–W10, W9 enforced), `qml_ui`, `imu_role_map_test` (93 checks), `paced_connect_queue_test`, `update_controller_policy_test`, `setup_capability_test`, `metric_catalogue_test`, `swing_doc_test`, `live_wrist_angles_test`, `hackmotion_gate_test`, `hm_binding_recon_test`, `segment_rates_test` all pass. Skips: N18 (trunk pages not registered; N18F covers the engine) and the three render cases, which cannot run offscreen. **Render cases windowed:** RS1, RS2, RC pass (35 s). **App:** builds. **Walk probe** on the real app (headless, copy of settings, sensors off and on): PASS. **Soak** (windowed, 360 s, 12 cycles Calibrate ↔ Check): one View3D each cycle; view pixel spread 24.98 / 13.22 against a blank control at 0.00 every cycle. | **Built:** pages Sensors (with the mount question), Calibrate, Check, and the closing page; `Main` on `ScreenSessionSetup`; `ScreenSessionWizard.qml` and its driver deleted from the tree; the slot functions removed from `ImuManager`, `imuPlacement` read-only. **Calibration flow:** `active` has no default (both hosts bind it); CW4 fixed (failed beats calibrating; holds stop on a dead sensor); F13 fixed (no intro replay; a view swap finishes the motion in flight); a restore no longer rings the ting (each visit builds a fresh flow). Calibration strings re-checked identical to the committed file. **Corrections made on the way:** my first state rule gave "Partly, 15 of 15" (now "Recorded, E of T estimated"); cameras assigned but not connected read "not connected", not "no … camera"; tempo counts only when a connected face-on camera or a calibrated arm sensor sees the swing; the launch-monitor row is neutral when none is configured and the ball family reads "Measured by the launch monitor (name)"; the Sensors set-up row carries "not connected" / "not calibrated"; an absent sensor is named by alias, else product name, else "HackMotion wG3", else "sensor", never by device id. **A flaky case, diagnosed:** CW6 phase 2 failed once in my gate run; an ordered timeline showed the routine finished and stayed finished, with no timer after `stop()`; the test's poll stepped over a 75 ms window on the scaled clock. Holds are now long on the scaled clock; 25 of 25 alone, the Witmotion file 5 of 5. **Offscreen draws nothing:** the offscreen platform creates the Metal QRhi but never presents a frame, so behaviour tests run headless and render tests need a window. The soak probe's in-app Canvas readback never returned for a grab; captures are measured outside the app. **Not verified, needs hardware (§7.6):** every row of the checklist, including the real wG3 routine, the toolbar recalibration predicted to be refused on the old build, the real refusal of a taken mount, and the real paced connect. **Open for Mark:** whether a remembered mount whose sensor is switched off should make the closing page say "Not quite ready"; the wording list in §11.4. |
+| 5b–5e, 6, 7, 8 (shims) | 5 Oct | **Final gate:** `session_setup_ui` 283 passed, 0 failed, 4 skipped, **no expected failures left**, 505 s; `session_setup_lint_test` (W1–W10, W9 enforced), `qml_ui`, `imu_role_map_test` (93 checks), `paced_connect_queue_test`, `update_controller_policy_test`, `setup_capability_test`, `metric_catalogue_test`, `swing_doc_test`, `live_wrist_angles_test`, `hackmotion_gate_test`, `hm_binding_recon_test`, `segment_rates_test` all pass. Skips: N18 (trunk pages not registered; N18F covers the engine) and the three render cases, which cannot run offscreen. **Render cases windowed:** RS1, RS2, RC pass (35 s). **App:** builds. **Walk probe** on the real app (headless, copy of settings, sensors off and on): PASS. **Soak** (windowed, 360 s, 12 cycles Calibrate ↔ Check): one View3D each cycle; view pixel spread 24.98 / 13.22 against a blank control at 0.00 every cycle. | **Built:** pages Sensors (with the mount question), Calibrate, Check, and the closing page; `Main` on `ScreenSessionSetup`; `ScreenSessionWizard.qml` and its driver deleted from the tree; the slot functions removed from `ImuManager`, `imuPlacement` read-only. **Calibration flow:** `active` has no default (both hosts bind it); CW4 fixed (failed beats calibrating; holds stop on a dead sensor); F13 fixed (no intro replay; a view swap finishes the motion in flight); a restore no longer rings the ting (each visit builds a fresh flow). Calibration strings re-checked identical to the committed file. **Corrections made on the way:** my first state rule gave "Partly, 15 of 15" (now "Recorded, E of T estimated"); cameras assigned but not connected read "not connected", not "no … camera"; tempo counts only when a connected face-on camera or a calibrated arm sensor sees the swing; the launch-monitor row is neutral when none is configured and the ball family reads "Measured by the launch monitor (name)"; the Sensors set-up row carries "not connected" / "not calibrated"; an absent sensor is named by alias, else product name, else "HackMotion wG3", else "sensor", never by device id. **A flaky case, diagnosed:** CW6 phase 2 failed once in my gate run; an ordered timeline showed the routine finished and stayed finished, with no timer after `stop()`; the test's poll stepped over a 75 ms window on the scaled clock. Holds are now long on the scaled clock; 25 of 25 alone, the Witmotion file 5 of 5. **Offscreen draws nothing:** the offscreen platform creates the Metal QRhi but never presents a frame, so behaviour tests run headless and render tests need a window. The soak probe's in-app Canvas readback never returned for a grab; captures are measured outside the app. **Not verified, needs hardware (§7.6):** every row of the checklist, including the real wG3 routine, the toolbar recalibration predicted to be refused on the old build, the real refusal of a taken mount, and the real paced connect. **Open for the Design Lead:** whether a remembered mount whose sensor is switched off should make the closing page say "Not quite ready"; the wording list in §11.4. |
 | 5a | 5 Oct | Old wizard, through ctest: `session_setup_ui` 221 passed (15 expected failures), 0 failed, 4 skipped, 382 s; lint passes W1–W10. New shell (`SETUP_SHELL=new`), same test files: nav 18 passed / 3 skipped, devices 4 / 5, lifecycle 4 / 2, check 2 / 2, ready 2 / 25, indicator 8 / 0; no failure, **no expected failure fires on the new shell**. Skips are cases that need the sensors-side pages, marked as such. | New, beside the untouched wizard: `setup/ScreenSessionSetup.qml` (shell, names no step: W10), `components/PpFlowIndicator.qml`, pages Goals, Cameras, Triangulate, Ball, five `setup/parts/`. `SetupDriver2` gives the catalogue a second adapter; one switch picks the shell. Strings: carried over except the tab labels (now descriptor titles) and three two-camera-required strings reachable only for the coming-soon presets. Engine changes: lifecycle requests queue in order (Main calls `open()` then shows the shell in one turn, and the resulting `resume()` used to replace the `open()`); pages reach the host through the flow (`openSettings`, `requestCameraRecalibrate`); `WizardPage.busy`; `SetupSteps.groupLabels`. N2 and N14 fixtures gained an arm sensor pair so the hardware-driven plan and the type-driven plan agree. |
 | 4 | 5 Oct | `session_setup_ui`: 213 passed (15 expected failures), 0 failed, 4 skipped, 379 s. New: `tst_setup_flow` 41 cases on a dummy shell (N1–N19 in their flow form, L1, L3, lifecycle order, outcome validity, R10 log lines, `SetupContext` over six hardware setups, `setupFacts` through a real `MetricCatalog`). Lint passes with W8 added (proved to bite) and W2–W4 waiting on `setup/pages/`. | New under `src/Gui/setup/`: `setup_flow.js`, `StepDescriptor`, `WizardPage`, `SetupSteps`, `SetupContext`, `SetupDraft`, `SetupFlow`. No file that existed before the stage was edited. Decisions taken in the stage: the host owns the Loader; one queued request at a time, a second navigation request in the same turn is dropped, a lifecycle request supersedes; a step that no longer applies skips its gates; `goTo(key, resetStates)` serves Recalibrate; the per-type `imuRequirements` table is gone and the sensor issues are new strings; summary rows follow registry order, so Ball now precedes IMUs. **Plan change for Stages 5–6 (wizard side merged):** the new shell is built beside `ScreenSessionWizard.qml`, which stays what the app uses until the whole catalogue passes on the new shell; the pages carry the approved behaviour from the start, so the gate is "every case passes with its expected-failure marker removed", and R1/R3 are re-baselined then. |
-| 3 | 5 Oct | App builds (first build with Stages 1–3; no errors). `session_setup_ui`: 172 passed (15 expected failures), 0 failed, 4 skipped, 365 s. New: `tst_setup_mounts` M1–M8, `tst_setup_rolesviz` V1–V5. Lint passes with W9 listing only `ScreenSessionWizard.qml` and `PpDataViewer.qml:96`. Probe `setup_mounts_settings.qml` on the real app, headless, on a copy of the settings: PASS (one row per device, each row shows its mount, options by name, no slot letter in 72 shown strings). | New singleton `ImuMounts.qml` holds the role → label table and the one switch `trunkMountsOffered` (false). `ImusPanel`, `ArmVizView`, `PpImuPanel` resolve by role. Two wording changes, kept by Mark: the arm-view legend reads "Lead forearm / Lead hand / Lead upper arm", and the toolbar chip reads the mount name. **A test wrote to the real settings file:** `update_controller_policy_test` (older than this work) built `AppSettings` over the developer's own ini; with Stage 1's migration in the constructor it migrated the real file at 11:24. Benign (the wG3's two units → leadForearm / leadHand, old key untouched); the test now redirects `QSettings` to a scratch directory, and gate runs compare the real file's timestamp. Not verified: the real manager's refusal reaching the panel, greying in a real popup, and the arm view's pixels after the rename. |
-| 2 | 5 Oct | `session_setup_ui`: 155 passed (15 expected failures), 0 failed, 4 skipped, 364 s; three runs, identical apart from the cases added between them. Lint passes with W1 enforced (18 gates, all on `active`) and W7 added. `qml_ui` passes. | `ImuCalibrationFlow.qml` 1,849 → 510 lines; `WitmotionArmRoutine` 597, `HackMotionArmRoutine` 790, `ArmCalibrationStatus` 576, `CalibrationGuide` 119. Every `qsTr` string identical in text and count (checked independently). **Flipped to pass:** CW6, CW9, CW10, CH8, CH9, L5 as planned, and CW12 as a side effect (a vendor swap now stops the old routine). **Still expected failures:** CW4 ×2, CW7, CH10, and the ten wizard-side cases. **Two fixes Mark approved on the day:** the wG3 travel-short message is no longer overwritten by the device's echo of our own abort (CH2 made deterministic, CH3/CH6 extended, CHr3 added); closing the toolbar popup counts as leaving (`active: mode === "calibrate" && visible`; CH13, CW14 in a real Popup). **One unplanned change:** the flow stops a routine at once but unloads it a turn later, because a completed run made the panel leave calibrate mode and destroyed the routine inside its own handler (two runtime warnings, caught by R11). `active` defaults to the flow's visibility until Stage 5. Not verified until the app build: the real `TingPlayer` and `appLog`, the panel in the real toolbar Popup, the real paced connect, and appearance. |
+| 3 | 5 Oct | App builds (first build with Stages 1–3; no errors). `session_setup_ui`: 172 passed (15 expected failures), 0 failed, 4 skipped, 365 s. New: `tst_setup_mounts` M1–M8, `tst_setup_rolesviz` V1–V5. Lint passes with W9 listing only `ScreenSessionWizard.qml` and `PpDataViewer.qml:96`. Probe `setup_mounts_settings.qml` on the real app, headless, on a copy of the settings: PASS (one row per device, each row shows its mount, options by name, no slot letter in 72 shown strings). | New singleton `ImuMounts.qml` holds the role → label table and the one switch `trunkMountsOffered` (false). `ImusPanel`, `ArmVizView`, `PpImuPanel` resolve by role. Two wording changes, kept by the Coaching Lead: the arm-view legend reads "Lead forearm / Lead hand / Lead upper arm", and the toolbar chip reads the mount name. **A test wrote to the real settings file:** `update_controller_policy_test` (older than this work) built `AppSettings` over the developer's own ini; with Stage 1's migration in the constructor it migrated the real file at 11:24. Benign (the wG3's two units → leadForearm / leadHand, old key untouched); the test now redirects `QSettings` to a scratch directory, and gate runs compare the real file's timestamp. Not verified: the real manager's refusal reaching the panel, greying in a real popup, and the arm view's pixels after the rename. |
+| 2 | 5 Oct | `session_setup_ui`: 155 passed (15 expected failures), 0 failed, 4 skipped, 364 s; three runs, identical apart from the cases added between them. Lint passes with W1 enforced (18 gates, all on `active`) and W7 added. `qml_ui` passes. | `ImuCalibrationFlow.qml` 1,849 → 510 lines; `WitmotionArmRoutine` 597, `HackMotionArmRoutine` 790, `ArmCalibrationStatus` 576, `CalibrationGuide` 119. Every `qsTr` string identical in text and count (checked independently). **Flipped to pass:** CW6, CW9, CW10, CH8, CH9, L5 as planned, and CW12 as a side effect (a vendor swap now stops the old routine). **Still expected failures:** CW4 ×2, CW7, CH10, and the ten wizard-side cases. **Two fixes the Product Owner approved on the day:** the wG3 travel-short message is no longer overwritten by the device's echo of our own abort (CH2 made deterministic, CH3/CH6 extended, CHr3 added); closing the toolbar popup counts as leaving (`active: mode === "calibrate" && visible`; CH13, CW14 in a real Popup). **One unplanned change:** the flow stops a routine at once but unloads it a turn later, because a completed run made the panel leave calibrate mode and destroyed the routine inside its own handler (two runtime warnings, caught by R11). `active` defaults to the flow's visibility until Stage 5. Not verified until the app build: the real `TingPlayer` and `appLog`, the panel in the real toolbar Popup, the real paced connect, and appearance. |
 | 1 | 5 Oct | `session_setup_ui`: 127 passed (29 expected failures), 0 failed, 4 skipped, identical to the baseline. New: `imu_role_map_test` 87 checks, `paced_connect_queue_test` 23 checks, `setup_capability_test`, all pass. `qml_ui`, `metric_catalogue_test`, `hackmotion_gate_test`, `session_setup_lint_test` pass. | The app-only files (`imu_manager.cpp`, `shot_processor.cpp`, `live_wrist_angles.cpp`, `swing_exporter.cpp`) are syntax-checked only until the Stage 3 app build. `imuPlacement` is now a view derived from `imuRoles`; it still accepts a legacy write, translated onto the roles, because the test fakes assign it. Left alone: `shot_processor.cpp:1128` runs the wrist assessment only for session type 1. |
 
 ### 11.3 The retired wizard's Ready tables (archived, captured 5 Oct against the last committed wizard)

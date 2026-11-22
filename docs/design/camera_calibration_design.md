@@ -1076,7 +1076,7 @@ speeds and angles at the ball, rather than overlays and body angles, and it need
 
 **Why the ball alone is not enough — the first graded attempt, 2026-09-15.**
 - **Setup:** the camera was on a tripod as low as the tripod went, looking down at the ball, with a
-  launch monitor on the same swings. Mark has set that session aside as a rig to learn from, not data.
+  launch monitor on the same swings. The Product Owner has set that session aside as a rig to learn from, not data.
 - **Absolute ruler:** the ball's diameter in pixels on a dim, top-lit ball moved **±10 % with the
   detection threshold**, and the resting ball was under-measured outright. Ball speed read **1.3–1.5 ×**
   the launch monitor on the detector's own resting radius, and 1.06–1.25 × on an edge-measured one.

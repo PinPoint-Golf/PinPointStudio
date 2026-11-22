@@ -351,7 +351,7 @@ From there:
 - Evidence:
   - `PpModeStage.qml:456-490`: a `Row` of `PpMicro` labels, a 2 px `Rectangle` rule and a bare `MouseArea` with `onClicked: stage.tabIndex = tab.index`. It has no keyboard path. `PpTabs` provides arrow keys, a focus ring and accessibility (`docs/design/system/components/PpTabs.md`).
   - `design_system_lint_test` does not flag it, presumably because the label is a `Pp*` component rather than `Text`.
-- Fix: decide whether `PpTabs` (a typeset register) or `PpTabButton` fits the stage heading. If neither does, it is a design-system change, which **needs Mark's approval before it is built**. Widen lint rule D1 to count `PpMicro` labels.
+- Fix: decide whether `PpTabs` (a typeset register) or `PpTabButton` fits the stage heading. If neither does, it is a design-system change, which **needs the Design Lead's approval before it is built**. Widen lint rule D1 to count `PpMicro` labels.
 - Effort: S (once decided)
 
 ### E-17 · ShotProcessor hygiene: the settings-fallback idiom, a second session-type label table, and the open-coded device key

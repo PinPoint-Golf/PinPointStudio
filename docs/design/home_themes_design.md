@@ -210,7 +210,7 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   gate alone read that drift as a trend (the slide theme: slope −0.21, t −1.0, now "no clear change
   yet"; arm-and-finish +0.30, t 3.3, still "may be growing").
 - **Display.** "YOUR SWING" is drawn to be looked at before
-  it is read (Mark rejected a first version of bulleted sentences as "really boring"):
+  it is read (the Coaching Lead rejected a first version of bulleted sentences as "really boring"):
   - two cards side by side — **What you do well** (green: a tick, the strength, how often it is in
     the ideal range, one pip per session) and **What needs work** (amber: the fault, a ten-step
     "how often" meter, a growing / easing chip, one pip per session that saw it), five each at most;
@@ -222,7 +222,7 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   carried over.
 - **The home screen is a coaching page; the rest is Swing diagnostics.** Two polished lists of the
   same faults ("what needs work" and WORK ONS) read as a contradiction, and five faults on "almost
-  every swing" give a golfer no order. Mark's call, 9 Oct: one focus to the fore, the technical layer
+  every swing" give a golfer no order. The Coaching Lead's call, 9 Oct: one focus to the fore, the technical layer
   one tap down. Home, top to bottom: YOUR SWING → **Your focus** → What you do well (3) | Next on your
   list (4) → "Swing diagnostics →". The Swing diagnostics screen holds FAULTS (the work-ons card,
   with its counts, corridors, drills and session links) and What goes together.
@@ -250,7 +250,7 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
     shows (family = metricKey, with a signed series the same family as its magnitude — otherwise
     "your hips keep turning through impact" sat beside "your hips haven't turned enough by impact");
   - worded from the pack's `golferWell` (what a golfer in the ideal range does, never "don't").
-- **Which conditions (rule v4, 14 Nov 2026).** Your swing follows Work-ons (Mark, on audit C-06):
+- **Which conditions (rule v4, 14 Nov 2026).** Your swing follows Work-ons (Coaching Lead, on audit C-06):
   "what we see most", the focus and "next on your list" name exactly the conditions the work-on
   list can hold as a movement — a `Fault` or a `Setup`, never one the pack holds back
   (`reportHold`). Before, Your swing took every `Fault` and no `Setup`, and ignored the hold: a held
@@ -263,7 +263,7 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   warns. `kThemeRuleVersion` 3 → 4, so a cached `swing_themes.json` is re-derived; the golden
   fixture and `tools/themes/theme_summary.py` (`is_work_on_fault`, `is_praisable`) follow the same
   rule.
-- **Set-ups can be praised (rule v5, 14 Nov 2026, Stage 0.14).** Mark: "yes you can praise setup esp.
+- **Set-ups can be praised (rule v5, 14 Nov 2026, Stage 0.14).** Coaching Lead: "yes you can praise setup esp.
   a consistent setup that is the holy grail". "What you do well" now names an unheld `Setup` by the
   SAME rule as an unheld `Fault` — in the ideal range on most / almost every swing (`wellShare` 0.85
   recency-weighted, `wellSession` 0.8 in the latest judged session, the same session and swing
@@ -274,14 +274,14 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   cached `swing_themes.json` is re-derived. On the golden fixture no praise appears or disappears:
   the set-ups in range on almost every swing (posture, knee flex) share a quantity with a needs-work
   fault, so the family exclusion keeps them out, and the rest are under 0.85.
-  **Praise only what is CONSISTENT (built in refactor step 3.6; DEC-181).** Mark also ruled (14 Nov)
+  **Praise only what is CONSISTENT (built in refactor step 3.6; DEC-181).** The Coaching Lead also ruled (14 Nov)
   that every praise — fault or set-up — needs the existing consistency grade at Repeatable (4) or
   Grooved (5), "Not enough swings" giving none: "there is no point praising something a golfer does
   not do pretty consistently (it doesn't have to be grooved but should be close)". That grade is the
   consistency marks' (`AthleteDiagnostics` since refactor 3.7-f, from the summaries' facts; `WorkOnsController` until then), worked out after the
   reduction, kept in memory per (condition, measure) and never stored, with the grader and the norm
   provider in `src/Gui/variability`; the reduction (`src/Coaching`, pure, fingerprinted on the
-  ledgers) cannot read it. Mark's decision (14 Nov): set-up praise ships now on the in-range rule, and
+  ledgers) cannot read it. The Coaching Lead's decision (14 Nov): set-up praise ships now on the in-range rule, and
   the consistency gate for ALL praise is built in refactor step 3.
   **As built (3.6):** the gate is THE PRAISE RULE (`swing_themes.h` `applyPraiseRule`, `kPraiseRuleVersion` 1),
   applied when the summary is published (`WorkOnsController::publishSummary`) to the reduction's ranked, uncapped
@@ -305,7 +305,7 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   bare words below half. The words are made at publish from the stored share, so `kThemeRuleVersion`
   does not move and nothing is re-derived; the tendency words did not change, so neither does
   `kTendencyRuleVersion`. `tools/themes/theme_summary.py` (`frequency_band`) follows.
-- **The words describe what listed the row (14 Nov 2026, Stage 0.14).** Mark: "the words describe what
+- **The words describe what listed the row (14 Nov 2026, Stage 0.14).** Coaching Lead: "the words describe what
   selected it". A needs-work row is listed when its latest judged session saw it on half or more
   (`themeSeenOn`, the one listing test); `seenMostBasis` asks the same test of the row's
   recency-weighted share. When that passes too, the row is listed on the weighted share and keeps its
@@ -314,10 +314,10 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   that session's: "most swings in your latest session" on a card (`themeFrequency(row)`), "on most
   swings in your latest session" in the flat lines (`themeHowOften(row)`). Words only, no figures.
   The row stores the latest session's rate (`SeenMostRow::latestShare`, `kThemeSchemaVersion` 2 → 3).
-  The card's meter is unchanged: it still shows the weighted share, and Mark accepted the latest
+  The card's meter is unchanged: it still shows the weighted share, and the Coaching Lead accepted the latest
   session's words beside it (14 Nov, after the review sheet). The how-often words on Home's cards
   (Next on your list, the focus's Right now, Matchups' travel-together faults) wrap and never elide,
-  the trend chip beside them (Mark: nothing cut at any window size); at 1600 × 1000 the longer words
+  the trend chip beside them (Design Lead: nothing cut at any window size); at 1600 × 1000 the longer words
   had been cut to "more than half y…". Ball too far on the golden fixture (0.39 weighted; 20 of 24 in its latest session) read
   "sometimes"; it now reads "most swings in your latest session". `theme_summary.py` (`seen_basis`,
   `row_frequency`, `row_how_often`) follows.

@@ -58,7 +58,7 @@ Assessed against the code at `770b9fce` (main, 10 Nov 2026). Every "built" claim
 - **Can build now**: needs no new hardware and no unbuilt dependency.
 - **Blocked by**: what has to exist first.
 
-Items marked **DS** add or change a screen, so they need Mark's design-system approval before they're built. Items marked **Mark's call** need a ruling first.
+Items marked **DS** add or change a screen, so they need the Design Lead's design-system approval before they're built. Items marked **the Product Owner's call** need a ruling first.
 
 ## At a glance
 
@@ -69,7 +69,7 @@ Items marked **DS** add or change a screen, so they need Mark's design-system ap
 | 3 | Ground reaction forces | **Not met.** There are two 2-D balance proxies only. | Force plates / Wii boards, the worn trunk session, calibration |
 | 4 | Phase-normalised comparison | **Partly.** Chart traces line up by P-position, with an Against picker. There's no video side-by-side and no "best swings" pool. | None for the basics. P-position reliability (#3, #4, #24, #30, #70) limits quality. |
 | 5 | Variability and trends | **Mostly, within a session.** The Consistency tab, variability marks and trend arrows are built. There's no dated trend chart on Home and no practice-vs-pressure context. | None. On-course capture is out of reach. |
-| 6 | Real-time biofeedback | **Not met.** Results arrive about 15 s after impact. Tones exist but carry no metric. | Mark's call on the audio rule; the census for honest in-range tests; live paths |
+| 6 | Real-time biofeedback | **Not met.** Results arrive about 15 s after impact. Tones exist but carry no metric. | The Product Owner's call on the audio rule; the census for honest in-range tests; live paths |
 | 7 | Frictionless capture | **Mostly.** Multi-camera capture, automatic shot detection, LM pairing and auto-replay all work. Capture pauses until the previous shot finishes, and setup has up to 11 steps. | None for the main items. Hardware sync needs trigger cabling. |
 | 8 | Coach workflow | **Partly.** There's a telestrator (not saved), automatic coach lines, per-shot notes and stars, an athlete library, and a report PDF sent by email. No voice-over, no golfer-side viewer. | Hosting for remote review; a recorder for voice-over |
 | 9 | Open data | **Mostly.** Open binary format (MIT library + Python reader), raw lanes, zip and per-swing CSV export. No per-shot metrics table, and the schema doc is stale. | None |
@@ -142,7 +142,7 @@ Items marked **DS** add or change a screen, so they need Mark's design-system ap
 
 **Can build now**
 - **2a.** Fix the stale `thoraxRotation` text.
-- **2b. The uncertainty census itself** (#88). It is Mark's hard gate before validation and full release, and needs no hardware.
+- **2b. The uncertainty census itself** (#88). It is the Product Owner's hard gate before validation and full release, and needs no hardware.
 - **2c.** The "uncertainty not characterised" label on cards. Probably DS, as a new label state.
 - **2d. 3-D sway, lift and side bend** from skeleton3d joints, as Estimated routes beside the 2-D ones.
   - Sway and lift as a percentage of stance width are scale-free, so they're honest before calibration. Centimetres are not.
@@ -154,7 +154,7 @@ Items marked **DS** add or change a screen, so they need Mark's design-system ap
   - Stages 1–4 and 9 need no new kit: focus visibility, the per-bay record, linking OpenCV calibration, known-size scale, the alignment-stick geometry. The ChArUco board was ordered in September.
 - **The worn trunk session, W3/W4 (#109):** the sensors are in hand; it needs Mark's time. It is the truth for camera rotation and for the pelvis/thorax timing in the sequence, including whether hips really peak after impact.
 - **A marker-based reference** (GEARS or Vicon lab access) for the benchmark. External.
-- **Validation** waits on the census, by Mark's rule.
+- **Validation** waits on the census, by the Product Owner's rule.
 
 ## 3. Ground reaction forces
 
@@ -194,8 +194,8 @@ Items marked **DS** add or change a screen, so they need Mark's design-system ap
 
 **Can build now**
 - **4a. Video side-by-side synced by P-position** (DS). The playheads map through each swing's stored P-times, using the same warp the charts use. Any swing can go against any other, and against ★.
-- **4b. A "your best swings" Against option**: the P-aligned median of a pool chosen by outcome. **Mark's call** on how "best" is chosen (e.g. centred strike, offline within the club's band, carry near the club's usual). It must not model intent, and must give no miss family priority.
-- **4c.** A 3-D ghost of ★ or the best pool beside the current figure. Low value until calibration: Mark judged the 3-D usual swing "better, still not great".
+- **4b. A "your best swings" Against option**: the P-aligned median of a pool chosen by outcome. **The Product Owner's call** on how "best" is chosen (e.g. centred strike, offline within the club's band, carry near the club's usual). It must not model intent, and must give no miss family priority.
+- **4c.** A 3-D ghost of ★ or the best pool beside the current figure. Low value until calibration: the Product Owner judged the 3-D usual swing "better, still not great".
 
 **Blocked by**
 - Nothing hard. P-position errors (#3, #4, #24, #30, and timeline fusion #70 not built) make any P-sync wrong on the swings they hit. The worst is P8 landing hundreds of ms late.
@@ -217,7 +217,7 @@ Items marked **DS** add or change a screen, so they need Mark's design-system ap
 
 **Can build now**
 - **5a. Trends on Home** (DS): a dated chart per fault, per work-on and per LM figure, with the Theil-Sen slope. Everything it needs is in the ledgers.
-- **5b. A session context tag** (DS, **Mark's call** on the choices; e.g. Practice · Lesson · Test), stored with the session and usable as a filter or split.
+- **5b. A session context tag** (DS, **the Product Owner's call** on the choices; e.g. Practice · Lesson · Test), stored with the session and usable as a filter or split.
   - "Pressure" in a studio could be a test session: one ball per club, nothing to retry.
   - The tag records what kind of session it was, not what the golfer meant to do.
 
@@ -241,12 +241,12 @@ Items marked **DS** add or change a screen, so they need Mark's design-system ap
 - **One rule breach:** the developer-only LLM coach speaks its replies through TTS. Those can be verdicts or readings, which the spoken-output rule forbids (instructions only).
 
 **Can build now**
-- **6a. After-shot range tone with fading** (**Mark's call**).
+- **6a. After-shot range tone with fading** (**the Product Owner's call**).
   - Pick one reading and its band. A tone sounds when the shot is analysed: one pitch for in, another for out.
   - Feedback can fade (every shot → every 2nd → every 3rd, or only when asked).
   - This is "knowledge of results" a few seconds after the shot, which is the setting the fading research is about.
-  - A tone is not speech, but it does carry a verdict, so it needs Mark's ruling against the spoken-output rule. Tests must use a silent fake.
-- **6b. Real-time wrist cue from the wG3.** Its live lane runs 25–100 Hz in the downswing, with 20–25 ms of Bluetooth jitter. That's enough for a cue at the top (e.g. lead wrist flexion at P4), the way HackMotion does it. It needs P4 found live from the arm sensor. **Mark's call**, same rule question.
+  - A tone is not speech, but it does carry a verdict, so it needs the Product Owner's ruling against the spoken-output rule. Tests must use a silent fake.
+- **6b. Real-time wrist cue from the wG3.** Its live lane runs 25–100 Hz in the downswing, with 20–25 ms of Bluetooth jitter. That's enough for a cue at the top (e.g. lead wrist flexion at P4), the way HackMotion does it. It needs P4 found live from the arm sensor. **The Product Owner's call**, same rule question.
 - **6c.** Silence the spoken LLM replies, or limit them to instructions.
 
 **Blocked by**
@@ -274,7 +274,7 @@ Items marked **DS** add or change a screen, so they need Mark's design-system ap
 
 **Can build now**
 - **7a. Let the next swing be captured sooner.** Resume the ring as soon as analysis and export have copied what they need, and play the replay from the exported clip. This is a medium-sized change to who owns the frozen window.
-- **7b. Trim the face-on and down-the-line export** to the analysed span plus a margin. This saves disk and loads faster. Mark's call on the margin; the replay already trims.
+- **7b. Trim the face-on and down-the-line export** to the analysed span plus a margin. This saves disk and loads faster. The Product Owner's call on the margin; the replay already trims.
 - **7c. "Same setup as last time"** (DS): when cameras, sensors and bay haven't changed, skip straight to Ready, with a check rather than the full walk-through.
 
 **Blocked by**
@@ -305,8 +305,8 @@ Items marked **DS** add or change a screen, so they need Mark's design-system ap
 
 **Blocked by**
 - **Voice-over** needs a recorder that muxes the microphone with the rendered view. FFmpeg is there; the recorder isn't.
-- **A golfer-side viewer or share link** needs hosting and sign-in. **Mark's call**: the project is never commercial, so who would host it?
-- **A useful LLM coach** is Mark's call on whether it's wanted at all.
+- **A golfer-side viewer or share link** needs hosting and sign-in. **The Product Owner's call**: the project is never commercial, so who would host it?
+- **A useful LLM coach** is the Product Owner's call on whether it's wanted at all.
 
 ## 9. Open data
 
@@ -346,13 +346,13 @@ Items marked **DS** add or change a screen, so they need Mark's design-system ap
 | Dependency | State | Unlocks | What it needs |
 |---|---|---|---|
 | Camera calibration (#74) | Designed, nothing built | 2 (measured 3-D, calibrated σ, 3-D side bend), 3 (centre of mass in metres), 4c, 6, the triangulate step | Code for stages 1–4 and 9 needs no new kit; the ChArUco board for lens models; bench measurements (design §11) |
-| Uncertainty census (#88) | Brief written, not started | 2 (validation), 6 (honest in-range) | No hardware. Mark's hard gate before validation and full release |
+| Uncertainty census (#88) | Brief written, not started | 2 (validation), 6 (honest in-range) | No hardware. The Product Owner's hard gate before validation and full release |
 | Worn trunk session W3/W4 (#109) | Sensors and calibration routine ready | 2 (rotation and sequence truth), 3 Part B, 6 trunk cue | Mark wearing the sensors and the wG3 |
 | Force plates (#72 Part C) | Designed, nothing built | 3 | Two Wii balance boards first; borrowed plates for a reference session |
 | Marker-based reference | None | 2 (benchmark against GEARS or Vicon) | Access to a lab |
 | P-position reliability (#3, #4, #24, #30, #70) | Known bugs; timeline fusion designed, not built | 4, 7 | Code only |
 | Analysis latency (about 15 s) | Pose already 2–3× faster | 6 (anything real-time from cameras), 7 | Mostly the frozen-window change (7a), not more speed |
-| Hosting | None | 8 (golfer viewer, share link) | Mark's call |
+| Hosting | None | 8 (golfer viewer, share link) | The Product Owner's call |
 
 ## Candidates to plan now
 
@@ -363,13 +363,13 @@ Ranked by value for the effort. All need no new hardware.
 | 1 | Numeric shot filter + value contrast across sessions (1a, 1b) | 1, anti-feature | Medium; a ledger schema bump and re-grade | DS approval |
 | 2 | Metrics CSV for a session / the library (9a) + schema doc (9b) | 9 | Small | — |
 | 3 | Dated trends on Home for faults and LM figures (5a) | 5 | Medium | DS approval |
-| 4 | Capture the next swing sooner (7a) + trimmed export (7b) | 7 | Medium | Mark's call on the margin |
-| 5 | Video side-by-side by P-position (4a) + best-swings pool (4b) | 4 | Medium–large | DS approval; Mark's call on "best" |
+| 4 | Capture the next swing sooner (7a) + trimmed export (7b) | 7 | Medium | The Product Owner's call on the margin |
+| 5 | Video side-by-side by P-position (4a) + best-swings pool (4b) | 4 | Medium–large | DS approval; the Product Owner's call on "best" |
 | 6 | Saved marks, angle tool, session notes, clip with marks drawn in (8a–8d) | 8 | Medium | DS approval |
 | 7 | Honesty fixes: stale text (2a), "not characterised" label (2c) | 2 | Small | DS approval for 2c |
 | 8 | Uncertainty census (2b) | 2 | Large; analysis work | — |
-| 9 | After-shot range tone with fading (6a) | 6 | Small–medium | Mark's ruling on the audio rule |
-| 10 | "Same setup as last time" (7c); session context tag (5b) | 7, 5 | Small each | DS approval; Mark's call on the tag's choices |
+| 9 | After-shot range tone with fading (6a) | 6 | Small–medium | The Product Owner's ruling on the audio rule |
+| 10 | "Same setup as last time" (7c); session context tag (5b) | 7, 5 | Small each | DS approval; the Product Owner's call on the tag's choices |
 | 11 | "What drives your ball flight" across sessions (1c) | 1, anti-feature | Medium–large; needs a stored per-session readings summary | Builds on 1b |
 
 Calibration stages 1–4 and 9 are also buildable now, but they belong to the calibration programme (#74), not to this list.
@@ -429,7 +429,7 @@ AMM's electromagnetic field is distorted by metal, so its sensors cannot go on a
 | LM integration | Swing Catalyst | Three connectors; GSPro OpenConnect coming | Near parity | — |
 | Biofeedback training | K-Motion | None | **Large** | 6a, 6b |
 | Normative reference | AMM (TPI 3D), GEARS | Literature corridors; comparisons against the player's own swings | A different basis, and a defensible one | — (no tour corpus planned) |
-| Coach–player platform | K-Motion, Swing Catalyst | Report PDF by email | Medium | Hosting (Mark's call) |
+| Coach–player platform | K-Motion, Swing Catalyst | Report PDF by email | Medium | Hosting (the Product Owner's call) |
 | Fidelity against markers | GEARS | About 7 px reprojection (~2 cm at the golfer) | Stays | A marker-lab benchmark |
 
 ### Where PPS leads
@@ -455,7 +455,7 @@ Ranked by how much each changes the comparison.
 | 5 | **Trunk data hygiene**: `imuIntegrity` parity on a Witmotion swing; an IMU-only job run end to end | Trunk numbers believable at all | Open | — |
 | 6 | **3-D sway, lift and thrust**, thorax included, from skeleton3d | Translations | Can build now, as % of stance before calibration | 2d |
 | 7 | **Coach video tools** | Swing Catalyst's strength | Can build now | 4a, 8a–8d |
-| 8 | **A training loop**: after-shot tone with fading; wG3 cue at the top; work-on drills measured on the measures they target | K-Motion's proposition, and the "help the golfer improve" layer | Mark's call | 6a, 6b, work-ons |
+| 8 | **A training loop**: after-shot tone with fading; wG3 cue at the top; work-on drills measured on the measures they target | K-Motion's proposition, and the "help the golfer improve" layer | The Product Owner's call | 6a, 6b, work-ons |
 | 9 | **Force**: Wii boards, then a reference session on borrowed plates | GRF | Hardware | #72 |
 | 10 | **A marker-lab benchmark** | GEARS's fidelity claim | External | — |
 

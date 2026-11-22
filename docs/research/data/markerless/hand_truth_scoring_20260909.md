@@ -1,7 +1,7 @@
 # Hand-truth scoring, 2026-09-09
 
 `tools/shaftlab/segment_truth_score.py` against Mark's markup-lab truth.json. Seen frames =
-P1–P6; inferred = P7–P10 (Mark's standing rule for the 6-iron session: through impact the
+P1–P6; inferred = P7–P10 (the Product Owner's standing rule for the 6-iron session: through impact the
 shaft is invisible and the mark is a line from the hands to the clubhead). Direction is the
 tracker's published θ vs the mark's; head is the published head px vs the marked head.
 

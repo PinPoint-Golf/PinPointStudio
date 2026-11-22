@@ -3,7 +3,7 @@
 **Status: design, 2026-07-05.** Successor to stripe fusion v2.0
 (`stripe_fusion.py`, as-built notes in `stripe_fusion_design.md`; full
 adjudication record in lab `tape_20260705/RESULTS.md`). Reviewed premise,
-from Mark: v2.0 fought every counterfeit with a generic guard and bought
+from the Solution Architect: v2.0 fought every counterfeit with a generic guard and bought
 honesty by abstention — coverage shrank with each patch. v3 makes the golf
 swing's physical structure the primary discriminator, so counterfeits are
 rejected by *understanding* while real measurements are kept.
@@ -104,7 +104,7 @@ energy along a ray simultaneously yields: the club **region of interest**,
 a refined ω estimate for the window, and a deblurred composite in which
 the 2-1-3 band pattern can re-emerge at speeds where any single 6.57 ms
 frame is hopeless. C2 applies before scoring: body-polygon pixels are
-masked out of the coherence measure (per Mark: ROI-finding must respect
+masked out of the coherence measure (per the Solution Architect: ROI-finding must respect
 the overlap schedule), and C1's butt-termination is tested on the stacked
 composite.
 
@@ -145,7 +145,7 @@ deterministic inference (no augmentation at test time), corpus-gated
 acceptance like every other stage, ONNX Runtime deployment (already in the
 app for Kokoro — the path exists).
 
-**Heel/toe keypoint head (Mark's ask).** A small heatmap CNN (lightweight
+**Heel/toe keypoint head (the Product Owner's ask).** A small heatmap CNN (lightweight
 U-Net-class, single class per keypoint: heel, toe, optionally hosel) that
 localizes clubhead extremities inside the v3.1 ROI. Why learned: the head
 is the one component with no ratio template — shape varies per club, blur
@@ -223,7 +223,7 @@ guardrail (an into-forearm veto plus removal of the reverse half-circle). But th
 cone is a **magnitude** bound on ψ = θ − φ, and it was the *only* part of the
 double-pendulum physics we encoded. The stronger structure was left out.
 
-**The stronger structure (Mark, 2026-07-06).** ψ obeys the same one-reversal law
+**The stronger structure (Coaching Lead, 2026-07-06).** ψ obeys the same one-reversal law
 C3 gives θ, but on the *wrist*: from address to the top ψ cocks **monotonically**
 (the interior arm–shaft angle closing ≈180°→≈90°); at transition it reverses
 **once**; from transition through impact to the finish it releases
@@ -310,7 +310,7 @@ behind "explore C4 first."
 ### 8.1 As-built (2026-07-07): fit, don't penalise — and the law's domain
 
 The transition-rail plan above was built, gated, and then **superseded** by a
-cleaner form. Two findings drove the change (Mark).
+cleaner form. Two findings drove the change (Solution Architect).
 
 **1. Monotonicity is truth, so a violation is a *measurement of error* — fit it,
 don't penalise it.** A per-frame DP penalty on the sign of Δψ fires on the

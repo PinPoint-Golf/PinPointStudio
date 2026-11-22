@@ -1,6 +1,6 @@
 # 3-D swing annotations — the camera tiles' motion overlays, drawn in the 3-D swing panel
 
-*2026-09-27. Status: **APPROVED and being built** — Mark's answers to §8 are recorded there, and
+*2026-09-27. Status: **APPROVED and being built** — the Design Lead's answers to §8 are recorded there, and
 they added two things to the design: the match-the-camera presets (§5a) and the fused downswing
 plane (§5b). Follows
 `swing_3d_viz_design.md` (the panel, `skeleton3d`, §12 = what was built). Written after surveying
@@ -39,7 +39,7 @@ It is built in three parts:
 **Done when** all of the following hold:
 - Every element and mode in §2 appears in the panel under the same Motion setting as the tiles.
 - §7.1 passes.
-- §7.2's table is filled in for the 24 two-camera swings and judged by Mark. A table that shows the
+- §7.2's table is filled in for the 24 two-camera swings and judged by the Product Owner. A table that shows the
   3-D traces disagree with the video still counts as done, provided it is written up honestly. A
   skipped table does not.
 - The 30-minute soak is clean on the Mac (§7.3).
@@ -150,7 +150,7 @@ the body hiding the part of it that passes behind. So annotations are **depth-te
 default: the clubhead arc disappears behind the golfer on the far side, as it should.
 
 Frame-mode sticks sit *inside* the hull and would vanish entirely. For them, frame mode fades the
-hull to ~35 %, so the skeleton reads through it (Mark, §8 q2). How this avoids the sorting trap:
+hull to ~35 %, so the skeleton reads through it (Design Lead, §8 q2). How this avoids the sorting trap:
 - The faded hull uses `depthDrawMode: OpaquePrePassDepthDraw`. A depth pre-pass lets only its
   front-most surface blend, so a transparent skinned mesh cannot show its own far side.
 - The frame-mode sticks are **opaque** (`alphaMode: Opaque`), so they are drawn in the opaque pass
@@ -183,7 +183,7 @@ parses the document.
 camera. They are hidden when the point is behind the camera (z < 0 from the mapping). There is
 no 3-D text: it faces the wrong way from half the presets.
 
-## 5a. Match the camera (Mark, §8 q3)
+## 5a. Match the camera (Design Lead, §8 q3)
 
 The fitted cameras are persisted in `skeleton3d.camera`. The face-on camera sits at the world
 origin, looking along +Y, pitched by `pF` and rolled by `rF`. The DTL camera sits at `cD`, with yaw
@@ -203,7 +203,7 @@ view to a second `PerspectiveCamera` at that pose:
 This is the direct, visible version of §7.2: the traces should land on the tile's traces to within
 the reprojection figure.
 
-## 5b. The fused downswing plane (Mark, §8 q5)
+## 5b. The fused downswing plane (Design Lead, §8 q5)
 
 `club3d.planes.down` is the downswing shaft plane from the two-view fusion. It has `normal`,
 `inclDeg` and `offered`, in the same world frame as `skeleton3d`. It is a plane of *directions*,
@@ -223,10 +223,10 @@ degrees. That is the true disagreement, and it is not smoothed away.
 
 | Phase | Deliverable | Done when |
 |---|---|---|
-| 1 | Driver anchors + `SwingAnnotationGeometry` trace mode; clubhead and lead-wrist traces wired to `ViewLayout`; the transparent-hull spike | Traces scrub exactly; spike answered, with pictures of a paused P4 in all five presets for Mark |
+| 1 | Driver anchors + `SwingAnnotationGeometry` trace mode; clubhead and lead-wrist traces wired to `ViewLayout`; the transparent-hull spike | Traces scrub exactly; spike answered, with pictures of a paused P4 in all five presets for the Design Lead |
 | 2 | frame + fan modes for all body elements and the shaft; ball obeys its setting | §7.1 passes |
 | 3 | P-positions: dots, the ±40 ms shaft, labels | Labels track through an orbit and hide behind the camera |
-| 4 | §7.2 reprojection grade on the 24 two-camera swings; the soak | §7.2 table judged by Mark; soak clean |
+| 4 | §7.2 reprojection grade on the 24 two-camera swings; the soak | §7.2 table judged by the Product Owner; soak clean |
 
 Builds: one app build per phase, plus the two affected test targets through ctest, once, at the
 end of each phase.
@@ -261,7 +261,7 @@ fit's reprojection floor is ~7 px face-on / ~5 px DTL (§12.4 there), so for bod
 read about that. For the clubhead it will be the new result, because the fit's shaft is
 fused/modelled while the tile's head is the tracker's. A large clubhead residual through impact
 means the 3-D arc is the fit's opinion, and the panel should say so (a tier chip on the trace)
-rather than hide it. Judged per swing, by count; Mark judges the table before any commit.
+rather than hide it. Judged per swing, by count; the Product Owner judges the table before any commit.
 
 ### 7.3 Soak
 
@@ -269,7 +269,7 @@ The View3D disappearance watch still applies. The soak repeats §12.4's 30-minut
 reparent run with every element on trace, and then again on fan (the per-tick rebuild path).
 Checked through the app log; Mac first, and GOLFSIMPC is owed as it is for the panel itself.
 
-## 8. Questions for Mark — answered 27 Sept
+## 8. Questions for the Design Lead — answered 27 Sept
 
 1. **One setting for both (§3)**: is it right that the tiles and the 3-D panel always show the
    same annotations? The alternative is a separate 3-D motion state, which means a second pill
@@ -356,7 +356,7 @@ sit at 4.8–9.7 px face-on and 3.6–7.6 px DTL across the 24 swings. The fit's
   and 0.871 m (11 June) against the 0.94 m record, ranging 0.73–1.00 m per swing (§12.2 item 7 of
   the panel design makes it a shared unknown with the record as a σ 8 cm prior). A club drawn ~9 cm
   short puts its head ~9 cm off wherever the shaft points. The grip, at 6–8 cm, says the club also sits
-  a little off the hands. **Not fixed here.** It is the fit, not the annotation, and it is Mark's
+  a little off the hands. **Not fixed here.** It is the fit, not the annotation, and it is the Design Lead's
   call whether the panel should draw the club at the record's length instead.
 
 ### 9.3 UI checks
@@ -388,13 +388,13 @@ The soak ran 30 minutes on screen on the Mac, 27 Sept (`tools/probes/swing3d_pan
   fan; the 10-minute grab falls after Finish and correctly draws nothing.
 
 ### 9.5 Owed, and open
-- **The clubhead gap (§9.2).** Mark's call: draw the club at the club record's length, or leave it as
+- **The clubhead gap (§9.2).** The Design Lead's call: draw the club at the club record's length, or leave it as
   the fit's length and say so.
 - **GOLFSIMPC soak**, as for the panel itself.
 
-## 10. Mark's review, and the second pass (28 September 2026)
+## 10. The Design Lead's review, and the second pass (28 September 2026)
 
-Mark on §9: "The trace matches the video, the 3-D swing is a useful diagnostic tool — the club trace is
+Design Lead on §9: "The trace matches the video, the 3-D swing is a useful diagnostic tool — the club trace is
 messy and highlights how far away we are." He asked for three things: stabilise the club, whose 3-D
 path is implausibly jittery while the face-on view is stable; render the traces as 3-D objects; and
 make the figure transparent, up to 50 %, so the traces inside and behind it can be seen.
@@ -450,7 +450,7 @@ set at impact from DTL (the pelvis loop visible inside the hips).
 
 ## 11. The 3-D swing ends at P8; no fused plane ⇒ face-on only (28 September 2026)
 
-Mark, after the DTL grabs showed the club veering off plane in the follow-through: "we are really
+Product Owner, after the DTL grabs showed the club veering off plane in the follow-through: "we are really
 messy after P8 and it's not a priority right now since it doesn't reveal anything interesting… limit
 the 3-D swing to stop at P8. Swings with no DTL, and therefore no fused shaft plane, should be limited
 to a face-on 3-D swing view." The veer itself is root-caused in

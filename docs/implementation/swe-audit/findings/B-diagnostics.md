@@ -411,7 +411,7 @@ module postdates it. One item touches this area:
    a defect or an unwritten rule.
 2. Was `ModelBrowser::refresh()` ever wired to panel show or `libraryChanged`? `git log` would say
    whether a caller was removed.
-3. Should Mark's acceptance of a provisional norm be a first-class field (B-05), and is the release
+3. Should the Coaching Lead's acceptance of a provisional norm be a first-class field (B-05), and is the release
    dashboard meant to be the authority on it?
 4. Are flight bands meant to be user-overridable like every other corridor (B-06)?
 5. Given B-07, was the "club assumed" demotion deliberately switched off live (for example because

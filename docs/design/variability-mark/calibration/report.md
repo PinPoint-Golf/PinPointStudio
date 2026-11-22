@@ -91,7 +91,7 @@ The scalar grades lean to Grooved, the traces to Scattered, and the Needle to No
 
 The reviewer simulated swings drawn from the window's own distribution, at n = 20. A swing from that same distribution has an RMS z(t) whose median is 1.08, so it reads "Your usual" only 15–55% of the time, depending on curve smoothness. The scalar z reads it that way about 68% of the time. The trace thresholds can't share §7.4's |z| 1 and 2 as they stand.
 
-## Proposals: none applied, each needs Mark's ruling
+## Proposals: none applied, each needs the Design Lead's ruling
 
 1. **§8.6 noise.**
    - Don't subtract the propagated σ as noise, and don't use it as the Needle's uncertainty for the measurement-limited coupling.
@@ -100,7 +100,7 @@ The reviewer simulated swings drawn from the window's own distribution, at n = 2
 2. **CV fallback.** Leave Ratio measures without a corridor ungraded until each gets a `variabilityScale`, rather than grading CV on the corridor bands. The alternative is a CV band set of its own, for which these 67 rows are too few to set it.
 3. **Scalar bands.** Keep 0.25 / 0.50 / 0.75 / 1.00. On observed SD against corridors they spread 32 / 31 / 14 / 7 / 15%. Revisit once more golfers have sessions of 8 or more swings.
 4. **TIMING_SCALE_MS.** Not yet. First decide which traces have a meaningful peak inside the top→impact window. The candidates are the rate traces, those whose descriptor `phases` says the peak matters, or those whose peaks sit inside the window on most swings (208 of 282). For the 49 top-edge traces, ρₜ measures downswing duration (§3). The table above is the evidence for a scale once that is settled.
-5. **Trace amplitude scale.** Give each trace an associated scalar corridor in the descriptor: a new optional field naming the scalar, which is a model change for Mark. TRACE_AMP_FRACTION 0.10 then becomes a last resort.
+5. **Trace amplitude scale.** Give each trace an associated scalar corridor in the descriptor: a new optional field naming the scalar, which is a model change for the Solution Architect. TRACE_AMP_FRACTION 0.10 then becomes a last resort.
 6. **MEAS_TOL_FRACTION.** Leave it at 0.25 until a validation RMSE exists; the propagated σ is the wrong input to judge it with.
 7. **Trace typicality thresholds.** Calibrate a separate pair for RMS z(t), for example from shuffled sessions as the Consistency stand-outs were. Until then, lean on the timing and amplitude deviations for the words.
 8. **Ordinal partial orders.** Choose a rule. Options:

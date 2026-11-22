@@ -1,7 +1,7 @@
 # Markerless club track: the 29 Sept 2026 "regression" investigation
 
 **Status:** diagnosis complete. 16 Sept: cause verified and fixed. 15 Sept: cause identified
-(the impact-camera rig hides the ball) and confirmed by Mark. Two things remain for next time:
+(the impact-camera rig hides the ball) and confirmed by the Product Owner. Two things remain for next time:
 the session warning and unusable face-on marking (§5a), and tracker robustness (§7).
 
 **Correction (1 Oct 2026, `data/markerless/tracker_robustness_20261001.md`):** the §5 reading that
@@ -10,7 +10,7 @@ and s2 the ball detector found the ball (one cluster at (666, 942) on both model
 broke because the hands-only phase model never formed a backswing run (the early takeaway runs
 at 2.5–6 px/frame against a threshold of 8) and manufactured its address at impact − 550 ms;
 the sideways P1 that followed is why `ImpactAnchorStage` then found no address ball. Item 4 is
-built and gated there. The rig may still hide the ball on other swings; Mark's capture-time rule
+built and gated there. The rig may still hide the ball on other swings; the Product Owner's capture-time rule
 (no ball seen on the face-on camera ⇒ the shot is not recorded, with a toast) stands as a
 separate, mechanical item.
 
@@ -36,7 +36,7 @@ edge, the evidence-fitted synth, the address-ball anchor) looked like the obviou
 - **15 Sept: the impact-camera rig hides the ball.** Recorded at Medium, so B is the correct
   model and the bug above does not apply. The broken swings are, almost exactly, the swings
   whose address ball was not found. The impact-camera rig sat on the ball position in the
-  face-on view. Mark confirmed this is the cause (29 Sept).
+  face-on view. The Product Owner confirmed this is the cause (29 Sept).
 - **Neither pose model is safe, and the tracker is the risk.** On the 21 Medium swings with the
   ball visible, B tracks 19 and L 17, failing on different swings in the same way (§6). Medium
   stays for now.
@@ -118,7 +118,7 @@ with a B pose. The studio's library sweeps have been writing B poses over High s
 | Wrist_03 s1 | 0.82 / 89° / 260° / 57 | 0.85 / 81° / 252° / 57 |
 
 Backups of all 7 pre-fix documents: `/mnt/swingdata/scratch/backup-pre-L-20260929/`. Delete them
-once Mark has reviewed the swings in the app.
+once the Product Owner has reviewed the swings in the app.
 
 ## 5. 15 Sept: the impact-camera rig hides the ball
 
@@ -147,7 +147,7 @@ once Mark has reviewed the swings in the app.
 - The club itself is clearly visible and reasonably lit in these frames. "Too dark to track" is
   not what the pictures show, though the lighting may still play a part.
 
-**Confirmed by Mark (29 Sept):** the sessions shot with the impact camera are broken because
+**Confirmed by the Product Owner (29 Sept):** the sessions shot with the impact camera are broken because
 the rig hides the ball from the face-on camera. A ball-injection run is not needed to establish
 this. It remains a useful check that the tracker recovers once a ball exists.
 
@@ -155,7 +155,7 @@ this. It remains a useful check that the tracker recovers once a ball exists.
 Wrist_01 s5 and s12 (both broken, both without a ball); which session the note meant is
 unconfirmed.
 
-## 5a. What the product must do about it (Mark, 29 Sept) — not built yet
+## 5a. What the product must do about it (Product Owner, 29 Sept) — not built yet
 
 - **The session carries a warning symbol.** A session whose face-on view has the ball hidden,
   by the impact-camera rig or anything else, says so at session level. Per the logging rule,
@@ -174,7 +174,7 @@ unconfirmed.
 
 ## 6. Is ViTPose-B (Medium) the risk? Neither model is safe; the tracker is
 
-Mark asked whether markerless tracking breaks at the Medium setting; if it did, Medium should
+The Product Owner asked whether markerless tracking breaks at the Medium setting; if it did, Medium should
 not be offered. As far as the code shows, the setting chooses only the analysis pose model
 (Medium → ViTPose-B, High → ViTPose-L). Medium is the default, and the video is recorded
 identically either way, so a Medium swing can be re-analysed on L later.
@@ -214,7 +214,7 @@ equivalent.
 
 **Recommendation:** keep Medium for now. Fix the tracker's address and backswing failure mode
 (§7); it is the lever. Re-run this B/L comparison as the gate for that work: both models should
-reach 21 of 21. Mark's rule stands: if B is shown to be worse once the tracker is robust,
+reach 21 of 21. The Product Owner's rule stands: if B is shown to be worse once the tracker is robust,
 Medium is removed as an option.
 
 **Artifacts:** `/mnt/swingdata/scratch/b-vs-l/`, with the scratch copies (`B/`, `L/`), the
@@ -269,7 +269,7 @@ Suggested order:
 |---|---|---|
 | 1 | Large-model path independent of the executable; warn on a High → B fallback | done; verified on Mac and studio |
 | 2 | Re-analyse the 7 High swings with L | done 29 Sept, 7 / 7 clean, no metric lost (§4) |
-| 3 | 15 Sept diagnosis | done: the impact-camera rig hides the ball (§5), confirmed by Mark |
+| 3 | 15 Sept diagnosis | done: the impact-camera rig hides the ball (§5), confirmed by the Product Owner |
 | 3a | Session ⚠ and face-on marked unusable when the ball is hidden | specified (§5a), not built |
 | 4 | Tracker fails soft on a poor pose or missing ball | next session |
 | — | Correct the 16 Sept Wrist_02 club record | done 29 Sept (6-iron, re-analysed); Wrist_03 unconfirmed |

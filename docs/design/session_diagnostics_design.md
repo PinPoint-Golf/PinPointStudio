@@ -91,7 +91,7 @@ rebuilt from the swings. The golfer's keys cannot: `intent` (focus, focus split,
 Three rules keep them (audit H-04, 14 Nov 2026):
 
 - A `diagnostics.json` found unreadable at load, or at the catch-up's write, is not written over.
-  What happens depends on why it cannot be read (Stage 0.4b, 14 Nov 2026 — the lead's call, told to Mark):
+  What happens depends on why it cannot be read (Stage 0.4b, 14 Nov 2026 — the lead's call, told to the Product Owner):
   - **It opens but does not parse** (truncated, not a JSON object): the file is bad. It is renamed
     to `diagnostics.json.unreadable-<yyyyMMdd-HHmmss>` (with `-<n>` added when that name is taken),
     a WARN in the app log names the file, the parse error and the new name, and the session is
@@ -276,7 +276,7 @@ history is `AthleteDiagnostics`' work-ons.)*
 
 ### A8. Measurement uncertainty through the DAG *(added 1 October 2026)*
 
-**Status:** implemented 1 October 2026, all three switches ON. Gates G1–G3 and cost pass on the 7 library sessions; G4 (the root order) is reported for Mark in `docs/research/data/diag_uncertainty/gates_20261001.md`. The ranking score was revised during the run (§A8.6: an assessed cause is not inferred). It extends the shaft uncertainty work
+**Status:** implemented 1 October 2026, all three switches ON. Gates G1–G3 and cost pass on the 7 library sessions; G4 (the root order) is reported for the Solution Architect in `docs/research/data/diag_uncertainty/gates_20261001.md`. The ranking score was revised during the run (§A8.6: an assessed cause is not inferred). It extends the shaft uncertainty work
 (`docs/design/shaft_uncertainty_propagation_design.md`, which left σ in scoring as its
 Q5), and it should have been part of that work.
 
@@ -471,7 +471,7 @@ no producer.
 Why it matters: on the re-analysed library (1 October 2026) the posterior ranking put S-posture
 first or second in all four sessions with patterns, and its lumbar-curve measure has no producer.
 It rises because it has only two authored effects, so little can count against it. Limited trail
-hip IR falls because it has fifteen, and most were measured absent. Mark chose to label inferred
+hip IR falls because it has fifteen, and most were measured absent. The Coaching Lead chose to label inferred
 drivers rather than demote them, and to return to screenings as their own feature (below).
 
 #### A8.7 Stage D5: keeping the words grounded
@@ -495,7 +495,7 @@ than it is. Three devices keep it honest:
 |---|---|---|
 | `diagnostics.uncertainty.enabled` | D1 + D2: verdict-identical | ON |
 | `diagnostics.uncertainty.softTier` | D3 | per its gate |
-| `diagnostics.uncertainty.posteriorRank` | D4 | per Mark's review of the rank-shift report |
+| `diagnostics.uncertainty.posteriorRank` | D4 | per the Solution Architect's review of the rank-shift report |
 
 The gates were fixed before any number was seen. They run on the re-analysed library, read
 only (`tools/diagnostics/diag_uncertainty_report`; since refactor step 3.7-d it reads each session's
@@ -527,7 +527,7 @@ J-d4):
 - A `noise`-sourced σ understates the error, and is tagged so.
 - Strength and prominence words stay uncalibrated until screened sessions exist.
 - The fault profile (A7) still counts hard Pattern sessions.
-- **Screenings are the next feature** (Mark, 1 October 2026). They are the only ground truth for
+- **Screenings are the next feature** (Product Owner, 1 October 2026). They are the only ground truth for
   latent causes, so they are what can confirm an inferred driver and calibrate the strength and
   prominence words (A8.7). How a screen is prompted, entered and folded into the posterior is a
   design of its own.
@@ -767,7 +767,7 @@ headline; the wrist donut remains a mode-local device. If a score is ever wanted
 must be derivable and interrogable, and it is out of scope here.
 
 **5.4 Every shot counts.** Golfers warm up before a session in PinPoint, so the first shot
-of a session weighs the same as the last (Mark, 9 Nov 2026). An earlier draft down-weighted
+of a session weighs the same as the last (Coaching Lead, 9 Nov 2026). An earlier draft down-weighted
 the first three; it is withdrawn.
 
 **5.5 Coach-present vs solo sessions** may deserve different defaults throughout

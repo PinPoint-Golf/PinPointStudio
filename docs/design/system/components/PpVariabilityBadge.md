@@ -92,7 +92,7 @@ Every variant and form of the mark (see [PpVariabilityMark](PpVariabilityMark.md
 Golfer layer only, on screen only: the word's line (§7 of the spec; listed in [variability.md, Words](../variability.md#words)) after 400 ms of hover, through the Controls attached `ToolTip`, as `PpButton` and `PpRowAction` do. Never on the technical layer, never on paper.
 
 ## Typeset hosts
-- **In a typeset panel or page, pass the host's PpTypeset as `roles`** (Mark's ruling R17, 7 Nov 2026). On screen and on paper alike the badge then takes the host's type: sizes are `roles.u()`, gaps `roles.g()`, the word is set in `roles.fBody`, the basis in `roles.fFig`, and the inks are the host's (the tone by grade from `roles.good` / `attention` / `warn`, grade 0 `roles.ink3`, the basis `roles.ink2`). It reads in proportion to the panel's own words and figures.
+- **In a typeset panel or page, pass the host's PpTypeset as `roles`** (the Design Lead's ruling R17, 7 Nov 2026). On screen and on paper alike the badge then takes the host's type: sizes are `roles.u()`, gaps `roles.g()`, the word is set in `roles.fBody`, the basis in `roles.fFig`, and the inks are the host's (the tone by grade from `roles.good` / `attention` / `warn`, grade 0 `roles.ink3`, the basis `roles.ink2`). It reads in proportion to the panel's own words and figures.
 - Without `roles` the badge reads Theme exactly as before (`sp()`, `gap()`, the body and data tokens above).
 - `roles` changes faces, sizes and inks only. What belongs to a medium stays with `medium`: the tooltip is screen-only; the mark's washes take `variabilityWashAlpha` on screen and `variabilityPrintAlphaScale` on paper.
 

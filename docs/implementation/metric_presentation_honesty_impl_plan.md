@@ -26,7 +26,7 @@ would hide Phases 1–3's problems without fixing them.
 
 Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
-Update the boxes and the **Log** as work lands. Commit per phase (Mark approves each commit;
+Update the boxes and the **Log** as work lands. Commit per phase (the Product Owner approves each commit;
 never push without approval). Build with
 `cmake --build build/Qt_6_11_1_for_macOS_Debug --target <target> -j 8` and run tests **only
 through ctest** (`ctest --test-dir build/Qt_6_11_1_for_macOS_Debug -R <name>`); a bare test
@@ -219,7 +219,7 @@ The only phase that moves `value[]`. Separate commit, separate gate.
       the phase-sample values at P4/P7 (must move by less than σ). Pick the largest window
       that preserves the excursion.
 - [-] **4.3** (DECIDED 2026-09-05: NOT promoted, default stays 1.0 — see the Log) Promote the default only with a before/after + control table in the Log and
-      Mark's approval; the corridor content was seeded on the current smoothing and a
+      the Product Owner's approval; the corridor content was seeded on the current smoothing and a
       systematic shift at P4 would need the norms looked at (`docs/design/norm_shapes.md`).
 
 **Done when:** median hip-series jitter is at least halved on the corpus with the P1→P4
@@ -233,7 +233,7 @@ excursion preserved, or the sweep shows it cannot be and the phase is closed as 
 ## Phase 5 — Motion-adaptive smoother window `[x]`
 
 Follows from Phase 4's finding. Contract: `metric_presentation_honesty_phase5_contracts.md`.
-Run unattended per Mark's instruction (5 Sept): the C15 gate decides promotion.
+Run unattended per the Product Owner's instruction (5 Sept): the C15 gate decides promotion.
 
 - [x] **5.0** `tools/metrics/hip_accel_reference.py`: hip-centre acceleration on the smoothed track
       per swing window (still address / backswing / downswing / post-impact) → `aRefPxS2`.
@@ -251,7 +251,7 @@ Run unattended per Mark's instruction (5 Sept): the C15 gate decides promotion.
 
 ## Phase 6 — Draw the windowed mean `[x]`
 
-Agreed with Mark 5 Sept ("I think the chart should draw the windowed mean"), after Phase 5.
+Agreed with the Design Lead 5 Sept ("I think the chart should draw the windowed mean"), after Phase 5.
 Rationale: Phases 1–3 deliberately never changed the drawn line ("one curve"), so the wobble
 looks the same to the eye. Drawing the SAME 40 ms centred mean (with the ≥3-sample widening) that
 the PEAK tile already reduces on keeps "one curve" honest: line and numbers come from one
@@ -266,7 +266,7 @@ reduction, and the raw samples stay visible as faint dots behind the line.
 - [x] **6.3** `PpSegmentBrush.qml` sparkline uses the same mean.
 - [x] **6.4** Probe prints mean-vs-raw at the peak index; tests pin that the tiles equal the drawn
       line at the peak (PEAK == max of the drawn mean inside the window).
-- [x] **6.5** One windowed look by Mark — 5 Sept: "that looks much much better".
+- [x] **6.5** One windowed look by the Design Lead — 5 Sept: "that looks much much better".
 
 ## Side items (not gating any phase)
 
@@ -306,7 +306,7 @@ reduction, and the raw samples stay visible as faint dots behind the line.
   −23°) — 0.40 is right for the hips. **Shoulders are different:** P4 ratio median 0.32 (IQR
   0.22–0.44); 55/83 swings sit below 0.40 at the Top, ~1/3 of the P1–P7 curve is below it. At
   0.40 the graded Top `shoulderPlaneAngle` sample is absent on two thirds of the corpus. That is
-  what a face-on camera can honestly say about a full turn; flagged for Mark at the Phase 1
+  what a face-on camera can honestly say about a full turn; flagged for the Product Owner at the Phase 1
   checkpoint (the alternative, 0.20, still cuts ~30 swings and admits ~7° of angle error).
   Also: the P1–P7 domain alone does NOT fix the body-line angles (their degeneracy is at P4,
   inside the domain) — only the gate does; still-address PK RATE fails §7 item 2 corpus-wide
@@ -318,12 +318,12 @@ reduction, and the raw samples stay visible as faint dots behind the line.
 
 - **2026-09-04 (Phase 1 built, gate pending)** — Three Opus workstreams (Analysis / catalogue+
   diagnostics / Gui) plus three adversarial reviews; 14 suites green through ctest in
-  `build/tests`. Decisions taken by the orchestrator, for Mark's review at the checkpoint:
+  `build/tests`. Decisions taken by the orchestrator, for the Product Owner's review at the checkpoint:
   (1) **shoulder gate 0.40 kept** although Phase 0 shows the Top shoulder ratio at median 0.32:
   on most swings `shoulderPlaneAngle`, `spineSideBend` and `trailElbowHeight` (whose ONLY
   scored phase is Top) have no P4 reading — absence, per the design; the alternative worth
   considering is a foreshortening-corrected tilt `asin(dy / L_address)`, which is a definition
-  change and Mark's call. (2) `trailElbowHeight` joined the shoulder gate (same 1/dx, and
+  change and the Product Owner's call. (2) `trailElbowHeight` joined the shoulder gate (same 1/dx, and
   unbounded); the elbow-line gate became an ABSOLUTE floor `upperBody.minElbowSpanPx = 25`
   because a ratio against the address span (where the elbows are narrowest) can never fire.
   (3) Bridge budget is now `max(60 ms, 1.5 × local grid spacing)` so one dropped frame in the
@@ -333,7 +333,7 @@ reduction, and the raw samples stay visible as faint dots behind the line.
   integrity test rightly refused it); `weight_back_at_finish` is now `confirmedBy: asserted`
   with no detector (its in-domain content is covered by `sig_hangingBackPelvisDown`), and
   `off_balance_finish` keeps its comOverLeadFoot detector. A coverage regression, the honest
-  one; Mark to confirm. (5) The domain check is armed in `diagnosticsHealth()` as an Error row
+  one; the Product Owner to confirm. (5) The domain check is armed in `diagnosticsHealth()` as an Error row
   and in the integrity test's rung sweep; it is NOT enforced at pack load (would need catalogue
   plumbing into `merged_pack_provider` — tracked, not done). (6) Default (whole-swing) domains
   clip nothing: `domainFor` reports per-side narrowing and the chart clips only a side the
@@ -381,7 +381,7 @@ reduction, and the raw samples stay visible as faint dots behind the line.
 - **2026-09-04 (Phase 2, W1 report received after the WIP commit)** — reducers are header-only
   (`series_reduce.h`, Qt-only via swing_analysis.h, no .cpp — do NOT add one to any CMake list;
   `ReduceConfig` gained `minAtSamples`). W1 verified every fixture with a Python replica; not
-  compiled. **Two design points for Mark before gate 2.5:** (1) the least-squares `reduceRate` is
+  compiled. **Two design points for the Product Owner before gate 2.5:** (1) the least-squares `reduceRate` is
   NOT spike-proof — a single 99 in a ramp still yields ~100/100 ms (12× better than adjacent-frame,
   with σ≈57 flagging it); a spike-proof rate needs Theil–Sen or a residual gate, a design change
   not a tuning; §7 item 2 is about STILL windows, which pass comfortably. (2) the centred
@@ -458,7 +458,7 @@ reduction, and the raw samples stay visible as faint dots behind the line.
   shoulder plane 1.35° (step 2); card text e.g. hip tilt `PEAK +16 ± 0.2`, `PK RATE 23 °/100ms
   ± 1.0`, chip `± 1.9°`; ribbon drew and closes inside the axis on all three facets.
   **§8 open question 1 answered by the data:** the step rule costs multiples of 2° on the
-  body-line angles and nothing on the lateral metrics — recommend keeping it; Mark to confirm
+  body-line angles and nothing on the lateral metrics — recommend keeping it; the Design Lead to confirm
   with one windowed look (the ribbon stays dark until seen).
 
 - **2026-09-04 (Phase 3 CLOSED)** — Adversarial review re-derived all eleven propagations and
@@ -471,10 +471,10 @@ reduction, and the raw samples stay visible as faint dots behind the line.
   "no σ track" pointer. Correction to my own note: dropping the address-reference σ costs
   ≈12 % at N_eff ≈ 6 (autocorrelated residuals), not 0.3 % — recorded in the code. 11 suites
   green. Uncertainties are quoted, readings quantised; `formatUncertainty` takes no step.
-  Carry-forward: the ribbon stays dark until Mark sees it windowed; the step rule is
+  Carry-forward: the ribbon stays dark until the Design Lead sees it windowed; the step rule is
   recommended kept (costs multiples of 2° on body-line angles only).
 
-- **2026-09-05 (Phase 4.1 built, 4.2 swept — 4.3 NOT promoted, Mark's call)** — `legsSigmaScale` /
+- **2026-09-05 (Phase 4.1 built, 4.2 swept — 4.3 NOT promoted, the Product Owner's call)** — `legsSigmaScale` /
   `legsJerkScale` over keypoints 11–16, default 1.0, dark keys `poseSmooth.legs*`; parity at 1.0
   byte-identical (11/11), and the params path is inert at 1.0 (11/11). Sweep on the 11-swing
   subset (`tools/metrics/sweep_legs_scale.sh`, data in `docs/validation/data/legs_scale_sweep/`),
@@ -495,9 +495,9 @@ reduction, and the raw samples stay visible as faint dots behind the line.
   the corridors are seeded at P7. So a global legs scale cannot buy jitter without biasing the
   impact reading; the honest lever would be a motion-adaptive window, out of scope. 0.3 is the
   only defensible candidate (jitter −16 %, P7 moves ≤ 1.7 σ on sway, < 1 σ elsewhere).
-  **Recommendation: keep 1.0 (no promotion) and close Phase 4 as measured.** Mark to decide.
+  **Recommendation: keep 1.0 (no promotion) and close Phase 4 as measured.** The Product Owner to decide.
 
-- **2026-09-05 (Phase 4 CLOSED, plan complete)** — Mark accepted the recommendation: default stays
+- **2026-09-05 (Phase 4 CLOSED, plan complete)** — the Product Owner accepted the recommendation: default stays
   1.0, the dark keys and the sweep tooling ship. Design §7 item 2 restated (rate judged against its
   own standard error). Carry-forward, none blocking: one windowed look at the dashed runs, the
   step rule and the dark ribbon; a spike-proof rate (Theil–Sen or residual gate) if a spike ever
@@ -556,7 +556,7 @@ reduction, and the raw samples stay visible as faint dots behind the line.
   at Address; the brush sparkline draws the mean. 16-fixture bit-exact test that summaryMasked's
   peak/min/max/tPeakUs/peakSigma are points on the drawn line. Probe on the promoted 08-18 swing:
   ONE CURVE ✓ on all four series (e.g. sway PEAK 21.2462 == max of the drawn mean, raw 21.8542
-  at that index), raw dots drew on all three facets. 6.5 (Mark's windowed look) remains.
+  at that index), raw dots drew on all three facets. 6.5 (the Design Lead's windowed look) remains.
 
 - **2026-09-05 (Phase 6 CLOSED, committed)** — Review round: reduceExtremum now computes the
   residual σ once for the winner (was per candidate: ~2× iterations, 40× allocations on a
@@ -571,7 +571,7 @@ reduction, and the raw samples stay visible as faint dots behind the line.
   PathMultiline back. 9 suites green; probe ONE CURVE ✓ on all series. One test expectation
   corrected by me (an edge within ±15 ms of a sample is that sample's median, not a fallback).
 
-- **2026-09-05 (Phase 6 seen and pushed; corpus confirmation launched)** — Mark looked at the new
+- **2026-09-05 (Phase 6 seen and pushed; corpus confirmation launched)** — the Design Lead looked at the new
   chart in the windowed app ("much much better"); 10f1594 pushed. Full-corpus confirmation of
   the adaptive window started on GOLFSIMPC (Release swinglab_run, three whole-library passes:
   mode-off control, promoted defaults, second control as the GPU non-determinism floor; the

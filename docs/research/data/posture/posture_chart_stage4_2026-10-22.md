@@ -1,7 +1,7 @@
 # Posture chart, stage 4: lines from the person mask at every position, measured
 
 *2026-10-22. Stage 4 of `docs/design/posture_chart_design.md` §10. Built uncommitted and run on the cabin PC
-through a patch on the share (Mark, 22 Oct: `tools/studio/studio-build.cmd … patch <file>`, sha256 9fbc4524…,
+through a patch on the share (Product Owner, 22 Oct: `tools/studio/studio-build.cmd … patch <file>`, sha256 9fbc4524…,
 over 79899b2f). The gate was run on scratch copies of the three golfers' libraries first, then the live library
 was re-analysed (backup: `/mnt/swingdata/scratch/posture-chart-20261022/backup-live`, 242 swing documents and
 18 ledgers).*
@@ -19,7 +19,7 @@ was re-analysed (backup: `/mnt/swingdata/scratch/posture-chart-20261022/backup-l
   - The DTL ruler is now saved as `analysis.dtlRuler`.
   - Versions: `kAddressMarksStageVersion` 3, and a new `kDtlPostureStageVersion` 1.
   - Cost: about 1.5 s a swing on the Mac.
-- **(b) The face-on belt line was built and reverted** (Mark's decision). Four cues were tried. On this footage
+- **(b) The face-on belt line was built and reverted** (the Product Owner's decision). Four cues were tried. On this footage
   the waist is too dark to read, and one pixel of tuning flipped a reading between +2 % and −20 % (§2.3 of the
   design). Pelvis height keeps its ⚠ at P3–P5.
 
@@ -41,10 +41,10 @@ as the median [interquartile range], with readings / swings.
 | | P6 | −0.2° | +1.3° | +3.4 | +3.2 | 0.5 |
 | | P7 | −2.2° | −1.4° [−18.4, +0.4] | +0.5 | +2.7 | 2.5 |
 
-**The verdicts (Mark, 22 Oct):**
+**The verdicts (Coaching Lead, 22 Oct):**
 
 - **The butt line goes in for hip depth at P3–P5, and the ⚠ comes off.**
-  - It reads Nick and Mark level at the top, as Mark's eye does; the joints read 3–4 cm "toward the ball".
+  - It reads Nick and Mark level at the top, as the Coaching Lead's eye does; the joints read 3–4 cm "toward the ball".
   - Where the joints are trusted, it agrees with them at P6 within 1.5 cm on all three golfers.
   - At P7 it agrees for Nick (0.5 cm), but not for Mark (2.2 cm) or Jess (2.5 cm). The chart keeps reading
     P6 and P7 from the joints, which is where early extension is graded.

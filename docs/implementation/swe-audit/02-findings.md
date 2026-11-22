@@ -161,7 +161,7 @@ Domain objects missing, or owned by the wrong thing, and what that costs. See `0
 | D-18, D-19, E-15, F-14, C-15, A-17, H-11 | Comments contradicting the code; dead or test-only code (`closeSession`, `previousAnalysisDetail`, `WristDiagnosticsModel`, `wristArchetype`). | Low |
 | C-13, B-19 | Mixed "missing" conventions: "—" vs "-"; four conventions for "no value" in one result family. | Med/Low |
 
-## Design-system items (Mark's approval needed before any change)
+## Design-system items (the Design Lead's approval needed before any change)
 
 | Id | Finding | Sev |
 |---|---|---|

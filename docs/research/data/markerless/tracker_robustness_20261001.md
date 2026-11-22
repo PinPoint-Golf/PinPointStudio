@@ -1,7 +1,7 @@
 # The markerless tracker's fragility: two failure families and the fixes (30 Sept – 1 Oct 2026)
 
 **Status:** diagnosis complete from the 29 Sept run trees alone; fixes built and gated on the studio
-(§6, final round v11, 30 Sept). Uncommitted: Mark judges the numbers first. Follows `docs/research/markerless_club_track_investigation_20260929.md` §6–§7 (item 4).
+(§6, final round v11, 30 Sept). Uncommitted: the Product Owner judges the numbers first. Follows `docs/research/markerless_club_track_investigation_20260929.md` §6–§7 (item 4).
 
 ## 1. The question
 
@@ -256,7 +256,7 @@ s8's ball is confirmed 12 votes to 2, so its P1 now reads the ball direction (26
 clamp) where the old departure quirk had painted one frame.
 
 Tables: `docs/research/data/markerless/robust_20261001/` (`corpus_compare_base_v11.md`, the
-truth-score reports). Run trees kept on the share for Mark's review: `corpus_base`, `corpus_v11`,
+truth-score reports). Run trees kept on the share for the Product Owner's review: `corpus_base`, `corpus_v11`,
 `bl11_out_{B,L}`, `lib11_out`, `in/`; the superseded rounds were deleted.
 
 ### 6.4 What the marked sessions say (`segment_truth_score.py`, seen marks P1–P6)

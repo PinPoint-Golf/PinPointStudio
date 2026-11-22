@@ -120,7 +120,7 @@ Each is confirmed in the code; none was reproduced in the app.
 
 ## What happens next
 
-`03-target-architecture.md` proposes the object model. It ends with **ten decisions only Mark can make**.
+`03-target-architecture.md` proposes the object model. It ends with **ten decisions only the Solution Architect can make**.
 `04-remediation-plan.md` stages the work:
 - **Stage 0:** the defects above, about a day, no new structure.
 - **Stages 1–3:** identity, the Model layer, and the selected shot with the carousel summary.

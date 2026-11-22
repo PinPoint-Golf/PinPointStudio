@@ -8,7 +8,7 @@ projection machinery §3.2 needs, behind flags, ahead of the protocol session
 Every number below is reproducible from a run root under `/mnt/swingdata/scratch/dtl-continuous-20261002/`
 with the commands in §7 (`build/run-me/dtl-continuous-grade.sh` runs them). The `c_off` tree, proven
 byte-identical to `c_base`, is already deleted; `c_base`, `c_on` and the `s7_*` roots (1.4 GB) stay
-until Mark has read this, then go.
+until the Product Owner has read this, then go.
 
 ## 0. Summary
 
@@ -16,7 +16,7 @@ until Mark has read this, then go.
 |---|---|
 | Built | six §3.1 rules in `dtl_shaft_decide` / `dtl_shaft_post`, each a `shaft.dtl.*` switch with a bit-identical OFF; three new tiers persisted in `clubDtl`; `kDtlShaftStageVersion` 1 → 2; the DTL tile's staleness window tied to the tier |
 | Gate, 21 DTL corpus swings, studio Release, pinned poses | see §3 — the coverage threshold the brief set (≥ 0.85 on mid-backswing and delivery) is **not reached**; measured coverage is unchanged by construction, drawn coverage rises ~+0.10; no truth frame worse; `publishedInEndOn` 0; fused planes moved 0.00°; face-on θ and metrics identical on 21/21 |
-| Defaults | all six rules on — the HELD tier by Mark's decision after reading the gate, to be judged in the app (§3.4) |
+| Defaults | all six rules on — the HELD tier by the Product Owner's decision after reading the gate, to be judged in the app (§3.4) |
 | Step 2 | the stick-clip camera solve, `camera_pose_sticks.h` + `tools/shaftlab/dtl_calib_solve.py`, recovers a synthetic two-camera bay to machine precision; fusion reads yaw/pitch/**roll**/offset/`calibrated`; `swinglab_run --dtl-calib`. **No real clips exist to run it on** |
 | Step 3 | the 3-D synthetic shaft into the DTL tile, `dtl_shaft_synth3d.h`, dark by default, unit-tested on synthetic planes (θ_D to 0.003°), previewed on 07-04 s7 with the uncalibrated camera and labelled so |
 
@@ -142,14 +142,14 @@ Each rule by its own gate, as the brief asked:
 
 | rule | key | gate | default |
 |---|---|---|---|
-| HELD tier | `shaft.dtl.held.enabled` | coverage ≥ 0.85 — **not met** (0.80 / 0.75); nothing worse | **on, by Mark's decision** (1 Oct, to be judged in the app on the re-analysed 4 July session; the gate as written would have left it off) |
+| HELD tier | `shaft.dtl.held.enabled` | coverage ≥ 0.85 — **not met** (0.80 / 0.75); nothing worse | **on, by the Product Owner's decision** (1 Oct, to be judged in the app on the re-analysed 4 July session; the gate as written would have left it off) |
 | END_ON before quarantine | `shaft.dtl.endOnFirst` | relabels absences only; measured frames, truth, planes unchanged | on |
 | quarantine cause in the tier | `shaft.dtl.quarantineCause` | same | on |
 | band-edge runs | `shaft.dtl.edge.enabled` | 18 new measured frames earned by the unchanged ladder; truth, planes unchanged | on |
 | one drawn length | `shaft.dtl.lenSchedule` | tier untouched, run kept as `runPx`; truth unchanged; flicker 14 → 5 on s7 | on |
 | late escapes refused | `shaft.dtl.refuseLateEscape` | 10 refused, all post-P8; nothing measured lost | on |
 
-The default configuration is therefore the `c_on` configuration exactly. Mark's decision, on reading
+The default configuration is therefore the `c_on` configuration exactly. The Product Owner's decision, on reading
 §3: turn HELD on and re-analyse the 4 July library session in place so the tier can be judged in the
 app, and turn it back off from there if it does not earn its place. The tile's "current sample"
 window is one and a half frame intervals while the tier is on.

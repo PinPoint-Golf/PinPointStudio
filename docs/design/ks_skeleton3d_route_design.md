@@ -14,10 +14,10 @@ the stage reorder (§8) and the catalogue (§9).
   (v4, K0 §10).
 - **The trunk rung was then built** (§5.2), behind `sequence.skel3d.trunk`, and measured (K0 §11).
   On 07-04 it placed nothing. Where it held it repeated the pair's answer with 3–6× the timing σ.
-- **So it was moved BELOW the pair and turned ON**, at Mark's call: IMU → pair → skeleton → span.
+- **So it was moved BELOW the pair and turned ON**, at the Product Owner's call: IMU → pair → skeleton → span.
   On 07-04 it then fires on none of the 15 swings, so nothing changes; it is there for the swings
   where the pair cannot produce. Sections 4, 5.2, 7 and 10 describe the trunk rung as
-designed and are kept for the record. Two follow-ons were agreed with Mark on 2 October: a
+designed and are kept for the record. Two follow-ons were agreed with the Product Owner on 2 October: a
 time-boxed look at what holds the fitted pelvis back, and an honesty guard on the rotation route's
 pelvis near impact.
 **Parent documents:** `kinematic_sequence_design.md` (the sequence, its routes and its gates) and
@@ -40,7 +40,7 @@ pelvis near impact.
 11. Measure first: K0, then the gates
 12. Build order and file list
 13. What to expect on Mark's swings
-14. Decisions needed from Mark
+14. Decisions needed from the Product Owner
 
 ---
 
@@ -58,7 +58,7 @@ pelvis near impact.
    route. The `kinematicSequence` and `leadArmAngularSpeed` two-camera rungs go from PLANNED to live.
 5. K0 and gates G1 to G4 (§11) have been run, and their numbers are written into
    `docs/research/data/kinematic_sequence/`.
-6. 07-04 has been re-analysed in place, and Mark has judged the before/after **before** anything is
+6. 07-04 has been re-analysed in place, and the Product Owner has judged the before/after **before** anything is
    committed.
 
 The club and the `sequence_order` re-point are **not** part of done. They are §10 and §14.
@@ -262,7 +262,7 @@ key, following the pair's pattern:
 
 | Key | Default | Gates |
 |---|---|---|
-| `sequence.skel3d.enabled` | ON (pending G3 and Mark) | the whole rung |
+| `sequence.skel3d.enabled` | ON (pending G3 and the Product Owner) | the whole rung |
 | `sequence.skel3d.placement` | ON | the pelvis ring, which is the pair's §9 gate, kept separate |
 | `sequence.skel3d.thoraxPlacement` | **OFF** | the thorax ring. The 103° top turn is suspect until calibration (§13 below) |
 | `sequence.skel3d.leadArm` | ON (pending G2) | the arm rung |
@@ -284,7 +284,7 @@ rigid-body rate limit (`pairMaxTurnDps`, 2000 °/s) as a sanity guard, and `maxP
 "Enough usable frames" means at least 80% of the domain's frames usable. Below that, the gaps would
 be wider than the derivative window, and a bound read across them would be an artefact.
 
-**Past impact.** The parent decided not to search past impact (§13.4, decision: Mark). That stays.
+**Past impact.** The parent decided not to search past impact (§13.4, decision: Product Owner). That stays.
 But the skeleton fit runs to impact + 60 ms, so this route **could** say "peaked 35 ms after impact"
 instead of "did not peak before impact". That is decision 14a below. The design does not assume it.
 
@@ -358,7 +358,7 @@ counts as unmeasured too. Then point `sig_sequenceOrder` at them. On Mark's swin
 is off and the trunk is still rising at impact, so this would make `sequence_order` **not
 assessable** on 07-04. That is truthful, but visible.
 
-This is **stage S7, Mark's call** (14d). It touches `core.json`, needs a ledger regrade, and
+This is **stage S7, the Product Owner's call** (14d). It touches `core.json`, needs a ledger regrade, and
 changes what the panel says. Before S7, check what `sequence_order` currently reports on 07-04, and
 put that line in the K0 note.
 
@@ -414,7 +414,7 @@ For each of the 15 swings, K0 reports:
 - **G3, 07-04 re-analysed** (reuse path, Mac): `sequence_report.py` before and after; nodes placed and
   bounded per segment; the verdict histogram; per-node route ids; σ_t distributions. The run tree goes
   on the share (`/mnt/swingdata/scratch/`) and is kept until the note citing it is written.
-- **G4, Mark judges** the chart on s8 and two other swings in the app. This happens **before**
+- **G4, the Product Owner judges** the chart on s8 and two other swings in the app. This happens **before**
   commit.
 
 ---
@@ -430,12 +430,12 @@ For each of the 15 swings, K0 reports:
 | S4 | Stage reorder; inputs plumbed | `wrist_analyzer.cpp` (both profiles) |
 | S5 | Catalogue, glyph wording, replay `hasDtl` | `metric_catalogue_manifest.cpp`, `metric_catalogue_test.cpp`, `chart_metrics.cpp` + test, `shot_replay_controller.cpp`, `tst_chart_presets.qml` |
 | S6 | Docs | parent §4 table and a new §15; `body_rotation_estimation.md` §7.2 last bullet; feature-switches guide; census rows |
-| S7 | *Mark's call:* re-point `sequence_order` | `core.json`, diagnostics tests, ledger regrade |
+| S7 | *The Product Owner's call:* re-point `sequence_order` | `core.json`, diagnostics tests, ledger regrade |
 
 **Build economy:** one app build plus the affected tests, run once at the end through `ctest`:
 `segment_rates_test`, `body_rotation_test`, `kinematic_sequence_test`, `metric_catalogue_test`,
 `chart_metrics_test`, and the QML `tst_chart_presets`. **No commits** inside the plan. Everything is
-committed at the end, after Mark has judged G3 and G4.
+committed at the end, after the Product Owner has judged G3 and G4.
 
 ---
 
@@ -462,7 +462,7 @@ This is stated now, so the result is not read as a failure later.
 
 ---
 
-## 14. Decisions needed from Mark
+## 14. Decisions needed from the Product Owner
 
 a. **Look past impact on the skeleton rung?** The fit covers impact + 60 ms, so "peaked 35 ms after
    impact" is measurable. That reverses the 20 September decision, for this rung only.

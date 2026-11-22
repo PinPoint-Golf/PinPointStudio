@@ -1,12 +1,12 @@
 # Posture — the metrics, loss of posture, and poor posture at address
 
-*2026-10-21. Status: **design agreed by Mark (2026-10-21, all four §11 decisions as recommended). Built 2026-10-22 (stages 1–5, measurement V1–V5 on re-analysed copies; the live libraries re-analysed in place on the cabin PC 22 Oct, 217 swings). What the measurement changed — trunk rise held (V1 failed), the hip-joint pelvis lift out of the top composite, ρ, axis tilt at address — is in `docs/research/data/posture/posture_composites_2026-10-22.md`.** Follows
+*2026-10-21. Status: **design agreed by the Coaching Lead (2026-10-21, all four §11 decisions as recommended). Built 2026-10-22 (stages 1–5, measurement V1–V5 on re-analysed copies; the live libraries re-analysed in place on the cabin PC 22 Oct, 217 swings). What the measurement changed — trunk rise held (V1 failed), the hip-joint pelvis lift out of the top composite, ρ, axis tilt at address — is in `docs/research/data/posture/posture_composites_2026-10-22.md`.** Follows
 `dtl_posture_design.md` (the down-the-line producer, 21 Sept), the posture-cluster rebuild of
 6 Sept (`swing_fault_ontology.md` §11) and the early-extension work of 8 Oct.*
 
 ## 0. Summary
 
-Mark asked for posture metrics from both the face-on and the down-the-line pose, a **loss of
+The Product Owner asked for posture metrics from both the face-on and the down-the-line pose, a **loss of
 posture** characteristic that fires as the posture angles change, and a **poor posture**
 characteristic that fires when the setup is poor.
 
@@ -322,7 +322,7 @@ Its tails were `loss_of_posture_backswing` (*"you stand up out of your posture g
 
 **Changed 22 October 2026: standing up going back is read on the head's height, from down the
 line.** The composite fired `loss_of_posture_backswing` on every swing Nick Henn hit (10 of 10 on
-20 Oct session 3; 27 of 28 over three sessions). Mark judges him rock solid going back, and the
+20 Oct session 3; 27 of 28 over three sessions). The Coaching Lead judges him rock solid going back, and the
 heights agree: head +1.0 cm and pelvis −0.9 cm at P4 in the 3-D fit, head −0.8 cm face-on. The
 firing came from the two angle parts, both scored against heuristic norms centred on 0:
 
@@ -330,7 +330,7 @@ firing came from the two angle parts, both scored against heuristic norms centre
   the hip midpoint to the shoulder midpoint, and at the top both midpoints move with the turn. The
   shoulders go from end-on to spread across the image, and the trail hip rotates forward, so the
   line tips upright when the back has not changed. It read −8.2° ± 2.2 on Nick and −7.4° ± 1.8 on
-  Mark, against −3.6° and −1.9° for the hip → ear line on the same frames. Mark reviewed the
+  Mark, against −3.6° and −1.9° for the hip → ear line on the same frames. The Coaching Lead reviewed the
   annotated P1/P4 frames and called it measurement error. It is held, shown but never graded, until
   the trunk IMUs can corroborate it (`trunk_imu_sequence_grf_design.md` §8.8). The composite reads
   without it: it is unread, never counted as z = 0 (§4.6).
@@ -347,7 +347,7 @@ face-on `m_headLiftBack`) above its corridor. It fires only on a measured rise. 
 axis, `head_height_top_dtl`, with one tail. `sig_lossOfPostureBack` is gone. The composite
 `m_postureHeldTop` keeps its low tail, `posture_sinks_backswing`, through `sig_postureSinksBack`.
 
-| Golfer, two-camera swings | `headRise` P1 → P4 | Mark's view |
+| Golfer, two-camera swings | `headRise` P1 → P4 | Coaching Lead's view |
 |---|---|---|
 | Nick Henn, 27 | +1.9 ± 1.6 cm | holds his posture, rock solid |
 | Mark, 49 (7 Oct) | +2.7 ± 1.7 cm | — |
@@ -584,7 +584,7 @@ cannot leave it stale.
   the specific move.
 - **Words.** Every row needs `golfer`, `golferWell`, `golferWhy`, `goal`, `cue`, `check`,
   `picture` and a drill. The report gate requires all of them on listable rows. Drafts are in
-  Appendix B for Mark to edit; the wording lint has to pass them.
+  Appendix B for the Coaching Lead to edit; the wording lint has to pass them.
 - **Provenance.** All edges are at practice tier, with `searchedOn` set when the search is done,
   as part of the content stage.
 
@@ -723,7 +723,7 @@ independent claim under the rule in `swing_fault_ontology.md` §12.1.
   ideal band, and the share.
 - **Charts.** A **Posture** preset (`.presets`) plots `spineForwardBend`, `pelvisThrust`,
   `headLift`, `pelvisLift`, `trailKneeFlexion` and `trunkRise` together, from address. These are
-  the angles changing, which is what Mark asked to see. It follows the page pattern: headline, then
+  the angles changing, which is what the Product Owner asked to see. It follows the page pattern: headline, then
   plot, then trust, then folds. It is in both Analyse and Replay.
 - **Readings tab.** The part measures appear like any other measure. The composites do not, since
   they have no golfer-facing unit.
@@ -761,7 +761,7 @@ to show the summing.
 
 ## 10. Build plan
 
-Stages run in order, unattended, with commits only at the end and Mark judging the results before
+Stages run in order, unattended, with commits only at the end and the Product Owner judging the results before
 anything is committed.
 
 1. **Engine**
@@ -794,9 +794,9 @@ anything is committed.
    recorded pose; no pose re-run is needed. Then run `regrade_ledger`, V4 and V5, and the
    write-up.
 
-## 11. Decisions (agreed by Mark, 2026-10-21)
+## 11. Decisions (agreed by the Coaching Lead, 2026-10-21)
 
-Mark agreed all four as recommended on 2026-10-21. The build follows them.
+The Coaching Lead agreed all four as recommended on 2026-10-21. The build follows them.
 
 1. **Four posture-change conditions, not one.** Up and down, at impact and at the top.
    *Agreed:* yes, for the same reason `diving` and `coming_out_of_it` are separate.
@@ -817,7 +817,7 @@ Mark agreed all four as recommended on 2026-10-21. The build follows them.
 5. **`reportHold` for the setup family.** `weight_on_toes_address` and `poor_setup_posture` read the
    heel-to-toe balance proxy, whose absolute is unchecked. *Decided:* **leave them in reports**. No
    hold.
-6. **The dip → shallowing edge.** *Decided:* not modelled. Mark: "I might be wrong, let's not follow
+6. **The dip → shallowing edge.** *Decided:* not modelled. Coaching Lead: "I might be wrong, let's not follow
    up on this for now."
 7. **"Well within" on home.** *Decided:* home's "What you do well" takes the report's rule (within
    the Ideal band, |z| ≤ 1). On building it, the rule turned out to hold already: a ledger row's
@@ -841,7 +841,7 @@ Mark agreed all four as recommended on 2026-10-21. The build follows them.
   the corpus has more golfers.
 - **Including side tilt in loss of posture.** Its normal growth into impact would read as a loss on
   every good swing (§2).
-- **Re-opening `early_extension`'s forward-bend signal** (8 Oct, Mark's decision). It stays. The
+- **Re-opening `early_extension`'s forward-bend signal** (8 Oct, the Coaching Lead's decision). It stays. The
   shared reading is handled by §6.5 instead.
 
 ## 13. Not claimed
@@ -880,7 +880,7 @@ for r in (0, .3, .6):
     print(r, (zc > 2).mean(), (zd > 2).mean())   # 0.0224/0.0235, 0.0223/0.0243, 0.0229/0.0247
 ```
 
-## Appendix B — draft words (for Mark to edit)
+## Appendix B — draft words (for the Coaching Lead to edit)
 
 | id | golfer | golferWell | golferWhy |
 |---|---|---|---|

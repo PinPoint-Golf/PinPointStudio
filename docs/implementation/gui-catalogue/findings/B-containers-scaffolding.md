@@ -78,7 +78,7 @@ Ranked by value (instances x lines saved). B1-B4 are one family (the Settings pa
 - **Where:** inline `background: Rectangle { color: Theme.colorSurface; radius; border.width: 1; border.color: … }` at `diagnosticmodel/ModelCausePicker.qml:78`, `ModelConfirm.qml:69`, `ModelMint.qml:58`, `ModelPicker.qml:50`, `ModelPolicyPicker.qml:44`, `ModelTable.qml:511`, `ModelTools.qml:60`, `ModelUnsaved.qml:49`, `ModelEnumField.qml:102`, `home/PpcpPairDialog.qml:148`, `home/PpcpGuidedPairDialog.qml:108`, `shell/PpAboutDialog.qml:64`, `shell/Main.qml:188`. Versus `background: PpPopoverCard {}` at 14 sites in 8 files (`review/PpDataViewer.qml:624`, `session/PpSessionToolbar.qml:359/503/721/734/747/762/780`, `shot/PpShotCarousel.qml:527/566/598`, `shot/PpExportOptionsSheet.qml:76`, `session/PpSessionDrawer.qml:291`, `shot/PpShotActionBar.qml:297`).
 - **What is duplicated:** the same floating surface in two vocabularies. 9 of the 13 use `Theme.radius` + `colorBorderStrong`; 3 use `radiusLg` + `colorBorderStrong`; two others tint the border (`colorAccent`, `colorAttention`). `PpPopoverCard` (=`PpCardShell { floating: true }`) draws `radiusLg`, the hairline and the tone rule, so the Diagnostic Model and pairing dialogs look like a different design system from the session popups.
 - **Shared component it should fold into:** `PpPopoverCard` (add `property color border` or use `tone` for the attention/accent borders). `PpCardShell` already supports `tone`.
-- **Effort / risk:** S per file; visible change (corner radius and top rule) so it needs Mark's judgement via before/after sheets.
+- **Effort / risk:** S per file; visible change (corner radius and top rule) so it needs the Design Lead's judgement via before/after sheets.
 - **Confidence:** high that it is duplication; medium on whether the radius difference in `diagnosticmodel/` is deliberate.
 
 ### B8. "Key over value" reading cell and the capabilities strip re-implemented in 5 places
@@ -168,7 +168,7 @@ Ranked by value (instances x lines saved). B1-B4 are one family (the Settings pa
 - **What is duplicated:** `ScreenWrist.qml`'s header says "Kept in lockstep with ScreenSessionMode"; a diff shows they already differ: ScreenWrist has `_focusedSwingDir`, the app-wide `currentSwing` Binding, `_syncTodayCarousel`, the 3-D swing slot + `SwingViz3DHost`, and `defaultPreset: "Wrist & forearm"`; ScreenSessionMode has none of them and still carries the `PpTopoBackground` hover/tap block and a `sessionType` property. `Main.qml:702-705` shows Swing/GRF/Coach are `ScreenPlaceholder`s, so the generic screen has no instantiation.
 - **Shared component it should fold into:** delete `ScreenSessionMode.qml` (and its cmake line) or turn `ScreenWrist` into the generic screen with `sessionType`/`defaultPreset`/`metricKeys` properties and have `Main.qml` instantiate it per type. Either way remove the "lockstep" comment.
 - **Effort / risk:** S to delete; M to generalise.
-- **Confidence:** high (that it is dead and drifted); the delete/generalise choice is Mark's.
+- **Confidence:** high (that it is dead and drifted); the delete/generalise choice is the Design Lead's.
 
 ### B19. Avatar palette, hash and initials circle copied between athlete card and row (and the last-seen formatter drifted)
 - **Verdict:** TRUE DUPLICATE (avatar) + LEGITIMATE VARIANT (the layouts)

@@ -1,6 +1,6 @@
 # The plane stack: set-up, turn, takeaway, arms and club, each judged against the layer beneath
 
-Design, 13 Nov 2026. Status: **approved, being built**. Mark approved the frame, the links and the order on 13 Nov (§10). The norms are provisional and heuristic.
+Design, 13 Nov 2026. Status: **approved, being built**. The Coaching Lead approved the frame, the links and the order on 13 Nov (§10). The norms are provisional and heuristic.
 
 Related:
 - `docs/design/planned_metrics_promotion.md` §6 W7: the shoulder tilt against posture, which is layer 1 here and is already built;
@@ -16,7 +16,7 @@ The backswing plane a golfer ends up on is a sum of choices:
 - how far the arms lift against the turn;
 - what the wrists and trail elbow do to the club on the arms.
 
-Today the model grades the end result twice: an absolute plane against the club's norm, and the climb from the golfer's own address plane. It has no reading for the arms against the turn, and its takeaway reads a direction that carries the down-the-line camera's direction error. The result is a flat plane with no named cause, faults that disagree with each other (Jess, 13 Nov: absolute says flat, relative says fine), and no way to express "level shoulders with the arms lifting" (Mark).
+Today the model grades the end result twice: an absolute plane against the club's norm, and the climb from the golfer's own address plane. It has no reading for the arms against the turn, and its takeaway reads a direction that carries the down-the-line camera's direction error. The result is a flat plane with no named cause, faults that disagree with each other (Jess, 13 Nov: absolute says flat, relative says fine), and no way to express "level shoulders with the arms lifting" (Coaching Lead).
 
 **The idea.** Measure each layer against the one beneath it. Each fault then has one cause and one fix, and the causal links run up the stack.
 
@@ -91,7 +91,7 @@ These readings separate golfers; four golfers of unknown standard cannot say whe
 - The existing `inside_takeaway` / `outside_takeaway` keep reading shaft DIRECTION at P2 (camera-yaw sensitive, with its ⚠) and stay as they are. Once calibration (#74) lands, direction and plane are two views of one takeaway.
 
 ### 3.2 Layer 3: arm lift against the turn
-- **`armLiftTop`** (new producer): the angle between the lead UPPER ARM (lead shoulder → lead ELBOW; Mark, 13 Nov: a bent lead arm is a cheat that makes the arms look lifted, and a fault in its own right, graded by `bent_lead_arm`) and the **shoulder-turn plane** at the top.
+- **`armLiftTop`** (new producer): the angle between the lead UPPER ARM (lead shoulder → lead ELBOW; Coaching Lead, 13 Nov: a bent lead arm is a cheat that makes the arms look lifted, and a fault in its own right, graded by `bent_lead_arm`) and the **shoulder-turn plane** at the top.
   - The shoulder-turn plane is the plane containing the shoulder line, as square to the spine as a plane holding that line can be. Its normal is the spine vector (mid-hip → mid-shoulder) with its component along the shoulder line removed.
   - Value: asin(â · n̂). 0 means the arm lies in the plane the shoulders turn on (one-plane); + means the arm is lifted above it.
   - **Why this definition:** the simple difference of two inclinations is measured in two vertical planes that point different ways at the top, so it is dominated by the shoulder-tilt reading (within-session ρ −0.69 with the tilt). On Nick it gives −5° where the image shows +14°. This version is steadier (SD 4.5° against 5.9°) and agrees better with the image.
@@ -105,11 +105,11 @@ These readings separate golfers; four golfers of unknown standard cannot say whe
     - To the wrist, the image ran about 4° above a2 overall, ρ 0.47 within a session. To the ELBOW (as built, D2) the image reads a median 1.3° BELOW the 3-D reading (IQR −5.7 … +4.3), ρ 0.46 within a session. It compresses the golfers' differences, but it is the coach's own check and safe to camera turn.
     - The image's weak point is the trail shoulder at the top, half hidden behind the lead arm (confidence about 0.7). Its σ must carry that.
   - The chest sensor can later supply the shoulder-turn plane's normal (its long axis), with the 3-D arm. That waits on #109.
-- **Measured to the ELBOW, never the wrist** (Mark, 13 Nov). Mark's 3-D lead elbow reads 31° bent at the top (§6, real: the fit lands a median 3 px from his face-on elbow keypoint). A shoulder → wrist line reads that bend as lift: to the wrist, Mark's image reading is 12° higher and Nick's 15° higher than to the elbow. Every description of the reading says it is measured to the elbow and why.
+- **Measured to the ELBOW, never the wrist** (Coaching Lead, 13 Nov). Mark's 3-D lead elbow reads 31° bent at the top (§6, real: the fit lands a median 3 px from his face-on elbow keypoint). A shoulder → wrist line reads that bend as lift: to the wrist, Mark's image reading is 12° higher and Nick's 15° higher than to the elbow. Every description of the reading says it is measured to the elbow and why.
 - **σ:** the joints' (3-D) or keypoints' (image) σ through the angle. In the image each keypoint's smoother σ is multiplied by max(1, 0.8 / confidence), the 3-D fit's own rule (`body3d.confSigmaRef`), so the half-hidden trail shoulder (≈ 0.7) carries more; the library's image σ is a median 1.1–2.0° per golfer.
 
 ### 3.3 The result: the climb, placed in the on-plane window halfway back
-- **Terminology (Mark, 13 Nov 2026).** This reading was first called "the slot". In golf the slot is a DOWNSWING position (halfway down, the club approaching from inside, the trail elbow near the trail hip, the shaft flatter than at the same point going back). This is a BACKSWING reading at lead-arm-parallel, so everything a golfer or coach reads calls it the **on-plane window** or **halfway back**. The code identifiers (`clubSlotTop`, `club_slot_top.h`, `club.slotUnread`, `club.slotCameraAssumed`, `club.slotMinWidthDeg`) keep "slot": they are stored keys, record ids and override names.
+- **Terminology (Coaching Lead, 13 Nov 2026).** This reading was first called "the slot". In golf the slot is a DOWNSWING position (halfway down, the club approaching from inside, the trail elbow near the trail hip, the shaft flatter than at the same point going back). This is a BACKSWING reading at lead-arm-parallel, so everything a golfer or coach reads calls it the **on-plane window** or **halfway back**. The code identifiers (`clubSlotTop`, `club_slot_top.h`, `club.slotUnread`, `club.slotCameraAssumed`, `club.slotMinWidthDeg`) keep "slot": they are stored keys, record ids and override names.
 - **`clubSlotTop`** (new derived reading, one value at P3): (plane at P3 − plane at P1) / (shoulder plane at address − plane at P1).
   - **0** means the club sits on the plane it was set on (the lower edge of the on-plane window).
   - **1** means it sits on the plane through the ball and the trail shoulder at address (the upper edge; `shoulderPlane`, 29 Oct, 747f1bc1).
@@ -137,18 +137,18 @@ These readings separate golfers; four golfers of unknown standard cannot say whe
 
 The ids of the two relabelled conditions are kept, so existing ledgers and edges stay valid.
 
-**Norms (provisional, heuristic, and each one is Mark's decision):**
+**Norms (provisional, heuristic, and each one is the Coaching Lead's decision):**
 
 | Measure | μ | Corridor | Basis |
 |---|---|---|---|
-| `m_takeawayPlane` | 0 | **fires below −2 / above +3** (σLo 1, σHi 1.5; amber from −1 / +1.5). D1 shipped −2 … +3 as the amber corridor, firing at −4 / +6; Mark moved the firing edges in on 13 Nov evening (§10, §11 D6) | Coaching: the club starts back on or just above the address shaft plane ("stay above the rod"), and getting under it is the common amateur fault. The library has within-session SD 1.4° and golfer medians −3.1 … +1.6, so the band is narrower on the flat side. Within a session the hand-path loop rises steadily as the takeaway flattens: by golfer the median loop steps from 11.5 % (1–2° under) to 15.9 % (2–3° under), and over the top surfaces at about 9 % of loop and is firm at 13 %. |
+| `m_takeawayPlane` | 0 | **fires below −2 / above +3** (σLo 1, σHi 1.5; amber from −1 / +1.5). D1 shipped −2 … +3 as the amber corridor, firing at −4 / +6; the Coaching Lead moved the firing edges in on 13 Nov evening (§10, §11 D6) | Coaching: the club starts back on or just above the address shaft plane ("stay above the rod"), and getting under it is the common amateur fault. The library has within-session SD 1.4° and golfer medians −3.1 … +1.6, so the band is narrower on the flat side. Within a session the hand-path loop rises steadily as the takeaway flattens: by golfer the median loop steps from 11.5 % (1–2° under) to 15.9 % (2–3° under), and over the top surfaces at about 9 % of loop and is firm at 13 %. |
 | `m_armLiftTop` (as built, D2, to the ELBOW) | 5 (image, the row in `norms.json`); 7 (3-D, proposed, not loadable) | −3 … +12, firing below −11 / above +19 (image); −2 … +16, firing below −11 / above +25 (3-D) | **The literature has no number.** On the shoulder line is "one-plane", above it is "two-plane"; one instructor ties it to wingspan, and an informal count put most tour players above the line. Re-seated on the UPPER ARM from the library (§11 D2): golfer-weighted p2.5 / p97.5 −11.4 / +19.6 (image) and −12.3 / +26.8 (3-D), so only the extremes fire. A norm row cannot be keyed by route (§11 D2), so the 3-D reading, where it stands, is judged against the image row with a Downgraded record. The first figures here (image 15, corridor 7 … 23; 3-D 12, corridor 5 … 24) were measured to the WRIST and are replaced. |
 | `m_leadElbowBendTop3d` (D2; a change from the address hold since D6) | 0 | ceiling, tolerance 8: amber from +8, firing above +16 | `bent_lead_arm`'s 3-D reading, `leadElbowBendChange3d`: the bend at the top LESS the median bend over the address hold, both where both cameras saw the elbow. The fit reads a straight address arm at 5–19° by golfer (Chris 18.6°), so D2's absolute reading against a fixed μ 15 (amber from 23, firing above 31) gave some golfers a head start; the change keeps D2's 16° firing distance from each golfer's own straight arm. §11 D6. |
-| `m_clubSlotTop` (as built, D3) | 0.5 | 0.25 … 0.75 (tolerance 0.25), amber outside it, firing below 0 / above 1 | The on-plane window halfway back, from the shaft plane to the shoulder plane at address. Outside it means under or above plane halfway back (Mark approved the pair 13 Nov 2026, provisional). |
+| `m_clubSlotTop` (as built, D3) | 0.5 | 0.25 … 0.75 (tolerance 0.25), amber outside it, firing below 0 / above 1 | The on-plane window halfway back, from the shaft plane to the shoulder plane at address. Outside it means under or above plane halfway back (the Coaching Lead approved the pair 13 Nov 2026, provisional). |
 
 ## 5. Fault or tendency: decided, all faults
 
-Mark, 13 Nov: use "tendency" only if it fits the current model, otherwise fault. It does not fit. A tendency in this model is a shot outcome, three factors per shot: strike, direction and flight (memory `feedback_tendencies_are_three_factors`). It is not a swing pattern. So **every condition here is a fault**, and no `judgement` field is added.
+Coaching Lead, 13 Nov: use "tendency" only if it fits the current model, otherwise fault. It does not fit. A tendency in this model is a shot outcome, three factors per shot: strike, direction and flight (memory `feedback_tendencies_are_three_factors`). It is not a swing pattern. So **every condition here is a fault**, and no `judgement` field is added.
 - The style nature of arm lift (one-plane against two-plane) is carried instead by a deliberately wide corridor and the golfer words. It is also stated in the condition's `golferWhy`: both styles work, and only the extremes are flagged.
 - The conditions ship as `draft`, like the rest of the plane family, with heuristic norms.
 
@@ -159,13 +159,13 @@ Mark, 13 Nov: use "tendency" only if it fits the current model, otherwise fault.
 4. **The club track was refused on all of Paddy's driver swings** (and on 8 of Nick's 11-02 swings), so takeaway and plane halfway back are not assessable there.
 5. **The 3-D shoulder tilt depends on the session** (Nick 37–41° on 10-20, 23.5° on 11-02). It is uncalibrated; calibration (#74) is the lever.
 
-## 7. Links (Mark approved 13 Nov)
+## 7. Links (Coaching Lead approved 13 Nov)
 
 **New:**
 
 | From | To | Type | Strength |
 |---|---|---|---|
-| `flat_takeaway` | `over_the_top` | causes | **strong** (Mark: "sounds inevitable"; library ρ −0.51 with the loop) |
+| `flat_takeaway` | `over_the_top` | causes | **strong** (Coaching Lead: "sounds inevitable"; library ρ −0.51 with the loop) |
 | `flat_takeaway` | `flat_backswing_plane` (club under plane halfway back) | causes | strong |
 | `flat_takeaway` | `trail_elbow_deep` | causes | moderate |
 | `flat_takeaway` | `arms_swing_around` | causes | moderate |
@@ -200,7 +200,7 @@ Mark, 13 Nov: use "tendency" only if it fits the current model, otherwise fault.
    - catalogue descriptor, measure, the two conditions, norm, links;
    - tests on a synthetic fit and a synthetic image.
 3. **D3, derived:** `clubSlotTop`, after verifying the `shoulderPlane` reading (§3.3); re-point the backswing-plane pair to it.
-4. **Sweep and regrade** on the cabin PC, with before/after per golfer, then Mark judges.
+4. **Sweep and regrade** on the cabin PC, with before/after per golfer, then the Coaching Lead judges.
 
 ## 9. Validation (#109, the cabin day)
 - Deliberate sets, with the chest sensor on, both cameras and the launch monitor:
@@ -210,7 +210,7 @@ Mark, 13 Nov: use "tendency" only if it fits the current model, otherwise fault.
 - Measure what each does to the loop, the club path, the attack angle and the face. This settles cause, which the library's correlations cannot.
 - Seat the arm-lift and takeaway norms from these sets plus the library, and recheck the upper edge of the on-plane window halfway back.
 
-## 10. Mark's answers (13 Nov)
+## 10. The Coaching Lead's answers (13 Nov)
 1. The takeaway corridor of −2 … +3: "too early to say, but sounds about right". It stays provisional.
 2. Fault or tendency: all faults (§5).
 3. `flat_takeaway → over_the_top`: strong.
@@ -221,12 +221,12 @@ Mark, 13 Nov: use "tendency" only if it fits the current model, otherwise fault.
 
 **Later, 13 Nov:**
 - **Fixes A, B and C approved** (P8 bound and the arm-to-torso gate; the 3-D fit's cross-view shoulders, honest tiers and the two shoulder warnings; the ball-shadow size rule).
-- **Arm lift is measured on the UPPER ARM** (lead shoulder → lead ELBOW), not to the wrist. Mark: a bent lead arm is a "cheat" that makes the arms look lifted, and also a fault. Every description of arm lift must say it is measured to the elbow and why. The bent arm itself is graded by `bent_lead_arm`, which gets a 3-D route in D2, read only where the fit's lead elbow is really measured (FB's honest tiers).
-- **Chicken wing (D5): face-on only, read in the 100 ms after impact, not at P8.** Mark: "just because we don't catch P8 correctly doesn't mean we cannot diagnose it … there is no reason to need 3-D for this one." The reading is the lead elbow's added bend (face-on shoulder–elbow–wrist), gated only on foreshortened arm segments. The arm-against-torso reading stays shown, with no signal. This needs a reducer window in ms after an anchor.
+- **Arm lift is measured on the UPPER ARM** (lead shoulder → lead ELBOW), not to the wrist. Coaching Lead: a bent lead arm is a "cheat" that makes the arms look lifted, and also a fault. Every description of arm lift must say it is measured to the elbow and why. The bent arm itself is graded by `bent_lead_arm`, which gets a 3-D route in D2, read only where the fit's lead elbow is really measured (FB's honest tiers).
+- **Chicken wing (D5): face-on only, read in the 100 ms after impact, not at P8.** Coaching Lead: "just because we don't catch P8 correctly doesn't mean we cannot diagnose it … there is no reason to need 3-D for this one." The reading is the lead elbow's added bend (face-on shoulder–elbow–wrist), gated only on foreshortened arm segments. The arm-against-torso reading stays shown, with no signal. This needs a reducer window in ms after an anchor.
 - **Order:** FB → FC → D5 → D2 → D3 → one sweep → the write-up on Jess.
 - **The shoulder tilt norm stays at −3 ± 5,** with its wording corrected: amber from −8 / +2, firing below −13 / above +7.
 
-**Evening, 13 Nov** (Mark: "go with your recommendations on all of them, esp. the follow-ups"; built as D6, §11):
+**Evening, 13 Nov** (Coaching Lead: "go with your recommendations on all of them, esp. the follow-ups"; built as D6, §11):
 1. **Takeaway firing edges:** the faults fire below −2 and above +3 (σLo 1, σHi 1.5; amber from −1 / +1.5), no longer at
    −4 / +6. Why: within a session the hand-path loop rises steadily as the takeaway flattens, and by golfer the median loop
    steps from 11.5 % (1–2° under the plane) to 15.9 % (2–3° under), with over the top surfacing at about 9 % of loop and firm
@@ -241,7 +241,7 @@ Mark, 13 Nov: use "tendency" only if it fits the current model, otherwise fault.
 6. **The arm-lift norm and the one-norm stand-in are accepted as built:** μ 5, corridor −3 … +12, firing below −11 and
    above +19, seated on the image route; a 3-D reading, where it stands, is judged against that row and carries
    `body3d.armLiftImageCorridor`. No code change.
-7. **After the D6 review (approved by Mark, 13 Nov):**
+7. **After the D6 review (approved by the Coaching Lead, 13 Nov):**
    - the bent arm's address reference is the median over the whole ADDRESS HOLD, where the arm is still, not the ±15 ms
      window at P1;
    - a Refused record names an unmeasured lead elbow (`body3d.leadElbowUnmeasured`, code top / address / both);
@@ -261,7 +261,7 @@ Mark, 13 Nov: use "tendency" only if it fits the current model, otherwise fault.
 - **Norm**: μ 0, sigmaLo 2, sigmaHi 3, heuristic. The corridor, the norm's claim μ − σ … μ + σ, is −2 … +3.
   - Under the shipped `standard` grading policy, a fault fires past two tolerances: flat below −4°, steep above +6°.
   - Mark's library median of −3.1° is therefore outside the corridor but inside the Good band. On the median it does not fire.
-  - **Superseded by D6** (Mark, 13 Nov evening): σLo 1, σHi 1.5, so the faults fire below −2° and above +3°, and Mark's median fires.
+  - **Superseded by D6** (Coaching Lead, 13 Nov evening): σLo 1, σHi 1.5, so the faults fire below −2° and above +3°, and Mark's median fires.
 - **`flat_takeaway` / `steep_takeaway`**: draft faults, group planePath, axis `takeaway_plane`, picture DTL P2 shaft.
   - Drills reused: `drill.takeawayStick`, then `drill.buttToTheLine`.
   - Prominence: common (flat), occasional (steep).
@@ -295,7 +295,7 @@ Mark, 13 Nov: use "tendency" only if it fits the current model, otherwise fault.
 - Not added (D2): the arm-lift edges.
 - The edge count goes from 663 to 665: 9 removed with the retired pair, 5 moved back in, 5 new from §7, 1 corroborates edge removed, 2 causes added.
 
-**For Mark's review**
+**For the Coaching Lead's review**
 - The two added causes, and the removed corroborates edge.
 - The moved posture edges: `posture_too_bent → steep_backswing_plane` and `posture_too_upright → flat_backswing_plane`.
   - They follow §7 ("move"), but the slot pair is judged against the golfer's own address plane.
@@ -352,7 +352,7 @@ where the camera could not see one.
 - The P7 → P8 and P1 → P8 measures are not assessable: `m_leadKneeFlex`, `m_leadArmToTorso` and the
   seven `_p8` deltas.
 
-**For Mark's review**
+**For the Coaching Lead's review**
 - **How often `chicken_wing` stops being graded.** On the 148 library swings whose P8 is 60–200 ms
   after impact, the new gate passes the nearest frame to P8 on 111:
   - Mark 82 of 93;
@@ -421,7 +421,7 @@ swaps and the rig offset were ruled out.
     every re-analysis, and nothing reads `versions.skeleton3d` to skip it. The only fixed input is a
     session pool, which only `swinglab_run --skeleton-calib` passes. So the bump records the change, and
     the sweep re-fits every two-camera swing.
-- **The norm's words** (Mark, 13 Nov): `m_shoulderTiltVsBend` stays −3 ± 5. It is amber from −8 / +2
+- **The norm's words** (Coaching Lead, 13 Nov): `m_shoulderTiltVsBend` stays −3 ± 5. It is amber from −8 / +2
   and fires below −13 / above +7 (`norms.json` citation, `planned_metrics_promotion.md` §6 W7).
 
 **Synthetic swing** (`skeleton3d_test` (FB), 234 frames at 120 Hz, σ 2 px)
@@ -506,7 +506,7 @@ will differ; `fbprobe.py`, `alt.py` and `miss.py` in the session scratchpad)
 
 **Decided** (the coordinator, 13 Nov, technical): the hips off by default; the 15 px tier floor.
 
-**For Mark's review**
+**For the Coaching Lead's review**
 - The pass runs on the fitted cameras, not the stage-1 ones (above).
 
 **Library effect**: none until a re-analysis. The bump re-fits every two-camera swing on the sweep.
@@ -622,7 +622,7 @@ So the shares in the table are approximate, and the replay alone cannot show tha
   T8A's 320-px scenes also give the same answers under both rules.
 - T11 (no ball, so the still club is not solved) is unchanged.
 
-**For Mark's review**
+**For the Coaching Lead's review**
 - The floor is set from four blown-mat sessions in three bays. It is PROVISIONAL.
 - The takeaway readings this recovers on Chris (and the 2 Jess swings) are only expected. They appear
   only after the sweep re-tracks those swings.
@@ -631,7 +631,7 @@ So the shares in the table are approximate, and the replay alone cannot show tha
 
 ### D5 (chicken wing from the face-on camera, read in the 100 ms after impact, 13 Nov 2026)
 
-Mark, 13 Nov: chicken wing "should be visible immediately between impact and [100] ms after (before
+Coaching Lead, 13 Nov: chicken wing "should be visible immediately between impact and [100] ms after (before
 P8) … and crucially it should be easily visible from the face-on camera."
 
 **Built**
@@ -659,7 +659,7 @@ P8) … and crucially it should be easily visible from the face-on camera."
   `leadArm`. New `check` text (the brief's). `golferWell` and `goal` reworded to the straight arm (they said
   "close to your body", which was the old reading). `m_leadArmToTorso` stays live and shown, with no signal.
 - **Norm** (provisional, heuristic, ceiling): μ 0, tolerance 5, so amber from +5 and firing above +10;
-  `plausibleHi` 90. Seated from the library, Jess apart (below). Mark decides the final value.
+  `plausibleHi` 90. Seated from the library, Jess apart (below). The Coaching Lead decides the final value.
 
 **Held, not switched on.** The face-on route would have started `m_leadElbowFlex_p1…p8`, and through
 `m_leadElbowFlex_p4` the two conditions `bent_lead_arm` (draft) and `locked_lead_arm` (active), on every
@@ -706,7 +706,7 @@ frames 6.7 ms apart, 15 per window):
 live, rich_7iron 56 assessable), `metric_catalogue_test` (33 projected readings), `tuned_constants_parity_test`
 and the `swing_themes` golden (`chicken_wing` now reads at P7).
 
-**For Mark's review**
+**For the Coaching Lead's review**
 - The norm (μ 0, tolerance 5, firing above +10) and `plausibleHi` 90.
 - Holding the eight elbow measures (the sensor route with them), rather than a per-route hold, which does not
   exist.
@@ -721,7 +721,7 @@ and the `swing_themes` golden (`chicken_wing` now reads at P7).
 **Library effect**: none until a re-analysis. The stored documents carry no face-on `leadArmFlexion`, so
 `chicken_wing` is not assessable on them until the sweep writes it (rich_7iron: 57 → 56 assessable).
 
-### D5 round 3 (the occlusion gate and the window rule, 13 Nov 2026; approved by Mark)
+### D5 round 3 (the occlusion gate and the window rule, 13 Nov 2026; approved by the Coaching Lead)
 
 A frame sheet (`/mnt/swingdata/scratch/chicken-wing-sheet-20261113/`) showed all four folds above +10 were false:
 - Mark 2 Nov s1 (+46°);
@@ -788,7 +788,7 @@ After impact Jess keeps her head down, so her lead shoulder is behind her head f
 
 ### D2 (the arm lift at the top, on the upper arm; a 3-D route for bent lead arm, 13 Nov 2026)
 
-Mark, 13 Nov: arm lift is measured on the lead UPPER ARM, shoulder → elbow, never to the wrist. A bent lead arm is a
+Coaching Lead, 13 Nov: arm lift is measured on the lead UPPER ARM, shoulder → elbow, never to the wrist. A bent lead arm is a
 "cheat" that makes the arms look lifted, and it is its own fault (`bent_lead_arm`). Every description of the reading
 says so.
 
@@ -850,7 +850,7 @@ higher on Nick, whose lead elbows bend.
 
 **bent_lead_arm's 3-D route: option (b), a separate key and measure.**
 - **Why not (a), per-route status:** a 3-D rung on `leadArmFlexion` would also replace the face-on series that
-  `chicken_wing` reads (D5: face-on only, by Mark's ruling). The 3-D series is sparse (measured elbows only), so the
+  `chicken_wing` reads (D5: face-on only, by the Coaching Lead's ruling). The 3-D series is sparse (measured elbows only), so the
   rung would both break `chicken_wing` and still sit under the per-measure hold.
 - **Why not (c):** the reading is real where it reads. Mark's 31° at the top is his bend (the fit lands a median
   3 px from his face-on elbow keypoint), and the honest tier says exactly where the fit saw the elbow.
@@ -888,7 +888,7 @@ measures, 164 asked); `metric_catalogue_test` (137 descriptors, the two new ones
 `axis_direction_test` (three rows); the `swing_themes` golden (two new `conditionFocus` entries); `swing_doc_test`
 (skeleton3dBody 4).
 
-**For Mark's review**
+**For the Coaching Lead's review**
 - The two norms (image μ 5, corridor −3 … +12, firing below −11 / above +19; bent arm 15, firing above 31).
 - Holding the 3-D arm-lift row in the citation until a norm can be keyed by route, with the Downgraded record
   meanwhile.
@@ -900,13 +900,13 @@ measures, 164 asked); `metric_catalogue_test` (137 descriptors, the two new ones
 
 **Library effect:** none until a re-analysis. Both bumps re-run on every swing in the sweep.
 
-**Addendum (D6, Mark 13 Nov evening):** `bent_lead_arm`'s 3-D reading is now a CHANGE FROM ADDRESS, not the absolute bend
+**Addendum (D6, Coaching Lead 13 Nov evening):** `bent_lead_arm`'s 3-D reading is now a CHANGE FROM ADDRESS, not the absolute bend
 at the top, and its norm is re-seated (μ 0, amber from +8, firing above +16). The absolute figures in the table above stand
 as the record of D2; §11 D6 has the new ones. The arm-lift norm and its one-row stand-in are accepted as built (§10).
 
 ### D3 (the club's climb placed in the on-plane window halfway back, 13 Nov 2026)
 
-Renamed the same day (Mark): "slot" is the golf term for a downswing position, so no golfer- or coach-facing text says it. The identifiers keep it (§3.3).
+Renamed the same day (Coaching Lead): "slot" is the golf term for a downswing position, so no golfer- or coach-facing text says it. The identifiers keep it (§3.3).
 
 **The upper edge, verified first** (read-only, the stored documents, 283 swings)
 - `shoulderPlane` is a metric in `analysis.metrics`: one phase sample at Address (the ladder's P1), its σ on the sample and the
@@ -986,7 +986,7 @@ Renamed the same day (Mark): "slot" is the golf term for a downswing position, s
 - `axis_direction_test`, `swing_doc_test` (`versions.clubSlotTop`), `tuned_constants_parity_test`, and the `swing_themes`
   golden (the pair's family is now `clubSlotTop`).
 
-**For Mark's review**
+**For the Coaching Lead's review**
 - The norm's effect: 49 above-the-window faults on Mark's and Nick's 7-irons, against 9 under the degrees norm.
 - Whether a missing shoulder plane should fall back to grading the climb in degrees. Not built: the brief retires that grading.
 - The 4° minimum window.
@@ -995,9 +995,9 @@ Renamed the same day (Mark): "slot" is the golf term for a downswing position, s
 **Library effect:** none until a re-analysis writes `clubSlotTop`. ⚠ A regrade WITHOUT the sweep would leave the pair not
 assessable on every stored document (they carry no `clubSlotTop`), so the regrade must follow the sweep, as §8 item 4 plans.
 
-### D6 (Mark's decisions of 13 Nov evening, and the follow-ups, 13 Nov 2026)
+### D6 (the Coaching Lead's decisions of 13 Nov evening, and the follow-ups, 13 Nov 2026)
 
-Mark, 13 Nov: "go with your recommendations on all of them, esp. the follow-ups" (§10, evening).
+Coaching Lead, 13 Nov: "go with your recommendations on all of them, esp. the follow-ups" (§10, evening).
 
 **1. Takeaway firing edges** (`norms.json` `m_takeawayPlane`)
 - σLo 1, σHi 1.5: `flat_takeaway` fires below −2°, `steep_takeaway` above +3°, amber from −1° / +1.5°. The citation states the
@@ -1015,7 +1015,7 @@ Mark, 13 Nov: "go with your recommendations on all of them, esp. the follow-ups"
   - **Why 150 ms:** P1 is the end of the hold (`addressHoldEndFrame`), and the fit keeps only address − 150 ms onward
     (`trimResultBefore`). So that is all of the hold the fit has: a median 6 fit frames on the library, 4 of them with the
     elbow measured.
-  - Round 1 built it as `delta` P1 → P4 on the curve (the ±15 ms window at P1). Mark replaced that with the hold after the
+  - Round 1 built it as `delta` P1 → P4 on the curve (the ±15 ms window at P1). The Coaching Lead replaced that with the hold after the
     review.
 - σ: the top reading's ⊕ the hold frames' median σ (not ÷ √n: one still pose, as `shoulderPlaneFromHold` argues),
   Propagated.
@@ -1107,11 +1107,11 @@ frame check is pending.
 - `tuned_constants_parity_test`: the hold constants.
 - `swing_doc_test`: `diag.p8Refusal` round-trip.
 
-**For Mark's review**
+**For the Coaching Lead's review**
 - The takeaway now fires `flat_takeaway` on 95 of Mark's 123 swings.
 - The hold reference keeps more swings but not less noise (above). A longer fit before P1 is the lever.
 
-**Round 2 (the D6 review, and three changes Mark approved, 13 Nov)**
+**Round 2 (the D6 review, and three changes the Coaching Lead approved, 13 Nov)**
 - **The review's defect:** `model_browser_test` pinned ten gate-word subjects; `position.p8` makes eleven. Re-pinned with
   the reason.
 - **The clause keeps the position's capital:** `notJudgedClause` lower-cases a subject's label except a P-position's own name,

@@ -9,7 +9,7 @@ How to use with Claude Code: one phase per fresh session (§6). **Look at the tw
 proportion and hierarchy; `Theme` tokens govern exact values — never copy a hex from the PNGs or
 `sessions_mockup.html` into QML.
 
-**Changed (Mark, 11 Nov 2026): Sessions is a Home tab, not a rail screen.** It is the tab at the RIGHT of
+**Changed (Design Lead, 11 Nov 2026): Sessions is a Home tab, not a rail screen.** It is the tab at the RIGHT of
 Home's title-size bar (Coaching · Your swing · Tendencies · Matchups … Sessions), drawn like the others
 (PpTabs' `end` tab). The page is `home/HmSessions.qml` (was `athlete/ScreenSessions.qml`): no title of its own —
 the summary ("10 sessions · 202 swings · 14.6 GB") is the bar's note — then the filters with the search at their
@@ -94,7 +94,7 @@ when a filter hides a row (the bar's count always equals what you can see select
 
 > **Decision S-D1 — click toggles.** In the swing model table a plain click *replaces* the
 > selection and Ctrl/⌘-click toggles (`ModelTable.qml` ~l.580). Here a plain click *toggles*, by
-> choice (Mark, 28 Oct): Sessions is a list you act on in batches, and there is no "current item"
+> choice (Design Lead, 28 Oct): Sessions is a list you act on in batches, and there is no "current item"
 > pane for a single click to drive. The two tables therefore differ on purpose; record this in
 > both files' header comments so nobody "fixes" one to match the other.
 
@@ -206,7 +206,7 @@ per session.
 
 ## 8. Corrections and decisions (28 Oct, audit against `04f84e5b`)
 
-Decisions (Mark, 28 Oct):
+Decisions (Design Lead, 28 Oct):
 
 - **S-D5 Report cell.** Short state + one action as §2.1, but a sent report reads "Sent 21 Oct" in
   place of "Ready". Today's full `stateWords` ("Sent 21 Oct 18:40", "Opened in Mail…", "Report
@@ -216,7 +216,7 @@ Decisions (Mark, 28 Oct):
   the `swingsIdentity` hash (`report/report_meta.h`), so a current report used to read "Out of date"
   after archive and again after restore. Archive and restore now re-stamp the identity when the
   report was current before.
-- **S-D7 Build.** All three phases in one run, one commit at the end, after Mark has judged the
+- **S-D7 Build.** All three phases in one run, one commit at the end, after the Product Owner has judged the
   result.
 
 Corrections:

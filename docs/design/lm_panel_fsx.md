@@ -1,6 +1,6 @@
 # Launch monitor panel: the FSX design
 
-Status: design signed off by Mark on 13 Oct 2026. This is round 4c of mock A. Implementation is in progress.
+Status: design signed off by the Design Lead on 13 Oct 2026. This is round 4c of mock A. Implementation is in progress.
 
 ## What it is
 
@@ -40,7 +40,7 @@ The spec is the signed-off mock: `build/run-me/lm-variants/qml/Panel_A_fsxpro.qm
 
 ### Ellipse rules
 
-These are Mark's rules:
+These are the Design Lead's rules:
 - An ellipse encloses every shot in its group: it is the minimum-area enclosing ellipse (Khachiyan), not an SD ellipse.
 - A group of fewer than 3 shots gets no ellipse.
 - No ellipse is ever drawn without its dots.
@@ -136,7 +136,7 @@ The art is vendored from `~/Projects/Resources`:
 | `LmClubArt.markers(head)` → list | Foresight club-marker positions for that head, as `[{ name: "toe"\|"heel"\|"lo"\|"hi"\|"one", xMm, yMm }]` in `face_frame` mm, measured from our `face_centre`. This is the four-dot layout. `one` is the single GC3/HMT dot. The values come from the table now in `PpLmGraphicsBody.qml`, citing Foresight's fiducial guide. |
 | `Theme.typeset.lm` | The panel's colour roles (`centreMark`, `clubSeries` and the rest of `_lmRoles`) live in each theme's typeset block, with defaults in `_typesetDefault`. They no longer live in the body. |
 
-**Evidence rule decision (Mark, 13 Oct):** the rule judges each shot on its own numbers. A recorded club's group is never moved as a whole.
+**Evidence rule decision (Coaching Lead, 13 Oct):** the rule judges each shot on its own numbers. A recorded club's group is never moved as a whole.
 
 **The old Tiles/Graphics switch is retired.** The FSX design is the whole panel, and `appSettings.lmPanelMode` (`ui/lmPanelMode`) is removed.
 
@@ -145,5 +145,5 @@ The art is vendored from `~/Projects/Resources`:
 - This shot and Session match the round-4c sheets at Mark's window sizes (2180×1320 and his wide-short full screen, fontScale 1.35) and at 1680×1050, in Folio and Vector, on screen and in print.
 - Excluding a shot and relabelling a club survive a reload of the session.
 - The new Analysis headers have passing tests, through ctest.
-- Mark has looked at the renders and the try-out before the full `qml_ui` suite runs.
-- Nothing is committed until Mark approves. The flight-model fix in `lm_flight_path.h` is still uncommitted and joins the same commit set.
+- The Design Lead has looked at the renders and the try-out before the full `qml_ui` suite runs.
+- Nothing is committed until the Product Owner approves. The flight-model fix in `lm_flight_path.h` is still uncommitted and joins the same commit set.

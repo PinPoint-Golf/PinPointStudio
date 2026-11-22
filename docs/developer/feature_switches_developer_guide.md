@@ -37,7 +37,7 @@ Almost every analysis feature since June 2026 has followed the same lifecycle:
 
 1. **Built DARK.** The default is off, and the OFF path is proven byte-identical over the corpus (typically "dark run 61/61 byte-identical" on the pose2 corpus).
 2. **Gated.** The keys-off vs keys-on run uses the same binary, against truth marks or a launch monitor. Typical gates: the 17-swing truth set for Address/Takeaway, the 61-swing pose2 corpus for coverage, the 11 truth-marked swings for P-positions, the six 08-18 launch-monitor pairs for clubhead speed, and 283 hand-marked frames for impact lean.
-3. **Flipped by Mark's call.** The commit title usually says `FREEZE … ON` or "flipped", and the body carries the gate numbers. A few switches are ON **by Mark's decision even though the written gate failed**: DTL HELD, η and synth3d (§3.12, §3.13). Their rows say so.
+3. **Flipped by the Product Owner's call.** The commit title usually says `FREEZE … ON` or "flipped", and the body carries the gate numbers. A few switches are ON **by the Product Owner's decision even though the written gate failed**: DTL HELD, η and synth3d (§3.12, §3.13). Their rows say so.
 
 Score and rule constants (`score.*`, `rules.*`) are **frozen until labels exist**. SwingLab refuses to sweep them without `--allow-frozen`.
 
@@ -265,9 +265,9 @@ History:
 | `dtlPosture.enabled` | `dtl_posture.h:92` | LIVE | DTL posture metrics (379bbfbe, 09-21). |
 
 The base tracker came in 20fefcc8 (2026-09-20, swinglab only) and went in-app in 2764eef9 (09-21). **The six rules** arrived in 3109778d (2026-09-30), each with a bit-identical OFF (21/21). Gate: `docs/research/data/markerless/dtl_continuous_20261002.md` §3.4. Drawn coverage went 0.69 → 0.80 mid-backswing and 0.66 → 0.75 delivery. **The ≥0.85 target was not met**; the residual is band-edge tails, and the ceiling is structural. Truth pairs unchanged, planes moved 0.00°.
-- **HELD is ON by Mark's decision (1 Oct)**, to be judged in the app on the re-analysed 4 July session. The gate as written would have left it off.
+- **HELD is ON by the Product Owner's decision (1 Oct)**, to be judged in the app on the re-analysed 4 July session. The gate as written would have left it off.
 - The other five passed their own gates: END_ON only relabels absences; edge earned 18 measured frames; lenSchedule cut flicker 14 → 5 on s7; refuseLateEscape refused 10 frames, all post-P8.
-- **synth3d** was dark from 3109778d and turned ON in b82de8a3 by Mark's decision. It remains a preview through the assumed-zero camera until the calibration session.
+- **synth3d** was dark from 3109778d and turned ON in b82de8a3 by the Product Owner's decision. It remains a preview through the assumed-zero camera until the calibration session.
 
 ### 3.13 Shaft fusion (`shaft.fusion.*`, `shaft_fusion.h`)
 
@@ -280,7 +280,7 @@ The base tracker came in 20fefcc8 (2026-09-20, swinglab only) and went in-app in
 | `reflectBands.enabled` | 172 | LIVE | (D) Re-reads a mirrored backswing DTL band when the backswing fit is incoherent. |
 
 All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
-- **A (η)** is ON **by Mark's decision; its leave-one-band-out gate failed** (mid-backswing 6.8 → 7.7° p50), because η is not continuous across an end-on gap on this golfer.
+- **A (η)** is ON **by the Product Owner's decision; its leave-one-band-out gate failed** (mid-backswing 6.8 → 7.7° p50), because η is not continuous across an end-on gap on this golfer.
 - **C** is off and closed (§2).
 - **D** is ON by its gate: 07-04 s2/s3 rms 20.9/18.0° → 12.0/4.4°, 0 of 21 coherent swings changed.
 - **B** (skeleton camera as fusion seed) stopped at the cross-check, so no switch exists: skeleton 12.6° vs stick 9.0–9.9°, disjoint ranges.
@@ -312,7 +312,7 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
 - **Base fit** — d9b466f7 (2026-09-26).
 - **Plane / branch** — 2a7e57a9 (09-28): P8 off-plane 51.9° → 6.0°; face-on-only 50° → 15.8°.
 - **Lean + splines + pool** — 3edbcba3 (09-28), graded in `docs/design/swing_3d_viz_design.md` §13.5–13.7. Spine-only lean + splines was best of four (face-on-only 15.8 → 13.45°). Pooling cameras only gives 11.15°.
-- The doc records that leaving `leanClavicles` off departs from Mark's answer to q1, on the numbers.
+- The doc records that leaving `leanClavicles` off departs from the Product Owner's answer to q1, on the numbers.
 - **pelvisYawAccRad** — 5bef75f3 (2026-10-02), `kSkeleton3DStageVersion` 4. With the general σ (about 1800 rad/s² in the fast window), the pelvis stopped and restarted at the ball on 15/15 07-04 swings.
   - At 200: implied acceleration 11 700 → 3 700 °/s²; reprojection, slip and limit holds unchanged; `hip_stall`'s P6→P7 rate 160 → 225 °/s, and three false stalls cleared.
   - At 100 the result is the same; at 400 a shallow dip remains.
@@ -363,12 +363,12 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
   - s10 went from unresolved to partial;
   - it agrees with the face-on arm to a median 6.7 ms.
 
-  Mark: "a material difference in stability and plausibility". The record is
+  Product Owner: "a material difference in stability and plausibility". The record is
   `skeleton_arm_g3_20261002.md`. With `false`, the output is byte-identical apart from timings.
 - **skel3d.trunk** — built dark, then measured on 07-04 (`skeleton_rate_k0_20261002.md` §11).
   - Ranked above the pair, it held on 3/15 swings and placed nothing, saying what the pair said
     with 3–6× the timing σ.
-  - So it was moved BELOW the pair and turned ON (Mark: "if it does no harm we may see
+  - So it was moved BELOW the pair and turned ON (Product Owner: "if it does no harm we may see
     benefits"). There it replaces the blind-banded span wherever the pair cannot produce.
   - The confirmation sweep, on vs off, 15 swings: routes, placements, instants and verdicts
     identical. On 07-04 it fires on none of them.
@@ -400,7 +400,7 @@ Design: `docs/design/shaft_uncertainty_propagation_design.md`. Calibration and g
 | `kOneImpact` | `uncertainty.oneImpact` | DARK | U4: lean, the speed mask and the peak lead read the ladder Impact instead of the trigger or the P7 knot. **A value change.** |
 | `kFbPosterior` | `uncertainty.fbPosterior` | DARK | U5: forward–backward marginals replace the U1 table on in-span frames. It failed its gate (held-out ±2σ 76–80 % vs the table's 96 %; Spearman 0.59 vs 0.67). It stays a trace diagnostic (`fb_sigma`, `fb_palt` at five temperatures under `--trace`). |
 | (config) | `uncertainty.planeBootstrap` | LIVE | U6: block-bootstrap σ for the fused planes, the address plane and the face-on conic (with `pNeedle`). |
-| `kSequenceSigma` | `uncertainty.sequenceSigma` | DARK | The kinematic sequence's club node reads the per-sample σθ instead of `shaftThetaSigmaRad / conf`. **A value change**: the wider σ un-places the club node on some swings. Mark's decision, not a gate's; the moved-swing list is in the calibration report. |
+| `kSequenceSigma` | `uncertainty.sequenceSigma` | DARK | The kinematic sequence's club node reads the per-sample σθ instead of `shaftThetaSigmaRad / conf`. **A value change**: the wider σ un-places the club node on some swings. The Product Owner's decision, not a gate's; the moved-swing list is in the calibration report. |
 | (knobs) | `uncertainty.mcDraws`, `.seed`, `.synthKappa`, `.synthSigmaScale`, `.fbTemperature`, `.rho`, `.bootstrapN`, `.bootstrapBlock` | 200, fixed, 0.33, 0.40, 1, 0.84, 200, 5 | Sweep knobs. The seed makes every σ reproducible (`det_rng.h`). |
 
 Version stamps bumped with this: `kShaftStageVersion` 6, `kDtlShaftStageVersion` 3, `kShaftFusionStageVersion` 6. A library re-analysis is needed for stored swings to gain σ (§1.3).
@@ -411,7 +411,7 @@ Version stamps bumped with this: `kShaftStageVersion` 6, `kDtlShaftStageVersion`
 |---|---|---|
 | `kEnabled` | LIVE | Readings carry their measurement σ, and every finding carries P(fire), gross risk and `quantified`. Verdict-identical: gate G1, 0 mismatches over 7,260 rows. |
 | `kSoftTier` | LIVE | The Wilson bound takes expected counts, and each condition gets P(Pattern) from 200 deterministic draws. Gate G3: the 3 tier moves on the library all rested on borderline shots. |
-| `kPosteriorRank` | LIVE, pending Mark's review of the rank-shift report | Roots rank by P(c \| evidence) × Σ q·s, with negative evidence, and carry a stability word (firm / likely / fragile). |
+| `kPosteriorRank` | LIVE, pending the Product Owner's review of the rank-shift report | Roots rank by P(c \| evidence) × Σ q·s, with negative evidence, and carry a stability word (firm / likely / fragile). |
 
 ---
 
@@ -525,6 +525,6 @@ Found while compiling this guide. These are worth fixing the next time the file 
 1. **Build it dark.** Put the default in `pp_tuned_constants.h` if validation will tune and freeze it; otherwise in the module's `*Config`. Name the dotted key in the comment and apply it in `fromOverrides()`. A disable sentinel (`0`) is fine for numeric modes. Say so in the comment.
 2. **Prove the OFF path byte-identical** over the corpus before any gate.
 3. **Gate with the same binary**, keys off vs keys on, against truth and with a control. Record the numbers in the commit body and the gate doc.
-4. **Flip on Mark's call.** Put the gate numbers in the flip commit, update the constant's comment from "dark" (§5 shows what happens if you don't), and update this guide's row.
+4. **Flip on the Product Owner's call.** Put the gate numbers in the flip commit, update the constant's comment from "dark" (§5 shows what happens if you don't), and update this guide's row.
 5. **Bump the producer version** in `analysis_versions.h` if the switch lives in a reused stage (§1.3); otherwise the library keeps the old output.
 6. If a switch is ON against a failed gate, or OFF for good (degenerate, oracle), **say so in the comment**. §2 depends on it.

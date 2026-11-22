@@ -1,7 +1,7 @@
 # Trust and gates: saying why a reading was refused
 
 **Status:** **closed 17 October 2026.** Stages 0–7 built and pushed (stage 3 with the Trust panel of §7.0; stage 4 as §4.4; stage 5 as §7.4; stage 6 as `trust_stage6_plan.md`; stage 7 as §7.5). Three styling and policy questions are left open on purpose (§11). Written 16 October 2026.
-**Owner:** Mark.
+**Owner:** Solution Architect.
 **Audience:** developers working on the analysis producers, the diagnostics engine, the Charts and
 diagnostics panels, and the Setup page.
 **Builds on:**
@@ -209,7 +209,7 @@ gate:
 | `design` | the design doc section that justifies it |
 | `since` | the stage version that introduced it |
 
-The catalogue is the reminder Mark asked for: a **Gates page in the Metric Library** lists every
+The catalogue is the reminder the Product Owner asked for: a **Gates page in the Metric Library** lists every
 gate by area with its explanation and current thresholds, and each metric's library entry lists the
 gates that can act on it. A unit test asserts every gate id a producer emits is in the catalogue,
 and every catalogue entry is emitted by some producer (no dead entries).
@@ -272,11 +272,11 @@ the figure they explain.
 
 - A gate that masks or blinds part of a curve marks that stretch with a **bar along the foot of the
   plot** in the curve's colour, spanning the stretch and ending where the curve ends, labelled with the
-  gate's short words (Mark, 16 Oct: a bar, not a wash over the canvas). For the kinematic sequence: the sighted band per segment, so the −400 °/s
+  gate's short words (Design Lead, 16 Oct: a bar, not a wash over the canvas). For the kinematic sequence: the sighted band per segment, so the −400 °/s
   pelvis dip is visibly inside "out of sight".
 - A ring the producer did not place is drawn hollow and dashed (today it is a hollow ring that reads
   as "placed but faint").
-- **Said once (Mark, 17 Oct 2026).** On the Charts panel the headline names the story ("pelvis and chest out
+- **Said once (Design Lead, 17 Oct 2026).** On the Charts panel the headline names the story ("pelvis and chest out
   of the camera's sight"). Inside the charts a refused reading is a plain "-": no bound, no gate words, no
   link-coloured words, no guessed rank. The reasons, the bounds and what would lift them are in the "How far
   can I trust this?" fold directly under the plot, on This shot and on Session. The foot bars keep their
@@ -294,7 +294,7 @@ the figure they explain.
 
 A short trust summary, generated from the records and the catalogue, at the head of Analyse (a fold,
 collapsed by default once read). *As built (stage 5, 16 Oct 2026): see "Stage 5 as built" below; the
-fold is closed by default, always (Mark), and the example's wording is superseded.*
+fold is closed by default, always (Design Lead), and the example's wording is superseded.*
 
 > **Face-on camera and lead-arm sensors.** Club and lead arm measured on all 6 shots. Pelvis and chest
 > timing out of the camera's sight on 6 of 6 shots, so the sequence order and late-pelvis findings
@@ -397,7 +397,7 @@ Each stage is one session, graded on screen before commit.
    18 August and 4 July sessions re-analysed as the test set.
 3. **Charts read it for the sequence:** the strip's "not placed" replaced by the record (bound, title,
    open-to-explain), the sighted band shaded on the curves, unplaced rings dashed. This is the first
-   point Mark sees a change.
+   point the Product Owner sees a change.
 4. **Propagation to findings** (§4.4) for the characteristics that read the sequence; "judged on n of
    m" in Session diagnostics.
 5. **The trust summary** (§7.4) and the Setup page line. *Built 16 Oct 2026; see §7.4 "Stage 5 as built".*
@@ -442,12 +442,12 @@ bridged detector gaps (a hold, not a refusal).
 ## 11. Decisions taken, and the ones still open
 
 **Taken (16 October 2026):**
-- Gates become data: a catalogue written once plus per-swing records (Mark).
+- Gates become data: a catalogue written once plus per-swing records (Solution Architect).
 - This design explains and labels; it changes no gate threshold.
 - The kinematic sequence is the first producer, because it prompted this.
 - Record retention (was open 4): the library is re-analysed on the studio after each stage lands, with a
-  backup on the share first (Mark, 16 Oct).
-- The design closes with open 1–3 still open (Mark, 17 Oct). They are styling and per-finding policy
+  backup on the share first (Product Owner, 16 Oct).
+- The design closes with open 1–3 still open (Product Owner, 17 Oct). They are styling and per-finding policy
   calls for later sessions, not missing pieces of the model.
 
 **Open:**

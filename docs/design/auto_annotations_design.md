@@ -1,13 +1,13 @@
 # Auto annotations: the coach's static marks, and the synthetic shaft as its own motion element
 
-**Status:** design + build, 1 Oct 2026. Mark, on seeing the 3-D synthetic shaft's dashed line on the
+**Status:** design + build, 1 Oct 2026. Design Lead, on seeing the 3-D synthetic shaft's dashed line on the
 down-the-line tile: "I think the plane is a new kind of annotation — it is not dynamic is it? It's the
 kind of thing a coach would draw … circle round the head at address for face on, vertical lines on hips
 on face on at address, vertical line at edge of butt at address on dtl and swing plane on dtl. We should
 add a motion overlay toggle for Auto annotate" — and, separately, "the dynamic plane would still be an
 excellent addition, but should have its own preset on the motion menu."
 
-Two different things, and (Mark, second round) they live in two different menus: the motion
+Two different things, and (Design Lead, second round) they live in two different menus: the motion
 overlays are for specific kinds of analysis and belong on the Motion menu; the coach's lines are static
 reference marks a swing is looked at against, available all the time, and belong on the View menu.
 
@@ -37,16 +37,16 @@ golfer moves against it.
 | **Hogan line** | DTL | the shaft plane's ball (`dtl.ball.samples[0]`) and the TRAIL shoulder joint at address, conf > 0.3 | from the ball through the trail shoulder to the picture's edge; with the dashed shaft plane it bounds the "V zone". No ball or no confident trail shoulder: no line. Long dashes |
 | **Trail leg** | DTL | the DTL pose at address: hip → knee → ankle of the trail side (12/14/16 right-handed, 11/13/15 left-handed), conf > 0.3 | one polyline, drawn only when its three points are confident — never half a leg. The lead leg is not drawn (removed 22 Oct: behind the trail leg from down the line, a distraction) |
 
-**Spine, shoulder plane, Hogan and trail leg (22 Oct 2026).** Mark: "it would be ace to have coaching
+**Spine, shoulder plane, Hogan and trail leg (22 Oct 2026).** Coaching Lead: "it would be ace to have coaching
 lines on the dtl view that show the spine and leg angles frozen at address. then we can see how the golfer
 moves through the swing." Three rounds the same evening:
 1. The spine through the joint midpoints (hip 11/12 → shoulder 5/6, on through the head) with both legs
    from the pose, and a shoulder plane — first at 90° to that spine (the Hogan / Watson "shoulders turn
    perpendicular to the spine" picture), then TPI's line parallel to it.
-2. The spine became TPI's, "from the base of the tailbone to the back of the neck" (Mark: "spine line to
+2. The spine became TPI's, "from the base of the tailbone to the back of the neck" (Coaching Lead: "spine line to
    the neck is much better") — two points on the REAR outline, so from the person mask (§1b); the lead
    leg was removed; the Hogan line was added.
-3. 23 Oct: the spine became the trail hip joint → the joint neck. Mark: "the solid green spine line is
+3. 23 Oct: the spine became the trail hip joint → the joint neck. Coaching Lead: "the solid green spine line is
    supposed to run from the hips (joining the line that is already there from the knee to the hips) to the
    neck." The rear-outline line followed a hoodie's hood and the back, not the trunk, and did not meet the
    trail leg. The shoulder plane keeps its margin and extent as fractions of the new line's length; the
@@ -73,7 +73,7 @@ golfer — worth a look on the corpus on the cabin PC):
   dots vanished over his dark shirt. Hogan line in 18 px dashes with 6 px gaps, three times the shaft
   plane's, so the two sides of the V zone read as two lines.
 
-Mark's correction after the first cut (which drew the hip JOINTS): "on the DTL view they should just touch
+The Coaching Lead's correction after the first cut (which drew the hip JOINTS): "on the DTL view they should just touch
 the butt of the golfer — it's a cue to watch the golfer moving forward off that line; on the face-on
 view the vertical lines should be on the outside of the hips left and right — a cue to watch the amount
 of sway". The pose only knows joint centres, so the edges are measured from the picture.
@@ -144,7 +144,7 @@ measurement (and then neither point is written — never half a line).
 
 ### 1c. Three sets, three toggles (22 Oct 2026)
 
-Mark, with all six DTL lines on: "lots of lines and really confusing now — the coaching lines need some
+Design Lead, with all six DTL lines on: "lots of lines and really confusing now — the coaching lines need some
 options". The single View toggle became a "Coach lines" heading under Replay with three independent
 toggles. Every mark carries its set (`set` on the mark, AutoAnnotations.js); `filterSets(marks, sets)`
 keeps the marks whose set is on, and the tile draws only those. Nothing else about the lines changed.
@@ -178,7 +178,7 @@ calibration (`dtl_precalibration_20261003.md` §2).
 
 Drawn in one pen (the theme's good colour so they read as "reference", not as the club or the body):
 2.6 px at alpha 0.8 — `kCoachPenPx`, `kCoachDotPx`, `kCoachAlpha` on PpCameraFrame, the one place they
-are set. (Until 22 Oct 1.5 px at 0.75; Mark: "they need to be thicker but with a hint of translucency
+are set. (Until 22 Oct 1.5 px at 0.75; Design Lead: "they need to be thicker but with a hint of translucency
 … as not easily discerned" — ×1.75, and 0.8 still lets the swing show through while reading over both
 the dark shirt and the bright mat.) Dashed for the plane line (it is an extension past where anything
 was measured), solid for the circle, the verticals, the spine and the trail leg (polylines, round join

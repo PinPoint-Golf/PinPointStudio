@@ -115,9 +115,9 @@ about the hosted session, not the ring, and should say so.
 5. `commitShot`'s unarmed message (§6.2) still says "still processing the previous shot" for
    every unarmed state.
 6. The rig's device half still has no test of `serveCaptureRequest` (§10.7 #4 of the design).
-7. ⚠ **Nothing is committed.** All three repos are dirty; Mark commits.
+7. ⚠ **Nothing is committed.** All three repos are dirty; the Product Owner commits.
 
-### 0.4 On clock convergence (Mark's secondary ask)
+### 0.4 On clock convergence (the Product Owner's secondary ask)
 
 Tonight, over WiFi with min RTT 2.4 ms, the host's 5 ms gate passed **6–11 s** after
 link-up, not 120 s. `PINPOINT_SYNC_TRACE=1` (exported before `make integration-device`)
@@ -158,7 +158,7 @@ candidate reported`, `capture_request →`, `payload begin "cap:`, `phone video 
 **Done is a file on disk.** Not bytes on a wire, not a green test, not a counter.
 
 That distinction is not pedantry. On 1 September a link teardown reported `bulk 242550681` —
-243 MB genuinely crossed the cable — and it was reported to Mark as the leg working. It was not:
+243 MB genuinely crossed the cable — and it was reported to the Product Owner as the leg working. It was not:
 those payloads were for Captures whose `capture_announce` had never registered, and they were
 refused and dropped before reaching the filer. **A byte counter is not a result.**
 

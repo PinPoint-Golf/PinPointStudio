@@ -98,7 +98,7 @@
 - **Confidence:** high.
 
 ### C29. The report has its own shot mark and its own roles object
-- **Verdict:** PARALLEL IMPLEMENTATION (Mark's call: the report's "Folio light" look is deliberate)
+- **Verdict:** PARALLEL IMPLEMENTATION (the Design Lead's call: the report's "Folio light" look is deliberate)
 - **Where:**
   - `report/PpSwingGrid.qml:42 component SwingMark` (fired filled dot, clean ring, not measured a stub) is used by PpSwingGrid, `PpWorkOnPage.qml:156` and `PpReportCover.qml:194`. It does the job of `typeset/PpMark` plus the `stubH` stub.
   - `report/PpSessionReport.qml:348–421` builds a hand-written roles object `rr`: inks, about 30 fonts, `hw`, `em`, `hex()`, and a `hue()` that reads Folio light. Beside it the same file builds `PpTypeset { medium: "print"; fixedAesthetic: "folio" }` (`:443`) and a `pagerRoles` shim (`:427`). Each chart page also builds `PpChRoles { medium: "print"; fixedAesthetic: "folio" }` (3 pages).

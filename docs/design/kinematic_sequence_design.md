@@ -378,13 +378,13 @@ Club at analysis time, for §9 and for any future capture that predates a placem
 > of the range), and the lead between consecutive placed peaks as a bracket along the top of the
 > combined view. A split facet draws only its own segment. Nothing is written about a bound or
 > the blind band on the chart: the curve's own style already says how far to trust it, and a
-> reader of this chart needs no second telling (Mark, same day — a first cut drew the §12.4
+> reader of this chart needs no second telling (Design Lead, same day — a first cut drew the §12.4
 > bounds as labelled spans, and it was noise). The bound stays in the node, the JSON and the
 > report. `PpSequenceStrip` is now one line: the chain with its leads ("Lead arm −87 ms → Club
 > −4 ms (+83 ms)") and the verdict. Probe: `tools/probes/ks_overlay_chart.qml`.
 >
 > **2026-10-02 — the strip becomes the sequence TILE.** It summarises the chart for a reader new
-> to the kinematic sequence (Mark rejected a wordy first cut and a cut that hid values). There
+> to the kinematic sequence (the Design Lead rejected a wordy first cut and a cut that hid values). There
 > are four rows in the order the segments SHOULD peak: pelvis, chest, arm, club. Each row shows:
 > - SHOULD and ACTUAL position;
 > - the peak time as −N / +N ms from impact, ±σ_t;
@@ -393,19 +393,19 @@ Club at analysis time, for §9 and for any future capture that predates a placem
 >
 > Every peak on the plot has its numbers in the tile. An unplaced one is dimmed, with a "?" on
 > its rank, never hidden. ACTUAL is red at both ends of an inverted pair. The verdict is In /
-> Out of sequence, In order so far, or Order unclear. This overrides NR-03/05/11 at Mark's call
+> Out of sequence, In order so far, or Order unclear. This overrides NR-03/05/11 at the Coaching Lead's call
 > (golf_swing_normative_reference.md).
 >
 > Code: `ChartMetrics::sequenceTable`. Tests: `chart_metrics_test` ("tile: …"),
 > `tst_chart_presets` test_016, probe `tools/probes/ks_rising_chart.qml`.
 >
-> **Same day — the club gate.** Mark: "it says club not placed and it's clearly just before
+> **Same day — the club gate.** Solution Architect: "it says club not placed and it's clearly just before
 > impact". The club node's broken-track gate read the clubhead speed AT impact. On a club peaking
 > 25–90 ms early, that sample had already fallen to 12–40 mph, below the 40 mph floor. It refused
 > 27 of 55 library club nodes whose timing σ was 5–21 ms; their downswing PEAK was 53–116 mph on
 > every swing. The gate now reads the downswing peak (`clubheadSpeedPeakMph`, Top → Impact).
 >
-> **Same day — the sequence runs P4 → P8 (`sequence.throughP8`, default ON).** Mark: "the peak
+> **Same day — the sequence runs P4 → P8 (`sequence.throughP8`, default ON).** Solution Architect: "the peak
 > is the value before P8 … a peak after impact is just as interesting as a peak in sequence".
 > This reverses §13's "do NOT search past impact".
 > - The peak is searched over Transition → P8 for every segment, the club included. P8 is the
@@ -422,7 +422,7 @@ Club at analysis time, for §9 and for any future capture that predates a placem
 > - the chest is still unplaced (`pairTrunk.thoraxPlacement` off);
 > - ledgers are unchanged.
 >
-> **OPEN — the lead arm's rate rising after impact.** Mark: "almost certainly wrong, but that's a
+> **OPEN — the lead arm's rate rising after impact.** Solution Architect: "almost certainly wrong, but that's a
 > data issue". On some swings the arm curve climbs again into P8 and becomes the max before P8
 > (07-04 s8: +80 ms). Suspect the arm keypoints / skeleton through the follow-through, not the
 > rule.
@@ -582,7 +582,7 @@ In the order the dependencies run; each step is buildable and testable on its ow
    pointer, this file's §12 written from the §9 runs.
 
 Builds: one app build after step 7, one test build at the end (`ctest`, the affected targets only).
-Nothing is committed until Mark has seen the §9 results.
+Nothing is committed until the Product Owner has seen the §9 results.
 
 ---
 
@@ -826,12 +826,12 @@ confidence gate says per frame how bad that is. The §9 truth capture remains th
 every node the camera places.
 
 
-### 12.6 The chest's probable peak across the camera's gap (Mark, 25 Oct 2026)
+### 12.6 The chest's probable peak across the camera's gap (Solution Architect, 25 Oct 2026)
 
 The face-on chest curve stops measuring for 13–67 ms (median 27 ms, 165 library curves) at or just before
 impact, where the shoulder line squares to that camera, and no rung places the chest's node
 (`kPairTrunkThoraxPlacement` is off: the pair's thorax nodes were the square-up artefact, §11). On 24 of 32
-shots of 07-04 and 10-20 the curve rises into that gap and falls out of it, so the peak is inside it. Mark:
+shots of 07-04 and 10-20 the curve rises into that gap and falls out of it, so the peak is inside it. Solution Architect:
 the gap "is relatively short and I would argue cannot plausibly spike during the swing … bridge the gap and
 use that as an estimator (with a warning to the user)"; then, once the Session view showed it (Charts design
 §2.2.1): "KS chart is #1 diagnostic for the positive message of 'get your pattern right'", so the analysis
@@ -881,7 +881,7 @@ does it per shot too.
   impact was never recorded. The band is now the blind run at impact, or the one nearest it; every blind run
   stays out of the peak search's mask (`segment_rates_test` §16, §16b). `validityBand` (the hole routes) keeps
   its first-run rule.
-- **The chest is always reported** (Mark, same day: "I want the chest timing to always be reported so long as we
+- **The chest is always reported** (Solution Architect, same day: "I want the chest timing to always be reported so long as we
   warn the user. better to indicate than say nothing"). Every unplaced chest with a curve now carries a
   `probable` peak, and `probable.how` says how it was read: `bridge` (the fit's peak inside the gap); `rising` /
   `fell` (the fit still rising where its search ends / falling into the gap: that edge is reported as the
@@ -894,7 +894,7 @@ does it per shot too.
   is lifted (`maxGapMs` = ∞): a long gap is bridged and its ± says how little it knows. Only a swing with no
   chest curve at all (no video) has no chest timing. The validity argument for long gaps and for `seen` rests on
   the worn trunk-IMU session (this week, Oct 2026).
-- **All four curves carry their sign** (Mark, same day: "I am concerned that angular velocity does not carry the
+- **All four curves carry their sign** (Solution Architect, same day: "I am concerned that angular velocity does not carry the
   correct sign on all 4 curves"). The lead arm and club were read as speeds (|ω|), so they bounced off zero at the
   top instead of crossing it. They now keep their direction, towards the target +, as the pelvis and chest always
   have (`kSignedArmClub`; camera routes only — the arm IMU's swing rate has no sign), turned over as a whole when
@@ -904,14 +904,14 @@ does it per shot too.
   at the top, which is the case for the trunk IMU. The downswing is + either way, so peaks and readings are
   unchanged — except 7 library shots (Paddy, Jess) whose old arm peak was junk the sign exposed (−3091 °/s
   backwards, or a leap to 3232–8332 °/s straight after a change of direction, now refused as a spike).
-- **The arm IMU carries its sign too** (Mark, later the same day: "we do need a sign on the hm curve"). The gyro's
+- **The arm IMU carries its sign too** (Solution Architect, later the same day: "we do need a sign on the hm curve"). The gyro's
   swing rate across the arm is a vector; its sign is which way it points along the swing plane's normal, fixed at
   the downswing's fastest sample and carried both ways by the sensor's own rate (`signAgainstPlane`; a world-fixed
   direction seen from a turning body moves by −ω × n·dt). The sign changes only where the rate along that normal
   is clear of noise, so a forearm whose swing vector turns over through the top changes sign once. Following the
   vector's own direction instead read the 18 Aug HackMotion backswings as positive on 10 of 11. With the normal
   carried, all 11 read negative going back and change sign once, 9–15 ms after the top; every peak is unchanged.
-- **An honest σ on the camera arm's peak instant** (Mark: "I want sigma to be honest"; `kCameraArmTopWidthSigmas`).
+- **An honest σ on the camera arm's peak instant** (Solution Architect: "I want sigma to be honest"; `kCameraArmTopWidthSigmas`).
   Graded against the HackMotion forearm on those 11 swings (the HM is the criterion), the face-on arm peaked
   43 ms late (95 % CI 28–58, SD 22) under a claimed σ of ~17 ms. Its curve has two near-level humps on 9 of 11:
   one at the HM's peak (~−100 ms), one camera-only (~−45 ms) after a dip at ~−72 ms. The keypoints are on the

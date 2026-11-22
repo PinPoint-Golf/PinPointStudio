@@ -1,10 +1,10 @@
 # Planned metrics promoted to producers (12 Nov 2026)
 
-**Status:** built, reviewed and tested; uncommitted. Mark judges the results before any commit.
+**Status:** built, reviewed and tested; uncommitted. The Product Owner judges the results before any commit.
 **Plan:** `~/.claude/plans/harmonic-herding-dusk.md`.
 **Prompted by:** the 12 Nov audit of planned metrics. Some readings had every input delivered (down-the-line camera, club track, two-camera shaft fusion, 3-D skeleton, chest and hip sensors) but no producer. Thighs are never placed.
 
-**Mark's rulings:**
+**The Product Owner's rulings:**
 - The new readings **grade faults now**; σ and trust records tell the user how far to rely on them.
 - No corpus sweep. The evidence is unit tests plus one swing.
 - Hip internal rotation uses the 3-D thigh where there is one.
@@ -61,17 +61,17 @@ Logs, the dump script output and the sheets are in `build/planned-metrics-202611
 
 No trunk-sensor recording exists, so the sensor readings are checked only against the synthetic body (`trunk_e2e_test` §j, analytic truths).
 
-## 3. Decisions (Mark, 12 Nov 2026)
+## 3. Decisions (Solution Architect, 12 Nov 2026)
 
 1. **Camera-direction σ widened from 5° to 9°.** It covers the largest down-the-line camera turn measured (8.7°, 4 July), because that error is a one-way bias, not noise. It applies to shaft direction and shoulder aim, uncalibrated (`kDtlYawSigmaUncalDeg`). The swing-8 shaft readings now carry about ±18° rather than ±16°.
 2. **Left-handers stay mirrored** for `shaftDirection` and `shoulderLineYaw`: + means across/outside, and closed, for both hands. The sign doc records the exception.
-3. **Shoulder plane norm kept at 50 ± 10°.** It is revisited only with evidence from more two-camera swings and golfers (the swing read 31°). Re-centred to 36 ± 8 on 13 Nov (GolfTEC), Mark's decision (§6, W6).
+3. **Shoulder plane norm kept at 50 ± 10°.** It is revisited only with evidence from more two-camera swings and golfers (the swing read 31°). Re-centred to 36 ± 8 on 13 Nov (GolfTEC), the Coaching Lead's decision (§6, W6).
 4. **`m_spineSideBendTop` left as is, and noted.** Its norm is μ +8°, but the 3-D (about −38°) and sensor (about −26°) routes read toward the lead at a top with no lateral flexion, because the turn tilts the reading. No fault reads it. Define it before anything grades it.
 5. **The 3-D side bend keeps grading** the side-bend drafts, with its ⚠, on shots where the face-on reading refused.
 6. **The face-on camera is taken as square to the target line.** A camera fixed to a wall is not pointed at an angle, so it carries no σ term. The shoulder aim's camera σ is the down-the-line camera's (it supplies the depth), at 9° per decision 1. The shoulder plane's solved vertical stays an open item for calibration.
 7. **The golfer wording is approved as written.**
 
-**Norms.** Every norm these readings grade against is heuristic and provisional. None becomes proven without Mark's conscious decision and evidence.
+**Norms.** Every norm these readings grade against is heuristic and provisional. None becomes proven without the Coaching Lead's conscious decision and evidence.
 
 ## 4. What stays planned, and why
 
@@ -440,7 +440,7 @@ on that 35° / 45°-open / 30°-tilt body, +38.96° at impact, matching to 0.02�
 the projection's definition (D13), and it is NOT what the other routes read there: the face-on route has
 no P4 reading at all (its lines are edge-on), and the 3-D route reads about −38° against the sensor's
 −26° on a top with no lateral flexion. Which of the three the norm (`m_spineSideBendTop`, μ +8) means is
-Mark's question; no condition reads that measure.
+the Coaching Lead's question; no condition reads that measure.
 
 #### σ (design §8.2, per sample, in quadrature; `sigmaKind = Propagated` on the series and every phase sample)
 
@@ -582,7 +582,7 @@ leaves it unstated as before (body_rotation_test checks both).
 
 ## 6. Second pass (13 Nov 2026): routes the first pass missed
 
-The first pass filled the catalogue's PLANNED rungs; it never checked each source we own against each metric it can measure (Mark, 13 Nov). The second pass adds those routes. Plan: `~/.claude/plans/planned-metrics-completion.md`.
+The first pass filled the catalogue's PLANNED rungs; it never checked each source we own against each metric it can measure (Product Owner, 13 Nov). The second pass adds those routes. Plan: `~/.claude/plans/planned-metrics-completion.md`.
 
 ### W4: trunk-sensor routes
 
@@ -647,12 +647,12 @@ So σ_δ is a fair single size for now: it slightly overstates δ's share on the
 - **`body.chestBendSite`** now also covers `secondaryAxisTilt`. Its description and golfer words now name the lean as well as the bend: the upper back's lean, not the hip-to-shoulder line the face-on camera reads.
 - **`body.trunkMountYawAssumed`** covers all three. Its description and words say "bends and tilts", and that a turned sensor turns the direction it takes as the target line.
 - **Face-in.** Each tilt reads backward under a half turn about the spine, because the ML axis reverses and so does the address front. `body.thoraxFaceIn` covers `shoulderPlaneAngle3d` and `secondaryAxisTilt`; `body.pelvisFaceIn` covers `hipLineTilt`. Their descriptions say "bends and tilts".
-- **"Square at address" is now its own record** (W4c, below): `body.targetFromAddress` on the forward bend and both face-on tilts. W4 had left the assumption inside the front term's σ; Mark ruled (13 Nov) that a square set-up must never be assumed silently.
+- **"Square at address" is now its own record** (W4c, below): `body.targetFromAddress` on the forward bend and both face-on tilts. W4 had left the assumption inside the front term's σ; the Coaching Lead ruled (13 Nov) that a square set-up must never be assumed silently.
 - **No record for the hip tilt's edge-on frames.** Those frames are not valid, exactly as the face-on producer's are. The face-on producer's mask record (`body.hipLine`, Masked) is not fired by the sensor: `supersedeReadings` removes Masked records from a key the sensor wins, so a sensor-fired one would be erased as it was fired. Within P1→P7 the hips stay under 66° of turn on a normal swing, so it does not bite. When it does and a camera reads the position, the camera stays the answer (fewer positions).
 
 #### Precedence
 
-The bends' rule (Mark, 12 Nov), extended to the three keys (`applyTrunkSensorPrecedence`, `trunkSensorKeys()`, run once after every stage). The sensor reading is the answer wherever it reads. The 3-D or face-on series of the key is erased, and the Refused / Masked records and weaker stand-ins that spoke for it come off the key. The camera stays the answer in two cases:
+The bends' rule (Solution Architect, 12 Nov), extended to the three keys (`applyTrunkSensorPrecedence`, `trunkSensorKeys()`, run once after every stage). The sensor reading is the answer wherever it reads. The 3-D or face-on series of the key is erased, and the Refused / Masked records and weaker stand-ins that spoke for it come off the key. The camera stays the answer in two cases:
 - the sensor is probably worn face-in (its face-in record covers the key);
 - the sensor reading lacks a phase reading the camera series would be graded at.
 
@@ -670,7 +670,7 @@ In those cases the sensor reading and its own records (`body.chestBendSite`, `bo
 
 ### W4c: the address-front ⚠ (interim, until #178)
 
-Mark, 13 Nov: "a common fault is setup at address being faulty and one of the most important reasons we need to measure it." Three trunk-sensor readings take the target line, or the vertical plane through the ball, from each sensor's OWN heading at that swing's address (`trunk_sensor::ballPlaneFront`). They therefore take the golfer as square at address: an open or closed set-up is absorbed and not seen. Until the target line comes from the alignment stick, with its drift σ (#178), that is said on every such reading.
+Coaching Lead, 13 Nov: "a common fault is setup at address being faulty and one of the most important reasons we need to measure it." Three trunk-sensor readings take the target line, or the vertical plane through the ball, from each sensor's OWN heading at that swing's address (`trunk_sensor::ballPlaneFront`). They therefore take the golfer as square at address: an open or closed set-up is absorbed and not seen. Until the target line comes from the alignment stick, with its drift σ (#178), that is said on every such reading.
 
 **The record.** `body.targetFromAddress`, Downgraded, fired by `body_rotation.cpp` `recordTrunkAssumptions` with the series. Its subject is the first of its covers; its covers are exactly the readings that were emitted from an address front:
 
@@ -686,7 +686,7 @@ Mark, 13 Nov: "a common fault is setup at address being faulty and one of the mo
 - `trailHipInternalRotation` / `leadHipInternalRotation` (`HipInternalRotationStage`): the pelvis sensor's signed turn from address less the thigh's own turn from address. Both from address, so the address heading cancels.
 - The KS rates (`ks.pelvis`, `ks.thorax`, `segment_rates.cpp`): the gyro's own S-I component, which has no heading at all.
 
-**Evidence.** `code` `squareAtAddress`; `chestAddressHeadingDeg` (when a chest reading is covered) and `hipAddressHeadingDeg` (when the hip tilt is covered): that sensor's ML-axis heading at address in the stance frame (`trunk_angles::turnHeadingRad`, zero at stand tall), lead-relative, + open. **The headings are kept in the record for diagnostics and are NOT shown**: the evidence sentence is only "Your address was taken as square to the target line." The heading is not an aim measurement. It holds the golfer's turn between stand tall and address, the heading drift since stand tall (a 17° drift reads 17°, §l) and the mount yaw's share, so a square golfer can read 17° "open". Shown, it would read as a set-up fault, the fault Mark cares most about (W4c review). A shown aim waits on #178's stick target line with its drift σ.
+**Evidence.** `code` `squareAtAddress`; `chestAddressHeadingDeg` (when a chest reading is covered) and `hipAddressHeadingDeg` (when the hip tilt is covered): that sensor's ML-axis heading at address in the stance frame (`trunk_angles::turnHeadingRad`, zero at stand tall), lead-relative, + open. **The headings are kept in the record for diagnostics and are NOT shown**: the evidence sentence is only "Your address was taken as square to the target line." The heading is not an aim measurement. It holds the golfer's turn between stand tall and address, the heading drift since stand tall (a 17° drift reads 17°, §l) and the mount yaw's share, so a square golfer can read 17° "open". Shown, it would read as a set-up fault, the fault the Coaching Lead cares most about (W4c review). A shown aim waits on #178's stick target line with its drift σ.
 
 **Golfer words** (`gate_words.json`): "your target line is taken from how you stood at address, so an open or closed set-up isn't seen in this reading yet". Catalogue (`gate_catalogue_body.h`): title "Target line taken from your address"; the description says the bend, the hip tilt and the spine's lean are read against the golfer's own address line, kept and judged a step lower in trust.
 
@@ -700,7 +700,7 @@ Mark, 13 Nov: "a common fault is setup at address being faulty and one of the mo
 
 `trailKneeFlexion` now has the route `leadKneeFlexion` got on 12 Nov: the two-camera fit's hip, knee and ankle (`skeleton3d_body_series.h`, `buildSkeleton3dBody` / `mergeSkeleton3dBody`; the per-frame angle is `body3d::kneeFlexDeg`, already generic over the leg). The same work item makes the 3-D side bend a fallback for the trunk sensors' one, which W4 found missing.
 
-**Mark's rule (13 Nov), after the one-swing sheet.** On 2026-07-04 s8 the fit pulled the trail knee straight at impact: 21.8° against the down-the-line camera's 30.5°. In the face-on view at impact the hands and the banded shaft cover the trail knee, and the uncalibrated fit followed that view. Mark: "the 3d fit is likely to improve with calibration … with calibration likely the 3d fit, without calibration at impact the camera pose inference is better." So:
+**The Solution Architect's rule (13 Nov), after the one-swing sheet.** On 2026-07-04 s8 the fit pulled the trail knee straight at impact: 21.8° against the down-the-line camera's 30.5°. In the face-on view at impact the hands and the banded shaft cover the trail knee, and the uncalibrated fit followed that view. Solution Architect: "the 3d fit is likely to improve with calibration … with calibration likely the 3d fit, without calibration at impact the camera pose inference is better." So:
 - **Cameras uncalibrated** (every swing today: `Skeleton3dBodyInput::calibrated`, the flag that also decides `body3d.cameraAssumed`, is always false because no calibration reaches the fit). The down-the-line `trailKneeFlexion` is the answer whenever it exists. The 3-D series only fills when there is none.
 - **Cameras calibrated:** the replace rule below.
 - **The lead knee is unchanged.** The down-the-line camera cannot see the lead leg through much of the swing.
@@ -738,7 +738,7 @@ Built and tested, but it does not run on any swing until a calibration reaches t
 | down the line | 17.3° | 12.8° | 3.0° | 1.7° | 20.3° | 28.4° | 30.7° | 34.1° |
 | 3-D fit | 21.1° | 15.1° | 5.4° | 2.5° | 22.1° | 28.1° | 21.9° | 35.1° |
 
-The two agree within about 2–4° except at impact (P7), where the fit reads 8.8° less bend. Replacing would have moved P1 → P7 from +13.4° to +0.8°. Under the plan's gate rule that disagreement went to Mark, whose ruling is above.
+The two agree within about 2–4° except at impact (P7), where the fit reads 8.8° less bend. Replacing would have moved P1 → P7 from +13.4° to +0.8°. Under the plan's gate rule that disagreement went to the Solution Architect, whose ruling is above.
 
 #### The 3-D side bend as the trunk sensors' fallback
 
@@ -753,7 +753,7 @@ The two agree within about 2–4° except at impact (P7), where the fit reads 8.
 - **The ladder:** `dtl` (Triangulated, **Direct**, both cameras: unchanged), then the new `faceOn+dtl` (Triangulated, Estimated, both cameras: "180° less the angle at the trail knee between the hip and the ankle, from the two-camera 3-D fit of the body (uncalibrated: the fit solves its own cameras), where the down-the-line reading is missing"), then `faceOn` (planned, unchanged).
 - **Why the 3-D rung sits BELOW the down-the-line one.** The route vocabulary (`MetricRequirement`) cannot say "calibrated cameras". It states devices; `minTier` is never raised by a second camera, and the manifest rules it out as a stand-in for kit. So the catalogue states the rule that holds on every rig today, the uncalibrated one: the camera first, the fit as the fallback. This is the same shape as `spineSideBend` (face-on Direct, the 3-D rung below it). When a calibration requirement is added, the rung moves above `dtl` and needs it. No requirement kind was added.
 - **What a rig resolves to:**
-  - **Two cameras (uncalibrated, as every rig is today):** `dtl`, **Measured**, as before W5. The setup summary's "Setup and stance" row and the model browser are unchanged from before W5. (Round 1 of W5 had put the 3-D rung first, which made this Bridged; Mark's rule undid that.)
+  - **Two cameras (uncalibrated, as every rig is today):** `dtl`, **Measured**, as before W5. The setup summary's "Setup and stance" row and the model browser are unchanged from before W5. (Round 1 of W5 had put the 3-D rung first, which made this Bridged; the Solution Architect's rule undid that.)
   - **Two cameras, calibrated (not possible yet):** the catalogue would still resolve `dtl`, Measured, while the stage lets the fit replace the down-the-line series. The catalogue would then understate the route until the calibration requirement exists.
   - **Down-the-line camera only:** unchanged. It was Unavailable before and is still, because the `dtl` rung also needs the face-on camera (a known, older gap).
   - **Face-on only:** Unavailable, as before (the face-on rung is planned).
@@ -765,7 +765,7 @@ The two agree within about 2–4° except at impact (P7), where the fit reads 8.
 
 ### W6: shoulder-plane norm
 
-**Mark's decision, 13 Nov 2026.** The `m_shoulderPlane` norm (`norms.json`) goes from μ 50 / σLo 10 to **μ 36 / σLo 8**, still `"source": "heuristic"`, provisional until it is seated at #109 (the worn session). Same measure, sign and definition: the shoulder line's inclination out of the horizontal at the top, in its own vertical plane, + with the trail shoulder higher (`shoulderPlaneAngle3d`, off the 3-D fit or, since W4, the chest sensor).
+**The Coaching Lead's decision, 13 Nov 2026.** The `m_shoulderPlane` norm (`norms.json`) goes from μ 50 / σLo 10 to **μ 36 / σLo 8**, still `"source": "heuristic"`, provisional until it is seated at #109 (the worn session). Same measure, sign and definition: the shoulder line's inclination out of the horizontal at the top, in its own vertical plane, + with the trail shoulder higher (`shoulderPlaneAngle3d`, off the 3-D fit or, since W4, the chest sensor).
 
 - **Where 36 comes from.** The GolfTEC SwingTRU motion study (vest sensors, more than 13,000 golfers): tour players about 36° of shoulder tilt at the top and about 28° at shaft-parallel back; high handicappers 25–30° at the top. That is a commercial dataset on a different instrument, so it is not proven to be the same scale as the 3-D fit or the chest sensor.
 - **The brand stays out of `norms.json`.** `core_pack_test`'s brand rule forbids the study's company name in the three content files, so the citation there calls it "a commercial teaching chain's published motion study" and points here. This doc is the one place it is named.
@@ -778,7 +778,7 @@ The two agree within about 2–4° except at impact (P7), where the fit reads 8.
 
 ### W7: shoulder tilt against posture
 
-**Mark's decision, 13 Nov 2026** (design B, as approved): option (a), a producer-side point reading; the flat and steep faults grade the RELATIVE reading; norm μ −3, σLo 5; the two posture → shoulder-plane edges removed.
+**The Coaching Lead's decision, 13 Nov 2026** (design B, as approved): option (a), a producer-side point reading; the flat and steep faults grade the RELATIVE reading; norm μ −3, σLo 5; the two posture → shoulder-plane edges removed.
 
 **The idea.** A golfer who turns the shoulders square to the spine finishes the backswing with the shoulder line inclined by about the spine's forward bend. GolfTEC (Josh Troyer): tour players tilt about **3° less than their forward bend at address** (about 40° of bend, about 37° of tilt). An absolute norm (36°, W6) calls an upright golfer flat and a bent-over one steep for the same turn. The relative reading asks whether the shoulders turned on the plane this golfer's posture set.
 
@@ -843,10 +843,10 @@ The two agree within about 2–4° except at impact (P7), where the fit reads 8.
 - **Descriptor** `shoulderTiltVsBend`: "Shoulder tilt against posture", Body rotation, PointInTime at Top, `orchid` (the shoulder plane's; a point reading may share). `howToRead` states the definition, the sign and the published 3° rule without the brand. It also says that with two cameras the down-the-line bend states no margin, so the warning is the only sign of uncertainty there, and that a missing half's reason is the one given. `usedBy`: the two faults; `shoulderPlaneAngle3d` no longer lists them.
 - **Measure** `m_shoulderTiltVsBend` (`core.json`): `provided`, `at` p4, live. Golfer name "your shoulder turn against your posture"; high "your shoulders turn more steeply than your posture sets them up to"; low "your shoulders turn flatter than your posture sets them up to".
 - **Signals:** `sig_flatShoulderPlane` (low) and `sig_steepShoulderPlane` (high) read it.
-- **`m_shoulderPlane` stays live and shown**, against its 36 ± 8 norm, as context; no signal reads it. The pack validator then lists it as `unusedMeasure`, a warning (`characteristic_pack.cpp`); no test pins that, and no integrity rule needs a live measure to be read. Its descriptor names no trace corridor, and the new reading is a point reading, which cannot borrow one (`metric_catalogue_test`'s R31 guard: only TimeSeries, only with Mark's say-so), so no corridor moved.
+- **`m_shoulderPlane` stays live and shown**, against its 36 ± 8 norm, as context; no signal reads it. The pack validator then lists it as `unusedMeasure`, a warning (`characteristic_pack.cpp`); no test pins that, and no integrity rule needs a live measure to be read. Its descriptor names no trace corridor, and the new reading is a point reading, which cannot borrow one (`metric_catalogue_test`'s R31 guard: only TimeSeries, only with the Coaching Lead's say-so), so no corridor moved.
 - **Conditions:** the golfer lines say the relative meaning: flat "your shoulders turn flatter than your posture sets them up to", steep "your shoulders turn more steeply than your posture sets them up to". `golferWell`, `cue`, `check`, `golferWhy`, `consequence` and `drills` are kept: none becomes false, and the down-the-line "line through your shoulders points at the ball" check is already the relative test.
-- **Edges:** `posture_too_upright → flat_shoulder_plane` and `posture_too_bent → steep_shoulder_plane` are deleted (Mark: under the relative meaning a posture cannot produce them; posture's own effects are linked directly already). Every other edge stays, including `c_posture → flat_shoulder_plane`, `s_posture → steep_shoulder_plane` and `loss_of_posture_backswing → flat_shoulder_plane`. 665 → 663 edges.
-- **Norm** (`norms.json`): `m_shoulderTiltVsBend`, μ **−3**, σLo **5**, heuristic, provisional until seated at #109 with both parts from the chest sensor. The corridor is −8 … +2. Graded as every norm is (`norm.h` `GradePolicy`: amber past one tolerance, a fault past two), it is **amber from −8 / +2 and fires below −13 (flat) and above +7 (steep)**. (Corrected 13 Nov 2026, Mark's decision: the norm stays −3 ± 5 and only the words change. They had said "flat below −8, steep above +2", which are the amber edges, not the firing ones.) The citation gives the published rule without the brand (the content files carry none; this doc names GolfTEC and Troyer), the library medians above, and Mark's decision. On the library: Jess, Nick and Paddy's medians sit inside; Mark's median (−6.1°) is inside, but his flatter quarter (below −10.6°) reaches amber, and only his shots below −13° fire; Chris fires on every shot until his reading is fixed.
+- **Edges:** `posture_too_upright → flat_shoulder_plane` and `posture_too_bent → steep_shoulder_plane` are deleted (Coaching Lead: under the relative meaning a posture cannot produce them; posture's own effects are linked directly already). Every other edge stays, including `c_posture → flat_shoulder_plane`, `s_posture → steep_shoulder_plane` and `loss_of_posture_backswing → flat_shoulder_plane`. 665 → 663 edges.
+- **Norm** (`norms.json`): `m_shoulderTiltVsBend`, μ **−3**, σLo **5**, heuristic, provisional until seated at #109 with both parts from the chest sensor. The corridor is −8 … +2. Graded as every norm is (`norm.h` `GradePolicy`: amber past one tolerance, a fault past two), it is **amber from −8 / +2 and fires below −13 (flat) and above +7 (steep)**. (Corrected 13 Nov 2026, the Coaching Lead's decision: the norm stays −3 ± 5 and only the words change. They had said "flat below −8, steep above +2", which are the amber edges, not the firing ones.) The citation gives the published rule without the brand (the content files carry none; this doc names GolfTEC and Troyer), the library medians above, and the Coaching Lead's decision. On the library: Jess, Nick and Paddy's medians sit inside; Mark's median (−6.1°) is inside, but his flatter quarter (below −10.6°) reaches amber, and only his shots below −13° fire; Chris fires on every shot until his reading is fixed.
 
 #### Version, tests
 

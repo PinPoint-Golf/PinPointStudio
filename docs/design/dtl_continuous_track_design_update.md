@@ -121,7 +121,7 @@ preview, before the fusion-plane product replaces it.
 ### 3.2a Before the calibration: four improvements the two views already carry (added 1 Oct 2026)
 
 *Written after §3.1 shipped (`dtl_continuous_20261002.md`) and after a first reading of the
-re-analysed 4 July session. Mark's question: "are there any improvements we can put into the
+re-analysed 4 July session. The Product Owner's question: "are there any improvements we can put into the
 synthetic and fused tracks before we have calibration?" There are four, and they are ordered by
 what each buys. None needs a stick clip; each is gated on data that exists; each ships dark
 until its gate passes. What none of them reaches is stated at the end, so the calibration is not

@@ -40,7 +40,7 @@ Everything downstream inherits the error:
   band shown in Review) is bs0 — visibly late.
 - **The v3.4 ball-anchor tk0 search is capped at bs0**, so its "find the
   real takeaway" exploit can only search inside an already-truncated
-  domain — the chicken-and-egg Mark described: the ball pass that could
+  domain — the chicken-and-egg the Product Owner described: the ball pass that could
   fix address runs *after* the evidence that needs it.
 
 Meanwhile the whole camera-only analysis takes ~45 s on the dev box
@@ -91,7 +91,7 @@ Phase-label damage (swing_0001 trace): 434/745 frames `Addr`, only 43
 **Live vs re-analyse (who owns the 20 s budget).** The reported
 "1 min" decomposes as: dev-box *re-analysis* = 44.9 s analysis
 + ~20 s window rebuild + CIFS reads ≈ 65 s — that path is allowed to be
-slow (Mark, 2026-07-09). The **live** post-shot pipeline on the studio
+slow (Product Owner, 2026-07-09). The **live** post-shot pipeline on the studio
 box is the budget owner. Forensics on today's session: every swing's
 raw/mp4/thumb/swing.json share one mtime second and shots landed every
 ~52 s with SHOT re-arming in between, so the live tail (postroll 0.5 s

@@ -8,7 +8,7 @@
 ## 1. The question
 
 Greg Rose (TPI) is quoted as saying tour players address the ball with the pelvis tilted forward 20–25° and arrive at
-impact at 0 to −5°. Do we measure pelvic tilt, and how do our norms compare? (Mark, 19 Nov 2026.)
+impact at 0 to −5°. Do we measure pelvic tilt, and how do our norms compare? (Coaching Lead, 19 Nov 2026.)
 
 "Pelvic tilt" here means the **forward/back (sagittal) tilt**: the pelvis tipping toward the ball at address and
 "tucking under" through impact. It is not the sideways tilt (lead hip high or low), which our docs also call tilt:
@@ -60,9 +60,9 @@ What the table supports:
 4. **Neither study measured tour players.** Both are skilled amateurs (handicaps 0.8 and 1.6), and they used
    different clubs (driver, 5-iron).
 
-## 4. Why TPI's figure might still be right for some players (Mark's hypotheses, 19 Nov 2026)
+## 4. Why TPI's figure might still be right for some players (the Coaching Lead's hypotheses, 19 Nov 2026)
 
-Mark was also sceptical of the TPI claim, but suggested two ways it could still hold:
+The Coaching Lead was also sceptical of the TPI claim, but suggested two ways it could still hold:
 
 - **The very best players may tuck more.** Okuda is consistent with tucking growing with skill: the skilled group
   reached +6.6° at impact and the low-skilled group 0.0°. That is two skill levels, not a trend up to tour level, so
@@ -71,7 +71,7 @@ Mark was also sceptical of the TPI claim, but suggested two ways it could still 
   (`posture_chart_design.md` §4.2): **Level** ("stays in posture") and **Squat and push** (sits into the lead side in
   transition, then "straightens hard through impact"). Posting up the lead leg drives the pelvis up and under, so a
   Squat and push player might show a bigger tuck than a Level one. **No source has been found that splits pelvic tilt
-  by pattern.** This is Mark's hypothesis.
+  by pattern.** This is the Coaching Lead's hypothesis.
 
 How each could be tested:
 
@@ -79,9 +79,9 @@ How each could be tested:
   Posture chart's nearest pattern for that swing. With one or two wearers this shows whether the idea holds for
   those golfers. It cannot set a norm (`trunk_imu_sequence_grf_design.md` §3.1, "One golfer").
 - **For tour level:** only a published study that measured tour players, ideally split by pattern, can confirm the
-  20–30° change. A search for one is the first job when this is picked up (proposed, for Mark).
+  20–30° change. A search for one is the first job when this is picked up (proposed, for the Coaching Lead).
 
-## 5. What to build, after the refactor (proposed, for Mark)
+## 5. What to build, after the refactor (proposed, for the Coaching Lead)
 
 1. **Publish the series `pelvisTilt`:** the hip sensor's forward bend in the ball plane, the same definition and
    sign as `spineForwardBend`'s `trunkImus` route, so 0 = stand tall and + = tipped toward the ball. Route
@@ -92,13 +92,13 @@ How each could be tested:
    This is the number to compare with the literature, because it does not depend on the zero (§3, point 1).
 3. **Set a provisional band from the two studies:** a change of about −18°. The width would come from the studies'
    SDs, which are not worked out here. Label it skilled amateurs, driver and 5-iron, provisional. Put the TPI figure
-   in the band's note as a claim, not in the band. Mark decides the band before anything grades by it.
+   in the band's note as a claim, not in the band. The Coaching Lead decides the band before anything grades by it.
 4. **Per-pattern bands only with a source.** If a study turns up that splits the tuck by Level vs Squat and push, or
    our own wearers show a clear split, the band moves to the pattern nodes, the way the head and pelvis-height bands
    already sit at `posture_level` / `posture_squat_push` in `norms.json`. Without a source, the general row stays.
 5. **Where it shows:** the Posture chart's trunk row is the natural home (`posture_chart_design.md` §3.3 already says
    the tuck "explains why the lower back's line changes through impact even in a good swing"). Showing it is a
-   design-system question for Mark when the time comes. No layout is proposed here.
+   design-system question for the Design Lead when the time comes. No layout is proposed here.
 
 **First read-only step when this is picked up:** check whether any of the 4 July swings (the trunk-sensor sessions
 `body_rotation.cpp` refers to) has a hip sensor reading, and pull Mark's own P1→P7 change from it. That says whether
@@ -110,12 +110,12 @@ the sensor's numbers are sensible before anything is built.
 |---|---|---|---|---|---|---|---|
 | `pelvisTilt` series | derived | the shot's analysis, shot | made by re-analysis of the shot; keyed by metric id on the shot | the hip sensor's fused stream, the phase ladder, the address front; a new `versions.pelvisTilt`; re-analysis | `swing.ppsw` `analysis`, written by the body-rotation stage through `SwingStore` | no new file (`src/Body`, domain) | the metric catalogue (`BodyRotationProvider::provides`) |
 | `m_pelvisTiltChangeImpact` measure | rules data | the rule set, application | added to `core.json` | `pelvisTilt` at P1 and P7; the rule version | `src/Resources/diagnostics/core.json` | rules | diagnostics, like every measure |
-| the provisional band | rules data | the rule set, application | added to `norms.json` on Mark's decision | — | `src/Resources/diagnostics/norms.json` | rules | diagnostics, the Posture chart |
+| the provisional band | rules data | the rule set, application | added to `norms.json` on the Coaching Lead's decision | — | `src/Resources/diagnostics/norms.json` | rules | diagnostics, the Posture chart |
 
 Information-model change? Probably not. It is a new metric in an existing measurement family (the trunk sensors'
 bends), which §1.2 excludes. The reviewer confirms when it is planned.
 
-## 7. Decisions for Mark when this is picked up
+## 7. Decisions for the Coaching Lead when this is picked up
 
 1. Build it at all, given how few swings have a hip sensor?
 2. Sign and zero: stand tall = 0 and + = toward the ball, matching `spineForwardBend`, as proposed in §5.1?

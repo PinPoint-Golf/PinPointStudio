@@ -221,7 +221,7 @@ The project's research report puts it plainly: "Impact is *unmeasurable* on a ba
 - the synthetic track (§7);
 - the honest labelling of frames as reconstructed rather than measured.
 
-Why not shorten the exposure? Because there is not enough light. Mark's ruling of 5 July 2026: 150 fps is the camera's maximum, the ~6.57 ms exposure "cannot shorten (light budget)", the blown-out highlights in the hitting area "ARE the studio downlight doing its job", and a ring light is mounted at the camera. The markerless design document lists exposure changes, infrared illumination (it conflicts with the launch monitor), polarisers and backdrops under "deliberately not done". The tracker has to live with the blur.
+Why not shorten the exposure? Because there is not enough light. The Product Owner's ruling of 5 July 2026: 150 fps is the camera's maximum, the ~6.57 ms exposure "cannot shorten (light budget)", the blown-out highlights in the hitting area "ARE the studio downlight doing its job", and a ring light is mounted at the camera. The markerless design document lists exposure changes, infrared illumination (it conflicts with the launch monitor), polarisers and backdrops under "deliberately not done". The tracker has to live with the blur.
 
 ### 2.2 Timestamps you can trust, and some you cannot
 
@@ -1298,7 +1298,7 @@ A refused track:
 - **draws nothing** in the application;
 - shows "–" for every club metric.
 
-That is Mark's 30 September ruling: no picture is better than a wrong one. The effect on the comparison sets:
+That is the Product Owner's 30 September ruling: no picture is better than a wrong one. The effect on the comparison sets:
 
 - the 21 ball-visible swings analysed with both pose models went from 19 sane (B) and 17 sane (L) to 21 and 21;
 - 15 September Wrist_02 went from 3 of 13 sane to 13 of 13;
@@ -1492,7 +1492,7 @@ A snap is accepted only if it beats the original line, does not land under a lim
 
 There is **no PRED tier** down the line: "a frame is never measured on face-on's word." The three kinds of absence — end-on, occluded, unseen — are kept distinct on purpose: "publishing them as one 'no sample' is how a 0.95 coverage hides a 40 % end-on swing." Since 1 October END_ON is checked before quarantine. 1,078 of 2,063 frames labelled "hands hidden" were in fact end-on by the schedule.
 
-**HELD** (since 1 October). A hole of at most 6 frames *inside one band*, with a measured frame on both sides, keeps the band's own solved angle at its neighbours' confidence. It is drawn, dimmer, so the tile does not flicker. It is never used by fusion or any metric, and never bridges an end-on gap: the band boundaries *are* the gaps. Its gate target (85% drawn coverage) was **not met**, 0.80 and 0.75. It is on by Mark's decision, to be judged in the application.
+**HELD** (since 1 October). A hole of at most 6 frames *inside one band*, with a measured frame on both sides, keeps the band's own solved angle at its neighbours' confidence. It is drawn, dimmer, so the tile does not flicker. It is never used by fusion or any metric, and never bridges an end-on gap: the band boundaries *are* the gaps. Its gate target (85% drawn coverage) was **not met**, 0.80 and 0.75. It is on by the Product Owner's decision, to be judged in the application.
 
 **One drawn length.** The drawn length is the schedule's ρ̂_D × L̂_D, not the per-frame measured run. Switching between length sources caused 713 jumps of more than 40 px in the drawn head on the 21 corpus swings. The measured run still decides the tier.
 
@@ -1556,7 +1556,7 @@ Real swings are not perfectly planar. Since 1 October a smooth curve η(t) is fi
 - a pull toward zero on any knot with no measured frame within 150 ms, so that across a gap the curve relaxes back into the plane rather than extrapolating a slope;
 - limited to ±25°.
 
-It is used only by the 3-D synthetic line (§7.2). Its gate, predicting a held-out band's out-of-plane angle, **failed** on this golfer: η is not continuous across an end-on gap. It is on by Mark's decision, because its value is at the band edges and only the tile can show it.
+It is used only by the 3-D synthetic line (§7.2). Its gate, predicting a held-out band's out-of-plane angle, **failed** on this golfer: η is not continuous across an end-on gap. It is on by the Product Owner's decision, because its value is at the band edges and only the tile can show it.
 
 ### 6.4 A mirrored band, re-read
 
@@ -1728,7 +1728,7 @@ That is a defensible engineering choice. Since the evidence fit, the synthetic t
 4. **Project** that direction through the DTL camera to get a DTL image angle and apparent length.
 5. Draw it from the DTL grip. Where the DTL hands were quarantined, use the 3-D skeleton's hands projected into the DTL view.
 
-**Status: on, as a preview** (Mark, 1 October). The DTL camera's angles are not calibrated. The projection uses the assumed zero yaw, so the line "is off by exactly the unknown yaw (4–9°)". It is drawn dashed and dimmer (the "Synthetic club" view preset). It is never read by fusion, the kinematic sequence or any metric. Its purpose is to let the drawing be judged by eye against the measured DTL club until the calibration session exists.
+**Status: on, as a preview** (Product Owner, 1 October). The DTL camera's angles are not calibrated. The projection uses the assumed zero yaw, so the line "is off by exactly the unknown yaw (4–9°)". It is drawn dashed and dimmer (the "Synthetic club" view preset). It is never read by fusion, the kinematic sequence or any metric. Its purpose is to let the drawing be judged by eye against the measured DTL club until the calibration session exists.
 
 ---
 
@@ -2200,7 +2200,7 @@ The kinematic cone rests on a hand-written wrist-hinge table whose error against
 - Yaw, pitch and roll are assumed zero, while the alignment stick suggests 4–9° of yaw and 2.4–6.5° of roll, and the camera moved during one session.
 - The planes' headings are not published for this reason. Their inclinations are claimed robust, but on the evidence of one session.
 - The backswing is "not a plane": its fit is refused on 18 of 24 swings.
-- Three features — the DTL HELD tier, the out-of-plane curve and the 3-D synthetic line — are on by Mark's decision **despite failing their gates**, to be judged in the application. That is a legitimate call, but they are unvalidated.
+- Three features — the DTL HELD tier, the out-of-plane curve and the 3-D synthetic line — are on by the Product Owner's decision **despite failing their gates**, to be judged in the application. That is a legitimate call, but they are unvalidated.
 
 **The face-on plane is experimental.** It is uncalibrated (a body-depth bias of up to 64° is bounded but not removed). Its repeatability measure cannot detect a meaningless fit. It changed sign on a golfer who comes over the top every swing.
 

@@ -1,6 +1,6 @@
 # Position-first shaft measurement — design (v3.5)
 
-Status: PROPOSED (2026-07-11) · Author: session with Mark following the club-length
+Status: PROPOSED (2026-07-11) · Author: session with the Product Owner following the club-length
 fusion P6 validation · Companion: [`docs/implementation/shaft_position_first_impl_plan.md`](../implementation/shaft_position_first_impl_plan.md)
 
 ## 1. Problem statement
@@ -48,7 +48,7 @@ Three findings motivate this design, all confirmed on the 2026-07-10 corpus
 
 (P9 `FollowThrough` and P10 `Finish` already exist; they ride along for free.)
 
-**Accepted caveat (Mark, 2026-07-11):** "shaft parallel" is read in the image
+**Accepted caveat (Product Owner, 2026-07-11):** "shaft parallel" is read in the image
 plane of the face-on camera, not true 3-D parallel. This matches how coaches
 work with face-on video today, so it is standard practice, not a compromise —
 but it is documented here and in the schema so nobody later mistakes P2/P6/P8
@@ -331,5 +331,5 @@ the impact reference in IMU-less runs). Per layer:
 4. **P8 visibility**: follow-through often exits frame on tight crops;
    off-frame handling reuses the Stage-2 `HeadOffFrame` convention.
 5. **UI surfacing of P badges** (timeline, carousel) is explicitly deferred to
-   a UX pass with Mark — this design lands the data; the View-menu/ViewLayout
+   a UX pass with the Design Lead — this design lands the data; the View-menu/ViewLayout
    owns any new toggles when that pass happens.
