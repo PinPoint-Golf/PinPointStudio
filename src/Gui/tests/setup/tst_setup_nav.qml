@@ -326,7 +326,6 @@ Item {
             compare(ev[1].args[0].focusConditionId, "chicken_wing")
             compare(ev[1].args[0].focusLabel, "Chicken wing")
             compare(d.session.focusConditionId, "chicken_wing")
-            compare(d.session.focusFromShot, 0)
             var st = d.session.calls.filter(function(c) { return c.name === "start" })
             compare(st[1].args[0], wrist, "the defaultType, not a chosen type")
             compare(st[1].focus, "chicken_wing", "the focus was set before start()")

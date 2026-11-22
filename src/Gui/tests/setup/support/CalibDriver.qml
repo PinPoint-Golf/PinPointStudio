@@ -720,7 +720,6 @@ Item {
         tc.verify(request !== null, "Start handed back no request")
         var sc = fx.sessionController
         sc.focusConditionId = request.focusConditionId || ""
-        sc.focusFromShot    = 0
         fx.navController.navigateRail(AppScreen.Session)
         setup.visible = false
         sc.start(sc.defaultType)

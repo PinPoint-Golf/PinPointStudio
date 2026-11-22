@@ -187,10 +187,29 @@ void AppState::replayEnded()
 
 void AppState::startSession(bool extend)
 {
+    // THE DECLARED FOCUS (refactor 4-d; FOCUS-TRACE.md L1, L2): Extend keeps what the session saved, so a pick is
+    // dropped before it; a new session takes the pick through handOverFocus — on the capture target's change, which the
+    // open emits, and again here — whether or not a diagnostics panel is up.
+    if (extend)
+        call(m_doors.dropPendingFocus);
     call(m_doors.openCaptureSession, extend);
+    handOverFocus();
     call(m_doors.showLiveShots, extend ? captureTargetFolder() : QString());
     call(m_doors.startClock);
     call(m_doors.startCameras);
+}
+
+// THE ONE HAND-OVER (refactor 4-d; J-64): the Session owns its declared focus (OBJ-SESSION-INTENT), so the pick waits
+// only until a session is open to take it, and is dropped only once one did (review B1: a Start on an unusable library
+// opens none; its first swing's session, or a D7 restart's late start, takes it then). End drops what is left
+// (SessionController::endSession).
+void AppState::handOverFocus()
+{
+    if (!m_doors.pendingFocus || !m_doors.declareStartFocus || captureTargetFolder().isEmpty())
+        return;
+    const QString focus = m_doors.pendingFocus();
+    if (!focus.isEmpty() && m_doors.declareStartFocus(focus))
+        call(m_doors.dropPendingFocus);
 }
 
 void AppState::endSession(bool reloadCarousel)

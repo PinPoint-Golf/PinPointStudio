@@ -261,8 +261,7 @@ Item {
 
     // Main.qml (onSessionStartRequested) — the request comes back with the visit's focus; no
     // session type (every session starts as sessionController.defaultType):
-    //     sessionController.focusConditionId = request.focusConditionId || ""
-    //     sessionController.focusFromShot    = 0
+    //     sessionController.focusConditionId = request.focusConditionId || ""   (app.state hands it to the Session: refactor 4-d)
     //     navController.navigateRail(AppScreen.Session)
     //     shotProcessor.beginSessionFolder(sessionController.defaultType, false)
     //     shotModel.loadSessionDir("")
@@ -274,7 +273,6 @@ Item {
         for (var k in request) r[k] = request[k]
         emitted.push({ name: "sessionStartRequested", args: [r], t: Date.now() })
         session.focusConditionId = request.focusConditionId || ""
-        session.focusFromShot    = 0
         nav.navigateRail(AppScreen.Session)
         nav.currentIndex = AppScreen.Session
         _rec("shotProcessor.beginSessionFolder", [session.defaultType, false])

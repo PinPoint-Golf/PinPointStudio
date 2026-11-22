@@ -43,6 +43,8 @@
 #include "../DomainModel/athlete.h"            // the current Athlete, whose sessions capture writes into
 #include "../DomainModel/session.h"                // the Session capture writes into (step 3.4a-ii)
 #include "../DomainModel/session_repository.h"   // the interim: a session no Athlete holds (NOTES-3.4a-ii N1)
+#include "../DomainModel/session_diagnostics.h"  // D7's carry: the owner's last diagnosis input (refactor 4-d)
+#include "../App/session_focus.h"                // the declared focus at a start, and D7's carry (refactor 4-d)
 #include "../Recording/recording.h"               // recording::ShotKind (Session::addShot)
 #include "pp_version.h"
 
@@ -1455,10 +1457,30 @@ void ShotProcessor::onLibraryChanged()
     // ⚠ D7 (DEC-154): the session ENDS — the Session's End, its empty discard included (as the store's
     // restart made it before step 3.4a-ii), written if the old library is still reachable; if not it stays
     // in progress until the athlete's next Start there, DEC-73 — and a NEW one of the same type starts in
-    // the new library. The club and the declared focus are SessionController's and carry over
-    // untouched; the focus applies from the new session's first shot. The views bound to
-    // activeSessionDir follow it as they follow any Start. (This replaces step 0.3's stopgap.)
+    // the new library. The club is SessionController's and carries over untouched. THE DECLARED FOCUS IS
+    // THE SESSION'S (refactor 4-d; FOCUS-TRACE.md L3): read from the ending session before its End — its
+    // file, else (a library that has gone) what its owner last diagnosed against — and declared on the new
+    // one from its first shot, before any view is pointed at it. The views bound to activeSessionDir follow
+    // it as they follow any Start. (This replaces step 0.3's stopgap.)
     const pinpoint::SessionId oldId = m_openSession;
+    // A session no Athlete holds (N1's no-golfer path) has no Session: its file is read through the repository, as
+    // that path does everything else.
+    QString carriedFocus;
+    std::optional<QString> f;
+    if (m_openSessionObject) {
+        f = pinpoint::declaredFocusOf(m_openSessionObject.data());
+    } else if (!oldId.isNull()) {
+        const pinpoint::SessionInputRead r = m_sessions->readSessionInput(oldId);
+        if (r.state == pinpoint::SessionInputRead::State::Read)
+            f = r.input.declaredFocus ? r.input.declaredFocus->conditionId : QString();
+    }
+    if (f) {
+        carriedFocus = *f;
+    } else if (m_openSessionObject && m_openSessionObject->diagnostics()
+               && m_openSessionObject->diagnostics()->diagnosisInput()) {
+        carriedFocus = m_openSessionObject->diagnostics()->diagnosisInput()->focusConditionId;
+    }
+    // else: no file (none declared) or a gone library with nothing diagnosed yet: nothing to carry (review m1)
     const auto oldEntry = m_openSessionObject ? m_openSessionObject->entry() : m_sessions->open(m_openSession);
     const QString type  = oldEntry ? oldEntry->identity.type() : QString();
     const QString was   = oldEntry ? oldEntry->folder : QString();
@@ -1473,13 +1495,17 @@ void ShotProcessor::onLibraryChanged()
         if (!oldId.isNull() && m_sessions->folderPresent(oldId))
             emit sessionFileFailed(ended.error);   // the old library is still there, but its end was not saved
     }
+    // The carried focus waits as the pending pick (SessionController's) until a Session takes it: the new one, on the
+    // activeSessionDirChanged below (AppState::handOverFocus), or — the restart failing — the one the next swing makes
+    // (captureSession). Set only now, after the old session's End, so it can go to no other session.
+    if (!carriedFocus.isEmpty())
+        emit focusCarried(carriedFocus);   // main.cpp: SessionController's pending pick (DirectConnection)
     const bool started = startOpenSession(type, /*onDemand=*/false);
     ppWarn() << "[SwingExport] the library changed during a session: the session" << was
              << "ended, and a new one started in" << m_openSessionDir;
     m_openedOnDemand     = false;
     m_openLibraryKey     = libraryKey(owner.libraryRoot);
     m_sessionFolderReady = started;   // if not, the next swing tries again (captureSession)
-    emit sessionRestartedForLibrary();   // first: the focus's "from shot" is reset before the views re-point
     emit activeSessionDirChanged();
 }
 
@@ -1496,6 +1522,26 @@ QString ShotProcessor::todaySessionDir(int sessionType)
     const pinpoint::SessionId id = m_sessions->todaysSession(ownerOf(m_athlete, m_appSettings), type);
     const auto entry = id.isNull() ? std::nullopt : m_sessions->open(id);
     return entry ? entry->folder : QString();
+}
+
+bool ShotProcessor::declareStartFocus(const QString &conditionId)
+{
+    if (conditionId.isEmpty())
+        return false;
+    pinpoint::WriteResult w;
+    if (m_openSessionObject) {
+        w = pinpoint::declareStartFocus(m_openSessionObject.data(), conditionId);
+    } else if (m_sessions && !m_openSession.isNull()) {
+        // N1's no-golfer path: no Session, so its repository by id, as the diagnostics model writes such a session.
+        pinpoint::SessionInput input;   // only the focus: the store keeps every other field as the file holds it
+        input.declaredFocus = pinpoint::DeclaredFocus{ conditionId, 0 };
+        w = m_sessions->writeSessionInput(m_openSession, input);
+    } else {
+        return false;   // no session open yet: the focus stays pending (review B1)
+    }
+    if (!w.ok())
+        ppWarn() << "[SwingExport] the session's declared focus was not saved (kept pending):" << conditionId << "-" << w.error;
+    return w.ok();
 }
 
 void ShotProcessor::beginSessionFolder(int sessionType, bool extend)

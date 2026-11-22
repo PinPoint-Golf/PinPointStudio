@@ -232,6 +232,13 @@ SessionInput Session::inputWith(const SessionInput &held) const
     return out;
 }
 
+SessionInputRead Session::readSessionIntent() const
+{
+    if (!m_sessions)
+        return {};
+    return m_sessions->readSessionInput(m_id);
+}
+
 WriteResult Session::setSessionIntent(const SessionIntentEdit &edit, const SessionInput &held)
 {
     if (!m_sessions)

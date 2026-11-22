@@ -131,7 +131,8 @@ Item {
     readonly property int _watchingCount: (source && source.watching) ? source.watching.length : 0
 
     // ── the focus the golfer can declare (design §A6) ────────────────────────
-    // IT GOES STRAIGHT TO THE MODEL AND IS NOT MIRRORED HERE; the read-back is the model's.
+    // IT GOES STRAIGHT TO THE MODEL AND IS NOT MIRRORED HERE; the read-back is the model's. The model forwards it
+    // to the Session, its owner (EVT-10), and every other surface reads it back from there (refactor 4-d).
     // GUARDED ON THE FUNCTION, not on the source: a test fixture that wants to assert the tap arrived
     // supplies a spy of the same name; one that does not gets a no-op rather than a TypeError.
     function _declareFocus(conditionId, on) {
@@ -140,26 +141,6 @@ Item {
             source.declareFocus(conditionId)
         else if (!on && typeof source.clearFocus === "function")
             source.clearFocus()
-        else
-            return
-        _writeFocusBack(on ? conditionId : "",
-                        on ? Math.max(0, Number(source.focusFromShot) || 0) : 0)
-    }
-
-    // IN A LIVE SESSION THE FOCUS IS SessionController's, and this is where a declaration made here
-    // reaches it — and through it the other surfaces (a rebuilt stage panel, the cast), which adopt
-    // it (PpSessionDiagnosticsPanel._adoptFocus). Set by the panel only while live; null in review,
-    // on a finished session and in the tests that do not supply one. Kept as an input so the body
-    // still touches no singleton.
-    //
-    // THE SPLIT FIRST, THEN THE ID: a surface adopting on the id must find the split already there.
-    // Each written only on a real difference, so the adoption it triggers comes back a no-op.
-    property var focusController: null
-    function _writeFocusBack(id, fromShot) {
-        const c = focusController
-        if (!c) return
-        if (c.focusFromShot !== fromShot) c.focusFromShot = fromShot
-        if ((c.focusConditionId || "") !== id) c.focusConditionId = id
     }
 
     // ── the condition detail ─────────────────────────────────────────────────

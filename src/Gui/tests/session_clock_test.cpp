@@ -29,8 +29,8 @@
 // Those sentences have consequences that nothing has ever checked — one session
 // is one clock and one announcement, and a session type is one of four things.
 // Since the four-modes refactor every session starts as defaultType (Wrist), and
-// the controller carries the session's focus: set before start(), kept by it,
-// released by endSession().
+// the controller carries the wizard's pick of a focus until a Session takes it
+// (refactor 4-d: the Session owns the declared focus), released by endSession().
 
 #include "session/session_controller.h"
 
@@ -105,7 +105,6 @@ static void testIdleState()
              QStringLiteral("00:00:00"));
     check(QStringLiteral("I4 no club is in play"), s.activeClub().isEmpty());
     check(QStringLiteral("I5 no focus: an open assessment"), s.focusConditionId().isEmpty());
-    checkInt(QStringLiteral("I6 the focus applies from the first shot"), s.focusFromShot(), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -317,61 +316,46 @@ static void testDefaultType()
 }
 
 // ---------------------------------------------------------------------------
-// F — the session's focus
+// F — the wizard's pick of a focus (refactor 4-d: the Session owns the declared focus; this holds only the pick
+// until a Session takes it — AppState::handOverFocus declares it on the first one opened, then clears it)
 // ---------------------------------------------------------------------------
 
 static void testFocus()
 {
-    std::printf("\nF — the focus is set before the session and held for it\n");
+    std::printf("\nF — the focus pick is set before the start and never outlives the session\n");
 
     SessionController s;
     QSignalSpy focusChanged(&s, &SessionController::focusChanged);
 
-    // Whoever starts the session sets the focus first, then calls start().
+    // The wizard sets the pick; AppState hands it to the first Session opened (session_focus_test).
     s.setFocusConditionId(QStringLiteral("early_extension"));
-    checkInt(QStringLiteral("F1 setting the focus announces it"), focusChanged.count(), 1);
-    checkStr(QStringLiteral("F2 the focus can be set before the session starts"),
+    checkInt(QStringLiteral("F1 setting the pick announces it"), focusChanged.count(), 1);
+    checkStr(QStringLiteral("F2 the pick can be set before the session starts"),
              s.focusConditionId(), QStringLiteral("early_extension"));
-    s.setFocusFromShot(0);
-    checkInt(QStringLiteral("F3 setting the same split announces nothing"),
-             focusChanged.count(), 1);
+    s.setFocusConditionId(QStringLiteral("early_extension"));
+    checkInt(QStringLiteral("F3 setting the same pick announces nothing"), focusChanged.count(), 1);
 
     s.start(s.defaultType());
-    checkStr(QStringLiteral("F4 starting the session keeps the focus"), s.focusConditionId(),
+    checkStr(QStringLiteral("F4 the clock's start leaves the pick to the session's start"), s.focusConditionId(),
              QStringLiteral("early_extension"));
-    checkInt(QStringLiteral("F5 and its split"), s.focusFromShot(), 0);
     checkInt(QStringLiteral("F6 start() announces no focus change"), focusChanged.count(), 1);
 
-    // Mid-session the golfer changes focus from shot 7 (the diagnostics panel writes back).
-    s.setFocusConditionId(QStringLiteral("trail_knee_straighten"));
-    s.setFocusFromShot(7);
-    checkStr(QStringLiteral("F7 the focus can change mid-session"), s.focusConditionId(),
-             QStringLiteral("trail_knee_straighten"));
-    checkInt(QStringLiteral("F8 from a later shot"), s.focusFromShot(), 7);
-    checkInt(QStringLiteral("F9 each change is announced"), focusChanged.count(), 3);
-
     const int before = focusChanged.count();
-    s.setFocusConditionId(QStringLiteral("trail_knee_straighten"));
-    checkInt(QStringLiteral("F10 setting the same focus announces nothing"),
-             focusChanged.count(), before);
-
     s.endSession();
-    check(QStringLiteral("F11 ending the session clears the focus"),
-          s.focusConditionId().isEmpty());
-    checkInt(QStringLiteral("F12 and its split"), s.focusFromShot(), 0);
+    check(QStringLiteral("F11 ending the session clears the pick"), s.focusConditionId().isEmpty());
     check(QStringLiteral("F13 and announces it"), focusChanged.count() > before);
 
-    // ⭐ The next session must not inherit the last one's focus: the toolbar's
-    // Capture button starts a session without setting one.
+    // ⭐ The next session must not inherit the last one's pick: the toolbar's Capture button starts a session
+    // without setting one.
     s.start(s.defaultType());
-    check(QStringLiteral("F14 a session started with no focus is an open assessment"),
+    check(QStringLiteral("F14 a session started with no pick is an open assessment"),
           s.focusConditionId().isEmpty());
 
-    // Ending with no focus held is silent.
+    // Ending with no pick held is silent.
     s.endSession();
     QSignalSpy quiet(&s, &SessionController::focusChanged);
     s.endSession();
-    checkInt(QStringLiteral("F15 clearing an empty focus announces nothing"), quiet.count(), 0);
+    checkInt(QStringLiteral("F15 clearing an empty pick announces nothing"), quiet.count(), 0);
 }
 
 int main(int argc, char **argv)

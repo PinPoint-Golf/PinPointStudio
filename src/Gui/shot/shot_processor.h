@@ -226,6 +226,10 @@ public:
     // End the session's folder: discard it (to the OS trash) when it captured no
     // new swings since beginSessionFolder(). Safe with no session in progress.
     Q_INVOKABLE void endSessionFolder();
+    // The pending declared focus handed to the open session (refactor 4-d; AppState::handOverFocus's door): its
+    // Session's own command (EVT-10), from the first shot, or its file by id for a session no Athlete holds. True only
+    // when a session took it; false with none open (it stays pending) or a failed write (logged).
+    bool declareStartFocus(const QString &conditionId);
 
 public slots:
     void onShotDetected(ShotController::Source source, qint64 timestampUs, int sessionType);
@@ -264,10 +268,10 @@ signals:
     // "Continue today's session" was asked for and refused or could not be written (DEC-126): a new
     // session started instead. Posted by main.cpp as a notice.
     void sessionResumeFailed(const QString &detail);
-    // D7 (DEC-154): the library was re-pointed mid-session, so the session ended and a new one started
-    // in the new library. Emitted just before activeSessionDirChanged. main.cpp makes the declared
-    // focus (SessionController's, carried over) apply from the new session's first shot.
-    void sessionRestartedForLibrary();
+    // D7 (DEC-154; refactor 4-d): the ended session's declared focus, carried to the restart. Emitted after its End and
+    // before the new start; main.cpp makes it SessionController's pending pick, which AppState::handOverFocus hands to
+    // the first Session that opens (the restart's, or the next swing's when the restart fails).
+    void focusCarried(const QString &conditionId);
     // Analyzer returned !ok — the shot degrades to no-score/no-metrics but the
     // pipeline continues. Surfaced as a window-level toast (Main.qml), not a
     // log line: the user must see why a shot has no analysis.

@@ -160,6 +160,7 @@ Naming: the old section heading "Your swing" now names the area tab; the summary
   condition, and the active work-ons (`workOns.items`: `id` = condition id, `name` = label).
   The Coaching focus has to be offered separately because it need not be a work-on: on Mark's
   library the focus is `trail_knee_straighten`, which has never been listed.
+- **Superseded by refactor 4-d (22 Nov 2026):** the `Session` owns the declared focus; the controller holds only the pick until a `Session` takes it, and no panel adopts or writes back a copy (`docs/developer/information_model.md` §11.1; `build/refactor/step-4/NOTES-d.md`). The text below is the four-modes design as it was.
 - On start: `sessionController.focusConditionId = <draft focus>` then
   `sessionController.start()` (the default type). **`SessionController` holds the focus for the
   live session.** The diagnostics panel adopts it when it activates on the live session folder.
@@ -274,6 +275,7 @@ Line numbers are at `ab5c4d9a`.
 | `ScreenWrist` | **Reuse** as *the* session screen | Rename (`ScreenSession`) in a separate, mechanical commit only (Phase 5). |
 | `ScreenSessionMode.qml` | **Delete** (Phase 1) | Dead: listed in cmake, never instantiated. It carries a `+1` gate. |
 | `ScreenSessionSetup` / `SetupContext` / `SetupSteps` / `SetupFlow` / `SetupDraft` | **Adapt** | Remove `presets` and the Goals step; add an `intent` (focus) step or first-page row; `open(request)`; `sessionStartRequested(request)`; header copy "New session". |
+| *(4-d)* | *Superseded* | *The three rows below are the four-modes plan; since refactor 4-d the Session owns the focus and the panel adopts nothing.* |
 | `SessionController` | **Adapt** | Add `focusConditionId` (settable before `start()`, cleared in `endSession()`); one default type (`Wrist`) so the wizard and the toolbar cannot drift apart. |
 | `SessionDiagnosticsModel` | **Adapt (small)** | An explicit focus start (e.g. `declareFocusFrom(id, fromShot)` or a pending focus applied at activation). Today's `declareFocus` uses the current row count, which is 0 only by accident on late adoption. |
 | `PpSessionDiagnosticsPanel` | **Adapt** | On activating the live session folder, adopt `sessionController.focusConditionId`; `_declareFocus` writes it back. This also fixes the two-window overwrite. |

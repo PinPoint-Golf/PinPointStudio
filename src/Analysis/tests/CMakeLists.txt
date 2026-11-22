@@ -2027,6 +2027,22 @@ pp_add_test(diag_stage_panel_test
 set_tests_properties(diag_stage_panel_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
+# session_focus_test — THE DECLARED FOCUS REACHES ITS SESSION (refactor 4-d; build/refactor/step-4/BRIEF-d.md, FOCUS-TRACE.md):
+# app.state's start over the real store, Athlete, Session and SessionDiagnostics (synchronous doors) and the panel's real
+# adapter — a wizard start declares the focus on the Session with no panel (L1), Extend keeps the saved one with a panel
+# pointed at it (L2), and the library restart's carry (L3). diag_stage_panel_test's link line plus AppState.
+pp_add_test(session_focus_test
+    SOURCES ${SRC}/App/tests/session_focus_test.cpp ${_diag_parallel_live_sources}
+            ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
+            ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp ${SRC}/App/session_focus.h
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
+    LINK    Qt6::Qml Qt6::Test ${OpenCV_LIBS}
+    STD 20
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings" -DPP_GUI_SRC_DIR="${SRC}/Gui"
+    AUTOMOC)
+set_tests_properties(session_focus_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
 # post_shot_bench — THE POST-SHOT GUI PATH, HEADLESS, FOR A WHOLE SESSION (refactor 3.7-S, the post-shot stall;
 # build/refactor/step-3/3.7/NOTES-S.md): main.cpp's composition (the store, the swing door, an Athlete, `app`, the
 # carousel's model, the panel's diagnostics model and, with --parallel 1, the parallel run's doors and hook) driven

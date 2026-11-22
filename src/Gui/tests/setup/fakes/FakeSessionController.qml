@@ -11,12 +11,10 @@ QtObject {
     property string activeClub:        ""
     property string elapsedLabel:      "00:00"
     readonly property int defaultType: 1
-    property string focusConditionId:  ""
-    property int    focusFromShot:     0
-    // The real controller's one NOTIFY for both focus properties.
+    property string focusConditionId:  ""   // the pick waiting for a Session (refactor 4-d)
+    // The real controller's NOTIFY for it.
     signal focusChanged()
     onFocusConditionIdChanged: focusChanged()
-    onFocusFromShotChanged:    focusChanged()
 
     property var calls: []
     function start(type) {
@@ -28,6 +26,5 @@ QtObject {
         calls.push({ name: "endSession", args: [], t: Date.now() })
         running = false
         focusConditionId = ""
-        focusFromShot = 0
     }
 }

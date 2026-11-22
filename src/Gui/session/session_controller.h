@@ -27,7 +27,7 @@
 class AthleteController;
 
 // Owns the live session clock shown in the session toolbar, the active
-// session type and the session's focus. Capture state lives on CameraManager
+// session type and the wizard's pick of a focus for the next start. Capture state lives on CameraManager
 // (user intent via startCapture()/stopCapture(); QML truth via the bufferState
 // property).
 //
@@ -39,11 +39,13 @@ class AthleteController;
 // Navigation gating derives from (running && activeSessionType >= 0) in
 // NavigationController.
 //
-// The focus ("working on X": one condition id) is held here for the live
-// session, because the diagnostics models that act on it belong to panels
-// that come and go. It is set before start() by whoever starts the session,
-// survives start(), and is cleared by endSession(). It never changes what is
-// captured, detected or graded.
+// The focus ("working on X": one condition id) is NOT the session's here: the
+// Session owns its declared focus (OBJ-SESSION-INTENT; refactor 4-d). This holds
+// only the pick until a Session takes it (J-64): Main sets it at the wizard's
+// Start (and D7's restart sets the carried one); AppState::handOverFocus declares
+// it on the first Session the capture service opens and only then clears it
+// (src/App/session_focus.h). endSession() drops what is left. It never changes
+// what is captured, detected or graded.
 class SessionController : public QObject
 {
     Q_OBJECT
@@ -60,11 +62,10 @@ class SessionController : public QObject
     // and the toolbar's Capture button cannot drift apart. Always Wrist: every
     // session folder ever saved is _Wrist_, and no rig chooses another.
     Q_PROPERTY(int     defaultType       READ defaultType       CONSTANT)
-    // The session's focus: a condition id, "" for an open assessment, and the
-    // shot index it applies from (0 = the whole session). Settable before
-    // start(); cleared by endSession(). Adopted by the live diagnostics panel.
+    // The pick waiting for a Session: a condition id, "" for an open assessment.
+    // Cleared once a Session took it (AppState::handOverFocus, from its first
+    // shot), by Extend (the session keeps its own) and by endSession().
     Q_PROPERTY(QString focusConditionId  READ focusConditionId  WRITE setFocusConditionId NOTIFY focusChanged)
-    Q_PROPERTY(int     focusFromShot     READ focusFromShot     WRITE setFocusFromShot    NOTIFY focusChanged)
 
 public:
     // The internal session type. Every session starts as defaultType (Wrist);
@@ -84,14 +85,12 @@ public:
     QString activeClub()        const { return m_activeClub; }
     int     defaultType()       const { return static_cast<int>(Type::Wrist); }
     QString focusConditionId()  const { return m_focusConditionId; }
-    int     focusFromShot()     const { return m_focusFromShot; }
 
     void setActiveClub(const QString &club);
     void setFocusConditionId(const QString &id);
-    void setFocusFromShot(int shot);
 
     Q_INVOKABLE void start(int sessionType);  // begin a session of this type + start the clock
-    Q_INVOKABLE void endSession();             // stop the clock + clear the type, club and focus (unlocks navigation)
+    Q_INVOKABLE void endSession();             // stop the clock + clear the type, club and focus pick (unlocks navigation)
     Q_INVOKABLE void stop();    // freeze the clock (type untouched)
     Q_INVOKABLE void reset();   // back to 00:00:00, stopped
 
@@ -116,6 +115,5 @@ private:
     Type          m_sessionType = Type::None;
     QString       m_label       = QStringLiteral("00:00:00");
     QString       m_activeClub;               // "" until seeded/set; cleared on endSession
-    QString       m_focusConditionId;         // "" = open assessment; cleared on endSession
-    int           m_focusFromShot = 0;        // shot the focus applies from; cleared on endSession
+    QString       m_focusConditionId;         // the pick waiting for a Session; "" = open assessment
 };

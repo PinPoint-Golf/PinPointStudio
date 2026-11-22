@@ -894,8 +894,9 @@ refactor). EVT-01 is reported when the shot's first document lands: capture's li
 phone-clip placeholder (`PpcpClipFiler::ensureSwingDocument`) is not. **D7** (DEC-154) — the library
 re-pointed mid-session — is the running session's End (its empty discard included; a failed end of an old
 session whose folder is still there — a held lock, a read-only or unreadable file; `folderPresent(id)` — is
-posted as `session.file.failed`, a gone library is not) and a Start of the same type in the new library; the club and the declared focus are
-`SessionController`'s and carry over, the focus applying from the new session's first shot.
+posted as `session.file.failed`, a gone library is not) and a Start of the same type in the new library; the club is
+`SessionController`'s and carries over; the declared focus is the ending `Session`'s, read from it before its End
+and declared on the new one from its first shot (`src/App/session_focus.h`; refactor 4-d).
 **THE INTERIM:** a session no `Athlete` holds — no golfer selected (the `unknown` folder), or a library
 re-pointed mid-session that does not list the golfer — is started, resumed, ended and allocated through the
 repository directly, exactly as before, the empty discard made by `ShotProcessor` with the same rule

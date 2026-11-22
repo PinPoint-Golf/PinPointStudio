@@ -665,11 +665,11 @@ ApplicationWindow {
                     // ‹ on the first step: the flow released the devices; go back to
                     // where setup was opened from.
                     onExitRequested: navController.back()
-                    // The request comes back with the wizard's final focus. The focus is set only
-                    // here, at Start: Cancel and ‹-exit leave the controller's focus untouched.
+                    // The request comes back with the wizard's final focus. The pick is set only
+                    // here, at Start (Cancel and ‹-exit leave it untouched); app.state hands it to the first
+                    // Session the start (or, failing that, the first swing) opens, from its first shot (refactor 4-d).
                     onSessionStartRequested: function(request) {
                         sessionController.focusConditionId = request.focusConditionId || ""
-                        sessionController.focusFromShot    = 0
                         navController.navigateRail(AppScreen.Session)
                         // The wizard always starts a NEW session folder (a deliberate
                         // fresh session); the carousel begins empty. The toolbar

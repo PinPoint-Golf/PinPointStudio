@@ -141,6 +141,12 @@ struct AppStateDoors {
     std::function<void()>                           stopClock;            // SessionController::endSession
     std::function<void()>                           closeCaptureSession;  // ShotProcessor::endSessionFolder
     std::function<QString()>                        todaysFolder;         // ShotProcessor::todaySessionDir(defaultType)
+    // The declared focus waiting for a Session (refactor 4-d; J-64: "until Start hands it to the Session"): the pick
+    // ("" for none), dropping it, and its declaration on the capture service's open session (session_focus.h:
+    // Session::setSessionIntent, EVT-10), true only when a session took it. The Session owns it from then on.
+    std::function<QString()>                        pendingFocus;         // SessionController::focusConditionId
+    std::function<void()>                           dropPendingFocus;     // …set to ""
+    std::function<bool(const QString &)>            declareStartFocus;    // ShotProcessor::declareStartFocus
     // The shot summary (refactor 4-b; src/App/outcome_summary.h): worked out from the session on screen, the outcome's
     // shot and whether that is the selection, and the owners' change signals that refresh it, heard for as long as
     // `context` lives. Unset (the tests' default): no summary.
@@ -214,7 +220,9 @@ public:
 
     // ── A session's start and end, one command each (E-12) ──
     // Start: the capture service opens (or, extend, resumes) the session — the Athlete's startSession/resumeSession
-    // — then the live carousel shows it (empty for a new one), then the clock (sessionStarted: the preflight
+    // — and a NEW one takes the wizard's declared focus, from its first shot (refactor 4-d: handOverFocus below;
+    // Extend keeps the session's saved intent, and drops the pick); then the live carousel shows it (empty for a new
+    // one), then the clock (sessionStarted: the preflight
     // notices, the trunk ceremony, the profiler), then the cameras.
     Q_INVOKABLE void startSession(bool extend);
     // End: cameras, then the clock (the queued work-ons unpause), then the capture service ends the Session
@@ -224,7 +232,9 @@ public:
 
     // The composition root calls these when what they read changes.
     void refreshSessionOnScreen();
-    void refreshCaptureTarget() { emit captureTargetChanged(); refreshSessionOnScreen(); }
+    // The capture target moved (ShotProcessor::activeSessionDirChanged): every way a session comes into being — Start,
+    // the first swing of a Start that opened none, D7's restart — so the pending focus is handed over here first.
+    void refreshCaptureTarget() { handOverFocus(); emit captureTargetChanged(); refreshSessionOnScreen(); }
     void refreshAthlete();   // a switch: the selection was the last athlete's, so it clears
     void refreshAthleteLock() { emit athleteLockedChanged(); }
 
@@ -259,6 +269,9 @@ private:
     QPointer<QObject> m_outcomeWatch;  // the connections heard for the session on screen (dropped with it)
     void              watchOutcome();
     void              shotLanded(const ShotRef &shot);   // EVT-01 of the session on screen: the outcome moves to it
+    // THE ONE HAND-OVER of the pending focus (refactor 4-d, review B1): to the capture service's open session, and
+    // dropped only once a session took it. A Start that opened no session keeps it for the session its first swing makes.
+    void              handOverFocus();
 };
 
 } // namespace pinpoint

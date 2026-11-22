@@ -871,12 +871,11 @@ int main(int argc, char *argv[])
     shotProcessor.setRecordingRepository(&recordingRepository);   // the live join's first write (step 1.5)
     shotProcessor.setSessionRepository(&sessionStore);            // the interim: a session no Athlete holds (3.4a-ii)
     // D7 (DEC-154): a library re-pointed mid-session ends the session and starts a new one, same type and
-    // club, the declared focus carried — applying from the new session's first shot.
-    QObject::connect(&shotProcessor, &ShotProcessor::sessionRestartedForLibrary, &sessionController,
-                     [&sessionController] {
-        if (sessionController.focusFromShot() > 0)
-            sessionController.setFocusFromShot(0);
-    });
+    // club, the declared focus carried — the ShotProcessor reads it from the ending Session and hands it here as the
+    // pending pick, which AppState hands to the first Session that opens, from its first shot (refactor 4-d).
+    QObject::connect(&shotProcessor, &ShotProcessor::focusCarried, &sessionController,
+                     [&sessionController](const QString &focus) { sessionController.setFocusConditionId(focus); },
+                     Qt::DirectConnection);
     // [GpuMem] (refactor 3.7-I): one app-log line at each shot's EVT-01 (a relay, not a domain event).
     QObject::connect(&shotProcessor, &ShotProcessor::shotDocumentAnnounced, &profilerController,
                      [](const pinpoint::ShotRef &shot) {
@@ -952,6 +951,10 @@ int main(int argc, char *argv[])
         d.todaysFolder        = [&shotProcessor, &sessionController] {
             return shotProcessor.todaySessionDir(sessionController.defaultType());
         };
+        // The declared focus waiting for a Session (refactor 4-d): the controller holds the pick until a Session takes it.
+        d.pendingFocus        = [&sessionController] { return sessionController.focusConditionId(); };
+        d.dropPendingFocus    = [&sessionController] { sessionController.setFocusConditionId(QString()); };
+        d.declareStartFocus   = [&shotProcessor](const QString &focus) { return shotProcessor.declareStartFocus(focus); };
         // The carousel's shot summary (refactor 4-b): worked out from the owners on each read, never kept.
         d.shotOutcome         = &pinpoint::outcomeSummaryOf;
         d.watchOutcomeSummary = &pinpoint::watchOutcomeSummary;

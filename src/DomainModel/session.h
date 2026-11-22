@@ -50,6 +50,7 @@
 //                 declared focus, the declared miss, or one screen's answer, written FIELD BY FIELD against the
 //                 file as it stands (SessionRepository::readSessionInput / writeSessionInput by id); EVT-10
 //   setIntentRun(runs)   the "from here on" intent run (R-INPUT-2), the same way; EVT-08
+//   readSessionIntent()  its intent as its file holds it now (refactor 4-d: D7's carry of the declared focus)
 //                 Both take `held`: the caller's value of every field the session's file does not hold yet (a
 //                 session whose input is still in diagnostics.json's older keys until migration M3: J-33), so
 //                 the first write puts all four fields in the file, exactly as the diagnostics model's own write
@@ -124,6 +125,9 @@ public:
     // not hold yet (J-33's fallback); the edited field is always the edit's.
     WriteResult setSessionIntent(const SessionIntentEdit &edit, const SessionInput &held = {});   // EVT-10
     WriteResult setIntentRun(const QVector<IntentRun> &runs, const SessionInput &held = {});      // EVT-08
+    // Its intent as its file holds it now (refactor 4-d: D7's carry reads the ending session's declared focus from its
+    // owner, never from the repository). Missing when there is no file or no store; Newer / Unparseable as read.
+    SessionInputRead readSessionIntent() const;
 
     // THE CLUB BASELINE FREEZE (refactor step 3.6; OBJ-CLUB-BASELINE, FILE-SESS-04; DEC-46, DEC-172; R-STAMP-4): the
     // session's recorded input, frozen ONCE at first need from the athlete level's computation (AthleteDiagnostics::
