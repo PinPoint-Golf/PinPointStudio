@@ -2,8 +2,11 @@ import QtQuick
 import QtQuick.Controls
 import PinPointStudio
 
-// Dumps the SessionDiagnosticsModel surface for one session as "DUMP:<key>:<json>" lines (session report mock;
-// tools/session-report-mock/README.md). dump-session.sh turns the log into the JSON assemble.py reads.
+// Dumps the diagnostics panel's surface for one session as "DUMP:<key>:<json>" lines (session report mock;
+// tools/session-report-mock/README.md). dump-session.sh turns the log into the JSON assemble.py reads. The panel's
+// model is the session owner's thin adapter (SessionDiagnosticsModel::adapterFor, refactor 3.7-a) when the session is
+// held by its Athlete, which dump-session.sh arranges; a model that is not one (the old engine, a folder no Session
+// holds) is refused, so a dump is always the owner's (refactor 5.3).
 Item {
     id: probe
     function arg(name, dflt) { const a = Qt.application.arguments, i = a.indexOf(name); return (i >= 0 && i + 1 < a.length) ? a[i + 1] : dflt }
@@ -35,6 +38,8 @@ Item {
                         const bs = []; probe.walk(probe.Window.window.contentItem, "sdBody", bs)
                         if (!bs.length) { probe.log("no sdBody"); Qt.exit(1); return }
                         const m = bs[0].source
+                        if (!m || !m.adapter) { probe.log("the panel's model is not the session owner's adapter (is the session held?)"); Qt.exit(2); return }
+                        probe.log("the panel's model is the session owner's adapter")
                         const shotList = []
                         for (let i = 0; i < shots.count; ++i) { const s = shots.objectAt(i); shotList.push({ shotId: s.shotId, ordinal: s.ordinal, swingDir: s.swingDir }) }
                         probe.dump("shots", shotList)

@@ -1,7 +1,8 @@
 # assemble.py — PROTOTYPE of the SessionReportModel's output for one session (docs/design/session_report_design.md).
 # Run through render-session.sh; see README.md.
 #
-# Reads the SessionDiagnosticsModel dump (probe/nick03.json), the swing documents' launch-monitor
+# Reads the diagnostics panel's dump (probe/nick03.json: the session owner's thin adapter since refactor 5.3,
+# dump_model.qml), the swing documents' launch-monitor
 # blocks (probe/nick03_lm.json), the pack (core.json, drills.json) and the sibling sessions'
 # work_ons.json, and writes report.json: the ONE map the report register binds. Every sentence is
 # assembled here from templates over model fields — the QML positions and paints, it writes no words.

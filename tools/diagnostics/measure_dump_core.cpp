@@ -148,36 +148,14 @@ QStringList selectMeasures(const CharacteristicPack &pack, const Options &opt)
 
 SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut, const PhaseGridConfig &cfg)
 {
-    // readPhaseGrid() (measure_sample.cpp) line for line, minus the atomic write at the end.
-    SwingPhaseGrid grid;
-    if (rootOut) *rootOut = QJsonObject();
-    const pinpoint::SwingStore::DocInfo docInfo = pinpoint::SwingStore::info(swingDir);
-    if (!docInfo.exists()) return grid;
-
-    QFile sf(phaseGridPath(swingDir));
-    if (sf.exists() && sf.open(QIODevice::ReadOnly)) {
-        bool ok = false;
-        SwingPhaseGrid cached = loadPhaseGrid(QJsonDocument::fromJson(sf.readAll()).object(),
-                                              docInfo.size, docInfo.mtimeMs, &ok, cfg);
-        if (ok) {
-            cached.swingDir = swingDir;
-            return cached;
-        }
-    }
-
-    const QJsonObject root = pinpoint::SwingStore::load(swingDir);
-    if (root.isEmpty()) return grid;
-    if (rootOut) *rootOut = root;
-
-    grid = buildPhaseGrid(root.value(QStringLiteral("analysis")).toObject(), cfg);
-    grid.swingDir  = swingDir;
-    grid.sessionId = QFileInfo(QFileInfo(swingDir).absolutePath()).fileName();
-    grid.ordinal   = root.value(QStringLiteral("swing")).toObject().value(QStringLiteral("index")).toInt();
-    const QDateTime wc = QDateTime::fromString(
-        root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("wallclock")).toString(),
-        Qt::ISODateWithMs);
-    grid.wallclockMs = wc.isValid() ? wc.toMSecsSinceEpoch() : 0;
-    grid.club        = pinpoint::swingDocDeclaredClub(root);
+    // THE OWNER'S READ (refactor 5.3): readLivePhaseGrid with SidecarPolicy::ParseNoWrite, as the session owner's firing
+    // reader takes it (Export/firing_reader_store.cpp; the parallel run's policy): a current sidecar answers, else the
+    // document is parsed, and nothing is written. Until 5.3 this was readPhaseGrid() copied line for line minus its write.
+    // readLivePhaseGrid is readPhaseGrid with the pack's millisecond spans added; here the caller's `cfg` names them.
+    pinpoint::SwingStore::LazyDocument parsed(swingDir);
+    SwingPhaseGrid grid = readPhaseGrid(swingDir, pinpoint::SidecarPolicy::ParseNoWrite, cfg, &parsed);
+    if (grid.swingDir.isEmpty()) grid.swingDir = swingDir;
+    if (rootOut) *rootOut = parsed.loaded() ? parsed.root() : QJsonObject();
     return grid;
 }
 
@@ -223,34 +201,39 @@ std::vector<Row> readSwing(const QString &sessionDir, const QString &swingDir,
 {
     std::vector<Row> rows;
 
-    QJsonObject root;
-    // The pack's millisecond spans (m_leadElbowFoldAfterImpact's P7 + 0…100 ms), as the app's reader builds them.
-    SwingPhaseGrid grid = readGridReadOnly(swingDir, &root, withMsWindows(PhaseGridConfig{}, msWindowsOf(pack.measures)));
-    if (grid.swingDir.isEmpty()) grid.swingDir = swingDir;
+    // THE SESSION OWNER'S PER-SHOT READ AND CONSTRUCTION (refactor 5.3): its firing reader's
+    // (SwingStoreFiringReader::read — one lazy parse shared by the phase grid and the summary, the pack's millisecond
+    // spans added by readLivePhaseGrid) with the parallel run's policy, ParseNoWrite, so nothing is written beside the
+    // swing; then fireFindings' (LiveMeasureSource over that grid, withSigma at the owner's tuned default, and
+    // detectForSwing's NormMeasureSource at the grade policy). The one difference: no athlete, so Cohort{} — the
+    // unisex norms — where the owner grades with the golfer's cohort.
+    pinpoint::SwingStore::LazyDocument parsed(swingDir);
+    SwingPhaseGrid grid = readLivePhaseGrid(swingDir, pack, pinpoint::SidecarPolicy::ParseNoWrite, PhaseGridConfig{}, &parsed);
 
-    // The app's per-shot construction (SessionDiagnosticsModel::detectShot → detectForSwing).
-    const LiveMeasureSource values(std::move(grid), pack);   // withSigma: the tuned default, as the model's
+    const LiveMeasureSource values(std::move(grid), pack);   // withSigma: the tuned default, as FiringInputs'
     const QString           contextId = values.contextId();
     const NormMeasureSource graded(values, norms, contextId, policy, &pack, Cohort{});
 
-    // Shot identity. The summary is read WITHOUT its sidecar write; a swing.ppsw carries it inside.
+    // Shot identity: the summary as the firing reader reads it (ParseNoWrite, the same parse); a swing.ppsw carries it.
     Row base;
     base.sessionPath = QDir(sessionDir).absolutePath();
     base.session     = QFileInfo(base.sessionPath).fileName();
     base.swing       = QFileInfo(swingDir).fileName();
     base.club        = values.club();
     base.contextId   = contextId;
-    const pinpoint::SwingSummary sum = pinpoint::SwingDocReader::readSwingSummary(swingDir, /*writeSidecar=*/false);
+    const pinpoint::SwingSummary sum = pinpoint::SwingDocReader::readSwingSummary(swingDir, pinpoint::SidecarPolicy::ParseNoWrite, &parsed);
     QStringList devices;
+    QJsonObject root;
     if (sum.ok) {
         devices = sum.devices;
         base.captureWithheld = (sum.dataWarning
                                 && (sum.dataWarningDetail.value(QStringLiteral("capture")).toBool()
                                     || sum.dataWarningDetail.value(QStringLiteral("imu")).toBool())) ? 1 : 0;
     } else {
-        if (root.isEmpty()) root = pinpoint::SwingStore::load(swingDir);
+        root = parsed.root();
         if (!root.isEmpty()) devices = pinpoint::swingDeviceTokens(root);
     }
+    parsed.release();
     if (sum.ok || !root.isEmpty()) {
         base.faceOn  = devices.contains(QStringLiteral("faceOn")) ? 1 : 0;
         base.dtl     = devices.contains(QStringLiteral("dtl")) ? 1 : 0;

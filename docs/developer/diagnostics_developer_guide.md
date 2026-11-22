@@ -569,17 +569,25 @@ summary sidecar caches it rebuilds, under the swing's lock, never during an arch
   its findings would appear says so (show with a warning).
 
 **What still runs the OLD engine** (the engine half of `SessionDiagnosticsModel`: `detectShot`, its own reduction, stores,
-pools and baseline authorities). Three things, until step 5 after migration M1 (`build/refactor/step-3/JUDGEMENT-CALLS.md`)[^j59]: a folder in the golfer's folder that no `Session` holds (on the Mac, a session recorded on the cabin PC,
+pools and baseline authorities). Until step 5.4 deletes it (`build/refactor/step-3/JUDGEMENT-CALLS.md`)[^j59]: a folder in the golfer's folder that no `Session` holds (on the Mac, a session recorded on the cabin PC,
 whose file names the cabin's athlete id)[^ja3], which keeps today's engine and writes `diagnostics.json` in the old form;
-`regrade_ledger`'s default (`--engine old`), run P's reference and the corpus sweep; and the tests written against it. Do not add a caller.
+`regrade_ledger --engine old`, run P's reference; and the tests written against it. Do not add a caller. `regrade_ledger`
+(by default), `diag_rank_diff`, `diag_uncertainty_report` and `post_shot_bench` run the session's owner; `measure_dump`
+reads each shot as the owner's firing reader does and builds its readings as `fireFindings` does, with no cohort; the
+session report mock dumps the owner's thin adapter[^r53-tools].
 
-**The tools.** `regrade_ledger` regrades with the old engine by default (`--engine old`, run P's reference while it
-stays); `--engine new` re-judges each session through its own `SessionDiagnostics` and **must know each session's
-athlete**, because it freezes each session's club baseline from its own athlete's earlier sessions: without a record, every
+**The tools.** `regrade_ledger` re-judges each session through its own `SessionDiagnostics` by default (`--engine new`;
+`--engine old`, the old engine and run P's reference, stays until step 5.4b)[^r53-tools]. The new engine **must know each
+session's athlete**, because it freezes each session's club baseline from its own athlete's earlier sessions: without a record, every
 session of one folder (the corpus's `swings`) would count as one golfer, and one golfer's usuals would be frozen into
 another's sessions for good. Since refactor 4-c[^j61] the athlete is read from the library, the athlete folder's
-`athlete.json` through `AthleteRepository`; `--athletes-ini` (a copy of the app's settings) is only the fallback for a
-library not yet migrated. A session neither names is refused, untouched (3.10 review B1; `regrade_ledger_new_needs_ini_test`). Either engine `--dump`s
+`athlete.json` through `AthleteRepository`. A folder with no `athlete.json` is read from `athletes.json` beside the session
+(`pinpoint.athletes/1`, the corpus's `corpus/swings/athletes.json`: the entry whose name is in the session folder's name).
+`--athletes-ini` (a copy of the app's settings) is only the last fallback, for a library not yet migrated. A session no
+source names is refused, untouched (3.10 review B1; `regrade_ledger_new_needs_ini_test`). In a folder of several golfers'
+sessions each golfer's Athlete lists no earlier session, so a session read from `athletes.json` freezes no club baseline:
+it is graded with none (no usual numbers, as under the old engine), an existing `club_baseline.json` is read as it is, and
+the tool says "club baseline not frozen: corpus run". Either engine `--dump`s
 the parallel run's form P (`Gui/diagnostics/diag_parallel_run.h`, ids and numbers only); `tools/parity/parity_baseline.py`
 runs `--engine new` for the session half over session copies that carry their athlete folders' `athlete.json` (a copy of
 the settings as `--athletes-ini` only for a library not yet migrated: refactor 4-c), and `athlete_dump` for the athlete half.
@@ -1253,3 +1261,4 @@ src/Gui/review/metric_catalog.cpp      corridors for the metric + dashboard surf
 [^ja3]: J-a3.
 [^j61]: J-61.
 [^ps-d2]: Plane stack D2, 13 Nov 2026.
+[^r53-tools]: Refactor item 5.3, 22 Nov 2026 (`build/refactor/step-5/BRIEF-5.3.md`); the corpus golfer file is the Product Owner's answer 1 to step 5's questions, 22 Nov 2026.

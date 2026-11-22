@@ -544,7 +544,9 @@ start of step 3- so long as we know the migration works and no data is lost"[^m1
 - **From step 3's close** (`build/refactor/step-3/JUDGEMENT-CALLS.md`, as amended after 3.10's review)[^j59]:
   - **the old engine in `SessionDiagnosticsModel` is deleted, once migration M1 (step 3.0) has run:** `detectShot`'s body,
     the model's own reduction, stores, three of its four pools and its baseline authorities; `regrade_ledger --engine old`
-    (then its default goes to `new`, which needs `--athletes-ini`); `post_shot_bench --path old`; and the ~8,900 lines of
+    (its default went to `new` in item 5.3; `new` reads each session's athlete from its athlete folder's `athlete.json`, or,
+    for the corpus, from `athletes.json` beside the session)[^r53-athletes]; `post_shot_bench --path old` (removed in 5.3);
+    and the ~8,900 lines of
     tests written against it (`session_diagnostics_model_test`, `work_ons_controller_test`'s engine stand-in,
     `golfer_input_test`, `shot_number_test`, `diag_parallel_live_test`'s old side, the engine cases of
     `diag_stage_panel_test`), re-pointed at the owners or deleted with their reason;
@@ -809,3 +811,4 @@ once. That gives about 10–13 working days, plus step 8.
 [^dec122]: Solution Architect, 14 Nov 2026; DEC-122, superseding decision 6's "session-level overlay".
 [^lead14nov]: The lead's call, 14 Nov 2026.
 [^m14nov-triage-s8]: Triage, Product Owner 14 Nov 2026: the triage proposed them for step 7 as a scope addition, with a step of their own as its recommendation, which the Product Owner chose; `layoutDag` and `swing_themes.h` in step 8: the lead's call, 14 Nov 2026.
+[^r53-athletes]: Since refactor 4-c (J-61) `--engine new` reads each athlete from the library's `athlete.json`, and `--athletes-ini` is only the fallback for an unmigrated library; the earlier wording ("needs `--athletes-ini`") dated from 3.10 review B1. The corpus's golfer file, `corpus/swings/athletes.json`: the Product Owner's answer 1 to step 5's questions, 22 Nov 2026.

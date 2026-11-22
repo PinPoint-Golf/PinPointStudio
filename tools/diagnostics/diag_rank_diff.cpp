@@ -433,7 +433,6 @@ int main(int argc, char **argv)
         // 4. Pack B's sequence checks, with the outcome readings §10.6 validates the count against.
         {
             applyPack(B);
-            const auto provB = makeCharacteristicPackProvider();
             for (const ShotRecord &s : rb.shots) {
                 const QString swing = swingNames.count(s.shotId) ? swingNames[s.shotId] : QString::number(s.shotId);
                 const SequenceChecks sc = sequenceChecksOf(s);
@@ -447,13 +446,10 @@ int main(int argc, char **argv)
                         row << QStringLiteral("—") << QString();
                     }
                 }
-                double smash = std::numeric_limits<double>::quiet_NaN();
-                {
-                    // The mirror's sidecar is fresh after the run, so this is the cheap read.
-                    LiveMeasureSource src(QDir(work).filePath(swing), provB->pack());
-                    if (const auto v = src.value(QStringLiteral("m_smashFactor")); v && std::isfinite(v->value))
-                        smash = v->value;
-                }
+                // The smash factor the owner recorded on the shot (ShotRecord::smash: m_smashFactor's plain reading, as
+                // fireFindings reads it; refactor 5.3 — before, a second read of the mirror's swing). Empty where the
+                // golfer left the shot's launch-monitor reading out on the board, as the owner's row shows it.
+                const double smash = s.smash;
                 row << QString::number(sc.passed) << QString::number(sc.assessable)
                     << num(sc.expectedPassed) << num(s.clubheadSpeed, 1) << num(smash, 3);
                 seq.row(row);

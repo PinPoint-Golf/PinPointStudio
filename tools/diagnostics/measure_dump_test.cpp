@@ -2,11 +2,14 @@
 // prints a missing number as a number.
 //
 // Two copies of the same two fixtures (live_measure_source_test's lm_7iron and sparse_noclub) are
-// staged as sessions. Session A goes through measure_dump's core; session B through the APP's own
-// reader (LiveMeasureSource(swingDir, pack) — the path SessionDiagnosticsModel::detectShot takes,
-// which writes a phase-grid sidecar on a cache miss) and NormMeasureSource. Then:
+// staged as sessions. Session A goes through measure_dump's core; session B through THE SESSION OWNER'S
+// path as the app runs it (refactor 5.3): its firing reader's grid read with the app's policy
+// (readLivePhaseGrid, SidecarPolicy::ParseAndWrite — it writes the phase-grid sidecar on a miss, as the app
+// does), fireFindings' LiveMeasureSource over that grid, and NormMeasureSource. Then:
 //
 //   1. every plain measure's value, grade and corridor flag agree, row for row, on both swings;
+//   1b. the shot's readings fireFindings records (ShotRecord's carry, ball speed, smash, … — the owner's own
+//       read, shotReadingFields) equal the dump's values for those measures, wherever the dump has one;
 //   2. one known reading (the first that grades with a corridor) is spot-checked with its z against
 //      the resolved norm's side σ, printed with both numbers;
 //   3. session A's files are byte-for-byte what was staged: no sidecar, no ledger (read-only);
@@ -19,6 +22,7 @@
 #include "../../src/Export/rule_data_install.h"
 #include "../../src/DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
+#include "Diagnostics/engine/fire_findings.h"
 #include "Diagnostics/norms/norm_measure_source.h"
 #include "Diagnostics/packs/pack_provider.h"
 
@@ -100,7 +104,7 @@ int main(int argc, char **argv)
     check(staged, "two fixtures staged twice");
     if (!staged) return 1;
 
-    const auto packProv = makeCharacteristicPackProvider();
+    const std::shared_ptr<const ICharacteristicPackProvider> packProv = makeCharacteristicPackProvider();
     const auto norms    = sharedNormProvider();
     const CharacteristicPack &pack = packProv->pack();
     const GradePolicy policy = gradePolicyByName(QStringLiteral("standard"));
@@ -113,8 +117,9 @@ int main(int argc, char **argv)
     const QStringList swingsA = measure_dump::swingDirsOf(sessA);
     check(swingsA.size() == 2, "both swing directories listed");
 
-    std::printf("\n1-2. the dump agrees with the app's reader\n");
+    std::printf("\n1-2. the dump agrees with the session owner's reader\n");
     int compared = 0, mismatched = 0, valued = 0;
+    int recordCompared = 0, recordMismatched = 0;
     bool spotDone = false;
     for (int s = 0; s < swingsA.size(); ++s) {
         const std::vector<measure_dump::Row> rows =
@@ -122,10 +127,36 @@ int main(int argc, char **argv)
         QMap<QString, const measure_dump::Row *> byId;
         for (const measure_dump::Row &r : rows) byId.insert(r.measure, &r);
 
-        // The app's path, on the twin copy.
+        // The owner's path as the app runs it, on the twin copy.
         const QString swingB = sessB + QLatin1Char('/') + QFileInfo(swingsA.at(s)).fileName();
-        const LiveMeasureSource values(swingB, pack);
+        const SwingPhaseGrid gridB = readLivePhaseGrid(swingB, pack, pinpoint::SidecarPolicy::ParseAndWrite);
+        const LiveMeasureSource values(gridB, pack);
         const NormMeasureSource graded(values, norms, values.contextId(), policy, &pack, Cohort{});
+
+        // 1b. fireFindings' record of the shot: its readings are the owner's own read of these measures.
+        {
+            FiringReadings readings;
+            readings.grid = gridB;
+            FiringInputs inputs;
+            inputs.pack        = packProv;
+            inputs.norms       = norms;
+            inputs.gradePolicy = QStringLiteral("standard");
+            const FiredShot fired = fireFindings(readings, inputs);
+            check(fired.ok, qPrintable(QStringLiteral("fireFindings fires %1").arg(QFileInfo(swingB).fileName())));
+            for (const ShotReadingField &f : shotReadingFields()) {
+                const measure_dump::Row *row = byId.value(QLatin1String(f.measureId), nullptr);
+                // Where the dump has a value (a graded read refused — not live, say — prints none, while the record
+                // keeps the plain reading: fireFindings' measuredOrNaN).
+                if (!row || !std::isfinite(row->value)) continue;
+                ++recordCompared;
+                if (!sameNumber(row->value, fired.record.*(f.field))) {
+                    ++recordMismatched;
+                    std::printf("  RECORD MISMATCH %s %s: dump %s, fired record %s\n", qPrintable(QFileInfo(swingB).fileName()),
+                                f.measureId, qPrintable(measure_dump::csvNumber(row->value)),
+                                qPrintable(measure_dump::csvNumber(fired.record.*(f.field))));
+                }
+            }
+        }
 
         for (const QString &id : ids) {
             const Measure *m = pack.measure(id);
@@ -176,7 +207,9 @@ int main(int argc, char **argv)
         }
     }
     std::printf("  compared %d readings, %d with a value, %d mismatched\n", compared, valued, mismatched);
-    check(compared > 100 && mismatched == 0, "every plain reading matches the app's, value and grade");
+    check(compared > 100 && mismatched == 0, "every plain reading matches the owner's reader, value and grade");
+    std::printf("  compared %d of the fired record's readings, %d mismatched\n", recordCompared, recordMismatched);
+    check(recordCompared >= 5 && recordMismatched == 0, "the shot readings fireFindings records equal the dump's");
     check(valued > 0, "some readings have values (the fixtures are not empty)");
     check(spotDone, "a reading with a corridor was spot-checked");
 
@@ -184,7 +217,7 @@ int main(int argc, char **argv)
     const QMap<QString, QByteArray> after = snapshot(sessA);
     check(before == after, "session A: no file added, removed or changed");
     const QMap<QString, QByteArray> twin = snapshot(sessB);
-    std::printf("  (the app's reader left %lld files in session B, the dump %lld in A)\n",
+    std::printf("  (the owner's reader left %lld files in session B, the dump %lld in A)\n",
                 static_cast<long long>(twin.size()), static_cast<long long>(after.size()));
 
     std::printf("\n4. NaN prints empty\n");
@@ -253,9 +286,9 @@ int main(int argc, char **argv)
         std::printf("  dump: %s\n", row ? qPrintable(measure_dump::csvNumber(row->value)) : "(no row)");
         check(row && std::fabs(row->value - 14.0) < 1e-9, "the dump reads the fold after impact (14°)");
         check(snapshot(sessC) == beforeC, "…without writing a sidecar");
-        const LiveMeasureSource values(swingC, pack);
+        const LiveMeasureSource values(readLivePhaseGrid(swingC, pack, pinpoint::SidecarPolicy::ParseAndWrite), pack);
         const std::optional<IMeasureValueSource::Value> app = values.value(id);
-        check(app && row && sameNumber(row->value, app->value), "…and agrees with the app's reader");
+        check(app && row && sameNumber(row->value, app->value), "…and agrees with the owner's reader");
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES", g_fail, g_fail == 1 ? "" : "s");

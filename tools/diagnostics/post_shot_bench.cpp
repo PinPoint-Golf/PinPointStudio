@@ -25,10 +25,8 @@
 // each shot plus a per-step table: does each step's cost grow with the shot count?
 //
 // The composition is main.cpp's: SessionStore, the swing door and reader, an Athlete with its shot doors, `app` as
-// the shot-command door, the carousel's ShotListModel, the diagnostics panel's SessionDiagnosticsModel (async, as QML
-// makes it) and, with --path old --parallel 1, the parallel run's in-memory doors (its comparison hook was deleted in
-// refactor 3.10: the owner runs beside the old panel, uncompared). Each shot, in
-// the cabin's order (D22-STALL-NOTES §1):
+// the shot-command door, the carousel's ShotListModel, and the diagnostics panel's thin adapter over the session's
+// owner (SessionDiagnostics). Each shot, in the cabin's order (D22-STALL-NOTES §1):
 //
 //   join      ShotProcessor::onSwingDocWritten's work: EVT-01 (Session::shotDocumentWritten), the replay detail
 //             converted to JavaScript once (notify.js: what the first QML read pays; the bindings themselves are not
@@ -36,8 +34,7 @@
 //             reading into this shot (lm.ball: the Shot's command, its lock and document, the row refresh) and the
 //             panel's ingestShot
 //   lm.club   the PREVIOUS shot's club data (Foresight Premier sends it with the next shot): the Shot's command, the
-//             controller's refresh, and the carousel's _swingRewritten (a second refresh; on --path old the panel's
-//             regradeShot, which since 3.7-c the carousel no longer asks of an adapter)
+//             controller's refresh, and the carousel's _swingRewritten (since 3.7-c it asks the adapter nothing)
 //   (events)  pumped until the panel model and the new owner are idle, so each settle (rebuild, persist) and
 //             each kept result lands inside the shot's window, as live
 //
@@ -45,14 +42,14 @@
 // export and analysis (workers), the GPU. The documents are real cabin documents (copies; --fixtures), rotated.
 //
 //   cmake --build build/tests --target post_shot_bench -j 6
-//   post_shot_bench --fixtures <dir of swing.ppsw copies> --library <empty scratch dir> [--shots 40] [--parallel 1]
-//                   [--path new|old] [--view 1|0] [--cards 12] [--csv out.csv]
+//   post_shot_bench --fixtures <dir of swing.ppsw copies> --library <empty scratch dir> [--shots 40]
+//                   [--view 1|0] [--cards 12] [--csv out.csv]
 //
-// --path new (the default; refactor 3.7-a): the app since the stage panel's cut-over — the app's doors
-// (appDiagnosticsDoors: the owner always attached, persisting, on the one pool) and the panel's THIN ADAPTER
-// (SessionDiagnosticsAdapters, a view bound), so a shot's window holds the owner's keep and diagnosis (`owner`), its
-// debounced write (`owner.write`, 1.5 s later, as the app) and the adapter's view work (`adapter`, with the panel's QML
-// read under it). --path old: HEAD before 3.7-a (the panel's own engine model; --parallel 1 adds the in-memory owner).
+// The app since the stage panel's cut-over (refactor 3.7-a): the app's doors (appDiagnosticsDoors: the owner always
+// attached, persisting, on the one pool) and the panel's THIN ADAPTER (SessionDiagnosticsAdapters, a view bound), so a
+// shot's window holds the owner's keep and diagnosis (`owner`), its debounced write (`owner.write`, 1.5 s later, as the
+// app) and the adapter's view work (`adapter`, with the panel's QML read under it). Refactor 5.3 removed `--path old`
+// (the panel's own engine model, HEAD before 3.7-a) and its `--parallel`, ahead of step 5.4 deleting that engine.
 //
 // --cards N (12; 0 none; refactor 3.7-c): the carousel cards whose pip rows read the panel's model on each surfaceChanged
 // (PpShotCard: the swing's id by its folder, its pips, its fired count), timed as `qml.pips` inside the panel's emit.
@@ -220,11 +217,8 @@ int main(int argc, char **argv)
     p.addOption({ QStringLiteral("fixtures"), QStringLiteral("folder of swing.ppsw copies (any depth)"), QStringLiteral("dir") });
     p.addOption({ QStringLiteral("library"), QStringLiteral("an empty or new scratch library folder"), QStringLiteral("dir") });
     p.addOption({ QStringLiteral("shots"), QStringLiteral("shots in the one session (40)"), QStringLiteral("n"), QStringLiteral("40") });
-    p.addOption({ QStringLiteral("parallel"), QStringLiteral("old path: 1 the new owner in memory beside the old panel (1)"), QStringLiteral("0|1"), QStringLiteral("1") });
     p.addOption({ QStringLiteral("csv"), QStringLiteral("per-shot step table"), QStringLiteral("file") });
-    p.addOption({ QStringLiteral("path"), QStringLiteral("new: the app since 3.7-a (owner + adapter); old: the panel's own model (new)"),
-                  QStringLiteral("new|old"), QStringLiteral("new") });
-    p.addOption({ QStringLiteral("view"), QStringLiteral("new path: 1 a panel bound to the adapter, 0 the panel off (1)"),
+    p.addOption({ QStringLiteral("view"), QStringLiteral("1 a panel bound to the adapter, 0 the panel off (1)"),
                   QStringLiteral("0|1"), QStringLiteral("1") });
     p.addOption({ QStringLiteral("cards"), QStringLiteral("the carousel cards whose pip rows read the panel on each surfaceChanged (12; 0: none)"),
                   QStringLiteral("n"), QStringLiteral("12") });
@@ -241,9 +235,6 @@ int main(int argc, char **argv)
         if (qEnvironmentVariableIsEmpty(var)) qputenv(var, (QStringLiteral(PP_DIAGRES "/") + QLatin1String(file)).toLocal8Bit());
 
     const int  kShots   = std::max(2, p.value(QStringLiteral("shots")).toInt());
-    const bool newPath  = p.value(QStringLiteral("path")) != QLatin1String("old");
-    const bool parallel = !newPath && p.value(QStringLiteral("parallel")) == QLatin1String("1");
-    const bool owners   = newPath || parallel;   // the pool, the receiver and an owner on the session
     const QString library = QDir::cleanPath(p.value(QStringLiteral("library")));
     if (library.isEmpty() || (QDir(library).exists() && !QDir(library).isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden))) {
         std::fprintf(stderr, "post_shot_bench: --library must name an empty or new folder\n");
@@ -280,25 +271,18 @@ int main(int argc, char **argv)
     SwingStoreRecordingReader     reader(store);
     std::unique_ptr<Athlete> athlete;
     std::function<WorkTarget(const WorkAddress &)> lookup;
-    std::unique_ptr<WorkReceiver> receiver;
-    std::unique_ptr<WorkPool>     pool;
-    if (owners) {
-        receiver = std::make_unique<WorkReceiver>([&lookup](const WorkAddress &a) { return lookup ? lookup(a) : WorkTarget{}; });
-        pool     = std::make_unique<WorkPool>();
-    }
+    auto receiver = std::make_unique<WorkReceiver>([&lookup](const WorkAddress &a) { return lookup ? lookup(a) : WorkTarget{}; });
+    auto pool     = std::make_unique<WorkPool>();
     athlete = std::make_unique<Athlete>(nullptr, &store, kAthlete);
     AthleteRecord rec;
     rec.name = QStringLiteral("Bench Golfer");
     athlete->setStored(rec, library + QLatin1Char('/') + kToken, SessionOwner{ kAthlete, rec.name, library }, Athlete::Source::Library, false);
     athlete->setShotDoors({ &recordings, std::shared_ptr<RecordingReader>(&reader, [](RecordingReader *) {}) });
-    if (owners) {
-        lookup = [&athlete](const WorkAddress &a) {
-            return diagnosticsWorkTarget(athlete ? athlete->loadedSession(SessionId::fromString(a.owner)) : nullptr, a);
-        };
-        // The app's doors (3.7-a: main.cpp's appDiagnosticsDoors), or the parallel run's in-memory ones (3.7-0).
-        athlete->setDiagnosticsDoors(newPath ? appDiagnosticsDoors(pool.get(), receiver.get(), &ruleData, store, recordings)
-                                             : parallel::doors(pool.get(), receiver.get(), &ruleData, store, recordings));
-    }
+    lookup = [&athlete](const WorkAddress &a) {
+        return diagnosticsWorkTarget(athlete ? athlete->loadedSession(SessionId::fromString(a.owner)) : nullptr, a);
+    };
+    // The app's doors (3.7-a: main.cpp's appDiagnosticsDoors).
+    athlete->setDiagnosticsDoors(appDiagnosticsDoors(pool.get(), receiver.get(), &ruleData, store, recordings));
     App appObject([&athlete] { return athlete.get(); });
     SessionDiagnosticsModel::setShotCommands(&appObject);
     ShotListModel shotModel;   // the live carousel: a view of the session (refactor step 5.2; R-QML-5)
@@ -310,19 +294,12 @@ int main(int argc, char **argv)
     }
     const QString folder = session->entry()->folder;
     shotModel.setSource(shotSourceOf(session));
-    // The panel's model: 3.7-a's thin adapter (made by C++, a view bound), or HEAD's own model (made by QML: async).
+    // The panel's model: 3.7-a's thin adapter (made by C++, a view bound).
     SessionDiagnosticsAdapters adapters;
-    std::unique_ptr<SessionDiagnosticsModel> oldPanel;
-    SessionDiagnosticsModel *panel = nullptr;
-    if (newPath) {
-        panel = adapters.of(session, QStringLiteral("panel"), folder);
-        if (p.value(QStringLiteral("view")) != QLatin1String("0"))
-            panel->addView();   // --view 0: the panel off — the adapter exists (as after a panel was once up) and idles
-        panel->setBaselineAuthorityName(QStringLiteral("live"));
-    } else {
-        oldPanel = std::make_unique<SessionDiagnosticsModel>();
-        panel = oldPanel.get();
-    }
+    SessionDiagnosticsModel *panel = adapters.of(session, QStringLiteral("panel"), folder);
+    if (p.value(QStringLiteral("view")) != QLatin1String("0"))
+        panel->addView();   // --view 0: the panel off — the adapter exists (as after a panel was once up) and idles
+    panel->setBaselineAuthorityName(QStringLiteral("live"));
     panel->activateSession(folder);
     panel->waitForIdle(60000);
     // The QML readers' floor (readLikeQml): the panel's every property on each surfaceChanged, the carousel's new row
@@ -341,9 +318,9 @@ int main(int argc, char **argv)
         for (int r = a.row(); r <= b.row(); ++r) readRow(engine, shotModel, r, roles);
     });
     SessionDiagnostics *owner = session->diagnostics();
+    // The line as before 5.3 removed --path old, so a log compares with an older run's.
     std::printf("post_shot_bench: %d shots, %lld fixture(s), path %s, parallel run %s, library %s\n", kShots,
-                (long long)fixtures.size(), newPath ? "new (3.7-a: owner + adapter)" : "old (the panel's own model)",
-                parallel ? "ON" : "off", qPrintable(library));
+                (long long)fixtures.size(), "new (3.7-a: owner + adapter)", "off", qPrintable(library));
     std::printf("  session %s\n", qPrintable(folder));
 
     QList<StepTable> perShot;
@@ -359,11 +336,11 @@ int main(int argc, char **argv)
     // THE CARDS' PIP ROWS (refactor 3.7-c): each card the strip has built (the newest `--cards`, as the strip scrolls to
     // the newest live shot) reads its pip row on every surfaceChanged of the model it reads: the swing's id by its folder,
     // its pips and its fired count (PpShotCard's pipRow) — synchronously, inside that model's emit, as QML reads them.
-    // Panel up: the panel's model (adapter or old engine). Panel off, --path new (review B1: the pips are always there):
+    // Panel up: the panel's adapter. Panel off (review B1: the pips are always there):
     // the session's CARDS adapter, which takes only what the pips read (`owner/pips`), with the carousel's view bound.
     const int kCards = std::max(0, p.value(QStringLiteral("cards")).toInt());
     SessionDiagnosticsModel *pipsModel = panel;
-    if (newPath && p.value(QStringLiteral("view")) == QLatin1String("0") && kCards > 0) {
+    if (p.value(QStringLiteral("view")) == QLatin1String("0") && kCards > 0) {
         pipsModel = adapters.of(session, QStringLiteral("cards"), folder);
         pipsModel->addView();   // PpShotCarousel._bindCardsView
     }
@@ -450,9 +427,7 @@ int main(int argc, char **argv)
             // the live row follows the write's EVT-22 (step 5.2): the controller no longer refreshes it
             PostShotTrace::Scope rewritten("lm.rewritten");   // PpShotCarousel._swingRewritten
             // Since 3.7-c (J-46) the carousel neither refreshes the live row again nor asks an adapter to regrade (the
-            // owner hears the late reading itself, EVT-22); --path old keeps HEAD's second refresh and regrade.
-            if (!newPath)
-                panel->regradeShot(pdir);
+            // owner hears the late reading itself, EVT-22).
         }
         // ── the queued deliveries: the panel's settles, the new owner's results ──
         pump([&] { return !panel->busy() && (!owner || (owner->idle() && !owner->writePending())); });
@@ -509,7 +484,6 @@ int main(int argc, char **argv)
         }
     }
 
-    oldPanel.reset();
     SessionDiagnosticsModel::setShotCommands(nullptr);
     session->end();
     athlete.reset();

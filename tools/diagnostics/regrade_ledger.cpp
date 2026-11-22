@@ -20,12 +20,13 @@
 //      model reads them as the fallback and every write of the file carries them over unchanged, so the
 //      regrade keeps them without a seed (step 2.5 deleted the seed) — the lead's call J-33; migration M3
 //      moves them. The tool checks it: the older keys after must equal those before, or it WARNs and exits 1.
-//   4. SessionDiagnosticsModel::activateSession(dir), synchronously, with setRebuildCache(true) — THE OLD ENGINE, the
-//      default (`--engine old`): the file's rows and session block are ignored (the older golfer keys are still read),
-//      so every shot is re-ingested and the stage starts from Cold, and a fresh diagnostics.json is written after each
-//      one. It writes no club_baseline.json and no work_ons.json. `--engine new` runs each session's own
-//      SessionDiagnostics instead (below). Either way, a session with no swing_* folders, or whose every write failed,
-//      keeps its original untouched.
+//   4. The regrade itself. By default (`--engine new`, since refactor 5.3) each session's own SessionDiagnostics,
+//      headless, every shot fired again (below). `--engine old` (until step 5.4b deletes it):
+//      SessionDiagnosticsModel::activateSession(dir), synchronously, with setRebuildCache(true) — the file's rows and
+//      session block are ignored (the older golfer keys are still read), so every shot is re-ingested and the stage
+//      starts from Cold, and a fresh diagnostics.json is written after each one; it writes no club_baseline.json and no
+//      work_ons.json. Either way, a session with no swing_* folders, or whose every write failed, keeps its original
+//      untouched.
 //   0. A SESSION IN PROGRESS IS REFUSED (D11: DEC-158; H-14): one whose session.json says inProgress — being
 //      recorded here or on the other machine — is SKIPPED untouched (exit 1), unless --allow-in-progress (for one
 //      a crash left open).
@@ -42,42 +43,52 @@
 //
 //   export PINPOINT_CORE_PACK=src/Resources/diagnostics/core.json   (and NORMS, CONTEXTS, SCREENS,
 //                                                                    DRILLS, REFERENCES likewise)
-//   ./build/tests/Analysis/regrade_ledger --tag pre-headsway-fix /mnt/swingdata/corpus/swings/*/
+//   rsync -a --exclude '*.mp4' --exclude '*.f32' --exclude '*.raw' --exclude '*.jpg'
+//         /mnt/swingdata/corpus/swings/ /mnt/swingdata/scratch/<label>/swings/   (one line: a scratch copy without the
+//         video, athletes.json with it; then each file's modification time restored from the original, as
+//         tools/session-report-mock/fixtures.sh does, since the share keeps whole seconds)
+//   ./build/tests/Analysis/regrade_ledger --tag pre-headsway-fix /mnt/swingdata/scratch/<label>/swings/*/
 //
-// (The old engine, the default. With --engine new each session's athlete must be known: see below.)
+// (The new engine, the default: each session's athlete must be known, see below. The corpus's golfers are in
+// corpus/swings/athletes.json.)
 //
-// NOT A TEST, and not registered with ctest — it writes into the swing library. One ctest drives only its refusals,
-// which write nothing: regrade_ledger_new_needs_ini_test (--engine new and a session whose athlete neither source names;
-// 3.10 review B1, re-worded in refactor 4-c).
+// NOT A TEST, and not registered with ctest — it writes into the sessions it is given. One ctest drives its refusals,
+// which write nothing, and its athlete sources over a scratch folder: regrade_ledger_new_needs_ini_test (a session whose
+// athlete no source names is refused, with and without --engine; 3.10 review B1, re-worded in refactor 4-c and 5.3).
 //
 // --dump <out.json> — THE PARITY DUMP (refactor Step G; since 3.5-ii the parallel run's form). After the regrade above,
 // one JSON file over every session named, written by parity_json.h's canonical writer (keys sorted, numbers "%.17g", no
 // timestamps, folders as "<session>"/"<athlete>") so two runs diff clean, in THE PARALLEL RUN'S FORM ("P",
 // dumpVersion 2: src/Gui/diagnostics/diag_parallel_run.h — ids and numbers both engines own; no words, no view state),
 // read off the engine that just ran. tools/parity/parity_diff.py compares two dumps (parity_baseline.py's diagnostics
-// half, which runs --engine new with an athletes ini since 3.10, and an `old` run against a `new` one: run P). Until
+// half, which runs --engine new since 3.10, and an `old` run against a `new` one: run P). Until
 // 3.10 a plain regrade dumped the old engine's own form v1 (every ConditionRow field, the composed outcome's words, the
 // card order, the coverage line); 3.10 deleted that form (J-59), so a v1 baseline does not compare with a dump from
 // this build.
 //
-// --engine old|new — old (the default): the old engine above, run P's reference while it stays (to step 5, after M1;
-// build/refactor/step-3/JUDGEMENT-CALLS.md J-59). new: each session's own SessionDiagnostics, headless, every shot
+// --engine new|old — new (the default since refactor 5.3)[^1]: each session's own SessionDiagnostics, headless, every shot
 // fired again (DiagnosticsDoors::rebuild), writing diagnostics.json (each shot's findings and derived data) and
 // work_ons.json (the typed summary, DEC-192), and freezing each session's club_baseline.json at first need from ITS
 // ATHLETE'S earlier sessions' summaries (DEC-46, DEC-172) — a recorded input, never rewritten once current. So `new`
 // must tell the golfers apart (and know each one's sex and date of birth for the norm cohort, D6). THE ATHLETE COMES
 // FROM THE LIBRARY (refactor 4-c, J-61): the session's athlete folder's athlete.json (FILE-ATH-01), read through its
 // owner, AthleteRepository (AthleteStore over the folder that holds the athlete folder, as the app reads it); the
-// Session is that store's Athlete's. --athletes-ini <a COPY of the app's settings> stays only as the FALLBACK for a
-// library M1 has not migrated: its [athletes] record matched by the athlete folder's or the session folder's name (the
-// corpus). This machine's own settings are never read for a record. A SESSION WHOSE ATHLETE NEITHER SOURCE NAMES IS
+// Session is that store's Athlete's. A folder with no athlete.json — the corpus, whose sessions from several golfers sit
+// in one folder — is read from athletes.json BESIDE THE SESSION (`pinpoint.athletes/1`; athleteFromGolferFile below):
+// the entry whose name is in the session folder's name; such a session freezes NO club baseline (NoFreezeSessions below:
+// its Athlete finds no earlier session of its own in a flat folder, and a frozen baseline is never recomputed), and the
+// tool prints "club baseline not frozen: corpus run". --athletes-ini <a COPY of the app's settings> stays only as the
+// last FALLBACK, for a library M1 has not migrated: its [athletes] record matched by the athlete folder's or the session
+// folder's name. This machine's own settings are never read for a record. A SESSION WHOSE ATHLETE NO SOURCE NAMES IS
 // REFUSED (SKIP, exit 1, nothing read past its folder, nothing written): without a record every session of a folder
 // such as corpus/swings would be one athlete, and one golfer's club usuals would be frozen into another's sessions
 // (3.10 review B1), so a golfer is never pooled. Until 4-c, `new` refused to run without the ini and named a session the
 // ini did not know after its folder; since the 22 Nov migrations the ini holds no athletes, so that pooled every one.
 // `new` also prints, per session, D7's check: the club baseline from the
 // earlier sessions' SUMMARIES against the one from their LEDGERS (refactor 3.5-ii; build/refactor/step-3/BRIEF.md §4.9,
-// §5.3).
+// §5.3). old: the old engine above, run P's reference until step 5.4b deletes it.
+//
+// [^1]: Until refactor 5.3 the default was `old` (J-59: the old engine stayed run P's reference to step 5, after M1).
 //
 // Dump mode needs every PINPOINT_CORE_* the diagnostics read (parity_json.h contentVariables(): the flight
 // table and the gate words too, which a plain regrade can do without), because a dump graded without the
@@ -107,6 +118,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -207,6 +219,121 @@ AthleteSeen athleteFromIni(const QString &sessionDir, const QString &ini)
     return out;   // no record: a null id — never an athlete of the folder's name (a golfer is never pooled)
 }
 
+// THE GOLFER FILE BESIDE THE SESSION (refactor 5.3): `athletes.json` in the folder that holds the session, for a folder
+// of several golfers' sessions that has no athlete.json (the corpus, `corpus/swings/`). Schema `pinpoint.athletes/1`:
+//
+//   { "schema": "pinpoint.athletes/1",
+//     "athletes": [ { "athleteId": "<uuid>", "name": "Nick Henn", "sex": "male", "dob": "" }, … ] }
+//
+// An entry names a session when its sanitised name (SwingPaths::sanitise: "Nick-Henn") is the athlete folder's name, or
+// sits between underscores in the session folder's name (2026-10-20_Nick-Henn_Wrist_01): the ini fallback's rule. A null
+// id when the file is absent, unreadable, a newer schema's, names no entry for the session, or names more than one — the
+// caller then refuses the session. Read only.
+AthleteSeen athleteFromGolferFile(const QString &sessionDir, QString *problem = nullptr)
+{
+    using namespace pinpoint;
+    const QString athleteDir    = QFileInfo(sessionDir).absolutePath();
+    const QString athleteFolder = QFileInfo(athleteDir).fileName();
+    const QString sessionName   = QFileInfo(sessionDir).fileName();
+    const QString path          = QDir(athleteDir).filePath(QStringLiteral("athletes.json"));
+    AthleteSeen out;
+    QFile f(path);
+    if (!f.exists()) return out;
+    QJsonParseError pe;
+    const QJsonDocument doc = f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll(), &pe) : QJsonDocument();
+    const QJsonObject root = doc.object();
+    const QString schema = root.value(QStringLiteral("schema")).toString();
+    if (!doc.isObject() || schema != QLatin1String("pinpoint.athletes/1")) {
+        if (problem)
+            *problem = schema.startsWith(QLatin1String("pinpoint.athletes/"))
+                ? QStringLiteral("athletes.json is %1, a newer build's").arg(schema)
+                : QStringLiteral("athletes.json cannot be read");
+        return out;
+    }
+    QList<QJsonObject> matches;
+    for (const QJsonValue &v : root.value(QStringLiteral("athletes")).toArray()) {
+        const QJsonObject e = v.toObject();
+        const QString token = SwingPaths::sanitise(e.value(QStringLiteral("name")).toString());
+        if (token.isEmpty() || AthleteId::fromString(e.value(QStringLiteral("athleteId")).toString()).isNull()) continue;
+        if (token == athleteFolder || sessionName.contains(QLatin1Char('_') + token + QLatin1Char('_')))
+            matches << e;
+    }
+    if (matches.size() > 1) {
+        if (problem) *problem = QStringLiteral("athletes.json names %1 golfers for it").arg(matches.size());
+        return out;
+    }
+    if (matches.size() == 1) {
+        const QJsonObject &e = matches.first();
+        out.id          = AthleteId::fromString(e.value(QStringLiteral("athleteId")).toString());
+        out.record.name = e.value(QStringLiteral("name")).toString();
+        out.record.sex  = e.value(QStringLiteral("sex")).toString();
+        out.record.dob  = e.value(QStringLiteral("dob")).toString();
+        out.from        = QStringLiteral("athletes.json");
+    }
+    return out;
+}
+
+// A CORPUS RUN FREEZES NO CLUB BASELINE (refactor 5.3, review fix). A session whose athlete came from athletes.json sits in
+// a folder of several golfers' sessions (corpus/swings), where its Athlete finds no earlier session of its own: its
+// index is its name's folder under the library (SessionStore::athleteFolder), which a flat folder is not. A baseline
+// frozen there would be empty, and a frozen baseline is never computed again (DEC-46), so the session's usual numbers
+// would be lost for good. So such a session's repository is the store with its club baseline closed: an existing
+// club_baseline.json is read as it is; a missing one reads as present but not usable (SessionDiagnostics then grades
+// with no baseline, as a session without one, and freezes nothing); a write is refused. Everything else is the store.
+class NoFreezeSessions final : public pinpoint::SessionRepository
+{
+public:
+    explicit NoFreezeSessions(pinpoint::SessionStore &s) : m(s) {}
+    using Id = pinpoint::SessionId;
+    pinpoint::SessionStartResult start(const pinpoint::SessionOwner &o, const QString &t, const QString &n) override { return m.start(o, t, n); }
+    Id todaysSession(const pinpoint::SessionOwner &o, const QString &t) override { return m.todaysSession(o, t); }
+    pinpoint::WriteResult resume(const Id &id, const QString &t) override { return m.resume(id, t); }
+    pinpoint::WriteResult end(const Id &id) override { return m.end(id); }
+    QList<pinpoint::SessionIndexEntry> enumerate(const pinpoint::SessionOwner &o) override { return m.enumerate(o); }
+    std::optional<pinpoint::SessionIndexEntry> open(const Id &id) const override { return m.open(id); }
+    Id openFolder(const QString &f, const pinpoint::AthleteId &a = {}) override { return m.openFolder(f, a); }
+    pinpoint::ShotRef openSwingFolder(const QString &f, const pinpoint::AthleteId &a = {}) override { return m.openSwingFolder(f, a); }
+    pinpoint::SwingAllocation allocateSwing(const Id &id) override { return m.allocateSwing(id); }
+    QList<pinpoint::ShotRef> shots(const Id &id) const override { return m.shots(id); }
+    QString swingFolder(const pinpoint::ShotRef &r) const override { return m.swingFolder(r); }
+    bool folderPresent(const Id &id) const override { return m.folderPresent(id); }
+    pinpoint::SessionArchiveResult archive(const Id &id, const pinpoint::SessionArchiveOptions &o,
+                                           const pinpoint::SessionArchiveProgress &p = {}) override { return m.archive(id, o, p); }
+    pinpoint::SessionArchiveResult restore(const Id &id, const pinpoint::SessionArchiveProgress &p = {}) override { return m.restore(id, p); }
+    pinpoint::SessionArchiveJob archiveJob(const Id &id, const pinpoint::SessionArchiveOptions &o) override { return m.archiveJob(id, o); }
+    void archiveLanded(const Id &id) override { m.archiveLanded(id); }
+    pinpoint::WriteResult trash(const Id &id, QString *w = nullptr) override { return m.trash(id, w); }
+    pinpoint::WriteResult moveToAthlete(const Id &id, const pinpoint::SessionOwner &to, QString *f = nullptr) override { return m.moveToAthlete(id, to, f); }
+    pinpoint::WriteResult trashShot(const pinpoint::ShotRef &r, QString *w = nullptr) override { return m.trashShot(r, w); }
+    pinpoint::DiagnosticsRead readDiagnostics(const Id &id) override { return m.readDiagnostics(id); }
+    pinpoint::WriteResult writeDiagnostics(const Id &id, const QJsonObject &s, const QJsonObject &l, const QJsonObject &f,
+                                           pinpoint::DiagnosticsRead::State *st = nullptr) override { return m.writeDiagnostics(id, s, l, f, st); }
+    pinpoint::WriteResult backupDiagnostics(const Id &id, const QString &t, QString *b = nullptr) override { return m.backupDiagnostics(id, t, b); }
+    pinpoint::WriteResult setAsideDiagnostics(const Id &id, QString *a = nullptr) override { return m.setAsideDiagnostics(id, a); }
+    pinpoint::SessionInputRead readSessionInput(const Id &id) override { return m.readSessionInput(id); }
+    pinpoint::WriteResult writeSessionInput(const Id &id, const pinpoint::SessionInput &i) override { return m.writeSessionInput(id, i); }
+    pinpoint::JsonFileRead readClubBaseline(const Id &id) override
+    {
+        pinpoint::JsonFileRead r = m.readClubBaseline(id);
+        if (!r.exists) {   // none frozen: read as there but not usable, so nothing is computed or frozen in its place
+            r.exists = true;
+            r.ok     = false;
+            r.error  = QStringLiteral("club baseline not frozen: corpus run");
+        }
+        return r;
+    }
+    pinpoint::WriteResult writeClubBaseline(const Id &, const QJsonObject &) override
+    {
+        return { pinpoint::WriteResult::Status::Failed, QStringLiteral("club baseline not frozen: corpus run") };
+    }
+    pinpoint::JsonFileRead readWorkOns(const Id &id) override { return m.readWorkOns(id); }
+    pinpoint::WriteResult writeWorkOns(const Id &id, const QJsonObject &r) override { return m.writeWorkOns(id, r); }
+    std::function<pinpoint::JsonFileRead()> deferredReadWorkOns(const Id &id) override { return m.deferredReadWorkOns(id); }
+
+private:
+    pinpoint::SessionStore &m;
+};
+
 class NewEngine
 {
 public:
@@ -232,9 +359,10 @@ public:
     }
     ~NewEngine() { m_athletes.clear(); m_libraries.clear(); }
 
-    // Whose `dir` is (refactor 4-c, J-61): the athlete folder's athlete.json, through the athlete repository over the
-    // folder that holds it; else the ini's record (the fallback). Null — and `why` says so — when neither names one.
-    // Reads only: list() and load() write nothing (AthleteRepository's rule).
+    // Whose `dir` is: the athlete folder's athlete.json, through the athlete repository over the folder that holds it
+    // (refactor 4-c, J-61); else athletes.json beside the session (refactor 5.3); else the ini's record (the fallback for
+    // an unmigrated library). Null — and `why` says so — when none names one. Reads only: list() and load() write
+    // nothing (AthleteRepository's rule).
     pinpoint::Athlete *libraryAthlete(const QString &dir)
     {
         using namespace pinpoint;
@@ -262,17 +390,25 @@ public:
             if (who) *who = AthleteSeen{ a->id(), a->record(), QStringLiteral("athlete.json") };
             return true;
         }
+        QString fileProblem;
+        if (const AthleteSeen file = athleteFromGolferFile(dir, &fileProblem); !file.id.isNull()) {
+            if (who) *who = file;
+            return true;
+        }
         const AthleteSeen seen = athleteFromIni(dir, m_ini);
         if (!seen.id.isNull()) {
             if (who) { *who = seen; who->from = QStringLiteral("ini"); }
             return true;
         }
-        if (why)
+        if (why) {
+            const QString folder = QFileInfo(QFileInfo(dir).absolutePath()).fileName();
             *why = m_ini.isEmpty()
-                ? QStringLiteral("no athlete.json in %1 names its athlete, and no --athletes-ini was given: refused, so no "
-                                 "golfer is pooled").arg(QFileInfo(QFileInfo(dir).absolutePath()).fileName())
-                : QStringLiteral("neither %1/athlete.json nor --athletes-ini names its athlete: refused, so no golfer is "
-                                 "pooled").arg(QFileInfo(QFileInfo(dir).absolutePath()).fileName());
+                ? QStringLiteral("no athlete.json in %1, no athletes.json beside it and no --athletes-ini names its athlete: "
+                                 "refused, so no golfer is pooled").arg(folder)
+                : QStringLiteral("neither %1/athlete.json, athletes.json beside it nor --athletes-ini names its athlete: "
+                                 "refused, so no golfer is pooled").arg(folder);
+            if (!fileProblem.isEmpty()) *why += QStringLiteral(" (%1)").arg(fileProblem);
+        }
         return false;
     }
 
@@ -283,12 +419,18 @@ public:
         if (!resolve(dir, &seen, nullptr)) return nullptr;
         if (who) *who = seen;
         if (Athlete *a = libraryAthlete(dir)) return a->sessionAt(dir);   // the library's own Athlete (FILE-ATH-01)
-        // The fallback: an Athlete made here from the ini's record, as before 4-c.
+        // The fallbacks: an Athlete made here from athletes.json's record (5.3) or the ini's (as before 4-c). Its index is
+        // its own token's folder, which a flat folder of several golfers is not: so no earlier session is pooled into its
+        // club baseline (3.10 review B1). An athletes.json golfer's repository freezes none (NoFreezeSessions): graded
+        // with no baseline, as under the old engine, and no empty one frozen for good.
         const QString folder = QFileInfo(dir).absolutePath();
         const QString key = seen.id.toString() + QLatin1Char('|') + folder;
         auto it = m_athletes.find(key);
         if (it == m_athletes.end()) {
-            auto a = std::make_unique<Athlete>(nullptr, &m_store, seen.id);
+            // A corpus golfer (athletes.json): the store with its club baseline closed (NoFreezeSessions, above).
+            SessionRepository *repo = seen.from == QLatin1String("athletes.json")
+                                          ? static_cast<SessionRepository *>(&m_noFreeze) : &m_store;
+            auto a = std::make_unique<Athlete>(nullptr, repo, seen.id);
             a->setStored(seen.record, folder, SessionOwner{ seen.id, seen.record.name, QFileInfo(folder).absolutePath() },
                          Athlete::Source::Library, false);
             a->setShotDoors({ m_recordings.get(), m_reader });
@@ -323,11 +465,12 @@ private:
 
     QString                                                     m_ini;
     pinpoint::SessionStore                                      m_store;
+    NoFreezeSessions                                            m_noFreeze{ m_store };   // athletes.json's sessions
     std::unique_ptr<pinpoint::SwingStoreRecordingRepository>    m_recordings;
     std::shared_ptr<pinpoint::SwingStoreRecordingReader>        m_reader;
     std::shared_ptr<const pinpoint::FiringReader>               m_firing;
     std::unique_ptr<pinpoint::WorkReceiver>                     m_receiver;
-    std::map<QString, std::unique_ptr<pinpoint::Athlete>>       m_athletes;    // the ini's; destroyed before the receiver
+    std::map<QString, std::unique_ptr<pinpoint::Athlete>>       m_athletes;    // athletes.json's and the ini's; destroyed before the receiver
     std::map<QString, std::unique_ptr<pinpoint::AthleteStore>>  m_libraries;   // by library root; likewise
 };
 
@@ -356,7 +499,7 @@ QString baselineText(const QHash<QString, pinpoint::analysis::ClubBaselineEntry>
 void printUsage(FILE *to)
 {
     std::fprintf(to,
-        "usage: regrade_ledger [--engine old|new] [--athletes-ini <f>] [--tag <backup-suffix>] [--dump <out.json>]\n"
+        "usage: regrade_ledger [--engine new|old] [--athletes-ini <f>] [--tag <backup-suffix>] [--dump <out.json>]\n"
         "                     [--allow-in-progress] [--parallel-reader] <session-dir>...\n"
         "\n"
         "Re-reduces each session's diagnostics.json under the CURRENT pack (PINPOINT_CORE_* at the checkout's\n"
@@ -373,16 +516,17 @@ void printUsage(FILE *to)
         "                     (PACK NORMS FLIGHT_NORMS CONTEXTS SCREENS DRILLS GATE_WORDS REFERENCES).\n"
         "  --allow-in-progress  also regrade a session whose session.json says it is in progress (one a crash\n"
         "                     left open); without it such a session is skipped untouched (D11)\n"
-        "  --engine old|new   old (the default): the old engine, run P's reference, writing diagnostics.json\n"
-        "                     only; new: each session's own SessionDiagnostics, headless, writing\n"
-        "                     diagnostics.json, work_ons.json and a missing club_baseline.json\n"
+        "  --engine new|old   new (the default): each session's own SessionDiagnostics, headless, writing\n"
+        "                     diagnostics.json, work_ons.json and a missing club_baseline.json; old (until\n"
+        "                     step 5.4b): the old engine, run P's reference, writing diagnostics.json only\n"
         "                     The new engine reads each session's athlete (who it is, sex and date of birth\n"
-        "                     for the norm cohort, D6) from its athlete folder's athlete.json; a session whose\n"
-        "                     athlete neither that nor --athletes-ini names is SKIPPED untouched, so no golfer\n"
-        "                     is pooled into another's club baseline\n"
-        "  --athletes-ini <f> (new engine; the FALLBACK for a library not yet migrated) a COPY of the app's\n"
-        "                     settings: its [athletes] record matched by the athlete folder's or the session\n"
-        "                     folder's name\n"
+        "                     for the norm cohort, D6) from its athlete folder's athlete.json, else from\n"
+        "                     athletes.json beside the session (pinpoint.athletes/1, the corpus: the entry whose\n"
+        "                     name is in the session folder's name); a session whose athlete no source names\n"
+        "                     is SKIPPED untouched, so no golfer is pooled into another's club baseline\n"
+        "  --athletes-ini <f> (new engine; the last FALLBACK, for a library not yet migrated) a COPY of the\n"
+        "                     app's settings: its [athletes] record matched by the athlete folder's or the\n"
+        "                     session folder's name\n"
         "  --parallel-reader  (new engine; refactor 3.7-0) read the shots with the app's parallel-run reader\n"
         "                     (parallel::doors): a missing or stale sidecar is parsed and NO sidecar is written\n"
         "  --help             this text\n");
@@ -404,7 +548,7 @@ int main(int argc, char **argv)
     QString     dumpPath;
     QStringList dirs;
     bool        allowInProgress = false;
-    QString     engine = QStringLiteral("old");   // the default; "new": each session's own SessionDiagnostics (run P)
+    QString     engine = QStringLiteral("new");   // the default (refactor 5.3): each session's own SessionDiagnostics; "old" until 5.4b
     QString     athletesIni;
     bool        parallelReader = false;   // 3.7-0: the app's parallel-run reader (--parallel-reader)
     for (int i = 1; i < argc; ++i) {
@@ -431,9 +575,9 @@ int main(int argc, char **argv)
     const bool newEngine = engine == QLatin1String("new");
     // THE NEW ENGINE NEEDS THE ATHLETES (3.10 review B1): it freezes each session's club baseline from its athlete's
     // earlier sessions, and without a record every session of one folder is one athlete — one golfer's usuals frozen
-    // into another's sessions, for good. Since refactor 4-c (J-61) they come from the library's athlete.json files, the
-    // ini only as the fallback; a session neither names is refused below, before its folder is written. An ini named
-    // but missing is refused here, before any folder is read or written.
+    // into another's sessions, for good. Since refactor 4-c (J-61) they come from the library's athlete.json files, then
+    // (5.3) athletes.json beside the session, the ini only as the last fallback; a session none names is refused below,
+    // before its folder is written. An ini named but missing is refused here, before any folder is read or written.
     if (newEngine && !athletesIni.isEmpty() && !QFileInfo(athletesIni).isFile()) {
         std::fprintf(stderr, "regrade_ledger: --athletes-ini %s is not a file. Nothing was read or written.\n",
                      qPrintable(athletesIni));
@@ -475,8 +619,9 @@ int main(int argc, char **argv)
             ++failures;
             continue;
         }
-        // THE GOLFER MUST BE KNOWN (3.10 review B1; refactor 4-c): a session whose athlete neither the library's
-        // athlete.json nor --athletes-ini names is refused here, before its ledger is backed up or anything is written.
+        // THE GOLFER MUST BE KNOWN (3.10 review B1; refactor 4-c, 5.3): a session whose athlete neither the library's
+        // athlete.json, athletes.json beside it nor --athletes-ini names is refused here, before its ledger is backed up
+        // or anything is written.
         if (newEngine) {
             QString why;
             if (!ng->resolve(dir, nullptr, &why)) {
@@ -542,6 +687,9 @@ int main(int argc, char **argv)
                         who.record.dob.isEmpty() ? "-" : qPrintable(who.record.dob), qPrintable(who.from));
             if (dg && !dg->patterns.isEmpty())
                 std::printf("%-48s   patterns: %s\n", "", qPrintable(dg->patterns.join(QLatin1Char(' '))));
+            if (who.from == QLatin1String("athletes.json")
+                && !QFileInfo::exists(QDir(dir).filePath(QStringLiteral("club_baseline.json"))))
+                std::printf("%-48s   club baseline not frozen: corpus run (graded with no baseline)\n", "");
             const DiagnosticsRead now = SessionDiagnosticsFiles::readDiagnostics(dir);
             const bool wrote = d->counts().writes > 0 && now.parsed() && !now.envelope.ledger.isEmpty();
             if (!wrote) {

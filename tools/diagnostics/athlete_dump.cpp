@@ -5,7 +5,8 @@
 // numbers "%.17g", no timestamps or cache fingerprints, folders as "<athlete>"/"<session>"), so two runs
 // diff byte for byte.
 //
-// THE CATCH-UP IS THE APP'S. WorkOnsController is the object main.cpp binds to the current athlete; with
+// THE CATCH-UP IS THE APP'S (this paragraph is `--engine old`; the default, new, is described below). WorkOnsController
+// is the object main.cpp binds to the current athlete; with
 // setSynchronous(true) and waitForIdle() it scans and reduces the tendencies, and — since the catch-up's cut-over
 // (refactor 3.7-e) — hands each stale session to the catch-up service exactly as main.cpp wires it (its CatchUpDoor over
 // AthleteCatchUp::runFolders, here over the headless owners below: each Session's SessionDiagnostics re-judges, freezes
@@ -41,8 +42,9 @@
 //
 // NOT A TEST, and not registered with ctest — it writes into the folders it is given.
 //
-// --engine old|new (refactor step 3.6; build/refactor/step-3/3.6/NOTES.md, the athlete parity):
-//   old (the default) — the above: WorkOnsController, what Home shows, with the praise rule and Stage 0.5's follow-up
+// --engine new|old (refactor step 3.6; build/refactor/step-3/3.6/NOTES.md, the athlete parity). The default is new since
+// refactor 5.3, as regrade_ledger's; until then it was old.
+//   old — the above: WorkOnsController, what Home shows, with the praise rule and Stage 0.5's follow-up
 //       wired through it; since 3.7-e its records are the new owners' (its private model is gone), so "old" names Home's
 //       reductions from the ledgers (tendencies, themes), not an older engine. Its dump adds `doWell` { themes, praised }:
 //       the themes' "what you do well" condition ids before and after the praise rule.
@@ -101,9 +103,9 @@ namespace {
 void printUsage(FILE *to)
 {
     std::fprintf(to,
-        "usage: athlete_dump [--engine old|new] [--fresh] [--timeout <seconds>] --out <out.json> <athlete-dir>...\n"
+        "usage: athlete_dump [--engine new|old] [--fresh] [--timeout <seconds>] --out <out.json> <athlete-dir>...\n"
         "\n"
-        "Runs the app's work-ons catch-up (WorkOnsController, headless) over each athlete folder of a SCRATCH\n"
+        "Runs the athlete level (by default the catch-up service and the new owners, headless) over each athlete folder of a SCRATCH\n"
         "library and writes the PARITY DUMP: tendencies.json, the per-club distances, and every session's\n"
         "work_ons.json and club_baseline.json, as canonical JSON (keys sorted, %%.17g numbers, no timestamps\n"
         "or fingerprints, folders as <athlete>/<session>), so two runs diff byte for byte.\n"
@@ -114,8 +116,9 @@ void printUsage(FILE *to)
         "                     the catch-up re-derives them with this build (for a parity run: regrade_ledger\n"
         "                     --dump each session first, then this with --fresh)\n"
         "  --timeout <s>      how long one athlete's catch-up may take (default 1800)\n"
-        "  --engine old|new   old (default): WorkOnsController, what Home shows; new: the catch-up service and the\n"
-        "                     new owners (SessionDiagnostics, AthleteDiagnostics), every shot fired again (refactor 3.6)\n"
+        "  --engine new|old   new (default): the catch-up service and the new owners (SessionDiagnostics,\n"
+        "                     AthleteDiagnostics), every shot fired again; old: WorkOnsController, what Home showed\n"
+        "                     before 3.7-f (Home's reductions from the ledgers)\n"
         "  --help             this text\n"
         "\n"
         "Needs every PINPOINT_CORE_* (PACK NORMS FLIGHT_NORMS CONTEXTS SCREENS DRILLS GATE_WORDS REFERENCES).\n");
@@ -409,7 +412,7 @@ int main(int argc, char **argv)
     PpMessageLog::instance()->setEchoToStderr(true);
 
     QString     outPath;
-    QString     engine = QStringLiteral("old");
+    QString     engine = QStringLiteral("new");   // the default since refactor 5.3
     bool        fresh = false;
     int         timeoutS = 1800;
     bool        benchThemes = false;   // J-53: time Home's swing summary on the old fan-out and on the owner's lane

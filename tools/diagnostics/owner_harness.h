@@ -4,11 +4,11 @@
 // diag_rank_diff and diag_uncertainty_report read a session's diagnosis from the session's ONE owner, as the app does
 // since 3.7-a, instead of making a SessionDiagnosticsModel of their own: an Athlete over the session's athlete folder,
 // its Session (Athlete::sessionAt), that Session's SessionDiagnostics run synchronously (§4.4 step 11, as
-// regrade_ledger --engine new runs it), then the Session's thin adapter for the "tool" surface
+// regrade_ledger runs it, by default since refactor 5.3), then the Session's thin adapter for the "tool" surface
 // (SessionDiagnosticsModel::adapterFor) for the view half a tool reads — the explanation's roots, the links, the rows as
-// the reduction read them. regrade_ledger keeps the old engine as its default and run P's reference while it stays (to
-// step 5, after M1: J-59); its --engine new reads each session's athlete from the library's athlete.json, --athletes-ini
-// only as the fallback, and refuses a session neither names (3.10 review B1; refactor 4-c, J-61).
+// the reduction read them. regrade_ledger reads each session's athlete from the library's athlete.json, else from
+// athletes.json beside the session (the corpus; 5.3), --athletes-ini only as the last fallback, and refuses a session
+// none names (3.10 review B1; refactor 4-c, J-61); its `--engine old` stays until 5.4b.
 //
 // NOTHING IS WRITTEN: the owner runs in memory (DiagnosticsDoors::persist off — no diagnostics.json, no work_ons.json,
 // no club_baseline.json; the firing reader is the parallel run's, which parses a swing whose sidecar is missing or stale

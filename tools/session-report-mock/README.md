@@ -25,7 +25,8 @@ Needs the Debug app at `build/Qt_6_11_1_for_macOS_Debug`, the share mounted, ffm
 (`/opt/homebrew/bin/python3`). Output goes to `/mnt/swingdata/scratch/session-report/`, never the repo.
 
 ```sh
-# 1. dump the diagnostics model for a session (from a scratch copy: loading a session writes into it)
+# 1. dump the diagnostics panel's model for a session: a scratch copy (loading a session writes into it), with the
+#    app pointed at that scratch library so the copy's own owner judges it (PPS_APP=<app binary> picks the app)
 tools/session-report-mock/dump-session.sh /mnt/swingdata/Jess-Ratcliffe/2026-10-20_Jess-Ratcliffe_Wrist_03 \
     /mnt/swingdata/scratch/session-report/dumps/jess03.json
 # 2. assemble and print; checks every page for text running into the footer

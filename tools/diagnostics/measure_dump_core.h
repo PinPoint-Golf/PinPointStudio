@@ -22,17 +22,20 @@
 // (posture_metrics_design.md §9, V1–V5). The core lives here so measure_dump_test can drive the same
 // code path the binary does.
 //
-// THE SAME CONSTRUCTION AS THE APP. SessionDiagnosticsModel::detectShot() builds, per swing:
+// THE SAME READ AND CONSTRUCTION AS THE SESSION'S OWNER (refactor 5.3). SessionDiagnostics fires each shot
+// through its firing reader (Export/firing_reader_store.cpp, SwingStoreFiringReader::read) and fireFindings
+// (Diagnostics/engine/fire_findings.cpp), which build, per swing:
 //
-//   LiveMeasureSource(swingDir, pack)  + setWithSigma(tuned default)
-//   NormMeasureSource(values, sharedNormProvider(), values.contextId(), gradePolicyByName(policy),
-//                     &pack, Cohort{})                       (inside detectForSwing)
+//   readLivePhaseGrid(swingDir, pack, policy, {}, &parsed)   one lazy parse, shared with the summary read
+//   LiveMeasureSource(grid, pack)  + setWithSigma(FiringInputs' withSigma: the tuned default)
+//   NormMeasureSource(values, norms, values.contextId(), gradePolicyByName(policy), &pack, cohort)
+//                                                            (inside detectForSwing)
 //
-// and this does exactly that, with ONE difference that moves no number: the phase grid is read
-// WITHOUT writing the swing_phasegrid.json sidecar the app's reader writes on a cache miss, because
-// this tool must never write into a session directory. The grid is built by the same functions
-// (loadPhaseGrid on a fresh sidecar, else buildPhaseGrid over SwingStore::load) with the same identity
-// fields, so the readings are bit-identical — measure_dump_test pins that against the app's reader.
+// and this does exactly that, with the policy SidecarPolicy::ParseNoWrite (the parallel run's: a miss is
+// parsed, NO sidecar is written, because this tool must never write into a session directory), and with
+// Cohort{} — no athlete is named, so the unisex norms — where the owner grades with the golfer's cohort.
+// measure_dump_test pins the readings against the owner's own reader. Until 5.3 this mirrored the old
+// engine's per-shot construction (SessionDiagnosticsModel::detectShot) with a hand copy of readPhaseGrid.
 //
 // Namespace `measure_dump`, deliberately outside pinpoint::analysis ([[odr-collision-in-pinpoint-analysis]]).
 
@@ -100,8 +103,8 @@ QString missingKindToken(pinpoint::analysis::MissingKind k);
 // measures are skipped unless named explicitly — they never read off one swing.
 QStringList selectMeasures(const pinpoint::analysis::CharacteristicPack &pack, const Options &opt);
 
-// The phase grid exactly as readPhaseGrid() builds it, but never writing the sidecar. `rootOut`
-// receives the full document when it had to be parsed (empty when the sidecar answered).
+// The phase grid as the owner's firing reader reads it (readPhaseGrid with SidecarPolicy::ParseNoWrite): never
+// writing the sidecar. `rootOut` receives the full document when it had to be parsed (empty when the sidecar answered).
 // `cfg` carries the millisecond spans to build (measure_sample.h PhaseGridMsWindow): readSwing passes
 // the pack's own (msWindowsOf), as LiveMeasureSource(dir, pack) does, so a `windowMs` measure reads. A
 // sidecar lacking one of them is not served; the grid is built from the document instead (read-only).

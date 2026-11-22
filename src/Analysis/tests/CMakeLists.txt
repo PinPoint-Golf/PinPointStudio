@@ -1938,8 +1938,9 @@ set_tests_properties(work_ons_controller_test PROPERTIES
 # and lets the model re-ingest every shot. Same link line as the model test above, because it IS the
 # model — driven synchronously, exactly as the test drives it. Hand-rolled rather than pp_add_test
 # and NOT registered with ctest: it writes into the swing library. Precedent: rank_shift_report.
-# --engine new (refactor step 3.5-ii, run P): the new owner of a session's diagnostics, headless, over the real
-# session store, swing door, Athlete, Session and Shot, with the parallel run's form (diag_parallel_run.cpp).
+# --engine new (refactor step 3.5-ii, run P; the default since refactor 5.3): the new owner of a session's diagnostics,
+# headless, over the real session store, swing door, Athlete, Session and Shot, with the parallel run's form
+# (diag_parallel_run.cpp). --engine old is the model above, until step 5.4b deletes it.
 set(REGRADE_NEW_ENGINE_SOURCES
     ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger.cpp
     ${SRC}/Gui/diagnostics/diag_parallel_run.cpp
@@ -1986,9 +1987,10 @@ list(REMOVE_DUPLICATES _regrade_sources)
 set_property(TARGET regrade_ledger PROPERTY SOURCES ${_regrade_sources})
 pp_apply_sanitizers(regrade_ledger)
 # Note: the tool itself is NOT added to add_test() — manual run only; it rewrites diagnostics.json. One test drives its
-# REFUSALS and its athlete sources (refactor 3.10, review B1; re-worded in 4-c, J-61) over a scratch folder in the build
-# tree: a session whose athlete neither the library's athlete.json nor --athletes-ini names is refused and nothing is
-# written; athlete.json, and the ini as the fallback, are not refused.
+# REFUSALS and its athlete sources (refactor 3.10, review B1; re-worded in 4-c, J-61, and 5.3) over a scratch folder in
+# the build tree: a session whose athlete no source names is refused and nothing is written, with or without --engine
+# (the default is new); athlete.json, athletes.json beside the session (two golfers in one folder, each its own entry)
+# and the ini as the last fallback are not refused.
 add_test(NAME regrade_ledger_new_needs_ini_test
          COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:regrade_ledger>
                  -DWORK=${CMAKE_CURRENT_BINARY_DIR}/regrade_ledger_needs_ini_work
@@ -2046,7 +2048,7 @@ set_tests_properties(session_focus_test PROPERTIES
 
 # post_shot_bench — THE POST-SHOT GUI PATH, HEADLESS, FOR A WHOLE SESSION (refactor 3.7-S, the post-shot stall;
 # build/refactor/step-3/3.7/NOTES-S.md): main.cpp's composition (the store, the swing door, an Athlete, `app`, the
-# carousel's model, the panel's diagnostics model and, with --parallel 1, the parallel run's doors and hook) driven
+# carousel's model, and the panel's thin adapter over the session's owner; refactor 5.3 removed --path old) driven
 # through N live-shaped shots of one session on a scratch library, printing each shot's [PostShot] line
 # (src/Core/post_shot_trace.h) and how each step's cost grows with the shot count. regrade_ledger's link line, less
 # the tool, plus `app` and the carousel's model. NOT registered with ctest: it times rather than checks, and it writes
@@ -2134,8 +2136,8 @@ pp_add_test(parity_json_test SOURCES ${PP_REPO_ROOT}/tools/diagnostics/parity_js
 
 # measure_dump — every pack measure's reading per shot as a CSV, for the posture validation
 # (posture_metrics_design.md §9 V1–V5): value, z, grade or refusal, and each composite part. The
-# app's own per-shot construction (LiveMeasureSource + NormMeasureSource), minus the phase-grid
-# sidecar write — READ-ONLY on the library. Same sources as regrade_ledger less the model, which it
+# session owner's per-shot read and construction (its firing reader's grid read, ParseNoWrite, then
+# LiveMeasureSource + NormMeasureSource as fireFindings builds them; refactor 5.3) — READ-ONLY on the library. Same sources as regrade_ledger less the model, which it
 # does not need. Not a test; measure_dump_test (below) drives the same core on staged fixtures.
 set(MEASURE_DUMP_SRC
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
@@ -2162,13 +2164,7 @@ target_include_directories(measure_dump PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} 
 target_link_libraries(measure_dump PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
 set_target_properties(measure_dump PROPERTIES AUTOMOC ON)   # RuleData is a QObject (step 3.2)
 pp_apply_sanitizers(measure_dump)
-pp_add_test(measure_dump_test
-    SOURCES ${PP_REPO_ROOT}/tools/diagnostics/measure_dump_test.cpp ${MEASURE_DUMP_SRC}
-    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
-    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
-    AUTOMOC)
-set_tests_properties(measure_dump_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+# measure_dump_test is below FIRE_FINDINGS_TEST_SOURCES: it fires each shot through fireFindings too (refactor 5.3).
 
 # FIRING A SHOT'S FINDINGS, PURE (refactor step 3.3; Diagnostics/engine/fire_findings.*). fire_findings_test: one
 # swing (lm_7iron), and every input of FiringInputs shown to matter — the stamp moves with each, and the findings or
@@ -2200,6 +2196,16 @@ set(FIRE_FINDINGS_TEST_SOURCES
     ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
     ${SRC}/Core/pp_log_stream.cpp
     ${SRC}/Core/PpMessageLog.cpp)
+# measure_dump_test (refactor 5.3): the dump's core against the SESSION OWNER's path — its firing reader's grid read and
+# fireFindings' construction — so the fire_findings line (the measure-dump line plus fire_findings.cpp) and the core.
+pp_add_test(measure_dump_test
+    SOURCES ${PP_REPO_ROOT}/tools/diagnostics/measure_dump_test.cpp ${PP_REPO_ROOT}/tools/diagnostics/measure_dump_core.cpp
+            ${FIRE_FINDINGS_TEST_SOURCES}
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(measure_dump_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 pp_add_test(fire_findings_test
     SOURCES ${DIAG}/tests/fire_findings_test.cpp ${FIRE_FINDINGS_TEST_SOURCES}
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
