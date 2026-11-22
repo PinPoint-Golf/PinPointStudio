@@ -514,8 +514,14 @@ start of step 3- so long as we know the migration works and no data is lost".
   the session lifecycle still runs as a choreography of calls in QML in several places; with `AppState`'s capture target and
   session on screen, each becomes one command on the `Athlete` or its `Session`.
 - **Closes:** E-04, E-05, E-08, E-14, E-01 (the switch half); E-15, H-07 (triage, Mark 14 Nov 2026); E-12's QML half (Mark, N2; placed by step 3's close).
+- **Added during step 4** (Mark, 22 Nov 2026):
+  - **a build fix:** a C++ header edit no longer recompiles every compiled-QML unit (`ad9b1edc`);
+  - **a headless start for probes:** `PINPOINT_HEADLESS_PROBE=1` (`858ba2a7`);
+  - **the re-grade tool reads `athlete.json`,** needed after the 22 Nov migration (`858ba2a7`);
+  - **`app.state.outcome`** (R-APP-7): the carousel summary shows the newest analysed shot, which wins over an older selection;
+  - **4-d, the declared session focus reaches its `Session`:** golfer input was lost when no diagnostics panel or cast was on (`build/refactor/step-4/FOCUS-TRACE.md`).
 
-### Step 5 · Charts and the report onto the session (~2 days; can overlap step 3's cut-over)
+### Step 5 · Charts, the report and every view onto the session (~3–4 days, re-estimated 22 Nov 2026)
 
 - **`SessionSeries` per session.** The view-owned `SessionSeriesModel`s go. `SessionSnapshot` reads the owner.
 - **One presenter base and one threading idiom** for the six presenters.
@@ -552,6 +558,33 @@ start of step 3- so long as we know the migration works and no data is lost".
   - the allowlist lines tagged `# step 5` at step 3's close: `session_diagnostics_model.cpp`/`.h` (A5),
     `work_ons_controller.cpp` (A5; its catch-up scan moves into `src/App`), `markup_controller.h`, `markup_truth.cpp`
     (A5; the review views over the shot).
+- **Every view references the information model** (Mark, 22 Nov 2026: "the key outcome I was looking for after this
+  refactor"). The survey `build/refactor/step-4/LOCAL-COPIES.md` (at `4baa30dd`) found 14 components that keep their own
+  copy of domain facts and refresh it by hand. The items above cover 7 of them; this step also takes the other 7. At the
+  step's end, no component in `src/Gui` keeps a list or cache of domain facts of its own: each reads the owner and follows
+  its events. The survey is re-run at the close to prove it.
+  - **the carousel is a pure view over the session** (Mark, 22 Nov 2026): `ShotListModel`, live and review, and the
+    report's temporary copy show `app.session`'s shots and follow the `Session`'s events (shot added, changed, trashed).
+    They no longer build or reload a list of their own, which is the cause of 4-a's review B3;
+  - **sessions with no golfer get an "Unassigned" owner** (Mark, 22 Nov 2026, changing his N1 answer). Capture with no
+    golfer selected goes to an Unassigned athlete, whose sessions are full `Session`s with one code path. The five
+    `# kept (N1 …)` A5 lines go: `shot_list_model.cpp`, `ppcp_clip_filer.cpp`, `reanalysis_controller.h`,
+    `shot_processor.cpp`/`.h`. A no-golfer folder found on disk (none today) is held by Unassigned and can be moved to a
+    golfer. This is an information-model change, approved by Mark; the reference is updated before it is built;
+  - **one session list:** the Sessions screen, the report list and the Archiving tab become one presenter over the
+    `Athlete`'s `SessionIndex`, following its events, instead of three disk scans. Today a club correction or a trash
+    shows late in all three;
+  - **the review header's** club mix comes from the `Session`'s summary, and its "live" marker from `AppState`'s capture
+    target;
+  - **the rule packs:** the five holders that keep the first pack they were given (`WorkOnsController`, `LmSessionModel`,
+    `SessionSeriesModel`, and the statics in `consistency_env.cpp` and `session_posture.cpp`) take `RuleData::current()`
+    and follow EVT-13. Today a pack edit reaches them only after a
+    relaunch. B-02 fixed the duplicate assemblies but not this;
+  - **the athlete screen** lists the `Athlete`s, with activity from each `SessionIndex`; `athlete_controller.h`'s six
+    remaining QVariant members are typed (from 4-a);
+  - **the replay** reads its analysis slice through the `Shot`'s `RecordingSource` (`disk_replay_source.cpp`);
+  - **the markup tool's** truth summaries come from the `Shot` (`markup_controller.h`, `markup_truth.cpp`: their reads and
+    their copies).
 - **Closes:** F-01, F-02, F-04, F-08, F-09, D-10, F-12, G-11, D-11; A-02 (the Charts and Diagnostics re-parsers; step 1
   closes its converters, brief §4.6); F-10, F-14 (triage, Mark 14 Nov 2026).
 
@@ -678,7 +711,7 @@ These are wall-clock estimates at agent pace, assuming Mark reviews each step wi
 | 2 | ~1 day |
 | 3 | 3–4 days |
 | 4 | ~½ day |
-| 5 | ~2 days |
+| 5 | ~3–4 days (re-estimated 22 Nov 2026: the old engine, every view onto the session) |
 | 6 | ~1½ days + a re-fire of the findings |
 | 7 | 1–2 days |
 | 8 | estimated in its brief |
