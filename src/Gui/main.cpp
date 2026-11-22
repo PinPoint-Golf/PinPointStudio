@@ -106,13 +106,12 @@
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
 #include "../App/athlete_catch_up.h"         // the catch-up, an application service (refactor 3.7-e)
 #include "../DomainModel/summary_rules.h"    // summaryCohortFacts (3.7-e round 2)
-#include "../Core/work_pool.h"                // the one pool and its receiver (D15), for the parallel run (3.5-ii)
+#include "../Core/work_pool.h"                // the one pool and its receiver (D15): every session's owner (3.5)
 #include "../DomainModel/session.h"
 #include "../DomainModel/session_diagnostics.h"   // diagnosticsWorkTarget (3.5-ii)
 #include "../DomainModel/athlete_diagnostics.h"   // athleteDiagnosticsWorkTarget: the athlete level's lane (3.7-f)
 #include "../Export/athlete_cache_repository.h"   // PINPOINT_WORKONS_DIR's Athlete (3.7-f)
 #include "../App/dev_athlete.h"                  // …and its rule (J-56, R2-m2)
-#include "diagnostics/diag_parallel_run.h"    // PINPOINT_DIAG_PARALLEL=1 (D14); its doors (3.7-0); the app's (3.7-a)
 #include "diagnostics/session_diagnostics_adapter.h"   // diagnosticsAdapters: each Session's thin adapter (3.7-a)
 #include "diagnostics/session_diagnostics_model.h"   // its golfer commands' door (step 3.4b-i)
 #include "launch_monitor_controller.h"
@@ -367,11 +366,8 @@ int main(int argc, char *argv[])
     // gone: the panels show this owner through their thin adapters), and — since the catch-up's cut-over (3.7-e) — the
     // session's summary, work_ons.json (WorkOnsController's private model and its write are gone: one writer of each).
     // Declared BEFORE the athlete store, so the receiver and the pool outlive every Athlete (DiagnosticsDoors).
-    // THE PARALLEL RUN (refactor step 3.5-ii; BRIEF §4.9; D14: DEC-179, off by default): PINPOINT_DIAG_PARALLEL=1 now only
-    // installs the comparison hook. Since 3.7-e no old model is left in the app to compare (the catch-up's and the
-    // report's are gone; J-a3's engine model has no owner beside it), so the hook writes nothing; regrade_ledger
-    // --engine=old|new keeps run P's comparison until 3.10.
-    const bool diagParallel = pinpoint::parallel::enabledByEnvironment();
+    // THE PARALLEL RUN'S SWITCH (PINPOINT_DIAG_PARALLEL=1; refactor 3.5-ii, D14) IS GONE (refactor 3.10): since 3.7-e no
+    // old model was left in the app to compare. Run P's comparison is regrade_ledger --engine=old|new.
     std::function<pinpoint::WorkTarget(const pinpoint::WorkAddress &)> diagLookup;   // set once the store exists
     // What the composition root does with each owner once made (its failed writes shown: DEC-126); set once the
     // notification centre exists, before any session is loaded.
@@ -468,17 +464,6 @@ int main(int argc, char *argv[])
             for (pinpoint::Session *s : a->loadedSessions())
                 if (pinpoint::SessionDiagnostics *d = s->diagnostics()) d->flush(/*final=*/true);
     });
-    if (diagParallel) {
-        pinpoint::parallel::install(
-            [&appObject](const QString &folder) { return appObject.sessionAt(folder); },
-            [&athleteController](const QString &folder) -> pinpoint::Session * {
-                pinpoint::Athlete *a = athleteController.currentAthlete();
-                if (!a) return nullptr;
-                for (pinpoint::Session *s : a->loadedSessions())
-                    if (const auto e = s->entry(); e && QDir::cleanPath(e->folder) == QDir::cleanPath(folder)) return s;
-                return nullptr;
-            });
-    }
     // A legacy session's owner, for the swing door's edge translation (J-39; confirmed by Mark, 15 Nov 2026): the current
     // athlete when the folder is theirs — the athlete the session list derives the same D3 id from.
     // Reset before the controller goes (the door is static).
@@ -1908,7 +1893,6 @@ int main(int argc, char *argv[])
     archiveController.stopJobs();         // its housekeeping pass reaches the Athletes: stopped before they go (step 3.8)
     recordingRepository.setOwnerOf({});   // the controller it asks is a local of main (J-39 resolver)
     SessionDiagnosticsModel::setShotCommands(nullptr);   // `app` is a local of main (step 3.4b-i)
-    pinpoint::parallel::uninstall();                     // `app` and the controller are locals of main (3.5-ii)
     diagLookup = {};                                     // a result still queued finds no owner (the store goes first)
     ppcpClipFiler.setShotCommands(nullptr);              // a static: it outlives `app`
     return exitCode;

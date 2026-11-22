@@ -367,9 +367,11 @@ Item {
     // ONE ID PER SESSION FOLDER, so the wall cast's panel (its own model, the same file) restates the
     // notice rather than adding a second one, and postWarning() does not count a restatement.
     //
-    // ⚠ REFACTOR-TEMPORARY WIRING: the model is created here, so it cannot reach the C++ notification
-    // centre itself. When the Session owns its diagnostics (target architecture, step 3) it posts
-    // directly and this block goes. Guarded: a test engine may not provide `notifications`.
+    // WHO POSTS IT (refactor 3.10; the model is made by C++ since 3.7-e): a session a Session holds has
+    // its owner's failed writes posted by the composition root (main.cpp's diagAttached, DEC-126), keyed
+    // by the session's id. This block serves the model's own writes: the engine-mode model of a folder
+    // no Session holds (J-a3), and a write with no shot-command door. It goes with that engine (step 5,
+    // after M1: J-59). Guarded: a test engine may not provide `notifications`.
     // THE ID IS THE FOLDER, THE WORDS ARE THE SESSION'S NAME: golfers never see folder names. The name is
     // the one the app already shows — the reviewing strip's and carousel chip's "Tue 18 Aug · 21:38"
     // (SessionReviewController's activeDayLabel/activeTimeLabel), or the session list's "Today" for the

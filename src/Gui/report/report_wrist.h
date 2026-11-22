@@ -117,8 +117,8 @@ inline QVariant wristReportBlock(const QVariantMap &payload, const QHash<QString
 {
     const QVariant none = QVariant::fromValue(nullptr);
     // SWINGS WITH WRIST READINGS AND NONE GRADED YET (refactor 3.8-ii, REVIEW-ii B1; show, never hide): the page is printed
-    // with its head and the reason, under "Checkpoints across the session" (the profile's sub line), and the reason in the
-    // trust lines; nothing drawn from grades. Existing blocks only: every other block is empty, so the page hides it.
+    // with its head and the reason, under "Checkpoints across the session" (the profile's sub line), said once: not again
+    // in the trust lines (refactor 3.10; 3.8-ii delta d3); nothing drawn from grades. Existing blocks only: every other block is empty, so the page hides it.
     if (!payload.value(QStringLiteral("available")).toBool() && payload.value(QStringLiteral("pending")).toBool()) {
         const QString why = payload.value(QStringLiteral("pendingWhy")).toString();
         QVariantMap out;
@@ -134,7 +134,7 @@ inline QVariant wristReportBlock(const QVariantMap &payload, const QHash<QString
         out.insert(QStringLiteral("recurringEmpty"), QString());
         out.insert(QStringLiteral("consistency"), QVariantList());
         out.insert(QStringLiteral("movesWith"), none);
-        out.insert(QStringLiteral("trust"), why.isEmpty() ? QStringList() : QStringList{ why });
+        out.insert(QStringLiteral("trust"), QStringList());   // the reason is the profile's sub line (above)
         out.insert(QStringLiteral("trustMore"), QString());
         out.insert(QStringLiteral("pending"), true);
         return out;

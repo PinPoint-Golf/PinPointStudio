@@ -795,8 +795,8 @@ bool SessionSeriesModel::readLedgerIfChanged()
     }
     m_ledgerWhy = read.state == pinpoint::DiagnosticsRead::State::Newer
         ? QStringLiteral("This session's diagnostics were saved by a newer version of PinPoint Studio, which this version "
-                         "can't add to, so this swing's wrist checkpoints aren't graded here.")
-        : QStringLiteral("Diagnostics have not graded this swing's wrist checkpoints yet.");
+                         "can't add to, so its wrist checkpoints aren't graded here.")
+        : QStringLiteral("Diagnostics have not graded the wrist checkpoints yet.");
     // The ledger's own deserialiser (diagnostic_ledger.h fromJson), so a row field added there
     // reaches this file without a second parser to update.
     m_ledgerOpt  = pinpoint::analysis::LedgerOptions();

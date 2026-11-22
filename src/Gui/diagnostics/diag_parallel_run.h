@@ -23,10 +23,8 @@
 // The new owner of a session's diagnostics (SessionDiagnostics) runs beside the old model (SessionDiagnosticsModel),
 // IN MEMORY ONLY — it writes no file, so diagnostics.json and work_ons.json keep the old model as their one writer
 // until the cut-over (3.7) — and the two are compared:
-//   • in the app, with PINPOINT_DIAG_PARALLEL=1 (main.cpp installs the hook below): after each reduction the old
-//     model settles, the new owner of the same session (app.sessionAt) is compared once it is idle over the same
-//     shots, and ONE LINE PER SESSION goes to the app log ("[DiagParallel] <session> …"), written again only when
-//     what it says changes;
+//   • in the app, until 3.10, with PINPOINT_DIAG_PARALLEL=1 (a hook after each old-model reduction, one log line per
+//     session): deleted in 3.10, as nothing was left to compare (below);
 //   • over a set of sessions, by regrade_ledger --engine=old|new, which dumps each engine in this same form for
 //     tools/parity/parity_diff.py (run P).
 //
@@ -40,17 +38,16 @@
 // case 1, R-STAMP-1).
 //
 // FROM 3.7-a the stage panel and the cast show the owner through its thin adapter; 3.7-d cut the report over and 3.7-e the
-// catch-up, so NO OLD MODEL IS LEFT IN THE APP TO COMPARE: the app's hook (install) finds nothing, and run P's comparison is
-// regrade_ledger --engine=old|new (until 3.10). `doors()`'s in-memory wiring is the tests' (diag_parallel_live_test).
+// catch-up, so NO OLD MODEL IS LEFT IN THE APP TO COMPARE: the app's hook was deleted in 3.10, and run P's comparison is
+// regrade_ledger --engine=old|new while the old engine stays (to step 5, after M1: build/refactor/step-3/JUDGEMENT-CALLS.md
+// J-59). `doors()`'s in-memory wiring is the tests' and the tools' (diag_parallel_live_test, owner_harness.h).
 //
-// Adapters ring (src/Gui): reads the old model and the new owner; writes nothing but the log.
+// Adapters ring (src/Gui): reads the old model and the new owner; writes nothing.
 
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QString>
 #include <QStringList>
-
-#include <functional>
 
 class SessionDiagnosticsModel;
 
@@ -88,36 +85,9 @@ QJsonObject formOf(const SessionDiagnostics &owner, bool withStamp = true);   //
 // numbers within rtol/atol (whole numbers exact), everything else exact. One line per difference, "path: old → new".
 QStringList differences(const QJsonValue &oldForm, const QJsonValue &newForm, double rtol = 1e-9, double atol = 1e-12);
 
-// The app's switch (D14): installs the old model's hook. `sessionAt` is app.sessionAt (the folder's Session, loaded if
-// it is not; null for a no-golfer session: N1); `loadedAt` answers only a Session already loaded. The catch-up's model
-// (baseline authority "always") sweeps every ended session, so it is compared only for a session already loaded — the
-// live one at its End (§4.9: the live session with the panel off) — and never loads one (Q-18). uninstall() before the
-// objects the two reach are destroyed.
-//
-// WHEN IT COMPARES (refactor 3.7-0):
-//   • never while the session is being recorded HERE (Session::runningHere() and in progress): the hook runs on the
-//     GUI thread after every settle of the old model (two a shot), and a comparison builds both whole forms and every
-//     difference — O(shots) a call, 11k–20k strings a call in D22's live run (3.7/D22-STALL-NOTES.md §4 A1). While
-//     recorded here the hook does O(1) work and returns; the session is compared at its End (the catch-up's End
-//     sweep, or the panel's next settle once it has ended). A session another process left in progress (a crash, a
-//     shared library) is not being recorded here and is compared on every settle, as before;
-//   • like with like on the club baseline: before comparing, the new owner re-reads club_baseline.json when it exists
-//     (SessionDiagnostics::reloadClubBaseline(keepWhenAbsent)) — the old model freezes it at End, after the new owner
-//     loaded — and, when that moved its numbers, the owner re-fires every shot and the comparison waits for that
-//     diagnosis. An absent file changes nothing;
-//   • a session skipped while recorded here that goes away uncompared (released, its athlete or library switched, the
-//     app quit: uninstall) gets ONE line, "<session> not compared: the session was not ended" (or "… ended, but no
-//     comparison landed …"), so a missing line can never be read as a pass. No comparison is made there.
-// The comparison line itself is unchanged: one per session, written again only when what it says changes.
-bool enabledByEnvironment();   // PINPOINT_DIAG_PARALLEL=1
-void install(std::function<Session *(const QString &folder)> sessionAt,
-             std::function<Session *(const QString &folder)> loadedAt);
-void uninstall();
-
-// TEST SEAMS (3.7-0 round 2): per session folder, the comparisons the hook ran, the lines it wrote, the last line.
-int     comparisonsOf(const QString &sessionFolder);
-int     linesOf(const QString &sessionFolder);
-QString lastLineOf(const QString &sessionFolder);
+// THE APP'S HOOK IS GONE (refactor 3.10; CARRY 3.7-e R1-m9): since 3.7-e no old model is left in the app beside an owner,
+// so PINPOINT_DIAG_PARALLEL=1 compared nothing; install/uninstall and their test seams were deleted with the switch.
+// Run P's comparison stays regrade_ledger --engine=old|new, and diag_parallel_live_test compares the two forms directly.
 
 } // namespace parallel
 } // namespace pinpoint

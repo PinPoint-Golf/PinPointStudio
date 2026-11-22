@@ -316,6 +316,20 @@ PC, each after Mark reads its dry run (`build/refactor/step-2/MIGRATION-DRY-RUN.
 
 ### Step 3 · Session and SessionDiagnostics, by parallel run (3–4 days)
 
+**Status (22 Nov 2026, item 3.10, the close):** items 3.1–3.9 are committed: 3.1 `3632f991`, 3.2 `bb729ca7`, 3.3
+`160ba131`, 3.4a `024f7c16` and `3ef287b4`, 3.4b `d60d24d7` and `381166ee`, 3.5 `e38ba7a1` and `7442d433`, 3.6 `a6220739`,
+3.8-i `1da5fffe`, 3.9 `72f07b62`, `36ac2542` and `96fd6029`, the cut-overs 3.7-a/b `cc563466`, 3.7-d `f2a98a33`, 3.7-c
+`9b6f3868`, 3.7-e `2aa5bc72` and 3.7-f `fef9bfa1`, and 3.8-ii `63bfb951`. 3.10 closes the step: the parallel run's app switch
+deleted, the parity harness on the new owner with an athletes ini (a fresh baseline, `step3.10-baseline`; `regrade_ledger`'s
+default stays the old engine, and its `--engine new` refuses to run without `--athletes-ini`: 3.10 review B1), the allowlist
+re-tagged, the docs (B-04), and parity reports A and P (`build/refactor/step-3/3.10/`). Every finding below is closed or placed
+(`build/refactor/step-3/3.10/INVENTORY.md` §2). **Re-placed, not done in step 3** (`build/refactor/step-3/JUDGEMENT-CALLS.md`
+J-59): the old engine in `SessionDiagnosticsModel` (`detectShot`, its reduction, stores, pools and baseline authorities),
+which J-a3's folders (cabin sessions on the Mac), `regrade_ledger --engine old` and the tests still run, goes in step 5 after
+migration M1 (step 5's list); E-12's QML half goes to step 4; D-14's four remaining ⚠ comments go with step 4's AppState. **Still to do before
+the step is done:** step 3.0 (its gate: the real M1–M4 runs), the re-fire on GOLFSIMPC (not run: the app re-judges every stale
+session on load, on Mark's "try the app" list), and H-06's command rewrites (open, for Mark to place: DEC-183).
+
 **Split in two** (Mark, 15 Nov 2026; DEC-162): **3A** = items 3.0–3.4b, **3B** = items 3.5–3.10, as numbered in step 3's
 brief (`build/refactor/step-3/BRIEF.md` §6; approved 15 Nov 2026, its §8 answered as DEC-162…DEC-189).
 
@@ -493,7 +507,13 @@ start of step 3- so long as we know the migration works and no data is lost".
   14 Nov 2026).
 - **The athlete controller's QML API** (allowlist A6: `athlete_controller.h`) is typed when `app.athlete` arrives, not in
   step 3 (Mark, 15 Nov 2026; DEC-176, D12, reversing J-68).
-- **Closes:** E-04, E-05, E-08, E-14, E-01 (the switch half); E-15, H-07 (triage, Mark 14 Nov 2026).
+- **The allowlist lines tagged `# step 4` at step 3's close** (J-59): `athlete_controller.cpp` (A5, with `app.athlete`),
+  `session_review_controller.cpp` (A5: the Sessions list, with the session on screen), `archive_controller.cpp` (A5: the
+  tab's by-hand archive and restore through the `Session`, with 3.8-i's F-4 answer).
+- **E-12's QML half** (Mark, N2 at 3.4a-ii; step 3 built the C++ half: `Athlete::startSession`, `resumeSession`, `Session::end`):
+  the session lifecycle still runs as a choreography of calls in QML in several places; with `AppState`'s capture target and
+  session on screen, each becomes one command on the `Athlete` or its `Session`.
+- **Closes:** E-04, E-05, E-08, E-14, E-01 (the switch half); E-15, H-07 (triage, Mark 14 Nov 2026); E-12's QML half (Mark, N2; placed by step 3's close).
 
 ### Step 5 · Charts and the report onto the session (~2 days; can overlap step 3's cut-over)
 
@@ -521,6 +541,17 @@ start of step 3- so long as we know the migration works and no data is lost".
   - **day-level reads of other sessions go through session results** (Mark, 14 Nov 2026; DEC-74): the Charts
     delivery presenter and the report stop reading other sessions' `swing_phasegrid.json` and read their results
     through the `SessionIndex` instead.
+- **From step 3's close** (`build/refactor/step-3/JUDGEMENT-CALLS.md` J-59, as amended after 3.10's review):
+  - **the old engine in `SessionDiagnosticsModel` is deleted, once migration M1 (step 3.0) has run:** `detectShot`'s body,
+    the model's own reduction, stores, three of its four pools and its baseline authorities; `regrade_ledger --engine old`
+    (then its default goes to `new`, which needs `--athletes-ini`); `post_shot_bench --path old`; and the ~8,900 lines of
+    tests written against it (`session_diagnostics_model_test`, `work_ons_controller_test`'s engine stand-in,
+    `golfer_input_test`, `shot_number_test`, `diag_parallel_live_test`'s old side, the engine cases of
+    `diag_stage_panel_test`), re-pointed at the owners or deleted with their reason;
+  - the session adapter's history read (`historyOf`) and its pool read the sibling sessions through session results;
+  - the allowlist lines tagged `# step 5` at step 3's close: `session_diagnostics_model.cpp`/`.h` (A5),
+    `work_ons_controller.cpp` (A5; its catch-up scan moves into `src/App`), `markup_controller.h`, `markup_truth.cpp`
+    (A5; the review views over the shot).
 - **Closes:** F-01, F-02, F-04, F-08, F-09, D-10, F-12, G-11, D-11; A-02 (the Charts and Diagnostics re-parsers; step 1
   closes its converters, brief §4.6); F-10, F-14 (triage, Mark 14 Nov 2026).
 

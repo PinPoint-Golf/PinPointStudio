@@ -22,7 +22,7 @@
 // D22 failed because the app's parallel run read every live shot as an empty grid: its firing reader was built with
 // writeSidecars=false, which also meant "never parse", and live no sidecar exists until the old model's End sweep. No
 // test built the reader the way the app does, and the stored-session parity had sidecars already. This test uses the
-// app's own doors (pinpoint::parallel::doors, which main.cpp calls) on a temporary library, in a live-shaped order:
+// parallel run's doors (pinpoint::parallel::doors, which main.cpp called until 3.10) on a temporary library, in a live-shaped order:
 //
 //   PRE   an earlier session (a legacy folder, day 2026-09-01, twelve 7-iron shots) reduced by the old model, so the
 //         live session's club baseline has a usual to freeze — the old model freezes club_baseline.json at End, after
@@ -34,22 +34,16 @@
 //         rows (on HEAD's wiring: none of these — every shot fired on an empty grid)
 //     b   the new owner wrote NO file: no phase-grid or summary sidecar, no diagnostics.json, work_ons.json or
 //         club_baseline.json; and every shot fired again changes nothing on disk (the whole tree, size and mtime)
-//   END   the session ended; the old model run as the catch-up runs it at End (synchronous, baseline authority
-//         "always", reviewing): it writes the sidecars and freezes club_baseline.json; the parallel hook (installed as
-//         main.cpp installs it) reloads the new owner's club baseline and compares when its diagnosis lands
-//     c   the frozen baseline holds the 7 iron's usual, and the hook made the new owner read it (its stamp moved)
+//   END   the session ended; the old model run as the catch-up ran it at End until 3.7-e (synchronous, baseline
+//         authority "always", reviewing): it writes the sidecars and freezes club_baseline.json; the new owner reloads its
+//         club baseline (as the app's comparison hook did until 3.10 deleted it) and the two are compared
+//     c   the frozen baseline holds the 7 iron's usual, and the new owner read it (its stamp moved)
 //     d   parallel::differences(old form, new form) is EMPTY. No expected class applies here: the session is live
 //         when both engines last see it (case 9's stage → closing is a stored-session class), the words are not in
 //         the form (J-33's "pelvis rotation" is not compared), and both read the same frozen baseline (Fix 2)
-//     e   while the session is in progress the hook does O(1) work: the cost of one comparison (what HEAD paid after
-//         every settle of the old model) and of the live check (what it pays now) are printed
-//   HOOK  (round 2, review F2) the INSTALLED hook beside a live panel's old model (authority "live") that ingests each
-//         shot and regrades it on its late reading: no comparison and no line while the session is recorded here;
-//         after End the catch-up's model gives exactly one line, "0 differences"
-//   CRASH (F1) a session another process left in progress (its file says so; not started here), opened in a review
-//         panel, is compared — the hook skips only a session being recorded HERE
-//   GONE  (F4) a session skipped while recorded here whose athlete goes before it is compared logs one line,
-//         "<session> not compared: the session was not ended", said once
+//     e   the cost of one comparison is printed: a figure only, guarding nothing since the hook went (3.10)
+//   (HOOK, CRASH and GONE tested the app's comparison hook; refactor 3.10 deleted the hook with PINPOINT_DIAG_PARALLEL,
+//   since 3.7-e it compared nothing in the app, and those three tests with it.)
 //   (F5) every live document is written as capture leaves it: a .ppsw with its summary block
 //   RDR   the firing reader itself: the parallel reader (writeSidecars=false → SidecarPolicy::ParseNoWrite) reads a
 //         document with no sidecar and one with a stale sidecar as the default reader does, and writes nothing
@@ -178,16 +172,6 @@ static bool writeCaptureDoc(RecordingRepository &door, const Shot *shot, const Q
         && !QFile::exists(analysis::phaseGridPath(swingDir));
 }
 
-// The fixture whole (its reading in), its swing number and capture instant its own.
-static QJsonObject withReading(int swing, qint64 wallclockMs)
-{
-    QJsonObject root = readJson(fixture());
-    const QJsonObject bare = withoutReading(swing, wallclockMs);
-    root[QStringLiteral("swing")] = bare.value(QStringLiteral("swing"));
-    root[QStringLiteral("clock")] = bare.value(QStringLiteral("clock"));
-    return root;
-}
-
 // The fixture's own reading, as a connector hands it over (every field the block holds, through the one field table).
 static lm::LaunchMonitorReading fixtureReading(int swing)
 {
@@ -255,51 +239,17 @@ struct Rig {
         r.name = kName;
         athlete->setStored(r, athleteFolder(), SessionOwner{ kAthlete, kName, dir.path() }, Athlete::Source::Library, false);
         athlete->setShotDoors({ recordings.get(), reader });
-        // THE APP'S DOORS, from the one function main.cpp calls.
+        // THE PARALLEL RUN'S DOORS, from the one function main.cpp called until 3.10 (in memory only).
         athlete->setDiagnosticsDoors(parallel::doors(pool.get(), receiver.get(), RuleData::installed(), store, *recordings));
     }
     ~Rig()
     {
-        parallel::uninstall();
         athlete.reset();
         pool.reset();
     }
     QString athleteFolder() const { return dir.path() + QLatin1Char('/') + kToken; }
     static bool settled(SessionDiagnostics *d) { return d && pump([d] { return d->idle(); }); }
-    // The hook, as main.cpp installs it: app.sessionAt (here the athlete's), and the sessions already loaded.
-    void installHook()
-    {
-        parallel::install([this](const QString &f) { return athlete ? athlete->sessionAt(f) : nullptr; },
-                          [this](const QString &f) -> Session * {
-                              if (!athlete) return nullptr;
-                              for (Session *x : athlete->loadedSessions())
-                                  if (const auto e = x->entry(); e && QDir::cleanPath(e->folder) == QDir::cleanPath(f)) return x;
-                              return nullptr;
-                          });
-    }
 };
-
-// The old model as the catch-up ran it at End until 3.7-e (WorkOnsController::model, since deleted: run P's reference now).
-static void runCatchUpModel(SessionDiagnosticsModel &m, const QString &folder)
-{
-    m.setSynchronous(true);
-    m.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
-    m.setReviewing(true);
-    m.activateSession(folder);
-}
-
-static bool copyTree(const QString &from, const QString &to)
-{
-    QDir().mkpath(to);
-    QDirIterator it(from, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
-    while (it.hasNext()) {
-        it.next();
-        const QString rel = QDir(from).relativeFilePath(it.filePath());
-        QDir().mkpath(QFileInfo(QDir(to).filePath(rel)).absolutePath());
-        if (!QFile::copy(it.filePath(), QDir(to).filePath(rel))) return false;
-    }
-    return true;
-}
 
 // PRE: an earlier, legacy session reduced by the old model (as a past session's panel or catch-up left it).
 static bool earlierSession(Rig &rig)
@@ -379,22 +329,13 @@ static void testLive()
     check(QStringLiteral("b3 ...and leaves the session's files exactly as they were (every path, size and mtime)"),
           treeOf(folder) == live);
 
-    // e (part): the live hook's whole cost now — the session found, its status read — against one comparison.
-    QElapsedTimer clock;
-    clock.start();
-    int liveChecks = 0;
-    for (int i = 0; i < 1000; ++i)
-        if (Session *x = rig.athlete->sessionAt(folder); x && x->runningHere() && x->inProgress()) ++liveChecks;
-    const double liveUs = clock.nsecsElapsed() / 1000.0 / 1000.0;
-    check(QStringLiteral("e1 the session is being recorded here, so the hook returns before comparing (the hook itself: HOOK)"), liveChecks == 1000);
+    QElapsedTimer clock;   // e: one comparison's cost, printed below (a figure only; the hook it was paid by is gone)
 
     // END.
     const WriteResult ended = s->end();
     check(QStringLiteral("the session ends (EVT-09) and is not in progress"), ended.ok() && !s->inProgress());
     Rig::settled(d);
 
-    // The hook, as main.cpp installs it.
-    rig.installHook();
     const QString stampBefore = d->findingsStamp();
     SessionDiagnosticsModel old;   // the old engine as the catch-up ran it at End until 3.7-e (run P's reference)
     old.setSynchronous(true);
@@ -402,16 +343,19 @@ static void testLive()
     old.setReviewing(true);
     old.activateSession(folder);
     check(QStringLiteral("the old model graded every shot"), old.shotCount() == kShots);
+    // LIKE WITH LIKE: the new owner re-reads the baseline the old model just froze, as the app's comparison hook did
+    // before 3.10 deleted it (the hook compared nothing in the app since 3.7-e; CARRY R1-m9).
+    d->reloadClubBaseline(/*keepWhenAbsent=*/true);
     check(QStringLiteral("the new owner's diagnosis of the same shots lands"), pump([d] { return d->idle() && d->diagnosis(); }));
 
     // c: the baseline.
     const QJsonObject baseline = readJson(folder + QStringLiteral("/club_baseline.json"));
     const bool has7 = QJsonDocument(baseline).toJson().contains("7 IRON");
     check(QStringLiteral("c1 the old model froze club_baseline.json with the 7 iron's usual"), has7);
-    check(QStringLiteral("c2 the hook made the new owner read it (its findings stamp moved)"), d->findingsStamp() != stampBefore);
+    check(QStringLiteral("c2 the new owner read it (its findings stamp moved)"), d->findingsStamp() != stampBefore);
 
     // d: the comparison.
-    clock.restart();
+    clock.start();
     const QJsonObject oldForm = parallel::formOf(old, false), newForm = parallel::formOf(*d, false);
     const QStringList diffs = parallel::differences(oldForm, newForm);
     const double compareMs = clock.nsecsElapsed() / 1.0e6;
@@ -419,138 +363,10 @@ static void testLive()
     std::printf("    %lld difference(s)\n", (long long)diffs.size());
     check(QStringLiteral("d1 the old model and the new owner agree: no difference (none expected live)"), diffs.isEmpty());
 
-    // e: the timings (Mark's cabin PC is faster; the ratio is the point).
-    std::printf("    e: one comparison of this %d-shot session (both forms + every difference): %.2f ms — what HEAD's hook\n"
-                "       paid on the GUI thread after EVERY settle of the old model (two a shot); the live check now: %.2f us\n",
-                kShots, compareMs, liveUs);
+    // e: a figure only (refactor 3.10, review m9): what one comparison costs; it guards nothing since the hook went.
+    std::printf("    e: one comparison of this %d-shot session (both forms + every difference): %.2f ms\n", kShots, compareMs);
 
     old.activateSession(QString());
-    parallel::uninstall();
-}
-
-// HOOK (review F2): the REAL hook while the session is recorded here, beside a live panel's old model (authority
-// "live", not reviewing) that ingests every shot and regrades it on its late reading, as the panel and carousel do:
-// no comparison and no line while live; after End, the catch-up's model gives exactly one line, and it says 0.
-static void testHookWhileLive()
-{
-    std::printf("\nHOOK — the installed hook beside a live panel's old model\n");
-    Rig rig;
-    rig.installHook();
-    Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
-    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
-    const QString folder = s && s->entry() ? s->entry()->folder : QString();
-    if (!d || folder.isEmpty()) { check(QStringLiteral("HOOK a live session with its owner"), false); return; }
-    SessionDiagnosticsModel panel;   // the stage panel's model on the live session
-    panel.setSynchronous(true);
-    panel.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Live);
-    panel.activateSession(folder);
-    const qint64 t0 = QDateTime::currentMSecsSinceEpoch();
-    QList<Shot *> shots;
-    for (int i = 1; i <= kShots + 1; ++i) {
-        if (i <= kShots) {
-            Shot *shot = s->addShot();
-            if (!shot) break;
-            writeCaptureDoc(*rig.recordings, shot, withoutReading(shot->swingNumber(), t0 + i * 45000));
-            s->shotDocumentWritten(shot->ref());                 // EVT-01
-            panel.ingestShot(shot->swingNumber(), shot->folder());   // the panel's settle → the hook
-            shots << shot;
-        }
-        if (i >= 2) {
-            if (Shot *late = shots.value(i - 2); late && late->completeCapture(fixtureReading(late->swingNumber())).ok())
-                panel.regradeShot(late->folder());               // the carousel's regrade → the hook
-        }
-        Rig::settled(d);
-    }
-    check(QStringLiteral("HOOKa the panel's model took every shot"), panel.shotCount() == kShots);
-    check(QStringLiteral("HOOKb while the session is recorded here: no comparison, no line"),
-          parallel::comparisonsOf(folder) == 0 && parallel::linesOf(folder) == 0);
-
-    check(QStringLiteral("HOOKc End"), s->end().ok() && !s->inProgress());
-    Rig::settled(d);
-    SessionDiagnosticsModel sweep;
-    runCatchUpModel(sweep, folder);
-    check(QStringLiteral("HOOKd after End the catch-up's model is compared"),
-          pump([&] { return parallel::comparisonsOf(folder) >= 1 && d->idle(); }));
-    std::printf("    %d comparison(s), %d line(s); the line: %s\n", parallel::comparisonsOf(folder), parallel::linesOf(folder),
-                qPrintable(parallel::lastLineOf(folder)));
-    check(QStringLiteral("HOOKe exactly one line for the session, at End"), parallel::linesOf(folder) == 1);
-    check(QStringLiteral("HOOKf ...and it says 0 differences"), parallel::lastLineOf(folder).endsWith(QStringLiteral("0 differences")));
-    panel.activateSession(QString());
-    sweep.activateSession(QString());
-}
-
-// CRASH (review F1): a session another process left in progress (its session file says so; not started here) is
-// compared when a panel opens it, as on HEAD — the hook skips only a session being recorded HERE.
-static void testCrashLeftSession()
-{
-    std::printf("\nCRASH — a session a crash left in progress, opened for review, is compared\n");
-    QString copied;
-    QTemporaryDir carry;
-    {
-        Rig left;   // the process that crashed: its session started, two shots, never ended
-        Session *s = left.athlete->startSession(QStringLiteral("swing"), kPat);
-        const QString folder = s && s->entry() ? s->entry()->folder : QString();
-        const qint64 t0 = QDateTime::currentMSecsSinceEpoch();
-        for (int i = 1; i <= 2 && s; ++i) {
-            Shot *shot = s->addShot();
-            if (!shot) break;
-            writeCaptureDoc(*left.recordings, shot, withReading(shot->swingNumber(), t0 + i * 45000));
-            s->shotDocumentWritten(shot->ref());
-        }
-        Rig::settled(s ? s->diagnostics() : nullptr);
-        copied = carry.path() + QLatin1Char('/') + QFileInfo(folder).fileName();
-        check(QStringLiteral("CRASHa the session, its file saying in progress, copied as the crash left it"),
-              !folder.isEmpty() && copyTree(folder, copied));
-    }
-    Rig rig;
-    const QString folder = rig.athleteFolder() + QLatin1Char('/') + QFileInfo(copied).fileName();
-    check(QStringLiteral("CRASHb placed in this process's library"), copyTree(copied, folder));
-    rig.installHook();
-    Session *s = rig.athlete->sessionAt(folder);
-    check(QStringLiteral("CRASHc in progress by its file, but not being recorded here"), s && s->inProgress() && !s->runningHere());
-    if (!s) return;
-    SessionDiagnosticsModel panel;   // a review panel opening it
-    panel.setSynchronous(true);
-    panel.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Live);
-    panel.setReviewing(true);
-    panel.activateSession(folder);
-    check(QStringLiteral("CRASHd the hook compares it (HEAD did; the round-1 predicate never did)"),
-          pump([&] { return parallel::comparisonsOf(folder) >= 1; }));
-    std::printf("    the line: %s\n", qPrintable(parallel::lastLineOf(folder)));
-    panel.activateSession(QString());
-}
-
-// GONE (review F4): a session skipped while recorded here that goes away before it is compared says so in one line.
-static void testGoneUncompared()
-{
-    std::printf("\nGONE — a session recorded here that goes away uncompared says so\n");
-    Rig rig;
-    rig.installHook();
-    Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
-    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
-    const QString folder = s && s->entry() ? s->entry()->folder : QString();
-    Shot *shot = s ? s->addShot() : nullptr;
-    if (!shot || !d) { check(QStringLiteral("GONE a live session with a shot"), false); return; }
-    writeCaptureDoc(*rig.recordings, shot, withReading(shot->swingNumber(), QDateTime::currentMSecsSinceEpoch()));
-    s->shotDocumentWritten(shot->ref());
-    {
-        SessionDiagnosticsModel panel;
-        panel.setSynchronous(true);
-        panel.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Live);
-        panel.activateSession(folder);
-        panel.ingestShot(shot->swingNumber(), shot->folder());
-        Rig::settled(d);
-        check(QStringLiteral("GONEa skipped while recorded here: no line yet"), parallel::linesOf(folder) == 0);
-        panel.activateSession(QString());
-    }
-    rig.athlete.reset();   // its athlete goes (a switch, the app quitting): the session with it, never ended
-    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
-    const QString want = QFileInfo(folder).fileName() + QStringLiteral(" not compared: the session was not ended");
-    std::printf("    the line: %s\n", qPrintable(parallel::lastLineOf(folder)));
-    check(QStringLiteral("GONEb one line: \"<session> not compared: the session was not ended\""),
-          parallel::linesOf(folder) == 1 && parallel::lastLineOf(folder) == want);
-    parallel::uninstall();
-    check(QStringLiteral("GONEc ...said once (not again at uninstall)"), parallel::linesOf(folder) == 1);
 }
 
 // RDR: the firing reader with the parallel run's policy, against the default.
@@ -606,9 +422,6 @@ int main(int argc, char **argv)
 
     testReader();
     testLive();
-    testHookWhileLive();
-    testCrashLeftSession();
-    testGoneUncompared();
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;

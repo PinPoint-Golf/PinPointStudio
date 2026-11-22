@@ -69,22 +69,36 @@ inline QString scrubString(QString s, const PathTokens &tokens)
     return s;
 }
 
-// A value with the run taken out of it: run keys dropped, folders tokenised, every map a QVariantMap.
-inline QVariant scrub(const QVariant &v, const PathTokens &tokens)
+// The keys that say WHEN only inside the elements of one array, so they are dropped there and nowhere else (a bare
+// "at" elsewhere may be a real value): club_baseline.json's `rewrites[].at`, when a rewrite ran (FILE-SESS-04; CARRY
+// 3.6 review 2: like `frozenAt`, it differs between two runs of the same build).
+inline QStringList runKeysInElementsOf(const QString &arrayKey)
+{
+    if (arrayKey == QLatin1String("rewrites")) return { QStringLiteral("at") };
+    return {};
+}
+
+inline QVariant scrubMember(const QString &key, const QVariant &value, const PathTokens &tokens);
+
+// A value with the run taken out of it: run keys dropped, folders tokenised, every map a QVariantMap. `alsoDrop`: the
+// keys dropped from this map only (an element of an array runKeysInElementsOf names).
+inline QVariant scrub(const QVariant &v, const PathTokens &tokens, const QStringList &alsoDrop = {})
 {
     switch (v.typeId()) {
     case QMetaType::QVariantMap: {
         QVariantMap out;
         const QVariantMap m = v.toMap();
         for (auto it = m.constBegin(); it != m.constEnd(); ++it)
-            if (!kRunKeys().contains(it.key())) out.insert(scrubString(it.key(), tokens), scrub(it.value(), tokens));
+            if (!kRunKeys().contains(it.key()) && !alsoDrop.contains(it.key()))
+                out.insert(scrubString(it.key(), tokens), scrubMember(it.key(), it.value(), tokens));
         return out;
     }
     case QMetaType::QVariantHash: {
         QVariantMap out;
         const QVariantHash h = v.toHash();
         for (auto it = h.constBegin(); it != h.constEnd(); ++it)
-            if (!kRunKeys().contains(it.key())) out.insert(scrubString(it.key(), tokens), scrub(it.value(), tokens));
+            if (!kRunKeys().contains(it.key()) && !alsoDrop.contains(it.key()))
+                out.insert(scrubString(it.key(), tokens), scrubMember(it.key(), it.value(), tokens));
         return out;
     }
     case QMetaType::QVariantList: {
@@ -102,6 +116,16 @@ inline QVariant scrub(const QVariant &v, const PathTokens &tokens)
     default:
         return v;
     }
+}
+
+// A map member's value, scrubbed; an array runKeysInElementsOf names has those keys dropped from each element.
+inline QVariant scrubMember(const QString &key, const QVariant &value, const PathTokens &tokens)
+{
+    const QStringList drop = runKeysInElementsOf(key);
+    if (drop.isEmpty() || value.typeId() != QMetaType::QVariantList) return scrub(value, tokens);
+    QVariantList out;
+    for (const QVariant &e : value.toList()) out.append(scrub(e, tokens, drop));
+    return out;
 }
 
 inline void appendEscaped(QByteArray &out, const QString &s)

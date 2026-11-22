@@ -219,7 +219,7 @@ private slots:
         auto snap = std::make_shared<SessionSnapshot>();
         snap->sessionDir = m_snap->sessionDir;
         snap->revision = 7;
-        snap->wristPendingWhy = QStringLiteral("Diagnostics have not graded this swing's wrist checkpoints yet.");
+        snap->wristPendingWhy = QStringLiteral("Diagnostics have not graded the wrist checkpoints yet.");
         auto s1 = makeShot(1, -30);
         s1->diagnostics.wrist = pinpoint::analysis::WristProfile{};   // a row older than schema 16
         snap->shots = { s1 };
@@ -250,7 +250,7 @@ private slots:
         QVERIFY(!se.value(QStringLiteral("available")).toBool());                // no graded shot: no session boxes
         QVERIFY(se.value(QStringLiteral("pending")).toBool());
         QCOMPARE(se.value(QStringLiteral("head")).toMap().value(QStringLiteral("text")).toString(),
-                 QStringLiteral("Wrist grades aren't ready yet: 1 of 1 shot is waiting for their findings"));
+                 QStringLiteral("Wrist grades aren't ready yet: 1 of 1 shot is waiting for its findings"));
         QCOMPARE(se.value(QStringLiteral("standfirst")).toMap().value(QStringLiteral("text")).toString(), snap->wristPendingWhy);
         QVERIFY(se.value(QStringLiteral("keys")).toStringList().contains(QStringLiteral("hm.leadWristFlexExt")));
         const QVariantMap rep = wristSessionReportPayload(*snap, -1, QStringLiteral("swings"));
@@ -260,11 +260,11 @@ private slots:
         QVERIFY(!page.isEmpty());                                                 // the page is printed, not dropped
         QVERIFY(page.value(QStringLiteral("head")).toString().startsWith(QStringLiteral("Wrist grades aren't ready yet")));
         QCOMPARE(page.value(QStringLiteral("profile")).toMap().value(QStringLiteral("sub")).toString(), snap->wristPendingWhy);
-        QVERIFY(page.value(QStringLiteral("trust")).toStringList().contains(snap->wristPendingWhy));
+        QVERIFY(page.value(QStringLiteral("trust")).toStringList().isEmpty());   // the reason once, in the sub line (3.10, d3)
         QVERIFY(page.value(QStringLiteral("profile")).toMap().value(QStringLiteral("rows")).toList().isEmpty());
         // the caption's reason, lower-cased after its colon
         QCOMPARE(ts.value(QStringLiteral("profile")).toMap().value(QStringLiteral("caption")).toString(),
-                 QStringLiteral("No band is shaded: diagnostics have not graded this swing's wrist checkpoints yet."));
+                 QStringLiteral("No band is shaded: diagnostics have not graded the wrist checkpoints yet."));
     }
 
     // ── REVIEW-ii B2: a shot with wrist readings and no grade yet is counted apart from a shot with no reading ─────
@@ -273,7 +273,7 @@ private slots:
         auto snap = std::make_shared<SessionSnapshot>();
         snap->sessionDir = m_snap->sessionDir;
         snap->revision = 8;
-        snap->wristPendingWhy = QStringLiteral("Diagnostics have not graded this swing's wrist checkpoints yet.");
+        snap->wristPendingWhy = QStringLiteral("Diagnostics have not graded the wrist checkpoints yet.");
         auto graded = makeShot(1, -30), pending = makeShot(2, -28), none = makeShot(3, -60);
         pending->diagnostics.wrist = pinpoint::analysis::WristProfile{};
         none->metrics.clear();
@@ -285,7 +285,7 @@ private slots:
         p.setSnapshot(snap);
         const QStringList t = trustLines(p.session());
         QVERIFY2(t.contains(QStringLiteral("No wrist reading on 1 of 3 shots.")), qPrintable(t.join(QLatin1Char('\n'))));
-        QVERIFY2(t.contains(QStringLiteral("Not graded yet on 1 of 3 shots: diagnostics have not graded this swing's wrist checkpoints yet.")),
+        QVERIFY2(t.contains(QStringLiteral("Not graded yet on 1 of 3 shots: diagnostics have not graded the wrist checkpoints yet.")),
                  qPrintable(t.join(QLatin1Char('\n'))));
         const QStringList r = trustLines(wristSessionReportPayload(*snap, -1, QStringLiteral("swings")));
         QVERIFY2(r.contains(QStringLiteral("No wrist reading on 1 of 3 swings.")) && anyLine(r, QStringLiteral("Not graded yet on 1 of 3 swings")),

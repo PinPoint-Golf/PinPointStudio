@@ -34,7 +34,7 @@
 // (ClubBaselineEntry::earned, B-22), as the carry waterfall and carry today already do. The old model keeps its rule
 // until its cut-over (3.7). G-09 changes no figure (the two counting rules are named apart: session_results.h).
 //
-// What it does NOT do: the panel's view state (the cards' hysteretic order, the fault profile's bias, the explanation's
+// What it does NOT do: the panel's view state (the cards' hysteretic order, the explanation's
 // root set, the chains' rails, the coverage line), which are the thin adapter's (3.7); any golfer-facing sentence
 // (R-DER-9).
 //

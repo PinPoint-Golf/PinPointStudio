@@ -75,6 +75,16 @@ int main(int argc, char **argv)
     check(scrubbed.contains("\"<session>/swing_0001\"") && scrubbed.contains("\"<athlete>/tendencies.json\"")
               && scrubbed.contains("\"<athlete>/x\"") && !scrubbed.contains("/scratch/"),
           "run folders tokenised, the longest first, in lists too");
+    // 3b: a run key that is one only inside one array's elements (club_baseline.json's rewrites[].at; refactor 3.10)
+    const QVariantMap baseline{
+        { QStringLiteral("rewrites"), QVariantList{ QVariantMap{ { QStringLiteral("at"), QStringLiteral("2026-11-16T13:22:00Z") },
+                                                                 { QStringLiteral("read"), QStringLiteral("3 sessions") } } } },
+        { QStringLiteral("at"), 7 },
+    };
+    const QByteArray b = parity::toCanonicalJson(parity::scrub(baseline, tokens));
+    check(!b.contains("2026-11-16") && b.contains("\"read\": \"3 sessions\""),
+          "rewrites[].at is dropped from each rewrite, the rest of it kept");
+    check(b.contains("\"at\": 7"), "an \"at\" anywhere else is kept (the drop is scoped to rewrites[])");
 
     // 5
     check(parity::toCanonicalJson(v) == out, "the same value writes the same bytes");

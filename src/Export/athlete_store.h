@@ -117,8 +117,8 @@ public:
     // composition root's RecordingRepository and RecordingReader. Set once, before the athletes are used;
     // the athletes already made get them too.
     void setShotDoors(const ShotDoors &doors);
-    // The doors every held Athlete's sessions' diagnostics work through (refactor step 3.5-ii; the parallel run, D14:
-    // set by the composition root only with PINPOINT_DIAG_PARALLEL=1, `persist` false), as setShotDoors.
+    // The doors every held Athlete's sessions' diagnostics work through (refactor step 3.5-ii; since 3.7-a the composition
+    // root's appDiagnosticsDoors, always; the tools' and tests' in-memory parallel::doors), as setShotDoors.
     void setDiagnosticsDoors(const DiagnosticsDoors &doors);
     // A Session any held Athlete has loaded, by id (the receiver's lookup, §4.4 step 6); null when none has.
     Session *loadedSession(const SessionId &id) const;

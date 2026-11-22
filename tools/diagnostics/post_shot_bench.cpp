@@ -26,7 +26,8 @@
 //
 // The composition is main.cpp's: SessionStore, the swing door and reader, an Athlete with its shot doors, `app` as
 // the shot-command door, the carousel's ShotListModel, the diagnostics panel's SessionDiagnosticsModel (async, as QML
-// makes it) and, with --parallel 1, the parallel run's doors and hook exactly as main.cpp builds them. Each shot, in
+// makes it) and, with --path old --parallel 1, the parallel run's in-memory doors (its comparison hook was deleted in
+// refactor 3.10: the owner runs beside the old panel, uncompared). Each shot, in
 // the cabin's order (D22-STALL-NOTES §1):
 //
 //   join      ShotProcessor::onSwingDocWritten's work: EVT-01 (Session::shotDocumentWritten), the replay detail
@@ -37,7 +38,7 @@
 //   lm.club   the PREVIOUS shot's club data (Foresight Premier sends it with the next shot): the Shot's command, the
 //             controller's refresh, and the carousel's _swingRewritten (a second refresh; on --path old the panel's
 //             regradeShot, which since 3.7-c the carousel no longer asks of an adapter)
-//   (events)  pumped until the panel model and the new owner are idle, so each settle (rebuild, persist, hook) and
+//   (events)  pumped until the panel model and the new owner are idle, so each settle (rebuild, persist) and
 //             each kept result lands inside the shot's window, as live
 //
 // Not driven: QML (bindings, the ledger and carousel delegates), the Charts/Consistency SessionSeriesModel, the media
@@ -51,7 +52,7 @@
 // (appDiagnosticsDoors: the owner always attached, persisting, on the one pool) and the panel's THIN ADAPTER
 // (SessionDiagnosticsAdapters, a view bound), so a shot's window holds the owner's keep and diagnosis (`owner`), its
 // debounced write (`owner.write`, 1.5 s later, as the app) and the adapter's view work (`adapter`, with the panel's QML
-// read under it). --path old: HEAD before 3.7-a (the panel's own engine model; --parallel as before).
+// read under it). --path old: HEAD before 3.7-a (the panel's own engine model; --parallel 1 adds the in-memory owner).
 //
 // --cards N (12; 0 none; refactor 3.7-c): the carousel cards whose pip rows read the panel's model on each surfaceChanged
 // (PpShotCard: the swing's id by its folder, its pips, its fired count), timed as `qml.pips` inside the panel's emit.
@@ -218,7 +219,7 @@ int main(int argc, char **argv)
     p.addOption({ QStringLiteral("fixtures"), QStringLiteral("folder of swing.ppsw copies (any depth)"), QStringLiteral("dir") });
     p.addOption({ QStringLiteral("library"), QStringLiteral("an empty or new scratch library folder"), QStringLiteral("dir") });
     p.addOption({ QStringLiteral("shots"), QStringLiteral("shots in the one session (40)"), QStringLiteral("n"), QStringLiteral("40") });
-    p.addOption({ QStringLiteral("parallel"), QStringLiteral("1: the parallel run on, as on the cabin (1)"), QStringLiteral("0|1"), QStringLiteral("1") });
+    p.addOption({ QStringLiteral("parallel"), QStringLiteral("old path: 1 the new owner in memory beside the old panel (1)"), QStringLiteral("0|1"), QStringLiteral("1") });
     p.addOption({ QStringLiteral("csv"), QStringLiteral("per-shot step table"), QStringLiteral("file") });
     p.addOption({ QStringLiteral("path"), QStringLiteral("new: the app since 3.7-a (owner + adapter); old: the panel's own model (new)"),
                   QStringLiteral("new|old"), QStringLiteral("new") });
@@ -299,13 +300,6 @@ int main(int argc, char **argv)
     }
     App appObject([&athlete] { return athlete.get(); });
     SessionDiagnosticsModel::setShotCommands(&appObject);
-    if (parallel)
-        parallel::install([&appObject](const QString &f) { return appObject.sessionAt(f); },
-                          [&athlete](const QString &f) -> Session * {
-                              for (Session *s : athlete->loadedSessions())
-                                  if (const auto e = s->entry(); e && QDir::cleanPath(e->folder) == QDir::cleanPath(f)) return s;
-                              return nullptr;
-                          });
     ShotListModel shotModel;
     shotModel.setRecordingRepository(&recordings);
     shotModel.setShotCommands(&appObject);
@@ -515,7 +509,6 @@ int main(int argc, char **argv)
     }
 
     oldPanel.reset();
-    parallel::uninstall();
     SessionDiagnosticsModel::setShotCommands(nullptr);
     session->end();
     athlete.reset();

@@ -2953,8 +2953,8 @@ target_sources(PinPointStudio PRIVATE
     src/DomainModel/shot.h
     src/DomainModel/shot.cpp
     # The session's diagnostics owner (refactor step 3.5; Domain model), its firing reader (Adapters), the pure
-    # session reduction (Rules), the typed results (Rules) and the one pool (Platform, D15) — the app runs them only
-    # with PINPOINT_DIAG_PARALLEL=1 until the cut-over (3.7).
+    # session reduction (Rules), the typed results (Rules) and the one pool (Platform, D15) — the app runs them for every
+    # loaded session since the stage panel's cut-over (3.7-a).
     src/DomainModel/session_diagnostics.h
     src/DomainModel/session_diagnostics.cpp
     src/DomainModel/firing_reader.h
@@ -2968,15 +2968,15 @@ target_sources(PinPointStudio PRIVATE
     src/Core/work_pool.cpp
     # The athlete level's derived owner (refactor step 3.6; Domain model: the club baseline a session freezes, the
     # athlete work-ons, the distances, from the summaries) and the catch-up service (Application) — wired to Home at
-    # the catch-up's cut-over (3.7). The launch monitor board's annotations, read by every reduction (Rules).
+    # the catch-up's cut-over (3.7-e). The launch monitor board's annotations, read by every reduction (Rules).
     src/DomainModel/athlete_diagnostics.h
     src/DomainModel/athlete_diagnostics.cpp
     src/App/athlete_catch_up.h
     src/App/athlete_catch_up.cpp
     src/Coaching/board_annotations.h
-    # The parallel run (refactor 3.5-ii; D14: PINPOINT_DIAG_PARALLEL=1): the two engines' form and their difference.
-    # The app's (and regrade_ledger's) only — NOT a QML type, so not in PP_QML_SOURCES: the QML suites, which compile
-    # the module's C++ without the session diagnostics owner, need none of it.
+    # The parallel run's form P, its in-memory doors and the two forms' difference (refactor 3.5-ii; the app's switch,
+    # PINPOINT_DIAG_PARALLEL=1, went in 3.10): regrade_ledger's dump, the tools' and tests' — NOT a QML type, so not in
+    # PP_QML_SOURCES: the QML suites, which compile the module's C++ without the session diagnostics owner, need none of it.
     src/Gui/diagnostics/diag_parallel_run.h
     src/Gui/diagnostics/diag_parallel_run.cpp
     # The thin adapter's Session-facing half and the screens' way to it (refactor 3.7-a): NOT a QML type either, for

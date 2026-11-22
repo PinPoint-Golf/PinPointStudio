@@ -16,7 +16,14 @@ Design: build/refactor/step-G/BRIEF.md section 2.
      --athlete-files, also every plain file directly in each of those athlete folders (athlete.json,
      the athlete's caches), so a run on a migrated copy carries M1's athlete.json (refactor step 2.8b,
      parity run B); off by default, so a baseline run copies exactly what it always did.
-  2. regrade_ledger --tag parity --dump out/diagnostics.json <every session copy>
+  2. regrade_ledger --engine new --athletes-ini <a copy> --tag parity --dump out/diagnostics.json
+     <every session copy> (the session's own SessionDiagnostics, the engine the app runs, dumped in
+     the parallel run's form P; refactor 3.10, J-59). The ini is a COPY of the app's settings
+     (--athletes-ini, default ~/.config/PinPointStudio/PinPointStudio.ini, only read), put in
+     <label>/lib/ and deleted with the copies: the new engine needs it to tell the golfers apart when
+     it freezes each session's club baseline, and refuses to run without it (3.10 review B1).
+     Baselines taken before 3.10 ran the old engine and dumped form v1: they do not compare with a
+     run from 3.10 on. The first new-engine baseline is step3.10-baseline.
   3. athlete_dump --fresh --out out/athlete.json <every athlete folder of the copy>
      (that order: the catch-up trusts ledgers stamped current, so step 2 makes them this build's).
   4. Writes out/run_mac.json (commit, binaries, exit codes, seconds per step) and deletes the
@@ -150,17 +157,27 @@ def mac_half(a, pset, run_dir):
     meta["seconds"]["copy"] = round(time.time() - t0, 1)
     meta["seconds"]["copyPerSession"] = copy_s
 
+    # the athletes: a copy of the app's settings, with the session copies (deleted with them)
+    if not os.path.isfile(a.athletes_ini):
+        log("refusing: no athletes ini at %s (--athletes-ini): the new engine needs it" % a.athletes_ini)
+        shutil.rmtree(lib)
+        return 2
+    ini = os.path.join(lib, "athletes.ini")
+    shutil.copy2(a.athletes_ini, ini)
+    meta["athletesIni"] = a.athletes_ini
+    log("copied  the athletes ini (%s)" % a.athletes_ini)
+
     env = dict(os.environ)
     res = os.path.join(pc.REPO, "src", "Resources", "diagnostics")
     for kv in CORE:
         k, f = kv.split(":")
         env["PINPOINT_CORE_" + k] = os.path.join(res, f + ".json")
 
-    # 2. the session level
-    rc1, s1 = run_tool([bins["regrade_ledger"], "--tag", "parity", "--dump",
+    # 2. the session level: the new owner, as the app (refactor 3.10, J-59)
+    rc1, s1 = run_tool([bins["regrade_ledger"], "--engine", "new", "--athletes-ini", ini, "--tag", "parity", "--dump",
                         os.path.join(out, "diagnostics.json")] + sessions,
                        os.path.join(out, "logs", "regrade_ledger.log"), env, a.timeout)
-    log("regrade_ledger --dump   exit %d  %6.1f s" % (rc1, s1))
+    log("regrade_ledger --engine new --dump   exit %d  %6.1f s" % (rc1, s1))
     # 3. the athlete level
     rc2, s2 = run_tool([bins["athlete_dump"], "--fresh", "--out", os.path.join(out, "athlete.json")]
                        + athletes, os.path.join(out, "logs", "athlete_dump.log"), env, a.timeout)
@@ -366,6 +383,8 @@ def main():
     ap.add_argument("--bin-dir", default=os.path.join(pc.REPO, "build", "tests", "Analysis"),
                     help="mac: where regrade_ledger and athlete_dump are (default %(default)s)")
     ap.add_argument("--keep-copies", action="store_true", help="mac: keep <label>/lib after the dumps")
+    ap.add_argument("--athletes-ini", default=os.path.expanduser("~/.config/PinPointStudio/PinPointStudio.ini"),
+                    help="mac: the app's settings, COPIED for regrade_ledger --engine new (default %(default)s; only read)")
     ap.add_argument("--athlete-files", action="store_true",
                     help="mac: also copy the plain files of each athlete folder (athlete.json: M1's output)")
     ap.add_argument("--swinglab", help="analysis: the swinglab_run binary")

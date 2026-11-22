@@ -188,8 +188,9 @@ class INormProvider;
 // MADE BY C++ ONLY (refactor 3.7-e: "cut to a thin adapter created by C++"): QML names the type and never creates it
 // (QML_UNCREATABLE). What is left of the ENGINE half (detectShot, the reduction, persist, the predecessor freeze) serves
 // only (a) J-a3's folders no Session holds (a session another athlete id names, until migration M1: for Mark), made by
-// SessionDiagnosticsAdapters, and (b) regrade_ledger --engine=old, run P's parity reference until 3.10 — every screen,
-// the report, the tools and the catch-up have been cut over (3.7-a…e).
+// SessionDiagnosticsAdapters, and (b) regrade_ledger --engine=old (the tool's default), run P's parity reference — every
+// screen, the report, the tools and the catch-up have been cut over (3.7-a…e). The
+// engine half is deleted in step 5, after M1 (build/refactor/step-3/JUDGEMENT-CALLS.md J-59), with its tests.
 class SessionDiagnosticsModel : public QObject
 {
     Q_OBJECT
@@ -727,12 +728,6 @@ public:
     pinpoint::analysis::ShotOutcome composedOutcomeOf(int shotId) const;
     // The stage ratchet's latch (rebuild): the session ever established. A pure read, for the parallel run.
     bool reachedEstablished() const { return m_reachedEstablished; }
-    // THE PARALLEL RUN'S HOOK (refactor step 3.5-ii; BRIEF §4.9; D14: PINPOINT_DIAG_PARALLEL=1): called after each
-    // reduction this model settles and writes, so the new owner of the same session (SessionDiagnostics) can be
-    // compared with it and one line per session written to the app log. Process-wide, as setShotCommands; main.cpp
-    // sets it only with the switch on. It writes nothing (the parallel run is in memory only).
-    using ParallelHook = std::function<void(const SessionDiagnosticsModel &)>;
-    static void setParallelHook(ParallelHook hook);
     Q_INVOKABLE bool synchronous() const { return m_synchronous; }
 
     // ── Work-ons (docs/design/work_ons_design.md) ───────────────────────────────────

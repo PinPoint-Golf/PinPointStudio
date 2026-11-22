@@ -1641,8 +1641,8 @@ set_tests_properties(club_baseline_provider_test PROPERTIES
 # joins live detection to the session ledger. diagnostic_ledger_test proves the arithmetic and
 # live_measure_source_test proves the pack meets a real swing; neither can fail if the join is
 # wrong, and the join is where this panel's honesty lives — an idempotence hole counts one swing
-# twice, a cadence check in the ingest path withholds evidence, a fault profile that reaches a
-# reduction turns history into a finding. Every one of those produces a panel that looks entirely
+# twice, a cadence check in the ingest path withholds evidence, an athlete's history that reaches a
+# reduction turns history into a finding (the fault profile that once could went in 3.8-ii). Every one of those produces a panel that looks entirely
 # healthy while lying about a golfer, so the assertions here are contracts rather than values.
 #
 # The façade is a QObject with Q_PROPERTY/Q_INVOKABLE and QML_ELEMENT, so this target needs
@@ -1967,12 +1967,16 @@ get_target_property(_regrade_sources regrade_ledger SOURCES)
 list(REMOVE_DUPLICATES _regrade_sources)
 set_property(TARGET regrade_ledger PROPERTY SOURCES ${_regrade_sources})
 pp_apply_sanitizers(regrade_ledger)
-# Note: intentionally NOT added to add_test() — manual run only; it rewrites diagnostics.json.
+# Note: the tool itself is NOT added to add_test() — manual run only; it rewrites diagnostics.json. One test drives its
+# REFUSAL only, which reads and writes nothing (refactor 3.10, review B1): --engine new without --athletes-ini.
+add_test(NAME regrade_ledger_new_needs_ini_test
+         COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:regrade_ledger>
+                 -DWORK=${CMAKE_CURRENT_BINARY_DIR}/regrade_ledger_needs_ini_work
+                 -P ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger_needs_ini_check.cmake)
 
-# THE PARALLEL RUN AS THE APP WIRES IT, LIVE (refactor step 3.7-0, the D22 fix): the app's own doors
-# (pinpoint::parallel::doors, which main.cpp calls) over a live-shaped session on a temporary library — EVT-01 with no
-# sidecar, the late launch-monitor fold (EVT-22), End, then the old model as the catch-up runs it and the parallel
-# hook. The new owner keeps every shot with its readings and club, writes no file, and its form equals the old
+# THE PARALLEL RUN, LIVE (refactor step 3.7-0, the D22 fix): the parallel run's doors (pinpoint::parallel::doors; the
+# app's switch went in 3.10) over a live-shaped session on a temporary library — EVT-01 with no sidecar, the late
+# launch-monitor fold (EVT-22), End, then the old model as the catch-up ran it, compared form by form. The new owner keeps every shot with its readings and club, writes no file, and its form equals the old
 # model's. regrade_ledger's link line, less the tool.
 set(_diag_parallel_live_sources ${_regrade_sources})
 list(REMOVE_ITEM _diag_parallel_live_sources ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger.cpp)

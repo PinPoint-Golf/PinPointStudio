@@ -73,7 +73,6 @@ namespace {
 // The golfer's commands' door (refactor step 3.4b-i): main.cpp's `app`, process-wide because QML makes the panel's
 // model; none in the tools and tests. INTERIM: it goes with this model (step 5; information_model.md §11).
 pinpoint::ShotCommandDoor *g_shotCommands = nullptr;
-SessionDiagnosticsModel::ParallelHook g_parallelHook;   // refactor 3.5-ii: the parallel run (main.cpp; D14)
 }
 namespace PV = pinpoint::variability;
 
@@ -1113,11 +1112,6 @@ void SessionDiagnosticsModel::settleBatch()
         pinpoint::PostShotTrace::Scope t("ingested");   // the panel's after-shot pulse (QML)
         emit shotIngested(afterShot, !m_quiet);
     }
-    // THE PARALLEL RUN (refactor 3.5-ii; D14): the new owner of this session compared with this reduction, in memory.
-    if (g_parallelHook && !m_sessionDir.isEmpty()) {
-        pinpoint::PostShotTrace::Scope t("hook");
-        g_parallelHook(*this);
-    }
 }
 
 bool SessionDiagnosticsModel::waitForIdle(int msTimeout)
@@ -1491,11 +1485,7 @@ void SessionDiagnosticsModel::continueActivation()
     rebuild();
     // Rows the reconcile dropped are written now when nothing was queued behind them; with a
     // batch still landing, its own settle writes them.
-    const bool owed = m_owedRebuild;
     settleBatch();
-    // THE PARALLEL RUN (refactor 3.5-ii; D14): a session opened with nothing to regrade is compared once here (a batch
-    // that is owed is compared by settleBatch when it lands).
-    if (!owed && m_pending == 0 && g_parallelHook && !m_sessionDir.isEmpty()) g_parallelHook(*this);
 }
 
 // ── Intent ──────────────────────────────────────────────────────────────────────────────
@@ -3165,10 +3155,6 @@ void SessionDiagnosticsModel::setShotCommands(pinpoint::ShotCommandDoor *door)
     g_shotCommands = door;
 }
 
-void SessionDiagnosticsModel::setParallelHook(ParallelHook hook)
-{
-    g_parallelHook = std::move(hook);
-}
 
 void SessionDiagnosticsModel::writeSessionInput(InputField changed, const QString &screenId)
 {

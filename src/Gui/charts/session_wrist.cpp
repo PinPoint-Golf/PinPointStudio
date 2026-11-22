@@ -159,7 +159,7 @@ QVariantMap pendingOf(const ShotSeries &shot, int archetypeMode, const QString &
     return { { QStringLiteral("archetype"), style }, { QStringLiteral("archetypeName"), wristArchetypeName(style) },
              { QStringLiteral("archetypeMode"), mode }, { QStringLiteral("resemblance"), shot.wristResemblance },
              { QStringLiteral("pending"), true },
-             { QStringLiteral("pendingWhy"), why.isEmpty() ? QStringLiteral("Diagnostics have not graded this swing's wrist checkpoints yet.") : why },
+             { QStringLiteral("pendingWhy"), why.isEmpty() ? QStringLiteral("Diagnostics have not graded the wrist checkpoints yet.") : why },
              { QStringLiteral("checkpoints"), checkpointsOf(shot) }, { QStringLiteral("dofs"), dofs } };
 }
 

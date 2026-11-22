@@ -1,9 +1,9 @@
 # Pinpoint Diagnostics — Developer Guide
 
 **Audience**: developers working on the diagnostics model — characteristics, measures, norms, contexts, the causal graph, or the screens over them
-**Location**: `src/Diagnostics/` (the model), `src/Gui/diagnosticmodel/` (the `ModelBrowser` façade + the panel views), `src/Resources/diagnostics/` (the content)
+**Location**: `src/Diagnostics/` (the model: `engine/`, `measures/`, `norms/`, `packs/`), `src/DomainModel/` (the owners that run it: `Session` → `SessionDiagnostics`, `Athlete` → `AthleteDiagnostics`, `RuleData`), `src/App/athlete_catch_up.*` (the catch-up), `src/Core/work_pool.*` (the one pool), `src/Gui/diagnostics/` and `src/Gui/diagnosticmodel/` (the thin adapters, the `ModelBrowser` façade and the panel views), `src/Resources/diagnostics/` (the content)
 **Language**: C++17 value types and rules, Qt-only, no Qt-GUI below the façade layer
-**Status**: the CONTENT layer is production and shipped. The EXECUTION layer — running a diagnosis against a real shot — is written, tested, and **not wired**. Section 8 is the precise breakdown; read it before assuming any of this runs.
+**Status**: the CONTENT layer is production and shipped. The EXECUTION layer runs (refactor step 3's build items, closed by 3.10 on 22 Nov 2026; step 3.0 and the re-fire are still to do, 04 step 3's status): every shot of every loaded session is fired by `fireFindings()` and the session diagnosed by its own `SessionDiagnostics`, panel or no panel; the athlete level is `AthleteDiagnostics`, over the session summaries. **§6.0 says who runs what.** Section 8 is the breakdown of what is live and what is dormant; read it before assuming any one piece runs.
 
 ---
 
@@ -14,7 +14,7 @@
 3. [The data model](#3-the-data-model)
 4. [The two joins, and how resolution works](#4-the-two-joins-and-how-resolution-works)
 5. [Grading](#5-grading)
-6. [Detection and explanation](#6-detection-and-explanation)
+6. [Detection and explanation](#6-detection-and-explanation) — **§6.0, who runs it: the owners**
 7. [Providers, layering and persistence](#7-providers-layering-and-persistence)
 8. [**Live, dormant, planned — the full breakdown**](#8-live-dormant-planned--the-full-breakdown)
 9. [Validation and health](#9-validation-and-health)
@@ -67,8 +67,10 @@ The second rule: **a metric describes itself and does not judge itself.** `Metri
    norm.h                  Norm · GradePolicy · grade() · bandEdgesOf() · ragOf()
    context_tree.h          the tree, chain(), resolveContextBinding()
    metric_corridor.h       (metric, phase) -> measure -> norm -> four band edges
-   characteristic_engine.h detect() -> findings          ◄ NOT WIRED (§8)
-   relation_resolver.h     findings -> ranked causes     ◄ NOT WIRED (§8)
+   characteristic_engine.h detect() -> findings          ◄ live: fireFindings → detectForSwing (§6.0)
+   relation_resolver.h     findings -> ranked causes     ◄ live: the session adapter's explanation (§6.0)
+   fire_findings.h         a shot's findings + derived data, pure (§6.0)
+   session_reduction.h     a session's diagnosis from its shots' findings, pure (§6.0)
    measure_sample.h        read a measure off a stored swing (phase grid + sidecar)
    dag_layout.h            the causal graph, laid out in C++
    diagnostics_health.h    assembled-library checks
@@ -85,6 +87,26 @@ The second rule: **a metric describes itself and does not judge itself.** `Metri
         │
         ▼
  VIEWS   Settings → Diagnostic Model (navIdx 9) · Settings → Metrics · the wrist grid
+```
+
+And the EXECUTION side, which runs the model on the golfer's shots (§6.0):
+
+```
+ RuleData (src/DomainModel)       one immutable snapshot of packs, norms, flight table, grade policy
+        │ (EVT-12/13 on an edit: every loaded session re-fires)
+        ▼
+ Athlete ──owns──► Session ──owns──► Shot            (src/DomainModel; reached only through their owner)
+    │                 │
+    │                 └─► SessionDiagnostics          fires each shot (fireFindings) and diagnoses the session
+    │                       (reduceSession) as JOBS OF VALUES on its own serial lane of the one pool
+    │                       (src/Core/work_pool.h); keeps and writes diagnostics.json + work_ons.json
+    └─► AthleteDiagnostics                            tendencies, themes, marks, distances, club baseline —
+          from the session SUMMARIES only; its own lane     from work_ons.json only
+ AthleteCatchUp (src/App)                            sums up stale ended sessions, oldest first, one at a time
+        │
+        ▼
+ THIN ADAPTERS (src/Gui/diagnostics)                  SessionDiagnosticsModel per surface, WorkOnsController for
+                                                      Home: words and view state only; made by C++, never by QML
 ```
 
 **All logic stays in C++.** QML renders shapes and holds no rules: it does not walk the context tree, does not decide what "inherited" means, does not compute a band edge from a policy, and does not lay out the causal graph. Every one of those is a statement about correctness, and a statement about correctness written in a delegate is a statement nothing can test.
@@ -462,7 +484,103 @@ Watch or Action — **not** merely on leaving Ideal. Ideal is the middle of norm
 
 ## 6. Detection and explanation
 
-Both are written and tested. **Neither is called by the app** — see §8.
+Both run in the app. `detect()` runs inside `fireFindings()` for every shot (through `detectForSwing`,
+`measures/live_measure_source.cpp`); `explain()` runs in the session adapter's explanation
+(`SessionDiagnosticsModel::refreshExplanation`). §6.0 says who calls them, on which thread, and who keeps the result.
+
+### 6.0 Who runs it: the owners (refactor step 3)
+
+Since refactor step 3 the diagnostics have owners at three levels, and views only read them
+(`docs/developer/information_model.md` §10; CLS-SESSION-DIAG, CLS-ATHLETE-DIAG; DEC-100, DEC-135, DEC-190–192).
+Nothing here is a view's: no QML creates a diagnostics model, and a panel that is closed changes nothing that is
+judged (always fire, DEC-02).
+
+| Level | Owner (one writer) | What it holds | Its files |
+|---|---|---|---|
+| Shot | the `Shot` (`DomainModel/shot.*`), through its `Session` | its findings and derived data, fired by `fireFindings()`, kept by the session (DEC-135) | none of its own (FILE-SHOT-13 retired) |
+| Session | `SessionDiagnostics` (`DomainModel/session_diagnostics.*`), the `Session`'s child | each shot's findings and derived data, stamped; the usuals; the diagnosis (ledgers, stage, patterns, reasons, work-ons, per-club mixes, carry); the typed summary | `diagnostics.json` (FILE-SESS-03), `work_ons.json` (FILE-SESS-05) |
+| Athlete | `AthleteDiagnostics` (`DomainModel/athlete_diagnostics.*`), the `Athlete`'s child | the athlete work-ons, tendencies, themes and "what you do well", the consistency marks, distances, a session's club baseline before it is frozen | `tendencies.json`, `swing_themes*.json` (FILE-ATH-02/03), caches |
+| Rules | `RuleData` (`DomainModel/rule_data.*`, store `Export/rule_data_store.*`) | one immutable snapshot of the packs, norms, flight table, catalogue and grade policy | the user's pack and norm files (FILE-APP-01…05) |
+
+**The shot: `fireFindings()` and `deriveShotData()`** (`Diagnostics/engine/fire_findings.h`). Pure functions: values in,
+values out, no QObject, no file. `fireFindings()` assesses the shot's readings (its phase grid and a few document facts,
+read by the firing reader `Export/firing_reader_store.*`) against the pack and norms at the grade policy, for the
+athlete's norm cohort on the shot's date (DEC-171), with the club baseline: one row per condition, the sequence checks,
+the placed peaks, and since 3.8-ii the wrist checkpoint profile (DEC-123: `WristDiagnosticsModel` is gone). Layer 3,
+`deriveShotData()`, is what the shot came to: its outcome and three factors (strike, direction, flight) against the
+session's usuals. `FiringInputs` names every input; `firingStamp()` fingerprints them (R-STAMP-1), and
+`rule_version_golden_test` / `reduction_rule_golden_test` fail when a rule's output moves without its version (C-05).
+The analysis pipeline never fires findings.
+
+**The session: `SessionDiagnostics`.** One per loaded `Session`, made with it, so every loaded session is judged.
+- *The snapshot.* It holds one `FiringSnapshot` (`shared_ptr<const>`): the `RuleData` snapshot's pack and norms, the grade
+  policy (never a live read: D-12), the flight table, the frozen club baseline, the usuals, the cohort facts and the
+  golfer's input. A change builds a new one; a job keeps the one it was asked with.
+- *Asks and the lane.* Each shot's fire is an ask: it takes the next number of the one process-wide counter, and its job
+  (values only) runs on THIS SESSION INSTANCE'S serial lane of the one pool, at low priority, the live session's lane in
+  front (§4.4 of step 3's brief; D15, D24). The result is posted to the composition root's `WorkReceiver`, which resolves
+  the session by id and checks the instance, the shot and the ask before handing it over: a superseded, trashed or
+  released result is dropped and still settles its batch.
+- *What re-fires.* A new shot, a re-analysis (EVT-02), a club correction (EVT-04, both clubs' shots), an exclusion, a
+  late launch-monitor reading (EVT-22), an edit of the rule data (EVT-12/13). A usual that changes recomputes that
+  club's shots' DERIVED DATA only, never their findings (DEC-191). A failed read comes back unread: nothing kept, the
+  shot marked unread (a persisted key), re-asked at the next load.
+- *The diagnosis.* When a batch settles it posts `reduceSession()` (`Diagnostics/engine/session_reduction.h`, pure) to the
+  same lane; the latest reduction is kept. It reads each shot as the golfer annotated it on the launch-monitor board
+  (`Coaching/board_annotations.h`; Stage 0.5's follow-up). The session's status is read from the `Session`, its one writer.
+- *Its files.* It writes what it kept, debounced after a batch, at once on a release, and on quit, through
+  `SessionRepository`'s id-keyed diagnostics methods: `diagnostics.json` (each shot's findings, its derived data under
+  `derived`, the unread marks) and the summary `work_ons.json`. A live session's summary waits for its End. A newer
+  build's file is read and never written. A failed write is said (`writeFailed`; the composition root posts the notice,
+  DEC-126). At load it re-asks exactly the shots that have no result, are unread, or whose stamp is stale.
+- *The club baseline* is a recorded input (DEC-46): read if current, else frozen at first need from the athlete level's
+  computation over the predecessors' summaries (`AthleteDiagnostics::clubBaselineFor`, D7: DEC-172), through
+  `Session::freezeClubBaseline`; not frozen while it is not computable, and the live panel says so (J-49).
+- *Headless.* `DiagnosticsDoors::synchronous` runs the same jobs on the calling thread (R-HL-2): `regrade_ledger`, the
+  tools and the tests.
+
+**The athlete: `AthleteDiagnostics`.** It reads the session summaries only (R-DER-3, DEC-92), never a ledger or a
+document, and works out Home's figures on its own lane of the one pool (J-53): the athlete work-ons, the tendencies, the
+themes and "what you do well" (praised only when in range AND Repeatable or Grooved: the praise rule, 04 step 3 item 5),
+the consistency marks, the distances. Its one exception is the scoped views (a club scope, a shot filter: DEC-195), which
+take each session's judged rows from its own `SessionDiagnostics`. A session whose summary is missing or of an older rule
+is counted and shown with a warning, never silently left out (J-51).
+
+**The catch-up: `AthleteCatchUp`** (`src/App/athlete_catch_up.*`, an application service with no data of its own). For an
+athlete, every ended session whose summary is stale, oldest first, one at a time: it loads the `Session` (which runs its
+diagnostics), waits for them to settle, asks them to write, and releases the session (Q-18), then asks
+`AthleteDiagnostics` to persist. It pauses while a session is live and cancels on an athlete switch (D-15); its write
+blocks are reported, not only logged. `WorkOnsController`'s scan finds the stale sessions and asks for them.
+
+**The one pool** (`src/Core/work_pool.h`): a fixed set of workers running SERIAL LANES, one per owner instance, with one
+process-wide ask counter and one receiver on the GUI thread. A job holds values only and never writes a file or touches
+a model; the owner applies its result on its own thread. (Known interim: the firing reader may write the phase-grid and
+summary sidecar caches it rebuilds, under the swing's lock, never during an archive: CARRY C5, R1-m6.)
+
+**The thin adapters** (`src/Gui/diagnostics/`). What QML reads, words and view state only (D3, DEC-165; typed in step 5):
+- `SessionDiagnosticsModel` in adapter mode, one per `Session` and surface (`panel`, `cast`, `cards`, `report`, `tool`), the
+  `Session`'s child, reached by `diagnosticsAdapters.of(app.sessionAt(folder), surface)` (`SessionDiagnosticsAdapters`). It
+  mirrors the owner's diagnosis and adds the selection, cadence, the open detail, the explanation (`explain()`) and the same
+  golfer's other sessions (`historyOf`). `QML_UNCREATABLE`. It holds a use of its `Session` only while a view is bound.
+- `WorkOnsController` for Home: it reads `AthleteDiagnostics` (through the `AthleteLevel` interface) and words it.
+- `SessionReportModel` reads the session's `report` adapter and `AthleteDiagnostics::tendenciesAsOf`.
+- No golfer (the `unknown` folder): no `Session` holds the session, so it has no diagnostics; every place its findings
+  would appear says so (Mark's N1: show with a warning).
+
+**What still runs the OLD engine** (the engine half of `SessionDiagnosticsModel`: `detectShot`, its own reduction, stores,
+pools and baseline authorities). Three things, until step 5 after migration M1 (`build/refactor/step-3/JUDGEMENT-CALLS.md`
+J-59): a folder in the golfer's folder that no `Session` holds (J-a3: on the Mac, a session recorded on the cabin PC,
+whose file names the cabin's athlete id), which keeps today's engine and writes `diagnostics.json` in the old form;
+`regrade_ledger`'s default (`--engine old`), run P's reference and the corpus sweep; and the tests written against it. Do not add a caller.
+
+**The tools.** `regrade_ledger` regrades with the old engine by default (`--engine old`, run P's reference while it
+stays); `--engine new` re-judges each session through its own `SessionDiagnostics` and **needs `--athletes-ini`**, a copy of
+the app's settings, because it freezes each session's club baseline from its own athlete's earlier sessions: without it,
+every session of one folder (the corpus's `swings`) would count as one golfer, and one golfer's usuals would be frozen into
+another's sessions for good, so it refuses (3.10 review B1; `regrade_ledger_new_needs_ini_test`). Either engine `--dump`s
+the parallel run's form P (`Gui/diagnostics/diag_parallel_run.h`, ids and numbers only); `tools/parity/parity_baseline.py`
+runs `--engine new` with a copy of the app's settings for the session half, and `athlete_dump` for the athlete half.
+`diag_rank_diff` and `diag_uncertainty_report` read a session's owner and its `tool` adapter (`tools/diagnostics/owner_harness.h`).
 
 ### `detect()` — `characteristic_engine.h`
 
@@ -579,7 +697,7 @@ Both registries follow the same shape: an abstract provider, a resource-backed c
 | Shipped | `resource_pack_provider.cpp` (`:/diagnostics/core.json`) | `resource_norm_provider.cpp` |
 | User's own | `file_pack_provider.cpp` | `file_norm_provider.cpp` |
 | Layered | `merged_pack_provider.cpp` | `merged_norm_provider.cpp` |
-| Assembled by | `makeCharacteristicPackProvider()` | `makeNormProvider()` / `sharedNormProvider()` |
+| Assembled by | `RuleData`'s one snapshot (refactor 3.2); `makeCharacteristicPackProvider()` is a view of it | `RuleData`'s one snapshot; `sharedNormProvider()` a view of it |
 
 `PINPOINT_CORE_PACK` / `PINPOINT_CORE_NORMS` / `PINPOINT_CORE_CONTEXTS` override the paths, because the Qt resource exists only inside the app binary and without that seam no standalone test or offline tool could reach shipped content.
 
@@ -590,8 +708,8 @@ Both registries follow the same shape: an abstract provider, a resource-backed c
 - **A LocalUser pack REPLACES the whole incoming edge set of any condition it names as an effect.** So code that writes one edge must write the condition's whole incoming set — which is why `linkCause()` goes through `beginEdit`/`addCause`/`save` rather than appending.
 - **`save()` reloads the provider**, destroying the pack any `const Condition *` points into. Copy labels out first.
 - **`sharedNormProvider()` is cached process-wide, as an immutable snapshot.** Since refactor step 3.2 its source is `RuleData`'s snapshot, and every write of a user norm set is `RuleData::saveUserNorms`, which publishes the new snapshot and resets the slot itself (EVT-12). The pack and corridor editor (`ModelBrowser`) reads `RuleData`'s snapshot and writes through its commands, with no reset of its own (step 3.9); a code path that writes a norm file some other way (a test) calls `resetSharedNormProvider()` after it, or every later take returns the set from before the write until the next launch. A reader keeps the `shared_ptr<const INormProvider>` it took, so a reset never frees or changes a set somebody is reading: one pass grades against one norm set. Taking, first building and resetting are all safe from any thread (a lock guards the slot and the build runs under it). Each reset moves `sharedNormProviderGeneration()`; a holder that derives something from the norms compares the generation it built at (`sharedNormProvider(&gen)`) to know it is stale.
-  - **Who sees a saved corridor, and when.** Anything that takes the provider per pass sees it on its next pass: work-ons jobs, the report's pages, the relations and wrist rows, variability lookups. The process-wide derived envs follow the generation: `postureSharedEnv()` (a snapshot; the posture presenter's worker empties its caches when it changes), the wrist checkpoint profile (since step 3.8-ii part of each shot's findings, `Wrist/wrist_profile_assess.cpp` over the firing inputs' norms: a saved corridor reaches it through the re-fire EVT-12 starts, as it reaches the conditions), and the consistency env's norm half (`consistencyEnvFromPacks()`). The consistency, relations and traces presenters re-take the env (and their scale provider; the consistency and relations presenters also drop their caches) at their **next job** when the generation has moved. A save schedules no job, so a view already open keeps its old grades until its next job runs (a new snapshot, a pick, a setting change). Wrist payloads are graded when `SessionSeriesModel` reads a shot, so the wrist grid follows at the next session read. The two long-lived models follow the generation too, at their own safe point. `SessionDiagnosticsModel` (the session diagnostics panel's model, `WorkOnsController::model()` — the work-ons per-session model — and `SessionReportModel::model()` — the report's detection pages, the last two made once and kept) re-takes the set at **activation** (`followNormSave()`, after `m_pool.waitForDone()` and before `computeContentStamp()`), and each detection job carries the snapshot it was queued with, so a re-take never races a worker. The content stamp hashes the norm set, so it moves with the edit and every row graded under the old set reads stale in the reconcile and regrades: the existing stale-stamp path, no other. A session already open therefore regrades at its next activation, not on the save; with no edit the generation has not moved and nothing regrades. `LmSessionModel` (the LM board) grades on the GUI thread and re-takes at the top of its grade pass (`rebuild()`), so the board shows the old grades until its next rebuild (a shot, a pick, a setting change). Pack edits (`makeCharacteristicPackProvider()` copies) are a separate story, audit B-02.
-  - **The flat registries are NOT like this yet.** `sharedScreenSet()`, `sharedDrillSet()`, `sharedGateWordSet()` and `sharedReferenceSet()` still return a `const &` into storage their reset deletes, unsynchronised (audit B-03). The pack loader reads `sharedReferenceSet()`, so a first pack assembly on a worker can still race one elsewhere: `consistencyEnvFromPacks()` keeps (and asserts) a first-call-on-the-GUI-thread rule for that reason, and `postureSharedEnv()`'s first call from the posture worker is the open case.
+  - **Who sees a saved corridor, and when.** Anything that takes the provider per pass sees it on its next pass: work-ons jobs, the report's pages, the relations and wrist rows, variability lookups. The process-wide derived envs follow the generation: `postureSharedEnv()` (a snapshot; the posture presenter's worker empties its caches when it changes), the wrist checkpoint profile (since step 3.8-ii part of each shot's findings, `Wrist/wrist_profile_assess.cpp` over the firing inputs' norms: a saved corridor reaches it through the re-fire EVT-12 starts, as it reaches the conditions), and the consistency env's norm half (`consistencyEnvFromPacks()`). The consistency, relations and traces presenters re-take the env (and their scale provider; the consistency and relations presenters also drop their caches) at their **next job** when the generation has moved. A save schedules no job, so a view already open keeps its old grades until its next job runs (a new snapshot, a pick, a setting change). Wrist payloads are graded when `SessionSeriesModel` reads a shot, so the wrist grid follows at the next session read. Since refactor step 3 the findings follow an edit at once: `RuleData` publishes a new snapshot (EVT-12/13) and every loaded session's `SessionDiagnostics` re-fires its shots against it (each job keeps the snapshot it was asked with, so nothing races a worker); a session not loaded is re-judged when it is next loaded, because its findings stamp no longer matches. The thin adapters re-read their owner's diagnosis; they hold no norm set of their own. (Only the old engine, for J-a3's folders and `regrade_ledger --engine old`, still re-takes the set at activation: `followNormSave()`.) `LmSessionModel` (the LM board) grades on the GUI thread and re-takes at the top of its grade pass (`rebuild()`), so the board shows the old grades until its next rebuild (a shot, a pick, a setting change). Pack edits (`makeCharacteristicPackProvider()` copies) are a separate story, audit B-02.
+  - **The flat registries are snapshots too** (refactor 3.2; B-03, B-13). `sharedScreenSet()`, `sharedDrillSet()`, `sharedGateWordSet()` and `sharedReferenceSet()` read `RuleData::current()` (`DomainModel/rule_data.h`'s interim accessors, for the readers not yet handed the snapshot; steps 5 and 7 move them), and a reference is into a snapshot `RuleData` keeps for the process's life, so no reset deletes what a reader holds. The two Charts statics (`postureSharedEnv`, `ConsistencyPackFacts`) keep the pack they first took until relaunch (3.2's J9; step 5).
 
 ---
 
@@ -607,7 +725,12 @@ The section to read before assuming anything here runs. "Dormant" means written 
 | `norm.h`, `norm_pack.{h,cpp}` | grading, projection, every façade |
 | `context_tree.{h,cpp}` | norm resolution, the context list in the editors |
 | `metric_corridor.h` | `metric_catalog.cpp` → MetricDetail, PpBandRail, dashboard Motion/Verdict/Setup zones |
-| `NormBandProvider` (`Wrist/reference_bands.cpp`) | the wrist grid, live (`wrist_diagnostics_model`) and offline (`analysis_pipeline`) |
+| `NormBandProvider` (`Wrist/reference_bands.cpp`) | the wrist grid (the Charts wrist presenter) and offline (`analysis_pipeline`) |
+| **`fireFindings()`, `deriveShotData()`** (`engine/fire_findings`) | every shot of every loaded session, through `SessionDiagnostics` (§6.0) |
+| **`detect()`** (`engine/characteristic_engine`), **`NormMeasureSource`**, `LiveMeasureSource` (`IMeasureValueSource`'s real implementation) | `fireFindings()` through `detectForSwing` (`measures/live_measure_source.cpp`) |
+| **`reduceSession()`** (`engine/session_reduction`) | `SessionDiagnostics`' diagnosis, on its lane |
+| **`explain()`** (`engine/relation_resolver`) | the session adapter's explanation (`SessionDiagnosticsModel::refreshExplanation`) |
+| `SessionDiagnostics`, `AthleteDiagnostics`, `AthleteCatchUp`, `RuleData`, `WorkPool` | §6.0 |
 | `measure_sample.{h,cpp}` | the corridor editor's histogram, the corpus-share health scan |
 | `dag_layout.{h,cpp}` | `ModelGraph.qml` via `ModelBrowser::graph()` (which lays a condition out through `dag()`) |
 | `diagnostics_health.{h,cpp}` | `ModelBrowser` (the validation strip) |
@@ -619,11 +742,9 @@ The section to read before assuming anything here runs. "Dormant" means written 
 
 | What | State | What it needs |
 |---|---|---|
-| **`detect()`** (`characteristic_engine`) | compiled into the app; **grep confirms no caller outside the module and its test** | a `NormMeasureSource` over a real shot, the shot's resolved context, and the chosen policy |
-| **`relation_resolver`** (`resolveRelations`, ranked causes, screen recommendations) | compiled into the app; **its only `#include` is its own header** | findings from `detect()` |
-| **`NormMeasureSource`** | referenced only by its own header | an `IMeasureValueSource` implementation (below) |
-| **`IMeasureValueSource`** | declared; implemented **only by a test fake** | ⚠ **the real gap.** `measure_sample` provides `readPhaseGrid()` + `reduceOverGrid()` but no adapter to this interface. The corridor editor and the corpus scan both call `reduceOverGrid()` directly. Wiring the engine means writing that adapter |
-| **`ContextBinding::applicable` / `material`** | resolved by `resolveContextBinding()`, honoured by `detect()`, editable in the UI | a caller of `detect()`. Also: **no shipped condition carries a binding row** (0 of 146), so both are inert in content as well |
+| ~~**`detect()`**, **`NormMeasureSource`**, **`IMeasureValueSource`**~~ | **no longer dormant** — `fireFindings()` calls `detect()` over `LiveMeasureSource` + `NormMeasureSource` for every shot (§6.0, §8.1) | — |
+| ~~**`relation_resolver`**~~ | **no longer dormant** — `explain()` runs in the session adapter (§8.1) | — |
+| **`ContextBinding::applicable` / `material`** | resolved by `resolveContextBinding()`, honoured by `detect()`, editable in the UI | content: **no shipped condition carries a binding row** (0 of 146), so both are inert |
 | **`Condition::kind`** | authored on all 146, validated, marshalled, faceted, sorted, editable | a consumer with an opinion. Nothing in `detect()` or `explain()` branches on it; `outcomeReachOf()` is the one rule that reads it |
 | ~~**`Condition::prominence` / `prominenceWeight()`**~~ | **no longer dormant** — it weights `RankedCause::score` via `rankWeight()`, measured by `rank_shift_report` (§3) | a caller of `explain()` |
 | **`GradePolicy` reaching grading** | reaches three façades and the corpus scan | the engine (it takes a policy in its constructor already) |
@@ -632,7 +753,7 @@ The section to read before assuming anything here runs. "Dormant" means written 
 | **`Norm::basedOn`** | written at save, read by `overrideCoreChanged` | time. No existing user row has one, so the check is correctly silent until an override is saved |
 | ~~**`EdgeType::Corroborates` / `Excludes`**~~ | **no longer dormant** — 9 and 5 shipped, and `relation_resolver` consumes both | a caller of `explain()` |
 
-**Why the engine is not wired is not laziness.** Three of the four inputs exist. The undecided one is *where findings surface for a coach* — nothing in the product specifies it, and that is a design question before it is an implementation one. Wiring it without an answer would produce a correct diagnosis nobody sees.
+**The engine is wired** (the session diagnostics panel, the carousel's pips, the cast, the report and Home read it; §6.0). What stays dormant above is content or a consumer with no opinion yet, not the engine.
 
 ### 8.3 Content — the shipped numbers
 
@@ -1031,6 +1152,14 @@ All in the analyzer suite: `cmake -S src/Analysis/tests -B build/analyzer-tests`
 | `reference_sets_test` | the screen and drill registries: every reference resolves both ways, each validator fires AND stays silent, and no branded screening system reached the content |
 | `model_browser_test`, `inspector_refresh_test`, `corridor_plot_test`, `diagnostics_catalogue_integrity_test` | the façade: every rule it hides is asserted here or nowhere — the layering and undo across both registries, the row comparator's type handling, the roadmap ranking, free-text search, and that screens, drills and the glossary reach QML, which is the "complete on both sides and reaching nothing" trap |
 | `axis_direction_test` | every signal watches the tail its `highMeans` sentence says it does — see trap 1 |
+| `fire_findings_test`, `rule_version_golden_test` | `fireFindings()` over one swing with every input in the stamp; a rule's output that moves without its version bump fails (C-05) |
+| `reduction_rule_golden_test` | the session and athlete reductions (work-ons, tendencies, outcome scope, distances, club baseline, themes, praise, the board) pinned to their versions |
+| `session_diagnostics_test` | the session's owner: the re-fire (a club correction re-fires both clubs; a usual's change re-derives only), superseded and trashed results dropped and settled, a release mid-run (T1–T4), unread marks, the load's re-asks, the writes |
+| `athlete_diagnostics_test` | the athlete level: reads summaries only, stale on an event and recomputed when read, the praise rule, the catch-up (oldest first, one at a time, paused and cancelled, write blocks reported) |
+| `session_test`, `shot_commands_test` | the `Session` and `Shot` commands and their events, in command order |
+| `rule_data_test`, `work_pool_test` | one snapshot shared, an edit publishes a new one; a lane keeps order, two lanes do not block each other, the receiver drops what it cannot resolve |
+| `diag_stage_panel_test` | the thin adapters over the owner: the panel, cast, cards and report surfaces, no golfer, a folder no `Session` holds |
+| `diag_parallel_live_test` | the old engine against the new owner over a live-shaped session: form P equal (the old engine's reference until step 5) |
 
 The `norm_model_test` / `norm_editor_model_test` / `characteristic_editor_test` targets no longer exist; their assertions were ported onto `ModelBrowser` when the old façades were deleted (§10). One was *not* ported and is called out rather than quietly dropped: the old model returned the roadmap markdown as a string and the test checked its headings. The new panel exports to a file, and a test that wrote into the developer's Documents folder to read it back would be a test with a side effect on the product.
 
@@ -1044,7 +1173,7 @@ Each of these is a bug that shipped or nearly shipped. They are here because non
 
 1. **An inverted signal is invisible.** It fires confidently, on the wrong swings, with correct-sounding consequence text. `highMeans` + `axis_direction_test` exist solely to prevent it. Three signals shipped inverted.
 2. **A field can be complete on both sides and reach nothing.** Add to the marshaller in the same change, and grep it when you add to a value type.
-3. **A rule can exist, be tested, and never run.** `validateNormsAgainst` for nine stages; `detect()` today. Add the call site in the same change, or write down that you did not.
+3. **A rule can exist, be tested, and never run.** `validateNormsAgainst` for nine stages; `detect()` until the session diagnostics wired it. Add the call site in the same change, or write down that you did not.
 3b. **Detection and explanation are authored on different axes, so the gap between them is invisible.** Causal edges go in per condition GROUP; what can actually fire is decided per PRODUCER. Add a live producer and the condition over it joins the firing set without ever passing the group sweep that would have given it a cause — which is how ten of the sixteen detectable conditions came to have no explanation while every census looked healthy. **When you make something newly detectable, check what explains it in the same change.**
 3c. **A warning that fires on the design is worse than no warning.** `observableNoSignal` accused seven conditions of an omission that was the content telling the truth. Scope a check to the state it actually means, and gate it in BOTH directions — the negative case is what catches this, and four checks had neither.
 4. **A corridor keyed on the wrong phase disappears silently.** The reducer must name the phase the producer labels.
@@ -1066,31 +1195,33 @@ Each of these is a bug that shipped or nearly shipped. They are here because non
 ## 14. File map
 
 ```
-src/Diagnostics/
+src/Diagnostics/engine/
   characteristic.{h,cpp}        Measure · Signal · Condition · Edge, enums, label tables
-  characteristic_pack.{h,cpp}   the pack, the metric->measure join, validatePack()
-  norm.h                        Norm · GradePolicy · grade() · bandEdgesOf() · ragOf() · presets
-  norm_pack.{h,cpp}             load/save/validate a norm set, enum spellings
-  norm_provider.h               INormProvider, resolve(), shipped-vs-yours, the shared cache
-  context_tree.{h,cpp}          the tree, chain(), resolveContextBinding()
-  metric_corridor.h             (metric, phase) -> measure -> norm -> band edges
-  norm_measure_source.h         IMeasureValueSource + NormMeasureSource        ◄ dormant
-  characteristic_engine.{h,cpp} detect(), evaluate(), Finding                  ◄ dormant
-  relation_resolver.{h,cpp}     ranked causes + screen recommendations         ◄ dormant
-  measure_sample.{h,cpp}        phase grid + sidecar; read a measure off a swing
-  screen_pack.{h,cpp}           the physical screens a `screenRef` names
-  drill_pack.{h,cpp}            the drills a `drills` entry names
-  gate_words_pack.{h,cpp}       "what we could not check" in golfer words, per gate and subject
-  measure_facets.{h,cpp}        Composed-measure vocabulary + validity table
-  anatomy_vocabulary.{h,cpp}    body-part vocabulary shared with the overlays
+  characteristic_engine.{h,cpp} detect(), evaluate(), Finding
+  relation_resolver.{h,cpp}     explain(): ranked causes + screen recommendations
+  fire_findings.{h,cpp}         fireFindings(), deriveShotData(), FiringInputs, firingStamp()   (the shot)
+  session_reduction.{h,cpp}     reduceSession(): the session's diagnosis, pure               (the session)
+  pack_io.{h,cpp}               the pack's file shape, validatePack / loadPack
   dag_layout.{h,cpp}            the causal graph, laid out in C++
   diagnostics_health.{h,cpp}    assembled-library checks
-  {resource,file,merged}_{pack,norm}_provider.cpp   layering
-  pack_provider.h               ICharacteristicPackProvider, PackOrigin
+src/Diagnostics/packs/          characteristic_pack · screen_pack · drill_pack · gate_words_pack · reference_pack ·
+                                layered_set.h · {resource,file,merged,memory}_pack_provider · pack_provider.h
+src/Diagnostics/norms/          norm.h · norm_pack · norm_provider.h · context_tree · metric_corridor.h ·
+                                norm_measure_source.h · {resource,file,merged,memory}_norm_provider · corridor_plot
+src/Diagnostics/measures/       measure_sample (phase grid, a measure off a swing) · live_measure_source (detectForSwing) ·
+                                measure_facets · anatomy_vocabulary · club_baseline_provider.h · sigma_source.h
 
-src/Gui/diagnosticmodel/       ModelBrowser + DiagnosticModel.qml + the Model*.qml views
+src/DomainModel/                the owners: session · shot · session_diagnostics · athlete · athlete_diagnostics ·
+                                rule_data (+ rule_data_repository.h; the store Export/rule_data_store)
+src/App/athlete_catch_up.*      the catch-up (an application service)
+src/Core/work_pool.*            the one pool, its lanes, the ask counter, the receiver
+src/Export/firing_reader_store.* the firing reader (a shot's grid and summary from its Recording)
+src/Gui/diagnostics/            the thin adapters: session_diagnostics_model (+ its old engine until step 5),
+                                session_diagnostics_adapter (diagnosticsAdapters), work_ons_controller,
+                                diag_parallel_run (the parallel run's form P and in-memory doors)
+src/Gui/diagnosticmodel/        ModelBrowser + DiagnosticModel.qml + the Model*.qml views
 src/Resources/diagnostics/      core.json · norms.json · contexts.json · screens.json · drills.json · gate_words.json
-src/Analysis/reference_bands.{h,cpp}   NormBandProvider — Norm -> Band for the wrist grid
+src/Wrist/reference_bands.{h,cpp}      NormBandProvider — Norm -> Band for the wrist grid
 src/Gui/review/metric_catalog.cpp      corridors for the metric + dashboard surfaces
 ```
 

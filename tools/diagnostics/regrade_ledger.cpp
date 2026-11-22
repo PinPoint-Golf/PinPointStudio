@@ -20,11 +20,12 @@
 //      model reads them as the fallback and every write of the file carries them over unchanged, so the
 //      regrade keeps them without a seed (step 2.5 deleted the seed) — the lead's call J-33; migration M3
 //      moves them. The tool checks it: the older keys after must equal those before, or it WARNs and exits 1.
-//   4. SessionDiagnosticsModel::activateSession(dir), synchronously, with setRebuildCache(true): the file's rows
-//      and session block are ignored (the older golfer keys are still read), so every shot is re-ingested and
-//      the stage starts from Cold, and a fresh diagnostics.json is written after each one. If the model writes
-//      no ledger (no swing_* folders, or every write failed) the original is still in place, untouched, and
-//      the copy is removed.
+//   4. SessionDiagnosticsModel::activateSession(dir), synchronously, with setRebuildCache(true) — THE OLD ENGINE, the
+//      default (`--engine old`): the file's rows and session block are ignored (the older golfer keys are still read),
+//      so every shot is re-ingested and the stage starts from Cold, and a fresh diagnostics.json is written after each
+//      one. It writes no club_baseline.json and no work_ons.json. `--engine new` runs each session's own
+//      SessionDiagnostics instead (below). Either way, a session with no swing_* folders, or whose every write failed,
+//      keeps its original untouched.
 //   0. A SESSION IN PROGRESS IS REFUSED (D11: DEC-158; H-14): one whose session.json says inProgress — being
 //      recorded here or on the other machine — is SKIPPED untouched (exit 1), unless --allow-in-progress (for one
 //      a crash left open).
@@ -43,41 +44,33 @@
 //                                                                    DRILLS, REFERENCES likewise)
 //   ./build/tests/Analysis/regrade_ledger --tag pre-headsway-fix /mnt/swingdata/corpus/swings/*/
 //
-// NOT A TEST, and not registered with ctest — it writes into the swing library.
+// (The old engine, the default. With --engine new the same sweep also needs --athletes-ini: see below.)
 //
-// --dump <out.json> — THE PARITY DUMP (refactor Step G, build/refactor/step-G/BRIEF.md §2 item 2). After
-// the regrade above, one JSON file over every session named, written by parity_json.h's canonical writer
-// (keys sorted, numbers "%.17g", no timestamps, folders as "<session>"/"<athlete>") so two runs diff clean.
-// Read off the SAME model the regrade just ran — its ledger, its shotOutcome() and its shotFactorsOf(),
-// which are the panel's and the club mix's own code paths; nothing is re-derived here. Shape:
+// NOT A TEST, and not registered with ctest — it writes into the swing library. One ctest drives only its refusal,
+// which reads and writes nothing: regrade_ledger_new_needs_ini_test (--engine new without --athletes-ini; 3.10 review B1).
 //
-//   { "tool": "regrade_ledger --dump", "dumpVersion": 1,
-//     "content":  { PINPOINT_CORE_<X>: sha1 of the file graded against },
-//     "sessions": [ by athlete then session folder name:
-//       { "athlete", "session", "status": "regraded"|"graded"|"skipped", "skipReason",
-//         "stage", "shotCount", "patternCount", "patterns": [card ids, as the panel orders them],
-//         "coverageLine", "contentStamp", "shotMix": {...}, "clubMix": [...], "carryToday": [...],
-//         "conditions": [ by id: { "id", "drivingMeasureId", "tier", "assessable", "fired", "wilsonLower",
-//                                  "pPattern", "recurrence", "firingExcess", "medianExcess",
-//                                  "corridor": corridorOf(id) } ],
-//         "shots": [ by shotId: { "shotId", "club", "contextId", "dataWarning", "handedness", "swingLength",
-//                                 "rows": [ by conditionId: every ConditionRow field that grades — state,
-//                                           value, corridorLo/Hi, z, corridorShape, firingSide, faultAt,
-//                                           pFire, overruled, notAssessableReason, readings … ],
-//                                 "outcome": shotOutcome(shotId),
-//                                 "factors": { "strike"|"direction"|"flight": { read, values, faults,
-//                                                                               method, rawValue } } } ] } ] }
+// --dump <out.json> — THE PARITY DUMP (refactor Step G; since 3.5-ii the parallel run's form). After the regrade above,
+// one JSON file over every session named, written by parity_json.h's canonical writer (keys sorted, numbers "%.17g", no
+// timestamps, folders as "<session>"/"<athlete>") so two runs diff clean, in THE PARALLEL RUN'S FORM ("P",
+// dumpVersion 2: src/Gui/diagnostics/diag_parallel_run.h — ids and numbers both engines own; no words, no view state),
+// read off the engine that just ran. tools/parity/parity_diff.py compares two dumps (parity_baseline.py's diagnostics
+// half, which runs --engine new with an athletes ini since 3.10, and an `old` run against a `new` one: run P). Until
+// 3.10 a plain regrade dumped the old engine's own form v1 (every ConditionRow field, the composed outcome's words, the
+// card order, the coverage line); 3.10 deleted that form (J-59), so a v1 baseline does not compare with a dump from
+// this build.
 //
-// --engine old|new — RUN P, THE PARALLEL RUN OVER A SET (refactor step 3.5-ii; build/refactor/step-3/BRIEF.md §4.9,
-// §5.3). `new` regrades each session through the NEW owner of its diagnostics instead of the old model: an Athlete
-// over the session's folder (its record — the norm cohort's sex and date of birth, D6 — from --athletes-ini, a COPY of
-// the app's settings, matched by the athlete folder's or the session folder's name), its Session, and that Session's
-// SessionDiagnostics run headless (§4.4 step 11) with every shot fired again (DiagnosticsDoors::rebuild), which writes
-// diagnostics.json (with each shot's derived data) and work_ons.json (the typed summary, DEC-192) into the session.
-// `old` is the old model, as without the flag. With either, --dump writes the PARALLEL RUN'S FORM ("P", dumpVersion 2:
-// src/Gui/diagnostics/diag_parallel_run.h — ids and numbers both engines own; no words, no view state), so
-// tools/parity/parity_diff.py compares an `old` run with a `new` one. `new` also prints, per session, D7's check
-// (DEC-172): the club baseline from the earlier sessions' SUMMARIES against the one from their LEDGERS.
+// --engine old|new — old (the default): the old engine above, run P's reference while it stays (to step 5, after M1;
+// build/refactor/step-3/JUDGEMENT-CALLS.md J-59). new: each session's own SessionDiagnostics, headless, every shot
+// fired again (DiagnosticsDoors::rebuild), writing diagnostics.json (each shot's findings and derived data) and
+// work_ons.json (the typed summary, DEC-192), and freezing each session's club_baseline.json at first need from ITS
+// ATHLETE'S earlier sessions' summaries (DEC-46, DEC-172) — a recorded input, never rewritten once current. So `new`
+// NEEDS --athletes-ini, a COPY of the app's settings: it tells the golfers apart (and gives each one's sex and date of
+// birth for the norm cohort, D6), matched by the athlete folder's or the session folder's name. Without one, every
+// session of a folder such as corpus/swings would be one athlete, and one golfer's club usuals would be frozen into
+// another's sessions (3.10 review B1), so `new` without --athletes-ini REFUSES to run (exit 2). A session the ini names
+// no record for is still named after its folder. `new` also prints, per session, D7's check: the club baseline from the
+// earlier sessions' SUMMARIES against the one from their LEDGERS (refactor 3.5-ii; build/refactor/step-3/BRIEF.md §4.9,
+// §5.3).
 //
 // Dump mode needs every PINPOINT_CORE_* the diagnostics read (parity_json.h contentVariables(): the flight
 // table and the gate words too, which a plain regrade can do without), because a dump graded without the
@@ -150,160 +143,6 @@ QString golferSummary(const QJsonObject &g)
 
 using namespace pinpoint::analysis;
 
-QString tierText(Tier t)
-{
-    switch (t) {
-    case Tier::Pattern:  return QStringLiteral("pattern");
-    case Tier::Watching: return QStringLiteral("watching");
-    case Tier::Clean:    break;
-    }
-    return QStringLiteral("clean");
-}
-
-QVariantMap corridorMap(const SpreadCorridor &c)
-{
-    return QVariantMap{
-        { QStringLiteral("known"),    c.known },
-        { QStringLiteral("fromNorm"), c.fromNorm },
-        { QStringLiteral("shape"),    corridorShapeToString(c.shape) },
-        { QStringLiteral("lowOpen"),  c.lowOpen },
-        { QStringLiteral("highOpen"), c.highOpen },
-        { QStringLiteral("mu"),       c.mu },
-        { QStringLiteral("sigmaLo"),  c.sigmaLo },
-        { QStringLiteral("sigmaHi"),  c.sigmaHi },
-        { QStringLiteral("idealLo"),  c.idealLo },
-        { QStringLiteral("idealHi"),  c.idealHi },
-        { QStringLiteral("signalLo"), c.signalLo },
-        { QStringLiteral("signalHi"), c.signalHi },
-        { QStringLiteral("faultLo"),  c.faultLo },
-        { QStringLiteral("faultHi"),  c.faultHi },
-    };
-}
-
-QVariantMap rowMap(const ConditionRow &r)
-{
-    QVariantList readings;
-    for (const MeasureRow &m : r.readings)
-        readings.append(QVariantMap{
-            { QStringLiteral("measureId"),     m.measureId },
-            { QStringLiteral("signalId"),      m.signalId },
-            { QStringLiteral("value"),         m.value },
-            { QStringLiteral("corridorLo"),    m.corridorLo },
-            { QStringLiteral("corridorHi"),    m.corridorHi },
-            { QStringLiteral("z"),             m.z },
-            { QStringLiteral("corridorShape"), corridorShapeToString(m.corridorShape) },
-            { QStringLiteral("firingSide"),    firingSideToString(m.firingSide) },
-            { QStringLiteral("faultAt"),       m.faultAt },
-            { QStringLiteral("fired"),         m.fired },
-        });
-    return QVariantMap{
-        { QStringLiteral("conditionId"),         r.conditionId },
-        { QStringLiteral("state"),               shotStateToString(r.state) },
-        { QStringLiteral("confidence"),          double(r.confidence) },
-        { QStringLiteral("direction"),           r.direction },
-        { QStringLiteral("drivingMeasureId"),    r.drivingMeasureId },
-        { QStringLiteral("value"),               r.value },
-        { QStringLiteral("corridorLo"),          r.corridorLo },
-        { QStringLiteral("corridorHi"),          r.corridorHi },
-        { QStringLiteral("z"),                   r.z },
-        { QStringLiteral("corridorShape"),       corridorShapeToString(r.corridorShape) },
-        { QStringLiteral("firingSide"),          firingSideToString(r.firingSide) },
-        { QStringLiteral("faultAt"),             r.faultAt },
-        { QStringLiteral("allOf"),               r.allOf },
-        { QStringLiteral("contextId"),           r.contextId },
-        { QStringLiteral("contextInferred"),     r.contextInferred },
-        { QStringLiteral("material"),            r.material },
-        { QStringLiteral("sharp"),               r.sharp },
-        { QStringLiteral("notAssessableReason"), r.notAssessableReason },
-        { QStringLiteral("notJudgedGate"),       r.notJudgedGate },
-        { QStringLiteral("notLiveStatus"),       r.notLiveStatus },
-        { QStringLiteral("pFire"),               double(r.pFire) },
-        { QStringLiteral("grossRisk"),           double(r.grossRisk) },
-        { QStringLiteral("quantified"),          r.quantified },
-        { QStringLiteral("firedSignalCount"),    r.firedSignalCount },
-        { QStringLiteral("overruled"),           r.overruled },
-        { QStringLiteral("readings"),            readings },
-    };
-}
-
-QVariantMap factorMap(const ShotFactor &f)
-{
-    return QVariantMap{
-        { QStringLiteral("read"),     f.read },
-        { QStringLiteral("values"),   f.values },
-        { QStringLiteral("faults"),   f.faults },
-        { QStringLiteral("method"),   f.method },
-        { QStringLiteral("rawValue"), f.rawValue },
-    };
-}
-
-// One session as the model that just regraded it holds it.
-QVariantMap sessionDump(const SessionDiagnosticsModel &m)
-{
-    QVariantMap out;
-    out.insert(QStringLiteral("stage"),        m.stage());
-    out.insert(QStringLiteral("shotCount"),    m.shotCount());
-    out.insert(QStringLiteral("patternCount"), m.patternCount());
-    out.insert(QStringLiteral("coverageLine"), m.coverageLine());
-    out.insert(QStringLiteral("contentStamp"), m.contentStamp());
-    QStringList patterns;
-    for (const QVariant &v : m.cards()) {
-        const QVariantMap card = v.toMap();
-        patterns << card.value(QStringLiteral("id"), card.value(QStringLiteral("conditionId"))).toString();
-    }
-    out.insert(QStringLiteral("patterns"),   patterns);
-    out.insert(QStringLiteral("shotMix"),    m.shotMix());
-    out.insert(QStringLiteral("clubMix"),    m.clubMix());
-    out.insert(QStringLiteral("carryToday"), m.carryToday());
-
-    std::vector<const ConditionLedger *> ledgers;
-    for (const ConditionLedger &l : m.ledgerRows()) ledgers.push_back(&l);
-    std::sort(ledgers.begin(), ledgers.end(), [](const ConditionLedger *a, const ConditionLedger *b) { return a->id < b->id; });
-    QVariantList conditions;
-    for (const ConditionLedger *l : ledgers)
-        conditions.append(QVariantMap{
-            { QStringLiteral("id"),               l->id },
-            { QStringLiteral("drivingMeasureId"), l->drivingMeasureId },
-            { QStringLiteral("tier"),             tierText(l->tier) },
-            { QStringLiteral("assessable"),       l->assessable },
-            { QStringLiteral("fired"),            l->fired },
-            { QStringLiteral("wilsonLower"),      l->wilsonLower },
-            { QStringLiteral("pPattern"),         l->pPattern },
-            { QStringLiteral("recurrence"),       l->recurrence },
-            { QStringLiteral("firingExcess"),     l->firingExcess },
-            { QStringLiteral("medianExcess"),     l->medianExcess },
-            { QStringLiteral("corridor"),         corridorMap(m.corridorOf(l->id)) },
-        });
-    out.insert(QStringLiteral("conditions"), conditions);
-
-    std::vector<const ShotRecord *> shots;
-    for (const ShotRecord &s : m.shotRecords()) shots.push_back(&s);
-    std::stable_sort(shots.begin(), shots.end(), [](const ShotRecord *a, const ShotRecord *b) { return a->shotId < b->shotId; });
-    QVariantList shotList;
-    for (const ShotRecord *s : shots) {
-        std::vector<const ConditionRow *> rows;
-        for (const ConditionRow &r : s->rows) rows.push_back(&r);
-        std::stable_sort(rows.begin(), rows.end(), [](const ConditionRow *a, const ConditionRow *b) { return a->conditionId < b->conditionId; });
-        QVariantList rowList;
-        for (const ConditionRow *r : rows) rowList.append(rowMap(*r));
-        const ShotFactors f = m.shotFactorsOf(s->shotId);
-        shotList.append(QVariantMap{
-            { QStringLiteral("shotId"),      s->shotId },
-            { QStringLiteral("club"),        s->club },
-            { QStringLiteral("contextId"),   s->contextId },
-            { QStringLiteral("dataWarning"), s->dataWarning },
-            { QStringLiteral("handedness"),  s->handedness },
-            { QStringLiteral("swingLength"), s->swingLength },
-            { QStringLiteral("rows"),        rowList },
-            { QStringLiteral("outcome"),     m.shotOutcome(s->shotId) },
-            { QStringLiteral("factors"),     QVariantMap{ { shotFactorStrike(),    factorMap(f.strike) },
-                                                          { shotFactorDirection(), factorMap(f.direction) },
-                                                          { shotFactorFlight(),    factorMap(f.flight) } } },
-        });
-    }
-    out.insert(QStringLiteral("shots"), shotList);
-    return out;
-}
 
 // One session's entry, its folders tokenised.
 struct DumpEntry { QString athlete, session; QVariantMap body; };
@@ -458,7 +297,8 @@ QString baselineText(const QHash<QString, pinpoint::analysis::ClubBaselineEntry>
 void printUsage(FILE *to)
 {
     std::fprintf(to,
-        "usage: regrade_ledger [--tag <backup-suffix>] [--dump <out.json>] [--allow-in-progress] <session-dir>...\n"
+        "usage: regrade_ledger [--engine old|new] [--athletes-ini <f>] [--tag <backup-suffix>] [--dump <out.json>]\n"
+        "                     [--allow-in-progress] [--parallel-reader] <session-dir>...\n"
         "\n"
         "Re-reduces each session's diagnostics.json under the CURRENT pack (PINPOINT_CORE_* at the checkout's\n"
         "src/Resources/diagnostics/*.json). The old file is kept as diagnostics.json.<tag> (default pre-regrade;\n"
@@ -466,20 +306,21 @@ void printUsage(FILE *to)
         "is what you mean.\n"
         "\n"
         "  --tag <suffix>     the backup's suffix\n"
-        "  --dump <out.json>  after the regrade, write the PARITY DUMP: per session the ledger (every condition's\n"
-        "                     tier and corridor, every shot's rows by condition id), and per shot the composed\n"
-        "                     outcome and its three factors (strike, direction, flight), read off the model's own\n"
-        "                     code paths. Canonical JSON (keys sorted, %%.17g numbers, no timestamps, folders as\n"
-        "                     <session>/<athlete>), so two runs diff byte for byte. Needs every PINPOINT_CORE_*\n"
+        "  --dump <out.json>  after the regrade, write the PARITY DUMP in the parallel run's form (P, dumpVersion\n"
+        "                     2): per session the stage, patterns and ledger figures, per shot its rows, outcome\n"
+        "                     facts and three factors, read off the engine that ran. Canonical JSON (keys\n"
+        "                     sorted, %%.17g numbers, no timestamps, folders as <session>/<athlete>), so two\n"
+        "                     runs diff byte for byte. Needs every PINPOINT_CORE_*\n"
         "                     (PACK NORMS FLIGHT_NORMS CONTEXTS SCREENS DRILLS GATE_WORDS REFERENCES).\n"
         "  --allow-in-progress  also regrade a session whose session.json says it is in progress (one a crash\n"
         "                     left open); without it such a session is skipped untouched (D11)\n"
-        "  --engine old|new   RUN P (refactor 3.5-ii): `new` regrades through the new owner (SessionDiagnostics,\n"
-        "                     headless), writing diagnostics.json and work_ons.json; `old` the old model. With\n"
-        "                     either, --dump writes the parallel run's form (dumpVersion 2) for parity_diff.py\n"
-        "  --athletes-ini <f> (with --engine new) a COPY of the app's settings: each athlete's sex and date of\n"
-        "                     birth for the norm cohort (D6), matched by the athlete folder's or session's name\n"
-        "  --parallel-reader  (with --engine new; refactor 3.7-0) read the shots with the app's parallel-run reader\n"
+        "  --engine old|new   old (the default): the old engine, run P's reference, writing diagnostics.json\n"
+        "                     only; new: each session's own SessionDiagnostics, headless, writing\n"
+        "                     diagnostics.json, work_ons.json and a missing club_baseline.json\n"
+        "  --athletes-ini <f> (REQUIRED with --engine new) a COPY of the app's settings: tells the golfers\n"
+        "                     apart for each club baseline, and gives sex and date of birth for the norm\n"
+        "                     cohort (D6); matched by the athlete folder's or the session folder's name\n"
+        "  --parallel-reader  (new engine; refactor 3.7-0) read the shots with the app's parallel-run reader\n"
         "                     (parallel::doors): a missing or stale sidecar is parsed and NO sidecar is written\n"
         "  --help             this text\n");
 }
@@ -500,7 +341,7 @@ int main(int argc, char **argv)
     QString     dumpPath;
     QStringList dirs;
     bool        allowInProgress = false;
-    QString     engine;          // "", "old", "new" (run P)
+    QString     engine = QStringLiteral("old");   // the default; "new": each session's own SessionDiagnostics (run P)
     QString     athletesIni;
     bool        parallelReader = false;   // 3.7-0: the app's parallel-run reader (--parallel-reader)
     for (int i = 1; i < argc; ++i) {
@@ -520,11 +361,26 @@ int main(int argc, char **argv)
         }
         dirs << a;
     }
-    if (dirs.isEmpty() || (!engine.isEmpty() && engine != QLatin1String("old") && engine != QLatin1String("new"))) {
+    if (dirs.isEmpty() || (engine != QLatin1String("old") && engine != QLatin1String("new"))) {
         printUsage(stderr);
         return 2;
     }
     const bool newEngine = engine == QLatin1String("new");
+    // THE NEW ENGINE NEEDS THE ATHLETES (3.10 review B1): it freezes each session's club baseline from its athlete's
+    // earlier sessions, and without a record every session of one folder is one athlete — one golfer's usuals frozen
+    // into another's sessions, for good. Refused before any folder is read or written.
+    if (newEngine && athletesIni.isEmpty()) {
+        std::fprintf(stderr, "regrade_ledger: --engine new needs --athletes-ini <a copy of the app's settings>. The new\n"
+                             "engine freezes each session's club baseline from its athlete's earlier sessions, so it must\n"
+                             "tell the golfers apart; without the ini every session of one folder would count as one\n"
+                             "golfer. Nothing was read or written.\n");
+        return 2;
+    }
+    if (newEngine && !QFileInfo(athletesIni).isFile()) {
+        std::fprintf(stderr, "regrade_ledger: --athletes-ini %s is not a file. Nothing was read or written.\n",
+                     qPrintable(athletesIni));
+        return 2;
+    }
     std::unique_ptr<NewEngine> ng;
     if (newEngine) ng = std::make_unique<NewEngine>(athletesIni, parallelReader);
     std::vector<D7Session> d7;
@@ -705,7 +561,7 @@ int main(int argc, char **argv)
             }
         }
         if (!dumpPath.isEmpty()) {
-            QVariantMap body = engine.isEmpty() ? sessionDump(m) : pinpoint::parallel::formOf(m).toVariantMap();
+            QVariantMap body = pinpoint::parallel::formOf(m).toVariantMap();
             body.insert(QStringLiteral("ledgerWritten"), modelWrote);
             dump.push_back(dumpEntry(dir, hadLedger ? QStringLiteral("regraded") : QStringLiteral("graded"), body));
         }
@@ -745,9 +601,9 @@ int main(int argc, char **argv)
         for (const DumpEntry &e : dump) sessions.append(e.body);
         const QVariantMap root{
             { QStringLiteral("tool"),        QStringLiteral("regrade_ledger --dump") },
-            { QStringLiteral("dumpVersion"), engine.isEmpty() ? 1 : 2 },
-            { QStringLiteral("form"),        engine.isEmpty() ? QStringLiteral("v1") : QStringLiteral("P") },
-            { QStringLiteral("engine"),      engine.isEmpty() ? QStringLiteral("old") : engine },
+            { QStringLiteral("dumpVersion"), 2 },
+            { QStringLiteral("form"),        QStringLiteral("P") },
+            { QStringLiteral("engine"),      engine },
             { QStringLiteral("content"),     parity::contentHashes() },
             { QStringLiteral("sessions"),    sessions },
         };

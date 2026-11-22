@@ -1522,8 +1522,9 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     if (pendingOnly) {
         out.insert(QStringLiteral("head"), W::Sentence().append(QStringLiteral("Wrist grades aren't ready yet: "))
                                                .figure(QString::number(c.waiting)).append(QStringLiteral(" of "))
-                                               .figure(QString::number(c.n)).append(QStringLiteral(" %1 %2 waiting for their findings")
-                                               .arg(c.n == 1 ? c.one : c.many, c.waiting == 1 ? QStringLiteral("is") : QStringLiteral("are"))).toVariant());
+                                               .figure(QString::number(c.n)).append(QStringLiteral(" %1 %2 waiting for %3 findings")
+                                               .arg(c.n == 1 ? c.one : c.many, c.waiting == 1 ? QStringLiteral("is") : QStringLiteral("are"),
+                                                    c.waiting == 1 ? QStringLiteral("its") : QStringLiteral("their"))).toVariant());
         const QString why = c.snap ? c.snap->wristPendingWhy : QString();
         out.insert(QStringLiteral("standfirst"), W::Sentence().append(why).toVariant());
         out.insert(QStringLiteral("pendingWhy"), why);
