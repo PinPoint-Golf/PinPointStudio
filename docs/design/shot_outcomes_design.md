@@ -58,18 +58,18 @@ pushes on each of them:
    - club ← swing and swing ← root links: **"seen with"** plus the strength word;
    - co-movement (Matchups) stays co-movement.
    This **amends** the golfer-layer rule ("no claims about cause") for the physics link only.
-   **Decided (Mark, 8 Nov): "because" is fine.** The rule's comment in `HmSwingSummary.qml`,
+   **"because" is fine.**[^m8nov] The rule's comment in `HmSwingSummary.qml`,
    home_themes_design.md and the design system's Content section all say so.
 3. **Intent shapes attention, never evidence** (A6). An outcome condition still fires on an
    intended fade; intent only removes the shot from *miss* tallies and tendencies.
-4. **Distances are shown, everywhere.** **Decided (Mark, 8 Nov).** Measured distances (carry,
+4. **Distances are shown, everywhere.**[^m8nov] Measured distances (carry,
    total, offline) and their SDs show in every register and on Home, in **yards**. Modelled distances
    (yards lost per cause) show too, but always carry their provenance ("against your usual 162 ± 7 yd")
    so a modelled number is never mistaken for a measured one. This is an explicit exception to
    session_diagnostics_design.md principle 5 for distances only; tiers, coefficients and composite
    scores stay out of the UI as before.
 5. **"Short" is judged against the golfer's own usual carry with that club, and we never second-
-   guess intent.** **Decided (Mark, 8 Nov).** A shot that went short because club speed was down is
+   guess intent.**[^m8nov] A shot that went short because club speed was down is
    short; slower speed becomes one of the reasons, never an excuse. This is a deliberate, **isolated
    exception** to two standing rules — "per-athlete norms out of scope" and A7's "the fault profile
    never reaches firing" — for `carry_deficit` and `ball_speed_deficit` only, whose phrases already say
@@ -278,7 +278,7 @@ are often wrong and the book's window for the club would misjudge a mislabelled 
 
 #### A measured strike must agree with the flight
 
-A measured strike height becomes a Thin, Top or Fat only when the flight bears it out (Mark, 10 Nov 2026).
+A measured strike height becomes a Thin, Top or Fat only when the flight bears it out[^m10nov-m].
 The height comes from the club's marker stickers (Foresight's `vertimpact`), and a sticker placed a few
 millimetres off shifts every reading of the session. On 4 Aug 2026 every 7-iron strike read low (−2.6 to
 −24 mm, median about −12) on a normal flight (launch 17–22°, smash 1.31–1.39, carry 148–167 yd), so 10 of 18
@@ -293,8 +293,8 @@ The usual is the same one as above: the club's median in this session over at le
 
 - No usual to compare with (fewer than 4 full shots of the club this session, a part swing, or the reading
   missing): the measured label stands as before. No evidence against it.
-- **Checked once, on the ledger rows** (Mark, 10 Nov 2026: keep every shot, but a bad reading is not a bad
-  shot). `checkStrikesAgainstFlight` in `strike_from_flight.h` runs over the whole session each time its rows
+- **Checked once, on the ledger rows** (keep every shot, but a bad reading is not a bad
+  shot)[^m10nov-m]. `checkStrikesAgainstFlight` in `strike_from_flight.h` runs over the whole session each time its rows
   change: a shot arrives, is regraded or leaves, or diagnostics.json is read. A fired thin, top or chunk the
   flight contradicts becomes not assessable, "the strike height disagrees with the ball flight", with its
   value and evidence kept and the row flagged `overruled` (ledger schema 14). A fired sky row stands only
@@ -320,8 +320,8 @@ The usual is the same one as above: the club's median in this session over at le
 
 ### 3.8 Three factors per shot: strike, direction and flight
 
-*Decided with Mark, 10 November 2026.* "Tendencies have 3 factors: strike, direction and flight. It's not one
-or the other, it is all 3." A shot is no longer summed up as one miss chosen across families; it has a value
+"Tendencies have 3 factors: strike, direction and flight. It's not one
+or the other, it is all 3."[^m10nov] A shot is no longer summed up as one miss chosen across families; it has a value
 for each factor, and none ranks above another (`shot_factors.h`).
 
 | Factor | Values | Faults | Read when |
@@ -615,16 +615,16 @@ retention mechanism to wire "keep the clearest shot" into.
 
 ### 6.5 The carousel's shot summary (refactor 4-b)
 
-Mark, 14 Nov 2026: "when a shot has just been selected or analysis has been completed for it we should show a summary
+"when a shot has just been selected or analysis has been completed for it we should show a summary
 of the shot on the carousel (next to the other shot details) it will only be there if LM data is available and show the
-3 tendencies- strike, direction and flight and carry." The look was agreed on 22 Nov
-(`build/refactor/step-4/DESIGN-b.md`, the sheet beside it).
+3 tendencies- strike, direction and flight and carry."[^m14nov] The look is in
+`build/refactor/step-4/DESIGN-b.md` and the sheet beside it[^look22nov].
 
 - **Where.** The carousel's top band (`PpShotActionBar`), right of the selected shot's identity
   (`SWING #N · club · time · ★ · score`), after a hairline: `STRIKE Thin   DIRECTION Straight   FLIGHT Low   CARRY 141.8 yd`.
-  The band is not part of the strip, so a minimised carousel keeps it (Mark's condition, 22 Nov).
-- **Which shot** (`app.state.outcome`, R-APP-7; Mark, 22 Nov 2026, DEC-196: with auto-replay off "we want to see
-  the outcome"):
+  The band is not part of the strip, so a minimised carousel keeps it[^m22nov-cond].
+- **Which shot** (`app.state.outcome`, R-APP-7; with auto-replay off "we want to see
+  the outcome"[^dec196]):
   - the selection's, on every pick, move or clear;
   - a new shot when it lands in the session on screen (EVT-01), even over an older selection;
   - a re-analysis refreshes the summary in place and never moves it; a new session on screen clears it.
@@ -638,9 +638,9 @@ of the shot on the carousel (next to the other shot details) it will only be the
   miss shows once, never with its halves ("Push slice"), and several values are joined by " + " ("Toe + Weak strike").
   Every word carries its tone, as in the tendency flow: a fault `colorWarn`, a value to watch (Low) the watch tone, a
   value on the good path `colorGood`.
-- **Not read, or not judged yet: "-"** in `colorText3`, never a blank or a 0 (DEC-96). Carry is the launch monitor's,
+- **Not read, or not judged yet: "-"** in `colorText3`, never a blank or a 0[^dec96]. Carry is the launch monitor's,
   in yards to one decimal, as the owner's findings hold it. It therefore lands with the factors, not before them
-  (4-b decision: no new field in the summary file).
+  (no new field in the summary file)[^d4b].
 - **The model.** `app.state.shotOutcome`, a typed value (`ShotOutcomeSummary`, `src/App/app_state.h`) worked out on
   each read from `app.state.outcome`'s shot and its own diagnostics (`ShotDiagnostics` over its
   Session's `SessionDiagnostics`). The words and tone kinds are `src/Coaching/shot_factor_words.h`'s; QML maps a kind
@@ -660,7 +660,7 @@ of the shot on the carousel (next to the other shot details) it will only be the
 - **Tendencies** (rule 13): one row per club and swing length, with a Strike, a Direction and a Flight column
   in place of Usual miss and Your shots. Each factor's usual is its most common fault when that fault earns
   (the §7.1 rules, per factor); otherwise its most common value (Solid, Straight, Fade, Mid…), said plainly and
-  never in a fault tone. Building is per factor. *Decided with Mark, 10 November 2026:*
+  never in a fault tone. Building is per factor.[^m10nov]
   - **Faults weighted, values counted.** Which fault is usual, and whether it earns, is still its
     recency-weighted share: a fault is a habit forming or fading. A value is only what the shots were, so the
     usual value is the one on the most shots by plain count, ties in the value table's order; its share and
@@ -676,7 +676,7 @@ of the shot on the carousel (next to the other shot details) it will only be the
   belong to a factor's fault and show in the open row, one block per factor, each with its own shot bar. The
   row's Work-on column says the status of its factors' work-ons. The report's Your tendencies page has the same
   three columns.
-  - **Together (rule 15; Mark, 10 Nov 2026).** Each factor's usual is chosen on its own, so two usual faults
+  - **Together (rule 15).**[^m10nov-m] Each factor's usual is chosen on its own, so two usual faults
     side by side can read as one shot shape when they were different shots (Mark's 4 hybrid read Toe · Slice;
     its toe strikes went left and its slices came off the middle). The open row ends with a Together block,
     never on the row itself (`TendencyTogether`): for each pair of factors whose usuals are both faults, how
@@ -685,15 +685,14 @@ of the shot on the carousel (next to the other shot details) it will only be the
     were struck Solid 2 · Toe 1."); then the three commonest combinations over the shots read on every factor
     the row reads (two at least), each shot under the value its bars count it under, and the rest counted.
     Counts, not percentages: the numbers are small and the golfer checks them against shots they remember.
-- **Fault and watch colours on the row** (Mark, 10 Nov 2026). A factor whose usual is a fault is drawn in the
+- **Fault and watch colours on the row**[^m10nov-m]. A factor whose usual is a fault is drawn in the
   fault tone (red, `colorWarn`), building or earned. Low flight is a value to watch: "not great but not a
   fault, if we were using RAG ratings it would be Amber", so its usual is drawn in the watch tone (amber,
   `toneColor("watch")`); Mid and High are acceptable and plain. The value table says which value is watched
   (`ShotFactorValueInfo::watch`); a watched value is still a value, never earned, counted or filtered as a fault.
 - **Shot bars** draw a non-fault value (Fade, Draw, Low, Mid, High) in the cool "neither praise nor fault"
-  tone (`Theme.bandTone("value")`, approved by Mark 10 Nov); Solid and Straight are good; the commonest fault
-  is the habit tone, other faults the occasional tone. *Superseded 10 Nov 2026 (Mark: "match the row … we
-  need to be consistent"):* on every bar (Tendencies' open row, the session panel, the report's Your
+  tone (`Theme.bandTone("value")`)[^m10nov-tone]; Solid and Straight are good; the commonest fault
+  is the habit tone, other faults the occasional tone. *Superseded:*[^m10nov-match] on every bar (Tendencies' open row, the session panel, the report's Your
   tendencies page) every fault is the habit tone, red, the commonest or not, and Low is the watch tone, amber
   (its own part kind, `watch`, tendency rule 16); Fade, Draw, Mid and High keep the cool tone. The report's
   cells follow the row's: a fault red, building or earned, and Low amber.
@@ -708,7 +707,7 @@ of the shot on the carousel (next to the other shot details) it will only be the
 ### 7.1 Tendencies — data (`AthleteDiagnostics`; `WorkOnsController` until refactor 3.7-f)
 
 Since refactor 3.7-f the reduction below runs in `AthleteDiagnostics` over each session summary's per-shot tendency facts
-(DEC-192 "b", made by the session's own reduction by the same rule), and it writes `<athlete>/tendencies.json`; the
+(made by the session's own reduction by the same rule)[^dec192b], and it writes `<athlete>/tendencies.json`; the
 report's Tendencies page reads it as of its session (`AthleteDiagnostics::tendenciesAsOf`). The ledger path described
 here is the rule those facts are made by.
 
@@ -732,7 +731,7 @@ shot is re-composed from its row (`composeShotOutcome`, the panel's composer).
   every miss a shot shows counts, the halves of a combined one among them (a push slice is a slice and a push
   too, so a thin pull counts as a pull as much as a thin). Ties: the most shots, then the id; on an exact tie a
   combined miss stands over its own halves. No miss family ranks above another in anything that counts or
-  chooses (Mark, 10 Nov 2026): the strike-first order of a shot's labels is only the order its words are said
+  chooses[^m10nov-m]: the strike-first order of a shot's labels is only the order its words are said
   in. An "often with …" suffix names the commonest other miss, any family, on ≥ 50 % of the shots showing the
   usual miss ("Fat, often with a slice"); the usual miss seen another way (its halves, or the combined miss it
   is half of) is not another miss.
@@ -898,7 +897,7 @@ fewShotsText, gapsText, shortBelowText }` in bag order, strings final.
 
 ### 7.6 Outcome filter — the swing faults behind a miss
 
-*Decided with Mark, 10 November 2026.* A second filter sits under Home's club filter: **All shots · Good
+A second filter sits under Home's club filter[^m10nov]: **All shots · Good
 shots · each miss the golfer has had** within the club choice, most common first (`HmOutcomeScopeFilter`,
 `workOns.outcomeScope`, `src/Coaching/outcome_scope.h`). It answers "what am I doing on the shots that
 slice?". Coaching, Your swing and Matchups use it. Tendencies does not show it and ignores it, because
@@ -1085,3 +1084,17 @@ DM Mono are not installed. Dashed boxes mark existing, unchanged parts of a surf
 
 Hovering a box reads out its average ± spread ("188 ± 20 yd"), over the box in the table and beside it in the session chart. There is no median or quartile to show: the box is the average and one standard deviation either side.
 
+## Notes
+
+[^m8nov]: Decided by Mark, 8 Nov 2026.
+[^m10nov]: Decided with Mark, 10 Nov 2026.
+[^m10nov-m]: Mark, 10 Nov 2026.
+[^m14nov]: Mark, 14 Nov 2026.
+[^look22nov]: The look was agreed on 22 Nov 2026.
+[^m22nov-cond]: Mark's condition, 22 Nov 2026.
+[^dec196]: Mark, 22 Nov 2026; DEC-196.
+[^dec96]: DEC-96.
+[^d4b]: Refactor 4-b decision.
+[^m10nov-tone]: Approved by Mark, 10 Nov 2026.
+[^m10nov-match]: Superseded 10 Nov 2026 (Mark: "match the row … we need to be consistent").
+[^dec192b]: DEC-192 "b".

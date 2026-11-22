@@ -78,7 +78,7 @@
 
 ## 0. The context map: three contexts and the contracts between them
 
-PinPoint is three contexts, joined by two contracts (Mark and the lead, draft 2 review). This audit and this design
+PinPoint is three contexts, joined by two contracts[^draft2]. This audit and this design
 cover **Analysis** and **Domain + Application** in full. **Acquisition** is reviewed in the platform refactor (capture), which follows this one. Its
 internals are out of scope here, but its contract with Analysis, the Recording, is decided now.
 
@@ -96,7 +96,7 @@ internals are out of scope here, but its contract with Analysis, the Recording, 
                                                                                           └──────────────────────────────┘
 ```
 
-**Contexts and rings are different cuts** (the lead's clarification). A context describes how data flows; a ring
+**Contexts and rings are different cuts**[^lead-clar]. A context describes how data flows; a ring
 (§2) describes which code may depend on which. So the grading and reduction *rules* belong to the Analysis context and
 live in the Rules ring, while the *owners* that run them and keep their results (`SessionDiagnostics`,
 `AthleteDiagnostics`) live in the Domain model ring. Acquisition and Analysis own nothing persistent: their products are owned and stored by the domain.
@@ -115,10 +115,10 @@ A Recording is everything Analysis is allowed to know about a captured swing, an
   only source of athlete facts for analysis. Step 1 records it as one schema-tagged `analysisContext` block; the cohort it
   records is the club set, not the norm cohort (decisions 24 and 30).
 
-A shot's swing file is written **once by capture** (the Recording), **then only by its `Session`** (Mark, 14 Nov). (→ reference P10, DEC-86: then only by the `Shot`, through the repository.)
+A shot's swing file is written **once by capture** (the Recording), **then only by its `Session`**[^m14nov]. (→ reference P10[^dec86]: then only by the `Shot`, through the repository.)
 That is how P3 holds for the Recording.
 
-**A corrected club (Mark, 14 Nov):** re-analysis uses the **effective club**, its length and norms, because it is what
+**A corrected club:**[^m14nov] re-analysis uses the **effective club**, its length and norms, because it is what
 was really hit. The one job builder applies the golfer's correction to make the **effective context**; Analysis itself
 never reads the shot's `review`. The captured club stays in the Recording for provenance, and a correction is a
 `ShotAnnotated` event that marks the shot's analysis stale. Parity is: **same Recording + same effective context
@@ -162,13 +162,13 @@ because nothing owns the rig. Studio/Rig is named here; its design goes with the
 
 | Shape | What it is | Owner |
 |---|---|---|
-| **Per-shot DAG** | A pure function: Recording + effective context → the shot's analysis (the recorded product). A dependency graph of versioned stages, not a stack: segmentation feeds fusion and the metrics; impact timing feeds back (`analysis_dag_design.md`). | Run by the analysis pipeline (an application service); the results are stored on the `Shot`. **It never grades** (Mark, 14 Nov). |
-| **Grading** | A pure function, `gradeShot()` in `src/Diagnostics`: each of the shot's numbers against its corridor, with the session's club baseline and the effective club → the shot's rows (shot-level facts). | `SessionDiagnostics` grades every shot of its session and keeps the rows (Mark, 14 Nov) |
-| **Cross-shot reductions** | Session and athlete diagnostics, assessment, coaching, and the shot facts that take the session's usuals as input (flight-check overlay, composed outcome, the three factors, carry against the usual). Incremental and stateful, over many shots, recomputed by events (§5). | `SessionDiagnostics`, `AthleteDiagnostics` (→ reference DEC-121, DEC-122: those shot facts are the shot's derived data, M-SHOT-LAYERS.) |
+| **Per-shot DAG** | A pure function: Recording + effective context → the shot's analysis (the recorded product). A dependency graph of versioned stages, not a stack: segmentation feeds fusion and the metrics; impact timing feeds back (`analysis_dag_design.md`). | Run by the analysis pipeline (an application service); the results are stored on the `Shot`. **It never grades**[^m14nov]. |
+| **Grading** | A pure function, `gradeShot()` in `src/Diagnostics`: each of the shot's numbers against its corridor, with the session's club baseline and the effective club → the shot's rows (shot-level facts). | `SessionDiagnostics` grades every shot of its session and keeps the rows[^m14nov] |
+| **Cross-shot reductions** | Session and athlete diagnostics, assessment, coaching, and the shot facts that take the session's usuals as input (flight-check overlay, composed outcome, the three factors, carry against the usual). Incremental and stateful, over many shots, recomputed by events (§5). | `SessionDiagnostics`, `AthleteDiagnostics` (→ reference[^dec121][^dec122]: those shot facts are the shot's derived data, M-SHOT-LAYERS.) |
 
-(→ reference §2.1, DEC-100: the `Shot` fires its own findings; the session's diagnostics diagnose from them. The
+(→ reference §2.1[^dec100]: the `Shot` fires its own findings; the session's diagnostics diagnose from them. The
 reference no longer says "grading" at shot level.)
-(→ reference DEC-125: "assessment" in the cross-shot row above, and in the §0 diagram, is "diagnosis"; the reference
+(→ reference[^dec125]: "assessment" in the cross-shot row above, and in the §0 diagram, is "diagnosis"; the reference
 keeps "assessment" for the shot's layer that fires findings, M-SHOT-LAYERS.)
 
 ### 0.4 Decided now, and deferred
@@ -187,9 +187,9 @@ application to PinPoint.
 
 | # | Principle | What it means here | What breaks it today |
 |---|---|---|---|
-| P1 | **Source facts, recorded inputs and derived facts are different kinds of thing.** | A *source fact* is something only the world or the golfer can tell us: the recordings and the readings every instrument delivers (cameras, IMUs, the launch monitor alike), the athlete record, what the golfer said. It is stored once, by its owner, and never regenerated. A *recorded input* (Mark, 14 Nov) is context written once at first need so a result is reproducible (the Recording's analysis context; a session's club baseline, `club_baseline.json`): never regenerated, never deleted with the caches, and rewritten only when its format is older than the current rule (today's `clubBaselineIsOutdated`, `src/Coaching/club_distances.h`; → reference P1 and DEC-46: when its rule's version is newer, and each rewrite is recorded). A *derived fact* (every diagnostic, at every level; tendencies; the athlete's baselines) is a pure function of source facts, recorded inputs and versioned rules. It may be cached, and may be deleted and rebuilt at any time. A cache never holds the only copy of anything. A measurement is a source fact when it is a **reading** delivered by an instrument (LM, HackMotion), and part of the recorded product when it is **derived** by rules from the Recording's streams (camera, IMU). | Golfer input stored inside the regenerable ledger (H-04, the Critical); a session verdict written into shot rows (C-02). |
+| P1 | **Source facts, recorded inputs and derived facts are different kinds of thing.** | A *source fact* is something only the world or the golfer can tell us: the recordings and the readings every instrument delivers (cameras, IMUs, the launch monitor alike), the athlete record, what the golfer said. It is stored once, by its owner, and never regenerated. A *recorded input*[^m14nov] is context written once at first need so a result is reproducible (the Recording's analysis context; a session's club baseline, `club_baseline.json`): never regenerated, never deleted with the caches, and rewritten only when its format is older than the current rule (today's `clubBaselineIsOutdated`, `src/Coaching/club_distances.h`; → reference P1[^dec46]: when its rule's version is newer, and each rewrite is recorded). A *derived fact* (every diagnostic, at every level; tendencies; the athlete's baselines) is a pure function of source facts, recorded inputs and versioned rules. It may be cached, and may be deleted and rebuilt at any time. A cache never holds the only copy of anything. A measurement is a source fact when it is a **reading** delivered by an instrument (LM, HackMotion), and part of the recorded product when it is **derived** by rules from the Recording's streams (camera, IMU). | Golfer input stored inside the regenerable ledger (H-04, the Critical); a session verdict written into shot rows (C-02). |
 | P2 | **Domain, application state and view state are three layers.** | *Domain*: what is true without a screen, the same in a GOLFSIMPC sweep. *Application state*: what the app is doing now (current athlete, the session on screen, the mode, what is selected, what is replaying). *View state*: one view's scroll, open tab, expanded row. Each refers only downwards. | Diagnostics owned by a view (D-02). Selection held in five places under four definitions (E-04). Domain rules in QML (G-11). |
-| P3 | **Aggregates have one root, and the root is the only writer.** (→ reference P3, DEC-42: each file has one writer inside its aggregate; derived owners write their own caches; source facts change only through the root's commands.) | An `Athlete` is a root: its record and its sessions' index. A `Session` is a root: its shots, the golfer's session input, and the session's derived facts. Every change to a session goes through the session (a command), so one object enforces its rules and writes its files. Every file is written only through its root (Mark, 14 Nov): the archive and the report are `Session` commands; a swing file is written once by capture, then only by its `Session`. | Four instances writing one `diagnostics.json` (H-03, D-01). The athlete changed under a running session (E-01). |
+| P3 | **Aggregates have one root, and the root is the only writer.** (→ reference P3[^dec42]: each file has one writer inside its aggregate; derived owners write their own caches; source facts change only through the root's commands.) | An `Athlete` is a root: its record and its sessions' index. A `Session` is a root: its shots, the golfer's session input, and the session's derived facts. Every change to a session goes through the session (a command), so one object enforces its rules and writes its files. Every file is written only through its root[^m14nov]: the archive and the report are `Session` commands; a swing file is written once by capture, then only by its `Session`. | Four instances writing one `diagnostics.json` (H-03, D-01). The athlete changed under a running session (E-01). |
 | P4 | **Persistence lives behind repositories, not in domain objects or rules.** | The domain model defines the repository interfaces (`RecordingRepository`, `SessionRepository`, `AthleteRepository`); adapters implement them, `SwingStore` (already good) implementing `RecordingRepository`. Domain objects and the Coaching/Diagnostics rules never touch a file. One repository per file family, one format definition, schema checked on read. | File I/O in Coaching headers (C-07); `diagnostics.json` parsed in about 10 places (D-08); file names spelled per class (H-12). |
 | P5 | **Derivation is an explicit dependency graph, updated by events.** | Each derived fact declares its inputs and its rule version. A change is an event (shot added, re-analysed, annotated, corrected; intent changed; norms changed; athlete record changed). Only what depends on the change is recomputed. A rule's version is part of its result's stamp, so stale results are known, not guessed. | `mutable` dirty flags that rebuild everything (D-13); stamps that omit their inputs (C-02, G-06); hand-bumped versions (C-05); stale library analyses that are invisible (A-08). |
 | P6 | **One rule, one result, one owner, at the right level.** | A level reads the level below as *results*. Context flowing down (session usuals into a shot; the athlete baseline into a session) is a typed input. Nothing recomputes another level's facts. | Shot outcomes recomposed by four consumers (G-03, C-01); two direction rules (F-05/G-01); handedness glossed per surface (G-02). |
@@ -201,7 +201,7 @@ application to PinPoint.
 
 Dependencies point **inward only**: a ring may use the rings inside it, never one outside. Draft 1 drew a chain
 of today's folders, which mixed kinds of code (persistence inside the rule stack; metric definitions after the
-analysis). Mark, draft 2 review: the rings are drawn by kind of code instead, and today's folders are mapped onto
+analysis). The rings are drawn by kind of code instead[^m-draft2], and today's folders are mapped onto
 them.
 
 ```
@@ -231,7 +231,7 @@ them.
 
 | Ring | Holds | Never |
 |---|---|---|
-| **Platform** (ring 0; Mark, 14 Nov) | Logging (`ppInfo`/`ppWarn`), profiling, machine queries. Every ring may include it. | Depends on anything outside itself; holds anything domain-shaped. |
+| **Platform** (ring 0)[^m14nov] | Logging (`ppInfo`/`ppWarn`), profiling, machine queries. Every ring may include it. | Depends on anything outside itself; holds anything domain-shaped. |
 | **Vocabulary** | What things *are*: value types, identity types, metric definitions and the catalogue, club vocabulary, units. | Depends on anything but Platform. |
 | **Rules** | Pure functions: measurement algorithms (pose, club, ball, IMU fusion, kinematics, wrist, 3-D skeleton, the LM's inferred reads); which source wins for a metric (one rule, A-04); grading; coaching (outcomes, factors, flight check, Sky, tendencies, link grading). | File I/O; golfer-facing sentences; knowing about sessions or screens (F-11, C-04, C-07, B-10). |
 | **Domain model** | Entities and aggregates (§3); the owners of derived facts (§5). Qt objects, for signals; no QML. Persistence through repository *interfaces* (`RecordingRepository`, `SessionRepository`, `AthleteRepository`) that the adapters implement. | Including persistence, device or UI code. |
@@ -303,7 +303,7 @@ Session  (aggregate root · id: SessionId)
                              the LM board, Charts and the report are presenters over it, filtered by source
 ```
 
-**"Live", "open" and "on screen" are not objects** (Mark, draft 2 review). There is one kind of object,
+**"Live", "open" and "on screen" are not objects**[^m-draft2]. There is one kind of object,
 `Session`, and three different facts about it:
 - **In progress or ended** is a domain *attribute* (`Session.status`), persisted and true without a screen.
   "The athlete's live session" is a query: their session with status InProgress.
@@ -326,8 +326,8 @@ Session  (aggregate root · id: SessionId)
   and swinglab get their `Session` from the same repository, headless.
 - Within the app they always receive the instance already loaded (the identity map). Separate processes
   (the CLI tools) are a cross-process question, H-14: advisory lock files.
-- **Commands go through the root.** For example `Session::correctLabel(shotRef, …)` and (→ reference P10, DEC-94: `Shot::correctLabel`.)
-  `Session::excludeShot(shotRef)` (→ reference CLS-SESSION: it excludes one reading); the archive and the report are `Session` commands too (Mark, 14 Nov). The root validates the change, persists it through its repository, emits a
+- **Commands go through the root.** For example `Session::correctLabel(shotRef, …)` and (→ reference P10[^dec94]: `Shot::correctLabel`.)
+  `Session::excludeShot(shotRef)` (→ reference CLS-SESSION: it excludes one reading); the archive and the report are `Session` commands too[^m14nov]. The root validates the change, persists it through its repository, emits a
   domain event, and the derived owners update. Views never write files or mutate rows.
 
 ## 4. Application state (not domain)
@@ -361,11 +361,11 @@ AppState  (one per app, in src/App)
 
 | Level | Owner | Inputs (explicit, typed) | Results | Cached in |
 |---|---|---|---|---|
-| Shot | `SessionDiagnostics` grades every shot of its session and keeps the rows; they are shot-level facts, exposed through the shot (`ShotDiagnostics`, read-only) (Mark, 14 Nov) | grading: each of the shot's numbers (every instrument, one set) against its corridor (pack + norms), with the session's club baseline and the effective club; then the session's usuals, flowing down as a typed input | rows as graded; the flight-check overlay; outcome; strike · direction · flight; carry against the usual | `diagnostics.json` (cache) (→ reference DEC-100: the `Shot` fires its own findings.) |
+| Shot | `SessionDiagnostics` grades every shot of its session and keeps the rows; they are shot-level facts, exposed through the shot (`ShotDiagnostics`, read-only)[^m14nov] | grading: each of the shot's numbers (every instrument, one set) against its corridor (pack + norms), with the session's club baseline and the effective club; then the session's usuals, flowing down as a typed input | rows as graded; the flight-check overlay; outcome; strike · direction · flight; carry against the usual | `diagnostics.json` (cache) (→ reference[^dec100]: the `Shot` fires its own findings.) |
 | Session | `SessionDiagnostics` | its shots' results; `sessionIntent`; the shots' intent; the session's club baseline | usuals, ledger, links/tiers, mixes, carry today, reasons, intent summaries (consistency within the session; shot against session intent), the session summary the athlete level reads | `diagnostics.json`, `work_ons.json` (the session summary) |
 | Athlete | `AthleteDiagnostics`, derived on demand: an event marks it stale and it recomputes when next read | session summaries (intent summaries included); the athlete record | tendencies, work-ons, themes, baselines, distances, consistency, intent consistency across sessions | `tendencies.json`, `swing_themes.json` |
 
-The analysis pipeline never grades. A corridor edit or a club correction regrades without re-analysis (Mark, 14 Nov). (→ reference DEC-100: "re-fires".)
+The analysis pipeline never grades. A corridor edit or a club correction regrades without re-analysis[^m14nov]. (→ reference[^dec100]: "re-fires".)
 
 **The analysis is a "recorded product".** A swing's analysis is derived from the recording, but it is
 expensive and is produced by versioned stages. It is treated as a cache with a stamp (`k*StageVersion` and
@@ -376,28 +376,26 @@ it known-stale; re-analysis refreshes it.
 - The analysis pipeline produces the recorded product only; it never grades.
 - Staleness is visible, not discovered by accident (A-08).
 
-**Events and invalidation (P5).** `ShotTrashed`, `SessionEnded`, `IntentRunChanged`, `SessionRelocated` and
-`RigChanged` are Mark's (14 Nov).
+**Events and invalidation (P5).**[^m14nov-events]
 
 | Event | Recomputes |
 |---|---|
-| `ShotAdded`, `ShotReanalysed` | grade that shot → the session reduction → the session summary → marks the athlete level stale (→ reference §7.4, EVT-01…EVT-23: "fires its findings"; every chain that changes a summary ends at the athlete level, DEC-112.) |
-| `ShotTrashed` | the session reduction → the session summary → marks the athlete level stale (→ reference DEC-130: that club's usuals, and every same-club shot re-fires.) |
-| `ShotAnnotated` (club correction) | marks the shot's analysis stale; **regrades** that shot with the corrected club, without re-analysis → the session reduction (→ reference EVT-04 `ShotClubCorrected`, DEC-70, DEC-100.) (→ reference DEC-130: the usuals of the clubs whose pool changes.) |
-| `ShotAnnotated` (excluded, a reading left out) | that shot's results → the session reduction (no regrade) (→ reference DEC-130: the reading leaves its club's usuals, and every same-club shot re-fires.) |
-| `LabelCorrected` | that shot's results → the session reduction (no regrade); the athlete level appends to its tuning log (Mark, 14 Nov) (→ reference DEC-131: it re-fires.) |
+| `ShotAdded`, `ShotReanalysed` | grade that shot → the session reduction → the session summary → marks the athlete level stale (→ reference §7.4, EVT-01…EVT-23: "fires its findings"; every chain that changes a summary ends at the athlete level[^dec112].) |
+| `ShotTrashed` | the session reduction → the session summary → marks the athlete level stale (→ reference[^dec130]: that club's usuals, and every same-club shot re-fires.) |
+| `ShotAnnotated` (club correction) | marks the shot's analysis stale; **regrades** that shot with the corrected club, without re-analysis → the session reduction (→ reference EVT-04 `ShotClubCorrected`[^dec70][^dec100].) (→ reference[^dec130]: the usuals of the clubs whose pool changes.) |
+| `ShotAnnotated` (excluded, a reading left out) | that shot's results → the session reduction (no regrade) (→ reference[^dec130]: the reading leaves its club's usuals, and every same-club shot re-fires.) |
+| `LabelCorrected` | that shot's results → the session reduction (no regrade); the athlete level appends to its tuning log[^m14nov] (→ reference[^dec131]: it re-fires.) |
 | `ShotIntentChanged` | no verdict: the intent shown on the shot → the session's intent summaries |
 | `IntentRunChanged` | pre-fills the intent of shots taken after the change; no shot already taken changes |
 | `SessionIntentChanged` (focus, declared miss) | the session reduction only |
 | `SessionEnded` | a status change: the session summary → marks the athlete level stale |
-| `SessionRelocated` | pending the decision in step 2's brief (a library re-pointed mid-session) (→ reference DEC-154: removed; the session ends and a new one starts.) |
+| `SessionRelocated` | pending the decision in step 2's brief (a library re-pointed mid-session) (→ reference[^dec154]: removed; the session ends and a new one starts.) |
 | `NormsChanged`, `PackChanged` (a corridor edit among them) | regrade through the stamp (the rule version and the content of the inputs), without re-analysis — never "until relaunch" (B-01) |
 | `AthleteRecordChanged` | athlete-level facts. **Not** a session's club baseline or any Recording's analysis context: recorded inputs, frozen by design (E-03) |
 | `RigChanged` | named; designed with Studio/Rig in the platform refactor (capture) |
 
 → reference §7.4 (EVT-01…EVT-22, v1.1): every event with its producer and payload; `ShotAnnotated` is split into
-`ShotClubCorrected` and `ShotReadingExcluded`; six events added and the delivery rule set (Mark, 14 Nov 2026;
-DEC-69, DEC-70).
+`ShotClubCorrected` and `ShotReadingExcluded`; six events added and the delivery rule set[^dec69][^dec70].
 
 **Stamps:** every cached derived result carries the versions of its rules and a fingerprint of its inputs,
 norms and thresholds included (C-02, G-06). A reader that finds a stale stamp recomputes. It does not trust the
@@ -409,35 +407,35 @@ step 3).
 
 | Thing | Identity (type) | Properties, never keys |
 |---|---|---|
-| Athlete | `AthleteId` (uuid) | name; library folder (stored on the record, migrated once) (→ reference DEC-151: the folder is where `athlete.json` is found; no `folder` key) |
-| Session | `SessionId` (→ reference §5.2, DEC-41: a uuid minted at Start, kept in the session file) | folder; start time; local day; n-of-day; type. Computed once by `SessionIdentity`; **no other code parses a folder name** (→ reference P7: `SessionIdentity` and `SwingPaths`) |
+| Athlete | `AthleteId` (uuid) | name; library folder (stored on the record, migrated once) (→ reference[^dec151]: the folder is where `athlete.json` is found; no `folder` key) |
+| Session | `SessionId` (→ reference §5.2[^dec41]: a uuid minted at Start, kept in the session file) | folder; start time; local day; n-of-day; type. Computed once by `SessionIdentity`; **no other code parses a folder name** (→ reference P7: `SessionIdentity` and `SwingPaths`) |
 | Shot | `ShotRef` = (`SessionId`, swing number) | folder; "Shot N" (always the swing number); a rank "n of N" only shown beside it |
-| Club | the effective club per shot, derived: the golfer's correction (the board's override), else the declared club (→ reference §5.8: four terms; until step 6 the analysis' club field by field, R-CLUB-3, and its known interim, DEC-72) | label (one table). An undeclared club is *undeclared* and graded as "club assumed", never a hidden DRIVER |
+| Club | the effective club per shot, derived: the golfer's correction (the board's override), else the declared club (→ reference §5.8: four terms; until step 6 the analysis' club field by field, R-CLUB-3, and its known interim[^dec72]) | label (one table). An undeclared club is *undeclared* and graded as "club assumed", never a hidden DRIVER |
 
 ## 7. Persistence and repositories
 
 | File | Kind (P1) | Owner (one writer) | Repository |
 |---|---|---|---|
-| `swing.ppsw` — recordings, analysis, instrument readings (the LM's among them), shot `review` (rating, note, exclusion, club override, **shot intent**, **label corrections**) | source + recorded product | written once by capture (the Recording), then only by its `Session` (Mark, 14 Nov) | `RecordingRepository` (`SwingStore`, exists) (→ reference DEC-86: then only by the `Shot`; FILE-SHOT-01.) |
+| `swing.ppsw` — recordings, analysis, instrument readings (the LM's among them), shot `review` (rating, note, exclusion, club override, **shot intent**, **label corrections**) | source + recorded product | written once by capture (the Recording), then only by its `Session`[^m14nov] | `RecordingRepository` (`SwingStore`, exists) (→ reference[^dec86]: then only by the `Shot`; FILE-SHOT-01.) |
 | `swing_NNNN/swing_phasegrid.json` | derived (shot cache, stamped) | the `Session` | `RecordingRepository` |
 | `swing_NNNN/swing.json`, `swing_summary.json` | the JSON-era document and its sidecar: read for old swings, removed on the first rewrite to `.ppsw`; retired | — | `RecordingRepository` (read only) |
 | `<session>/session_input.json` — declared focus/work-on, declared miss, screen answers, intent runs | source | `Session` | `SessionRepository` |
 | `<session>/diagnostics.json` — rows, reduction cache | derived (cache) | `SessionDiagnostics` | `SessionRepository` |
 | `<session>/club_baseline.json` | recorded input (P1): written once at first need, never regenerated, never deleted with the caches; rewritten only when its format is older than the current rule | `Session` | `SessionRepository` |
 | `<session>/work_ons.json` | derived (cache): the session summary the athlete level reads | `SessionDiagnostics` | `SessionRepository` |
-| `<session>/archived.json` | marker | `Session` (the archive is a `Session` command; Mark, 14 Nov) | `SessionRepository` |
-| the session report (report documents under the session) | derived (product) | `Session` (saved by a `Session` command; Mark, 14 Nov) | `SessionRepository` |
-| session status and start/end times | source | `Session` | to decide (Mark, step 3); today not persisted (→ reference DEC-41: the session file, `SessionRepository`) |
-| `<athlete>/athlete.json` — the record (Mark, 14 Nov) | source | `Athlete` | `AthleteRepository` |
+| `<session>/archived.json` | marker | `Session` (the archive is a `Session` command)[^m14nov] | `SessionRepository` |
+| the session report (report documents under the session) | derived (product) | `Session` (saved by a `Session` command)[^m14nov] | `SessionRepository` |
+| session status and start/end times | source | `Session` | to decide (Mark, step 3); today not persisted (→ reference[^dec41]: the session file, `SessionRepository`) |
+| `<athlete>/athlete.json` — the record[^m14nov] | source | `Athlete` | `AthleteRepository` |
 | `<athlete>/tendencies.json`, `swing_themes.json` | derived (cache) | `AthleteDiagnostics` | `AthleteRepository` |
-| `<athlete>/outcome_corrections.jsonl` | derived: the tuning log, append-only (→ reference DEC-43: a source fact) | the athlete level (`AthleteDiagnostics`), on `LabelCorrected`, never the session (Mark, 14 Nov) (→ reference DEC-43: the `Athlete` root) | `AthleteRepository` |
+| `<athlete>/outcome_corrections.jsonl` | derived: the tuning log, append-only (→ reference[^dec43]: a source fact) | the athlete level (`AthleteDiagnostics`), on `LabelCorrected`, never the session[^m14nov] (→ reference[^dec43]: the `Athlete` root) | `AthleteRepository` |
 | `<athlete>/fault_profile.json` | to be deleted (H-11, step 3) | — | — |
-| `<AppData>/diagnostics/user.json`, `user.norms.json`, community `*.json` (packs and norms; the corridor editor writes `user.norms.json`) | source (the user's edits); community sets read-only | owner: to decide (Mark, step 3) (→ reference DEC-170: `RuleData`) | to decide (Mark, step 3) (→ reference DEC-170: `RuleDataRepository`) |
+| `<AppData>/diagnostics/user.json`, `user.norms.json`, community `*.json` (packs and norms; the corridor editor writes `user.norms.json`) | source (the user's edits); community sets read-only | owner: to decide (Mark, step 3) (→ reference[^dec170]: `RuleData`) | to decide (Mark, step 3) (→ reference[^dec170]: `RuleDataRepository`) |
 | `SessionSeries` | in memory only, not persisted | — | — |
 
 The table covers the athlete, session and shot files and the rule data they are graded against. Studio and
-acquisition files (the studio profile (→ reference DEC-193: not a rig fact; owned by `StudioProfile`, at the application level), the PPCP import ledger, calibration and ceremony recordings) go with Studio/Rig
-and the platform refactor (capture). (→ reference §8, DEC-45: every file the app writes is listed there, with its
+acquisition files (the studio profile (→ reference[^dec193]: not a rig fact; owned by `StudioProfile`, at the application level), the PPCP import ledger, calibration and ceremony recordings) go with Studio/Rig
+and the platform refactor (capture). (→ reference §8[^dec45]: every file the app writes is listed there, with its
 writer today and its target owner, including media, report, trash, archive and the domain-fact settings keys.)
 
 **Rules:**
@@ -450,10 +448,10 @@ writer today and its target owner, including media, report, trash, archive and t
   - An older shape is migrated in one step, in the repository.
 - **One serialiser per analysis block, beside its producer.** The live detail and the disk form are the same
   functions in one time domain (H-01, A-03).
-- **Golfer input has levels** (Mark):
+- **Golfer input has levels**[^mark]:
   - Shot intent is the shot's, and can differ from the session's ("we lose focus, we react to a bad shot").
   - A "from here on" run is a session statement that pre-fills each shot as it is taken, and each shot can override
-    it. An edited run affects only shots taken after the edit (Mark, 14 Nov).
+    it. An edited run affects only shots taken after the edit[^m14nov].
   - The session level summarises intent (consistency within the session, shot intent against session intent); the
     athlete level reads those summaries for consistency across sessions, never raw shots.
   - Intent never excuses a finding; PPS reports what it saw.
@@ -502,7 +500,7 @@ The steps are numbered as in `04-remediation-plan.md` §3.
 2. **Identity types and repositories** (`AthleteId`, `SessionId`, `ShotRef`, `SessionIdentity`;
    `AthleteRepository`, `SessionRepository`). Existing code adopts them file by file.
 3. **`Session` and `SessionDiagnostics` arrive as owners**, and the existing `SessionDiagnosticsModel` is split
-   behind them; grading becomes the pure `gradeShot()`. (→ reference DEC-100: `fireFindings()`, fired by each `Shot`.)
+   behind them; grading becomes the pure `gradeShot()`. (→ reference[^dec100]: `fireFindings()`, fired by each `Shot`.)
    - The panel, the cast, the report and the catch-up are re-pointed at the owner one at a time.
    - Each re-pointing deletes a private instance.
    - A thin adapter keeps today's QML API until its last view moves.
@@ -510,7 +508,7 @@ The steps are numbered as in `04-remediation-plan.md` §3.
    copy.
 5. **Charts and the report onto the session; presenters move to typed results**, one view at a time. The
    `QVariantMap` shapes go as each view moves.
-6. **Measurements unified, the flight-check overlay**: one source-tagged set per shot; the LM a device. (→ reference DEC-122: the flight check is shot derived data.)
+6. **Measurements unified, the flight-check overlay**: one source-tagged set per shot; the LM a device. (→ reference[^dec122]: the flight check is shot derived data.)
 7. **Rules move down and lose their I/O** (domain code out of `src/Gui`; norms loaded by repositories).
 
 ## 11. Enforcement: `architecture_lint_test`
@@ -600,8 +598,7 @@ The fix has the same two halves that work for the design system.
 
 ### 14a. Design phase: the information-model rule (CLAUDE.md, beside the design-system rule)
 
-- **`docs/developer/information_model.md`, written from §1–§9 once agreed, is canonical (Mark, 14 Nov 2026;
-  reference DEC-40); this page is its frozen rationale.** It
+- **`docs/developer/information_model.md`, written from §1–§9 once agreed, is canonical; this page is its frozen rationale.**[^dec40] It
   plays the role `docs/design/system/README.md` plays for the UI.
 - **Every plan that touches data has an "Ownership" section.** It answers, for each new or changed thing:
   1. **Is it a source fact, a recorded input, a derived fact, application state or view state?** (P1, P2)
@@ -634,3 +631,34 @@ The fix has the same two halves that work for the design system.
 1. Adopt 14a as a HARD rule?
 2. Build the lint first, before structural step 1?
 3. The pre-commit hook: on or off?
+
+## Notes
+
+[^draft2]: Mark and the lead, draft 2 review.
+[^lead-clar]: The lead's clarification.
+[^m14nov]: Mark, 14 Nov 2026.
+[^dec86]: Reference DEC-86.
+[^dec121]: Reference DEC-121.
+[^dec122]: Reference DEC-122.
+[^dec100]: Reference DEC-100.
+[^dec125]: Reference DEC-125.
+[^dec46]: Reference DEC-46.
+[^dec42]: Reference DEC-42.
+[^m-draft2]: Mark, draft 2 review.
+[^dec94]: Reference DEC-94.
+[^m14nov-events]: `ShotTrashed`, `SessionEnded`, `IntentRunChanged`, `SessionRelocated` and `RigChanged` are Mark's, 14 Nov 2026.
+[^dec112]: Reference DEC-112.
+[^dec130]: Reference DEC-130.
+[^dec70]: Mark, 14 Nov 2026; reference DEC-70.
+[^dec131]: Reference DEC-131.
+[^dec154]: Reference DEC-154.
+[^dec69]: Mark, 14 Nov 2026; reference DEC-69.
+[^dec151]: Reference DEC-151.
+[^dec41]: Reference DEC-41.
+[^dec72]: Reference DEC-72.
+[^dec43]: Reference DEC-43.
+[^dec170]: Reference DEC-170.
+[^dec193]: Reference DEC-193.
+[^dec45]: Reference DEC-45.
+[^mark]: Mark.
+[^dec40]: Mark, 14 Nov 2026; reference DEC-40.

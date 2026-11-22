@@ -172,7 +172,7 @@ same goes for a test fixture built in code: its measures must say `Live`.
 Three fields carry more weight than their size suggests:
 
 - **`reducer` is where the phase lives.** There is no phase field. `At{p7}` is impact; `Delta{p1→p4}` is the change to the top; `Extremum{p5..p6, Min}` is a trough across a stretch. Two measures over one metric with different reducers are *related, not duplicates* — that is the whole point of the split, and `m_leadWristAtImpact` (absolute) versus `m_leadWristFlexExt_p7` (Δ from address) is the case that proves it.
-- **`windowMs` reads a span no phase bounds** (13 Nov 2026, plane stack D5). `"windowMs": [startMs, endMs]` is a span in whole milliseconds after the reducer's `anchor`: `[t(anchor) + startMs, t(anchor) + endMs]`, where `t(anchor)` is the instant of the metric's own value at that phase. It exists because some readings sit between phases that are unreliable: `m_leadElbowFoldAfterImpact` reads the 100 ms after impact because P8 is often mistimed.
+- **`windowMs` reads a span no phase bounds**[^ps-d5]. `"windowMs": [startMs, endMs]` is a span in whole milliseconds after the reducer's `anchor`: `[t(anchor) + startMs, t(anchor) + endMs]`, where `t(anchor)` is the instant of the metric's own value at that phase. It exists because some readings sit between phases that are unreliable: `m_leadElbowFoldAfterImpact` reads the 100 ms after impact because P8 is often mistimed.
   - `extremum` with `windowMs`: the windowed-mean extreme over the span **less the value at the anchor**, the same signed deviation an anchored phase-window extremum reports (`m_spineBendDive`). So `{ "kind": "extremum", "anchor": "p7", "windowMs": [0, 100], "sense": "max" }` is "the most it reached in the 100 ms after impact, beyond its value at impact".
   - `delta` with `windowMs`: `value(t(anchor) + endMs) − value(t(anchor) + startMs)`, each a ±15 ms median; at `startMs` 0 the start is the anchor's own value.
   - The validator (`badReducer`) refuses a negative or reversed or empty span, a span on `at` or `rate`, a span with no `anchor`, and a fraction of a millisecond. The loader refuses `windowMs` written beside a phase `window` (the struct cannot hold both, so the loader is the one place that sees it). The domain check reads only the anchor: a metric masked past its domain has no valid sample there, so the span reads nothing rather than reading outside it.
@@ -181,7 +181,7 @@ Three fields carry more weight than their size suggests:
   - σ: an extremum's is the span's σ (the larger of the series σ and the anchor value's) ⊕ the anchor's; a delta's is the start's (the anchor's at `startMs` 0, else the series σ) ⊕ the end's (the series σ). An instant between phases has no labelled σ of its own.
   - **The phase grid has to be asked for the span.** A phase window is exact by aggregation over the cached adjacent-phase spans; a millisecond span is not, so `buildPhaseGrid` computes the spans named in `PhaseGridConfig::msWindows` and stores them per metric (`msSpans`, and `source.ms_windows` in the sidecar). `LiveMeasureSource(dir, pack)` and the model browser add the pack's spans themselves (`msWindowsOf`). The sidecar guard is a **subset** test: a reader naming no span accepts any grid, a reader naming a span the sidecar lacks rebuilds it with the **union**, so two packs' readers cannot keep overwriting each other; a reader that may not fat-parse (`writeSidecar` false, i.e. `SidecarPolicy::CachedOnly`) is served the held grid without that span, so only the span's measures go missing, never the swing. (Refactor 3.7-0 split that one bool: `readPhaseGrid` / `readLivePhaseGrid` also take a `SidecarPolicy` (`src/Core/sidecar_policy.h`), whose `ParseNoWrite` parses a miss or a stale sidecar — rebuilding with the union, as `ParseAndWrite` does — and writes no sidecar: the parallel run's firing reader, in memory only. The bool form keeps its meaning: false is `CachedOnly`, true `ParseAndWrite`.) Every sidecar written before the field lacks the shipped span, so the first pack read of each swing re-parses it once (as a re-analysis does anyway). No schema bump: a sidecar from before the field holds no spans, which every reader that names none accepts. A grid built without the span answers nothing for it.
   - A `windowMs` measure is placed at its anchor (`condition_reading.h`), is never matched as a reading AT a phase (below), and is named "peak P7 +0 to 100 ms from P7" (`canonicalMeasureLabel`) and "max P7 +0 to 100 ms" in the model browser's reducer column.
-- **A phase the swing does not have is explained by a record on the phase** (13 Nov 2026, plane stack D6). A measure whose reducer needs a phase (its `anchor`, or either end of its phase `window`) with no value there is not assessable with `MissingKind::PhaseNotSegmented`. Where the swing's records refuse that phase itself — today only `positions.p8Refused` on `position.p8`, fired when FA's bounded P8 was refused (`Club/p8_refusal_gate.h`) — `LiveMeasureSource::gateCause` names that record, before any record on the measure's keys, so the cell reads "P8 (the shaft level after impact) not timed" rather than "not segmented". The record covers no metric key on purpose: the keys a P8 measure reads also read at other positions. `gates::phaseSubject` maps a phase to its record subject.
+- **A phase the swing does not have is explained by a record on the phase**[^ps-d6]. A measure whose reducer needs a phase (its `anchor`, or either end of its phase `window`) with no value there is not assessable with `MissingKind::PhaseNotSegmented`. Where the swing's records refuse that phase itself — today only `positions.p8Refused` on `position.p8`, fired when FA's bounded P8 was refused (`Club/p8_refusal_gate.h`) — `LiveMeasureSource::gateCause` names that record, before any record on the measure's keys, so the cell reads "P8 (the shaft level after impact) not timed" rather than "not segmented". The record covers no metric key on purpose: the keys a P8 measure reads also read at other positions. `gates::phaseSubject` maps a phase to its record subject.
 - **`highMeans` is a correctness mechanism, not decoration.** It is the sentence an author reads *instead of* picking "High" or "Low" when attaching a signal. Three signals shipped inverted because someone picked a direction against a sign convention that was unstated or the opposite of what they assumed — and an inverted signal fires happily, on the wrong swings, with correct-sounding consequence text attached. The measure picker refuses to mint a measure without one.
 
 ### Signal — the rule that watches
@@ -491,13 +491,13 @@ Both run in the app. `detect()` runs inside `fireFindings()` for every shot (thr
 ### 6.0 Who runs it: the owners (refactor step 3)
 
 Since refactor step 3 the diagnostics have owners at three levels, and views only read them
-(`docs/developer/information_model.md` §10; CLS-SESSION-DIAG, CLS-ATHLETE-DIAG; DEC-100, DEC-135, DEC-190–192).
+(`docs/developer/information_model.md` §10; CLS-SESSION-DIAG, CLS-ATHLETE-DIAG)[^dec-owners].
 Nothing here is a view's: no QML creates a diagnostics model, and a panel that is closed changes nothing that is
-judged (always fire, DEC-02).
+judged (always fire)[^dec02].
 
 | Level | Owner (one writer) | What it holds | Its files |
 |---|---|---|---|
-| Shot | the `Shot` (`DomainModel/shot.*`), through its `Session` | its findings and derived data, fired by `fireFindings()`, kept by the session (DEC-135) | none of its own (FILE-SHOT-13 retired) |
+| Shot | the `Shot` (`DomainModel/shot.*`), through its `Session` | its findings and derived data, fired by `fireFindings()`, kept by the session[^dec135] | none of its own (FILE-SHOT-13 retired) |
 | Session | `SessionDiagnostics` (`DomainModel/session_diagnostics.*`), the `Session`'s child | each shot's findings and derived data, stamped; the usuals; the diagnosis (ledgers, stage, patterns, reasons, work-ons, per-club mixes, carry); the typed summary | `diagnostics.json` (FILE-SESS-03), `work_ons.json` (FILE-SESS-05) |
 | Athlete | `AthleteDiagnostics` (`DomainModel/athlete_diagnostics.*`), the `Athlete`'s child | the athlete work-ons, tendencies, themes and "what you do well", the consistency marks, distances, a session's club baseline before it is frozen | `tendencies.json`, `swing_themes*.json` (FILE-ATH-02/03), caches |
 | Rules | `RuleData` (`DomainModel/rule_data.*`, store `Export/rule_data_store.*`) | one immutable snapshot of the packs, norms, flight table, catalogue and grade policy | the user's pack and norm files (FILE-APP-01…05) |
@@ -505,8 +505,8 @@ judged (always fire, DEC-02).
 **The shot: `fireFindings()` and `deriveShotData()`** (`Diagnostics/engine/fire_findings.h`). Pure functions: values in,
 values out, no QObject, no file. `fireFindings()` assesses the shot's readings (its phase grid and a few document facts,
 read by the firing reader `Export/firing_reader_store.*`) against the pack and norms at the grade policy, for the
-athlete's norm cohort on the shot's date (DEC-171), with the club baseline: one row per condition, the sequence checks,
-the placed peaks, and since 3.8-ii the wrist checkpoint profile (DEC-123: `WristDiagnosticsModel` is gone). Layer 3,
+athlete's norm cohort on the shot's date[^dec171], with the club baseline: one row per condition, the sequence checks,
+the placed peaks, and since 3.8-ii the wrist checkpoint profile (`WristDiagnosticsModel` is gone)[^dec123]. Layer 3,
 `deriveShotData()`, is what the shot came to: its outcome and three factors (strike, direction, flight) against the
 session's usuals. `FiringInputs` names every input; `firingStamp()` fingerprints them (R-STAMP-1), and
 `rule_version_golden_test` / `reduction_rule_golden_test` fail when a rule's output moves without its version (C-05).
@@ -523,7 +523,7 @@ The analysis pipeline never fires findings.
   released result is dropped and still settles its batch.
 - *What re-fires.* A new shot, a re-analysis (EVT-02), a club correction (EVT-04, both clubs' shots), an exclusion, a
   late launch-monitor reading (EVT-22), an edit of the rule data (EVT-12/13). A usual that changes recomputes that
-  club's shots' DERIVED DATA only, never their findings (DEC-191). A failed read comes back unread: nothing kept, the
+  club's shots' DERIVED DATA only, never their findings[^dec191]. A failed read comes back unread: nothing kept, the
   shot marked unread (a persisted key), re-asked at the next load.
 - *The diagnosis.* When a batch settles it posts `reduceSession()` (`Diagnostics/engine/session_reduction.h`, pure) to the
   same lane; the latest reduction is kept. It reads each shot as the golfer annotated it on the launch-monitor board
@@ -531,20 +531,19 @@ The analysis pipeline never fires findings.
 - *Its files.* It writes what it kept, debounced after a batch, at once on a release, and on quit, through
   `SessionRepository`'s id-keyed diagnostics methods: `diagnostics.json` (each shot's findings, its derived data under
   `derived`, the unread marks) and the summary `work_ons.json`. A live session's summary waits for its End. A newer
-  build's file is read and never written. A failed write is said (`writeFailed`; the composition root posts the notice,
-  DEC-126). At load it re-asks exactly the shots that have no result, are unread, or whose stamp is stale.
-- *The club baseline* is a recorded input (DEC-46): read if current, else frozen at first need from the athlete level's
-  computation over the predecessors' summaries (`AthleteDiagnostics::clubBaselineFor`, D7: DEC-172), through
-  `Session::freezeClubBaseline`; not frozen while it is not computable, and the live panel says so (J-49).
+  build's file is read and never written. A failed write is said (`writeFailed`; the composition root posts the notice)[^dec126]. At load it re-asks exactly the shots that have no result, are unread, or whose stamp is stale.
+- *The club baseline* is a recorded input[^dec46]: read if current, else frozen at first need from the athlete level's
+  computation over the predecessors' summaries (`AthleteDiagnostics::clubBaselineFor`, D7)[^dec172], through
+  `Session::freezeClubBaseline`; not frozen while it is not computable, and the live panel says so[^j49].
 - *Headless.* `DiagnosticsDoors::synchronous` runs the same jobs on the calling thread (R-HL-2): `regrade_ledger`, the
   tools and the tests.
 
-**The athlete: `AthleteDiagnostics`.** It reads the session summaries only (R-DER-3, DEC-92), never a ledger or a
-document, and works out Home's figures on its own lane of the one pool (J-53): the athlete work-ons, the tendencies, the
+**The athlete: `AthleteDiagnostics`.** It reads the session summaries only (R-DER-3)[^dec92], never a ledger or a
+document, and works out Home's figures on its own lane of the one pool[^j53]: the athlete work-ons, the tendencies, the
 themes and "what you do well" (praised only when in range AND Repeatable or Grooved: the praise rule, 04 step 3 item 5),
-the consistency marks, the distances. Its one exception is the scoped views (a club scope, a shot filter: DEC-195), which
+the consistency marks, the distances. Its one exception is the scoped views (a club scope, a shot filter)[^dec195], which
 take each session's judged rows from its own `SessionDiagnostics`. A session whose summary is missing or of an older rule
-is counted and shown with a warning, never silently left out (J-51).
+is counted and shown with a warning, never silently left out[^j51].
 
 **The catch-up: `AthleteCatchUp`** (`src/App/athlete_catch_up.*`, an application service with no data of its own). For an
 athlete, every ended session whose summary is stale, oldest first, one at a time: it loads the `Session` (which runs its
@@ -557,7 +556,7 @@ process-wide ask counter and one receiver on the GUI thread. A job holds values 
 a model; the owner applies its result on its own thread. (Known interim: the firing reader may write the phase-grid and
 summary sidecar caches it rebuilds, under the swing's lock, never during an archive: CARRY C5, R1-m6.)
 
-**The thin adapters** (`src/Gui/diagnostics/`). What QML reads, words and view state only (D3, DEC-165; typed in step 5):
+**The thin adapters** (`src/Gui/diagnostics/`). What QML reads, words and view state only (D3; typed in step 5)[^dec165]:
 - `SessionDiagnosticsModel` in adapter mode, one per `Session` and surface (`panel`, `cast`, `cards`, `report`, `tool`), the
   `Session`'s child, reached by `diagnosticsAdapters.of(app.sessionAt(folder), surface)` (`SessionDiagnosticsAdapters`). It
   mirrors the owner's diagnosis and adds the selection, cadence, the open detail, the explanation (`explain()`) and the same
@@ -570,16 +569,15 @@ summary sidecar caches it rebuilds, under the swing's lock, never during an arch
   its findings would appear says so (show with a warning).
 
 **What still runs the OLD engine** (the engine half of `SessionDiagnosticsModel`: `detectShot`, its own reduction, stores,
-pools and baseline authorities). Three things, until step 5 after migration M1 (`build/refactor/step-3/JUDGEMENT-CALLS.md`
-J-59): a folder in the golfer's folder that no `Session` holds (J-a3: on the Mac, a session recorded on the cabin PC,
-whose file names the cabin's athlete id), which keeps today's engine and writes `diagnostics.json` in the old form;
+pools and baseline authorities). Three things, until step 5 after migration M1 (`build/refactor/step-3/JUDGEMENT-CALLS.md`)[^j59]: a folder in the golfer's folder that no `Session` holds (on the Mac, a session recorded on the cabin PC,
+whose file names the cabin's athlete id)[^ja3], which keeps today's engine and writes `diagnostics.json` in the old form;
 `regrade_ledger`'s default (`--engine old`), run P's reference and the corpus sweep; and the tests written against it. Do not add a caller.
 
 **The tools.** `regrade_ledger` regrades with the old engine by default (`--engine old`, run P's reference while it
 stays); `--engine new` re-judges each session through its own `SessionDiagnostics` and **must know each session's
 athlete**, because it freezes each session's club baseline from its own athlete's earlier sessions: without a record, every
 session of one folder (the corpus's `swings`) would count as one golfer, and one golfer's usuals would be frozen into
-another's sessions for good. Since refactor 4-c (J-61) the athlete is read from the library, the athlete folder's
+another's sessions for good. Since refactor 4-c[^j61] the athlete is read from the library, the athlete folder's
 `athlete.json` through `AthleteRepository`; `--athletes-ini` (a copy of the app's settings) is only the fallback for a
 library not yet migrated. A session neither names is refused, untouched (3.10 review B1; `regrade_ledger_new_needs_ini_test`). Either engine `--dump`s
 the parallel run's form P (`Gui/diagnostics/diag_parallel_run.h`, ids and numbers only); `tools/parity/parity_baseline.py`
@@ -815,7 +813,7 @@ conjunction: a conjunction cannot be commoner than its rarer part.
 
 **The two axes answer different questions.** `group` says what moves; `kind` says what sort of thing it
 is. They agree on three groups (`setup` is all Setup, `ballFlight` all Outcome,
-and every `delivery` row is Delivery) but not on the rest: `planePath` splits 13 Fault / 7 Delivery (plane stack D2, 13 Nov 2026: +`arms_swing_around`, +`arms_lift`), so the Delivery
+and every `delivery` row is Delivery) but not on the rest: `planePath` splits 13 Fault / 7 Delivery (+`arms_swing_around`, +`arms_lift`)[^ps-d2], so the Delivery
 kind spans two groups, and `golfer` holds three kinds (17 Capacity, 10 Intent, 1 Equipment), which include
 every physical screen and every intent node in the library.
 
@@ -1231,3 +1229,27 @@ src/Gui/review/metric_catalog.cpp      corridors for the metric + dashboard surf
 ```
 
 **Read next:** `docs/design/swing_fault_ontology.md` (why `kind` and `prominence` exist, and the coaching review that produced them), `docs/design/diagnostics_norms.md` (the brief), `docs/implementation/diagnostics_norms_impl_plan.md` (how it was built, its ledger, and the handoff to *Diagnosis execution, V&V*), `docs/user/pinpoint-diagnostics-guide.md` (the same model in non-technical language — useful for naming things the way users will), `docs/design/pinpoint_sign_conventions.md` (before touching any direction), and `docs/developer/metric_catalogue_developer_guide.md` (the other registry).
+
+## Notes
+
+[^ps-d5]: Plane stack D5, 13 Nov 2026.
+[^ps-d6]: Plane stack D6, 13 Nov 2026.
+[^dec-owners]: DEC-100, DEC-135, DEC-190–192.
+[^dec02]: DEC-02.
+[^dec135]: DEC-135.
+[^dec171]: DEC-171.
+[^dec123]: DEC-123.
+[^dec191]: DEC-191.
+[^dec126]: DEC-126.
+[^dec46]: DEC-46.
+[^dec172]: D7: DEC-172.
+[^j49]: J-49.
+[^dec92]: DEC-92.
+[^j53]: J-53.
+[^dec195]: DEC-195.
+[^j51]: J-51.
+[^dec165]: D3: DEC-165.
+[^j59]: J-59 (`build/refactor/step-3/JUDGEMENT-CALLS.md`).
+[^ja3]: J-a3.
+[^j61]: J-61.
+[^ps-d2]: Plane stack D2, 13 Nov 2026.

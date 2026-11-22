@@ -38,17 +38,17 @@ rules and the IM §10 ownership section, as 04 §1 does for the current refactor
 | Proposal | Kind | Stage |
 |---|---|---|
 | A new `src/Platform/` directory, or `src/Core/` made Platform-only, and the file moves out of `Core` | IMC C9 (the precedent is DEC-148: a new `src/Identity` was C9) | B |
-| Correct IM's Studio/Rig entry: `StudioProfile` is not a rig object | IMC C1, C2, C3: approved and applied (Mark, 21 Nov 2026; DEC-193) | done (Premise 2) |
+| Correct IM's Studio/Rig entry: `StudioProfile` is not a rig object | IMC C1, C2, C3: approved and applied[^dec193] | done (Premise 2) |
 | The Rig's design: identity, store, writer, `RigChanged`, a rig reference in each Recording | IMC C1, C3, C4, C5, C7, C8 | C |
 | SET-05 and SET-09's rig keys moving into the Rig | IMC C3 | C |
 | A device key type | IMC C5 | C |
 | The capture service's ring, and where its device half goes | IMC C9 | D |
-| When in capture the shot is allocated (DEC-142 says `Session::addShot` allocates it) | IMC C8, if the timing changes | D |
+| When in capture the shot is allocated (`Session::addShot` allocates it[^dec142]) | IMC C8, if the timing changes | D |
 | A persisted shot-source type in the Vocabulary ring | IMC C3/C9 | D |
 | The composition root's ring (`AppComposition`) | IMC C9 (lint A1) | E |
 | The settings split, where it moves keys that hold domain facts (SET-*) | IMC C3, C4 | E |
 | Amending R-CON-5 to allow a helper for long-lived hardware and media threads | IMC C11 | E |
-| Narrowing lint A6 back to P9's wording | IMC (a change to a lint rule's scope: DEC-120) | E, any time |
+| Narrowing lint A6 back to P9's wording | IMC (a change to a lint rule's scope)[^dec120] | E, any time |
 | PPCP's files: retiring FILE-LIB-05, a PPCP repository, FILE-SHOT-11's owner | IMC C1, C3, C4 | F |
 | The pairing key (`ppcp/pairings`, SET-09): any change of store | IMC C3; a question for Mark only, citing E56/E57 | none proposed |
 | #105: a "not ready" state on a sensor's device card (`PpDeviceCard`) | design system | A |
@@ -67,8 +67,8 @@ What this assessment adds to 05:
 
 1. **Premise 2 was the main finding, and it is now corrected.** IM filed the studio profile (FILE-APP-06) under
    Studio/Rig and mapped `StudioProfile` to OBJ-RIG, though it holds report and coach details only
-   (`src/Core/studio_profile.h:21–34`). Mark approved the correction on 21 Nov 2026, and IM v1.9.12 applies it as
-   DEC-193: OBJ-STUDIO-PROFILE, SET-20, and FILE-APP-06 re-classed.
+   (`src/Core/studio_profile.h:21–34`). IM v1.9.12 applies the correction as
+   DEC-193[^dec193]: OBJ-STUDIO-PROFILE, SET-20, and FILE-APP-06 re-classed.
 2. **Build structure is under-weighted in 05** (one row, B-14). Ring-aligned CMake libraries are worth more than that
    row says, but only after step 7 and after the eight directories that span rings are split; and they enforce lint
    A1 only (Premise 3).
@@ -103,7 +103,7 @@ The size of each group, measured as above:
 health. The production code of Buffer, Video, IMU and LaunchMonitor together is 29,630 lines, so PPCP is not larger
 than those four combined.
 
-### Premise 2: `StudioProfile` is not the Rig (right; corrected, DEC-193)
+### Premise 2: `StudioProfile` is not the Rig (right; corrected)
 
 `StudioProfile` (`src/Core/studio_profile.h:21–34`) holds the studio's and coach's details for reports and emails:
 name, logo, accent colour, address, phone, email, website, booking link, practice steps, email subject and body,
@@ -111,12 +111,12 @@ coach name, title, email, phone and photo. It holds nothing about cameras, senso
 
 Yet IM classed FILE-APP-06 as "source (rig)", owned by Studio/Rig (§8.1), mapped `StudioProfile` to OBJ-RIG
 (§11.2), and listed FILE-APP-06 among "where rig facts live today" (§2.3, §11.1). Because §2.3 says "No new place may
-be added before the design (C3) (DEC-140)", the misclassification also constrained work. DEC-193 corrected it.
+be added before the design (C3) (DEC-140)", the misclassification also constrained work. DEC-193 corrected it[^dec193].
 
 A Recording's reference to the rig (IM §2.3, "each Recording references the rig state it was captured with") must
 never go stale because a coach changed a phone number or a logo.
 
-**What DEC-193 decided** (Mark, 21 Nov 2026; IM v1.9.12):
+**What DEC-193 decided**[^dec193]:
 
 - The studio profile is a source (the coach's entries), owned at the application level by `StudioProfile`
   (OBJ-STUDIO-PROFILE), held per machine: the Mac and the cabin PC each hold their own. It lives in SET-20 (`Studio/*`,
@@ -124,7 +124,7 @@ never go stale because a coach changed a phone number or a logo.
 - `ppcp/studioName` is the machine's own name as phones see it, and stays in SET-09 with the rig facts.
 - OBJ-RIG is unchanged: which cameras and sensors, where they are, and their calibration, versioned over time (IM
   §2.3). FILE-APP-06 leaves its list of where rig facts live today, and SET-05 joins it.
-- The two allowlist lines were re-worded (Mark, 21 Nov 2026): `studio_profile.cpp`'s A5 line is now tagged
+- The two allowlist lines were re-worded[^m21nov]: `studio_profile.cpp`'s A5 line is now tagged
   `# platform refactor (settings)`, `studio_profile.h`'s A6 line stays `# unplanned`, and 05 lists both in §2. So
   they are Stage E's.
 
@@ -169,8 +169,7 @@ written the same way (IM §1.4). In step G the lead widened A6 to every header (
 signals), and that call is waiting for Mark (05 "Decisions waiting": "The lint-scope calls … A6 on every header, not
 only presenters").
 
-**Recommendation.** Ask Mark to narrow A6 back to P9's wording (proposed, for Mark; a lint-scope change is an IMC,
-DEC-120). That one decision settles most of 05 §2's A6 lines, instead of re-tagging them `# kept` one at a time. The
+**Recommendation.** Ask Mark to narrow A6 back to P9's wording (proposed, for Mark; a lint-scope change is an IMC[^dec120]). That one decision settles most of 05 §2's A6 lines, instead of re-tagging them `# kept` one at a time. The
 lines it would take out of A6's scope are settings, monitoring and tool objects, which are not presenters or domain
 types: `app_settings.h` ×26, `markup_controller.h` ×11, `profiler_controller.h` ×8, `resource_monitor_controller.h`
 ×4, `swing_zip_exporter.h` ×2, `app_info.h` ×1, `llm_controller.h` ×1, `transcription_controller.h` ×1,
@@ -185,7 +184,7 @@ Appendix A places every line.
 
 PPCP is in 05 §1: its first row ("connectors"), its A5 row (seven files) and its A6 row (`ppcp_host_service.h` ×6).
 IM gives its files ids (FILE-LIB-03…05, FILE-SHOT-11), all homed in "platform refactor (capture)", and the pairing
-store's file lines are capture's by Mark's decision of 15 Nov 2026 (05 §1, citing
+store's file lines are capture's[^m15nov] (05 §1, citing
 `build/refactor/step-2/JUDGEMENT-ANSWERS.md`). It is not missed.
 
 The real gap is that 02's "The June review, re-checked" table leaves out June's concurrency, secrets and
@@ -328,11 +327,11 @@ directory, and the RING-* rows that name `Core`). Ids: RING-PLATFORM, RING-VOCAB
 
 ### Stage C · The Rig and calibration
 
-The first stage of the capture plan. The IM correction of Premise 2 is made (DEC-193); the Rig's design is an IMC
+The first stage of the capture plan. The IM correction of Premise 2 is made[^dec193]; the Rig's design is an IMC
 (C1, C3, C4, C5, C7, C8) for Mark before anything is built.
 
 Where rig facts live today (IM §2.3): settings SET-09 (`camera/*`, `imu/*`, `ppcp/studioName`, `ppcp/pairings`);
-SET-05 (`analysis/clubLenPrior`, learned rig state per machine, DEC-153); the trunk ceremony FILE-SESS-11; and
+SET-05 (`analysis/clubLenPrior`, learned rig state per machine[^dec153]); the trunk ceremony FILE-SESS-11; and
 assumptions in code ("fixed cameras are square", the uncalibrated down-the-line yaw σ, `pp_tuned_constants.h`). 3,978
 lines of calibration QML run state machines, quaternion maths and pass/fail thresholds.
 
@@ -383,8 +382,8 @@ After Stage C, so the capture service writes rig references from the start.
   device half leaves in this refactor (IM §4.1). So (proposed, for Mark; IMC C9): the capture service stays in
   Application, and its device half moves to an Adapters-ring collaborator behind an interface the inner ring
   defines. That removes the device and ring includes behind the A1 lines.
-- **The shot is allocated by `Session::addShot`** (DEC-142: allocate, then create through
-  `RecordingRepository::create`, then capture writes), not by the capture service. The capture service binds the
+- **The shot is allocated by `Session::addShot`** (allocate, then create through
+  `RecordingRepository::create`, then capture writes)[^dec142], not by the capture service. The capture service binds the
   target session when the shot is triggered, so a shot in flight when End is pressed lands in that session (#188).
   Whether `addShot` is called at the freeze rather than after the export is a change of timing (C8) for Mark (§9,
   Q8). #188 itself has not been re-checked since step 3.4a-ii (the issue says so); check it first.
@@ -467,11 +466,11 @@ fallbacks in Stage D, as that file is edited (for Mark).
   the TTS, transcription and LLM controllers; one shared piece. `STTBackendAssemblyAI` (296 lines) is built but
   referenced by nothing outside its own files: delete it, or wire it (for Mark).
 - **#193** (the app's own trash always): new behaviour, held by the freeze, and it overlaps step 3's housekeeping
-  (DEC-80, SET-14). Ask after step 3 (§9, Q6).
+  (SET-14)[^dec80]. Ask after step 3 (§9, Q6).
 
 | | |
 |---|---|
-| Closes | 05 §2's updater A1 lines; 05 §2's studio-profile lines (`studio_profile.cpp` A5 ×9 with the profile's repository, `studio_profile.h` A6 ×4 unless the lint-scope ruling takes it out of scope; DEC-193); 05 §4's settings-fallback row; F-09's remainder (as re-measured); the A6 lines the lint-scope ruling leaves in scope; June's secrets and Gemini rows |
+| Closes | 05 §2's updater A1 lines; 05 §2's studio-profile lines (`studio_profile.cpp` A5 ×9 with the profile's repository, `studio_profile.h` A6 ×4 unless the lint-scope ruling takes it out of scope)[^dec193]; 05 §4's settings-fallback row; F-09's remainder (as re-measured); the A6 lines the lint-scope ruling leaves in scope; June's secrets and Gemini rows |
 | Deletes | the PPCP statics; `AppSettings fallback;`; the hand-written thread teardowns (if the amendment is agreed); the compile-time key default |
 | Test | quit at every point of start-up and during the pose warm-up, on the Mac and the cabin PC (the Windows path is "NOT TESTED", `main.cpp:153–157`); the helper's own tests under ThreadSanitizer (TSan, the data-race checker); settings read and write tests; a signed upgrade on macOS with keys in the keychain |
 | Re-run | none to analysis |
@@ -487,7 +486,7 @@ The last stage of the capture plan, after Stage E's composition root, which take
 - **PPCP's files** (all "design: the platform refactor (capture)" in IM §8.1): the import ledger FILE-LIB-03, the
   imported clips FILE-LIB-04, the legacy ledger FILE-LIB-05, and the annotations FILE-SHOT-11. Retire FILE-LIB-05 once
   it is shown unused, or migrate it once; one repository for the ledger; decide whether FILE-SHOT-11 joins the
-  `Shot` (as FILE-SHOT-12 did, DEC-187) or is a peer cache (all proposed, for Mark; IMC C1, C3, C4).
+  `Shot` (as FILE-SHOT-12 did[^dec187]) or is a peer cache (all proposed, for Mark; IMC C1, C3, C4).
 - **`PpcpHostService`** (3,709 + 1,191 lines) splits into the headless engine it already builds on (`makeHostEngine`,
   `src/Ppcp/ppcp_host_peer.cpp:558`) and a typed presenter for QML (its A6 ×6).
 - **#78 and #79's defects**: a disabled camera still gets a preview; the wired preview channel drops about every 50
@@ -578,8 +577,7 @@ The other open bugs are analysis, tracker, diagnostics or UI issues outside the 
 
 ## 9. Open questions for Mark
 
-Answered: the first draft's Q1, "correct IM's Studio/Rig entry now?", is answered by DEC-193 (Mark, 21 Nov 2026;
-Premise 2). Its number is kept free so the other questions keep theirs.
+Answered: the first draft's Q1, "correct IM's Studio/Rig entry now?", is answered by DEC-193 (Premise 2)[^dec193]. Its number is kept free so the other questions keep theirs.
 
 Kept from the first draft:
 2. **Where does the Rig live?** Per machine (`<AppData>`), in the library keyed by its id, or as a copy embedded in
@@ -593,17 +591,17 @@ Kept from the first draft:
 Reframed:
 5. **The lint-scope ruling** (05 "Decisions waiting"): narrow A6 back to P9's wording, a presenter's or domain type's
    public API? That takes 05 §2's settings, monitoring and tool lines out of scope (Premise 4).
-6. **#193**: ask after step 3, which builds housekeeping as the one purging service (DEC-80, SET-14).
+6. **#193**: ask after step 3, which builds housekeeping as the one purging service (SET-14)[^dec80].
 
 Added:
 7. **The pairing key**: keep it in settings, as E56/E57 decided (`ppcp_pairing_store.cpp:19–70`), or move it to a
    keychain, accepting a prompt on macOS and no store on Linux? This page recommends keeping it.
 8. **The capture service**: does it stay in the Application ring with its device half in Adapters (IM §4.1), and does
-   `Session::addShot` (DEC-142) allocate the shot at the freeze or after the export?
+   `Session::addShot`[^dec142] allocate the shot at the freeze or after the export?
 9. **R-CON-5**: amend it to allow one helper for long-lived hardware and media threads, or keep one idiom with the
    capture threads named as exceptions?
 10. **GPU segmentation**: is it wanted, given a stage-version bump and a library re-run?
-11. **The studio profile's directory**: its owner is decided (`StudioProfile`, application level, DEC-193); which
+11. **The studio profile's directory**: its owner is decided (`StudioProfile`, application level)[^dec193]; which
     directory does it move to, with Stage B's `Core` split?
 12. **After Stage B**: keep the lint's A1 limits as 05 rows or retire them; and the pre-commit hook (05 "Decisions
     waiting") and the per-release audit re-run (05 §3)?
@@ -618,22 +616,22 @@ Added:
 |---|---|
 | §1 Transports, devices, ring buffer, connectors, threading inside capture | Stages C, D, F |
 | §1 The capture pipeline that produces a Recording | Stage D |
-| §1 Studio/Rig | Stage C; the IM correction is made (DEC-193) |
+| §1 Studio/Rig | Stage C; the IM correction is made[^dec193] |
 | §1 `RigChanged` | Stage C |
-| §1 Studio and acquisition files | Stage C (ceremony); Stage F (PPCP ledger); the studio profile is now 05 §2's (DEC-193) |
+| §1 Studio and acquisition files | Stage C (ceremony); Stage F (PPCP ledger); the studio profile is now 05 §2's[^dec193] |
 | §1 `swing_payload_source.h`, `swing_window.h` A1 | Stage D |
 | §1 `shot_controller.cpp` A1 ×2, `.h` A1 ×1 | Stage D |
 | §1 `ShotProcessor`'s capture half (A1 13 + 4 today) | Stage D |
 | §1 E-09, the capture half | Stage D |
 | §1 A-13 | Stage C |
 | §1 `motion_capture_probe.h` A6 ×1 | Stage D |
-| §2 `studio_profile.h` A6 ×4 (moved from §1, DEC-193) | Stage E; out of A6 scope if the lint-scope ruling narrows it |
+| §2 `studio_profile.h` A6 ×4 (moved from §1)[^dec193] | Stage E; out of A6 scope if the lint-scope ruling narrows it |
 | §1 `buffer_controller.h` ×1, `camera_instance.h` ×2, `camera_manager.h` ×2 A6 | Stage D |
 | §1 `imu_instance.h` ×2, `imu_manager.h` ×3 A6 | Stage D; `trunk_ceremony_recorder.h` ×2: Stage C |
 | §1 `ppcp_host_service.h` A6 ×6 | Stage F |
 | §1 PPCP's A5 lines (seven files, FILE-LIB-03…05, FILE-SHOT-11, the pairing store) | Stage F; the pairing store's line with the repository design, its storage unchanged |
 | §1 `trunk_ceremony_recorder.cpp` A5 ×7 | Stage C |
-| §2 `studio_profile.cpp` A5 ×9 (moved from §1, `# platform refactor (settings)`, DEC-193) | Stage E, with the profile's repository |
+| §2 `studio_profile.cpp` A5 ×9 (moved from §1, `# platform refactor (settings)`)[^dec193] | Stage E, with the profile's repository |
 | §1 `motion_capture_probe.cpp` A1 ×1 | Stage D |
 | §2 `app_settings.h` A6 ×26 | the lint-scope ruling; the rig keys' shapes in Stage C; else Stage E |
 | §2 `markup_controller.h` A6 ×11 | the lint-scope ruling (a tool); if A6 stays wide, Stage E |
@@ -670,9 +668,20 @@ Added:
 - §1 "Studio and acquisition files": "The trunk ceremony recorder still writes a part file then renames". It now
   writes through `atomicWrite`, copying the earlier ceremony aside first (`trunk_ceremony_recorder.cpp:435–448`; IM
   §8.1 FILE-SESS-11).
-- §4 "Markup truth files": FILE-SHOT-12 is now owned by the `Shot` (IM §8.1; DEC-187), and its A5 lines are tagged
+- §4 "Markup truth files": FILE-SHOT-12 is now owned by the `Shot` (IM §8.1)[^dec187], and its A5 lines are tagged
   `# step 3`.
 - §4 "The settings-fallback idiom: 48 uses". 24 declarations today (27 hits by `AppSettings +\w*[fF]allback`, tests excluded, three of them comments); 05
   should state the pattern it counts.
 - "Decisions waiting": "The 23 platform-layer `# unplanned` allowlist lines (… 4 A1 and 19 A6 …)". There are 25: 6 A1
   and 19 A6.
+
+## Notes
+
+[^dec193]: DEC-193: approved by Mark, 21 Nov 2026; applied in IM v1.9.12.
+[^dec142]: DEC-142.
+[^dec120]: DEC-120.
+[^m21nov]: Mark, 21 Nov 2026.
+[^m15nov]: Mark's decision of 15 Nov 2026.
+[^dec153]: DEC-153.
+[^dec80]: DEC-80.
+[^dec187]: DEC-187.
