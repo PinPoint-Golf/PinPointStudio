@@ -1,0 +1,39 @@
+#!/bin/sh
+# Generated from cmake/qmlcachegen_keep_unchanged.sh.in by pp_qml_cachegen_keep_unchanged()
+# in cmake/PinPointQmlModule.cmake. Do not edit the copy in the build tree.
+#
+# Runs the real qmlcachegen with every argument untouched, then, if the file it wrote with -o is
+# byte-identical to the one it replaced, puts the old file back. The old file keeps its mtime, so
+# ninja's restat sees the output unchanged and does not recompile that unit. The bytes compiled
+# are the same either way; only a pointless recompile is skipped. See the .cmake for why.
+
+real='@PP_REAL_QMLCACHEGEN@'
+
+out=
+prev=
+for arg in "$@"; do
+    if [ "$prev" = "-o" ]; then
+        out=$arg
+    fi
+    prev=$arg
+done
+
+old=
+if [ -n "$out" ] && [ -f "$out" ]; then
+    old="$out.pp-previous"
+    # mv, not cp -p: a rename keeps the mtime exactly; a copy may round it and defeat restat.
+    mv -f "$out" "$old" || old=
+fi
+
+"$real" "$@"
+rc=$?
+
+if [ -n "$old" ]; then
+    if [ "$rc" -eq 0 ] && [ -f "$out" ] && cmp -s "$out" "$old"; then
+        mv -f "$old" "$out"
+    else
+        rm -f "$old"
+    fi
+fi
+
+exit "$rc"

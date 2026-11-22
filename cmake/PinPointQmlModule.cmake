@@ -25,6 +25,67 @@
 #
 # Paths are relative to the repo root; each consumer prefixes them with its own.
 
+# ── Why a C++ header edit used to recompile all ~410 compiled-QML units ─────────────────────────
+#
+# The chain (build/refactor/step-4/QMLCACHE-NOTES.md has the evidence):
+#   edit any moc'ed header in the module's target (154 of them in the app, not only QML_ELEMENT ones)
+#   → moc --collect-json rewrites meta_types/qt6<target>_metatypes.json, because it carries every
+#     class's and method's "lineNumber" — a line added above a class is enough
+#   → qmltyperegistrar rewrites qml/PinPointStudio/PinPointStudio.qmltypes (it carries them too)
+#   → every qmlcachegen command depends on that .qmltypes, so all of them re-run
+#   → qmlcachegen rewrites every .rcc/qmlcache/*.cpp even when the bytes are identical, so
+#     ninja's restat cannot prune, and all ~410 units recompile (~530 s of compiler time).
+# The compiled QML does not depend on C++ line numbers; the bytes come out the same.
+#
+# pp_qml_cachegen_keep_unchanged(<target>) points the target's qmlcachegen at a small wrapper
+# (cmake/qmlcachegen_keep_unchanged.sh.in) that runs the real one with the same arguments and puts
+# the previous output back when the new one is byte-identical. qmlcachegen still re-runs (cheap,
+# ~13 s at -j6); the compiles of unchanged units do not. Every build type, Release included, still
+# compiles QML ahead of time from the same qmlcachegen with the same arguments.
+#
+# Call it BEFORE qt_add_qml_module: Qt reads QT_QMLCACHEGEN_EXECUTABLE while it declares the
+# module's QML files. POSIX hosts only (a sh script); on Windows hosts it does nothing, and the
+# build behaves as stock Qt does. -DPP_QMLCACHEGEN_KEEP_UNCHANGED=OFF restores stock everywhere.
+option(PP_QMLCACHEGEN_KEEP_UNCHANGED
+       "Keep byte-identical qmlcachegen output so a C++ header edit does not recompile every QML unit"
+       ON)
+set(_PP_QML_MODULE_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}")
+
+function(pp_qml_cachegen_keep_unchanged target)
+    if(NOT PP_QMLCACHEGEN_KEEP_UNCHANGED OR NOT CMAKE_HOST_UNIX)
+        return()
+    endif()
+    # The same choice Qt makes when the property is unset: qmlsc where it exists, else qmlcachegen.
+    if(TARGET ${QT_CMAKE_EXPORT_NAMESPACE}::qmlsc)
+        set(_tool ${QT_CMAKE_EXPORT_NAMESPACE}::qmlsc)
+    elseif(TARGET ${QT_CMAKE_EXPORT_NAMESPACE}::qmlcachegen)
+        set(_tool ${QT_CMAKE_EXPORT_NAMESPACE}::qmlcachegen)
+    else()
+        message(WARNING "pp_qml_cachegen_keep_unchanged(${target}): no qmlcachegen target; "
+                        "leaving Qt's default.")
+        return()
+    endif()
+    get_target_property(PP_REAL_QMLCACHEGEN ${_tool} LOCATION)
+    if(NOT PP_REAL_QMLCACHEGEN OR NOT EXISTS "${PP_REAL_QMLCACHEGEN}")
+        message(WARNING "pp_qml_cachegen_keep_unchanged(${target}): cannot locate ${_tool}; "
+                        "leaving Qt's default.")
+        return()
+    endif()
+
+    # configure_file rewrites the staged copy only when its text changes, and file(COPY) keeps that
+    # copy's mtime, so a re-configure does not touch the wrapper (every qmlcachegen command lists
+    # it as an input). file(COPY) is also what sets the execute bit, which configure_file cannot
+    # before CMake 3.19.
+    set(_dir "${CMAKE_BINARY_DIR}/pp_qmlcachegen")
+    configure_file("${_PP_QML_MODULE_CMAKE_DIR}/qmlcachegen_keep_unchanged.sh.in"
+                   "${_dir}/staged/qmlcachegen_keep_unchanged.sh" @ONLY)
+    file(COPY "${_dir}/staged/qmlcachegen_keep_unchanged.sh" DESTINATION "${_dir}"
+         FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                          GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+    set_target_properties(${target} PROPERTIES
+        QT_QMLCACHEGEN_EXECUTABLE "${_dir}/qmlcachegen_keep_unchanged.sh")
+endfunction()
+
 # `pragma Singleton` files. Qt needs QT_QML_SINGLETON_TYPE on each or the type registers as
 # an ordinary component and every `Theme.foo()` call becomes a property lookup on nothing.
 set(PP_QML_SINGLETONS

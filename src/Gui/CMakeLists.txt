@@ -121,6 +121,7 @@ else()
     endforeach()
     list(TRANSFORM PP_QML_SOURCES PREPEND "${PP_ROOT}/")
 
+    pp_qml_cachegen_keep_unchanged(qml_ui_test)   # see cmake/PinPointQmlModule.cmake
     qt_add_qml_module(qml_ui_test
         URI PinPointStudio
         VERSION 1.0
@@ -264,6 +265,7 @@ else()
 
         # ⚠ OUTPUT_DIRECTORY IS EXPLICIT because two targets in one directory declare URI
         # PinPointStudio; left to the default they would write the same qmldir/qmltypes.
+        pp_qml_cachegen_keep_unchanged(session_setup_ui_test)   # see cmake/PinPointQmlModule.cmake
         qt_add_qml_module(session_setup_ui_test
             URI PinPointStudio
             VERSION 1.0

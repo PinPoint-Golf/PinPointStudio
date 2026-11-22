@@ -871,6 +871,8 @@ foreach(_pp_singleton IN LISTS PP_QML_SINGLETONS)
     set_source_files_properties(${_pp_singleton} PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 endforeach()
 
+# A header edit must not recompile every compiled-QML unit: see cmake/PinPointQmlModule.cmake.
+pp_qml_cachegen_keep_unchanged(PinPointStudio)
 qt_add_qml_module(PinPointStudio
     URI PinPointStudio
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/PinPointStudio
