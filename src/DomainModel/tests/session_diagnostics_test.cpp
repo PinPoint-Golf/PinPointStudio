@@ -79,6 +79,7 @@
 #include <QTemporaryDir>
 #include <QSemaphore>
 #include <QThread>
+#include <QTimeZone>
 
 #include <algorithm>
 #include <atomic>
@@ -896,6 +897,9 @@ static void testLegacyGolferInput()
               && hasCorrectedLabel(*dl->kept(3)->derived, QStringLiteral("slice"))
               && dl->kept(4)->derived->intent == QLatin1String("fade") && dl->kept(5)->derived->intent == QLatin1String("fade")
               && dl->kept(2)->derived->intent.isEmpty() && dl->kept(1)->derived->intent.isEmpty());
+    // LEGf (5.4a; golfer_input_test L2): reading the older keys writes no new home.
+    check(QStringLiteral("LEGf a load of the older shape writes no session_input.json"),
+          !QFile::exists(SessionFiles::sessionInputFile(folder)));
     // A review that holds the key wins over the older copy (field by field): shot 3 cleared in its review → no intent.
     ShotReview cleared;
     cleared.ok = true;
@@ -910,6 +914,26 @@ static void testLegacyGolferInput()
               golfer_input::applyReview(none, 3, in2, c);
               return !in.contains(3) && in2.value(3) == QLatin1String("slice");
           }());
+    // LEGw (5.4a; the old suite's "the older shape's keys" and golfer_input_test L): the owner's own write of the file
+    // carries the older keys exactly as they stood (J-33).
+    if (again && dl && !again->shots().isEmpty()) {
+        const QString path = SessionFiles::diagnosticsFile(folder);
+        QFile r0(path);
+        const QJsonObject was = r0.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(r0.readAll()).object() : QJsonObject();
+        r0.close();
+        const qint64 writes = qint64(dl->counts().writes);
+        dl->fire(again->shots().first()->ref());
+        Rig::settled(dl);
+        dl->flush();
+        QFile r1(path);
+        const QJsonObject now = r1.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(r1.readAll()).object() : QJsonObject();
+        bool kept = qint64(dl->counts().writes) > writes;
+        for (const char *k : { "shotIntent", "corrections", "intentFrom" })
+            kept = kept && now.value(QLatin1String(k)) == was.value(QLatin1String(k)) && now.contains(QLatin1String(k));
+        check(QStringLiteral("LEGw the owner's write keeps the older keys as they stood"), kept);
+    } else {
+        check(QStringLiteral("LEGw setup"), false);
+    }
 }
 
 // C3: a derive that fails is not asked again until one of its inputs moves — async and headless.
@@ -1267,6 +1291,231 @@ static void testDiagnosis()
           d->counts().reductions == reds + 1 && d->asks().size() == asks);
 }
 
+// ── Refactor 5.4a: the duties the old engine's tests held, now the owner's (build/refactor/step-5/DUTIES-5.4.md) ──────
+
+static QStringList asidesIn(const QString &folder)
+{
+    return QDir(folder).entryList({ QStringLiteral("diagnostics.json.unreadable-*") }, QDir::Files);
+}
+static QByteArray bytesOf(const QString &path)
+{
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+static bool writeBytes(const QString &path, const QByteArray &b)
+{
+    QFile f(path);
+    return f.open(QIODevice::WriteOnly | QIODevice::Truncate) && f.write(b) == b.size();
+}
+// An ended session of two shots, written by its release; its folder and id. Null id on a setup failure.
+static SessionId endedAndReleased(Rig &rig, QString *folder)
+{
+    Session *s = rig.session({ spec(kA, 10), spec(kA, 12) });
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    if (!Rig::settled(d)) return SessionId();
+    s->end();
+    const SessionId id = s->id();
+    *folder = rig.folderOf(id);
+    if (!rig.athlete->releaseSession(id)) return SessionId();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    return rig.store.readDiagnostics(id).state == DiagnosticsRead::State::Read ? id : SessionId();
+}
+
+// UNR (5.4a; the old suite "a diagnostics.json in trouble costs the golfer nothing"): the owner's load
+// (session_diagnostics.cpp, load) sets an unparseable file aside and carries on as a session with no file; leaves an
+// unopenable one where it is and writes nothing; and reads a newer build's without writing it (R-PERS-3). The notice
+// the golfer sees for a read-only file is the composition root's (main.cpp, diagAttached: readOnly()).
+static void testUnreadableFile()
+{
+    std::printf("\nUNR — a diagnostics.json in trouble: set aside, left alone, or read and never written\n");
+    {   // a: does not parse → set aside, the session re-judged and written afresh
+        Rig rig(/*synchronous=*/true, 0);
+        QString folder;
+        const SessionId id = endedAndReleased(rig, &folder);
+        if (id.isNull()) { check(QStringLiteral("UNR-a setup"), false); return; }
+        const QString path = SessionFiles::diagnosticsFile(folder);
+        check(QStringLiteral("UNR-a1 the file corrupted (scratch)"), writeBytes(path, "{ not json"));
+        Session *again = rig.athlete->session(id);
+        SessionDiagnostics *d = again ? again->diagnostics() : nullptr;
+        check(QStringLiteral("UNR-a2 loaded; it settles"), Rig::settled(d));
+        check(QStringLiteral("UNR-a3 the file was set aside beside the session (diagnostics.json.unreadable-…), not read-only"),
+              d && asidesIn(folder).size() == 1 && !d->readOnly()
+                  && bytesOf(folder + QLatin1Char('/') + asidesIn(folder).value(0)) == "{ not json");
+        const bool written = d && d->flush();
+        const DiagnosticsRead back = rig.store.readDiagnostics(id);
+        check(QStringLiteral("UNR-a4 both shots judged again and the file written afresh"),
+              written && back.state == DiagnosticsRead::State::Read && analysis::fromJson(back.envelope.ledger).size() == 2);
+    }
+    {   // b: cannot be opened → left where it is; nothing written; read-only
+        Rig rig(/*synchronous=*/true, 0);
+        QString folder;
+        const SessionId id = endedAndReleased(rig, &folder);
+        if (id.isNull()) { check(QStringLiteral("UNR-b setup"), false); return; }
+        const QString path = SessionFiles::diagnosticsFile(folder);
+        const QByteArray before = bytesOf(path);
+        const QFileDevice::Permissions perms = QFile::permissions(path);
+        check(QStringLiteral("UNR-b1 the file made unopenable (scratch)"), QFile::setPermissions(path, QFileDevice::Permissions()));
+        Session *again = rig.athlete->session(id);
+        SessionDiagnostics *d = again ? again->diagnostics() : nullptr;
+        Rig::settled(d);
+        check(QStringLiteral("UNR-b2 read-only: nothing is written this load, the file is not set aside"),
+              d && d->readOnly() && asidesIn(folder).isEmpty());
+        if (d && again && !again->shots().isEmpty()) d->fire(again->shots().first()->ref());
+        Rig::settled(d);
+        if (d) d->flush();
+        rig.athlete->releaseSession(id);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QFile::setPermissions(path, perms);
+        check(QStringLiteral("UNR-b3 after a fire, a flush and the release the file is byte for byte as it was"),
+              bytesOf(path) == before && !before.isEmpty());
+    }
+    {   // c: does not parse and cannot be set aside → read-only
+        Rig rig(/*synchronous=*/true, 0);
+        QString folder;
+        const SessionId id = endedAndReleased(rig, &folder);
+        if (id.isNull()) { check(QStringLiteral("UNR-c setup"), false); return; }
+        const QString path = SessionFiles::diagnosticsFile(folder);
+        writeBytes(path, "{ not json");
+        const QFileDevice::Permissions dirPerms = QFile::permissions(folder);
+        check(QStringLiteral("UNR-c1 the session folder made read-only, so no rename can land (scratch)"),
+              QFile::setPermissions(folder, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+        Session *again = rig.athlete->session(id);
+        SessionDiagnostics *d = again ? again->diagnostics() : nullptr;
+        Rig::settled(d);
+        const bool readOnly = d && d->readOnly();
+        if (d) d->flush();
+        rig.athlete->releaseSession(id);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QFile::setPermissions(folder, dirPerms);
+        check(QStringLiteral("UNR-c2 the rename failed: read-only, the file left as it was and nothing set aside"),
+              readOnly && bytesOf(path) == "{ not json" && asidesIn(folder).isEmpty());
+    }
+    {   // d: a newer build's → read, never written (R-PERS-3)
+        Rig rig(/*synchronous=*/true, 0);
+        QString folder;
+        const SessionId id = endedAndReleased(rig, &folder);
+        if (id.isNull()) { check(QStringLiteral("UNR-d setup"), false); return; }
+        const QString path = SessionFiles::diagnosticsFile(folder);
+        QJsonObject root = QJsonDocument::fromJson(bytesOf(path)).object();
+        root[QStringLiteral("schemaVersion")] = 99;
+        writeBytes(path, QJsonDocument(root).toJson(QJsonDocument::Compact));
+        const QByteArray before = bytesOf(path);
+        Session *again = rig.athlete->session(id);
+        SessionDiagnostics *d = again ? again->diagnostics() : nullptr;
+        Rig::settled(d);
+        check(QStringLiteral("UNR-d1 a newer build's file is read (its two shots kept) and the owner is read-only"),
+              d && d->readOnly() && d->keptShots().size() == 2);
+        if (d && again && !again->shots().isEmpty()) d->fire(again->shots().first()->ref());
+        Rig::settled(d);
+        if (d) d->flush();
+        rig.athlete->releaseSession(id);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        check(QStringLiteral("UNR-d2 after a fire, a flush and the release it is byte for byte as it was"), bytesOf(path) == before);
+    }
+}
+
+static int stageRank(analysis::Stage st)
+{
+    switch (st) {
+    case analysis::Stage::Cold:        return 0;
+    case analysis::Stage::Forming:     return 1;
+    case analysis::Stage::Established: return 2;
+    case analysis::Stage::Closing:     return 3;
+    }
+    return -1;
+}
+// The tier ledger only: what a focus or a declared miss must never move (the old suite's §5, "inert on the evidence").
+static QByteArray tiersKey(const analysis::SessionDiagnosis *dg)
+{
+    QByteArray out;
+    if (!dg) return out;
+    for (const analysis::ConditionLedger &l : dg->ledgers)
+        out += l.id.toUtf8() + ':' + QByteArray::number(int(l.tier)) + ':' + QByteArray::number(l.fired) + '/'
+             + QByteArray::number(l.assessable) + ';';
+    return out;
+}
+
+// STG (5.4a; the old suite's §1): the stage ratchet is one way in the owner's diagnoses — a session that left Cold does
+// not go back when its evidence thins — and `reachedEstablished` is kept with it.
+static void testStageRatchet()
+{
+    std::printf("\nSTG — the stage ratchet: one way across the owner's diagnoses\n");
+    Rig rig(/*synchronous=*/true, 0, /*realReader=*/true);
+    Session *s = rig.session({ Spec{}, Spec{}, Spec{}, Spec{}, Spec{}, Spec{} }, "rich_7iron");
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    const analysis::SessionDiagnosis *dg = d ? d->diagnosis() : nullptr;
+    if (!dg) { check(QStringLiteral("STG setup"), false); return; }
+    const analysis::Stage first = dg->stage;
+    const bool reached = dg->reachedEstablished;
+    std::printf("    six rich swings: stage %d, reachedEstablished %d\n", int(first), int(reached));
+    check(QStringLiteral("STGa six rich swings have left Cold"), stageRank(first) >= 1);
+    const QList<Shot *> shots = s->shots();
+    for (int i = 0; i < 4 && i < shots.size(); ++i) s->trashShot(shots.at(i)->ref());
+    Rig::settled(d);
+    const analysis::SessionDiagnosis *thin = d->diagnosis();
+    check(QStringLiteral("STGb four trashed: the stage does not go back, and the latch holds"),
+          thin && stageRank(thin->stage) >= stageRank(first) && thin->reachedEstablished == reached);
+}
+
+// FOC (5.4a; the old suite's §5): the declared focus and miss, set through the Session's command (EVT-10), reach the
+// owner's reduction input and move no tier, count or assessable count.
+static void testFocusInert()
+{
+    std::printf("\nFOC — a declared focus or miss moves no tier, count or corridor\n");
+    Rig rig(/*synchronous=*/true, 0, /*realReader=*/true);
+    Session *s = rig.session({ Spec{}, Spec{}, Spec{}, Spec{}, Spec{} }, "rich_7iron");
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    if (!d || !d->diagnosis() || d->diagnosis()->ledgers.empty()) { check(QStringLiteral("FOC setup"), false); return; }
+    const QByteArray before = tiersKey(d->diagnosis());
+    QString focus = d->diagnosis()->ledgers.front().id;
+    for (const analysis::ConditionLedger &l : d->diagnosis()->ledgers)
+        if (l.tier == analysis::Tier::Pattern) { focus = l.id; break; }
+    SessionIntentEdit edit;
+    edit.focus = DeclaredFocus{ focus, 2 };
+    s->setSessionIntent(edit);
+    Rig::settled(d);
+    const auto in = d->diagnosisInput();
+    check(QStringLiteral("FOCa the focus reaches the owner's reduction input"),
+          in && in->focusConditionId == focus && in->focusFromShot == 2);
+    check(QStringLiteral("FOCb …and moves no tier, fired or assessable count"), tiersKey(d->diagnosis()) == before);
+    SessionIntentEdit miss;
+    miss.miss = QStringLiteral("slice");
+    s->setSessionIntent(miss);
+    Rig::settled(d);
+    check(QStringLiteral("FOCc a declared miss reaches it too, and moves nothing either"),
+          d->diagnosisInput() && d->diagnosisInput()->declaredMiss == QLatin1String("slice") && tiersKey(d->diagnosis()) == before);
+}
+
+// COH3 (5.4a; the old suite's §4b): a kept row is dated by the document's capture instant, never the file's mtime.
+static void testRowCaptureInstant()
+{
+    std::printf("\nCOH3 — a kept row's timestamp is the capture instant, not the file's mtime\n");
+    Rig rig(/*synchronous=*/true, 0, /*realReader=*/true);
+    Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
+    Shot *shot = s ? s->addShot() : nullptr;
+    if (!shot) { check(QStringLiteral("COH3 setup"), false); return; }
+    QFile in(fixture("rich_7iron"));
+    QJsonObject root = in.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(in.readAll()).object() : QJsonObject();
+    in.close();
+    const QDateTime instant(QDate(2026, 3, 4), QTime(10, 11, 12), QTimeZone::UTC);
+    QJsonObject clock = root.value(QStringLiteral("clock")).toObject();
+    clock[QStringLiteral("wallclock")] = instant.toString(Qt::ISODateWithMs);
+    root[QStringLiteral("clock")] = clock;
+    const QString doc = QDir(shot->folder()).filePath(QStringLiteral("swing.json"));
+    writeBytes(doc, QJsonDocument(root).toJson(QJsonDocument::Compact));
+    {
+        QFile f(doc);
+        f.open(QIODevice::ReadWrite);
+        f.setFileTime(QDateTime(QDate(2020, 1, 1), QTime(0, 0), QTimeZone::UTC), QFileDevice::FileModificationTime);
+    }
+    s->shotDocumentWritten(shot->ref());
+    SessionDiagnostics *d = s->diagnostics();
+    Rig::settled(d);
+    const KeptShot *k = d ? d->kept(shot->swingNumber()) : nullptr;
+    check(QStringLiteral("COH3a the row's timestampMs is the document's clock.wallclock"),
+          k && k->findings.timestampMs == instant.toMSecsSinceEpoch());
+}
+
 // TS (CARRY: 3.5-i review 1 §6): the REAL firing reader on the pool's workers while the GUI thread writes the same
 // shots' reviews through their commands — the case ThreadSanitizer has to see (build/tests-tsan). Every ask settles,
 // every shot is kept, and the diagnosis lands.
@@ -1458,6 +1707,10 @@ int main(int argc, char **argv)
     testResultsJson();
     testRealReaderBesideReviewWrites();
     testG08();
+    testUnreadableFile();
+    testStageRatchet();
+    testFocusInert();
+    testRowCaptureInstant();
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;

@@ -34,6 +34,7 @@
 //   ctest --test-dir build/tests -R '^shot_number_test$' --output-on-failure
 
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
+#include "owner_rig.h"   // the owners the suite drives (refactor 5.4a)
 #include "../../Export/rule_data_install.h"
 #include "../../Export/session_diagnostics_files.h"
 #include "../../Export/session_files.h"
@@ -103,14 +104,10 @@ static bool stageShot(const QString &sessionDir, int n, const char *fixture = "r
                          QFileDevice::FileModificationTime);
 }
 
-static std::unique_ptr<SessionDiagnosticsModel> freshModel(
-    SessionDiagnosticsModel::BaselineAuthority authority = SessionDiagnosticsModel::BaselineAuthority::Never)
+// THE SESSION'S ADAPTER, OPENED AFRESH (refactor 5.4a; owner_rig.h): until then a model of the test's own on the folder.
+static SessionDiagnosticsModel *openView(const QString &dir)
 {
-    auto m = std::make_unique<SessionDiagnosticsModel>();
-    m->setSynchronous(true);
-    m->setCadence(QStringLiteral("everyShot"));
-    m->setBaselineAuthority(authority);
-    return m;
+    return owner_rig::rigOfSession(dir).open(dir);
 }
 
 static QList<int> ledgerIds(const SessionDiagnosticsModel &m)
@@ -132,12 +129,13 @@ static QString runReadout(const QVariantMap &spread, int i)
 }
 
 // A session file as the store writes it (FILE-SESS-01), its start time given.
+// Its athlete: the one the rig holds its folder for (5.4a), so that athlete holds the session.
 static bool writeSessionFile(const QString &sessionDir, const QDateTime &startedAtUtc)
 {
     const QJsonObject o{
         { QStringLiteral("schema"), QStringLiteral("pinpoint.session/1") },
         { QStringLiteral("sessionId"), QUuid::createUuid().toString(QUuid::WithoutBraces) },
-        { QStringLiteral("athleteId"), QUuid::createUuid().toString(QUuid::WithoutBraces) },
+        { QStringLiteral("athleteId"), owner_rig::rigOfSession(sessionDir).athlete->id().toString() },
         { QStringLiteral("type"), QStringLiteral("swing") },
         { QStringLiteral("status"), QStringLiteral("ended") },
         { QStringLiteral("startedAt"), startedAtUtc.toUTC().toString(Qt::ISODateWithMs) },
@@ -154,15 +152,15 @@ static void testShotNumber(const QTemporaryDir &tmp)
     for (int n : { 1, 2, 3, 5, 6 }) check(stageShot(dir, n), "a swing staged");
     check(QDir().mkpath(swingDir(dir, 4)), "swing 4: its folder made, no document yet (allocated, never written)");
     {
-        auto first = freshModel();
-        first->activateSession(dir);
+        SessionDiagnosticsModel *first = openView(dir);
+        if (!first) { check(false, "the session is held and its adapter made"); return; }
         check(ledgerIds(*first) == QList<int>({ 1, 2, 3, 5, 6 }), "the first read: swings 1, 2, 3, 5, 6 (4 has no document)");
     }
     // Swing 3 leaves the session (the trash): its number goes with it.
     check(QDir(swingDir(dir, 3)).removeRecursively(), "swing 3 trashed");
 
-    auto m = freshModel();
-    m->activateSession(dir);
+    SessionDiagnosticsModel *m = openView(dir);
+    if (!m) { check(false, "the session is held and its adapter made"); return; }
     check(ledgerIds(*m) == QList<int>({ 1, 2, 5, 6 }), "S1 the ledger holds swings 1, 2, 5, 6");
     checkEq(m->headerInfo().value(QStringLiteral("shotLabel")).toString(), QStringLiteral("shot 6"),
             "S2 live, the header names the newest shot by its swing number: shot 6 (not shot 4)");
@@ -205,8 +203,8 @@ static void testShotNumber(const QTemporaryDir &tmp)
     // A session with no gap reads exactly as before: the numbers are the positions.
     const QString plain = makeSession(tmp, "athlete_plain", "2026-11-15_M_01");
     for (int n : { 1, 2, 3 }) stageShot(plain, n);
-    auto p = freshModel();
-    p->activateSession(plain);
+    SessionDiagnosticsModel *p = openView(plain);
+    if (!p) { check(false, "the session is held and its adapter made"); return; }
     checkEq(p->headerInfo().value(QStringLiteral("shotLabel")).toString(), QStringLiteral("shot 3"),
             "S14 no gap: \"shot 3\", as before");
     p->openDetail(QStringLiteral("over_the_top"));
@@ -226,14 +224,14 @@ static void testShotNumberEdges(const QTemporaryDir &tmp)
     const QString dir = makeSession(tmp, "athlete_edges", "2026-11-15_M_01");
     for (int n : { 1, 2, 3 }) check(stageShot(dir, n), "a swing staged");
     {
-        auto first = freshModel();
-        first->activateSession(dir);
+        SessionDiagnosticsModel *first = openView(dir);
+        if (!first) { check(false, "the session is held and its adapter made"); return; }
         check(first->shotCount() == 3, "the first read: three shots");
     }
     check(QDir(swingDir(dir, 1)).removeRecursively(), "swing 1 trashed");
     {
-        auto m = freshModel();
-        m->activateSession(dir);
+        SessionDiagnosticsModel *m = openView(dir);
+        if (!m) { check(false, "the session is held and its adapter made"); return; }
         check(ledgerIds(*m) == QList<int>({ 2, 3 }), "S18 the ledger holds swings 2 and 3");
         checkEq(m->headerInfo().value(QStringLiteral("shotLabel")).toString(), QStringLiteral("shot 3"),
                 "S19 live: \"shot 3\", the newest swing");
@@ -246,8 +244,8 @@ static void testShotNumberEdges(const QTemporaryDir &tmp)
     }
     for (int n : { 2, 3 }) QDir(swingDir(dir, n)).removeRecursively();
     {
-        auto m = freshModel();
-        m->activateSession(dir);
+        SessionDiagnosticsModel *m = openView(dir);
+        if (!m) { check(false, "the session is held and its adapter made"); return; }
         check(m->shotCount() == 0, "S22 every swing trashed: the ledger is empty");
         checkEq(m->headerInfo().value(QStringLiteral("shotLabel")).toString(), QStringLiteral("no shots yet"),
                 "S23 …the header says \"no shots yet\", never a stale number");
@@ -272,22 +270,23 @@ static void testDayOrder(const QTemporaryDir &tmp)
     check(writeSessionFile(now, QDateTime(QDate(2026, 11, 15), QTime(9, 0), QTimeZone::UTC)),
           "the session's file: started 15 Nov 09:00");
     {
-        auto m = freshModel();
-        m->activateSession(earlier);        // its ledger, for the next session to read
+        SessionDiagnosticsModel *m = openView(earlier);        // its ledger and summary, for the next session to read
+        if (!m) { check(false, "the session is held and its adapter made"); return; }
         check(m->shotCount() == 3, "the day before is graded");
         check(m->sessionIdentity().localDay() == QDate(2026, 11, 14),
               "D1 a legacy name-date-type folder has its day (SessionIdentity reads it from the name)");
+        owner_rig::rigOfSession(earlier).release(earlier);   // its summary written: the next session's freeze reads it
     }
     {
         // A LIVE panel freezes a session's club baseline only when the session has a day (a session with none has
         // no predecessors, and an empty snapshot would stand for good). Before step 2.7a a name-date-type folder
         // had no day — its first ten characters are no date — so a live panel left it unfrozen (F-06).
-        auto m = freshModel(SessionDiagnosticsModel::BaselineAuthority::Live);
-        m->activateSession(now);
+        SessionDiagnosticsModel *m = openView(now);
+        if (!m) { check(false, "the session is held and its adapter made"); return; }
         check(m->sessionIdentity().localDay() == QDate(2026, 11, 15),
               "D2 a session with a session file has its start time's day, under name-date-type");
         check(m->baselineFrozen() && QFileInfo::exists(SessionFiles::clubBaselineFile(now)),
-              "D3 a live panel freezes its club baseline: the session has a day (before 2.7a: none, left unfrozen)");
+              "D3 its owner freezes its club baseline at its load: the session has a day (before 2.7a: none, left unfrozen)");
         const QList<pinpoint::SessionIndexEntry> index = SessionDiagnosticsFiles::athleteSessions(QFileInfo(now).absolutePath());
         const SessionPlace pe = SessionDiagnosticsFiles::placeOf(index, earlier), pn = SessionDiagnosticsFiles::placeOf(index, now);
         check(pe.day == QDate(2026, 11, 14) && pn.day == QDate(2026, 11, 15) && pe.day < pn.day,

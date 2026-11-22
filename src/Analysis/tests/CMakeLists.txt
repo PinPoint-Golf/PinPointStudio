@@ -1702,77 +1702,7 @@ set(SESSION_DIAG_CATALOGUE_SOURCES
     ${SRC}/Metrics/metric_catalogue_manifest.cpp
     ${SRC}/Metrics/metric_providers.cpp
     ${SRC}/Wrist/reference_bands.cpp)
-pp_add_test(session_diagnostics_model_test
-    SOURCES ${DIAG}/tests/session_diagnostics_model_test.cpp
-            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
-            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
-            ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-            ${DIAG}/packs/screen_pack.cpp
-            ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
-            # The model dates each shot from clock.wallclock via SwingDocReader::readSwingSummary
-            # rather than the file's mtime, so the summary reader comes with it. swing_paths.cpp is
-            # swing_doc_*.cpp's own dependency and logs through pp_debug.h — hence the log sources
-            # below, which are now the REAL ones: pp_debug.cpp still drags whisper/ggml in for its
-            # installer, but ppWarn() itself lives in pp_log_stream.cpp and costs neither.
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Export/swing_doc_reader.cpp
-            ${SRC}/Export/swing_doc_analysis.cpp
-            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-            ${SRC}/Export/swing_paths.cpp
-            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
-            ${SESSION_DIAG_MARKS_SOURCES}
-            ${SESSION_DIAG_CATALOGUE_SOURCES}
-    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
-    LINK    Qt6::Qml
-    AUTOMOC
-    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
-set_tests_properties(session_diagnostics_model_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
-# THE GOLFER'S INPUT OUT OF THE CACHE (refactor step 2.5, audit H-04's missing test): a focus, a run, a screen
-# answer, a shot intent and a correction survive diagnostics.json being deleted; a legacy session (its input in
-# diagnostics.json's older keys only) reads identically, survives a regrade with the keys intact, and an edit lands
-# in the new home; an old envelope reads identically; a newer envelope is read-only. The model test's link line.
-pp_add_test(golfer_input_test
-    SOURCES ${DIAG}/tests/golfer_input_test.cpp
-            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
-            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
-            ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-            ${DIAG}/packs/screen_pack.cpp
-            ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
-            # The model dates each shot from clock.wallclock via SwingDocReader::readSwingSummary
-            # rather than the file's mtime, so the summary reader comes with it. swing_paths.cpp is
-            # swing_doc_*.cpp's own dependency and logs through pp_debug.h — hence the log sources
-            # below, which are now the REAL ones: pp_debug.cpp still drags whisper/ggml in for its
-            # installer, but ppWarn() itself lives in pp_log_stream.cpp and costs neither.
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Export/swing_doc_reader.cpp
-            ${SRC}/Export/swing_doc_analysis.cpp
-            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-            ${SRC}/Export/swing_paths.cpp
-            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
-            ${SESSION_DIAG_MARKS_SOURCES}
-            ${SESSION_DIAG_CATALOGUE_SOURCES}
-    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
-    LINK    Qt6::Qml
-    AUTOMOC
-    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
-set_tests_properties(golfer_input_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # THE SHOT'S COMMANDS FOR ITS OWN FACTS (refactor step 3.4b-i): each command saves through the swing door, then
 # emits its event once; a failed save emits nothing and is reported; the Session's intent commands; the door
@@ -1818,43 +1748,6 @@ pp_add_test(shot_commands_test
 set_tests_properties(shot_commands_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
-# "SHOT N" IS THE SWING NUMBER, AND A SESSION IS PLACED BY ITS IDENTITY (refactor step 2.7a; audit E-06/F-07, E-05,
-# F-06): after a trashed swing and one with no document, the ledger's "shot N" — header, review badge, every readout
-# — is the swing number; another session's swing of the same number is never matched by its name; under the
-# name-date-type pattern a session still has its day (its club baseline finds the day before), and two sessions of
-# one day are placed by their session files' start times. The model test's link line (golfer_input_test's).
-pp_add_test(shot_number_test
-    SOURCES ${DIAG}/tests/shot_number_test.cpp
-            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
-            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
-            ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-            ${DIAG}/packs/screen_pack.cpp
-            ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
-            # The model dates each shot from clock.wallclock via SwingDocReader::readSwingSummary
-            # rather than the file's mtime, so the summary reader comes with it. swing_paths.cpp is
-            # swing_doc_*.cpp's own dependency and logs through pp_debug.h — hence the log sources
-            # below, which are now the REAL ones: pp_debug.cpp still drags whisper/ggml in for its
-            # installer, but ppWarn() itself lives in pp_log_stream.cpp and costs neither.
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Export/swing_doc_reader.cpp
-            ${SRC}/Export/swing_doc_analysis.cpp
-            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-            ${SRC}/Export/swing_paths.cpp
-            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
-            ${SESSION_DIAG_MARKS_SOURCES}
-            ${SESSION_DIAG_CATALOGUE_SOURCES}
-    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
-    LINK    Qt6::Qml
-    AUTOMOC
-    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
-set_tests_properties(shot_number_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # THE STEP-2 MIGRATIONS (refactor step 2.8a): pps_migrate_step2's engine (tools/migrate/migrate_step2.*) on a
 # fixture library in a temporary folder — legacy sessions, a renamed athlete, two uuids in one folder, golfer input
@@ -1923,20 +1816,6 @@ pp_add_test(work_ons_controller_test
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
-# diag_footer_test — A FINISHED SESSION'S DRIVER FOOTER IS ITS FINAL DIAGNOSIS'S (refactor 5.4x): after End the panel's
-# adapter's footer is the one a fresh adapter and a reload give, and it follows every new diagnosis of an ended session;
-# live it moves only with the pattern set (§A5). diag_stage_panel_test's link line, less the catch-up and the archiver.
-pp_add_test(diag_footer_test
-    SOURCES ${DIAG}/tests/diag_footer_test.cpp ${_diag_parallel_live_sources}
-            ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
-    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
-    LINK    Qt6::Qml ${OpenCV_LIBS}
-    STD 20
-    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
-    AUTOMOC)
-set_tests_properties(diag_footer_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
-
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${SRC}/Gui/charts
@@ -2044,6 +1923,20 @@ pp_add_test(diag_stage_panel_test
 set_tests_properties(diag_stage_panel_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
+# diag_footer_test — A FINISHED SESSION'S DRIVER FOOTER IS ITS FINAL DIAGNOSIS'S (refactor 5.4x): after End the panel's
+# adapter's footer is the one a fresh adapter and a reload give, and it follows every new diagnosis of an ended session;
+# live it moves only with the pattern set (§A5). diag_stage_panel_test's link line, less the catch-up and the archiver.
+pp_add_test(diag_footer_test
+    SOURCES ${DIAG}/tests/diag_footer_test.cpp ${_diag_parallel_live_sources}
+            ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
+    LINK    Qt6::Qml ${OpenCV_LIBS}
+    STD 20
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(diag_footer_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
 # session_focus_test — THE DECLARED FOCUS REACHES ITS SESSION (refactor 4-d; build/refactor/step-4/BRIEF-d.md, FOCUS-TRACE.md):
 # app.state's start over the real store, Athlete, Session and SessionDiagnostics (synchronous doors) and the panel's real
 # adapter — a wizard start declares the focus on the Session with no panel (L1), Extend keeps the saved one with a panel
@@ -2081,6 +1974,34 @@ target_include_directories(post_shot_bench PRIVATE ${PP_BUFFER} ${NORM_INC} ${SR
 target_compile_definitions(post_shot_bench PRIVATE PP_DIAGRES="${DIAGRES}")
 target_link_libraries(post_shot_bench PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent pinpoint_swingstore ${OpenCV_LIBS})
 set_target_properties(post_shot_bench PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+
+# THE VIEW TESTS OVER THE OWNERS (refactor 5.4a; build/refactor/step-5/DUTIES-5.4.md Q4, J-72): until 5.4a these made a
+# SessionDiagnosticsModel of their own (the old engine) and fed it folders. Now each reaches its sessions as the app does
+# (src/Diagnostics/tests/owner_rig.h): an Athlete over a temporary library, each Session's SessionDiagnostics on
+# synchronous doors with the real firing reader, the Session's thin adapter from the screens' door, and `app` as the
+# golfer's commands' door. post_shot_bench's link line (the owners, the adapter, `app` and the carousel's model), as a test.
+#   session_diagnostics_model_test — the adapter's view half (the cards, chains, detail, spread and history, the shot
+#     outcomes, the sequence and composite words, the variability marks) over the owners' diagnoses;
+#   golfer_input_test — the golfer's input in its own homes, the older keys carried, the files layer;
+#   shot_number_test — "shot N" is the swing number; a session is placed by its identity.
+set(_owner_view_test_sources ${_post_shot_bench_sources}
+    ${SRC}/App/app.h ${SRC}/App/app.cpp ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp
+    ${SRC}/Gui/shot/shot_list_model.h ${SRC}/Gui/shot/shot_list_model.cpp
+    ${SRC}/App/shot_source.h ${SRC}/App/session_shot_source.h ${SRC}/App/session_shot_source.cpp
+    ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
+    ${SRC}/Core/post_shot_trace.h
+    ${DIAG}/tests/owner_rig.h)
+foreach(_owner_view_test session_diagnostics_model_test golfer_input_test shot_number_test)
+    pp_add_test(${_owner_view_test}
+        SOURCES ${DIAG}/tests/${_owner_view_test}.cpp ${_owner_view_test_sources}
+        INCLUDE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${OpenCV_INCLUDE_DIRS}
+        LINK    Qt6::Gui Qt6::Qml Qt6::Concurrent ${OpenCV_LIBS}
+        STD 20
+        COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+        AUTOMOC)
+    set_tests_properties(${_owner_view_test} PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+endforeach()
 
 # THE PARITY DUMPS (refactor Step G; docs/developer/testing_developer_guide.md "Parity dumps"). The session
 # half is regrade_ledger --dump, above. athlete_dump is the athlete half: the app's work-ons catch-up

@@ -44,7 +44,7 @@
 //   C12 THE CAROUSEL'S EDITS GO TO THE SHOT: ShotListModel with the door — the rating saved by Shot::rate (the
 //       rating alone); the declared club EVT-21, the board's club EVT-04, its exclusion EVT-05; without a door,
 //       today's write-through (rating, note and club together)
-//   C13 A PANEL EDIT THROUGH THE OLD MODEL EMITS THE SAME EVENT: SessionDiagnosticsModel's setShotIntent → EVT-07,
+//   C13 (moved to session_diagnostics_model_test in refactor 5.4a, onto the adapter) A PANEL EDIT THROUGH THE OLD MODEL EMITS THE SAME EVENT: SessionDiagnosticsModel's setShotIntent → EVT-07,
 //       correctOutcome → EVT-06 (and the Athlete's tuning line), declareMiss → EVT-10, setIntentFrom → EVT-08,
 //       each saved where it always was; flagForReview → the Athlete appends its "flag" line (one writer of the
 //       tuning log: review 1), no event
@@ -642,95 +642,8 @@ static void carouselView()
           ts.ok() && live.rowCount() == 0 && live.sessionFolder().isEmpty());
 }
 
-// ── C13: the old model's golfer commands ────────────────────────────────────────────────────────────────
-
-// `app`, counting the flags it carries to the Athlete (so the test can tell the door's append from the model's own).
-struct CountingApp : App {
-    using App::App;
-    int flags = 0;
-    ForwardResult flagForTuning(const QString &sessionFolder, const ShotRef &shot, const TuningFlagNote &note) override
-    {
-        ++flags;
-        return App::flagForTuning(sessionFolder, shot, note);
-    }
-};
-
-static void oldModel()
-{
-    std::printf("\nC13: a panel edit through the old model emits the same event\n");
-    Rig rig;
-    Session *s = rig.athlete ? rig.athlete->startSession(kSwing, kPat) : nullptr;
-    Shot *one = s ? shotWithDocument(s, rig) : nullptr;
-    Shot *two = s ? shotWithDocument(s, rig) : nullptr;
-    check(QStringLiteral("C13a a session with two shots"), one && two);
-    if (!one || !two) return;
-    rig.listen(s);
-    const QString dir = s->entry()->folder;
-    QFile::remove(rig.tuningLog());
-
-    CountingApp door([&rig] { return rig.athlete; });
-    SessionDiagnosticsModel::setShotCommands(&door);
-    {
-        SessionDiagnosticsModel m;
-        m.setSynchronous(true);
-        m.setCadence(QStringLiteral("everyShot"));
-        m.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);
-        m.activateSession(dir);
-        check(QStringLiteral("C13b the model graded both shots"), m.shotCount() == 2);
-        rig.events.clear();
-
-        m.setShotIntent(1, QStringLiteral("draw"));
-        check(QStringLiteral("C13c setShotIntent → the Shot's EVT-07, once"), rig.events == QStringList{ ev("EVT-07", one->ref()) });
-        check(QStringLiteral("C13d …saved on the shot's review, as before"),
-              reviewOf(rig, one->ref()).value(QStringLiteral("shotIntent")).toString() == QStringLiteral("draw"));
-
-        rig.events.clear();
-        m.correctOutcome(2, QStringLiteral("direction"), QStringLiteral("pull"));
-        check(QStringLiteral("C13e correctOutcome → the Shot's EVT-06, once"), rig.events == QStringList{ ev("EVT-06", two->ref()) });
-        const QJsonArray lc = reviewOf(rig, two->ref()).value(QStringLiteral("labelCorrections")).toArray();
-        check(QStringLiteral("C13f …the correction on the shot's review"),
-              lc.size() == 1 && lc.first().toObject().value(QStringLiteral("family")).toString() == QStringLiteral("direction"));
-        const QList<QJsonObject> lines = tuningLines(rig.tuningLog());
-        check(QStringLiteral("C13g …and ONE tuning line, appended by the Athlete, with the model's facts"),
-              lines.size() == 1 && lines.first().value(QStringLiteral("shotId")).toInt() == 2
-                  && lines.first().value(QStringLiteral("corrected")).toString() == QStringLiteral("pull")
-                  && lines.first().value(QStringLiteral("session")).toString() == QFileInfo(dir).fileName()
-                  && !lines.first().value(QStringLiteral("measures")).toObject().isEmpty());
-
-        rig.events.clear();
-        m.declareMiss(QStringLiteral("slice"));
-        m.recordScreenResult(QStringLiteral("early_extension"), true);
-        m.declareFocusFrom(QStringLiteral("over_the_top"), 1);
-        m.setIntentFrom(2, QStringLiteral("fade"));
-        check(QStringLiteral("C13h declareMiss, a screen answer, declareFocus → EVT-10 each; setIntentFrom → EVT-08"),
-              rig.events == QStringList{ ev("EVT-10", s->id()), ev("EVT-10", s->id()), ev("EVT-10", s->id()),
-                                         ev("EVT-08", s->id()) });
-        const QJsonObject in = QJsonDocument::fromJson([&] { QFile f(SessionFiles::sessionInputFile(dir));
-                                                             return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); }()).object();
-        check(QStringLiteral("C13i …saved in session_input.json, as before"),
-              in.value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("slice")
-                  && in.value(QStringLiteral("screenAnswers")).toObject().value(QStringLiteral("early_extension")).toBool()
-                  && in.value(QStringLiteral("declaredFocus")).toObject().value(QStringLiteral("conditionId")).toString() == QStringLiteral("over_the_top")
-                  && in.value(QStringLiteral("intentRuns")).toArray().size() == 1);
-        check(QStringLiteral("C13j the model reads its edits back as it holds them"),
-              m.golferInputHeld().shotIntent.value(1) == QStringLiteral("draw") && m.golferInputHeld().corrections.contains(2));
-
-        // C13k (review 1): the tuning log has ONE writer — a "flag for review" goes to the Athlete too.
-        rig.events.clear();
-        m.flagForReview(1);
-        const QList<QJsonObject> after = tuningLines(rig.tuningLog());
-        check(QStringLiteral("C13k flagForReview → through the door to the Athlete (once), one \"flag\" line, today's keys"),
-              door.flags == 1 && after.size() == 2 && after.last().value(QStringLiteral("kind")).toString() == QStringLiteral("flag")
-                  && after.last().value(QStringLiteral("shotId")).toInt() == 1
-                  && after.last().value(QStringLiteral("session")).toString() == QFileInfo(dir).fileName()
-                  && after.last().contains(QStringLiteral("phrase")) && after.last().value(QStringLiteral("labels")).isArray()
-                  && !after.last().value(QStringLiteral("measures")).toObject().isEmpty()
-                  && after.last().value(QStringLiteral("atMs")).toDouble() > 0);
-        check(QStringLiteral("C13l …and no event (the reference names none for a flag)"), rig.events.isEmpty());
-    }
-    SessionDiagnosticsModel::setShotCommands(nullptr);
-}
-
+// ── C13 (refactor 5.4a): a panel edit through the adapter is in session_diagnostics_model_test ("C13 — a panel edit
+// through the adapter emits the Shot's and the Session's events"): until then it went through the old model here. ──────
 
 // ── C14: applyAnalysis and the Shot's summary (refactor step 3.4b-ii) ────────────────────────────────────────
 
@@ -1105,7 +1018,6 @@ int main(int argc, char **argv)
     shotCommands();
     sessionIntent();
     doorAndCarousel();
-    oldModel();
     analysisAndSummary();
     rowsOverShots();
     carouselView();

@@ -29,6 +29,7 @@
 //   • deriveShotData() is composeShotOutcome() and shotFactors() on the inputs' usuals and baseline.
 
 #include "../engine/fire_findings.h"
+#include "../norms/context_tree.h"   // kDefaultContextId (ASM)
 #include "../../DomainModel/rule_data.h"
 #include "../../Export/rule_data_install.h"
 #include "../../Coaching/shot_outcomes_pack.h"
@@ -371,6 +372,60 @@ int main(int argc, char **argv)
         const std::vector<ShotRecord> older = fromJson(old);
         check(older.size() == 1 && !older[0].wrist.present, "a row written before schema 16 reads with no profile");
         check(kDiagSchemaVersion == 16, "the row shape's version moved with it (a stored ledger regrades once)");
+    }
+
+    // ── Refactor 5.4a: the old model test's #176 and "club assumed" suites, on the owner's one firing ──────────────
+    std::printf("\na held measure is not graded (#176); an undeclared club is graded as assumed\n");
+    {
+        const QString rich = stageFixture(tmp, "rich_7iron");
+        const QString noClub = stageFixture(tmp, "sparse_noclub");
+        const auto readingsAt = [&pack](const QString &dir) {
+            FiringReadings r;
+            r.grid       = readLivePhaseGrid(dir, pack->pack());
+            r.handedness = QStringLiteral("right");
+            return r;
+        };
+        const auto rowOf = [](const FiredShot &f, const char *id) -> const ConditionRow * {
+            for (const ConditionRow &r : f.record.rows)
+                if (r.conditionId == QLatin1String(id)) return &r;
+            return nullptr;
+        };
+        CharacteristicPack held = pack->pack();
+        bool found = false;
+        for (Measure &m : held.measures)
+            if (m.id == QLatin1String("m_pelvisSwayBack")) {
+                found = m.status == MeasureStatus::Live;
+                m.status    = MeasureStatus::Held;
+                m.gapReason = QStringLiteral("held for #176's test");
+            }
+        FiringInputs heldIn = base;
+        heldIn.pack = std::shared_ptr<const ICharacteristicPackProvider>(makeMemoryPackProvider(held, QStringLiteral("held-sway"), PackOrigin::Core).release());
+        const FiredShot liveShot = fireFindings(readingsAt(rich), base);
+        const FiredShot heldShot = fireFindings(readingsAt(rich), heldIn);
+        const ConditionRow *live = rowOf(liveShot, "sway");
+        const ConditionRow *hr   = rowOf(heldShot, "sway");
+        check(found && live && live->state != ShotState::NotAssessable && live->drivingMeasureId == QLatin1String("m_pelvisSwayBack")
+                  && live->notLiveStatus.isEmpty(),
+              "HLDa live: `sway` is judged on m_pelvisSwayBack, with no status on the row");
+        check(hr && hr->state == ShotState::NotAssessable && hr->notJudgedGate == QLatin1String("rule.diag.notLive")
+                  && hr->notLiveStatus == QLatin1String("held") && hr->notJudgedSubject.isEmpty(),
+              "HLDb held: not assessable, under rule.diag.notLive, status \"held\", no Trust-panel subject");
+        check(hr && hr->notAssessableReason == QLatin1String("held back until it is trusted to grade")
+                  && hr->drivingMeasureId.isEmpty(),
+              "HLDc …its reason says it is held, and no reading is graded behind it");
+
+        const FiredShot declared = fireFindings(readingsAt(rich), base);
+        const FiredShot assumed  = fireFindings(readingsAt(noClub), base);
+        const auto allInferred = [](const FiredShot &f, bool want) {
+            if (f.record.rows.empty()) return false;
+            for (const ConditionRow &r : f.record.rows)
+                if (r.contextInferred != want) return false;
+            return true;
+        };
+        check(allInferred(declared, false) && declared.record.contextId == QLatin1String("iron_7"),
+              "ASMa the declared 7 iron: no row is marked club assumed, graded at its own club's node");
+        check(allInferred(assumed, true) && assumed.record.contextId == kDefaultContextId(),
+              "ASMb the swing with no club: every row is marked club assumed, graded at the default context");
     }
 
     std::printf("\n%s (%d failed)\n", g_fail ? "FAILED" : "passed", g_fail);

@@ -105,6 +105,7 @@
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
 #include "../../LaunchMonitor/launch_monitor_reading.h"
 #include "../measures/measure_sample.h"
+#include "../norms/norm_provider.h"   // EVT13n: the norm set a corridor edit saves
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -338,8 +339,12 @@ static bool summaryFresh(const QString &folder, QString *why = nullptr)
     return ok && r.hasFacts && r.derivedFrom.fingerprint == scanFingerprintOf(folder);
 }
 
-// PRE: an earlier, legacy session reduced by the old model (as a past session's catch-up left it), so a live session
-// has predecessors whose ledgers a freeze reads.
+// PRE: an earlier, legacy session in the shape the old engine left it (as a past session's catch-up left it), so a live
+// session has predecessors whose ledgers a freeze reads. REFACTOR 5.4a: the OWNER reduces it (the old engine did, until
+// then), and the files are then put back in that shape: diagnostics.json alone — no summary of the owner's (work_ons.json),
+// no club_baseline.json, no session.json — with stamps the owner does not take as current (each row's gradedFrom content,
+// as the old engine's stamps never were the owner's findings stamp), so the owner judges every shot again, as it judged the
+// old engine's files. No derived data (the old engine wrote none).
 static bool earlierSession(Rig &rig)
 {
     const QString folder = rig.athleteFolder() + QStringLiteral("/2026-09-01_%1_Swing_01").arg(kToken);
@@ -349,13 +354,30 @@ static bool earlierSession(Rig &rig)
         QFile::copy(fixture(), sw + QStringLiteral("/swing.json"));
         QFile(sw + QStringLiteral("/swing.json")).setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
     }
-    SessionDiagnosticsModel m;
-    m.setSynchronous(true);
-    m.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);
-    m.activateSession(folder);
-    const bool ok = m.shotCount() == 12 && QFile::exists(folder + QStringLiteral("/diagnostics.json"));
-    m.activateSession(QString());
-    return ok;
+    const bool hadSessionFile = QFile::exists(folder + QStringLiteral("/session.json"));
+    Session *s = rig.athlete->sessionAt(folder);
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    if (!Rig::settled(d)) return false;
+    const SessionId id = s->id();
+    d->flush(/*final=*/true);
+    if (!rig.athlete->releaseSession(id)) return false;
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QFile::remove(folder + QStringLiteral("/work_ons.json"));
+    QFile::remove(folder + QStringLiteral("/club_baseline.json"));
+    if (!hadSessionFile) QFile::remove(folder + QStringLiteral("/session.json"));
+    QJsonObject root = readJson(folder + QStringLiteral("/diagnostics.json"));
+    QJsonObject session = root.value(QStringLiteral("session")).toObject();
+    QJsonObject graded = session.value(QStringLiteral("gradedFrom")).toObject();
+    for (const QString &k : graded.keys()) {
+        QJsonObject g = graded.value(k).toObject();
+        g[QStringLiteral("content")] = QStringLiteral("the-old-engine's");
+        graded[k] = g;
+    }
+    session[QStringLiteral("gradedFrom")] = graded;
+    session.remove(QStringLiteral("derived"));
+    root[QStringLiteral("session")] = session;
+    const bool rows = analysis::fromJson(root.value(QStringLiteral("ledger")).toObject()).size() == 12 && graded.size() == 12;
+    return rows && writeJson(folder + QStringLiteral("/diagnostics.json"), root);
 }
 
 // A live shot: allocated, its document written without its reading, EVT-01.
@@ -496,17 +518,7 @@ static void testCrashLeftSession()
     Rig rig;
     const QString folder = rig.athleteFolder() + QLatin1Char('/') + QFileInfo(copied).fileName();
     check(QStringLiteral("CRASHb placed in this process's library"), copyTree(copied, folder));
-    // BEFORE (the old model, as the panel made it, not reviewing): its file's stage.
-    QString oldStage;
-    {
-        SessionDiagnosticsModel old;
-        old.setSynchronous(true);
-        old.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);
-        old.setPersistEnabled(false);   // a reader: the copy stays as the crash left it
-        old.activateSession(folder);
-        oldStage = old.stage();
-        old.activateSession(QString());
-    }
+    // (5.4a: the old model's stage beside it — CRASHe, "the cut-over's change" — is gone with the old engine's tests.)
     Session *s = rig.athlete->sessionAt(folder);
     check(QStringLiteral("CRASHc in progress by its file, but not being recorded here"), s && s->inProgress() && !s->runningHere());
     if (!s) return;
@@ -530,13 +542,13 @@ static void testCrashLeftSession()
     panel->setBaselineAuthorityName(QStringLiteral("live"));
     panel->activateSession(folder);   // NOT reviewing: e.g. the carousel's live folder after a relaunch
     spin();
-    std::printf("    the old model's stage: %s; the adapter's: %s (owner: %s)\n", qPrintable(oldStage), qPrintable(panel->stage()),
+    std::printf("    the adapter's stage: %s (owner: %s)\n", qPrintable(panel->stage()),
                 s->diagnostics() && s->diagnostics()->diagnosis()
                     ? qPrintable(stageWord(s->diagnostics()->diagnosis()->stage)) : "-");
     check(QStringLiteral("CRASHd the adapter shows Closing, not reviewing (a view mapping: the session stays in progress)"),
           !panel->reviewing() && panel->stage() == QLatin1String("closing") && s->inProgress());
-    check(QStringLiteral("CRASHe the old model showed it otherwise (the cut-over's change)"), oldStage != QLatin1String("closing"));
 
+    // ⚠ 5.4b: DELETED WITH THE J-a3 PATH (DUTIES-5.4.md Q1; J-72), replaced by UNHELD′ (the empty adapter).
     // UNHELD (J-a3): the same session under the golfer's folder, its file naming ANOTHER athlete id (a cabin session read
     // on a machine whose record of the golfer has another id, until M1): no Session holds it, and the screens keep
     // today's path for it — an engine-mode model made by C++, which judges it as the panel's model did.
@@ -923,6 +935,64 @@ static void testPackEditRefires()
     check(QStringLiteral("EVT13b every loaded session re-fired every shot, under a new findings stamp"),
           fires(da, asksA) >= kShots && fires(db, asksB) >= kShots && da->findingsStamp() != stampA && db->findingsStamp() != stampB);
     check(QStringLiteral("EVT13c …and each wrote what it kept"), da->counts().writes > writesA && db->counts().writes > writesB);
+}
+
+// EVT13n (refactor 5.4a; the old model test's "a saved corridor edit regrades an open session"): a NORM edit through
+// RuleData's command publishes ONE EVT-12, and every loaded session's owner re-fires every shot under the new snapshot.
+static void testNormEditRefires()
+{
+    std::printf("\nEVT13n — a norm edit publishes EVT-12 and every loaded session re-fires\n");
+    QTemporaryDir data;
+    RuleData rules(makeRuleDataRepository(data.path()));
+    Rig rig(0, &rules);
+    Session *a = endedSession(rig);
+    SessionDiagnostics *da = a ? a->diagnostics() : nullptr;
+    if (!da) { check(QStringLiteral("EVT13n pre: a loaded session"), false); return; }
+    const size_t asksA = da->asks().size();
+    const QString stampA = da->findingsStamp();
+    // A ROW THE EDIT MUST REACH (review m4): the first row of the first kept shot graded against a two-sided corridor;
+    // every norm of its measure is moved by ten of its own widths.
+    const int swing = da->keptShots().isEmpty() ? -1 : da->keptShots().first();
+    const KeptShot *k0 = swing > 0 ? da->kept(swing) : nullptr;
+    QString condition, measure;
+    double  loBefore = 0.0;
+    if (k0)
+        for (const analysis::ConditionRow &r : k0->findings.rows)
+            if (r.corridorShape == analysis::CorridorShape::TwoSided && std::isfinite(r.value) && !r.drivingMeasureId.isEmpty()) {
+                condition = r.conditionId;
+                measure   = r.drivingMeasureId;
+                loBefore  = r.corridorLo;
+                break;
+            }
+    int events = 0;
+    QObject::connect(&rules, &RuleData::normsChanged, &rules, [&events](const QString &) { ++events; });
+    const auto first = rules.snapshot();
+    analysis::NormPack user;
+    user.id      = QStringLiteral("user");
+    user.version = QStringLiteral("1");
+    if (first->norms)
+        for (analysis::Norm n : first->norms->norms().norms)
+            if (n.measureId == measure) {
+                n.mu += 10.0 * std::max(n.sigmaHi, 1e-3);
+                user.norms.push_back(n);
+            }
+    QString why;
+    check(QStringLiteral("EVT13n-a the corridor edit is saved through RuleData's command and ONE EVT-12 is published"),
+          !user.norms.empty() && rules.saveUserNorms(user, &why) && events == 1);
+    Rig::settled(da);
+    int fires = 0;
+    for (size_t i = asksA; i < da->asks().size(); ++i) fires += da->asks()[i].derive ? 0 : 1;
+    std::printf("    fires after the edit: %d (of %d shots)%s\n", fires, kShots, why.isEmpty() ? "" : qPrintable(QStringLiteral(" — ") + why));
+    check(QStringLiteral("EVT13n-b the loaded session re-fired every shot, under a new findings stamp"),
+          fires >= kShots && da->findingsStamp() != stampA);
+    double loAfter = loBefore;
+    if (const KeptShot *k1 = swing > 0 ? da->kept(swing) : nullptr)
+        for (const analysis::ConditionRow &r : k1->findings.rows)
+            if (r.conditionId == condition) { loAfter = r.corridorLo; break; }
+    std::printf("    %s on %s: corridor low %.4g before the edit, %.4g after\n", qPrintable(condition), qPrintable(measure),
+                loBefore, loAfter);
+    check(QStringLiteral("EVT13n-c the edited norm reached the rows: %1's corridor moved").arg(condition),
+          !condition.isEmpty() && std::fabs(loAfter - loBefore) > 1e-6);
 }
 
 // ARCHIVE (review B2): housekeeping holds an ended session to archive it — loads it (its owner attaches) and asks for the
@@ -1487,6 +1557,7 @@ static void testPips()
               && !panel->pipsFor(freshId).isEmpty() && adaptersOf() == 2);   // the panel's and the cards'; the cast went
     panel->dropView();
 
+    // ⚠ 5.4b: DELETED WITH THE J-a3 PATH (DUTIES-5.4.md Q1; J-72).
     // UNHELD (J-a3): the same session under the golfer's folder, its file naming another athlete id: today's engine model,
     // shown by a panel, is what the cards read — for its own folder only.
     check(QStringLiteral("PIPSk the session ended"), s->end().ok());
@@ -1541,6 +1612,7 @@ int main(int argc, char **argv)
     testLiveBaselineAppOrder();
     testUse();
     testPackEditRefires();
+    testNormEditRefires();
     testArchive();
     testArchiveEvents();
     testArchiveStub();
@@ -1554,10 +1626,13 @@ int main(int argc, char **argv)
     // model computes, so a report made before 3.7-d still reads "current" after it.
     {
         std::printf("\nSTAMP — the content stamp without a model (refactor 3.7-d)\n");
-        SessionDiagnosticsModel m;
+        // (5.4a) against the adapter a Session's report reads, not a model made for the purpose.
+        Rig rig;
+        Session *ended = endedSession(rig);
+        SessionDiagnosticsModel *m = ended ? rig.adapters->of(ended, QStringLiteral("report")) : nullptr;
         const QString stamp = SessionDiagnosticsModel::currentContentStamp();
-        check(QStringLiteral("STAMPa the model-free stamp equals a model's (%1)").arg(stamp),
-              !stamp.isEmpty() && stamp == m.contentStamp());
+        check(QStringLiteral("STAMPa the model-free stamp equals an adapter's (%1)").arg(stamp),
+              !stamp.isEmpty() && m && stamp == m->contentStamp());
     }
     testPips();
 

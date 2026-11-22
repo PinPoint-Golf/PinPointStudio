@@ -64,7 +64,6 @@
 #include "../../Export/swing_store.h"
 #include "../../Export/swing_store_repository.h"
 #include "../../Gui/diagnostics/diag_parallel_run.h"
-#include "../../Gui/diagnostics/session_diagnostics_model.h"
 #include "../../LaunchMonitor/launch_monitor_reading.h"
 #include "../measures/measure_sample.h"
 
@@ -249,9 +248,24 @@ struct Rig {
     }
     QString athleteFolder() const { return dir.path() + QLatin1Char('/') + kToken; }
     static bool settled(SessionDiagnostics *d) { return d && pump([d] { return d->idle(); }); }
+    // THE WRITING DOORS (refactor 5.4a): the owner as the catch-up holds a session — the app's doors' shape (persist, the
+    // summary, the indexing reader), so its files are written. For PRE and END; the live session keeps the parallel run's.
+    DiagnosticsDoors writingDoors()
+    {
+        DiagnosticsDoors d;
+        d.pool            = pool.get();
+        d.receiver        = receiver.get();
+        d.ruleData        = RuleData::installed();
+        d.reader          = std::make_shared<SwingStoreFiringReader>(store, *recordings);
+        d.persist         = true;
+        d.writeDebounceMs = 0;
+        d.attach          = &SessionDiagnostics::attach;
+        return d;
+    }
 };
 
-// PRE: an earlier, legacy session reduced by the old model (as a past session's panel or catch-up left it).
+// PRE: an earlier, legacy session reduced and summed up by its owner as the catch-up holds it (refactor 5.4a: by the
+// old model until then), so the live session's club baseline has a usual: frozen at first need from its summary.
 static bool earlierSession(Rig &rig)
 {
     const QString folder = rig.athleteFolder() + QStringLiteral("/2026-09-01_%1_Swing_01").arg(kToken);
@@ -261,20 +275,25 @@ static bool earlierSession(Rig &rig)
         QFile::copy(fixture(), sw + QStringLiteral("/swing.json"));
         QFile(sw + QStringLiteral("/swing.json")).setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
     }
-    SessionDiagnosticsModel m;
-    m.setSynchronous(true);
-    m.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);
-    m.activateSession(folder);
-    const bool ok = m.shotCount() == 12 && QFile::exists(folder + QStringLiteral("/diagnostics.json"));
-    m.activateSession(QString());
-    return ok;
+    const DiagnosticsDoors live = rig.athlete->diagnosticsDoors();
+    rig.athlete->setDiagnosticsDoors(rig.writingDoors());
+    Session *s = rig.athlete->sessionAt(folder);
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    const bool settled = Rig::settled(d);
+    const bool kept = d && d->keptShots().size() == 12;
+    const bool written = d && d->flushWithSummary();
+    const bool released = s && rig.athlete->releaseSession(s->id());
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    rig.athlete->setDiagnosticsDoors(live);   // the live session's are the parallel run's again
+    return settled && kept && written && released && QFile::exists(folder + QStringLiteral("/diagnostics.json"))
+        && QFile::exists(folder + QStringLiteral("/work_ons.json"));
 }
 
 static void testLive()
 {
     std::printf("\nLIVE — the app's parallel-run doors over a live-shaped session\n");
     Rig rig;
-    check(QStringLiteral("PRE an earlier session of twelve 7-iron shots, reduced by the old model"), earlierSession(rig));
+    check(QStringLiteral("PRE an earlier session of twelve 7-iron shots, reduced and summed up by its owner"), earlierSession(rig));
 
     Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
     SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
@@ -336,37 +355,43 @@ static void testLive()
     check(QStringLiteral("the session ends (EVT-09) and is not in progress"), ended.ok() && !s->inProgress());
     Rig::settled(d);
 
-    const QString stampBefore = d->findingsStamp();
-    SessionDiagnosticsModel old;   // the old engine as the catch-up ran it at End until 3.7-e (run P's reference)
-    old.setSynchronous(true);
-    old.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
-    old.setReviewing(true);
-    old.activateSession(folder);
-    check(QStringLiteral("the old model graded every shot"), old.shotCount() == kShots);
-    // LIKE WITH LIKE: the new owner re-reads the baseline the old model just froze, as the app's comparison hook did
-    // before 3.10 deleted it (the hook compared nothing in the app since 3.7-e; CARRY R1-m9).
-    d->reloadClubBaseline(/*keepWhenAbsent=*/true);
-    check(QStringLiteral("the new owner's diagnosis of the same shots lands"), pump([d] { return d->idle() && d->diagnosis(); }));
+    // THE LIVE JUDGEMENT, as the live owner holds it at End (its club baseline frozen in memory at first need from PRE's
+    // summary: the parallel doors write nothing).
+    const QJsonObject liveForm = parallel::formOf(*d, false);
+    const QString stampLive = d->findingsStamp();
+    const bool liveBaseline = d->holdsClubBaseline();
+    // THE STORED JUDGEMENT (refactor 5.4a; the old model as the catch-up ran it at End, until then): the session released
+    // and held again by an owner that writes, as the catch-up holds an ended session — every shot judged again from the
+    // documents now on disk, its club baseline frozen at first need and written.
+    const SessionId id = s->id();
+    check(QStringLiteral("the live session released (it writes nothing: in memory only)"), rig.athlete->releaseSession(id));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    rig.athlete->setDiagnosticsDoors(rig.writingDoors());
+    Session *stored = rig.athlete->session(id);
+    SessionDiagnostics *d2 = stored ? stored->diagnostics() : nullptr;
+    check(QStringLiteral("the stored owner's diagnosis of the same shots lands"),
+          d2 && pump([d2] { return d2->idle() && d2->diagnosis(); }) && d2->keptShots().size() == kShots);
+    if (d2) d2->flush(/*final=*/true);
 
     // c: the baseline.
     const QJsonObject baseline = readJson(folder + QStringLiteral("/club_baseline.json"));
     const bool has7 = QJsonDocument(baseline).toJson().contains("7 IRON");
-    check(QStringLiteral("c1 the old model froze club_baseline.json with the 7 iron's usual"), has7);
-    check(QStringLiteral("c2 the new owner read it (its findings stamp moved)"), d->findingsStamp() != stampBefore);
+    check(QStringLiteral("c1 the stored owner froze club_baseline.json with the 7 iron's usual"), has7);
+    check(QStringLiteral("c2 …the one the live owner held in memory (the same findings stamp)"),
+          liveBaseline && d2 && d2->findingsStamp() == stampLive);
 
-    // d: the comparison.
+    // d: the comparison: the live judgement against the stored one (D22: a live shot read with no sidecar is read as the
+    // stored session reads it).
     clock.start();
-    const QJsonObject oldForm = parallel::formOf(old, false), newForm = parallel::formOf(*d, false);
-    const QStringList diffs = parallel::differences(oldForm, newForm);
+    const QJsonObject storedForm = d2 ? parallel::formOf(*d2, false) : QJsonObject();
+    const QStringList diffs = parallel::differences(liveForm, storedForm);
     const double compareMs = clock.nsecsElapsed() / 1.0e6;
     for (int i = 0; i < std::min<int>(diffs.size(), 12); ++i) std::printf("    %s\n", qPrintable(diffs.at(i)));
     std::printf("    %lld difference(s)\n", (long long)diffs.size());
-    check(QStringLiteral("d1 the old model and the new owner agree: no difference (none expected live)"), diffs.isEmpty());
+    check(QStringLiteral("d1 the live owner and the stored owner agree: no difference"), !storedForm.isEmpty() && diffs.isEmpty());
 
     // e: a figure only (refactor 3.10, review m9): what one comparison costs; it guards nothing since the hook went.
     std::printf("    e: one comparison of this %d-shot session (both forms + every difference): %.2f ms\n", kShots, compareMs);
-
-    old.activateSession(QString());
 }
 
 // RDR: the firing reader with the parallel run's policy, against the default.

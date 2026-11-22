@@ -56,7 +56,9 @@
 // summary, as the owner rewrites both together, so the scan asks for it again.
 
 #include "Gui/diagnostics/work_ons_controller.h"
-#include "Gui/diagnostics/session_diagnostics_model.h"   // the catch-up's stand-in (3.7-e)
+#include "Gui/diagnostics/session_diagnostics_model.h"   // currentContentStamp (the record's content stamp)
+#include "Diagnostics/engine/session_reduction.h"   // the catch-up's stand-in: the owner's reduction (5.4a)
+#include "Coaching/strike_from_flight.h"   // sessionFlightUsuals
 #include "Coaching/session_results.h"
 #include "DomainModel/summary_rules.h"
 #include "Export/swing_paths.h"
@@ -119,22 +121,58 @@ static void check(bool c, const char *label)
 }
 
 
-// ── THE CATCH-UP'S STAND-IN (refactor step 3.7-e) ──────────────────────────────────────────────────────────────────────
+// ── THE CATCH-UP'S STAND-IN (refactor step 3.7-e; re-pointed in 5.4a) ──────────────────────────────────────────────────
 // Since the catch-up's cut-over WorkOnsController derives nothing itself: it hands its stale sessions to the catch-up
 // service (WorkOnsController::CatchUpDoor), whose Sessions' owners write each record. These fixtures are LEDGERS ON DISK
 // beside empty swing folders, with no session file — no Session can hold them — so this suite stands in for the service
-// with the engine that derived them before 3.7-e (SessionDiagnosticsModel, kept as run P's parity reference until 3.10):
-// it writes each record in the owner's shape (the summary, its fingerprint by the one rule, summaryFingerprintOf), then
-// answers as the service does. What this suite proves is WorkOnsController's own plumbing — the scan, freshness, the list,
-// the summary, the marks, the scopes and filters; the real service and owners are athlete_diagnostics_test's and
-// diag_stage_panel_test's (CATCHUP).
+// with the OWNER'S OWN RULES, called as the owner calls them (refactor 5.4a: until then the old engine,
+// SessionDiagnosticsModel, stood in). In the owner's order (DUTIES-5.4.md H14):
+//   1. the club baseline frozen first, when the session has none: clubBaselineAsOf over its predecessors' ledgers (the
+//      newest ten on earlier days), written through the one door (SessionDiagnosticsFiles::writeClubBaseline);
+//   2. the session reduced by the owner's pure reduction (reduceSession, session_reduction.h) over the rows as the board
+//      annotated them, under the frozen baseline: its work-ons and outcome evidence are the record's;
+//   3. the record written in the owner's shape (the summary, its fingerprint by the one rule, summaryFingerprintOf),
+//      then the service's answer. The ledger is read and never written.
+// What this suite proves is WorkOnsController's own plumbing — the scan, freshness, the list, the summary, the marks, the
+// scopes and filters; the real service and owners are athlete_diagnostics_test's and diag_stage_panel_test's (CATCHUP).
 struct FixtureCatchUp {
-    SessionDiagnosticsModel model;
     int derived = 0;
+
+    // The predecessors' ledgers, as the old engine's freeze read them (readPredecessors): sessions on strictly earlier days,
+    // newest first, the newest ten that hold a session; each one's corrections from its homes.
+    static std::vector<ClubDistanceSession> predecessors(const QList<pinpoint::SessionIndexEntry> &index, const QDate &day)
+    {
+        std::vector<SessionPlace> candidates;
+        if (day.isValid())
+            for (const pinpoint::SessionIndexEntry &e : index) {
+                const SessionPlace p{ e.identity.folderName(), e.identity.localDay(), e.identity.nOfDay() };
+                if (p.day.isValid() && p.day < day) candidates.push_back(p);
+            }
+        std::sort(candidates.begin(), candidates.end(),
+                  [](const SessionPlace &a, const SessionPlace &b) { return sessionPlaceBefore(b, a); });
+        std::vector<ClubDistanceSession> out;
+        for (const SessionPlace &c : candidates) {
+            if (int(out.size()) >= kClubDistanceWindowSessions) break;
+            QString folder;
+            for (const pinpoint::SessionIndexEntry &e : index)
+                if (e.identity.folderName() == c.folder) { folder = e.folder; break; }
+            const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(folder);
+            if (!read.parsed()) continue;
+            ClubDistanceSession s;
+            s.folder      = c.folder;
+            s.day         = c.day;
+            s.nOfDay      = c.nOfDay;
+            s.shots       = fromJson(read.envelope.ledger);
+            s.corrections = pinpoint::SessionDiagnosticsFiles::golferInput(folder, read.envelope.legacyGolferInput).corrections;
+            out.push_back(std::move(s));
+        }
+        return out;
+    }
+
     void derive(const QString &dir)
     {
-        // THE LEDGER AS IT STANDS, read first (the model may rewrite it): the per-shot facts and club windows are made from
-        // it as the owner's reduction makes them (session_reduction.cpp), the board's annotations applied.
+        // THE LEDGER AS IT STANDS: the per-shot facts and club windows are made from it as the owner's reduction makes
+        // them (session_reduction.cpp), the board's annotations applied.
         const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(dir);
         std::vector<ShotRecord> shots = read.parsed() ? fromJson(read.envelope.ledger) : std::vector<ShotRecord>{};
         const pinpoint::GolferInput g = pinpoint::SessionDiagnosticsFiles::golferInput(dir, read.envelope.legacyGolferInput);
@@ -144,21 +182,56 @@ struct FixtureCatchUp {
         const QList<pinpoint::SessionIndexEntry> index = pinpoint::SessionDiagnosticsFiles::athleteSessions(QFileInfo(dir).absolutePath());
         const SessionPlace place = pinpoint::SessionDiagnosticsFiles::placeOf(index, dir);
 
-        model.setSynchronous(true);
-        model.setReviewing(true);
-        model.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
-        model.activateSession(dir);
+        // 1. THE CLUB BASELINE, FROZEN FIRST when the session has none (the catch-up's "always").
+        if (!pinpoint::SessionDiagnosticsFiles::clubBaselineExists(dir)) {
+            ClubBaselineSnapshot snap;
+            snap.frozenAt = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+            snap.clubs    = clubBaselineAsOf(predecessors(index, place.day), place.day, shippedFlightNorms());
+            pinpoint::SessionDiagnosticsFiles::writeClubBaseline(dir, clubBaselineToJson(snap));
+        }
+        std::optional<QHash<QString, ClubBaselineEntry>> baseline;
+        {
+            const pinpoint::JsonFileRead base = pinpoint::SessionDiagnosticsFiles::readClubBaseline(dir);
+            if (base.exists) {
+                bool ok = false;
+                const ClubBaselineSnapshot snap = clubBaselineFromJson(base.root, &ok);
+                if (ok) baseline = snap.clubs;
+            }
+        }
+
+        // 2. THE OWNER'S REDUCTION over those rows.
+        const QHash<int, QString> intents = resolvedShotIntents(g.shotIntent, shots, g.intentRun.fromShot, g.intentRun.shape);
+        SessionReductionInput in;
+        in.pack             = rules->pack;
+        in.outcomePack      = std::make_shared<const ShotOutcomePack>(shotOutcomePackFor(&pack));
+        in.shots            = shots;
+        in.intents          = intents;
+        in.corrections      = g.corrections;
+        in.usuals           = sessionFlightUsuals(shots);
+        in.baseline         = baseline;
+        in.flightNorms      = shippedFlightNorms();
+        in.focusConditionId = g.focus.conditionId;
+        in.focusFromShot    = g.focus.fromShot;
+        in.declaredMiss     = g.declaredMiss;
+        in.screens          = g.screens;
+        in.replay           = true;   // no stage held: a cold load's
+        in.closed           = true;   // an ended session, as every fixture here is
+        in.folderName       = QFileInfo(dir).fileName();
+        in.sessionId        = in.folderName;
+        in.day              = place.day;
+        const SessionDiagnosis dg = reduceSession(in);
+
         SessionResults r;
-        r.workOns = model.sessionWorkOns();
+        r.workOns = dg.results.workOns;
         if (r.workOns.startMs <= 0) {   // no shot carried a clock: the session's day, then its folder's time (the owner's rule)
-            const pinpoint::SessionIdentity id = model.sessionIdentity();
+            const pinpoint::SessionIdentity id = pinpoint::SessionDiagnosticsFiles::identityOf(dir);
             const QDate d = id.localDay();
             r.workOns.startMs = id.startedAtUtc().isValid() ? id.startedAtUtc().toMSecsSinceEpoch()
                               : d.isValid()                  ? d.startOfDay().toMSecsSinceEpoch()
                                                              : QFileInfo(dir).lastModified().toMSecsSinceEpoch();
             r.workOns.endMs = r.workOns.startMs;
         }
-        r.outcomeEvidence = model.outcomeEvidence();
+        r.outcomeEvidence = dg.results.outcomeEvidence;
         r.hasGrowth = true;
         r.hasFacts  = true;
         {
@@ -168,14 +241,9 @@ struct FixtureCatchUp {
             self.session.nOfDay      = place.nOfDay;
             self.session.shots       = shots;
             self.session.corrections = g.corrections;
-            self.intents  = resolvedShotIntents(g.shotIntent, shots, g.intentRun.fromShot, g.intentRun.shape);
+            self.intents  = intents;
             self.evidence = r.outcomeEvidence;
-            const pinpoint::JsonFileRead base = pinpoint::SessionDiagnosticsFiles::readClubBaseline(dir);
-            if (base.exists) {
-                bool ok = false;
-                const ClubBaselineSnapshot snap = clubBaselineFromJson(base.root, &ok);
-                if (ok) self.baseline = snap.clubs;
-            }
+            self.baseline = baseline.value_or(QHash<QString, ClubBaselineEntry>{});
             r.tendencyShots = tendencySessionShots(self, shotOutcomePackFor(&pack), shippedFlightNorms()).shots;
             for (const ShotRecord &s : shots) r.themeShots.push_back(themes::themeShotOf(s));
             ClubDistanceSession cds;
@@ -189,14 +257,13 @@ struct FixtureCatchUp {
                 r.clubWindows.push_back(std::move(pool));
             }
         }
-        // The fingerprint as the scan computes it (one rule: WorkOnsController::summaryFingerprintFor), with no athlete record.
+        // 3. The fingerprint as the scan computes it (one rule: WorkOnsController::summaryFingerprintFor), with no athlete record.
         r.derivedFrom.fingerprint  = WorkOnsController::summaryFingerprintFor(dir, WorkOnsController::rulesStampNow(),
                                                                               pinpoint::summaryCohortFacts(QString(), QString()));
-        r.derivedFrom.contentStamp = model.contentStamp();
+        r.derivedFrom.contentStamp = SessionDiagnosticsModel::currentContentStamp();
         r.derivedFrom.writtenAtMs  = double(QDateTime::currentMSecsSinceEpoch());
         QFile f(WorkOnsController::recordPath(dir));
         if (f.open(QIODevice::WriteOnly)) f.write(QJsonDocument(sessionResultsToJson(r)).toJson(QJsonDocument::Compact));
-        model.activateSession(QString());
         ++derived;
     }
 };
