@@ -262,6 +262,7 @@ AthleteSessionSummary summaryFrom(const SessionIndexEntry &e, const JsonFileRead
     out.status = e.status;
     if (!f.exists)
         return out;
+    out.fromNewerBuild = f.ok && analysis::sessionResultsFromNewerBuild(f.root);   // 4-e: said apart from a stale one
     if (!f.ok) {
         // Said in the app log (a summary left out is never silent: J-51), and counted by notSummedUp().
         ppWarn() << "[AthleteDiagnostics] session summary unreadable, left out:" << out.place.folder << "-" << f.error;
@@ -270,8 +271,9 @@ AthleteSessionSummary summaryFrom(const SessionIndexEntry &e, const JsonFileRead
     bool ok = false;
     analysis::SessionResults r = analysis::sessionResultsFromJson(f.root, analysis::SessionResultsRead::Strict, &ok);
     if (!ok) {
-        // An older rule's (or a newer schema's) summary: not this build's answer (the catch-up writes it again).
-        ppInfo() << "[AthleteDiagnostics] session summary of another rule, left out until it is summed up again:"
+        // An older rule's summary: not this build's answer (the catch-up writes it again). A newer build's: left out.
+        ppInfo() << (out.fromNewerBuild ? "[AthleteDiagnostics] session summary of a newer build, left out:"
+                                        : "[AthleteDiagnostics] session summary of another rule, left out until it is summed up again:")
                  << out.place.folder;
         return out;
     }
@@ -426,6 +428,7 @@ void AthleteDiagnostics::ensure()
         if (!repository() || repository()->shots(s.id).isEmpty()) continue;   // nothing hit: nothing left out
         ++m_notSummedUp.count;
         m_notSummedUp.folders << s.place.folder;
+        if (s.fromNewerBuild) m_notSummedUp.newerFolders << s.place.folder;   // 4-e: the rest are the catch-up's
     }
     m_conditions = analysis::aggregateConditions(sessions);
     m_workOns    = analysis::aggregateWorkOns(std::move(sessions));
@@ -1625,6 +1628,52 @@ void AthleteDiagnostics::submitScoped()
     });
 }
 
+// R-PERS-3 (refactor 4-e, REVIEW-e §5): THE SESSION'S SUMMARY ON DISK, AS IT STANDS, IS A NEWER BUILD'S — read now, not
+// from what this level holds (the catch-up asks it before it takes a session in hand, so a session a newer build owns is
+// never loaded, re-graded or written by this one).
+bool AthleteDiagnostics::summaryFromNewerBuild(const SessionId &session)
+{
+    SessionRepository *repo = repository();
+    if (!repo || session.isNull())
+        return false;
+    const JsonFileRead f = repo->readWorkOns(session);
+    return f.exists && f.ok && analysis::sessionResultsFromNewerBuild(f.root);
+}
+
+// R-PERS-3 (refactor 4-e): A CACHE A NEWER BUILD SAVED IS READ-ONLY HERE (the library is shared between machines that may
+// run different builds). Checked on the file as it stands, before each write; true: leave it, write nothing.
+bool AthleteDiagnostics::cacheFromNewerBuild(bool tendencies, const QStringList &keys)
+{
+    AthleteRepository *repo = m_athlete ? m_athlete->m_repository : nullptr;
+    if (!repo)
+        return false;
+    const JsonFileRead f = repo->readCache(*m_athlete, tendencies ? AthleteRepository::Cache::Tendencies
+                                                                  : AthleteRepository::Cache::Themes, keys);
+    if (!f.exists || !f.ok)
+        return false;
+    // Every version the file carries (REVIEW-e B1): the themes' own; and a scoped file's records (each a session's work-ons,
+    // kWorkOn*) and its shot filter's outcome block (kOutcomeScopeRuleVersion), which its reader matches exactly.
+    const auto newerThemes = [](const QJsonObject &root) {
+        if (analysis::swingThemesFromNewerBuild(root))
+            return true;
+        for (const QJsonValue &v : root.value(QStringLiteral("records")).toArray()) {
+            const QJsonObject r = v.toObject();
+            if (r.value(QStringLiteral("schemaVersion")).toInt(0) > analysis::kWorkOnSchemaVersion
+                || r.value(QStringLiteral("ruleVersion")).toInt(0) > analysis::kWorkOnRuleVersion)
+                return true;
+        }
+        return root.value(QStringLiteral("outcome")).toObject().value(QStringLiteral("rule")).toInt(0)
+               > analysis::kOutcomeScopeRuleVersion;
+    };
+    const bool newer = tendencies ? analysis::tendencySetFromNewerBuild(f.root) : newerThemes(f.root);
+    if (newer) {
+        ++m_counts.cacheNewerKept;
+        ppWarn() << "[AthleteDiagnostics] a newer build's" << (tendencies ? "tendencies" : "swing summary")
+                 << "file, read-only here, not written:" << m_athlete->folder() << keys.join(QLatin1Char('.'));
+    }
+    return newer;
+}
+
 WriteResult AthleteDiagnostics::writeScopedCache(const analysis::ClubScope &scope, const analysis::ShotFilter &filter)
 {
     WriteResult w;
@@ -1641,6 +1690,7 @@ WriteResult AthleteDiagnostics::writeScopedCache(const analysis::ClubScope &scop
     for (auto it = m_scoped.records.constBegin(); it != m_scoped.records.constEnd(); ++it) records.append(analysis::toJson(it.value()));
     root[QStringLiteral("records")] = records;
     if (!filter.isAll()) root[QStringLiteral("outcome")] = outcomeToJson(m_scoped, filter);
+    if (cacheFromNewerBuild(false, scopedFileKeys(scope, filter))) return w;
     w = repo->writeCache(*m_athlete, AthleteRepository::Cache::Themes, root, scopedFileKeys(scope, filter));
     if (w.ok()) ++m_counts.cacheWrites;
     else ppWarn() << "[SwingThemes] could not write the swing summary of" << m_scoped.key << ":" << w.error;
@@ -1664,6 +1714,7 @@ WriteResult AthleteDiagnostics::writeTendenciesCache()
         { QStringLiteral("contentStamp"), m_tendenciesContent },
         { QStringLiteral("writtenAtMs"),  double(QDateTime::currentMSecsSinceEpoch()) },
     };
+    if (cacheFromNewerBuild(true)) return w;
     w = repo->writeCache(*m_athlete, AthleteRepository::Cache::Tendencies, root);
     if (w.ok()) {
         m_tendenciesWrittenFp = m_tendenciesFp;
@@ -1687,6 +1738,7 @@ WriteResult AthleteDiagnostics::writeThemesCache()
         { QStringLiteral("contentStamp"), m_themesContent },
         { QStringLiteral("writtenAtMs"),  double(QDateTime::currentMSecsSinceEpoch()) },
     };
+    if (cacheFromNewerBuild(false)) return w;
     w = repo->writeCache(*m_athlete, AthleteRepository::Cache::Themes, root);
     if (w.ok()) {
         m_themesWrittenFp = m_themesFp;

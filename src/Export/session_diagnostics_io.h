@@ -43,6 +43,7 @@
 #include "../DomainModel/recording_repository.h"   // WriteResult
 #include "../DomainModel/session_repository.h"     // DiagnosticsRead, SessionInputRead, JsonFileRead
 #include "../DomainModel/session_input.h"
+#include "../Coaching/diagnostic_ledger.h"   // kDiagSchemaVersion: a newer ledger is read-only (R-PERS-3; REVIEW-e B2)
 
 #include <QDateTime>
 #include <QFile>
@@ -217,10 +218,17 @@ inline DiagnosticsRead readDiagnostics(const QString &sessionDir)
             continue;
         e.other.insert(k, it.value());
     }
+    // NEWER: the envelope's version, or its ledger's (REVIEW-e B2: the ledger's schema moves on its own — the envelope
+    // stays 1 while the rows go 15 → 16). Either is read-only here, never written over (R-PERS-3).
+    const int ledgerVersion = e.ledger.value(QStringLiteral("schemaVersion")).toInt(0);
     if (e.schemaVersion > kEnvelopeVersion) {
         r.state = DiagnosticsRead::State::Newer;
         r.error = QStringLiteral("saved by a newer PinPoint Studio (envelope version %1; this build reads up to %2)")
                       .arg(e.schemaVersion).arg(kEnvelopeVersion);
+    } else if (ledgerVersion > analysis::kDiagSchemaVersion) {
+        r.state = DiagnosticsRead::State::Newer;
+        r.error = QStringLiteral("saved by a newer PinPoint Studio (ledger version %1; this build reads up to %2)")
+                      .arg(ledgerVersion).arg(analysis::kDiagSchemaVersion);
     } else {
         r.state = DiagnosticsRead::State::Read;
     }

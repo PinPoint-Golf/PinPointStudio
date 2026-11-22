@@ -81,7 +81,8 @@
 // SESSIONS IT CANNOT USE (J-51; HARD: show with a warning, never hide): a session with shots whose summary is not read by
 // this build (none yet, an older rule's, a newer schema's, unreadable) or is read without current per-shot facts adds
 // nothing to the tendencies, the themes or the marks. notSummedUp() counts them (not the one being recorded here), so
-// every screen that shows these figures can say so. They are never read from their ledgers (that would be C6: Mark's).
+// every screen that shows these figures can say so — and says which a newer build saved (newerFolders: read-only here)
+// and which are stale or missing (the catch-up's), so a screen says what is really happening (refactor 4-e). They are never read from their ledgers (that would be C6: Mark's).
 //
 // Ownership (information_model.md §10): owner AthleteDiagnostics; level athlete; one writer of FILE-ATH-02 and FILE-ATH-03
 // (every club's), through AthleteRepository; a view reaches it through its Athlete (AthleteDiagnostics::of), until step 4
@@ -130,6 +131,10 @@ struct AthleteSessionSummary {
     SessionStatus           status = SessionStatus::Ended;
     bool                    read = false;   // a summary of this build's rule was read (Strict); else `results` is empty
     analysis::SessionResults results;
+    // The file on disk was saved by a NEWER build (session_results.h sessionResultsFromNewerBuild; refactor 4-e): this
+    // build can't read it in full. False for none, an older rule's or schema's, an unreadable file: the catch-up's to
+    // write again.
+    bool                    fromNewerBuild = false;
 };
 
 // The club baseline as of one session (DEC-46, DEC-172), as the athlete level computes it for the Session to freeze.
@@ -168,10 +173,15 @@ public:
         QString conditionId;
         QString measureId;
     };
-    // J-51: the sessions with shots whose summary adds nothing here, not the one being recorded here.
+    // J-51: the sessions with shots whose summary adds nothing here, not the one being recorded here. Of them (refactor
+    // 4-e), the ones whose summary a NEWER build saved (this build can't read it in full); the rest are stale or missing,
+    // the catch-up's to write again (stale()).
     struct NotSummedUp {
         int         count = 0;
-        QStringList folders;   // their folder names, oldest first
+        QStringList folders;        // their folder names, oldest first
+        QStringList newerFolders;   // of `folders`, the ones a newer build summed up (AthleteSessionSummary::fromNewerBuild)
+        int newer() const { return int(newerFolders.size()); }
+        int stale() const { return count - newer(); }
     };
     struct Counts {
         quint64 recomputes = 0;            // the derived results computed again
@@ -184,6 +194,7 @@ public:
         quint64 consistencyJobs = 0;       // marks graded
         quint64 consistencySessions = 0;   // sessions whose facts the graded marks read
         quint64 cacheWrites = 0;           // FILE-ATH-02/03 written
+        quint64 cacheNewerKept = 0;        // … a write skipped: the file on disk is a newer build's (R-PERS-3; 4-e)
         quint64 jobsAsked = 0;             // jobs submitted, any item (a duplicate ask queues none: R1-m1)
         quint64 summariesReadAhead = 0;    // summaries read on the lane and applied (readAhead, J-57)
         qint64  readAheadAskMs = -1;       // the last readAhead()'s GUI-thread part: the plan (ms)
@@ -281,6 +292,9 @@ public:
     analysis::TendencySet tendenciesAsOf(const SessionId &session) override;
 
     NotSummedUp notSummedUp() override;
+    // R-PERS-3 (refactor 4-e): the session's work_ons.json as it stands now is a newer build's (read-only here). The
+    // catch-up asks it before it takes a session in hand: such a session is not loaded, re-graded or written.
+    bool summaryFromNewerBuild(const SessionId &session);
     // The summary of the session in `folderName` as read here (strict), or null (none read: notSummedUp counts it).
     const AthleteSessionSummary *summaryOf(const QString &folderName) override;
     // Every summary read again at the next read (the files may have been written outside this process).
@@ -364,6 +378,8 @@ private:
     void retryReleases();
     void submitScoped();
     WriteResult writeScopedCache(const analysis::ClubScope &scope, const analysis::ShotFilter &filter);
+    // R-PERS-3 (4-e): the cache on disk (tendencies.json, else swing_themes[.<keys>].json) is a newer build's: not written.
+    bool        cacheFromNewerBuild(bool tendencies, const QStringList &keys = {});
     WriteResult writeThemesCache();
     void ensure();
     AthleteSessionSummary readSummary(const SessionIndexEntry &e);

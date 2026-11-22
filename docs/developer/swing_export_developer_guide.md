@@ -896,7 +896,8 @@ re-pointed mid-session — is the running session's End (its empty discard inclu
 session whose folder is still there — a held lock, a read-only or unreadable file; `folderPresent(id)` — is
 posted as `session.file.failed`, a gone library is not) and a Start of the same type in the new library; the club is
 `SessionController`'s and carries over; the declared focus is the ending `Session`'s, read from it before its End
-and declared on the new one from its first shot (`src/App/session_focus.h`; refactor 4-d).
+and declared on the new one from its first shot; a restart that fails keeps it pending (`focusCarried`), and the session
+the next swing opens takes it (`AppState::handOverFocus`; `src/App/session_focus.h`; refactor 4-d).
 **THE INTERIM:** a session no `Athlete` holds — no golfer selected (the `unknown` folder), or a library
 re-pointed mid-session that does not list the golfer — is started, resumed, ended and allocated through the
 repository directly, exactly as before, the empty discard made by `ShotProcessor` with the same rule

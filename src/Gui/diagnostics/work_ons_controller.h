@@ -86,7 +86,10 @@ namespace pinpoint { class Athlete; class AthleteLevel; }
 // SessionDiagnostics, and written to swing_themes.<scope>[.<filter>].json by it. This object reads no ledger and writes
 // no file; its one file read is the scan's (summaries and baselines, for the catch-up's asks).
 // SESSIONS THE OWNER CANNOT USE (J-51): `notSummedUpNote` says how many sessions add nothing to these figures (no
-// summary of this build's yet, or one without its per-shot facts), so none drops out without a word.
+// summary of this build's yet, or one without its per-shot facts), so none drops out without a word. It says what is
+// really happening (refactor 4-e): the owner's stale or missing ones while the catch-up is scanning or working are being
+// brought up to date; a newer build's (the owner's newerFolders), a session whose rows could not be read (DEC-195) and a
+// stale one the finished catch-up could not write are left out (notSummedUpWords).
 //
 // YOUR SWING — the same catch-up ends in the golfer's swing summary (swing_themes.h,
 // docs/design/home_themes_design.md): the one thing to practise (the focus), what they do well,
@@ -461,6 +464,10 @@ public:
     void catchUpDone();
     // The rule data's summary stamp (summaryRulesStamp), once per RuleData snapshot: the scan's freshness.
     static QString rulesStampNow();
+    // Home's note (refactor 4-e; J-51): `bringing` sessions the catch-up is bringing up to date, `leftOut` this build can't
+    // use; one sentence each, "" for none. "Bringing 24 sessions up to date…" · "4 sessions are left out: this version of
+    // PinPoint Studio can't read them in full yet."
+    static QString notSummedUpWords(int bringing, int leftOut);
     // A session summary's fingerprint as the scan computes it, by the owner's one rule (session_reduction.h
     // summaryFingerprintOf): its numbered swings' documents, its frozen club baseline, the rule data, the cohort facts.
     static QString summaryFingerprintFor(const QString &sessionDir, const QString &rulesStamp, const QString &cohort);
@@ -519,6 +526,7 @@ private:
         QString sessionDir;
         QString fingerprint;
         bool    fresh = false;
+        bool    newer = false;               // its summary is a newer build's: read-only here, never asked of the catch-up (4-e)
         qint64  mtimeMs = 0;
         bool    hasBaseline = false;         // <session>/club_baseline.json exists
         QDate   day;                         // the session's day (SessionIdentity's; step 2.7a): what the catch-up

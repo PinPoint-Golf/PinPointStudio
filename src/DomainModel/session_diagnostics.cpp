@@ -1103,6 +1103,16 @@ bool SessionDiagnostics::writeSummary()
     if (!m_diagnosis || !m_doors.writeSummary)
         return true;
     PostShotTrace::Scope trace("owner.summary");   // [PostShot]: the session summary's write (3.7-e)
+    // R-PERS-3 (refactor 4-e): A NEWER BUILD'S SUMMARY IS READ-ONLY HERE, as diagnostics.json's is. Checked on the file as
+    // it stands now, at each write: the library is shared between machines that may run different builds, and this build
+    // must never write its older summary over a newer one. Left as it is; the athlete level counts it as a newer build's.
+    if (const JsonFileRead on = m_sessions->readWorkOns(m_id);
+        on.exists && on.ok && analysis::sessionResultsFromNewerBuild(on.root)) {
+        m_summaryOwed = false;
+        ++m_counts.summaryNewerKept;
+        ppWarn() << "[SessionDiagnostics] work_ons.json is a newer build's, read and not written:" << m_id.toString();
+        return true;
+    }
     const WriteResult ws = m_sessions->writeWorkOns(m_id, analysis::sessionResultsToJson(summary()));
     m_summaryOwed = false;   // a failed write is said once and tried again with the next diagnosis, as before 3.7-e
     if (ws.ok()) {

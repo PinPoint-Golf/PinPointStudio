@@ -234,6 +234,7 @@ public:
         // derived data taken back from the file at a load; summaries written.
         quint64 reductionsAsked = 0, reductions = 0, reductionsSuperseded = 0, reductionFailures = 0;
         quint64 derivedRestored = 0, summaryWrites = 0;
+        quint64 summaryNewerKept = 0;   // a summary write skipped: the file on disk is a newer build's (R-PERS-3; 4-e)
         quint64 baselineFreezes = 0;   // a club baseline computed at first need (step 3.6), written or held in memory
         quint64 droppedWhileArchived = 0;   // results that came back while an archive was out: not kept, owed (3.7-a)
     };

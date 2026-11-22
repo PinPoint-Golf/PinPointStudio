@@ -1952,6 +1952,126 @@ static void checkRowsMissing(const QString &root)
           "every club again: both counted, nothing said");
 }
 
+// ── Home's note says what is really happening (refactor 4-e; J-51) ───────────────────────────────────────────────────────
+// Mark, 22 Nov: "24 sessions are left out: this version of PinPoint Studio can't read them in full yet" while the catch-up
+// was re-summarising all 24. The owner says why a session is not summed up (a newer build's, or stale — the catch-up's);
+// this adapter says whether the catch-up is still at it. Its door here HOLDS the asks, so the note is read mid catch-up.
+static void checkCatchUpNote(const QString &root)
+{
+    std::printf("\nHome's note while the catch-up runs (4-e)\n");
+    const QString ell = QStringLiteral("…");
+    check(WorkOnsController::notSummedUpWords(24, 0) == QStringLiteral("Bringing 24 sessions up to date") + ell
+              && WorkOnsController::notSummedUpWords(1, 0) == QStringLiteral("Bringing 1 session up to date") + ell,
+          "4-e words, catch-up pending: \"Bringing 24 sessions up to date…\", one: \"Bringing 1 session up to date…\"");
+    check(WorkOnsController::notSummedUpWords(0, 4)
+              == QStringLiteral("4 sessions are left out: this version of PinPoint Studio can't read them in full yet.")
+              && WorkOnsController::notSummedUpWords(0, 1)
+              == QStringLiteral("1 session is left out: this version of PinPoint Studio can't read it in full yet."),
+          "4-e words, a newer build's: today's sentence kept");
+    check(WorkOnsController::notSummedUpWords(2, 1) == QStringLiteral("Bringing 2 sessions up to date") + ell
+              + QStringLiteral(" 1 session is left out: this version of PinPoint Studio can't read it in full yet.")
+              && WorkOnsController::notSummedUpWords(0, 0).isEmpty(),
+          "4-e words, both at once: one sentence each; none: nothing");
+
+    const qint64 day = 86'400'000LL, t0 = 1'782'000'000'000LL;
+    struct Held { QList<WorkOnsController::CatchUpAsk> asks; };
+    // A controller over `golfer` whose catch-up door holds what it is asked (answered by hand below).
+    const auto rig = [](WorkOnsController &c, const std::shared_ptr<Held> &held,
+                        std::shared_ptr<std::vector<std::unique_ptr<pinpoint::Athlete>>> athletes) {
+        c.setSynchronous(true);
+        c.setAthleteDoor([athletes](const QString &dir) -> pinpoint::AthleteLevel * {
+            static QHash<QString, pinpoint::Athlete *> made;
+            const QString key = QDir::cleanPath(dir);
+            if (!made.contains(key)) made.insert(key, makeAthlete(key, false, *athletes));
+            return pinpoint::AthleteDiagnostics::of(made.value(key));
+        });
+        c.setCatchUp({ [held](const QString &, const QList<WorkOnsController::CatchUpAsk> &asks) { held->asks = asks; },
+                       [](bool) {}, [] {} });
+    };
+    const auto answer = [](WorkOnsController &c, const QString &dir, bool derive) {
+        if (derive) standIn().derive(dir);
+        c.sessionCaughtUp(QFileInfo(dir).fileName());
+    };
+    const auto athletes = std::make_shared<std::vector<std::unique_ptr<pinpoint::Athlete>>>();
+
+    // A: every session stale (none summed up yet): "Bringing…", counting down, cleared when the catch-up finishes.
+    {
+        const QString golfer = root + QStringLiteral("/catchUpNoteA");
+        QDir().mkpath(golfer);
+        QStringList dirs;
+        for (int i = 0; i < 3; ++i) {
+            const QString name = QStringLiteral("2026-07-0%1_M_01").arg(i + 1);
+            stageTendencySession(golfer, name, t0 + i * day, 12);
+            dirs << QDir(golfer).filePath(name);
+        }
+        WorkOnsController c;
+        auto held = std::make_shared<Held>();
+        rig(c, held, athletes);
+        c.setAthleteDir(golfer);
+        std::printf("      held %lld asks; \"%s\"\n", static_cast<long long>(held->asks.size()), qPrintable(c.notSummedUpNote()));
+        check(held->asks.size() == 3 && c.notSummedUpNote() == QStringLiteral("Bringing 3 sessions up to date") + ell,
+              "4-e A1 the catch-up pending on every session: \"Bringing 3 sessions up to date…\", not \"left out\"");
+        answer(c, dirs[0], true);
+        answer(c, dirs[1], true);
+        check(c.notSummedUpNote() == QStringLiteral("Bringing 1 session up to date") + ell,
+              "4-e A2 two brought up to date: \"Bringing 1 session up to date…\"");
+        answer(c, dirs[2], true);
+        c.catchUpDone();
+        check(c.notSummedUpNote().isEmpty(), "4-e A3 the catch-up finished: the note clears");
+    }
+    // B: a newer build's summary beside two stale ones: one sentence each; once the catch-up is done, the newer one alone.
+    {
+        const QString golfer = root + QStringLiteral("/catchUpNoteB");
+        QDir().mkpath(golfer);
+        QStringList dirs;
+        for (int i = 0; i < 3; ++i) {
+            const QString name = QStringLiteral("2026-07-1%1_M_01").arg(i + 1);
+            stageTendencySession(golfer, name, t0 + (10 + i) * day, 12);
+            dirs << QDir(golfer).filePath(name);
+        }
+        standIn().derive(dirs[2]);
+        QJsonObject newer = record(golfer, QFileInfo(dirs[2]).fileName());
+        newer[QStringLiteral("schemaVersion")] = kWorkOnSchemaVersion + 1;
+        {
+            QFile f(WorkOnsController::recordPath(dirs[2]));
+            check(f.open(QIODevice::WriteOnly) && f.write(QJsonDocument(newer).toJson(QJsonDocument::Compact)) > 0,
+                  "4-e B0 the third session's summary is a newer build's (schemaVersion above this build's)");
+        }
+        WorkOnsController c;
+        auto held = std::make_shared<Held>();
+        rig(c, held, athletes);
+        c.setAthleteDir(golfer);
+        std::printf("      %lld asked; \"%s\"\n", static_cast<long long>(held->asks.size()), qPrintable(c.notSummedUpNote()));
+        check(held->asks.size() == 2 && std::none_of(held->asks.begin(), held->asks.end(), [&](const WorkOnsController::CatchUpAsk &k) {
+                  return QFileInfo(k.sessionDir).fileName() == QFileInfo(dirs[2]).fileName(); }),
+              "4-e B0b a newer build's session is not asked of the catch-up (REVIEW-e §5): nothing here loads or writes it");
+        check(c.notSummedUpNote() == QStringLiteral("Bringing 2 sessions up to date") + ell
+                  + QStringLiteral(" 1 session is left out: this version of PinPoint Studio can't read it in full yet."),
+              "4-e B1 both at once: two being brought up to date, the newer build's left out — one sentence each");
+        answer(c, dirs[0], true);
+        answer(c, dirs[1], true);
+        c.catchUpDone();
+        check(c.notSummedUpNote() == QStringLiteral("1 session is left out: this version of PinPoint Studio can't read it in full yet."),
+              "4-e B2 the catch-up finished: the newer build's alone, today's sentence");
+    }
+    // C: a stale session the finished catch-up could not write is left out, never "being brought up to date" for ever.
+    {
+        const QString golfer = root + QStringLiteral("/catchUpNoteC");
+        QDir().mkpath(golfer);
+        const QString name = QStringLiteral("2026-07-21_M_01");
+        stageTendencySession(golfer, name, t0 + 20 * day, 12);
+        WorkOnsController c;
+        auto held = std::make_shared<Held>();
+        rig(c, held, athletes);
+        c.setAthleteDir(golfer);
+        check(c.notSummedUpNote() == QStringLiteral("Bringing 1 session up to date") + ell, "4-e C1 pending: \"Bringing 1 session…\"");
+        answer(c, QDir(golfer).filePath(name), false);
+        c.catchUpDone();
+        check(c.notSummedUpNote() == QStringLiteral("1 session is left out: this version of PinPoint Studio can't read it in full yet."),
+              "4-e C2 finished and still stale (not written): said as left out, never hidden");
+    }
+}
+
 // ── One session, two spellings (refactor 3.7-f round 0c; the double count pushed in 2aa5bc72) ───────────────────────────
 // main.cpp's door answers a caught-up session with the session index's folder, which SessionStore composes as
 // `libraryRoot + '/' + token`: with the library path set with a trailing slash (Mark's INI has one) that is
@@ -2331,11 +2451,12 @@ int main(int argc, char **argv)
           && !item(c, "reverse_spine_p4").value(QStringLiteral("statusText")).toString().startsWith(QStringLiteral("Not measured since")),
           "a fault the newest session could not measure says so, and stays");
 
-    // ── A session that changed, and a record from another rule ──────────────────
+    // ── A session that changed, and a record from another (older) rule ──────────
+    // (4-e: an OLDER rule's. A newer rule's is a newer build's, read-only here and never asked for: R-PERS-3, DEC-197.)
     QDir().mkpath(golfer + QStringLiteral("/s2/swing_0011"));      // a swing arrived
     {
         QJsonObject r = record(golfer, QStringLiteral("s1"));
-        r[QStringLiteral("ruleVersion")] = kWorkOnRuleVersion + 1;
+        r[QStringLiteral("ruleVersion")] = kWorkOnRuleVersion - 1;
         QFile f(WorkOnsController::recordPath(golfer + QStringLiteral("/s1")));
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
             f.write(QJsonDocument(r).toJson());
@@ -2517,10 +2638,10 @@ int main(int argc, char **argv)
               "a current swing_themes.json is read at start-up, not recomputed");
     }
 
-    // A file from another rule is recomputed.
+    // A file from another (older) rule is recomputed, and written again.
     {
         QJsonObject r = themesFile(themed);
-        r[QStringLiteral("ruleVersion")] = kThemeRuleVersion + 1;
+        r[QStringLiteral("ruleVersion")] = kThemeRuleVersion - 1;
         QFile f(WorkOnsController::themesPath(themed));
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
             f.write(QJsonDocument(r).toJson());
@@ -2533,6 +2654,25 @@ int main(int argc, char **argv)
         check(t.summaryReady() && themesFile(themed).value(QStringLiteral("ruleVersion")).toInt() == kThemeRuleVersion
               && themesWrittenAt(themed) != w,
               "a swing_themes.json written under another rule is recomputed");
+    }
+    // 4-e (R-PERS-3): a NEWER rule's is a newer build's — recomputed for the screen, but never written over.
+    {
+        QJsonObject r = themesFile(themed);
+        r[QStringLiteral("ruleVersion")] = kThemeRuleVersion + 1;
+        QFile f(WorkOnsController::themesPath(themed));
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            f.write(QJsonDocument(r).toJson());
+        f.close();
+        QFile in(WorkOnsController::themesPath(themed));
+        const QByteArray before = in.open(QIODevice::ReadOnly) ? in.readAll() : QByteArray();
+        in.close();
+        WorkOnsController t;
+        catchUp(t);
+        t.setAthleteDir(themed);
+        t.waitForIdle(300'000);
+        QFile after(WorkOnsController::themesPath(themed));
+        check(t.summaryReady() && t.summarySwings() == 150 && after.open(QIODevice::ReadOnly) && after.readAll() == before,
+              "4-e a newer build's swing_themes.json: the summary is shown, and the file is left byte-identical");
     }
 
     // ══ One measure, two conditions: each graded on its own tail (#112) ══════════════════
@@ -2617,6 +2757,7 @@ int main(int argc, char **argv)
     checkClubScope(tmp.path());
     checkShotFilter(tmp.path());
     checkRowsMissing(tmp.path());
+    checkCatchUpNote(tmp.path());
     checkCatchUpSpelling(tmp.path());
     checkSwitchEmpties(tmp.path());
     checkReportStampsAcrossAthletes(tmp.path());

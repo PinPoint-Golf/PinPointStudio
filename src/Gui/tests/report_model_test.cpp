@@ -208,6 +208,21 @@ int main(int argc, char **argv)
     eq(todayEarlierHabit(QStringLiteral("X"), 0, 0), QStringLiteral("X was a habit earlier today; this session could not measure it."), "not measured");
     eq(todayEarlierHabit(QStringLiteral("X"), 4, 10), QStringLiteral("X was a habit earlier today and came down to 4 of 10 swings here."), "came down");
     eq(todayEarlierHabit(QStringLiteral("X"), 0, 10), QStringLiteral("X was a habit earlier today and did not show here (0 of 10 swings)."), "did not show");
+    // 4-e: an earlier session not summed up says why — still being brought up to date, or a newer build's (J-51).
+    eq(todayNotUpToDate(1), QStringLiteral("One earlier session today isn't shown: it was still being brought up to date. Make the report again to include it."),
+       "4-e one earlier session still being brought up to date");
+    eq(todayNotUpToDate(3), QStringLiteral("Three earlier sessions today aren't shown: they were still being brought up to date. Make the report again to include them."),
+       "4-e several still being brought up to date");
+    eq(todayNotSummedUp(2), QStringLiteral("Two earlier sessions today aren't shown: this version of PinPoint Studio can't read them in full yet."),
+       "4-e a newer build's: today's sentence kept");
+    check(todayNotUpToDate(0).isEmpty() && todayNotSummedUp(0).isEmpty(), "4-e none: nothing said");
+    eq(tendenciesNotUpToDate(1), QStringLiteral("One earlier session isn't counted here: it was still being brought up to date. Make the report again to include it."),
+       "4-e Tendencies page: one still being brought up to date");
+    eq(tendenciesNotUpToDate(2), QStringLiteral("Two earlier sessions aren't counted here: they were still being brought up to date. Make the report again to include them."),
+       "4-e Tendencies page: several");
+    eq(tendenciesNotSummedUp(1), QStringLiteral("One earlier session isn't counted here: this version of PinPoint Studio can't read it in full yet."),
+       "4-e Tendencies page: a newer build's, today's sentence");
+    check(tendenciesNotUpToDate(0).isEmpty(), "4-e Tendencies page: none, nothing said");
     eq(todayMore(1), QStringLiteral("1 earlier session not shown"), "one session past the cap");
     eq(todayMore(3), QStringLiteral("3 earlier sessions not shown"), "several past the cap");
     eq(todayMore(0), QString(), "none past the cap: absent");

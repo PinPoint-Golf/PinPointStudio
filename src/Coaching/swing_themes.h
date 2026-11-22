@@ -2663,6 +2663,14 @@ inline std::vector<bool> boolsFrom(const QJsonValue &v)
 }
 } // namespace themes
 
+// swing_themes*.json SAVED BY A NEWER BUILD (refactor 4-e; R-PERS-3): its schema or rule above this build's. Read-only
+// here: its one writer (AthleteDiagnostics) never writes this build's over it.
+inline bool swingThemesFromNewerBuild(const QJsonObject &root)
+{
+    return root.value(QStringLiteral("schemaVersion")).toInt(0) > kThemeSchemaVersion
+        || root.value(QStringLiteral("ruleVersion")).toInt(0) > kThemeRuleVersion;
+}
+
 inline QJsonObject toJson(const SwingThemes &st)
 {
     using namespace themes;

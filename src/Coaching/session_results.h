@@ -577,6 +577,20 @@ inline QJsonObject sessionResultsToJson(const SessionResults &r)
     return root;
 }
 
+// A FILE SAVED BY A NEWER BUILD (refactor 4-e; J-51): its schema, rule or results version, or a per-shot facts rule,
+// above this build's. Strict reads it as not this build's answer (a newer results version or facts rule: today's keys
+// only, no per-shot facts); unlike an older one, it is not stale — this build can't read it in full.
+inline bool sessionResultsFromNewerBuild(const QJsonObject &root)
+{
+    const QJsonObject factsRules = root.value(QStringLiteral("factsRules")).toObject();
+    return root.value(QStringLiteral("schemaVersion")).toInt(0) > kWorkOnSchemaVersion
+        || root.value(QStringLiteral("ruleVersion")).toInt(0) > kWorkOnRuleVersion
+        || root.value(QStringLiteral("resultsVersion")).toInt(0) > kSessionResultsVersion
+        || factsRules.value(QStringLiteral("tendency")).toInt(0) > kTendencyRuleVersion
+        || factsRules.value(QStringLiteral("theme")).toInt(0) > kThemeRuleVersion
+        || factsRules.value(QStringLiteral("board")).toInt(0) > kBoardAnnotationRuleVersion;
+}
+
 // How an older file is read (FIELD-LIST F12).
 enum class SessionResultsRead {
     Strict,    // today's rule: a file of another schema or rule is not this build's answer (ok = false, empty)

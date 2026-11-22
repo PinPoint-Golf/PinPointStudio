@@ -136,7 +136,8 @@ struct DocFacts {
 // `tendenciesUnread` keeps the page with W::tendenciesUnread() as its standfirst (R1-m6), else there is none.
 QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::ConsistencyEnv &env, const QString &gradePolicy,
                             const std::shared_ptr<const INormProvider> &norms, const ShotOutcomePack &outcomePack,
-                            const std::optional<TendencySet> &tendencies, int tendenciesLeftOut, bool tendenciesUnread)
+                            const std::optional<TendencySet> &tendencies, int tendenciesLeftOut, int tendenciesLeftOutNewer,
+                            bool tendenciesUnread)
 {
     pinpoint::charts::SessionSeriesModel series;
     series.setSynchronous(true);
@@ -153,9 +154,13 @@ QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::C
              { QStringLiteral("tendencies"), tendencies ? QVariant([&] {
                    QVariantMap t = pinpoint::report::tendenciesReportBlock(*tendencies, &outcomePack);
                    // J-51 (round 0c): the sessions up to this one the athlete level could not use, said after the standfirst.
+                   // 4-e: one sentence for those still being brought up to date, one for a newer build's.
                    if (tendenciesLeftOut > 0)
                        t[QStringLiteral("standfirst")] = t.value(QStringLiteral("standfirst")).toString() + QLatin1Char(' ')
-                                                         + W::tendenciesNotSummedUp(tendenciesLeftOut);
+                                                         + W::tendenciesNotUpToDate(tendenciesLeftOut);
+                   if (tendenciesLeftOutNewer > 0)
+                       t[QStringLiteral("standfirst")] = t.value(QStringLiteral("standfirst")).toString() + QLatin1Char(' ')
+                                                         + W::tendenciesNotSummedUp(tendenciesLeftOutNewer);
                    return t;
                }()) : tendenciesUnread ? QVariant(pinpoint::report::tendenciesUnreadBlock(W::tendenciesUnread()))   // R1-m6: kept, saying why
                                        : kNull } };
@@ -533,7 +538,9 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     // queued across an athlete switch): the page is kept and says why it is empty (REVIEW-f R1-m6; show with a warning,
     // never hide). No door at all (a tool, a test: no athlete level here): no page.
     std::optional<TendencySet> tendencies;
-    int tendenciesLeftOut = 0;   // J-51: the sessions up to this one the athlete level could not use
+    // J-51: the sessions up to this one the athlete level could not use — stale or missing (the catch-up's), and a newer
+    // build's (4-e: the owner's newerFolders), said apart.
+    int tendenciesLeftOut = 0, tendenciesLeftOutNewer = 0;
     bool tendenciesUnread = false;
     pinpoint::AthleteLevel *ad = m_athleteDoor ? m_athleteDoor(dir) : nullptr;
     if (m_athleteDoor && !ad) {
@@ -545,7 +552,11 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
         for (const pinpoint::AthleteSessionSummary &s : ad->summaries())
             if (s.place.folder == name) {
                 tendencies = ad->tendenciesAsOf(s.id);
-                tendenciesLeftOut = pinpoint::report::tendenciesLeftOutCount(placesOf(ad), ad->notSummedUp().folders, s.place);
+                const pinpoint::AthleteLevel::NotSummedUp ns = ad->notSummedUp();
+                QStringList stale = ns.folders;
+                for (const QString &f : ns.newerFolders) stale.removeAll(f);
+                tendenciesLeftOut      = pinpoint::report::tendenciesLeftOutCount(placesOf(ad), stale, s.place);
+                tendenciesLeftOutNewer = pinpoint::report::tendenciesLeftOutCount(placesOf(ad), ns.newerFolders, s.place);
                 break;
             }
         if (!tendencies) {
@@ -555,8 +566,9 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     }
     connect(&m_job->chartsWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onChartsRead);
     m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
-                                                      tendenciesUnread] {
-        return readChartsPages(dir, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut, tendenciesUnread);
+                                                      tendenciesLeftOutNewer, tendenciesUnread] {
+        return readChartsPages(dir, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
+                               tendenciesLeftOutNewer, tendenciesUnread);
     }));
 
     m_model = m;
@@ -1063,8 +1075,11 @@ void SessionReportModel::build()
     // which `name-date-type` never starts with (such a session was "Session 1 of 1" on a day of three).
     struct Sibling { QString dir; SessionWorkOns rec; bool ok = false; bool self = false; int swings = 0; };
     std::vector<Sibling> day;
-    int notSummedUp = 0;   // earlier sessions of the day with swings and no summary this build reads (J-51: said, below)
+    // Earlier sessions of the day with swings and no summary this build reads (J-51: said, below), by the owner's cause
+    // (refactor 4-e): a newer build's (`notSummedUpNewer`), or stale or missing — the catch-up's (`notSummedUp`).
+    int notSummedUp = 0, notSummedUpNewer = 0;
     pinpoint::AthleteLevel *athleteLevel = m_athleteDoor ? m_athleteDoor(job.dir) : nullptr;
+    const QStringList newerFolders = athleteLevel ? athleteLevel->notSummedUp().newerFolders : QStringList();
     {
         const QList<pinpoint::SessionIndexEntry> index =
             pinpoint::SessionDiagnosticsFiles::sessionPlaces(QFileInfo(job.dir).absolutePath());
@@ -1096,7 +1111,8 @@ void SessionReportModel::build()
                 s.swings = s.ok ? s.rec.shotCount : 0;
                 if (s.swings <= 0) {      // no record yet: count the swings so the session still numbers
                     s.swings = pinpoint::SwingPaths::swingFolders(s.dir).size();
-                    if (s.swings > 0 && std::none_of(day.begin(), day.end(), [](const Sibling &d) { return d.self; })) ++notSummedUp;
+                    if (s.swings > 0 && std::none_of(day.begin(), day.end(), [](const Sibling &d) { return d.self; }))
+                        ++(newerFolders.contains(QFileInfo(s.dir).fileName()) ? notSummedUpNewer : notSummedUp);
                 }
                 if (s.swings <= 0) continue;
             } else {
@@ -1375,7 +1391,7 @@ void SessionReportModel::build()
         QVariant today = kNull;
         std::vector<const Sibling *> cols;
         for (const Sibling &s : day) { if (s.self) { cols.push_back(&s); break; } if (s.ok && s.swings >= kNoteBelowSwings) cols.push_back(&s); }
-        if (!isNote && (cols.size() > 1 || notSummedUp > 0)) {
+        if (!isNote && (cols.size() > 1 || notSummedUp > 0 || notSummedUpNewer > 0)) {
             const int more = std::max(0, int(cols.size()) - kTodayCap);
             if (more > 0) cols.erase(cols.begin(), cols.begin() + more);
             // the rows: today's work-ons, then habits that made an earlier list and not today's
@@ -1426,8 +1442,10 @@ void SessionReportModel::build()
                 const ConditionLedger *l = x.ledger(id);
                 note << W::todayEarlierHabit(x.label(id), l ? l->fired : 0, l ? l->assessable : 0, R::kJudgedMinSwings);
             }
-            // J-51 (show with a warning, never hide): the earlier sessions this build has not summed up, said.
-            if (notSummedUp > 0) note << W::todayNotSummedUp(notSummedUp);
+            // J-51 (show with a warning, never hide): the earlier sessions this build has not summed up, said — one
+            // sentence for those still being brought up to date, one for a newer build's (refactor 4-e).
+            if (notSummedUp > 0) note << W::todayNotUpToDate(notSummedUp);
+            if (notSummedUpNewer > 0) note << W::todayNotSummedUp(notSummedUpNewer);
             today = QVariantMap{ { QStringLiteral("sessions"), heads }, { QStringLiteral("rows"), rows },
                                  { QStringLiteral("note"), note.join(QLatin1Char(' ')) }, { QStringLiteral("more"), W::todayMore(more) } };
         }

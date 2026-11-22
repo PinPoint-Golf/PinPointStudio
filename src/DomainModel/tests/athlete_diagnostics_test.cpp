@@ -53,7 +53,8 @@
 //         themes' stored file read back by a fresh owner (no reduction); a write block said (writeFailed) and persist()
 //         reporting it
 //   ASOF  (3.7-f) the tendencies as of a session: that session and the ones before it, the distances pooled the same way
-//   CNT   (3.7-f, J-51) a session with shots whose summary this build does not read is counted (notSummedUp), never silent
+//   CNT   (3.7-f, J-51) a session with shots whose summary this build does not read is counted (notSummedUp), never silent;
+//         (4-e) a newer build's summary told apart from a stale one (newerFolders), alone and both at once
 //   OUT   (3.7-f) a summary written outside this process is read again after rereadAll()
 //   SCP   (3.7-f, DEC-195) a club choice's views from each session's judged rows through its own SessionDiagnostics, the
 //         sessions loaded for it released; Current when nothing moved; its own file, read back by a fresh owner
@@ -101,6 +102,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <algorithm>
 #include <atomic>
 
 #ifndef PP_LIVE_SWINGS_DIR
@@ -880,6 +882,30 @@ static void testHomeJobs(bool onPool)
               said.size() == 1 && said.first().contains(QStringLiteral("tendencies")) && !again.ok());
         rig.caches.failWrites.clear();
         check(QStringLiteral("PERe … and written once it can be") + tag, d->persist().ok() && rig.caches.writes == 3);
+
+        // PERf (refactor 4-e; R-PERS-3): a cache a NEWER build saved is read-only here — the library is shared between
+        // machines that may run different builds. A fresh owner computes both and persists; neither file is touched.
+        const QString tFile = AthleteFiles::tendenciesFile(rig.athleteFolder()), hFile = AthleteFiles::themesFile(rig.athleteFolder());
+        QJsonObject tNew = readJson(tFile), hNew = readJson(hFile);
+        const QJsonObject tWas = tNew, hWas = hNew;
+        tNew[QStringLiteral("schema")]        = analysis::kTendencySchemaVersion + 1;
+        hNew[QStringLiteral("schemaVersion")] = analysis::kThemeSchemaVersion + 1;
+        writeJson(tFile, tNew);
+        writeJson(hFile, hNew);
+        const auto bytes = [](const QString &path) { QFile f(path); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); };
+        const QByteArray tBytes = bytes(tFile), hBytes = bytes(hFile);
+        delete static_cast<QObject *>(d);
+        d = AthleteDiagnostics::of(rig.athlete.get());
+        const int writesBefore = rig.caches.writes;
+        const bool tLanded = land(d->askTendencies(), [d] { return !d->tendenciesRunning(); });
+        const bool hLanded = land(d->askThemes(), [d] { return !d->themesRunning(); });
+        d->persist();
+        check(QStringLiteral("PERf (4-e) a newer build's tendencies.json and swing_themes.json are left byte-identical, "
+                             "nothing written over them (%1 kept)").arg(d->counts().cacheNewerKept) + tag,
+              tLanded && hLanded && d->tendenciesReady() && d->themesReady() && bytes(tFile) == tBytes && bytes(hFile) == hBytes
+                  && rig.caches.writes == writesBefore && d->counts().cacheNewerKept >= 2);
+        writeJson(tFile, tWas);   // back to this build's, for what follows
+        writeJson(hFile, hWas);
     }
 
     // ASOF: as of each session.
@@ -940,6 +966,40 @@ static void testHomeJobs(bool onPool)
         check(QStringLiteral("SCPe a session the pass loaded, held by another use at let-go, is released once that use drops") + tag,
               s2ok && d->scopedResult().records.size() == 3 && keptForHolder && released && d->releasesOwed() == 0
                   && rig.athlete->loadedSessions().isEmpty());
+
+        // SCPf (REVIEW-e B1; R-PERS-3): a scoped file a NEWER build saved — a record's work-on rule, or its outcome block's
+        // rule, above this build's (the themes' own versions unchanged) — is shown recomputed and left byte-identical.
+        const QString scopedFile = AthleteFiles::themesFile(rig.athleteFolder(), { analysis::clubScopeFileKey(scope.key) });
+        const QJsonObject scopedWas = readJson(scopedFile);
+        const auto scopedBytes = [&scopedFile] { QFile f(scopedFile); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); };
+        for (int variant = 0; variant < 2; ++variant) {
+            QJsonObject newerScoped = scopedWas;
+            if (variant == 0) {
+                QJsonArray recs = newerScoped.value(QStringLiteral("records")).toArray();
+                QJsonObject r0 = recs.isEmpty() ? QJsonObject() : recs.at(0).toObject();
+                r0[QStringLiteral("ruleVersion")] = analysis::kWorkOnRuleVersion + 1;
+                if (!recs.isEmpty()) recs.replace(0, r0);
+                newerScoped[QStringLiteral("records")] = recs;
+            } else {
+                newerScoped[QStringLiteral("outcome")] = QJsonObject{ { QStringLiteral("rule"), analysis::kOutcomeScopeRuleVersion + 1 } };
+                // Under every shot the reader would take it back as current (it reads no outcome block): a moved
+                // fingerprint makes this owner recompute, so the write is tried.
+                QJsonObject from = newerScoped.value(QStringLiteral("derivedFrom")).toObject();
+                from[QStringLiteral("fingerprint")] = QStringLiteral("a newer build's");
+                newerScoped[QStringLiteral("derivedFrom")] = from;
+            }
+            writeJson(scopedFile, newerScoped);
+            const QByteArray before = scopedBytes();
+            delete static_cast<QObject *>(d);
+            d = AthleteDiagnostics::of(rig.athlete.get());
+            const quint64 kept = d->counts().cacheNewerKept;
+            const bool landedNewer = land(d->askScoped(scope, analysis::ShotFilter(), false), [d] { return !d->scopedRunning(); });
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            check(QStringLiteral("SCPf (REVIEW-e B1) a newer build's %1 in swing_themes.<club>.json: recomputed for the screen, "
+                                 "the file byte-identical").arg(variant == 0 ? QStringLiteral("record rule") : QStringLiteral("outcome rule")) + tag,
+                  landedNewer && d->scopedResult().records.size() == 3 && scopedBytes() == before && d->counts().cacheNewerKept > kept);
+        }
+        writeJson(scopedFile, scopedWas);   // back to this build's, for what follows
     }
 
     // CNT: a session whose summary this build does not read is counted.
@@ -953,6 +1013,80 @@ static void testHomeJobs(bool onPool)
               .arg(n.count).arg(n.folders.join(QStringLiteral(", "))) + tag,
           n.count == 1 && n.folders == QStringList{ QFileInfo(s2).fileName() } && d->summaryOf(QFileInfo(s2).fileName()) == nullptr
               && d->records().size() == 2);
+    check(QStringLiteral("CNTc (4-e) an older rule's is stale, the catch-up's: none said to be a newer build's") + tag,
+          n.stale() == 1 && n.newer() == 0 && n.newerFolders.isEmpty());
+
+    // CNTd/e (refactor 4-e): a summary a NEWER build saved is told apart from a stale one, by the owner.
+    QJsonObject newer = readJson(SessionFiles::workOnsFile(s3));
+    newer[QStringLiteral("schemaVersion")] = newer.value(QStringLiteral("schemaVersion")).toInt() + 1;
+    writeJson(SessionFiles::workOnsFile(s3), newer);
+    d->rereadAll();
+    const AthleteDiagnostics::NotSummedUp m = d->notSummedUp();
+    check(QStringLiteral("CNTd (4-e) both at once: a newer schema's is the newer build's (%1), the older rule's stale (%2 of %3)")
+              .arg(m.newerFolders.join(QStringLiteral(", "))).arg(m.stale()).arg(m.count) + tag,
+          m.count == 2 && m.newerFolders == QStringList{ QFileInfo(s3).fileName() } && m.newer() == 1 && m.stale() == 1
+              && m.folders.contains(QFileInfo(s2).fileName()));
+    // A newer results version reads as this build's work-ons (read) without its per-shot facts: counted, and a newer build's.
+    QJsonObject grown = readJson(SessionFiles::workOnsFile(s1));
+    grown[QStringLiteral("resultsVersion")] = analysis::kSessionResultsVersion + 1;
+    writeJson(SessionFiles::workOnsFile(s1), grown);
+    QJsonObject older = readJson(SessionFiles::workOnsFile(s3));
+    older[QStringLiteral("schemaVersion")] = newer.value(QStringLiteral("schemaVersion")).toInt() - 1;   // back to today's
+    writeJson(SessionFiles::workOnsFile(s3), older);
+    d->rereadAll();
+    const AthleteDiagnostics::NotSummedUp g = d->notSummedUp();
+    check(QStringLiteral("CNTe (4-e) a newer results version (read, no facts) is a newer build's; s3 back to today's is used") + tag,
+          g.count == 2 && g.newerFolders == QStringList{ QFileInfo(s1).fileName() } && g.stale() == 1
+              && d->summaryOf(QFileInfo(s1).fileName()) != nullptr && !g.folders.contains(QFileInfo(s3).fileName()));
+
+    // CNTf (refactor 4-e; R-PERS-3): THE CATCH-UP NEVER WRITES OVER A NEWER BUILD'S SUMMARY. s2's work_ons.json is made a
+    // newer schema's (its diagnostics.json stays this build's, so the session is taken and written as usual); a full catch-up
+    // leaves it byte-identical, and the owner reports it as a newer build's. (Failed before the fix: rewritten as today's.)
+    grown[QStringLiteral("resultsVersion")] = analysis::kSessionResultsVersion;   // s1 back to today's (CNTe made it newer)
+    writeJson(SessionFiles::workOnsFile(s1), grown);
+    QJsonObject s2New = readJson(SessionFiles::workOnsFile(s2));
+    s2New[QStringLiteral("schemaVersion")] = analysis::kWorkOnSchemaVersion + 1;
+    s2New[QStringLiteral("ruleVersion")]   = analysis::kWorkOnRuleVersion;
+    writeJson(SessionFiles::workOnsFile(s2), s2New);
+    const auto fileBytes = [](const QString &path) { QFile f(path); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); };
+    const QByteArray s2Bytes = fileBytes(SessionFiles::workOnsFile(s2));
+    const QByteArray s2Diag  = fileBytes(SessionFiles::diagnosticsFile(s2));
+    const qint64     s2DiagMtime = QFileInfo(SessionFiles::diagnosticsFile(s2)).lastModified().toMSecsSinceEpoch();
+    // CNTg (REVIEW-e B2): s3's summary is this build's, its LEDGER a newer build's (ledger.schemaVersion above this build's,
+    // the envelope unchanged): taken, read, and never written over.
+    QJsonObject s3Diag = readJson(SessionFiles::diagnosticsFile(s3));
+    {
+        QJsonObject ledger = s3Diag.value(QStringLiteral("ledger")).toObject();
+        ledger[QStringLiteral("schemaVersion")] = analysis::kDiagSchemaVersion + 1;
+        s3Diag[QStringLiteral("ledger")] = ledger;
+        writeJson(SessionFiles::diagnosticsFile(s3), s3Diag);
+    }
+    const QByteArray s3DiagBytes = fileBytes(SessionFiles::diagnosticsFile(s3));
+    QThread::msleep(20);   // an mtime moved by a write would show
+    {
+        AthleteCatchUp again(rig.callables());
+        again.run(kAthlete);
+        pump([&again] { return !again.running(); });
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        std::printf("        CNTf: %d taken, %d written, %d blocked\n", again.report().sessions, again.report().written,
+                    again.report().blocked);
+        d->rereadAll();
+        const AthleteDiagnostics::NotSummedUp k = d->notSummedUp();
+        check(QStringLiteral("CNTf (4-e) a full catch-up leaves a newer build's work_ons.json byte-identical, and it is reported "
+                             "as a newer build's (%1 of %2 left out); the others are summed up").arg(k.newer()).arg(k.count) + tag,
+              fileBytes(SessionFiles::workOnsFile(s2)) == s2Bytes
+                  && k.newerFolders == QStringList{ QFileInfo(s2).fileName() } && k.count == 1 && k.stale() == 0);
+        const bool declined = std::any_of(again.report().why.begin(), again.report().why.end(), [](const QString &w) {
+            return w.contains(QStringLiteral("newer build's"));
+        });
+        check(QStringLiteral("CNTh (REVIEW-e §5) a newer build's session is not taken (%1 of 3 taken): its diagnostics.json is "
+                             "byte-identical, its mtime unchanged").arg(again.report().sessions) + tag,
+              again.report().sessions == 2 && declined && fileBytes(SessionFiles::diagnosticsFile(s2)) == s2Diag
+                  && QFileInfo(SessionFiles::diagnosticsFile(s2)).lastModified().toMSecsSinceEpoch() == s2DiagMtime);
+        check(QStringLiteral("CNTg (REVIEW-e B2) a newer ledger (ledger.schemaVersion %1 > %2) is left byte-identical by the session "
+                             "that read it").arg(analysis::kDiagSchemaVersion + 1).arg(analysis::kDiagSchemaVersion) + tag,
+              fileBytes(SessionFiles::diagnosticsFile(s3)) == s3DiagBytes);
+    }
 }
 
 // ── RDA (REVIEW-f R1-m9 a; J-57): the summaries read on the owner's lane, applied on the GUI thread, latest wins ──────

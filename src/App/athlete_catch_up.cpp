@@ -294,6 +294,13 @@ void AthleteCatchUp::takeNext()
         skip(QStringLiteral("the session is being recorded: ") + m_item.session.toString());
         return;
     }
+    // A NEWER BUILD'S SESSION (R-PERS-3; refactor 4-e, REVIEW-e B2 and §5): its summary was saved by a newer build, so it
+    // is not taken — loading it would re-grade its ledger and write this build's diagnostics.json over the newer one, on
+    // every launch. The athlete level counts it as a newer build's (notSummedUp's newerFolders), and Home says so.
+    if (AthleteDiagnostics *ad = AthleteDiagnostics::of(m_athlete); ad && ad->summaryFromNewerBuild(m_item.session)) {
+        skip(QStringLiteral("its summary is a newer build's, read-only here: ") + m_item.session.toString());
+        return;
+    }
     // A SESSION THAT WANTS ONLY ITS BASELINE is not loaded while the freeze is not computable: loading it would re-diagnose
     // and write the same files again, each time the scan asks (the freeze is the one thing it lacks).
     if (m_item.baselineOnly && !m_athlete->loadedSession(m_item.session)) {

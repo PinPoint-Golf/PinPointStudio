@@ -360,24 +360,39 @@ pinpoint::AthleteLevel *WorkOnsController::publishSource(bool *hold)
     return nullptr;
 }
 
+QString WorkOnsController::notSummedUpWords(int bringing, int leftOut)
+{
+    QStringList words;
+    if (bringing > 0)
+        words << (bringing == 1 ? QStringLiteral("Bringing 1 session up to date\u2026")
+                                : QStringLiteral("Bringing %1 sessions up to date\u2026").arg(bringing));
+    if (leftOut > 0)
+        words << (leftOut == 1 ? QStringLiteral("1 session is left out: this version of PinPoint Studio can't read it in full yet.")
+                               : QStringLiteral("%1 sessions are left out: this version of PinPoint Studio can't read them in full yet.").arg(leftOut));
+    return words.join(QLatin1Char(' '));
+}
+
 void WorkOnsController::refreshNotSummedUp()
 {
-    int n = 0;
+    int bringing = 0, leftOut = 0;
     bool hold = false;
     pinpoint::AthleteLevel *src = publishSource(&hold);
     if (hold) return;   // this owner's note as it was, until its summaries land (another owner's: cleared, R2-B2)
     if (src) {
+        // THE OWNER SAYS WHY (refactor 4-e): a newer build's summary is left out; a stale or missing one is the catch-up's.
+        // This object says only whether the catch-up is still at it (its scan, its asks in flight, or held by a pause): a
+        // stale one it has finished with and could not write is left out, never "being brought up to date" for ever.
         const pinpoint::AthleteLevel::NotSummedUp ns = src->notSummedUp();
-        n = ns.count;
+        const bool catchingUp = m_scanning || m_deriving || !m_queue.isEmpty();
+        (catchingUp ? bringing : leftOut) += ns.stale();
+        leftOut += ns.newer();
         // Under a club scope or a shot filter, a session whose judged rows could not be read (DEC-195) is left out too.
         if (m_summaryScope != clubScopeAllKey())
             for (const QString &f : src->rowsMissing())
-                if (!ns.folders.contains(f)) ++n;
+                if (!ns.folders.contains(f)) ++leftOut;
     }
     const QString before = m_notSummedUpNote;
-    m_notSummedUpNote = n <= 0 ? QString()
-        : n == 1 ? QStringLiteral("1 session is left out: this version of PinPoint Studio can't read it in full yet.")
-                 : QStringLiteral("%1 sessions are left out: this version of PinPoint Studio can't read them in full yet.").arg(n);
+    m_notSummedUpNote = notSummedUpWords(bringing, leftOut);
     if (m_notSummedUpNote != before) emit notSummedUpChanged();
 }
 
@@ -552,6 +567,7 @@ std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &a
             bool ok = false;
             const SessionResults r = sessionResultsFromJson(f.root, SessionResultsRead::Strict, &ok);
             s.fresh  = ok && r.hasFacts && r.derivedFrom.fingerprint == s.fingerprint;
+            s.newer  = sessionResultsFromNewerBuild(f.root);   // R-PERS-3 (4-e): a newer build's session, not asked for
         }
         out.push_back(std::move(s));
     }
@@ -588,7 +604,7 @@ void WorkOnsController::applyScan(int generation, std::vector<Scanned> rows)
     // still lacks its frozen baseline, oldest first by THE SESSION'S DAY and its place in it (Contract A;
     // SessionIdentity's, step 2.7a): a session's baseline is read off its predecessors' rows, so they have to
     // be current before it is frozen. A folder's mtime says nothing about when it was played.
-    const bool catchingUp = std::any_of(rows.begin(), rows.end(), [](const Scanned &s) { return !s.hasBaseline; });
+    const bool catchingUp = std::any_of(rows.begin(), rows.end(), [](const Scanned &s) { return !s.hasBaseline && !s.newer; });
     if (catchingUp)
         std::sort(rows.begin(), rows.end(), [](const Scanned &a, const Scanned &b) {
             if (a.day.isValid() != b.day.isValid()) return a.day.isValid();
@@ -604,7 +620,9 @@ void WorkOnsController::applyScan(int generation, std::vector<Scanned> rows)
     for (Scanned &s : rows) {
         m_scanned.insert(s.sessionDir);
         m_dirMtime.insert(s.sessionDir, s.mtimeMs);
-        const bool needsDerive = !s.fresh || !s.hasBaseline;
+        // A NEWER BUILD'S SESSION is never asked for (R-PERS-3; REVIEW-e §5): nothing here may load, re-grade or write it.
+        // The owner still counts it, and the note names it ("can't read it in full yet").
+        const bool needsDerive = !s.newer && (!s.fresh || !s.hasBaseline);
         if (needsDerive) {
             queue << s.sessionDir;
             asks << CatchUpAsk{ s.sessionDir, /*baselineOnly=*/s.fresh };
@@ -668,6 +686,7 @@ void WorkOnsController::catchUpDone()
     if (was != updating()) emit updatingChanged();
     if (!m_queue.isEmpty()) return;
     if (m_ownerDirty) { m_ownerDirty = false; publish(); }
+    else refreshNotSummedUp();   // 4-e: the catch-up is done, so the note says what is still left out (or clears)
     maybeThemes();
     maybeMarks();
     maybeTendencies();

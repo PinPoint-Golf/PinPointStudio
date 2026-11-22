@@ -169,7 +169,8 @@ Column {
 
     // SESSIONS NOT IN THESE FIGURES (refactor 3.7-f; J-51 — HARD: show with a warning, never hide): sessions with shots
     // that this build has not summed up yet (none yet, an older rule's, another machine's) add nothing to Coaching, Your
-    // swing, Tendencies or Matchups; the controller says how many (notSummedUpNote), in the existing notice (PpNotice,
+    // swing, Tendencies or Matchups; the controller says how many and why (notSummedUpNote: "Bringing 24 sessions up to
+    // date…" while the catch-up works, "left out" for a newer build's; refactor 4-e), in the existing notice (PpNotice,
     // its `warning` style, as Home's resource warning). Words only: no new component, variant or token.
     PpNotice {
         id: notSummedUp

@@ -1358,6 +1358,14 @@ inline QJsonObject tendencyOnBallToJson(const TendencyOnBall &b)
     };
 }
 
+// tendencies.json SAVED BY A NEWER BUILD (refactor 4-e; R-PERS-3): its rule or schema above this build's. Read-only here:
+// its one writer (AthleteDiagnostics) never writes this build's over it.
+inline bool tendencySetFromNewerBuild(const QJsonObject &root)
+{
+    return root.value(QStringLiteral("rule")).toInt(0) > kTendencyRuleVersion
+        || root.value(QStringLiteral("schema")).toInt(0) > kTendencySchemaVersion;
+}
+
 inline QJsonObject tendencySetToJson(const TendencySet &s)
 {
     QJsonArray items;
