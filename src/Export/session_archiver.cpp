@@ -22,6 +22,7 @@
 
 #include "athlete_files.h"   // the owner of a session older than step 2 (J-39)
 #include "session_files.h"   // archived.json, spelled once
+#include "session_report_io.h"   // the report's restamp rule (keepCurrent; step 5.6a)
 #include "swing_doc.h"
 #include "swing_paths.h"
 #include "swing_store.h"
@@ -656,6 +657,21 @@ SessionArchiveResult SessionArchiveRun::archiveInOwnRun(const QString &sessionDi
         ppWarn() << "[Archive] the session of" << sessionDir << "cannot be named (no session file, and no"
                  << "athlete recorded for it)";
     return run.sessions().archive(id, options, progress);
+}
+
+SessionArchiveResult SessionArchiveRun::keepReportCurrent(const QString &sessionDir, const ReportFingerprintFn &fingerprint,
+                                                          const std::function<SessionArchiveResult()> &rewrite)
+{
+    if (!fingerprint)
+        return rewrite();
+    SessionArchiveRun run;   // this job's own (a worker thread: never the app's identity map)
+    const SessionId id = run.openSession(sessionDir);
+    if (id.isNull())
+        return rewrite();
+    SessionRepository &repo = run.sessions();
+    return session_report_io::keepCurrent([&] { return repo.readReport(id); },
+                                          [&](const ReportRecord &rec) { return repo.writeReportRecord(id, rec); },
+                                          [&] { return fingerprint(sessionDir); }, rewrite);
 }
 
 QList<SessionArchiveRun::LibrarySession> SessionArchiveRun::scanLibrary(const QString &root, bool withBytes)

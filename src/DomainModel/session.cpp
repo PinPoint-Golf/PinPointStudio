@@ -317,6 +317,85 @@ WriteResult Session::freezeClubBaseline(const QJsonObject &root, bool rewrite)
     return w;
 }
 
+// ── The report (refactor step 5.6a; FILE-SESS-07, 09, 13; DEC-201, J-66) ─────────────────────────────────────────────
+
+namespace {
+WriteResult noStore() { return { WriteResult::Status::Failed, QStringLiteral("no session repository") }; }
+}
+
+ReportRead Session::readReport() const
+{
+    return m_sessions ? m_sessions->readReport(m_id) : ReportRead{};
+}
+
+WriteResult Session::recordReportMake(const QString &note, const QVariantMap &options, qint64 preparedMs)
+{
+    if (!m_sessions) return noStore();
+    const ReportRead r = m_sessions->readReport(m_id);
+    if (!r.inputWritable()) {
+        ppWarn() << "[Session] the report's note and options were not saved for" << m_id.toString() << "-" << r.error;
+        return { WriteResult::Status::ReadOnly, r.error };
+    }
+    ReportInput in = r.input;   // an older report_meta.json's, until it is migrated (read as the input)
+    in.note    = note;
+    in.options = options;
+    in.preparedHistory.append(preparedMs);
+    const WriteResult w = m_sessions->writeReportInput(m_id, in);
+    if (!w.ok()) ppWarn() << "[Session] the report's note and options were not saved for" << m_id.toString() << "-" << w.error;
+    return w;
+}
+
+WriteResult Session::recordReportSend(const QString &method, qint64 ms)
+{
+    if (!m_sessions) return noStore();
+    const ReportRead r = m_sessions->readReport(m_id);
+    if (!r.hasRecord())
+        return { WriteResult::Status::Failed, QStringLiteral("The session has no report to send.") };
+    if (!r.inputWritable()) {
+        ppWarn() << "[Session] the send was not logged for" << m_id.toString() << "-" << r.error;
+        return { WriteResult::Status::ReadOnly, r.error };
+    }
+    ReportInput in = r.input;
+    in.sends.append({ ms, method, r.record.sha256 });
+    const WriteResult w = m_sessions->writeReportInput(m_id, in);
+    if (!w.ok()) ppWarn() << "[Session] the send was not logged for" << m_id.toString() << "-" << w.error;
+    return w;
+}
+
+WriteResult Session::saveReport(const ReportRecord &record)
+{
+    if (!m_sessions) return noStore();
+    const WriteResult w = m_sessions->writeReportRecord(m_id, record, /*removeReplacedPdf=*/true);
+    if (!w.ok()) ppWarn() << "[Session] the report's record was not saved for" << m_id.toString() << "-" << w.error;
+    return w;
+}
+
+QString Session::reportStillsFolder(const QString &fingerprint) const
+{
+    return m_sessions ? m_sessions->reportStillsFolder(m_id, fingerprint) : QString();
+}
+
+ReportStillWriter Session::reportStillsWriter(const QString &fingerprint) const
+{
+    return m_sessions ? m_sessions->reportStillsWriter(m_id, fingerprint) : ReportStillWriter();
+}
+
+WriteResult Session::migrateReport()
+{
+    if (!m_sessions) return noStore();
+    if (const auto e = entry(); e && e->readOnly)
+        return { WriteResult::Status::Unchanged, {} };   // a newer build's session: never written here
+    bool migrated = false;
+    const WriteResult w = m_sessions->migrateReport(m_id, &migrated);
+    if (!w.ok())
+        ppWarn() << "[Session] the report's older record was not split for" << m_id.toString() << "-" << w.error
+                 << "(it is still read as it was)";
+    else if (migrated)
+        ppInfo() << "[Session] the report's older record split: report_input.json written and read back, report_meta.json"
+                 << "rewritten as derived only, for" << m_id.toString();
+    return w;
+}
+
 // ── The archive (refactor step 3.8; LC-SESSION, DEC-22, DEC-65) ────────────────────────────────────────────────
 
 SessionArchiveJob Session::archiveJob(const SessionArchiveOptions &options)

@@ -52,6 +52,9 @@
 //                 EVT-20; its Session is let go and deleted later (deleteLater)
 //   sessionAt(folder)  THE EDGE TRANSLATION for a view that still holds a folder (D1: DEC-164; DEC-90): that
 //                 folder's Session, when it is one of this athlete's; null otherwise. app.sessionAt asks it
+//   readReportAt(folder)   the report's records of that folder's session (refactor step 5.6a), when it is one of this
+//                 athlete's, read through the repository as sessionAt would name it, WITHOUT holding a Session: the
+//                 session list asks it for every row (name proposed, for the Solution Architect)
 //   session(id), sessions()   the Session for an id of the index, and every one (loaded when first asked)
 // ONE INSTANCE PER SessionId: the Athlete holds each Session it has loaded as its child, so the panel, the
 // report and a sweep asking for one get the same object (LIVE-2; Mark, 15 Nov 2026: DEC-190); the session
@@ -292,6 +295,7 @@ public:
     // folder after it moves; `to` loads it afresh. sessionMovedOut here, sessionMovedIn on `to`, after the write.
     WriteResult moveSessionTo(const SessionId &id, Athlete &to, QString *newFolder = nullptr);
     Session    *sessionAt(const QString &folder);
+    ReportRead  readReportAt(const QString &folder);
     Session    *session(const SessionId &id);
     QList<Session *> sessions();
     // The Session for `id` if it is loaded now, never loading one (the composition root's identity-map lookup for

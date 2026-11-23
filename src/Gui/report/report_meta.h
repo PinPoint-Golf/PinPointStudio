@@ -18,13 +18,16 @@
 
 #pragma once
 
-// A SESSION REPORT'S RECORD (docs/design/session_report_design.md §8.1–§8.4) — <session>/report/
-// report_meta.json, written beside the PDF every time a report is made, and read by the session list to
-// say what state each session's report is in without opening the session.
+// A SESSION REPORT'S RECORD (docs/design/session_report_design.md §8.1–§8.4): the report's rules over its two records
+// (refactor step 5.6a; FILE-SESS-07, FILE-SESS-13), which this file no longer reads or writes. The records are the
+// Session's: src/DomainModel/report_record.h holds them as values, SessionRepository reads and writes them
+// (src/Export/session_report_io.h), and the Session's commands write them (recordReportMake, recordReportSend,
+// saveReport). The session list reads them through Athlete::readReportAt without opening the session.
 //
-// It holds the coach's note and the options, whether swing photos went in, every prepared time, the PDF's
-// SHA-256, the FINGERPRINT of what the report was made from, and the send log. It holds NO ADDRESS: the
-// session folder lives on the share, and a golfer's email belongs on this machine only (§7.3).
+// ReportMeta is the report's FLAT VIEW of the two, as read: the source facts (the coach's note and options, every
+// prepared time, the send log: report_input.json) and the derived facts (whether swing photos went in, the latest
+// prepared time, the PDF's name, SHA-256 and size, the FINGERPRINT of what it was made from: report_meta.json). It
+// holds NO ADDRESS: the session folder lives on the share, and a golfer's email belongs on this machine only (§7.3).
 //
 // THE FINGERPRINT is the work-on record's own recipe (WorkOnsController::scan: the rule version, the
 // content stamp, each swing document's name, size and mtime) plus a stamp of the report's other inputs
@@ -38,9 +41,9 @@
 // that it was delivered; a bounce comes back to the coach's inbox. Each entry carries the SHA-256 of
 // the PDF that went, so a remake after a send can say the new PDF differs from the one sent.
 //
-// Pure apart from the file system; header-only; report_meta_test.
+// Pure apart from the swing documents' identity (swingsIdentity); header-only; report_meta_test.
 
-#include "../../Core/atomic_write.h"
+#include "../../DomainModel/report_record.h"   // the two records, as values (step 5.6a)
 #include "../../Export/session_files.h"   // the report documents' names (D9)
 #include "../../Export/swing_store.h"
 #include "../../Export/swing_paths.h"
@@ -49,11 +52,6 @@
 #include <QDate>
 #include <QDateTime>
 #include <QDir>
-#include <QFile>
-#include <QFileInfo>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QLocale>
 #include <QString>
 #include <QStringList>
@@ -65,36 +63,46 @@
 
 namespace pinpoint::report {
 
-inline constexpr int kReportMetaSchema = 1;
+using ReportSend = pinpoint::ReportSend;
 
-struct ReportSend {
-    qint64  ms = 0;
-    QString method;          // "smtp" | "mail-app" | "copied" | "revealed" — never an address
-    QString sha256;          // of the PDF that went
-};
-
+// The flat view of the two records, as read (above).
 struct ReportMeta {
-    int              schema = kReportMetaSchema;
-    QString          note;              // the coach's note, as typed
-    QVariantMap      options;
+    QString          note;              // the coach's note, as typed (FILE-SESS-13)
+    QVariantMap      options;           // FILE-SESS-13
     bool             photosIncluded = false;
     qint64           preparedMs = 0;    // the latest make
-    QVector<qint64>  preparedHistory;   // every make, oldest first (§8.4)
+    QVector<qint64>  preparedHistory;   // every make, oldest first (§8.4; FILE-SESS-13)
     QString          pdfName;           // file name inside <session>/report/
     QString          sha256;
     qint64           sizeBytes = 0;
     QString          fingerprint;
-    QVector<ReportSend> sends;
+    QVector<ReportSend> sends;          // FILE-SESS-13
+    bool             pdfPresent = false;   // the PDF it names is on disk (read with the records)
 };
+
+// The flat view of a read; none when neither file is there.
+inline std::optional<ReportMeta> reportMetaOf(const pinpoint::ReportRead &r)
+{
+    if (!r.any()) return std::nullopt;
+    ReportMeta m;
+    m.note            = r.input.note;
+    m.options         = r.input.options;
+    m.preparedHistory = r.input.preparedHistory;
+    m.sends           = r.input.sends;
+    m.photosIncluded  = r.record.photosIncluded;
+    m.preparedMs      = r.record.preparedMs;
+    m.pdfName         = r.record.pdfName;
+    m.sha256          = r.record.sha256;
+    m.sizeBytes       = r.record.sizeBytes;
+    m.fingerprint     = r.record.fingerprint;
+    m.pdfPresent      = r.pdfPresent;
+    return m;
+}
 
 enum class ReportState { None, Current, Stale };
 
-// The names are SessionFiles' (D9: names now, writes in step 5; lint A4).
+// The names are SessionFiles' (D9; lint A4). Path text only.
 inline QString reportDir(const QString &sessionDir) { return QDir(sessionDir).filePath(pinpoint::SessionFiles::reportFolderName()); }
-inline QString reportMetaPath(const QString &sessionDir)
-{
-    return QDir(reportDir(sessionDir)).filePath(pinpoint::SessionFiles::reportMetaFileName());
-}
 
 // "2026-10-20_Nick-Henn_session-report.pdf": the SESSION date, so a coach's folder sorts by session (§8.4).
 inline QString reportFileName(const QDate &sessionDate, const QString &golferName)
@@ -149,84 +157,15 @@ inline QString reportFingerprint(const QString &sessionDir, int workOnRuleVersio
     return QString::fromLatin1(h.result().toHex().left(16));
 }
 
-inline QString fileSha256(const QString &path)
-{
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) return {};
-    QCryptographicHash h(QCryptographicHash::Sha256);
-    h.addData(&f);
-    return QString::fromLatin1(h.result().toHex());
-}
-
-inline QJsonObject toJson(const ReportMeta &m)
-{
-    QJsonArray prepared, sends;
-    for (qint64 t : m.preparedHistory) prepared.append(double(t));
-    for (const ReportSend &s : m.sends)
-        sends.append(QJsonObject{ {QStringLiteral("ms"), double(s.ms)}, {QStringLiteral("method"), s.method},
-                                  {QStringLiteral("sha256"), s.sha256} });
-    return QJsonObject{
-        {QStringLiteral("schema"), m.schema},
-        {QStringLiteral("note"), m.note},
-        {QStringLiteral("options"), QJsonObject::fromVariantMap(m.options)},
-        {QStringLiteral("photosIncluded"), m.photosIncluded},
-        {QStringLiteral("preparedMs"), double(m.preparedMs)},
-        {QStringLiteral("prepared"), prepared},
-        {QStringLiteral("pdf"), m.pdfName},
-        {QStringLiteral("sha256"), m.sha256},
-        {QStringLiteral("sizeBytes"), double(m.sizeBytes)},
-        {QStringLiteral("fingerprint"), m.fingerprint},
-        {QStringLiteral("sends"), sends},
-    };
-}
-
-inline std::optional<ReportMeta> reportMetaFromJson(const QJsonObject &o)
-{
-    if (o.value(QStringLiteral("schema")).toInt() != kReportMetaSchema) return std::nullopt;
-    ReportMeta m;
-    m.note           = o.value(QStringLiteral("note")).toString();
-    m.options        = o.value(QStringLiteral("options")).toObject().toVariantMap();
-    m.photosIncluded = o.value(QStringLiteral("photosIncluded")).toBool();
-    m.preparedMs     = qint64(o.value(QStringLiteral("preparedMs")).toDouble());
-    for (const QJsonValue v : o.value(QStringLiteral("prepared")).toArray()) m.preparedHistory.append(qint64(v.toDouble()));
-    m.pdfName        = o.value(QStringLiteral("pdf")).toString();
-    m.sha256         = o.value(QStringLiteral("sha256")).toString();
-    m.sizeBytes      = qint64(o.value(QStringLiteral("sizeBytes")).toDouble());
-    m.fingerprint    = o.value(QStringLiteral("fingerprint")).toString();
-    for (const QJsonValue v : o.value(QStringLiteral("sends")).toArray()) {
-        const QJsonObject s = v.toObject();
-        m.sends.append({ qint64(s.value(QStringLiteral("ms")).toDouble()), s.value(QStringLiteral("method")).toString(),
-                         s.value(QStringLiteral("sha256")).toString() });
-    }
-    return m;
-}
-
-inline std::optional<ReportMeta> readReportMeta(const QString &sessionDir)
-{
-    QFile f(reportMetaPath(sessionDir));
-    if (!f.open(QIODevice::ReadOnly)) return std::nullopt;
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
-    if (!doc.isObject()) return std::nullopt;
-    return reportMetaFromJson(doc.object());
-}
-
-// Whole-file replace through the one atomic-write helper (src/Core/atomic_write.h), like the PDF itself.
-inline bool writeReportMeta(const QString &sessionDir, const ReportMeta &m)
-{
-    if (!QDir().mkpath(reportDir(sessionDir))) return false;
-    return pinpoint::atomicWrite(reportMetaPath(sessionDir), QJsonDocument(toJson(m)).toJson(QJsonDocument::Indented)).ok;
-}
-
 inline QString reportPdfPath(const QString &sessionDir, const ReportMeta &m)
 {
     return m.pdfName.isEmpty() ? QString() : QDir(reportDir(sessionDir)).filePath(m.pdfName);
 }
 
-// Current only when the PDF is still there and was made from what the session holds now.
-inline ReportState reportState(const QString &sessionDir, const std::optional<ReportMeta> &m,
-                               const QString &currentFingerprint)
+// Current only when the PDF is still there and was made from what the session holds now (report_record.h's rule).
+inline ReportState reportState(const std::optional<ReportMeta> &m, const QString &currentFingerprint)
 {
-    if (!m || m->pdfName.isEmpty() || !QFileInfo::exists(reportPdfPath(sessionDir, *m))) return ReportState::None;
+    if (!m || m->pdfName.isEmpty() || !m->pdfPresent) return ReportState::None;
     return m->fingerprint == currentFingerprint ? ReportState::Current : ReportState::Stale;
 }
 
@@ -236,39 +175,8 @@ inline bool sentDiffers(const ReportMeta &m)
     return !m.sends.isEmpty() && m.sends.last().sha256 != m.sha256;
 }
 
-// A session's fingerprint as the report model computes it now (SessionReportModel::fingerprintFunction):
-// its inputs copied on the model's thread, so the function touches only the file system and an
-// archive worker may call it.
-using ReportFingerprintFn = std::function<QString(const QString &sessionDir)>;
-
-// The record's fingerprint replaced, everything else (the note, the send log) kept.
-inline bool restampReportFingerprint(const QString &sessionDir, const QString &fingerprint)
-{
-    std::optional<ReportMeta> m = readReportMeta(sessionDir);
-    if (!m) return false;
-    if (m->fingerprint == fingerprint) return true;
-    m->fingerprint = fingerprint;
-    return writeReportMeta(sessionDir, *m);
-}
-
-// A REWRITE THAT CHANGES HOW THE SWINGS ARE STORED, NOT WHAT THEY SAY (sessions_screen_redesign.md
-// S-D6). Archiving thins each swing to a stub and restoring brings the full document back; both move
-// every document's size and mtime, so swingsIdentity — and the fingerprint with it — moves while every
-// sentence of the report still holds. A report that was current before `rewrite` is re-stamped after it
-// succeeds; one already out of date stays so, and a failed rewrite re-stamps nothing. `rewrite` returns
-// something with `ok` (SessionArchiveResult); with no fingerprint function it simply runs.
-template <typename Rewrite>
-auto keepReportCurrent(const QString &sessionDir, const ReportFingerprintFn &fingerprint, Rewrite &&rewrite)
-{
-    bool current = false;
-    if (fingerprint) {
-        const std::optional<ReportMeta> m = readReportMeta(sessionDir);
-        current = m && reportState(sessionDir, m, fingerprint(sessionDir)) == ReportState::Current;
-    }
-    auto r = rewrite();
-    if (r.ok && current) restampReportFingerprint(sessionDir, fingerprint(sessionDir));
-    return r;
-}
+// A session's fingerprint as the report model computes it now (report_record.h).
+using ReportFingerprintFn = pinpoint::ReportFingerprintFn;
 
 // The row's state words (§8.0), plain text, never a badge: "No report" · "Report prepared 20 Oct" ·
 // "Sent 21 Oct 18:40" (the server accepted it) · "Opened in Mail 20 Oct 18:40" · "Out of date — remake".

@@ -87,6 +87,7 @@
 #include "Export/swing_store.h"
 #include "Gui/report/report_athlete_stamps.h"   // the report's left-out stamps (R2-B1)
 #include "Gui/report/report_meta.h"
+#include "Export/session_report_io.h"   // the report's records, as the repository writes them (5.6a)
 #include "App/dev_athlete.h"                   // the dev folder's Athlete (R2-m2)
 
 #include <QCoreApplication>
@@ -2246,7 +2247,7 @@ static void checkReportStampsAcrossAthletes(const QString &root)
         QDir().mkpath(R::reportDir(bDir));
         QFile pdf(R::reportPdfPath(bDir, m));
         pdf.open(QIODevice::WriteOnly); pdf.write("%PDF"); pdf.close();
-        R::writeReportMeta(bDir, m);
+        pinpoint::session_report_io::writeRecord(bDir, pinpoint::ReportRecord{ m.fingerprint, m.pdfName, 0, {}, 0, false });
     };
     int archives = 0;
     const auto archive = [&]() {      // the archive's rewrite: the swings' identity moves
@@ -2255,15 +2256,17 @@ static void checkReportStampsAcrossAthletes(const QString &root)
         struct { bool ok = true; } r;
         return r;
     };
-    const auto stateOf = [&](const R::ReportFingerprintFn &fp) { return R::reportState(bDir, R::readReportMeta(bDir), fp(bDir)); };
+    const auto stateOf = [&](const R::ReportFingerprintFn &fp) {
+        return R::reportState(R::reportMetaOf(pinpoint::session_report_io::read(bDir)), fp(bDir));
+    };
 
     // B's complete report (every session summed up), A current.
     const R::ReportFingerprintFn own = fpFn(ownDoor), cur = fpFn(currentOnly);
     makeReport(own);
-    R::keepReportCurrent(bDir, own, archive);
+    pinpoint::session_report_io::keepReportCurrentAt(bDir, own, archive);
     check(stateOf(own) == R::ReportState::Current, "R2-B1a another golfer's complete report: still current after its session is archived");
     makeReport(cur);
-    R::keepReportCurrent(bDir, cur, archive);
+    pinpoint::session_report_io::keepReportCurrentAt(bDir, cur, archive);
     check(stateOf(cur) == R::ReportState::Current,
           "R2-B1b …even through a door with no owner for it: no owner adds nothing outside a make (round 1: \"unread\", out of date)");
 
@@ -2272,10 +2275,10 @@ static void checkReportStampsAcrossAthletes(const QString &root)
     pinpoint::AthleteDiagnostics::of(gb)->rereadAll();
     const QString stampB = R::athleteLeftOutStamp(ownDoor(bDir), QStringLiteral("2026-08-02_y"), false);
     makeReport(own);
-    R::keepReportCurrent(bDir, own, archive);
+    pinpoint::session_report_io::keepReportCurrentAt(bDir, own, archive);
     const R::ReportState withOwn = stateOf(own);
     makeReport(own);
-    R::keepReportCurrent(bDir, cur, archive);   // the round-1 door: the archive reads B's stamp off A's owner
+    pinpoint::session_report_io::keepReportCurrentAt(bDir, cur, archive);   // the round-1 door: the archive reads B's stamp off A's owner
     const R::ReportState withCurrentOnly = stateOf(own);
     std::printf("      B's stamp \"%s\"; archived: own door %d, current-only door %d (0 none, 1 current, 2 stale)\n",
                 qPrintable(stampB), int(withOwn), int(withCurrentOnly));

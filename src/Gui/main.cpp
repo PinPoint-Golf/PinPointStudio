@@ -781,6 +781,22 @@ int main(int argc, char *argv[])
     // athlete level and no same-day siblings, and says why (step 5.1 review B1; J-67 7). Path text only, nothing read.
     // The report's private carousel lists the session's shots through `app`, as every carousel does (step 5.1).
     sessionReport.setShotSourceFor(shotSourceFor);
+    // THE REPORT'S RECORDS (refactor step 5.6a; FILE-SESS-07, 09, 13): read for every row through the athlete whose folder
+    // holds the session, as app.sessionAt finds it (the current athlete, then the library's others), never holding a
+    // Session (Athlete::readReportAt); and saved through the session's own commands (app.sessionAt, then
+    // Session::recordReportMake / recordReportSend / saveReport / the stills writer).
+    sessionReport.setReportReader([&athleteController, &athleteStore](const QString &dir) {
+        pinpoint::Athlete *current = athleteController.currentAthlete();
+        if (current)
+            if (const pinpoint::ReportRead r = current->readReportAt(dir); r.any())
+                return r;
+        for (pinpoint::Athlete *a : athleteStore.heldAthletes())
+            if (a && a != current)
+                if (const pinpoint::ReportRead r = a->readReportAt(dir); r.any())
+                    return r;
+        return pinpoint::ReportRead{};
+    });
+    sessionReport.setSessionDoor([&appObject](const QString &dir) { return appObject.sessionAt(dir); });
     const auto noGolferAt = [&athleteStore](const QString &dir) {
         const QString parent = QDir::cleanPath(QFileInfo(QDir::cleanPath(dir)).absolutePath());
         for (const pinpoint::Athlete *a : athleteStore.heldAthletes()) {

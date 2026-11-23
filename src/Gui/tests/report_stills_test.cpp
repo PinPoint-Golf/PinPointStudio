@@ -369,6 +369,32 @@ static void testRealSwing(QCoreApplication &app)
     const QImage i23(rq.outPath);
     check(r23.ok && std::abs(double(i23.width()) / i23.height() - 2.0 / 3.0) < 0.01, "aspect 2:3 honoured");
 
+    // THE REPORT'S STILLS ARE SAVED THROUGH THE SESSION'S WRITER (refactor step 5.6a; FILE-SESS-09): with a writer set, the
+    // renderer encodes the JPEG and hands it over under outPath's file name; it writes nothing at outPath itself. A writer
+    // that fails makes no still, and says why.
+    {
+        StillRequest w = rq;
+        w.aspect = 0; w.outPath = tmp.filePath(QStringLiteral("planned/p4_w.jpg"));
+        QString wroteName, wrotePath;
+        QByteArray bytes;
+        w.write = [&](const QString &name, const QByteArray &jpeg, QString *) {
+            wroteName = name; bytes = jpeg;
+            QDir().mkpath(tmp.filePath(QStringLiteral("via")));
+            wrotePath = tmp.filePath(QStringLiteral("via/")) + name;
+            QFile f(wrotePath);
+            return f.open(QIODevice::WriteOnly) && f.write(jpeg) == jpeg.size() ? wrotePath : QString();
+        };
+        const StillResult rw = ReportStills::renderOne(w);
+        const QImage iw = QImage::fromData(bytes, "JPG");
+        check(rw.ok && rw.path == wrotePath && wroteName == QLatin1String("p4_w.jpg") && !QFileInfo::exists(w.outPath)
+                  && !iw.isNull() && std::max(iw.width(), iw.height()) == 1400,
+              "5.6a a still with a writer: encoded and saved through it under its name, nothing written at outPath");
+        w.write = [](const QString &, const QByteArray &, QString *why) { *why = QStringLiteral("refused by the test"); return QString(); };
+        const StillResult rf = ReportStills::renderOne(w);
+        check(!rf.ok && rf.error == QLatin1String("refused by the test") && !QFileInfo::exists(w.outPath),
+              "5.6a a writer that fails: no still, and its why");
+    }
+
     // The keyframe seek decodes the same pixels as a decode forward from frame 0 (the independent path).
     {
         using pinpoint::analysis::Mp4FrameDecoder;

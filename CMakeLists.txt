@@ -2791,6 +2791,9 @@ target_sources(PinPointStudio PRIVATE
     src/Export/session_diagnostics_files.h
     src/Export/session_diagnostics_io.h   # its file work, shared with the session store (step 3.4a, J-42)
     src/DomainModel/session_input.h
+    # The session report's two records and their file work (refactor step 5.6a: FILE-SESS-07, 09, 13).
+    src/DomainModel/report_record.h
+    src/Export/session_report_io.h
     # The athlete's record and its one door (refactor step 2.3): AthleteRepository's adapter and the
     # athlete files' names; the Athlete (Domain model) below.
     src/Export/athlete_store.h

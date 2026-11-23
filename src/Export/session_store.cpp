@@ -19,6 +19,7 @@
 #include "session_store.h"
 
 #include "session_diagnostics_io.h"   // the diagnostics files' file work (J-42)
+#include "session_report_io.h"        // the report's records and stills' file work (step 5.6a)
 #include "session_files.h"
 #include "athlete_files.h"   // athlete.json's name: whether `unknown/` is a golfer's (R-UNASSIGNED-2)
 #include "swing_paths.h"
@@ -1105,6 +1106,56 @@ WriteResult SessionStore::writeWorkOns(const SessionId &id, const QJsonObject &r
     if (folder.isEmpty())
         return failed(kNotHeld);
     return session_diagnostics_io::writeWorkOns(folder, root);
+}
+
+// ── The session report's records and stills (refactor step 5.6a) ───────────────────────────────────────────────────
+
+ReportRead SessionStore::readReport(const SessionId &id)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty()) {
+        ReportRead r;
+        r.error = kNotHeld;
+        return r;
+    }
+    return session_report_io::read(folder);
+}
+
+WriteResult SessionStore::writeReportInput(const SessionId &id, const ReportInput &input)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_report_io::writeInput(folder, input);
+}
+
+WriteResult SessionStore::writeReportRecord(const SessionId &id, const ReportRecord &record, bool removeReplacedPdf)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_report_io::writeRecord(folder, record, removeReplacedPdf);
+}
+
+WriteResult SessionStore::migrateReport(const SessionId &id, bool *migrated)
+{
+    if (migrated) *migrated = false;
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_report_io::migrate(folder, migrated);
+}
+
+QString SessionStore::reportStillsFolder(const SessionId &id, const QString &key)
+{
+    const QString folder = heldFolder(id);
+    return folder.isEmpty() ? QString() : session_report_io::stillsFolder(folder, key);
+}
+
+ReportStillWriter SessionStore::reportStillsWriter(const SessionId &id, const QString &key)
+{
+    const QString stills = reportStillsFolder(id, key);   // this (the owner's) thread: the identity map
+    return stills.isEmpty() ? ReportStillWriter() : session_report_io::stillsWriter(stills);
 }
 
 } // namespace pinpoint

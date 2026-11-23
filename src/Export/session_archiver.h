@@ -206,6 +206,15 @@ public:
     static SessionArchiveResult archiveInOwnRun(const QString &sessionDir, const SessionArchiveOptions &options,
                                                 const SessionArchiveProgress &progress = {});
 
+    // AN ARCHIVE OR RESTORE KEEPS A CURRENT REPORT CURRENT (S-D6; refactor step 5.6a): the folder translated to its
+    // SessionId in a run of its own (this edge), the report's records read through that run's repository before and after
+    // `rewrite`, and FILE-SESS-07's fingerprint re-stamped through it (SessionRepository::writeReportRecord: the derived
+    // facts only, never FILE-SESS-13; an older report_meta.json keeps its source keys until report_input.json reads
+    // back). Safe on any thread (it shares nothing). With no `fingerprint`, or a folder that cannot be named, `rewrite`
+    // simply runs. session_report_io.h keepCurrent holds the rule.
+    static SessionArchiveResult keepReportCurrent(const QString &sessionDir, const ReportFingerprintFn &fingerprint,
+                                                  const std::function<SessionArchiveResult()> &rewrite);
+
     // THE LIBRARY'S SESSION FOLDERS AS THE ARCHIVING TAB LISTS THEM (refactor step 3.8; moved unchanged from
     // archive_controller.cpp's scanSessions): every `<root>/<dir>/<dir>` holding a swing, its day its SessionIdentity's
     // (else the folder's modification time), its archive marker, newest first (then folder, descending). `withBytes`

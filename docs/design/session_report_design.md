@@ -650,15 +650,25 @@ yet — add it in Settings → Studio".
 **Where it goes:** `<session>/report/<yyyy-mm-dd>_<Golfer>_session-report.pdf`. It is written
 through `QSaveFile` (the writer already does this), so a remake replaces it whole.
 
-Beside it, `<session>/report/report_meta.json` records:
+Beside it, two files record the report[^report-files-5-6a]. `<session>/report/report_input.json` holds the source
+facts, which no remake can recover:
 - the note and the options;
-- whether photos were included;
-- when the report was made;
-- the PDF's SHA-256;
-- the **fingerprint** of what the report was made from (§8.2);
+- the prepared time of every make;
 - the send log (§8.3).
 
-It records no email addresses, because the session folder lives on the share.
+`<session>/report/report_meta.json` holds the derived facts, rebuilt at each make:
+- whether photos were included;
+- when the report was last made;
+- the PDF's name, SHA-256 and size;
+- the **fingerprint** of what the report was made from (§8.2).
+
+Both are written through the session's own commands and its repository, never by the report itself. A remake rewrites
+`report_meta.json` and never touches `report_input.json`. An older `report_meta.json`, which held both halves, is split
+when the session is first opened. Neither file records an email address, because the session folder lives on the
+share.
+
+[^report-files-5-6a]: The split is DEC-201 (Solution Architect, 22 Nov 2026) and J-66; built in refactor step 5.6a.
+See `docs/developer/information_model.md` FILE-SESS-07 and FILE-SESS-13.
 
 **Nothing is written into the session's analysis.** The report reads. It never moves a ratchet,
 closes a session or writes `diagnostics.json`.
@@ -732,7 +742,7 @@ The message defaults, which the coach edits in Settings → Studio:
 
 The coach's note is in the PDF, not repeated in the email.
 
-**The send log.** `report_meta.json` keeps one entry per send: the time, the method, and the
+**The send log.** `report_input.json` keeps one entry per send: the time, the method, and the
 SHA-256 of the PDF that went. It stores **no address**. With option A the app cannot know the
 coach pressed Send, so the entry and the session row say what really happened: "Opened in Mail,
 20 Oct 18:40", not "Sent". With option B the entry records the server's acceptance. If the
@@ -762,7 +772,7 @@ Design Lead, 20 October: every report shows **both** dates, and never confuses t
 | Email | Subject "Your session report — 20 October 2026" (the session date); the message's "today's session" becomes "your session on 20 October" whenever it is sent on a later day |
 | Session row | "Report prepared 22 Oct" (the prepared date), beside the session's own date |
 
-`report_meta.json` keeps the prepared time of every remake, so the send log can say which
+`report_input.json` keeps the prepared time of every remake, so the send log can say which
 prepared copy went to the golfer ("Opened in Mail 22 Oct · copy prepared 22 Oct").
 
 ## 9. Layout for any session
@@ -977,7 +987,7 @@ it is rejected.
 | `src/Gui/settings/PpStudioSettings.qml` + `src/Core/studio_profile.{h,cpp}` | **new**: the studio and its coach (§7.1, §7.2), in the app INI under `Studio/`; the logo copied into `<AppData>/studio/`. A `StudioProfile` QML singleton the report model reads. |
 | `src/Gui/athlete/athlete_controller.{h,cpp}` | The Reports fields (§7.3) through `updateAthlete`, exposed as `currentReportEmail`, `currentReportGreeting`, `currentIsJunior`, `currentPhotosApproved(On)`; ticking or unticking stamps or clears the date; address shape check. |
 | `src/Gui/report/report_mailer.{h,cpp}` (+ `_mac.mm`, `_win.cpp`, `_linux.cpp`) | **new**: hand-off to the mail app (§8.3, option A): one interface, a platform file each. Option C's copy and reveal. |
-| `src/Gui/report/report_meta.h` | **new**, pure: `report_meta.json` read/write, including the send log (no addresses). |
+| `src/Gui/report/report_meta.h` | **new**, pure: the report's state rules and words over its two records. Their reads and writes are `SessionRepository`'s (`src/Export/session_report_io.h`, since refactor step 5.6a), including the send log (no addresses). |
 | `src/Resources/diagnostics/core.json`, `drills.json` | Content (§5): new fields on every listable condition, `golferName`/`golferSign` on their measures, drills for every listable condition. Viewed and edited in the Diagnostic Model inspector. |
 | `src/Resources/diagnostics/gate_words.json` + `src/Diagnostics/packs/gate_words_pack.{h,cpp}` | Content (§9.3 item 5, §10 rule 7): "what we could not check" in golfer words, one clause per gate and engine rule plus the gate subjects' words, with a user layer that overrides by id. The report reads `sharedGateWordSet()` per make; the Diagnostic Model's Gates page edits it. |
 | Tests | `session_report_test` (C++ pure: every rule in §3.2, §4.2, §6, §10 on fixtures, including the "Nothing off the heel" case and the range-restricted case); `core_pack_test` gate (§5); `pdf_document_writer_test` (encodings, size); `qml_ui` `tst_session_report` (every page renders, every variant in §3.1, no overflow past the folio); a probe that prints a library session to the share and fails above the size budget. |

@@ -50,6 +50,18 @@
 //                 declared focus, the declared miss, or one screen's answer, written FIELD BY FIELD against the
 //                 file as it stands (SessionRepository::readSessionInput / writeSessionInput by id); EVT-10
 //   setIntentRun(runs)   the "from here on" intent run (R-INPUT-2), the same way; EVT-08
+//   THE REPORT (refactor step 5.6a; FILE-SESS-07, 09, 13; DEC-201, J-66) — the commands' names (proposed, for the
+//                 Solution Architect):
+//     recordReportMake(note, options, at)   FILE-SESS-13: the coach's note and options for a make, and the make
+//                 appended to the history — the report's source facts, which no rebuild recovers
+//     recordReportSend(method, at)          FILE-SESS-13: one send, with the SHA-256 of the PDF that went
+//     saveReport(record)                    FILE-SESS-07, the derived facts, at each make (the previous PDF of
+//                 another name removed); never writes or deletes FILE-SESS-13
+//     reportStillsFolder / reportStillsWriter(fingerprint)   FILE-SESS-09, the make's stills, saved with the report
+//     readReport()                          both files as read
+//     migrateReport()                       when its Athlete first holds it: an older report_meta.json split
+//                 (FILE-SESS-13 written and read back, then FILE-SESS-07 rewritten derived only); nothing for a
+//                 newer session file or a newer report file
 //   readSessionIntent()  its intent as its file holds it now (refactor 4-d: D7's carry of the declared focus)
 //                 Both take `held`: the caller's value of every field the session's file does not hold yet (a
 //                 session whose input is still in diagnostics.json's older keys until migration M3: J-33), so
@@ -89,6 +101,7 @@
 #include <QObject>
 #include <QSet>
 #include <QString>
+#include <QVariantMap>
 
 #include <optional>
 
@@ -134,6 +147,14 @@ public:
     // Its intent as its file holds it now (refactor 4-d: D7's carry reads the ending session's declared focus from its
     // owner, never from the repository). Missing when there is no file or no store; Newer / Unparseable as read.
     SessionInputRead readSessionIntent() const;
+
+    // THE REPORT (refactor step 5.6a; above). Each write through SessionRepository; a failure says so (WriteResult).
+    ReportRead        readReport() const;
+    WriteResult       recordReportMake(const QString &note, const QVariantMap &options, qint64 preparedMs);
+    WriteResult       recordReportSend(const QString &method, qint64 ms);
+    WriteResult       saveReport(const ReportRecord &record);
+    QString           reportStillsFolder(const QString &fingerprint) const;
+    ReportStillWriter reportStillsWriter(const QString &fingerprint) const;
 
     // THE CLUB BASELINE FREEZE (refactor step 3.6; OBJ-CLUB-BASELINE, FILE-SESS-04; DEC-46, DEC-172; R-STAMP-4): the
     // session's recorded input, frozen ONCE at first need from the athlete level's computation (AthleteDiagnostics::
@@ -213,6 +234,8 @@ private:
     // end(), and the end a start or a resume makes of the session running here (Athlete::endRunningSessions),
     // which never discards an empty one — as today, where only End itself discards (DEC-93).
     WriteResult endSession(bool discardIfEmpty);
+    // The report's lazy migration (above), asked by its Athlete when it first holds this Session.
+    WriteResult migrateReport();
     void  loadShots();
     Shot *hold(const ShotRef &ref, const std::optional<recording::ShotKind> &kind);
     // P10: hears each of the Shot's events (step 3.4b-i); its SessionDiagnostics re-asks on them (step 3.5-i).

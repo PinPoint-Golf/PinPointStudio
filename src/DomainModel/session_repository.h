@@ -59,6 +59,10 @@
 //   readDiagnostics … writeWorkOns   the session's diagnostics files (FILE-SESS-02…05) by its id (step 3.4a;
 //                    J-42): the folder-keyed SessionDiagnosticsFiles' reads and writes, for the session held
 //                    under that id
+//   readReport … reportStillsWriter   the session report's records (FILE-SESS-07, FILE-SESS-13) and its stills
+//                    (FILE-SESS-09) by its id (refactor step 5.6a; DEC-201, J-66): behind the Session's report
+//                    commands (Session::recordReportMake, recordReportSend, saveReport, migrateReport), and the reads
+//                    of the session list and the archive's restamp
 //
 // THE IDENTITY MAP. One record per SessionId while held, on the owner thread (the GUI thread in the
 // app; one thread in a tool). The open session's folder lives here and is never re-resolved per shot
@@ -86,6 +90,7 @@
 // Domain model ring (src/DomainModel): names no store type.
 
 #include "recording_repository.h"   // WriteResult (step 1's type)
+#include "report_record.h"          // ReportRead, ReportInput, ReportRecord, ReportStillWriter (step 5.6a)
 #include "session_identity.h"
 #include "session_input.h"          // SessionInput (FILE-SESS-02)
 #include "../Identity/identity.h"
@@ -160,7 +165,7 @@ struct SessionArchiveOptions {
 };
 
 struct SessionArchiveResult {
-    bool                ok = false;   // a member, not a function: report_meta.h's keepReportCurrent reads it
+    bool                ok = false;   // a member, not a function: session_report_io.h's keepCurrent reads it
     WriteResult::Status status = WriteResult::Status::Failed;   // Written when ok; else Failed, ReadOnly or
                                                                 // Locked (the session lock held past the wait)
     QString error;                    // why, for the user, when !ok
@@ -337,6 +342,40 @@ public:
     virtual WriteResult      writeClubBaseline(const SessionId &id, const QJsonObject &root) = 0;
     virtual JsonFileRead     readWorkOns(const SessionId &id) = 0;
     virtual WriteResult      writeWorkOns(const SessionId &id, const QJsonObject &root) = 0;
+    // ── THE SESSION REPORT'S RECORDS BY ITS ID (refactor step 5.6a; FILE-SESS-07, 09, 13; DEC-201, J-66) ──────────────
+    // Their rules: src/Export/session_report_io.h (a newer file read-only, the older report_meta.json read as the input
+    // while report_input.json is missing, its source keys dropped only once report_input.json reads back, the session's
+    // lock for each write, an atomic write). A session that is not held: the read answers empty, every write Failed.
+    //   readReport           both files (reads only: a read never migrates)
+    //   writeReportInput     FILE-SESS-13, whole — only by the Session's commands for the note, the options, the make
+    //                        history and a send
+    //   writeReportRecord    FILE-SESS-07, the derived facts (the PDF's SHA-256 and size read from the PDF it names);
+    //                        never writes or deletes FILE-SESS-13. `removeReplacedPdf`: a make's, the previous PDF of
+    //                        another name removed
+    //   migrateReport        the older report_meta.json split (write 13, read it back, rewrite 07 derived only);
+    //                        `migrated` says whether anything was written
+    //   reportStillsFolder   FILE-SESS-09's folder for one make (`key`: its fingerprint), outside the library: pure path
+    //   reportStillsWriter   a write of one still into that folder, for the renderer's workers (any thread)
+    virtual ReportRead  readReport(const SessionId &id) { Q_UNUSED(id); return {}; }
+    virtual WriteResult writeReportInput(const SessionId &id, const ReportInput &input)
+    {
+        Q_UNUSED(id); Q_UNUSED(input);
+        return { WriteResult::Status::Failed, QStringLiteral("This library cannot save a report.") };
+    }
+    virtual WriteResult writeReportRecord(const SessionId &id, const ReportRecord &record, bool removeReplacedPdf = false)
+    {
+        Q_UNUSED(id); Q_UNUSED(record); Q_UNUSED(removeReplacedPdf);
+        return { WriteResult::Status::Failed, QStringLiteral("This library cannot save a report.") };
+    }
+    virtual WriteResult migrateReport(const SessionId &id, bool *migrated = nullptr)
+    {
+        Q_UNUSED(id);
+        if (migrated) *migrated = false;
+        return { WriteResult::Status::Unchanged, {} };
+    }
+    virtual QString           reportStillsFolder(const SessionId &id, const QString &key) { Q_UNUSED(id); Q_UNUSED(key); return {}; }
+    virtual ReportStillWriter reportStillsWriter(const SessionId &id, const QString &key) { Q_UNUSED(id); Q_UNUSED(key); return {}; }
+
     // THE SESSION SUMMARY'S READ, FOR ANOTHER THREAD (refactor 3.7-f, J-57: the athlete level reads its summaries on its
     // lane): resolved here, on the repository's thread, into a read any thread may run once. The default reads now and
     // hands the result over; a store whose reads are file reads (SessionStore) hands over the read itself.

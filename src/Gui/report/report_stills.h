@@ -51,6 +51,7 @@
 // and the identity on a crop that is already well lit.
 
 #include "report_stills_pure.h"   // the pure parts: which frame, which crop, the line's points
+#include "../../DomainModel/report_record.h"   // ReportStillWriter: the report's stills saved through its Session (5.6a)
 
 #include <QJsonObject>
 #include <QObject>
@@ -82,6 +83,11 @@ struct StillRequest {
     // crop (and `aspect` is not applied), so a caller that drew its lines in that rect's pixels (the Charts
     // Posture picture, charts/posture_picture.h) gets a still they land on. Clamped to the frame.
     QRect   cropPx;
+    // THE REPORT'S STILLS (FILE-SESS-09; refactor step 5.6a): a make's requests carry the writer its Session handed out
+    // (Session::reportStillsWriter), and the JPEG is saved through it under outPath's file name — the report's stills are
+    // saved through the Session's command and SessionRepository. Without one (the Charts pictures, a test) the still is
+    // written to outPath itself.
+    pinpoint::ReportStillWriter write;
 };
 
 struct StillResult {

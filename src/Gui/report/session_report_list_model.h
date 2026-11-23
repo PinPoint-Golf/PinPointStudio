@@ -32,8 +32,9 @@
 //                                   whose itemsChanged refreshes this list); its goal is the pack's
 //                                   `goal` for that condition, through the resolver main.cpp installs,
 //                                   else the record's own name
-//   the report state                SessionReportModel::state(dir) — report_meta.json and the
-//                                   fingerprint, never the session itself
+//   the report state                SessionReportModel::state(dir) — the report's records, read
+//                                   through the repository (Athlete::readReportAt), and the fingerprint, never
+//                                   the session itself
 //
 // TWO PASSES. The scan (directory listings, summary reads, work-on records) runs on a pool thread,
 // generation-counted so a golfer changed mid-scan drops the stale result — WorkOnsController::scan /

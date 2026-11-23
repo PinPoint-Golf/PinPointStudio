@@ -46,8 +46,10 @@
 //   3. the stills are made off the GUI thread (ReportStills::renderAll) unless photos are off;
 //   4. the map is assembled (report_words.h holds every sentence template) and handed to the print host
 //      (printRequested); the host prints it and answers printFinished;
-//   5. report_meta.json is written beside the PDF (note, options, photos, prepared times, SHA-256, size,
-//      the fingerprint), the adapter is let go (with it the report's use of the Session), and made() / stateChanged() fire.
+//   5. the records are saved through the Session's commands (refactor step 5.6a: DEC-201, J-66): the note, the options and
+//      this make in the history in report_input.json (recordReportMake), and the derived facts — photos, the prepared
+//      time, the PDF's name, SHA-256 and size, the fingerprint — in report_meta.json (saveReport); the adapter is let go
+//      (with it the report's use of the Session), and made() / stateChanged() fire.
 // prepare() runs 1–4 without the print, for the probe that dumps the map (tools/session-report-mock/
 // dump_report.qml) and for any surface that wants the words without a PDF.
 //
@@ -62,9 +64,11 @@
 // and its owner — the session's one writer of diagnostics.json (DEC-135) — re-judges the shots whose stamps are stale
 // and writes them, exactly as it does when the panel or the catch-up loads the same session.
 //
-// state() and preflight() are cheap and synchronous — report_meta.json, the fingerprint (the work-on
+// state() and preflight() are cheap and synchronous — the report's records (Athlete::readReportAt), the fingerprint (the work-on
 // record's recipe plus the studio's and the photo rule's inputs) and a directory listing — and never
 // activate a session, so the session list can ask them for every row.
+
+#include "../../DomainModel/report_record.h"   // ReportRead (step 5.6a)
 
 #include <QObject>
 #include <QPointer>
@@ -79,7 +83,7 @@ class AthleteController;
 class SessionDiagnosticsModel;
 class ReportStills;
 
-namespace pinpoint { class AthleteLevel; class ShotSource; }
+namespace pinpoint { class AthleteLevel; class Session; class ShotSource; }
 
 class SessionReportModel : public QObject
 {
@@ -117,6 +121,11 @@ public:
     // come off its rows. Without it the carousel lists nothing and the report has no launch monitor figures.
     void setShotSourceFor(std::function<std::unique_ptr<pinpoint::ShotSource>(const QString &sessionDir)> sourceFor)
     { m_shotSourceFor = std::move(sourceFor); }
+    // THE REPORT'S RECORDS (refactor step 5.6a; FILE-SESS-07, 13: DEC-201, J-66). The read, for state() and preflight()
+    // on every row, never holding a Session (main.cpp: Athlete::readReportAt of the athlete whose folder holds it). And the Session a make and a send save through
+    // (main.cpp: app.sessionAt): its commands write the records and the stills. Without them nothing is read or saved.
+    void setReportReader(std::function<pinpoint::ReportRead(const QString &sessionDir)> reader) { m_reportReader = std::move(reader); }
+    void setSessionDoor(std::function<pinpoint::Session *(const QString &sessionDir)> door) { m_sessionDoor = std::move(door); }
 
     bool    busy() const;
     QString busySession() const;
@@ -132,7 +141,7 @@ public:
     // The map without the print: asynchronous, ends in prepared(). Stills are made (into the cache) so
     // the map is the one a make would print. options: {note, stills: false to skip them}
     Q_INVOKABLE void prepare(const QString &sessionDir, const QVariantMap &options);
-    // Cheap (report_meta.json + fingerprint); never opens the session.
+    // Cheap (the records, through the reader, + fingerprint); never opens the session.
     // {state:"none"|"current"|"stale", pdfPath, preparedMs, sizeBytes, words, lastSend:{ms, method}, sentDiffers}
     Q_INVOKABLE QVariantMap state(const QString &sessionDir) const;
     Q_INVOKABLE void recordSend(const QString &sessionDir, const QString &method);
@@ -178,6 +187,7 @@ private:
     // name or a swing's recorded uuid (E-02; J-66, step 2.8b). {} when no athlete's folder holds it.
     QVariantMap athleteFor(const QString &sessionDir) const;
     QString contentStamp() const;
+    pinpoint::ReportRead readReport(const QString &sessionDir) const;   // the reader's answer; empty without one
 
     QPointer<StudioProfile>     m_studio;
     QPointer<AthleteController> m_athletes;
@@ -185,6 +195,8 @@ private:
     std::function<pinpoint::AthleteLevel *(const QString &)> m_athleteDoor;
     std::function<bool(const QString &)>                     m_noGolfer;
     std::function<std::unique_ptr<pinpoint::ShotSource>(const QString &)> m_shotSourceFor;
+    std::function<pinpoint::ReportRead(const QString &)>      m_reportReader;
+    std::function<pinpoint::Session *(const QString &)>       m_sessionDoor;
     QPointer<SessionDiagnosticsModel> m_model;          // the job's (the door's answer); null between makes
     QMetaObject::Connection     m_modelBusy;            // its busyChanged, for the job's length
     QMetaObject::Connection     m_modelGone;            // its destroyed: the session went away mid-make (B1)

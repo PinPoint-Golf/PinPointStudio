@@ -1350,16 +1350,17 @@ int main(int argc, char **argv)
         };
         M::ReportMeta meta;
         meta.pdfName = QStringLiteral("report.pdf");
+        meta.pdfPresent = true;   // read with the records since 5.6a
         QDir().mkpath(M::reportDir(dir));
         QFile pdf(M::reportPdfPath(dir, meta));
         pdf.open(QIODevice::WriteOnly); pdf.write("%PDF"); pdf.close();
         meta.fingerprint = fpWith({ QStringLiteral("S1") });   // made while S1 was left out
-        check(M::reportState(dir, meta, fpWith({ QStringLiteral("S1") })) == M::ReportState::Current,
+        check(M::reportState(meta, fpWith({ QStringLiteral("S1") })) == M::ReportState::Current,
               "TND-Sf made while a session was left out: current while it still is");
-        check(M::reportState(dir, meta, fpWith({})) == M::ReportState::Stale,
+        check(M::reportState(meta, fpWith({})) == M::ReportState::Stale,
               "TND-Sg … and out of date once it is summed up (failed before R1-m7: the stamp did not carry it)");
         meta.fingerprint = fpWith({});
-        check(M::reportState(dir, meta, fpWith({})) == M::ReportState::Current
+        check(M::reportState(meta, fpWith({})) == M::ReportState::Current
                   && fpWith({}) == M::reportFingerprint(dir, 1, QStringLiteral("content"), inputs),
               "TND-Sh a complete report: current, its fingerprint unchanged by the rule");
     }

@@ -55,7 +55,7 @@ Composed from the `storage/sessionNamingPattern` setting (default `date-name-typ
 
 ### Files at the session level
 
-Besides the `swing_NNNN/` subfolders the app writes `diagnostics.json` (the session's diagnostic ledger), `club_baseline.json`, `work_ons.json`, `report/` (the report PDF and `report_meta.json`) and, on an archived session, `archived.json`. Schema versions and writers are in [`swing_json_schema.md`](swing_json_schema.md) § "Files beside the swings". An empty session folder (started but captured nothing) is trashed on exit. Recency is tracked by folder **mtime**, not by an index file (`SwingDocReader::sessionDirs` / `latestSessionDir`).
+Besides the `swing_NNNN/` subfolders the app writes `diagnostics.json` (the session's diagnostic ledger), `club_baseline.json`, `work_ons.json`, `report/` (the report PDF, `report_meta.json` with its derived facts and `report_input.json` with the coach's note, options, make history and send log) and, on an archived session, `archived.json`. Schema versions and writers are in [`swing_json_schema.md`](swing_json_schema.md) § "Files beside the swings". An empty session folder (started but captured nothing) is trashed on exit. Recency is tracked by folder **mtime**, not by an index file (`SwingDocReader::sessionDirs` / `latestSessionDir`).
 
 ---
 

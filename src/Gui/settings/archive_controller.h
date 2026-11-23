@@ -108,7 +108,7 @@ public:
     // Archiving it is refused, by hand or by housekeeping.
     void setLiveSessionDir(const QString &dir);
     // SessionReportModel::fingerprintFunction, asked on this thread as each job starts: archive and
-    // restore keep a report that was current, current (S-D6, report_meta.h keepReportCurrent).
+    // restore keep a report that was current, current (S-D6, SessionArchiveRun::keepReportCurrent: through the run's own repository).
     void setReportFingerprint(std::function<std::function<QString(const QString &)>()> snapshot)
     {
         m_fingerprint = std::move(snapshot);

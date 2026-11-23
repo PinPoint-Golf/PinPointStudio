@@ -122,7 +122,7 @@ public:
         bool anythingOn() const { return !libraryRoot.isEmpty() && (trashRetentionDays > 0 || canArchive()); }
     };
 
-    // Each archive, wrapped by the caller on the worker (the app keeps a report that was current, current: report_meta.h's
+    // Each archive, wrapped by the caller on the worker (the app keeps a report that was current, current: SessionArchiveRun's
     // keepReportCurrent, S-D6). `archive` runs the archive and returns its result.
     using ArchiveWrap = std::function<SessionArchiveResult(const QString &sessionFolder,
                                                            const std::function<SessionArchiveResult()> &archive)>;

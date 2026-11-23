@@ -270,6 +270,8 @@ Session *Athlete::hold(const SessionId &id, bool startedHere, bool onDemand)
         return nullptr;   // not held, or another athlete's session
     Session *s = new Session(this, m_sessions, m_shotDoors, id, startedHere, onDemand);
     m_loaded.insert(id, s);
+    // FIRST OPENED (refactor step 5.6a; FILE-SESS-13's row, J-66): an older report record is split now, lazily, once.
+    s->migrateReport();
     // Every loaded session's diagnostics run (DEC-02), when the composition root gave the doors (step 3.5-i).
     if (m_diagnosticsDoors.attach)
         m_diagnosticsDoors.attach(s, m_diagnosticsDoors);
@@ -461,6 +463,25 @@ Session *Athlete::sessionAt(const QString &folder)
             return s;
     const SessionId id = m_sessions->openFolder(folder, m_id);
     return id.isNull() ? nullptr : hold(id, /*startedHere=*/false);
+}
+
+ReportRead Athlete::readReportAt(const QString &folder)
+{
+    if (!m_sessions || folder.isEmpty())
+        return {};
+    const QString parent = QDir::cleanPath(folder + QStringLiteral("/.."));
+    if (parent != QDir::cleanPath(m_folder)
+        && std::none_of(m_otherFolders.cbegin(), m_otherFolders.cend(),
+                        [&parent](const QString &f) { return QDir::cleanPath(f) == parent; }))
+        return {};
+    const QString clean = QDir::cleanPath(folder);
+    for (Session *s : std::as_const(m_loaded))
+        if (const auto e = m_sessions->open(s->id()); e && QDir::cleanPath(e->folder) == clean)
+            return s->readReport();
+    // Not loaded: read through the repository with the id sessionAt would give it, and no Session made (a read never
+    // migrates: the older shape is read as it is).
+    const SessionId id = m_sessions->openFolder(folder, m_id);
+    return id.isNull() ? ReportRead{} : m_sessions->readReport(id);
 }
 
 Session *Athlete::session(const SessionId &id)

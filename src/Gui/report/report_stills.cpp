@@ -25,6 +25,7 @@
 #include "../../Export/swing_store.h"          // the swing document, whichever format it is in
 #include "../markup/markup_truth.h"            // faceOnStreamIndex / streamLooksDownTheLine / frameIndexForUs
 
+#include <QBuffer>
 #include <QColor>
 #include <QDir>
 #include <QElapsedTimer>
@@ -341,13 +342,29 @@ StillResult renderInContext(SwingContext &ctx, const StillRequest &rq)
     }
 
     // ── Write ─────────────────────────────────────────────────────────────────────────────────────────
-    // The streaming form: the encoder writes straight into the temporary (the helper makes the folder).
-    if (!pinpoint::atomicWrite(rq.outPath, [&out](QIODevice &d, QString &) { return out.save(&d, "JPG", 88); }).ok) {
-        r.error = QStringLiteral("could not write %1").arg(rq.outPath);
-        return r;
+    if (rq.write) {
+        // The report's: encoded here, saved through the writer its Session handed out (FILE-SESS-09).
+        QByteArray jpeg;
+        QBuffer buf(&jpeg);
+        if (!buf.open(QIODevice::WriteOnly) || !out.save(&buf, "JPG", 88)) {
+            r.error = QStringLiteral("could not encode %1").arg(rq.outPath);
+            return r;
+        }
+        QString why;
+        r.path = rq.write(QFileInfo(rq.outPath).fileName(), jpeg, &why);
+        if (r.path.isEmpty()) {
+            r.error = why.isEmpty() ? QStringLiteral("could not write %1").arg(rq.outPath) : why;
+            return r;
+        }
+    } else {
+        // The streaming form: the encoder writes straight into the temporary (the helper makes the folder).
+        if (!pinpoint::atomicWrite(rq.outPath, [&out](QIODevice &d, QString &) { return out.save(&d, "JPG", 88); }).ok) {
+            r.error = QStringLiteral("could not write %1").arg(rq.outPath);
+            return r;
+        }
+        r.path = rq.outPath;
     }
     r.ok = true;
-    r.path = rq.outPath;
     r.frameIndex = idx;
     r.crop = srcN;
     r.lineDrawn = linePts.size() >= 2;

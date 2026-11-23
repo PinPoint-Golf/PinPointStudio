@@ -66,6 +66,7 @@
 #include "../../App/app.h"
 #include "../../Export/recording_loader.h"
 #include "../../Export/session_files.h"
+#include "../../Export/session_report_io.h"   // the report's files, looked at directly (S11)
 #include "../../Export/session_store.h"
 #include "../../Export/swing_paths.h"
 #include "../../Export/swing_store_repository.h"
@@ -78,6 +79,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPointer>
@@ -673,6 +675,120 @@ static void testAddShotAllocation()
               && !b.ok() && !b.result.error.isEmpty());
 }
 
+// ── S11 ──────────────────────────────────────────────────────────────────────────────────────────
+// THE REPORT'S RECORDS THROUGH THE SESSION (refactor step 5.6a; FILE-SESS-07, 13; DEC-201, J-66): an older
+// report_meta.json is split when the session is first held (Athlete::hold → Session::migrateReport), read unopened
+// through Athlete::readReportAt without a Session, and written by the Session's commands only.
+static QByteArray rawOf(const QString &path) { QFile f(path); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); }
+
+static void testReportThroughSession()
+{
+    std::printf("\nS11 — the report's records through the Session (step 5.6a)\n");
+    namespace io = session_report_io;
+    Rig rig;
+    if (!rig.valid()) { check(QStringLiteral("S11 temp dir"), false); return; }
+    // Six ended sessions, each with a shot (an empty one would be discarded).
+    QStringList folders;
+    for (int i = 0; i < 6; ++i) {
+        Session *s = rig.athlete->startSession(kSwing, kPat);
+        if (!s) { check(QStringLiteral("S11 start"), false); return; }
+        s->addShot();
+        s->end();
+        folders << rig.folderOf(s->id());
+    }
+    const QByteArray legacy = R"({"schema":1,"note":"Legacy note","options":{"appendix":true},"photosIncluded":false,
+        "preparedMs":2000,"prepared":[1000,2000],"pdf":"r_session-report.pdf","sha256":"abc","sizeBytes":3,"fingerprint":"fp",
+        "sends":[{"ms":3000,"method":"mail-app","sha256":"abc"}]})";
+    const auto putLegacy = [&](const QString &folder) {
+        QDir().mkpath(io::reportDir(folder));
+        QFile m(io::metaFile(folder)); m.open(QIODevice::WriteOnly); m.write(legacy); m.close();
+        QFile p(io::reportDir(folder) + QStringLiteral("/r_session-report.pdf")); p.open(QIODevice::WriteOnly); p.write("pdf"); p.close();
+    };
+    const QString legacyF = folders[0], crashF = folders[1], newerF = folders[2], freshF = folders[3], readOnlyF = folders[4],
+                  noFileF = folders[5];
+    putLegacy(legacyF);
+    putLegacy(crashF);
+    io::writeInput(crashF, io::read(crashF).input);   // a crash between the two writes: 13 written, 07 still legacy
+    putLegacy(newerF);
+    { QFile m(io::metaFile(newerF)); m.open(QIODevice::WriteOnly); m.write(R"({"schema":9,"note":"newer","pdf":"x.pdf"})"); }
+    putLegacy(readOnlyF);
+    {   // a newer build's session file: the Session never writes into it
+        QJsonObject o = readJson(SessionFiles::sessionFile(readOnlyF));
+        o.insert(QStringLiteral("schema"), QStringLiteral("pinpoint.session/9"));
+        QFile f(SessionFiles::sessionFile(readOnlyF)); f.open(QIODevice::WriteOnly); f.write(QJsonDocument(o).toJson()); f.close();
+    }
+    putLegacy(noFileF);
+    QFile::remove(SessionFiles::sessionFile(noFileF));
+
+    // A fresh store and athlete over the same library: nothing held yet (the app's first launch after 5.6a).
+    SessionStore store2;
+    store2.setLockWaitForTest(200);
+    Athlete a2(nullptr, &store2, kAthlete);
+    AthleteRecord r;
+    r.name = kName;
+    a2.setStored(r, rig.dir.path() + QLatin1Char('/') + kToken, SessionOwner{ kAthlete, kName, rig.dir.path() },
+                 Athlete::Source::Library, false);
+
+    // Read unopened: the older shape's facts, no file written, no Session made.
+    const QByteArray before = rawOf(io::metaFile(legacyF));
+    const ReportRead unopened = a2.readReportAt(legacyF);
+    check(QStringLiteral("S11a an unopened legacy record read through the Athlete: its note and send log"),
+          unopened.legacy && unopened.input.note == QLatin1String("Legacy note") && unopened.input.sends.size() == 1
+              && unopened.record.fingerprint == QLatin1String("fp") && unopened.pdfPresent);
+    check(QStringLiteral("S11b …with nothing written and no Session held"),
+          rawOf(io::metaFile(legacyF)) == before && !QFileInfo::exists(io::inputFile(legacyF)) && a2.loadedSessions().isEmpty());
+    const ReportRead noFile = a2.readReportAt(noFileF);
+    check(QStringLiteral("S11c a session with no session.json: its report still found (D3's id)"),
+          noFile.legacy && noFile.input.note == QLatin1String("Legacy note"));
+
+    // First held: split. Then the Session's commands.
+    Session *s = a2.sessionAt(legacyF);
+    const ReportRead held = s ? s->readReport() : ReportRead{};
+    check(QStringLiteral("S11d first held: report_input.json written, report_meta.json derived only, nothing lost"),
+          s && QFileInfo::exists(io::inputFile(legacyF)) && !held.legacy && held.input == unopened.input
+              && !readJson(io::metaFile(legacyF)).contains(QStringLiteral("note"))
+              && held.record.fingerprint == QLatin1String("fp"));
+    if (s) {
+        const QByteArray meta0 = rawOf(io::metaFile(legacyF));
+        check(QStringLiteral("S11e recordReportSend: appended with the record's hash; report_meta.json untouched"),
+              s->recordReportSend(QStringLiteral("smtp"), 4000).ok() && s->readReport().input.sends.size() == 2
+                  && s->readReport().input.sends.last().sha256 == s->readReport().record.sha256
+                  && s->readReport().input.sends.last().method == QLatin1String("smtp") && rawOf(io::metaFile(legacyF)) == meta0);
+        const QByteArray in0 = rawOf(io::inputFile(legacyF));
+        ReportRecord rec = s->readReport().record;
+        rec.fingerprint = QStringLiteral("fp2");
+        check(QStringLiteral("S11f saveReport: report_meta.json rebuilt, report_input.json byte for byte"),
+              s->saveReport(rec).ok() && s->readReport().record.fingerprint == QLatin1String("fp2") && rawOf(io::inputFile(legacyF)) == in0);
+        check(QStringLiteral("S11g recordReportMake: the note, options and one more make in report_input.json"),
+              s->recordReportMake(QStringLiteral("New note"), { { QStringLiteral("appendix"), false } }, 5000).ok()
+                  && s->readReport().input.note == QLatin1String("New note")
+                  && s->readReport().input.preparedHistory == QVector<qint64>({ 1000, 2000, 5000 })
+                  && s->readReport().input.sends.size() == 2);
+    }
+
+    // A crash between the writes, then held: finished. A newer report file, a fresh session, a newer session file: untouched.
+    Session *c = a2.sessionAt(crashF);
+    check(QStringLiteral("S11h after a crash between the writes, the first hold finishes the split"),
+          c && !io::read(crashF).legacy && io::read(crashF).input.note == QLatin1String("Legacy note"));
+    const QByteArray newer0 = rawOf(io::metaFile(newerF));
+    check(QStringLiteral("S11i a newer report_meta.json: held, nothing written"),
+          a2.sessionAt(newerF) && rawOf(io::metaFile(newerF)) == newer0 && !QFileInfo::exists(io::inputFile(newerF)));
+    check(QStringLiteral("S11j a fresh session: held, no report folder made"),
+          a2.sessionAt(freshF) && !QFileInfo::exists(io::reportDir(freshF)));
+    Session *ro = a2.sessionAt(readOnlyF);
+    check(QStringLiteral("S11k a newer build's session file: held, its report never split"),
+          ro && rawOf(io::metaFile(readOnlyF)) == legacy && !QFileInfo::exists(io::inputFile(readOnlyF)));
+
+    // A second open (a third store, nothing held): a no-op.
+    const QByteArray m1 = rawOf(io::metaFile(legacyF)), i1 = rawOf(io::inputFile(legacyF));
+    SessionStore store3;
+    Athlete a3(nullptr, &store3, kAthlete);
+    a3.setStored(r, rig.dir.path() + QLatin1Char('/') + kToken, SessionOwner{ kAthlete, kName, rig.dir.path() },
+                 Athlete::Source::Library, false);
+    check(QStringLiteral("S11l a second open: nothing written"),
+          a3.sessionAt(legacyF) && rawOf(io::metaFile(legacyF)) == m1 && rawOf(io::inputFile(legacyF)) == i1);
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);   // QTemporaryDir, deleteLater
@@ -691,6 +807,7 @@ int main(int argc, char **argv)
     testOnDemandNeverDiscarded();
     testResumeTheRunningOne();
     testAddShotAllocation();
+    testReportThroughSession();
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

@@ -41,6 +41,7 @@
 #include "report/report_meta.h"
 #include "../../Coaching/work_ons.h"
 #include "../../Export/session_archiver.h"
+#include "../../Export/session_report_io.h"   // the report's records, written as the repository writes them (5.6a)
 #include "../../Export/swing_doc.h"
 #include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 
@@ -135,6 +136,35 @@ static void writeRecord(const QString &dir, const QString &id, const QString &na
 
 static QString fp(const QString &dir) { return reportFingerprint(dir, 4, QStringLiteral("content"), QStringLiteral("inputs")); }
 
+// THE REPORT'S RECORDS AS A TEST WRITES THEM (refactor step 5.6a): both files, through the repository's own file work
+// (session_report_io.h) — the source facts in report_input.json, the derived facts in report_meta.json (whose PDF hash and
+// size it reads from the PDF itself).
+static void writeReportMeta(const QString &dir, const ReportMeta &m)
+{
+    namespace io = pinpoint::session_report_io;
+    io::writeInput(dir, pinpoint::ReportInput{ m.note, m.options, m.preparedHistory, m.sends });
+    io::writeRecord(dir, pinpoint::ReportRecord{ m.fingerprint, m.pdfName, m.preparedMs, m.sha256, m.sizeBytes, m.photosIncluded });
+}
+static std::optional<ReportMeta> readReportMeta(const QString &dir) { return reportMetaOf(pinpoint::session_report_io::read(dir)); }
+
+// An older report_meta.json (before 5.6a): the source keys back in it, and no report_input.json.
+static void makeLegacy(const QString &dir, const QString &note)
+{
+    namespace io = pinpoint::session_report_io;
+    QFile mf(io::metaFile(dir));
+    mf.open(QIODevice::ReadOnly);
+    QJsonObject meta = QJsonDocument::fromJson(mf.readAll()).object();
+    mf.close();
+    QFile inf(io::inputFile(dir));
+    inf.open(QIODevice::ReadOnly);
+    const QJsonObject in = QJsonDocument::fromJson(inf.readAll()).object();
+    inf.close();
+    for (const QString &k : io::legacyInputKeys()) meta.insert(k, in.value(k));
+    meta.insert(QStringLiteral("note"), note);
+    QFile::remove(io::inputFile(dir));
+    touch(io::metaFile(dir), QJsonDocument(meta).toJson());
+}
+
 static void writeReport(const QString &dir, bool current, qint64 preparedMs, qint64 sendMs = 0,
                         const QString &sendMethod = QStringLiteral("mail-app"))
 {
@@ -144,7 +174,7 @@ static void writeReport(const QString &dir, bool current, qint64 preparedMs, qin
     m.pdfName     = pdf;
     m.preparedMs  = preparedMs;
     m.preparedHistory = { preparedMs };
-    m.sha256      = fileSha256(reportDir(dir) + QLatin1Char('/') + pdf);
+    m.sha256      = pinpoint::session_report_io::detail::sha256Of(reportDir(dir) + QLatin1Char('/') + pdf);
     m.sizeBytes   = 2048;
     m.fingerprint = current ? fp(dir) : QStringLiteral("0123456789abcdef");
     if (sendMs) m.sends.append({ sendMs, sendMethod, m.sha256 });
@@ -155,7 +185,7 @@ static void writeReport(const QString &dir, bool current, qint64 preparedMs, qin
 static QVariantMap stateOf(const QString &dir)
 {
     const auto m = readReportMeta(dir);
-    const ReportState st = reportState(dir, m, fp(dir));
+    const ReportState st = reportState(m, fp(dir));
     return { {QStringLiteral("state"), st == ReportState::Current ? QStringLiteral("current")
                                      : st == ReportState::Stale   ? QStringLiteral("stale") : QStringLiteral("none")},
              {QStringLiteral("words"), reportStateWords(st, m)},
@@ -475,13 +505,14 @@ int main(int argc, char **argv)
           && role(sl, rowOf(h5), R::StateWordsRole).toString().startsWith(QLatin1String("Opened in Mail")),
           "stateShort: handed to Mail is not a send → Ready (the full words keep Opened in Mail)");
     {
-        // Remade after the send: the PDF on disk is not the one that went.
+        // Remade after the send: the PDF on disk is not the one that went (the record reads its hash off the PDF: 5.6a).
         auto m = readReportMeta(h1);
-        m->sha256 = QStringLiteral("remade");
+        const QString pdf = reportPdfPath(h1, *m);
+        touch(pdf, QByteArray(2048, 'r'));
         writeReportMeta(h1, *m);
         sl.refreshState(h1);
         check(role(sl, rowOf(h1), R::StateShortRole).toString() == QLatin1String("Ready"), "stateShort: remade after a send → Ready");
-        m->sha256 = m->sends.last().sha256;
+        touch(pdf, QByteArray(2048, 'x'));
         writeReportMeta(h1, *m);
         sl.refreshState(h1);
     }
@@ -637,12 +668,21 @@ int main(int argc, char **argv)
         const auto stateIs = [](const QString &d) { return stateOf(d).value(QStringLiteral("state")).toString(); };
         check(stateIs(a) == QLatin1String("current") && stateIs(b) == QLatin1String("stale"), "before: current and stale");
 
+        // A's record is the OLDER shape (before 5.6a), never opened since: the archive's restamp keeps its note and send
+        // log (the source keys leave report_meta.json only once report_input.json reads back: session_report_io.h).
+        makeLegacy(a, QStringLiteral("A's legacy note"));
         const QByteArray identityBefore = swingsIdentity(a);
-        const auto ra = keepReportCurrent(a, fpFn, [&] { return archiveIt(a, archiveRoot); });
+        const auto ra = pinpoint::SessionArchiveRun::keepReportCurrent(a, fpFn, [&] { return archiveIt(a, archiveRoot); });
         check(ra.ok && pinpoint::SessionArchiver::isArchived(a), "archived for real (verified copy, stubs, marker)");
         check(swingsIdentity(a) != identityBefore, "the stubs moved the swings' identity");
         check(stateIs(a) == QLatin1String("current"), "…and the report still reads current");
-        const auto rb = keepReportCurrent(b, fpFn, [&] { return archiveIt(b, archiveRoot); });
+        {
+            const pinpoint::ReportRead lr = pinpoint::session_report_io::read(a);
+            check(lr.legacy && lr.inputState == pinpoint::ReportRead::State::Missing && lr.input.note == QLatin1String("A's legacy note")
+                      && lr.record.fingerprint == fp(a),
+                  "5.6a an unopened legacy record re-stamped by the archive: its note kept in report_meta.json, no report_input.json written");
+        }
+        const auto rb = pinpoint::SessionArchiveRun::keepReportCurrent(b, fpFn, [&] { return archiveIt(b, archiveRoot); });
         check(rb.ok && stateIs(b) == QLatin1String("stale"), "an out-of-date report stays out of date");
         const auto rc = archiveIt(c, archiveRoot);
         check(rc.ok && stateIs(c) == QLatin1String("stale"), "control: without the re-stamp, archiving reads out of date");
@@ -661,7 +701,7 @@ int main(int argc, char **argv)
         auto m = readReportMeta(a);
         m->sends.append({ at(10, 23, 9, 0), QStringLiteral("smtp"), m->sha256 });
         writeReportMeta(a, *m);
-        const auto r2 = keepReportCurrent(a, fpFn, [&] { return restoreIt(a); });
+        const auto r2 = pinpoint::SessionArchiveRun::keepReportCurrent(a, fpFn, [&] { return restoreIt(a); });
         check(r2.ok && !pinpoint::SessionArchiver::isArchived(a), "restored for real");
         check(stateIs(a) == QLatin1String("current"), "…and the report still reads current");
         const auto after = readReportMeta(a);

@@ -64,6 +64,7 @@
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Export/swing_paths.h"
 #include "../../Export/swing_store.h"
+#include "../../DomainModel/session.h"   // the Session the report is saved through (5.6a)
 #include "../../Export/session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
 #include "../../LaunchMonitor/launch_monitor_reading.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
@@ -77,7 +78,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMetaMethod>
-#include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
 #include <QtConcurrent>
@@ -308,6 +308,7 @@ struct SessionReportModel::Job {
     QVariantMap         map;
     QVector<StillRequest> requests;
     QVector<StillSlot>  stillSlots;
+    QPointer<pinpoint::Session> session;   // the Session the records and stills are saved through (5.6a)
     QString             pdfPath;
     QString             fingerprint;
     bool                photos = true;
@@ -419,10 +420,15 @@ M::ReportFingerprintFn SessionReportModel::fingerprintFunction() const
     };
 }
 
+pinpoint::ReportRead SessionReportModel::readReport(const QString &sessionDir) const
+{
+    return m_reportReader ? m_reportReader(QDir::cleanPath(sessionDir)) : pinpoint::ReportRead{};
+}
+
 QVariantMap SessionReportModel::state(const QString &sessionDir) const
 {
-    const std::optional<M::ReportMeta> meta = M::readReportMeta(sessionDir);
-    const M::ReportState st = M::reportState(sessionDir, meta, meta ? fingerprintOf(sessionDir) : QString());
+    const std::optional<M::ReportMeta> meta = M::reportMetaOf(readReport(sessionDir));
+    const M::ReportState st = M::reportState(meta, meta ? fingerprintOf(sessionDir) : QString());
     QVariantMap out;
     out[QStringLiteral("state")] = st == M::ReportState::None ? QStringLiteral("none")
                                  : st == M::ReportState::Current ? QStringLiteral("current") : QStringLiteral("stale");
@@ -458,7 +464,7 @@ QVariantMap SessionReportModel::preflight(const QString &sessionDir) const
         missing.append(QVariantMap{ { QStringLiteral("text"), QStringLiteral("This golfer has no details on this machine — photos are included and the report cannot be emailed") },
                                     { QStringLiteral("where"), QStringLiteral("athlete") } });
 
-    const std::optional<M::ReportMeta> meta = M::readReportMeta(sessionDir);
+    const std::optional<M::ReportMeta> meta = M::reportMetaOf(readReport(sessionDir));
     return {
         { QStringLiteral("canReport"), swings >= kNoteBelowSwings },
         { QStringLiteral("swings"), swings },
@@ -471,10 +477,11 @@ QVariantMap SessionReportModel::preflight(const QString &sessionDir) const
 
 void SessionReportModel::recordSend(const QString &sessionDir, const QString &method)
 {
-    std::optional<M::ReportMeta> meta = M::readReportMeta(sessionDir);
-    if (!meta) { ppWarn() << "[Report] send recorded for a session with no report:" << sessionDir; return; }
-    meta->sends.append({ QDateTime::currentMSecsSinceEpoch(), method, meta->sha256 });
-    if (!M::writeReportMeta(sessionDir, *meta)) ppWarn() << "[Report] could not write the send log in" << sessionDir;
+    // THE SEND LOG IS THE SESSION'S (FILE-SESS-13; refactor step 5.6a): its command, through the door to it.
+    pinpoint::Session *session = m_sessionDoor ? m_sessionDoor(QDir::cleanPath(sessionDir)) : nullptr;
+    if (!session) { ppWarn() << "[Report] send recorded for a session no golfer's Session holds:" << sessionDir; return; }
+    const pinpoint::WriteResult w = session->recordReportSend(method, QDateTime::currentMSecsSinceEpoch());
+    if (!w.ok()) ppWarn() << "[Report] could not log the send in" << sessionDir << "-" << w.error;
     emit stateChanged(sessionDir);
 }
 
@@ -522,6 +529,8 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     }
     m_job = std::make_unique<Job>();
     m_job->dir = dir;
+    // THE SESSION THE REPORT IS SAVED THROUGH (refactor step 5.6a): its records and stills are its commands'.
+    m_job->session = m_sessionDoor ? m_sessionDoor(dir) : nullptr;
     m_job->options = options;
     m_job->print = print;
     m_job->stills = options.value(QStringLiteral("stills"), true).toBool();
@@ -1306,12 +1315,12 @@ void SessionReportModel::build()
         // the carry in the launch monitor's figures: a left-out misread neither breaks the tie nor is "your longest"
         if (!hs.empty()) ref = R::referenceSwing(hs, M::lmReferenceCarry(x.lm));
     }
-    const QString stillsDir = [&] {
-        const QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-        const QString h = QString::fromLatin1(QCryptographicHash::hash((job.dir + job.fingerprint).toUtf8(), QCryptographicHash::Sha1).toHex().left(12));
-        return QDir(base.isEmpty() ? QDir::tempPath() : base).filePath(pinpoint::SessionFiles::reportStillsFolderName() + QLatin1Char('/') + h);
-    }();
-    const bool wantStills = job.stills && photo.included && !isNote;
+    // THE STILLS (FILE-SESS-09; refactor step 5.6a): the make's folder and its writer are the Session's (outside the library,
+    // <Cache>/report-stills/<hash>/, as before). No Session: no stills, and each slot says so.
+    const QString stillsDir = job.session ? job.session->reportStillsFolder(job.fingerprint) : QString();
+    const pinpoint::ReportStillWriter stillWriter = job.session ? job.session->reportStillsWriter(job.fingerprint)
+                                                                : pinpoint::ReportStillWriter();
+    const bool wantStills = job.stills && photo.included && !isNote && !stillsDir.isEmpty() && stillWriter;
     const QString defaultCamera = [&] {
         for (const QString &a : x.cameraAliases) if (cameraOfAlias(a) == QLatin1String("dtl")) return QStringLiteral("dtl");
         for (const QString &a : x.cameraAliases) if (cameraOfAlias(a) == QLatin1String("faceOn")) return QStringLiteral("faceOn");
@@ -1328,6 +1337,7 @@ void SessionReportModel::build()
         r.phase = phase;
         r.line = line;
         r.addressLine = addressLine;
+        r.write = stillWriter;
         r.aspect = kStillAspect;
         r.outPath = QDir(stillsDir).filePath(QStringLiteral("s%1_%2_%3%4%5.jpg").arg(x.swings[size_t(swing)].shotId, 4, 10, QLatin1Char('0'))
                                                  .arg(camera, phase, line.isEmpty() ? QString() : QLatin1Char('_') + line,
@@ -1856,6 +1866,7 @@ void SessionReportModel::build()
                                      fm.value(QStringLiteral("key")).toString())
                                 .arg(still.value(QStringLiteral("x")).toInt()).arg(still.value(QStringLiteral("y")).toInt()));
                             job.requests << stillRequestOf(still, out);
+                            job.requests.last().write = stillWriter;
                             job.stillSlots << StillSlot{ kPostureStillSlot, g * kPostureFramesPerGroup + f, out };
                             fm[QStringLiteral("src")] = fileUrl(out);
                             frames[f] = fm;
@@ -1968,7 +1979,6 @@ void SessionReportModel::build()
     job.pdfPath = QDir(M::reportDir(job.dir)).filePath(fileName);
 
     if (job.requests.isEmpty()) { deliver(); return; }
-    QDir().mkpath(stillsDir);
     if (!m_stills) {
         m_stills = new ReportStills(this);
         connect(m_stills, &ReportStills::finished, this, [this](const QVector<StillResult> &results) {
@@ -1985,7 +1995,7 @@ void SessionReportModel::build()
             for (int i = 0; i < m_job->stillSlots.size(); ++i) {
                 const StillSlot &s = m_job->stillSlots[i];
                 const StillResult r = i < results.size() ? results[i] : byPath.value(QDir::cleanPath(s.outPath));
-                const bool ok = r.ok && QFileInfo::exists(s.outPath);
+                const bool ok = r.ok && !r.path.isEmpty();   // saved through the Session's writer
                 if (ok) ++made;
                 else ppWarn() << "[Report] still not made:" << s.outPath << r.error;
                 if (s.workOn == kPostureStillSlot) {
@@ -2106,26 +2116,29 @@ void SessionReportModel::printFinished(bool ok, const QString &path, int pages, 
         return;
     }
 
-    // THE RECORD (§8.1): the note and options, photos, every prepared time, the PDF's hash and size, and
-    // what it was made from. No address: the session folder lives on the share.
-    M::ReportMeta meta = M::readReportMeta(dir).value_or(M::ReportMeta{});
-    const QString oldPdf = M::reportPdfPath(dir, meta);
-    meta.note = job.options.value(QStringLiteral("note")).toString().trimmed();
-    QVariantMap opts = job.options;
-    opts.remove(QStringLiteral("note"));
-    opts.insert(QStringLiteral("appendix"), job.map.value(QStringLiteral("appendix")).toBool());
-    meta.options = opts;
-    meta.photosIncluded = job.photos;
-    meta.preparedMs = job.preparedMs;
-    meta.preparedHistory.append(job.preparedMs);
-    meta.pdfName = QFileInfo(path).fileName();
-    meta.sha256 = M::fileSha256(path);
-    meta.sizeBytes = QFileInfo(path).size();
-    meta.fingerprint = job.fingerprint;
-    if (!M::writeReportMeta(dir, meta)) ppWarn() << "[Report] could not write the report's meta file in" << dir;
-    // A golfer renamed since the last make: the old file would sit beside the new one forever.
-    if (!oldPdf.isEmpty() && QDir::cleanPath(oldPdf) != QDir::cleanPath(path) && QFileInfo::exists(oldPdf)) QFile::remove(oldPdf);
-    ppInfo() << "[Report] wrote" << path << "(" << pages << "pages," << meta.sizeBytes << "bytes)";
+    // THE RECORDS (§8.1; refactor step 5.6a: DEC-201, J-66), through the Session's commands. Its source facts — the note,
+    // the options, this make in the history — are FILE-SESS-13's (recordReportMake); its derived facts — photos, the
+    // prepared time, the PDF's name, hash and size, what it was made from — FILE-SESS-07's (saveReport), which never
+    // writes or deletes FILE-SESS-13, and removes the previous PDF when a golfer renamed since the last make. No address:
+    // the session folder lives on the share.
+    pinpoint::ReportRecord record;
+    record.fingerprint    = job.fingerprint;
+    record.pdfName        = QFileInfo(path).fileName();
+    record.preparedMs     = job.preparedMs;
+    record.photosIncluded = job.photos;
+    if (job.session) {
+        QVariantMap opts = job.options;
+        opts.remove(QStringLiteral("note"));
+        opts.insert(QStringLiteral("appendix"), job.map.value(QStringLiteral("appendix")).toBool());
+        const pinpoint::WriteResult in = job.session->recordReportMake(job.options.value(QStringLiteral("note")).toString().trimmed(),
+                                                                       opts, job.preparedMs);
+        if (!in.ok()) ppWarn() << "[Report] could not save the report's note and options in" << dir << "-" << in.error;
+        const pinpoint::WriteResult rec = job.session->saveReport(record);
+        if (!rec.ok()) ppWarn() << "[Report] could not save the report's record in" << dir << "-" << rec.error;
+    } else {
+        ppWarn() << "[Report] the session went away before the report's records were saved:" << dir;
+    }
+    ppInfo() << "[Report] wrote" << path << "(" << pages << "pages)";
     finishJob();
     emit made(dir, true, path, QString());
     emit stateChanged(dir);

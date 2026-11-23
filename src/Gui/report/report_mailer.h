@@ -26,8 +26,9 @@
 //
 // THE ADDRESSES COME FROM THE CALLER, every time, and are never stored here: a golfer's email belongs
 // in this machine's settings (§7.3), and nothing about a send that names a person goes into the
-// session folder, which lives on the share. The send log (report_meta.json) is written by
-// SessionReportModel::recordSend, and holds the method and the PDF's hash only.
+// session folder, which lives on the share. The send log (report_input.json, FILE-SESS-13) is written by the
+// Session's command (Session::recordReportSend, through SessionReportModel::recordSend), and holds the method and the
+// PDF's hash only.
 //
 // SENDING IT ITSELF (§8.3, option B, decided 21 Oct): once the coach sets up their own mail account in
 // Settings → Studio → Sending reports, send() puts the report straight onto their server over SMTP

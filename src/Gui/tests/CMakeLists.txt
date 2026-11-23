@@ -406,12 +406,14 @@ pp_add_test(pdf_document_writer_test
     COMPILE_OPTIONS -DPP_PRINT_QML_DIR="${GUI}/print")
 set_tests_properties(pdf_document_writer_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
-# The session report's record (report/report_meta.h, header-only): the JSON round trip, the file name,
-# the fingerprint moving with exactly its inputs, the three states and their words, and the send log.
+# The session report's records (report/report_meta.h's rules; Export/session_report_io.h, the repository's file work, both
+# header-only): the file name, the fingerprint moving with exactly its inputs, the three states and their words, the send
+# log, the two files' round trip and the lazy migration of an older report_meta.json (refactor step 5.6a).
 # Links pinpoint_swingstore (pp_add_test does) for SwingStore::info.
 pp_add_test(report_meta_test
     SOURCES report_meta_test.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the report's swing fingerprint lists swings through SwingPaths (step 2.7b)
+            ${SRC}/Core/folder_lock.cpp   # the records' writes take the session's lock (session_report_io.h, step 5.6a)
     INCLUDE ${GUI} ${SRC})
 
 # The rest of the session report's C++ tests, one fragment per part of the build so the parts can be

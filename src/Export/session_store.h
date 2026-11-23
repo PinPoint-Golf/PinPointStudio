@@ -47,7 +47,8 @@
 // ⚠ A READ NEVER WRITES. enumerate, todaysSession, open and openFolder only read; a session without a
 // file is read from its folder's name, in memory (D3). Only start, resume, end, allocateSwing, archive,
 // restore, trash and trashShot write the session's own files and folders; the write* methods of its
-// diagnostics files (J-42, step 3.4a) write those, through session_diagnostics_io.h's file work.
+// diagnostics files (J-42, step 3.4a) write those, through session_diagnostics_io.h's file work, and its report's
+// (writeReportInput, writeReportRecord, migrateReport, the stills writer: step 5.6a) through session_report_io.h's.
 //
 // THE ARCHIVE AND THE TRASH (step 2.6). archive / restore check the session (held, not InProgress by a
 // FRESH read of its file — another machine's live session, or one a crash left open, is refused — and not
@@ -136,6 +137,13 @@ public:
     JsonFileRead     readWorkOns(const SessionId &id) override;
     std::function<JsonFileRead()> deferredReadWorkOns(const SessionId &id) override;   // the folder now, the read later
     WriteResult      writeWorkOns(const SessionId &id, const QJsonObject &root) override;
+    // The session report's records and stills by its id (step 5.6a): session_report_io.h's file work on the held folder.
+    ReportRead        readReport(const SessionId &id) override;
+    WriteResult       writeReportInput(const SessionId &id, const ReportInput &input) override;
+    WriteResult       writeReportRecord(const SessionId &id, const ReportRecord &record, bool removeReplacedPdf = false) override;
+    WriteResult       migrateReport(const SessionId &id, bool *migrated = nullptr) override;
+    QString           reportStillsFolder(const SessionId &id, const QString &key) override;
+    ReportStillWriter reportStillsWriter(const SessionId &id, const QString &key) override;
 
     // enumerate(), for a caller that holds an athlete's FOLDER rather than the athlete (the diagnostics model,
     // the work-ons controller and their tools, until step 3 keys them by SessionId; refactor step 2.7a). Every
