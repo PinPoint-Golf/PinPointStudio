@@ -34,15 +34,15 @@ Item {
     property bool showNotes:        false   // changelog disclosure
     property bool allowed:          true    // host gate (e.g. off during the wizard)
 
-    readonly property string uState: updateController.state
+    readonly property string uState: app.updateController.state
     readonly property bool offerFresh:
         uState === "available"
-        && updateController.latestVersion !== appSettings.skippedUpdateVersion
+        && app.updateController.latestVersion !== appSettings.skippedUpdateVersion
     // Show for a fresh offer, while a banner-initiated download/verify runs, and
     // when ready to restart — but never over a live session or where the host
     // disallows it.
     readonly property bool shouldShow:
-        allowed && updateController.supported && !sessionController.running && !dismissedThisRun
+        allowed && app.updateController.supported && !app.sessionController.running && !dismissedThisRun
         && (offerFresh || uState === "downloading" || uState === "verifying" || uState === "ready")
 
     implicitHeight: shouldShow ? card.implicitHeight : 0
@@ -86,7 +86,7 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text: UpdateStates.bannerTitle(bannerRoot.uState, updateController.latestVersion)
+                        text: UpdateStates.bannerTitle(bannerRoot.uState, app.updateController.latestVersion)
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
@@ -94,8 +94,8 @@ Item {
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: UpdateStates.bannerDetail(bannerRoot.uState, updateController.latestVersion,
-                                                        updateController.currentVersion, updateController.progress)
+                        text: UpdateStates.bannerDetail(bannerRoot.uState, app.updateController.latestVersion,
+                                                        app.updateController.currentVersion, app.updateController.progress)
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -105,7 +105,7 @@ Item {
 
                 // "What's new" disclosure (offer only, when notes exist).
                 Text {
-                    visible: bannerRoot.offerFresh && updateController.releaseNotes.length > 0
+                    visible: bannerRoot.offerFresh && app.updateController.releaseNotes.length > 0
                     text: bannerRoot.showNotes ? qsTr("Hide notes") : qsTr("What's new")
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
@@ -119,13 +119,13 @@ Item {
                 PpButton {
                     visible: bannerRoot.offerFresh
                     label: qsTr("Skip")
-                    onClicked: updateController.skipVersion()
+                    onClicked: app.updateController.skipVersion()
                 }
                 PpButton {
                     visible: bannerRoot.offerFresh || bannerRoot.isReady
                     label: qsTr("Later")
                     onClicked: {
-                        if (bannerRoot.isReady) updateController.installOnNextLaunch()
+                        if (bannerRoot.isReady) app.updateController.installOnNextLaunch()
                         else                    bannerRoot.dismissedThisRun = true
                     }
                 }
@@ -133,13 +133,13 @@ Item {
                     visible: bannerRoot.offerFresh
                     label: qsTr("Install")
                     primary: true
-                    onClicked: updateController.download()
+                    onClicked: app.updateController.download()
                 }
                 PpButton {
                     visible: bannerRoot.isReady
                     label: qsTr("Restart now")
                     primary: true
-                    onClicked: updateController.relaunch()
+                    onClicked: app.updateController.relaunch()
                 }
             }
 
@@ -154,7 +154,7 @@ Item {
                     height: parent.height
                     radius: parent.radius
                     color:  Theme.colorAccent
-                    width:  parent.width * Math.max(0, Math.min(1, updateController.progress))
+                    width:  parent.width * Math.max(0, Math.min(1, app.updateController.progress))
                     Behavior on width { NumberAnimation { duration: Theme.durationFast } }
                 }
             }
@@ -164,8 +164,8 @@ Item {
                 Layout.fillWidth: true
                 Layout.maximumHeight: Theme.sp(140)
                 visible: bannerRoot.showNotes && bannerRoot.offerFresh
-                         && updateController.releaseNotes.length > 0
-                text:           updateController.releaseNotes
+                         && app.updateController.releaseNotes.length > 0
+                text:           app.updateController.releaseNotes
                 textFormat:     Text.MarkdownText
                 wrapMode:       Text.WordWrap
                 clip:           true

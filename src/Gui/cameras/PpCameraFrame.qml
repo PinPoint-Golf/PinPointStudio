@@ -57,10 +57,10 @@ Item {
     // Replay-overlay source — resolves to the disk replay (Review tile) or the
     // live in-window transient (Capture tile), so the analyzed skeleton/club
     // overlay reads ONE set of values regardless of which surface is driving it.
-    readonly property bool _replayActive:     _isReplay ? app.state.replay.active        : shotProcessor.isReplaying
+    readonly property bool _replayActive:     _isReplay ? app.state.replay.active        : app.shotProcessor.isReplaying
     // Both sources publish ONE shared JavaScript object per shot (qml_payload.h) — read-only.
-    readonly property var  _replayDetail:     _isReplay ? app.state.replay.analysisDetail : shotProcessor.replayAnalysisDetail
-    readonly property real _replayPlayheadUs: _isReplay ? app.state.replay.positionUs     : shotProcessor.replayPositionUs
+    readonly property var  _replayDetail:     _isReplay ? app.state.replay.analysisDetail : app.shotProcessor.replayAnalysisDetail
+    readonly property real _replayPlayheadUs: _isReplay ? app.state.replay.positionUs     : app.shotProcessor.replayPositionUs
     readonly property int  _replayPerspective: _isReplay
             ? (app.state.replay.streams[replayStreamIndex] !== undefined
                ? app.state.replay.streams[replayStreamIndex].perspective : -1)
@@ -1101,7 +1101,7 @@ Item {
             }
 
             Connections {
-                target: shotProcessor
+                target: app.shotProcessor
                 enabled: !root._isReplay
                 function onReplayPositionChanged() { if (impactOverlay.visible) impactOverlay.requestPaint() }
             }
@@ -1386,7 +1386,7 @@ Item {
 
             // Repaint as the playhead advances — from whichever surface drives it.
             Connections {
-                target: shotProcessor
+                target: app.shotProcessor
                 enabled: !root._isReplay
                 function onReplayPositionChanged() {
                     if (replayOverlay.visible) replayOverlay.requestPaint()

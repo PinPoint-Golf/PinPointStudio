@@ -42,7 +42,7 @@ Column {
     objectName: "goesTogether"
 
     // The controller. Passed in rather than reached for, so a harness can drive the component.
-    property var controller: (typeof workOns !== "undefined") ? workOns : null
+    property var controller: ((typeof app !== "undefined" && !!app.workOns)) ? app.workOns : null
 
     // An open fault's "Review the … session →".
     signal reviewSessionRequested(string sessionDir)

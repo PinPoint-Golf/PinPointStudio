@@ -95,8 +95,8 @@ SettingsPanelBase {
     // holds swing.json documents; they read fine, and this converts them to swing.ppsw — each one
     // proven against its original before the JSON is removed. Guarded: libraryConverter is an app
     // context property, absent in a bare QML harness.
-    readonly property bool hasConverter: typeof libraryConverter !== "undefined" && libraryConverter !== null
-    function countJsonSwings() { if (hasConverter) libraryConverter.count() }
+    readonly property bool hasConverter: (typeof app !== "undefined" && !!app.libraryConverter) && app.libraryConverter !== null
+    function countJsonSwings() { if (hasConverter) app.libraryConverter.count() }
 
     // ── Folder dialog ─────────────────────────────────────────────────────────
 
@@ -338,26 +338,26 @@ SettingsPanelBase {
     SettingsRow {
         objectName: "setting_swingFormat"
         visible: root.hasConverter
-                 && (libraryConverter.pending > 0 || libraryConverter.running
-                     || libraryConverter.status.length > 0)
+                 && (app.libraryConverter.pending > 0 || app.libraryConverter.running
+                     || app.libraryConverter.status.length > 0)
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.gap(16)
             SettingsRowTitle {
                 title:    qsTr("Swing file format")
                 subtitle: !root.hasConverter ? ""
-                          : libraryConverter.running || libraryConverter.status.length > 0
-                            ? libraryConverter.status
+                          : app.libraryConverter.running || app.libraryConverter.status.length > 0
+                            ? app.libraryConverter.status
                             : qsTr("%1 swings are in the older, larger format. Converting them shrinks "
                                    + "each swing's analysis file to a fraction of its size; each one is "
                                    + "checked against its original before the old file is removed.")
-                                  .arg(libraryConverter.pending)
+                                  .arg(app.libraryConverter.pending)
             }
             PpButton {
                 Layout.alignment: Qt.AlignVCenter
-                label:     root.hasConverter && libraryConverter.running ? qsTr("Stop") : qsTr("Convert")
-                enabled:   root.hasConverter && (libraryConverter.running || libraryConverter.pending > 0)
-                onClicked: libraryConverter.running ? libraryConverter.cancel() : libraryConverter.convert()
+                label:     root.hasConverter && app.libraryConverter.running ? qsTr("Stop") : qsTr("Convert")
+                enabled:   root.hasConverter && (app.libraryConverter.running || app.libraryConverter.pending > 0)
+                onClicked: app.libraryConverter.running ? app.libraryConverter.cancel() : app.libraryConverter.convert()
             }
         }
     }

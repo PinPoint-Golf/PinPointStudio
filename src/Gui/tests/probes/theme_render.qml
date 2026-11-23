@@ -45,7 +45,7 @@ Item {
 
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject { required property int shotId; required property int ordinal; required property string swingDir }
     }
     function after(ms, fn) {
@@ -74,13 +74,13 @@ Item {
         })
     }
     function showScreen(name, then) {
-        if (name === "home") { navController.navigate(AppScreen.Home); after(1200, then) }
-        else if (name === "settings") { navController.navigate(AppScreen.Settings); after(1200, then) }
-        else if (name === "athletes") { navController.navigate(AppScreen.Athletes); after(1200, then) }
-        else if (name === "setup") { navController.navigate(AppScreen.Wizard); after(2000, then) }
-        else if (name === "system") { navController.navigate(AppScreen.System); after(1200, then) }
+        if (name === "home") { app.navController.navigate(AppScreen.Home); after(1200, then) }
+        else if (name === "settings") { app.navController.navigate(AppScreen.Settings); after(1200, then) }
+        else if (name === "athletes") { app.navController.navigate(AppScreen.Athletes); after(1200, then) }
+        else if (name === "setup") { app.navController.navigate(AppScreen.Wizard); after(2000, then) }
+        else if (name === "system") { app.navController.navigate(AppScreen.System); after(1200, then) }
         else if (name === "wrist" || name === "wristreplay") {
-            navController.navigate(AppScreen.Session)
+            app.navController.navigate(AppScreen.Session)
             if (name === "wrist") app.state.enterAnalyse()
             after(3500, then)
         } else { probe.log("unknown screen " + name); then() }
@@ -100,13 +100,13 @@ Item {
             for (const sc of probe.screens) for (const t of probe.themes) probe.jobs.push({ theme: t, screen: sc })
             const needSession = probe.screens.some(s => s.startsWith("wrist"))
             if (!needSession) { probe.next(); return }
-            navController.navigate(AppScreen.Session)
+            app.navController.navigate(AppScreen.Session)
             app.state.enterCapture()
-            sessionReviewController.loadSession(probe.sessionDir)
+            app.sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
                 probe.after(4000, () => probe.next())
             })

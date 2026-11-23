@@ -108,7 +108,14 @@ Item {
         function showReplay() { autoReturnToCapture = false; mode = replayMode; _load() }
         function clearSelection() { _select("", ""); fakeReplay.stop() }
     }
-    QtObject { id: fakeApp; readonly property var state: fakeState; readonly property var session: null; function sessionAt(folder) { return null } }
+    QtObject {
+        id: fakeApp; readonly property var state: fakeState; readonly property var session: null; function sessionAt(folder) { return null }
+        // the app-wide objects the Charts QML reads through `app` (refactor 5.8b; R-QML-1): the fakes below
+        readonly property var navController: fakeNav
+        readonly property var sessionReviewController: fakeReview
+        readonly property var shotProcessor: fakeProcessor
+        readonly property var reanalysisController: fakeReanalysis
+    }
     QtObject { id: fakeNav; property int currentIndex: AppScreen.Session }   // the gate: the session screen is up
     ListModel { id: carouselShots }
     QtObject {

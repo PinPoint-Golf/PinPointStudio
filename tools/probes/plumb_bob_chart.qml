@@ -156,7 +156,7 @@ Item {
     Instantiator {
         id: rows
         model: {
-            try { return sessionReviewController.activeShots } catch (e) { return null }
+            try { return app.sessionReviewController.activeShots } catch (e) { return null }
         }
         // Plain (not `required`) properties reading the model roles: a required property that a
         // model does not supply is a hard error at delegate creation, and this delegate exists
@@ -170,12 +170,12 @@ Item {
     // ── Reporting ────────────────────────────────────────────────────────────────────────
     function reportEnvironment() {
         probe.w("═══ ENVIRONMENT ═══")
-        try { probe.w("devBuild            = " + appInfo.devBuild) } catch (e) { probe.miss("appInfo") }
+        try { probe.w("devBuild            = " + app.appInfo.devBuild) } catch (e) { probe.miss("appInfo") }
         try { probe.w("athleteLibraryPath  = '" + appSettings.athleteLibraryPath + "'"
                       + "   (QSettings General/athleteLibraryPath — NOT used to find the swing;"
                       + " loadSession takes the absolute dir)") }
         catch (e) { probe.miss("appSettings.athleteLibraryPath") }
-        try { probe.w("athlete             = '" + athleteController.currentName + "'") }
+        try { probe.w("athlete             = '" + app.athleteController.currentName + "'") }
         catch (e) { probe.miss("athleteController.currentName") }
         try { probe.w("replayTrimToSwing   = " + appSettings.replayTrimToSwing) } catch (e) {}
         probe.w("sessionDir          = " + probe.sessionDir)
@@ -185,14 +185,14 @@ Item {
 
     function stepLoadSession() {
         probe.w("═══ 1. LOAD SESSION ═══")
-        if (typeof sessionReviewController === "undefined") return probe.miss("sessionReviewController")
-        sessionReviewController.loadSession(probe.sessionDir)
-        probe.w("reviewActive        = " + sessionReviewController.reviewActive
-                + "   activeSessionId = " + sessionReviewController.activeSessionId
-                + "   shots = " + sessionReviewController.activeShotCount)
-        if (typeof navController === "undefined") return probe.miss("navController")
-        navController.navigate(AppScreen.Session)
-        probe.w("navController.currentIndex = " + navController.currentIndex
+        if ((typeof app === "undefined" || !app.sessionReviewController)) return probe.miss("sessionReviewController")
+        app.sessionReviewController.loadSession(probe.sessionDir)
+        probe.w("reviewActive        = " + app.sessionReviewController.reviewActive
+                + "   activeSessionId = " + app.sessionReviewController.activeSessionId
+                + "   shots = " + app.sessionReviewController.activeShotCount)
+        if ((typeof app === "undefined" || !app.navController)) return probe.miss("navController")
+        app.navController.navigate(AppScreen.Session)
+        probe.w("navController.currentIndex = " + app.navController.currentIndex
                 + " (AppScreen.Session = " + AppScreen.Session + ")")
     }
 
@@ -214,7 +214,7 @@ Item {
         }
         probe.w("shotId              = " + probe.shotId)
         if (typeof SessionMode === "undefined") return probe.miss("SessionMode singleton")
-        app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(probe.shotId), probe.swingDir, false)
+        app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(probe.shotId), probe.swingDir, false)
         try {
             probe.w("app.state.mode    = " + app.state.mode + " (1 = replay)"
                     + "   focusedSwingDir = " + app.state.selection.swingDir)

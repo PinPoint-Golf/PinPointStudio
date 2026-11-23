@@ -61,7 +61,7 @@ Item {
 
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject {
             required property int shotId
             required property int ordinal
@@ -77,13 +77,13 @@ Item {
             probe.step += 1
             const root = probe.Window.window.contentItem
             if (probe.step === 1) {
-                navController.navigate(AppScreen.Session)
+                app.navController.navigate(AppScreen.Session)
                 app.state.enterCapture()
-                sessionReviewController.loadSession(probe.sessionDir)
+                app.sessionReviewController.loadSession(probe.sessionDir)
             } else if (probe.step === 2) {
                 for (let i = 0; i < shots.count; ++i) {
                     const s = shots.objectAt(i)
-                    if (s.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
+                    if (s.ordinal === probe.ordinal) app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
                 }
             } else if (probe.step === 3) {
                 app.state.enterAnalyse()

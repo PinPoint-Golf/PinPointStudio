@@ -49,7 +49,7 @@ Item {
     property int _lastCount: -1
     property int _ticks: 0
 
-    function _model() { return (typeof sessionReport !== "undefined") ? sessionReport : null }
+    function _model() { return ((typeof app !== "undefined" && !!app.sessionReport)) ? app.sessionReport : null }
 
     Connections {
         target: host._model()

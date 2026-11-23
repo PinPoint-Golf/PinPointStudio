@@ -41,26 +41,26 @@ Item {
     // a not-yet-started session still highlights a sensible row. Reactive to
     // activeClub / athlete / bag edits.
     readonly property string currentClub: {
-        void athleteController.athletes
-        return sessionController.activeClub !== ""
-            ? sessionController.activeClub
-            : athleteController.effectivePrimaryClub(athleteController.currentUuid)
+        void app.athleteController.athletes
+        return app.sessionController.activeClub !== ""
+            ? app.sessionController.activeClub
+            : app.athleteController.effectivePrimaryClub(app.athleteController.currentUuid)
     }
 
     // The athlete's bag, in vocabulary order. Empty when there is no athlete or an
     // emptied bag → the panel shows its empty-state hint.
     readonly property var clubModel: {
-        void athleteController.athletes
-        if (!athleteController.hasCurrentAthlete) return []
-        return athleteController.bagClubIds(athleteController.currentUuid)
+        void app.athleteController.athletes
+        if (!app.athleteController.hasCurrentAthlete) return []
+        return app.athleteController.bagClubIds(app.athleteController.currentUuid)
     }
 
     // A club's record (null when there is none). void athletes keeps callers
     // reactive to club edits.
     function _record(id) {
-        void athleteController.athletes
-        if (!id || !athleteController.hasCurrentAthlete) return null
-        const rec = athleteController.clubRecord(athleteController.currentUuid, id)
+        void app.athleteController.athletes
+        if (!id || !app.athleteController.hasCurrentAthlete) return null
+        const rec = app.athleteController.clubRecord(app.athleteController.currentUuid, id)
         return rec.club !== "" ? rec : null
     }
 
@@ -99,7 +99,7 @@ Item {
                     // The shared tile language (PpSelectTile), shared with the View panel cards.
                     selected: sel
                     onClicked: {
-                        sessionController.activeClub = clubRow.modelData
+                        app.sessionController.activeClub = clubRow.modelData
                         root.requestClose()
                     }
 

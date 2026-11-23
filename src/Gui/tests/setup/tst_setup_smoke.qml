@@ -75,6 +75,11 @@ Item {
                                     analyseMode: 2, autoReturnToCapture: false,
                                     selection: { valid: false, shotRef: "", swingDir: "" } } })
             props.shotProcessor = createTemporaryObject(shotProcessorComp, tc)
+            // the app-wide objects the setup QML reads through `app` (refactor 5.8b; R-QML-1), the same fakes
+            props.app.athleteController = fx.athleteController
+            props.app.sessionController = fx.sessionController
+            props.app.navController     = fx.navController
+            props.app.shotProcessor     = props.shotProcessor
             wiz = harness.createWithContext("ScreenSessionSetup", props, host,
                                             { width: host.width, height: host.height, visible: false })
             verify(wiz !== null, "ScreenSessionSetup failed to instantiate over the fakes")
@@ -112,7 +117,7 @@ Item {
 
         // ── Helpers ──────────────────────────────────────────────────────────
         function makeFakes() {
-            return {
+            const fx = {
                 imuManager:        createTemporaryObject(imuMgrComp, tc),
                 cameraManager:     createTemporaryObject(camMgrComp, tc),
                 athleteController: createTemporaryObject(athleteComp, tc),
@@ -123,6 +128,10 @@ Item {
                 appLog:            createTemporaryObject(appLogComp, tc),
                 trunkCeremony:     createTemporaryObject(ceremonyComp, tc)
             }
+            // the app-wide objects the setup QML reads through `app` (refactor 5.8b; R-QML-1), the same fakes
+            fx.app = { athleteController: fx.athleteController, sessionController: fx.sessionController,
+                       navController: fx.navController }
+            return fx
         }
 
         // Depth-first over the visual tree (children) — ids inside the wizard are not reachable

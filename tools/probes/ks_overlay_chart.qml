@@ -46,21 +46,21 @@ Item {
     }
     Instantiator {
         id: rows
-        model: { try { return sessionReviewController.activeShots } catch (e) { return null } }
+        model: { try { return app.sessionReviewController.activeShots } catch (e) { return null } }
         delegate: QtObject {
             property int sid: (model && model.shotId !== undefined) ? model.shotId : -1
             property string sdir: (model && model.swingDir !== undefined) ? model.swingDir : ""
         }
     }
     function stepLoadSession() {
-        sessionReviewController.loadSession(probe.sessionDir)
-        probe.w("session loaded: shots = " + sessionReviewController.activeShotCount)
-        navController.navigate(AppScreen.Session)
+        app.sessionReviewController.loadSession(probe.sessionDir)
+        probe.w("session loaded: shots = " + app.sessionReviewController.activeShotCount)
+        app.navController.navigate(AppScreen.Session)
     }
     function stepFocusSwing() {
         probe.shotId = 0
         for (var i = 0; i < rows.count; ++i) { var o = rows.objectAt(i); if (o && o.sdir === probe.swingDir) { probe.shotId = o.sid; break } }
-        app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(probe.shotId), probe.swingDir, false)
+        app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(probe.shotId), probe.swingDir, false)
         probe.w("focused shotId " + probe.shotId)
     }
     function stepCollectDetail() {

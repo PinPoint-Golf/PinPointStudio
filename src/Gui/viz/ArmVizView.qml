@@ -57,7 +57,7 @@ import "VizMath.js" as VizMath
 Item {
     id: root
 
-    readonly property bool rightHanded: athleteController.currentHandedness !== "Left"
+    readonly property bool rightHanded: app.athleteController.currentHandedness !== "Left"
 
     // ⚠ FRAMED ON THE ELBOW, WHICH IS THE PIVOT — not on the forearm's midpoint in the arm-down
     // pose, which is what this was until Phase E2. That earlier framing assumed the arm hangs, and

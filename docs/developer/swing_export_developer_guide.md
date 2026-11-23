@@ -1150,7 +1150,7 @@ schema version for additive changes — readers ignore unknown kinds by contract
 ### Bulk export — `SwingZipExporter`
 
 The carousel's "export selected shots" action is a separate worker
-(`swing_zip_exporter.{h,cpp}`, QML context property `swingExporter`), built on the
+(`swing_zip_exporter.{h,cpp}`, QML: `app.swingExporter`), built on the
 same discipline as `SwingExporter`: a self-contained value job, a stateless static
 worker on `QtConcurrent`, the result delivered back on the UI thread via
 `QFutureWatcher`.

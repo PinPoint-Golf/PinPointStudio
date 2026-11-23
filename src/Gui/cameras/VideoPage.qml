@@ -48,7 +48,7 @@ Item {
             Repeater {
                 model: cameraManager.cameraList
                 delegate: PpChoiceChip {
-                    readonly property bool chipLocked: cameraManager.isRecording || shotProcessor.isReplaying
+                    readonly property bool chipLocked: cameraManager.isRecording || app.shotProcessor.isReplaying
                     style:    "solidLift"
                     label:    modelData.alias || modelData.description
                     selected: modelData.selected

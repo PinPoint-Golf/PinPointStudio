@@ -340,7 +340,7 @@ QtObject {
     // True when the CURRENT athlete is right-handed, i.e. the lead side is the
     // left side (kp5/7/9). Mirrors the ArmVizView.qml handedness precedent.
     function leadIsLeft() {
-        return athleteController.currentHandedness !== "Left"
+        return app.athleteController.currentHandedness !== "Left"
     }
 
     // ── mutation (write) ────────────────────────────────────────────────────

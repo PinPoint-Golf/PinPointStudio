@@ -83,6 +83,7 @@ Item {
                 cameraManager:     cams,
                 imuManager:        imu,
                 athleteController: athlete,
+                app:               { athleteController: athlete },   // read through `app` (refactor 5.8b; R-QML-1)
                 launchMonitor:     lm,
                 appLog:            log,
                 pageJournal:       journal

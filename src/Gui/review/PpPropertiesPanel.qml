@@ -68,7 +68,7 @@ Item {
             PpPressable {
                 id: copyMa
                 anchors.margins: -Theme.sp(6)
-                onClicked: { clipboard.setText(panel._copyText()); copyConfirm.restart() }
+                onClicked: { app.clipboard.setText(panel._copyText()); copyConfirm.restart() }
             }
         }
 

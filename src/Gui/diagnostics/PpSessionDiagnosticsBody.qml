@@ -110,7 +110,7 @@ Item {
     // "See these shots →" from Home: the filter is only drawn on Session, so that is where it lands. Deferred at build,
     // so it comes after the panel has restored its saved tab; the session dir, for the same filter on another session.
     readonly property string _reasonFilter:
-        typeof sessionReviewController !== "undefined" && sessionReviewController ? String(sessionReviewController.reasonFilter || "") : ""
+        (typeof app !== "undefined" && !!app.sessionReviewController) && app.sessionReviewController ? String(app.sessionReviewController.reasonFilter || "") : ""
     readonly property string _sourceSessionDir: source ? String(source.sessionDir || "") : ""
     function _goToReasonFilter() { if (_reasonFilter !== "" && surface !== "cast") tab = "session" }
     on_ReasonFilterChanged: _goToReasonFilter()

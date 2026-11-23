@@ -27,7 +27,7 @@ ListView {
     // Kind enum, mirrored from NotificationCenter::Kind.
     readonly property int kindCondition: 1
 
-    model: notifications
+    model: app.notifications
 
     // Index 0 — the first thing raised — keeps the bottom anchor position the
     // old saveErrorToast had, and later news piles above it.
@@ -78,8 +78,8 @@ ListView {
             actionText:  row.actionLabel
             // A condition does not auto-hide, so it needs a way out.
             dismissible: row.kind === root.kindCondition
-            onActionClicked:  notifications.invokeAction(row.notificationId)
-            onDismissClicked: notifications.dismiss(row.notificationId)
+            onActionClicked:  app.notifications.invokeAction(row.notificationId)
+            onDismissClicked: app.notifications.dismiss(row.notificationId)
         }
     }
 }

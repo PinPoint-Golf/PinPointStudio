@@ -66,7 +66,7 @@ Item {
 
     Instantiator {
         id: rows
-        model: { try { return sessionReviewController.activeShots } catch (e) { return null } }
+        model: { try { return app.sessionReviewController.activeShots } catch (e) { return null } }
         delegate: QtObject {
             property int    sid:  (model && model.shotId   !== undefined) ? model.shotId   : -1
             property string sdir: (model && model.swingDir !== undefined) ? model.swingDir : ""
@@ -90,9 +90,9 @@ Item {
 
     function stepLoad() {
         probe.w("═══ 1. LOAD " + probe.sessionDir + " ═══")
-        sessionReviewController.loadSession(probe.sessionDir)
-        probe.w("reviewActive=" + sessionReviewController.reviewActive + " shots=" + sessionReviewController.activeShotCount)
-        navController.navigate(AppScreen.Session)
+        app.sessionReviewController.loadSession(probe.sessionDir)
+        probe.w("reviewActive=" + app.sessionReviewController.reviewActive + " shots=" + app.sessionReviewController.activeShotCount)
+        app.navController.navigate(AppScreen.Session)
     }
     function stepFocus() {
         probe.w("═══ 2. FOCUS " + probe.swingDir + " ═══")
@@ -102,7 +102,7 @@ Item {
             if (o && o.sdir === probe.swingDir) { probe.shotId = o.sid; break }
         }
         if (probe.shotId < 0) { probe.w("NOTE: no review row matches; using shotId 0"); probe.shotId = 0 }
-        app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(probe.shotId), probe.swingDir, false)
+        app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(probe.shotId), probe.swingDir, false)
     }
     function stepCollect() {
         probe.w("═══ 3. COLLECT ═══")

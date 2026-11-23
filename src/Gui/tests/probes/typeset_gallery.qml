@@ -69,7 +69,7 @@ Item {
     }
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject { required property int shotId; required property int ordinal; required property string swingDir }
     }
     function after(ms, fn) {
@@ -199,13 +199,13 @@ Item {
             Qt.createQmlObject('import QtQuick; import PinPointStudio; Rectangle { z: -1000; anchors.fill: parent; color: Theme.colorBg }', probe.Window.window.contentItem)
             for (const t of probe.themes) for (const vw of probe.views) for (const st of (probe.states.length ? probe.states : [""])) probe.jobs.push({ theme: t, view: vw, state: st })
             probe.applyLayout()
-            navController.navigate(AppScreen.Session)
+            app.navController.navigate(AppScreen.Session)
             app.state.enterCapture()
-            sessionReviewController.loadSession(probe.sessionDir)
+            app.sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
                 probe.after(3000, () => {
                     if (probe.modeName !== "replay") app.state.enterAnalyse()

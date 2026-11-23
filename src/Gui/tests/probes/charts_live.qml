@@ -96,7 +96,7 @@ Item {
 
     Instantiator {
         id: live
-        model: sessionReviewController.activeShots
+        model: app.sessionReviewController.activeShots
         delegate: QtObject {
             required property int shotId
             required property int ordinal
@@ -177,16 +177,16 @@ Item {
             if (!check(athlete !== "" && liveDir !== "" && lib !== "" && expect >= 0, "arguments given")) { finish(); return }
             probe.Window.window.height = 2000
             appSettings.athleteLibraryPath = lib
-            check(athleteController.selectAthlete(athlete), "the scratch athlete selected")
+            check(app.athleteController.selectAthlete(athlete), "the scratch athlete selected")
             after(1500, done)
         },
         function (done) {
-            navController.navigate(AppScreen.Session)
+            app.navController.navigate(AppScreen.Session)
             app.state.enterCapture()
             waitFor(function () { return !!app.session && probe.same(app.state.sessionOnScreenFolder, probe.liveDir) && live.count > 0 }, 30000,
                     "today's session on screen", function (ok) {
                 check(ok, "today's session is on screen with its shots on the carousel (" + live.count + ")")
-                panelModel = app.session ? diagnosticsAdapters.of(app.session, "probe-live", liveDir) : null
+                panelModel = app.session ? app.diagnosticsAdapters.of(app.session, "probe-live", liveDir) : null
                 if (panelModel) { panelModel.addView(); panelModel.activateSession(liveDir) }
                 check(!!panelModel, "the Session's diagnostics adapter")
                 done()
@@ -197,7 +197,7 @@ Item {
             let best = null
             for (let i = 0; i < live.count; ++i) { const s = live.objectAt(i); if (!best || String(s.swingDir) > String(best.swingDir)) best = s }
             if (!check(!!best, "a shot to pick")) { finish(); return }
-            app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(best.shotId), best.swingDir)
+            app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(best.shotId), best.swingDir)
             log("picked shot " + best.ordinal + " (" + String(best.swingDir).replace(/^.*\//, "") + ")")
             after(2000, function () {
                 app.state.enterAnalyse()

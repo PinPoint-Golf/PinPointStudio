@@ -382,6 +382,11 @@ Item {
             shotProcessor:     shotProcessorComp.createObject(drv),
             trunkCeremony:     ceremonyComp.createObject(drv)
         }
+        // The app-wide objects the setup QML reads through `app` (refactor 5.8b; R-QML-1), the same fakes.
+        fx.app.athleteController = fx.athleteController
+        fx.app.sessionController = fx.sessionController
+        fx.app.navController     = fx.navController
+        fx.app.shotProcessor     = fx.shotProcessor
     }
     // setup: "witmotion2" | "witmotion3" | "hackmotion" | "none"
     // opts.hmMode: "autoScript" (default) | "strict" | "manual"

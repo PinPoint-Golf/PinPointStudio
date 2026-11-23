@@ -113,20 +113,20 @@ Item {
     // are a live markup-workflow affordance that disappears when the panel is toggled
     // out of the View, not always-on chrome.
     readonly property var _markupMarkers: (app.state.replay.active
-        && markupController.panelVisible
-        && markupController.hasSwing
-        && markupController.currentSwingDir === app.state.replay.swingDir)
-        ? markupController.eventList : []
+        && app.markupController.panelVisible
+        && app.markupController.hasSwing
+        && app.markupController.currentSwingDir === app.state.replay.swingDir)
+        ? app.markupController.eventList : []
 
     // Every frame on the current swing that has a club/shaft laid, same domain and
     // visibility gate as the diamonds above. Drawn as thin ticks straddling the line
     // so the spread of shaft markings reads at a glance — complementing the diamonds,
     // which only flag the named P-positions.
     readonly property var _shaftMarkers: (app.state.replay.active
-        && markupController.panelVisible
-        && markupController.hasSwing
-        && markupController.currentSwingDir === app.state.replay.swingDir)
-        ? markupController.shaftList : []
+        && app.markupController.panelVisible
+        && app.markupController.hasSwing
+        && app.markupController.currentSwingDir === app.state.replay.swingDir)
+        ? app.markupController.shaftList : []
 
     // Readout chip values at the playhead.
     readonly property string _activeName: (_activeIdx >= 0 && _activeIdx < _stations.length)

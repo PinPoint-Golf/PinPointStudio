@@ -83,7 +83,7 @@ Item {
     }
 
     Connections {
-        target: sessionReport
+        target: app.sessionReport
         function onPrepared(dir, ok, report, error) {
             if (!ok) { probe.log("FAILED " + dir + ": " + error); Qt.exit(3); return }
             probe.map = report
@@ -194,7 +194,7 @@ Item {
             if (probe.sessionDir === "") { probe.log("give --probe-session"); Qt.exit(2); return }
             Theme.themeIndex = parseInt(probe.arg("--probe-theme", "12"))
             probe.log("theme " + Theme.aesthetic + (Theme.dark ? " dark" : " light") + "; preparing " + probe.sessionDir)
-            sessionReport.prepare(probe.sessionDir, { note: "", stills: probe.stills })
+            app.sessionReport.prepare(probe.sessionDir, { note: "", stills: probe.stills })
         }
     }
     Timer { interval: 600000; running: true; onTriggered: { probe.log("WATCHDOG"); Qt.exit(4) } }

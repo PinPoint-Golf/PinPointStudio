@@ -110,6 +110,7 @@
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "../App/housekeeping.h"             // the one application service that ends things for good (DEC-80)
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
+#include "app/gui_app.h"                     // `app` as QML reaches it, with the app-wide objects hung from it (5.8b)
 #include "../App/session_shot_source.h"      // the carousel's port onto a Session (refactor step 5.2; R-QML-5)
 #include "../App/outcome_summary.h"             // the carousel's shot summary, AppState's doors (refactor 4-b)
 #include "../App/athlete_catch_up.h"         // the catch-up, an application service (refactor 3.7-e)
@@ -512,7 +513,7 @@ int main(int argc, char *argv[])
     });
     // `app` (D1: DEC-164): app.sessionAt(folder), the Session of a folder a view still chooses itself, asked of
     // the current athlete. The diagnostics panel and the cast call it (refactor 3.7-a).
-    pinpoint::App           appObject([&athleteController] { return athleteController.currentAthlete(); });
+    pinpoint::GuiApp        appObject([&athleteController] { return athleteController.currentAthlete(); });
     // A session belongs to its athlete whoever is current (step 5.1; J-67): app.sessionAt and the door find a folder
     // through whichever athlete the repository holds — a late clip, reading or re-analysis after a switch of golfer, and
     // the Unassigned owner's sessions (a capture with no golfer chosen: §5.11).
@@ -1706,28 +1707,17 @@ int main(int argc, char *argv[])
     markupController.setShotCommands(&appObject);   // the truth read and saved by the swing's Shot (3.4b-i, 5.7d)
     engine.addImageProvider(QStringLiteral("markup"), markupProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
-    engine.rootContext()->setContextProperty(QStringLiteral("libraryConverter"),  &libraryConverter);
-    engine.rootContext()->setContextProperty(QStringLiteral("archiveController"), &archiveController);
-    engine.rootContext()->setContextProperty(QStringLiteral("appInfo"),           &appInfo);
     engine.rootContext()->setContextProperty(QStringLiteral("secrets"),           &secrets);
-    engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
     engine.rootContext()->setContextProperty(QStringLiteral("app"),               &appObject);
-    // A Session's thin diagnostics adapter for a screen (refactor 3.7-a): diagnosticsAdapters.of(app.sessionAt(dir), surface).
-    engine.rootContext()->setContextProperty(QStringLiteral("diagnosticsAdapters"), &diagnosticsAdapters);
-    engine.rootContext()->setContextProperty(QStringLiteral("navController"),     &navController);
     engine.rootContext()->setContextProperty(QStringLiteral("imuManager"),       &imuManager);
     engine.rootContext()->setContextProperty(QStringLiteral("trunkCeremony"),    &trunkCeremony);
     engine.rootContext()->setContextProperty(QStringLiteral("launchMonitor"),   &launchMonitorController);
     engine.rootContext()->setContextProperty(QStringLiteral("controller"),       &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("ttsController"),    &ttsController);
-    engine.rootContext()->setContextProperty(QStringLiteral("llmController"),    &llmController);
     engine.rootContext()->setContextProperty(QStringLiteral("cameraManager"),    &cameraManager);
     engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);
     engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
     engine.rootContext()->setContextProperty(QStringLiteral("profiler"),         &profilerController);
-    engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
-    engine.rootContext()->setContextProperty(QStringLiteral("notifications"),     &notificationCenter);
-    engine.rootContext()->setContextProperty(QStringLiteral("updateController"),   &updateController);
     engine.rootContext()->setContextProperty(QStringLiteral("cudaRuntime"),        &cudaRuntime);
     engine.rootContext()->setContextProperty(QStringLiteral("appLog"),             &appLog);
     // (The PINPOINT_DEV_TRUNK_MOUNTS dev seam went with W2.2: the trunk mounts are offered because the
@@ -1741,9 +1731,8 @@ int main(int argc, char *argv[])
     // the host picks from that list. That UI is S3's (H4–H7); this controller
     // is the engine behind it. HAVE_PPCP means only "the library is linked".
 #ifdef HAVE_PPCP
+    // (No context property since refactor 5.8b: no QML reads it. It shares the host's ledger below.)
     static PpcpImportController ppcpImportController;
-    engine.rootContext()->setContextProperty(QStringLiteral("ppcpImport"),
-                                             &ppcpImportController);
 
     // H5 — the offer list, which IS the user-facing half of the above. A
     // connected capture device sends `session_offer` for each Session it holds
@@ -1960,9 +1949,6 @@ int main(int argc, char *argv[])
 
     engine.rootContext()->setContextProperty(QStringLiteral("ppcpHost"), &ppcpHost);
 #endif
-    engine.rootContext()->setContextProperty(QStringLiteral("motionCaptureProbe"), &motionCaptureProbe);
-    engine.rootContext()->setContextProperty(QStringLiteral("sessionReviewController"), &sessionReviewController);
-    engine.rootContext()->setContextProperty(QStringLiteral("workOns"),           &workOns);
     // These four live on main()'s stack. Mark them C++-owned explicitly: the QML engine otherwise came to
     // treat the report model as its own and its garbage collector deleteLater()'d it a few seconds into a
     // windowed launch ("pointer being freed was not allocated" in ~SessionReportModel, 21 Oct 2026).
@@ -1970,17 +1956,38 @@ int main(int argc, char *argv[])
                         static_cast<QObject *>(&sessionReportList), static_cast<QObject *>(&reportMailer) })
         QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
     engine.rootContext()->setContextProperty(QStringLiteral("studioProfile"),     &studioProfile);
-    engine.rootContext()->setContextProperty(QStringLiteral("sessionReport"),     &sessionReport);
-    engine.rootContext()->setContextProperty(QStringLiteral("sessionReportList"), &sessionReportList);
-    engine.rootContext()->setContextProperty(QStringLiteral("reportMailer"),      &reportMailer);
-    engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
-    engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
-    engine.rootContext()->setContextProperty(QStringLiteral("shotModel"),         &shotModel);
-    engine.rootContext()->setContextProperty(QStringLiteral("reanalysisController"), &reanalysisController);
-    engine.rootContext()->setContextProperty(QStringLiteral("swingExporter"),     &swingZipExporter);
     engine.rootContext()->setContextProperty(QStringLiteral("liveWrist"),         &liveWrist);
-    engine.rootContext()->setContextProperty(QStringLiteral("markupController"),  &markupController);
-    engine.rootContext()->setContextProperty(QStringLiteral("clipboard"),         &clipboardHelper);
+
+    // THE APP-WIDE OBJECTS, REACHED THROUGH `app` (refactor 5.8b; R-QML-1: the context globals are only devices, settings,
+    // logging and `app`). Each was a context property of its own; QML reads it as app.<the same name> (gui_app.h).
+    {
+        pinpoint::GuiApp::Members m;
+        m.athleteController       = &athleteController;
+        m.sessionController       = &sessionController;
+        m.sessionReviewController = &sessionReviewController;
+        m.navController           = &navController;
+        m.diagnosticsAdapters     = &diagnosticsAdapters;
+        m.workOns                 = &workOns;
+        m.shotController          = &shotController;
+        m.shotProcessor           = &shotProcessor;
+        m.shotModel               = &shotModel;
+        m.reanalysisController    = &reanalysisController;
+        m.markupController        = &markupController;
+        m.sessionReport           = &sessionReport;
+        m.sessionReportList       = &sessionReportList;
+        m.reportMailer            = &reportMailer;
+        m.swingExporter           = &swingZipExporter;
+        m.archiveController       = &archiveController;
+        m.libraryConverter        = &libraryConverter;
+        m.updateController        = &updateController;
+        m.llmController           = &llmController;
+        m.notifications           = &notificationCenter;
+        m.motionCaptureProbe      = &motionCaptureProbe;
+        m.appInfo                 = &appInfo;
+        m.clipboard               = &clipboardHelper;
+        appObject.setMembers(m);
+    }
+
 
     // Clean merger shutdown before Qt tears down its event loop. Shut the platform
     // updater (WinSparkle on Windows) down first so its helper threads stop cleanly.

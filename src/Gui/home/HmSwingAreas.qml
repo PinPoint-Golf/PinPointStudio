@@ -47,10 +47,10 @@ Column {
     objectName: "swingAreas"
 
     // Passed in rather than reached for, so a harness can drive the component.
-    property var    controller:  (typeof workOns !== "undefined") ? workOns : null
+    property var    controller:  ((typeof app !== "undefined" && !!app.workOns)) ? app.workOns : null
     property var    settings:    (typeof appSettings !== "undefined") ? appSettings : null
-    property string athleteUuid: (typeof athleteController !== "undefined" && athleteController)
-                                 ? athleteController.currentUuid : ""
+    property string athleteUuid: ((typeof app !== "undefined" && !!app.athleteController) && app.athleteController)
+                                 ? app.athleteController.currentUuid : ""
 
     signal practiseRequested(string conditionId, string label)
     // An open fault's "Review the … session →".

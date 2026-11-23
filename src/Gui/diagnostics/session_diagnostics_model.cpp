@@ -1193,6 +1193,21 @@ QVariantMap SessionDiagnosticsModel::shotOutcome(int shotId) const
     QVariantList labels;
     for (const ShotOutcomeLabel &l : o.labels) labels.append(outcomeLabelMap(l, s, usual));
 
+    // THE CORRECTION ROW'S WORDS (refactor 5.8b; audit G-11): the "none of these" word for each family the row can
+    // show (the labels' and the pack's outcome conditions', missCandidates), and the shapes the golfer may say they
+    // meant, off the direction labels as the golfer reads them (`id`, the display id). The rules are shot_outcomes.h's.
+    QVariantMap noneWords;
+    QStringList directionIds;
+    for (const char *f : { "strike", "direction", "flight" })
+        noneWords.insert(QString::fromLatin1(f), outcomeNoneWord(QString::fromLatin1(f)));
+    for (const ShotOutcomeLabel &l : o.labels) {
+        noneWords.insert(l.family, outcomeNoneWord(l.family));
+        if (l.family == QLatin1String("direction")) directionIds << l.displayId;
+    }
+    if (m_packProv)
+        for (const Condition &c : m_packProv->pack().conditions)
+            if (c.kind == ConditionKind::Outcome) noneWords.insert(c.family, outcomeNoneWord(c.family));
+
     QVariantMap driver;
     if (!o.driver.id.isEmpty())
         driver = QVariantMap{
@@ -1253,6 +1268,8 @@ QVariantMap SessionDiagnosticsModel::shotOutcome(int shotId) const
         { QStringLiteral("strikeFlightNote"), o.strikeFlightNote },
         { QStringLiteral("clean"),          o.clean },
         { QStringLiteral("labels"),         labels },
+        { QStringLiteral("noneWords"),      noneWords },
+        { QStringLiteral("meantShapes"),    outcomeMeantShapes(directionIds) },
         { QStringLiteral("driver"),         driver },
         { QStringLiteral("links"),          links },
         { QStringLiteral("carry"),          carry },
@@ -2565,6 +2582,24 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
             .arg(fmtSpread(v, a.decimals, unit), spreadPositionWords(c, v, a.decimals), verdict);
     };
     out[QStringLiteral("currentReadout")] = (fi >= 0 && fi < n) ? readoutOf(fi) : QString();
+
+    // ── the distance to travel: this shot against the strip's pass edge and fault line (Detail's key figures) ──
+    // (spreadTravelItems, session_spread.h; refactor 5.8b: the rule left PpDiagAnalyse.qml)
+    {
+        QVariantList travel;
+        if (fi >= 0 && fi < n && std::isfinite(values[size_t(fi)])) {
+            std::vector<double> faults;   // as publishCorridor publishes them: inside the axis, the low one first
+            if (c.known && !c.lowOpen  && c.faultLo >= a.lo && c.faultLo <= a.hi) faults.push_back(c.faultLo);
+            if (c.known && !c.highOpen && c.faultHi >= a.lo && c.faultHi <= a.hi) faults.push_back(c.faultHi);
+            for (const SpreadTravelItem &t : spreadTravelItems(spreadBands(c, a), faults, values[size_t(fi)], a.decimals, fi + 1)) {
+                QVariantMap m{ { QStringLiteral("label"), t.label }, { QStringLiteral("figure"), t.figure } };
+                if (t.hasWord) m.insert(QStringLiteral("word"), t.word);
+                travel.append(m);
+            }
+        }
+        out[QStringLiteral("travel")]     = travel;
+        out[QStringLiteral("travelShot")] = travel.isEmpty() ? QString() : QStringLiteral("Shot %1").arg(fi + 1);   // the items' subject
+    }
 
     // ── the card's two figures ────────────────────────────────────────────────────────
     //

@@ -39,7 +39,7 @@ PpCard {
     objectName: "homeTabTendencies"
 
     // Passed in rather than reached for, so a harness can drive the component.
-    property var    controller:  (typeof workOns !== "undefined") ? workOns : null
+    property var    controller:  ((typeof app !== "undefined" && !!app.workOns)) ? app.workOns : null
     property string athleteUuid: ""
     property string group: ""       // a clubGroup, or "" for every club
 

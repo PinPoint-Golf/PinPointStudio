@@ -28,7 +28,7 @@ Item {
     signal newAthleteRequested()
     signal editAthleteRequested(string uuid)
 
-    property string selectedUuid: athleteController.currentUuid
+    property string selectedUuid: app.athleteController.currentUuid
 
     // A running session's swings are being saved to the current golfer, so the golfer cannot be
     // switched (or deleted) until it ends. This is the UI of the rule (Select and Delete greyed,
@@ -39,8 +39,8 @@ Item {
 
     property var filteredAthletes: {
         const q = searchField.text.trim().toLowerCase()
-        if (q === "") return athleteController.athletes
-        return athleteController.athletes.filter(function(a) {
+        if (q === "") return app.athleteController.athletes
+        return app.athleteController.athletes.filter(function(a) {
             return a.name.toLowerCase().indexOf(q) >= 0
         })
     }
@@ -50,7 +50,7 @@ Item {
     function switchTo(uuid) {
         if (uuid === "" || sessionRunning) return
         selectedUuid = uuid
-        athleteController.selectAthlete(uuid)
+        app.athleteController.selectAthlete(uuid)
         athleteSelected(uuid)
     }
 
@@ -62,10 +62,10 @@ Item {
     property string _deleteUuid: ""
     // THE UNASSIGNED OWNER (information_model.md §5.11; DEC-198): its record is its id and name only — never edited or
     // deleted (its sessions are moved to golfers, or trashed one by one). Its card still selects and switches.
-    function isUnassigned(uuid) { return uuid !== "" && uuid === athleteController.unassignedUuid }
+    function isUnassigned(uuid) { return uuid !== "" && uuid === app.athleteController.unassignedUuid }
     function edit(uuid) { if (!root.isUnassigned(uuid)) root.editAthleteRequested(uuid) }
     function askToDelete(uuid) {
-        const a = athleteController.athletes.find(function(x) { return x.uuid === uuid })
+        const a = app.athleteController.athletes.find(function(x) { return x.uuid === uuid })
         if (!a) return
         const n    = a.sessionCount || 0
         const days = typeof appSettings !== "undefined" ? (appSettings.trashRetentionDays || 0) : 0
@@ -89,7 +89,7 @@ Item {
         onConfirmed: {
             const uuid = root._deleteUuid
             root._deleteUuid = ""
-            if (uuid !== "" && athleteController.deleteAthlete(uuid))
+            if (uuid !== "" && app.athleteController.deleteAthlete(uuid))
                 root.selectedUuid = ""
         }
         onCancelled: root._deleteUuid = ""
@@ -98,8 +98,8 @@ Item {
     // Pre-select the current athlete whenever this screen becomes visible
     onVisibleChanged: {
         if (visible) {
-            selectedUuid = athleteController.currentUuid
-            athleteController.refreshActivity()     // sessions recorded since it was last open
+            selectedUuid = app.athleteController.currentUuid
+            app.athleteController.refreshActivity()     // sessions recorded since it was last open
         }
     }
 
@@ -128,7 +128,7 @@ Item {
             Column {
                 width:   parent.width
                 spacing: Theme.gap(8)
-                visible: athleteController.athletes.length > 0
+                visible: app.athleteController.athletes.length > 0
 
                 PpMicro {
                     text:          Theme.caps(qsTr("Recent"))
@@ -140,7 +140,7 @@ Item {
                     width:   parent.width
                     spacing: Theme.gap(10)
 
-                    readonly property int cardCount: Math.min(3, athleteController.athletes.length)
+                    readonly property int cardCount: Math.min(3, app.athleteController.athletes.length)
 
                     Repeater {
                         model: recentRow.cardCount
@@ -150,7 +150,7 @@ Item {
                             objectName:   "athleteRecentCard_" + index
                             width:        (recentRow.width - (recentRow.cardCount - 1) * recentRow.spacing)
                                               / recentRow.cardCount
-                            athleteData:  athleteController.athletes[index]
+                            athleteData:  app.athleteController.athletes[index]
                             isSelected:   athleteData.uuid === root.selectedUuid
                             // One click on a Recent card switches to that golfer and goes Home.
                             onClicked:    root.switchTo(athleteData.uuid)
@@ -161,7 +161,7 @@ Item {
 
             Item {
                 width:  1
-                height: athleteController.athletes.length > 0 ? Theme.gap(24) : 0
+                height: app.athleteController.athletes.length > 0 ? Theme.gap(24) : 0
             }
 
             // ── All athletes header row ───────────────────────────────────────
@@ -169,7 +169,7 @@ Item {
                 width: parent.width
 
                 PpMicro {
-                    text:             qsTr("All athletes · %1 total").arg(athleteController.athletes.length)
+                    text:             qsTr("All athletes · %1 total").arg(app.athleteController.athletes.length)
                     Layout.alignment: Qt.AlignVCenter
                 }
                 Item { Layout.fillWidth: true }
@@ -202,7 +202,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     visible:        root.filteredAthletes.length === 0
-                    text:           athleteController.athletes.length === 0
+                    text:           app.athleteController.athletes.length === 0
                                         ? qsTr("No athletes yet — add one below")
                                         : qsTr("No athletes match \"%1\"").arg(searchField.text)
                     font.family:    Theme.fontBody
@@ -231,7 +231,7 @@ Item {
                             root.edit(modelData.uuid)
                         }
                         canSwitch:   !root.sessionRunning
-                                     && modelData.uuid !== athleteController.currentUuid
+                                     && modelData.uuid !== app.athleteController.currentUuid
                         onSwitchRequested: root.switchTo(modelData.uuid)
                     }
                 }
@@ -245,7 +245,7 @@ Item {
                 visible:  root.sessionRunning
                 width:    parent.width
                 text:     qsTr("A session is running for %1. End it to switch or delete a golfer.")
-                              .arg(athleteController.currentName)
+                              .arg(app.athleteController.currentName)
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
                 color:          Theme.colorWarn
@@ -281,7 +281,7 @@ Item {
                 PpButton {
                     label: {
                         if (root.selectedUuid === "") return qsTr("Select athlete ↗")
-                        const found = athleteController.athletes.find(
+                        const found = app.athleteController.athletes.find(
                             function(a) { return a.uuid === root.selectedUuid })
                         return found ? qsTr("Select %1 ↗").arg(found.name) : qsTr("Select athlete ↗")
                     }

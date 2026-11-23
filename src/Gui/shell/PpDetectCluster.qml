@@ -46,7 +46,7 @@ import PinPointStudio
 Item {
     id: root
 
-    readonly property bool armed:   shotController.armed
+    readonly property bool armed:   app.shotController.armed
     readonly property bool hovered: hoverMa.containsMouse && armed
 
     implicitWidth:  cluster.implicitWidth + Theme.sp(28)
@@ -140,7 +140,7 @@ Item {
         id: hoverMa
         enabled: root.armed
         onClicked: {
-            shotController.triggerShot()
+            app.shotController.triggerShot()
             if (!Theme.reduceMotion) shotFlash.restart()
         }
     }
@@ -164,7 +164,7 @@ Item {
         }
     }
     Connections {
-        target: shotController
+        target: app.shotController
         function onShotDetected(source, timestampUs, sessionType) { root.lmReceived = false }
     }
 
@@ -211,7 +211,7 @@ Item {
         property bool   presence:  false
 
         readonly property bool _live:  available && (!dd.isDetector || appSettings.autoDetectSwing)
-        readonly property bool armed:  _live && (!dd.isDetector || shotController.armed)
+        readonly property bool armed:  _live && (!dd.isDetector || app.shotController.armed)
         readonly property real _alpha: armed ? 1.0 : (_live ? 0.38 : 0.14)
 
         implicitWidth: Theme.sp(8); implicitHeight: Theme.sp(8)

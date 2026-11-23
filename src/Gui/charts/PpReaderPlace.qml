@@ -355,7 +355,7 @@ QtObject {
     // card does. Not gated on `active`: a cast picks too.
     readonly property Instantiator _carouselShots: Instantiator {
         id: carouselShots
-        model: sessionReviewController.activeShots
+        model: app.sessionReviewController.activeShots
         delegate: QtObject {
             required property int shotId
             required property string swingDir
@@ -366,7 +366,7 @@ QtObject {
         for (let i = 0; i < carouselShots.count; ++i) {
             const s = carouselShots.objectAt(i)
             if (s && s.swingDir && SessionMode.sameFolder(s.swingDir, swingDir)) {
-                app.state.pickShot(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
+                app.state.pickShot(app.sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
                 return true
             }
         }

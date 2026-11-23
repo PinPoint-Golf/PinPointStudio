@@ -44,7 +44,7 @@ SettingsPanelBase {
     // screen, so it drives the lazy motion-capture hardware probe on first appear
     // rather than at app launch — see onHostVisibleChanged.
     property bool hostVisible: false
-    onHostVisibleChanged: if (hostVisible) motionCaptureProbe.refresh()
+    onHostVisibleChanged: if (hostVisible) app.motionCaptureProbe.refresh()
 
     // ── Cloud Fallback reusable rows ──────────────────────────────────────────
 
@@ -289,9 +289,9 @@ SettingsPanelBase {
         // Commit High the moment its model finishes downloading, then clear
         // the prompt. Keyed off highModelChanged (present/downloading/error).
         Connections {
-            target: motionCaptureProbe
+            target: app.motionCaptureProbe
             function onHighModelChanged() {
-                if (mcSection.promptHighDownload && motionCaptureProbe.highModelPresent) {
+                if (mcSection.promptHighDownload && app.motionCaptureProbe.highModelPresent) {
                     appSettings.motionCaptureQuality = qsTr("High")
                     mcSection.promptHighDownload = false
                 }
@@ -308,10 +308,10 @@ SettingsPanelBase {
             // not to support it drops to "Medium" once the probe completes. Done
             // in a handler (not a binding) to avoid a binding loop on the value.
             Connections {
-                target: motionCaptureProbe
+                target: app.motionCaptureProbe
                 function onStateChanged() {
-                    if (motionCaptureProbe.ready
-                            && !motionCaptureProbe.highTierSupported
+                    if (app.motionCaptureProbe.ready
+                            && !app.motionCaptureProbe.highTierSupported
                             && appSettings.motionCaptureQuality === qsTr("High"))
                         appSettings.motionCaptureQuality = qsTr("Medium")
                 }
@@ -332,14 +332,14 @@ SettingsPanelBase {
                     Text {
                         Layout.fillWidth: true
                         readonly property int selectedSeconds: {
-                            var v = motionCaptureProbe.secondsPerSwing[appSettings.motionCaptureQuality];
+                            var v = app.motionCaptureProbe.secondsPerSwing[appSettings.motionCaptureQuality];
                             return (v === undefined || v === null) ? -1 : v;
                         }
-                        text: motionCaptureProbe.probing
+                        text: app.motionCaptureProbe.probing
                                   ? qsTr("Measuring your computer…")
                               : (appSettings.motionCaptureQuality === qsTr("High")
-                                 && !motionCaptureProbe.highTierSupported)
-                                  ? motionCaptureProbe.highTierBlockReason
+                                 && !app.motionCaptureProbe.highTierSupported)
+                                  ? app.motionCaptureProbe.highTierBlockReason
                               : selectedSeconds > 0
                                   ? qsTr("About %1 seconds to analyse each swing").arg(selectedSeconds)
                                   : qsTr("Measured after your first swing")
@@ -354,13 +354,13 @@ SettingsPanelBase {
                     options:  [qsTr("Medium"), qsTr("High")]
                     selected: appSettings.motionCaptureQuality
                     // Grey the High chip until the probe confirms the machine can run it.
-                    disabledOptions: motionCaptureProbe.highTierSupported ? [] : [qsTr("High")]
+                    disabledOptions: app.motionCaptureProbe.highTierSupported ? [] : [qsTr("High")]
                     // Selecting High needs the (unshipped) large model: prompt to
                     // download it first and commit High only once it lands. Every
                     // other tier commits immediately.
                     onSelectionChanged: (value) => {
-                        if (value === qsTr("High") && !motionCaptureProbe.highModelPresent) {
-                            motionCaptureProbe.clearHighModelDownloadError()
+                        if (value === qsTr("High") && !app.motionCaptureProbe.highModelPresent) {
+                            app.motionCaptureProbe.clearHighModelDownloadError()
                             mcSection.promptHighDownload = true
                         } else {
                             appSettings.motionCaptureQuality = value
@@ -379,16 +379,16 @@ SettingsPanelBase {
             id: dlPanel
             Layout.fillWidth: true
             visible: mcSection.promptHighDownload
-                     || motionCaptureProbe.highModelDownloading
-                     || motionCaptureProbe.highModelDownloadError !== ""
+                     || app.motionCaptureProbe.highModelDownloading
+                     || app.motionCaptureProbe.highModelDownloadError !== ""
             implicitHeight: dlCol.implicitHeight + Theme.gap(20)
             radius: Theme.radius
             color:  Theme.colorBg2
             border.width: 1
             border.color: Theme.colorBorder
 
-            readonly property real gbSize: Math.round(motionCaptureProbe.highModelSizeBytes / 1e9 * 10) / 10
-            readonly property int  pct:    Math.max(0, Math.round(motionCaptureProbe.highModelDownloadProgress * 100))
+            readonly property real gbSize: Math.round(app.motionCaptureProbe.highModelSizeBytes / 1e9 * 10) / 10
+            readonly property int  pct:    Math.max(0, Math.round(app.motionCaptureProbe.highModelDownloadProgress * 100))
 
             ColumnLayout {
                 id: dlCol
@@ -401,11 +401,11 @@ SettingsPanelBase {
                     wrapMode: Text.WordWrap
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
-                    color: motionCaptureProbe.highModelDownloadError !== "" ? Theme.colorWarn : Theme.colorText2
-                    text: motionCaptureProbe.highModelDownloadError !== ""
-                              ? qsTr("Download failed: %1").arg(motionCaptureProbe.highModelDownloadError)
-                          : motionCaptureProbe.highModelDownloading
-                              ? (motionCaptureProbe.highModelDownloadProgress >= 0
+                    color: app.motionCaptureProbe.highModelDownloadError !== "" ? Theme.colorWarn : Theme.colorText2
+                    text: app.motionCaptureProbe.highModelDownloadError !== ""
+                              ? qsTr("Download failed: %1").arg(app.motionCaptureProbe.highModelDownloadError)
+                          : app.motionCaptureProbe.highModelDownloading
+                              ? (app.motionCaptureProbe.highModelDownloadProgress >= 0
                                      ? qsTr("Downloading high-quality model… %1%").arg(dlPanel.pct)
                                      : qsTr("Downloading high-quality model…"))
                               : qsTr("High quality uses a larger motion model — a one-time download of about %1 GB.").arg(dlPanel.gbSize)
@@ -414,15 +414,15 @@ SettingsPanelBase {
                 // Determinate progress bar (only while downloading with a known size).
                 Rectangle {
                     Layout.fillWidth: true
-                    visible: motionCaptureProbe.highModelDownloading
-                             && motionCaptureProbe.highModelDownloadProgress >= 0
+                    visible: app.motionCaptureProbe.highModelDownloading
+                             && app.motionCaptureProbe.highModelDownloadProgress >= 0
                     height: Theme.sp(4)
                     radius: height / 2
                     color:  Theme.colorBorder
                     Rectangle {
                         height: parent.height
                         radius: parent.radius
-                        width:  parent.width * Math.max(0, Math.min(1, motionCaptureProbe.highModelDownloadProgress))
+                        width:  parent.width * Math.max(0, Math.min(1, app.motionCaptureProbe.highModelDownloadProgress))
                         color:  Theme.colorAccent
                     }
                 }
@@ -433,41 +433,41 @@ SettingsPanelBase {
                     Item { Layout.fillWidth: true }
 
                     PpButton {
-                        visible: motionCaptureProbe.highModelDownloading
+                        visible: app.motionCaptureProbe.highModelDownloading
                         label:   qsTr("Cancel")
                         onClicked: {
-                            motionCaptureProbe.cancelHighModelDownload()
+                            app.motionCaptureProbe.cancelHighModelDownload()
                             mcSection.promptHighDownload = false
                         }
                     }
                     PpButton {
-                        visible: !motionCaptureProbe.highModelDownloading
-                                 && motionCaptureProbe.highModelDownloadError === ""
+                        visible: !app.motionCaptureProbe.highModelDownloading
+                                 && app.motionCaptureProbe.highModelDownloadError === ""
                         label:   qsTr("Not now")
                         onClicked: mcSection.promptHighDownload = false
                     }
                     PpButton {
-                        visible: !motionCaptureProbe.highModelDownloading
-                                 && motionCaptureProbe.highModelDownloadError === ""
+                        visible: !app.motionCaptureProbe.highModelDownloading
+                                 && app.motionCaptureProbe.highModelDownloadError === ""
                         label:   qsTr("Download")
                         primary: true
-                        onClicked: motionCaptureProbe.downloadHighModel()
+                        onClicked: app.motionCaptureProbe.downloadHighModel()
                     }
                     PpButton {
-                        visible: motionCaptureProbe.highModelDownloadError !== ""
-                                 && !motionCaptureProbe.highModelDownloading
+                        visible: app.motionCaptureProbe.highModelDownloadError !== ""
+                                 && !app.motionCaptureProbe.highModelDownloading
                         label:   qsTr("Dismiss")
                         onClicked: {
-                            motionCaptureProbe.clearHighModelDownloadError()
+                            app.motionCaptureProbe.clearHighModelDownloadError()
                             mcSection.promptHighDownload = false
                         }
                     }
                     PpButton {
-                        visible: motionCaptureProbe.highModelDownloadError !== ""
-                                 && !motionCaptureProbe.highModelDownloading
+                        visible: app.motionCaptureProbe.highModelDownloadError !== ""
+                                 && !app.motionCaptureProbe.highModelDownloading
                         label:   qsTr("Try again")
                         primary: true
-                        onClicked: motionCaptureProbe.downloadHighModel()
+                        onClicked: app.motionCaptureProbe.downloadHighModel()
                     }
                 }
             }
@@ -536,11 +536,11 @@ SettingsPanelBase {
 
                 // Live updater state (Linux AppImage). Off-Linux / dev builds
                 // report "unsupported"/"devbuild" and the action is hidden.
-                readonly property string uState: updateController.state
+                readonly property string uState: app.updateController.state
 
                 // The status badge {text, fg, bg}, in the words update_states.js gives every
                 // updater surface ("short": "Checking…" fits the row of chips).
-                readonly property var pal: UpdateStates.badge(uState, "short", updateController.progress, Theme)
+                readonly property var pal: UpdateStates.badge(uState, "short", app.updateController.progress, Theme)
 
                 Rectangle {
                     implicitWidth:  verText.implicitWidth + Theme.sp(20)
@@ -576,15 +576,15 @@ SettingsPanelBase {
                 PpButton {
                     id: updAction
                     readonly property string mode:
-                        !updateController.supported ? "" : UpdateStates.actionMode(verRow.uState)
+                        !app.updateController.supported ? "" : UpdateStates.actionMode(verRow.uState)
                     visible: mode !== ""
                     style: "tone"; size: "micro"; mono: true
                     tone: (mode === "download" || mode === "restart") ? "accent" : ""
                     label: UpdateStates.actionLabel(updAction.mode, "short")
                     onClicked: {
-                        if (updAction.mode === "download")      updateController.download()
-                        else if (updAction.mode === "restart")  updateController.relaunch()
-                        else                                    updateController.checkNow()
+                        if (updAction.mode === "download")      app.updateController.download()
+                        else if (updAction.mode === "restart")  app.updateController.relaunch()
+                        else                                    app.updateController.checkNow()
                     }
                 }
             }
@@ -594,12 +594,12 @@ SettingsPanelBase {
     // Updater status / error line (e.g. "End the session to install").
     Text {
         Layout.fillWidth: true
-        visible: updateController.supported && text.length > 0
-        text: updateController.state === "error" ? updateController.errorString
-              : updateController.statusMessage
+        visible: app.updateController.supported && text.length > 0
+        text: app.updateController.state === "error" ? app.updateController.errorString
+              : app.updateController.statusMessage
         font.family:    Theme.fontData
         font.pixelSize: Theme.fontSzMicro
-        color:          updateController.state === "error" ? Theme.colorWarn : Theme.colorText3
+        color:          app.updateController.state === "error" ? Theme.colorWarn : Theme.colorText3
         wrapMode:       Text.WordWrap
     }
 
@@ -679,13 +679,13 @@ SettingsPanelBase {
     CloudFallbackRow {
         objectName: "setting_cloudLlm"
         title:      qsTr("AI Coach (Gemini)")
-        subtitle:   !llmController.localGpuAvailable
+        subtitle:   !app.llmController.localGpuAvailable
                       ? (secrets.hasGeminiKey ? qsTr("No GPU detected — the cloud model is required")
                                               : qsTr("No GPU detected — add the Gemini key below"))
                       : (secrets.hasGeminiKey ? qsTr("Run the Google Gemini cloud model")
                                               : qsTr("Add the Gemini key below to enable"))
         checked:    appSettings.cloudFallbackLlm
-        locked:     !llmController.localGpuAvailable
+        locked:     !app.llmController.localGpuAvailable
         canToggle:  secrets.hasGeminiKey
         onToggled:  appSettings.cloudFallbackLlm = !appSettings.cloudFallbackLlm
     }

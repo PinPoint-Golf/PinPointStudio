@@ -87,7 +87,7 @@ Item {
 
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject {
             required property int shotId
             required property int ordinal
@@ -111,14 +111,14 @@ Item {
                     if (!ViewLayout.isPanelOn(m, "sessionDiagnostics"))
                         ViewLayout.setPanel(m, "sessionDiagnostics", true)
                 }
-                navController.navigate(AppScreen.Session)
+                app.navController.navigate(AppScreen.Session)
                 app.state.enterCapture()
-                sessionReviewController.loadSession(probe.sessionDir)
+                app.sessionReviewController.loadSession(probe.sessionDir)
             } else if (s === 2) {
                 let ok = false
                 for (let i = 0; i < shots.count; ++i) {
                     const sh = shots.objectAt(i)
-                    if (sh.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(sh.shotId), sh.swingDir); ok = true }
+                    if (sh.ordinal === probe.ordinal) { app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(sh.shotId), sh.swingDir); ok = true }
                 }
                 probe.check(ok, "shot " + probe.ordinal + " is in the carousel")
             } else if (s === 3) {

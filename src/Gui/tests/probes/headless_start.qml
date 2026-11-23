@@ -82,7 +82,7 @@ Item {
         }
         if (stage === 1) {
             if (index < screens.length) {
-                navController.navigate(screens[index])
+                app.navController.navigate(screens[index])
                 log("screen " + screens[index])
                 index += 1
                 return
@@ -103,7 +103,7 @@ Item {
                 index += 1
                 return
             }
-            navController.navigate(AppScreen.Home)
+            app.navController.navigate(AppScreen.Home)
             stage = 3
             return
         }

@@ -60,11 +60,11 @@ PpGroupCard {
     // The stored distances for this golfer, read again when a catch-up lands or the golfer changes.
     property int _distancesRevision: 0
     Connections {
-        target: athleteController
+        target: app.athleteController
         function onClubDistancesChanged() { root._distancesRevision++ }
     }
     readonly property var distances: root._distancesRevision >= 0
-                                     ? athleteController.clubDistances(root.athleteUuid) : ({})
+                                     ? app.athleteController.clubDistances(root.athleteUuid) : ({})
     readonly property var distanceItems: root.distances.items || []
     readonly property var selectedDistance: {
         for (const it of root.distanceItems)
@@ -133,16 +133,16 @@ PpGroupCard {
     // The bag, typed (ClubRecord, in vocabulary order). Re-evaluates whenever the controller reloads (every commit
     // announces the record).
     readonly property var clubs: {
-        void athleteController.athletes
-        return athleteController.clubRecords(root.athleteUuid)
+        void app.athleteController.athletes
+        return app.athleteController.clubRecords(root.athleteUuid)
     }
     readonly property var configuredIds: {
-        void athleteController.athletes
-        return athleteController.bagClubIds(root.athleteUuid)
+        void app.athleteController.athletes
+        return app.athleteController.bagClubIds(root.athleteUuid)
     }
     readonly property var unconfiguredIds: {
         var out = []
-        var vocab = athleteController.clubOptions()
+        var vocab = app.athleteController.clubOptions()
         for (var i = 0; i < vocab.length; i++)
             if (root.configuredIds.indexOf(vocab[i]) < 0)
                 out.push(vocab[i])
@@ -162,9 +162,9 @@ PpGroupCard {
     // A copy of the club's record (a value of its own), the one field changed, handed back: the controller lays it over
     // the stored record, so a key this build does not know is kept.
     function commitField(id, field, value) {
-        var copy = athleteController.clubRecord(root.athleteUuid, id)
+        var copy = app.athleteController.clubRecord(root.athleteUuid, id)
         copy[field] = value
-        athleteController.setClubRecord(root.athleteUuid, id, copy)
+        app.athleteController.setClubRecord(root.athleteUuid, id, copy)
     }
     // Parse "270, 320, 555" -> sorted [270,320,555]; null on any invalid token.
     function parseCenters(text) {
@@ -221,8 +221,8 @@ PpGroupCard {
                 var id = root.unconfiguredIds[addCombo.currentIndex]
                 if (!id) return
                 // factory spec defaults (loft/length/shaft) per club
-                athleteController.setClubRecord(root.athleteUuid, id,
-                    athleteController.defaultClubRecord(id))
+                app.athleteController.setClubRecord(root.athleteUuid, id,
+                    app.athleteController.defaultClubRecord(id))
                 root.selectedClubId = id
             }
         }
@@ -465,7 +465,7 @@ PpGroupCard {
                     PpButton {
                         label: qsTr("Remove")
                         destructive: true
-                        onClicked: athleteController.removeClubRecord(root.athleteUuid, root.selectedClubId)
+                        onClicked: app.athleteController.removeClubRecord(root.athleteUuid, root.selectedClubId)
                     }
                 }
 

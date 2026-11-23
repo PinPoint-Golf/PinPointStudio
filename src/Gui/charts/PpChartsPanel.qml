@@ -97,10 +97,10 @@ Item {
     // was; the session on screen's (app.session: a binding never asks for a Session itself, so none is made for a
     // folder an End has just trashed).
     readonly property var _diagShown:
-        (typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters && diagnosticsAdapters.shownCount > 0
+        ((typeof app !== "undefined" && !!app.diagnosticsAdapters) && !!app.diagnosticsAdapters && app.diagnosticsAdapters.shownCount > 0
          && typeof app !== "undefined" && !!app && sessionDir !== ""
-         && (typeof athleteController === "undefined" || !athleteController || athleteController.currentUuid !== ""))
-            ? diagnosticsAdapters.shownFor(app.session, sessionDir) : null
+         && ((typeof app === "undefined" || !app.athleteController) || !app.athleteController || app.athleteController.currentUuid !== ""))
+            ? app.diagnosticsAdapters.shownFor(app.session, sessionDir) : null
 
     // THE SESSION'S OWN SERIES (refactor 5.5a: one per Session, its child, kept current by the Session's own events and
     // its diagnostics owner): read through the Session, never made here.

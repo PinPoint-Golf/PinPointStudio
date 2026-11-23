@@ -477,6 +477,71 @@ inline QString spreadPositionWords(const SpreadCorridor &c, double v, int decima
     return QStringLiteral("inside the pass band");
 }
 
+// THE DISTANCE TO TRAVEL, for the open condition's key figures on Detail (PpDiagAnalyse's travelItems; refactor 5.8b,
+// audit G-11, moved from QML rule for rule): where this shot's reading `v` sits against the PASS EDGE the strip draws
+// — the outer ends of the bands graded ideal or good — and, past it, against the nearest fault line on that side.
+// `bands` and `faultLines` are the strip's own (spreadBands; the fault lines inside the axis, in the order published),
+// `decimals` the strip's precision, `shotNo` the label's number. A distance carries no sign and no unit.
+//   past the pass edge  "Shot N past the fault line" (or "at the fault line", or "inside it"), "Shot N from the pass edge"
+//   inside it           "Shot N inside the pass edge by"
+// An OPEN end (#16: a one-way condition opens the end it never fires on) has no pass edge: its band stops where the
+// axis does, which is no distance the golfer can travel. Nothing when there is no reading, no pass band or no graded one.
+struct SpreadTravelItem {
+    QString label;
+    QString figure;
+    bool    hasWord = false;   // the fault line's item says whether its figure is words
+    bool    word    = false;
+};
+
+inline std::vector<SpreadTravelItem> spreadTravelItems(const std::vector<SpreadBand> &bands,
+                                                       const std::vector<double> &faultLines, double v, int decimals,
+                                                       int shotNo)
+{
+    std::vector<SpreadTravelItem> out;
+    if (!std::isfinite(v) || bands.empty()) return out;
+    auto isPass = [](const SpreadBand &b) {
+        return b.grade == QLatin1String("ideal") || b.grade == QLatin1String("good") || b.grade == QLatin1String("open");
+    };
+    if (std::none_of(bands.begin(), bands.end(), isPass)) return out;
+    double lo = std::numeric_limits<double>::infinity(), hi = -std::numeric_limits<double>::infinity();
+    bool graded = false;
+    for (const SpreadBand &b : bands) {
+        if (!isPass(b) || b.grade == QLatin1String("open")) continue;
+        graded = true;
+        lo = std::min(lo, b.lo);
+        hi = std::max(hi, b.hi);
+    }
+    if (!graded) return out;
+    if (bands.front().grade == QLatin1String("open")) lo = -std::numeric_limits<double>::infinity();
+    if (bands.back().grade  == QLatin1String("open")) hi =  std::numeric_limits<double>::infinity();
+    const bool above = v > hi, below = v < lo;
+    // at the strip's own precision, as the hover readout's "15 past the fault line" (C15)
+    auto fmt = [&](double x) { return spreadNumber(std::fabs(x), decimals); };
+    const QString lab = QStringLiteral("Shot %1").arg(shotNo);
+    if (above || below) {
+        const double edge = above ? hi : lo;
+        const double *fl = nullptr;   // the nearest fault line on that side; the first of equals
+        for (const double &f : faultLines) {
+            if (above ? !(f >= hi) : !(f <= lo)) continue;
+            if (!fl || std::fabs(f - edge) < std::fabs(*fl - edge)) fl = &f;
+        }
+        if (fl) {
+            const double past = above ? v - *fl : *fl - v;
+            // a distance that rounds to nothing at this precision is "at the fault line", as the hover readout says it
+            // (spreadPositionWords): never "0 past" or "inside it" by a rounding
+            const bool at = fmt(past).toDouble() == 0.0;
+            SpreadTravelItem t{ lab + QStringLiteral(" past the fault line"),
+                                at ? QStringLiteral("at the fault line") : past > 0 ? fmt(past) : QStringLiteral("inside it"),
+                                true, at || past <= 0 };
+            out.push_back(t);
+        }
+        out.push_back(SpreadTravelItem{ lab + QStringLiteral(" from the pass edge"), fmt(above ? v - hi : lo - v) });
+    } else {
+        out.push_back(SpreadTravelItem{ lab + QStringLiteral(" inside the pass edge by"), fmt(std::min(v - lo, hi - v)) });
+    }
+    return out;
+}
+
 // ROUND TICKS for a value axis — the run's and the across-sessions chart's Y labels: the app's
 // one tick rule (figure_format.h tickValues, a 1-2-5 step for about `target` ticks), so the labels
 // read 0 5 10 15, never 2.7 7.9 13.1. Values only; the caller formats them on the axis's own

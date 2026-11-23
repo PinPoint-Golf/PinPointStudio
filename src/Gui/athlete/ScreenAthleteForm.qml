@@ -59,7 +59,7 @@ Item {
         return unit === "cm" ? (ft * 30.48).toFixed(1) : ft.toFixed(2)
     }
     function heightOk(text: string): bool {
-        return text.trim() === "" || athleteController.parseHeight(text, root.heightUnit) > 0
+        return text.trim() === "" || app.athleteController.parseHeight(text, root.heightUnit) > 0
     }
 
     // ── Reports (session report §7.3) ─────────────────────────────────────────
@@ -71,14 +71,14 @@ Item {
     property bool   _photosStored:    false       // what the record held when the form loaded
     // Under 18 TODAY, from the date as typed — the form's preview. A report asks again with its
     // session's own date (athleteController.isJuniorOn), so an old session keeps its answer.
-    readonly property bool isJunior: athleteController.validDob(dobField.text)
-                                     && athleteController.isJuniorOn(dobField.text.trim(), 0)
+    readonly property bool isJunior: app.athleteController.validDob(dobField.text)
+                                     && app.athleteController.isJuniorOn(dobField.text.trim(), 0)
     // The text rules are the controller's (athlete_controller.cpp), beside the C++ that stores and
     // reads the same fields: validReportEmail, normaliseReportEmails (the one stored spelling),
     // greetingDefault (the first word a blank greeting falls back to) and validDob.
     function emailShapeOk(text) {
         var t = String(text).trim()
-        return t.length === 0 || athleteController.validReportEmail(t)
+        return t.length === 0 || app.athleteController.validReportEmail(t)
     }
     function approvedWords(iso) {
         var d = new Date((iso && iso.length > 0 ? iso : Qt.formatDate(new Date(), "yyyy-MM-dd")) + "T00:00:00")
@@ -87,7 +87,7 @@ Item {
 
     // The sex picker's vocabulary, from the controller: {value, label} per option. QML maps between
     // the two over THIS list, so the stored token exists in exactly one place.
-    readonly property var    sexOptions: athleteController.sexOptions()
+    readonly property var    sexOptions: app.athleteController.sexOptions()
     readonly property var    sexLabels:  root.sexOptions.map(function (o) { return o.label })
 
     function sexLabelFor(value) {
@@ -108,10 +108,10 @@ Item {
     // vocabulary order). Re-evaluates on every club commit via athletesChanged.
     // Create mode (no uuid yet) and an empty bag fall back to the full vocabulary.
     readonly property var clubModel: {
-        void athleteController.athletes
-        var vocab = athleteController.clubOptions()
+        void app.athleteController.athletes
+        var vocab = app.athleteController.clubOptions()
         if (root.editUuid === "") return vocab
-        var ids = athleteController.bagClubIds(root.editUuid)
+        var ids = app.athleteController.bagClubIds(root.editUuid)
         return ids.length > 0 ? ids : vocab
     }
 
@@ -148,13 +148,13 @@ Item {
     function loadForEdit() {
         if (editUuid === "") { resetForm(); return }
 
-        const a = athleteController.athletes.find(function(x) { return x.uuid === editUuid })
+        const a = app.athleteController.athletes.find(function(x) { return x.uuid === editUuid })
         if (!a) { resetForm(); return }
 
         nameField.text     = a.name || ""
         handedness         = a.handedness  || "Right"
         // Resolve to a real bag club (handles legacy/absent values).
-        primaryClub        = athleteController.effectivePrimaryClub(editUuid) || "DRIVER"
+        primaryClub        = app.athleteController.effectivePrimaryClub(editUuid) || "DRIVER"
         handicapField.text = (a.handicap !== undefined && a.handicap > -900) ? String(a.handicap) : ""
         speedField.text    = (a.speedTarget && a.speedTarget > 0) ? String(a.speedTarget) : ""
         notesField.text    = a.notes || ""
@@ -191,7 +191,7 @@ Item {
 
     function validate(): bool {
         nameError = nameField.text.trim() === ""
-        dobError  = !athleteController.validDob(dobField.text)
+        dobError  = !app.athleteController.validDob(dobField.text)
         heightError = !root.heightOk(heightField.text)
         emailError = !root.emailShapeOk(reportEmailField.text)
         return !nameError && !dobError && !heightError && !emailError
@@ -204,7 +204,7 @@ Item {
         // stays unset). It is handed over in ft, the stored unit, so saveAthlete's cm→ft division never
         // re-rounds it: the record keeps its exact bits, and the display unit is written on its own
         // below. Blank is the user clearing the height.
-        const parsedHeight = athleteController.parseHeight(heightField.text, root.heightUnit)
+        const parsedHeight = app.athleteController.parseHeight(heightField.text, root.heightUnit)
         const keepStored = root.heightUntouched()
                         || (heightField.text.trim() !== "" && !(parsedHeight > 0))
         const hv     = keepStored ? root._heightStoredFt
@@ -215,7 +215,7 @@ Item {
         const handicap = isNaN(hcp) ? -999.0 : hcp
         const speed = parseFloat(speedField.text) || 0.0
 
-        const uuid = athleteController.saveAthlete(
+        const uuid = app.athleteController.saveAthlete(
             root.editUuid,            // "" creates, uuid updates
             nameField.text.trim(),
             handedness,
@@ -232,17 +232,17 @@ Item {
         // reads them, so they do not belong in the signature every caller of saveAthlete has to
         // thread through.
         if (uuid !== "") {
-            if (hvUnit !== heightUnit) athleteController.updateAthlete(uuid, "heightUnit", heightUnit)
-            athleteController.updateAthlete(uuid, "dob", dobField.text.trim())
-            athleteController.updateAthlete(uuid, "sex", root.sex)
+            if (hvUnit !== heightUnit) app.athleteController.updateAthlete(uuid, "heightUnit", heightUnit)
+            app.athleteController.updateAthlete(uuid, "dob", dobField.text.trim())
+            app.athleteController.updateAthlete(uuid, "sex", root.sex)
             // The report's details (§7.3), the same way. The approval goes through setPhotosApproved
             // only when it CHANGED, so re-saving the form never moves the date consent was given.
-            athleteController.updateAthlete(uuid, "reportEmail", athleteController.normaliseReportEmails(reportEmailField.text))
-            athleteController.updateAthlete(uuid, "reportGreeting", reportGreetingField.text.trim())
+            app.athleteController.updateAthlete(uuid, "reportEmail", app.athleteController.normaliseReportEmails(reportEmailField.text))
+            app.athleteController.updateAthlete(uuid, "reportGreeting", reportGreetingField.text.trim())
             if (root.photosApproved !== root._photosStored) {
-                athleteController.setPhotosApproved(uuid, root.photosApproved)
+                app.athleteController.setPhotosApproved(uuid, root.photosApproved)
                 root._photosStored    = root.photosApproved
-                root.photosApprovedOn = athleteController.reportDetails(uuid).photosApprovedOn || ""
+                root.photosApprovedOn = app.athleteController.reportDetails(uuid).photosApprovedOn || ""
             }
         }
         return uuid
@@ -359,7 +359,7 @@ Item {
                                         root.heightUnit       = unit
                                         return
                                     }
-                                    const val = athleteController.parseHeight(heightField.text, root.heightUnit)
+                                    const val = app.athleteController.parseHeight(heightField.text, root.heightUnit)
                                     if (val > 0) {
                                         if (unit === "cm" && root.heightUnit === "ft")
                                             heightField.text = (val * 30.48).toFixed(1)
@@ -476,8 +476,8 @@ Item {
                             // Blank is VALID — both fields are optional and unset is a real answer. Only a
                             // non-empty value that is not a real date is an error, so a half-typed date
                             // does not accuse anybody of anything until they leave the field.
-                            onTextChanged:   if (root.dobError && athleteController.validDob(text)) root.dobError = false
-                            onEditingFinished: root.dobError = !athleteController.validDob(text)
+                            onTextChanged:   if (root.dobError && app.athleteController.validDob(text)) root.dobError = false
+                            onEditingFinished: root.dobError = !app.athleteController.validDob(text)
                         }
                         Text {
                             visible:        root.dobError
@@ -523,7 +523,7 @@ Item {
                             visible: text.length > 0
                             text: {
                                 if (root.dobError) return ""
-                                var who = athleteController.cohortLabelFor(
+                                var who = app.athleteController.cohortLabelFor(
                                     dobField.text.trim(), root.sex,
                                     Qt.formatDate(new Date(), "yyyy-MM-dd"))   // local today
                                 return who.length > 0
@@ -678,7 +678,7 @@ Item {
                             id: reportGreetingField
                             objectName: "athleteReportGreeting"
                             width:           Theme.sp(220)
-                            readonly property string fallback: athleteController.greetingDefault(nameField.text)
+                            readonly property string fallback: app.athleteController.greetingDefault(nameField.text)
                             placeholderText: fallback.length > 0 ? fallback : qsTr("e.g. Nick")
                         }
                         Text {

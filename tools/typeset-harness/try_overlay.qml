@@ -130,7 +130,7 @@ Item {
     // Open the fixture shot in Replay, so the panel is on screen from the start.
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject { required property int shotId; required property int ordinal; required property string swingDir }
     }
     Timer {
@@ -138,7 +138,7 @@ Item {
         onTriggered: {
             for (let i = 0; i < shots.count; ++i) {
                 const o = shots.objectAt(i)
-                if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
+                if (o.ordinal === probe.ordinal) app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
             }
             probe.after(2000, () => probe.selectTab())
         }
@@ -258,9 +258,9 @@ Item {
             ViewLayout.setPanel(app.state.analyseMode, probe.panelKey, true)
         }
         if (probe.sessionDir !== "") {
-            navController.navigate(probe.navIndex)
+            app.navController.navigate(probe.navIndex)
             app.state.enterCapture()
-            sessionReviewController.loadSession(probe.sessionDir)
+            app.sessionReviewController.loadSession(probe.sessionDir)
             openShot.start()
         }
         if (probe.selftest) runSelftest()

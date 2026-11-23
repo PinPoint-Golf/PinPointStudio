@@ -425,7 +425,7 @@ Item {
                     PpPressable {
                         id: tblCopyMa
                         anchors.margins: -Theme.sp(6)
-                        onClicked: { clipboard.setText(src.table.toClipboardText()); tblCopyConfirm.restart() }
+                        onClicked: { app.clipboard.setText(src.table.toClipboardText()); tblCopyConfirm.restart() }
                     }
                 }
 

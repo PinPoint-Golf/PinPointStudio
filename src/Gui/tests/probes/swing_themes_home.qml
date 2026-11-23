@@ -94,8 +94,8 @@ Item {
         interval: 250; running: true; repeat: true
         onTriggered: {
             probe.waited += 1
-            const done = workOns.athleteDir !== "" && !workOns.updating && workOns.sessionsFound > 0
-                         && workOns.summaryReady && !workOns.summaryUpdating
+            const done = app.workOns.athleteDir !== "" && !app.workOns.updating && app.workOns.sessionsFound > 0
+                         && app.workOns.summaryReady && !app.workOns.summaryUpdating
             if (!done && probe.waited < 960) return      // 4 minutes
             running = false
             probe.showCoaching()
@@ -115,27 +115,27 @@ Item {
     property var summary: null
     // Home's areas, one line each: the per-area counts a regroup moves, for a before/after diff of the probe's output.
     function logAreas() {
-        const areas = workOns.areaItems || []
+        const areas = app.workOns.areaItems || []
         log("areas (" + areas.length + "): area measurable measured habits occasional clean unclear")
         for (const a of areas)
             log("  area " + a.group + " \"" + a.label + "\" " + a.measurable + " " + a.measured + " " + a.habits + " "
                 + a.occasional + " " + a.clean + " " + a.unclear)
     }
     function inspectHome() {
-        log("athleteDir " + workOns.athleteDir + " · settled after " + (Date.now() - startedMs) + " ms")
+        log("athleteDir " + app.workOns.athleteDir + " · settled after " + (Date.now() - startedMs) + " ms")
         logAreas()
-        check(!workOns.updating && workOns.sessionCount === workOns.sessionsFound && workOns.sessionsFound > 0,
-              "the work-ons catch-up finished (" + workOns.sessionCount + " of " + workOns.sessionsFound + " sessions)")
-        check(workOns.summaryReady && !workOns.summaryUpdating, "the swing summary is ready")
-        log("reduced from " + workOns.summarySwings + " swings over " + workOns.summarySessions + " sessions")
+        check(!app.workOns.updating && app.workOns.sessionCount === app.workOns.sessionsFound && app.workOns.sessionsFound > 0,
+              "the work-ons catch-up finished (" + app.workOns.sessionCount + " of " + app.workOns.sessionsFound + " sessions)")
+        check(app.workOns.summaryReady && !app.workOns.summaryUpdating, "the swing summary is ready")
+        log("reduced from " + app.workOns.summarySwings + " swings over " + app.workOns.summarySessions + " sessions")
 
-        const focus = workOns.focusItem || {}
-        const well = workOns.doWellItems, next = workOns.nextItems
-        const together = workOns.togetherItems, note = workOns.togetherNote
+        const focus = app.workOns.focusItem || {}
+        const well = app.workOns.doWellItems, next = app.workOns.nextItems
+        const together = app.workOns.togetherItems, note = app.workOns.togetherNote
         const pips = (a) => (a || []).map(b => b ? "●" : "○").join("")
         const fault = (f) => f.text + " — " + f.frequency + " (" + f.share.toFixed(3)
                              + (f.trend > 0 ? ", growing" : f.trend < 0 ? ", easing" : "") + ")  " + pips(f.sessions)
-        log(workOns.summarySubtitle)
+        log(app.workOns.summarySubtitle)
         if (focus.present) {
             log("Your focus: " + focus.title)
             for (const a of focus.aimFor || []) log("  aim for   ✓ " + a)
@@ -206,7 +206,7 @@ Item {
         }
 
         // ── A golfer's words: the Coaching tab only (Your swing shows pack labels and figures) ──
-        const names = (workOns.items || []).map(it => it.name || "")
+        const names = (app.workOns.items || []).map(it => it.name || "")
         const texts = drawnTexts(coaching, [])
         const tech = texts.map(t => [t, technical(t, names)]).filter(p => p[1] !== "")
         check(texts.length > 0 && tech.length === 0, "no drawn text on the Coaching tab is technical (" + texts.length + " texts)"
@@ -233,7 +233,7 @@ Item {
     function inspectMatchups() {
         const page = find(tabs, "homeTabMatchups")
         check(page !== null && drawn(page), "the Matchups tab is drawn")
-        const together = workOns.togetherItems
+        const together = app.workOns.togetherItems
         const card = page ? find(page, "goesTogether") : null
         check(card !== null && drawn(card), "the 'faults that travel together' card is drawn")
         const togetherItems = card ? all(card, "togetherItem") : [], noteItems = card ? all(card, "togetherNote") : []

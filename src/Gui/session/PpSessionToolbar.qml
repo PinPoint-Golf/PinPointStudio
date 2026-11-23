@@ -165,16 +165,16 @@ Item {
     // default so the pill always names a club. Taped = the club record carries
     // retro bands (ClubFormat.isTaped). Reactive to activeClub / athlete edits.
     readonly property string activeClub: {
-        void athleteController.athletes
-        return sessionController.activeClub !== ""
-            ? sessionController.activeClub
-            : athleteController.effectivePrimaryClub(athleteController.currentUuid)
+        void app.athleteController.athletes
+        return app.sessionController.activeClub !== ""
+            ? app.sessionController.activeClub
+            : app.athleteController.effectivePrimaryClub(app.athleteController.currentUuid)
     }
     readonly property bool activeClubTaped: {
-        void athleteController.athletes
+        void app.athleteController.athletes
         var c = root.activeClub
-        if (!c || !athleteController.hasCurrentAthlete) return false
-        return ClubFormat.isTaped(athleteController.clubRecord(athleteController.currentUuid, c))
+        if (!c || !app.athleteController.hasCurrentAthlete) return false
+        return ClubFormat.isTaped(app.athleteController.clubRecord(app.athleteController.currentUuid, c))
     }
 
     // Start a session: app.state's one command (app_state.h) chooses its on-disk folder, shows it in the
@@ -208,7 +208,7 @@ Item {
             // the session's name elides first, then the strip stands down altogether (the
             // carousel's session chip still names what is loaded).
             readonly property real room: modeSwitch.x - barRow.x - Theme.sp(12)
-            visible: sessionReviewController.reviewActive
+            visible: app.sessionReviewController.reviewActive
                      && room >= reviewingLabel.implicitWidth + Theme.sp(28)
             Layout.alignment: Qt.AlignVCenter
             implicitWidth:  reviewRow.implicitWidth + Theme.sp(28)
@@ -234,11 +234,11 @@ Item {
                     width: Math.min(implicitWidth,
                                     Math.max(0, reviewStrip.room - Theme.sp(28) - reviewingLabel.width - reviewRow.spacing))
                     elide: Text.ElideRight
-                    text: sessionReviewController.activeDayLabel
-                          + (sessionReviewController.activeTimeLabel
-                                 ? " · " + sessionReviewController.activeTimeLabel : "")
-                          + (sessionReviewController.activeClubMix
-                                 ? " — " + sessionReviewController.activeClubMix : "")
+                    text: app.sessionReviewController.activeDayLabel
+                          + (app.sessionReviewController.activeTimeLabel
+                                 ? " · " + app.sessionReviewController.activeTimeLabel : "")
+                          + (app.sessionReviewController.activeClubMix
+                                 ? " — " + app.sessionReviewController.activeClubMix : "")
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
                     color: Theme.colorText
                 }
@@ -252,7 +252,7 @@ Item {
         // ── Capture (session-global) — far left, always first ───────────────
         Rectangle {
             id: captureBtn
-            visible: !sessionReviewController.reviewActive
+            visible: !app.sessionReviewController.reviewActive
             Layout.alignment: Qt.AlignVCenter
             implicitWidth: captureLbl.implicitWidth + Theme.sp(28)
             implicitHeight: Theme.sp(40)
@@ -291,11 +291,11 @@ Item {
                 onClicked: {
                     if (root.captureLive) {
                         cameraManager.stopCapture()
-                    } else if (sessionController.running) {
+                    } else if (app.sessionController.running) {
                         // Session already running (resumed after Stop) — just re-arm
                         // capture; the folder was chosen when the session started.
                         cameraManager.startCapture()
-                    } else if (shotProcessor.todaySessionDir(root.sessionType) !== "") {
+                    } else if (app.shotProcessor.todaySessionDir(root.sessionType) !== "") {
                         startPrompt.open()        // ask: extend today's session, or new
                     } else {
                         root._beginSession(false) // no folder for today → new session
@@ -350,7 +350,7 @@ Item {
 
         // ── Session clock (alongside Capture, to its right) ─────────────────
         Column {
-            visible: !sessionReviewController.reviewActive
+            visible: !app.sessionReviewController.reviewActive
             spacing: Theme.gap(2)
             Layout.alignment: Qt.AlignVCenter
             PpMicro { text: Theme.caps(qsTr("Session")) }
@@ -368,7 +368,7 @@ Item {
                     }
                 }
                 Text {
-                    text: sessionController.elapsedLabel
+                    text: app.sessionController.elapsedLabel
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzData
                     color: Theme.colorText
                 }
@@ -383,7 +383,7 @@ Item {
         // shouldn't pull the accent.
         PpButton {
             id: endBtn
-            visible: sessionController.running && !sessionReviewController.reviewActive
+            visible: app.sessionController.running && !app.sessionReviewController.reviewActive
             Layout.alignment: Qt.AlignVCenter
             style: "ghost"; size: "compact"
             implicitHeight: Theme.sp(40)
@@ -465,7 +465,7 @@ Item {
         // context. Reuses PpToolPill (glyph + micro label + chevron).
         PpToolPill {
             id: clubPill
-            visible: !sessionReviewController.reviewActive
+            visible: !app.sessionReviewController.reviewActive
             glyph: "⚑"
             microLabel: root.activeClubTaped ? Theme.caps(qsTr("Club · taped")) : Theme.caps(qsTr("Club"))
             label: root.activeClub ? ClubFormat.display(root.activeClub) : qsTr("—")

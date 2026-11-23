@@ -181,7 +181,7 @@ Item {
     // Stage 5c: read `_guide.view` and `_runRequested`.
     readonly property alias _guide: guide
 
-    readonly property bool _rightHanded: athleteController.currentHandedness !== "Left"
+    readonly property bool _rightHanded: app.athleteController.currentHandedness !== "Left"
 
     function _log(text) { appLog.info("Calib", "flow " + text) }
 

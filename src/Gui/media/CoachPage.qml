@@ -27,7 +27,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: Theme.colorBg
-        visible: llmController.downloading || (!llmController.llmReady && !llmController.downloading)
+        visible: app.llmController.downloading || (!app.llmController.llmReady && !app.llmController.downloading)
         z: 10
 
         ColumnLayout {
@@ -37,7 +37,7 @@ Item {
 
             Label {
                 Layout.alignment: Qt.AlignHCenter
-                text: llmController.downloading ? qsTr("Downloading AI Coach") : qsTr("Loading AI Coach…")
+                text: app.llmController.downloading ? qsTr("Downloading AI Coach") : qsTr("Loading AI Coach…")
                 color: Theme.colorText
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzHeading
@@ -46,11 +46,11 @@ Item {
 
             Label {
                 Layout.alignment: Qt.AlignHCenter
-                text: llmController.downloadStatus
+                text: app.llmController.downloadStatus
                 color: Theme.colorText3
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzBody
-                visible: llmController.downloadStatus !== ""
+                visible: app.llmController.downloadStatus !== ""
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -60,10 +60,10 @@ Item {
                 height: Theme.sp(4)
                 radius: Theme.sp(2)
                 color: Theme.colorBg3
-                visible: llmController.downloading
+                visible: app.llmController.downloading
 
                 Rectangle {
-                    width: parent.width * llmController.downloadProgress
+                    width: parent.width * app.llmController.downloadProgress
                     height: parent.height
                     radius: parent.radius
                     color: Theme.colorAccent
@@ -73,8 +73,8 @@ Item {
 
             Label {
                 Layout.alignment: Qt.AlignHCenter
-                visible: llmController.downloading
-                text: Math.round(llmController.downloadProgress * 100) + "%"
+                visible: app.llmController.downloading
+                text: Math.round(app.llmController.downloadProgress * 100) + "%"
                 color: Theme.colorText3
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzBody
@@ -87,7 +87,7 @@ Item {
         anchors.fill: parent
         anchors.margins: Theme.gap(16)
         spacing: Theme.gap(8)
-        visible: llmController.llmReady
+        visible: app.llmController.llmReady
 
         // ── Header row: backend badge + latency ──────────────────────────────
         RowLayout {
@@ -97,10 +97,10 @@ Item {
             Item { Layout.fillWidth: true }
 
             Label {
-                visible: llmController.lastLlmLatencyMs > 0
-                text: llmController.lastLlmLatencyMs < 1000
-                      ? llmController.lastLlmLatencyMs + "ms"
-                      : (llmController.lastLlmLatencyMs / 1000).toFixed(1) + "s"
+                visible: app.llmController.lastLlmLatencyMs > 0
+                text: app.llmController.lastLlmLatencyMs < 1000
+                      ? app.llmController.lastLlmLatencyMs + "ms"
+                      : (app.llmController.lastLlmLatencyMs / 1000).toFixed(1) + "s"
                 color: Theme.colorText3
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzMicro
@@ -109,46 +109,46 @@ Item {
             // Backend badge — same three-state colour scheme as AudioPage STT/TTS badges.
             Rectangle {
                 radius: Theme.radius
-                color: llmController.llmBackend === "Cloud"
+                color: app.llmController.llmBackend === "Cloud"
                        ? Theme.colorAccentLight
-                       : llmController.llmBackend !== "" && llmController.llmBackend !== "CPU"
+                       : app.llmController.llmBackend !== "" && app.llmController.llmBackend !== "CPU"
                          ? Theme.colorGoodLight
                          : Theme.colorBg3
                 border.width: 1
-                border.color: llmController.llmBackend === "Cloud"
+                border.color: app.llmController.llmBackend === "Cloud"
                               ? Qt.alpha(Theme.colorAccent, 0.25)
-                              : llmController.llmBackend !== "" && llmController.llmBackend !== "CPU"
+                              : app.llmController.llmBackend !== "" && app.llmController.llmBackend !== "CPU"
                                 ? Qt.alpha(Theme.colorGood, 0.25)
                                 : Theme.colorBorderMid
                 implicitWidth: llmBadgeLabel.implicitWidth + Theme.sp(10)
                 implicitHeight: llmBadgeLabel.implicitHeight + Theme.sp(4)
                 ToolTip.visible: llmBadgePress.containsMouse
-                ToolTip.text: llmController.cloudLlmFallbackAvailable
-                    ? (llmController.llmBackend === "Cloud"
+                ToolTip.text: app.llmController.cloudLlmFallbackAvailable
+                    ? (app.llmController.llmBackend === "Cloud"
                        ? qsTr("Cloud AI (Gemini) — click to switch to local")
                        : qsTr("Local AI — click to switch to Cloud"))
-                    : (llmController.llmBackend === "Cloud"
+                    : (app.llmController.llmBackend === "Cloud"
                        ? qsTr("Cloud AI via Gemini")
-                       : llmController.llmBackend !== ""
-                         ? qsTr("Local AI — %1").arg(llmController.llmBackend)
+                       : app.llmController.llmBackend !== ""
+                         ? qsTr("Local AI — %1").arg(app.llmController.llmBackend)
                          : qsTr("Local AI — CPU"))
 
                 // Hovers for its tooltip whatever the backend; moves and toggles only when
                 // there is a fallback to switch to.
                 PpPressable {
                     id: llmBadgePress
-                    moves:       llmController.cloudLlmFallbackAvailable
-                    cursorShape: llmController.cloudLlmFallbackAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked:   if (llmController.cloudLlmFallbackAvailable) llmController.toggleLlmBackend()
+                    moves:       app.llmController.cloudLlmFallbackAvailable
+                    cursorShape: app.llmController.cloudLlmFallbackAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked:   if (app.llmController.cloudLlmFallbackAvailable) app.llmController.toggleLlmBackend()
                 }
 
                 Label {
                     id: llmBadgeLabel
                     anchors.centerIn: parent
-                    text: llmController.llmBackend !== "" ? llmController.llmBackend : qsTr("CPU")
-                    color: llmController.llmBackend === "Cloud"
+                    text: app.llmController.llmBackend !== "" ? app.llmController.llmBackend : qsTr("CPU")
+                    color: app.llmController.llmBackend === "Cloud"
                            ? Theme.colorAccent
-                           : llmController.llmBackend !== "" && llmController.llmBackend !== "CPU"
+                           : app.llmController.llmBackend !== "" && app.llmController.llmBackend !== "CPU"
                              ? Theme.colorGood
                              : Theme.colorText3
                     font.family: Theme.fontData
@@ -168,7 +168,7 @@ Item {
 
             ListView {
                 id: chatList
-                model: llmController.conversation
+                model: app.llmController.conversation
                 spacing: Theme.gap(8)
                 bottomMargin: Theme.gap(4)
 
@@ -246,21 +246,21 @@ Item {
                 width: voiceInLabel.implicitWidth + Theme.sp(16)
                 height: voiceInLabel.implicitHeight + Theme.sp(8)
                 radius: height / 2
-                color: llmController.voiceInputEnabled ? Theme.colorGoodLight  : Theme.colorBg3
+                color: app.llmController.voiceInputEnabled ? Theme.colorGoodLight  : Theme.colorBg3
                 border.width: 1
-                border.color: llmController.voiceInputEnabled
+                border.color: app.llmController.voiceInputEnabled
                               ? Qt.alpha(Theme.colorGood, 0.35)
                               : Theme.colorBorderMid
                 ToolTip.visible: voiceInPress.containsMouse
-                ToolTip.text: llmController.voiceInputEnabled
+                ToolTip.text: app.llmController.voiceInputEnabled
                               ? qsTr("Voice input ON — STT sends to coach")
                               : qsTr("Voice input OFF — tap to enable")
-                PpPressable { id: voiceInPress; onClicked: llmController.setVoiceInput(!llmController.voiceInputEnabled) }
+                PpPressable { id: voiceInPress; onClicked: app.llmController.setVoiceInput(!app.llmController.voiceInputEnabled) }
                 Label {
                     id: voiceInLabel
                     anchors.centerIn: parent
                     text: qsTr("Voice in")
-                    color: llmController.voiceInputEnabled ? Theme.colorGood : Theme.colorText3
+                    color: app.llmController.voiceInputEnabled ? Theme.colorGood : Theme.colorText3
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
                 }
@@ -272,21 +272,21 @@ Item {
                 width: voiceOutLabel.implicitWidth + Theme.sp(16)
                 height: voiceOutLabel.implicitHeight + Theme.sp(8)
                 radius: height / 2
-                color: llmController.voiceOutputEnabled ? Theme.colorGoodLight : Theme.colorBg3
+                color: app.llmController.voiceOutputEnabled ? Theme.colorGoodLight : Theme.colorBg3
                 border.width: 1
-                border.color: llmController.voiceOutputEnabled
+                border.color: app.llmController.voiceOutputEnabled
                               ? Qt.alpha(Theme.colorGood, 0.35)
                               : Theme.colorBorderMid
                 ToolTip.visible: voiceOutPress.containsMouse
-                ToolTip.text: llmController.voiceOutputEnabled
+                ToolTip.text: app.llmController.voiceOutputEnabled
                               ? qsTr("Voice output ON — coach responses are spoken")
                               : qsTr("Voice output OFF — tap to enable")
-                PpPressable { id: voiceOutPress; onClicked: llmController.setVoiceOutput(!llmController.voiceOutputEnabled) }
+                PpPressable { id: voiceOutPress; onClicked: app.llmController.setVoiceOutput(!app.llmController.voiceOutputEnabled) }
                 Label {
                     id: voiceOutLabel
                     anchors.centerIn: parent
                     text: qsTr("Voice out")
-                    color: llmController.voiceOutputEnabled ? Theme.colorGood : Theme.colorText3
+                    color: app.llmController.voiceOutputEnabled ? Theme.colorGood : Theme.colorText3
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
                 }
@@ -298,8 +298,8 @@ Item {
             PpButton {
                 style: "labText"; size: "lab"
                 label: qsTr("Clear")
-                enabled: llmController.conversation.length > 0 && !llmController.llmActive
-                onClicked: llmController.clearHistory()
+                enabled: app.llmController.conversation.length > 0 && !app.llmController.llmActive
+                onClicked: app.llmController.clearHistory()
             }
         }
 
@@ -328,13 +328,13 @@ Item {
             // Send / Stop button
             PpButton {
                 id: sendButton
-                style: llmController.llmActive ? "labStop" : "labPrimary"; size: "lab"
-                label: llmController.llmActive ? qsTr("Stop ■") : qsTr("Send ▶")
-                enabled: llmController.llmActive
-                         || (llmController.llmReady && messageInput.text.trim().length > 0)
+                style: app.llmController.llmActive ? "labStop" : "labPrimary"; size: "lab"
+                label: app.llmController.llmActive ? qsTr("Stop ■") : qsTr("Send ▶")
+                enabled: app.llmController.llmActive
+                         || (app.llmController.llmReady && messageInput.text.trim().length > 0)
                 onClicked: {
-                    if (llmController.llmActive) {
-                        llmController.stopGeneration()
+                    if (app.llmController.llmActive) {
+                        app.llmController.stopGeneration()
                     } else {
                         sendAndClear()
                     }
@@ -347,7 +347,7 @@ Item {
         const text = messageInput.text.trim()
         if (text.length === 0)
             return
-        llmController.sendMessage(text)
+        app.llmController.sendMessage(text)
         messageInput.text = ""
     }
 }

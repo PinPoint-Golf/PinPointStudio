@@ -59,14 +59,14 @@ Item {
     // so this handler doesn't fire there).
     function _syncTodayCarousel() {
         if (!root._screenActive) return
-        if (sessionController.running || sessionReviewController.reviewActive) return
+        if (app.sessionController.running || app.sessionReviewController.reviewActive) return
         // app.state names the live session; the carousel is a view of it, and the session it already shows is no change
         // (no reset on re-entering the screen: refactor step 5.2).
-        app.state.setLiveFolder(shotProcessor.todaySessionDir(SessionController.Wrist))
+        app.state.setLiveFolder(app.shotProcessor.todaySessionDir(SessionController.Wrist))
     }
     Component.onCompleted: _syncTodayCarousel()
     Connections {
-        target: navController
+        target: app.navController
         function onCurrentIndexChanged() { root._syncTodayCarousel() }
     }
 
@@ -198,7 +198,7 @@ Item {
         id: swing3dHost
         objectName: "swing3dHost"
         swingDir: root._focusedSwingDir
-        sessionAvailable: sessionReviewController.reviewActive    // a session opened from the library
+        sessionAvailable: app.sessionReviewController.reviewActive    // a session opened from the library
         positionUs: app.state.replay.active ? app.state.replay.positionUs : -1     // −1: rest at address
         // The same Motion setting the replay tiles draw with (PpCameraTiles.qml).
         motionOn:          ViewLayout.motionOn(app.state.mode)

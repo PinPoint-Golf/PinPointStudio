@@ -125,9 +125,9 @@ Item {
     // private model while reviewing. Both are ShotListModel (identical roles +
     // mutation invokables), so the filter proxy, cards and panel work unchanged;
     // every mutation routes through activeModel so trash/rating hit the right one.
-    readonly property bool reviewing: sessionReviewController.reviewActive
-    readonly property var  activeModel: reviewing ? sessionReviewController.shots
-                                                  : shotModel
+    readonly property bool reviewing: app.sessionReviewController.reviewActive
+    readonly property var  activeModel: reviewing ? app.sessionReviewController.shots
+                                                  : app.shotModel
     // Picks are ids in ONE model; another model's ids name other swings.
     onActiveModelChanged: root.markedIds = []
 
@@ -147,14 +147,14 @@ Item {
     // session on screen, app.session, and asks for none.
     readonly property string _diagFolder: app.state.sessionOnScreenFolder
     // With no golfer chosen the session is the Unassigned owner's, a full Session (§5.11; step 5.1): no golfer gate.
-    readonly property bool _hasAdapters: typeof diagnosticsAdapters !== "undefined" && !!diagnosticsAdapters
+    readonly property bool _hasAdapters: (typeof app !== "undefined" && !!app.diagnosticsAdapters) && !!app.diagnosticsAdapters
     readonly property var _diagSession:
         (typeof app !== "undefined" && app && _diagFolder !== "") ? app.session : null
     readonly property var _shownSource:
-        (_hasAdapters && diagnosticsAdapters.shownCount > 0 && _diagFolder !== "")
-            ? diagnosticsAdapters.shownFor(_diagSession, _diagFolder) : null
+        (_hasAdapters && app.diagnosticsAdapters.shownCount > 0 && _diagFolder !== "")
+            ? app.diagnosticsAdapters.shownFor(_diagSession, _diagFolder) : null
     readonly property var _cardsSource:
-        (_hasAdapters && _diagSession && !_shownSource) ? diagnosticsAdapters.of(_diagSession, "cards", _diagFolder) : null
+        (_hasAdapters && _diagSession && !_shownSource) ? app.diagnosticsAdapters.of(_diagSession, "cards", _diagFolder) : null
     readonly property var pipSource: _shownSource ? _shownSource : _cardsSource
     // The cards adapter takes each diagnosis only while a view is bound (as a panel's does): this
     // carousel binds while it reads it, and lets go when a panel takes over or the session changes.
@@ -172,7 +172,7 @@ Item {
     // session captured with no golfer is the Unassigned owner's and judged like any other, and a session is found
     // through its own athlete whoever is current (J-67): only a folder no athlete of the library lists is not judged.
     readonly property bool notJudged:
-        _hasAdapters && _diagFolder !== "" && !diagnosticsAdapters.judgedHere(_diagSession, _diagFolder)
+        _hasAdapters && _diagFolder !== "" && !app.diagnosticsAdapters.judgedHere(_diagSession, _diagFolder)
     readonly property string notJudgedText: qsTr("Not judged · no golfer's session")
 
     // Shared popup width for the sessions drawer (~⅓ of the carousel width,
@@ -325,7 +325,7 @@ Item {
             return
         }
         exportSheet.swingDirs   = dirs
-        exportSheet.cameras     = swingExporter.camerasForShots(dirs)
+        exportSheet.cameras     = app.swingExporter.camerasForShots(dirs)
         exportSheet.shotCount   = dirs.length
         exportSheet.includeJson = true
         exportSheet.open()
@@ -388,9 +388,9 @@ Item {
             // session under review) — passing ids would resolve against the wrong
             // model and silently no-op. The controller drains them sequentially,
             // writing each fresh analysis back to swing.json.
-            onReanalyseShot:  reanalysisController.reanalyse(
+            onReanalyseShot:  app.reanalysisController.reanalyse(
                                   root.activeModel.swingDirsForIds([root._focusedId]))
-            onReanalyseShown: reanalysisController.reanalyse(
+            onReanalyseShown: app.reanalysisController.reanalyse(
                                   root.activeModel.swingDirsForIds(filterProxy.visibleShotIds()))
         }
 
@@ -437,11 +437,11 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.reviewing
-                                  ? (sessionReviewController.activeDayLabel
-                                     + (sessionReviewController.activeTimeLabel
-                                            ? " · " + sessionReviewController.activeTimeLabel : "")
-                                     + qsTr(" · %1 shots").arg(sessionReviewController.activeShotCount))
-                                  : qsTr("%1 shots").arg(shotModel.activeCount)
+                                  ? (app.sessionReviewController.activeDayLabel
+                                     + (app.sessionReviewController.activeTimeLabel
+                                            ? " · " + app.sessionReviewController.activeTimeLabel : "")
+                                     + qsTr(" · %1 shots").arg(app.sessionReviewController.activeShotCount))
+                                  : qsTr("%1 shots").arg(app.shotModel.activeCount)
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzBody2
                         color:          Theme.colorText
@@ -461,7 +461,7 @@ Item {
                         if (sessionsPopup.opened) {
                             sessionsPopup.close()
                         } else {
-                            sessionReviewController.refresh()   // re-enumerate disk + live
+                            app.sessionReviewController.refresh()   // re-enumerate disk + live
                             sessionsPopup.open()
                         }
                     }
@@ -745,11 +745,11 @@ Item {
             // sessions in turn; for trash the row drops out of the list in place.
             onExportRequested: (sessionId) => {
                 root._openExportSheet(
-                    sessionReviewController.swingDirsForSession(sessionId),
+                    app.sessionReviewController.swingDirsForSession(sessionId),
                     qsTr("No saved shots to export"))
             }
             onTrashRequested: (sessionId) => {
-                const ok = sessionReviewController.trashSession(sessionId)
+                const ok = app.sessionReviewController.trashSession(sessionId)
                 root._notify("🗑", ok ? qsTr("Session moved to trash")
                                      : qsTr("Could not move session to trash"),
                              ok ? "info" : "error")
@@ -775,12 +775,12 @@ Item {
         tone: "attention"
         onConfirmed: {
             const dir = moveConfirm.sessionDir
-            const onScreen = sessionReviewController.reviewActive
-                             && SessionMode.sameFolder(sessionReviewController.activeSessionId, dir)
+            const onScreen = app.sessionReviewController.reviewActive
+                             && SessionMode.sameFolder(app.sessionReviewController.activeSessionId, dir)
             if (onScreen)
-                sessionReviewController.resumeLive()   // the session leaves this athlete: as a trash, the screen goes back
-            const why = athleteController.moveSessionToAthlete(dir, moveConfirm.toUuid)
-            sessionReviewController.refresh()
+                app.sessionReviewController.resumeLive()   // the session leaves this athlete: as a trash, the screen goes back
+            const why = app.athleteController.moveSessionToAthlete(dir, moveConfirm.toUuid)
+            app.sessionReviewController.refresh()
             root._notify("→", why === "" ? qsTr("Session moved") : qsTr("Could not move the session: %1").arg(why),
                          why === "" ? "info" : "error")
         }
@@ -794,7 +794,7 @@ Item {
         x: Theme.gap(16)
         y: -height - Theme.gap(10)
         onConfirmed: (selectedVideoFiles, includeJson) =>
-            swingExporter.exportShots(exportSheet.swingDirs, selectedVideoFiles, includeJson)
+            app.swingExporter.exportShots(exportSheet.swingDirs, selectedVideoFiles, includeJson)
     }
 
     // The delete's outcome, from whichever model is showing. A row leaves as its folder does;
@@ -825,7 +825,7 @@ Item {
 
     // Completion notice for the bulk export — the copy icon copies the zip path.
     Connections {
-        target: swingExporter
+        target: app.swingExporter
         function onExportFinished(ok, zipPath, error) {
             if (ok)
                 root._notify("✓", qsTr("Exported %1").arg(zipPath.split('/').pop()), "info", zipPath)
@@ -845,11 +845,11 @@ Item {
     // normal auto-dismissing outcome toast once it drains. Each finished swing refreshes
     // its row in the active model.
     Connections {
-        target: reanalysisController
+        target: app.reanalysisController
         function onReanalyseQueued(count) {
             // A fresh batch (not already reanalysing) resets the running total/elapsed;
             // a mid-batch top-up (user queues more while one is in flight) accumulates.
-            root._reanalyseQueuedCount = reanalysisController.reanalysing
+            root._reanalyseQueuedCount = app.reanalysisController.reanalysing
                 ? root._reanalyseQueuedCount + count : count
             root._notify("↻", root._reanalyseQueuedCount === 1
                              ? qsTr("Re-analysing · 1 shot")
@@ -880,7 +880,7 @@ Item {
     Timer {
         id: reanalyseElapsedTimer
         interval: 1000; repeat: true
-        running: reanalysisController.reanalysing
+        running: app.reanalysisController.reanalysing
         onRunningChanged: if (running) root._reanalyseElapsedS = 0
         onTriggered: {
             root._reanalyseElapsedS++

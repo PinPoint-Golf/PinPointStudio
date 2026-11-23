@@ -53,7 +53,7 @@ Item {
             probe.step += 1
             const root = probe.Window.window.contentItem
             if (probe.step === 1) {
-                navController.navigate(AppScreen.Settings)
+                app.navController.navigate(AppScreen.Settings)
             } else if (probe.step === 2) {
                 const ss = probe.find(root, i => typeof i.showMetricDetail === "function")
                 if (!ss) { probe.log("no settings screen"); Qt.exit(1); return }

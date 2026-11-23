@@ -88,7 +88,7 @@ Item {
 
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject {
             required property int shotId
             required property int ordinal
@@ -123,11 +123,11 @@ Item {
             const c = probe.carousel()
             if (probe.step === 1) {
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
-                navController.navigate(AppScreen.Session)                 // the session screen
+                app.navController.navigate(AppScreen.Session)                 // the session screen
                 app.state.enterCapture()
-                sessionReviewController.loadSession(probe.sessionDir)
+                app.sessionReviewController.loadSession(probe.sessionDir)
             } else if (probe.step === 2) {
-                probe.check(sessionReviewController.reviewActive, "the session loaded for review")
+                probe.check(app.sessionReviewController.reviewActive, "the session loaded for review")
                 probe.check(!!c, "a carousel is on screen")
                 probe.picked = probe.byOrdinal(probe.ordinal)
                 probe.older  = probe.byOrdinal(probe.ordinal - 1)
@@ -138,7 +138,7 @@ Item {
                 c.expanded = true                          // the strip may be folded (settings are a copy)
                 c._toggleShot(probe.picked.shotId, probe.picked.swingDir, null)   // the card's click
             } else if (probe.step === 3) {
-                probe.check(sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir) === probe.picked.shotId, "the picked swing is on the stage")
+                probe.check(app.sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir) === probe.picked.shotId, "the picked swing is on the stage")
                 probe.check(app.state.replay.active && app.state.replay.swingDir === probe.picked.swingDir,
                             "…and its videos are open in the replay")
                 if (probe.pngHover !== "") {
@@ -149,14 +149,14 @@ Item {
                 probe.grab(c, probe.pngHover, function () {
                     const k = probe.cardFor(c, probe.older.shotId)
                     if (k) k.hovered = false
-                    c._trash([sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir)])                    // the bar's Move to trash
+                    c._trash([app.sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir)])                    // the bar's Move to trash
                 })
             } else if (probe.step === 4) {
                 probe.check(shots.count === probe.countBefore - 1,
                             "the swing on the stage was deleted (" + probe.countBefore + " → " + shots.count + ")")
-                probe.check(sessionReviewController.shots.shotSummary(probe.picked.shotId).valid === false,
+                probe.check(app.sessionReviewController.shots.shotSummary(probe.picked.shotId).valid === false,
                             "…its row is gone")
-                probe.check(sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir) === probe.older.shotId,
+                probe.check(app.sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir) === probe.older.shotId,
                             "the stage moved to the next older swing (#" + probe.older.ordinal + ")")
                 probe.check(app.state.mode === app.state.replayMode, "…without leaving Replay")
                 probe.check(app.state.replay.swingDir === probe.older.swingDir, "…and the replay went with it")
@@ -173,7 +173,7 @@ Item {
                 probe.cardFor(c, b.shotId).markToggled()
             } else if (probe.step === 5) {
                 probe.check(c.markedIds.length === 2, "two swings are picked")
-                probe.check(sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir) === probe.older.shotId, "…and the stage did not move")
+                probe.check(app.sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir) === probe.older.shotId, "…and the stage did not move")
                 const rows = probe.find(c, i => i.objectName === "markRow", [])
                 probe.check(rows.length === 1 && probe.shown(rows[0]), "the bar shows the selection")
                 const btn = probe.find(c, i => i.objectName === "trashMarkedButton", [])[0]
@@ -186,7 +186,7 @@ Item {
             } else if (probe.step === 6) {
                 probe.check(shots.count === probe.countBefore - 2, "both picked swings were deleted")
                 probe.check(c.markedIds.length === 0, "…and the selection is empty")
-                probe.check(sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir) === probe.older.shotId, "…and the stage is still where it was")
+                probe.check(app.sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir) === probe.older.shotId, "…and the stage is still where it was")
                 for (const m of probe.marks) probe.log("TRASHED " + m.swingDir)
                 // A swing deleted from its own card's trash can, never on the stage.
                 probe.lone = probe.byOrdinal(probe.ordinal + 1)       // the newest: first in the strip
@@ -198,7 +198,7 @@ Item {
                 probe.cardFor(c, probe.lone.shotId).trashRequested()
             } else if (probe.step === 7) {
                 probe.check(shots.count === probe.countBefore - 1, "the card's trash can deleted its swing")
-                probe.check(sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir) === probe.older.shotId, "…and the stage did not move")
+                probe.check(app.sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir) === probe.older.shotId, "…and the stage did not move")
                 probe.log("TRASHED " + probe.lone.swingDir)
                 probe.log("KEPT " + probe.older.swingDir)
                 probe.finish()

@@ -99,8 +99,8 @@ Item {
     // replayAnalysisDetail is a QJSValue shared by reference (qml_payload.h): reading it three
     // times here costs nothing. As a QVariantMap each read copied ~650k nodes — never go back.
     readonly property var _replaySeries:
-        (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.series)
-        ? shotProcessor.replayAnalysisDetail.series : []
+        (app.shotProcessor.replayAnalysisDetail && app.shotProcessor.replayAnalysisDetail.series)
+        ? app.shotProcessor.replayAnalysisDetail.series : []
 
     // The legend for the P-position marks the replay tiles draw on the club (PpCameraFrame): on
     // the card's heading row, and only while those marks can be on screen.
@@ -292,9 +292,9 @@ Item {
                 }
                 displayName: modelData.alias !== "" ? modelData.alias : modelData.description
                 showHittingArea: root.showHittingArea
-                showHittingAreaHint: cameraManager.livePoseEnabled && sessionController.running
+                showHittingAreaHint: cameraManager.livePoseEnabled && app.sessionController.running
                 // Live ball circle rides the same live-pose gate as the ROI hint.
-                showBallOverlay: cameraManager.livePoseEnabled && sessionController.running
+                showBallOverlay: cameraManager.livePoseEnabled && app.sessionController.running
                 // Capture-mode ¼× post-shot auto-replay overlay follows the view's
                 // Pose overlay toggle (Capture setting == current mode here). Chrome
                 // bindings above are left EXACTLY as-is (capture chrome unchanged v1).
@@ -363,17 +363,17 @@ Item {
             PpMetricChart {
                 anchors.fill: parent
                 compact:    true        // plot only — no toolbar / brush / summary chrome
-                visible:    shotProcessor.isReplaying && root._replaySeries.length > 0
+                visible:    app.shotProcessor.isReplaying && root._replaySeries.length > 0
                 seriesList: root._replaySeries
-                phases:     (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.phases)
-                                ? shotProcessor.replayAnalysisDetail.phases : []
-                kinematicSequence: (shotProcessor.replayAnalysisDetail
-                                    && shotProcessor.replayAnalysisDetail.kinematicSequence)
-                                ? shotProcessor.replayAnalysisDetail.kinematicSequence : null
-                startUs:    shotProcessor.replayStartUs
-                endUs:      shotProcessor.replayEndUs
-                impactUs:   shotProcessor.replayImpactUs
-                playheadUs: shotProcessor.replayPositionUs
+                phases:     (app.shotProcessor.replayAnalysisDetail && app.shotProcessor.replayAnalysisDetail.phases)
+                                ? app.shotProcessor.replayAnalysisDetail.phases : []
+                kinematicSequence: (app.shotProcessor.replayAnalysisDetail
+                                    && app.shotProcessor.replayAnalysisDetail.kinematicSequence)
+                                ? app.shotProcessor.replayAnalysisDetail.kinematicSequence : null
+                startUs:    app.shotProcessor.replayStartUs
+                endUs:      app.shotProcessor.replayEndUs
+                impactUs:   app.shotProcessor.replayImpactUs
+                playheadUs: app.shotProcessor.replayPositionUs
                 showPlayhead: true
             }
         }

@@ -122,7 +122,7 @@ Rectangle {
             PpPressable {
                 anchors.margins: -Theme.sp(6)
                 onClicked: {
-                    clipboard.setText(card.copyText)
+                    app.clipboard.setText(card.copyText)
                     copyConfirm.restart()
                     card.copied()
                 }

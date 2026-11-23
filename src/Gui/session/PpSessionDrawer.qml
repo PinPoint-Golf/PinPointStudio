@@ -63,7 +63,7 @@ Item {
                     // Room for the empty-list note below the live row, which it would otherwise sit on.
                     + (emptyNote.visible ? emptyNote.implicitHeight + Theme.gap(40) : 0)
 
-    readonly property var  _sessions:     sessionReviewController.sessionsModel
+    readonly property var  _sessions:     app.sessionReviewController.sessionsModel
     readonly property bool _filterActive: _sessions.deviceFilter.length > 0
 
     ColumnLayout {
@@ -187,8 +187,8 @@ Item {
                 id: rowMa
                 hoverScale: 1.0           // full-width list row — press-dip only
                 onClicked: {
-                    if (rowBg.isLive) sessionReviewController.resumeLive()
-                    else              sessionReviewController.loadSession(rowBg.sessionId)
+                    if (rowBg.isLive) app.sessionReviewController.resumeLive()
+                    else              app.sessionReviewController.loadSession(rowBg.sessionId)
                     drawer.sessionSelected()
                     drawer.closeRequested()
                 }
@@ -334,8 +334,8 @@ Item {
                                 id: moveItem
                                 objectName: "moveToGolferItem"
                                 visible: !rowBg.isLive && rowMenu.opened
-                                         && typeof athleteController !== "undefined" && !!athleteController
-                                         && athleteController.isUnassignedSession(rowBg.sessionId)
+                                         && (typeof app !== "undefined" && !!app.athleteController) && !!app.athleteController
+                                         && app.athleteController.isUnassignedSession(rowBg.sessionId)
                                 height: visible ? implicitHeight : 0
                                 glyph: "→"
                                 text: qsTr("Move to golfer…")
@@ -376,9 +376,9 @@ Item {
                         padding: Theme.gap(5)
                         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
                         readonly property var golfers: {
-                            const all = (typeof athleteController !== "undefined" && athleteController)
-                                        ? athleteController.athletes : []
-                            const u = athleteController ? athleteController.unassignedUuid : ""
+                            const all = ((typeof app !== "undefined" && !!app.athleteController) && app.athleteController)
+                                        ? app.athleteController.athletes : []
+                            const u = app.athleteController ? app.athleteController.unassignedUuid : ""
                             return all.filter(function (a) { return a.uuid !== u })
                         }
                         contentWidth: Theme.sp(220)

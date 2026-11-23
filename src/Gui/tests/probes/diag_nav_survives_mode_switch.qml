@@ -95,7 +95,7 @@ Item {
 
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject {
             required property int shotId
             required property int ordinal
@@ -135,16 +135,16 @@ Item {
                     if (!ViewLayout.isPanelOn(m, "sessionDiagnostics"))
                         ViewLayout.setPanel(m, "sessionDiagnostics", true)
                 }
-                navController.navigate(AppScreen.Session)                 // the session screen
+                app.navController.navigate(AppScreen.Session)                 // the session screen
                 app.state.enterCapture()
                 probe.check(cameraManager.ballCueEnabled === true, "ball ting ON on Capture")
-                sessionReviewController.loadSession(probe.sessionDir)
+                app.sessionReviewController.loadSession(probe.sessionDir)
             } else if (s === 2) {
-                probe.check(sessionReviewController.reviewActive, "the session loaded for review")
+                probe.check(app.sessionReviewController.reviewActive, "the session loaded for review")
                 let picked = false
                 for (let i = 0; i < shots.count; ++i) {
                     const sh = shots.objectAt(i)
-                    if (sh.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(sh.shotId), sh.swingDir); picked = true }
+                    if (sh.ordinal === probe.ordinal) { app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(sh.shotId), sh.swingDir); picked = true }
                 }
                 probe.check(picked, "shot " + probe.ordinal + " is in the carousel")
                 probe.check(cameraManager.ballCueEnabled === false, "ball ting OFF on Replay")

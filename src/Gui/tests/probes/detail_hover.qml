@@ -93,7 +93,7 @@ Item {
 
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject {
             required property int shotId
             required property int ordinal
@@ -211,9 +211,9 @@ Item {
                 probe.Window.window.visibility = Window.Windowed
                 probe.Window.window.width  = parseInt(probe.arg("--probe-width", "1920"))
                 probe.Window.window.height = parseInt(probe.arg("--probe-height", "1080"))
-                navController.navigate(AppScreen.Session)
+                app.navController.navigate(AppScreen.Session)
                 app.state.enterCapture()
-                sessionReviewController.loadSession(probe.sessionDir)
+                app.sessionReviewController.loadSession(probe.sessionDir)
             } else if (step === 3) {
                 // The analyse view, with the panel on beside the camera and the charts.
                 ViewLayout.setPanel(app.state.analyseMode, "sessionDiagnostics", true)
@@ -221,7 +221,7 @@ Item {
                 ViewLayout.setPanel(app.state.analyseMode, "charts", true)
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
             } else if (step === 4) {
                 app.state.enterAnalyse()               // the replay stays loaded (AppState::loadSelected)

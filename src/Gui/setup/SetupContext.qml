@@ -51,7 +51,7 @@ QtObject {
     property var cameraMgr: cameraManager
     property var imuMgr:    imuManager
     property var settings:  appSettings
-    property var athlete:   athleteController
+    property var athlete:   app.athleteController
     property var launchMon: launchMonitor
     // The visit's draft, for setupFacts (calibration outcomes). The host wires it.
     property var draft: null
@@ -78,10 +78,9 @@ QtObject {
     // assessment).
     //
     // The work-ons controller (WorkOnsController, diagnostics/work_ons_controller.h; the app's
-    // `workOns` context property). Guarded: the setup test harness has no `workOns`, and a bare
-    // reference would throw there. Named apart from the context property so this property does not
-    // resolve to itself (see liveWrist above); lint W5 checks every member used on it. Injectable.
-    property var workOnsSource: (typeof workOns !== "undefined" ? workOns : null)
+    // `app.workOns`, refactor 5.8b). Guarded: a setup test harness may have no `app`, or an `app` with
+    // no `workOns`. Named apart from the app's member so lint W5 checks every member used on it. Injectable.
+    property var workOnsSource: ((typeof app !== "undefined" && !!app.workOns) ? app.workOns : null)
 
     // The choices, in the order the Intent page offers them:
     //   { id, label, kind: "open" | "coaching" | "workOn", status: "" | "active" | "easing" }

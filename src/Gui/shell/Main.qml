@@ -156,9 +156,9 @@ ApplicationWindow {
     // inert otherwise (enabled gating keeps Esc free for popups/text fields).
     Shortcut {
         sequence: "Esc"
-        enabled: shotProcessor.isReplaying || app.state.mode === app.state.replayMode
+        enabled: app.shotProcessor.isReplaying || app.state.mode === app.state.replayMode
         onActivated: {
-            if (shotProcessor.isReplaying) shotProcessor.cancelReplay()
+            if (app.shotProcessor.isReplaying) app.shotProcessor.cancelReplay()
             else app.state.enterCapture()
         }
     }
@@ -169,7 +169,7 @@ ApplicationWindow {
     // gap: macOS Cmd+Q / app-menu Quit doesn't pass through onClosing.
     property bool _quitConfirmed: false
     onClosing: (close) => {
-        if (sessionController.running && !root._quitConfirmed) {
+        if (app.sessionController.running && !root._quitConfirmed) {
             close.accepted = false
             closeConfirm.open()
         }
@@ -225,7 +225,7 @@ ApplicationWindow {
     // Forcing focus to the root window content item steals it from any TextField,
     // triggering the onActiveFocusChanged handler in PpTextField.qml.
     Connections {
-        target: navController
+        target: app.navController
         function onCurrentIndexChanged() {
             root.contentItem.forceActiveFocus()
             // Mode + loaded swing PERSIST across navigation: leaving the session
@@ -239,9 +239,9 @@ ApplicationWindow {
     // session (Capture is live-only); returning to live drops to Capture. Both
     // entries reset the focused swing and stop any lingering disk replay.
     Connections {
-        target: sessionReviewController
+        target: app.sessionReviewController
         function onReviewActiveChanged() {
-            if (sessionReviewController.reviewActive) app.state.enterLoadedSession()
+            if (app.sessionReviewController.reviewActive) app.state.enterLoadedSession()
             else                                      app.state.enterCapture()
         }
     }
@@ -256,11 +256,11 @@ ApplicationWindow {
     // shot just lands in the carousel and the user stays live at the mat (corpus
     // capture, or when instant playback isn't wanted).
     Connections {
-        target: shotProcessor
+        target: app.shotProcessor
         function onShotProcessed(shotId, swingDir) {
             if (swingDir !== "" && app.state.mode === app.state.captureMode
                     && appSettings.autoReplayAfterCapture)
-                app.state.enterReplay(shotModel.shotRefOf(shotId), swingDir, true)
+                app.state.enterReplay(app.shotModel.shotRefOf(shotId), swingDir, true)
         }
     }
     // (When that auto-replay plays to its end, app.state drops back to live Capture: AppState::replayEnded, connected
@@ -406,7 +406,7 @@ ApplicationWindow {
     }
 
     Connections {
-        target: shotProcessor
+        target: app.shotProcessor
         function onShotProcessed(shotId, swingDir) {
             // No cast surface off the session screens — not even a post-shot pop.
             if (swingDir === "" || !postShotCast.target || !root.sessionScreenActive)
@@ -448,7 +448,7 @@ ApplicationWindow {
     Binding {
         target:   cameraManager
         property: "ballCueEnabled"
-        value:    !shotProcessor.busy
+        value:    !app.shotProcessor.busy
                   && !(root.sessionScreenActive && app.state.mode !== app.state.captureMode)
     }
 
@@ -473,10 +473,10 @@ ApplicationWindow {
     // at wizard completion) preserves an already-set activeClub.
     function _openSessionSetup(request) {
         // A session is already running: Start is the way back to it, never a second one.
-        if (sessionController.running) { navController.navigateRail(AppScreen.Session); return }
-        sessionController.activeClub = screenHome.selectedClub
+        if (app.sessionController.running) { app.navController.navigateRail(AppScreen.Session); return }
+        app.sessionController.activeClub = screenHome.selectedClub
         sessionSetup.open(request)
-        navController.navigate(AppScreen.Wizard)
+        app.navController.navigate(AppScreen.Wizard)
     }
 
     RowLayout {
@@ -487,21 +487,21 @@ ApplicationWindow {
             id: rail
             Layout.fillHeight: true
             // implicitWidth declared in PpRail.qml drives the column width
-            currentPageIndex: navController.currentIndex
+            currentPageIndex: app.navController.currentIndex
             // Lock every destination while the wizard is open so the user stays in
             // the setup flow. System and Settings remain accessible and use
             // navigate() (not navigateRail()) to preserve wizard in history.
-            locked: navController.currentIndex === AppScreen.Wizard
+            locked: app.navController.currentIndex === AppScreen.Wizard
 
             onPageRequested: function(index) {
-                if (navController.currentIndex === AppScreen.Wizard)
-                    navController.navigate(index)   // preserves wizard in back-history
+                if (app.navController.currentIndex === AppScreen.Wizard)
+                    app.navController.navigate(index)   // preserves wizard in back-history
                 else
-                    navController.navigateRail(index)
+                    app.navController.navigateRail(index)
             }
             onAvatarClicked: {
-                if (navController.currentIndex !== AppScreen.Wizard)
-                    navController.navigateRail(AppScreen.Athletes)
+                if (app.navController.currentIndex !== AppScreen.Wizard)
+                    app.navController.navigateRail(AppScreen.Athletes)
             }
         }
 
@@ -514,10 +514,10 @@ ApplicationWindow {
                 id: appHeader
                 Layout.fillWidth: true
                 // Athlete names itself by whether it is creating or editing.
-                screenName: navController.currentIndex === AppScreen.Athlete
+                screenName: app.navController.currentIndex === AppScreen.Athlete
                             ? (athleteFormScreen.editUuid === "" ? qsTr("New athlete")
                                                                  : qsTr("Edit athlete"))
-                            : (root.screenNames[navController.currentIndex] || "")
+                            : (root.screenNames[app.navController.currentIndex] || "")
                 // Shown app-wide so its click target (the About dialog) is always reachable.
                 showVersionPill: true
                 // The session screen gates the centred DETECT cluster the header
@@ -536,24 +536,24 @@ ApplicationWindow {
                 // back — onExitRequested below); › is Continue only, never Connect, and is
                 // disabled exactly when Continue would not advance (F5, D2). Otherwise
                 // delegate to navController.
-                backEnabled: navController.currentIndex === AppScreen.Wizard
+                backEnabled: app.navController.currentIndex === AppScreen.Wizard
                                  ? sessionSetup.canHeaderBack
-                                 : navController.canGoBack
-                forwardEnabled: navController.currentIndex === AppScreen.Wizard
+                                 : app.navController.canGoBack
+                forwardEnabled: app.navController.currentIndex === AppScreen.Wizard
                                     ? sessionSetup.canHeaderForward
-                                    : navController.canGoForward
+                                    : app.navController.canGoForward
 
                 onBackRequested: {
-                    if (navController.currentIndex === AppScreen.Wizard)
+                    if (app.navController.currentIndex === AppScreen.Wizard)
                         sessionSetup.headerBack()
                     else
-                        navController.back()
+                        app.navController.back()
                 }
                 onForwardRequested: {
-                    if (navController.currentIndex === AppScreen.Wizard)
+                    if (app.navController.currentIndex === AppScreen.Wizard)
                         sessionSetup.headerForward()
                     else
-                        navController.forward()
+                        app.navController.forward()
                 }
             }
 
@@ -561,7 +561,7 @@ ApplicationWindow {
                 id: contentStack
                 Layout.fillWidth:  true
                 Layout.fillHeight: true
-                currentIndex: navController.currentIndex
+                currentIndex: app.navController.currentIndex
 
                 // ⚠ CHILDREN IN AppScreen ORDER (src/Gui/shell/app_screen.h): the child's position IS
                 // its screen value, and the session-screen gates compare against AppScreen.Session.
@@ -570,39 +570,39 @@ ApplicationWindow {
                     id: screenHome
                     onAddAthleteRequested: {
                         athleteFormScreen.editUuid = ""
-                        navController.navigate(AppScreen.Athlete)
+                        app.navController.navigate(AppScreen.Athlete)
                     }
                     // The header's Switch →: the picker, as the rail's avatar opens it.
-                    onAthletePickerRequested: navController.navigateRail(AppScreen.Athletes)
+                    onAthletePickerRequested: app.navController.navigateRail(AppScreen.Athletes)
                     // A setup card: Settings at its Cameras or Motion sensors panel.
                     onDeviceSettingsRequested: (panel) => {
                         settingsScreen.openDevicePanel(panel)
-                        navController.navigate(AppScreen.Settings)
+                        app.navController.navigate(AppScreen.Settings)
                     }
                     // Tapping the home avatar edits the current athlete's profile.
                     onEditCurrentAthleteRequested: {
-                        athleteFormScreen.editUuid = athleteController.currentUuid
+                        athleteFormScreen.editUuid = app.athleteController.currentUuid
                         athleteFormScreen.loadForEdit()   // force a fresh load even if uuid is unchanged
-                        navController.navigate(AppScreen.Athlete)
+                        app.navController.navigate(AppScreen.Athlete)
                     }
                     onStartSessionRequested: function(request) { root._openSessionSetup(request) }
                     // An open fault's "Review the … session →": the review picker's own load, then
                     // the screen that draws a loaded session.
                     onReviewSessionRequested: function(sessionDir) {
-                        sessionReviewController.loadSession(sessionDir)
-                        navController.navigate(AppScreen.Session)
+                        app.sessionReviewController.loadSession(sessionDir)
+                        app.navController.navigate(AppScreen.Session)
                     }
                     // The rig pane's "Rig ▸", and the Sessions tab's link to the studio's details,
                     // open Settings → Studio.
                     onStudioSettingsRequested: {
                         settingsScreen.openStudio()
-                        navController.navigate(AppScreen.Settings)
+                        app.navController.navigate(AppScreen.Settings)
                     }
                     // The Sessions tab's link to a missing address or photo approval: the golfer's own page.
                     onGolferDetailsRequested: {
-                        athleteFormScreen.editUuid = athleteController.currentUuid
+                        athleteFormScreen.editUuid = app.athleteController.currentUuid
                         athleteFormScreen.loadForEdit()
-                        navController.navigate(AppScreen.Athlete)
+                        app.navController.navigate(AppScreen.Athlete)
                     }
                 }
                 ScreenWrist {}                                             // AppScreen.Session — the one session screen
@@ -612,35 +612,35 @@ ApplicationWindow {
                     // same target the header ‹ arrow reaches.
                     onCancelled: {
                         athleteFormScreen.editUuid = ""
-                        navController.back()
+                        app.navController.back()
                     }
                     onSaved: {
                         const wasEdit = athleteFormScreen.editUuid !== ""
                         athleteFormScreen.editUuid = ""
                         // Edit: return to the origin (home or picker). Create: land on
                         // the picker so the new athlete is visible and selected.
-                        if (wasEdit) navController.back()
-                        else         navController.navigate(AppScreen.Athletes)
+                        if (wasEdit) app.navController.back()
+                        else         app.navController.navigate(AppScreen.Athletes)
                     }
-                    onSavedAndStarted: { athleteFormScreen.editUuid = ""; navController.navigate(AppScreen.Athletes) }
+                    onSavedAndStarted: { athleteFormScreen.editUuid = ""; app.navController.navigate(AppScreen.Athletes) }
                 }
                 ScreenAthletePicker {                                      // AppScreen.Athletes — athlete picker
-                    onAthleteSelected:     navController.navigate(AppScreen.Home)
-                    onNewAthleteRequested: { athleteFormScreen.editUuid = ""; navController.navigate(AppScreen.Athlete) }
+                    onAthleteSelected:     app.navController.navigate(AppScreen.Home)
+                    onNewAthleteRequested: { athleteFormScreen.editUuid = ""; app.navController.navigate(AppScreen.Athlete) }
                     onEditAthleteRequested: function(uuid) {
                         athleteFormScreen.editUuid = uuid
-                        navController.navigate(AppScreen.Athlete)
+                        app.navController.navigate(AppScreen.Athlete)
                     }
                 }
                 ScreenResourceMonitor {                                    // AppScreen.System — system resource monitor
                     onNavigateToSettings: function(panelIndex) {
                         settingsScreen.activeNavIndex = panelIndex
-                        navController.navigate(AppScreen.Settings)
+                        app.navController.navigate(AppScreen.Settings)
                     }
                 }
                 ScreenSettings {                                           // AppScreen.Settings — settings
                     id: settingsScreen
-                    onResourceMonitorRequested: navController.navigate(AppScreen.System)
+                    onResourceMonitorRequested: app.navController.navigate(AppScreen.System)
                 }
                 // Metric tile → its catalogue detail page in Settings → Swing model. Navigation
                 // is owned here, so a tile (several layers inside a stage delegate, or inside the
@@ -648,7 +648,7 @@ ApplicationWindow {
                 Connections {
                     target: MetricRoute
                     function onOpenRequested(key) {
-                        navController.navigate(AppScreen.Settings)
+                        app.navController.navigate(AppScreen.Settings)
                         settingsScreen.showMetricDetail(key)
                     }
                 }
@@ -659,18 +659,18 @@ ApplicationWindow {
                         // The flow has already released every device setup connected
                         // (cameras, sensors, the microphone via capture intent) before
                         // it emitted cancelled() — the same teardown as End Session.
-                        sessionController.activeClub = ""   // drop the un-started club pick
-                        navController.navigate(AppScreen.Home)
+                        app.sessionController.activeClub = ""   // drop the un-started club pick
+                        app.navController.navigate(AppScreen.Home)
                     }
                     // ‹ on the first step: the flow released the devices; go back to
                     // where setup was opened from.
-                    onExitRequested: navController.back()
+                    onExitRequested: app.navController.back()
                     // The request comes back with the wizard's final focus. The pick is set only
                     // here, at Start (Cancel and ‹-exit leave it untouched); app.state hands it to the first
                     // Session the start (or, failing that, the first swing) opens, from its first shot (refactor 4-d).
                     onSessionStartRequested: function(request) {
-                        sessionController.focusConditionId = request.focusConditionId || ""
-                        navController.navigateRail(AppScreen.Session)
+                        app.sessionController.focusConditionId = request.focusConditionId || ""
+                        app.navController.navigateRail(AppScreen.Session)
                         // The wizard always starts a NEW session folder (a deliberate
                         // fresh session); the carousel begins empty. The toolbar
                         // Capture button is the path that offers extend-vs-new.
@@ -678,7 +678,7 @@ ApplicationWindow {
                     }
                     onNavigateToSettings: function(panelIndex) {
                         settingsScreen.activeNavIndex = panelIndex
-                        navController.navigate(AppScreen.Settings)
+                        app.navController.navigate(AppScreen.Settings)
                     }
                     onCameraRecalibrateRequested: {
                         // TODO: navigate to the stereo calibration screen when the
@@ -706,13 +706,13 @@ ApplicationWindow {
         z: 100
     }
     Connections {
-        target: notifications
+        target: app.notifications
         // The centre owns no navigation, so the one action it can ask for is
         // resolved here — in-app, never a menu or a native dialog.
         function onActionRequested(actionId) {
             if (actionId === "settings.storage") {
                 settingsScreen.activeNavIndex = 8      // Storage
-                navController.navigate(AppScreen.Settings)
+                app.navController.navigate(AppScreen.Settings)
             }
         }
     }
@@ -724,7 +724,7 @@ ApplicationWindow {
         id: updateBanner
         anchors.horizontalCenter: parent.horizontalCenter
         width: Math.min(parent.width - Theme.gap(96), Theme.sp(620))
-        allowed: navController.currentIndex !== AppScreen.Wizard
+        allowed: app.navController.currentIndex !== AppScreen.Wizard
         y: (notificationHost.count > 0 ? notificationHost.y : parent.height)
            - height - Theme.gap(12)
         z: 100
@@ -734,7 +734,7 @@ ApplicationWindow {
     // played once per committed shot (any modality) during a session.
     TingPlayer { id: shotTing; frequency: 4186.0 }
     Connections {
-        target: shotController
+        target: app.shotController
         function onShotDetected(source, timestampUs, sessionType) {
             shotTing.play()
         }
@@ -748,7 +748,7 @@ ApplicationWindow {
     // testing build; this is the act-now half.
     TingPlayer { id: refusedTing; frequency: 220.0; volume: 0.7 }
     Connections {
-        target: shotController
+        target: app.shotController
         // The sentence itself now goes through the notification centre (main.cpp
         // posts it under the id the controller names); this keeps the audible
         // half, which is the part that reaches a golfer who is not looking.
@@ -796,6 +796,6 @@ ApplicationWindow {
             }
             return ""
         }
-        active: appInfo.devBuild && source !== ""
+        active: app.appInfo.devBuild && source !== ""
     }
 }

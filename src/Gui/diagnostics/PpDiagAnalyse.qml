@@ -132,37 +132,11 @@ Item {
     // ── the distance to travel (PpKeyFigures on Detail): what PpFeatureHead does not already state ──
     readonly property var travelItems: {
         const h = (detail && detail.header) || null, sp = (h && h.spread) || null
-        if (!sp) return []
-        const cur = (sp.run || []).find(r => r.current && r.assessable)
-        const pass = (sp.bands || []).filter(b => b.grade === "ideal" || b.grade === "good" || b.grade === "open")
-        if (!cur || !pass.length) return []
-        const v = cur.value
-        // an OPEN end has no pass edge (#16: a one-way condition opens the end it never fires on): its band
-        // stops where the axis does, which is no distance the golfer can travel
-        const bands = sp.bands || [], graded = pass.filter(b => b.grade !== "open")
-        if (!graded.length) return []
-        const lo = bands[0].grade === "open" ? -Infinity : Math.min(...graded.map(b => b.lo))
-        const hi = bands[bands.length - 1].grade === "open" ? Infinity : Math.max(...graded.map(b => b.hi))
-        const above = v > hi, below = v < lo
-        // a distance, so no sign; at the strip's own precision, as the hover readout's "15 past the fault line" (C15)
-        const fmt = x => ro.figure(Math.abs(x), sp.decimals !== undefined ? sp.decimals : 1)
-        const lab = "Shot " + (cur.index !== undefined ? cur.index + 1 : shotNo)
-        const out = []
-        if (above || below) {
-            const edge = above ? hi : lo
-            const fl = (sp.faultLines || []).filter(f => above ? f.value >= hi : f.value <= lo)
-                        .sort((a, b) => Math.abs(a.value - edge) - Math.abs(b.value - edge))[0]
-            if (fl) {
-                const past = above ? v - fl.value : fl.value - v
-                // a distance that rounds to nothing at this precision is "at the fault line", as the hover readout
-                // says it (session_spread.h spreadPositionWords): never "0 past" or "inside it" by a rounding
-                const at = Number(fmt(past)) === 0
-                out.push({ label: lab + " past the fault line", figure: at ? "at the fault line" : past > 0 ? fmt(past) : "inside it", word: at || past <= 0 })
-            }
-            out.push({ label: lab + " from the pass edge", figure: fmt(above ? v - hi : lo - v) })
-        } else {
-            out.push({ label: lab + " inside the pass edge by", figure: fmt(Math.min(v - lo, hi - v)) })
-        }
+        // the distances (past the fault line, from or inside the pass edge) are the model's (session_spread.h
+        // spreadTravelItems; refactor 5.8b): none when the shot has no reading or the strip no graded pass band
+        const out = ((sp && sp.travel) || []).slice()
+        if (!out.length) return []
+        const lab = String(sp.travelShot || "")
         const rc = detail ? ro.byId(conds, detail.id) : null
         if (rc && rc.strengthKnown && rc.stateKind === "fired" && !rc.composite) out.push({ label: lab + " out by", figure: rc.strengthSharp ? "sharp" : rc.strengthExcess.toFixed(1) + "×" })
         return out

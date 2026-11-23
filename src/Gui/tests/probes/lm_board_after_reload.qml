@@ -72,7 +72,7 @@ Item {
         Qt.exit(failures === 0 ? 0 : 1)
     }
 
-    readonly property var carousel: probe.path === "review" ? sessionReviewController.shots : shotModel
+    readonly property var carousel: probe.path === "review" ? app.sessionReviewController.shots : app.shotModel
     Instantiator {
         id: shots
         model: probe.carousel
@@ -106,18 +106,18 @@ Item {
             if (probe.step === 1) {
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
                 if (probe.path === "review")
-                    sessionReviewController.loadSession(probe.sessionDir)
+                    app.sessionReviewController.loadSession(probe.sessionDir)
                 else
                     app.state.setLiveFolder(probe.sessionDir)   // End Session's reload, verbatim
             } else if (probe.step === 2) {
                 probe.check(shots.count > 0, probe.path + " load: " + shots.count + " shots in the carousel")
-                probe.check((probe.path === "review") === sessionReviewController.reviewActive,
+                probe.check((probe.path === "review") === app.sessionReviewController.reviewActive,
                             "the panel boards the " + (probe.path === "review" ? "reviewed" : "live") + " list")
                 let picked = false
                 for (let i = 0; i < shots.count; ++i) {
                     const s = shots.objectAt(i)
                     if (s.ordinal !== probe.ordinal) continue
-                    app.state.moveSelection(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
+                    app.state.moveSelection(app.sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
                     picked = true
                 }
                 probe.check(picked, "shot " + probe.ordinal + " is in the carousel")

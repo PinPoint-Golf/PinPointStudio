@@ -206,7 +206,7 @@ analyzer must never crash on a sparse window; it degrades.
 
 ## 4. The ShotProcessor Pipeline, Stage by Stage
 
-`ShotProcessor` (QML context property `shotProcessor`) owns the post-shot
+`ShotProcessor` (QML: `app.shotProcessor`) owns the post-shot
 pipeline and the SwingWindow lifecycle. States: `Idle → PostRoll → Processing
 → Replaying → Idle`; `busy` (any non-Idle state) disarms `ShotController` for
 the duration.
@@ -543,7 +543,7 @@ comparable to production's live bound.
 
 ### `ReanalysisController` — the in-app funnel
 
-`reanalysisController` (QML context property) serves both carousel paths: the
+`reanalysisController` (QML: `app.reanalysisController`) serves both carousel paths: the
 focused shot's action bar, and "re-analyse all shown". It is **model-agnostic** —
 callers pass already-resolved swing *dirs* (the carousel resolves them from
 whichever model is active: the live shot model, or a loaded session's review

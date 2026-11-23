@@ -193,7 +193,10 @@ Item {
             navController:     nav,
             launchMonitor:     lm,
             appLog:            appLogFake,
-            app: ({ state: { replay: _shotReplay, mode: 0, captureMode: 0, replayMode: 1, analyseMode: 2, autoReturnToCapture: false, selection: { valid: false, shotRef: "", swingDir: "" } } }),
+            // the app-wide objects the setup QML reads through `app` (refactor 5.8b; R-QML-1), the same fakes
+            app: ({ state: { replay: _shotReplay, mode: 0, captureMode: 0, replayMode: 1, analyseMode: 2, autoReturnToCapture: false, selection: { valid: false, shotRef: "", swingDir: "" } },
+                    athleteController: athlete, sessionController: session, navController: nav, shotProcessor: _shotProcessor,
+                    workOns: workOns }),
             shotProcessor:     _shotProcessor,
             pageJournal:       journal,
             trunkCeremony:     ceremony

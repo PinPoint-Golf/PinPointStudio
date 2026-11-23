@@ -96,7 +96,7 @@ Item {
 
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject {
             required property int shotId
             required property int ordinal
@@ -166,15 +166,15 @@ Item {
             if (s === 1) {
                 probe.startTheme = Theme.themeIndex
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
-                navController.navigate(AppScreen.Session)
+                app.navController.navigate(AppScreen.Session)
                 app.state.enterCapture()
-                sessionReviewController.loadSession(probe.sessionDir)
+                app.sessionReviewController.loadSession(probe.sessionDir)
             } else if (s === 2) {
-                probe.check(sessionReviewController.reviewActive, "the session loaded for review")
+                probe.check(app.sessionReviewController.reviewActive, "the session loaded for review")
                 let picked = false
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir); picked = true }
+                    if (o.ordinal === probe.ordinal) { app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir); picked = true }
                 }
                 probe.check(picked, "shot " + probe.ordinal + " is in the carousel")
             } else if (s === 3) {
@@ -426,7 +426,7 @@ Item {
             // in Analyse it keeps Analyse — enterReplay() would switch the stage and rebuild the
             // panel, model and all. This probe is in Analyse (set up above), so that is the branch taken.
             if (o.ordinal === n) {
-                app.state.pickShot(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
+                app.state.pickShot(app.sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 return
             }
         }

@@ -103,16 +103,16 @@ Item {
     readonly property var contactVals:  ["ball", "air", "mishit"]
     // The one canonical club vocabulary — shared with the shot-carousel swing-edit
     // popover (ShotListModel.clubOptions / club_vocabulary.h) so both pickers agree.
-    readonly property var clubList: markupController.clubOptions
+    readonly property var clubList: app.markupController.clubOptions
 
     function markEventByKey(k) {
         for (var i = 0; i < pDefs.length; ++i)
-            if (pDefs[i].key === k) { markupController.setEvent(pDefs[i].name); return }
+            if (pDefs[i].key === k) { app.markupController.setEvent(pDefs[i].name); return }
     }
     function pComplete() {
         var n = 0
         for (var i = 0; i < pDefs.length; ++i) {
-            var e = markupController.events[pDefs[i].name]
+            var e = app.markupController.events[pDefs[i].name]
             if (e && e.hasClub) ++n
         }
         return n
@@ -122,7 +122,7 @@ Item {
     // is a no-op when the dir is unchanged, so edits survive re-binding).
     function _syncSwing() {
         if (root.panelActive && root.targetSwingDir !== "")
-            markupController.loadSwing(root.targetSwingDir)
+            app.markupController.loadSwing(root.targetSwingDir)
     }
 
     // Mark this panel present on the shared controller while it is on-screen — the
@@ -134,38 +134,38 @@ Item {
     function _syncRetain() {
         if (root.panelActive === root._retained) return
         root._retained = root.panelActive
-        if (root._retained) markupController.retainPanel()
-        else                markupController.releasePanel()
+        if (root._retained) app.markupController.retainPanel()
+        else                app.markupController.releasePanel()
     }
 
     onTargetSwingDirChanged: _syncSwing()
     onPanelActiveChanged: { _syncSwing(); _syncRetain() }
     Component.onCompleted: { _syncSwing(); _syncRetain() }
-    Component.onDestruction: if (root._retained) markupController.releasePanel()
+    Component.onDestruction: if (root._retained) app.markupController.releasePanel()
 
     focus: true
     Keys.onPressed: function (e) {
         switch (e.key) {
-        case Qt.Key_A: case Qt.Key_Left:   markupController.stepFrame(-1); e.accepted = true; break
-        case Qt.Key_D: case Qt.Key_Right:  markupController.stepFrame(1);  e.accepted = true; break
-        case Qt.Key_Space:                 markupController.stepFrame(markupController.stride); e.accepted = true; break
-        case Qt.Key_BracketLeft:           markupController.stepFrame(-markupController.stride); e.accepted = true; break
-        case Qt.Key_BracketRight:          markupController.stepFrame(markupController.stride);  e.accepted = true; break
+        case Qt.Key_A: case Qt.Key_Left:   app.markupController.stepFrame(-1); e.accepted = true; break
+        case Qt.Key_D: case Qt.Key_Right:  app.markupController.stepFrame(1);  e.accepted = true; break
+        case Qt.Key_Space:                 app.markupController.stepFrame(app.markupController.stride); e.accepted = true; break
+        case Qt.Key_BracketLeft:           app.markupController.stepFrame(-app.markupController.stride); e.accepted = true; break
+        case Qt.Key_BracketRight:          app.markupController.stepFrame(app.markupController.stride);  e.accepted = true; break
         // Undo / clear / ball act on the ACTIVE pane — the one last clicked, which
         // wears the accent border, so a keystroke never edits the camera the
         // operator is not looking at.
         case Qt.Key_U:
             if (root.pendingGrip) { root.pendingGrip = false; root.repaintPanes() }
-            else markupController.clearShaftIn(markupController.activePane)
+            else app.markupController.clearShaftIn(app.markupController.activePane)
             e.accepted = true; break
-        case Qt.Key_C:   markupController.clearShaftIn(markupController.activePane); e.accepted = true; break
+        case Qt.Key_C:   app.markupController.clearShaftIn(app.markupController.activePane); e.accepted = true; break
         case Qt.Key_B:
             root.ballMode = !root.ballMode
             if (root.ballMode) root.pendingGrip = false
             root.repaintPanes()
             e.accepted = true; break
-        case Qt.Key_S:   markupController.showSkeleton = !markupController.showSkeleton; e.accepted = true; break
-        case Qt.Key_Q:   markupController.save();       e.accepted = true; break
+        case Qt.Key_S:   app.markupController.showSkeleton = !app.markupController.showSkeleton; e.accepted = true; break
+        case Qt.Key_Q:   app.markupController.save();       e.accepted = true; break
         case Qt.Key_0: case Qt.Key_1: case Qt.Key_2: case Qt.Key_3: case Qt.Key_4:
         case Qt.Key_5: case Qt.Key_6: case Qt.Key_7: case Qt.Key_8: case Qt.Key_9:
             root.markEventByKey(String.fromCharCode(e.key)); e.accepted = true; break
@@ -187,10 +187,10 @@ Item {
     // normalised coordinates arrive already mapped against THAT pane's painted
     // image rect, so the DTL frame is never scaled by face-on's dimensions.
     function paneClick(pane, nx, ny) {
-        markupController.activePane = pane
+        app.markupController.activePane = pane
         if (root.ballMode) {
-            if (pane === 1) markupController.setDtlBall(nx, ny)
-            else            markupController.setBall(nx, ny)
+            if (pane === 1) app.markupController.setDtlBall(nx, ny)
+            else            app.markupController.setBall(nx, ny)
             root.ballMode = false
             root.repaintPanes()
             root.forceActiveFocus()
@@ -201,15 +201,15 @@ Item {
             root.pendingGrip = true; root.pendingPane = pane
             root.repaintPanes()
         } else {
-            if (pane === 1) markupController.setDtlShaft(root.gripNx, root.gripNy, nx, ny)
-            else            markupController.setShaft(root.gripNx, root.gripNy, nx, ny)
+            if (pane === 1) app.markupController.setDtlShaft(root.gripNx, root.gripNy, nx, ny)
+            else            app.markupController.setShaft(root.gripNx, root.gripNy, nx, ny)
             root.pendingGrip = false
         }
         root.forceActiveFocus()
     }
 
     Connections {
-        target: markupController
+        target: app.markupController
         function onFrameChanged() { root.pendingGrip = false; root.repaintPanes() }
         function onDtlFrameChanged() { root.repaintPanes() }
         function onCurrentChanged() { root.pendingGrip = false; root.ballMode = false }
@@ -229,7 +229,7 @@ Item {
             spacing: Theme.gap(12)
             Text {
                 Layout.fillWidth: true
-                text: markupController.hasSwing ? markupController.currentSwingName : qsTr("— no swing —")
+                text: app.markupController.hasSwing ? app.markupController.currentSwingName : qsTr("— no swing —")
                 elide: Text.ElideRight
                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; color: Theme.colorText2
             }
@@ -238,10 +238,10 @@ Item {
                 font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorText2
             }
             MlButton {
-                text: markupController.dirty ? qsTr("● Save (q)") : qsTr("Saved")
-                accent: markupController.dirty
-                enabled: markupController.hasSwing
-                onClicked: markupController.save()
+                text: app.markupController.dirty ? qsTr("● Save (q)") : qsTr("Saved")
+                accent: app.markupController.dirty
+                enabled: app.markupController.hasSwing
+                onClicked: app.markupController.save()
             }
         }
 
@@ -261,9 +261,9 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                readonly property real gap:    markupController.hasDtl ? Theme.gap(8) : 0
-                readonly property real aFace:  Math.max(0.05, markupController.videoAspect)
-                readonly property real aDtl:   markupController.hasDtl ? Math.max(0.05, markupController.dtlAspect) : 0
+                readonly property real gap:    app.markupController.hasDtl ? Theme.gap(8) : 0
+                readonly property real aFace:  Math.max(0.05, app.markupController.videoAspect)
+                readonly property real aDtl:   app.markupController.hasDtl ? Math.max(0.05, app.markupController.dtlAspect) : 0
                 readonly property real availW: Math.max(0, width  - Theme.gap(16) - gap)
                 readonly property real availH: Math.max(0, height - Theme.gap(16))
                 readonly property real paneH:  Math.max(0, Math.min(availH, availW / (aFace + aDtl)))
@@ -276,15 +276,15 @@ Item {
                         id: facePane
                         paneIndex: 0
                         title: Theme.caps(qsTr("Face-on"))
-                        visible: markupController.hasSwing
+                        visible: app.markupController.hasSwing
                         width:  stage.paneH * stage.aFace
                         height: stage.paneH
-                        token:      markupController.frameToken
-                        frameIdx:   markupController.frameIndex
-                        frameTotal: markupController.frameCount
-                        frameSec:   markupController.frameSec
-                        shaft:      markupController.currentShaft
-                        ball:       markupController.ballPoint
+                        token:      app.markupController.frameToken
+                        frameIdx:   app.markupController.frameIndex
+                        frameTotal: app.markupController.frameCount
+                        frameSec:   app.markupController.frameSec
+                        shaft:      app.markupController.currentShaft
+                        ball:       app.markupController.ballPoint
                         showPose:   true
                         edges:       root.cocoEdges
                         minConf:     root.kpMinConf
@@ -300,15 +300,15 @@ Item {
                         id: dtlPane
                         paneIndex: 1
                         title: qsTr("DTL")
-                        visible: markupController.hasSwing && markupController.hasDtl
+                        visible: app.markupController.hasSwing && app.markupController.hasDtl
                         width:  stage.paneH * stage.aDtl
                         height: stage.paneH
-                        token:      markupController.dtlFrameToken
-                        frameIdx:   markupController.dtlFrameIndex
-                        frameTotal: markupController.dtlFrameCount
-                        frameSec:   markupController.dtlFrameSec
-                        shaft:      markupController.dtlShaft
-                        ball:       markupController.dtlBallPoint
+                        token:      app.markupController.dtlFrameToken
+                        frameIdx:   app.markupController.dtlFrameIndex
+                        frameTotal: app.markupController.dtlFrameCount
+                        frameSec:   app.markupController.dtlFrameSec
+                        shaft:      app.markupController.dtlShaft
+                        ball:       app.markupController.dtlBallPoint
                         showPose:   false
                         edges:       root.cocoEdges
                         minConf:     root.kpMinConf
@@ -323,7 +323,7 @@ Item {
 
                 PpCardNote {
                     anchors.centerIn: parent
-                    visible: !markupController.hasSwing
+                    visible: !app.markupController.hasSwing
                     width: parent.width * 0.8
                     horizontalAlignment: Text.AlignHCenter
                     text: qsTr("Select a shot in the carousel to load it for labelling.")
@@ -415,7 +415,7 @@ Item {
                         PpMicro { text: Theme.caps(qsTr("Club / shaft")) }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
-                            text: markupController.hasDtl
+                            text: app.markupController.hasDtl
                                   ? qsTr("Click grip, then clubhead to place the club on this frame — in either pane; each goes to its own file. Then press a P key (1–9, 0=P10) to tag the position.")
                                   : qsTr("Click grip, then clubhead to place the club on this frame, then press a P key (1–9, 0=P10) to tag the position.")
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
@@ -424,13 +424,13 @@ Item {
                             spacing: Theme.gap(8)
                             MlButton { text: qsTr("Undo (u)"); onClicked: {
                                 if (root.pendingGrip) { root.pendingGrip = false; root.repaintPanes() }
-                                else markupController.clearShaftIn(markupController.activePane) } }
-                            MlButton { text: qsTr("Clear (c)"); onClicked: markupController.clearShaftIn(markupController.activePane) }
+                                else app.markupController.clearShaftIn(app.markupController.activePane) } }
+                            MlButton { text: qsTr("Clear (c)"); onClicked: app.markupController.clearShaftIn(app.markupController.activePane) }
                         }
                         // Which pane the buttons above (and the keys) act on.
                         Text {
-                            visible: markupController.hasDtl
-                            text: markupController.activePane === 1
+                            visible: app.markupController.hasDtl
+                            text: app.markupController.activePane === 1
                                   ? qsTr("◆ acting on the DTL pane") : qsTr("◆ acting on the Face-On pane")
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorAccent
                         }
@@ -442,7 +442,7 @@ Item {
                         PpMicro { text: Theme.caps(qsTr("Ball")) }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
-                            text: markupController.hasDtl
+                            text: app.markupController.hasDtl
                                   ? qsTr("The ball is stationary — mark it once per camera (it sits somewhere different in each frame). Press ‘Place ball’, then click the ball centre in either pane; it applies to every frame of that stream.")
                                   : qsTr("The ball is stationary — mark it once. Press ‘Place ball’, then click the ball centre; it applies to every frame of the swing.")
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
@@ -450,24 +450,24 @@ Item {
                         Row {
                             spacing: Theme.gap(8)
                             MlButton {
-                                readonly property var _pb: markupController.activePane === 1
-                                                           ? markupController.dtlBallPoint : markupController.ballPoint
+                                readonly property var _pb: app.markupController.activePane === 1
+                                                           ? app.markupController.dtlBallPoint : app.markupController.ballPoint
                                 text: root.ballMode ? qsTr("Click the ball…")
                                       : ((_pb && _pb.has) ? qsTr("Move ball (b)") : qsTr("Place ball (b)"))
                                 accent: root.ballMode
                                 onClicked: { root.ballMode = true; root.pendingGrip = false; root.repaintPanes(); root.forceActiveFocus() }
                             }
                             MlButton {
-                                readonly property var _pb: markupController.activePane === 1
-                                                           ? markupController.dtlBallPoint : markupController.ballPoint
+                                readonly property var _pb: app.markupController.activePane === 1
+                                                           ? app.markupController.dtlBallPoint : app.markupController.ballPoint
                                 text: qsTr("Clear ball")
                                 enabled: _pb && _pb.has
-                                onClicked: { markupController.clearBallIn(markupController.activePane); root.forceActiveFocus() }
+                                onClicked: { app.markupController.clearBallIn(app.markupController.activePane); root.forceActiveFocus() }
                             }
                         }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
-                            readonly property var _b: markupController.ballPoint
+                            readonly property var _b: app.markupController.ballPoint
                             visible: _b && _b.has
                             // Guard the whole expression: `visible: false` does NOT
                             // stop the text binding evaluating, so nx/ny must not be
@@ -477,7 +477,7 @@ Item {
                         }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
-                            readonly property var _d: markupController.dtlBallPoint
+                            readonly property var _d: app.markupController.dtlBallPoint
                             visible: _d && _d.has
                             text: (_d && _d.has) ? qsTr("◆ DTL ball at %1, %2").arg(_d.nx.toFixed(3)).arg(_d.ny.toFixed(3)) : ""
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorGood
@@ -489,14 +489,14 @@ Item {
                         width: parent.width; spacing: Theme.gap(8)
                         PpMicro { text: Theme.caps(qsTr("Pose overlay")) }
                         MlButton {
-                            text: markupController.showSkeleton ? qsTr("Skeleton: on (s)") : qsTr("Skeleton: off (s)")
-                            accent: markupController.showSkeleton && markupController.poseAvailable
-                            enabled: markupController.poseAvailable
-                            onClicked: markupController.showSkeleton = !markupController.showSkeleton
+                            text: app.markupController.showSkeleton ? qsTr("Skeleton: on (s)") : qsTr("Skeleton: off (s)")
+                            accent: app.markupController.showSkeleton && app.markupController.poseAvailable
+                            enabled: app.markupController.poseAvailable
+                            onClicked: app.markupController.showSkeleton = !app.markupController.showSkeleton
                         }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
-                            text: markupController.poseAvailable
+                            text: app.markupController.poseAvailable
                                   ? qsTr("Blue = body skeleton · solid amber ring = lead hand · dashed ring = trail hand. Reference only — how the grip/head relate to the skeleton.")
                                   : qsTr("No recorded pose in this swing.")
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
@@ -509,14 +509,14 @@ Item {
                         PpMicro { text: Theme.caps(qsTr("Step stride")) }
                         Row {
                             spacing: Theme.gap(8)
-                            MlButton { text: "−"; onClicked: markupController.stride = markupController.stride - 1 }
+                            MlButton { text: "−"; onClicked: app.markupController.stride = app.markupController.stride - 1 }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("every %1 fr").arg(markupController.stride)
+                                text: qsTr("every %1 fr").arg(app.markupController.stride)
                                 font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody; color: Theme.colorText
                                 width: Theme.sp(92); horizontalAlignment: Text.AlignHCenter
                             }
-                            MlButton { text: "+"; onClicked: markupController.stride = markupController.stride + 1 }
+                            MlButton { text: "+"; onClicked: app.markupController.stride = app.markupController.stride + 1 }
                         }
                     }
 
@@ -530,7 +530,7 @@ Item {
                             // its colour carry the state: ● club placed, ○ tagged without a
                             // club, · not tagged.
                             delegate: Rectangle {
-                                readonly property var ev: markupController.events[modelData.name]
+                                readonly property var ev: app.markupController.events[modelData.name]
                                 readonly property bool complete: !!(ev && ev.hasClub)
                                 width: parent.width; height: Theme.sp(42)
                                 radius: Theme.radius
@@ -597,7 +597,7 @@ Item {
                                         hoverEnabled: true
                                         enabled: !!ev
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: { markupController.setFrameIndex(ev.frame); root.forceActiveFocus() }
+                                        onClicked: { app.markupController.setFrameIndex(ev.frame); root.forceActiveFocus() }
                                     }
                                 }
                                 Text {
@@ -615,7 +615,7 @@ Item {
                                     MouseArea {
                                         anchors.fill: parent; anchors.margins: -Theme.sp(5); enabled: !!ev
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: markupController.clearEvent(modelData.name)
+                                        onClicked: app.markupController.clearEvent(modelData.name)
                                     }
                                 }
                                 MouseArea {
@@ -623,7 +623,7 @@ Item {
                                     anchors.fill: parent; z: -1
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: { markupController.setEvent(modelData.name); root.forceActiveFocus() }
+                                    onClicked: { app.markupController.setEvent(modelData.name); root.forceActiveFocus() }
                                 }
                             }
                         }
@@ -634,19 +634,19 @@ Item {
                         width: parent.width; spacing: Theme.gap(4)
                         PpMicro { text: Theme.caps(qsTr("This swing")) }
                         Text {
-                            text: qsTr("%1 / 10 P-positions · %2 shaft frames").arg(root.pComplete()).arg(markupController.shaftCount)
+                            text: qsTr("%1 / 10 P-positions · %2 shaft frames").arg(root.pComplete()).arg(app.markupController.shaftCount)
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorText2
                         }
                         // The DTL pane keeps its own count in its own file, so the
                         // two are never added together or confused for one another.
                         Text {
-                            visible: markupController.hasDtl
-                            text: qsTr("%1 DTL shaft frames → truth_dtl.json").arg(markupController.dtlShaftCount)
+                            visible: app.markupController.hasDtl
+                            text: qsTr("%1 DTL shaft frames → truth_dtl.json").arg(app.markupController.dtlShaftCount)
                             elide: Text.ElideRight; width: parent.width
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorText2
                         }
                         Text {
-                            visible: markupController.dirty
+                            visible: app.markupController.dirty
                             text: qsTr("● unsaved changes")
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorWarn
                         }
@@ -678,12 +678,12 @@ Item {
                                     width: parent.width
                                     options: root.scopeOpts
                                     selected: {
-                                        var i = root.scopeVals.indexOf(markupController.metaScope)
+                                        var i = root.scopeVals.indexOf(app.markupController.metaScope)
                                         return i >= 0 ? root.scopeOpts[i] : ""
                                     }
                                     onActivated: function (v) {
                                         var i = root.scopeOpts.indexOf(v)
-                                        if (i >= 0) markupController.metaScope = root.scopeVals[i]
+                                        if (i >= 0) app.markupController.metaScope = root.scopeVals[i]
                                         root.forceActiveFocus()
                                     }
                                 }
@@ -702,12 +702,12 @@ Item {
                                     width: parent.width
                                     options: root.tempoOpts
                                     selected: {
-                                        var i = root.tempoVals.indexOf(markupController.metaTempo)
+                                        var i = root.tempoVals.indexOf(app.markupController.metaTempo)
                                         return i >= 0 ? root.tempoOpts[i] : ""
                                     }
                                     onActivated: function (v) {
                                         var i = root.tempoOpts.indexOf(v)
-                                        if (i >= 0) markupController.metaTempo = root.tempoVals[i]
+                                        if (i >= 0) app.markupController.metaTempo = root.tempoVals[i]
                                         root.forceActiveFocus()
                                     }
                                 }
@@ -721,12 +721,12 @@ Item {
                                     width: parent.width
                                     options: root.contactOpts
                                     selected: {
-                                        var i = root.contactVals.indexOf(markupController.metaContact)
+                                        var i = root.contactVals.indexOf(app.markupController.metaContact)
                                         return i >= 0 ? root.contactOpts[i] : ""
                                     }
                                     onActivated: function (v) {
                                         var i = root.contactOpts.indexOf(v)
-                                        if (i >= 0) markupController.metaContact = root.contactVals[i]
+                                        if (i >= 0) app.markupController.metaContact = root.contactVals[i]
                                         root.forceActiveFocus()
                                     }
                                 }
@@ -740,12 +740,12 @@ Item {
                                     width: parent.width
                                     options: root.lightingOpts
                                     selected: {
-                                        var i = root.lightingVals.indexOf(markupController.metaLighting)
+                                        var i = root.lightingVals.indexOf(app.markupController.metaLighting)
                                         return i >= 0 ? root.lightingOpts[i] : ""
                                     }
                                     onActivated: function (v) {
                                         var i = root.lightingOpts.indexOf(v)
-                                        if (i >= 0) markupController.metaLighting = root.lightingVals[i]
+                                        if (i >= 0) app.markupController.metaLighting = root.lightingVals[i]
                                         root.forceActiveFocus()
                                     }
                                 }
@@ -759,12 +759,12 @@ Item {
                                     width: parent.width
                                     options: root.shaftOpts
                                     selected: {
-                                        var i = root.shaftVals.indexOf(markupController.metaShaft)
+                                        var i = root.shaftVals.indexOf(app.markupController.metaShaft)
                                         return i >= 0 ? root.shaftOpts[i] : ""
                                     }
                                     onActivated: function (v) {
                                         var i = root.shaftOpts.indexOf(v)
-                                        if (i >= 0) markupController.metaShaft = root.shaftVals[i]
+                                        if (i >= 0) app.markupController.metaShaft = root.shaftVals[i]
                                         root.forceActiveFocus()
                                     }
                                 }
@@ -782,11 +782,11 @@ Item {
                                 PpComboBox {
                                     id: clubCombo
                                     width: parent.width
-                                    enabled: markupController.hasSwing
+                                    enabled: app.markupController.hasSwing
                                     model: root.clubList
                                     displayFn: ClubFormat.display
                                     onActivated: function (i) {
-                                        markupController.metaClub = root.clubList[i]
+                                        app.markupController.metaClub = root.clubList[i]
                                         root.forceActiveFocus()
                                     }
                                     // Sync imperatively (not a currentIndex binding) so
@@ -794,12 +794,12 @@ Item {
                                     // — doesn't break the link to the controller on the next
                                     // swing load.
                                     function syncFromController() {
-                                        var i = root.clubList.indexOf(markupController.metaClub)
+                                        var i = root.clubList.indexOf(app.markupController.metaClub)
                                         currentIndex = i >= 0 ? i : 0
                                     }
                                     Component.onCompleted: syncFromController()
                                     Connections {
-                                        target: markupController
+                                        target: app.markupController
                                         function onMetaChanged() { clubCombo.syncFromController() }
                                     }
                                 }
@@ -810,12 +810,12 @@ Item {
                                 width: parent.width; spacing: Theme.gap(8)
                                 PpMicro { text: Theme.caps(qsTr("Tracking")) }
                                 MlButton {
-                                    text: markupController.metaClubLeavesFrame
+                                    text: app.markupController.metaClubLeavesFrame
                                           ? qsTr("Club leaves frame: yes")
                                           : qsTr("Club leaves frame: no")
-                                    accent: markupController.metaClubLeavesFrame
-                                    enabled: markupController.hasSwing
-                                    onClicked: markupController.metaClubLeavesFrame = !markupController.metaClubLeavesFrame
+                                    accent: app.markupController.metaClubLeavesFrame
+                                    enabled: app.markupController.hasSwing
+                                    onClicked: app.markupController.metaClubLeavesFrame = !app.markupController.metaClubLeavesFrame
                                 }
                                 Text {
                                     width: parent.width; wrapMode: Text.WordWrap
@@ -844,24 +844,24 @@ Item {
                 anchors.topMargin: Theme.gap(8)
                 spacing: Theme.gap(10)
 
-                MlButton { text: "⏮"; enabled: markupController.hasSwing; onClicked: markupController.setFrameIndex(0) }
-                MlButton { text: "◀ a"; enabled: markupController.hasSwing; onClicked: markupController.stepFrame(-1) }
+                MlButton { text: "⏮"; enabled: app.markupController.hasSwing; onClicked: app.markupController.setFrameIndex(0) }
+                MlButton { text: "◀ a"; enabled: app.markupController.hasSwing; onClicked: app.markupController.stepFrame(-1) }
                 Slider {
                     Layout.fillWidth: true
-                    enabled: markupController.hasSwing && markupController.frameCount > 1
+                    enabled: app.markupController.hasSwing && app.markupController.frameCount > 1
                     from: 0; to: 1
-                    value: markupController.frameCount > 1
-                           ? markupController.frameIndex / (markupController.frameCount - 1) : 0
-                    onMoved: markupController.seekFraction(value)
+                    value: app.markupController.frameCount > 1
+                           ? app.markupController.frameIndex / (app.markupController.frameCount - 1) : 0
+                    onMoved: app.markupController.seekFraction(value)
                 }
-                MlButton { text: "d ▶"; enabled: markupController.hasSwing; onClicked: markupController.stepFrame(1) }
-                MlButton { text: "⏭"; enabled: markupController.hasSwing; onClicked: markupController.setFrameIndex(markupController.frameCount - 1) }
+                MlButton { text: "d ▶"; enabled: app.markupController.hasSwing; onClicked: app.markupController.stepFrame(1) }
+                MlButton { text: "⏭"; enabled: app.markupController.hasSwing; onClicked: app.markupController.setFrameIndex(app.markupController.frameCount - 1) }
 
                 // Which sidecars this swing's marks land in — unobtrusive, but always
                 // on screen, because the two panes write different files.
                 Text {
-                    visible: markupController.hasSwing
-                    text: markupController.hasDtl ? qsTr("→ truth.json + truth_dtl.json")
+                    visible: app.markupController.hasSwing
+                    text: app.markupController.hasDtl ? qsTr("→ truth.json + truth_dtl.json")
                                                   : qsTr("→ truth.json")
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
                 }
@@ -922,7 +922,7 @@ Item {
         property real   gripNx: 0
         property real   gripNy: 0
         property bool   ballMode: false     // the next click places the ball
-        readonly property bool isActive: markupController.activePane === pane.paneIndex
+        readonly property bool isActive: app.markupController.activePane === pane.paneIndex
 
         signal paneClicked(int pane, real nx, real ny)
 
@@ -945,7 +945,7 @@ Item {
             // The token is 0 until this pane's first frame decodes (async); only
             // request once a real frame exists, else the provider has no image yet
             // and QML logs "Failed to get image from provider".
-            source: (markupController.hasSwing && pane.token > 0)
+            source: (app.markupController.hasSwing && pane.token > 0)
                     ? "image://markup/" + (pane.paneIndex === 1 ? "dtl/" : "face/") + pane.token
                     : ""
 
@@ -965,10 +965,10 @@ Item {
             onPaint: {
                 var ctx = getContext("2d")
                 ctx.reset()
-                if (!markupController.hasSwing) return
+                if (!app.markupController.hasSwing) return
 
-                var pose = pane.showPose ? markupController.currentPose : null
-                if (pane.showPose && markupController.showSkeleton && pose && pose.has && pose.kp) {
+                var pose = pane.showPose ? app.markupController.currentPose : null
+                if (pane.showPose && app.markupController.showSkeleton && pose && pose.has && pose.kp) {
                     var kp = pose.kp
                     ctx.lineWidth = 2
                     ctx.strokeStyle = Qt.alpha(Theme.poseBone, 0.80)
@@ -1041,7 +1041,7 @@ Item {
 
         MouseArea {
             anchors.fill: paneImg
-            enabled: markupController.hasSwing
+            enabled: app.markupController.hasSwing
             cursorShape: Qt.CrossCursor
             onClicked: function (m) {
                 pane.paneClicked(pane.paneIndex, paneImg.toNx(m.x), paneImg.toNy(m.y))
@@ -1054,7 +1054,7 @@ Item {
         // the scrim's light words (the active pane already wears the accent border),
         // and cut at the pane's edge rather than spilling over its neighbour.
         Rectangle {
-            visible: markupController.hasSwing
+            visible: app.markupController.hasSwing
             anchors { left: paneImg.left; top: paneImg.top; margins: Theme.gap(6) }
             width: Math.min(hud.width + Theme.sp(16), paneImg.width - Theme.sp(12))
             height: hud.height + Theme.sp(8)

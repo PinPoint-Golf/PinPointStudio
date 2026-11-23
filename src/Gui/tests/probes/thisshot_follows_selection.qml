@@ -75,7 +75,7 @@ Item {
 
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject {
             required property int shotId
             required property int ordinal
@@ -91,16 +91,16 @@ Item {
             probe.step += 1
             if (probe.step === 1) {
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
-                navController.navigate(AppScreen.Session)                 // the session screen
+                app.navController.navigate(AppScreen.Session)                 // the session screen
                 app.state.enterCapture()
-                sessionReviewController.loadSession(probe.sessionDir)
+                app.sessionReviewController.loadSession(probe.sessionDir)
             } else if (probe.step === 2) {
-                probe.check(sessionReviewController.reviewActive, "the session loaded for review")
+                probe.check(app.sessionReviewController.reviewActive, "the session loaded for review")
                 for (let i = 0; i < shots.count; ++i) {
                     const s = shots.objectAt(i)
                     if (s.ordinal === probe.ordinal) {
                         probe.pickedDir = s.swingDir
-                        app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)   // the carousel's click path
+                        app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)   // the carousel's click path
                     }
                 }
                 probe.check(probe.pickedDir !== "", "shot " + probe.ordinal + " is in the carousel")

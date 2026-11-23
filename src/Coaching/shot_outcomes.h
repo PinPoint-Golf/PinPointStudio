@@ -279,6 +279,34 @@ inline bool isOutcomeCurveOnly(const QString &id)
     return id == QLatin1String("fade") || id == QLatin1String("draw");
 }
 
+// THE CORRECTION ROW'S "NONE OF THESE" WORD for a family (This shot's "Not right?" row, shot_outcomes_design.md §6.1):
+// the chip a golfer picks to say the shot had no label of that family. Moved here from PpShotOutcomeHead.qml (refactor
+// 5.8b; audit G-11), word for word: "Clean" for strike, "Straight" for direction, "None" otherwise. The factor table
+// calls the strike value "Solid" (shot_factors.h); the two words differ today, and choosing one is the Coaching Lead's.
+inline QString outcomeNoneWord(const QString &family)
+{
+    if (family == QLatin1String("strike"))    return QStringLiteral("Clean");
+    if (family == QLatin1String("direction")) return QStringLiteral("Straight");
+    return QStringLiteral("None");
+}
+
+// THE SHAPES A GOLFER MAY SAY THEY MEANT, off the shot's direction labels (their ids as the golfer reads them, so a
+// left-hander's are already mirrored): "fade" when one names a slice or a fade, "draw" when one names a hook or a draw,
+// in that order; both when neither does. Moved here from PpShotOutcomeHead.qml (refactor 5.8b; audit G-11), rule for
+// rule: the match is on the id's text, as it was there.
+inline QStringList outcomeMeantShapes(const QStringList &directionIds)
+{
+    auto has = [&](const char *w) {
+        for (const QString &id : directionIds)
+            if (id.contains(QLatin1String(w))) return true;
+        return false;
+    };
+    QStringList out;
+    if (has("slice") || has("fade")) out << QStringLiteral("fade");
+    if (has("hook") || has("draw"))  out << QStringLiteral("draw");
+    return out.isEmpty() ? QStringList{ QStringLiteral("fade"), QStringLiteral("draw") } : out;
+}
+
 // O's survivors after the excludes rule, in row order — the same walk as explain(), with the same
 // keep-rule, so a shot and its session cannot disagree about which label stood.
 inline QStringList resolveOutcomeExcludes(const QStringList &fired, const QHash<QString, const ConditionRow *> &rowOf,

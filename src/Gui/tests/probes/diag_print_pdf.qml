@@ -72,7 +72,7 @@ Item {
     }
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject { required property int shotId; required property int ordinal; required property string swingDir }
     }
 
@@ -166,13 +166,13 @@ Item {
             for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup", "trust"]) ViewLayout.setPanel(app.state.analyseMode, k, false)
             ViewLayout.setPanel(app.state.analyseMode, "sessionDiagnostics", true)
             ViewLayout.setArrangement(app.state.analyseMode, "tabs")
-            navController.navigate(AppScreen.Session)
+            app.navController.navigate(AppScreen.Session)
             app.state.enterCapture()
-            sessionReviewController.loadSession(probe.sessionDir)
+            app.sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
                 probe.after(3000, () => {
                     app.state.enterAnalyse()

@@ -45,7 +45,7 @@ Item {
     }
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject { required property int shotId; required property int ordinal; required property string swingDir }
     }
     function after(ms, fn) {
@@ -141,13 +141,13 @@ Item {
             for (const k of probe.allKeys) ViewLayout.setPanel(m, k, k === "charts")
             ViewLayout.setPanel(app.state.replayMode, "sessionDiagnostics", false)
             ViewLayout.setPanel(app.state.analyseMode, "sessionDiagnostics", false)
-            navController.navigate(probe.navIndex)
+            app.navController.navigate(probe.navIndex)
             app.state.enterCapture()
-            sessionReviewController.loadSession(probe.sessionDir)
+            app.sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
-                    if (o.ordinal === probe.ordinal) app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
+                    if (o.ordinal === probe.ordinal) app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 }
                 probe.after(3000, () => {
                     if (probe.modeName !== "replay") app.state.enterAnalyse()

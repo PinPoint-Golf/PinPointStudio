@@ -40,7 +40,7 @@ Item {
     Component.onCompleted: log("start dump_report " + sessionDir)
 
     Connections {
-        target: sessionReport
+        target: app.sessionReport
         function onPrepared(dir, ok, report, error) {
             if (!ok) { probe.log("FAILED " + dir + ": " + error); Qt.exit(3); return }
             const text = JSON.stringify(report, null, 1)
@@ -55,7 +55,7 @@ Item {
         onTriggered: {
             if (probe.sessionDir === "") { probe.log("give --probe-session"); Qt.exit(2); return }
             probe.log("preparing " + probe.sessionDir)
-            sessionReport.prepare(probe.sessionDir, { note: probe.note, stills: probe.stills })
+            app.sessionReport.prepare(probe.sessionDir, { note: probe.note, stills: probe.stills })
         }
     }
     Timer { interval: 600000; running: true; onTriggered: { probe.log("WATCHDOG"); Qt.exit(4) } }

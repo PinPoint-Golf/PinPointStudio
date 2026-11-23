@@ -91,7 +91,7 @@ Rectangle {
 
             Rectangle {   // fill — never narrower than its own end caps
                 id: analyseFill
-                width: Math.max(height, parent.width * shotProcessor.analysisProgress)
+                width: Math.max(height, parent.width * app.shotProcessor.analysisProgress)
                 height: parent.height
                 radius: height / 2
                 color: Theme.colorAccent

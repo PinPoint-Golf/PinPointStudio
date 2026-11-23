@@ -38,12 +38,12 @@ Item {
     Component.onCompleted: log("start make_report " + sessionDir)
 
     Connections {
-        target: sessionReport
-        function onProgressChanged() { if (sessionReport.progressPages > 0) probe.log("page " + sessionReport.progressPage + " / " + sessionReport.progressPages) }
+        target: app.sessionReport
+        function onProgressChanged() { if (app.sessionReport.progressPages > 0) probe.log("page " + app.sessionReport.progressPage + " / " + app.sessionReport.progressPages) }
         function onMade(dir, ok, pdfPath, error) {
             const secs = ((Date.now() - probe.t0) / 1000).toFixed(1)
             if (!ok) { probe.log("FAILED " + dir + ": " + error + " (" + secs + " s)"); Qt.exit(3); return }
-            const st = sessionReport.state(dir)
+            const st = app.sessionReport.state(dir)
             probe.log("made " + pdfPath + " in " + secs + " s; state " + st.state + ", " + st.sizeBytes + " bytes, \"" + st.words + "\"")
             Qt.exit(0)
         }
@@ -52,11 +52,11 @@ Item {
         interval: 2500; running: true
         onTriggered: {
             if (probe.sessionDir === "") { probe.log("give --probe-session"); Qt.exit(2); return }
-            const pf = sessionReport.preflight(probe.sessionDir)
+            const pf = app.sessionReport.preflight(probe.sessionDir)
             probe.log("preflight " + JSON.stringify(pf))
-            probe.log("state before " + JSON.stringify(sessionReport.state(probe.sessionDir)))
+            probe.log("state before " + JSON.stringify(app.sessionReport.state(probe.sessionDir)))
             probe.t0 = Date.now()
-            sessionReport.make(probe.sessionDir, { note: probe.note })
+            app.sessionReport.make(probe.sessionDir, { note: probe.note })
         }
     }
     Timer { interval: 840000; running: true; onTriggered: { probe.log("WATCHDOG"); Qt.exit(4) } }

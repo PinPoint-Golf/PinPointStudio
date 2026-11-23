@@ -15,7 +15,7 @@ Item {
     function dump(k, v) { console.warn("DUMP:" + k + ":" + JSON.stringify(v)) }
     function walk(item, name, out) { if (!item) return; if (item.objectName === name) out.push(item); const kids = item.children || []; for (let i = 0; i < kids.length; ++i) walk(kids[i], name, out) }
     function after(ms, fn) { const t = Qt.createQmlObject('import QtQuick; Timer { repeat: false }', probe); t.interval = ms; t.triggered.connect(() => { t.destroy(); fn() }); t.start() }
-    Instantiator { id: shots; model: sessionReviewController.shots
+    Instantiator { id: shots; model: app.sessionReviewController.shots
         delegate: QtObject { required property int shotId; required property int ordinal; required property string swingDir } }
     Timer {
         interval: 2500; running: true
@@ -26,12 +26,12 @@ Item {
             for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup", "trust"]) ViewLayout.setPanel(app.state.analyseMode, k, false)
             ViewLayout.setPanel(app.state.analyseMode, "sessionDiagnostics", true)
             ViewLayout.setArrangement(app.state.analyseMode, "tabs")
-            navController.navigate(AppScreen.Session)
+            app.navController.navigate(AppScreen.Session)
             app.state.enterCapture()
-            sessionReviewController.loadSession(probe.sessionDir)
+            app.sessionReviewController.loadSession(probe.sessionDir)
             probe.after(5000, () => {
                 const o = shots.objectAt(0)
-                app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
+                app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(o.shotId), o.swingDir)
                 probe.after(3000, () => {
                     app.state.enterAnalyse()
                     probe.after(6000, () => {

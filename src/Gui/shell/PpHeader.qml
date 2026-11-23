@@ -36,8 +36,8 @@ Item {
 
     // Override-able navigation state — default to navController, Main.qml
     // can replace these to intercept back/forward for wizard step navigation.
-    property bool backEnabled:    navController.canGoBack
-    property bool forwardEnabled: navController.canGoForward
+    property bool backEnabled:    app.navController.canGoBack
+    property bool forwardEnabled: app.navController.canGoForward
 
     signal fullscreenToggleRequested()
     signal backRequested()
@@ -276,20 +276,20 @@ Item {
     // shot is being processed the ANALYSING badge takes the slot; otherwise the
     // DETECT cluster (which is also the manual SHOT trigger) holds it. Gated to
     // session screens — Replay/Analyse and non-session screens hide both.
-    readonly property bool _analysisActive: shotProcessor.busy && !shotProcessor.isReplaying
+    readonly property bool _analysisActive: app.shotProcessor.busy && !app.shotProcessor.isReplaying
 
     PpAnalysingBadge {
         anchors.centerIn: parent
         visible: root.sessionScreenActive
                  && root._analysisActive
-                 && !sessionReviewController.reviewActive
+                 && !app.sessionReviewController.reviewActive
     }
 
     PpDetectCluster {
         anchors.centerIn: parent
         visible: root.sessionScreenActive
                  && app.state.mode === app.state.captureMode
-                 && !sessionReviewController.reviewActive
+                 && !app.sessionReviewController.reviewActive
                  && !root._analysisActive   // yields the slot to the ANALYSING badge
     }
 }

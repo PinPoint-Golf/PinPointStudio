@@ -101,7 +101,7 @@ Item {
 
     Instantiator {
         id: live
-        model: shotModel
+        model: app.shotModel
         delegate: QtObject { required property int shotId; required property int ordinal; required property string swingDir }
     }
     function shotOf(n) {
@@ -124,7 +124,7 @@ Item {
     function select(n) {
         const s = shotOf(n)
         if (!check(!!s, "swing " + n + " is on the carousel")) return
-        app.state.enterReplay(shotModel.shotRefOf(s.shotId), s.swingDir)     // the carousel's click path
+        app.state.enterReplay(app.shotModel.shotRefOf(s.shotId), s.swingDir)     // the carousel's click path
     }
     // The summary's own checks (after 4-b only): shown or not, its shot named or not, no blank and no 0.
     function checkSummary(state, wantShown, wantNamed) {
@@ -158,8 +158,8 @@ Item {
             if (!check(liveDir !== "" && outDir !== "" && athlete !== "", "--probe-live, --probe-out and --probe-athlete given")) { finish(); return }
             const win = probe.Window.window              // full screen first: the width the studio runs at
             if (win) { win.width = probeWidth; win.height = 1040 }
-            athleteController.selectAthlete(athlete)
-            navController.navigate(AppScreen.Session)
+            app.athleteController.selectAthlete(athlete)
+            app.navController.navigate(AppScreen.Session)
             app.state.enterCapture()
         } else if (step === 2) {
             app.state.setLiveFolder(liveDir)          // the session screen's own call, as for today's session
@@ -167,7 +167,7 @@ Item {
             log("on screen " + app.state.sessionOnScreenFolder + ", carousel " + live.count + " shot(s)")
             if (!check(live.count >= 2, "the live carousel holds the session's shots")) { finish(); return }
             for (let i = 0; i < live.count; ++i) {
-                const o = live.objectAt(i), m = shotModel.shotSummary(o.shotId)
+                const o = live.objectAt(i), m = app.shotModel.shotSummary(o.shotId)
                 log("swing " + o.ordinal + " " + m.club + " " + m.timestampLabel)
             }
             app.state.clearSelection()

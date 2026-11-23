@@ -62,7 +62,7 @@ Column {
     objectName: "swingSummary"
 
     // The controller. Passed in rather than reached for, so a harness can drive the component.
-    property var controller: (typeof workOns !== "undefined") ? workOns : null
+    property var controller: ((typeof app !== "undefined" && !!app.workOns)) ? app.workOns : null
 
     // The focus card's Practise.
     signal practiseRequested(string conditionId, string label)

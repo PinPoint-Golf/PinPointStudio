@@ -108,6 +108,9 @@ Item {
                 launchMonitor:     createTemporaryObject(lmComp, tc),
                 appLog:            createTemporaryObject(appLogComp, tc)
             }
+            // the app-wide objects the setup QML reads through `app` (refactor 5.8b; R-QML-1), the same fakes
+            fx.app = { athleteController: fx.athleteController, sessionController: fx.sessionController,
+                       navController: fx.navController }
             imu = fx.imuManager
         }
         function cleanup() {

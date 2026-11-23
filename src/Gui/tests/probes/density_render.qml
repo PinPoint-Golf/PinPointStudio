@@ -75,7 +75,7 @@ Item {
         const map = { home: AppScreen.Home, sessions: AppScreen.Home, settings: AppScreen.Settings,
                       athletes: AppScreen.Athletes, system: AppScreen.System }
         if (map[name] === undefined) { probe.log("unknown screen " + name); then(); return }
-        navController.navigate(map[name])
+        app.navController.navigate(map[name])
         const tabs = probe.findNamed(Overlay.overlay.parent, "homeTabs")
         if (tabs && (name === "home" || name === "sessions")) tabs.current = name === "sessions" ? "sessions" : "coaching"
         after(1500, then)

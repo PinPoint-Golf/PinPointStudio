@@ -61,8 +61,8 @@ Item {
         // swing's own date — passing a resolved cohort from here would have to pick a date, and the
         // only one QML could pick is today, which is the mistake deriving-at-the-swing-date exists
         // to prevent.
-        athleteDob: athleteController.currentDob
-        athleteSex: athleteController.currentSex
+        athleteDob: app.athleteController.currentDob
+        athleteSex: app.athleteController.currentSex
     }
 
     // The façade is read through Q_INVOKABLEs, which are not properties and so cannot be bound to.
@@ -1671,7 +1671,7 @@ Item {
                             if (csl === "") { root._report({ ok: false,
                                                              message: qsTr("Nothing to copy.") })
                                               return }
-                            clipboard.setText(csl)
+                            app.clipboard.setText(csl)
                             toast.severity = "info"
                             toast.show(qsTr("CSL-JSON copied"))
                         } else if (action === "openDoi") {

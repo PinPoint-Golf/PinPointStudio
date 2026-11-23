@@ -61,10 +61,10 @@ Column {
     objectName: "homeTabs"
 
     // Passed in rather than reached for, so a harness can drive the component.
-    property var    controller:  (typeof workOns !== "undefined") ? workOns : null
+    property var    controller:  ((typeof app !== "undefined" && !!app.workOns)) ? app.workOns : null
     property var    settings:    (typeof appSettings !== "undefined") ? appSettings : null
-    property string athleteUuid: (typeof athleteController !== "undefined" && athleteController)
-                                 ? athleteController.currentUuid : ""
+    property string athleteUuid: ((typeof app !== "undefined" && !!app.athleteController) && app.athleteController)
+                                 ? app.athleteController.currentUuid : ""
 
     signal practiseRequested(string conditionId, string label)
     signal reviewSessionRequested(string sessionDir)
@@ -77,8 +77,8 @@ Column {
     // THE UNASSIGNED OWNER on screen (information_model.md §5.11; DEC-198; J-67): its sessions are different golfers', so
     // pooling them into Coaching, Your swing, Tendencies or Matchups is wrong data (R-UNASSIGNED-5's principle). Only
     // Sessions shows — they list, open and play — and a notice says why the figures are not there.
-    readonly property bool noGolfer: typeof athleteController !== "undefined" && !!athleteController
-                                     && athleteController.currentIsUnassigned
+    readonly property bool noGolfer: (typeof app !== "undefined" && !!app.athleteController) && !!app.athleteController
+                                     && app.athleteController.currentIsUnassigned
     readonly property var tabKeys: ["coaching", "swing", "tendencies", "matchups", "sessions"]
     // The tab showing. Read from the settings for each athlete; "coaching" when none was chosen.
     property string current: "coaching"

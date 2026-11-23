@@ -502,7 +502,7 @@ Everything runs on the GUI thread — no locks anywhere in the chain.
 
 ## 9. ShotController Integration
 
-`ShotController` (QML context property `shotController`) is the single funnel.
+`ShotController` (QML: `app.shotController`) is the single funnel.
 Its public surface, after P3:
 
 ```cpp

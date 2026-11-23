@@ -79,17 +79,17 @@ Item {
 
     Instantiator {
         id: live
-        model: shotModel
+        model: app.shotModel
         delegate: QtObject { required property int shotId; required property int ordinal; required property string swingDir }
     }
     Instantiator {
         id: reviewed
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject { required property int shotId; required property int ordinal; required property string swingDir }
     }
     Instantiator {
         id: notes
-        model: notifications
+        model: app.notifications
         delegate: QtObject { required property string notificationId; required property string title }
     }
 
@@ -117,7 +117,7 @@ Item {
     function next() {
         step += 1
         if (step === 1) {
-            navController.navigate(AppScreen.Session)
+            app.navController.navigate(AppScreen.Session)
             app.state.enterCapture()
         } else if (step === 2) {
             // The live carousel showing a session, as it shows today's (the scratch library has no session of today):
@@ -129,7 +129,7 @@ Item {
             if (!check(live.count >= 2, "the live carousel holds the session's shots")) { finish(); return }
             const s = liveShot(1)
             pickedDir = s.swingDir
-            app.state.enterReplay(shotModel.shotRefOf(s.shotId), s.swingDir)           // the carousel's click path
+            app.state.enterReplay(app.shotModel.shotRefOf(s.shotId), s.swingDir)           // the carousel's click path
         } else if (step === 4) {
             check(app.state.selection.valid && app.state.selection.swingDir === pickedDir, "B3: the pick is the selection")
             replayBefore = !!app.state.replay && app.state.replay.active
@@ -140,9 +140,9 @@ Item {
                   "B3: a reload of the same session keeps the selection (" + app.state.selection.swingDir + ")")
             check((!!app.state.replay && app.state.replay.active) === replayBefore,
                   "B3: …and the replay (" + (app.state.replay ? app.state.replay.active : "-") + ")")
-            navController.navigate(AppScreen.Home)
+            app.navController.navigate(AppScreen.Home)
         } else if (step === 6) {
-            navController.navigate(AppScreen.Session)       // the carousel reloads today's: none here, so "" on screen
+            app.navController.navigate(AppScreen.Session)       // the carousel reloads today's: none here, so "" on screen
         } else if (step === 7) {
             log("after Home and back: on screen '" + app.state.sessionOnScreenFolder + "', carousel " + live.count)
             check(app.state.selection.valid && app.state.selection.swingDir === pickedDir,
@@ -162,7 +162,7 @@ Item {
             check(g.length > 0 && g.some(t => t.endsWith("=" + pickedDir)), "B2: the Consistency glance holds the pick")
             const s = liveShot(0)
             pickedDir = s.swingDir
-            app.state.pickShot(shotModel.shotRefOf(s.shotId), s.swingDir)              // the selection moves
+            app.state.pickShot(app.shotModel.shotRefOf(s.shotId), s.swingDir)              // the selection moves
         } else if (step === 10) {
             const g = glanceDirs()
             log("B2 glance after the move: " + JSON.stringify(g))
@@ -189,12 +189,12 @@ Item {
             }
             // a reviewed session
             if (!check(reviewDir !== "", "--probe-session given")) { step = 16; return }
-            sessionReviewController.loadSession(reviewDir)
+            app.sessionReviewController.loadSession(reviewDir)
         } else if (step === 14) {
-            check(sessionReviewController.reviewActive, "the session loaded for review (" + reviewed.count + " shots)")
+            check(app.sessionReviewController.reviewActive, "the session loaded for review (" + reviewed.count + " shots)")
             if (reviewed.count > 0) {
                 const s = reviewed.objectAt(0)
-                app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
+                app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
                 pickedDir = s.swingDir
             }
         } else if (step === 15) {
@@ -209,10 +209,10 @@ Item {
         } else if (step === 16) {
             log("Analyse: " + named("sdBody").filter(shown).length + " stage panel(s) in this layout")
             // an empty live session, ended with the Analyse panels up
-            sessionReviewController.resumeLive()
+            app.sessionReviewController.resumeLive()
             app.state.startSession(false)
         } else if (step === 17) {
-            check(sessionController.running, "the empty live session started (on screen " + app.state.sessionOnScreenFolder + ")")
+            check(app.sessionController.running, "the empty live session started (on screen " + app.state.sessionOnScreenFolder + ")")
             app.state.enterAnalyse()
         } else if (step === 18) {
             app.state.endSession(true)
@@ -220,9 +220,9 @@ Item {
             const titles = []
             for (let i = 0; i < notes.count; ++i) titles.push(notes.objectAt(i).title)
             log("notices after End: " + JSON.stringify(titles))
-            check(!sessionController.running, "the empty session ended")
+            check(!app.sessionController.running, "the empty session ended")
             check(!titles.some(t => t.indexOf("not being saved") >= 0), "no \"not being saved\" notice after an empty End")
-            navController.navigate(AppScreen.Home)
+            app.navController.navigate(AppScreen.Home)
         } else {
             finish()
         }

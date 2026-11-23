@@ -842,6 +842,32 @@ int main()
               "with club data it splits into speed and strike as before");
     }
 
+    // THE CORRECTION ROW'S WORDS (refactor 5.8b; audit G-11), moved from PpShotOutcomeHead.qml (_noneWord,
+    // _meantShapes). Each expectation is what that QML gave on the same input (run in node over the 6336a797 source:
+    // build/refactor/step-5/5.8b/rules-reference.js).
+    std::printf("the correction row's words:\n");
+    {
+        check(outcomeNoneWord(QStringLiteral("strike")) == QStringLiteral("Clean")
+                  && outcomeNoneWord(QStringLiteral("direction")) == QStringLiteral("Straight")
+                  && outcomeNoneWord(QStringLiteral("flight")) == QStringLiteral("None")
+                  && outcomeNoneWord(QString()) == QStringLiteral("None"),
+              "the none word: Clean (strike), Straight (direction), None otherwise, as the QML said it");
+        const auto meant = [](std::initializer_list<const char *> ids) {
+            QStringList l;
+            for (const char *i : ids) l << QString::fromLatin1(i);
+            return outcomeMeantShapes(l).join(QLatin1Char(','));
+        };
+        check(meant({}) == QStringLiteral("fade,draw"), "meant shapes: no direction label offers both");
+        check(meant({ "slice" }) == QStringLiteral("fade") && meant({ "fade" }) == QStringLiteral("fade"),
+              "meant shapes: a slice or a fade offers a fade");
+        check(meant({ "pull_hook" }) == QStringLiteral("draw") && meant({ "draw" }) == QStringLiteral("draw"),
+              "meant shapes: a hook or a draw offers a draw (a match on the id's text)");
+        check(meant({ "push_slice", "hook" }) == QStringLiteral("fade,draw"), "meant shapes: both, fade first");
+        check(meant({ "pull" }) == QStringLiteral("fade,draw") && meant({ "push" }) == QStringLiteral("fade,draw")
+                  && meant({ "straight" }) == QStringLiteral("fade,draw"),
+              "meant shapes: a pull, a push or anything with no shape in its id offers both");
+    }
+
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

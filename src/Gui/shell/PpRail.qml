@@ -76,11 +76,11 @@ Item {
             width:  Theme.sp(32)
             height: Theme.sp(32)
             radius: Theme.sp(16)
-            color:  athleteController.hasCurrentAthlete
+            color:  app.athleteController.hasCurrentAthlete
                         ? Theme.colorAccentLight : "transparent"
-            border.width: athleteController.hasCurrentAthlete ? 1 : 1
+            border.width: app.athleteController.hasCurrentAthlete ? 1 : 1
             // Brighten the border on hover, matching the home-screen avatar.
-            border.color: athleteController.hasCurrentAthlete
+            border.color: app.athleteController.hasCurrentAthlete
                               ? (railAvatarPress.containsMouse ? Theme.colorAccent
                                                               : Theme.colorAccentMid)
                               : (railAvatarPress.containsMouse ? Theme.colorText3
@@ -95,18 +95,18 @@ Item {
                 border.width:  1
                 border.color:  railAvatarPress.containsMouse ? Theme.colorText3
                                                             : Theme.colorBorderStrong
-                visible:       !athleteController.hasCurrentAthlete
+                visible:       !app.athleteController.hasCurrentAthlete
                 Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                 // QML doesn't support dashed borders natively; solid low-opacity suffices
             }
 
             Text {
                 anchors.centerIn: parent
-                text:           athleteController.hasCurrentAthlete
-                                    ? athleteController.currentInitials : "＋"
+                text:           app.athleteController.hasCurrentAthlete
+                                    ? app.athleteController.currentInitials : "＋"
                 font.family:    Theme.fontData
                 font.pixelSize: Theme.sp(10)
-                color:          athleteController.hasCurrentAthlete
+                color:          app.athleteController.hasCurrentAthlete
                                     ? Theme.colorAccent : Theme.colorText3
             }
 
@@ -157,7 +157,7 @@ Item {
             isMuted:   root._muted(AppScreen.Session)
             attention: root.anyLocked
             // Glows while a session is being captured, back to normal once it ends.
-            recording: typeof sessionController !== "undefined" && sessionController.running
+            recording: (typeof app !== "undefined" && !!app.sessionController) && app.sessionController.running
             onClicked: root.pageRequested(AppScreen.Session)
         }
 

@@ -76,13 +76,13 @@ Item {
 
     Instantiator {
         id: reviewed
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject { required property int shotId; required property string swingDir }
     }
 
     function reviewFirstShot() {
         const s = reviewed.objectAt(0)
-        app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
+        app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir)
     }
 
     property int step: 0
@@ -97,11 +97,11 @@ Item {
         step += 1
         if (step === 1) {
             if (!check(reviewDir !== "", "--probe-session given")) { finish(); return }
-            navController.navigate(AppScreen.Session)
+            app.navController.navigate(AppScreen.Session)
             app.state.enterCapture()
-            sessionReviewController.loadSession(reviewDir)
+            app.sessionReviewController.loadSession(reviewDir)
         } else if (step === 2) {
-            if (!check(sessionReviewController.reviewActive && reviewed.count > 0,
+            if (!check(app.sessionReviewController.reviewActive && reviewed.count > 0,
                        "the session loaded for review (" + reviewed.count + " shots)")) { finish(); return }
             reviewFirstShot()
         } else if (step === 3) {
@@ -114,7 +114,7 @@ Item {
             app.state.enterAnalyse()
             Qt.callLater(function() {
                 probe.raceTiles = probe.replayTiles().length
-                sessionReviewController.resumeLive()
+                app.sessionReviewController.resumeLive()
             })
         } else if (step === 4) {
             check(raceTiles > 0, "A: the race was set up: Analyse had built " + raceTiles + " replay tile(s) when the review was left")
@@ -122,29 +122,29 @@ Item {
                   "A: back to live: Capture, no replay, no replay tile")
             app.state.startSession(false)
         } else if (step === 5) {
-            check(sessionController.running, "A: the session started")
+            check(app.sessionController.running, "A: the session started")
             app.state.endSession(true)
         } else if (step === 6) {
-            check(!sessionController.running, "A: the session ended")
-            sessionReviewController.loadSession(reviewDir)
+            check(!app.sessionController.running, "A: the session ended")
+            app.sessionReviewController.loadSession(reviewDir)
         } else if (step === 7) {
-            check(sessionReviewController.reviewActive, "B: the session loaded for review again")
+            check(app.sessionReviewController.reviewActive, "B: the session loaded for review again")
             reviewFirstShot()
         } else if (step === 8) {
             check(app.state.replay.active && replayTiles().length > 0, "B: Replay shows the video")
             app.state.enterAnalyse()
         } else if (step === 9) {
             check(app.state.mode === app.state.analyseMode && replayTiles().length > 0, "B: Analyse shows the video")
-            sessionReviewController.resumeLive()
+            app.sessionReviewController.resumeLive()
         } else if (step === 10) {
             check(app.state.mode === app.state.captureMode && replayTiles().length === 0, "B: back to live")
             app.state.startSession(false)
         } else if (step === 11) {
-            check(sessionController.running, "B: the session started")
+            check(app.sessionController.running, "B: the session started")
             app.state.endSession(true)
         } else if (step === 12) {
-            check(!sessionController.running, "B: the session ended")
-            navController.navigate(AppScreen.Home)
+            check(!app.sessionController.running, "B: the session ended")
+            app.navController.navigate(AppScreen.Home)
         } else {
             finish()
         }

@@ -80,14 +80,14 @@ Column {
     objectName: "sessionReportList"
 
     // Passed in rather than reached for, so a harness can drive it.
-    property var model:   (typeof sessionReportList !== "undefined") ? sessionReportList : null
-    property var reports: (typeof sessionReport !== "undefined") ? sessionReport : null
-    property var mailer:  (typeof reportMailer !== "undefined") ? reportMailer : null
+    property var model:   ((typeof app !== "undefined" && !!app.sessionReportList)) ? app.sessionReportList : null
+    property var reports: ((typeof app !== "undefined" && !!app.sessionReport)) ? app.sessionReport : null
+    property var mailer:  ((typeof app !== "undefined" && !!app.reportMailer)) ? app.reportMailer : null
     property var studio:  (typeof studioProfile !== "undefined") ? studioProfile : null
-    property var athletes: (typeof athleteController !== "undefined") ? athleteController : null
-    property var exporter: (typeof swingExporter !== "undefined") ? swingExporter : null
-    property var archiver: (typeof archiveController !== "undefined") ? archiveController : null
-    property var reviewer: (typeof sessionReviewController !== "undefined") ? sessionReviewController : null
+    property var athletes: ((typeof app !== "undefined" && !!app.athleteController)) ? app.athleteController : null
+    property var exporter: ((typeof app !== "undefined" && !!app.swingExporter)) ? app.swingExporter : null
+    property var archiver: ((typeof app !== "undefined" && !!app.archiveController)) ? app.archiveController : null
+    property var reviewer: ((typeof app !== "undefined" && !!app.sessionReviewController)) ? app.sessionReviewController : null
     property var settings: (typeof appSettings !== "undefined") ? appSettings : null
 
     // Archive and Restore need somewhere to put the videos (Settings → Archiving).

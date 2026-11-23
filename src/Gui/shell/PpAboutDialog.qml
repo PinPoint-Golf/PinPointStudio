@@ -46,8 +46,8 @@ Popup {
 
     // Live updater state + its badge, in the words update_states.js gives every updater surface
     // ("long": room for "Checking for updates…").
-    readonly property string uState: updateController.state
-    readonly property var pal: UpdateStates.badge(uState, "long", updateController.progress, Theme)
+    readonly property string uState: app.updateController.state
+    readonly property var pal: UpdateStates.badge(uState, "long", app.updateController.progress, Theme)
 
     background: PpPopoverCard { style: "plain" }
 
@@ -60,7 +60,7 @@ Popup {
             spacing: Theme.gap(16)
 
             Image {
-                source:            appInfo.iconSource
+                source:            app.appInfo.iconSource
                 sourceSize.width:  Theme.sp(76)
                 sourceSize.height: Theme.sp(76)
                 Layout.preferredWidth:  Theme.sp(76)
@@ -84,7 +84,7 @@ Popup {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text:           qsTr("for %1").arg(appInfo.osName)
+                    text:           qsTr("for %1").arg(app.appInfo.osName)
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
                     color:          Theme.colorText2
@@ -100,7 +100,7 @@ Popup {
 
             Text {
                 Layout.fillWidth: true
-                text:           qsTr("%1  ·  build %2").arg(appInfo.versionString).arg(appInfo.buildNumber)
+                text:           qsTr("%1  ·  build %2").arg(app.appInfo.versionString).arg(app.appInfo.buildNumber)
                 font.family:    Theme.fontData
                 font.pixelSize: Theme.fontSzBody
                 color:          Theme.colorText
@@ -108,8 +108,8 @@ Popup {
             Text {
                 Layout.fillWidth: true
                 text:           qsTr("commit %1 · built %2 · Qt %3 · %4")
-                                    .arg(appInfo.gitSha).arg(appInfo.buildDate)
-                                    .arg(appInfo.qtVersion).arg(appInfo.architecture)
+                                    .arg(app.appInfo.gitSha).arg(app.appInfo.buildDate)
+                                    .arg(app.appInfo.qtVersion).arg(app.appInfo.architecture)
                 font.family:    Theme.fontData
                 font.pixelSize: Theme.fontSzMicro
                 color:          Theme.colorText3
@@ -144,13 +144,13 @@ Popup {
                 PpButton {
                     readonly property string mode: UpdateStates.actionMode(root.uState)
                     visible: mode !== ""
-                    enabled: updateController.supported
+                    enabled: app.updateController.supported
                     primary: mode === "download" || mode === "restart"
                     label:   UpdateStates.actionLabel(mode, "long")
                     onClicked: {
-                        if (mode === "download")     updateController.download()
-                        else if (mode === "restart") updateController.relaunch()
-                        else                         updateController.checkNow()
+                        if (mode === "download")     app.updateController.download()
+                        else if (mode === "restart") app.updateController.relaunch()
+                        else                         app.updateController.checkNow()
                     }
                 }
             }
@@ -159,11 +159,11 @@ Popup {
             Text {
                 Layout.fillWidth: true
                 visible: text.length > 0
-                text: updateController.state === "error" ? updateController.errorString
-                                                         : updateController.statusMessage
+                text: app.updateController.state === "error" ? app.updateController.errorString
+                                                         : app.updateController.statusMessage
                 font.family:    Theme.fontData
                 font.pixelSize: Theme.fontSzMicro
-                color:          updateController.state === "error" ? Theme.colorWarn : Theme.colorText3
+                color:          app.updateController.state === "error" ? Theme.colorWarn : Theme.colorText3
                 wrapMode:       Text.WordWrap
             }
         }
@@ -193,7 +193,7 @@ Popup {
                 spacing: Theme.gap(7)
 
                 Repeater {
-                    model: appInfo.dependencies
+                    model: app.appInfo.dependencies
                     delegate: RowLayout {
                         required property var modelData
                         Layout.fillWidth: true

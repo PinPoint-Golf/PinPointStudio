@@ -99,7 +99,7 @@ Item {
     readonly property var session:
         (typeof app !== "undefined" && app && sessionDir !== "") ? app.session : null
     readonly property var diagModel:
-        (typeof diagnosticsAdapters !== "undefined" && diagnosticsAdapters) ? diagnosticsAdapters.of(session, surface, sessionDir) : null
+        ((typeof app !== "undefined" && !!app.diagnosticsAdapters) && app.diagnosticsAdapters) ? app.diagnosticsAdapters.of(session, surface, sessionDir) : null
     // SHOW WITH A WARNING, NEVER HIDE: a folder the panel is pointed at that no Session holds has no diagnostics; the
     // panel says so instead of drawing an empty panel as if nothing had happened.
     readonly property bool noGolfer: sessionDir !== "" && session === null && !!diagModel && diagModel.adapter
@@ -115,7 +115,7 @@ Item {
     Binding { restoreMode: Binding.RestoreNone; target: root.diagModel; property: "gradePolicy"; value: appSettings.diagnosticsGradePolicy }
     // Review FREEZES the ledger at Closing: a finished session's panel is its summary and must not
     // re-open because it was looked at.
-    Binding { restoreMode: Binding.RestoreNone; target: root.diagModel; property: "reviewing";   value: sessionReviewController.reviewActive }
+    Binding { restoreMode: Binding.RestoreNone; target: root.diagModel; property: "reviewing";   value: app.sessionReviewController.reviewActive }
     // THE CAROUSEL OWNS THE SELECTION AND THE PANEL ONLY READS IT (brief §6.1, §8). The carousel
     // is already at the foot of the stage and is post-session the ONLY way in; a second selection
     // control on the panel would be a second answer to "which shot", and the two would disagree
@@ -305,11 +305,11 @@ Item {
     // live one. A folder that is neither (not expected for a panel) is "this session".
     function _writesBlockedId(dir) { return "diagnostics.writes-blocked:" + SessionMode.folderKey(dir) }
     function _sessionName(dir) {
-        const src = (typeof sessionReviewController !== "undefined") ? sessionReviewController : null
+        const src = ((typeof app !== "undefined" && !!app.sessionReviewController)) ? app.sessionReviewController : null
         if (src && src.reviewActive && SessionMode.sameFolder(dir, src.activeSessionId) && src.activeDayLabel)
             return qsTr("the %1 session").arg(src.activeDayLabel
                                               + (src.activeTimeLabel ? " · " + src.activeTimeLabel : ""))
-        const live = (typeof shotProcessor !== "undefined" && shotProcessor) ? shotProcessor.activeSessionDir : ""
+        const live = ((typeof app !== "undefined" && !!app.shotProcessor) && app.shotProcessor) ? app.shotProcessor.activeSessionDir : ""
         if ((live && SessionMode.sameFolder(dir, live)) || (src && SessionMode.sameFolder(dir, src.liveSessionDir)))
             return qsTr("today's session")
         return qsTr("this session")
@@ -317,15 +317,15 @@ Item {
     Connections {
         target: diagModel
         function onLedgerWritesBlocked(dir, reason) {
-            if (typeof notifications === "undefined" || !notifications) return
-            notifications.postWarning(root._writesBlockedId(dir),
+            if ((typeof app === "undefined" || !app.notifications) || !app.notifications) return
+            app.notifications.postWarning(root._writesBlockedId(dir),
                                       qsTr("Changes to the diagnostics of %1 are not being saved")
                                           .arg(root._sessionName(dir)),
                                       reason)
         }
         function onLedgerWritesResumed(dir) {
-            if (typeof notifications === "undefined" || !notifications) return
-            notifications.resolve(root._writesBlockedId(dir))
+            if ((typeof app === "undefined" || !app.notifications) || !app.notifications) return
+            app.notifications.resolve(root._writesBlockedId(dir))
         }
     }
 

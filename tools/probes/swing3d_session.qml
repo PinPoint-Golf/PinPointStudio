@@ -147,18 +147,18 @@ Item {
             say("panel back: loading=" + d.loading + " P4 at " + probe.posTime(d, 4))
             screenHost = probe.find(probe.Window.window.contentItem, "swing3dHost")
             say("screen host found=" + (screenHost !== null) + " sessionAvailable before loading a session=" + (screenHost ? screenHost.sessionAvailable : "none")
-                + " reviewActive=" + sessionReviewController.reviewActive)
-            sessionReviewController.loadSession(probe.sessionDir)
+                + " reviewActive=" + app.sessionReviewController.reviewActive)
+            app.sessionReviewController.loadSession(probe.sessionDir)
             phase = "review"
             step = 1000
             return
         }
         if (phase === "review") {
-            if (!sessionReviewController.reviewActive && step < 1100) return
-            say("library session open: reviewActive=" + sessionReviewController.reviewActive
+            if (!app.sessionReviewController.reviewActive && step < 1100) return
+            say("library session open: reviewActive=" + app.sessionReviewController.reviewActive
                 + " screen host sessionAvailable=" + (screenHost ? screenHost.sessionAvailable : "none") + " mode=" + app.state.mode)
             app.state.enterCapture()
-            say("back in Capture: reviewActive=" + sessionReviewController.reviewActive
+            say("back in Capture: reviewActive=" + app.sessionReviewController.reviewActive
                 + " screen host sessionAvailable=" + (screenHost ? screenHost.sessionAvailable : "none"))
             say("DONE")
             Qt.quit()

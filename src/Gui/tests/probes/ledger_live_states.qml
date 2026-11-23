@@ -86,7 +86,7 @@ Item {
 
     Instantiator {
         id: live
-        model: shotModel
+        model: app.shotModel
         delegate: QtObject {
             required property int shotId
             required property int ordinal
@@ -107,23 +107,23 @@ Item {
             probe.step += 1
             const s = probe.step
             if (s === 1) {
-                navController.navigate(AppScreen.Session)                 // the session screen: today's swings load
+                app.navController.navigate(AppScreen.Session)                 // the session screen: today's swings load
                 app.state.enterCapture()
             } else if (s === 2) {
                 probe.base = live.count
                 probe.check(live.count > 0, "relaunched: today's swings are on the carousel (" + live.count + ")")
                 const newest = live.objectAt(0)
-                app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(newest.shotId), newest.swingDir)   // the carousel's click path
+                app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(newest.shotId), newest.swingDir)   // the carousel's click path
             } else if (s === 3) {
                 app.state.enterAnalyse()
             } else if (s === 5) {
                 probe.state("relaunched", probe.base)
             } else if (s === 6) {
                 // PpSessionToolbar._beginSession(true), less the clock and the cameras.
-                shotProcessor.beginSessionFolder(SessionController.Wrist, true)
-                app.state.setLiveFolder(shotProcessor.activeSessionDir)
+                app.shotProcessor.beginSessionFolder(SessionController.Wrist, true)
+                app.state.setLiveFolder(app.shotProcessor.activeSessionDir)
             } else if (s === 8) {
-                probe.check(probe.same(shotProcessor.activeSessionDir, probe.sessionDir),
+                probe.check(probe.same(app.shotProcessor.activeSessionDir, probe.sessionDir),
                             "extended: the session resumed in today's folder")
                 probe.state("extended", probe.base)
                 probe.log("ADD-SWING")                    // the runner copies the new swing in now
@@ -132,7 +132,7 @@ Item {
                 // id (its next counter value) and the swing folder.
                 const id = probe.maxLiveId() + 1
                 probe.log("announcing swing " + probe.newOrdinal + " as carousel id " + id)
-                shotProcessor.shotProcessed(id, probe.newSwingDir)
+                app.shotProcessor.shotProcessed(id, probe.newSwingDir)
             } else if (s === 13) {
                 probe.state("new shot", probe.base + 1)
                 const m = probe.model()
@@ -141,8 +141,8 @@ Item {
                                    + " (it is " + m.shotIdForSwingDir(probe.newSwingDir) + ")")
             } else if (s === 14) {
                 // The End Session button, less the devices.
-                shotProcessor.endSessionFolder()
-                app.state.setLiveFolder(shotProcessor.todaySessionDir(SessionController.Wrist))
+                app.shotProcessor.endSessionFolder()
+                app.state.setLiveFolder(app.shotProcessor.todaySessionDir(SessionController.Wrist))
             } else if (s === 16) {
                 probe.state("ended", probe.base + 1)
                 probe.finish()

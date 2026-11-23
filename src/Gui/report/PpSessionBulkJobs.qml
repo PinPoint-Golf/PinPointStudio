@@ -49,13 +49,13 @@ QtObject {
     id: jobs
 
     // ── The backends ─────────────────────────────────────────────────────────
-    property var reports:  (typeof sessionReport !== "undefined") ? sessionReport : null
-    property var mailer:   (typeof reportMailer !== "undefined") ? reportMailer : null
-    property var exporter: (typeof swingExporter !== "undefined") ? swingExporter : null
-    property var archiver: (typeof archiveController !== "undefined") ? archiveController : null
-    property var review:   (typeof sessionReviewController !== "undefined") ? sessionReviewController : null
+    property var reports:  ((typeof app !== "undefined" && !!app.sessionReport)) ? app.sessionReport : null
+    property var mailer:   ((typeof app !== "undefined" && !!app.reportMailer)) ? app.reportMailer : null
+    property var exporter: ((typeof app !== "undefined" && !!app.swingExporter)) ? app.swingExporter : null
+    property var archiver: ((typeof app !== "undefined" && !!app.archiveController)) ? app.archiveController : null
+    property var review:   ((typeof app !== "undefined" && !!app.sessionReviewController)) ? app.sessionReviewController : null
     // Told to rescan after an archive, restore or trash (anything with refresh()).
-    property var listModel: (typeof sessionReportList !== "undefined") ? sessionReportList : null
+    property var listModel: ((typeof app !== "undefined" && !!app.sessionReportList)) ? app.sessionReportList : null
     // A session's facts: {canReport, isLive, archived, sessionMs, …}. The host's rows, else the model's.
     property var rowFor: function (dir) {
         return (jobs.listModel && typeof jobs.listModel.rowFor === "function") ? (jobs.listModel.rowFor(dir) || {}) : {}

@@ -3005,6 +3005,7 @@ target_sources(PinPointStudio PRIVATE
     src/Gui/review/shot_data_door.cpp
     src/App/app.h
     src/App/app.cpp
+    src/Gui/app/gui_app.h        # `app` as QML reaches it: the App with the app-wide objects hung from it (refactor 5.8b; R-QML-1)
     src/App/app_state.h
     src/App/app_state.cpp
     src/App/shot_source.h          # the carousel's port onto one Session (refactor step 5.2; R-QML-5)

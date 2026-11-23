@@ -82,7 +82,7 @@ Column {
     readonly property bool noReadings: log.length > 0 && log.every(s => !!s.noReading)
 
     // ── the reason filter set from Home ──
-    readonly property var reasonController: typeof sessionReviewController !== "undefined" ? sessionReviewController : null
+    readonly property var reasonController: (typeof app !== "undefined" && !!app.sessionReviewController) ? app.sessionReviewController : null
     readonly property string reasonFilter: reasonController ? String(reasonController.reasonFilter || "") : ""
     readonly property var filterReason: reasonFilter !== "" ? reasons.find(r => r.conditionId === reasonFilter) || null : null
     readonly property var filterShots: filterReason ? firedShots(filterReason) : []

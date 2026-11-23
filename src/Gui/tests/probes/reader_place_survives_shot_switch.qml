@@ -59,7 +59,7 @@ Item {
 
     Instantiator {
         id: shotList
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject { required property int shotId; required property int ordinal; required property string swingDir }
     }
     property var shotsSorted: []
@@ -78,7 +78,7 @@ Item {
         const f = flickOf(bodyName, name)
         log("VALUE " + tag + " " + name + " contentY=" + (f ? Math.round(f.contentY) : "missing") + " want=" + Math.round(want)
             + " most=" + Math.round(most(f)) + " contentHeight=" + (f ? Math.round(f.contentHeight) : "-")
-            + " mode=" + app.state.mode + " shot=" + sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir))
+            + " mode=" + app.state.mode + " shot=" + app.sessionReviewController.activeShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir))
         return f
     }
     function nav(kind) { const n = kind === "charts" ? SessionMode.chartsNav : SessionMode.diagnosticsNav
@@ -104,8 +104,8 @@ Item {
             then()
         })
     }
-    function carousel(s) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir) }   // PpShotCarousel._toggleShot
-    function figure(s) { app.state.pickShot(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir) }        // a shot picked on a figure: Analyse keeps Analyse
+    function carousel(s) { app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir) }   // PpShotCarousel._toggleShot
+    function figure(s) { app.state.pickShot(app.sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir) }        // a shot picked on a figure: Analyse keeps Analyse
 
     // ── the cases ──
     property real want: 0
@@ -210,9 +210,9 @@ Item {
 
     property var plan: [
         (done) => {
-            navController.navigate(AppScreen.Session)
+            app.navController.navigate(AppScreen.Session)
             app.state.enterCapture()
-            sessionReviewController.loadSession(probe.sessionDir)
+            app.sessionReviewController.loadSession(probe.sessionDir)
             after(5000, () => {
                 const list = []
                 for (let i = 0; i < shotList.count; ++i) list.push(shotList.objectAt(i))

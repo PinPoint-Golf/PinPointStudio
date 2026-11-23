@@ -77,22 +77,18 @@ Item {
     readonly property string _intendedLabel: { const l = labels.find(x => x.intended); return l ? String(l.id) : "" }
     readonly property string intentNow: _chosenShot === shotId ? _chosenShape : _intendedLabel
 
-    function _noneWord(family) { return family === "strike" ? "Clean" : family === "direction" ? "Straight" : "None" }
-    function _meantShapes(detected) {
-        const has = w => detected.some(l => String(l.id).indexOf(w) >= 0)
-        const out = []
-        if (has("slice") || has("fade")) out.push("fade")
-        if (has("hook") || has("draw")) out.push("draw")
-        return out.length ? out : ["fade", "draw"]
-    }
+    // the "none of these" word per family and the shapes the golfer may say they meant: the model's (shot_outcomes.h
+    // outcomeNoneWord, outcomeMeantShapes; refactor 5.8b), never worked out here
+    readonly property var noneWords: (outcome && outcome.noneWords) || ({})
+    readonly property var meantShapes: (outcome && outcome.meantShapes) || []
     function chipsFor(family) {
         const detected = labels.filter(l => l.family === family)
         const out = detected.map(l => ({ key: l.id, label: l.short, on: true }))
         for (const m of candidates)
             if (m.family === family && !out.some(c => c.key === m.id)) out.push({ key: m.id, label: m.name || m.id, on: false })
-        out.push({ key: "", label: _noneWord(family), on: detected.length === 0 })
+        out.push({ key: "", label: String(noneWords[family] || ""), on: detected.length === 0 })
         if (family === "direction" && detected.length > 0)
-            for (const shape of _meantShapes(detected)) out.push({ key: "meant:" + shape, label: "Meant to " + shape, on: intentNow === shape })
+            for (const shape of meantShapes) out.push({ key: "meant:" + shape, label: "Meant to " + shape, on: intentNow === shape })
         return out
     }
     function pickChip(family, key) {

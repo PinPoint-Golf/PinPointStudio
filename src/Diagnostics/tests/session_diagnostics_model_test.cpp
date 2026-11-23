@@ -1835,6 +1835,16 @@ static void shotOutcomesSuite(const QTemporaryDir &tmp)
                   && o.value(QStringLiteral("labels")).toList().first().toMap().value(QStringLiteral("id")).toString() == QStringLiteral("hook")
                   && o.value(QStringLiteral("golferMirrored")).toBool(),
               "a left-hander's slice row reads Hook, the row untouched");
+        // The correction row's words come with the outcome (refactor 5.8b): the meant shapes off the golfer's ids
+        // (a hook offers a draw), and the none word for every family the row can show.
+        {
+            const QVariantMap nw = o.value(QStringLiteral("noneWords")).toMap();
+            check(o.value(QStringLiteral("meantShapes")).toStringList() == QStringList{ QStringLiteral("draw") }
+                      && nw.value(QStringLiteral("strike")).toString() == QStringLiteral("Clean")
+                      && nw.value(QStringLiteral("direction")).toString() == QStringLiteral("Straight")
+                      && nw.value(QStringLiteral("flight")).toString() == QStringLiteral("None"),
+                  "the outcome carries the correction row's words: a left-hander's Hook offers a draw; Clean, Straight, None");
+        }
         // The golfer's picks are in their own words: "pull" on a left-hander is a push row.
         ml->correctOutcome(3, QStringLiteral("direction"), QStringLiteral("pull"));
         const QVector<pinpoint::LabelCorrection> corrections = reviewOf(leftDir, 3).labelCorrections;
@@ -3428,6 +3438,56 @@ int main(int argc, char **argv)
                   && spreadPositionWords(cc, 7.4, 1) == QStringLiteral("0.4 past the fault line"),
               "a reading placed in words: past the fault line by how much, at it (when the distance rounds to 0), past the pass band, inside, or -");
 
+        // THE DISTANCE TO TRAVEL (refactor 5.8b; audit G-11): Detail's key figures, moved from PpDiagAnalyse.qml's
+        // travelItems. Each expectation is what that QML gave on the same bands, fault lines, reading and precision
+        // (run in node over the 6336a797 source: build/refactor/step-5/5.8b/rules-reference.js).
+        {
+            const auto B = [](const char *g, double lo, double hi) { return SpreadBand{ QString::fromLatin1(g), lo, hi }; };
+            const std::vector<SpreadBand> ceil{ B("open", -1, 2), B("ideal", 2, 3), B("good", 3, 4.7), B("watch", 4.7, 7), B("action", 7, 12) };
+            const std::vector<SpreadBand> two{ B("action", -5, 0), B("watch", 0, 5), B("good", 5, 10), B("ideal", 10, 20),
+                                               B("good", 20, 25), B("watch", 25, 30), B("action", 30, 35) };
+            const std::vector<SpreadBand> flr{ B("action", 0, 1.2), B("watch", 1.2, 1.3), B("good", 1.3, 1.6), B("ideal", 1.6, 2), B("open", 2, 3) };
+            const auto said = [](const std::vector<SpreadTravelItem> &items) {
+                QStringList out;
+                for (const SpreadTravelItem &t : items)
+                    out << t.label + QStringLiteral("=") + t.figure + (t.hasWord ? (t.word ? QStringLiteral(" (words)") : QStringLiteral(" (figure)")) : QString());
+                return out.join(QStringLiteral(" | "));
+            };
+            const struct { const char *what; const std::vector<SpreadBand> *bands; std::vector<double> faults; double v; int dec; int shot; const char *qml; } cases[] = {
+                { "ceiling, past the fault line", &ceil, { 7 }, 10, 0, 3,
+                  "Shot 3 past the fault line=3 (figure) | Shot 3 from the pass edge=5" },
+                { "ceiling, between the pass edge and the fault line", &ceil, { 7 }, 5, 0, 3,
+                  "Shot 3 past the fault line=inside it (words) | Shot 3 from the pass edge=0" },
+                { "ceiling, inside", &ceil, { 7 }, 3.5, 1, 3, "Shot 3 inside the pass edge by=1.2" },
+                { "ceiling, at the fault line by a rounding", &ceil, { 7 }, 7.04, 0, 3,
+                  "Shot 3 past the fault line=at the fault line (words) | Shot 3 from the pass edge=2" },
+                { "ceiling, at the fault line by a rounding, 1 dp", &ceil, { 7 }, 7.04, 1, 12,
+                  "Shot 12 past the fault line=at the fault line (words) | Shot 12 from the pass edge=2.3" },
+                { "ceiling, no fault line inside the axis", &ceil, {}, 9, 1, 4, "Shot 4 from the pass edge=4.3" },
+                { "ceiling, far out on the open end", &ceil, { 7 }, -0.5, 1, 2, "Shot 2 inside the pass edge by=5.2" },
+                { "two-sided, past the high fault line", &two, { 0, 30 }, 33, 0, 5,
+                  "Shot 5 past the fault line=3 (figure) | Shot 5 from the pass edge=8" },
+                { "two-sided, past the low fault line", &two, { 0, 30 }, -2.4, 1, 7,
+                  "Shot 7 past the fault line=2.4 (figure) | Shot 7 from the pass edge=7.4" },
+                { "two-sided, low in Watch", &two, { 0, 30 }, 3, 0, 1,
+                  "Shot 1 past the fault line=inside it (words) | Shot 1 from the pass edge=2" },
+                { "two-sided, inside", &two, { 0, 30 }, 12, 0, 9, "Shot 9 inside the pass edge by=7" },
+                { "floor, past the fault line", &flr, { 1.2 }, 1.0, 2, 6,
+                  "Shot 6 past the fault line=0.20 (figure) | Shot 6 from the pass edge=0.30" },
+                { "floor, inside", &flr, { 1.2 }, 2.5, 2, 6, "Shot 6 inside the pass edge by=1.20" },
+            };
+            for (const auto &k : cases) {
+                const QString got = said(spreadTravelItems(*k.bands, k.faults, k.v, k.dec, k.shot));
+                if (got != QString::fromUtf8(k.qml)) std::printf("      travel %s: \"%s\"\n", k.what, qPrintable(got));
+                check(got == QString::fromUtf8(k.qml), k.what);
+            }
+            const std::vector<SpreadBand> allOpen{ B("open", 0, 1), B("open", 1, 2) };
+            const std::vector<SpreadBand> noPass{ B("watch", 0, 1), B("action", 1, 2) };
+            check(spreadTravelItems(allOpen, {}, 0.5, 1, 1).empty() && spreadTravelItems(noPass, { 1 }, 1.5, 1, 1).empty()
+                      && spreadTravelItems(ceil, { 7 }, NaN, 0, 3).empty() && spreadTravelItems({}, {}, 1.0, 0, 1).empty(),
+                  "the distance to travel: nothing with no graded pass band, no pass band, no reading or no strip, as the QML gave");
+        }
+
         // WHERE A READING SITS, FOR THE FIGURES (C21): the zone edges each band starts at, and the common
         // scale the session tiles share — decided off the corridor, not rebuilt in QML from the band words.
         {
@@ -3630,6 +3690,28 @@ int main(int argc, char **argv)
         check(sp.value(QStringLiteral("currentReadout")).toString()
                   == runPts.last().toMap().value(QStringLiteral("readout")).toString(),
               "with nothing hovered the line reads the current shot");
+        // The distance to travel rides on the strip (refactor 5.8b): what PpDiagAnalyse's travelItems worked out from
+        // these same bands, fault lines and current reading, now the model's.
+        {
+            std::vector<SpreadBand> bs;
+            for (const QVariant &b : sp.value(QStringLiteral("bands")).toList())
+                bs.push_back(SpreadBand{ b.toMap().value(QStringLiteral("grade")).toString(),
+                                         b.toMap().value(QStringLiteral("lo")).toDouble(), b.toMap().value(QStringLiteral("hi")).toDouble() });
+            std::vector<double> fl;
+            for (const QVariant &f : sp.value(QStringLiteral("faultLines")).toList()) fl.push_back(f.toMap().value(QStringLiteral("value")).toDouble());
+            const QVariantMap cur = runPts.last().toMap();
+            const std::vector<SpreadTravelItem> want = spreadTravelItems(bs, fl, cur.value(QStringLiteral("value")).toDouble(),
+                                                                         sp.value(QStringLiteral("decimals")).toInt(), cur.value(QStringLiteral("index")).toInt() + 1);
+            const QVariantList got = sp.value(QStringLiteral("travel")).toList();
+            bool same = !want.empty() && got.size() == int(want.size());
+            for (int i = 0; same && i < got.size(); ++i)
+                same = got.at(i).toMap().value(QStringLiteral("label")).toString() == want[size_t(i)].label
+                    && got.at(i).toMap().value(QStringLiteral("figure")).toString() == want[size_t(i)].figure;
+            std::printf("      travel: %s\n", got.isEmpty() ? "none" : qPrintable(got.first().toMap().value(QStringLiteral("label")).toString()
+                                                                         + QStringLiteral(" ") + got.first().toMap().value(QStringLiteral("figure")).toString()));
+            check(same && sp.value(QStringLiteral("travelShot")).toString() == QStringLiteral("Shot 10"),
+                  "the strip carries the current shot's distance to travel, off its own bands and fault lines");
+        }
         {
             SpreadAxis ta; ta.lo = -7.9; ta.hi = 29.3; ta.decimals = 0;
             const std::vector<double> tv = spreadTickValues(ta);

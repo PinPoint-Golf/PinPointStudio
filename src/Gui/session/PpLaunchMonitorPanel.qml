@@ -48,13 +48,13 @@ Item {
 
     clip: true
 
-    readonly property var sessionShots: sessionReviewController.activeShots
+    readonly property var sessionShots: app.sessionReviewController.activeShots
     // app.state's selected shot as this list's row id (ShotListModel.idOfShot, by ShotRef), re-found as rows change.
     readonly property int _focusedId: {
         void root.sessionShots.activeCount
         return root.sessionShots.idOfShot(app.state.selection.shotRef, app.state.selection.swingDir)
     }
-    readonly property bool reviewing:   sessionReviewController.reviewActive
+    readonly property bool reviewing:   app.sessionReviewController.reviewActive
 
     // The body's view and registers, reachable from the panel (the stage, a print or cast host, the
     // render harness). Cast and print set `interactive: false`: they take no input and show no controls.
@@ -69,7 +69,7 @@ Item {
 
     // The board of the shots on screen. Its list and its register (reviewing) are its owner's: activeShots, and
     // whether that is a loaded session. The rest it is asked here.
-    readonly property var board: sessionReviewController.lmBoard
+    readonly property var board: app.sessionReviewController.lmBoard
     Binding { target: root.board; property: "focusedShotId"; value: root._focusedId; restoreMode: Binding.RestoreNone }
     // The live-capture gate, and it answers for the LIVE session only — see emptyText(). A saved session's readings
     // are on disk whatever the device is doing now.
@@ -80,10 +80,10 @@ Item {
     Binding { target: root.board; property: "gradePolicy"; value: appSettings.diagnosticsGradePolicy; restoreMode: Binding.RestoreNone }
     // Publishes the handedness convention (graphics.leftHanded): the values stay in the device's convention and the
     // body mirrors the art and the words.
-    Binding { target: root.board; property: "leftHanded"; value: athleteController.currentHandedness === "Left"; restoreMode: Binding.RestoreNone }
+    Binding { target: root.board; property: "leftHanded"; value: app.athleteController.currentHandedness === "Left"; restoreMode: Binding.RestoreNone }
     // Held while this panel is up, after the asks above are set, so the board's first reduction is asked as the panel
     // asks it. It lets go when the panel is destroyed.
-    Component.onCompleted: sessionReviewController.holdLmBoard(root)
+    Component.onCompleted: app.sessionReviewController.holdLmBoard(root)
 
     // The session's shots as recorded: the swing folder SessionMode needs to focus one, and the body's
     // heading until the model's graphics.shots is published.

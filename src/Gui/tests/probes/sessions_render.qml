@@ -69,7 +69,7 @@ Item {
         })
     }
     function waitScan(then, tries) {
-        if (sessionReportList.scanning && tries > 0) { after(250, () => waitScan(then, tries - 1)); return }
+        if (app.sessionReportList.scanning && tries > 0) { after(250, () => waitScan(then, tries - 1)); return }
         after(1500, then)            // let the report states arrive (12 rows per turn)
     }
     function row(i) { return named("sessionsRow_" + i) }
@@ -82,7 +82,7 @@ Item {
 
     // Does each cell's content fit its column? (Date beside its chip; the device tags; Work-on.)
     function fit() {
-        for (let i = 0; i < sessionReportList.shownCount; ++i) {
+        for (let i = 0; i < app.sessionReportList.shownCount; ++i) {
             const r = row(i); if (!r) continue
             const d = first(r, o => o.objectName === "sessionsDate"), chip = first(r, o => o.objectName === "sessionsReview")
             const tags = first(r, o => o.tokens !== undefined && o.labels !== undefined)
@@ -113,8 +113,8 @@ Item {
 
     // Rows 5, 6 and 7 emailed in bulk: one confirm, then each made if need be and sent (dry run).
     function bulkStep(list) {
-        const set = reportMailer.setPassword("probe-dry-run")
-        log("sendConfigured=" + reportMailer.sendConfigured + " dryRun=" + reportMailer.dryRun + " " + JSON.stringify(set))
+        const set = app.reportMailer.setPassword("probe-dry-run")
+        log("sendConfigured=" + app.reportMailer.sendConfigured + " dryRun=" + app.reportMailer.dryRun + " " + JSON.stringify(set))
         const dirs = [5, 6, 7].map(i => row(i)).filter(r => r).map(r => r.dir)
         for (const d of dirs) list.toggleRow(d)
         const t0 = Date.now()
@@ -127,7 +127,7 @@ Item {
             log("bulk finished verb=" + verb + " ok=" + okCount + " failed=" + failCount
                 + " status=" + JSON.stringify(list.jobs.status))
             for (const d of dirs) {
-                const st = sessionReport.state(d)
+                const st = app.sessionReport.state(d)
                 const last = st.lastSend || {}
                 log("sent " + d.split("/").pop() + " state=" + st.state + " lastSend.method=" + (last.method || "-")
                     + " fresh=" + ((last.ms || 0) >= t0))
@@ -145,13 +145,13 @@ Item {
     }
 
     Component.onCompleted: {
-        navController.navigate(AppScreen.Home)
+        app.navController.navigate(AppScreen.Home)
         const tabs = named("homeTabs")
         if (tabs) tabs.current = "sessions"
         after(800, () => waitScan(run, 80))
     }
     function run() {
-        log("rows=" + sessionReportList.count + " shown=" + sessionReportList.shownCount)
+        log("rows=" + app.sessionReportList.count + " shown=" + app.sessionReportList.shownCount)
         if (phase === "before") {
             grabWindow(outDir + "/before-sessions.png", () => Qt.quit())
             return

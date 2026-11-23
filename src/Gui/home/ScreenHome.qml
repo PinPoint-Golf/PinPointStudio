@@ -59,10 +59,10 @@ Item {
     property string selectedClub: ""
 
     property var athMap: {
-        if (!athleteController.hasCurrentAthlete) return {}
-        var list = athleteController.athletes
+        if (!app.athleteController.hasCurrentAthlete) return {}
+        var list = app.athleteController.athletes
         for (var i = 0; i < list.length; i++) {
-            if (list[i].uuid === athleteController.currentUuid) return list[i]
+            if (list[i].uuid === app.athleteController.currentUuid) return list[i]
         }
         return {}
     }
@@ -71,23 +71,23 @@ Item {
     // there's no athlete or an emptied bag — the club picker hides in that case.
     // Re-evaluates on every club commit via athletesChanged.
     readonly property var clubModel: {
-        void athleteController.athletes
-        if (!athleteController.hasCurrentAthlete) return []
-        return athleteController.bagClubIds(athleteController.currentUuid)
+        void app.athleteController.athletes
+        if (!app.athleteController.hasCurrentAthlete) return []
+        return app.athleteController.bagClubIds(app.athleteController.currentUuid)
     }
 
     // Default the club to the athlete's preferred club (resolved to a real bag
     // club) whenever the athlete or their bag changes.
     onAthMapChanged: {
-        if (!athleteController.hasCurrentAthlete) return
-        var pref = athleteController.effectivePrimaryClub(athleteController.currentUuid)
+        if (!app.athleteController.hasCurrentAthlete) return
+        var pref = app.athleteController.effectivePrimaryClub(app.athleteController.currentUuid)
         if (pref !== "") root.selectedClub = pref
     }
 
-    readonly property bool hasGolfer: athleteController.hasCurrentAthlete
+    readonly property bool hasGolfer: app.athleteController.hasCurrentAthlete
 
     // The last session, from the work-ons' records: { label, shots }, or empty.
-    readonly property var lastSession: (typeof workOns !== "undefined" && workOns) ? workOns.lastSession : ({})
+    readonly property var lastSession: ((typeof app !== "undefined" && !!app.workOns) && app.workOns) ? app.workOns.lastSession : ({})
     readonly property string lastSessionText: {
         var s = root.lastSession || {}
         if (!s.label) return ""
@@ -98,7 +98,7 @@ Item {
     // The device warning in the rig pane reads resourceMonitor; keep it current while Home shows.
     Component.onCompleted: resourceMonitor.refresh()
 
-    onVisibleChanged: if (visible && typeof workOns !== "undefined") workOns.refresh()
+    onVisibleChanged: if (visible && (typeof app !== "undefined" && !!app.workOns)) app.workOns.refresh()
 
     Timer {
         interval: 2000
@@ -165,7 +165,7 @@ Item {
             // ── First run: no golfer yet ─────────────────────────────────────
             // No athlete state
             Column {
-                visible: !athleteController.hasCurrentAthlete
+                visible: !app.athleteController.hasCurrentAthlete
                 height:  visible ? implicitHeight : 0
                 width:   parent.width
                 spacing: 0
@@ -326,7 +326,7 @@ Item {
 
                     Text {
                         anchors.centerIn: parent
-                        text:           athleteController.currentInitials
+                        text:           app.athleteController.currentInitials
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.sp(16)
                         color:          Theme.colorAccent
@@ -349,7 +349,7 @@ Item {
 
                     Text {
                         width:          parent.width
-                        text:           athleteController.currentName
+                        text:           app.athleteController.currentName
                         font.family:    Theme.fontDisplay
                         font.italic:    Theme.fontDisplayItalic
                         font.weight:    Theme.fontDisplayWeight
@@ -365,10 +365,10 @@ Item {
                         text: {
                             var m   = root.athMap
                             var hcp = Theme.formatHandicap(m.handicap)
-                            var n   = (typeof sessionReportList !== "undefined" && sessionReportList)
-                                          ? sessionReportList.count : 0
+                            var n   = ((typeof app !== "undefined" && !!app.sessionReportList) && app.sessionReportList)
+                                          ? app.sessionReportList.count : 0
                             var sc  = Theme.plural(n, qsTr("%1 session"), qsTr("%1 sessions"))
-                            return athleteController.currentHandedness + " · " + hcp + " · " + sc
+                            return app.athleteController.currentHandedness + " · " + hcp + " · " + sc
                         }
                         font.family:        Theme.fontData
                         font.pixelSize:     Theme.fontSzMicro
@@ -476,7 +476,7 @@ Item {
                                 objectName: "homeStartButton"
                                 primary: true
                                 // A running session: Start goes back to it (Main._openSessionSetup).
-                                label:   (typeof sessionController !== "undefined" && sessionController.running)
+                                label:   ((typeof app !== "undefined" && !!app.sessionController) && app.sessionController.running)
                                          ? qsTr("Back to the session") : qsTr("Start session")
                                 glyph:   "▶"
                                 height:  Theme.sp(40)

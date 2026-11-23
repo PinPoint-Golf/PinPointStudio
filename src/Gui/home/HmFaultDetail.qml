@@ -70,8 +70,8 @@ Column {
 
     // Open the session on this reason's shots: the filter first, so the session reads it as it loads.
     function seeTheseShots() {
-        if (typeof sessionReviewController !== "undefined" && sessionReviewController)
-            sessionReviewController.reasonFilter = root.onBall.conditionId || ""
+        if ((typeof app !== "undefined" && !!app.sessionReviewController) && app.sessionReviewController)
+            app.sessionReviewController.reasonFilter = root.onBall.conditionId || ""
         root.reviewSessionRequested(root.str("sessionDir"))
     }
 

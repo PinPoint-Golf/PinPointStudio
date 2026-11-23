@@ -35,9 +35,9 @@ import PinPointStudio
 SettingsPanelBase {
     id: root
 
-    readonly property bool hasController: typeof archiveController !== "undefined" && archiveController !== null
+    readonly property bool hasController: (typeof app !== "undefined" && !!app.archiveController) && app.archiveController !== null
 
-    onVisibleChanged: if (visible && hasController) archiveController.refresh()
+    onVisibleChanged: if (visible && hasController) app.archiveController.refresh()
 
     function indexOfValue(options, v) {
         for (var i = 0; i < options.length; ++i) if (options[i].value === v) return i
@@ -81,21 +81,21 @@ SettingsPanelBase {
             Layout.fillWidth: true
             spacing: Theme.gap(16)
             SettingsRowTitle {
-                title: !root.hasController || archiveController.hoursLeft < 0
+                title: !root.hasController || app.archiveController.hoursLeft < 0
                        ? qsTr("Capture time left: measuring…")
-                       : archiveController.hoursLeft >= 2
-                         ? qsTr("About %1 hours of capture left").arg(Math.floor(archiveController.hoursLeft))
-                         : qsTr("About %1 minutes of capture left").arg(Math.floor(archiveController.hoursLeft * 60))
+                       : app.archiveController.hoursLeft >= 2
+                         ? qsTr("About %1 hours of capture left").arg(Math.floor(app.archiveController.hoursLeft))
+                         : qsTr("About %1 minutes of capture left").arg(Math.floor(app.archiveController.hoursLeft * 60))
                 subtitle: !root.hasController ? ""
                           : qsTr("%1 free · a swing here costs %2 (the mean of your last %3) · at one swing a minute")
-                                .arg(Theme.formatBytes(archiveController.freeBytes, "—"))
-                                .arg(Theme.formatBytes(archiveController.swingBytes, "—"))
-                                .arg(archiveController.swingsMeasured)
+                                .arg(Theme.formatBytes(app.archiveController.freeBytes, "—"))
+                                .arg(Theme.formatBytes(app.archiveController.swingBytes, "—"))
+                                .arg(app.archiveController.swingsMeasured)
             }
             PpButton {
                 label: qsTr("Refresh")
-                enabled: root.hasController && !archiveController.busy
-                onClicked: archiveController.refresh()
+                enabled: root.hasController && !app.archiveController.busy
+                onClicked: app.archiveController.refresh()
             }
         }
     }
@@ -175,7 +175,7 @@ SettingsPanelBase {
                 title: qsTr("Empty deleted sessions and swings after")
                 subtitle: !root.hasController ? ""
                           : qsTr("The library's own trash (used where the drive has none): %1 items, %2")
-                                .arg(archiveController.trashEntries).arg(Theme.formatBytes(archiveController.trashBytes, "—"))
+                                .arg(app.archiveController.trashEntries).arg(Theme.formatBytes(app.archiveController.trashBytes, "—"))
             }
             PpComboBox {
                 Layout.preferredWidth: Theme.sp(200)
@@ -185,8 +185,8 @@ SettingsPanelBase {
             }
             PpButton {
                 label: qsTr("Empty now")
-                enabled: root.hasController && !archiveController.busy && archiveController.trashEntries > 0
-                onClicked: archiveController.emptyTrash()
+                enabled: root.hasController && !app.archiveController.busy && app.archiveController.trashEntries > 0
+                onClicked: app.archiveController.emptyTrash()
             }
         }
     }
@@ -196,29 +196,29 @@ SettingsPanelBase {
     // ── Status ────────────────────────────────────────────────────────────
     RowLayout {
         Layout.fillWidth: true
-        visible: root.hasController && archiveController.status.length > 0
+        visible: root.hasController && app.archiveController.status.length > 0
         spacing: Theme.gap(12)
         Text {
-            text: root.hasController ? archiveController.status : ""
+            text: root.hasController ? app.archiveController.status : ""
             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText2
             wrapMode: Text.WordWrap; Layout.fillWidth: true
         }
         PpButton {
             label: qsTr("Stop")
-            visible: root.hasController && archiveController.busy
-            onClicked: archiveController.cancel()
+            visible: root.hasController && app.archiveController.busy
+            onClicked: app.archiveController.cancel()
         }
     }
 
     // ── Sessions ──────────────────────────────────────────────────────────
     PpMicro { kind: "body"; text: Theme.caps(qsTr("Sessions")) }
     Text {
-        visible: root.hasController && archiveController.sessions.length === 0
+        visible: root.hasController && app.archiveController.sessions.length === 0
         text: qsTr("No sessions found in the library.")
         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3
     }
     Repeater {
-        model: root.hasController ? archiveController.sessions : []
+        model: root.hasController ? app.archiveController.sessions : []
         delegate: RowLayout {
             required property var modelData
             Layout.fillWidth: true
@@ -233,10 +233,10 @@ SettingsPanelBase {
             }
             PpButton {
                 label: modelData.archived ? qsTr("Restore") : qsTr("Archive")
-                enabled: root.hasController && !archiveController.busy
+                enabled: root.hasController && !app.archiveController.busy
                          && (modelData.archived || appSettings.archiveLocation.length > 0)
-                onClicked: modelData.archived ? archiveController.restoreSession(modelData.dir)
-                                              : archiveController.archiveSession(modelData.dir)
+                onClicked: modelData.archived ? app.archiveController.restoreSession(modelData.dir)
+                                              : app.archiveController.archiveSession(modelData.dir)
             }
         }
     }

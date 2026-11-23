@@ -46,7 +46,7 @@ Item {
     id: root
     objectName: "focusCard"
 
-    property var controller: (typeof workOns !== "undefined") ? workOns : null
+    property var controller: ((typeof app !== "undefined" && !!app.workOns)) ? app.workOns : null
     // Kept for callers that still set it; the card no longer lines up with the cards below it.
     property int gridGap: Theme.gap(16)
 

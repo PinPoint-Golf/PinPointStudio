@@ -182,7 +182,7 @@ Item {
     }
 
     function snapshot() {
-        return { "ppcp": ppcpHost.ppcpStats(), "shot": shotController.shotStats() }
+        return { "ppcp": ppcpHost.ppcpStats(), "shot": app.shotController.shotStats() }
     }
 
     // The phone's own clock agreement, or -1 while no relation exists.
@@ -280,14 +280,14 @@ Item {
 
         if (!probe.sessionOpened) {
             // Exactly what Main.qml's session-start handler does, in its order.
-            shotProcessor.beginSessionFolder(probe.sessionType, false)
+            app.shotProcessor.beginSessionFolder(probe.sessionType, false)
             app.state.setLiveFolder("")
-            sessionController.start(probe.sessionType)
+            app.sessionController.start(probe.sessionType)
             cameraManager.startCapture()
             probe.sessionOpened = true
             probe.sessionOpenedAt = probe.elapsed
             console.warn("PROBE DRIVE session started — type " + probe.sessionType
-                         + ", dir " + shotProcessor.activeSessionDir
+                         + ", dir " + app.shotProcessor.activeSessionDir
                          + "; captureWanted=" + ppcpHost.captureWanted
                          + " armState=" + ppcpHost.armState)
             // ⭐ startCapture() is what arms the phones now — the session
@@ -351,7 +351,7 @@ Item {
             // only for an arbitrated PPCP Shot).  This is the host's own
             // microphone path: the Candidate is nominated on the wire, the
             // host arbitrates it, and the commit asks every phone.
-            shotController.reportCandidate(4, shotController.nowUs(), 1.0)
+            app.shotController.reportCandidate(4, app.shotController.nowUs(), 1.0)
             console.warn("PROBE DRIVE host acoustic candidate reported — " + probe.injectShotAfterMs
                          + " ms after the session started")
         }
@@ -404,7 +404,7 @@ Item {
             if (probe.corroborate && seen > probe.lastSeen) {
                 probe.lastSeen = seen
                 // Acoustic, "now" — inside the 50 ms window by construction.
-                shotController.injectDetection(4, -1)
+                app.shotController.injectDetection(4, -1)
             }
 
             // ⚠ SHOTS ARE NO LONGER THE FINISH LINE WHEN CLIPS ARE ASKED FOR.

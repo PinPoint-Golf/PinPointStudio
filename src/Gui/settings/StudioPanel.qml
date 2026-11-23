@@ -55,9 +55,9 @@ SettingsPanelBase {
     }
 
     readonly property bool hasProfile: typeof studioProfile !== "undefined" && studioProfile !== null
-    readonly property bool hasMailer:  typeof reportMailer !== "undefined" && reportMailer !== null
+    readonly property bool hasMailer:  (typeof app !== "undefined" && !!app.reportMailer) && app.reportMailer !== null
     // Sending reports is set up: a session row's Email sends the report itself.
-    readonly property bool sendReady:  root.hasMailer && reportMailer.sendConfigured
+    readonly property bool sendReady:  root.hasMailer && app.reportMailer.sendConfigured
 
     // A file URL for an image the profile holds, with the stamp on it: the copy keeps its name
     // (logo.png) when it is replaced, and the Image cache would otherwise go on drawing the old one.
@@ -94,7 +94,7 @@ SettingsPanelBase {
     // ── Sending reports: the words and the test ──────────────────────────────
     readonly property var providerKeys:   ["gmail", "icloud", "microsoft", "other"]
     readonly property var providerLabels: [qsTr("Gmail"), qsTr("iCloud"), qsTr("Microsoft 365"), qsTr("Other")]
-    readonly property string provider: root.hasMailer ? reportMailer.provider : ""
+    readonly property string provider: root.hasMailer ? app.reportMailer.provider : ""
     readonly property var securityKeys:   ["starttls", "tls", "none"]
     readonly property var securityLabels: [qsTr("STARTTLS"), qsTr("SSL/TLS"), qsTr("None")]
     // Where the password is kept, in the words the coach knows it by.
@@ -112,15 +112,15 @@ SettingsPanelBase {
     function sendTestNow() {
         if (!root.hasMailer) return
         const coachEmail = root.hasProfile ? studioProfile.coachEmail : ""
-        const fromName = root.hasProfile ? reportMailer.senderName(studioProfile.coachName, studioProfile.studioName) : ""
-        root.testTo = reportMailer.fromAddress(coachEmail)
-        const res = reportMailer.sendTest(fromName, coachEmail)
+        const fromName = root.hasProfile ? app.reportMailer.senderName(studioProfile.coachName, studioProfile.studioName) : ""
+        root.testTo = app.reportMailer.fromAddress(coachEmail)
+        const res = app.reportMailer.sendTest(fromName, coachEmail)
         if (!res || !res.ok) { root.testState = "failed"; root.testError = (res && res.error) || qsTr("The test could not be sent."); return }
         root.testState = "running"
         root.testError = ""
     }
     Connections {
-        target: root.hasMailer ? reportMailer : null
+        target: root.hasMailer ? app.reportMailer : null
         function onTestFinished(ok, error, atMs) {
             if (root.testState !== "running") return
             root.testState = ok ? "ok" : "failed"
@@ -558,10 +558,10 @@ SettingsPanelBase {
         text: root.provider === ""
               ? qsTr("Not set up. Email opens your mail program with the report attached, for you to send.")
               : root.sendReady
-                ? (reportMailer.username !== ""
-                   ? qsTr("Reports are sent from %1 by %2.").arg(reportMailer.username).arg(reportMailer.host)
-                   : qsTr("Reports are sent by %1.").arg(reportMailer.host))
-                : (reportMailer.security === "none" && reportMailer.username !== "")
+                ? (app.reportMailer.username !== ""
+                   ? qsTr("Reports are sent from %1 by %2.").arg(app.reportMailer.username).arg(app.reportMailer.host)
+                   : qsTr("Reports are sent by %1.").arg(app.reportMailer.host))
+                : (app.reportMailer.security === "none" && app.reportMailer.username !== "")
                   // The C++ never sends a login in the clear, so say why None with a login is not enough.
                   ? qsTr("Not finished. A login is only sent over a secure connection: choose STARTTLS or SSL/TLS, or leave the login empty if your mail server needs none.")
                   : qsTr("Not finished. Until the login and password are saved, Email opens your mail program with the report attached, for you to send.")
@@ -588,7 +588,7 @@ SettingsPanelBase {
                           ? root.providerLabels[root.providerKeys.indexOf(root.provider)] : ""
                 onActivated: (v) => {
                     const k = root.providerKeys[root.providerLabels.indexOf(v)]
-                    if (k && k !== root.provider) reportMailer.setProvider(k)
+                    if (k && k !== root.provider) app.reportMailer.setProvider(k)
                 }
             }
             Item { Layout.fillWidth: true }
@@ -597,7 +597,7 @@ SettingsPanelBase {
                 visible: root.provider !== ""
                 text: qsTr("Stop sending from the app")
                 color: hovered ? Theme.colorText2 : Theme.colorText3
-                onClicked: { passwordRow.changing = false; passwordRow.error = ""; reportMailer.forgetSending() }
+                onClicked: { passwordRow.changing = false; passwordRow.error = ""; app.reportMailer.forgetSending() }
             }
         }
         Text {
@@ -624,11 +624,11 @@ SettingsPanelBase {
         function commit(security) {
             const host = hostField.text.trim()
             const port = parseInt(portField.text, 10) || 0
-            const sec  = security || reportMailer.security
-            if (host !== reportMailer.host || port !== reportMailer.port || sec !== reportMailer.security)
-                reportMailer.setServer(host, port, sec)
-            hostField.text = Qt.binding(function () { return reportMailer.host })
-            portField.text = Qt.binding(function () { return reportMailer.port > 0 ? String(reportMailer.port) : "" })
+            const sec  = security || app.reportMailer.security
+            if (host !== app.reportMailer.host || port !== app.reportMailer.port || sec !== app.reportMailer.security)
+                app.reportMailer.setServer(host, port, sec)
+            hostField.text = Qt.binding(function () { return app.reportMailer.host })
+            portField.text = Qt.binding(function () { return app.reportMailer.port > 0 ? String(app.reportMailer.port) : "" })
         }
         SettingsRowTitle {
             title: qsTr("Mail server")
@@ -641,7 +641,7 @@ SettingsPanelBase {
                 id: hostField
                 objectName: "studioSendHostField"
                 Layout.fillWidth: true
-                text: root.hasMailer ? reportMailer.host : ""
+                text: root.hasMailer ? app.reportMailer.host : ""
                 placeholderText: qsTr("e.g. smtp.example.com")
                 onEditingFinished: serverRow.commit("")
             }
@@ -649,7 +649,7 @@ SettingsPanelBase {
                 id: portField
                 objectName: "studioSendPortField"
                 Layout.preferredWidth: Theme.sp(80)
-                text: root.hasMailer && reportMailer.port > 0 ? String(reportMailer.port) : ""
+                text: root.hasMailer && app.reportMailer.port > 0 ? String(app.reportMailer.port) : ""
                 placeholderText: "587"
                 validator: IntValidator { bottom: 1; top: 65535 }
                 onEditingFinished: serverRow.commit("")
@@ -658,8 +658,8 @@ SettingsPanelBase {
             PpChipGroup {
                 objectName: "studioSendSecurity"
                 options: root.securityLabels
-                selected: root.hasMailer && root.securityKeys.indexOf(reportMailer.security) >= 0
-                          ? root.securityLabels[root.securityKeys.indexOf(reportMailer.security)] : ""
+                selected: root.hasMailer && root.securityKeys.indexOf(app.reportMailer.security) >= 0
+                          ? root.securityLabels[root.securityKeys.indexOf(app.reportMailer.security)] : ""
                 onSelectionChanged: (v) => {
                     const sec = root.securityKeys[root.securityLabels.indexOf(v)]
                     // The usual port goes with the usual security, unless the coach typed another.
@@ -681,8 +681,8 @@ SettingsPanelBase {
         placeholder: root.provider === "gmail" ? qsTr("e.g. alex.morgan@gmail.com")
                    : root.provider === "icloud" ? qsTr("e.g. alex.morgan@icloud.com")
                    : qsTr("e.g. alex@northfieldgolf.co.uk")
-        value: root.hasMailer ? reportMailer.username : ""
-        onCommit: (t) => { if (t.trim() !== reportMailer.username) reportMailer.setUsername(t) }
+        value: root.hasMailer ? app.reportMailer.username : ""
+        onCommit: (t) => { if (t.trim() !== app.reportMailer.username) app.reportMailer.setUsername(t) }
     }
 
     // The password goes to the system's store and is never shown again: "Saved in Keychain", or the
@@ -690,15 +690,15 @@ SettingsPanelBase {
     SettingsRow {
         id: passwordRow
         objectName: "setting_sendPassword"
-        visible: root.provider !== "" && !(root.provider === "other" && root.hasMailer && reportMailer.username === "")
+        visible: root.provider !== "" && !(root.provider === "other" && root.hasMailer && app.reportMailer.username === "")
         spacing: Theme.gap(8)
         property bool   changing: false
         property string error: ""
-        readonly property bool saved: root.hasMailer && reportMailer.hasPassword
+        readonly property bool saved: root.hasMailer && app.reportMailer.hasPassword
         function commit() {
             const t = pwField.text
             if (t.length === 0) { if (passwordRow.saved) passwordRow.changing = false; return }
-            const res = reportMailer.setPassword(t)
+            const res = app.reportMailer.setPassword(t)
             pwField.text = ""
             if (res && res.ok) { passwordRow.error = ""; passwordRow.changing = false }
             else passwordRow.error = (res && res.error) || qsTr("The password could not be saved.")
@@ -758,8 +758,8 @@ SettingsPanelBase {
             PpSwitch {
                 objectName: "studioSendCopyToggle"
                 Layout.alignment: Qt.AlignVCenter
-                checked: root.hasMailer && reportMailer.copyToSelf
-                onToggled: (v) => reportMailer.setCopyToSelf(v)
+                checked: root.hasMailer && app.reportMailer.copyToSelf
+                onToggled: (v) => app.reportMailer.setCopyToSelf(v)
             }
         }
     }
@@ -773,7 +773,7 @@ SettingsPanelBase {
             spacing: Theme.gap(14)
             PpLink {
                 objectName: "studioSendTest"
-                readonly property bool active: root.sendReady && !reportMailer.sending
+                readonly property bool active: root.sendReady && !app.reportMailer.sending
                 text: qsTr("Send a test email")
                 interactive: active
                 onClicked: root.sendTestNow()
@@ -784,7 +784,7 @@ SettingsPanelBase {
                 text: root.testState === "running" ? qsTr("Sending…")
                     : root.testState === "ok" ? qsTr("Sent to %1 at %2. Check your inbox.").arg(root.testTo)
                                                   .arg(Qt.formatTime(new Date(root.testAtMs), "HH:mm"))
-                    : !root.sendReady && root.hasMailer ? (reportMailer.host === "" ? qsTr("Fill in the mail server first.")
+                    : !root.sendReady && root.hasMailer ? (app.reportMailer.host === "" ? qsTr("Fill in the mail server first.")
                                                                    : qsTr("Fill in the login and password first."))
                     : ""
                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2

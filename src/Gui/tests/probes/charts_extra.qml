@@ -120,7 +120,7 @@ Item {
 
     Instantiator {
         id: shots
-        model: sessionReviewController.shots
+        model: app.sessionReviewController.shots
         delegate: QtObject {
             required property int shotId
             required property int ordinal
@@ -390,16 +390,16 @@ Item {
         function (done) {
             if (!check(sessionDir !== "" && outDir !== "", "--probe-session and --probe-out given")) { finish(); return }
             probe.Window.window.height = parseInt(arg("--probe-window-h", "4600"))
-            navController.navigate(AppScreen.Session)
+            app.navController.navigate(AppScreen.Session)
             app.state.enterCapture()
-            sessionReviewController.loadSession(sessionDir)
+            app.sessionReviewController.loadSession(sessionDir)
             waitFor(function () { return shots.count > 0 }, 60000, "the carousel", function () { log("carousel: " + shots.count + " shots"); done() })
         },
         function (done) {
             let found = false
             for (let i = 0; i < shots.count; ++i) {
                 const s = shots.objectAt(i)
-                if (s.ordinal === probe.ordinal) { app.state.enterReplay(sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir); found = true }
+                if (s.ordinal === probe.ordinal) { app.state.enterReplay(app.sessionReviewController.activeShots.shotRefOf(s.shotId), s.swingDir); found = true }
             }
             if (!check(found, "shot " + ordinal + " is on the carousel")) { finish(); return }
             after(2000, done)
