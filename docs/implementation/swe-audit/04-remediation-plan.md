@@ -63,7 +63,7 @@ are written back.
 **HARD FREEZE:**[^m14nov] no new functionality, anywhere, unless it is explicitly stated in this plan —
 "even if I beg". Bug fixes go to Stage 0 or to the step that owns the area. A new idea is written down (a GitHub
 issue labelled for after the refactor) and waits. When a request comes close to new functionality, the lead names
-the plan line that covers it, or says that none does and holds it. The freeze ends when step 8 is done[^m14nov-ext].
+the plan line that covers it, or says that none does and holds it. The freeze ends when step 7 is done[^m14nov-ext][^po23nov].
 
 ### Running unattended (proposed 14 Nov, for the Product Owner to agree)
 
@@ -607,77 +607,27 @@ start of step 3- so long as we know the migration works and no data is lost"[^m1
 - **Closes:** A-04, A-10, F-05/G-01, G-02, G-04, G-06, G-07, C-02; A-02 (the LM board's re-parser; brief §4.6 of
   step 1); G-12, G-13[^m14nov-triage].
 
-### Step 7 · Rules down, words, namespaces (1–2 days; can overlap step 5)
+### Step 7 · Rules down: dependencies inward and file I/O out of the rules (~1 day; can overlap step 6)
 
-- **Domain code moves out of `src/Gui`**, about 5,000 lines (F-11, D-09, C-08).
-- **File I/O leaves Coaching and Diagnostics;** norms are loaded by repositories (C-07, B-12, B-06). Ball and Pose too:
-  their stages' pinned inputs and baselines and the pose model fingerprint are read outside the rules
+Step 7 covers the allowlist lines tagged `# step 7` under A1 and A5, and nothing else[^po23nov].
+
+- **File I/O leaves Coaching and Diagnostics;** norms and packs are loaded by repositories (C-07, B-12, B-06). Ball and
+  Pose too: their stages' pinned inputs and baselines and the pose model fingerprint are read outside the rules
   (`Ball/ball_baseline_io.h`, `Ball/ball_runner.cpp`, `Pose/pose_runner.cpp`, allowlist A5, P11)[^m15nov-p11].
-- **One words module;** domain reductions persist ids and numbers (C-04, B-10). The report's own frequency words (`everyWords` in
-  `report_words.h`) fold into the one rule in `frequency_words.h` (Stage 0.13).
-- **One namespace per layer** (C-14, B-15, A-20). `src/Export` is renamed for the Recording contract.
-- **Moves the analysis vocabulary down and points dependencies inward:** the stages' value types to the vocabulary,
-  so producers stop including the orchestrator (A-11); the Coaching adapter out of Diagnostics, and the band enum
-  out of the Wrist ↔ norms cycle (B-08); coach wording out of Metrics into the words module (A-15).
-- **The metric catalogue becomes data** (A-06)[^m14nov]: `installMetricManifest` (5,460 lines of table
-  written as code, allowlist A7) is replaced by catalogue data, so the three tools stop regex-scraping it, one of
-  which builds the release dashboard. The gate catalogues (`appendBodyGates`, `appendClubGates`) stay code, `# kept`[^m14nov].
-- **Also in this step**[^m14nov-triage]:
-  - metric keys generated from the catalogue (A-07, with `metric_keys.h` and the `nearestIndex`/`phaseValue`
-    duplicates);
-  - presentation strings and "no value" conventions out of the rules into the one words module (A-12, B-19, C-13);
-  - Diagnostics re-cut by layer (B-09); constants referenced from their rule, not restated (B-16); one phase →
-    swing-position mapping in the vocabulary (B-17); one `CoachingBands` place (C-12); shared maths (π, `wrapPi`) in
-    the vocabulary;
-  - `layoutDag` (852 lines) moves to the UI ring with the pixel layout (B-10); it is split in step 8 in its new home[^lead14nov];
-  - today's long Gui functions that move down into the rules (for example `SessionDiagnosticsModel::conditionDetail`,
-    461 lines) are planned for: split in step 8, or new allowlist lines asked of the Solution Architect.
-- **Closes:** F-11/D-09/C-08, C-07/B-12/B-06, C-04/B-10, C-14/B-15/A-20, A-11, B-08, A-15; A-06[^m14nov];
-  A-07, A-12, B-09, B-16, B-17, B-19, C-12, C-13, and the June review's `metric_keys.h` and π / `wrapPi` rows[^m14nov-triage].
+  The diagnostics measure stops reading swing documents through `SwingStore` itself (`measure_sample.cpp`, A1 and A5).
+- **Dependencies point inward** (A1): `SessionSpread` moves out of `src/Gui/diagnostics` so `Coaching/session_report.h`
+  no longer reaches up; the wrist types and reference bands that `Metrics/metric_descriptor.h` and
+  `Metrics/metric_provider.h` use move from `src/Wrist` into the vocabulary (B-08, the wrist half).
+- **The rest of the original step 7 is #224:** domain code out of `src/Gui`, the one words module, one namespace per
+  layer, the stages' value types, the metric catalogue as data, metric keys, the Diagnostics re-cut, and `layoutDag`'s
+  move. Their allowlist lines are re-tagged to #224 at step 7's close.
+- **Closes:** C-07/B-12/B-06, B-08 (the wrist half), and the A1 and A5 `# step 7` allowlist lines. The findings that
+  moved with #224 are recorded there as deferred.
 
-### Step 8 · Split the long analysis and coaching functions
+### Step 8 · moved out of the plan
 
-After step 7, so each function is split in its final ring and namespace[^m14nov]. Every function over 300 lines in the
-Vocabulary and Rules rings (lint A7) is split into named parts, one at a time, **under parity: the diff against the
-baseline must show 0 differences** (61 pinned-pose swings, `parity_diff`). It is a refactor of algorithm bodies,
-not a change to them: no number, σ, gate, phase or label moves, and no stage version moves. Pose runs are
-non-deterministic, so `PoseRunner::run`'s split needs a control run. About 13,000 lines of function body; the
-estimate is made in its brief.
-
-| File (allowlist A7, `# step 8`) | Functions and lengths (lines) |
-|---|---|
-| `Ball/ball_runner.cpp` | `BallRunner::run` 435 |
-| `Ball/impact_runner.cpp` | `ImpactRunner::run` 574 |
-| `Body/dtl_posture.h` | `buildDtlPosture` 439 |
-| `Body/lower_body_metrics.cpp` | `trackLowerBody` 338 |
-| `Body/upper_body_metrics.cpp` | `trackUpperBody` 630 |
-| `Club/dtl_shaft_decide.cpp` | `dtlSolve` 787 |
-| `Club/dtl_shaft_post.cpp` | `dtlPostSolve` 818 |
-| `Club/shaft_track_assembly.cpp` | `decideTrack` 1,960, `segmentPhases` 464, `synthesizeLayerC` 306 |
-| `Coaching/shot_outcomes.h` | `composeShotOutcome` 387 |
-| `Coaching/tendencies.h` | `reduceTendencies` 434 |
-| `Diagnostics/engine/characteristic_engine.cpp` | `evaluate` 353 |
-| `Diagnostics/engine/dag_layout.cpp` (moved to the UI ring in step 7) | `layoutDag` 852 |
-| `Diagnostics/engine/diagnostics_health.cpp` | `diagnosticsHealth` 448 |
-| `Diagnostics/engine/relation_resolver.cpp` | `explain` 374 |
-| `Diagnostics/measures/measure_sample.cpp` | `buildPhaseGrid` 319 |
-| `Kinematics/segment_rates.cpp` | `buildSegmentRates` 761 |
-| `Pose/pose_runner.cpp` | `PoseRunner::run` 722 |
-| `Skeleton3d/skeleton3d_fit.cpp` | `fitSkeleton` 1,390, `frameResiduals` 646 |
-
-18 lines, 21 functions. `layoutDag` is moved in step 7 (to the UI ring, with B-10) and split here, because B-18 is
-the function, not its ring[^lead14nov]; once moved, A7 no longer counts it, so its split is held by this list,
-not the lint. The other A7 lines are not step 8's: `Diagnostics/packs/characteristic_pack.cpp` is split with the
-pack loader in step 3 (B-11); the metric manifest becomes data in step 7 (A-06); the two gate catalogues are kept as
-code.
-
-**C-09's multi-job file**[^lead14nov]: `Coaching/swing_themes.h` (2,681 lines: an eigensolver, a Jacobi SVD,
-Hungarian matching, EM imputation, the athlete reduction, a view model and persistence) is split by job here, under
-the same parity rule: the maths into the vocabulary's shared maths, the reduction kept in Coaching, the view model
-and the persistence out to the layers steps 3, 5 and 7 give them (step 7's C-07 takes the file I/O out of Coaching).
-
-- **Closes:** B-18 (`layoutDag`, `explain`, `evaluate`), C-09 (the two god functions and `swing_themes.h` split by
-  job)[^m14nov-triage-s8].
+The long-function splits (B-18, C-09) are GitHub #222, done after the refactor or when a later change has to touch the
+function[^po23nov]. Their allowlist lines keep the tag `# step 8` until #222 re-tags them.
 
 ### Later · the platform refactor
 
@@ -704,9 +654,8 @@ These are wall-clock estimates at agent pace, assuming the Product Owner reviews
 | 4 | ~½ day |
 | 5 | ~3–4 days (re-estimated 22 Nov 2026: the old engine, every view onto the session) |
 | 6 | ~1½ days + a re-fire of the findings |
-| 7 | 1–2 days |
-| 8 | estimated in its brief |
-| **Total** | **about 13–16 working days, plus step 8** |
+| 7 | ~1 day[^po23nov] |
+| **Total** | **about 13–15 working days, ending at step 7** |
 
 The 14 Nov triage adds scope to steps 1–7 that these estimates do not yet include; each step's brief re-estimates.
 
@@ -714,7 +663,7 @@ The 14 Nov triage adds scope to steps 1–7 that these estimates do not yet incl
 takes (machine time, run by the lead); review rounds; and the Product Owner's testing. It is not the typing.
 
 **How it could be compressed:** steps 5 and 7 can overlap step 3's cut-over, and the Product Owner can review two steps at
-once. That gives about 10–13 working days, plus step 8.
+once. That gives about 10–12 working days.
 
 ## 5. What the Product Owner is asked for
 
@@ -812,3 +761,4 @@ once. That gives about 10–13 working days, plus step 8.
 [^lead14nov]: The lead's call, 14 Nov 2026.
 [^m14nov-triage-s8]: Triage, Product Owner 14 Nov 2026: the triage proposed them for step 7 as a scope addition, with a step of their own as its recommendation, which the Product Owner chose; `layoutDag` and `swing_themes.h` in step 8: the lead's call, 14 Nov 2026.
 [^r53-athletes]: Since refactor 4-c (J-61) `--engine new` reads each athlete from the library's `athlete.json`, and `--athletes-ini` is only the fallback for an unmigrated library; the earlier wording ("needs `--athletes-ini`") dated from 3.10 review B1. The corpus's golfer file, `corpus/swings/athletes.json`: the Product Owner's answer 1 to step 5's questions, 22 Nov 2026.
+[^po23nov]: Product Owner, 23 Nov 2026, to save tokens and time: step 8 left the plan for GitHub #222, and step 7 was reduced to its A1 and A5 allowlist lines, the rest moving to #224.
