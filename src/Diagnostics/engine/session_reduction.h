@@ -42,6 +42,7 @@
 
 #include "fire_findings.h"
 #include "../../Coaching/diagnostic_ledger.h"
+#include "../../Coaching/sequence_checks.h"   // the session's sequence-consistency reading (SessionDiagnosis::sequence)
 #include "../../Coaching/session_results.h"
 #include "../../Coaching/shot_outcomes_pack.h"
 
@@ -122,6 +123,11 @@ struct SessionDiagnosis {
     // with no cap — the cap cuts after the sort, so its first five are results.workOns' five, in their order. In memory
     // only, never persisted: the Charts Wrist sections order their findings by it.
     QStringList                  workOnOrder;
+    // THE SESSION'S SEQUENCE-CONSISTENCY READING (refactor 5.6d; the Solution Architect, 23 Nov 2026, J-80/J-82): the
+    // order share and the peak-timing spread over these rows (`shots`, `options`), worked out ONCE by this reduction;
+    // the session-scope ledgers are read from it. In memory only, never persisted: worked out again with the rest of
+    // the diagnosis whenever it is reduced (a load included). The report's session-level sentences read it.
+    SessionSequenceConsistency   sequence;
 };
 
 SessionDiagnosis reduceSession(const SessionReductionInput &in);

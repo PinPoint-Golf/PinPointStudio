@@ -1440,10 +1440,18 @@ static void testReport()
                              "panel's readout: %1 of %2 ledgers, %3 readings (refactor 5.6c B5)").arg(same).arg(compared).arg(readings),
               compared > 0 && same == compared);
         const QVariantMap sc = m->sequenceConsistency();
-        const analysis::SessionSequenceConsistency seq =
-            in ? analysis::sessionSequenceConsistency(in->shots, in->options) : analysis::SessionSequenceConsistency{};
+        // The diagnosis's own reading (refactor 5.6d: worked out once by the owner), which the report's B6 reads.
+        const analysis::SessionSequenceConsistency seq = dg ? dg->sequence : analysis::SessionSequenceConsistency{};
         const bool sp = seq.spread.available;
-        check(QStringLiteral("REPORTj the session's sequence reading over the Session's diagnosis is the panel's (%1, %2 of %3; B6)")
+        const analysis::SessionSequenceConsistency rule =
+            in ? analysis::sessionSequenceConsistency(in->shots, in->options) : analysis::SessionSequenceConsistency{};
+        check(QStringLiteral("REPORTk the Session's diagnosis carries its sequence reading, the rule's over its own rows "
+                             "(%1 of %2 in order; refactor 5.6d)").arg(seq.share.inOrder).arg(seq.share.resolved),
+              in && dg && seq.share.resolved == rule.share.resolved && seq.share.inOrder == rule.share.inOrder
+                  && seq.share.available == rule.share.available && seq.spread.available == rule.spread.available
+                  && seq.spread.best == rule.spread.best
+                  && (!sp || (seq.spread.value == rule.spread.value && seq.spread.sigma == rule.spread.sigma)));
+        check(QStringLiteral("REPORTj the session's sequence reading in the Session's diagnosis is the panel's (%1, %2 of %3; B6)")
                   .arg(analysis::sessionScopeConditionOf(dg ? dg->ledgers : std::vector<analysis::ConditionLedger>{}))
                   .arg(seq.share.inOrder).arg(seq.share.resolved),
               in && dg && sc.value(QStringLiteral("conditionId")).toString() == analysis::sessionScopeConditionOf(dg->ledgers)

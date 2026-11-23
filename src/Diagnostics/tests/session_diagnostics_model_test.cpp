@@ -898,6 +898,37 @@ static void sequenceConsistencySuite(const QTemporaryDir &tmp)
               "soft counts: a borderline check adds its pFire to the expected out-of-order count");
     }
 
+    // The session's diagnosis carries its reading (refactor 5.6d; the Solution Architect, 23 Nov 2026, J-80/J-82):
+    // worked out once by the reduction over its own rows, the reading its session-scope ledger is read from, and what
+    // the report's session-level sentences read. Six swings resolve all three order checks (two out of order), one does
+    // not; five carry a placed lead-arm peak, so the spread is read too.
+    {
+        std::vector<ShotRecord> shots = consistencySession(4, 2, 1);
+        for (int i = 0; i < 5; ++i) addPeak(shots[size_t(i)], "m_leadArmPeakTime", -10.0 * i, 10.0);
+        SessionReductionInput in;
+        in.pack    = std::shared_ptr<const ICharacteristicPackProvider>(makeCharacteristicPackProvider());
+        in.options = hard;
+        in.shots   = shots;
+        const SessionDiagnosis d = reduceSession(in);
+        const SessionSequenceConsistency rule = sessionSequenceConsistency(shots, hard);
+        const SessionSequenceConsistency &q = d.sequence;
+        check(q.share.resolved == 6 && q.share.inOrder == 4 && q.share.available,
+              "diagnosis_carries_sequence: the reading resolves 6 of 7 swings' order checks, 4 in sequence");
+        check(q.share.resolved == rule.share.resolved && q.share.inOrder == rule.share.inOrder
+                  && q.share.value == rule.share.value && q.spread.available && q.spread.best == rule.spread.best
+                  && q.spread.value == rule.spread.value && q.spread.sigma == rule.spread.sigma,
+              "…and is the rule's over the same rows and options, the spread included");
+        const ConditionLedger *scope = nullptr;
+        for (const ConditionLedger &l : d.ledgers)
+            if (l.sessionScope) { scope = &l; break; }
+        check(scope && scope->assessable == q.share.resolved && scope->fired == q.share.resolved - q.share.inOrder,
+              "…the session-scope ledger is read from it (6 assessed, 2 out of sequence)");
+        SessionReductionInput bare = in;
+        bare.pack.reset();
+        check(reduceSession(bare).sequence.share.resolved == 6,
+              "…and it is the rows' reading, carried without a pack too");
+    }
+
     // ── End to end through the model ──
     const QString dir = makeSession(tmp, "athlete_k5", "session_k5");
     bool staged = true;

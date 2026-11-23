@@ -48,11 +48,12 @@ const ClubBaselineEntry *usualOf(const SessionReductionInput &in, const QString 
 }
 
 // THE SESSION-SCOPE CONDITIONS (SessionDiagnosticsModel::appendSessionScope's rule, values only): the session's
-// order-check share and timing spread, through the same detect() every swing goes through.
+// order-check share and timing spread (`c`: the reading over `shots`, worked out once by the caller), through the same
+// detect() every swing goes through.
 void appendSessionScope(const CharacteristicPack &pack, const std::vector<ShotRecord> &shots,
-                        const LedgerOptions &opt, bool withSigma, std::vector<ConditionLedger> &ledgers)
+                        const SessionSequenceConsistency &c, const LedgerOptions &opt, bool withSigma,
+                        std::vector<ConditionLedger> &ledgers)
 {
-    const SessionSequenceConsistency c = sessionSequenceConsistency(shots, opt);
     SessionMeasureSource src(pack);
     if (c.share.available) {
         MeasureReading r;
@@ -147,14 +148,17 @@ FocusSplit focusOf(const SessionReductionInput &in)
 
 // The ledgers and the pattern graph's links over `shots` (SessionDiagnosticsModel::rebuild's first half and
 // buildGraph's node set: the patterns, the declared miss, the outcomes seen on enough shots, all they descend from,
-// and what lies between them and the declared miss).
+// and what lies between them and the declared miss), and the sequence-consistency reading over the same rows, which the
+// session-scope ledgers are read from (worked out with or without a pack: it is the rows', not the pack's).
 void reduceLedgers(const SessionReductionInput &in, const CharacteristicPack *pack, const std::vector<ShotRecord> &shots,
-                   std::vector<ConditionLedger> &ledgers, std::vector<LinkEvidence> &links)
+                   std::vector<ConditionLedger> &ledgers, std::vector<LinkEvidence> &links,
+                   SessionSequenceConsistency &sequence)
 {
     ledgers = conditionLedgers(shots, in.options);
     links.clear();
+    sequence = sessionSequenceConsistency(shots, in.options);
     if (!pack) return;
-    appendSessionScope(*pack, shots, in.options, in.withSigma, ledgers);
+    appendSessionScope(*pack, shots, sequence, in.options, in.withSigma, ledgers);
 
     QSet<QString> seeds;
     for (const ConditionLedger &l : ledgers)
@@ -207,7 +211,8 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in)
         {   // the empty session first, as the back-fill's opening rebuild
             std::vector<ConditionLedger> l;
             std::vector<LinkEvidence> k;
-            reduceLedgers(in, pack, prefix, l, k);
+            SessionSequenceConsistency q;   // the prefix's own, for its ledgers only
+            reduceLedgers(in, pack, prefix, l, k, q);
             stepStage(in, l, k, stage, reached);
         }
         for (size_t i = 0; i + 1 < in.shots.size(); ++i) {
@@ -216,11 +221,12 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in)
             checkStrikesAgainstFlight(prefix, in.flightNorms);
             std::vector<ConditionLedger> l;
             std::vector<LinkEvidence> k;
-            reduceLedgers(in, pack, prefix, l, k);
+            SessionSequenceConsistency q;   // the prefix's own, for its ledgers only
+            reduceLedgers(in, pack, prefix, l, k, q);
             stepStage(in, l, k, stage, reached);
         }
     }
-    reduceLedgers(in, pack, in.shots, out.ledgers, out.links);
+    reduceLedgers(in, pack, in.shots, out.ledgers, out.links, out.sequence);   // the reading, once (5.6d)
     stepStage(in, out.ledgers, out.links, stage, reached);
     out.stage              = stage;
     out.reachedEstablished = reached;

@@ -1062,6 +1062,7 @@ struct MapState {
     Ctx                                          x;
     std::shared_ptr<const SessionReductionInput> input;     // the rows x.shots points into (the owner's applied reduction)
     std::vector<ConditionLedger>                 ledgers;   // the ledgers x.ledgers points into (the same reduction)
+    SessionSequenceConsistency                   sequence;  // the same reduction's sequence reading (refactor 5.6d)
     std::shared_ptr<const INormProvider>         norms;     // the make's norm set (taken at start; x.norms points into it)
     QString                                      policy;    // the make's grade policy, by name (its one snapshot: Q9)
     // The job's inputs, copied in.
@@ -1766,8 +1767,8 @@ void orderPart(MapState &state)
 
 // THE WORK-ON PAGES: per work-on, what we saw, its consistency, its run chart and target, its pictures, what came with
 // it and what might be behind it. The habit runs (runOf) and the session-level work-on's sentences read the Session's
-// own diagnosis (refactor 5.6c, B5/B6): the sequence reading is sessionSequenceConsistency (Coaching/sequence_checks.h)
-// over the rows the owner reduced, the rule the owner's session-scope ledgers come from; never the panel adapter.
+// own diagnosis (refactor 5.6c, B5/B6): the sequence reading is the diagnosis's own (SessionDiagnosis::sequence, refactor
+// 5.6d: worked out once by the owner, the reading its session-scope ledgers come from); never the panel adapter.
 void workOnPagesPart(MapState &state)
 {
     Ctx &x = state.x;
@@ -1812,7 +1813,7 @@ void workOnPagesPart(MapState &state)
             if (scope) {
                 QStringList parts{ W::sawSessionLevel(x.golfer(e.id)) };
                 if (sessionScopeConditionOf(*x.ledgers) == e.id) {
-                    const SessionSequenceConsistency sc = sessionSequenceConsistency(*x.shots, state.input->options);
+                    const SessionSequenceConsistency &sc = state.sequence;
                     if (sc.spread.available)
                         parts << W::timingSpreadSentence(sc.spread.segments[size_t(sc.spread.best)].piece, sc.spread.value, sc.spread.sigma);
                     parts << W::orderCountSentence(sc.share.inOrder, sc.share.available ? sc.share.resolved : 0);
@@ -2202,6 +2203,7 @@ void SessionReportModel::build()
     x.policy  = gradePolicyByName(state.policy);
     state.input   = input;
     state.ledgers = diagnosis->ledgers;
+    state.sequence = diagnosis->sequence;   // the owner's reading, worked out once with its diagnosis (5.6d; J-82)
     x.shots   = &state.input->shots;
     x.ledgers = &state.ledgers;
     x.workOns = diagnosis->results.workOns;   // the owner's (its summary's): never work_ons.json, never re-reduced

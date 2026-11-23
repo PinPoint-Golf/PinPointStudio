@@ -654,9 +654,9 @@ yet — add it in Settings → Studio".
 - **Each habit's run and the session-level sentences read the same diagnosis**[^report-reads-5-6c]: the run's readings,
   the corridor it is drawn against (at the session's last shot, as the panel draws it with nothing picked) and its axis
   are `habitSpreadOf` over the owner's rows and ledger (`src/Gui/diagnostics/spread_readout.h`), the rule the
-  diagnostics panel's strip calls too; the session-level work-on's timing spread and order count are
-  `sessionSequenceConsistency` over those rows (`src/Coaching/sequence_checks.h`), the rule the owner's session-scope
-  ledgers come from. The panel's adapter is held only to wait for the owner and for the print.
+  diagnostics panel's strip calls too; the session-level work-on's timing spread and order count are the diagnosis's
+  own sequence reading (`SessionDiagnosis::sequence`), worked out once by the owner with the diagnosis, the reading its
+  session-scope ledgers come from[^report-reads-5-6d]. The panel's adapter is held only to wait for the owner and for the print.
 - **The rule data is taken once per make**[^report-reads-5-6c]: one RuleData snapshot at the make's start gives the
   pack, the drills, the gate words and the grade policy to every part, and the norm set is taken beside it.
 - **The Charts pages are typed**[^report-reads-5-6c]: the worker reads each presenter's typed page
@@ -1109,5 +1109,6 @@ directly, so it does not depend on the fix, but the panel does.
     (§8.4).
 
 [^report-reads-5-6c]: Refactor step 5.6c, 23 Nov 2026 (`build/refactor/step-5/NOTES-5.6c.md`): B5, B6, Q5 and Q9 of `build/refactor/step-5/DUTIES-5.6b.md`, under DEC-81 as the Solution Architect amended it (the session's diagnosis is a source for the report); its review is pending.
+[^report-reads-5-6d]: Refactor step 5.6d, 23 Nov 2026 (`build/refactor/step-5/NOTES-5.6c.md`, its "5.6d" section); the Solution Architect, 23 Nov 2026 (J-80, J-82).
 [^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `docs/developer/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.
 [^lm-board-6-1b]: Refactor step 6.1b (`build/refactor/step-6/NOTES-6.1b.md`): the board's statistics are one pure reduction, `lmBoardOf` (`src/Gui/launchmonitor/lm_session_model.h`), which the board and the report each ask; the report's private board (5.6b's C11) is gone. The embedded figures' names follow the Coaching Lead's 14 November decision above.
