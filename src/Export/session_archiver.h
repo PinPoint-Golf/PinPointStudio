@@ -205,8 +205,13 @@ public:
     // and the app's SessionStore::archiveJob all run this.
     static SessionArchiveResult archiveInOwnRun(const QString &sessionDir, const SessionArchiveOptions &options,
                                                 const SessionArchiveProgress &progress = {});
+    // The same for a restore (refactor step 5.6b, moved unchanged from the Archiving tab's restore): SessionRepository::
+    // restore in a run of its own. The app's SessionStore::restoreJob runs this; so does the tab, for a folder no Athlete
+    // holds.
+    static SessionArchiveResult restoreInOwnRun(const QString &sessionDir, const SessionArchiveProgress &progress = {});
 
-    // AN ARCHIVE OR RESTORE KEEPS A CURRENT REPORT CURRENT (S-D6; refactor step 5.6a): the folder translated to its
+    // AN ARCHIVE OR RESTORE OF A FOLDER NO ATHLETE HOLDS KEEPS A CURRENT REPORT CURRENT (S-D6; refactor step 5.6a; since
+    // 5.6b only that folder's: a held session's restamp is its Session's archive and restore command): the folder translated to its
     // SessionId in a run of its own (this edge), the report's records read through that run's repository before and after
     // `rewrite`, and FILE-SESS-07's fingerprint re-stamped through it (SessionRepository::writeReportRecord: the derived
     // facts only, never FILE-SESS-13; an older report_meta.json keeps its source keys until report_input.json reads

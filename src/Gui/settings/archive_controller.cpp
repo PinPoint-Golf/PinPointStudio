@@ -32,6 +32,7 @@
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
+#include <optional>
 
 namespace {
 
@@ -220,16 +221,30 @@ bool ArchiveController::archiveSession(const QString &sessionDir)
     const bool keepRaw = m_settings->archiveKeepRaw();
     const QString name = QFileInfo(sessionDir).fileName();
     const pinpoint::ReportFingerprintFn fp = reportFingerprint();
-    return startJob(tr("Archiving %1…").arg(name), [sessionDir, location, keepRaw, name, fp](ArchiveController *self,
-                                                                                    std::shared_ptr<std::atomic_bool> abort) {
+    const std::optional<pinpoint::Housekeeping> housekeeping =
+        m_housekeeping ? std::optional<pinpoint::Housekeeping>(*m_housekeeping) : std::nullopt;   // a copy: it keeps no state
+    return startJob(tr("Archiving %1…").arg(name), [sessionDir, location, keepRaw, name, fp, housekeeping](
+                                                        ArchiveController *self, std::shared_ptr<std::atomic_bool> abort) {
         QPointer<ArchiveController> p(self);
         auto post = [p](double v, QString s) {
             QMetaObject::invokeMethod(p, [p, v, s] { if (p) p->setProgress(v, s); }, Qt::QueuedConnection);
         };
-        const auto r = pinpoint::SessionArchiveRun::keepReportCurrent(sessionDir, fp, [&] {
-            return archiveOne(sessionDir, location, keepRaw,
-                              reporter(abort, QStringLiteral("Archiving"), name, post));
-        });
+        const pinpoint::SessionArchiveProgress progress = reporter(abort, QStringLiteral("Archiving"), name, post);
+        // A FOLDER NO ATHLETE HOLDS (rare since step 5.1): today's path, its report kept current through the run's own
+        // repository (S-D6).
+        const pinpoint::Housekeeping::UnheldAct unheld = [&] {
+            return pinpoint::SessionArchiveRun::keepReportCurrent(sessionDir, fp, [&] {
+                return archiveOne(sessionDir, location, keepRaw, progress);
+            });
+        };
+        // THROUGH THE HELD SESSION'S OWN COMMANDS (refactor step 5.6b, as housekeeping archives one: Session::archiveJob on
+        // this controller's thread, the job here, archiveLanded back there — EVT-18, and the report kept current by the
+        // Session's own restamp).
+        pinpoint::SessionArchiveOptions opt;
+        opt.archiveRoot = location;
+        opt.keepRaw     = keepRaw;
+        const auto r = housekeeping ? housekeeping->archiveSession(sessionDir, opt, self, abort.get(), progress, fp, unheld)
+                                    : unheld();
         if (!r.ok) {
             ppWarn() << "[Archive] archiving" << sessionDir << "failed:" << r.error;
             return QObject::tr("%1 was not archived: %2").arg(name, r.error);
@@ -243,17 +258,24 @@ void ArchiveController::restoreSession(const QString &sessionDir)
 {
     const QString name = QFileInfo(sessionDir).fileName();
     const pinpoint::ReportFingerprintFn fp = reportFingerprint();
-    startJob(tr("Restoring %1…").arg(name), [sessionDir, name, fp](ArchiveController *self,
-                                                               std::shared_ptr<std::atomic_bool> abort) {
+    const std::optional<pinpoint::Housekeeping> housekeeping =
+        m_housekeeping ? std::optional<pinpoint::Housekeeping>(*m_housekeeping) : std::nullopt;
+    startJob(tr("Restoring %1…").arg(name), [sessionDir, name, fp, housekeeping](ArchiveController *self,
+                                                                             std::shared_ptr<std::atomic_bool> abort) {
         QPointer<ArchiveController> p(self);
         auto post = [p](double v, QString s) {
             QMetaObject::invokeMethod(p, [p, v, s] { if (p) p->setProgress(v, s); }, Qt::QueuedConnection);
         };
-        const auto r = pinpoint::SessionArchiveRun::keepReportCurrent(sessionDir, fp, [&] {
-            pinpoint::SessionArchiveRun run;   // this job's own (a worker thread)
-            return run.sessions().restore(sessionFor(run, sessionDir),
-                                          reporter(abort, QStringLiteral("Restoring"), name, post));
-        });
+        const pinpoint::SessionArchiveProgress progress = reporter(abort, QStringLiteral("Restoring"), name, post);
+        const pinpoint::Housekeeping::UnheldAct unheld = [&] {   // a folder no Athlete holds: today's path
+            return pinpoint::SessionArchiveRun::keepReportCurrent(sessionDir, fp, [&] {
+                pinpoint::SessionArchiveRun run;   // this job's own (a worker thread)
+                return run.sessions().restore(sessionFor(run, sessionDir), progress);
+            });
+        };
+        // Through the held Session's own commands (refactor step 5.6b): Session::restoreJob, then restoreLanded.
+        const auto r = housekeeping ? housekeeping->restoreSession(sessionDir, self, abort.get(), progress, fp, unheld)
+                                    : unheld();
         if (!r.ok) {
             ppWarn() << "[Archive] restoring" << sessionDir << "failed:" << r.error;
             return QObject::tr("%1 was not restored: %2").arg(name, r.error);
@@ -293,6 +315,13 @@ ArchiveController::ArchiveJobs ArchiveController::archiveJobs()
     };
 }
 
+ArchiveController::RestoreJobs ArchiveController::restoreJobs()
+{
+    return [](const QString &sessionDir, const pinpoint::SessionArchiveProgress &progress) {
+        return pinpoint::SessionArchiveRun::restoreInOwnRun(sessionDir, progress);
+    };
+}
+
 void ArchiveController::stopJobs()
 {
     if (m_abort) m_abort->store(true);
@@ -323,6 +352,7 @@ void ArchiveController::runHousekeeping()
         return;
     }
     const pinpoint::ReportFingerprintFn fp = plan.canArchive() ? reportFingerprint() : pinpoint::ReportFingerprintFn();
+    plan.keepReport = fp;   // a held session's archive keeps its report current through its Session (refactor 5.6b)
     const pinpoint::Housekeeping housekeeping = *m_housekeeping;   // a copy for the worker: it keeps no state
     const QString root = plan.libraryRoot;
     plan.freeBytes = [root] { return QStorageInfo(root).bytesAvailable(); };
@@ -339,7 +369,8 @@ void ArchiveController::runHousekeeping()
     };
 
     startJob(tr("Housekeeping…"), [plan, housekeeping, fp, walk](ArchiveController *self, std::shared_ptr<std::atomic_bool> abort) {
-        // Each archive keeps a report that was current, current (S-D6).
+        // Each archive of a folder no Athlete holds keeps a report that was current, current (S-D6), through its run's
+        // own repository; a held session's through its Session (plan.keepReport).
         const pinpoint::Housekeeping::ArchiveWrap wrap =
             [fp](const QString &dir, const std::function<pinpoint::SessionArchiveResult()> &archive) {
                 return pinpoint::SessionArchiveRun::keepReportCurrent(dir, fp, archive);

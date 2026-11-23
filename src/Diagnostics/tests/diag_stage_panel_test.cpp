@@ -92,6 +92,7 @@
 #include "../../Export/recording_loader.h"
 #include "../../Export/rule_data_install.h"
 #include "../../Export/session_archiver.h"
+#include "../../Export/session_files.h"   // the archive marker (RESTORE, 5.6b)
 #include "../../Export/session_store.h"
 #include "../../Export/swing_paths.h"
 #include "../../App/athlete_catch_up.h"
@@ -1081,6 +1082,31 @@ static void testArchive()
                 (long long)before.size(), (long long)after.size(), (long long)bytes(mirror).size());
     check(QStringLiteral("ARCHIVEg the library's diagnostics.json is unchanged, and equal to the archive's copy"),
           !before.isEmpty() && after == before && bytes(mirror) == after);
+
+    // RESTORE (refactor step 5.6b): the Archiving tab's restore of a session no screen holds — loaded (its owner attaches to
+    // the stubs) and its restore job asked in one turn, as housekeeping's restoreSession does. While the job is out the
+    // owner keeps and writes nothing; it lands, and the session is back.
+    rig.store.setRestoreJobs(&SessionArchiveRun::restoreInOwnRun);
+    Session *rs = rig.athlete->sessionAt(folder);
+    SessionDiagnostics *rd = rs ? rs->diagnostics() : nullptr;
+    const SessionArchiveJob rjob = rs ? rs->restoreJob() : SessionArchiveJob{};
+    check(QStringLiteral("RESTOREa loaded with its owner, the restore job out and the Session says so"),
+          rd && bool(rjob) && rs->archiving());
+    if (!rd || !rjob) return;
+    rs->addUse();
+    SessionArchiveResult rr;
+    std::atomic_bool rdone{ false };
+    std::thread rworker([&] { rr = rjob.run({}); rdone = true; });
+    pump([&] { return rdone.load(); }, 120000);
+    rworker.join();
+    spin(200);
+    check(QStringLiteral("RESTOREb while the restore was out the owner kept nothing from a stub and wrote nothing"),
+          rd->counts().kept == 0 && rd->counts().writes == 0);
+    rs->restoreLanded(rr);
+    rs->dropUse();
+    spin(200);
+    check(QStringLiteral("RESTOREc restored: no marker, the Session no longer out"),
+          rr.ok && !rs->archiving() && !QFileInfo::exists(SessionFiles::archiveMarker(folder)));
 }
 
 // The ledger's rows of every shot but `except`, each as its own JSON (diagnostic_ledger.h's writer), from a diagnostics.json.
@@ -1364,8 +1390,8 @@ static void testReport()
             }
     check(QStringLiteral("REPORTe the left-out shot's monitor-driven rows are not assessable (%1 rows)").arg(lmRows),
           three && lmRows > 0 && lmAssessed == 0);
-    check(QStringLiteral("REPORTf the work-on list is reduced over those rows (sessionWorkOns, the report's FRESH list)"),
-          m->sessionWorkOns().shotCount == kShots);
+    check(QStringLiteral("REPORTf the work-on list the report reads is the owner's, over those rows (refactor 5.6b: through the Session)"),
+          s->diagnostics() && s->diagnostics()->diagnosis() && s->diagnostics()->diagnosis()->results.workOns.shotCount == kShots);
     check(QStringLiteral("REPORTg nothing written into the session by it (diagnostics.json byte-equal; no baseline frozen)"),
           fileBytes(folder + QStringLiteral("/diagnostics.json")) == diagBefore
               && QFile::exists(folder + QStringLiteral("/club_baseline.json")) == baselineBefore);

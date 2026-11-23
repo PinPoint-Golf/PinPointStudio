@@ -42,6 +42,11 @@
 //   H7  nothing switched on: the pass does nothing (no purge, no athlete listed)
 //   H9  CANCEL WHILE A GUI STEP RUNS (review 2, A2): the started step is waited for, its session finished and landed, no
 //       Session is left "in use", and nothing after it is archived
+//   H10 BY HAND, THROUGH THE HELD SESSION, KEEPING A CURRENT REPORT CURRENT (refactor step 5.6b; S-D6; the Solution
+//       Architect's option a, 23 Nov 2026): the Archiving tab's archive and then restore of one session go through its
+//       Session's own archiveJob / restoreJob (never today's unheld path), and the Session re-stamps FILE-SESS-07's
+//       fingerprint after each: a report current before stays current, its other derived facts kept, report_input.json
+//       untouched; a report out of date before stays out of date
 //   H8  A FOLDER NO ATHLETE HOLDS (an athlete this machine does not list): archived by today's path, in the one
 //       oldest-first order with the athletes' sessions. The no-golfer `unknown` folder is no longer one: since step 5.1
 //       its sessions are the Unassigned owner's (§5.11; J-66: held where they are), archived through their Sessions
@@ -55,6 +60,7 @@
 #include "../../Export/athlete_store.h"
 #include "../../Export/session_archiver.h"
 #include "../../Export/session_files.h"
+#include "../../Export/session_report_io.h"   // the report's records, read and written for H10 (step 5.6b)
 #include "../../Export/session_store.h"
 #include "../../Export/swing_paths.h"
 #include "../../Export/tests/swing_doc_test_writes.h"   // a swing's document, through the one door
@@ -158,6 +164,7 @@ struct AppRig {
     {
         sessions.setOsTrashForTest(false);
         sessions.setArchiveJobs(&SessionArchiveRun::archiveInOwnRun);
+        sessions.setRestoreJobs(&SessionArchiveRun::restoreInOwnRun);   // main.cpp's wiring (refactor 5.6b)
         athletes = std::make_unique<AthleteStore>([this] { return root; }, &sessions);
     }
     HousekeepingDoors doors()
@@ -499,6 +506,64 @@ int main(int argc, char **argv)
         check("H9 the started step was finished: its session archived and landed, the other not",
               r.archived == 1 && archivedMark(a2) && !archivedMark(a1));
         check("H9 no Session is left in use", s1 && s2 && s1->uses() == 0 && s2->uses() == 0);
+    }
+
+    std::printf("\n=== H10 by hand, through the held Session: a current report stays current (5.6b) ===\n");
+    {
+        namespace io = pinpoint::session_report_io;
+        Library lib;
+        const QString cur   = makeSession(lib.athleteDir, lib.athlete, today.addDays(-40), 1, false, 2);
+        const QString stale = makeSession(lib.athleteDir, lib.athlete, today.addDays(-41), 1, false, 1);
+        // The report's fingerprint: it moves with how the swings are stored (the archive's marker), as the real one moves
+        // with each document's size and time.
+        const ReportFingerprintFn fp = [](const QString &dir) {
+            return QStringLiteral("fp-") + (archivedMark(dir) ? QStringLiteral("archived") : QStringLiteral("live"));
+        };
+        const auto report = [](const QString &dir, const QString &fingerprint) {
+            put(io::reportDir(dir) + "/2026-01-01_Test-Golfer_session-report.pdf", "%PDF-1.4 report");
+            ReportRecord rec;
+            rec.fingerprint = fingerprint;
+            rec.pdfName = QStringLiteral("2026-01-01_Test-Golfer_session-report.pdf");
+            rec.preparedMs = 1767225600000;
+            rec.photosIncluded = true;
+            io::writeRecord(dir, rec);
+            io::writeInput(dir, ReportInput{ QStringLiteral("The coach's note"), {}, { 1767225600000 }, {} });
+        };
+        report(cur, fp(cur));
+        report(stale, QStringLiteral("fp-before-an-edit"));
+        const QByteArray inputBefore = [&] { QFile f(io::inputFile(cur)); f.open(QIODevice::ReadOnly); return f.readAll(); }();
+        AppRig app(lib.root);
+        Athlete *athlete = app.athletes->load(lib.athlete);
+        Session *s = athlete ? athlete->sessionAt(cur) : nullptr;   // held by a view, as the tab's sessions are
+        const Housekeeping hk(app.doors());
+        int unheldRuns = 0;
+        const Housekeeping::UnheldAct unheld = [&unheldRuns] { ++unheldRuns; return SessionArchiveResult{}; };
+        int archived = 0;
+        if (s) QObject::connect(s, &Session::sessionArchived, [&archived](const SessionId &) { ++archived; });
+        SessionArchiveOptions options;
+        options.archiveRoot = lib.archive;
+        const SessionArchiveResult a = hk.archiveSession(cur, options, &app.owner, nullptr, {}, fp, unheld);
+        for (int i = 0; i < 20; ++i) QCoreApplication::processEvents();
+        check("H10 the archive by hand ran through the held Session (EVT-18 on it), never the unheld path",
+              s && a.ok && archivedMark(cur) && archived == 1 && unheldRuns == 0 && s->uses() == 0);
+        const ReportRead afterArchive = io::read(cur);
+        check("H10 after the archive the report is still current: its fingerprint re-stamped, its other facts kept",
+              afterArchive.record.fingerprint == fp(cur) && afterArchive.record.pdfName.endsWith("_session-report.pdf")
+                  && afterArchive.record.photosIncluded && afterArchive.record.preparedMs == 1767225600000
+                  && reportIsCurrent(afterArchive, fp(cur)));
+        const SessionArchiveResult r = hk.restoreSession(cur, &app.owner, nullptr, {}, fp, unheld);
+        for (int i = 0; i < 20; ++i) QCoreApplication::processEvents();
+        const ReportRead afterRestore = io::read(cur);
+        check("H10 the restore by hand ran through the held Session, never the unheld path",
+              r.ok && !archivedMark(cur) && unheldRuns == 0 && s && s->uses() == 0);
+        check("H10 after the restore the report is still current",
+              afterRestore.record.fingerprint == fp(cur) && reportIsCurrent(afterRestore, fp(cur)));
+        const QByteArray inputAfter = [&] { QFile f(io::inputFile(cur)); f.open(QIODevice::ReadOnly); return f.readAll(); }();
+        check("H10 report_input.json (FILE-SESS-13) untouched by either restamp", !inputBefore.isEmpty() && inputAfter == inputBefore);
+        const SessionArchiveResult st = hk.archiveSession(stale, options, &app.owner, nullptr, {}, fp, unheld);
+        for (int i = 0; i < 20; ++i) QCoreApplication::processEvents();
+        check("H10 a report out of date before the archive stays out of date",
+              st.ok && archivedMark(stale) && io::read(stale).record.fingerprint == QLatin1String("fp-before-an-edit"));
     }
 
     std::printf("\n%s: %d of %d checks passed\n", g_fail ? "FAIL" : "PASS", g_run - g_fail, g_run);

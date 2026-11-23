@@ -90,7 +90,7 @@ LedgerOptions flatOpts()
 }
 
 // A session: its ledgers and its work-on record, the record reduced from the pack facts the way
-// SessionDiagnosticsModel::sessionWorkOns() marshals them (held → Excluded).
+// the session reduction marshals them (sessionWorkOnsForPack, work_ons_pack.h; held → Excluded).
 struct Session {
     std::vector<ShotRecord>      shots;
     std::vector<ConditionLedger> ledgers;

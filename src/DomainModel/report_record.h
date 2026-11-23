@@ -42,6 +42,7 @@
 #include <QtGlobal>
 
 #include <functional>
+#include <optional>
 
 namespace pinpoint {
 
@@ -109,6 +110,34 @@ inline bool reportIsCurrent(const ReportRead &r, const QString &currentFingerpri
 {
     return r.hasRecord() && !r.record.pdfName.isEmpty() && r.pdfPresent && r.record.fingerprint == currentFingerprint;
 }
+
+// THE RESTAMP'S RULE (sessions_screen_redesign.md S-D6; refactor step 5.6b): after a rewrite that changes how the swings
+// are stored and not what they say (an archive, a restore), the record of a report that was current BEFORE it, re-stamped
+// with the fingerprint the session has NOW — FILE-SESS-07's fingerprint only, every other derived fact kept, never
+// FILE-SESS-13. None when there is no record, it cannot be written (a newer file), or the fingerprint did not move. The one
+// rule for both of its callers: the Session's archive and restore commands (Session::archiveLanded, restoreLanded) and,
+// for a folder no Athlete holds, the run's own repository (session_report_io.h keepCurrent).
+inline std::optional<ReportRecord> restampedRecord(const ReportRead &now, const QString &fingerprint)
+{
+    if (!now.hasRecord() || !now.recordWritable() || now.record.fingerprint == fingerprint)
+        return std::nullopt;
+    ReportRecord rec = now.record;
+    rec.fingerprint = fingerprint;
+    return rec;
+}
+
+// ONE MAKE, AS THE REPORT COMMAND SAVES IT (Session::makeReport; refactor step 5.6b; FILE-SESS-07, 08, 13). The print
+// host writes the PDF to `printedPdf`, outside the library (Session::reportPrintTarget); the command moves it into the
+// session's report folder as `record.pdfName` (FILE-SESS-08), then records the make (FILE-SESS-13: the note, the options,
+// the make in the history) and its derived facts (FILE-SESS-07). The stills (FILE-SESS-09) were saved during the make
+// through the Session's still writer.
+struct ReportMake {
+    QString      note;
+    QVariantMap  options;
+    qint64       preparedMs = 0;
+    QString      printedPdf;
+    ReportRecord record;
+};
 
 // A session's report fingerprint as the report computes it now (SessionReportModel::fingerprintFunction): its inputs
 // copied on the report's thread, so the function touches only the file system and an archive worker may call it.

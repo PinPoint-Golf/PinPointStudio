@@ -141,7 +141,130 @@ struct Athletes {
     QList<QPointer<Athlete>> all;
 };
 
+// THE HELD SESSION OF ONE FOLDER, ON THE OWNER'S THREAD (the pass's and, since refactor 5.6b, the Archiving tab's by-hand
+// archive and restore): the Athlete whose folder holds it (or, for the Unassigned owner, its other folder: §5.11, J-66), its
+// Session (loaded when no screen has), then `ask` — the Session's archiveJob or restoreJob — and a use held while the job
+// runs (Q-18). Null: the pass gave up before the step started. Kind Unheld: no Athlete holds the folder.
+std::shared_ptr<Prepared> prepareOnOwner(QObject *owner, const std::shared_ptr<Athletes> &athletes,
+                                         const AthleteCallables &callables, const QString &folder,
+                                         const std::atomic_bool *abort, const std::shared_ptr<std::atomic_bool> &gaveUp,
+                                         const std::function<SessionArchiveJob(Session *)> &ask)
+{
+    auto prep = std::make_shared<Prepared>();
+    const bool reached = onOwner(owner, [prep, athletes, callables, folder, ask] {
+        if (!athletes->listed) {
+            athletes->listed = true;
+            if (callables.listAthletes && callables.loadAthlete)
+                for (const AthleteId &id : callables.listAthletes())
+                    if (Athlete *a = callables.loadAthlete(id))
+                        athletes->all.append(a);
+        }
+        for (const QPointer<Athlete> &a : std::as_const(athletes->all)) {
+            // Only a folder in this athlete's folder can be one of its sessions (path text: nothing read) — or, for the
+            // Unassigned owner, in its other folder (the no-golfer `unknown/` an older build left: §5.11, J-66).
+            if (!a)
+                continue;
+            const QString parent = QDir::cleanPath(folder + QStringLiteral("/.."));
+            const QStringList others = a->otherFolders();
+            if (parent != QDir::cleanPath(a->folder())
+                && std::none_of(others.cbegin(), others.cend(),
+                                [&parent](const QString &o) { return QDir::cleanPath(o) == parent; }))
+                continue;
+            const auto loaded = a->loadedSessions();
+            prep->wasLoaded = std::any_of(loaded.cbegin(), loaded.cend(), [&folder](Session *s) {
+                const auto e = s->entry();
+                return e && QDir::cleanPath(e->folder) == folder;
+            });
+            Session *s = a->sessionAt(folder);
+            if (!s)
+                continue;
+            prep->session = s;
+            prep->athlete = a.data();
+            if (s->inProgress()) {
+                prep->kind = Prepared::Kind::InProgress;
+                return;
+            }
+            prep->job  = ask(s);
+            prep->kind = prep->job ? Prepared::Kind::Held : Prepared::Kind::Refused;
+            if (prep->job)
+                s->addUse();   // held while its job runs (Q-18: not released under it)
+            return;
+        }
+    }, abort, gaveUp);
+    return reached ? prep : nullptr;
+}
+
+// The job's result back to its Session, on the owner's thread (R-CON-3): archiveLanded (EVT-18 on success) or restoreLanded,
+// each of which keeps a current report current (S-D6); the use dropped; a Session the step loaded let go again.
+void landOnOwner(QObject *owner, const std::shared_ptr<Prepared> &prep, const SessionArchiveResult &r, bool restore)
+{
+    const auto land = [prep, r, restore] {
+        Session *s = prep->session;
+        if (!s)
+            return;   // let go meanwhile: its next load reads the marker
+        if (restore) s->restoreLanded(r);
+        else         s->archiveLanded(r);
+        s->dropUse();
+        if (!prep->wasLoaded && prep->athlete && s->uses() == 0)
+            prep->athlete->releaseSession(s->id());   // the step loaded it: let it go again
+    };
+    if (!owner || QThread::currentThread() == owner->thread())
+        land();
+    else
+        postToOwner(owner, land);
+}
+
 } // namespace
+
+SessionArchiveResult Housekeeping::archiveSession(const QString &folder, const SessionArchiveOptions &options, QObject *owner,
+                                                  const std::atomic_bool *abort, const SessionArchiveProgress &progress,
+                                                  const ReportFingerprintFn &keepReport, const UnheldAct &unheld) const
+{
+    return oneSession(QDir::cleanPath(folder), owner, abort, progress, unheld,
+                      [options, keepReport](Session *s) { return s->archiveJob(options, keepReport); }, false);
+}
+
+SessionArchiveResult Housekeeping::restoreSession(const QString &folder, QObject *owner, const std::atomic_bool *abort,
+                                                  const SessionArchiveProgress &progress,
+                                                  const ReportFingerprintFn &keepReport, const UnheldAct &unheld) const
+{
+    return oneSession(QDir::cleanPath(folder), owner, abort, progress, unheld,
+                      [keepReport](Session *s) { return s->restoreJob(keepReport); }, true);
+}
+
+SessionArchiveResult Housekeeping::oneSession(const QString &folder, QObject *owner, const std::atomic_bool *abort,
+                                              const SessionArchiveProgress &progress, const UnheldAct &unheld,
+                                              const std::function<SessionArchiveJob(Session *)> &ask, bool restore) const
+{
+    SessionArchiveResult refused;
+    const std::shared_ptr<Prepared> prep = prepareOnOwner(owner, std::make_shared<Athletes>(), m_doors.athletes, folder, abort,
+                                                          std::make_shared<std::atomic_bool>(false), ask);
+    if (!prep) {
+        refused.error = QStringLiteral("Stopped.");
+        return refused;
+    }
+    switch (prep->kind) {
+    case Prepared::Kind::InProgress:
+        refused.error = QStringLiteral("The session is still in progress.");
+        return refused;
+    case Prepared::Kind::Refused:
+        return prep->job.refused;
+    case Prepared::Kind::Held: {
+        const SessionArchiveResult r = prep->job.run(progress);   // here, on the caller's (worker) thread: values only
+        landOnOwner(owner, prep, r, restore);
+        return r;
+    }
+    case Prepared::Kind::Unheld:
+        break;
+    }
+    // A folder no Athlete holds (rare since step 5.1): the caller's path, its report kept current by the caller's own wrap.
+    ppInfo() << "[Housekeeping] no Athlete holds" << folder << "- by today's path";
+    if (!unheld) {
+        refused.error = QStringLiteral("No golfer's session holds these swings.");
+        return refused;
+    }
+    return unheld();
+}
 
 Housekeeping::Report Housekeeping::run(const Plan &plan, const LibraryWalk &walk, QObject *owner,
                                        const std::atomic_bool *abort, const ArchiveWrap &wrap) const
@@ -182,49 +305,12 @@ Housekeeping::Report Housekeeping::run(const Plan &plan, const LibraryWalk &walk
     // One folder: its Session's archive (the app's instance) when an Athlete holds it (the Unassigned owner's for a no-golfer
     // session: §5.11), else today's path for a folder no Athlete holds. False: not archived.
     const auto archiveOne = [&](LibraryWalk::Folder &f) -> bool {
-        auto prep = std::make_shared<Prepared>();
         const QString folder = f.folder;
-        const bool reached = onOwner(owner, [prep, athletes, callables, folder, options] {
-            if (!athletes->listed) {
-                athletes->listed = true;
-                if (callables.listAthletes && callables.loadAthlete)
-                    for (const AthleteId &id : callables.listAthletes())
-                        if (Athlete *a = callables.loadAthlete(id))
-                            athletes->all.append(a);
-            }
-            for (const QPointer<Athlete> &a : std::as_const(athletes->all)) {
-                // Only a folder in this athlete's folder can be one of its sessions (path text: nothing read) — or, for the
-                // Unassigned owner, in its other folder (the no-golfer `unknown/` an older build left: §5.11, J-66).
-                if (!a)
-                    continue;
-                const QString parent = QDir::cleanPath(folder + QStringLiteral("/.."));
-                const QStringList others = a->otherFolders();
-                if (parent != QDir::cleanPath(a->folder())
-                    && std::none_of(others.cbegin(), others.cend(),
-                                    [&parent](const QString &o) { return QDir::cleanPath(o) == parent; }))
-                    continue;
-                const auto loaded = a->loadedSessions();
-                prep->wasLoaded = std::any_of(loaded.cbegin(), loaded.cend(), [&folder](Session *s) {
-                    const auto e = s->entry();
-                    return e && QDir::cleanPath(e->folder) == folder;
-                });
-                Session *s = a->sessionAt(folder);
-                if (!s)
-                    continue;
-                prep->session = s;
-                prep->athlete = a.data();
-                if (s->inProgress()) {
-                    prep->kind = Prepared::Kind::InProgress;
-                    return;
-                }
-                prep->job  = s->archiveJob(options);
-                prep->kind = prep->job ? Prepared::Kind::Held : Prepared::Kind::Refused;
-                if (prep->job)
-                    s->addUse();   // held while its job runs (Q-18: not released under it)
-                return;
-            }
-        }, abort, gaveUp);
-        if (!reached) {
+        const std::shared_ptr<Prepared> prep = prepareOnOwner(owner, athletes, callables, folder, abort, gaveUp,
+                                                              [options, keep = plan.keepReport](Session *s) {
+                                                                  return s->archiveJob(options, keep);
+                                                              });
+        if (!prep) {
             rep.stopped = true;
             return false;
         }
@@ -240,22 +326,8 @@ Housekeeping::Report Housekeeping::run(const Plan &plan, const LibraryWalk &walk
             return false;
         case Prepared::Kind::Held: {
             // The job here, on this thread: values only. Then the result back to the Session, on its own thread.
-            const SessionArchiveJob job = prep->job;
-            const auto act = [&job] { return job.run({}); };
-            const SessionArchiveResult r = wrap ? wrap(folder, act) : act();
-            const auto land = [prep, r] {
-                Session *s = prep->session;
-                if (!s)
-                    return;   // let go meanwhile: its next load reads the marker
-                s->archiveLanded(r);   // EVT-18 on success
-                s->dropUse();
-                if (!prep->wasLoaded && prep->athlete && s->uses() == 0)
-                    prep->athlete->releaseSession(s->id());   // the pass loaded it: let it go again
-            };
-            if (!owner || QThread::currentThread() == owner->thread())
-                land();
-            else
-                postToOwner(owner, land);
+            const SessionArchiveResult r = prep->job.run({});
+            landOnOwner(owner, prep, r, /*restore=*/false);   // EVT-18 on success; the restamp (S-D6) is the Session's
             if (!r.ok) {
                 ++rep.archiveFailed;
                 rep.why << QStringLiteral("%1: %2").arg(folder, r.error);

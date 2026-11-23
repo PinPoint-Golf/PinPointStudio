@@ -641,14 +641,24 @@ yet — add it in Settings → Studio".
   the swing documents' launch-monitor blocks, and builds the `report` map. Studio, coach and
   golfer details go into that map's `brand` and `meta` blocks, exactly as in the mock's
   `report.json`.
+- **It reads its figures; it does not compute one twice**[^report-reads-5-6b]. The work-on list, each shot's rows and
+  the ledgers are the session's own diagnosis, read through its `Session` (`SessionDiagnostics::diagnosis`,
+  `diagnosisInput`), never the adapter's copy. The choices only the report makes — the caps, the strengths, the
+  reference swing, the order's explanation, the causes — are its own rules (`src/Coaching/session_report.h`). The map is
+  built in named parts, one per piece of the report (`session_report_model.cpp`: the swings, the launch monitor, the
+  day, the brand, the meta, the headline, the cover, the reference swing, the grid, Earlier today, the order, the work-on
+  pages, the later pages, About).
 - Stills and overlays are made on a worker thread from the swing's video, through the replay's
   own frame source (not ffmpeg).
 - The register `PpSessionReport` lies on an A4 sheet that is never shown, in the main window, and
   `PpPdfPrinter` prints it.
 - Progress shows on the sheet ("Page 4 of 10"), and the row says "Making report…".
 
-**Where it goes:** `<session>/report/<yyyy-mm-dd>_<Golfer>_session-report.pdf`. It is written
-through `QSaveFile` (the writer already does this), so a remake replaces it whole.
+**Where it goes:** `<session>/report/<yyyy-mm-dd>_<Golfer>_session-report.pdf`. **Making a report is a `Session`
+command** (`Session::makeReport`)[^report-reads-5-6b]. The print host writes the PDF outside the library first, at
+`<Cache>/report-print/<hash>/` (the Session's print target). The command then moves it into the session in one
+atomic write, so a remake replaces it whole. A PDF that cannot be moved in fails the make, and the report already there,
+with its records, is left as it was.
 
 Beside it, two files record the report[^report-files-5-6a]. `<session>/report/report_input.json` holds the source
 facts, which no remake can recover:
@@ -662,13 +672,22 @@ facts, which no remake can recover:
 - the PDF's name, SHA-256 and size;
 - the **fingerprint** of what the report was made from (§8.2).
 
-Both are written through the session's own commands and its repository, never by the report itself. A remake rewrites
+Both are written through the session's own commands and its repository, never by the report itself: the make's command
+writes the PDF, then `report_input.json`, then `report_meta.json`. Archiving or restoring a session changes how its
+swings are stored but not what they say. A report that was current before stays current: the `Session`'s archive and
+restore commands re-stamp `report_meta.json`'s fingerprint once the rewrite lands. A folder no golfer holds is re-stamped
+by its archive run instead[^report-reads-5-6b]. A remake rewrites
 `report_meta.json` and never touches `report_input.json`. An older `report_meta.json`, which held both halves, is split
 when the session is first opened. Neither file records an email address, because the session folder lives on the
 share.
 
 [^report-files-5-6a]: The split is DEC-201 (Solution Architect, 22 Nov 2026) and J-66; built in refactor step 5.6a.
 See `docs/developer/information_model.md` FILE-SESS-07 and FILE-SESS-13.
+
+[^report-reads-5-6b]: DEC-81 as the Solution Architect amended it, 23 Nov 2026: the session's diagnosis is a source for
+the report, and no figure is computed twice. The restamp as a `Session` command is the Solution Architect's option a,
+23 Nov 2026. Both built in refactor step 5.6b (`build/refactor/step-5/NOTES-5.6b.md`). See
+`docs/developer/information_model.md` DEC-81, FILE-SESS-07 and FILE-SESS-08.
 
 **Nothing is written into the session's analysis.** The report reads. It never moves a ratchet,
 closes a session or writes `diagnostics.json`.

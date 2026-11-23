@@ -24,6 +24,9 @@
 
 #include <QDir>
 
+#include <optional>
+#include <utility>
+
 namespace pinpoint {
 
 namespace {
@@ -380,6 +383,28 @@ ReportStillWriter Session::reportStillsWriter(const QString &fingerprint) const
     return m_sessions ? m_sessions->reportStillsWriter(m_id, fingerprint) : ReportStillWriter();
 }
 
+QString Session::reportPrintTarget(const QString &pdfName)
+{
+    return m_sessions ? m_sessions->reportPrintTarget(m_id, pdfName) : QString();
+}
+
+// THE REPORT COMMAND (OBJ-REPORT: "the report is a Session command"; refactor step 5.6b): FILE-SESS-08, 13 and 07 of one
+// make, in that order. The PDF first: a make whose PDF cannot be put in place is refused, and nothing of the session's
+// report changes (its previous PDF and records stand). The records' failures are said, as each command says them; the
+// make stands with its PDF.
+WriteResult Session::makeReport(const ReportMake &make)
+{
+    if (!m_sessions) return { WriteResult::Status::Failed, QStringLiteral("No session store.") };
+    const WriteResult pdf = m_sessions->placeReportPdf(m_id, make.printedPdf, make.record.pdfName);
+    if (!pdf.ok()) {
+        ppWarn() << "[Session] the report's PDF was not saved for" << m_id.toString() << "-" << pdf.error;
+        return pdf;
+    }
+    (void)recordReportMake(make.note, make.options, make.preparedMs);   // FILE-SESS-13 (it says a failure)
+    (void)saveReport(make.record);                                      // FILE-SESS-07 (likewise)
+    return pdf;
+}
+
 WriteResult Session::migrateReport()
 {
     if (!m_sessions) return noStore();
@@ -398,7 +423,7 @@ WriteResult Session::migrateReport()
 
 // ── The archive (refactor step 3.8; LC-SESSION, DEC-22, DEC-65) ────────────────────────────────────────────────
 
-SessionArchiveJob Session::archiveJob(const SessionArchiveOptions &options)
+SessionArchiveJob Session::archiveJob(const SessionArchiveOptions &options, const ReportFingerprintFn &keepReport)
 {
     SessionArchiveJob job;
     if (!m_sessions) {
@@ -416,6 +441,7 @@ SessionArchiveJob Session::archiveJob(const SessionArchiveOptions &options)
         ppWarn() << "[Session] archive refused:" << m_id.toString() << "-" << job.refused.error;
         return job;
     }
+    armReportRestamp(keepReport);
     // Out until it lands (archiveLanded): its diagnostics ask and write nothing meanwhile (3.7-a, review B2).
     m_archiving = true;
     emit archiveOut();
@@ -426,6 +452,7 @@ void Session::archiveLanded(const SessionArchiveResult &result)
 {
     if (m_sessions)
         m_sessions->archiveLanded(m_id);   // the record reads the marker again, whatever happened
+    restampReport(result.ok);              // before EVT-18: a listener reads a report that is still current
     if (m_archiving) {
         m_archiving = false;
         emit archiveBack(result.ok);
@@ -436,6 +463,71 @@ void Session::archiveLanded(const SessionArchiveResult &result)
     }
     ppInfo() << "[Session] EVT-18 session archived:" << m_id.toString() << "to" << result.archivePath;
     emit sessionArchived(m_id);   // EVT-18, after the archive landed (DEC-69)
+}
+
+SessionArchiveJob Session::restoreJob(const ReportFingerprintFn &keepReport)
+{
+    SessionArchiveJob job;
+    if (!m_sessions) {
+        job.refused.error = QStringLiteral("No session store.");
+        return job;
+    }
+    job = m_sessions->restoreJob(m_id);
+    if (!job) {
+        ppWarn() << "[Session] restore refused:" << m_id.toString() << "-" << job.refused.error;
+        return job;
+    }
+    armReportRestamp(keepReport);
+    // Out until it lands, as an archive is: its diagnostics ask and write nothing while the restore rewrites the files
+    // (a session loaded only to restore it would otherwise judge its stubs).
+    m_archiving = true;
+    emit archiveOut();
+    return job;
+}
+
+void Session::restoreLanded(const SessionArchiveResult &result)
+{
+    if (m_sessions)
+        m_sessions->archiveLanded(m_id);   // the record reads the marker again, whatever happened
+    restampReport(result.ok);
+    if (m_archiving) {
+        m_archiving = false;
+        // Never "made of the files as they were" (that is an archive's success): what the hold owed is asked again, from
+        // the documents as the restore left them.
+        emit archiveBack(false);
+    }
+    if (!result.ok) {
+        ppWarn() << "[Session] not restored:" << m_id.toString() << "-" << result.error;
+        return;
+    }
+    ppInfo() << "[Session] restored:" << m_id.toString() << "-" << result.swings << "swings back in the library";
+}
+
+// THE RESTAMP (S-D6; refactor step 5.6b, option a): whether the report is current now, before the rewrite, by the report's
+// own fingerprint; then, after a rewrite that succeeded, FILE-SESS-07's fingerprint re-stamped (restampedRecord) through this
+// Session's repository — FILE-SESS-07's one writer.
+void Session::armReportRestamp(const ReportFingerprintFn &keepReport)
+{
+    m_keepReport = keepReport;
+    m_reportWasCurrent = false;
+    const std::optional<SessionIndexEntry> e = entry();
+    if (keepReport && e && m_sessions)
+        m_reportWasCurrent = reportIsCurrent(m_sessions->readReport(m_id), keepReport(e->folder));
+}
+
+void Session::restampReport(bool rewriteOk)
+{
+    const ReportFingerprintFn keep = std::exchange(m_keepReport, ReportFingerprintFn());
+    const bool wasCurrent = std::exchange(m_reportWasCurrent, false);
+    const std::optional<SessionIndexEntry> e = entry();
+    if (!rewriteOk || !wasCurrent || !keep || !e || !m_sessions)
+        return;
+    const std::optional<ReportRecord> rec = restampedRecord(m_sessions->readReport(m_id), keep(e->folder));
+    if (!rec)
+        return;
+    const WriteResult w = m_sessions->writeReportRecord(m_id, *rec);
+    if (!w.ok()) ppWarn() << "[Session] the report could not be kept current for" << m_id.toString() << "-" << w.error;
+    else         ppInfo() << "[Session] the report kept current:" << m_id.toString();
 }
 
 SessionArchiveResult Session::archive(const SessionArchiveOptions &options, const SessionArchiveProgress &progress)

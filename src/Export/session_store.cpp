@@ -814,6 +814,29 @@ SessionArchiveJob SessionStore::archiveJob(const SessionId &id, const SessionArc
     return job;
 }
 
+SessionArchiveJob SessionStore::restoreJob(const SessionId &id)
+{
+    SessionArchiveJob job;
+    const auto it = m_held.constFind(id);
+    if (it == m_held.constEnd()) {
+        job.refused = archiveRefused(failed(QStringLiteral("That session is not known.")));
+        return job;
+    }
+    // The same refusals as restore() (not a newer build's file: a restore puts the session's own bytes back).
+    if (const WriteResult c = checkNotLive(*it, /*refuseReadOnly=*/false); !c.ok()) {
+        job.refused = archiveRefused(c);
+        return job;
+    }
+    if (!m_restoreJobs) {
+        job.refused = archiveRefused(failed(QStringLiteral("Restoring is not available here.")));
+        return job;
+    }
+    const QString folder = it->entry.folder;
+    const RestoreJobs work = m_restoreJobs;
+    job.run = [work, folder](const SessionArchiveProgress &progress) { return work(folder, progress); };
+    return job;
+}
+
 void SessionStore::archiveLanded(const SessionId &id)
 {
     if (const auto h = m_held.find(id); h != m_held.end())
@@ -1156,6 +1179,20 @@ ReportStillWriter SessionStore::reportStillsWriter(const SessionId &id, const QS
 {
     const QString stills = reportStillsFolder(id, key);   // this (the owner's) thread: the identity map
     return stills.isEmpty() ? ReportStillWriter() : session_report_io::stillsWriter(stills);
+}
+
+QString SessionStore::reportPrintTarget(const SessionId &id, const QString &pdfName)
+{
+    const QString folder = heldFolder(id);
+    return folder.isEmpty() ? QString() : session_report_io::printTarget(folder, pdfName);
+}
+
+WriteResult SessionStore::placeReportPdf(const SessionId &id, const QString &printedPdf, const QString &pdfName)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_report_io::placePdf(folder, printedPdf, pdfName);
 }
 
 } // namespace pinpoint

@@ -115,6 +115,10 @@ public:
         QDate     today;                  // invalid: QDate::currentDate()
         QDateTime now;                    // invalid: QDateTime::currentDateTime()
         std::function<qint64()> freeBytes;   // the library volume's bytes available now (SET-12's rule)
+        // The report's fingerprint now (SessionReportModel::fingerprintFunction), so a report current before a held
+        // session's archive stays current: given to its Session's archiveJob, whose landing re-stamps it (S-D6; refactor
+        // 5.6b, option a). A folder no Athlete holds keeps the caller's `wrap` (run, below).
+        ReportFingerprintFn     keepReport;
 
         bool canArchive() const { return !libraryRoot.isEmpty() && !archiveLocation.isEmpty()
                                          && (archiveAfterDays > 0 || archiveFloorGb > 0); }
@@ -122,8 +126,9 @@ public:
         bool anythingOn() const { return !libraryRoot.isEmpty() && (trashRetentionDays > 0 || canArchive()); }
     };
 
-    // Each archive, wrapped by the caller on the worker (the app keeps a report that was current, current: SessionArchiveRun's
-    // keepReportCurrent, S-D6). `archive` runs the archive and returns its result.
+    // Each archive of a folder NO ATHLETE HOLDS, wrapped by the caller on the worker (the app keeps a report that was
+    // current, current: SessionArchiveRun's keepReportCurrent, S-D6; a held session's is its Session's: Plan::keepReport).
+    // `archive` runs the archive and returns its result.
     using ArchiveWrap = std::function<SessionArchiveResult(const QString &sessionFolder,
                                                            const std::function<SessionArchiveResult()> &archive)>;
 
@@ -138,6 +143,20 @@ public:
         QStringList why;                  // one line per failure
     };
 
+    // ONE SESSION ARCHIVED OR RESTORED BY HAND (the Archiving tab; refactor step 5.6b): as the pass archives one — through
+    // its held Session (Session::archiveJob or restoreJob on `owner`'s thread, the job on the caller's thread with
+    // `progress`, the result landed on the Session: EVT-18 for an archive), a report current before it kept current by
+    // that Session's own command (`keepReport`, S-D6). A folder no Athlete holds — rare since step 5.1 — runs `unheld`, the
+    // caller's own path (the run's repository, its restamp wrapped by the caller). Call it off `owner`'s thread (a worker),
+    // or on it (a tool, a test: every step in line).
+    using UnheldAct = std::function<SessionArchiveResult()>;
+    SessionArchiveResult archiveSession(const QString &folder, const SessionArchiveOptions &options, QObject *owner,
+                                        const std::atomic_bool *abort, const SessionArchiveProgress &progress,
+                                        const ReportFingerprintFn &keepReport, const UnheldAct &unheld) const;
+    SessionArchiveResult restoreSession(const QString &folder, QObject *owner, const std::atomic_bool *abort,
+                                        const SessionArchiveProgress &progress, const ReportFingerprintFn &keepReport,
+                                        const UnheldAct &unheld) const;
+
     // The pass (header). `owner`: an object on the athletes' thread (the GUI thread in the app), through which the pass
     // reaches the Athletes and their Sessions; the pass waits for each such step, giving up when `abort` is set. Called on
     // `owner`'s own thread (a tool, a test), every step runs in line. `abort` is asked between sessions.
@@ -145,6 +164,10 @@ public:
                const ArchiveWrap &wrap = {}) const;
 
 private:
+    SessionArchiveResult oneSession(const QString &folder, QObject *owner, const std::atomic_bool *abort,
+                                    const SessionArchiveProgress &progress, const UnheldAct &unheld,
+                                    const std::function<SessionArchiveJob(Session *)> &ask, bool restore) const;
+
     HousekeepingDoors m_doors;
 };
 

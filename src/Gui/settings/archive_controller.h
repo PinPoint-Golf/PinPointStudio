@@ -97,6 +97,10 @@ public:
                                                                      const pinpoint::SessionArchiveOptions &options,
                                                                      const pinpoint::SessionArchiveProgress &progress)>;
     static ArchiveJobs archiveJobs();
+    // Its restore job (refactor step 5.6b; SessionStore::setRestoreJobs): SessionArchiveRun::restoreInOwnRun, the same way.
+    using RestoreJobs = std::function<pinpoint::SessionArchiveResult(const QString &sessionDir,
+                                                                     const pinpoint::SessionArchiveProgress &progress)>;
+    static RestoreJobs restoreJobs();
     // The startup pass: trash retention, then archive-by-age, then archive-below-floor. Each is a
     // no-op while its setting is 0 / no archive location is set.
     Q_INVOKABLE void runHousekeeping();
@@ -107,8 +111,10 @@ public:
     // The running session's folder (main.cpp's, as the session list is told it); empty when none.
     // Archiving it is refused, by hand or by housekeeping.
     void setLiveSessionDir(const QString &dir);
-    // SessionReportModel::fingerprintFunction, asked on this thread as each job starts: archive and
-    // restore keep a report that was current, current (S-D6, SessionArchiveRun::keepReportCurrent: through the run's own repository).
+    // SessionReportModel::fingerprintFunction, asked on this thread as each job starts: archive and restore keep a report
+    // that was current, current (S-D6): a held session's through its Session's own archive and restore commands (refactor
+    // 5.6b, through housekeeping's archiveSession / restoreSession), a folder no Athlete holds through its run's own
+    // repository (SessionArchiveRun::keepReportCurrent).
     void setReportFingerprint(std::function<std::function<QString(const QString &)>()> snapshot)
     {
         m_fingerprint = std::move(snapshot);

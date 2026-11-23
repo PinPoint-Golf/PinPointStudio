@@ -394,6 +394,48 @@ int main(int argc, char **argv)
         QDir(folder).removeRecursively();
     }
 
+    // 5.6b: FILE-SESS-08 through the report command's file work — the print's target outside the library, the PDF moved
+    // into the session atomically, and a placement that fails leaving the PDF there untouched.
+    {
+        const QString d = tmp.filePath(QStringLiteral("2026-10-21_Nick-Henn_Wrist_01"));
+        touch(d + QStringLiteral("/swing_0001/swing.ppsw"), "one");
+        const QString name = QStringLiteral("2026-10-21_Nick-Henn_session-report.pdf");
+        const QString target = io::printTarget(d, name);
+        check(!target.isEmpty() && !target.startsWith(QDir::cleanPath(d)) && target.contains(QStringLiteral("/report-print/"))
+                  && QFileInfo(QFileInfo(target).absolutePath()).isDir(),
+              "5.6b the print's target: outside the library, <Cache>/report-print/<hash>/, its folder made");
+        check(io::printTarget(d, QStringLiteral("../x.pdf")).isEmpty(), "5.6b a print name with a path refused");
+        touch(target, "%PDF-1.4 the new make");
+        const pinpoint::WriteResult w = io::placePdf(d, target, name);
+        const QString placed = io::reportDir(d) + QLatin1Char('/') + name;
+        check(w.ok() && rawOf(placed) == QByteArray("%PDF-1.4 the new make") && !QFileInfo::exists(target),
+              "5.6b the PDF moved into <session>/report/ (FILE-SESS-08), the printed file gone");
+        const pinpoint::WriteResult gone = io::placePdf(d, target, name);   // nothing printed: the make fails
+        check(!gone.ok() && rawOf(placed) == QByteArray("%PDF-1.4 the new make"),
+              "5.6b a placement with no printed PDF fails, the PDF there untouched");
+        touch(target, "");
+        check(!io::placePdf(d, target, name).ok() && rawOf(placed) == QByteArray("%PDF-1.4 the new make"),
+              "5.6b an empty print fails, the PDF there untouched");
+        QDir(QFileInfo(target).absolutePath()).removeRecursively();
+    }
+
+    // 5.6b: the restamp's one rule (report_record.h restampedRecord), for the Session's commands and the unheld path.
+    {
+        pinpoint::ReportRead now;
+        now.recordState = pinpoint::ReportRead::State::Read;
+        now.record.fingerprint = QStringLiteral("before");
+        now.record.pdfName = QStringLiteral("a.pdf");
+        now.record.sha256 = QStringLiteral("abc");
+        const std::optional<pinpoint::ReportRecord> r = pinpoint::restampedRecord(now, QStringLiteral("after"));
+        check(r && r->fingerprint == QLatin1String("after") && r->pdfName == QLatin1String("a.pdf") && r->sha256 == QLatin1String("abc"),
+              "5.6b restamp: the fingerprint only, every other derived fact kept");
+        check(!pinpoint::restampedRecord(now, QStringLiteral("before")), "5.6b restamp: nothing when the fingerprint did not move");
+        now.recordState = pinpoint::ReportRead::State::Newer;
+        check(!pinpoint::restampedRecord(now, QStringLiteral("after")), "5.6b restamp: never a newer build's file");
+        now.recordState = pinpoint::ReportRead::State::Missing;
+        check(!pinpoint::restampedRecord(now, QStringLiteral("after")), "5.6b restamp: nothing without a record");
+    }
+
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");
     return g_fail ? 1 : 0;
 }

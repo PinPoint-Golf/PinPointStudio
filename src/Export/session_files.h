@@ -113,6 +113,8 @@ public:
     static QString reportInputFileName() { return QStringLiteral("report_input.json"); }
     static QString reportPdfSuffix() { return QStringLiteral("_session-report.pdf"); }
     static QString reportStillsFolderName() { return QStringLiteral("report-stills"); }
+    // The cache folder a make's PDF is printed into before the report command moves it into the session (step 5.6b).
+    static QString reportPrintFolderName() { return QStringLiteral("report-print"); }
 
     // The trunk ceremony (FILE-SESS-11; Studio/Rig's, in the session folder): "trunk_ceremony.json", and
     // "trunk_ceremony_<n>.json" for the earlier one of a resumed session, n from 2.

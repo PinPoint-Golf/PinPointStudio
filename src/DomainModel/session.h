@@ -58,6 +58,11 @@
 //     saveReport(record)                    FILE-SESS-07, the derived facts, at each make (the previous PDF of
 //                 another name removed); never writes or deletes FILE-SESS-13
 //     reportStillsFolder / reportStillsWriter(fingerprint)   FILE-SESS-09, the make's stills, saved with the report
+//     reportPrintTarget(pdfName)            where the print host writes the make's PDF: outside the library (5.6b)
+//     makeReport(make)                      THE REPORT COMMAND (refactor step 5.6b; OBJ-REPORT: "the report is a Session
+//                 command"): the printed PDF moved into the session (FILE-SESS-08; refused, the old PDF untouched, when it
+//                 cannot be), then recordReportMake (13), then saveReport (07). The report model saves a make through
+//                 this alone
 //     readReport()                          both files as read
 //     migrateReport()                       when its Athlete first holds it: an older report_meta.json split
 //                 (FILE-SESS-13 written and read back, then FILE-SESS-07 rewritten derived only); nothing for a
@@ -155,6 +160,8 @@ public:
     WriteResult       saveReport(const ReportRecord &record);
     QString           reportStillsFolder(const QString &fingerprint) const;
     ReportStillWriter reportStillsWriter(const QString &fingerprint) const;
+    QString           reportPrintTarget(const QString &pdfName);
+    WriteResult       makeReport(const ReportMake &make);
 
     // THE CLUB BASELINE FREEZE (refactor step 3.6; OBJ-CLUB-BASELINE, FILE-SESS-04; DEC-46, DEC-172; R-STAMP-4): the
     // session's recorded input, frozen ONCE at first need from the athlete level's computation (AthleteDiagnostics::
@@ -177,9 +184,19 @@ public:
     //                         nothing re-fires). A failure emits nothing
     //   archive(options)      both, synchronously, on this thread (a tool or a test; the app uses the halves)
     // `options.keepRaw` false drops the raw frames for good (SET-14 off: DEC-137). Housekeeping (src/App/housekeeping.h)
-    // is the app's caller.
-    SessionArchiveJob    archiveJob(const SessionArchiveOptions &options);
+    // is the app's caller, for its pass and for the Archiving tab's archive and restore of one session (refactor 5.6b).
+    //   restoreJob / restoreLanded   LC-SESSION's `restore` (EVT-19's command; refactor step 5.6b), in the same two halves:
+    //                         out until it lands (archiving(), archiveOut), so its diagnostics judge no stub meanwhile; the
+    //                         landing asks again what the hold owed (archiveBack(false)). EVT-19 is not emitted yet
+    // THE REPORT KEPT CURRENT (S-D6; refactor step 5.6b, the Solution Architect's option a, 23 Nov 2026): `keepReport`, the
+    // report's fingerprint as the report computes it now, given to either job. The job asks it whether the report is current
+    // BEFORE the rewrite; the landing of a rewrite that succeeded re-stamps FILE-SESS-07's fingerprint with its answer AFTER
+    // it (restampedRecord, through this Session's repository): the restamp is this Session's command, FILE-SESS-07's one
+    // writer. A report out of date before stays so; a failed rewrite re-stamps nothing.
+    SessionArchiveJob    archiveJob(const SessionArchiveOptions &options, const ReportFingerprintFn &keepReport = {});
     void                 archiveLanded(const SessionArchiveResult &result);
+    SessionArchiveJob    restoreJob(const ReportFingerprintFn &keepReport = {});
+    void                 restoreLanded(const SessionArchiveResult &result);
     SessionArchiveResult archive(const SessionArchiveOptions &options, const SessionArchiveProgress &progress = {});
 
     // This process started or resumed it, and has not ended it: what Athlete::startSession and resumeSession
@@ -242,6 +259,10 @@ private:
     void  hear(Shot *shot);
     // The session's input as its file holds it, each field it does not hold yet taken from `held` (J-33).
     SessionInput inputWith(const SessionInput &held) const;
+    // THE RESTAMP'S TWO HALVES (S-D6; refactor 5.6b): armed by a job (the report current before it, and how to ask again),
+    // carried out by its landing.
+    void armReportRestamp(const ReportFingerprintFn &keepReport);
+    void restampReport(bool rewriteOk);
 
     Athlete            *m_athlete  = nullptr;
     SessionRepository  *m_sessions = nullptr;
@@ -256,6 +277,8 @@ private:
     QSet<int>           m_announced;   // swing numbers whose EVT-01 has been emitted
     SessionDiagnostics *m_diagnostics = nullptr;   // its child (attach)
     int                 m_uses = 0;
+    ReportFingerprintFn m_keepReport;            // the job's (armReportRestamp); empty: nothing to keep current
+    bool                m_reportWasCurrent = false;
 };
 
 } // namespace pinpoint

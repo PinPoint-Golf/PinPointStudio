@@ -2071,19 +2071,6 @@ void SessionDiagnosticsModel::reportWriteSuccess()
     QMetaObject::invokeMethod(this, [this, dir] { emit ledgerWritesResumed(dir); }, Qt::QueuedConnection);
 }
 
-// ── Work-ons ────────────────────────────────────────────────────────────────────────────
-
-// The pack's facts, marshalled into work_ons.h's pack-agnostic inputs — which conditions are
-// movements a golfer can work on, the authored causal edges, where each is read — and the list
-// reduced from them: work_ons_pack.h, the ONE function the Charts Posture section's order reads too.
-SessionWorkOns SessionDiagnosticsModel::sessionWorkOns() const
-{
-    SessionWorkOns out = sessionWorkOnsForPack(m_packProv ? &m_packProv->pack() : nullptr, m_shots, m_ledgers);
-    out.sessionId = QFileInfo(m_sessionDir).fileName();
-    for (WorkOnEntry &e : out.entries) e.name = conditionName(e.id);
-    return out;
-}
-
 // ── Lookups and formatters ──────────────────────────────────────────────────────────────
 
 const ConditionLedger *SessionDiagnosticsModel::ledger(const QString &id) const

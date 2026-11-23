@@ -659,6 +659,16 @@ SessionArchiveResult SessionArchiveRun::archiveInOwnRun(const QString &sessionDi
     return run.sessions().archive(id, options, progress);
 }
 
+SessionArchiveResult SessionArchiveRun::restoreInOwnRun(const QString &sessionDir, const SessionArchiveProgress &progress)
+{
+    SessionArchiveRun run;
+    const SessionId id = run.openSession(sessionDir);
+    if (id.isNull())
+        ppWarn() << "[Archive] the session of" << sessionDir << "cannot be named (no session file, and no"
+                 << "athlete recorded for it)";
+    return run.sessions().restore(id, progress);
+}
+
 SessionArchiveResult SessionArchiveRun::keepReportCurrent(const QString &sessionDir, const ReportFingerprintFn &fingerprint,
                                                           const std::function<SessionArchiveResult()> &rewrite)
 {

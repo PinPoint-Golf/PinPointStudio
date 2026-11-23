@@ -355,6 +355,7 @@ int main(int argc, char *argv[])
     // lint A5's count for main.cpp 8 → 9, an allowlist change only Mark makes. Until he decides, it comes through the
     // Archiving tab, which already includes the archiver.
     sessionStore.setArchiveJobs(ArchiveController::archiveJobs());
+    sessionStore.setRestoreJobs(ArchiveController::restoreJobs());   // the restore's, the same way (refactor 5.6b)
     // Read-only app/build/dependency info for the About box (appInfo context property).
     AppInfo                  appInfo;
     SecretsBridge            secrets;

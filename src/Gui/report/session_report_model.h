@@ -37,19 +37,21 @@
 //      deliverySessionReportPayload, consistencySessionReportPayload) for those four pages — the swings as the golfer
 //      annotated them on the board, as the Charts tab publishes them (J-45) — and the Tendencies page's (the board's
 //      left-out readings and club overrides honoured: WorkOnsController::tendenciesAsOf with the pack's monitor measures);
-//   2. once all three have landed, the work-on list is derived FRESH (sessionWorkOns() over the owner's rows and
-//      ledgers, never work_ons.json, which can be stale after a delete), the same-day sessions' records are read for
+//   2. once all three have landed, the work-on list, the rows and the ledgers are THE OWNER'S, read through the Session
+//      (SessionDiagnostics::diagnosis and diagnosisInput: refactor step 5.6b, DEC-81 — no figure computed twice; never
+//      work_ons.json, which can be stale after a delete, and never re-reduced here), the same-day sessions' records are read for
 //      "Earlier today", and the pure reductions (src/Coaching/session_report.h) choose what to say. The launch monitor
 //      board's own model (a private LmSessionModel over the session's shots) is run once, and EVERY launch monitor
 //      figure — cover, numbers table, carry row, reference swing, appendix — reads its shots through report_lm.h, so
 //      a shot the golfer left out or re-labelled on the board is treated the same on every page (F-03);
 //   3. the stills are made off the GUI thread (ReportStills::renderAll) unless photos are off;
-//   4. the map is assembled (report_words.h holds every sentence template) and handed to the print host
-//      (printRequested); the host prints it and answers printFinished;
-//   5. the records are saved through the Session's commands (refactor step 5.6a: DEC-201, J-66): the note, the options and
-//      this make in the history in report_input.json (recordReportMake), and the derived facts — photos, the prepared
-//      time, the PDF's name, SHA-256 and size, the fingerprint — in report_meta.json (saveReport); the adapter is let go
-//      (with it the report's use of the Session), and made() / stateChanged() fire.
+//   4. the map is assembled in named parts (build: refactor step 5.6b; report_words.h holds every sentence template) and
+//      handed to the print host (printRequested), which prints it to the Session's print target, outside the library
+//      (Session::reportPrintTarget), and answers printFinished;
+//   5. THE REPORT COMMAND (Session::makeReport; refactor step 5.6b; DEC-201, J-66): the PDF moved into the session
+//      (FILE-SESS-08), the note, the options and this make in the history in report_input.json (FILE-SESS-13), and the
+//      derived facts — photos, the prepared time, the PDF's name, SHA-256 and size, the fingerprint — in report_meta.json
+//      (FILE-SESS-07); the adapter is let go (with it the report's use of the Session), and made() / stateChanged() fire.
 // prepare() runs 1–4 without the print, for the probe that dumps the map (tools/session-report-mock/
 // dump_report.qml) and for any surface that wants the words without a PDF.
 //
@@ -74,6 +76,7 @@
 #include <QPointer>
 #include <QString>
 #include <QVariantMap>
+#include <QVector>
 
 #include <functional>
 #include <memory>
@@ -82,6 +85,7 @@ class StudioProfile;
 class AthleteController;
 class SessionDiagnosticsModel;
 class ReportStills;
+struct StillResult;
 
 namespace pinpoint { class AthleteLevel; class Session; class ShotSource; }
 
@@ -175,7 +179,8 @@ private:
     void onDocsRead();
     void onChartsRead();
     void maybeBuild();
-    void build();
+    void build();                                          // the map, in named parts (refactor step 5.6b)
+    void onStillsMade(const QVector<StillResult> &results);
     void deliver();
     void fail(const QString &error);
     void finishJob();

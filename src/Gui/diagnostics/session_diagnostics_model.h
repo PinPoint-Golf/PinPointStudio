@@ -592,11 +592,8 @@ public:
 
     // ── Work-ons (docs/design/work_ons_design.md) ───────────────────────────────────
     //
-    // This session's 3–5 faults to work on and what it could say about every other condition,
-    // reduced from the SAME ledger the panel draws (work_ons.h) with the pack's kinds and causal
-    // edges marshalled in. A pure read, like conditionDetail(): no ratchet moves and nothing is
-    // written — WorkOnsController decides when to ask and where the answer is kept.
-    pinpoint::analysis::SessionWorkOns sessionWorkOns() const;
+    // No work-on list of its own (refactor step 5.6b; DEC-81: no figure computed twice): the session's list is its
+    // owner's reduction (SessionDiagnostics::diagnosis()->results.workOns), read through the Session.
     // What the rows are graded against, so a holder of this model can tell when a record it
     // derived earlier has gone stale. The same stamp gradedFrom carries.
     QString contentStamp() const { return computeContentStamp(); }

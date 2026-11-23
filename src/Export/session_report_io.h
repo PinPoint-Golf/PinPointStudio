@@ -71,6 +71,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <optional>
 #include <utility>
 
 namespace pinpoint::session_report_io {
@@ -373,15 +374,9 @@ auto keepCurrent(Read &&read, Write &&write, const std::function<QString()> &fin
 {
     const bool current = fingerprintNow && reportIsCurrent(read(), fingerprintNow());
     auto r = rewrite();
-    if (r.ok && current) {
-        const ReportRead now = read();
-        const QString fp = fingerprintNow();
-        if (now.hasRecord() && now.recordWritable() && now.record.fingerprint != fp) {
-            ReportRecord rec = now.record;
-            rec.fingerprint = fp;
-            write(rec);
-        }
-    }
+    if (r.ok && current)
+        if (const std::optional<ReportRecord> rec = restampedRecord(read(), fingerprintNow()))   // the one rule (report_record.h)
+            write(*rec);
     return r;
 }
 
@@ -404,6 +399,55 @@ inline QString stillsFolder(const QString &sessionDir, const QString &key)
         QCryptographicHash::hash((QDir::cleanPath(sessionDir) + key).toUtf8(), QCryptographicHash::Sha1).toHex().left(12));
     return (base.isEmpty() ? QDir::tempPath() : base) + QLatin1Char('/') + SessionFiles::reportStillsFolderName()
            + QLatin1Char('/') + h;
+}
+
+// ── FILE-SESS-08: the PDF (refactor step 5.6b) ─────────────────────────────────────────────────────────────────────
+
+// Where a make's PDF is printed before the report command moves it into the session: <Cache>/report-print/<sha1(folder),
+// 12 hex>/, outside the library (pure path text), so the print host never writes into the session folder.
+inline QString printFolder(const QString &sessionDir)
+{
+    const QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    const QString h = QString::fromLatin1(
+        QCryptographicHash::hash(QDir::cleanPath(sessionDir).toUtf8(), QCryptographicHash::Sha1).toHex().left(12));
+    return (base.isEmpty() ? QDir::tempPath() : base) + QLatin1Char('/') + SessionFiles::reportPrintFolderName()
+           + QLatin1Char('/') + h;
+}
+
+// The print's target for `pdfName`: the folder made (the PDF writer never makes one), any earlier print of the name gone.
+// "" when the name is no plain file name or the folder cannot be made.
+inline QString printTarget(const QString &sessionDir, const QString &pdfName)
+{
+    if (pdfName.isEmpty() || pdfName.contains(QLatin1Char('/')) || pdfName.contains(QLatin1Char('\\'))) return {};
+    const QString folder = printFolder(sessionDir);
+    if (!QDir().mkpath(folder)) return {};
+    const QString path = folder + QLatin1Char('/') + pdfName;
+    if (QFileInfo::exists(path)) QFile::remove(path);
+    return path;
+}
+
+// THE PDF INTO THE SESSION: `printed` copied to <session>/report/<pdfName> atomically under the session's lock (the
+// report folder made), then `printed` removed. On any failure the PDF already there is untouched and `printed` is kept.
+inline WriteResult placePdf(const QString &sessionDir, const QString &printed, const QString &pdfName)
+{
+    if (pdfName.isEmpty() || pdfName.contains(QLatin1Char('/')) || pdfName.contains(QLatin1Char('\\')))
+        return detail::failed(QStringLiteral("The report has no file name."));
+    QFile in(printed);
+    if (printed.isEmpty() || !in.open(QIODevice::ReadOnly))
+        return detail::failed(QStringLiteral("The printed report %1 could not be read.").arg(printed));
+    const QByteArray bytes = in.readAll();
+    in.close();
+    if (bytes.isEmpty())
+        return detail::failed(QStringLiteral("The printed report %1 is empty.").arg(printed));
+    FolderLock lock(sessionDir);
+    bool acquired = false;
+    const WriteResult l = detail::lockFor(lock, sessionDir, &acquired);   // the report folder made
+    if (!acquired || !l.ok()) return l;
+    const AtomicWriteResult w = atomicWrite(reportDir(sessionDir) + QLatin1Char('/') + pdfName, bytes,
+                                            AtomicWriteOptions::intoExistingFolder());
+    if (!w.ok) return detail::failed(w.error);
+    QFile::remove(printed);
+    return { WriteResult::Status::Written, {} };
 }
 
 // The still writer for one make's folder: any thread (file work only).

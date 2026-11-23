@@ -296,6 +296,16 @@ public:
         return j;
     }
     virtual void archiveLanded(const SessionId &id) { Q_UNUSED(id); }
+    // The restore's job, the same way (refactor step 5.6b: the Archiving tab's restore of a held session through its
+    // Session, LC-SESSION's `restore`): the check on the owner thread, refusing what `restore` refuses, and a worker-safe
+    // job; its landing is archiveLanded's (the held record reads the marker again). The default refuses.
+    virtual SessionArchiveJob restoreJob(const SessionId &id)
+    {
+        Q_UNUSED(id);
+        SessionArchiveJob j;
+        j.refused.error = QStringLiteral("Restoring is not available here.");
+        return j;
+    }
 
     // The whole session folder to the recoverable trash (the OS trash, else the library's own:
     // FILE-LIB-01). Refused while its session file says InProgress (Failed) or another writer holds its
@@ -356,6 +366,11 @@ public:
     //                        `migrated` says whether anything was written
     //   reportStillsFolder   FILE-SESS-09's folder for one make (`key`: its fingerprint), outside the library: pure path
     //   reportStillsWriter   a write of one still into that folder, for the renderer's workers (any thread)
+    //   reportPrintTarget    where the print host writes a make's PDF, OUTSIDE the library (refactor step 5.6b): the
+    //                        file's path in a folder of this session's own under the cache, the folder made; "" refused
+    //   placeReportPdf       FILE-SESS-08 (refactor step 5.6b): the printed PDF moved into the session's report folder
+    //                        as `pdfName`, atomically, under the session's lock; on any failure the PDF there is
+    //                        untouched. The printed file is removed once it is in place
     virtual ReportRead  readReport(const SessionId &id) { Q_UNUSED(id); return {}; }
     virtual WriteResult writeReportInput(const SessionId &id, const ReportInput &input)
     {
@@ -375,6 +390,12 @@ public:
     }
     virtual QString           reportStillsFolder(const SessionId &id, const QString &key) { Q_UNUSED(id); Q_UNUSED(key); return {}; }
     virtual ReportStillWriter reportStillsWriter(const SessionId &id, const QString &key) { Q_UNUSED(id); Q_UNUSED(key); return {}; }
+    virtual QString           reportPrintTarget(const SessionId &id, const QString &pdfName) { Q_UNUSED(id); Q_UNUSED(pdfName); return {}; }
+    virtual WriteResult       placeReportPdf(const SessionId &id, const QString &printedPdf, const QString &pdfName)
+    {
+        Q_UNUSED(id); Q_UNUSED(printedPdf); Q_UNUSED(pdfName);
+        return { WriteResult::Status::Failed, QStringLiteral("This library cannot save a report.") };
+    }
 
     // THE SESSION SUMMARY'S READ, FOR ANOTHER THREAD (refactor 3.7-f, J-57: the athlete level reads its summaries on its
     // lane): resolved here, on the repository's thread, into a read any thread may run once. The default reads now and

@@ -144,6 +144,8 @@ public:
     WriteResult       migrateReport(const SessionId &id, bool *migrated = nullptr) override;
     QString           reportStillsFolder(const SessionId &id, const QString &key) override;
     ReportStillWriter reportStillsWriter(const SessionId &id, const QString &key) override;
+    QString           reportPrintTarget(const SessionId &id, const QString &pdfName) override;
+    WriteResult       placeReportPdf(const SessionId &id, const QString &printedPdf, const QString &pdfName) override;
 
     // enumerate(), for a caller that holds an athlete's FOLDER rather than the athlete (the diagnostics model,
     // the work-ons controller and their tools, until step 3 keys them by SessionId; refactor step 2.7a). Every
@@ -161,7 +163,12 @@ public:
     using ArchiveJobs = std::function<SessionArchiveResult(const QString &sessionDir, const SessionArchiveOptions &options,
                                                            const SessionArchiveProgress &progress)>;
     void setArchiveJobs(ArchiveJobs jobs) { m_archiveJobs = std::move(jobs); }
+    // The restore's, the same way (refactor step 5.6b): today's restore of a session folder in a run of its own
+    // (SessionArchiveRun::restoreInOwnRun). Null: restoreJob refuses.
+    using RestoreJobs = std::function<SessionArchiveResult(const QString &sessionDir, const SessionArchiveProgress &progress)>;
+    void setRestoreJobs(RestoreJobs jobs) { m_restoreJobs = std::move(jobs); }
     SessionArchiveJob archiveJob(const SessionId &id, const SessionArchiveOptions &options) override;
+    SessionArchiveJob restoreJob(const SessionId &id) override;
     void              archiveLanded(const SessionId &id) override;
 
     // Today's athlete-folder derivation (until 2.3's Athlete::folder()). The Unassigned owner's is its own fixed name,
@@ -249,6 +256,7 @@ private:
     bool                        m_osTrash    = true;
     SessionArchiving           *m_archiving  = nullptr;
     ArchiveJobs                 m_archiveJobs;
+    RestoreJobs                 m_restoreJobs;
     CaptureEndOf                m_captureEndOf;
 };
 

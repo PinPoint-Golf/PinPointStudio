@@ -1913,7 +1913,10 @@ static void flightCheckedStrikesSuite(const QTemporaryDir &tmp)
     bool thinCard = false;
     for (const QVariant &c : m->cards()) thinCard = thinCard || c.toMap().value(QStringLiteral("id")).toString() == QStringLiteral("thin");
     check(!thinCard, "no Thin pattern card");
-    const SessionWorkOns rec = m->sessionWorkOns();
+    // The work-on list is the owner's (refactor 5.6b: the adapter no longer re-reduces one).
+    pinpoint::Session *ws = owner_rig::rigOfSession(dir).loadedAt(dir);
+    const SessionWorkOns rec = (ws && ws->diagnostics() && ws->diagnostics()->diagnosis())
+                                   ? ws->diagnostics()->diagnosis()->results.workOns : SessionWorkOns();
     const WorkOnEvidence *thinEv = rec.evidenceFor(QStringLiteral("thin"));
     check(thinEv && thinEv->fired == 1 && thinEv->assessable == 1, "work_ons.json: thin fired 1 of 1 judged, the eight overruled not judged");
     check(m->shotMix().value(QStringLiteral("line")).toString().count(QStringLiteral("thin")) == 1, "the session mix holds one thin");

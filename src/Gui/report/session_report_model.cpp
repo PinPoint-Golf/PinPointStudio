@@ -65,6 +65,8 @@
 #include "../../Export/swing_paths.h"
 #include "../../Export/swing_store.h"
 #include "../../DomainModel/session.h"   // the Session the report is saved through (5.6a)
+#include "../../DomainModel/session_diagnostics.h"   // its own diagnosis, read through it (5.6b)
+#include "../../DomainModel/shot.h"                  // a kept shot's folder (5.6b)
 #include "../../Export/session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
 #include "../../LaunchMonitor/launch_monitor_reading.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
@@ -309,7 +311,8 @@ struct SessionReportModel::Job {
     QVector<StillRequest> requests;
     QVector<StillSlot>  stillSlots;
     QPointer<pinpoint::Session> session;   // the Session the records and stills are saved through (5.6a)
-    QString             pdfPath;
+    QString             pdfPath;          // the PDF's place in the session (FILE-SESS-08)
+    QString             printPath;        // where the print host writes it first, outside the library (5.6b)
     QString             fingerprint;
     bool                photos = true;
     qint64              preparedMs = 0;
@@ -998,38 +1001,102 @@ QVariant workOnConsistencyOf(const Ctx &x, const Run &r, const QString &id, bool
 // The ball, the numbers table, the carry row, the reference swing's carry and the launch monitor appendix are
 // report_lm.h's, over the launch monitor board's own shots (F-03).
 
-} // namespace
+// ── THE MAP IN NAMED PARTS (refactor step 5.6b) ──────────────────────────────────────────────────────────────────────
+// SessionReportModel::build split as it moved onto the session: each part below is one piece of the report as the build
+// made it before, in the same order and with the same words, over one make's state (MapState). THE REPORT READS, IT DOES
+// NOT COMPUTE A FIGURE TWICE (DEC-81; the Solution Architect, 23 Nov 2026): the work-on list, the rows and the ledgers are
+// the session's own diagnosis, read through its Session (SessionDiagnostics::diagnosis, diagnosisInput), never the
+// adapter's copy; the selection rules only the report makes (Coaching/session_report.h) stay its own.
 
-void SessionReportModel::build()
+struct Sibling { QString dir; SessionWorkOns rec; bool ok = false; bool self = false; int swings = 0; };
+
+struct MapState {
+    Ctx                                          x;
+    std::shared_ptr<const SessionReductionInput> input;     // the rows x.shots points into (the owner's applied reduction)
+    std::vector<ConditionLedger>                 ledgers;   // the ledgers x.ledgers points into (the same reduction)
+    // The job's inputs, copied in.
+    QString     dir;
+    QVariantMap options;
+    bool        stills = true;
+    QVariantMap posture, wrist, delivery, consistency, tendencies;
+    // What the parts share.
+    QVariantMap                      map;
+    QVariantMap                      lmGraphics;
+    QString                          kind, clubWords, first, fileName, ofDay;
+    bool                             isReport = false, isNote = false;
+    QVariantMap                      athlete;
+    R::PhotoDecision                 photo;
+    std::vector<const WorkOnEntry *> wos;
+    QStringList                      perSwingIds, sessionIds;
+    std::vector<Run>                 runs;
+    std::vector<Sibling>             day;
+    int                              notSummedUp = 0, notSummedUpNewer = 0, otherGolfersToday = 0;
+    bool                             noGolfer = false;
+    R::ReferenceSwing                ref;
+    QStringList                      overCap;   // habits the list's cap left off
+    bool                             anyRuledOut = false;
+    // The stills (FILE-SESS-09): the make's folder and writer (the Session's), and the stills planned.
+    QString                     stillsDir, defaultCamera;
+    pinpoint::ReportStillWriter stillWriter;
+    bool                        wantStills = false;
+    QVector<StillRequest>       requests;
+    QVector<StillSlot>          stillSlots;
+    // What the print reads back.
+    int     refShotId = -1;
+    QString detailId;
+
+    bool hasCamera(const QString &cam) const
+    {
+        for (const QString &a : x.cameraAliases) if (cameraOfAlias(a) == cam) return true;
+        return false;
+    }
+    QString planStill(int workOn, int slot, int swing, const QString &camera, const QString &phase, const QString &line,
+                      bool addressLine)
+    {
+        StillRequest r;
+        r.swingDir = x.swings[size_t(swing)].dir;
+        r.camera = camera;
+        r.phase = phase;
+        r.line = line;
+        r.addressLine = addressLine;
+        r.write = stillWriter;
+        r.aspect = kStillAspect;
+        r.outPath = QDir(stillsDir).filePath(QStringLiteral("s%1_%2_%3%4%5.jpg").arg(x.swings[size_t(swing)].shotId, 4, 10, QLatin1Char('0'))
+                                                 .arg(camera, phase, line.isEmpty() ? QString() : QLatin1Char('_') + line,
+                                                      addressLine ? QStringLiteral("_a") : QString()));
+        requests << r;
+        stillSlots << StillSlot{ workOn, slot, r.outPath };
+        return fileUrl(r.outPath);
+    }
+};
+
+// THE SWING A DOCUMENT IS, THROUGH THE SESSION (refactor step 5.6b; never the adapter): each kept shot's folder as its Shot
+// names it, cleaned, to its swing number (gatherSwings falls back to the folder's own swing number, as before).
+QHash<QString, int> folderShots(pinpoint::Session &session, const std::vector<ShotRecord> &shots)
 {
-    Job &job = *m_job;
-    SessionDiagnosticsModel *m = m_model;
-    if (!m) { fail(QStringLiteral("The session went away while its report was being made.")); return; }   // B1
+    QHash<QString, int> out;
+    for (const ShotRecord &r : shots)
+        if (pinpoint::Shot *shot = session.shot(pinpoint::ShotRef(session.id(), r.shotId)))
+            if (!out.contains(QDir::cleanPath(shot->folder()))) out.insert(QDir::cleanPath(shot->folder()), r.shotId);
+    return out;
+}
 
-    // ── the pack, the ledger, the fresh work-on list ──
-    // The pack as it stands now (a coach's pack edit reaches the next report), loaded per make.
-    const std::unique_ptr<ICharacteristicPackProvider> packProv = makeCharacteristicPackProvider();
-    Ctx x;
-    x.pack    = &packProv->pack();
-    x.drills  = &sharedDrillSet();
-    // The gate words as they stand now, for the same reason as the pack: a studio's edit on the Gates
-    // page reaches the next report. No re-read here (refactor step 3.2): the Gates page's save is
-    // RuleData's command, which publishes the new set at once, so this make already reads it. A re-read
-    // per make would publish a snapshot (and an EVT-13) on every report, for nothing. A gate-words file
-    // edited by hand outside the app is read at the next launch, as every other rule-data file is.
-    x.gateWords = &sharedGateWordSet();
-    x.rpack   = R::reportPackOf(*x.pack);
-    x.model   = m;
-    x.shots   = &m->shotRecords();
-    x.ledgers = &m->ledgerRows();
-    x.workOns = m->sessionWorkOns();       // FRESH — never work_ons.json (§1)
-
-    // ── the swings, in the order hit ──
+// THE SWINGS, IN THE ORDER HIT: each swing document joined to its kept shot through the Session (folderShots), and the
+// device's name, the cameras, the golfer and the clubs off the documents. Whether any document carried a monitor block.
+bool gatherSwings(MapState &state, const QVector<DocFacts> &docs, const QHash<QString, int> &shotOfFolder)
+{
+    Ctx &x = state.x;
     QHash<int, int> idxOfShot;
     bool anyLmBlock = false;
     for (int i = 0; i < int(x.shots->size()); ++i) idxOfShot.insert((*x.shots)[size_t(i)].shotId, i);
-    for (const DocFacts &d : std::as_const(job.docs)) {
-        const int sid = m->shotIdForSwingDir(d.dir);
+    for (const DocFacts &d : docs) {
+        int sid = shotOfFolder.value(QDir::cleanPath(d.dir), -1);
+        // A folder of this session the Session spells differently: its swing number (step 2.7a), only inside this
+        // session's own folder (E-05) — the rule the adapter's shotIdForSwingDir kept.
+        if (sid < 0 && QFileInfo(QDir::cleanPath(d.dir)).path() == QDir::cleanPath(state.dir)) {
+            const int n = pinpoint::SwingPaths::swingNumberOf(QFileInfo(QDir::cleanPath(d.dir)).fileName());
+            if (n > 0) sid = n;
+        }
         if (sid < 0 || !idxOfShot.contains(sid)) continue;
         Ctx::Swing s;
         s.idx = idxOfShot.value(sid);
@@ -1056,19 +1123,25 @@ void SessionReportModel::build()
     }
     x.N = int(x.swings.size());
     std::sort(x.cameraAliases.begin(), x.cameraAliases.end());
-    if (x.N == 0) { fail(QStringLiteral("The session has no swings the diagnostics could read.")); return; }
+    return anyLmBlock;
+}
 
+// THE LAUNCH MONITOR: the board's own model over the session's shots (F-03). Its reduction moves with the board, when the
+// board becomes a presenter (refactor step 6; 5.6b's C11).
+void launchMonitorPart(MapState &state, bool anyLmBlock, const std::function<std::unique_ptr<pinpoint::ShotSource>(const QString &)> &sourceFor)
+{
+    Ctx &x = state.x;
+    QVariantMap &lmGraphics = state.lmGraphics;
     // ── the launch monitor: the board's own model over the session's shots (F-03) ──
     // A private shot list (the cheap load — the readings come off each swing's document, as the panel reads them) under
     // a private LmSessionModel: the same effective club per shot and the same shots left out as the golfer set on the
     // board. EVERY launch monitor figure in the report reads x.lm (report_lm.h) — the cover, the numbers table, the
     // carry row, the reference swing — and the appendix draws this model's graphics, so no page can count a shot
     // another page left out.
-    QVariantMap lmGraphics;
     if (anyLmBlock) {
         ShotListModel lmShots;
-        lmShots.setSourceFactory(m_shotSourceFor);   // a view over the Session being reported (step 5.2; R-QML-5)
-        lmShots.showSession(job.dir);
+        lmShots.setSourceFactory(sourceFor);   // a view over the Session being reported (step 5.2; R-QML-5)
+        lmShots.showSession(state.dir);
         LmSessionModel lmModel;
         lmModel.setReviewing(true);
         lmModel.setLeftHanded(x.leftHanded);
@@ -1084,54 +1157,29 @@ void SessionReportModel::build()
     }
     x.lmSwings = x.lm.measured;
     x.hasLm = x.lm.has();
+}
 
-    qint64 firstMs = 0;
-    for (const Ctx::Swing &s : x.swings) if (s.wallMs > 0) firstMs = firstMs == 0 ? s.wallMs : std::min(firstMs, s.wallMs);
-    x.sessionDate  = firstMs > 0 ? QDateTime::fromMSecsSinceEpoch(firstMs).date() : sessionDayOf(job.dir);   // §8.4: local zone
-    job.preparedMs = QDateTime::currentMSecsSinceEpoch();
-    x.preparedDate = QDateTime::fromMSecsSinceEpoch(job.preparedMs).date();
-    if (x.name.isEmpty()) x.name = QFileInfo(QFileInfo(job.dir).absolutePath()).fileName().replace(QLatin1Char('-'), QLatin1Char(' '));
-
-    const QVariantMap athlete = athleteFor(job.dir);
-    QString first = athlete.value(QStringLiteral("greeting")).toString();
-    if (first.isEmpty()) first = x.name.section(QLatin1Char(' '), 0, 0);
-    const QDate sessionDay = sessionDayOf(job.dir);
-    const R::PhotoDecision photo = photoDecisionFor(athlete, sessionDay.isValid() ? sessionDay : x.sessionDate);
-    job.photos = photo.included;
-    job.fingerprint = fingerprintOf(job.dir, /*atMake=*/true);   // "unread" said only here (R2-B1)
-
-    const QString kind = x.N < kNoteBelowSwings ? QStringLiteral("note")
-                       : x.workOns.entries.empty() ? QStringLiteral("clean") : QStringLiteral("report");
-    const bool isReport = kind == QLatin1String("report"), isNote = kind == QLatin1String("note");
-    const QString clubWords = W::clubsWords(x.clubs);
-
-    // The listed work-ons, and which of them are read swing by swing.
-    std::vector<const WorkOnEntry *> wos;
-    if (!isNote) for (const WorkOnEntry &e : x.workOns.entries) wos.push_back(&e);
-    QStringList perSwingIds, sessionIds;
-    for (const WorkOnEntry *e : wos) (x.sessionLevel(e->id) ? sessionIds : perSwingIds) << e->id;
-    std::vector<Run> runs;                 // per work-on, in rank order (empty spread for session-level)
-    for (const WorkOnEntry *e : wos) runs.push_back(x.sessionLevel(e->id) ? Run{} : runOf(x, e->id));
-
+// THE DAY: the same-day siblings (the kicker's "Session 3 of 3", and Earlier today), from the athlete level's summaries.
+void sameDayPart(MapState &state, pinpoint::AthleteLevel *athleteLevel)
+{
+    Ctx &x = state.x;
+    std::vector<Sibling> &day = state.day;
+    int &notSummedUp = state.notSummedUp, &notSummedUpNewer = state.notSummedUpNewer;
+    const bool noGolfer = state.noGolfer;
+    int &otherGolfersToday = state.otherGolfersToday;
     // ── same-day siblings (the kicker's "Session 3 of 3", and Earlier today) ──
     // The day's sessions are the athlete's sessions whose local day is this one's, in their order in the day:
     // SessionIdentity's day and n-of-day, by start time (step 2.7b, F-06) — never a folder name's date prefix,
     // which `name-date-type` never starts with (such a session was "Session 1 of 1" on a day of three).
-    struct Sibling { QString dir; SessionWorkOns rec; bool ok = false; bool self = false; int swings = 0; };
-    std::vector<Sibling> day;
     // Earlier sessions of the day with swings and no summary this build reads (J-51: said, below), by the owner's cause
     // (refactor 4-e): a newer build's (`notSummedUpNewer`), or stale or missing — the catch-up's (`notSummedUp`).
-    int notSummedUp = 0, notSummedUpNewer = 0;
     // A session with no golfer (step 5.1 review B1): its day's other sessions are other golfers' — never a sibling, never
     // numbered with it; Earlier today says why instead (when there were any), and the kicker has no "n of m".
-    const bool noGolfer = m_noGolfer && m_noGolfer(job.dir);
-    int otherGolfersToday = 0;
-    pinpoint::AthleteLevel *athleteLevel = (m_athleteDoor && !noGolfer) ? m_athleteDoor(job.dir) : nullptr;
     const QStringList newerFolders = athleteLevel ? athleteLevel->notSummedUp().newerFolders : QStringList();
     {
         const QList<pinpoint::SessionIndexEntry> index =
-            pinpoint::SessionDiagnosticsFiles::sessionPlaces(QFileInfo(job.dir).absolutePath());
-        const QDate today = pinpoint::SessionDiagnosticsFiles::placeOf(index, job.dir).day;
+            pinpoint::SessionDiagnosticsFiles::sessionPlaces(QFileInfo(state.dir).absolutePath());
+        const QDate today = pinpoint::SessionDiagnosticsFiles::placeOf(index, state.dir).day;
         std::vector<pinpoint::SessionIndexEntry> ofDay;
         for (const pinpoint::SessionIndexEntry &e : index)
             if (today.isValid() && e.identity.localDay() == today) ofDay.push_back(e);
@@ -1140,13 +1188,13 @@ void SessionReportModel::build()
         });
         if (ofDay.empty()) {   // not listed (no day known): the session alone, as before
             pinpoint::SessionIndexEntry self;
-            self.folder = job.dir;
+            self.folder = state.dir;
             ofDay.push_back(self);
         }
         for (const pinpoint::SessionIndexEntry &e : ofDay) {
             Sibling s;
             s.dir = QDir::cleanPath(QFileInfo(e.folder).absoluteFilePath());
-            s.self = s.dir == job.dir;
+            s.self = s.dir == state.dir;
             if (!s.self && noGolfer) {
                 ++otherGolfersToday;
                 continue;
@@ -1176,14 +1224,16 @@ void SessionReportModel::build()
     }
     int selfIndex = 0;
     for (size_t i = 0; i < day.size(); ++i) if (day[i].self) selfIndex = int(i) + 1;
-    const QString ofDay = W::sessionOfDay(selfIndex, int(day.size()), x.preparedDate == x.sessionDate);
+    state.ofDay = W::sessionOfDay(selfIndex, int(day.size()), x.preparedDate == x.sessionDate);
+}
 
-    QVariantMap map;
-    map[QStringLiteral("kind")] = kind;
-
+// THE BRAND: the studio's name, coach, contact and artwork.
+void brandPart(MapState &state, const StudioProfile *studio)
+{
+    QVariantMap &map = state.map;
     // ── brand ──
     {
-        const StudioProfile *st = m_studio;
+        const StudioProfile *st = studio;
         const QString studio = st && !st->studioName().trimmed().isEmpty() ? st->studioName().trimmed() : QStringLiteral("PinPoint Studio");
         const QString coach = st ? st->coachName().trimmed() : QString();
         const QString title = st ? st->coachTitle().trimmed() : QString();
@@ -1213,16 +1263,26 @@ void SessionReportModel::build()
             // The register's cache-buster: the logo and photo keep one file name when replaced.
             { QStringLiteral("stamp"), st ? st->stamp() : QString() } };
     }
+}
 
+// THE META (§8.4: both dates, never confused): the golfer, the dates, the file's and the email's names, the kicker.
+void metaPart(MapState &state, const StudioProfile *studio)
+{
+    Ctx &x = state.x;
+    QVariantMap &map = state.map;
+    const QString &first = state.first;
+    const QString &clubWords = state.clubWords;
+    const QString &ofDay = state.ofDay;
+    const QString &fileName = state.fileName;
     // ── meta (§8.4: both dates, never confused) ──
-    const QString fileName = M::reportFileName(x.sessionDate, x.name);
+    state.fileName = M::reportFileName(x.sessionDate, x.name);
     {
         QString subject = QStringLiteral("Your session report — ") + W::dayMonthYear(x.sessionDate);
-        if (m_studio && !m_studio->emailSubject().isEmpty())
-            subject = m_studio->fill(m_studio->emailSubject(), { { QStringLiteral("first"), first },
+        if (studio && !studio->emailSubject().isEmpty())
+            subject = studio->fill(studio->emailSubject(), { { QStringLiteral("first"), first },
                                                                  { QStringLiteral("date"), W::dayMonthYear(x.sessionDate) },
-                                                                 { QStringLiteral("coach"), m_studio->coachName() },
-                                                                 { QStringLiteral("studio"), m_studio->studioName() } });
+                                                                 { QStringLiteral("coach"), studio->coachName() },
+                                                                 { QStringLiteral("studio"), studio->studioName() } });
         map[QStringLiteral("meta")] = QVariantMap{
             { QStringLiteral("golfer"), x.name }, { QStringLiteral("first"), first },
             { QStringLiteral("date"), W::longDate(x.sessionDate) }, { QStringLiteral("dateShort"), W::shortDate(x.sessionDate) },
@@ -1236,7 +1296,21 @@ void SessionReportModel::build()
             { QStringLiteral("kicker"), W::kicker(x.sessionDate, clubWords, x.N, ofDay) },
             { QStringLiteral("runningHead"), W::runningHead(x.name, x.sessionDate, clubWords) } };
     }
+}
 
+// THE HEADLINE, the coach's note, the photos' line, the held conditions and the appendix switch.
+void headlinePart(MapState &state)
+{
+    Ctx &x = state.x;
+    QVariantMap &map = state.map;
+    const bool isNote = state.isNote;
+    const bool isReport = state.isReport;
+    const QStringList &perSwingIds = state.perSwingIds;
+    const QStringList &sessionIds = state.sessionIds;
+    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const R::PhotoDecision &photo = state.photo;
+    const QString &first = state.first;
+    const QVariantMap &athlete = state.athlete;
     // ── headline, note, photos, held, appendix ──
     {
         QString headline;
@@ -1253,7 +1327,7 @@ void SessionReportModel::build()
             headline = W::headline(int(perSwingIds.size()), int(sessionIds.size()), least, W::partWords(x.swingPos(wos.front()->id)), x.goal(wos.front()->id));
         }
         map[QStringLiteral("headline")]  = headline;
-        map[QStringLiteral("coachNote")] = job.options.value(QStringLiteral("note")).toString().trimmed();
+        map[QStringLiteral("coachNote")] = state.options.value(QStringLiteral("note")).toString().trimmed();
         map[QStringLiteral("photos")]    = QVariantMap{ { QStringLiteral("included"), photo.included },
                                                         { QStringLiteral("reason"), W::photoReason(int(photo.reason), first,
                                                               W::shortDate(QDate::fromString(athlete.value(QStringLiteral("photosApprovedOn")).toString(), Qt::ISODate))) } };
@@ -1265,7 +1339,16 @@ void SessionReportModel::build()
         map[QStringLiteral("held")] = held;
         map[QStringLiteral("appendix")] = !isNote;      // Mark, 20 Oct: always — the one-page note excepted
     }
+}
 
+// THE COVER'S COLUMNS: strengths, what we found, the work-ons in brief, what we are watching, the ball.
+void coverPart(MapState &state)
+{
+    Ctx &x = state.x;
+    QVariantMap &map = state.map;
+    const bool isNote = state.isNote;
+    const QString &kind = state.kind;
+    const std::vector<const WorkOnEntry *> &wos = state.wos;
     // ── the cover's columns ──
     {
         QVariantList strengths;
@@ -1306,49 +1389,42 @@ void SessionReportModel::build()
         map[QStringLiteral("watching")] = watching;
         map[QStringLiteral("ball")] = M::lmBallBlock(x.lm);
     }
+}
 
+// THE REFERENCE SWING (§6): the swing closest to the target on every habit, the carry breaking a tie.
+void referencePart(MapState &state)
+{
+    Ctx &x = state.x;
+    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const std::vector<Run> &runs = state.runs;
+    R::ReferenceSwing &ref = state.ref;
     // ── the reference swing (§6) ──
-    R::ReferenceSwing ref;
     {
         std::vector<R::HabitRun> hs;
         for (size_t i = 0; i < wos.size(); ++i) if (!runs[i].h.id.isEmpty()) hs.push_back(runs[i].h);
         // the carry in the launch monitor's figures: a left-out misread neither breaks the tie nor is "your longest"
         if (!hs.empty()) ref = R::referenceSwing(hs, M::lmReferenceCarry(x.lm));
     }
-    // THE STILLS (FILE-SESS-09; refactor step 5.6a): the make's folder and its writer are the Session's (outside the library,
-    // <Cache>/report-stills/<hash>/, as before). No Session: no stills, and each slot says so.
-    const QString stillsDir = job.session ? job.session->reportStillsFolder(job.fingerprint) : QString();
-    const pinpoint::ReportStillWriter stillWriter = job.session ? job.session->reportStillsWriter(job.fingerprint)
-                                                                : pinpoint::ReportStillWriter();
-    const bool wantStills = job.stills && photo.included && !isNote && !stillsDir.isEmpty() && stillWriter;
-    const QString defaultCamera = [&] {
-        for (const QString &a : x.cameraAliases) if (cameraOfAlias(a) == QLatin1String("dtl")) return QStringLiteral("dtl");
-        for (const QString &a : x.cameraAliases) if (cameraOfAlias(a) == QLatin1String("faceOn")) return QStringLiteral("faceOn");
-        return QString();
-    }();
-    auto hasCamera = [&](const QString &cam) {
-        for (const QString &a : x.cameraAliases) if (cameraOfAlias(a) == cam) return true;
-        return false;
-    };
-    auto planStill = [&](int workOn, int slot, int swing, const QString &camera, const QString &phase, const QString &line, bool addressLine) {
-        StillRequest r;
-        r.swingDir = x.swings[size_t(swing)].dir;
-        r.camera = camera;
-        r.phase = phase;
-        r.line = line;
-        r.addressLine = addressLine;
-        r.write = stillWriter;
-        r.aspect = kStillAspect;
-        r.outPath = QDir(stillsDir).filePath(QStringLiteral("s%1_%2_%3%4%5.jpg").arg(x.swings[size_t(swing)].shotId, 4, 10, QLatin1Char('0'))
-                                                 .arg(camera, phase, line.isEmpty() ? QString() : QLatin1Char('_') + line,
-                                                      addressLine ? QStringLiteral("_a") : QString()));
-        job.requests << r;
-        job.stillSlots << StillSlot{ workOn, slot, r.outPath };
-        return fileUrl(r.outPath);
-    };
+}
 
+// SWING BY SWING (page 2): the grid, its groups and caps, the carry row and the reference swing with its stills.
+void gridPart(MapState &state)
+{
+    Ctx &x = state.x;
+    QVariantMap &map = state.map;
+    const bool isNote = state.isNote;
+    const bool isReport = state.isReport;
+    const QStringList &perSwingIds = state.perSwingIds;
+    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const R::ReferenceSwing &ref = state.ref;
+    QStringList &overCap = state.overCap;
+    const bool wantStills = state.wantStills;
+    const QString &defaultCamera = state.defaultCamera;
+    auto planStill = [&state](int workOn, int slot, int swing, const QString &camera, const QString &phase,
+                              const QString &line, bool addressLine) {
+        return state.planStill(workOn, slot, swing, camera, phase, line, addressLine);
+    };
     // ── Swing by swing (page 2) ──
-    QStringList overCap;                  // habits the list's cap left off
     if (!isNote) {
         QVariantList rows;
         QVariantMap more;
@@ -1422,7 +1498,7 @@ void SessionReportModel::build()
             grid[QStringLiteral("bestText")] = W::referenceText(x.no(ref.index), x.hasLm, M::lmReferenceFigure(x.lm, ref.index, QStringLiteral("lm.carryDistance")),
                                                                M::lmReferenceFigure(x.lm, ref.index, QStringLiteral("lm.ballSpeed")), ref.longest,
                                                                int(ref.inside.size()), ref.judgedOn);
-            job.refShotId = s.shotId;
+            state.refShotId = s.shotId;
             if (wantStills && !defaultCamera.isEmpty()) {
                 QVariantList srcs, labels;
                 const QStringList phases{ QStringLiteral("P1"), QStringLiteral("P4"), QStringLiteral("P7"), QStringLiteral("P10") };
@@ -1438,7 +1514,19 @@ void SessionReportModel::build()
     } else {
         map[QStringLiteral("grid")] = kNull;
     }
+}
 
+// EARLIER TODAY: today's work-ons and habits against the day's earlier sessions' summaries.
+void todayPart(MapState &state)
+{
+    Ctx &x = state.x;
+    QVariantMap &map = state.map;
+    const bool isNote = state.isNote;
+    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const std::vector<Sibling> &day = state.day;
+    const int notSummedUp = state.notSummedUp, notSummedUpNewer = state.notSummedUpNewer;
+    const bool noGolfer = state.noGolfer;
+    const int otherGolfersToday = state.otherGolfersToday;
     // ── Earlier today ──
     {
         QVariant today = kNull;
@@ -1506,9 +1594,17 @@ void SessionReportModel::build()
         }
         map[QStringLiteral("today")] = today;
     }
+}
 
+// WHY THIS ORDER (page 3), and what is worth checking next time.
+void orderPart(MapState &state)
+{
+    Ctx &x = state.x;
+    QVariantMap &map = state.map;
+    const bool isReport = state.isReport;
+    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    QStringList &overCap = state.overCap;
     // ── Why this order (page 3) ──
-    bool anyRuledOut = false;
     if (isReport) {
         const R::OrderExplanation ox = R::explainOrder(x.workOns, *x.ledgers, x.rpack);
         const int why = ox.whyNot == R::LinksUntestable::Testable ? 0 : ox.whyNot == R::LinksUntestable::NoLinks ? 1
@@ -1618,7 +1714,26 @@ void SessionReportModel::build()
         map[QStringLiteral("order")] = kNull;
         map[QStringLiteral("checks")] = QVariantList();
     }
+}
 
+// THE WORK-ON PAGES: per work-on, what we saw, its consistency, its run chart and target, its pictures, what came with
+// it and what might be behind it. The habit runs and the session-level work-on's sentences are the diagnostics panel's
+// spread readout (SessionDiagnosticsModel::spreadOf, corridorOf, sequenceConsistency) until it is its own item (5.6b B5/B6).
+void workOnPagesPart(MapState &state, const SessionDiagnosticsModel *m)
+{
+    Ctx &x = state.x;
+    QVariantMap &map = state.map;
+    const bool isReport = state.isReport;
+    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const std::vector<Run> &runs = state.runs;
+    const bool wantStills = state.wantStills;
+    const QString &defaultCamera = state.defaultCamera;
+    bool &anyRuledOut = state.anyRuledOut;
+    auto hasCamera = [&state](const QString &cam) { return state.hasCamera(cam); };
+    auto planStill = [&state](int workOn, int slot, int swing, const QString &camera, const QString &phase,
+                              const QString &line, bool addressLine) {
+        return state.planStill(workOn, slot, swing, camera, phase, line, addressLine);
+    };
     // ── The work-on pages ──
     {
         QVariantList pages;
@@ -1806,14 +1921,29 @@ void SessionReportModel::build()
             pages << w;
         }
         map[QStringLiteral("workOns")] = pages;
-        job.detailId = wos.empty() ? QString() : wos.front()->id;
+        state.detailId = wos.empty() ? QString() : wos.front()->id;
     }
+}
 
+// BETWEEN NOW AND NEXT TIME, the numbers and the launch monitor appendix, then the Charts pages (Posture with its
+// picture strip, Wrist, Club delivery), Tendencies and Consistency, each numbered as the report numbers its swings.
+void pagesPart(MapState &state, const StudioProfile *studio)
+{
+    Ctx &x = state.x;
+    QVariantMap &map = state.map;
+    const bool isReport = state.isReport;
+    const bool isNote = state.isNote;
+    const QStringList &perSwingIds = state.perSwingIds;
+    const bool wantStills = state.wantStills;
+    const QString &stillsDir = state.stillsDir;
+    const pinpoint::ReportStillWriter &stillWriter = state.stillWriter;
+    const R::PhotoDecision &photo = state.photo;
+    const QVariantMap &lmGraphics = state.lmGraphics;
     // ── Between now and next time, the numbers, About this report ──
     {
         QVariant practice = kNull;
-        if (isReport && m_studio) {
-            QVariantList steps = m_studio->practiceSteps();
+        if (isReport && studio) {
+            QVariantList steps = studio->practiceSteps();
             while (steps.size() > kPracticeCap) steps.removeLast();
             if (!steps.isEmpty()) practice = QVariantMap{ { QStringLiteral("title"), QStringLiteral("How to practice a change") }, { QStringLiteral("steps"), steps } };
         }
@@ -1840,14 +1970,14 @@ void SessionReportModel::build()
         } else {
             QHash<QString, int> swingNoOfDir;
             for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), x.no(k));
-            QVariant po = M::postureReportBlock(job.posture, swingNoOfDir);
+            QVariant po = M::postureReportBlock(state.posture, swingNoOfDir);
             // the picture strip's stills (posture_chart_design.md §5.4): made in the stills pass below, cut at the
             // picture's own crop; with no photos in this report the strip is left out and the page says so
             QVariantMap pm = po.toMap();
             if (!pm.isEmpty() && pm.value(QStringLiteral("picture")).typeId() == QMetaType::QVariantMap) {
                 if (!wantStills) {
                     pm[QStringLiteral("picture")] = kNull;
-                    pm[QStringLiteral("pictureWhy")] = QStringList{ job.stills && !photo.included
+                    pm[QStringLiteral("pictureWhy")] = QStringList{ state.stills && !photo.included
                         ? QStringLiteral("The picture strip is left out: this report carries no photos.")
                         : QStringLiteral("The picture strip is left out: pictures were not made for this report.") };
                 } else {
@@ -1865,9 +1995,9 @@ void SessionReportModel::build()
                                                                                   QCryptographicHash::Sha1).toHex().left(10)),
                                      fm.value(QStringLiteral("key")).toString())
                                 .arg(still.value(QStringLiteral("x")).toInt()).arg(still.value(QStringLiteral("y")).toInt()));
-                            job.requests << stillRequestOf(still, out);
-                            job.requests.last().write = stillWriter;
-                            job.stillSlots << StillSlot{ kPostureStillSlot, g * kPostureFramesPerGroup + f, out };
+                            state.requests << stillRequestOf(still, out);
+                            state.requests.last().write = stillWriter;
+                            state.stillSlots << StillSlot{ kPostureStillSlot, g * kPostureFramesPerGroup + f, out };
                             fm[QStringLiteral("src")] = fileUrl(out);
                             frames[f] = fm;
                         }
@@ -1889,7 +2019,7 @@ void SessionReportModel::build()
         } else {
             QHash<QString, int> swingNoOfDir;
             for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), x.no(k));
-            map[QStringLiteral("wrist")] = M::wristReportBlock(job.wrist, swingNoOfDir);
+            map[QStringLiteral("wrist")] = M::wristReportBlock(state.wrist, swingNoOfDir);
         }
 
         // The Club delivery page (club_delivery_chart_design.md §4.8): the Charts Club delivery section's Session reading,
@@ -1900,13 +2030,13 @@ void SessionReportModel::build()
         } else {
             QHash<QString, int> swingNoOfDir;
             for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), x.no(k));
-            map[QStringLiteral("delivery")] = M::deliveryReportBlock(job.delivery, swingNoOfDir,
+            map[QStringLiteral("delivery")] = M::deliveryReportBlock(state.delivery, swingNoOfDir,
                 [](double lo, double hi, int n, const QString &unit) { return pinpoint::charts::ChartsRelationsPresenter::axisTicks(lo, hi, n, unit); });
         }
 
         // The Tendencies page (shot_outcomes_design.md §7.2): each club as it stood at this session. Not in a note; absent
         // when no session up to this one has a club to read.
-        map[QStringLiteral("tendencies")] = (isNote || job.tendencies.isEmpty()) ? kNull : QVariant(job.tendencies);
+        map[QStringLiteral("tendencies")] = (isNote || state.tendencies.isEmpty()) ? kNull : QVariant(state.tendencies);
 
         // The Consistency page (consistency_design.md §3, Print): the Consistency tab's table and the launch monitor's
         // flagged shots, numbered as the report numbers its swings. Not in a note (the cover alone); absent when the
@@ -1916,9 +2046,20 @@ void SessionReportModel::build()
         } else {
             QHash<QString, int> swingNoOfDir;
             for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), x.no(k));
-            map[QStringLiteral("consistency")] = M::consistencyReportBlock(job.consistency, swingNoOfDir);
+            map[QStringLiteral("consistency")] = M::consistencyReportBlock(state.consistency, swingNoOfDir);
         }
+    }
+}
 
+// ABOUT THIS REPORT: the dates, what was measured, the ranges, what we could not check, the words, the footnote.
+void aboutPart(MapState &state)
+{
+    Ctx &x = state.x;
+    QVariantMap &map = state.map;
+    const bool isNote = state.isNote;
+    const QString &clubWords = state.clubWords;
+    const bool anyRuledOut = state.anyRuledOut;
+    const R::PhotoDecision &photo = state.photo;
         if (isNote) {
             map[QStringLiteral("about")] = kNull;
         } else {
@@ -1973,89 +2114,204 @@ void SessionReportModel::build()
                 { QStringLiteral("words"), glossary },
                 { QStringLiteral("footnote"), W::aboutFootnote(photo.included) } };
         }
-    }
+}
 
-    job.map = map;
-    job.pdfPath = QDir(M::reportDir(job.dir)).filePath(fileName);
+} // namespace
+
+void SessionReportModel::build()
+{
+    Job &job = *m_job;
+    SessionDiagnosticsModel *m = m_model;
+    if (!m) { fail(QStringLiteral("The session went away while its report was being made.")); return; }   // B1
+
+    // ── THE SESSION'S OWN DIAGNOSIS, THROUGH ITS SESSION (refactor step 5.6b; DEC-81) ──
+    // The rows, the ledgers and the work-on list of the owner's applied reduction — the one the adapter mirrors, never
+    // recomputed here (the work-on list was re-reduced from the adapter's rows before: sessionWorkOns()).
+    pinpoint::Session *session = job.session ? job.session.data() : qobject_cast<pinpoint::Session *>(m->parent());
+    const pinpoint::SessionDiagnostics *owner = session ? session->diagnostics() : nullptr;
+    const SessionDiagnosis *diagnosis = owner ? owner->diagnosis() : nullptr;
+    const std::shared_ptr<const SessionReductionInput> input = owner ? owner->diagnosisInput() : nullptr;
+    if (!session || !diagnosis || !input) { fail(QStringLiteral("The session has no swings the diagnostics could read.")); return; }
+
+    // ── the pack, the ledger, the work-on list ──
+    // The pack as it stands now (a coach's pack edit reaches the next report), loaded per make.
+    const std::unique_ptr<ICharacteristicPackProvider> packProv = makeCharacteristicPackProvider();
+    MapState state;
+    Ctx &x = state.x;
+    x.pack    = &packProv->pack();
+    x.drills  = &sharedDrillSet();
+    // The gate words as they stand now, for the same reason as the pack: a studio's edit on the Gates
+    // page reaches the next report. No re-read here (refactor step 3.2): the Gates page's save is
+    // RuleData's command, which publishes the new set at once, so this make already reads it. A re-read
+    // per make would publish a snapshot (and an EVT-13) on every report, for nothing. A gate-words file
+    // edited by hand outside the app is read at the next launch, as every other rule-data file is.
+    x.gateWords = &sharedGateWordSet();
+    x.rpack   = R::reportPackOf(*x.pack);
+    x.model   = m;                          // the panel's spread readout only (workOnPagesPart, runOf)
+    state.input   = input;
+    state.ledgers = diagnosis->ledgers;
+    x.shots   = &state.input->shots;
+    x.ledgers = &state.ledgers;
+    x.workOns = diagnosis->results.workOns;   // the owner's (its summary's): never work_ons.json, never re-reduced
+    state.dir = job.dir;
+    state.options = job.options;
+    state.stills = job.stills;
+    state.posture = job.posture;
+    state.wrist = job.wrist;
+    state.delivery = job.delivery;
+    state.consistency = job.consistency;
+    state.tendencies = job.tendencies;
+
+    const bool anyLmBlock = gatherSwings(state, job.docs, folderShots(*session, state.input->shots));
+    if (x.N == 0) { fail(QStringLiteral("The session has no swings the diagnostics could read.")); return; }
+    launchMonitorPart(state, anyLmBlock, m_shotSourceFor);
+
+    // ── the dates, the golfer, the photos, the kind of report, the work-ons ──
+    qint64 firstMs = 0;
+    for (const Ctx::Swing &s : x.swings) if (s.wallMs > 0) firstMs = firstMs == 0 ? s.wallMs : std::min(firstMs, s.wallMs);
+    x.sessionDate  = firstMs > 0 ? QDateTime::fromMSecsSinceEpoch(firstMs).date() : sessionDayOf(job.dir);   // §8.4: local zone
+    job.preparedMs = QDateTime::currentMSecsSinceEpoch();
+    x.preparedDate = QDateTime::fromMSecsSinceEpoch(job.preparedMs).date();
+    if (x.name.isEmpty()) x.name = QFileInfo(QFileInfo(job.dir).absolutePath()).fileName().replace(QLatin1Char('-'), QLatin1Char(' '));
+
+    state.athlete = athleteFor(job.dir);
+    state.first = state.athlete.value(QStringLiteral("greeting")).toString();
+    if (state.first.isEmpty()) state.first = x.name.section(QLatin1Char(' '), 0, 0);
+    const QDate sessionDay = sessionDayOf(job.dir);
+    state.photo = photoDecisionFor(state.athlete, sessionDay.isValid() ? sessionDay : x.sessionDate);
+    job.photos = state.photo.included;
+    job.fingerprint = fingerprintOf(job.dir, /*atMake=*/true);   // "unread" said only here (R2-B1)
+
+    state.kind = x.N < kNoteBelowSwings ? QStringLiteral("note")
+               : x.workOns.entries.empty() ? QStringLiteral("clean") : QStringLiteral("report");
+    state.isReport = state.kind == QLatin1String("report");
+    state.isNote = state.kind == QLatin1String("note");
+    state.clubWords = W::clubsWords(x.clubs);
+
+    // The listed work-ons, and which of them are read swing by swing.
+    if (!state.isNote) for (const WorkOnEntry &e : x.workOns.entries) state.wos.push_back(&e);
+    for (const WorkOnEntry *e : state.wos) (x.sessionLevel(e->id) ? state.sessionIds : state.perSwingIds) << e->id;
+    // per work-on, in rank order (empty spread for session-level)
+    for (const WorkOnEntry *e : state.wos) state.runs.push_back(x.sessionLevel(e->id) ? Run{} : runOf(x, e->id));
+
+    // A session with no golfer (step 5.1 review B1): no athlete level, no siblings.
+    state.noGolfer = m_noGolfer && m_noGolfer(job.dir);
+    sameDayPart(state, (m_athleteDoor && !state.noGolfer) ? m_athleteDoor(job.dir) : nullptr);
+
+    state.map[QStringLiteral("kind")] = state.kind;
+    brandPart(state, m_studio);
+    metaPart(state, m_studio);
+    headlinePart(state);
+    coverPart(state);
+    referencePart(state);
+
+    // THE STILLS (FILE-SESS-09; refactor step 5.6a): the make's folder and its writer are the Session's (outside the library,
+    // <Cache>/report-stills/<hash>/, as before).
+    state.stillsDir = session->reportStillsFolder(job.fingerprint);
+    state.stillWriter = session->reportStillsWriter(job.fingerprint);
+    state.wantStills = job.stills && state.photo.included && !state.isNote && !state.stillsDir.isEmpty() && state.stillWriter;
+    state.defaultCamera = [&] {
+        for (const QString &a : x.cameraAliases) if (cameraOfAlias(a) == QLatin1String("dtl")) return QStringLiteral("dtl");
+        for (const QString &a : x.cameraAliases) if (cameraOfAlias(a) == QLatin1String("faceOn")) return QStringLiteral("faceOn");
+        return QString();
+    }();
+
+    gridPart(state);
+    todayPart(state);
+    orderPart(state);
+    workOnPagesPart(state, m);
+    pagesPart(state, m_studio);
+    aboutPart(state);
+
+    job.map = state.map;
+    job.requests = state.requests;
+    job.stillSlots = state.stillSlots;
+    job.refShotId = state.refShotId;
+    job.detailId = state.detailId;
+    job.pdfPath = QDir(M::reportDir(job.dir)).filePath(state.fileName);
 
     if (job.requests.isEmpty()) { deliver(); return; }
     if (!m_stills) {
         m_stills = new ReportStills(this);
-        connect(m_stills, &ReportStills::finished, this, [this](const QVector<StillResult> &results) {
-            if (!m_job) return;
-            // Each slot's picture: the file the still was written to, or an empty frame with the honest
-            // note when it could not be made (PpStill draws a missing file as an empty frame).
-            QHash<QString, StillResult> byPath;
-            for (const StillResult &r : results) byPath.insert(r.path.isEmpty() ? QString() : QDir::cleanPath(r.path), r);
-            QVariantMap &mp = m_job->map;
-            QVariantList wos = mp.value(QStringLiteral("workOns")).toList();
-            QVariantMap grid = mp.value(QStringLiteral("grid")).toMap();
-            QVariantList best = grid.value(QStringLiteral("bestStills")).toList();
-            int made = 0;
-            for (int i = 0; i < m_job->stillSlots.size(); ++i) {
-                const StillSlot &s = m_job->stillSlots[i];
-                const StillResult r = i < results.size() ? results[i] : byPath.value(QDir::cleanPath(s.outPath));
-                const bool ok = r.ok && !r.path.isEmpty();   // saved through the Session's writer
-                if (ok) ++made;
-                else ppWarn() << "[Report] still not made:" << s.outPath << r.error;
-                if (s.workOn == kPostureStillSlot) {
-                    // the posture picture's frame: no picture → an empty frame and the honest note
-                    if (ok) continue;
-                    QVariantMap pm = mp.value(QStringLiteral("posture")).toMap();
-                    QVariantMap pic = pm.value(QStringLiteral("picture")).toMap();
-                    QVariantList groups = pic.value(QStringLiteral("groups")).toList();
-                    const int g = s.index / kPostureFramesPerGroup, f = s.index % kPostureFramesPerGroup;
-                    if (g < groups.size()) {
-                        QVariantMap gm = groups[g].toMap();
-                        QVariantList frames = gm.value(QStringLiteral("frames")).toList();
-                        if (f < frames.size()) {
-                            QVariantMap fm = frames[f].toMap();
-                            fm[QStringLiteral("src")] = QString();
-                            fm[QStringLiteral("imageWhy")] = QStringLiteral("The frame could not be read%1.")
-                                .arg(r.error.isEmpty() ? QString() : QStringLiteral(": ") + r.error);
-                            frames[f] = fm;
-                        }
-                        gm[QStringLiteral("frames")] = frames;
-                        groups[g] = gm;
-                    }
-                    pic[QStringLiteral("groups")] = groups;
-                    pm[QStringLiteral("picture")] = pic;
-                    mp[QStringLiteral("posture")] = pm;
-                    continue;
-                }
-                if (s.workOn < 0) {
-                    if (s.index < best.size() && !ok) best[s.index] = QString();
-                    continue;
-                }
-                if (s.workOn >= wos.size()) continue;
-                QVariantMap w = wos[s.workOn].toMap();
-                QVariantList st = w.value(QStringLiteral("stills")).toList();
-                if (s.index < st.size()) {
-                    QVariantMap one = st[s.index].toMap();
-                    if (!ok) one[QStringLiteral("src")] = QString();
-                    if (!r.note.isEmpty()) {
-                        QString add = W::cap1(r.note.trimmed());
-                        if (!add.endsWith(QLatin1Char('.')) && !add.endsWith(QLatin1Char('!')) && !add.endsWith(QLatin1Char('?'))) add += QLatin1Char('.');
-                        const QString n = one.value(QStringLiteral("note")).toString();
-                        one[QStringLiteral("note")] = n.isEmpty() ? add : n + QLatin1Char(' ') + add;
-                    }
-                    st[s.index] = one;
-                }
-                w[QStringLiteral("stills")] = st;
-                wos[s.workOn] = w;
-            }
-            // A reference swing with no picture at all is left out (empty means absent).
-            bool anyBest = false;
-            for (const QVariant &b : std::as_const(best)) anyBest = anyBest || !b.toString().isEmpty();
-            grid[QStringLiteral("bestStills")] = anyBest ? best : QVariantList();
-            if (!anyBest) grid[QStringLiteral("bestLabels")] = QVariantList();
-            mp[QStringLiteral("grid")] = grid;
-            mp[QStringLiteral("workOns")] = wos;
-            ppInfo() << "[Report]" << made << "of" << m_job->stillSlots.size() << "stills made";
-            deliver();
-        });
+        connect(m_stills, &ReportStills::finished, this, &SessionReportModel::onStillsMade);
     }
     m_stills->renderAll(job.requests);
+}
+
+// The stills landed: each slot's picture, or an empty frame and the honest note; then the map is delivered.
+void SessionReportModel::onStillsMade(const QVector<StillResult> &results)
+{
+    if (!m_job) return;
+    // Each slot's picture: the file the still was written to, or an empty frame with the honest
+    // note when it could not be made (PpStill draws a missing file as an empty frame).
+    QHash<QString, StillResult> byPath;
+    for (const StillResult &r : results) byPath.insert(r.path.isEmpty() ? QString() : QDir::cleanPath(r.path), r);
+    QVariantMap &mp = m_job->map;
+    QVariantList wos = mp.value(QStringLiteral("workOns")).toList();
+    QVariantMap grid = mp.value(QStringLiteral("grid")).toMap();
+    QVariantList best = grid.value(QStringLiteral("bestStills")).toList();
+    int made = 0;
+    for (int i = 0; i < m_job->stillSlots.size(); ++i) {
+        const StillSlot &s = m_job->stillSlots[i];
+        const StillResult r = i < results.size() ? results[i] : byPath.value(QDir::cleanPath(s.outPath));
+        const bool ok = r.ok && !r.path.isEmpty();   // saved through the Session's writer
+        if (ok) ++made;
+        else ppWarn() << "[Report] still not made:" << s.outPath << r.error;
+        if (s.workOn == kPostureStillSlot) {
+            // the posture picture's frame: no picture → an empty frame and the honest note
+            if (ok) continue;
+            QVariantMap pm = mp.value(QStringLiteral("posture")).toMap();
+            QVariantMap pic = pm.value(QStringLiteral("picture")).toMap();
+            QVariantList groups = pic.value(QStringLiteral("groups")).toList();
+            const int g = s.index / kPostureFramesPerGroup, f = s.index % kPostureFramesPerGroup;
+            if (g < groups.size()) {
+                QVariantMap gm = groups[g].toMap();
+                QVariantList frames = gm.value(QStringLiteral("frames")).toList();
+                if (f < frames.size()) {
+                    QVariantMap fm = frames[f].toMap();
+                    fm[QStringLiteral("src")] = QString();
+                    fm[QStringLiteral("imageWhy")] = QStringLiteral("The frame could not be read%1.")
+                        .arg(r.error.isEmpty() ? QString() : QStringLiteral(": ") + r.error);
+                    frames[f] = fm;
+                }
+                gm[QStringLiteral("frames")] = frames;
+                groups[g] = gm;
+            }
+            pic[QStringLiteral("groups")] = groups;
+            pm[QStringLiteral("picture")] = pic;
+            mp[QStringLiteral("posture")] = pm;
+            continue;
+        }
+        if (s.workOn < 0) {
+            if (s.index < best.size() && !ok) best[s.index] = QString();
+            continue;
+        }
+        if (s.workOn >= wos.size()) continue;
+        QVariantMap w = wos[s.workOn].toMap();
+        QVariantList st = w.value(QStringLiteral("stills")).toList();
+        if (s.index < st.size()) {
+            QVariantMap one = st[s.index].toMap();
+            if (!ok) one[QStringLiteral("src")] = QString();
+            if (!r.note.isEmpty()) {
+                QString add = W::cap1(r.note.trimmed());
+                if (!add.endsWith(QLatin1Char('.')) && !add.endsWith(QLatin1Char('!')) && !add.endsWith(QLatin1Char('?'))) add += QLatin1Char('.');
+                const QString n = one.value(QStringLiteral("note")).toString();
+                one[QStringLiteral("note")] = n.isEmpty() ? add : n + QLatin1Char(' ') + add;
+            }
+            st[s.index] = one;
+        }
+        w[QStringLiteral("stills")] = st;
+        wos[s.workOn] = w;
+    }
+    // A reference swing with no picture at all is left out (empty means absent).
+    bool anyBest = false;
+    for (const QVariant &b : std::as_const(best)) anyBest = anyBest || !b.toString().isEmpty();
+    grid[QStringLiteral("bestStills")] = anyBest ? best : QVariantList();
+    if (!anyBest) grid[QStringLiteral("bestLabels")] = QVariantList();
+    mp[QStringLiteral("grid")] = grid;
+    mp[QStringLiteral("workOns")] = wos;
+    ppInfo() << "[Report]" << made << "of" << m_job->stillSlots.size() << "stills made";
+    deliver();
 }
 
 // The map is whole: hand it over (prepare) or to the print host (make).
@@ -2077,8 +2333,10 @@ void SessionReportModel::deliver()
         fail(QStringLiteral("There is no print host to lay the report out."));
         return;
     }
-    if (!QDir().mkpath(M::reportDir(job.dir))) {
-        fail(QStringLiteral("The report folder could not be made in the session."));
+    // THE PRINT'S TARGET IS THE SESSION'S (refactor step 5.6b): outside the library; the report command moves the PDF in.
+    job.printPath = job.session ? job.session->reportPrintTarget(QFileInfo(job.pdfPath).fileName()) : QString();
+    if (job.printPath.isEmpty()) {
+        fail(QStringLiteral("The report could not be printed: there is no place to print it."));
         return;
     }
     // The appendix reads the reference swing and opens on work-on 1 (§3: "for your coach: the full
@@ -2096,7 +2354,7 @@ void SessionReportModel::deliver()
         QTimer::singleShot(0, this, [this] { if (m_printing) fail(QStringLiteral("The print did not finish.")); });
     });
     job.watchdog.start(kPrintTimeoutMs);
-    emit printRequested(job.map, job.pdfPath);
+    emit printRequested(job.map, job.printPath);
 }
 
 void SessionReportModel::printFinished(bool ok, const QString &path, int pages, const QString &error)
@@ -2110,36 +2368,47 @@ void SessionReportModel::printFinished(bool ok, const QString &path, int pages, 
     const QString dir = job.dir;
     if (!ok) {
         const QString why = error.isEmpty() ? QStringLiteral("The PDF could not be written.") : error;
+        const QString pdf = job.pdfPath;
         ppWarn() << "[Report] print failed for" << dir << ":" << why;
         finishJob();
-        emit made(dir, false, path, why);
+        emit made(dir, false, pdf, why);
         return;
     }
 
-    // THE RECORDS (§8.1; refactor step 5.6a: DEC-201, J-66), through the Session's commands. Its source facts — the note,
-    // the options, this make in the history — are FILE-SESS-13's (recordReportMake); its derived facts — photos, the
-    // prepared time, the PDF's name, hash and size, what it was made from — FILE-SESS-07's (saveReport), which never
-    // writes or deletes FILE-SESS-13, and removes the previous PDF when a golfer renamed since the last make. No address:
-    // the session folder lives on the share.
-    pinpoint::ReportRecord record;
-    record.fingerprint    = job.fingerprint;
-    record.pdfName        = QFileInfo(path).fileName();
-    record.preparedMs     = job.preparedMs;
-    record.photosIncluded = job.photos;
-    if (job.session) {
-        QVariantMap opts = job.options;
-        opts.remove(QStringLiteral("note"));
-        opts.insert(QStringLiteral("appendix"), job.map.value(QStringLiteral("appendix")).toBool());
-        const pinpoint::WriteResult in = job.session->recordReportMake(job.options.value(QStringLiteral("note")).toString().trimmed(),
-                                                                       opts, job.preparedMs);
-        if (!in.ok()) ppWarn() << "[Report] could not save the report's note and options in" << dir << "-" << in.error;
-        const pinpoint::WriteResult rec = job.session->saveReport(record);
-        if (!rec.ok()) ppWarn() << "[Report] could not save the report's record in" << dir << "-" << rec.error;
-    } else {
-        ppWarn() << "[Report] the session went away before the report's records were saved:" << dir;
+    // THE REPORT COMMAND (refactor step 5.6b; OBJ-REPORT: "the report is a Session command"; FILE-SESS-07, 08, 13), one call:
+    // the printed PDF moved into the session (FILE-SESS-08; the PDF there before is untouched when that fails, and the make
+    // fails), then its source facts — the note, the options, this make in the history — in report_input.json, then its
+    // derived facts — photos, the prepared time, the PDF's name, SHA-256 and size, what it was made from — in
+    // report_meta.json, which never writes or deletes FILE-SESS-13, and removes the previous PDF when a golfer renamed
+    // since the last make. No address: the session folder lives on the share.
+    if (!job.session) {
+        ppWarn() << "[Report] the session went away before the report was saved:" << dir;
+        finishJob();
+        emit made(dir, false, QString(), QStringLiteral("The session went away before the report was saved."));
+        return;
     }
-    ppInfo() << "[Report] wrote" << path << "(" << pages << "pages)";
+    pinpoint::ReportMake make;
+    make.note                  = job.options.value(QStringLiteral("note")).toString().trimmed();
+    make.options               = job.options;
+    make.options.remove(QStringLiteral("note"));
+    make.options.insert(QStringLiteral("appendix"), job.map.value(QStringLiteral("appendix")).toBool());
+    make.preparedMs            = job.preparedMs;
+    make.printedPdf            = path;
+    make.record.fingerprint    = job.fingerprint;
+    make.record.pdfName        = QFileInfo(job.pdfPath).fileName();
+    make.record.preparedMs     = job.preparedMs;
+    make.record.photosIncluded = job.photos;
+    const pinpoint::WriteResult w = job.session->makeReport(make);
+    if (!w.ok()) {
+        const QString why = QStringLiteral("The PDF could not be saved in the session: %1").arg(w.error);
+        ppWarn() << "[Report]" << why << dir;
+        finishJob();
+        emit made(dir, false, QString(), why);
+        return;
+    }
+    const QString pdf = job.pdfPath;
+    ppInfo() << "[Report] wrote" << pdf << "(" << pages << "pages)";
     finishJob();
-    emit made(dir, true, path, QString());
+    emit made(dir, true, pdf, QString());
     emit stateChanged(dir);
 }

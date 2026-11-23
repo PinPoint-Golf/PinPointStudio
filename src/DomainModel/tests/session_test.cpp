@@ -73,6 +73,7 @@
 #include "../../Buffer/swing_window.h"   // a LoadedRecording owns one
 #include "../../LaunchMonitor/launch_monitor_reading.h"
 
+#include <QStandardPaths>
 #include <QCoreApplication>
 #include <QDate>
 #include <QDateTime>
@@ -764,6 +765,40 @@ static void testReportThroughSession()
                   && s->readReport().input.note == QLatin1String("New note")
                   && s->readReport().input.preparedHistory == QVector<qint64>({ 1000, 2000, 5000 })
                   && s->readReport().input.sends.size() == 2);
+
+        // THE REPORT COMMAND (refactor step 5.6b): one make through Session::makeReport — the printed PDF moved in (08),
+        // then 13, then 07 — and a make whose PDF cannot be placed changes nothing of the session's report.
+        const QString name = QStringLiteral("r2_session-report.pdf");
+        QStandardPaths::setTestModeEnabled(true);   // the print's cache folder: a test location, never the user's cache
+        const QString printed = s->reportPrintTarget(name);
+        check(QStringLiteral("S11m the print's target is the Session's, outside the library, its folder made"),
+              !printed.isEmpty() && !printed.startsWith(QDir::cleanPath(legacyF)) && QFileInfo(QFileInfo(printed).absolutePath()).isDir());
+        { QFile f(printed); f.open(QIODevice::WriteOnly); f.write("%PDF the make"); }
+        ReportMake make;
+        make.note = QStringLiteral("Made note");
+        make.options = { { QStringLiteral("appendix"), true } };
+        make.preparedMs = 6000;
+        make.printedPdf = printed;
+        make.record.fingerprint = QStringLiteral("fp3");
+        make.record.pdfName = name;
+        make.record.preparedMs = 6000;
+        const WriteResult made = s->makeReport(make);
+        const ReportRead afterMake = s->readReport();
+        check(QStringLiteral("S11n makeReport: the PDF in <session>/report/, the record names it with its hash, the make in the history"),
+              made.ok() && rawOf(io::reportDir(legacyF) + QLatin1Char('/') + name) == QByteArray("%PDF the make")
+                  && !QFileInfo::exists(printed) && afterMake.record.pdfName == name && afterMake.record.fingerprint == QLatin1String("fp3")
+                  && afterMake.record.sizeBytes == 13 && afterMake.pdfPresent && afterMake.input.note == QLatin1String("Made note")
+                  && afterMake.input.preparedHistory.last() == 6000
+                  && !QFileInfo::exists(io::reportDir(legacyF) + QStringLiteral("/r_session-report.pdf")));   // renamed: the old one gone
+        const QByteArray meta1 = rawOf(io::metaFile(legacyF)), in1 = rawOf(io::inputFile(legacyF));
+        ReportMake bad = make;
+        bad.printedPdf = printed;   // gone: moved in by the make above
+        bad.record.fingerprint = QStringLiteral("fp4");
+        check(QStringLiteral("S11o a make whose PDF cannot be placed fails, and nothing of the report changes"),
+              !s->makeReport(bad).ok() && rawOf(io::metaFile(legacyF)) == meta1 && rawOf(io::inputFile(legacyF)) == in1
+                  && rawOf(io::reportDir(legacyF) + QLatin1Char('/') + name) == QByteArray("%PDF the make"));
+        QDir(QFileInfo(printed).absolutePath()).removeRecursively();
+        QStandardPaths::setTestModeEnabled(false);
     }
 
     // A crash between the writes, then held: finished. A newer report file, a fresh session, a newer session file: untouched.
