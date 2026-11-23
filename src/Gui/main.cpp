@@ -118,6 +118,7 @@
 #include "../DomainModel/session_diagnostics.h"   // diagnosticsWorkTarget (3.5-ii)
 #include "../DomainModel/athlete_diagnostics.h"   // athleteDiagnosticsWorkTarget: the athlete level's lane (3.7-f)
 #include "../Export/athlete_cache_repository.h"   // PINPOINT_WORKONS_DIR's Athlete (3.7-f)
+#include "session/session_list_presenter.h"        // the one session list (refactor step 5.7a)
 #include "../App/dev_athlete.h"                  // …and its rule (J-56, R2-m2)
 #include "diagnostics/session_diagnostics_adapter.h"   // diagnosticsAdapters: each Session's thin adapter (3.7-a)
 #include "diagnostics/session_diagnostics_model.h"   // its golfer commands' door (step 3.4b-i)
@@ -466,6 +467,40 @@ int main(int argc, char *argv[])
     archiveController.setHousekeeping(&housekeeping);
     AthleteController       athleteController;
     athleteController.setCallables(athleteCallables, &sessionStore);
+    // THE ONE SESSION LIST (refactor step 5.7a; R-QML-6): a view over each followed Athlete's SessionIndex, following its
+    // events, read by the Sessions drawer, the report list and the Archiving tab. Declared after the athlete store, so it
+    // goes first; before the three screens' later locals, so it outlives them. The current athlete is followed (and read)
+    // once it is known, and on every switch; the Archiving tab follows every library athlete when it is shown.
+    pinpoint::SessionListPresenter sessionList;
+    const auto followCurrent = [&sessionList, &athleteController] {
+        pinpoint::Athlete *a = athleteController.currentAthlete();
+        if (!a) return;
+        sessionList.follow(a);
+        if (!sessionList.loaded(a->id()) && !sessionList.loading(a->id()))
+            sessionList.reload(a->id());
+    };
+    QObject::connect(&athleteController, &AthleteController::currentAthleteChanged, &sessionList, followCurrent);
+    QObject::connect(&athleteController, &AthleteController::athletesChanged, &sessionList, followCurrent);
+    // The library moved: the current athlete's sessions are read again from where it now is.
+    QObject::connect(&appSettings, &AppSettings::athleteLibraryPathChanged, &sessionList, [&sessionList, &athleteController] {
+        if (pinpoint::Athlete *a = athleteController.currentAthlete()) { sessionList.follow(a); sessionList.reload(a->id()); }
+    });
+    followCurrent();   // the athlete current at launch: read on the presenter's own worker thread
+    archiveController.setSessionList(&sessionList, [&sessionList, &athleteStore] {
+        QList<pinpoint::AthleteId> ids;
+        for (const pinpoint::AthleteId &id : athleteStore.list())
+            if (pinpoint::Athlete *a = athleteStore.load(id)) {
+                sessionList.follow(a);
+                ids.append(id);
+            }
+        // The Unassigned owner, held in memory while the library holds no record of it (§5.11): its sessions too, as the
+        // library walk listed them (never made here: create false).
+        if (pinpoint::Athlete *u = athleteStore.unassigned(/*create=*/false); u && !ids.contains(u->id())) {
+            sessionList.follow(u);
+            ids.append(u->id());
+        }
+        return ids;
+    });
     // `app` (D1: DEC-164): app.sessionAt(folder), the Session of a folder a view still chooses itself, asked of
     // the current athlete. The diagnostics panel and the cast call it (refactor 3.7-a).
     pinpoint::App           appObject([&athleteController] { return athleteController.currentAthlete(); });
@@ -593,6 +628,7 @@ int main(int argc, char *argv[])
     SessionReviewController   sessionReviewController(&shotModel, &appSettings,
                                                       &athleteController);
     sessionReviewController.setRecordingRepository(&recordingRepository);   // a JSON-era swing's sidecar, at a load
+    sessionReviewController.setSessionList(&sessionList);                    // its rows (refactor step 5.7a)
     // Opening an ARCHIVED session brings it back: its stubs show at once, the restore runs on a
     // worker, and the session re-opens complete when it lands — if it is still the one on screen.
     QObject::connect(&sessionReviewController, &SessionReviewController::archivedSessionOpened,
@@ -834,16 +870,17 @@ int main(int argc, char *argv[])
         pinpoint::charts::setNeighboursDoor(std::move(door));
     }
     sessionReportList.setReportModel(&sessionReport);
+    sessionReportList.setSessionList(&sessionList);   // its rows: the one session list's (refactor step 5.7a)
     // Archive and restore re-stamp a report that was current, so it still reads current (S-D6).
     archiveController.setReportFingerprint([&sessionReport] { return sessionReport.fingerprintFunction(); });
     {
-        const auto athleteDir = [&appSettings, &athleteController]() -> QString {
-            const QString forced = qEnvironmentVariable("PINPOINT_WORKONS_DIR");
-            if (!forced.isEmpty()) return forced;
-            if (appSettings.athleteLibraryPath().isEmpty()) return QString();
-            return athleteController.currentFolder();
+        // The current athlete's group of the one session list (followed above, on the same signals; refactor 5.7a). No
+        // library, no athlete: no rows.
+        const auto repoint = [&sessionReportList, &appSettings, &athleteController, followCurrent] {
+            pinpoint::Athlete *a = appSettings.athleteLibraryPath().isEmpty() ? nullptr : athleteController.currentAthlete();
+            followCurrent();
+            sessionReportList.setAthlete(a ? a->id() : pinpoint::AthleteId());
         };
-        const auto repoint = [&sessionReportList, athleteDir] { sessionReportList.setAthleteDir(athleteDir()); };
         // The library's athletes and every golfer's session count and last session (the picker's rows,
         // and its Recent order), derived from each one's SessionIndex — re-read when the library moves.
         QObject::connect(&appSettings, &AppSettings::athleteLibraryPathChanged,
@@ -876,6 +913,7 @@ int main(int argc, char *argv[])
             const pinpoint::analysis::Condition *c = rules->pack->pack().condition(id);
             return c ? c->goal : QString();
         });
+        // A session summary written (work-on 1 moved): the report list's athlete is read again, as before 5.7a.
         QObject::connect(&workOns, &WorkOnsController::itemsChanged, &sessionReportList, &SessionReportListModel::refresh);
         QObject::connect(&workOns, &WorkOnsController::tendenciesLanded, &athleteController, &AthleteController::clubDistancesChanged);
         QTimer::singleShot(3'500, &sessionReportList, repoint);

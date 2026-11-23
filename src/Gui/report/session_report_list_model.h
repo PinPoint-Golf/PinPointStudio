@@ -36,12 +36,13 @@
 //                                   through the repository (Athlete::readReportAt), and the fingerprint, never
 //                                   the session itself
 //
-// TWO PASSES. The scan (directory listings, summary reads, work-on records) runs on a pool thread,
-// generation-counted so a golfer changed mid-scan drops the stale result — WorkOnsController::scan /
-// applyScan's pattern. The report state is asked on the GUI thread afterwards, a few rows per turn of
-// the event loop, newest first: state() belongs to an object that lives there (it reads the studio's
-// and the golfer's details), and it stats every swing document of the session for the fingerprint, so
-// a long library asked in one go would be a visible stall. Home's ten rows land on the first turn.
+// THE ROWS ARE THE ONE SESSION LIST'S (refactor step 5.7a; R-QML-6): SessionListPresenter's rows of the athlete this
+// list is set to (setAthlete), a view over that Athlete's SessionIndex — this list scans nothing. They follow the
+// presenter: a trash, a move, an archive or a club corrected anywhere shows here at once (rowsChanged, rowChanged).
+// The report state is asked on the GUI thread afterwards, a few rows per turn of the event loop, newest first:
+// state() belongs to an object that lives there (it reads the studio's and the golfer's details), and it stats every
+// swing document of the session for the fingerprint, so a long library asked in one go would be a visible stall.
+// Home's ten rows land on the first turn. One row changed asks that row's state again, alone.
 //
 // The state function and the goal resolver are injected rather than linked so the list's test runs
 // over a temp library without the report model or the pack behind it (report_list_test).
@@ -59,15 +60,16 @@
 
 #include <QString>
 #include <QStringList>
-#include <QThreadPool>
 #include <QVariantMap>
 #include <QVector>
 
 #include <functional>
 
 #include "../review/device_filter_model.h"
+#include "../../Identity/identity.h"
 
 class SessionReportModel;
+namespace pinpoint { class SessionListPresenter; struct SessionListRow; }
 
 class SessionReportListModel : public DeviceFilterModel
 {
@@ -127,12 +129,15 @@ public:
     void setReportModel(SessionReportModel *reports);
     void setStateFunction(StateFn fn);
     void setGoalResolver(GoalFn fn);
-    void setAthleteDir(const QString &dir);
-    QString athleteDir() const { return m_athleteDir; }
+    // The one session list, and whose sessions this list shows (an athlete's group in it; null: none). The presenter
+    // outlives this list.
+    void setSessionList(pinpoint::SessionListPresenter *list);
+    void setAthlete(const pinpoint::AthleteId &athlete);
+    pinpoint::AthleteId athlete() const { return m_athlete; }
     // The running session's folder (SessionReviewController::liveSessionDir); empty when none. Its row
-    // offers Open session only, and the list re-scans because its swing count is moving.
+    // offers Open session only (its swing count follows the Session's shot events).
     void setLiveSessionDir(const QString &dir);
-    // Tests: scan on the calling thread and ask every state at once.
+    // Tests: ask every state at once.
     void setSynchronous(bool on) { m_synchronous = on; }
 
     int rowCount(const QModelIndex &parent = {}) const override;
@@ -140,7 +145,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
     int count() const;
     int shownCount() const;
-    bool scanning() const { return m_scanning; }
+    bool scanning() const;
 
     QString clubFilter() const { return m_clubFilter; }
     void    setClubFilter(const QString &club);
@@ -156,11 +161,12 @@ public:
     int     shownSwings() const;
     double  shownBytes() const;
 
+    // The presenter reads this athlete's sessions again (the bulk jobs' fallback; a session nobody holds has no event).
     Q_INVOKABLE void refresh();
     // A row as a map (QML's delegates have the roles; the sheet and the probes want one row by dir).
     Q_INVOKABLE QVariantMap rowFor(const QString &sessionDir) const;
 
-    // One row, as the scan builds it. Public for the test.
+    // One row, as rowsFrom builds it. Public for the test.
     struct Row {
         QString     dir;
         qint64      startMs = 0;        // the earliest swing's wall-clock; 0 when no swing says
@@ -185,8 +191,9 @@ public:
         qint64      preparedMs = 0;
         bool        sentDiffers = false;
     };
-    // The worker half. Touches no member; pure apart from the file system.
-    static QVector<Row> scan(const QString &athleteDir, qint64 nowMs);
+    // The rows of one athlete's group of the one session list: every session with a swing, newest first, each
+    // session's place in its day counted in start order. Pure.
+    static QVector<Row> rowsFrom(const QVector<pinpoint::SessionListRow> &sessions);
 
 public slots:
     // Re-asks one session's report state (a report made, a send recorded) without a re-scan. A slot,
@@ -200,7 +207,7 @@ signals:
     void reportFilterChanged();
     void showArchivedChanged();
     void searchChanged();
-    // A scan has been applied (its rows are in; their states may still be arriving).
+    // The presenter's rows have been applied (their states may still be arriving).
     void refreshed();
 
 protected:
@@ -214,12 +221,15 @@ private:
     bool rerank();                          // m_shownRank from m_rows and the filters; true when a rank moved
     void refilter();                        // a filter changed: re-rank in place and say so
     void statesLanded();                    // report states arrived: the report filter and counts move
-    void applyScan(int generation, QVector<Row> rows);
+    void applyRows(QVector<Row> rows, bool askAll);   // the presenter's rows landed (askAll: every state asked again)
+    void rowsMoved(const pinpoint::AthleteId &athlete);
+    void rowMoved(const pinpoint::SessionId &session);
     void askStates();
     void applyState(int row);
     static void markLive(QVector<Row> &rows, const QString &liveDir);
 
-    QString        m_athleteDir;
+    pinpoint::SessionListPresenter *m_list = nullptr;
+    pinpoint::AthleteId m_athlete;
     QString        m_liveDir;
     QString        m_clubFilter;
     QString        m_reportFilter;
@@ -229,11 +239,7 @@ private:
     QVector<int>   m_shownRank;             // per row: its place among those shown, -1 when filtered out
     StateFn        m_stateFn;
     GoalFn         m_goalFn;
-    QThreadPool    m_pool;
-    int            m_generation = 0;
     int            m_stateCursor = 0;       // next row askStates() asks
-    int            m_stateGeneration = 0;   // a re-scan abandons the previous pass
-    bool           m_scanning = false;
-    bool           m_rescan = false;
+    int            m_stateGeneration = 0;   // new rows abandon the previous pass
     bool           m_synchronous = false;
 };

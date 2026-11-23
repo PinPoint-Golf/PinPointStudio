@@ -27,7 +27,7 @@
 
 class AppSettings;
 class AthleteController;
-namespace pinpoint { class RecordingRepository; }
+namespace pinpoint { class RecordingRepository; class SessionListPresenter; struct SessionListRow; }
 
 // SessionReviewController — the single source of truth for "am I reviewing a
 // saved session, and if so which one". Global (one instance, a QML context
@@ -36,10 +36,10 @@ namespace pinpoint { class RecordingRepository; }
 // selection. Sibling to SessionController (which stays clock-only) — it owns the
 // disk enumeration and load that a clock controller has no business holding.
 //
-//  • sessionsModel — every session on disk for the current athlete, plus the
-//    live session synthesized from the in-memory shotModel (pinned first,
-//    isLive). The live session's own disk dir is excluded so it never appears
-//    twice.
+//  • sessionsModel — every session of the current athlete, as the one session list holds it (SessionListPresenter:
+//    a view over the Athlete's SessionIndex, refactor step 5.7a, R-QML-6; rebuilt when it changes, so a trash, a move or
+//    a club corrected anywhere shows here at once), plus the live session synthesized from the in-memory shotModel
+//    (pinned first, isLive). The live session's own folder is excluded so it never appears twice.
 //  • shots         — the review's carousel: a view of the loaded Session (refactor step 5.2; R-QML-5) — the same
 //    roles and invokables as the live shotModel, so the carousel's edits and trash work unchanged.
 //
@@ -93,6 +93,8 @@ public:
     // The one door to the swing files (main.cpp's): a JSON-era swing's summary sidecar is written through it when the
     // review load indexes a session. (The rows' edits go to their Shots, never through this.)
     void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
+    // The one session list (main.cpp's; it outlives this controller). The drawer's rows are its current athlete's.
+    void setSessionList(pinpoint::SessionListPresenter *list);
 
     bool     reviewActive()   const { return m_reviewActive; }
     QObject *sessionsModel()        { return &m_sessionsModel; }
@@ -109,8 +111,8 @@ public:
     QString  reasonFilter()    const { return m_reasonFilter; }
     void     setReasonFilter(const QString &conditionId);
 
-    // Rebuild sessionsModel from disk + the live model. Call when the drawer
-    // opens; also run on construction and whenever review state changes.
+    // Rebuild sessionsModel from the one session list + the live model. It follows the list's changes; also run on
+    // construction and whenever review state changes.
     Q_INVOKABLE void refresh();
 
     // Load a past session (sessionId == its absolute dir path) into the review
@@ -155,7 +157,10 @@ signals:
 
 private:
     SessionListModel::Row buildLiveRow(qint64 nowMs) const;
-    SessionListModel::Row buildDiskRow(const QString &sessionDir, qint64 nowMs) const;
+    SessionListModel::Row buildDiskRow(const pinpoint::SessionListRow &session, qint64 nowMs) const;
+    void refreshSoon();                // coalesced: the list's changes arrive in bursts
+    bool m_refreshArmed = false;
+    pinpoint::SessionListPresenter *m_list = nullptr;
     void updateLiveSessionDir();
     QString m_liveSessionDir;      // last value announced; see liveSessionDir()
     void clearReasonFilter();

@@ -187,7 +187,8 @@ public:
     // is the app's caller, for its pass and for the Archiving tab's archive and restore of one session (refactor 5.6b).
     //   restoreJob / restoreLanded   LC-SESSION's `restore` (EVT-19's command; refactor step 5.6b), in the same two halves:
     //                         out until it lands (archiving(), archiveOut), so its diagnostics judge no stub meanwhile; the
-    //                         landing asks again what the hold owed (archiveBack(false)). EVT-19 is not emitted yet
+    //                         landing asks again what the hold owed (archiveBack(false)); on success SessionRestored
+    //                         (EVT-19, refactor 5.7a: its consumer is the SessionIndex's one session list, R-QML-6)
     // THE REPORT KEPT CURRENT (S-D6; refactor step 5.6b, the Solution Architect's option a, 23 Nov 2026): `keepReport`, the
     // report's fingerprint as the report computes it now, given to either job. The job asks it whether the report is current
     // BEFORE the rewrite; the landing of a rewrite that succeeded re-stamps FILE-SESS-07's fingerprint with its answer AFTER
@@ -229,11 +230,15 @@ signals:
     void sessionIntentChanged(const pinpoint::SessionId &session);   // EVT-10 SessionIntentChanged
     void clubBaselineRewritten(const pinpoint::SessionId &session);  // EVT-16 ClubBaselineRewritten (step 3.6)
     void sessionArchived(const pinpoint::SessionId &session);        // EVT-18 SessionArchived (step 3.8)
+    void sessionRestored(const pinpoint::SessionId &session);        // EVT-19 SessionRestored (step 5.7a)
     // Not domain events (refactor step 3.5-i), for its SessionDiagnostics, so this file links none of it:
     // a Shot is now in the collection (listed or added); and the session is being released by its Athlete (what its
     // diagnostics kept is written first, synchronously: DirectConnection).
     void shotHeld(const pinpoint::ShotRef &shot);
     void releasing();
+    // Not a domain event (refactor step 5.7a): one of its Shots' facts changed — any Shot event hear() connects (EVT-02,
+    // 04, 05, 06, 07, 21, 22), re-emitted after it, for the one session list (R-QML-6), which reads that row again.
+    void shotChanged(const pinpoint::ShotRef &shot);
     // Not domain events (refactor step 3.7-a, review B2): an archive job of this session is out (archiveJob handed one
     // out) and has landed (archiveLanded; `ok`: the archive is made). Between the two its SessionDiagnostics asks
     // nothing and writes nothing (one writer of a session's files at any moment, while the archive thins them).

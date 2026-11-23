@@ -68,8 +68,12 @@ void Session::hear(Shot *shot)
 {
     // P10 (DEC-69): the Session hears every change to its shots, synchronously and in order, and logs it. Its
     // SessionDiagnostics (step 3.5-i), when it has one, hears each Shot itself (shotHeld) and re-asks on it.
-    const auto heard = [](const char *event) {
-        return [event](const ShotRef &ref) { ppInfo() << "[Session] heard" << event << "for" << ref.toString(); };
+    // Each is then re-emitted as shotChanged (refactor 5.7a: the one session list reads the row again).
+    const auto heard = [this](const char *event) {
+        return [this, event](const ShotRef &ref) {
+            ppInfo() << "[Session] heard" << event << "for" << ref.toString();
+            emit shotChanged(ref);
+        };
     };
     connect(shot, &Shot::declaredClubChanged, this, heard("EVT-21"), Qt::DirectConnection);
     connect(shot, &Shot::clubCorrected,       this, heard("EVT-04"), Qt::DirectConnection);
@@ -500,7 +504,8 @@ void Session::restoreLanded(const SessionArchiveResult &result)
         ppWarn() << "[Session] not restored:" << m_id.toString() << "-" << result.error;
         return;
     }
-    ppInfo() << "[Session] restored:" << m_id.toString() << "-" << result.swings << "swings back in the library";
+    ppInfo() << "[Session] EVT-19 session restored:" << m_id.toString() << "-" << result.swings << "swings back in the library";
+    emit sessionRestored(m_id);   // EVT-19, after the restore landed (DEC-69)
 }
 
 // THE RESTAMP (S-D6; refactor step 5.6b, option a): whether the report is current now, before the rewrite, by the report's

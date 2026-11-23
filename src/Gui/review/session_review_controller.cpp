@@ -22,8 +22,6 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include "../../Export/swing_paths.h"
-#include "../../Export/session_diagnostics_files.h"   // SessionIdentity of a folder (step 2.7b)
 #include "../../Export/session_archiver.h"
 #include <QTime>
 #include <QTimer>
@@ -35,6 +33,7 @@
 #include "app_settings.h"
 #include "athlete_controller.h"
 #include "session_summary.h"
+#include "../session/session_list_presenter.h"   // the one session list (refactor step 5.7a)
 #include "../Core/pp_debug.h"
 #include "../Export/swing_doc.h"
 #include "../DomainModel/athlete.h"
@@ -136,15 +135,23 @@ SessionListModel::Row SessionReviewController::buildLiveRow(qint64 nowMs) const
                 QStringLiteral("hh:mm:ss"));
             if (t.isValid())
                 in.wallclockMs = QDateTime(today, t).toMSecsSinceEpoch();
-            // What recorded it — the live model does not hold this, but the swing is on disk with
-            // its summary block by now (a cheap root-chunk read; never a fat parse here).
-            const QString sd = m_liveModel->data(idx, ShotListModel::SwingDirRole).toString();
-            if (!sd.isEmpty())
-                in.devices = pinpoint::SwingDocReader::readSwingSummary(sd, /*writeSidecar=*/false).devices;
             ins.append(in);
         }
     }
     const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);
+    // What recorded it: the live model does not hold this. The live session's row of the one session list does (its swings'
+    // cheap summaries, read again on each shot's event: refactor 5.7a), so it is not read again here for every swing.
+    QStringList devices;
+    if (const QString live = liveSessionDir(); m_list && !live.isEmpty())
+        if (const std::optional<pinpoint::SessionListRow> r = m_list->rowAt(live)) {
+            QVector<pinpoint::ShotSummaryInput> dev;
+            for (const pinpoint::SessionListSwing &w : r->facts.shots) {
+                pinpoint::ShotSummaryInput in;
+                in.devices = w.devices;
+                dev.append(in);
+            }
+            devices = pinpoint::summarizeSession(dev, nowMs).devices;
+        }
 
     SessionListModel::Row row;
     row.sessionId     = QString();           // sentinel — selecting the live row resumes live
@@ -156,31 +163,24 @@ SessionListModel::Row SessionReviewController::buildLiveRow(qint64 nowMs) const
     row.lengthLabel   = sum.lengthLabel;
     row.avgQuality    = sum.avgQuality;
     row.previewThumbs = toThumbUrls(sum.previewThumbs);
-    row.devices       = sum.devices;
+    row.devices       = devices;
     return row;
 }
 
-SessionListModel::Row SessionReviewController::buildDiskRow(const QString &sessionDir,
+SessionListModel::Row SessionReviewController::buildDiskRow(const pinpoint::SessionListRow &session,
                                                             qint64 nowMs) const
 {
-    const QStringList swingDirs = pinpoint::SwingDocReader::findSwingDirs(sessionDir);
-
-    // Summary sidecars ONLY — writeSidecar=false forbids the fat swing.json parse. This
-    // runs on the GUI thread every time the picker opens, and the documents behind a
-    // session run to hundreds of MB; parsing them here is what used to freeze the app long
-    // enough for the compositor to offer to kill it.
+    // The swings' summary sidecars ONLY (the one session list's kept read: never the fat swing.json parse, which runs to
+    // hundreds of MB behind a session and used to freeze the app long enough for the compositor to offer to kill it).
+    const pinpoint::SessionListFacts &f = session.facts;
     QVector<pinpoint::ShotSummaryInput> ins;
-    bool indexed = true;
-    for (const QString &sd : swingDirs) {
-        const pinpoint::SwingSummary s =
-            pinpoint::SwingDocReader::readSwingSummary(sd, /*writeSidecar=*/false);
-        if (!s.ok) { indexed = false; continue; }
-        ins.append({ s.score, s.hasVideo, s.wallclockMs, s.club, s.thumbnailPath, s.devices });
-    }
+    for (const pinpoint::SessionListSwing &w : f.shots)
+        ins.append({ w.score, w.hasVideo, w.wallclockMs, w.club, w.thumbnailPath, w.devices });
+    const bool indexed = f.read && f.indexed;
     const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);
 
     SessionListModel::Row row;
-    row.sessionId     = QFileInfo(sessionDir).absoluteFilePath();
+    row.sessionId     = QDir::cleanPath(session.entry.folder);
     row.devices       = sum.devices;    // of the indexed shots — a partly indexed session may list fewer
     row.isLive        = false;
     row.indexed       = indexed;
@@ -193,24 +193,19 @@ SessionListModel::Row SessionReviewController::buildDiskRow(const QString &sessi
     row.previewThumbs = toThumbUrls(sum.previewThumbs);
 
     if (!indexed) {
-        // Nothing (or not everything) indexed yet. Fall back to facts a directory listing
-        // and a stat() can supply, so the row stays recognisable and clickable; opening it
-        // indexes the session and the next refresh fills in the rest.
-        row.shotCount = swingDirs.size();
+        // Nothing (or not everything) indexed yet. Fall back to the facts the folder listing and the index entry supply,
+        // so the row stays recognisable and clickable; opening it indexes the session and its row is read again.
+        row.shotCount = f.swings;
         if (row.dayLabel.isEmpty()) {
-            // Prefer the session's own start time, else its day: SessionIdentity's (step 2.7b,
-            // F-06) — the session file's start, or for a session older than step 2 the day its
-            // folder's name records, under every naming pattern (it was read here as the name's
-            // first ten characters, which `name-date-type` never starts with). The dir's mtime is
-            // its LAST write (the final swing), while an indexed row's dayLabel comes from the
-            // EARLIEST shot — those disagree across midnight, and the label would then change as
-            // the session finished indexing; so the mtime only when neither is known.
-            const pinpoint::SessionIdentity id =
-                pinpoint::SessionDiagnosticsFiles::identityOf(sessionDir);
+            // The session's own start time, else its day: its index entry's identity (step 2.7b, F-06) — the session
+            // file's start, or for a session older than step 2 the day its folder's name records, under every naming
+            // pattern. The folder's mtime is its LAST write (the final swing), while an indexed row's dayLabel comes from
+            // the EARLIEST shot, so it is used only when neither is known.
+            const pinpoint::SessionIdentity &id = session.entry.identity;
             const qint64 anchorMs =
                 id.startedAtUtc().isValid() ? id.startedAtUtc().toMSecsSinceEpoch()
                 : id.localDay().isValid()   ? QDateTime(id.localDay(), QTime(0, 0)).toMSecsSinceEpoch()
-                                            : QFileInfo(sessionDir).lastModified().toMSecsSinceEpoch();
+                                            : f.modifiedMs;
             row.dayLabel = pinpoint::relativeDayLabel(anchorMs, nowMs);
             // Leave timeLabel blank: the drawer renders "day · time" only when time is
             // non-empty, so an unknown fact reads honestly instead of showing a dir mtime
@@ -218,6 +213,27 @@ SessionListModel::Row SessionReviewController::buildDiskRow(const QString &sessi
         }
     }
     return row;
+}
+
+void SessionReviewController::setSessionList(pinpoint::SessionListPresenter *list)
+{
+    if (m_list == list) return;
+    if (m_list) disconnect(m_list, nullptr, this, nullptr);
+    m_list = list;
+    if (m_list) {
+        connect(m_list, &pinpoint::SessionListPresenter::rowsChanged, this, &SessionReviewController::refreshSoon);
+        connect(m_list, &pinpoint::SessionListPresenter::rowChanged, this, &SessionReviewController::refreshSoon);
+    }
+    refresh();
+}
+
+void SessionReviewController::refreshSoon()
+{
+    // On the next turn of the event loop, once: the rebuild resets the sessions model, which destroys the drawer's
+    // delegates, and a change can arrive from one of their click handlers (loadSession, trashSession).
+    if (m_refreshArmed) return;
+    m_refreshArmed = true;
+    QTimer::singleShot(0, this, [this] { m_refreshArmed = false; refresh(); });
 }
 
 void SessionReviewController::refresh()
@@ -228,14 +244,19 @@ void SessionReviewController::refresh()
     rows.append(buildLiveRow(nowMs));        // live session pinned first
 
     const QString liveDir = liveSessionDir();
-    // The athlete's folder itself (D4: chosen once, kept on a rename; step 2.7a: no longer re-joined to
-    // the library from its name).
-    const QString athleteDir = m_athlete ? m_athlete->currentFolder() : QString();
-    for (const QString &sessionDir : pinpoint::SwingDocReader::sessionDirs(athleteDir)) {
-        // Skip the live session's own dir — it's already the synthesized row.
-        if (!liveDir.isEmpty() && QFileInfo(sessionDir).absoluteFilePath() == liveDir)
+    // The current athlete's sessions, as the one session list holds them (its SessionIndex; refactor 5.7a), in the
+    // drawer's order: the folder last written first (the naming pattern means a plain name sort does not track recency).
+    pinpoint::Athlete *athlete = m_athlete ? m_athlete->currentAthlete() : nullptr;
+    QVector<pinpoint::SessionListRow> sessions =
+        (m_list && athlete) ? m_list->rowsOf(athlete->id()) : QVector<pinpoint::SessionListRow>{};
+    std::stable_sort(sessions.begin(), sessions.end(), [](const pinpoint::SessionListRow &a, const pinpoint::SessionListRow &b) {
+        return a.facts.modifiedMs > b.facts.modifiedMs;
+    });
+    for (const pinpoint::SessionListRow &session : std::as_const(sessions)) {
+        // Skip the live session's own folder — it's already the synthesized row.
+        if (!liveDir.isEmpty() && QDir::cleanPath(session.entry.folder) == liveDir)
             continue;
-        rows.append(buildDiskRow(sessionDir, nowMs));
+        rows.append(buildDiskRow(session, nowMs));
     }
     m_sessionsModel.setRows(rows);
 }
@@ -299,14 +320,16 @@ void SessionReviewController::loadSession(const QString &sessionId)
     emit activeShotCountChanged();
     emit activeClubMixChanged();
 
-    // The loop above just indexed this session, so its row can now show full detail
-    // instead of the shot count alone. Cheap — refresh() reads sidecars only — but it
-    // resets the sessions model, which destroys the drawer's delegates. loadSession() is
-    // called FROM one of those delegates' click handlers (PpSessionDrawer.qml), so run it
-    // on the next event-loop turn rather than pulling the delegate out from under itself.
-    QTimer::singleShot(0, this, [this] { refresh(); });
+    // The loop above just indexed this session, so its row can now show full detail instead of the shot count alone:
+    // the one session list reads it again (its sidecars only), and the drawer follows on the next turn (refreshSoon:
+    // loadSession() is called FROM one of the drawer's delegates' click handlers, PpSessionDrawer.qml).
+    const std::optional<pinpoint::SessionListRow> listed = m_list ? m_list->rowAt(m_loadedSessionDir) : std::nullopt;
+    if (listed)
+        m_list->reread(listed->entry.id());
+    refreshSoon();
 
-    if (pinpoint::SessionArchiver::isArchived(m_loadedSessionDir))
+    // Archived: the index entry's mark (FILE-SESS-06); a folder the list does not hold, the marker itself.
+    if (listed ? listed->entry.archived : pinpoint::SessionArchiver::isArchived(m_loadedSessionDir))
         emit archivedSessionOpened(m_loadedSessionDir);
 }
 
@@ -391,8 +414,7 @@ bool SessionReviewController::trashSession(const QString &sessionId)
         }
         if (m_reviewActive && QFileInfo(sessionId).absoluteFilePath() == m_loadedSessionDir)
             resumeLive();
-        refresh();
-        return true;
+        return true;   // its row goes with EVT-20 (the one session list follows it)
     }
     if (!sessions) {
         ppWarn() << "[SessionReviewController] no session repository: cannot trash" << sessionId;
@@ -411,6 +433,9 @@ bool SessionReviewController::trashSession(const QString &sessionId)
     // carousel isn't left pointing at files that are no longer there.
     if (m_reviewActive && QFileInfo(sessionId).absoluteFilePath() == m_loadedSessionDir)
         resumeLive();
-    refresh();                           // the trashed row drops out of the list
+    // No Athlete held it, so no event: the list reads the index again and the trashed row drops out of every list.
+    if (m_list && athlete)
+        m_list->entriesChanged(athlete->id());
+    refresh();
     return true;
 }

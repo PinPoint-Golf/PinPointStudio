@@ -22,6 +22,7 @@
 #include "../../Core/pp_debug.h"
 #include "../../Export/session_archiver.h"
 #include "../../Export/swing_paths.h"
+#include "../session/session_list_presenter.h"   // the one session list (refactor step 5.7a)
 
 #include <QDateTime>
 #include <QDir>
@@ -29,6 +30,7 @@
 #include <QFileInfo>
 #include <QPointer>
 #include <QStorageInfo>
+#include <QTimer>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
@@ -36,19 +38,24 @@
 
 namespace {
 
-// The library's session folders, as the Archiving tab lists them: SessionArchiveRun::scanLibrary (moved there unchanged
-// in refactor step 3.8, so housekeeping's walk and this list are one scan).
+// Housekeeping's walk of the library (SessionArchiveRun::scanLibrary): its own, not this tab's list, which is the one
+// session list's rows since refactor step 5.7a.
 using SessionRow = pinpoint::SessionArchiveRun::LibrarySession;
 using pinpoint::SessionArchiver;
 
-QList<SessionRow> scanSessions(const QString &root) { return pinpoint::SessionArchiveRun::scanLibrary(root); }
+// A row as the tab shows it: every session with a swing, newest first by its day.
+struct TabRow {
+    QString dir, name, athlete;
+    qint64  dateMs = 0, bytes = 0;
+    int     swings = 0;
+    bool    archived = false;
+};
 
 } // namespace
 
 struct ArchiveController::Scan {
-    QList<SessionRow> sessions;
-    double freeBytes = 0, swingBytes = 0, trashBytes = 0;
-    int    swingsMeasured = 0, trashEntries = 0;
+    double freeBytes = 0, trashBytes = 0;
+    int    trashEntries = 0;
 };
 
 ArchiveController::ArchiveController(AppSettings *settings, QObject *parent)
@@ -61,8 +68,10 @@ ArchiveController::~ArchiveController()
     if (m_abort) m_abort->store(true);
     m_watcher.disconnect();
     m_scanWatcher.disconnect();
-    if (m_watcher.isRunning())     m_watcher.waitForFinished();
-    if (m_scanWatcher.isRunning()) m_scanWatcher.waitForFinished();
+    m_measureWatcher.disconnect();
+    if (m_watcher.isRunning())        m_watcher.waitForFinished();
+    if (m_scanWatcher.isRunning())    m_scanWatcher.waitForFinished();
+    if (m_measureWatcher.isRunning()) m_measureWatcher.waitForFinished();
 }
 
 double ArchiveController::hoursLeft() const
@@ -73,50 +82,129 @@ double ArchiveController::hoursLeft() const
 
 void ArchiveController::applyScan(const Scan &scan)
 {
-    m_sessions.clear();
-    for (const SessionRow &s : scan.sessions)
-        m_sessions << QVariantMap{
-            { QStringLiteral("dir"), s.dir }, { QStringLiteral("name"), s.name },
-            { QStringLiteral("athlete"), s.athlete }, { QStringLiteral("dateMs"), double(s.dateMs) },
-            { QStringLiteral("bytes"), double(s.bytes) }, { QStringLiteral("swings"), s.swings },
-            { QStringLiteral("archived"), s.archived } };
     m_freeBytes      = scan.freeBytes;
-    m_swingBytes     = scan.swingBytes;
-    m_swingsMeasured = scan.swingsMeasured;
     m_trashBytes     = scan.trashBytes;
     m_trashEntries   = scan.trashEntries;
     emit changed();
 }
 
+void ArchiveController::setSessionList(pinpoint::SessionListPresenter *list,
+                                       std::function<QList<pinpoint::AthleteId>()> libraryAthletes)
+{
+    if (m_list) disconnect(m_list, nullptr, this, nullptr);
+    m_list = list;
+    m_libraryAthletes = std::move(libraryAthletes);
+    if (!m_list) return;
+    // Coalesced to the next turn: the list's changes arrive in bursts.
+    const auto soon = [this] {
+        if (m_rebuildArmed) return;
+        m_rebuildArmed = true;
+        QTimer::singleShot(0, this, [this] { m_rebuildArmed = false; rebuildSessions(); });
+    };
+    connect(m_list, &pinpoint::SessionListPresenter::rowsChanged, this, [this, soon](const pinpoint::AthleteId &a) {
+        if (m_athletes.contains(a)) { soon(); measureSoon(); }
+    });
+    connect(m_list, &pinpoint::SessionListPresenter::rowChanged, this, [this, soon](const pinpoint::SessionId &id) {
+        const std::optional<pinpoint::SessionListRow> r = m_list->row(id);
+        if (r && m_athletes.contains(r->owner)) soon();
+    });
+}
+
+void ArchiveController::rebuildSessions()
+{
+    QList<TabRow> rows;
+    for (const pinpoint::AthleteId &a : std::as_const(m_athletes)) {
+        if (!m_list) break;
+        for (const pinpoint::SessionListRow &s : m_list->rowsOf(a)) {
+            if (!s.facts.read || s.facts.swings == 0) continue;   // not read yet, or nothing was hit
+            TabRow t;
+            t.dir      = QDir::cleanPath(s.entry.folder);
+            t.name     = s.entry.identity.folderName();
+            t.athlete  = QFileInfo(QFileInfo(t.dir).path()).fileName();
+            t.dateMs   = s.entry.identity.localDay().isValid() ? s.entry.identity.localDay().startOfDay().toMSecsSinceEpoch()
+                                                               : s.facts.modifiedMs;
+            t.bytes    = s.facts.bytes;
+            t.swings   = s.facts.swings;
+            t.archived = s.entry.archived;
+            rows << t;
+        }
+    }
+    std::sort(rows.begin(), rows.end(), [](const TabRow &x, const TabRow &y) {
+        return x.dateMs != y.dateMs ? x.dateMs > y.dateMs : x.dir > y.dir;
+    });
+    m_sessions.clear();
+    for (const TabRow &s : std::as_const(rows))
+        m_sessions << QVariantMap{
+            { QStringLiteral("dir"), s.dir }, { QStringLiteral("name"), s.name },
+            { QStringLiteral("athlete"), s.athlete }, { QStringLiteral("dateMs"), double(s.dateMs) },
+            { QStringLiteral("bytes"), double(s.bytes) }, { QStringLiteral("swings"), s.swings },
+            { QStringLiteral("archived"), s.archived } };
+    emit changed();
+}
+
+void ArchiveController::measureSoon()
+{
+    if (m_measureArmed || m_measureWatcher.isRunning()) { m_measureArmed = true; return; }
+    // What a swing costs HERE: the mean of the most recent swings still in the library, raw frames and all — the settings
+    // in force when they were recorded, not a table. The sessions newest first, as the tab lists them.
+    QList<QPair<qint64, QString>> folders;
+    for (const pinpoint::AthleteId &a : std::as_const(m_athletes)) {
+        if (!m_list) break;
+        for (const pinpoint::SessionListRow &s : m_list->rowsOf(a))
+            if (s.facts.read && s.facts.swings > 0 && !s.entry.archived)
+                folders.append({ s.entry.identity.localDay().isValid()
+                                     ? s.entry.identity.localDay().startOfDay().toMSecsSinceEpoch() : s.facts.modifiedMs,
+                                 QDir::cleanPath(s.entry.folder) });
+    }
+    std::sort(folders.begin(), folders.end(), [](const auto &x, const auto &y) {
+        return x.first != y.first ? x.first > y.first : x.second > y.second;
+    });
+    auto result = std::make_shared<QPair<double, int>>(0.0, 0);
+    m_measureWatcher.disconnect();
+    connect(&m_measureWatcher, &QFutureWatcher<void>::finished, this, [this, result] {
+        m_swingBytes     = result->first;
+        m_swingsMeasured = result->second;
+        emit changed();
+        if (m_measureArmed) { m_measureArmed = false; measureSoon(); }
+    });
+    m_measureWatcher.setFuture(QtConcurrent::run([folders, result] {
+        qint64 bytes = 0;
+        int measured = 0;
+        for (const auto &row : folders) {
+            QStringList swings = pinpoint::SwingPaths::swingFolders(row.second);
+            std::sort(swings.begin(), swings.end());
+            std::reverse(swings.begin(), swings.end());
+            for (const QString &sw : swings) {
+                if (measured >= 30) break;
+                bytes += SessionArchiver::folderBytes(row.second + QLatin1Char('/') + sw);
+                ++measured;
+            }
+            if (measured >= 30) break;
+        }
+        *result = { measured > 0 ? double(bytes) / measured : 0.0, measured };
+    }));
+}
+
 void ArchiveController::refresh()
 {
-    if (!m_settings || m_scanWatcher.isRunning()) return;
+    if (!m_settings) return;
     const QString root = m_settings->athleteLibraryPath();
     if (root.isEmpty()) return;
+    // The sessions: every library athlete's rows of the one session list, read again (the tab shown, a job landed: a folder
+    // nobody holds has no event).
+    if (m_list && m_libraryAthletes) {
+        m_athletes = m_libraryAthletes();
+        for (const pinpoint::AthleteId &a : std::as_const(m_athletes)) m_list->reload(a);
+        rebuildSessions();
+    }
+    if (m_scanWatcher.isRunning()) return;
     auto result = std::make_shared<Scan>();
     m_scanWatcher.disconnect();
     connect(&m_scanWatcher, &QFutureWatcher<void>::finished, this, [this, result] { applyScan(*result); });
     m_scanWatcher.setFuture(QtConcurrent::run([root, result] {
         Scan &s = *result;
-        s.sessions = scanSessions(root);
         const QStorageInfo si(root);
         s.freeBytes = si.isValid() ? double(si.bytesAvailable()) : 0.0;
-        // What a swing costs HERE: the mean of the most recent swings still in the library, raw
-        // frames and all — the settings in force when they were recorded, not a table.
-        qint64 bytes = 0;
-        for (const SessionRow &row : s.sessions) {
-            if (row.archived) continue;
-            QStringList swings = pinpoint::SwingPaths::swingFolders(row.dir);
-            std::sort(swings.begin(), swings.end());
-            std::reverse(swings.begin(), swings.end());
-            for (const QString &sw : swings) {
-                if (s.swingsMeasured >= 30) break;
-                bytes += SessionArchiver::folderBytes(row.dir + QLatin1Char('/') + sw);
-                ++s.swingsMeasured;
-            }
-            if (s.swingsMeasured >= 30) break;
-        }
-        s.swingBytes = s.swingsMeasured > 0 ? double(bytes) / s.swingsMeasured : 0.0;
         for (const QString &e : pinpoint::SwingPaths::trashEntries(root)) {
             ++s.trashEntries;
             s.trashBytes += QFileInfo(e).isDir() ? double(SessionArchiver::folderBytes(e)) : double(QFileInfo(e).size());

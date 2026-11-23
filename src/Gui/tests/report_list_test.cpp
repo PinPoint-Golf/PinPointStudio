@@ -36,6 +36,8 @@
 // needs the shot model, the settings and the athlete controller.
 
 #include "report/session_report_list_model.h"
+#include "session/session_list_presenter.h"   // the rows: the one session list (refactor step 5.7a)
+#include "../../Export/session_store.h"        // the index the rows are a view of
 #include "report/report_mailer.h"
 #include "report/mail_credentials.h"
 #include "report/report_meta.h"
@@ -56,6 +58,7 @@
 #include <QJsonObject>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QUuid>
 
 #include <cstdio>
 
@@ -236,6 +239,29 @@ static pinpoint::SessionArchiveResult restoreIt(const QString &session)
     return run.sessions().restore(run.openSession(session));
 }
 
+// THE ROWS ARE THE ONE SESSION LIST'S (refactor step 5.7a): a golfer's folder listed through a real SessionStore's index,
+// the presenter's kept reads on the calling thread (synchronous) or on its own pool.
+struct ListRig {
+    pinpoint::SessionStore         store;
+    pinpoint::SessionListPresenter presenter;
+    explicit ListRig(bool synchronous = true) { presenter.setSynchronous(synchronous); }
+    // The golfer whose sessions are `folder`'s, read once. `uuid`: the athlete the swings record, else a new one.
+    pinpoint::AthleteId golfer(const QString &folder, const QString &uuid = QString())
+    {
+        const pinpoint::AthleteId id = uuid.isEmpty() ? pinpoint::AthleteId::fromString(QUuid::createUuid().toString(QUuid::WithoutBraces))
+                                                      : pinpoint::AthleteId::fromString(uuid);
+        const pinpoint::SessionOwner owner{ id, QFileInfo(folder).fileName(), QFileInfo(folder).absolutePath() };
+        presenter.setSource(id, [this, owner] { return store.enumerate(owner); });
+        presenter.reload(id);
+        return id;
+    }
+    void show(SessionReportListModel &list, const pinpoint::AthleteId &id)
+    {
+        list.setSessionList(&presenter);
+        list.setAthlete(id);
+    }
+};
+
 int main(int argc, char **argv)
 {
     qputenv("PINPOINT_MAIL_DRYRUN", "0");
@@ -262,13 +288,15 @@ int main(int argc, char **argv)
     writeReport(b3, /*current=*/true,  at(10, 20, 15, 0), at(10, 20, 18, 40));
 
     std::printf("scan, order and session of the day\n");
+    ListRig rig;
+    const pinpoint::AthleteId gId = rig.golfer(golfer);
     SessionReportListModel list;
     list.setSynchronous(true);
     list.setStateFunction(stateOf);
     list.setGoalResolver([](const QString &id) {
         return id == QLatin1String("trail_knee_straighten") ? QStringLiteral("Keep the flex in your trail knee") : QString();
     });
-    list.setAthleteDir(golfer);
+    rig.show(list, gId);
     using R = SessionReportListModel;
     check(list.count() == 5, "five sessions (the empty folder is not one)");
     const QStringList want{ b3, b2, b1, s13, s12 };
@@ -330,7 +358,7 @@ int main(int argc, char **argv)
     {
         SessionReportListModel noGoal;
         noGoal.setSynchronous(true);
-        noGoal.setAthleteDir(golfer);
+        rig.show(noGoal, gId);
         check(noGoal.data(noGoal.index(2), R::WorkOn1Role).toString() == QLatin1String("Trail knee straightens"),
               "no resolver: the record's own name");
     }
@@ -371,7 +399,7 @@ int main(int argc, char **argv)
         bare.setStateFunction([](const QString &d) {
             return QVariantMap{ {QStringLiteral("state"), d.endsWith(QLatin1String("_02")) ? QStringLiteral("stale") : QStringLiteral("none")} };
         });
-        bare.setAthleteDir(golfer);
+        rig.show(bare, gId);
         check(bare.data(bare.index(1), R::StateWordsRole).toString() == QStringLiteral("Out of date — remake")
               && bare.data(bare.index(0), R::StateWordsRole).toString() == QLatin1String("No report"),
               "a state without words takes report_meta's");
@@ -382,9 +410,11 @@ int main(int argc, char **argv)
 
     std::printf("asynchronous scan\n");
     {
+        ListRig asyncRig(/*synchronous=*/false);
+        const pinpoint::AthleteId aId = asyncRig.golfer(golfer);
         SessionReportListModel async;
         async.setStateFunction(stateOf);
-        async.setAthleteDir(golfer);
+        asyncRig.show(async, aId);
         check(async.scanning(), "scanning while the pool works");
         QElapsedTimer t; t.start();
         while ((async.scanning() || async.data(async.index(4), R::StateRole).toString().isEmpty()) && t.elapsed() < 10000) {
@@ -394,8 +424,8 @@ int main(int argc, char **argv)
         check(async.count() == 5 && !async.scanning(), "the scan lands off the GUI thread");
         check(async.data(async.index(4), R::StateKnownRole).toBool(), "every row's state is asked, turn by turn");
         // A golfer changed mid-scan: the first golfer's rows never land under the second's name.
-        async.setAthleteDir(golfer);           // same: no-op
-        async.setAthleteDir(tmp.filePath(QStringLiteral("nobody")));
+        async.setAthlete(aId);                 // same: no-op
+        async.setAthlete(asyncRig.golfer(tmp.filePath(QStringLiteral("nobody"))));
         check(async.count() == 0, "a new golfer starts empty");
         t.restart();
         while (async.scanning() && t.elapsed() < 10000) { QCoreApplication::processEvents(QEventLoop::AllEvents, 50); QThread::msleep(5); }
@@ -454,7 +484,7 @@ int main(int argc, char **argv)
     sl.setGoalResolver([](const QString &id) {
         return id == QLatin1String("early_extension") ? QStringLiteral("Stop the early extension") : QString();
     });
-    sl.setAthleteDir(hLib);
+    rig.show(sl, rig.golfer(hLib));
     const auto rowOf = [&](const QString &dir) {
         for (int i = 0; i < sl.count(); ++i)
             if (role(sl, i, R::DirRole).toString() == QFileInfo(dir).absoluteFilePath()) return i;
@@ -691,7 +721,7 @@ int main(int argc, char **argv)
         il.setSynchronous(true);
         il.setStateFunction(stateOf);
         il.setShowArchived(true);
-        il.setAthleteDir(tmp.filePath(QStringLiteral("I")));
+        rig.show(il, rig.golfer(tmp.filePath(QStringLiteral("I")), QStringLiteral("6b1e2d3c-4f5a-4b6c-8d7e-9f0a1b2c3d4e")));
         bool allArchived = il.count() == 3;
         for (int i = 0; i < il.count(); ++i) allArchived = allArchived && il.data(il.index(i), R::ArchivedRole).toBool();
         check(allArchived, "the list sees the archiver's own marker");

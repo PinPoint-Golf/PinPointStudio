@@ -20,7 +20,9 @@
 
 // ArchiveController — the Archiving settings tab (swing_storage_impl.md, Phase 2 stage 6).
 //
-//   · the library's sessions, with their size and whether they are archived;
+//   · the library's sessions, with their size and whether they are archived: every library athlete's rows of the one
+//     session list (SessionListPresenter, refactor step 5.7a, R-QML-6: a view over each Athlete's SessionIndex), rebuilt
+//     when it changes, so an archive, a restore, a trash or a move made anywhere shows here at once;
 //   · archive / restore one session — through SessionRepository::archive / restore BY ITS SessionId (step
 //     2.6): each job makes a SessionArchiveRun of its own (it runs on a worker, never the app's identity
 //     map), translates the row's folder to the SessionId once, at this edge, and the repository refuses a
@@ -40,6 +42,7 @@
 // Every file operation runs on a worker thread, one at a time.
 
 #include "../../App/housekeeping.h"
+#include "../../Identity/identity.h"
 
 #include <QFutureWatcher>
 #include <QObject>
@@ -51,6 +54,7 @@
 #include <memory>
 
 class AppSettings;
+namespace pinpoint { class SessionListPresenter; }
 
 class ArchiveController : public QObject {
     Q_OBJECT
@@ -80,7 +84,7 @@ public:
     double  trashBytes() const { return m_trashBytes; }
     int     trashEntries() const { return m_trashEntries; }
 
-    Q_INVOKABLE void refresh();                          // re-scan sessions, space and trash
+    Q_INVOKABLE void refresh();                          // the sessions read again, and the space and trash
     // False when it did not start: the live session (refused, logged), or a job already running.
     Q_INVOKABLE bool archiveSession(const QString &sessionDir);
     Q_INVOKABLE void restoreSession(const QString &sessionDir);
@@ -115,6 +119,10 @@ public:
     // that was current, current (S-D6): a held session's through its Session's own archive and restore commands (refactor
     // 5.6b, through housekeeping's archiveSession / restoreSession), a folder no Athlete holds through its run's own
     // repository (SessionArchiveRun::keepReportCurrent).
+    // The one session list, and the library's athletes it is to follow (the composition root's: each library athlete
+    // followed in the list, their ids returned). Both outlive this controller.
+    void setSessionList(pinpoint::SessionListPresenter *list,
+                        std::function<QList<pinpoint::AthleteId>()> libraryAthletes);
     void setReportFingerprint(std::function<std::function<QString(const QString &)>()> snapshot)
     {
         m_fingerprint = std::move(snapshot);
@@ -130,6 +138,8 @@ private:
                                                                 std::shared_ptr<std::atomic_bool>)> job,
                   const QString &restoredDir = {});
     void applyScan(const Scan &scan);
+    void rebuildSessions();            // m_sessions from the one session list's rows
+    void measureSoon();                // the swing size, over the newest swings the list holds
     void setProgress(double p, const QString &status);
     bool isLive(const QString &sessionDir) const;
     std::function<QString(const QString &)> reportFingerprint() const;
@@ -139,6 +149,12 @@ private:
     QString      m_liveDir;
     std::function<std::function<QString(const QString &)>()> m_fingerprint;
     QVariantList m_sessions;
+    pinpoint::SessionListPresenter *m_list = nullptr;
+    std::function<QList<pinpoint::AthleteId>()> m_libraryAthletes;
+    QList<pinpoint::AthleteId> m_athletes;   // the groups this tab lists
+    bool    m_rebuildArmed = false;
+    bool    m_measureArmed = false;
+    QFutureWatcher<void> m_measureWatcher;
     bool    m_busy = false;
     QString m_status;
     double  m_progress = 0.0;

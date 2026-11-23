@@ -858,6 +858,26 @@ pp_add_test(housekeeping_test
     STD 20
     AUTOMOC)
 
+# THE ONE SESSION LIST (refactor step 5.7a; src/Gui/session/session_list_presenter.h; R-QML-6): its rows over two real
+# Athletes' SessionIndex, following EVT-17/18/19/20, the move and a club declared through the Shot, with the report list
+# (SessionReportListModel) as its view — over housekeeping_test's real stores on a temporary library.
+pp_add_test(session_list_test
+    SOURCES ${SRC}/Gui/tests/session_list_test.cpp ${PP_RECORDING_STORE_SOURCES}
+            ${SRC}/Gui/session/session_list_presenter.h ${SRC}/Gui/session/session_list_presenter.cpp
+            ${SRC}/Gui/session/session_list_follow.cpp ${SRC}/Export/session_list_reads.cpp
+            ${SRC}/Gui/report/session_report_list_model.cpp ${SRC}/Gui/review/device_filter_model.cpp
+            ${SRC}/Export/session_archiver.cpp ${SRC}/Export/athlete_store.cpp
+            ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+    INCLUDE ${SRC} ${SRC}/Gui ${SRC}/Gui/report ${SRC}/Gui/review ${SRC}/Analysis ${SRC}/LaunchMonitor ${SRC}/Core
+            ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20
+    AUTOMOC)
+set_tests_properties(session_list_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # AppState (refactor step 4-a; src/App/app_state.h): the selection by ShotRef scoped to the session on screen, the mode's
 # transitions, the session's start and end as one command each, the athlete-switch rule, and the typed values QML reads
 # (a gadget list, a QList<int>) through a QQmlEngine — over recording doors, no app.

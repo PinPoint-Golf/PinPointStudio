@@ -764,6 +764,8 @@ qt_add_executable(PinPointStudio
     src/Gui/app/clipboard_helper.h
     src/Gui/app/app_log.h                    src/Gui/app/app_log.cpp
     src/Gui/session/session_controller.h       src/Gui/session/session_controller.cpp
+    src/Gui/session/session_list_presenter.h   src/Gui/session/session_list_presenter.cpp
+    src/Gui/session/session_list_follow.cpp    # the one session list and its events (refactor step 5.7a)
     src/Gui/review/session_review_controller.h src/Gui/review/session_review_controller.cpp
     src/Gui/review/session_list_model.h        src/Gui/review/session_list_model.cpp
     src/Gui/review/device_filter_model.h       src/Gui/review/device_filter_model.cpp
@@ -2814,6 +2816,7 @@ target_sources(PinPointStudio PRIVATE
     src/Export/recording_header.cpp
     src/Export/session_archiver.h
     src/Export/session_archiver.cpp
+    src/Export/session_list_reads.h src/Export/session_list_reads.cpp   # the one session list's kept reads (5.7a)
     src/Analysis/swing_analysis.h
     src/Analysis/analysis_stage.h
     src/Wrist/wrist_angles.h

@@ -1,7 +1,8 @@
 # Session report — list tests (owned by the agent building the list part). Included from CMakeLists.txt here,
 # so ${GUI}, ${SRC} and pp_add_test are in scope.
 
-# The session list (report/session_report_list_model) over a temp library of fake sessions: newest first,
+# The session list (report/session_report_list_model) over a temp library of fake sessions — its rows the one session
+# list's (Gui/session/session_list_presenter, refactor step 5.7a) over a real SessionStore's index: newest first,
 # the session-of-day count, canReport (three swings, not live), work-on 1 from a current record only and
 # its goal through the resolver, the live row on top, the state words through report_meta.h. Plus the
 # mail hand-off's half that needs no mail app (report_mailer.cpp: validation, PINPOINT_MAIL_DRYRUN);
@@ -14,6 +15,7 @@ find_package(Qt6 REQUIRED COMPONENTS Network)
 pp_add_test(report_list_test
     SOURCES report_list_test.cpp
             ${GUI}/report/session_report_list_model.cpp
+            ${GUI}/session/session_list_presenter.cpp ${SRC}/Export/session_list_reads.cpp   # its rows (refactor step 5.7a)
             ${GUI}/review/device_filter_model.cpp
             ${GUI}/report/report_mailer.cpp
             ${GUI}/report/smtp_message.cpp

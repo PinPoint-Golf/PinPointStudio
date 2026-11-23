@@ -21,19 +21,13 @@
 #include "report_meta.h"
 #include "session_report_model.h"
 #include "../review/session_summary.h"
-#include "../../Coaching/work_ons.h"
-#include "../../Export/session_archiver.h"
-#include "../../Export/swing_doc.h"
-#include "../../Export/session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
+#include "../session/session_list_presenter.h"   // the one session list (refactor step 5.7a)
 
 #include <QDate>
 #include <QDateTime>
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
 #include <QHash>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QLocale>
 #include <QMetaObject>
 #include <QTimer>
@@ -79,39 +73,13 @@ QString reportBucket(const QString &state)
     return state;   // "none" | "stale" | ""
 }
 
-// The record's ordering rule is the only one this list may quote: a record from an older rule is
-// about to be re-derived, and its work-on 1 may not be the new rule's.
-struct WorkOnLine { bool known = false; QString id, name; };
-WorkOnLine readWorkOn1(const QString &sessionDir)
-{
-    WorkOnLine out;
-    // Through the session's one reader (Export/session_diagnostics_files.h; step 2.5).
-    const pinpoint::JsonFileRead f = pinpoint::SessionDiagnosticsFiles::readWorkOns(sessionDir);
-    if (!f.exists) return out;
-    bool ok = false;
-    const pinpoint::analysis::SessionWorkOns rec = pinpoint::analysis::sessionWorkOnsFromJson(f.root, &ok);
-    if (!ok) return out;
-    out.known = true;
-    for (const pinpoint::analysis::WorkOnEntry &e : rec.entries) {
-        if (e.rank == 1 || out.id.isEmpty()) { out.id = e.id; out.name = e.name; }
-        if (e.rank == 1) break;
-    }
-    return out;
-}
-
 } // namespace
 
 SessionReportListModel::SessionReportListModel(QObject *parent) : DeviceFilterModel(parent)
 {
-    m_pool.setMaxThreadCount(1);
 }
 
-SessionReportListModel::~SessionReportListModel()
-{
-    // A scan in flight posts its result to `this`; it must not outlive us.
-    ++m_generation;
-    m_pool.waitForDone();
-}
+SessionReportListModel::~SessionReportListModel() = default;
 
 void SessionReportListModel::setReportModel(SessionReportModel *reports)
 {
@@ -131,11 +99,22 @@ void SessionReportListModel::setReportModel(SessionReportModel *reports)
 void SessionReportListModel::setStateFunction(StateFn fn) { m_stateFn = std::move(fn); }
 void SessionReportListModel::setGoalResolver(GoalFn fn) { m_goalFn = std::move(fn); }
 
-void SessionReportListModel::setAthleteDir(const QString &dir)
+void SessionReportListModel::setSessionList(pinpoint::SessionListPresenter *list)
 {
-    if (m_athleteDir == dir) return;
-    m_athleteDir = dir;
-    // The previous golfer's sessions must not sit under this one's name while the scan runs.
+    if (m_list == list) return;
+    if (m_list) disconnect(m_list, nullptr, this, nullptr);
+    m_list = list;
+    if (!m_list) return;
+    connect(m_list, &pinpoint::SessionListPresenter::rowsChanged, this, &SessionReportListModel::rowsMoved);
+    connect(m_list, &pinpoint::SessionListPresenter::rowChanged, this, &SessionReportListModel::rowMoved);
+    connect(m_list, &pinpoint::SessionListPresenter::loadingChanged, this, &SessionReportListModel::scanningChanged);
+}
+
+void SessionReportListModel::setAthlete(const pinpoint::AthleteId &athlete)
+{
+    if (m_athlete == athlete) return;
+    m_athlete = athlete;
+    // The previous golfer's sessions must not sit under this one's name while the presenter reads.
     beginResetModel();
     m_rows.clear();
     rerank();
@@ -143,21 +122,36 @@ void SessionReportListModel::setAthleteDir(const QString &dir)
     emit countChanged();
     emit countsChanged();
     emit availableDevicesChanged();
-    refresh();
+    emit scanningChanged();
+    // Rows the presenter already holds land at once; a group read for the first time lands when its reload does.
+    if (m_list && m_list->loaded(m_athlete))
+        applyRows(rowsFrom(m_list->rowsOf(m_athlete)), true);
+    else if (m_list && m_list->has(m_athlete) && !m_list->loading(m_athlete))
+        m_list->reload(m_athlete);
+}
+
+bool SessionReportListModel::scanning() const
+{
+    return m_list && !m_athlete.isNull() && m_list->has(m_athlete) && (m_list->loading(m_athlete) || !m_list->loaded(m_athlete));
 }
 
 void SessionReportListModel::setLiveSessionDir(const QString &dir)
 {
-    const QString abs = dir.isEmpty() ? QString() : QFileInfo(dir).absoluteFilePath();
+    const QString abs = dir.isEmpty() ? QString() : QDir::cleanPath(QFileInfo(dir).absoluteFilePath());
     if (m_liveDir == abs) return;
     m_liveDir = abs;
+    // The rows again from the one session list, so a session that has ended goes back to its place (and its report can
+    // be made); the known states are kept. Its swings follow the Session's own events.
+    if (m_list && !m_athlete.isNull() && m_list->loaded(m_athlete)) {
+        applyRows(rowsFrom(m_list->rowsOf(m_athlete)), false);
+        return;
+    }
     beginResetModel();
     markLive(m_rows, m_liveDir);
     rerank();
     endResetModel();
     emit countsChanged();
     emit availableDevicesChanged();
-    refresh();       // a live session's swing count is moving; an ended one's report can now be made
 }
 
 int SessionReportListModel::rowCount(const QModelIndex &parent) const
@@ -366,7 +360,7 @@ QHash<int, QByteArray> SessionReportListModel::roleNames() const
 
 QVariantMap SessionReportListModel::rowFor(const QString &sessionDir) const
 {
-    const QString abs = QFileInfo(sessionDir).absoluteFilePath();
+    const QString abs = QDir::cleanPath(QFileInfo(sessionDir).absoluteFilePath());
     for (int i = 0; i < m_rows.size(); ++i) {
         if (m_rows.at(i).dir != abs) continue;
         QVariantMap out;
@@ -379,70 +373,45 @@ QVariantMap SessionReportListModel::rowFor(const QString &sessionDir) const
     return {};
 }
 
-// ── Scan ────────────────────────────────────────────────────────────────────────────────
+// ── The rows, from the one session list ─────────────────────────────────────────────────────────────
 
 void SessionReportListModel::refresh()
 {
-    if (m_scanning) { m_rescan = true; return; }
-    if (m_athleteDir.isEmpty()) return;
-
-    m_scanning = true;
-    emit scanningChanged();
-    const int generation = ++m_generation;
-    const QString dir = m_athleteDir;
-    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-
-    if (m_synchronous) {
-        applyScan(generation, scan(dir, nowMs));
-        return;
-    }
-    m_pool.start([this, generation, dir, nowMs]() {
-        QVector<Row> rows = scan(dir, nowMs);
-        QMetaObject::invokeMethod(this, [this, generation, rows = std::move(rows)]() mutable {
-            applyScan(generation, std::move(rows));
-        }, Qt::QueuedConnection);
-    });
+    if (m_list && !m_athlete.isNull()) m_list->reload(m_athlete);
 }
 
-// Worker thread. Touches no member.
-//
-// THE SUMMARY IS THE DRAWER'S (SessionReviewController::buildDiskRow): each swing's cheap summary read
-// with writeSidecar=false — a list read never fat-parses and never writes — folded by summarizeSession.
-// An un-indexed swing still counts as a swing (the directory listing knows it), and a session none of
-// whose swings say when they were hit is dated by its SessionIdentity (start time, else day), else its mtime.
-QVector<SessionReportListModel::Row> SessionReportListModel::scan(const QString &athleteDir, qint64 nowMs)
+// THE SUMMARY IS THE DRAWER'S (SessionReviewController): each swing's cheap summary (the presenter's kept read) folded by
+// summarizeSession. An un-indexed swing still counts as a swing (the folder lists it), and a session none of whose swings
+// say when they were hit is dated by its index entry's identity: its start, else its day.
+QVector<SessionReportListModel::Row> SessionReportListModel::rowsFrom(const QVector<pinpoint::SessionListRow> &sessions)
 {
     QVector<Row> out;
-    const QFileInfoList sessions = QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    for (const QFileInfo &fi : sessions) {
-        const QString sessionDir = fi.absoluteFilePath();
-        const QStringList swingDirs = pinpoint::SwingDocReader::findSwingDirs(sessionDir);
-        if (swingDirs.isEmpty()) continue;           // nothing was hit; not a session to report on
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    for (const pinpoint::SessionListRow &s : sessions) {
+        const pinpoint::SessionListFacts &f = s.facts;
+        if (!f.read || f.swings == 0) continue;      // not read yet, or nothing was hit: not a session to report on
 
         QVector<pinpoint::ShotSummaryInput> ins;
         qint64 startMs = 0;
-        for (const QString &sd : swingDirs) {
-            const pinpoint::SwingSummary s = pinpoint::SwingDocReader::readSwingSummary(sd, /*writeSidecar=*/false);
-            if (!s.ok) continue;
-            ins.append({ s.score, s.hasVideo, s.wallclockMs, s.club, s.thumbnailPath, s.devices });
-            if (s.wallclockMs > 0 && (startMs == 0 || s.wallclockMs < startMs)) startMs = s.wallclockMs;
+        for (const pinpoint::SessionListSwing &w : f.shots) {
+            ins.append({ w.score, w.hasVideo, w.wallclockMs, w.club, w.thumbnailPath, w.devices });
+            if (w.wallclockMs > 0 && (startMs == 0 || w.wallclockMs < startMs)) startMs = w.wallclockMs;
         }
         const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);
 
         Row r;
-        r.dir     = sessionDir;
-        r.swings  = int(swingDirs.size());
+        r.dir     = QDir::cleanPath(s.entry.folder);
+        r.swings  = f.swings;
         r.startMs = startMs;
         if (startMs > 0) {
             r.sortMs = startMs;
         } else {
-            // No swing says when: the session's own start time (its session file), else its day
-            // (SessionIdentity: for a session older than step 2, the day its folder's name records —
-            // under every naming pattern, F-06), else the folder's mtime. Never parsed here (lint A3).
-            const pinpoint::SessionIdentity id = pinpoint::SessionDiagnosticsFiles::identityOf(sessionDir);
+            // No swing says when: the session's own start (its session file), else its day (its identity: for a session
+            // older than step 2, the day its folder's name records, under every naming pattern, F-06).
+            const pinpoint::SessionIdentity &id = s.entry.identity;
             r.sortMs = id.startedAtUtc().isValid() ? id.startedAtUtc().toMSecsSinceEpoch()
                      : id.localDay().isValid()     ? QDateTime(id.localDay(), QTime(0, 0)).toMSecsSinceEpoch()
-                                                   : fi.lastModified().toMSecsSinceEpoch();
+                                                   : f.modifiedMs;
         }
         r.dateLabel = QLocale::c().toString(QDateTime::fromMSecsSinceEpoch(r.sortMs).date(),
                                             QStringLiteral("ddd d MMM yyyy"));
@@ -452,14 +421,13 @@ QVector<SessionReportListModel::Row> SessionReportListModel::scan(const QString 
         r.deviceTokens = sum.devices;
         for (const QString &t : sum.devices) r.devices.append(pinpoint::deviceLabel(t));
 
-        const WorkOnLine w = readWorkOn1(sessionDir);
-        r.workOnKnown = w.known;
-        r.workOn1Id   = w.id;
-        r.workOn1     = w.name;
+        r.workOnKnown = f.workOnKnown;
+        r.workOn1Id   = f.workOn1Id;
+        r.workOn1     = f.workOn1Name;
 
         // Every file, an archived session's stubs included: what the folder takes, not what it held.
-        r.sessionBytes = pinpoint::SessionArchiver::folderBytes(sessionDir);
-        r.archived     = pinpoint::SessionArchiver::isArchived(sessionDir);
+        r.sessionBytes = f.bytes;
+        r.archived     = s.entry.archived;   // the archive marker (FILE-SESS-06), as the index entry reads it
         out.append(r);
     }
 
@@ -474,24 +442,32 @@ QVector<SessionReportListModel::Row> SessionReportListModel::scan(const QString 
     return out;
 }
 
-void SessionReportListModel::applyScan(int generation, QVector<Row> rows)
+void SessionReportListModel::rowsMoved(const pinpoint::AthleteId &athlete)
 {
-    m_scanning = false;
-    if (generation != m_generation) { emit scanningChanged(); return; }   // superseded; the newer one lands
-    if (m_rescan) {                                                         // asked again while scanning
-        m_rescan = false;
-        emit scanningChanged();
-        refresh();
-        return;
-    }
+    if (!m_list || athlete != m_athlete) return;
+    if (!m_list->loaded(m_athlete)) return;   // its first reload lands with every row
+    applyRows(rowsFrom(m_list->rowsOf(m_athlete)), true);
+}
 
+void SessionReportListModel::rowMoved(const pinpoint::SessionId &session)
+{
+    if (!m_list || m_athlete.isNull()) return;
+    const std::optional<pinpoint::SessionListRow> r = m_list->row(session);
+    if (!r || r->owner != m_athlete) return;
+    applyRows(rowsFrom(m_list->rowsOf(m_athlete)), false);
+    // That one session's report state is asked again (its swings moved: its fingerprint did).
+    refreshState(r->entry.folder);
+}
+
+void SessionReportListModel::applyRows(QVector<Row> rows, bool askAll)
+{
     // The goal, on this thread: the resolver reads a pack that lives here.
     for (Row &r : rows) {
         if (r.workOn1Id.isEmpty() || !m_goalFn) continue;
         const QString goal = m_goalFn(r.workOn1Id);
         if (!goal.isEmpty()) r.workOn1 = goal;
     }
-    // A row whose state was already known keeps it until it is asked again, so a re-scan does not
+    // A row whose state was already known keeps it until it is asked again, so new rows do not
     // blink every row's words to nothing and back.
     QHash<QString, Row> previous;
     for (const Row &r : std::as_const(m_rows)) previous.insert(r.dir, r);
@@ -504,7 +480,7 @@ void SessionReportListModel::applyScan(int generation, QVector<Row> rows)
 
     const int before = int(m_rows.size());
     markLive(rows, m_liveDir);
-    // The same sessions in the same order (the common re-scan: a work-on record landed, a swing was
+    // The same sessions in the same order (the common case: a work-on record landed, a swing was
     // added to the live session) change rows in place. A reset would rebuild every delegate under the
     // pointer, and a link being pressed would vanish mid-click.
     bool sameDirs = rows.size() == m_rows.size();
@@ -525,6 +501,14 @@ void SessionReportListModel::applyScan(int generation, QVector<Row> rows)
     emit scanningChanged();
     emit refreshed();
 
+    if (!askAll) {
+        // Rows new to the list have no state yet: asked now, the others keep theirs.
+        bool any = false;
+        for (int i = 0; i < m_rows.size(); ++i)
+            if (m_rows.at(i).state.isEmpty()) { applyState(i); any = true; }
+        if (any) statesLanded();
+        return;
+    }
     m_stateCursor = 0;
     ++m_stateGeneration;
     askStates();
@@ -573,7 +557,7 @@ void SessionReportListModel::applyState(int row)
 
 void SessionReportListModel::refreshState(const QString &sessionDir)
 {
-    const QString abs = QFileInfo(sessionDir).absoluteFilePath();
+    const QString abs = QDir::cleanPath(QFileInfo(sessionDir).absoluteFilePath());
     for (int i = 0; i < m_rows.size(); ++i)
         if (m_rows.at(i).dir == abs) { applyState(i); statesLanded(); return; }
 }
