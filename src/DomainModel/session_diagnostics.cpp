@@ -133,6 +133,7 @@ ShotDerived deriveOn(const FiringSnapshot &snap, const ShotRecord &findings, con
     d.data = analysis::deriveShotData(d.checked, corrections, intent, snap.outcomePack ? *snap.outcomePack : kNoPack,
                                       analysis::ShotOutcomeSessionFacts{}, snap.inputs);
     d.usual       = snap.inputs.usuals.value(canonicalClubId(findings.club));
+    d.flightKey   = analysis::flightNormsStampFor(snap.inputs.flightNorms, findings.club);
     d.generation  = snap.derivedGeneration;
     d.intent      = intent;
     d.corrections = corrections;
@@ -500,8 +501,11 @@ void SessionDiagnostics::load()
         }
         for (const QJsonValue &v : m_sessionBlock.value(QStringLiteral("unread")).toArray())
             m_unread.insert(v.toInt());
+        m_loadedChecked.clear();
         for (ShotRecord &r : rows) {
-            // The file holds the rows CHECKED against the flight; the findings are kept as fired.
+            // The file holds the rows CHECKED against the flight; the findings are kept as fired. The checked rows are
+            // the shot's flight check as persisted: loadTail takes them back with its derived data when that is current.
+            m_loadedChecked.insert(r.shotId, r);
             analysis::uncheckShotAgainstFlight(r);
             KeptShot k;
             k.hasLaunchMonitor = lm.contains(r.shotId);
@@ -528,6 +532,7 @@ void SessionDiagnostics::load()
     m_usuals = usualsFromKept();
     refreshFindingsInputs();
     m_snapshot = makeSnapshot();
+    m_flightKeys.clear();   // the keys are of m_snapshot's table
     if (m_doors.pool)
         m_doors.pool->setForeground(m_instance, m_session->runningHere());
 
@@ -562,7 +567,7 @@ void SessionDiagnostics::loadTail()
     // (DEC-135; run 3.5-ii); the others derive again (reconcile).
     const QJsonObject persisted = m_sessionBlock.value(QStringLiteral("derived")).toObject();
     const QString     base      = persisted.isEmpty() ? QString() : derivedBaseStamp();
-    const analysis::FlightNorms flight = m_snapshot->inputs.flightNorms;
+    const QHash<int, ShotRecord> checkedOnFile = std::exchange(m_loadedChecked, {});
     for (Shot *s : shots) {
         const int swing = s->swingNumber();
         const auto k = m_kept.find(swing);
@@ -576,14 +581,22 @@ void SessionDiagnostics::loadTail()
         if (e.isEmpty())
             continue;
         const ClubFlightUsual usual = m_usuals.value(canonicalClubId(k->findings.club));
-        if (e.value(QStringLiteral("stamp")).toString() != derivedStampOf(base, swing, usual))
+        const QString flightKey = flightKeyOf(k->findings.club);
+        if (e.value(QStringLiteral("stamp")).toString() != derivedStampOf(base, swing, usual, flightKey))
             continue;
         ShotDerived d;
-        d.checked = k->findings;
-        analysis::checkShotAgainstFlight(d.checked, m_usuals, flight);
+        // ITS FLIGHT CHECK, TAKEN BACK (refactor 6.3a; DEC-122): the rows the file holds for it, checked under exactly the
+        // usual, the part of the flight table and the thresholds its stamp names. Never run again here.
+        if (const auto c = checkedOnFile.constFind(swing); c != checkedOnFile.constEnd()) {
+            d.checked = *c;
+        } else {   // never: the rows and the findings are the same file's (the one rule, so nothing can differ)
+            d.checked = k->findings;
+            analysis::checkShotAgainstFlight(d.checked, m_usuals, m_snapshot->inputs.flightNorms);
+        }
         d.data.outcome = analysis::shotOutcomeFactsFromJson(e.value(QStringLiteral("outcome")).toObject());
         d.data.factors = analysis::shotFactorsFromJson(e.value(QStringLiteral("factors")).toObject());
         d.usual        = usual;
+        d.flightKey    = flightKey;
         d.generation   = m_derivedGeneration;
         d.intent       = e.value(QStringLiteral("intent")).toString();
         d.corrections  = analysis::shotCorrectionsFromJson(
@@ -675,7 +688,7 @@ void SessionDiagnostics::askFire(Shot *shot)
     const int     swing = ref.swingNumber();
     const quint64 n     = nextWorkNumber();
     shot->recordAsk(n);   // the Shot's latest (§4.4 step 3)
-    m_inFlight.insert(swing, InFlight{ false, {}, 0, n });
+    m_inFlight.insert(swing, InFlight{ false, {}, {}, 0, n });
     ++m_outstanding;
     m_asks.push_back({ swing, false, n });
     // VALUES ONLY: the snapshot pointer, the ShotRef, the reader. No Shot, Session or this.
@@ -696,7 +709,7 @@ void SessionDiagnostics::askDerive(Shot *shot, const KeptShot &kept)
     const quint64 n     = nextWorkNumber();
     shot->recordAsk(n);
     const analysis::ClubFlightUsual usual = m_usuals.value(canonicalClubId(kept.findings.club));
-    m_inFlight.insert(swing, InFlight{ true, usual, m_derivedGeneration, n });
+    m_inFlight.insert(swing, InFlight{ true, usual, flightKeyOf(kept.findings.club), m_derivedGeneration, n });
     ++m_outstanding;
     m_asks.push_back({ swing, true, n });
     // Values only. A result loaded from the file has no review: the job reads it on the worker (C1), as a fire does.
@@ -802,7 +815,7 @@ void SessionDiagnostics::deliver(WorkVerdict verdict, WorkResult &&result)
             } else if (auto it = m_kept.find(swing); it != m_kept.end()) {
                 // A DERIVE THAT FAILED is not asked again until one of its inputs moves (C3): its findings (a fire
                 // makes a new KeptShot), its club's usual or the layer-3 generation it was asked under.
-                it->deriveFailed = DeriveFailure{ asked.usual, asked.generation, why };
+                it->deriveFailed = DeriveFailure{ asked.usual, asked.flightKey, asked.generation, why };
                 ++m_counts.deriveFailures;
             }
             break;
@@ -877,10 +890,10 @@ void SessionDiagnostics::reconcile()
         if (it == m_kept.constEnd() || m_inFlight.contains(swing) || it->findingsStamp != m_findingsStamp)
             return false;
         const ClubFlightUsual usual = m_usuals.value(canonicalClubId(it->findings.club));
-        const bool current = it->derived && it->derived->generation == m_derivedGeneration
-                          && sameUsual(it->derived->usual, usual);
+        const bool current = derivedCurrent(*it);
         const bool failedSo = it->deriveFailed && it->deriveFailed->generation == m_derivedGeneration
-                           && sameUsual(it->deriveFailed->usual, usual);   // failed under exactly these inputs (C3)
+                           && sameUsual(it->deriveFailed->usual, usual)
+                           && it->deriveFailed->flightKey == flightKeyOf(it->findings.club);   // failed under exactly these inputs (C3)
         return !current && !failedSo;
     };
     const QList<int> swings = m_kept.keys();
@@ -918,14 +931,40 @@ void SessionDiagnostics::drop(int swing)
 
 // ── Heard ──────────────────────────────────────────────────────────────────────────────────────────────────
 
+// Only the flight table differs between two rule-data snapshots: every other part is the same object, and the settings
+// the same (RuleData::assemble shares each part it did not read again).
+static bool onlyFlightTableMoved(const RuleDataSnapshot &a, const RuleDataSnapshot &b)
+{
+    return a.pack == b.pack && a.shippedPack == b.shippedPack && a.norms == b.norms && a.shippedNorms == b.shippedNorms
+        && a.userPack == b.userPack && a.userNorms == b.userNorms && a.references == b.references && a.drills == b.drills
+        && a.screens == b.screens && a.gateWords == b.gateWords && a.catalogue == b.catalogue
+        && a.disabledNormSets == b.disabledNormSets && a.gradePolicy == b.gradePolicy && a.flightNorms != b.flightNorms;
+}
+
 void SessionDiagnostics::onRulesChanged()
 {
     if (m_retired)
         return;
+    const std::shared_ptr<const RuleDataSnapshot> before = m_rules;
+    const QString findingsBefore = m_findingsStamp;
     m_rules = m_doors.ruleData->snapshot();
     refreshFindingsInputs();
-    ++m_derivedGeneration;   // the flight table and the outcome pack ride in it too
+    if (before && m_rules && m_findingsStamp == findingsBefore && onlyFlightTableMoved(*before, *m_rules)) {
+        // A FLIGHT-TABLE EDIT (refactor 6.3a; DEC-122, R-STAMP-1): no finding reads the table, so nothing is fired. Each
+        // shot's flight key (the part of the table its club reads) is compared, and only the shots whose key moved derive
+        // again; the session is diagnosed again, since its reduction reads the table too.
+        if (m_archiveOut) m_eventAll = true;
+        m_archivedThisHold = false;
+        m_snapshot = makeSnapshot();
+        m_flightKeys.clear();   // the keys are of m_snapshot's table
+        m_reductionOwed = true;
+        reconcile();
+        settleIfDone();
+        return;
+    }
+    ++m_derivedGeneration;   // the outcome pack rides in it too
     m_snapshot = makeSnapshot();
+    m_flightKeys.clear();
     fireAll();               // a norm or pack change → every shot (EVT-12, EVT-13)
 }
 
@@ -1197,11 +1236,8 @@ bool SessionDiagnostics::write()
     std::vector<ShotRecord> rows;
     QJsonArray  unread;
     analysis::SessionDiagnosisState st;
-    const analysis::FlightNorms flight = m_snapshot ? m_snapshot->inputs.flightNorms : analysis::FlightNorms{};
     for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it) {
-        ShotRecord r = it->findings;
-        analysis::checkShotAgainstFlight(r, m_usuals, flight);
-        rows.push_back(std::move(r));
+        rows.push_back(checkedOf(*it));   // the shot's flight check as held (DEC-122; refactor 6.3a)
         st.gradedFrom.insert(it.key(), analysis::GradedFrom{ it->document.size, it->document.mtimeMs, it->findingsStamp });
         st.swingDirs.insert(it.key(), m_sessions->swingFolder(ShotRef(m_id, it.key())));
         if (it->hasLaunchMonitor)
@@ -1232,12 +1268,10 @@ bool SessionDiagnostics::write()
         const QString base = derivedBaseStamp();
         QJsonObject derived;
         for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it)
-            if (it->derived) {
+            if (derivedCurrent(*it)) {
                 const ClubFlightUsual usual = m_usuals.value(canonicalClubId(it->findings.club));
-                const bool current = it->derived->generation == m_derivedGeneration && sameUsual(it->derived->usual, usual)
-                                  && it->findingsStamp == m_findingsStamp;
-                if (current)
-                    derived.insert(QString::number(it.key()), derivedToJson(*it->derived, derivedStampOf(base, it.key(), usual)));
+                derived.insert(QString::number(it.key()),
+                               derivedToJson(*it->derived, derivedStampOf(base, it.key(), usual, it->derived->flightKey)));
             }
         block.insert(QStringLiteral("derived"), derived);
     }
@@ -1297,8 +1331,7 @@ analysis::SessionReductionInput SessionDiagnostics::reductionInput() const
     // each shot's club in the summary), and a reading left out not read. Asked of each Shot (P10), on this thread.
     const QSet<QString> lmMeasures = in.pack ? analysis::launchMonitorMeasures(in.pack->pack()) : QSet<QString>{};
     for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it) {   // by swing number: strike order
-        ShotRecord r = it->findings;
-        analysis::checkShotAgainstFlight(r, m_usuals, in.flightNorms);     // the rows as the file holds them
+        ShotRecord r = checkedOf(*it);     // the shot's flight check as held: the rows as the file holds them
         const analysis::BoardAnnotation board = boardOf(it.key());
         r = analysis::annotatedShot(std::move(r), board, lmMeasures);
         in.shots.push_back(std::move(r));
@@ -1341,7 +1374,6 @@ DayReadingsAsk SessionDiagnostics::dayAsk() const
     ask.reader = m_doors.reader;
     ask.pack   = m_snapshot ? m_snapshot->inputs.pack : nullptr;
     const QStringList absolutes = ask.pack ? analysis::addressAbsoluteIds(ask.pack->pack()) : QStringList{};
-    const analysis::FlightNorms flight = m_snapshot ? m_snapshot->inputs.flightNorms : analysis::FlightNorms{};
     for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it) {
         DayReadingsAsk::Shot s;
         s.swing    = it.key();
@@ -1351,8 +1383,7 @@ DayReadingsAsk SessionDiagnostics::dayAsk() const
         s.delivery = it->delivery;
         ask.shots.push_back(std::move(s));
         if (!absolutes.isEmpty()) {
-            ShotRecord r = it->findings;
-            analysis::checkShotAgainstFlight(r, m_usuals, flight);
+            const ShotRecord r = checkedOf(*it);   // the shot's flight check as held
             if (std::optional<analysis::ShotAddressReading> a = analysis::shotAddressReadingOf(r, absolutes))
                 ask.address.push_back(std::move(*a));
         }
@@ -1522,17 +1553,21 @@ analysis::SessionResults SessionDiagnostics::summary() const
 }
 
 // THE DERIVED STAMP (DEC-135; R-STAMP-1 for layer 3): everything a shot's derived data was computed from besides its
-// own findings (whose stamp it carries) — the flight table and the rest of the snapshot (firingStamp with the usuals
-// and the cohort neutral), the intent run, the reduction's rule version — then per shot its club's usual and the
-// older copy of its word. A shot whose review moved has a new document stamp and fires anyway.
+// own findings (whose stamp it carries) — the rest of the snapshot (firingStamp with the usuals, the cohort and the
+// flight table neutral), the flight check's rule and thresholds (flightCheckRuleStamp; refactor 6.3a), the intent run,
+// the reduction's rule version — then per shot its club's usual, the part of the flight table its club reads (its flight
+// key: a flight-table edit re-judges exactly the shots it reaches) and the older copy of its word. A shot whose review
+// moved has a new document stamp and fires anyway.
 QString SessionDiagnostics::derivedBaseStamp() const
 {
     if (!m_snapshot)
         return QString();
     analysis::FiringInputs in = m_snapshot->inputs;
     in.usuals.clear();
-    in.cohort = analysis::Cohort{};
+    in.cohort      = analysis::Cohort{};
+    in.flightNorms = analysis::FlightNorms{};   // per shot, in its flight key
     return m_findingsStamp + QLatin1Char('|') + analysis::firingStamp(in) + QLatin1Char('|')
+         + analysis::flightCheckRuleStamp() + QLatin1Char('|')
          + QString::number(m_intentRun.fromShot) + QLatin1Char(':') + m_intentRun.shape + QLatin1Char('|')
          + QString::number(analysis::kSessionReductionVersion)
          // The rules the summary's per-shot facts are made under (review 2 of 3.6: a bump of either re-derives them).
@@ -1540,12 +1575,15 @@ QString SessionDiagnostics::derivedBaseStamp() const
          + QString::number(analysis::kThemeRuleVersion) + QLatin1Char(':') + QString::number(analysis::kBoardAnnotationRuleVersion);
 }
 
-QString SessionDiagnostics::derivedStampOf(const QString &base, int swing, const ClubFlightUsual &usual) const
+QString SessionDiagnostics::derivedStampOf(const QString &base, int swing, const ClubFlightUsual &usual,
+                                           const QString &flightKey) const
 {
     QCryptographicHash h(QCryptographicHash::Sha1);
     h.addData(base.toUtf8());
     const auto add = [&h](double v) { h.addData(std::isnan(v) ? QByteArrayLiteral("nan") : QByteArray::number(v, 'g', 17)); h.addData("|"); };
     add(usual.launch); add(usual.smash); add(usual.attack); add(usual.carry);
+    h.addData(flightKey.toUtf8());
+    h.addData("|");
     h.addData(m_legacyIntents.value(swing).toUtf8());
     h.addData(QJsonDocument(analysis::shotCorrectionsToJson({ { swing, m_legacyCorrections.value(swing) } }))
                   .toJson(QJsonDocument::Compact));
@@ -1556,6 +1594,40 @@ const KeptShot *SessionDiagnostics::kept(int swingNumber) const
 {
     const auto it = m_kept.constFind(swingNumber);
     return it == m_kept.constEnd() ? nullptr : &it.value();
+}
+
+QString SessionDiagnostics::flightKeyOf(const QString &club) const
+{
+    const QString c = canonicalClubId(club);
+    if (const auto it = m_flightKeys.constFind(c); it != m_flightKeys.constEnd())
+        return *it;
+    const QString key = analysis::flightNormsStampFor(m_snapshot ? m_snapshot->inputs.flightNorms : analysis::FlightNorms{}, c);
+    m_flightKeys.insert(c, key);
+    return key;
+}
+
+bool SessionDiagnostics::derivedCurrent(const KeptShot &k) const
+{
+    return k.derived && k.findingsStamp == m_findingsStamp && k.derived->generation == m_derivedGeneration
+        && sameUsual(k.derived->usual, m_usuals.value(canonicalClubId(k.findings.club)))
+        && k.derived->flightKey == flightKeyOf(k.findings.club);
+}
+
+// THE SHOT'S FLIGHT CHECK (DEC-122; refactor 6.3a): the one its derived data holds when that is current; else, for a shot
+// whose derive is in flight or failed, the one rule now — as every reader ran it before, so nothing they read changes.
+ShotRecord SessionDiagnostics::checkedOf(const KeptShot &k) const
+{
+    if (derivedCurrent(k))
+        return k.derived->checked;
+    ShotRecord r = k.findings;
+    analysis::checkShotAgainstFlight(r, m_usuals, m_snapshot ? m_snapshot->inputs.flightNorms : analysis::FlightNorms{});
+    return r;
+}
+
+ShotRecord SessionDiagnostics::checkedRows(int swingNumber) const
+{
+    const KeptShot *k = kept(swingNumber);
+    return k ? checkedOf(*k) : ShotRecord{};
 }
 
 // ── ShotDiagnostics, the Shot's view of what this owner keeps for it (refactor 4-b; shot.h) ──────────────────

@@ -194,12 +194,10 @@ QJsonObject formOf(const SessionDiagnostics &d, bool withStamp)
     QHash<int, const ShotBecause *> because;
     for (const ShotBecause &b : r.because) because.insert(b.shotId, &b);
     QJsonArray shots;
-    const FlightNorms &flight = d.snapshot()->inputs.flightNorms;
     for (const ShotResult &s : r.shots) {
         const KeptShot *k = d.kept(s.shotId);
         if (!k) continue;
-        ShotRecord rec = k->findings;
-        checkShotAgainstFlight(rec, d.usuals(), flight);
+        const ShotRecord rec = d.checkedRows(s.shotId);   // the shot's flight check as its owner holds it (refactor 6.3a)
         ShotOutcome o = s.outcome;
         if (const ShotBecause *b = because.value(s.shotId)) {
             o.driver = b->driver;

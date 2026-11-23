@@ -770,9 +770,11 @@ bool SessionDiagnosticsModel::followNormSave()
 
 // The content stamp's one rule (computeContentStamp, currentContentStamp): the Rules ring's, which the session's owner
 // hashes its summary's freshness with too (refactor 3.7-e; fire_findings.h contentStamp).
+// The flight table is RuleData's (refactor 6.3a: the rows are checked against it, C-02).
 static QString contentStampOf(const ICharacteristicPackProvider *pack, const INormProvider *norms)
 {
-    return pinpoint::analysis::contentStamp(pack, norms);
+    const std::shared_ptr<const pinpoint::RuleDataSnapshot> rules = pinpoint::RuleData::current();
+    return pinpoint::analysis::contentStamp(pack, norms, rules ? rules->flightNorms.get() : nullptr);
 }
 
 QString SessionDiagnosticsModel::computeContentStamp() const

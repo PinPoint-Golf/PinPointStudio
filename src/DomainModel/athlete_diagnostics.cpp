@@ -714,7 +714,7 @@ QString AthleteDiagnostics::contentStampNow()
     const auto snap = rules();
     if (snap != m_stampOf) {
         m_stampOf      = snap;
-        m_contentStamp = snap ? analysis::contentStamp(snap->pack.get(), snap->norms.get()) : QString();
+        m_contentStamp = snap ? analysis::contentStamp(snap->pack.get(), snap->norms.get(), snap->flightNorms.get()) : QString();
     }
     return m_contentStamp;
 }

@@ -42,6 +42,8 @@
 #include "../Core/club_vocabulary.h"
 #include "../LaunchMonitor/lm_flight_path.h"
 
+#include <QByteArray>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QHash>
 #include <QJsonArray>
@@ -599,6 +601,64 @@ inline int checkStrikesAgainstFlight(std::vector<ShotRecord> &shots, const Fligh
     for (ShotRecord &s : shots)
         overruled += checkShotAgainstFlight(s, usuals, norms);
     return overruled;
+}
+
+// ── What the flight check is computed under: its stamps (R-STAMP-1; refactor 6.3a, DEC-122) ──────────────
+//
+// The check is the shot's derived data (OBJ-SHOT-DERIVED). Its derived stamp and the session summary's fingerprint
+// carry these two, so an edit re-judges exactly the shots it reaches:
+//   flightCheckRuleStamp()         this file's rule version and EVERY threshold above (the strike read from the flight,
+//                                  a measured strike's agreement, Sky, the usual's minimum count). A threshold edit is
+//                                  a build, and it moves the stamp by itself: no version bump is needed for one.
+//   flightNormsStampFor(n, club)   the part of the flight table one shot's club reads (classifyFlight): its category,
+//                                  that category's landing, apex/carry and reference rows (and the apex band beside a
+//                                  reference). An edit
+//                                  to another category's rows leaves it as it was.
+//
+// kFlightCheckRuleVersion: bump it when what the check DOES changes without a threshold moving (a new condition judged,
+// another reading compared). History: 1 (23 Nov 2026, refactor 6.3a): the check is stamped by its thresholds and by
+// the shot's own part of the table, so the library re-judges once, on the first launch of the build that carries it.
+inline constexpr int kFlightCheckRuleVersion = 1;
+
+inline QString flightCheckRuleStamp()
+{
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    h.addData(QByteArrayLiteral("flightcheck") + QByteArray::number(kFlightCheckRuleVersion));
+    h.addData(QByteArrayLiteral("|min") + QByteArray::number(kFlightUsualMinShots));
+    for (const double v : { kFlightLowLaunchShare, kFlightHighLaunchShare, kFlightShankStartDeg, kFlightTopSmashShare,
+                            kFlightFatSmashShare, kFlightFatSteeperDeg, kFlightShortCarryShare, kFlightThinLaunchShare,
+                            kFlightFatCarryShare, kSkySteeperAttackDeg, kSkyCarryShare }) {
+        h.addData("|");
+        h.addData(QByteArray::number(v, 'g', 17));
+    }
+    return QString::fromLatin1(h.result().toHex().left(16));
+}
+
+inline QString flightNormsStampFor(const FlightNorms &norms, const QString &club)
+{
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    const auto add = [&h](double v) {
+        h.addData(std::isnan(v) ? QByteArrayLiteral("nan") : QByteArray::number(v, 'g', 17));
+        h.addData("|");
+    };
+    const auto addBand = [&](const FlightBand &b) { add(b.lo); add(b.hi); };
+    h.addData(QByteArrayLiteral("flight") + QByteArray::number(norms.schema) + '|');
+    const QString category = flightClubCategory(norms, club);
+    h.addData(category.toUtf8());
+    h.addData("|");
+    if (!category.isEmpty()) {   // a club in no category reads nothing of the table (classifyFlight)
+        const auto landing = norms.landing.constFind(category);
+        if (landing != norms.landing.constEnd()) { h.addData("landing"); addBand(*landing); }
+        const auto apexCarry = norms.apexCarry.constFind(category);
+        if (apexCarry != norms.apexCarry.constEnd()) { h.addData("apexcarry"); addBand(*apexCarry); }
+        const auto ref = norms.apexReference.constFind(category);   // the apex band is read only beside a reference
+        if (ref != norms.apexReference.constEnd() && !ref->empty()) {
+            h.addData("apex");
+            addBand(norms.apexBand);
+            for (const FlightApexPoint &p : *ref) { add(p.ballSpeedMph); add(p.apexYd); }
+        }
+    }
+    return QString::fromLatin1(h.result().toHex().left(16));
 }
 
 } // namespace pinpoint::analysis

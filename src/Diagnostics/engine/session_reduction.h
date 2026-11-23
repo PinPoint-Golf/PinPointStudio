@@ -129,7 +129,8 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in);
 // ── FIELD-LIST §1.8's `fingerprint`: WHAT A SESSION SUMMARY WAS WORKED OUT FROM, ONE RULE (refactor 3.7-e; round 2:
 // R-STAMP-1, review R1-B2) ─────────────────────────────────────────────────────────────────────────────────────────────
 // Every version the summary is produced under — today's keys' schema and rule, DEC-192's growth, the facts' rules
-// (`factsRules`), the reduction's (kSessionReductionVersion), the club baseline's schema — and every input both its writer
+// (`factsRules`), the reduction's (kSessionReductionVersion), the club baseline's schema, the flight check's rule and
+// thresholds (flightCheckRuleStamp, refactor 6.3a) — and every input both its writer
 // (SessionDiagnostics) and the catch-up's scan (WorkOnsController) can compute: the rule data (`rules`:
 // summaryRulesStamp — the row shape and grid versions, the pack, the norms, the grade policy, the disabled sets, the flight
 // norms), the session's frozen club baseline (`baseline`: clubBaselineStamp), the athlete record's facts its norm cohort
@@ -151,6 +152,10 @@ inline QString summaryFingerprintOf(const SummaryRules &in, std::vector<SummaryS
         h.addData(QByteArray::number(v));
         h.addData("|");
     }
+    // The flight check's rule and thresholds (refactor 6.3a; R-STAMP-1): the rows the summary is reduced from are checked
+    // against the flight. The table itself is in `rules` (summaryRulesStamp).
+    h.addData(flightCheckRuleStamp().toUtf8());
+    h.addData("|");
     for (const QString *t : { &in.rules, &in.baseline, &in.cohort }) {
         h.addData(t->toUtf8());
         h.addData("|");

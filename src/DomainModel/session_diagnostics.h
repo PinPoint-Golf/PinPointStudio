@@ -163,6 +163,9 @@ struct ShotDerived {
     analysis::ShotRecord      checked;   // the findings' rows checked against the session's usual flight
     analysis::ShotDerivedData data;      // outcome (without the session's "because": J-14 (b)) and the three factors
     analysis::ClubFlightUsual usual;     // its club's usual it used (NaN where the club had none)
+    // The part of the flight table its club reads, as it used it (analysis::flightNormsStampFor; refactor 6.3a): a
+    // flight-table edit re-derives exactly the shots whose key moved (R-STAMP-1).
+    QString                   flightKey;
     quint64                   generation = 0;   // the snapshot's derivedGeneration it used
     // The golfer's word it was computed with, resolved (its review over the older copy; the run for the intent).
     QString                               intent;
@@ -172,6 +175,7 @@ struct ShotDerived {
 // A derive that failed (its job threw): not asked again until one of its inputs moves (review 1 of 3.5-i, C3).
 struct DeriveFailure {
     analysis::ClubFlightUsual usual;
+    QString                   flightKey;
     quint64                   generation = 0;
     QString                   reason;
 };
@@ -245,6 +249,11 @@ public:
     QSet<int>       unread() const { return m_unread; }
     const QHash<QString, analysis::ClubFlightUsual> &usuals() const { return m_usuals; }
     int             outstanding() const { return m_outstanding; }   // asks not yet come back
+    // THE SHOT'S FLIGHT CHECK (DEC-122; refactor 6.3a): its rows as checked against the session's usual flight — the held
+    // check of its current derived data (ShotDerived::checked), else (none current: a derive in flight or failed) the one
+    // rule over its findings, now. What diagnostics.json's ledger, the diagnosis and the parity dump read; no reader
+    // runs the check itself. Empty for a shot with nothing kept.
+    analysis::ShotRecord checkedRows(int swingNumber) const;
     bool            readOnly() const { return m_readOnly; }
     // WHAT THE LOAD FOUND OF diagnostics.json (refactor 5.5a; J-74 Q2): the state this object already holds, read only —
     // for a screen that says why nothing is graded yet (the Charts Wrist sections' "not graded" sentence).
@@ -364,7 +373,13 @@ private:
     void readSessionWord();                                // focus, miss, screens: the one rule (J-33)
     QString derivedBaseStamp() const;                      // what every shot's derived stamp shares
     bool    sessionEnded() const;                          // the Session's status, through its repository (J-24)
-    QString derivedStampOf(const QString &base, int swing, const analysis::ClubFlightUsual &usual) const;
+    QString derivedStampOf(const QString &base, int swing, const analysis::ClubFlightUsual &usual,
+                           const QString &flightKey) const;
+    // The part of the snapshot's flight table `club` reads (flightNormsStampFor), once per club per table (refactor 6.3a).
+    QString flightKeyOf(const QString &club) const;
+    // The kept shot's derived data is current: its findings stamp, the layer-3 generation, its club's usual and flight key.
+    bool    derivedCurrent(const KeptShot &k) const;
+    analysis::ShotRecord checkedOf(const KeptShot &k) const;   // checkedRows' rule, on a kept shot
     void drop(int swing);
     void retire(bool writeFirst);
     bool write();
@@ -394,6 +409,8 @@ private:
     QHash<int, QString>                                  m_legacyIntents;
     QHash<int, std::vector<analysis::ShotCorrection>>    m_legacyCorrections;
     QHash<QString, analysis::ClubFlightUsual>            m_usuals;
+    mutable QHash<QString, QString>                      m_flightKeys;   // canonical club → flightKeyOf, for m_snapshot's table
+    QHash<int, analysis::ShotRecord>                     m_loadedChecked;   // the file's checked rows, until loadTail takes them
     QString                                              m_findingsStamp;
     quint64                                              m_derivedGeneration = 1;
     std::shared_ptr<const FiringSnapshot>                m_snapshot;
@@ -405,6 +422,7 @@ private:
     struct InFlight {
         bool                      derive = false;
         analysis::ClubFlightUsual usual;
+        QString                   flightKey;
         quint64                   generation = 0;
         quint64                   number = 0;   // its ask number: which asks are oldest when an archive drops the rest
     };

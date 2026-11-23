@@ -455,7 +455,7 @@ QString firingStamp(const FiringInputs &inputs)
     return QString::fromLatin1(h.result().toHex().left(16));
 }
 
-QString contentStamp(const ICharacteristicPackProvider *pack, const INormProvider *norms)
+QString contentStamp(const ICharacteristicPackProvider *pack, const INormProvider *norms, const FlightNorms *flight)
 {
     if (!pack || !norms) return QString();
     QCryptographicHash h(QCryptographicHash::Sha1);
@@ -469,6 +469,9 @@ QString contentStamp(const ICharacteristicPackProvider *pack, const INormProvide
     // The numbers the rows were graded on: a phase-grid schema bump means the reductions changed (v9: the extremes at a
     // masked end, issue #1), and a row graded on the old ones regrades.
     h.addData(QByteArrayLiteral("grid") + QByteArray::number(kPhaseGridSchemaVersion));
+    // The ball flight the rows are checked against (C-02; refactor 6.3a): the table and the check's rule and thresholds.
+    addFlightNorms(h, flight ? *flight : FlightNorms{});
+    h.addData(flightCheckRuleStamp().toUtf8());
     return QString::fromLatin1(h.result().toHex().left(16));
 }
 

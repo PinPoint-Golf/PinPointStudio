@@ -714,7 +714,8 @@ private:
     bool m_adapterBaselineWaiting = false;   // baselineWaiting(): ditto
     int  m_views = 0;
 
-    // The content every row is graded against — pack, norms and contexts — as one short hash (contentStamp()).
+    // The content every row is graded against — pack, norms, contexts and the ball flight they are checked against
+    // (refactor 6.3a) — as one short hash (contentStamp()).
     QString computeContentStamp() const;
 
     // Everything derived, from the rows and nothing else. Cheap enough to do wholesale —

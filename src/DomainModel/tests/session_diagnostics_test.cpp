@@ -48,6 +48,9 @@
 //               a store that does not publish the session reads nothing
 //   Q18         release: a sweep over an athlete's sessions holds at most one at a time; the running session and one in
 //               use are refused; the kept state's size per session is printed (Q-18's measurement, in part)
+//   FN          (refactor 6.3a; DEC-122, R-STAMP-1) the flight check is the shot's derived data: a flight-table edit to one
+//               club category re-judges exactly that category's shots, live and at a load, and fires nothing; the check
+//               the owner holds is the one rule's; a load takes it back from the file; the content stamp carries the table
 //
 //   cmake --build build/tests --target session_diagnostics_test -j 6
 //   ctest --test-dir build/tests -R '^session_diagnostics_test$' --output-on-failure
@@ -1185,6 +1188,122 @@ static void testWordCommands()
               && k->derived && k->derived->intent == QLatin1String("slice") && k->derived->corrections.size() == 1);
 }
 
+// ── 6.3a ───────────────────────────────────────────────────────────────────────────────────────────────────
+
+// The flight table the process reads (PINPOINT_CORE_FLIGHT_NORMS), with one category's landing band moved, written to
+// `path`. Returns false when the shipped table cannot be read.
+static bool writeFlightTableWith(const QString &path, const QString &category, double lo, double hi)
+{
+    QFile in(QString::fromLocal8Bit(qgetenv("PINPOINT_CORE_FLIGHT_NORMS")));
+    if (!in.open(QIODevice::ReadOnly)) return false;
+    QJsonObject root = QJsonDocument::fromJson(in.readAll()).object();
+    QJsonArray methods = root.value(QStringLiteral("methods")).toArray();
+    bool moved = false;
+    for (int i = 0; i < methods.size(); ++i) {
+        QJsonObject m = methods.at(i).toObject();
+        if (m.value(QStringLiteral("id")).toString() != QLatin1String("landing")) continue;
+        QJsonObject bands = m.value(QStringLiteral("bands")).toObject();
+        if (!bands.contains(category)) return false;
+        bands.insert(category, QJsonArray{ lo, hi });
+        m.insert(QStringLiteral("bands"), bands);
+        methods.replace(i, m);
+        moved = true;
+    }
+    root.insert(QStringLiteral("methods"), methods);
+    QFile out(path);
+    return moved && out.open(QIODevice::WriteOnly) && out.write(QJsonDocument(root).toJson()) > 0;
+}
+
+// Every kept shot's held check is the one rule over its findings, now; returns how many were compared.
+static int heldCheckIsTheRule(const SessionDiagnostics *d, bool *same)
+{
+    *same = d != nullptr;
+    int n = 0;
+    for (const int sw : d ? d->keptShots() : QList<int>{}) {
+        ShotRecord r = d->kept(sw)->findings;
+        analysis::checkShotAgainstFlight(r, d->usuals(), d->snapshot()->inputs.flightNorms);
+        *same = *same && json(d->checkedRows(sw)) == json(r) && d->kept(sw)->derived
+             && json(d->kept(sw)->derived->checked) == json(r);
+        ++n;
+    }
+    return n;
+}
+
+static void testFlightTableEdit()
+{
+    std::printf("\nFN — the flight check is the shot's derived data; a flight-table edit re-judges only the shots it reaches\n");
+    const QByteArray shipped = qgetenv("PINPOINT_CORE_FLIGHT_NORMS");
+    RuleData *rules = RuleData::installed();
+    QTemporaryDir edits;
+    {
+        Rig rig;
+        // Four 7 irons (mid_irons) and four 9 irons (short_irons): each club has a usual (kFlightUsualMinShots).
+        const QString kC = QStringLiteral("9 IRON");
+        Session *s = rig.session({ spec(kA, 10), spec(kA, 12), spec(kA, 14), spec(kA, 16),
+                                   spec(kC, 20), spec(kC, 22), spec(kC, 24), spec(kC, 26) });
+        SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+        if (!rules || !Rig::settled(d) || d->keptShots().size() != 8) { check(QStringLiteral("FN setup"), false); return; }
+        bool same = false;
+        check(QStringLiteral("FNa every shot's held check is the one rule over its findings, and is what the owner gives"),
+              heldCheckIsTheRule(d, &same) == 8 && same);
+        QHash<int, QString> keyBefore;
+        for (const int sw : d->keptShots()) keyBefore.insert(sw, d->kept(sw)->derived->flightKey);
+        check(QStringLiteral("FNb each shot holds a flight key; the two categories' differ"),
+              !keyBefore.value(1).isEmpty() && keyBefore.value(1) == keyBefore.value(4) && keyBefore.value(1) != keyBefore.value(5));
+
+        // LIVE: the 9 irons' landing band moves.
+        const QString one = edits.filePath(QStringLiteral("short_irons.json"));
+        const QString findingsBefore = d->findingsStamp();
+        const quint64 reductionsBefore = d->counts().reductions;
+        const size_t mark = d->asks().size();
+        const QString contentBefore = analysis::contentStamp(g_rules->pack.get(), g_rules->norms.get(), g_rules->flightNorms.get());
+        check(QStringLiteral("FNc the edited table is written"), writeFlightTableWith(one, QStringLiteral("short_irons"), 10.0, 20.0));
+        qputenv("PINPOINT_CORE_FLIGHT_NORMS", one.toLocal8Bit());
+        rules->reload(RuleData::Flight);
+        check(QStringLiteral("FNd it settles"), Rig::settled(d) && pump([d] { return d->idle(); }));
+        const AskTally t = asksSince(d, mark);
+        std::printf("    %s\n", qPrintable(tallyText(t)));
+        check(QStringLiteral("FNe nothing fired; each 9 iron derived exactly once, no 7 iron"),
+              t.totalFires == 0 && exactlyOnce(t.derives, { 5, 6, 7, 8 }));
+        bool keys = true;
+        for (const int sw : d->keptShots())
+            keys = keys && (sw <= 4 ? d->kept(sw)->derived->flightKey == keyBefore.value(sw)
+                                    : d->kept(sw)->derived->flightKey != keyBefore.value(sw));
+        check(QStringLiteral("FNf the 9 irons' flight keys moved, the 7 irons' did not"), keys);
+        check(QStringLiteral("FNg the findings stamp is unchanged (findings never read the table); the session is diagnosed again"),
+              d->findingsStamp() == findingsBefore && d->counts().reductions > reductionsBefore);
+        check(QStringLiteral("FNh … and the held check is still the one rule's, under the new table"),
+              heldCheckIsTheRule(d, &same) == 8 && same);
+        const auto now = RuleData::current();
+        check(QStringLiteral("FNi the content stamp carries the flight table (C-02)"),
+              now && analysis::contentStamp(now->pack.get(), now->norms.get(), now->flightNorms.get()) != contentBefore);
+
+        // AT A LOAD: written under the edited table, released; then the 7 irons' band moves while nothing holds it.
+        s->end();
+        const SessionId id = s->id();
+        rig.athlete->releaseSession(id);
+        const std::vector<ShotRecord> onFile = analysis::fromJson(rig.store.readDiagnostics(id).envelope.ledger);
+        const QString two = edits.filePath(QStringLiteral("mid_irons.json"));
+        check(QStringLiteral("FNj the second edit is written"), writeFlightTableWith(two, QStringLiteral("mid_irons"), 30.0, 40.0));
+        qputenv("PINPOINT_CORE_FLIGHT_NORMS", two.toLocal8Bit());
+        rules->reload(RuleData::Flight);
+        Session *again = rig.athlete->session(id);
+        SessionDiagnostics *d2 = again ? again->diagnostics() : nullptr;
+        check(QStringLiteral("FNk loaded again; it settles"), Rig::settled(d2) && pump([d2] { return d2->idle(); }));
+        const AskTally t2 = d2 ? asksSince(d2, 0) : AskTally{};
+        std::printf("    %s; restored %llu\n", qPrintable(tallyText(t2)), d2 ? (unsigned long long)d2->counts().derivedRestored : 0ULL);
+        check(QStringLiteral("FNl nothing fired; each 7 iron derived exactly once; the four 9 irons taken back from the file"),
+              d2 && t2.totalFires == 0 && exactlyOnce(t2.derives, { 1, 2, 3, 4 }) && d2->counts().derivedRestored == 4);
+        bool back = d2 != nullptr;
+        for (const ShotRecord &r : onFile)
+            if (r.shotId >= 5) back = back && d2->kept(r.shotId) && json(d2->checkedRows(r.shotId)) == json(r);
+        check(QStringLiteral("FNm a taken-back shot's check is the file's rows, and the one rule's"),
+              back && onFile.size() == 8 && heldCheckIsTheRule(d2, &same) == 8 && same);
+    }
+    qputenv("PINPOINT_CORE_FLIGHT_NORMS", shipped);
+    if (rules) rules->reload(RuleData::Flight);
+}
+
 // ── 3.5-ii ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 // DER: each shot's derived data is persisted with its findings (DEC-135) and taken back at a load.
@@ -1788,6 +1907,7 @@ int main(int argc, char **argv)
     testStageRatchet();
     testFocusInert();
     testRowCaptureInstant();
+    testFlightTableEdit();   // last: it re-points the process's flight table, and puts it back
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;

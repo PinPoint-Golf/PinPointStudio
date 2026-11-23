@@ -289,9 +289,9 @@ class WorkOnsController : public QObject
     // ── Tendencies (docs/design/shot_outcomes_design.md §7) ──
     //
     // The same catch-up ends in one more reduction (tendencies.h), <athlete>/tendencies.json, fingerprinted
-    // on the rule, the schema, the content stamp, the flight table (flight_norms.json's bytes, so a tuned
-    // threshold re-reduces) and each session's (name, work-ons fingerprint, ledger size and mtime), so a
-    // correction, which only touches the ledger, counts. On the themes pool, cancelled by the same events; the
+    // on the rule, the schema, the content stamp (which carries the flight table and the flight check's
+    // thresholds: refactor 6.3a) and each session summary's (folder, fingerprint, when it was written), so a
+    // correction counts (AthleteDiagnostics::tendenciesFingerprint). On the themes pool, cancelled by the same events; the
     // file is read rather than reduced when nothing moved. Strings final.
     //
     // focusItem and every nextItems entry gain `onTheBall` (a line, "" when none); faultDetail(id) gains `onBall`:

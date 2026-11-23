@@ -135,8 +135,10 @@ QString firingStamp(const FiringInputs &inputs);
 // model hash alike): the diagnostic graph, the norms and their contexts, and the row shape's versions (schema, words,
 // grading, the phase grid) — "which pack and norms graded the rows" (FIELD-LIST §1.8). What a session summary's freshness
 // fingerprint carries (Coaching/session_results.h summaryFingerprintOf) and the catch-up's scan compares; the screens'
-// SessionDiagnosticsModel::contentStamp(). Empty without both.
-QString contentStamp(const ICharacteristicPackProvider *pack, const INormProvider *norms);
+// SessionDiagnosticsModel::contentStamp(). Empty without both. The rows it speaks for are checked against the ball
+// flight, so it carries the flight table and the flight check's rule and thresholds too (C-02; refactor 6.3a: R-STAMP-1);
+// a null `flight` hashes as the empty table, as an empty snapshot's rows are checked.
+QString contentStamp(const ICharacteristicPackProvider *pack, const INormProvider *norms, const FlightNorms *flight);
 
 // THE SESSION SUMMARY'S RULE-DATA STAMP (refactor 3.7-e round 2, R-STAMP-1; review R1-B2): firingStamp over `inputs` with
 // the per-session and per-shot parts made neutral — no usuals, no cohort, no club baseline, σ as tuned — so it covers the
