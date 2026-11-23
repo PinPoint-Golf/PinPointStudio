@@ -1124,6 +1124,14 @@ std::function<JsonFileRead()> SessionStore::deferredReadWorkOns(const SessionId 
     return [folder] { return session_diagnostics_io::readWorkOns(folder); };   // any thread: a file read, no member
 }
 
+std::function<SessionIndexSummary()> SessionStore::deferredSummary(const SessionId &id)
+{
+    const QString folder = heldFolder(id);   // this (the owner's) thread: the identity map
+    if (folder.isEmpty() || !m_summaryReads) return {};
+    const SummaryReads reads = m_summaryReads;
+    return [folder, reads] { return reads(folder); };   // any thread: file reads, no member
+}
+
 WriteResult SessionStore::writeWorkOns(const SessionId &id, const QJsonObject &root)
 {
     const QString folder = heldFolder(id);

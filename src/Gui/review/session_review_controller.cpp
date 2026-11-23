@@ -139,19 +139,12 @@ SessionListModel::Row SessionReviewController::buildLiveRow(qint64 nowMs) const
         }
     }
     const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);
-    // What recorded it: the live model does not hold this. The live session's row of the one session list does (its swings'
-    // cheap summaries, read again on each shot's event: refactor 5.7a), so it is not read again here for every swing.
+    // What recorded it: the live model does not hold this. The live session's row of the one session list does (its entry's
+    // swing roll-up, read again on each shot's event: refactor 5.7a, 5.7a-P1), so it is not read again here for every swing.
     QStringList devices;
     if (const QString live = liveSessionDir(); m_list && !live.isEmpty())
-        if (const std::optional<pinpoint::SessionListRow> r = m_list->rowAt(live)) {
-            QVector<pinpoint::ShotSummaryInput> dev;
-            for (const pinpoint::SessionListSwing &w : r->facts.shots) {
-                pinpoint::ShotSummaryInput in;
-                in.devices = w.devices;
-                dev.append(in);
-            }
-            devices = pinpoint::summarizeSession(dev, nowMs).devices;
-        }
+        if (const std::optional<pinpoint::SessionListRow> r = m_list->rowAt(live))
+            devices = r->entry.summary.swings.devices;
 
     SessionListModel::Row row;
     row.sessionId     = QString();           // sentinel — selecting the live row resumes live
@@ -170,14 +163,12 @@ SessionListModel::Row SessionReviewController::buildLiveRow(qint64 nowMs) const
 SessionListModel::Row SessionReviewController::buildDiskRow(const pinpoint::SessionListRow &session,
                                                             qint64 nowMs) const
 {
-    // The swings' summary sidecars ONLY (the one session list's kept read: never the fat swing.json parse, which runs to
-    // hundreds of MB behind a session and used to freeze the app long enough for the compositor to offer to kill it).
+    // The entry's swing roll-up (P1: the swings' summary sidecars ONLY, never the fat swing.json parse, which runs to hundreds
+    // of MB behind a session and used to freeze the app long enough for the compositor to offer to kill it).
     const pinpoint::SessionListFacts &f = session.facts;
-    QVector<pinpoint::ShotSummaryInput> ins;
-    for (const pinpoint::SessionListSwing &w : f.shots)
-        ins.append({ w.score, w.hasVideo, w.wallclockMs, w.club, w.thumbnailPath, w.devices });
-    const bool indexed = f.read && f.indexed;
-    const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);
+    const pinpoint::SessionSwingRollUp &sw = session.entry.summary.swings;
+    const bool indexed = session.entry.summary.read && sw.indexed();
+    const pinpoint::SessionSummary sum = pinpoint::summaryOf(sw, nowMs);
 
     SessionListModel::Row row;
     row.sessionId     = QDir::cleanPath(session.entry.folder);
@@ -195,7 +186,7 @@ SessionListModel::Row SessionReviewController::buildDiskRow(const pinpoint::Sess
     if (!indexed) {
         // Nothing (or not everything) indexed yet. Fall back to the facts the folder listing and the index entry supply,
         // so the row stays recognisable and clickable; opening it indexes the session and its row is read again.
-        row.shotCount = f.swings;
+        row.shotCount = sw.swings;
         if (row.dayLabel.isEmpty()) {
             // The session's own start time, else its day: its index entry's identity (step 2.7b, F-06) — the session
             // file's start, or for a session older than step 2 the day its folder's name records, under every naming

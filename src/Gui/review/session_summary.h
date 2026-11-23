@@ -19,6 +19,7 @@
 #pragma once
 
 #include "../../LaunchMonitor/lm_device.h"
+#include "../../DomainModel/session_roll_up.h"   // ShotSummaryInput, the one fold, the device order (5.7a-P1)
 
 #include <QDate>
 #include <QDateTime>
@@ -35,15 +36,8 @@
 
 namespace pinpoint {
 
-// One shot's contribution to its session's summary.
-struct ShotSummaryInput {
-    int     score        = 0;     // 0–100 quality
-    bool    hasVideo     = false;
-    qint64  wallclockMs  = 0;     // absolute instant (epoch ms); 0 = unknown
-    QString club;                 // equipment used (stub "DRIVER" until detection lands)
-    QString thumbnailPath;        // absolute path; empty if none extracted
-    QStringList devices;          // swingDeviceTokens() of the shot ("faceOn", "hackmotion", "lm:gcquad")
-};
+// ShotSummaryInput and the fold (rollUpSwings) are the session index entry's (DomainModel/session_roll_up.h, refactor
+// 5.7a-P1): this header turns a roll-up into the labels a row shows.
 
 struct SessionSummary {
     int         shotCount   = 0;
@@ -55,24 +49,6 @@ struct SessionSummary {
     QStringList previewThumbs;    // up to maxThumbs absolute thumbnail paths
     QStringList devices;          // every device any shot used, canonical (lm_device.h), in sortDeviceTokens order
 };
-
-// The fixed order device tokens are shown in: cameras, then the wrist and body sensors, then the
-// launch monitor(s) — so a row's tags and the filter chips line up from session to session.
-inline int deviceTokenRank(const QString &token)
-{
-    static const char *const kOrder[] = { "faceOn", "dtl", "impact", "camera", "hackmotion", "imu" };
-    for (int i = 0; i < int(std::size(kOrder)); ++i)
-        if (token == QLatin1String(kOrder[i])) return i;
-    return int(std::size(kOrder));                       // "lm:<kind>" and anything newer
-}
-
-inline void sortDeviceTokens(QStringList &tokens)
-{
-    std::stable_sort(tokens.begin(), tokens.end(), [](const QString &a, const QString &b) {
-        const int ra = deviceTokenRank(a), rb = deviceTokenRank(b);
-        return ra != rb ? ra < rb : a < b;
-    });
-}
 
 // The short name a device token is shown by — a tag on a session row and a filter chip.
 inline QString deviceLabel(const QString &token)
@@ -124,53 +100,34 @@ inline QString clubDisplayLabel(const QString &id)
     return t.left(1).toUpper() + t.mid(1).toLower();
 }
 
-// Aggregate a session's shots. `nowMs` anchors the relative day label; `maxThumbs`
-// caps the film-strip preview. Pure and deterministic given its inputs.
-inline SessionSummary summarizeSession(const QVector<ShotSummaryInput> &shots,
-                                       qint64 nowMs, int maxThumbs = 4)
+// A session's roll-up as a row shows it. `nowMs` anchors the relative day label. Pure and deterministic given its inputs.
+inline SessionSummary summaryOf(const SessionSwingRollUp &r, qint64 nowMs)
 {
     SessionSummary s;
-    s.shotCount = shots.size();
-    if (shots.isEmpty())
+    s.shotCount = r.summarised;
+    if (r.summarised == 0)
         return s;
-
-    qint64 scoreSum = 0;
-    qint64 minT = 0, maxT = 0;
-    bool   haveT = false;
-    QStringList clubs;
-    for (const ShotSummaryInput &in : shots) {
-        scoreSum += in.score;
-        if (in.wallclockMs > 0) {
-            if (!haveT) { minT = maxT = in.wallclockMs; haveT = true; }
-            else        { minT = std::min(minT, in.wallclockMs);
-                          maxT = std::max(maxT, in.wallclockMs); }
-        }
-        const QString c = in.club.trimmed();
-        if (!c.isEmpty() && !clubs.contains(c))
-            clubs.append(c);
-        if (!in.thumbnailPath.isEmpty() && s.previewThumbs.size() < maxThumbs)
-            s.previewThumbs.append(in.thumbnailPath);
-        // Canonical here, where every session list gathers its shots: a summary written before
-        // `launchMonitor.device` existed still says "lm:premier", and it is the same GC Quad.
-        for (const QString &raw : in.devices)
-            if (const QString d = lm::canonicalDeviceToken(raw); !s.devices.contains(d))
-                s.devices.append(d);
-    }
-    sortDeviceTokens(s.devices);
-
-    // Rounded mean over every shot (failed/IMU-only shots score 0 and count).
-    s.avgQuality = int((scoreSum + shots.size() / 2) / shots.size());
+    s.avgQuality = r.meanScore.value_or(0);
     QStringList clubLabels;
-    clubLabels.reserve(clubs.size());
-    for (const QString &c : std::as_const(clubs))
+    clubLabels.reserve(r.clubs.size());
+    for (const QString &c : r.clubs)
         clubLabels.append(clubDisplayLabel(c));
-    s.clubMix    = clubLabels.join(QStringLiteral(" · "));
-    if (haveT) {
-        s.lengthLabel = formatSessionLength(maxT - minT);
-        s.dayLabel    = relativeDayLabel(minT, nowMs);
-        s.timeLabel   = QDateTime::fromMSecsSinceEpoch(minT).toString(QStringLiteral("hh:mm"));
+    s.clubMix       = clubLabels.join(QStringLiteral(" · "));
+    s.previewThumbs = r.thumbnails;
+    s.devices       = r.devices;
+    if (r.firstMs > 0) {
+        s.lengthLabel = formatSessionLength(r.spanMs);
+        s.dayLabel    = relativeDayLabel(r.firstMs, nowMs);
+        s.timeLabel   = QDateTime::fromMSecsSinceEpoch(r.firstMs).toString(QStringLiteral("hh:mm"));
     }
     return s;
+}
+
+// Aggregate a session's shots: the one fold (rollUpSwings), then its labels. `maxThumbs` caps the film-strip preview.
+inline SessionSummary summarizeSession(const QVector<ShotSummaryInput> &shots,
+                                       qint64 nowMs, int maxThumbs = SessionSwingRollUp::kMaxThumbs)
+{
+    return summaryOf(rollUpSwings(shots, -1, maxThumbs), nowMs);
 }
 
 } // namespace pinpoint

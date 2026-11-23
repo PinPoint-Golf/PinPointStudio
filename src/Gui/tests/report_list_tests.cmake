@@ -16,6 +16,7 @@ pp_add_test(report_list_test
     SOURCES report_list_test.cpp
             ${GUI}/report/session_report_list_model.cpp
             ${GUI}/session/session_list_presenter.cpp ${SRC}/Export/session_list_reads.cpp   # its rows (refactor step 5.7a)
+            ${SRC}/Export/session_index_summary.cpp   # the entries' summaries (5.7a-P1)
             ${GUI}/review/device_filter_model.cpp
             ${GUI}/report/report_mailer.cpp
             ${GUI}/report/smtp_message.cpp

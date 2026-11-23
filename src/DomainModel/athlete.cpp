@@ -176,6 +176,11 @@ QList<SessionIndexEntry> Athlete::index() const
     return m_sessions ? m_sessions->enumerate(m_owner) : QList<SessionIndexEntry>{};
 }
 
+std::function<SessionIndexSummary()> Athlete::deferredSummary(const SessionId &session) const
+{
+    return m_sessions ? m_sessions->deferredSummary(session) : std::function<SessionIndexSummary()>{};
+}
+
 bool Athlete::hasSessionInProgress() const
 {
     const QList<SessionIndexEntry> entries = index();

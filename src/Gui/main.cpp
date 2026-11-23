@@ -105,6 +105,7 @@
 #include "../Export/swing_zip_exporter.h"
 #include "../Export/swing_store_repository.h"
 #include "../Export/session_store.h"        // SessionRepository's adapter (step 2.2)
+#include "../Export/session_index_summary.h"   // the index entry's summary's file work, set on the store (5.7a-P1)
 #include "../Export/recording_loader.h"     // SwingStoreRecordingReader (by ShotRef, step 2.4)
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "../App/housekeeping.h"             // the one application service that ends things for good (DEC-80)
@@ -358,6 +359,10 @@ int main(int argc, char *argv[])
     // Archiving tab, which already includes the archiver.
     sessionStore.setArchiveJobs(ArchiveController::archiveJobs());
     sessionStore.setRestoreJobs(ArchiveController::restoreJobs());   // the restore's, the same way (refactor 5.6b)
+    // The index entry's summary (P1: the swing roll-up, the size on disk, the lead work-on), read off the GUI thread through
+    // SessionRepository::deferredSummary (refactor 5.7a-P1). Its file work is set here, as the archive's is, so the store's
+    // other users link no swing reader.
+    sessionStore.setSummaryReads(&pinpoint::SessionIndexSummaries::read);
     // Read-only app/build/dependency info for the About box (appInfo context property).
     AppInfo                  appInfo;
     SecretsBridge            secrets;

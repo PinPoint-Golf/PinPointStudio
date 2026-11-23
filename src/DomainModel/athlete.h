@@ -29,7 +29,8 @@
 //                 chart's reference ★ as a ShotRef (D5: DEC-152)
 //   index()       the SessionIndex: one typed entry per session, status included (MD-07: DEC-136),
 //                 read through SessionRepository (DEC-53). lastSessionAt and sessionCount are derived
-//                 from it (activityOf), never stored (DEC-89)
+//                 from it (activityOf), never stored (DEC-89); deferredSummary(id) reads an entry's summary
+//                 (P1: the swing roll-up, the size on disk, the lead work-on) off this thread (step 5.7a-P1)
 //   clubSetOn()   the standard club set on a day (club_standards.h's rule)
 //   editRecord, editBag, removeClub    the commands; each goes through AthleteRepository, the one
 //                 writer (IM-S2-4), which announces the stored result with recordChanged()
@@ -257,6 +258,10 @@ public:
 
     // OBJ-SESSION-INDEX (DEC-136): every session of the athlete, through SessionRepository. Reads only.
     QList<SessionIndexEntry> index() const;
+    // An entry's summary (P1, refactor step 5.7a-P1): the swing roll-up, the size on disk, the lead work-on, read through
+    // SessionRepository::deferredSummary — the folder now (this thread), the read later on any thread. Empty when the
+    // session is not one this repository holds. index() leaves every entry's summary unread.
+    std::function<SessionIndexSummary()> deferredSummary(const SessionId &session) const;
     bool                     hasSessionInProgress() const;
     // From an index: sessions with a swing, and the latest one's start. Pure but for `sessions`'
     // shots() listing, so any thread may call it with a SessionRepository of its own.

@@ -51,9 +51,11 @@ void SessionListPresenter::runRead(std::function<void()> work)
     m_pool.start(std::move(work));
 }
 
-void SessionListPresenter::setSource(const AthleteId &athlete, IndexFn index)
+void SessionListPresenter::setSource(const AthleteId &athlete, IndexFn index, SummaryFn summary)
 {
-    m_groups[athlete].index = std::move(index);
+    Group &g = m_groups[athlete];
+    g.index   = std::move(index);
+    g.summary = std::move(summary);
 }
 
 std::optional<SessionListRow> SessionListPresenter::row(const SessionId &session) const
@@ -87,20 +89,29 @@ void SessionListPresenter::reload(const AthleteId &athlete)
     it->entriesAgain = false;
     if (!was) emit loadingChanged();
     QStringList folders;
-    for (const SessionIndexEntry &e : entries) folders.append(e.folder);
+    QVector<std::function<SessionIndexSummary()>> summaryReads;   // each takes its folder now (the identity map's)
+    for (const SessionIndexEntry &e : entries) {
+        folders.append(e.folder);
+        summaryReads.append(it->summary ? it->summary(e.id()) : std::function<SessionIndexSummary()>{});
+    }
     const ReadFn read = m_read;
-    runRead([this, athlete, gen, entries, folders, read] {
+    runRead([this, athlete, gen, entries, folders, summaryReads, read] {
+        QVector<SessionIndexSummary> summaries;
         QVector<SessionListFacts> facts;
+        summaries.reserve(folders.size());
         facts.reserve(folders.size());
-        for (const QString &f : folders) facts.append(read ? read(f) : SessionListFacts{});
-        if (m_synchronous) { landReload(athlete, gen, entries, facts); return; }
-        QMetaObject::invokeMethod(this, [this, athlete, gen, entries, facts] { landReload(athlete, gen, entries, facts); },
-                                  Qt::QueuedConnection);
+        for (qsizetype i = 0; i < folders.size(); ++i) {
+            summaries.append(summaryReads.at(i) ? summaryReads.at(i)() : SessionIndexSummary{});
+            facts.append(read ? read(folders.at(i)) : SessionListFacts{});
+        }
+        if (m_synchronous) { landReload(athlete, gen, entries, summaries, facts); return; }
+        QMetaObject::invokeMethod(this, [this, athlete, gen, entries, summaries, facts] {
+            landReload(athlete, gen, entries, summaries, facts); }, Qt::QueuedConnection);
     });
 }
 
 void SessionListPresenter::landReload(const AthleteId &athlete, int generation, const QList<SessionIndexEntry> &entries,
-                                      const QVector<SessionListFacts> &facts)
+                                      const QVector<SessionIndexSummary> &summaries, const QVector<SessionListFacts> &facts)
 {
     auto it = m_groups.find(athlete);
     if (it == m_groups.end() || it->generation != generation) return;   // superseded: the newer one lands
@@ -108,8 +119,11 @@ void SessionListPresenter::landReload(const AthleteId &athlete, int generation, 
     rows.reserve(entries.size());
     // One pool thread runs the reads in the order they were asked, so they land in that order: a row read asked before this
     // reload landed before it, one asked after lands after it.
-    for (qsizetype i = 0; i < entries.size(); ++i)
-        rows.append({ athlete, entries.at(i), facts.value(i) });
+    for (qsizetype i = 0; i < entries.size(); ++i) {
+        SessionIndexEntry e = entries.at(i);
+        e.summary = summaries.value(i);
+        rows.append({ athlete, e, facts.value(i) });
+    }
     it->rows = std::move(rows);
     it->loading = false;
     it->loaded = true;
@@ -140,10 +154,13 @@ void SessionListPresenter::entriesChanged(const AthleteId &athlete)
             rows.append({ athlete, e, SessionListFacts{} });
             toRead.append(e.id());
         } else {
-            rows.append({ athlete, e, b->facts });
+            // The index lists the entry without its summary (enumerate does not read it): the row keeps the one it read.
+            SessionIndexEntry kept = e;
+            kept.summary = b->entry.summary;
+            rows.append({ athlete, kept, b->facts });
             // A folder that moved (a restore puts it back; a move gives it a new one) is read again.
             if (QDir::cleanPath(b->entry.folder) != QDir::cleanPath(e.folder) || b->entry.archived != e.archived
-                || !b->facts.read)
+                || !b->entry.summary.read || !b->facts.read)
                 toRead.append(e.id());
         }
     }
@@ -172,20 +189,26 @@ void SessionListPresenter::readRow(const SessionId &session)
     if (!r) return;
     const int gen = ++m_rowGeneration[session];
     const QString folder = r->entry.folder;
+    const auto g = m_groups.constFind(r->owner);
+    const std::function<SessionIndexSummary()> summaryRead =
+        (g != m_groups.cend() && g->summary) ? g->summary(session) : std::function<SessionIndexSummary()>{};
     const ReadFn read = m_read;
-    runRead([this, session, gen, folder, read] {
+    runRead([this, session, gen, folder, summaryRead, read] {
+        const SessionIndexSummary s = summaryRead ? summaryRead() : SessionIndexSummary{};
         const SessionListFacts f = read ? read(folder) : SessionListFacts{};
-        if (m_synchronous) { landFacts(session, gen, f); return; }
-        QMetaObject::invokeMethod(this, [this, session, gen, f] { landFacts(session, gen, f); }, Qt::QueuedConnection);
+        if (m_synchronous) { landFacts(session, gen, s, f); return; }
+        QMetaObject::invokeMethod(this, [this, session, gen, s, f] { landFacts(session, gen, s, f); }, Qt::QueuedConnection);
     });
 }
 
-void SessionListPresenter::landFacts(const SessionId &session, int generation, const SessionListFacts &facts)
+void SessionListPresenter::landFacts(const SessionId &session, int generation, const SessionIndexSummary &summary,
+                                     const SessionListFacts &facts)
 {
     if (m_rowGeneration.value(session) != generation) return;   // a newer read was asked
     for (Group &g : m_groups)
         for (SessionListRow &r : g.rows)
             if (r.entry.id() == session) {
+                r.entry.summary = summary;
                 r.facts = facts;
                 emit rowChanged(session);
                 return;

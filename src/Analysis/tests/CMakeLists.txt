@@ -868,6 +868,7 @@ pp_add_test(session_list_test
     SOURCES ${SRC}/Gui/tests/session_list_test.cpp ${PP_RECORDING_STORE_SOURCES}
             ${SRC}/Gui/session/session_list_presenter.h ${SRC}/Gui/session/session_list_presenter.cpp
             ${SRC}/Gui/session/session_list_follow.cpp ${SRC}/Export/session_list_reads.cpp
+            ${SRC}/Export/session_index_summary.cpp   # the entry's summary reads (5.7a-P1)
             ${SRC}/Gui/report/session_report_list_model.cpp ${SRC}/Gui/review/device_filter_model.cpp
             ${SRC}/Export/session_archiver.cpp ${SRC}/Export/athlete_store.cpp
             ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h

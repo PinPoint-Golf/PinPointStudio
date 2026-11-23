@@ -38,6 +38,7 @@
 #include "report/session_report_list_model.h"
 #include "session/session_list_presenter.h"   // the rows: the one session list (refactor step 5.7a)
 #include "../../Export/session_store.h"        // the index the rows are a view of
+#include "../../Export/session_index_summary.h"   // its entries' summaries' file work, as main.cpp sets it (5.7a-P1)
 #include "report/report_mailer.h"
 #include "report/mail_credentials.h"
 #include "report/report_meta.h"
@@ -240,18 +241,24 @@ static pinpoint::SessionArchiveResult restoreIt(const QString &session)
 }
 
 // THE ROWS ARE THE ONE SESSION LIST'S (refactor step 5.7a): a golfer's folder listed through a real SessionStore's index,
-// the presenter's kept reads on the calling thread (synchronous) or on its own pool.
+// the presenter's kept reads on the calling thread (synchronous) or on its own pool. Each entry's summary (P1: the swing
+// roll-up, the size, the lead work-on) through the store's deferredSummary, its file work set as main.cpp sets it.
 struct ListRig {
     pinpoint::SessionStore         store;
     pinpoint::SessionListPresenter presenter;
-    explicit ListRig(bool synchronous = true) { presenter.setSynchronous(synchronous); }
+    explicit ListRig(bool synchronous = true)
+    {
+        presenter.setSynchronous(synchronous);
+        store.setSummaryReads(&pinpoint::SessionIndexSummaries::read);
+    }
     // The golfer whose sessions are `folder`'s, read once. `uuid`: the athlete the swings record, else a new one.
     pinpoint::AthleteId golfer(const QString &folder, const QString &uuid = QString())
     {
         const pinpoint::AthleteId id = uuid.isEmpty() ? pinpoint::AthleteId::fromString(QUuid::createUuid().toString(QUuid::WithoutBraces))
                                                       : pinpoint::AthleteId::fromString(uuid);
         const pinpoint::SessionOwner owner{ id, QFileInfo(folder).fileName(), QFileInfo(folder).absolutePath() };
-        presenter.setSource(id, [this, owner] { return store.enumerate(owner); });
+        presenter.setSource(id, [this, owner] { return store.enumerate(owner); },
+                            [this](const pinpoint::SessionId &s) { return store.deferredSummary(s); });
         presenter.reload(id);
         return id;
     }

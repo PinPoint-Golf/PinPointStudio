@@ -2816,7 +2816,9 @@ target_sources(PinPointStudio PRIVATE
     src/Export/recording_header.cpp
     src/Export/session_archiver.h
     src/Export/session_archiver.cpp
-    src/Export/session_list_reads.h src/Export/session_list_reads.cpp   # the one session list's kept reads (5.7a)
+    src/Export/session_list_reads.h src/Export/session_list_reads.cpp   # the one session list's kept read (5.7a; cut in 5.7a-P1)
+    src/Export/session_index_summary.h src/Export/session_index_summary.cpp   # the index entry's summary reads (5.7a-P1)
+    src/DomainModel/session_roll_up.h
     src/Analysis/swing_analysis.h
     src/Analysis/analysis_stage.h
     src/Wrist/wrist_angles.h

@@ -116,15 +116,15 @@ void ArchiveController::rebuildSessions()
     for (const pinpoint::AthleteId &a : std::as_const(m_athletes)) {
         if (!m_list) break;
         for (const pinpoint::SessionListRow &s : m_list->rowsOf(a)) {
-            if (!s.facts.read || s.facts.swings == 0) continue;   // not read yet, or nothing was hit
+            if (!s.entry.summary.read || s.entry.summary.swings.swings == 0) continue;   // not read yet, or nothing was hit
             TabRow t;
             t.dir      = QDir::cleanPath(s.entry.folder);
             t.name     = s.entry.identity.folderName();
             t.athlete  = QFileInfo(QFileInfo(t.dir).path()).fileName();
             t.dateMs   = s.entry.identity.localDay().isValid() ? s.entry.identity.localDay().startOfDay().toMSecsSinceEpoch()
                                                                : s.facts.modifiedMs;
-            t.bytes    = s.facts.bytes;
-            t.swings   = s.facts.swings;
+            t.bytes    = s.entry.summary.bytes;
+            t.swings   = s.entry.summary.swings.swings;
             t.archived = s.entry.archived;
             rows << t;
         }
@@ -151,7 +151,7 @@ void ArchiveController::measureSoon()
     for (const pinpoint::AthleteId &a : std::as_const(m_athletes)) {
         if (!m_list) break;
         for (const pinpoint::SessionListRow &s : m_list->rowsOf(a))
-            if (s.facts.read && s.facts.swings > 0 && !s.entry.archived)
+            if (s.entry.summary.read && s.entry.summary.swings.swings > 0 && !s.entry.archived)
                 folders.append({ s.entry.identity.localDay().isValid()
                                      ? s.entry.identity.localDay().startOfDay().toMSecsSinceEpoch() : s.facts.modifiedMs,
                                  QDir::cleanPath(s.entry.folder) });

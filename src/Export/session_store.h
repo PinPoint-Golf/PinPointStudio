@@ -167,6 +167,12 @@ public:
     // (SessionArchiveRun::restoreInOwnRun). Null: restoreJob refuses.
     using RestoreJobs = std::function<SessionArchiveResult(const QString &sessionDir, const SessionArchiveProgress &progress)>;
     void setRestoreJobs(RestoreJobs jobs) { m_restoreJobs = std::move(jobs); }
+    // The entry's summary's file work (refactor step 5.7a-P1): today's reads of a session folder (SessionIndexSummaries::read,
+    // session_index_summary.h), set by the composition root as the archive's are, so the store's other users link no swing
+    // reader. Null: deferredSummary returns nothing (summary.read stays false).
+    using SummaryReads = std::function<SessionIndexSummary(const QString &sessionDir)>;
+    void setSummaryReads(SummaryReads reads) { m_summaryReads = std::move(reads); }
+    std::function<SessionIndexSummary()> deferredSummary(const SessionId &id) override;
     SessionArchiveJob archiveJob(const SessionId &id, const SessionArchiveOptions &options) override;
     SessionArchiveJob restoreJob(const SessionId &id) override;
     void              archiveLanded(const SessionId &id) override;
@@ -257,6 +263,7 @@ private:
     SessionArchiving           *m_archiving  = nullptr;
     ArchiveJobs                 m_archiveJobs;
     RestoreJobs                 m_restoreJobs;
+    SummaryReads                m_summaryReads;
     CaptureEndOf                m_captureEndOf;
 };
 

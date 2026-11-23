@@ -38,6 +38,8 @@
 //                    Athlete; a session's folder never changes during its life, so nothing relocates
 //   enumerate        one typed entry per session folder of the athlete, without loading the session:
 //                    identity, status, start and end times (MD-07: DEC-136); n-of-day by start time
+//   deferredSummary  the entry's summary (P1, step 5.7a-P1): the swing roll-up, the size on disk, the lead work-on;
+//                    the folder now, the read on any thread later
 //   allocateSwing    the next swing number past the recorded high-water (DEC-91), its folder made
 //   shots            the session's swings, as ShotRefs (the one swing_* listing is SwingPaths')
 //   open, openFolder the identity map's record; openFolder is the translation of a foreign id (a
@@ -93,6 +95,7 @@
 #include "report_record.h"          // ReportRead, ReportInput, ReportRecord, ReportStillWriter (step 5.6a)
 #include "session_identity.h"
 #include "session_input.h"          // SessionInput (FILE-SESS-02)
+#include "session_roll_up.h"        // SessionIndexSummary: the entry's summary (refactor step 5.7a-P1)
 #include "../Identity/identity.h"
 
 #include <QDateTime>
@@ -119,7 +122,8 @@ struct SessionOwner {
 };
 
 // OBJ-SESSION-INDEX's entry (MD-07: DEC-136): what a list of sessions needs, read without loading the
-// session. Step 3 adds the session's summary.
+// session. Its summary (proposal P1: the Solution Architect, 23 Nov 2026) is the swing roll-up, the size on disk and the
+// lead work-on (session_roll_up.h), filled by deferredSummary below, not by enumerate.
 struct SessionIndexEntry {
     SessionIdentity identity;      // id, folder (cleaned), start, local day, type, n-of-day
     QString         folder;        // absolute, spelled as composed (the path handed to capture)
@@ -136,6 +140,11 @@ struct SessionIndexEntry {
     bool            readOnly = false;         // a newer build's session file: every write refuses it
     bool            archived = false;         // its archive marker (archived.json, FILE-SESS-06) is there:
                                               // the library holds its stubs, the archive the rest (step 2.6)
+    SessionIndexSummary summary;              // P1: the swing roll-up, the size on disk, the lead work-on. NOT filled by
+                                              // enumerate (summary.read false): reading every swing and walking every file
+                                              // is too slow for each index read on the owner thread. deferredSummary fills
+                                              // it, off that thread; the one session list keeps it, read again on the
+                                              // events it follows (Gui/session/session_list_presenter.h)
 
     SessionId id() const { return identity.id(); }
 };
@@ -255,6 +264,12 @@ public:
     virtual WriteResult end(const SessionId &id) = 0;
 
     virtual QList<SessionIndexEntry> enumerate(const SessionOwner &owner) = 0;
+    // THE ENTRY'S SUMMARY (P1; refactor step 5.7a-P1): the read that fills SessionIndexEntry::summary — the swings' cheap
+    // summaries folded (rollUpSwings), every file in the folder, and work-on 1 of the session's summary (FILE-SESS-05,
+    // this build's rule only). The folder is taken now, on the owner thread; the read is made later, on any thread (it
+    // touches no member: deferredReadWorkOns' pattern). A read never writes (no swing's summary sidecar is written).
+    // Empty: the session is not held, or this repository has no summary read (summary.read stays false).
+    virtual std::function<SessionIndexSummary()> deferredSummary(const SessionId &id) { (void)id; return {}; }
 
     virtual std::optional<SessionIndexEntry> open(const SessionId &id) const = 0;
     // A session folder's SessionId: its session file's, or D3's from `legacyAthlete` and its name

@@ -32,7 +32,9 @@ void SessionListPresenter::follow(Athlete *athlete)
     const AthleteId id = athlete->id();
     if (m_followed.value(id) == athlete && m_groups.contains(id)) return;
     QPointer<Athlete> a(athlete);
-    setSource(id, [a] { return a ? a->index() : QList<SessionIndexEntry>{}; });
+    // The index on this thread; each entry's summary through the Athlete (its repository's deferred read: P1).
+    setSource(id, [a] { return a ? a->index() : QList<SessionIndexEntry>{}; },
+              [a](const SessionId &s) { return a ? a->deferredSummary(s) : std::function<SessionIndexSummary()>{}; });
     m_followed.insert(id, a);
     // EVT-17, EVT-23: an entry added, a status changed.
     connect(athlete, &Athlete::sessionStarted, this, [this, id] { entriesChanged(id); });

@@ -380,28 +380,25 @@ void SessionReportListModel::refresh()
     if (m_list && !m_athlete.isNull()) m_list->reload(m_athlete);
 }
 
-// THE SUMMARY IS THE DRAWER'S (SessionReviewController): each swing's cheap summary (the presenter's kept read) folded by
-// summarizeSession. An un-indexed swing still counts as a swing (the folder lists it), and a session none of whose swings
-// say when they were hit is dated by its index entry's identity: its start, else its day.
+// THE SUMMARY IS THE DRAWER'S (SessionReviewController): the index entry's swing roll-up (P1: each swing's cheap summary,
+// folded by rollUpSwings), the size on disk and the lead work-on. An un-indexed swing still counts as a swing (the folder
+// lists it), and a session none of whose swings say when they were hit is dated by its index entry's identity: its start,
+// else its day.
 QVector<SessionReportListModel::Row> SessionReportListModel::rowsFrom(const QVector<pinpoint::SessionListRow> &sessions)
 {
     QVector<Row> out;
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     for (const pinpoint::SessionListRow &s : sessions) {
         const pinpoint::SessionListFacts &f = s.facts;
-        if (!f.read || f.swings == 0) continue;      // not read yet, or nothing was hit: not a session to report on
+        const pinpoint::SessionIndexSummary &sm = s.entry.summary;
+        if (!sm.read || sm.swings.swings == 0) continue;   // not read yet, or nothing was hit: not a session to report on
 
-        QVector<pinpoint::ShotSummaryInput> ins;
-        qint64 startMs = 0;
-        for (const pinpoint::SessionListSwing &w : f.shots) {
-            ins.append({ w.score, w.hasVideo, w.wallclockMs, w.club, w.thumbnailPath, w.devices });
-            if (w.wallclockMs > 0 && (startMs == 0 || w.wallclockMs < startMs)) startMs = w.wallclockMs;
-        }
-        const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);
+        const qint64 startMs = sm.swings.firstMs;          // the earliest swing's capture time; 0: none says when
+        const pinpoint::SessionSummary sum = pinpoint::summaryOf(sm.swings, nowMs);
 
         Row r;
         r.dir     = QDir::cleanPath(s.entry.folder);
-        r.swings  = f.swings;
+        r.swings  = sm.swings.swings;
         r.startMs = startMs;
         if (startMs > 0) {
             r.sortMs = startMs;
@@ -421,12 +418,12 @@ QVector<SessionReportListModel::Row> SessionReportListModel::rowsFrom(const QVec
         r.deviceTokens = sum.devices;
         for (const QString &t : sum.devices) r.devices.append(pinpoint::deviceLabel(t));
 
-        r.workOnKnown = f.workOnKnown;
-        r.workOn1Id   = f.workOn1Id;
-        r.workOn1     = f.workOn1Name;
+        r.workOnKnown = sm.workOn.known;
+        r.workOn1Id   = sm.workOn.id;
+        r.workOn1     = sm.workOn.name;
 
         // Every file, an archived session's stubs included: what the folder takes, not what it held.
-        r.sessionBytes = f.bytes;
+        r.sessionBytes = sm.bytes;
         r.archived     = s.entry.archived;   // the archive marker (FILE-SESS-06), as the index entry reads it
         out.append(r);
     }

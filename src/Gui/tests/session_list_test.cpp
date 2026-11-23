@@ -34,6 +34,12 @@
 //       refresh reloads), on a first load (no rows yet), and with a second reload asked — never shows the row again, in the
 //       presenter's rows (the drawer's and Archiving's source: neither controller is linked here) and the report list (B1)
 //   L8  COALESCED: a burst of reloads while one is in flight reads the index and each folder at most twice (B2)
+//   L9  THE ENTRY'S SUMMARY (proposal P1, step 5.7a-P1; OBJ-SESSION-INDEX): a bare index leaves it unread; the list's rows
+//       have it filled through SessionRepository::deferredSummary (the swing roll-up, the size on disk, the lead work-on);
+//       a session with no summary (work_ons.json) yet, or whose swings have no cheap summary, says NA, never 0 or "none";
+//       a written summary's work-on 1 shows when its row is read again
+//   L3/L10  THE SIZE FOLLOWS: an archive then a restore (EVT-18/19), and a shot trashed (EVT-03), move the row's size with
+//       the folder's
 //
 //   ctest --test-dir build/tests -R '^session_list_test$' --output-on-failure
 
@@ -47,6 +53,8 @@
 #include "../../Export/swing_store_repository.h"
 #include "../../Export/session_archiver.h"
 #include "../../Export/session_store.h"
+#include "../../Export/session_index_summary.h"   // the entries' summaries' file work, set on the store as main.cpp sets it
+#include "../../Coaching/work_ons.h"
 #include "../../Export/tests/swing_doc_test_writes.h"
 #include "../../Core/pp_settings.h"
 
@@ -134,9 +142,7 @@ static std::optional<SessionListRow> rowIn(const SessionListPresenter &p, const 
 
 static QStringList clubsOf(const SessionListRow &r)
 {
-    QStringList out;
-    for (const SessionListSwing &w : r.facts.shots) if (!out.contains(w.club)) out << w.club;
-    return out;
+    return r.entry.summary.swings.clubs;
 }
 
 static int reportRow(const SessionReportListModel &m, const QString &folder)
@@ -209,6 +215,7 @@ int main(int argc, char **argv)
     sessions.setOsTrashForTest(false);
     sessions.setArchiveJobs(&SessionArchiveRun::archiveInOwnRun);
     sessions.setRestoreJobs(&SessionArchiveRun::restoreInOwnRun);
+    sessions.setSummaryReads(&SessionIndexSummaries::read);   // main.cpp's wiring (5.7a-P1)
     AthleteStore athletes([&root] { return root; }, &sessions);
     athletes.setOsTrashForTest(false);
     // The shots' doors, as main.cpp hands them: a Shot's commands write through the one swing door.
@@ -234,6 +241,13 @@ int main(int argc, char **argv)
     const QString c2 = makeSession(C->folder(), C->id(), QDate(2026, 10, 2), 2, QStringLiteral("7 IRON"));
     const QString c3 = makeSession(C->folder(), C->id(), QDate(2026, 10, 3), 2, QStringLiteral("7 IRON"));
     const QString c4 = makeSession(C->folder(), C->id(), QDate(2026, 10, 4), 2, QStringLiteral("7 IRON"));
+    // L9's own athlete: one session whose one swing folder holds nothing yet (no cheap summary, no summary).
+    AthleteRecord rd; rd.name = QStringLiteral("Delta Golfer");
+    const AthleteCreateResult md = athletes.create(rd);
+    if (!md.ok()) { std::printf("FAIL: the fourth athlete was not made\n"); return 1; }
+    Athlete *D = md.athlete;
+    const QString dn = makeSession(D->folder(), D->id(), QDate(2026, 9, 1), 0, QString());
+    QDir().mkpath(dn + QStringLiteral("/swing_0001"));
     Gate gateP, gateQ, gateR;   // before the presenters: each waits for its pool when it goes
 
     SessionListPresenter list;
@@ -252,9 +266,66 @@ int main(int argc, char **argv)
         const auto r1 = rowIn(list, A->id(), a1), r2 = rowIn(list, A->id(), a2), r3 = rowIn(list, B->id(), b1);
         check("L1 A's two sessions and B's one", list.rowsOf(A->id()).size() == 2 && list.rowsOf(B->id()).size() == 1
                                                      && r1 && r2 && r3);
-        check("L1 the kept reads: swings and clubs", r1 && r1->facts.read && r1->facts.swings == 3 && r2->facts.swings == 4
-                                                         && clubsOf(*r1) == QStringList{ "7 IRON" });
+        check("L1 the entry's summary: swings and clubs", r1 && r1->entry.summary.read && r1->entry.summary.swings.swings == 3
+                                                             && r2->entry.summary.swings.swings == 4
+                                                             && clubsOf(*r1) == QStringList{ "7 IRON" });
         check("L1 the report list shows A's two", reports.count() == 2 && reportRow(reports, a1) >= 0 && reportRow(reports, a2) >= 0);
+    }
+
+    std::printf("=== L9 the entry's summary (P1) ===\n");
+    {
+        const QList<SessionIndexEntry> bare = A->index();
+        bool unread = !bare.isEmpty();
+        for (const SessionIndexEntry &e : bare) unread = unread && !e.summary.read;
+        check("L9 a bare index leaves every entry's summary unread (NA)", unread);
+
+        const auto r1 = rowIn(list, A->id(), a1);
+        const SessionIndexSummary sm = r1 ? r1->entry.summary : SessionIndexSummary{};
+        const qint64 first = QDateTime(d1, QTime(12, 1), QTimeZone::UTC).toMSecsSinceEpoch();
+        check("L9 the swing roll-up: three swings, each summarised", sm.read && sm.swings.swings == 3
+                                                                      && sm.swings.summarised == 3 && sm.swings.indexed());
+        check(QStringLiteral("L9 the first swing's time and the span (%1, %2)").arg(sm.swings.firstMs).arg(sm.swings.spanMs),
+              sm.swings.firstMs == first && sm.swings.spanMs == 2 * 60000);
+        check("L9 the clubs, the devices, the thumbnails, the mean score",
+              sm.swings.clubs == QStringList{ "7 IRON" } && sm.swings.devices == QStringList{ "camera" }
+                  && sm.swings.thumbnails.size() == 3 && sm.swings.meanScore.has_value());
+        check(QStringLiteral("L9 the size on disk is the folder's (%1)").arg(sm.bytes),
+              sm.bytes > 0 && sm.bytes == SessionArchiver::folderBytes(a1));
+        check("L9 no summary (work_ons.json) yet: the lead work-on is NA", !sm.workOn.known && sm.workOn.id.isEmpty());
+        const int i = reportRow(reports, a1);
+        check("L9 the report list says it unknown (its \"-\"), never \"no work-on\"",
+              i >= 0 && !reports.data(reports.index(i), SessionReportListModel::WorkOnKnownRole).toBool()
+                  && reports.data(reports.index(i), SessionReportListModel::WorkOn1Role).toString().isEmpty());
+
+        // A swing with no cheap summary yet: counted, and every folded fact NA (never a 0 score, never a date).
+        list.follow(D);
+        list.reload(D->id());
+        const auto rn = rowIn(list, D->id(), dn);
+        const SessionIndexSummary sn = rn ? rn->entry.summary : SessionIndexSummary{};
+        check("L9 an un-indexed swing: counted, nothing folded", sn.read && sn.swings.swings == 1 && sn.swings.summarised == 0
+                                                                   && !sn.swings.indexed());
+        check("L9 its mean score, first swing time and clubs are NA", !sn.swings.meanScore.has_value() && sn.swings.firstMs == 0
+                                                                        && sn.swings.clubs.isEmpty() && !sn.workOn.known);
+
+        // The summary written (as the session reduction writes it): its work-on 1 shows when the row is read again.
+        analysis::SessionWorkOns rec;
+        analysis::WorkOnEntry e;
+        e.id = QStringLiteral("second_one"); e.name = QStringLiteral("Second"); e.rank = 2;
+        rec.entries.push_back(e);
+        e.id = QStringLiteral("lead_one"); e.name = QStringLiteral("Lead"); e.rank = 1;
+        rec.entries.push_back(e);
+        QJsonObject root = analysis::toJson(rec);
+        root[QStringLiteral("schemaVersion")] = analysis::kWorkOnSchemaVersion;
+        root[QStringLiteral("ruleVersion")]   = analysis::kWorkOnRuleVersion;
+        const WriteResult w = r1 ? sessions.writeWorkOns(r1->entry.id(), root) : WriteResult{};
+        if (r1) list.reread(r1->entry.id());
+        const auto again = rowIn(list, A->id(), a1);
+        check("L9 a written summary: its rank-1 work-on", w.ok() && again && again->entry.summary.workOn.known
+                                                            && again->entry.summary.workOn.id == QStringLiteral("lead_one"));
+        const int j = reportRow(reports, a1);
+        check("L9 and the report list's", j >= 0 && reports.data(reports.index(j), SessionReportListModel::WorkOnKnownRole).toBool()
+                                              && reports.data(reports.index(j), SessionReportListModel::WorkOn1Role).toString()
+                                                     == QStringLiteral("Lead"));
     }
 
     std::printf("=== L2 a club corrected ===\n");
@@ -274,9 +345,14 @@ int main(int argc, char **argv)
     std::printf("=== L3 archived, then restored ===\n");
     {
         Session *s = A->sessionAt(a2);
+        const auto r0 = rowIn(list, A->id(), a2);
+        const qint64 full = r0 ? r0->entry.summary.bytes : 0;
         const SessionArchiveResult ar = s ? s->archive(SessionArchiveOptions{ archive, true }) : SessionArchiveResult{};
         const auto r = rowIn(list, A->id(), a2);
         check("L3 EVT-18: the row reads archived", ar.ok && r && r->entry.archived);
+        const qint64 stubs = r ? r->entry.summary.bytes : 0;
+        check(QStringLiteral("L3 the size follows the archive: the stubs (%1 of %2)").arg(stubs).arg(full),
+              full > 0 && stubs < full && stubs == SessionArchiver::folderBytes(a2));
         const int i = reportRow(reports, a2);
         check("L3 the report list reads it archived",
               i >= 0 && reports.data(reports.index(i), SessionReportListModel::ArchivedRole).toBool());
@@ -288,6 +364,23 @@ int main(int argc, char **argv)
         const auto back = rowIn(list, A->id(), a2);
         check("L3 EVT-19 is emitted on a restore", rr.ok && restored);
         check("L3 the row reads restored", back && !back->entry.archived);
+        const qint64 put = back ? back->entry.summary.bytes : 0;
+        check(QStringLiteral("L3 the size follows the restore (%1)").arg(put),
+              put > stubs && put == SessionArchiver::folderBytes(a2));
+    }
+
+    std::printf("=== L10 a shot trashed: the size follows ===\n");
+    {
+        Session *s = A->sessionAt(a2);
+        const auto r0 = rowIn(list, A->id(), a2);
+        const qint64 before = r0 ? r0->entry.summary.bytes : 0;
+        QList<Shot *> shots = s ? s->shots() : QList<Shot *>{};
+        const WriteResult t = shots.isEmpty() ? WriteResult{} : s->trashShot(shots.last()->ref());
+        const auto r = rowIn(list, A->id(), a2);
+        check("L10 EVT-03: trashed through the Session" + (t.error.isEmpty() ? QString() : ": " + t.error), t.ok());
+        check(QStringLiteral("L10 the row's swings and size follow (%1 -> %2)").arg(before).arg(r ? r->entry.summary.bytes : -1),
+              r && r->entry.summary.swings.swings == 3 && r->entry.summary.bytes < before
+                  && r->entry.summary.bytes == SessionArchiver::folderBytes(a2));
     }
 
     std::printf("=== L4 trashed ===\n");
@@ -307,7 +400,8 @@ int main(int argc, char **argv)
         check("L5 moved through the Athlete" + (m.error.isEmpty() ? QString() : ": " + m.error), m.ok() && !moved.isEmpty());
         check("L5 it leaves A's rows", list.rowsOf(A->id()).isEmpty() && reports.count() == 0);
         const auto r = rowIn(list, B->id(), moved);
-        check("L5 it joins B's, its facts read", list.rowsOf(B->id()).size() == 2 && r && r->facts.read && r->facts.swings == 3);
+        check("L5 it joins B's, its summary read", list.rowsOf(B->id()).size() == 2 && r && r->entry.summary.read
+                                                       && r->entry.summary.swings.swings == 3);
     }
 
     std::printf("=== L6 a session started ===\n");
@@ -412,6 +506,7 @@ int main(int argc, char **argv)
         check(QStringLiteral("L8 each folder read at most twice (%1)").arg(gateR.maxReads()), gateR.maxReads() >= 1 && gateR.maxReads() <= 2);
         check(QStringLiteral("L8 the rows land at most twice (%1)").arg(landed), landed >= 1 && landed <= 2);
         check("L8 the rows are C's", R.rowsOf(C->id()).size() == 1 && R.rowsOf(C->id()).first().facts.read);
+        check("L8 a source with no summary read leaves the summary unread (NA)", !R.rowsOf(C->id()).first().entry.summary.read);
     }
 
     std::printf("%s (%d failed)\n", g_fail ? "FAIL" : "PASS", g_fail);
