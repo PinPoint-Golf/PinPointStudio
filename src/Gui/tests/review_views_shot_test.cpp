@@ -31,6 +31,13 @@
 //                   re-analysis (Shot::applyAnalysis), its phases, segments and Properties follow with no reload
 //   DATA-OWNERS     its Properties rows come from their owners: the Athlete's record, the Session's folder, the Shot
 //   DATA-UNHELD     a folder the Session does not hold shows nothing (no file is read)
+//   IMU-DOOR        (5.8a-imu) synthetic trunk (Witmotion), wG3 (HackMotion) and legacy recordings: the door's read gives
+//                   each IMU lane's t, gyro z and quaternion exactly as the old viewer read them from the document, each
+//                   stream's source and device blocks as stored, and the 3-D rig its inputs (analysis, origin, each
+//                   stream's alias and encoded size, in order)
+//   IMU-VIEW        the data viewer's IMU lanes per region (label, colour, ref), the span, and the Properties rows per
+//                   stream (Kind, Serial, Rate, Fusion, Filter, Slot, Role, Samples) as the old viewer gave them, with
+//                   the legacy lane's role from the settings' placement pairs and the session type
 //
 //   cmake --build build/tests --target review_views_shot_test -j 3
 //   ctest --test-dir build/tests -R '^review_views_shot_test$' --output-on-failure
@@ -46,6 +53,7 @@
 #include "../../Analysis/swing_analysis.h"
 #include "../../Export/rule_data_install.h"
 #include "../../Export/swing_doc.h"
+#include "../../Buffer/swing_window.h"     // a LoadedRecording (the door's read of a Shot) is destroyed here
 
 #include <QCoreApplication>
 #include <QFileInfo>
@@ -53,6 +61,8 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
+#include <array>
+#include <cmath>
 #include <cstdio>
 
 using namespace pinpoint;
@@ -350,6 +360,277 @@ static void testDataViewer(owner_rig::ViewRig &rig, Session *s)
     check(QStringLiteral("DATA-UNHELD  nothing is shown, and nothing read"), !src.loaded() && src.phases().isEmpty());
 }
 
+// ── IMU — the motion-sensor lanes through the door (refactor 5.8a-imu) ──────────────────────────────────────────────
+// A synthetic recording: rich_7iron's camera and ball streams with IMU streams interleaved, in the shape the exporter
+// writes (swing_exporter.cpp: kind "imu", alias, schema imu_sample_v2, source.serial, device.{outputRateHz, fusionMode,
+// orientationFilter, role, roleName[, placementSlot]}, a HackMotion lane's "instrument": "hackmotion", samples.{count,
+// t_us, data[accel3, gyro3, quat wxyz]}). Every value is a float's, as the exporter stores an ImuSample's.
+
+static double f32(double v) { return double(float(v)); }
+
+static QJsonObject imuStream(const QString &alias, const QString &serial, bool hackMotion, const QJsonObject &device,
+                             qint64 t0, qint64 dt, int n, int seed)
+{
+    QJsonArray t, data;
+    for (int i = 0; i < n; ++i) {
+        const double th = (seed + 1) * 0.02 * i;   // a turn about z, so the fused rate is not zero
+        t.append(double(t0 + i * dt));
+        data.append(QJsonArray{ f32(0.01 * i), f32(-0.98 + 0.001 * seed), f32(0.05 * seed),
+                                f32(seed * 3.5 - i * 0.25), f32(i * 0.75 - seed), f32(seed * 100.0 + i * 1.25),
+                                f32(std::cos(th / 2)), f32(0.01 * seed), f32(-0.002 * i), f32(std::sin(th / 2)) });
+    }
+    QJsonObject s{ { QStringLiteral("kind"), QStringLiteral("imu") }, { QStringLiteral("alias"), alias },
+                   { QStringLiteral("schema"), QStringLiteral("imu_sample_v2") },
+                   { QStringLiteral("source"), QJsonObject{ { QStringLiteral("serial"), serial } } },
+                   { QStringLiteral("samples"), QJsonObject{ { QStringLiteral("count"), n }, { QStringLiteral("t_us"), t },
+                                                              { QStringLiteral("data"), data } } } };
+    if (!device.isEmpty()) s[QStringLiteral("device")] = device;
+    if (hackMotion) s[QStringLiteral("instrument")] = QStringLiteral("hackmotion");
+    return s;
+}
+
+// rich_7iron with its streams replaced by `order` (the fixture's own video and ball streams spliced in where a bare
+// {kind: video} and {kind: ball} stand), written to `path`.
+static bool writeImuRecording(const QString &path, const QList<QJsonObject> &order)
+{
+    QFile in(fixture("rich_7iron"));
+    if (!in.open(QIODevice::ReadOnly)) return false;
+    QJsonObject root = QJsonDocument::fromJson(in.readAll()).object();
+    QJsonObject video, ball;
+    for (const QJsonValue &v : root.value(QStringLiteral("streams")).toArray()) {
+        const QString kind = v.toObject().value(QStringLiteral("kind")).toString();
+        if (kind == QLatin1String("video") && video.isEmpty()) video = v.toObject();
+        if (kind == QLatin1String("ball") && ball.isEmpty()) ball = v.toObject();
+    }
+    QJsonArray streams;
+    for (const QJsonObject &s : order) {
+        const QString kind = s.value(QStringLiteral("kind")).toString();
+        streams.append(kind == QLatin1String("video") ? video : kind == QLatin1String("ball") ? ball : s);
+    }
+    root[QStringLiteral("streams")] = streams;
+    QFile out(path);
+    return out.open(QIODevice::WriteOnly) && out.write(QJsonDocument(root).toJson()) > 0;
+}
+
+static QJsonObject readDoc(const QString &swingDir)
+{
+    QFile f(QDir(swingDir).filePath(QStringLiteral("swing.json")));
+    return f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject();
+}
+
+// THE OLD READ (SwingDataSource::reload at c0780dd5, read from the document): t from samples.t_us, gyro z = data[5],
+// the quaternion = data[6..9]; min(t, data) rows, a row shorter than 10 skipped.
+struct OldLane { QVector<qint64> t; QVector<double> gz; QVector<std::array<double, 4>> q; };
+static OldLane oldLaneOf(const QJsonObject &st)
+{
+    OldLane o;
+    const QJsonObject samples = st.value(QStringLiteral("samples")).toObject();
+    const QJsonArray dataArr = samples.value(QStringLiteral("data")).toArray();
+    const QJsonArray tArr    = samples.value(QStringLiteral("t_us")).toArray();
+    const int count = std::min(tArr.size(), dataArr.size());
+    for (int i = 0; i < count; ++i) {
+        const QJsonArray row = dataArr.at(i).toArray();
+        if (row.size() < 10) continue;
+        o.t.push_back(qint64(tArr.at(i).toDouble()));
+        o.gz.push_back(row.at(5).toDouble());
+        o.q.push_back({ row.at(6).toDouble(), row.at(7).toDouble(), row.at(8).toDouble(), row.at(9).toDouble() });
+    }
+    return o;
+}
+
+// The door's read of the Shot, stream by stream, against the old read of its document: the IMU lanes' samples
+// exactly, the blocks the Properties rows are made from, and the 3-D rig's inputs (the analysis, its origin, and each
+// stream's alias and encoded size in the document's order: SwingRigDriver::prepare reads nothing else; it never read
+// an IMU sample, old or new).
+static void checkDoorRead(const QString &tag, Shot *shot)
+{
+    const QJsonObject doc = readDoc(shot->folder());
+    const QJsonArray streams = doc.value(QStringLiteral("streams")).toArray();
+    const review::ShotDataRead rd = review::shotDataOf(shot->recordingSource().read());
+    check(QStringLiteral("%1  the door reads every stored stream, in order (%2 of %3)").arg(tag).arg(rd.streams.size()).arg(streams.size()),
+          rd.ok && int(rd.streams.size()) == streams.size());
+    if (!rd.ok || int(rd.streams.size()) != streams.size()) return;
+
+    bool rig = rd.analysis == doc.value(QStringLiteral("analysis")).toObject() && rd.originUs == analysisReadOriginUs(doc);
+    for (int i = 0; i < streams.size(); ++i) {
+        const QJsonObject st = streams.at(i).toObject();
+        const review::ShotDataStream &got = rd.streams[size_t(i)];
+        rig = rig && got.kind == st.value(QStringLiteral("kind")).toString() && got.alias == st.value(QStringLiteral("alias")).toString()
+              && got.encoded == st.value(QStringLiteral("encoded")).toObject();
+        if (got.kind != QLatin1String("imu")) continue;
+        const OldLane old = oldLaneOf(st);
+        const bool same = got.imuLane && got.t == old.t && got.gyroZ == old.gz && got.quat == old.q;
+        check(QStringLiteral("%1  lane \"%2\": t, gyro z and quaternion as the old read (%3 / %4 samples, t %5…%6 / %7…%8 µs, "
+                             "gyro z %9 / %10 at the last)")
+                  .arg(tag, got.alias).arg(got.t.size()).arg(old.t.size())
+                  .arg(got.t.value(0)).arg(got.t.isEmpty() ? -1 : got.t.last())
+                  .arg(old.t.value(0)).arg(old.t.isEmpty() ? -1 : old.t.last())
+                  .arg(got.gyroZ.isEmpty() ? 0.0 : got.gyroZ.last()).arg(old.gz.isEmpty() ? 0.0 : old.gz.last()),
+              same && !old.t.isEmpty());
+        const QJsonObject sm = st.value(QStringLiteral("samples")).toObject();
+        check(QStringLiteral("%1  lane \"%2\": its source, device and sample count as stored (serial %3, role %4, count %5)")
+                  .arg(tag, got.alias, got.source.value(QStringLiteral("serial")).toString())
+                  .arg(got.device.value(QStringLiteral("role")).toInt(-1)).arg(got.sampleCount),
+              got.source == st.value(QStringLiteral("source")).toObject() && got.device == st.value(QStringLiteral("device")).toObject()
+                  && got.hasSampleCount == sm.contains(QStringLiteral("count")) && got.sampleCount == sm.value(QStringLiteral("count")).toInt());
+    }
+    check(QStringLiteral("%1  the 3-D rig's inputs: the analysis, its origin (%2 µs), and each stream's alias and encoded size in order")
+              .arg(tag).arg(rd.originUs),
+          rig);
+}
+
+// The viewer's IMU chips in a region: "label|colorKey|ref; …".
+static QString imuChips(SwingDataSource &src, const QString &region)
+{
+    src.setRegion(region);
+    QStringList out;
+    for (const dataview::SourceChip &c : src.resolvedSources())
+        if (c.kind == QLatin1String("imu")) out << c.label + QLatin1Char('|') + c.colorKey + QLatin1Char('|') + c.ref;
+    return out.join(QStringLiteral("; "));
+}
+
+// A Properties group's rows: "k=v; …" (in order), or "(none)".
+static QString groupRows(const SwingDataSource &src, const QString &group)
+{
+    for (const dataview::PropertyGroup &g : src.metadata()) {
+        if (g.group != group) continue;
+        QStringList out;
+        for (const dataview::PropertyRow &r : g.rows) out << r.k + QLatin1Char('=') + r.v;
+        return out.join(QStringLiteral("; "));
+    }
+    return QStringLiteral("(none)");
+}
+
+static void expectEq(const QString &what, const QString &got, const QString &want)
+{
+    check(QStringLiteral("%1: \"%2\"%3").arg(what, got, got == want ? QString() : QStringLiteral(" — expected \"%1\"").arg(want)),
+          got == want);
+}
+
+// A viewer on the shot, as the data viewer is bound (session, session type, the settings' placement pairs, swingDir).
+static bool openViewer(SwingDataSource &src, Session *s, Shot *shot, int sessionType, const QStringList &pairs)
+{
+    src.setSession(s);
+    src.setSessionType(sessionType);
+    src.setImuPlacementPairs(pairs);
+    src.setSwingDir(shot->folder());
+    return src.waitForIdle() && src.loaded();
+}
+
+static void testImuLanes(owner_rig::ViewRig &rig, Session *s)
+{
+    std::printf("\nIMU — the motion-sensor lanes through the door (5.8a-imu)\n");
+    review::installShotDataResolver(review::makeShotDataResolver());
+    QTemporaryDir tmp;
+    const QJsonObject video{ { QStringLiteral("kind"), QStringLiteral("video") } };
+    const QJsonObject ball{ { QStringLiteral("kind"), QStringLiteral("ball") } };
+    auto device = [](int rateHz, const QString &fusion, const QString &filter, int role, const QString &roleName) {
+        return QJsonObject{ { QStringLiteral("outputRateHz"), rateHz }, { QStringLiteral("fusionMode"), fusion },
+                            { QStringLiteral("orientationFilter"), filter }, { QStringLiteral("role"), role },
+                            { QStringLiteral("roleName"), roleName } };
+    };
+    using R = analysis::SegmentRole;
+
+    // A TRUNK RECORDING (Witmotion pelvis + thorax): the pelvis lane starts before the first video frame (3173 µs), the
+    // thorax lane runs past window.end_us (5 000 000), and one carries a legacy placementSlot.
+    QJsonObject pelvisDev = device(200, QStringLiteral("host"), QStringLiteral("vqf"), int(R::Pelvis), QStringLiteral("Pelvis"));
+    pelvisDev[QStringLiteral("placementSlot")] = QStringLiteral("P");
+    const QString trunkPath = QDir(tmp.path()).filePath(QStringLiteral("trunk.json"));
+    const bool trunkMade = writeImuRecording(trunkPath, {
+        imuStream(QStringLiteral("Pelvis Sensor"), QStringLiteral("WT-PELVIS-01"), false, pelvisDev, 1000, 5000, 30, 1),
+        video, ball,
+        imuStream(QStringLiteral("Chest Sensor"), QStringLiteral("WT-THORAX-02"), false,
+                  device(200, QStringLiteral("host"), QStringLiteral("vqf"), int(R::Thorax), QStringLiteral("Thorax")),
+                  4900000, 5000, 40, 2) });
+    // A HACKMOTION RECORDING (the wG3's lower-arm and palm units).
+    QJsonObject hmDev = device(100, QStringLiteral("device"), QString(), int(R::LeadForearm), QStringLiteral("LeadForearm"));
+    hmDev[QStringLiteral("calibrationStateAtStart")] = 2;
+    QJsonObject palmDev = device(100, QStringLiteral("device"), QString(), int(R::LeadHand), QStringLiteral("LeadHand"));
+    palmDev[QStringLiteral("calibrationStateAtStart")] = 2;
+    const QString hmPath = QDir(tmp.path()).filePath(QStringLiteral("hm.json"));
+    const bool hmMade = writeImuRecording(hmPath, {
+        video,
+        imuStream(QStringLiteral("HackMotion lower arm"), QStringLiteral("HM0042#lowerArm"), true, hmDev, 2000000, 10000, 25, 3),
+        ball,
+        imuStream(QStringLiteral("HackMotion palm"), QStringLiteral("HM0042#palm"), true, palmDev, 2003000, 10000, 24, 4) });
+    // A LEGACY RECORDING: a lane with no device block (its role from the settings' placement and the session type).
+    const QString legacyPath = QDir(tmp.path()).filePath(QStringLiteral("legacy.json"));
+    const bool legacyMade = writeImuRecording(legacyPath, {
+        video, ball, imuStream(QStringLiteral("Sensor A"), QStringLiteral("WT-LEGACY-A"), false, {}, 500000, 5000, 33, 5) });
+    check(QStringLiteral("IMU  three synthetic recordings"), trunkMade && hmMade && legacyMade);
+    if (!trunkMade || !hmMade || !legacyMade) return;
+
+    Shot *trunk  = rig.addLive(s, trunkPath);
+    Shot *hm     = rig.addLive(s, hmPath);
+    Shot *legacy = rig.addLive(s, legacyPath);
+    check(QStringLiteral("IMU  held as three shots of the live session"), trunk && hm && legacy);
+    if (!trunk || !hm || !legacy) return;
+
+    std::printf("\nIMU-DOOR — the door's read against the old read of the document\n");
+    checkDoorRead(QStringLiteral("IMU-DOOR trunk "), trunk);
+    checkDoorRead(QStringLiteral("IMU-DOOR wG3   "), hm);
+    checkDoorRead(QStringLiteral("IMU-DOOR legacy"), legacy);
+
+    std::printf("\nIMU-VIEW trunk — lanes and Properties as the old viewer gave them\n");
+    {
+        SwingDataSource src;
+        check(QStringLiteral("IMU-VIEW trunk  the viewer shows the shot"), openViewer(src, s, trunk, 0, {}));
+        expectEq(QStringLiteral("IMU-VIEW trunk  Axial lanes"), imuChips(src, QStringLiteral("Axial")),
+                 QStringLiteral("Motion sensor · Pelvis|teal|Pelvis Sensor; Motion sensor · Thorax|blue|Chest Sensor"));
+        expectEq(QStringLiteral("IMU-VIEW trunk  Lower lanes"), imuChips(src, QStringLiteral("Lower")),
+                 QStringLiteral("Motion sensor · Pelvis|teal|Pelvis Sensor"));
+        expectEq(QStringLiteral("IMU-VIEW trunk  Upper lanes"), imuChips(src, QStringLiteral("Upper")), QString());
+        expectEq(QStringLiteral("IMU-VIEW trunk  Delivery lanes"), imuChips(src, QStringLiteral("Delivery")), QString());
+        expectEq(QStringLiteral("IMU-VIEW trunk  best region"), src.bestRegion(), QStringLiteral("Axial"));
+        expectEq(QStringLiteral("IMU-VIEW trunk  span (the thorax lane's last sample past window.end_us)"),
+                 QString::number(src.spanUs()), QStringLiteral("5095000"));
+        expectEq(QStringLiteral("IMU-VIEW trunk  Stream · Pelvis Sensor"), groupRows(src, QStringLiteral("Stream · Pelvis Sensor")),
+                 QStringLiteral("Kind=imu; Serial=WT-PELVIS-01; Rate=200 Hz; Fusion=host; Filter=vqf; Slot=P; Role=Pelvis; Samples=30"));
+        expectEq(QStringLiteral("IMU-VIEW trunk  Stream · Chest Sensor"), groupRows(src, QStringLiteral("Stream · Chest Sensor")),
+                 QStringLiteral("Kind=imu; Serial=WT-THORAX-02; Rate=200 Hz; Fusion=host; Filter=vqf; Role=Thorax; Samples=40"));
+    }
+
+    std::printf("\nIMU-VIEW wG3 — lanes and Properties as the old viewer gave them\n");
+    {
+        SwingDataSource src;
+        check(QStringLiteral("IMU-VIEW wG3    the viewer shows the shot"), openViewer(src, s, hm, 1, {}));
+        const QString arm = QStringLiteral("Motion sensor · Lead forearm|purple|HackMotion lower arm; "
+                                           "Motion sensor · Lead hand|coral|HackMotion palm");
+        expectEq(QStringLiteral("IMU-VIEW wG3    Axial lanes"), imuChips(src, QStringLiteral("Axial")), QString());
+        expectEq(QStringLiteral("IMU-VIEW wG3    Lower lanes"), imuChips(src, QStringLiteral("Lower")), QString());
+        expectEq(QStringLiteral("IMU-VIEW wG3    Upper lanes"), imuChips(src, QStringLiteral("Upper")), arm);
+        expectEq(QStringLiteral("IMU-VIEW wG3    Delivery lanes"), imuChips(src, QStringLiteral("Delivery")), arm);
+        check(QStringLiteral("IMU-VIEW wG3    best region is an arm region (%1)").arg(src.bestRegion()),
+              src.bestRegion() == QLatin1String("Upper") || src.bestRegion() == QLatin1String("Delivery"));
+        expectEq(QStringLiteral("IMU-VIEW wG3    span (window.end_us)"), QString::number(src.spanUs()), QStringLiteral("5000000"));
+        expectEq(QStringLiteral("IMU-VIEW wG3    Stream · HackMotion lower arm"), groupRows(src, QStringLiteral("Stream · HackMotion lower arm")),
+                 QStringLiteral("Kind=imu; Serial=HM0042#lowerArm; Rate=100 Hz; Fusion=device; Filter=; Role=LeadForearm; Samples=25"));
+        expectEq(QStringLiteral("IMU-VIEW wG3    Stream · HackMotion palm"), groupRows(src, QStringLiteral("Stream · HackMotion palm")),
+                 QStringLiteral("Kind=imu; Serial=HM0042#palm; Rate=100 Hz; Fusion=device; Filter=; Role=LeadHand; Samples=24"));
+    }
+
+    std::printf("\nIMU-VIEW legacy — the role from the settings' placement and the session type\n");
+    const QStringList pairs{ QStringLiteral("WT-LEGACY-A"), QStringLiteral("A") };
+    {
+        SwingDataSource src;   // a Wrist session (type 1): slot A is the lead forearm
+        check(QStringLiteral("IMU-VIEW legacy the viewer shows the shot (Wrist, slot A)"), openViewer(src, s, legacy, 1, pairs));
+        expectEq(QStringLiteral("IMU-VIEW legacy Upper lanes"), imuChips(src, QStringLiteral("Upper")),
+                 QStringLiteral("Motion sensor · Lead forearm|purple|Sensor A"));
+        expectEq(QStringLiteral("IMU-VIEW legacy Axial lanes (a role is known: no fallback)"), imuChips(src, QStringLiteral("Axial")), QString());
+        expectEq(QStringLiteral("IMU-VIEW legacy Stream · Sensor A"), groupRows(src, QStringLiteral("Stream · Sensor A")),
+                 QStringLiteral("Kind=imu; Serial=WT-LEGACY-A; Role=LeadForearm; Samples=33"));
+    }
+    {
+        SwingDataSource src;   // another session type: no role, so every region shows the lane generically
+        check(QStringLiteral("IMU-VIEW legacy the viewer shows the shot (type 0)"), openViewer(src, s, legacy, 0, pairs));
+        const QString generic = QStringLiteral("Motion sensor · Sensor A|teal|Sensor A");
+        expectEq(QStringLiteral("IMU-VIEW legacy Axial lanes (the generic fallback)"), imuChips(src, QStringLiteral("Axial")), generic);
+        expectEq(QStringLiteral("IMU-VIEW legacy Upper lanes (the generic fallback)"), imuChips(src, QStringLiteral("Upper")), generic);
+        expectEq(QStringLiteral("IMU-VIEW legacy Stream · Sensor A (no Role row)"), groupRows(src, QStringLiteral("Stream · Sensor A")),
+                 QStringLiteral("Kind=imu; Serial=WT-LEGACY-A; Samples=33"));
+    }
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -369,6 +650,7 @@ int main(int argc, char **argv)
             testReplay(rig, s);
             testMarkup(rig, s);
             testDataViewer(rig, s);
+            testImuLanes(rig, s);
         }
     }
     std::printf("\n%s (%d failed)\n", g_fail ? "FAIL" : "PASS", g_fail);
