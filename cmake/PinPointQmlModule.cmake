@@ -427,7 +427,7 @@ set(PP_QML_FILES
     src/Gui/diagnostics/PpDiagAnalyse.qml
     src/Gui/diagnostics/PpDiagPrint.qml
     # The Charts panel (docs/design/charts_panel_traces_relations.md; build/charts-build/STEP2B.md): the
-    # wiring (PpChartsPanel, over SessionSeriesModel and the two presenters), the body, the registers
+    # wiring (PpChartsPanel, over the session's own series (5.5a) and its presenters), the body, the registers
     # and views, and its blocks. All in src/Gui/charts/ for now; the generic ones move to src/Gui/typeset/
     # later. PpChSeek is the one singleton.
     src/Gui/charts/PpChartsPanel.qml
@@ -620,8 +620,13 @@ set(PP_QML_SOURCES
     # The Charts panel's session half (docs/design/charts_panel_traces_relations.md §6.1): the
     # snapshot types and the model that fills them off the GUI thread.
     src/Gui/charts/session_series_types.h
-    src/Gui/charts/session_series_model.h
-    src/Gui/charts/session_series_model.cpp
+    # The series' pure half and the charts' one threading idiom (refactor 5.5a: ChartsLane on the app's WorkPool;
+    # SeriesSource, what a presenter reads; ChartsSeries, the QML door to a Session's own series). The series itself
+    # (session_series.*) links the domain model, so it is the app's (CMakeLists.txt), beside SessionDiagnostics.
+    src/Gui/charts/session_series_extract.h
+    src/Gui/charts/session_series_extract.cpp
+    src/Gui/charts/charts_work.h
+    src/Gui/charts/charts_work.cpp
     # The session maths (§4, §6.2): pure C++ over the snapshot, P-aligned.
     src/Gui/charts/session_curves.h
     src/Gui/charts/session_curves.cpp
