@@ -30,6 +30,7 @@ pp_add_test(charts_traces_presenter_test
             ${SRC}/Metrics/variability/variability_typicality.cpp
             ${SRC}/Kinematics/gap_bridge.cpp
             ${GUI}/trust/trust_readings.cpp
+            ${GUI}/trust/trust_types.h      # thisShot.trust is a list of its readings (refactor 5.5c): moc'd here
             ${GUI}/review/chart_metrics.cpp
             ${GUI}/review/timeline_labels.cpp
             ${SRC}/Metrics/metric_catalogue.cpp

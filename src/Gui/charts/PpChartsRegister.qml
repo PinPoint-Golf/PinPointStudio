@@ -88,7 +88,8 @@ Item {
 
     readonly property var tabDefs: {
         const t = [{ key: "shot", label: "This shot", count: !replay && body && body.rShot && body.rShot.available ? body.rShot.apartCount : undefined },
-                   { key: "session", label: "Session", count: !replay && body && body.tSession ? body.tSession.tabCount : undefined },
+                   // the Session count: the traces presenter's tabCount, 0 while Session would not draw (no count then)
+                   { key: "session", label: "Session", count: !replay && body && body.tSession && body.tSession.tabCount > 0 ? body.tSession.tabCount : undefined },
                    { key: "readings", label: "Readings" },
                    { key: "relations", label: "Relations" }]
         if (!replay) t.push({ key: "kinds", label: "Kinds" })

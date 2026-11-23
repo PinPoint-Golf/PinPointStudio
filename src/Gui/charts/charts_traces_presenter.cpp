@@ -25,7 +25,7 @@
 #include "../trust/trust_readings.h"         // the readings a gate touched (the marks open them)
 #include "session_sequence.h"
 #include "session_bridge.h"     // the chest's probable peak (Session only)
-#include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
+#include "session_series_extract.h"   // folderShotId (refactor 5.5a)
 #include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "variability_clubs.h"      // perClubTraceInputs (R2b: one window per club)
 #include "variability_env.h"        // the scale provider: each curve's scale type
@@ -36,7 +36,6 @@
 #include "../../Metrics/variability/variability_typicality.h"  // traceTypicalityWindow (R8)
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_tuned_constants.h"   // the ±15 ms an instant's reading may reach
-#include "../../Export/swing_store.h"   // the ★ reference swing (loadAnalysis), read on the worker
 #include "../../Metrics/fitted_curve.h"    // isFittedCurve — read at the instant, not around it
 #include "../../Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' reading tiles
 
@@ -46,11 +45,8 @@
 #include <QCoreApplication>
 #include <QDate>
 #include <QDeadlineTimer>
-#include <QDir>
 #include <QElapsedTimer>
-#include <QFileInfo>
 #include <QHash>
-#include <QJsonObject>
 #include <QLocale>
 #include <QMetaObject>
 #include <QMutex>
@@ -67,6 +63,7 @@
 namespace pinpoint::charts {
 
 namespace W = words;
+namespace T = tracesui;
 
 // ── the result, and what the GUI thread keeps to answer the playhead and the pointer ───────────
 
@@ -109,9 +106,12 @@ struct ChartsTracesPresenter::NowCache {
 };
 
 struct ChartsTracesPresenter::Result {
-    QVariantMap choices, thisShot, reference, session;
+    T::Choices choices;
+    T::ThisShot thisShot;
+    T::Reference reference;
+    T::Session session;
     NowCache now;
-    QVariantMap timings;
+    T::Timings timings;
 };
 
 // ── the worker's caches (touched only by jobs, which never overlap) ────────────────────────────
@@ -150,13 +150,6 @@ struct ChartsTracesPresenter::Worker {
     // and Against views use. The graders are pure maths, made on first use.
     std::shared_ptr<const IVariabilityScaleProvider> scales;
     std::unique_ptr<variability::IVariabilityGrader> traceGrader, ordinalGrader;
-
-    // The ★ reference swing (Against "reference"), as last read: by its cleaned dir and its document's
-    // stamp, so an unchanged swing is a stat per job. Not per revision: it lives outside the session.
-    QString refDir;
-    qint64  refSize = -1, refMtimeMs = -1;
-    std::shared_ptr<const ShotSeries> refShot;
-    QString refWhy;
 
     // THE FROM-ADDRESS SNAPSHOT (kFromAddressPresets): the session with each preset member's series
     // rebased to its address value, built once per snapshot revision and preset. refresh() takes it IN
@@ -253,16 +246,27 @@ namespace {
 
 // ── small helpers ───────────────────────────────────────────────────────────────────────────
 
-QVariant dl(const std::vector<double> &v) { return QVariant::fromValue(QList<double>(v.begin(), v.end())); }
+QList<double> dl(const std::vector<double> &v) { return QList<double>(v.begin(), v.end()); }
 
-QVariantList intList(const std::vector<int> &v)
+QList<int> intList(const std::vector<int> &v) { return QList<int>(v.begin(), v.end()); }
+
+QString cleanDir(const QString &d) { return chartsCleanDir(d); }
+
+// words::Sentence as QML takes it (its text, its runs, its first clause), as Sentence::toVariant() spells it.
+T::Sentence sentenceOf(const W::Sentence &s)
 {
-    QVariantList out;
-    for (int x : v) out << x;
+    T::Sentence out;
+    for (const W::Sentence::Run &r : s.runs) {
+        T::Run run;
+        run.text = r.text;
+        run.fig = r.fig;
+        out.runs << run;
+    }
+    out.text = s.text();
+    out.clause = W::firstClauseOf(out.text);
     return out;
 }
-
-QString cleanDir(const QString &d) { return d.trimmed().isEmpty() ? QString() : QDir::cleanPath(d.trimmed()); }
+T::Sentence sentenceOf(const QString &text) { W::Sentence s; s.append(text); return sentenceOf(s); }
 
 QString asciiLower(QString s)
 {
@@ -542,38 +546,6 @@ ShotWarp warpOnto(const ShotSeries &ref, const ShotSeries &picked)
 // "shot 3, 18 Aug 2026": which swing the ★ is — its swing number and its session's day (SessionIdentity).
 QString referenceLabelOf(const QString &dir) { return pinpoint::seriesSwingLabelOf(dir); }
 
-// The reference swing, read on the worker: the session's own copy when it is one of the session's
-// shots, else SwingStore::loadAnalysis → extractShot (the loader's own path, never
-// the pose), cached by the document's stamp. Null with *why when it cannot be read.
-std::shared_ptr<const ShotSeries> referenceShot(ChartsTracesPresenter::Worker &w, const QString &rawDir,
-                                                const std::shared_ptr<const SessionSnapshot> &snap, QString *why)
-{
-    const QString dir = cleanDir(rawDir);
-    if (dir.isEmpty()) { *why = QStringLiteral("No reference swing is set: ★ marks one, and it stays your reference across sessions."); return {}; }
-    if (snap)
-        for (const auto &s : snap->shots) if (cleanDir(s->swingDir) == dir) return s;
-    const pinpoint::SwingStore::DocInfo info = pinpoint::SwingStore::info(dir);
-    if (dir == w.refDir && info.size == w.refSize && info.mtimeMs == w.refMtimeMs) { *why = w.refWhy; return w.refShot; }
-    w.refDir = dir; w.refSize = info.size; w.refMtimeMs = info.mtimeMs;
-    w.refShot.reset(); w.refWhy.clear();
-    if (!info.exists()) {
-        w.refWhy = QStringLiteral("The reference swing is no longer on disk.");
-    } else {
-        QString err, whyNot;
-        const QJsonObject root = pinpoint::SwingStore::loadAnalysis(dir, &err);
-        auto shot = root.isEmpty() ? nullptr : extractShot(root, dir, &whyNot);
-        if (shot) {
-            shot->shotId = folderShotId(dir);
-            w.refShot = shot;
-        } else {
-            w.refWhy = QStringLiteral("The reference swing cannot be read: ") + (whyNot.isEmpty() ? QStringLiteral("the swing document could not be read") : whyNot) + QStringLiteral(".");
-            if (!err.isEmpty()) ppWarn() << "[Charts] reference" << dir << err;
-        }
-    }
-    *why = w.refWhy;
-    return w.refShot;
-}
-
 // ── the window ──────────────────────────────────────────────────────────────────────────────
 
 struct Win {
@@ -641,7 +613,7 @@ struct Ctx {
     bool sequencePreset = false;
     // the window
     Win win;
-    QVariantList windowChips;
+    QList<T::WindowChoice> windowChips;
     // the session window (canonical)
     double t0 = kNaN, t1 = kNaN;
     std::vector<double> grid;
@@ -821,14 +793,20 @@ QString readLabel(const Ctx &c, int ph, const QString &authored)
     return QStringLiteral("at ") + (name.size() <= 7 ? asciiLower(name) : c.tag(ph));
 }
 
-QVariantMap tile(const QString &label, const QString &text, bool ok, const QString &verdict, const QString &sub,
-                 const QString &unit, const QString &tip, bool window)
+T::Tile tile(const QString &label, const QString &text, bool ok, const QString &verdict, const QString &sub,
+             const QString &unit, const QString &tip, bool window)
 {
-    return { { QStringLiteral("label"), label }, { QStringLiteral("text"), text }, { QStringLiteral("ok"), ok },
-             { QStringLiteral("verdict"), verdict },
-             { QStringLiteral("verdictWord"), verdict.isEmpty() ? QString() : verdictWord(verdict) },
-             { QStringLiteral("sub"), sub }, { QStringLiteral("unit"), unit }, { QStringLiteral("tip"), tip },
-             { QStringLiteral("window"), window } };
+    T::Tile t;
+    t.label = label;
+    t.text = text;
+    t.ok = ok;
+    t.verdict = verdict;
+    t.verdictWord = verdict.isEmpty() ? QString() : verdictWord(verdict);
+    t.sub = sub;
+    t.unit = unit;
+    t.tip = tip;
+    t.window = window;
+    return t;
 }
 
 QString shortUnitOf(const Ctx &c, const QString &u) { return c.w->cm->shortUnit(u); }
@@ -890,15 +868,11 @@ QString gateWordsAt(const ShotSeries *shot, const QString &key, double ms, QStri
     if (subject) *subject = g.value(QStringLiteral("subject")).toString();
     return g.value(QStringLiteral("words")).toString();
 }
-double msOfUs(const Ctx &c, qint64 us)
-{
-    return c.shot && c.shot->impactUs >= 0 && us >= 0 ? double(us - c.shot->impactUs) / 1000.0 : kNaN;
-}
 
 // A companion's tiles (MetricCardSpec::mergeInto): its readings and a fixed-span Δ, read off ITS series.
-QVariantList companionTiles(const Ctx &c, const SeriesCalc &host, const SeriesCalc &s)
+QList<T::Tile> companionTiles(const Ctx &c, const SeriesCalc &host, const SeriesCalc &s)
 {
-    QVariantList out;
+    QList<T::Tile> out;
     const QVariantMap sp = s.spec;
     const QString nm = asciiLower(c.w->cm->shortLabel(s.m->key).isEmpty() ? (s.m->label.isEmpty() ? s.m->key : s.m->label)
                                                                          : c.w->cm->shortLabel(s.m->key));
@@ -909,29 +883,27 @@ QVariantList companionTiles(const Ctx &c, const SeriesCalc &host, const SeriesCa
         const Reading r = readingOf(c, s, ph);
         const QString v = r.ok ? verdictOf(c.w->cm->bandAtNearest(s.phaseSamples, r.us)) : QString();
         const QString lab = ra.value(QStringLiteral("label")).toString();
-        QVariantMap t = tile(lab.isEmpty() ? nm + QLatin1Char(' ') + readLabel(c, ph, QString()) : asciiLower(lab),
-                             r.ok ? W::fig(r.val, s.dec) : QStringLiteral("-"), r.ok, v, QString(), r.ok ? unit : QString(),
-                             QString(), false);
-        out << t;
+        out << tile(lab.isEmpty() ? nm + QLatin1Char(' ') + readLabel(c, ph, QString()) : asciiLower(lab),
+                    r.ok ? W::fig(r.val, s.dec) : QStringLiteral("-"), r.ok, v, QString(), r.ok ? unit : QString(),
+                    QString(), false);
     }
     if (sp.value(QStringLiteral("delta")).toBool() && sp.value(QStringLiteral("deltaSpan")).toBool()) {
         const int a = sp.value(QStringLiteral("deltaFrom")).toInt(), b = sp.value(QStringLiteral("deltaTo")).toInt();
         const Reading ra = readingOf(c, s, a), rb = readingOf(c, s, b);
         const bool ok = ra.ok && rb.ok;
         const QString lab = sp.value(QStringLiteral("deltaLabel")).toString();
-        QVariantMap t = tile(lab.isEmpty() ? QStringLiteral("Δ ") + nm + QLatin1Char(' ') + c.tag(a) + QStringLiteral("→") + c.tag(b)
-                                           : asciiLower(lab),
-                             ok ? W::fig(rb.val - ra.val, s.dec) : QStringLiteral("-"), ok, QString(), QString(),
-                             ok ? unit : QString(), QString(), false);
-        out << t;
+        out << tile(lab.isEmpty() ? QStringLiteral("Δ ") + nm + QLatin1Char(' ') + c.tag(a) + QStringLiteral("→") + c.tag(b)
+                                  : asciiLower(lab),
+                    ok ? W::fig(rb.val - ra.val, s.dec) : QStringLiteral("-"), ok, QString(), QString(),
+                    ok ? unit : QString(), QString(), false);
     }
     return out;
 }
 
 // The card of one series (PpChartSummary's tiles, in spec order: readings, PEAK, Δ, PK RATE, companions).
-QVariantMap cardOf(Ctx &c, const SeriesCalc &s, const std::vector<const SeriesCalc *> &companions)
+T::Row cardOf(Ctx &c, const SeriesCalc &s, const std::vector<const SeriesCalc *> &companions)
 {
-    QVariantList tiles;
+    QList<T::Tile> tiles;
     const QVariantMap sp = s.spec;
     const QString unit = shortUnitOf(c, s.m->unit);
     if (!s.hasCurve) {
@@ -993,60 +965,48 @@ QVariantMap cardOf(Ctx &c, const SeriesCalc &s, const std::vector<const SeriesCa
                           s.rateOk ? unit + QStringLiteral("/100 ms") : QString(), QString(), true);
         }
     }
-    // a "-" a gate left: its words, and the reading a click opens (the instant tiles let a mask speak)
-    {
-        std::vector<double> instMs;
-        if (!s.hasCurve) {
-            for (const PhaseSample &p : s.m->phaseSamples) instMs.push_back(msOfUs(c, p.tUs));
-        } else {
-            for (const QVariant &rv : sp.value(QStringLiteral("readAt")).toList()) {
-                const int ph = rv.toMap().value(QStringLiteral("phase")).toInt();
-                const Reading r = readingOf(c, s, ph);
-                instMs.push_back(msOfUs(c, r.us >= 0 ? r.us : phaseUsOf(*c.shot, ph)));
-            }
-        }
-        for (int i = 0; i < tiles.size(); ++i) {
-            QVariantMap t = tiles[i].toMap();
-            tiles[i] = t;
-        }
-    }
     for (const SeriesCalc *co : companions) tiles << companionTiles(c, s, *co);
     bool partial = false;
-    for (const QVariant &t : tiles)
-        if (t.toMap().value(QStringLiteral("window")).toBool())
+    for (const T::Tile &t : tiles)
+        if (t.window)
             partial = partial || s.st.value(QStringLiteral("partial")).toBool() || s.collapsed;
     const QVariantMap si = c.w->cm->sigmaInfo(s.seriesMap);
     const bool gross = si.value(QStringLiteral("warn")).toBool();
-    return { { QStringLiteral("key"), s.m->key },
-             { QStringLiteral("label"), c.labelOf(s.m->key) },
-             { QStringLiteral("unit"), unit },
-             { QStringLiteral("tiles"), tiles },
-             { QStringLiteral("partial"), partial },
-             { QStringLiteral("partialWord"), partial ? QStringLiteral("partial") : QString() },
-             { QStringLiteral("sigmaText"), W::pm(s.m->sigma, s.dec) },
-             { QStringLiteral("sigmaTip"), std::isfinite(s.m->sigma) && s.m->sigma > 0 ? si.value(QStringLiteral("tip")).toString() : QString() },
-             { QStringLiteral("grossWarn"), gross },
-             { QStringLiteral("grossWord"), gross ? QStringLiteral("⚠") : QString() },
-             { QStringLiteral("grossTip"), si.value(QStringLiteral("warnTip")).toString() } };
+    T::Row card;
+    card.key = s.m->key;
+    card.label = c.labelOf(s.m->key);
+    card.unit = unit;
+    card.tiles = tiles;
+    card.partial = partial;
+    card.partialWord = partial ? QStringLiteral("partial") : QString();
+    card.sigmaText = W::pm(s.m->sigma, s.dec);
+    card.sigmaTip = std::isfinite(s.m->sigma) && s.m->sigma > 0 ? si.value(QStringLiteral("tip")).toString() : QString();
+    card.grossWarn = gross;
+    card.grossWord = gross ? QStringLiteral("⚠") : QString();
+    card.grossTip = si.value(QStringLiteral("warnTip")).toString();
+    return card;
 }
 
 // The dashed straight BRIDGES across runs of samples that are not measurements: from the last
 // measured sample before a run to the first after it, on the curve's own axis ([{ t0, v0, t1, v1 }]).
 // A run at either end of the curve has nothing to bridge to and stays a gap.
-QVariantList bridgesOf(const std::vector<double> &t, const std::vector<double> &v, const std::vector<uint8_t> &ok,
-                       double from = -std::numeric_limits<double>::infinity(),
-                       double to = std::numeric_limits<double>::infinity())
+QList<T::Bridge> bridgesOf(const std::vector<double> &t, const std::vector<double> &v, const std::vector<uint8_t> &ok,
+                           double from = -std::numeric_limits<double>::infinity(),
+                           double to = std::numeric_limits<double>::infinity())
 {
-    QVariantList out;
+    QList<T::Bridge> out;
     const size_t n = std::min({ t.size(), v.size(), ok.size() });
     long last = -1;
     bool gap = false;
     for (size_t i = 0; i < n; ++i) {
         const bool good = ok[i] && std::isfinite(v[i]);
         if (!good) { if (last >= 0) gap = true; continue; }
-        if (gap && t[i] >= from && t[size_t(last)] <= to)
-            out << QVariantMap{ { QStringLiteral("t0"), t[size_t(last)] }, { QStringLiteral("v0"), v[size_t(last)] },
-                                { QStringLiteral("t1"), t[i] }, { QStringLiteral("v1"), v[i] } };
+        if (gap && t[i] >= from && t[size_t(last)] <= to) {
+            T::Bridge b;
+            b.t0 = t[size_t(last)]; b.v0 = v[size_t(last)];
+            b.t1 = t[i]; b.v1 = v[i];
+            out << b;
+        }
         gap = false;
         last = long(i);
     }
@@ -1055,7 +1015,7 @@ QVariantList bridgesOf(const std::vector<double> &t, const std::vector<double> &
 
 // Tick values with their figure text ([{ v, text }]): the decimals the tick STEP needs (0.5 → one),
 // U+2212 for the minus; signed = "+50" / "−100" (a time axis about impact).
-QVariantList tickTexts(const std::vector<double> &vals, bool signedText = false)
+QList<T::Tick> tickTexts(const std::vector<double> &vals, bool signedText = false)
 {
     double step = kNaN;
     for (size_t i = 1; i < vals.size(); ++i) {
@@ -1064,11 +1024,14 @@ QVariantList tickTexts(const std::vector<double> &vals, bool signedText = false)
     }
     int dec = 0;
     if (std::isfinite(step) && step < 1.0) dec = std::min(3, int(std::ceil(-std::log10(step) - 1e-9)));
-    QVariantList out;
+    QList<T::Tick> out;
     for (double v : vals) {
         QString t = W::fig(v, dec);
         if (signedText && t != QLatin1String("-") && std::round(v * std::pow(10.0, dec)) > 0) t.prepend(QLatin1Char('+'));
-        out << QVariantMap{ { QStringLiteral("v"), v }, { QStringLiteral("text"), t } };
+        T::Tick k;
+        k.v = v;
+        k.text = t;
+        out << k;
     }
     return out;
 }
@@ -1078,7 +1041,7 @@ QVariantList niceTicksList(Ctx &c, double lo, double hi)
     return std::isfinite(lo) && std::isfinite(hi) ? c.w->cm->niceTicks(lo, hi, 4) : QVariantList{};
 }
 
-QVariantList ticksAsDoubles(const QVariantList &l)
+QList<T::Tick> ticksAsDoubles(const QVariantList &l)
 {
     std::vector<double> v;
     for (const QVariant &x : l) v.push_back(x.toDouble());
@@ -1270,12 +1233,18 @@ void resolveWindow(Ctx &c)
     c.win = *pick;
     if (c.win.key == QLatin1String("custom")) chips.push_back(c.win);
     // `segment`: an adjacent P-position pair, which the view lists under its own opener (rule C5)
-    for (const Win &x : chips)
-        c.windowChips << QVariantMap{ { QStringLiteral("key"), x.key }, { QStringLiteral("label"), x.label },
-                                      { QStringLiteral("current"), x.key == c.win.key },
-                                      { QStringLiteral("segment"), x.key.startsWith(QLatin1String("seg:")) },
-                                      { QStringLiteral("startUs"), x.startUs }, { QStringLiteral("endUs"), x.endUs },
-                                      { QStringLiteral("phaseA"), x.phaseA }, { QStringLiteral("phaseB"), x.phaseB } };
+    for (const Win &x : chips) {
+        T::WindowChoice w;
+        w.key = x.key;
+        w.label = x.label;
+        w.current = x.key == c.win.key;
+        w.segment = x.key.startsWith(QLatin1String("seg:"));
+        w.startUs = x.startUs;
+        w.endUs = x.endUs;
+        w.phaseA = x.phaseA;
+        w.phaseB = x.phaseB;
+        c.windowChips << w;
+    }
 }
 
 double shotMsOf(const Ctx &c, qint64 us) { return c.shot && c.shot->impactUs >= 0 ? double(us - c.shot->impactUs) / 1000.0 : double(us) / 1000.0; }
@@ -1323,48 +1292,89 @@ QString tileMs(double ms, double sigma)
            + (sigma > 0.0 ? QStringLiteral(" ±") + QString::number(std::lround(sigma)) : QString()) + QStringLiteral(" ms");
 }
 
-QVariantMap sequenceBlock(Ctx &c)
+// The shot's sequence checks (Coaching/sequence_checks.h sequenceChecksToVariant's shape) as their gadget, or null
+// when nothing was recorded (its empty map): PpChSeqTable draws its line for a recorded shot only.
+QVariant sequenceChecksOf(const QVariantMap &m)
+{
+    if (m.isEmpty()) return T::nullValue();
+    T::SeqChecks out;
+    out.notAssessable = m.value(QStringLiteral("notAssessable")).toInt();
+    out.gapNote = m.value(QStringLiteral("gapNote")).toString();
+    out.expectedPassed = m.value(QStringLiteral("expectedPassed")).toDouble();
+    out.sumPFire = m.value(QStringLiteral("sumPFire")).toDouble();
+    out.failedLikely = m.value(QStringLiteral("failedLikely")).toInt();
+    for (const QVariant &cv : m.value(QStringLiteral("checks")).toList()) {
+        const QVariantMap c = cv.toMap();
+        T::SeqCheck k;
+        k.facet = c.value(QStringLiteral("facet")).toString();
+        k.signalId = c.value(QStringLiteral("signalId")).toString();
+        k.label = c.value(QStringLiteral("label")).toString();
+        k.question = c.value(QStringLiteral("question")).toString();
+        k.state = c.value(QStringLiteral("state")).toString();
+        k.mark = c.value(QStringLiteral("mark")).toString();
+        k.pFire = c.value(QStringLiteral("pFire")).toDouble();
+        k.quantified = c.value(QStringLiteral("quantified")).toBool();
+        k.reason = c.value(QStringLiteral("reason")).toString();
+        k.gate = c.value(QStringLiteral("gate")).toString();
+        k.trustSubject = c.value(QStringLiteral("trustSubject")).toString();
+        k.gateWords = c.value(QStringLiteral("gateWords")).toString();
+        k.detail = c.value(QStringLiteral("detail")).toString();
+        out.checks << k;
+    }
+    return QVariant::fromValue(out);
+}
+
+T::SequenceBlock sequenceBlock(Ctx &c)
 {
     const ShotSequence &q = c.seq;
     const QVariantMap table = c.w->cm->sequenceTable(c.shot->kinematicSequence);
     bool anyProbable = false;
-    QVariantList rows;
+    T::SequenceBlock out;
     for (const QVariant &rv : table.value(QStringLiteral("rows")).toList()) {
-        QVariantMap r = rv.toMap();
-        const int seg = int(std::find(sequenceSegmentIds().begin(), sequenceSegmentIds().end(),
-                                      r.value(QStringLiteral("segment")).toString()) - sequenceSegmentIds().begin());
-        if (seg < 0 || seg >= kSequenceSegments) { rows << r; continue; }
+        const QVariantMap m = rv.toMap();
+        T::SeqTableRow r;
+        r.segment = m.value(QStringLiteral("segment")).toString();
+        r.label = m.value(QStringLiteral("label")).toString();
+        r.shouldRank = m.value(QStringLiteral("shouldRank")).toString();
+        r.actualRank = m.value(QStringLiteral("actualRank")).toString();
+        r.placed = m.value(QStringLiteral("placed")).toBool();
+        r.outOfTurn = m.value(QStringLiteral("outOfTurn")).toBool();
+        r.peakText = m.value(QStringLiteral("peakText")).toString();
+        r.speedText = m.value(QStringLiteral("speedText")).toString();
+        r.pctText = m.value(QStringLiteral("pctText")).toString();
+        const int seg = int(std::find(sequenceSegmentIds().begin(), sequenceSegmentIds().end(), r.segment) - sequenceSegmentIds().begin());
+        if (seg < 0 || seg >= kSequenceSegments) { out.table << r; continue; }
         const SegmentPeak &p = q.segments[size_t(seg)];
         // THE RANKS AND THE LATE MARK ARE THE TIMED SEGMENTS' (placed, or the chest's probable peak): the table
         // ranks every node with a peak, an unplaced one too, which this tile blanks
-        r.insert(QStringLiteral("late"), p.late);
-        r.insert(QStringLiteral("outOfTurn"), p.late);
-        r.insert(QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString());
-        r.insert(QStringLiteral("rising"), p.risingAtImpact);
-        r.insert(QStringLiteral("probable"), p.probable);
-        if (p.timed()) r.insert(QStringLiteral("actualRank"), QString::number(p.rank));
+        r.late = p.late;
+        r.outOfTurn = p.late;
+        r.lateWord = p.late ? QStringLiteral("late") : QString();
+        r.rising = p.risingAtImpact;
+        r.probable = p.probable;
+        if (p.timed()) r.actualRank = QString::number(p.rank);
         if (p.probable) {
             // THE CHEST'S PROBABLE PEAK (design §12.6): its numbers with their ±, and the ⚠ with its few words
             anyProbable = true;
             const double pro = ChartMetrics::sequenceProDps(sequenceSegmentIds()[size_t(seg)]);
-            r.insert(QStringLiteral("peakText"), tileMs(p.probableMs, p.probableSigmaMs));
-            r.insert(QStringLiteral("speedText"), QString::number(std::lround(std::abs(p.probableDps)))
-                                                      + (p.probableSigmaDps > 0 ? QStringLiteral(" ±") + QString::number(std::lround(p.probableSigmaDps)) : QString()));
-            r.insert(QStringLiteral("pctText"), std::isfinite(pro) && pro > 0
-                                                    ? QString::number(std::lround(100.0 * std::abs(p.probableDps) / pro)) + QStringLiteral("%")
-                                                          + (p.probableSigmaDps > 0 ? QStringLiteral(" ±") + QString::number(std::lround(100.0 * p.probableSigmaDps / pro)) : QString())
-                                                    : QStringLiteral("-"));
-            r.insert(QStringLiteral("warn"), QStringLiteral("⚠"));
-            r.insert(QStringLiteral("warnShort"), probableWord(p));
+            r.peakText = tileMs(p.probableMs, p.probableSigmaMs);
+            r.speedText = QString::number(std::lround(std::abs(p.probableDps)))
+                          + (p.probableSigmaDps > 0 ? QStringLiteral(" ±") + QString::number(std::lround(p.probableSigmaDps)) : QString());
+            r.pctText = std::isfinite(pro) && pro > 0
+                            ? QString::number(std::lround(100.0 * std::abs(p.probableDps) / pro)) + QStringLiteral("%")
+                                  + (p.probableSigmaDps > 0 ? QStringLiteral(" ±") + QString::number(std::lround(100.0 * p.probableSigmaDps / pro)) : QString())
+                            : QStringLiteral("-");
+            r.warn = QStringLiteral("⚠");
+            r.warnShort = probableWord(p);
         } else if (!p.placed) {
             // A NODE NOT PLACED IS A PLAIN "-" (Mark, 17 Oct 2026): no guessed rank ("3?"), no estimate, no gate
             // words; the headline names it and the panel's tail says why
-            r.insert(QStringLiteral("actualRank"), QStringLiteral("-"));
-            r.insert(QStringLiteral("peakText"), QStringLiteral("-"));
-            r.insert(QStringLiteral("speedText"), QStringLiteral("-"));
-            r.insert(QStringLiteral("pctText"), QStringLiteral("-"));
+            r.actualRank = QStringLiteral("-");
+            r.peakText = QStringLiteral("-");
+            r.speedText = QStringLiteral("-");
+            r.pctText = QStringLiteral("-");
         }
-        rows << r;
+        out.table << r;
     }
     // THE CHAIN: the timed peaks in the order they happened, the gap on each arrow, the late one worded, a
     // probable one with its ⚠.
@@ -1372,7 +1382,6 @@ QVariantMap sequenceBlock(Ctx &c)
     for (int i = 0; i < kSequenceSegments; ++i) if (q.segments[size_t(i)].timed()) timed.push_back(i);
     std::stable_sort(timed.begin(), timed.end(), [&](int a, int b) { return q.segments[size_t(a)].timeMs() < q.segments[size_t(b)].timeMs(); });
     W::Sentence chain;
-    QVariantList links;
     for (size_t i = 0; i < timed.size(); ++i) {
         const SegmentPeak &p = q.segments[size_t(timed[i])];
         chain.append(segWord(timed[i]) + (p.probable ? QStringLiteral(" ⚠") : QString()) + (p.late ? QStringLiteral(", late") : QString()));
@@ -1381,13 +1390,15 @@ QVariantMap sequenceBlock(Ctx &c)
             gap = q.segments[size_t(timed[i + 1])].timeMs() - p.timeMs();
             chain.append(QStringLiteral(" — ")).figure(W::figMs(gap)).append(QStringLiteral(" → "));
         }
-        links << QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(timed[i])] },
-                              { QStringLiteral("word"), segWord(timed[i]) },
-                              { QStringLiteral("late"), p.late },
-                              { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
-                              { QStringLiteral("probable"), p.probable },
-                              { QStringLiteral("gapMs"), gap },
-                              { QStringLiteral("gapText"), std::isfinite(gap) ? W::figMs(gap) : QString() } };
+        T::SeqLink l;
+        l.segment = sequenceSegmentIds()[size_t(timed[i])];
+        l.word = segWord(timed[i]);
+        l.late = p.late;
+        l.lateWord = p.late ? QStringLiteral("late") : QString();
+        l.probable = p.probable;
+        l.gapMs = gap;
+        l.gapText = std::isfinite(gap) ? W::figMs(gap) : QString();
+        out.links << l;
     }
     // SAID ONCE (Mark, 17 Oct 2026): the headline names the nodes that were not placed and the panel's tail
     // ("How far can I trust this?") says why; the strip only gives the order it reads against.
@@ -1406,39 +1417,40 @@ QVariantMap sequenceBlock(Ctx &c)
     else if (q.timedCount == kSequenceSegments) { verdict = QStringLiteral("In sequence"); state = QStringLiteral("match"); }
     else { verdict = QStringLiteral("In order so far"); state = QStringLiteral("incomplete"); }
     if (anyProbable && q.timedCount >= 2) verdict += QStringLiteral(" ⚠");
-    return { { QStringLiteral("verdictText"), verdict },
-             { QStringLiteral("verdictState"), state },
-             { QStringLiteral("anyLate"), q.anyLate },
-             { QStringLiteral("anyProbable"), anyProbable },
-             { QStringLiteral("chain"), chain.toVariant() },
-             { QStringLiteral("links"), links },
-             { QStringLiteral("note"), note.toVariant() },
-             { QStringLiteral("whyText"), QString() },
-             // a shot analysed before records existed (§6): say so where the "Why" would be
-             { QStringLiteral("unrecordedText"), c.shot && c.shot->gatesVersion <= 0
-                                                 ? QStringLiteral("Reasons not recorded for this shot; re-analyse it to see which gates fired.")
-                                                 : QString() },
-             { QStringLiteral("table"), rows },
-             // The sequence checks (§10.6 E4): marks and reasons, no count — the engine's own verdicts,
-             // as the ledger row carries them (Coaching/sequence_checks.h). Empty when none recorded.
-             { QStringLiteral("checks"), c.shot->diagnostics.sequenceChecks } };
+    out.verdictText = verdict;
+    out.verdictState = state;
+    out.anyLate = q.anyLate;
+    out.anyProbable = anyProbable;
+    out.chain = sentenceOf(chain);
+    out.note = sentenceOf(note);
+    out.whyText = QString();
+    // a shot analysed before records existed (§6): say so where the "Why" would be
+    out.unrecordedText = c.shot && c.shot->gatesVersion <= 0
+                             ? QStringLiteral("Reasons not recorded for this shot; re-analyse it to see which gates fired.")
+                             : QString();
+    // The sequence checks (§10.6 E4): marks and reasons, no count — the engine's own verdicts,
+    // as the ledger row carries them (Coaching/sequence_checks.h). Null when none recorded.
+    out.checks = sequenceChecksOf(c.shot->diagnostics.sequenceChecks);
+    return out;
 }
 
-QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::vector<int> &dotKinds)
+T::Row shotRow(Ctx &c, const SeriesCalc &s, const T::Row &card, std::vector<int> &dotKinds)
 {
     const MetricSeries &m = *s.m;
     const size_t n = m.tUs.size();
     std::vector<double> t(n);
     for (size_t i = 0; i < n; ++i) t[i] = shotMsOf(c, m.tUs[i]);
     // runs: measured / bridged (dashed) / outside the phase domain (dimmed, never dashed)
-    QVariantList runs;
+    QList<T::IndexRun> runs;
     const auto styleOf = [&](size_t i) {
         return !s.validSample[i] ? QStringLiteral("bridged") : !s.inDomain[i] ? QStringLiteral("outside") : QStringLiteral("measured");
     };
     size_t a = 0;
     for (size_t i = 1; i <= n; ++i)
         if (i == n || styleOf(i) != styleOf(a)) {
-            runs << QVariantMap{ { QStringLiteral("from"), int(a) }, { QStringLiteral("to"), int(i - 1) }, { QStringLiteral("style"), styleOf(a) } };
+            T::IndexRun r;
+            r.from = int(a); r.to = int(i - 1); r.style = styleOf(a);
+            runs << r;
             a = i;
         }
     // y over the window (the drawn line and the raw dots)
@@ -1448,9 +1460,9 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
         for (double v : { s.meanDrawn[i], s.rawDrawn[i] })
             if (std::isfinite(v)) { lo = std::isfinite(lo) ? std::min(lo, v) : v; hi = std::isfinite(hi) ? std::max(hi, v) : v; }
     }
-    const QVariantList bridges = bridgesOf(t, s.meanDrawn, s.validSample);
+    const QList<T::Bridge> bridges = bridgesOf(t, s.meanDrawn, s.validSample);
     // P dots, measured only, with their verdict and its word
-    QVariantList dots;
+    QList<T::Dot> dots;
     for (const PhaseSample &p : m.phaseSamples) {
         if (p.tUs < c.win.startUs || p.tUs > c.win.endUs) continue;
         const size_t i = nearestIndex(m.tUs, p.tUs);
@@ -1458,13 +1470,24 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
         const QString v = verdictOf(p.band);
         const int kind = v == QLatin1String("good") ? 0 : v == QLatin1String("attention") ? 1 : v == QLatin1String("warn") ? 2 : 3;
         if (std::find(dotKinds.begin(), dotKinds.end(), kind) == dotKinds.end()) dotKinds.push_back(kind);
-        dots << QVariantMap{ { QStringLiteral("phase"), p.phase }, { QStringLiteral("tag"), c.tag(p.phase) },
-                             { QStringLiteral("shotMs"), shotMsOf(c, p.tUs) }, { QStringLiteral("value"), p.value },
-                             { QStringLiteral("verdict"), v }, { QStringLiteral("verdictWord"), verdictWord(v) } };
+        T::Dot d;
+        d.phase = p.phase;
+        d.tag = c.tag(p.phase);
+        d.shotMs = shotMsOf(c, p.tUs);
+        d.value = p.value;
+        d.verdict = v;
+        d.verdictWord = verdictWord(v);
+        dots << d;
     }
     // peaks: the sequence node on a sequence curve, else the window's peak
-    QVariantList peaks, figures;
-    QVariantMap seqInfo;
+    QList<T::Peak> peaks;
+    QList<T::Figure> figures;
+    T::RowSequence seqInfo;
+    const auto figure = [&](const QString &label, const QString &text, bool warn) {
+        T::Figure f;
+        f.label = label; f.text = text; f.warn = warn;
+        figures << f;
+    };
     const int seg = segOfKey(m.key);
     // A value ON THE DRAWN LINE: the mean at a measured sample, else on the bridge across the gap
     // (a sequence peak inside a bridged run sits on the dashed bridge, never on a placeholder).
@@ -1472,12 +1495,10 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
         const qint64 us = c.shot->impactUs + qint64(std::llround(ms * 1000.0));
         const size_t i = nearestIndex(m.tUs, us);
         if (s.validSample[i]) return s.mean[i];
-        for (const QVariant &bv : bridges) {
-            const QVariantMap b = bv.toMap();
-            const double t0 = b.value(QStringLiteral("t0")).toDouble(), t1 = b.value(QStringLiteral("t1")).toDouble();
-            if (ms >= t0 && ms <= t1 && t1 > t0) {
-                const double f = (ms - t0) / (t1 - t0);
-                return b.value(QStringLiteral("v0")).toDouble() + f * (b.value(QStringLiteral("v1")).toDouble() - b.value(QStringLiteral("v0")).toDouble());
+        for (const T::Bridge &b : bridges) {
+            if (ms >= b.t0 && ms <= b.t1 && b.t1 > b.t0) {
+                const double f = (ms - b.t0) / (b.t1 - b.t0);
+                return b.v0 + f * (b.v1 - b.v0);
             }
         }
         return kNaN;
@@ -1488,106 +1509,107 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
         const QVariantList trows = c.w->cm->sequenceTable(c.shot->kinematicSequence).value(QStringLiteral("rows")).toList();
         QVariantMap trow;
         for (const QVariant &r : trows) if (r.toMap().value(QStringLiteral("segment")).toString() == sequenceSegmentIds()[size_t(seg)]) trow = r.toMap();
-        if (p.probable)
-            // THE CHEST'S PROBABLE PEAK (design §12.6): on the fit across the gap, with its ± and its ⚠
-            peaks << QVariantMap{ { QStringLiteral("shotMs"), p.probableMs }, { QStringLiteral("value"), p.probableDps },
-                                  { QStringLiteral("text"), W::signedMs(p.probableMs) + QStringLiteral(" ⚠") },
-                                  { QStringLiteral("sigmaMs"), p.probableSigmaMs },
-                                  { QStringLiteral("valueSigmaText"), W::pm(p.probableSigmaDps) },
-                                  { QStringLiteral("placed"), true }, { QStringLiteral("probable"), true },
-                                  { QStringLiteral("late"), p.late },
-                                  { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
-                                  { QStringLiteral("rising"), false }, { QStringLiteral("risingWord"), QString() } };
-        else if (!unreadable(p))
-        peaks << QVariantMap{ { QStringLiteral("shotMs"), p.risingAtImpact ? 0.0 : p.shotMs },
-                              { QStringLiteral("value"), meanAt(p.risingAtImpact ? 0.0 : p.shotMs) },
-                              { QStringLiteral("text"), p.risingAtImpact ? QStringLiteral("rising") : W::signedMs(p.shotMs) },
-                              { QStringLiteral("sigmaMs"), p.risingAtImpact ? kNaN : p.tSigmaMs },
-                              { QStringLiteral("valueSigmaText"), W::pm(p.peakSigmaDps) },
-                              { QStringLiteral("placed"), p.placed },
-                              { QStringLiteral("late"), p.late },
-                              { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
-                              { QStringLiteral("rising"), p.risingAtImpact },
-                              { QStringLiteral("risingWord"), p.risingAtImpact ? QStringLiteral("rising") : QString() } };
+        // the reading an unplaced peak's ring opens: the sequence node's (rule: never a "ks." prefix in QML)
+        const QString subject = QStringLiteral("ks.") + sequenceSegmentIds()[size_t(seg)];
         if (p.probable) {
-            figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak ⚠") },
-                                    { QStringLiteral("text"), W::withUnit(W::fig(std::abs(p.probableDps)) + (W::pm(p.probableSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.probableSigmaDps)), shortUnitOf(c, m.unit)) },
-                                    { QStringLiteral("warn"), false } };
-            figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("order") },
-                                    { QStringLiteral("text"), W::ordinalWord(p.rank) + QStringLiteral(" of %1, ").arg(c.seq.timedCount) + probableWord(p) },
-                                    { QStringLiteral("warn"), p.late } };
+            // THE CHEST'S PROBABLE PEAK (design §12.6): on the fit across the gap, with its ± and its ⚠
+            T::Peak k;
+            k.shotMs = p.probableMs;
+            k.value = p.probableDps;
+            k.text = W::signedMs(p.probableMs) + QStringLiteral(" ⚠");
+            k.sigmaMs = p.probableSigmaMs;
+            k.valueSigmaText = W::pm(p.probableSigmaDps);
+            k.placed = true;
+            k.probable = true;
+            k.late = p.late;
+            k.lateWord = p.late ? QStringLiteral("late") : QString();
+            k.rising = false;
+            k.trustSubject = subject;
+            peaks << k;
+        } else if (!unreadable(p)) {
+            T::Peak k;
+            k.shotMs = p.risingAtImpact ? 0.0 : p.shotMs;
+            k.value = meanAt(p.risingAtImpact ? 0.0 : p.shotMs);
+            k.text = p.risingAtImpact ? QStringLiteral("rising") : W::signedMs(p.shotMs);
+            k.sigmaMs = p.risingAtImpact ? kNaN : p.tSigmaMs;
+            k.valueSigmaText = W::pm(p.peakSigmaDps);
+            k.placed = p.placed;
+            k.late = p.late;
+            k.lateWord = p.late ? QStringLiteral("late") : QString();
+            k.rising = p.risingAtImpact;
+            k.risingWord = p.risingAtImpact ? QStringLiteral("rising") : QString();
+            k.trustSubject = subject;
+            peaks << k;
+        }
+        if (p.probable) {
+            figure(QStringLiteral("peak ⚠"),
+                   W::withUnit(W::fig(std::abs(p.probableDps)) + (W::pm(p.probableSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.probableSigmaDps)), shortUnitOf(c, m.unit)),
+                   false);
+            figure(QStringLiteral("order"), W::ordinalWord(p.rank) + QStringLiteral(" of %1, ").arg(c.seq.timedCount) + probableWord(p), p.late);
         } else if (p.placed) {
-            figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
-                                    { QStringLiteral("text"), W::withUnit(W::fig(p.peakDps) + (W::pm(p.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.peakSigmaDps)), shortUnitOf(c, m.unit)) },
-                                    { QStringLiteral("warn"), false } };
-            figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("order") },
-                                    { QStringLiteral("text"), W::ordinalWord(p.rank) + (c.seq.timedCount > placedN ? QStringLiteral(" of %1").arg(c.seq.timedCount)
-                                                                                                 : QStringLiteral(" of %1 placed").arg(placedN)) },
-                                    { QStringLiteral("warn"), p.late } };
+            figure(QStringLiteral("peak"),
+                   W::withUnit(W::fig(p.peakDps) + (W::pm(p.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.peakSigmaDps)), shortUnitOf(c, m.unit)),
+                   false);
+            figure(QStringLiteral("order"),
+                   W::ordinalWord(p.rank) + (c.seq.timedCount > placedN ? QStringLiteral(" of %1").arg(c.seq.timedCount)
+                                                                        : QStringLiteral(" of %1 placed").arg(placedN)),
+                   p.late);
         } else {
             // not placed: a plain "-"; the headline names it and the panel's tail says why (Mark, 17 Oct 2026)
-            figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
-                                    { QStringLiteral("text"), QStringLiteral("-") },
-                                    { QStringLiteral("warn"), false } };
+            figure(QStringLiteral("peak"), QStringLiteral("-"), false);
         }
-        seqInfo = QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(seg)] },
-                               { QStringLiteral("word"), segWord(seg) },
-                               { QStringLiteral("placed"), p.placed },
-                               { QStringLiteral("probable"), p.probable },
-                               { QStringLiteral("rank"), p.rank },
-                               { QStringLiteral("rankText"), p.timed() ? QString::number(p.rank) : QStringLiteral("-") },
-                               { QStringLiteral("late"), p.late },
-                               { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
-                               { QStringLiteral("rising"), p.risingAtImpact },
-                               { QStringLiteral("peakText"), p.probable ? tileMs(p.probableMs, p.probableSigmaMs) : trow.value(QStringLiteral("peakText")).toString() },
-                               { QStringLiteral("speedText"), p.probable ? QString::number(std::lround(std::abs(p.probableDps))) : trow.value(QStringLiteral("speedText")).toString() },
-                               { QStringLiteral("pctText"), p.probable ? QString() : trow.value(QStringLiteral("pctText")).toString() } };
+        seqInfo.segment = sequenceSegmentIds()[size_t(seg)];
+        seqInfo.word = segWord(seg);
+        seqInfo.placed = p.placed;
+        seqInfo.probable = p.probable;
+        seqInfo.rank = p.rank;
+        seqInfo.rankText = p.timed() ? QString::number(p.rank) : QStringLiteral("-");
+        seqInfo.late = p.late;
+        seqInfo.lateWord = p.late ? QStringLiteral("late") : QString();
+        seqInfo.rising = p.risingAtImpact;
+        seqInfo.peakText = p.probable ? tileMs(p.probableMs, p.probableSigmaMs) : trow.value(QStringLiteral("peakText")).toString();
+        seqInfo.speedText = p.probable ? QString::number(std::lround(std::abs(p.probableDps))) : trow.value(QStringLiteral("speedText")).toString();
+        seqInfo.pctText = p.probable ? QString() : trow.value(QStringLiteral("pctText")).toString();
     } else if (s.winPeakOk) {
         const double pk = s.st.value(QStringLiteral("peak")).toDouble();
         const double tp = shotMsOf(c, s.st.value(QStringLiteral("tPeakUs")).toLongLong());
         const QString pm = W::pm(s.st.value(QStringLiteral("peakSigma")).toDouble(), s.dec);
-        peaks << QVariantMap{ { QStringLiteral("shotMs"), tp }, { QStringLiteral("value"), pk },
-                              { QStringLiteral("text"), W::fig(pk, s.dec) }, { QStringLiteral("sigmaMs"), kNaN },
-                              { QStringLiteral("valueSigmaText"), pm }, { QStringLiteral("placed"), true },
-                              { QStringLiteral("late"), false }, { QStringLiteral("lateWord"), QString() },
-                              { QStringLiteral("rising"), false }, { QStringLiteral("risingWord"), QString() } };
-        figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
-                                { QStringLiteral("text"), W::figUnit(pk, m.unit) + (pm.isEmpty() ? QString() : QStringLiteral(" ") + pm) },
-                                { QStringLiteral("warn"), false } };
-        figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("at") }, { QStringLiteral("text"), W::signedMs(tp) },
-                                { QStringLiteral("warn"), false } };
+        T::Peak k;
+        k.shotMs = tp;
+        k.value = pk;
+        k.text = W::fig(pk, s.dec);
+        k.sigmaMs = kNaN;
+        k.valueSigmaText = pm;
+        k.placed = true;
+        peaks << k;
+        figure(QStringLiteral("peak"), W::figUnit(pk, m.unit) + (pm.isEmpty() ? QString() : QStringLiteral(" ") + pm), false);
+        figure(QStringLiteral("at"), W::signedMs(tp), false);
     } else {
         // no peak: a plain "-" (why is said once, in the panel's tail)
-        figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
-                                { QStringLiteral("text"), QStringLiteral("-") },
-                                { QStringLiteral("warn"), false } };
+        figure(QStringLiteral("peak"), QStringLiteral("-"), false);
     }
     double atImpact = kNaN;
     for (const PhaseSample &p : m.phaseSamples) if (p.phase == phase::Impact) atImpact = p.value;
-    {
-        // no reading at impact: a plain "-" (the shading on the curve and the panel's tail say why)
-        figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("at P7") },
-                                { QStringLiteral("text"), W::figUnit(atImpact, m.unit) },
-                                { QStringLiteral("warn"), false } };
-    }
+    // no reading at impact: a plain "-" (the shading on the curve and the panel's tail say why)
+    figure(QStringLiteral("at P7"), W::figUnit(atImpact, m.unit), false);
 
-    QVariantMap row = card;
-    row.insert(QStringLiteral("unit"), shortUnitOf(c, m.unit));
-    row.insert(QStringLiteral("dec"), s.dec);
-    row.insert(QStringLiteral("segment"), seg >= 0 ? sequenceSegmentIds()[size_t(seg)] : QString());
-    row.insert(QStringLiteral("t"), dl(t));
-    row.insert(QStringLiteral("mean"), dl(s.meanDrawn));
-    row.insert(QStringLiteral("raw"), dl(s.rawDrawn));
-    row.insert(QStringLiteral("runs"), runs);
-    row.insert(QStringLiteral("bridges"), bridges);
-    row.insert(QStringLiteral("yLo"), lo);
-    row.insert(QStringLiteral("yHi"), hi);
-    row.insert(QStringLiteral("yTicks"), ticksAsDoubles(niceTicksList(c, lo, hi)));
-    row.insert(QStringLiteral("peaks"), peaks);
-    row.insert(QStringLiteral("dots"), dots);
-    row.insert(QStringLiteral("figures"), figures);
-    row.insert(QStringLiteral("windowEmpty"), s.collapsed);
-    row.insert(QStringLiteral("sequence"), seqInfo);
+    T::Row row = card;
+    row.unit = shortUnitOf(c, m.unit);
+    row.dec = s.dec;
+    row.segment = seg >= 0 ? sequenceSegmentIds()[size_t(seg)] : QString();
+    row.t = dl(t);
+    row.mean = dl(s.meanDrawn);
+    row.raw = dl(s.rawDrawn);
+    row.runs = runs;
+    row.bridges = bridges;
+    row.yLo = lo;
+    row.yHi = hi;
+    row.yTicks = ticksAsDoubles(niceTicksList(c, lo, hi));
+    row.peaks = peaks;
+    row.dots = dots;
+    row.figures = figures;
+    row.windowEmpty = s.collapsed;
+    row.sequence = seqInfo;
     // THE CHEST'S BRIDGE (design §12.6): the analysis' fit across the camera's gap, drawn dashed with its ± 1 sd,
     // on this shot's clock — in place of the straight bridge across the same gap
     if (seg == kChestSegment && c.seq.segments[size_t(seg)].probable) {
@@ -1595,15 +1617,16 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
         if (pb.ok()) {
             std::vector<double> blo(pb.mean.size()), bhi(pb.mean.size());
             for (size_t i = 0; i < pb.mean.size(); ++i) { blo[i] = pb.mean[i] - pb.sd[i]; bhi[i] = pb.mean[i] + pb.sd[i]; }
-            row.insert(QStringLiteral("estimate"), QVariantMap{ { QStringLiteral("t"), dl(pb.t) }, { QStringLiteral("v"), dl(pb.mean) },
-                                                                { QStringLiteral("lo"), dl(blo) }, { QStringLiteral("hi"), dl(bhi) } });
+            T::Estimate e;
+            e.t = dl(pb.t); e.v = dl(pb.mean); e.lo = dl(blo); e.hi = dl(bhi);
+            row.estimate = QVariant::fromValue(e);
             // the value axis holds the bridge and its band
             const double elo = *std::min_element(blo.begin(), blo.end()), ehi = *std::max_element(bhi.begin(), bhi.end());
             if (std::isfinite(elo) && std::isfinite(ehi) && (!(elo >= lo) || !(ehi <= hi))) {
                 const double nlo = std::isfinite(lo) ? std::min(lo, elo) : elo, nhi = std::isfinite(hi) ? std::max(hi, ehi) : ehi;
-                row.insert(QStringLiteral("yLo"), nlo);
-                row.insert(QStringLiteral("yHi"), nhi);
-                row.insert(QStringLiteral("yTicks"), ticksAsDoubles(niceTicksList(c, nlo, nhi)));
+                row.yLo = nlo;
+                row.yHi = nhi;
+                row.yTicks = ticksAsDoubles(niceTicksList(c, nlo, nhi));
             }
         }
     }
@@ -1611,15 +1634,17 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
     // labelled with the gate's short words: the sighted band of a face-on trunk, a gap in a two-camera
     // track. From the record, so it is drawn whether or not the band refused the peak — the samples
     // inside it are the ones the gate distrusts. Never back in sight ⇒ t1 = the curve's last sample.
-    QVariantList blind;
+    QList<T::Blind> blind;
     if (seg >= 0 && std::isfinite(c.seq.segments[size_t(seg)].blindFromMs)) {
         const SegmentPeak &p = c.seq.segments[size_t(seg)];
         const gates::GateEntry *e = gates::gateEntry(p.blindGate);
-        blind << QVariantMap{ { QStringLiteral("t0"), p.blindFromMs },
-                              // never back in sight: to the end of the curve, not the edge of the window
-                              { QStringLiteral("t1"), std::isfinite(p.blindToMs) ? p.blindToMs : (t.empty() ? p.blindFromMs : t.back()) },
-                              { QStringLiteral("gate"), p.blindGate },
-                              { QStringLiteral("label"), e ? e->shortText : QString() } };
+        T::Blind b;
+        b.t0 = p.blindFromMs;
+        // never back in sight: to the end of the curve, not the edge of the window
+        b.t1 = std::isfinite(p.blindToMs) ? p.blindToMs : (t.empty() ? p.blindFromMs : t.back());
+        b.gate = p.blindGate;
+        b.label = e ? e->shortText : QString();
+        blind << b;
     }
     // ANY OTHER CURVE a frame-by-frame gate thinned (a mask's summary record carries its stretch, fromMs /
     // toMs about impact): the same quiet bar along the axis, with the gate's short words, opening the
@@ -1627,43 +1652,43 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
     QString maskSubject;
     if (seg < 0)
         for (const MaskSpan &ms : maskSpansOf(c.shot.get(), m.key)) {
-            blind << QVariantMap{ { QStringLiteral("t0"), ms.fromMs },
-                                  { QStringLiteral("t1"), ms.toMs },
-                                  { QStringLiteral("gate"), ms.gate },
-                                  { QStringLiteral("label"), ms.words },
-                                  { QStringLiteral("subject"), ms.subject } };
+            T::Blind b;
+            b.t0 = ms.fromMs;
+            b.t1 = ms.toMs;
+            b.gate = ms.gate;
+            b.label = ms.words;
+            b.subject = ms.subject;
+            blind << b;
             if (maskSubject.isEmpty()) maskSubject = ms.subject;
         }
-    row.insert(QStringLiteral("blind"), blind);
+    row.blind = blind;
     // the reading a click on this curve's marks opens (an out-of-sight bar, an unplaced ring)
-    row.insert(QStringLiteral("trustSubject"), seg >= 0 && !c.seq.segments[size_t(seg)].records.isEmpty()
-                                                   ? QStringLiteral("ks.") + sequenceSegmentIds()[size_t(seg)] : maskSubject);
+    row.trustSubject = seg >= 0 && !c.seq.segments[size_t(seg)].records.isEmpty()
+                           ? QStringLiteral("ks.") + sequenceSegmentIds()[size_t(seg)] : maskSubject;
     return row;
 }
 
 void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
 {
-    QVariantMap out;
+    T::ThisShot out;
     const int n = c.snap ? c.snap->count() : 0;
-    out.insert(QStringLiteral("sessionCount"), n);
+    out.sessionCount = n;
     if (!c.shot) {
-        W::Sentence e;
-        e.append(QStringLiteral("Select a swing to review: the charts show its analysed metric curves."));
-        out.insert(QStringLiteral("available"), false);
-        out.insert(QStringLiteral("empty"), e.toVariant());
+        out.available = false;
+        out.empty = sentenceOf(QStringLiteral("Select a swing to review: the charts show its analysed metric curves."));
         R.thisShot = out;
         return;
     }
     const QString club = asciiLower(c.shot->club.isEmpty() && c.snap && c.index >= 0 ? c.snap->shots[size_t(c.index)]->club : c.shot->club);
-    out.insert(QStringLiteral("available"), true);
-    out.insert(QStringLiteral("ordinal"), c.ordinal);
-    out.insert(QStringLiteral("shotId"), c.shotId);
-    out.insert(QStringLiteral("swingDir"), c.swingDir);
-    out.insert(QStringLiteral("inSession"), c.index >= 0);
+    out.available = true;
+    out.ordinal = c.ordinal;
+    out.shotId = c.shotId;
+    out.swingDir = c.swingDir;
+    out.inSession = c.index >= 0;
     QString kicker = c.index >= 0 ? W::shotOfText(c.shotId, c.ordinal, n)
                                   : QStringLiteral("Shot %1").arg(W::shotNumber(c.shotId, c.ordinal));
     if (!club.isEmpty()) kicker += QStringLiteral("  ·  ") + club;
-    out.insert(QStringLiteral("kicker"), kicker);
+    out.kicker = kicker;
 
     // every preset member, resolved once (rows and cards both read these)
     for (const QString &k : c.presetKeys)
@@ -1683,7 +1708,7 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
             QStringLiteral("attackAngle"), QStringLiteral("lm.attackAngle"),
             QStringLiteral("lowPointAhead"), QStringLiteral("lm.lowPointAhead"), QStringLiteral("lm.dynamicLoft") } } };
     const auto glanceIt = c.in->reg == QLatin1String("replay") ? kReplayGlance.constFind(c.preset) : kReplayGlance.constEnd();
-    QVariantList rows, cards;
+    QList<T::Row> rows, cards;
     std::vector<int> dotKinds;
     for (const QString &k : c.presetKeys) {
         if (!c.calcs.contains(k) || !hostOf(k).isEmpty()) continue;
@@ -1694,7 +1719,7 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
         std::vector<const SeriesCalc *> cos;
         for (const QString &k2 : c.presetKeys)
             if (k2 != k && c.calcs.contains(k2) && hostOf(k2) == k) cos.push_back(&c.calcs.find(k2).value());
-        const QVariantMap card = cardOf(c, s, cos);
+        const T::Row card = cardOf(c, s, cos);
         if (drawn) rows << shotRow(c, s, card, dotKinds);
         else if (glanceIt == kReplayGlance.constEnd() || glanceIt->contains(k)) cards << card;
     }
@@ -1717,113 +1742,115 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
             // a companion (MetricCardSpec::mergeInto) whose host is shown: the stub tile rides on the host's card
             const QString host = c.w->specFor(k).value(QStringLiteral("mergeInto")).toString();
             if (!host.isEmpty() && c.calcs.contains(host) && !c.in->metricsOff.contains(host)) {
-                QVariantMap t = tile(asciiLower(c.w->cm->shortLabel(k).isEmpty() ? nm : c.w->cm->shortLabel(k)), words, false,
-                                     QString(), QString(), QString(), QString(), false);
+                const T::Tile t = tile(asciiLower(c.w->cm->shortLabel(k).isEmpty() ? nm : c.w->cm->shortLabel(k)), words, false,
+                                       QString(), QString(), QString(), QString(), false);
                 bool placed = false;
-                for (QVariantList *list : { &rows, &cards })
+                for (QList<T::Row> *list : { &rows, &cards })
                     for (int i = 0; i < list->size() && !placed; ++i) {
-                        QVariantMap cm = (*list)[i].toMap();
-                        if (cm.value(QStringLiteral("key")).toString() != host) continue;
-                        QVariantList ts = cm.value(QStringLiteral("tiles")).toList();
-                        ts << t;
-                        cm.insert(QStringLiteral("tiles"), ts);
-                        (*list)[i] = cm;
+                        if ((*list)[i].key != host) continue;
+                        (*list)[i].tiles << t;
                         placed = true;
                     }
                 if (placed) continue;
             }
-            QVariantMap t = tile(QString(), words, false, QString(), QString(), QString(), QString(), false);
-            cards << QVariantMap{ { QStringLiteral("key"), k },
-                                  { QStringLiteral("label"), nm },
-                                  { QStringLiteral("unit"), QString() },
-                                  { QStringLiteral("tiles"), QVariantList{ t } },
-                                  { QStringLiteral("partial"), false },
-                                  { QStringLiteral("partialWord"), QString() },
-                                  { QStringLiteral("sigmaText"), QString() },
-                                  { QStringLiteral("sigmaTip"), QString() },
-                                  { QStringLiteral("grossWarn"), false },
-                                  { QStringLiteral("grossWord"), QString() },
-                                  { QStringLiteral("grossTip"), QString() },
-                                  { QStringLiteral("stub"), true } };
+            T::Row stub;
+            stub.key = k;
+            stub.label = nm;
+            stub.tiles << tile(QString(), words, false, QString(), QString(), QString(), QString(), false);
+            stub.stub = true;
+            cards << stub;
         }
     }
-    out.insert(QStringLiteral("rows"), rows);
-    out.insert(QStringLiteral("cards"), cards);
+    out.rows = rows;
+    out.cards = cards;
     // OVERLAY (F6, kept as an option beside the small multiples): one shared Y across the rows, and
     // whether they share a unit (when they do not, overlay plots each on its own scale's ticks).
     {
         double lo = kNaN, hi = kNaN;
         QSet<QString> units;
-        for (const QVariant &rv : rows) {
-            const QVariantMap r = rv.toMap();
-            const double a = r.value(QStringLiteral("yLo")).toDouble(), b = r.value(QStringLiteral("yHi")).toDouble();
+        for (const T::Row &r : rows) {
+            const double a = r.yLo, b = r.yHi;
             if (std::isfinite(a)) lo = std::isfinite(lo) ? std::min(lo, a) : a;
             if (std::isfinite(b)) hi = std::isfinite(hi) ? std::max(hi, b) : b;
-            units.insert(r.value(QStringLiteral("unit")).toString());
+            units.insert(r.unit);
         }
-        out.insert(QStringLiteral("overlay"), QVariantMap{ { QStringLiteral("yLo"), lo }, { QStringLiteral("yHi"), hi },
-                                                           { QStringLiteral("yTicks"), ticksAsDoubles(niceTicksList(c, lo, hi)) },
-                                                           { QStringLiteral("sameUnit"), units.size() == 1 } });
+        out.overlay.yLo = lo;
+        out.overlay.yHi = hi;
+        out.overlay.yTicks = ticksAsDoubles(niceTicksList(c, lo, hi));
+        out.overlay.sameUnit = units.size() == 1;
     }
     W::Sentence noTraces;
-    const bool realCards = std::any_of(cards.begin(), cards.end(), [](const QVariant &cv) { return !cv.toMap().value(QStringLiteral("stub")).toBool(); });
+    const bool realCards = std::any_of(cards.begin(), cards.end(), [](const T::Row &cv) { return !cv.stub; });
     if (rows.isEmpty())
         noTraces.append(!realCards ? QStringLiteral("No metric traces for this swing.")
                                         : QStringLiteral("This preset is read at instants only: there is no trace to draw."));
-    out.insert(QStringLiteral("noTraces"), noTraces.toVariant());
-    QVariantList dotKey;
+    out.noTraces = sentenceOf(noTraces);
     std::sort(dotKinds.begin(), dotKinds.end());
     static const char *const kv[] = { "good", "attention", "warn", "" };
-    for (int k : dotKinds)
-        dotKey << QVariantMap{ { QStringLiteral("verdict"), QString::fromLatin1(kv[k]) },
-                               { QStringLiteral("word"), verdictWord(QString::fromLatin1(kv[k])) } };
-    out.insert(QStringLiteral("dotKey"), dotKey);
+    for (int k : dotKinds) {
+        T::DotKey d;
+        d.verdict = QString::fromLatin1(kv[k]);
+        d.word = verdictWord(QString::fromLatin1(kv[k]));
+        out.dotKey << d;
+    }
 
     // the window and its P ticks
     const double t0 = shotMsOf(c, c.win.startUs), t1 = shotMsOf(c, c.win.endUs);
     const int nearA = c.w->cm->nearestPhase(phasesList(*c.shot), c.win.startUs);
     const int nearB = c.w->cm->nearestPhase(phasesList(*c.shot), c.win.endUs);
     const int pa = c.win.phaseA >= 0 ? c.win.phaseA : nearA, pb = c.win.phaseB >= 0 ? c.win.phaseB : nearB;
-    out.insert(QStringLiteral("window"), QVariantMap{
-        { QStringLiteral("key"), c.win.key }, { QStringLiteral("label"), c.win.label },
-        { QStringLiteral("header"), c.win.key == QLatin1String("full") ? QStringLiteral("Full recording")
-                                                                      : c.w->tl->phaseFullName(pa) + QStringLiteral(" → ") + c.w->tl->phaseFullName(pb) },
-        { QStringLiteral("spanText"), W::figMs((c.win.endUs - c.win.startUs) / 1000.0) },
-        { QStringLiteral("metricsText"), QStringLiteral("%1/%2 metrics").arg(rows.size()).arg([&] {
-              int p = 0; for (const QString &k : c.presetKeys) if (const MetricSeries *m = c.shot->metric(k)) p += (m->hasCurve() && c.w->drawsCurve(k)) ? 1 : 0; return p; }()) },
-        { QStringLiteral("tagsText"), c.tag(pa) + QStringLiteral("→") + c.tag(pb) },
-        { QStringLiteral("startUs"), c.win.startUs }, { QStringLiteral("endUs"), c.win.endUs },
-        { QStringLiteral("t0Ms"), t0 }, { QStringLiteral("t1Ms"), t1 },
-        { QStringLiteral("phaseA"), c.win.phaseA }, { QStringLiteral("phaseB"), c.win.phaseB },
-        { QStringLiteral("hasImpact"), c.shot->impactUs >= 0 } });
-    QVariantList ticks;
+    {
+        T::ShotWindow w;
+        w.key = c.win.key;
+        w.label = c.win.label;
+        w.header = c.win.key == QLatin1String("full") ? QStringLiteral("Full recording")
+                                                      : c.w->tl->phaseFullName(pa) + QStringLiteral(" → ") + c.w->tl->phaseFullName(pb);
+        w.spanText = W::figMs((c.win.endUs - c.win.startUs) / 1000.0);
+        int drawable = 0;
+        for (const QString &k : c.presetKeys)
+            if (const MetricSeries *m = c.shot->metric(k)) drawable += (m->hasCurve() && c.w->drawsCurve(k)) ? 1 : 0;
+        w.metricsText = QStringLiteral("%1/%2 metrics").arg(rows.size()).arg(drawable);
+        w.tagsText = c.tag(pa) + QStringLiteral("→") + c.tag(pb);
+        w.startUs = c.win.startUs;
+        w.endUs = c.win.endUs;
+        w.t0Ms = t0;
+        w.t1Ms = t1;
+        w.phaseA = c.win.phaseA;
+        w.phaseB = c.win.phaseB;
+        w.hasImpact = c.shot->impactUs >= 0;
+        out.window = QVariant::fromValue(w);
+    }
     for (int ph : pLadder()) {
         const qint64 u = phaseUsOf(*c.shot, ph);
         if (u < 0 || u < c.win.startUs || u > c.win.endUs) continue;
-        ticks << QVariantMap{ { QStringLiteral("phase"), ph }, { QStringLiteral("tag"), c.tag(ph) },
-                              { QStringLiteral("name"), c.w->tl->phaseFullName(ph) }, { QStringLiteral("shotMs"), shotMsOf(c, u) },
-                              { QStringLiteral("landmark"), ph == phase::Impact ? QStringLiteral("impact") : ph == phase::Top ? QStringLiteral("top") : QString() } };
+        T::ShotTick k;
+        k.phase = ph;
+        k.tag = c.tag(ph);
+        k.name = c.w->tl->phaseFullName(ph);
+        k.shotMs = shotMsOf(c, u);
+        k.landmark = ph == phase::Impact ? QStringLiteral("impact") : ph == phase::Top ? QStringLiteral("top") : QString();
+        out.ticks << k;
     }
-    out.insert(QStringLiteral("ticks"), ticks);
     // the ms axis of the window (ChartMetrics.timeTicksMs, the step widening with the span)
     {
         std::vector<double> ms;
         if (c.shot->impactUs >= 0)
             for (const QVariant &v : c.w->cm->timeTicksMs(c.win.startUs, c.win.endUs, c.shot->impactUs)) ms.push_back(v.toDouble());
-        out.insert(QStringLiteral("msTicks"), tickTexts(ms, true));
+        out.msTicks = tickTexts(ms, true);
     }
     // THE WINDOW BRUSH (F14): the P-positions on the whole-recording clock, and the drawn metrics'
     // windowed means over the WHOLE recording, decimated for the overview sparklines.
     {
-        QVariantList rt;
         for (int ph : pLadder()) {
             const qint64 u = phaseUsOf(*c.shot, ph);
             if (u < 0) continue;
-            rt << QVariantMap{ { QStringLiteral("phase"), ph }, { QStringLiteral("tag"), c.tag(ph) }, { QStringLiteral("us"), u },
-                               { QStringLiteral("landmark"), ph == phase::Impact ? QStringLiteral("impact") : ph == phase::Top ? QStringLiteral("top") : QString() } };
+            T::RecordingTick k;
+            k.phase = ph;
+            k.tag = c.tag(ph);
+            k.us = u;
+            k.landmark = ph == phase::Impact ? QStringLiteral("impact") : ph == phase::Top ? QStringLiteral("top") : QString();
+            out.recordingTicks << k;
         }
-        out.insert(QStringLiteral("recordingTicks"), rt);
-        QVariantList ov;
         for (const QString &k : c.rowKeys) {
             const SeriesCalc &s = c.calcs.constFind(k).value();
             const size_t n = s.m->tUs.size();
@@ -1851,19 +1878,28 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
             }
             double vlo = kNaN, vhi = kNaN;
             for (double x : v) if (std::isfinite(x)) { vlo = std::isfinite(vlo) ? std::min(vlo, x) : x; vhi = std::isfinite(vhi) ? std::max(vhi, x) : x; }
-            ov << QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("t"), dl(t) }, { QStringLiteral("v"), dl(v) },
-                               { QStringLiteral("vLo"), vlo }, { QStringLiteral("vHi"), vhi } };
+            T::OverviewLine o;
+            o.key = k;
+            o.t = dl(t);
+            o.v = dl(v);
+            o.vLo = vlo;
+            o.vHi = vhi;
+            out.overview << o;
         }
-        out.insert(QStringLiteral("overview"), ov);
     }
 
     // the sequence, the head, the standfirst, the figures
     const bool seqShown = c.sequencePreset && !c.shot->kinematicSequence.value(QStringLiteral("nodes")).toList().isEmpty();
-    out.insert(QStringLiteral("sequence"), seqShown ? sequenceBlock(c) : QVariantMap{});
+    if (seqShown) out.sequence = sequenceBlock(c);
     // the readings a gate touched on this shot (trust_readings.h): what a mark's click opens in place
-    out.insert(QStringLiteral("trust"), c.shot ? trust::trustReadings(*c.shot) : QVariantList{});
+    for (const QVariant &rv : trust::trustReadings(*c.shot)) out.trust << trust::TrustReading::fromMap(rv.toMap());
     W::Sentence head, stand, note;
-    QVariantList figs;
+    QList<T::Figure> figs;
+    const auto keyFigure = [&](const QString &label, const QString &text, bool warn, const QString &lateWord) {
+        T::Figure f;
+        f.label = label; f.text = text; f.warn = warn; f.lateWord = lateWord;
+        figs << f;
+    };
     const bool replay = c.in->reg == QLatin1String("replay");
     const QString lead = c.rowKeys.value(0);
     if (seqShown) {
@@ -1944,17 +1980,17 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
         }
         if (replay) {
             if (club.placed)
-                figs << QVariantMap{ { QStringLiteral("label"), QStringLiteral("Club peak") },
-                                     { QStringLiteral("text"), W::withUnit(W::fig(club.peakDps) + (W::pm(club.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(club.peakSigmaDps)), QStringLiteral("°/s")) },
-                                     { QStringLiteral("warn"), false }, { QStringLiteral("lateWord"), QString() } };
+                keyFigure(QStringLiteral("Club peak"),
+                          W::withUnit(W::fig(club.peakDps) + (W::pm(club.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(club.peakSigmaDps)), QStringLiteral("°/s")),
+                          false, QString());
             if (club.placed && arm.placed)
-                figs << QVariantMap{ { QStringLiteral("label"), QStringLiteral("Lead arm to club") },
-                                     { QStringLiteral("text"), W::figMs(club.shotMs - arm.shotMs) },
-                                     { QStringLiteral("warn"), false }, { QStringLiteral("lateWord"), QString() } };
+                keyFigure(QStringLiteral("Lead arm to club"),
+                          W::figMs(club.shotMs - arm.shotMs),
+                          false, QString());
             if (pel.placed)
-                figs << QVariantMap{ { QStringLiteral("label"), QStringLiteral("Pelvis peak") },
-                                     { QStringLiteral("text"), W::signedMs(pel.shotMs) },
-                                     { QStringLiteral("warn"), pel.late }, { QStringLiteral("lateWord"), pel.late ? QStringLiteral("late") : QString() } };
+                keyFigure(QStringLiteral("Pelvis peak"),
+                          W::signedMs(pel.shotMs),
+                          pel.late, pel.late ? QStringLiteral("late") : QString());
         }
     } else if (!lead.isEmpty()) {
         const MetricSeries *m = c.shot->metric(lead);
@@ -1980,9 +2016,9 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
                 const MetricSeries *q = c.shot->metric(c.rowKeys[i]);
                 double v = kNaN;
                 for (const PhaseSample &p : q->phaseSamples) if (p.phase == phase::Impact) v = p.value;
-                figs << QVariantMap{ { QStringLiteral("label"), c.labelOf(c.rowKeys[i]) + QStringLiteral(" at P7") },
-                                     { QStringLiteral("text"), W::figUnit(v, q->unit) },
-                                     { QStringLiteral("warn"), false }, { QStringLiteral("lateWord"), QString() } };
+                keyFigure(c.labelOf(c.rowKeys[i]) + QStringLiteral(" at P7"),
+                          W::figUnit(v, q->unit),
+                          false, QString());
             }
     } else {
         // NO CURVE (a launch monitor only, Club delivery): the head is the readings themselves, each at
@@ -2016,15 +2052,15 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
             }
             if (replay)
                 for (size_t i = 1; i < inst.size() && i < 4; ++i)
-                    figs << QVariantMap{ { QStringLiteral("label"), c.labelOf(inst[i].key) },
-                                         { QStringLiteral("text"), W::figUnit(inst[i].v, inst[i].unit) },
-                                         { QStringLiteral("warn"), false }, { QStringLiteral("lateWord"), QString() } };
+                    keyFigure(c.labelOf(inst[i].key),
+                          W::figUnit(inst[i].v, inst[i].unit),
+                          false, QString());
         }
     }
-    out.insert(QStringLiteral("head"), head.toVariant());
-    out.insert(QStringLiteral("note"), note.toVariant());
-    out.insert(QStringLiteral("standfirst"), stand.toVariant());
-    out.insert(QStringLiteral("figures"), figs);
+    out.head = sentenceOf(head);
+    out.note = sentenceOf(note);
+    out.standfirst = sentenceOf(stand);
+    out.figures = figs;
 
     // the GUI thread's arrays for the playhead and the hover
     for (const QString &k : c.rowKeys) {
@@ -2215,23 +2251,37 @@ std::vector<Group> facetGroups(Ctx &c, const QString &facet, QString *kind)
     return g;
 }
 
-QVariantMap shotIds(const Ctx &c, int ordinal)
+// A shot's three names: its place, its swing number and its folder (the picked shot's when the place is not the session's).
+struct ShotIds { int ordinal = 0; int shotId = -1; QString swingDir; };
+ShotIds shotIds(const Ctx &c, int ordinal)
 {
-    QVariantMap m{ { QStringLiteral("ordinal"), ordinal } };
+    ShotIds m;
+    m.ordinal = ordinal;
     if (c.snap && ordinal >= 1 && ordinal <= c.snap->count()) {
-        m.insert(QStringLiteral("shotId"), c.snap->shots[size_t(ordinal - 1)]->shotId);
-        m.insert(QStringLiteral("swingDir"), c.snap->shots[size_t(ordinal - 1)]->swingDir);
+        m.shotId = c.snap->shots[size_t(ordinal - 1)]->shotId;
+        m.swingDir = c.snap->shots[size_t(ordinal - 1)]->swingDir;
     } else {
-        m.insert(QStringLiteral("shotId"), c.shotId);
-        m.insert(QStringLiteral("swingDir"), c.swingDir);
+        m.shotId = c.shotId;
+        m.swingDir = c.swingDir;
     }
     return m;
 }
-
-QVariantList runsOf(const std::vector<TimeSpan> &r)
+template <class G>
+void setIds(G &g, const ShotIds &i)
 {
-    QVariantList out;
-    for (const TimeSpan &s : r) out << QVariantMap{ { QStringLiteral("t0"), s.t0 }, { QStringLiteral("t1"), s.t1 } };
+    g.ordinal = i.ordinal;
+    g.shotId = i.shotId;
+    g.swingDir = i.swingDir;
+}
+
+QList<T::TimeRun> runsOf(const std::vector<TimeSpan> &r)
+{
+    QList<T::TimeRun> out;
+    for (const TimeSpan &s : r) {
+        T::TimeRun t;
+        t.t0 = s.t0; t.t1 = s.t1;
+        out << t;
+    }
     return out;
 }
 
@@ -2455,9 +2505,9 @@ variability::VariabilityInput traceScaleFor(const Ctx &c, const QString &key, co
 // trace with no yardstick has an empty list and the row no badge. The timing half is graded only where the descriptor
 // says so (rate traces). The propagated σ is the median of the club's swings' series σ (R3: the measurement-limited
 // test, never noiseSd).
-QVariantList clubGradesOf(Ctx &c, const QString &key)
+QList<T::ClubGrade> clubGradesOf(Ctx &c, const QString &key)
 {
-    QVariantList out;
+    QList<T::ClubGrade> out;
     if (!c.snap || !c.w->scales || !c.w->traceGrader) return out;
     {
         // No club has a scale: skip the curves (each window's own scale is set below).
@@ -2492,8 +2542,11 @@ QVariantList clubGradesOf(Ctx &c, const QString &key)
                 sig.push_back(reads[i].sigma);
         if (!sig.empty()) win.input.propagatedSigma = medianOf(sig);
         const variability::VariabilityResult r = c.w->traceGrader->grade(win.input);
-        out << QVariantMap{ { QStringLiteral("club"), win.club }, { QStringLiteral("readings"), win.readings },
-                            { QStringLiteral("result"), QVariant::fromValue(variability::VariabilityResultView::fromResult(r, unit, dec)) } };
+        T::ClubGrade g;
+        g.club = win.club;
+        g.readings = win.readings;
+        g.result = variability::VariabilityResultView::fromResult(r, unit, dec);
+        out << g;
     }
     return out;
 }
@@ -2507,9 +2560,9 @@ QVariantList clubGradesOf(Ctx &c, const QString &key)
 // Fewer than two segments kept: ungraded, no entry.
 // [{ club, readings, k, segments: [ids], result (a plain variabilityResult map) }], clubs by readings descending, then
 // label; a club with no token is left out.
-QVariantList orderGradesOf(Ctx &c)
+QList<T::OrderGrade> orderGradesOf(Ctx &c)
 {
-    QVariantList out;
+    QList<T::OrderGrade> out;
     if (!c.snap || !c.w->ordinalGrader) return out;
     const SessionSequence &q = c.w->sequence;
     // the kept segments, in the segments' own order (pelvis, chest, lead arm, club): those the sentence names, less one
@@ -2551,11 +2604,27 @@ QVariantList orderGradesOf(Ctx &c)
         in.categories = tokens[club];
         in.k = k;
         const variability::VariabilityResult r = c.w->ordinalGrader->grade(in);
-        QVariantMap res = variability::VariabilityResultView::fromResult(r).toMap();
-        const QString basis = res.value(QStringLiteral("basisText")).toString();
-        if (!basis.isEmpty()) res.insert(QStringLiteral("basisText"), basis + QStringLiteral(" · ") + keptWords.join(QStringLiteral(", ")));
-        out << QVariantMap{ { QStringLiteral("club"), club }, { QStringLiteral("readings"), readings[club] }, { QStringLiteral("k"), k },
-                            { QStringLiteral("segments"), keptIds }, { QStringLiteral("result"), res } };
+        // the result's own fields (VariabilityResultView::toMap's), its basis naming the kept segments
+        const variability::VariabilityResultView view = variability::VariabilityResultView::fromResult(r);
+        T::OrderResult res;
+        res.grade = view.grade();
+        res.graded = view.graded();
+        res.basis = view.basis();
+        res.ungradedReason = view.ungradedReason();
+        res.measurementLimited = view.measurementLimited();
+        res.n = view.n();
+        res.hasRho = view.hasRho();
+        res.rho = view.hasRho() ? QVariant(view.rho()) : T::nullValue();
+        res.basisText = view.basisText();
+        if (!res.basisText.isEmpty()) res.basisText += QStringLiteral(" · ") + keptWords.join(QStringLiteral(", "));
+        res.domain = view.domain();
+        T::OrderGrade g;
+        g.club = club;
+        g.readings = readings[club];
+        g.k = k;
+        g.segments = keptIds;
+        g.result = res;
+        out << g;
     }
     return out;
 }
@@ -2566,7 +2635,7 @@ QVariantList orderGradesOf(Ctx &c)
 // shot that is not in the session is lined up on the P-alignment as Against lines it up (warpAgainst).
 QVariant typicalityOf(Ctx &c, const QString &key)
 {
-    const QVariant none = QVariant::fromValue(nullptr);
+    const QVariant none = T::nullValue();
     if (!c.snap || !c.shot || !c.w->scales) return none;
     // R16, R31: no TypicalityTrace badge unless the trace has a scale of its own for this shot's club.
     if (!traceHasOwnScale(traceScaleFor(c, key, c.shot->club))) return none;
@@ -2588,25 +2657,39 @@ QVariant typicalityOf(Ctx &c, const QString &key)
     const auto win = variability::traceTypicalityWindow(swings, id, st);
     if (!win) return none;
     const variability::TypicalityPayload pl = variability::typicalityTracePayload(*win);
-    return QVariantMap{ { QStringLiteral("values"), pl.values }, { QStringLiteral("basisText"), pl.basisText } };
+    // the payload's values (typicalityTracePayload's map, the one place the mark's shape is said) as their gadget
+    const auto doubles = [](const QVariant &v) { QList<double> out; for (const QVariant &x : v.toList()) out << x.toDouble(); return out; };
+    T::Typicality t;
+    t.values.mean = doubles(pl.values.value(QStringLiteral("mean")));
+    t.values.sd = doubles(pl.values.value(QStringLiteral("sd")));
+    t.values.swing = doubles(pl.values.value(QStringLiteral("swing")));
+    const QVariantMap corridor = pl.values.value(QStringLiteral("corridor")).toMap();
+    if (!corridor.isEmpty()) {
+        T::TypicalityCorridor cr;
+        cr.loT = corridor.value(QStringLiteral("loT")).toDouble();
+        cr.hiT = corridor.value(QStringLiteral("hiT")).toDouble();
+        t.values.corridor = QVariant::fromValue(cr);
+    }
+    t.values.band = pl.values.value(QStringLiteral("band")).toString();
+    t.basisText = pl.basisText;
+    return QVariant::fromValue(t);
 }
 
 void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
 {
-    QVariantMap out;
+    T::Reference out;
     const QString mode = c.in->against.isEmpty() ? QStringLiteral("none") : c.in->against;
-    out.insert(QStringLiteral("mode"), mode);
-    out.insert(QStringLiteral("difference"), c.in->difference);
+    out.mode = mode;
+    out.difference = c.in->difference;
     if (mode == QLatin1String("none") || !c.shot) {
-        out.insert(QStringLiteral("active"), false);
+        out.active = false;
         R.reference = out;
         return;
     }
     const auto refuse = [&](const QString &why) {
-        W::Sentence s; s.append(why);
-        out.insert(QStringLiteral("active"), false);
-        out.insert(QStringLiteral("refused"), true);
-        out.insert(QStringLiteral("why"), s.toVariant());
+        out.active = false;
+        out.refused = true;
+        out.why = sentenceOf(why);
         R.reference = out;
     };
     const int n = c.snap ? c.snap->count() : 0;
@@ -2662,34 +2745,33 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
     } else {
         return refuse(QStringLiteral("Unknown reference."));
     }
-    out.insert(QStringLiteral("active"), true);
-    out.insert(QStringLiteral("refused"), false);
-    out.insert(QStringLiteral("label"), label);
-    out.insert(QStringLiteral("n"), mode == QLatin1String("like") ? int(group.size()) : mode == QLatin1String("median") ? n : 1);
-    out.insert(QStringLiteral("group"), intList(group));
-    if (refOrd > 0) { const QVariantMap ids = shotIds(c, refOrd); for (auto it = ids.begin(); it != ids.end(); ++it) out.insert(it.key(), it.value()); }
+    out.active = true;
+    out.refused = false;
+    out.label = label;
+    out.n = mode == QLatin1String("like") ? int(group.size()) : mode == QLatin1String("median") ? n : 1;
+    out.group = intList(group);
+    if (refOrd > 0) setIds(out, shotIds(c, refOrd));
     else if (isRef) {
         // the ★ swing's own identity: its ordinal only when it is a shot of this session
         const bool inSession = c.ref->ordinal > 0 && c.snap && c.ref->ordinal <= n && c.snap->shots[size_t(c.ref->ordinal - 1)] == c.ref;
-        out.insert(QStringLiteral("ordinal"), inSession ? c.ref->ordinal : 0);
-        out.insert(QStringLiteral("shotId"), c.ref->shotId);
-        out.insert(QStringLiteral("swingDir"), c.ref->swingDir);
-        out.insert(QStringLiteral("refLabel"), c.refLabel);
+        out.ordinal = inSession ? c.ref->ordinal : 0;
+        out.shotId = c.ref->shotId;
+        out.swingDir = c.ref->swingDir;
+        out.refLabel = c.refLabel;
     }
-    else { out.insert(QStringLiteral("ordinal"), 0); out.insert(QStringLiteral("shotId"), -1); out.insert(QStringLiteral("swingDir"), QString()); }
-    out.insert(QStringLiteral("diffLabel"), QStringLiteral("shot %1 − %2").arg(c.no()).arg(isRef ? QStringLiteral("the reference ★") : mode == QLatin1String("median") ? QStringLiteral("session median") : mode == QLatin1String("like") ? QStringLiteral("shots like it") : QStringLiteral("shot %1").arg(c.no(refOrd))));
+    else { out.ordinal = 0; out.shotId = -1; out.swingDir = QString(); }
+    out.diffLabel = QStringLiteral("shot %1 − %2").arg(c.no()).arg(isRef ? QStringLiteral("the reference ★") : mode == QLatin1String("median") ? QStringLiteral("session median") : mode == QLatin1String("like") ? QStringLiteral("shots like it") : QStringLiteral("shot %1").arg(c.no(refOrd)));
 
     std::vector<int> all;
     if (c.snap) for (const auto &s : c.snap->shots) all.push_back(s->ordinal);
     const double w0 = shotMsOf(c, c.win.startUs), w1 = shotMsOf(c, c.win.endUs), sp = w1 - w0;
-    QVariantList rows;
     const bool typicalityWanted = mode == QLatin1String("median") || mode == QLatin1String("typical");
     double bestZ = -1;
     QString bestKey;
     TraceGap bestGap;
     for (const QString &k : c.rowKeys) {
         std::vector<double> rt, rv;          // the reference on THIS shot's clock
-        QVariantList refBridges;             // a reference SHOT's bridged runs (a median / fit blank stays blank)
+        QList<T::Bridge> refBridges;         // a reference SHOT's bridged runs (a median / fit blank stays blank)
         if (isRef) {
             // the ★ swing's curve moved onto THIS shot's clock by its own P-positions; values untouched
             const TraceCurve on = alignedCurve(shotCurve(*c.ref, k), c.refWarp);
@@ -2713,12 +2795,13 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
         double diffMax = 0.0;
         for (double d : diff) if (std::isfinite(d)) diffMax = std::max(diffMax, std::abs(d));
         const QString unit = c.unitOf(k);
-        QVariantMap gm{ { QStringLiteral("found"), g.found } };
+        T::Gap gm;
+        gm.found = g.found;
         if (g.found) {
-            gm.insert(QStringLiteral("shotMs"), g.t);
-            gm.insert(QStringLiteral("diff"), g.diff);
-            gm.insert(QStringLiteral("text"), W::figSigned(g.diff, unit));
-            gm.insert(QStringLiteral("when"), W::whenImpact(g.t));
+            gm.shotMs = g.t;
+            gm.diff = g.diff;
+            gm.text = W::figSigned(g.diff, unit);
+            gm.when = W::whenImpact(g.t);
             // the gap as a share of the session's middle half there, so units do not decide the head
             // (with no session to scale it — a ★ reference on a short session — as a share of this
             // shot's own range of the curve)
@@ -2739,18 +2822,23 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
             }
             if (headlines && z > bestZ) { bestZ = z; bestKey = k; bestGap = g; }
         }
-        rows << QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("t"), dl(rt) }, { QStringLiteral("v"), dl(rv) },
-                             { QStringLiteral("diff"), dl(diff) }, { QStringLiteral("gap"), gm },
-                             { QStringLiteral("bridges"), refBridges },
-                             { QStringLiteral("diffLo"), diffMax > 0 ? -diffMax : kNaN }, { QStringLiteral("diffHi"), diffMax > 0 ? diffMax : kNaN },
-                             // R8: against the session median or the most typical shot, this shot against its club's
-                             // other shots (TypicalityTrace); null for every other reference, and with no result
-                             { QStringLiteral("typicality"), typicalityWanted ? typicalityOf(c, k) : QVariant::fromValue(nullptr) } };
+        T::RefRow row;
+        row.key = k;
+        row.t = dl(rt);
+        row.v = dl(rv);
+        row.diff = dl(diff);
+        row.gap = gm;
+        row.bridges = refBridges;
+        row.diffLo = diffMax > 0 ? -diffMax : kNaN;
+        row.diffHi = diffMax > 0 ? diffMax : kNaN;
+        // R8: against the session median or the most typical shot, this shot against its club's
+        // other shots (TypicalityTrace); null for every other reference, and with no result
+        row.typicality = typicalityWanted ? typicalityOf(c, k) : T::nullValue();
+        out.rows << row;
         ChartsTracesPresenter::NowRow *nr = nullptr;
         for (auto &x : R.now.rows) if (x.key == k) nr = &x;
         if (nr) { nr->refT = rt; nr->refV = rv; }
     }
-    out.insert(QStringLiteral("rows"), rows);
     W::Sentence head;
     if (!bestKey.isEmpty())
         head.append(QStringLiteral("Shot %1 left %2 furthest ").arg(c.no()).arg(phrase))
@@ -2759,7 +2847,7 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
             .figure(W::figSigned(bestGap.diff, c.unitOf(bestKey))).append(QStringLiteral(")"));
     else
         head.append(QStringLiteral("Shot %1 against %2").arg(c.no()).arg(label));
-    out.insert(QStringLiteral("head"), head.toVariant());
+    out.head = sentenceOf(head);
     R.reference = out;
 }
 
@@ -2768,53 +2856,57 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
 // The chest's probable peak, said once and the same everywhere it is drawn (§2.2.1): the ⚠ and its words.
 QString probableWords() { return QStringLiteral("probable: bridged across the camera's gap"); }
 
-QVariantMap sessionSequenceBlock(Ctx &c)
+T::SessionSequenceBlock sessionSequenceBlock(Ctx &c)
 {
     const SessionSequence &q = c.w->sequence;
     const int n = c.snap->count();
-    QVariantMap out;
+    T::SessionSequenceBlock out;
     bool any = false;
     for (const ShotSequence &s : q.shots) any = any || s.timedCount > 0;
-    out.insert(QStringLiteral("present"), any && c.sequencePreset);
+    out.present = any && c.sequencePreset;
     if (!any || !c.sequencePreset) return out;
     double lo = 0, hi = 0;
     for (const ShotSequence &s : q.shots)
         for (const SegmentPeak &p : s.segments) if (p.timed()) { lo = std::min(lo, p.timeMs()); hi = std::max(hi, p.timeMs()); }
     const double pad = std::max(10.0, (hi - lo) * 0.08);
     lo = std::floor((lo - pad) / 10) * 10; hi = std::ceil((hi + pad) / 10) * 10;
-    out.insert(QStringLiteral("lo"), lo);
-    out.insert(QStringLiteral("hi"), hi);
+    out.lo = lo;
+    out.hi = hi;
     std::vector<double> ticks;
     const double st = (hi - lo) > 150 ? 50 : 25;
     for (double v = std::ceil(lo / st) * st; v <= hi; v += st) if (v != 0) ticks.push_back(v);
-    out.insert(QStringLiteral("ticks"), tickTexts(ticks, true));
-    QVariantList pt;
+    out.ticks = tickTexts(ticks, true);
     for (int ph : { int(phase::P5), int(phase::P6) })
         if (const CanonicalPhase *cp = c.w->alignment.canonicalOf(ph))
-            if (cp->tMs > lo && cp->tMs < hi) pt << QVariantMap{ { QStringLiteral("tag"), c.tag(ph) }, { QStringLiteral("ms"), cp->tMs } };
-    out.insert(QStringLiteral("pTicks"), pt);
-    QVariantList segs;
+            if (cp->tMs > lo && cp->tMs < hi) {
+                T::SeqPTick t;
+                t.tag = c.tag(ph);
+                t.ms = cp->tMs;
+                out.pTicks << t;
+            }
     for (int i = 0; i < kSequenceSegments; ++i) {
-        QVariantList cells, points;
+        T::SeqSegment sg;
         for (const ShotSequence &s : q.shots) {
             const SegmentPeak &p = s.segments[size_t(i)];
-            QVariantMap ids = shotIds(c, s.ordinal);
-            QVariantMap cell = ids;
-            cell.insert(QStringLiteral("rank"), p.timed() ? p.rank : 0);
-            cell.insert(QStringLiteral("text"), p.timed() ? QString::number(p.rank) : QStringLiteral("-"));
-            cell.insert(QStringLiteral("late"), p.late);
-            cell.insert(QStringLiteral("probable"), p.probable);
-            cell.insert(QStringLiteral("picked"), s.ordinal == c.ordinal && c.index >= 0);
-            cells << cell;
+            const ShotIds ids = shotIds(c, s.ordinal);
+            T::SeqCell cell;
+            setIds(cell, ids);
+            cell.rank = p.timed() ? p.rank : 0;
+            cell.text = p.timed() ? QString::number(p.rank) : QStringLiteral("-");
+            cell.late = p.late;
+            cell.probable = p.probable;
+            cell.picked = s.ordinal == c.ordinal && c.index >= 0;
+            sg.cells << cell;
             if (p.timed()) {
-                QVariantMap pm = ids;
-                pm.insert(QStringLiteral("ms"), p.timeMs());
-                pm.insert(QStringLiteral("late"), p.late);
-                pm.insert(QStringLiteral("probable"), p.probable);
+                T::SeqPoint pm;
+                setIds(pm, ids);
+                pm.ms = p.timeMs();
+                pm.late = p.late;
+                pm.probable = p.probable;
                 // a probable peak carries its ± as a whisker: the estimate's spread, drawn, never hidden
-                pm.insert(QStringLiteral("sigmaMs"), p.probable ? p.probableSigmaMs : kNaN);
-                pm.insert(QStringLiteral("picked"), s.ordinal == c.ordinal && c.index >= 0);
-                points << pm;
+                pm.sigmaMs = p.probable ? p.probableSigmaMs : kNaN;
+                pm.picked = s.ordinal == c.ordinal && c.index >= 0;
+                sg.points << pm;
             }
         }
         const SegmentSummary &sm = q.segments[size_t(i)];
@@ -2823,16 +2915,20 @@ QVariantMap sessionSequenceBlock(Ctx &c)
         if (timed > 0)
             figText = W::signedMs(sm.medianMs) + QStringLiteral(" median · middle half ") + W::fig(sm.q3Ms - sm.q1Ms)
                       + QStringLiteral(" ms, %1 of %2").arg(timed).arg(n);
-        segs << QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(i)] }, { QStringLiteral("word"), segWord(i) },
-                             { QStringLiteral("never"), timed == 0 }, { QStringLiteral("cells"), cells }, { QStringLiteral("points"), points },
-                             { QStringLiteral("median"), sm.medianMs }, { QStringLiteral("q1"), sm.q1Ms }, { QStringLiteral("q3"), sm.q3Ms },
-                             { QStringLiteral("placed"), sm.placed }, { QStringLiteral("probable"), sm.probable },
-                             // the ⚠ and its few words, under the figure (the full reason is the trust fold's)
-                             { QStringLiteral("warn"), sm.probable > 0 ? QStringLiteral("⚠") : QString() },
-                             { QStringLiteral("warnShort"), sm.probable > 0 ? (sm.placed > 0 ? QStringLiteral("%1 ").arg(sm.probable) : QString()) + probableWords() : QString() },
-                             { QStringLiteral("figText"), figText } };
+        sg.segment = sequenceSegmentIds()[size_t(i)];
+        sg.word = segWord(i);
+        sg.never = timed == 0;
+        sg.median = sm.medianMs;
+        sg.q1 = sm.q1Ms;
+        sg.q3 = sm.q3Ms;
+        sg.placed = sm.placed;
+        sg.probable = sm.probable;
+        // the ⚠ and its few words, under the figure (the full reason is the trust fold's)
+        sg.warn = sm.probable > 0 ? QStringLiteral("⚠") : QString();
+        sg.warnShort = sm.probable > 0 ? (sm.placed > 0 ? QStringLiteral("%1 ").arg(sm.probable) : QString()) + probableWords() : QString();
+        sg.figText = figText;
+        out.segments << sg;
     }
-    out.insert(QStringLiteral("segments"), segs);
     // the standfirst: the commonest order, the segments never timed, the probable chest, the pelvis after impact
     W::Sentence s;
     QStringList words;
@@ -2860,17 +2956,22 @@ QVariantMap sessionSequenceBlock(Ctx &c)
         s.append(QStringLiteral(" The pelvis peaks after impact on ")).figure(QStringLiteral("%1 of %2").arg(pel.afterImpact).arg(pel.placed))
             .append(QStringLiteral(" placed shots. ") + W::latePelvisNote());
     }
-    out.insert(QStringLiteral("stand"), s.toVariant());
+    out.stand = sentenceOf(s);
     // the common order's consistency, one technical grade per club (spec §8.4); the sentence above stays
-    out.insert(QStringLiteral("orderGrades"), orderGradesOf(c));
+    out.orderGrades = orderGradesOf(c);
     return out;
 }
 
 // What the trust fold says about the chest's probable peak (§2.2.1), once, for the session: how it was made
 // and what it assumes, and the taller earlier hump read as the measurement (option A, Mark 25 Oct).
-QVariantList chestTrustLines(const Ctx &c)
+QList<T::TraceTrustLine> chestTrustLines(const Ctx &c)
 {
-    QVariantList out;
+    QList<T::TraceTrustLine> out;
+    const auto line = [&](const QString &kind, const QString &text) {
+        T::TraceTrustLine l;
+        l.kind = kind; l.text = text;
+        out << l;
+    };
     const SessionBridges &br = c.w->bridges;
     const int k = br.bridgedCount();
     if (k == 0) return out;
@@ -2878,13 +2979,12 @@ QVariantList chestTrustLines(const Ctx &c)
     const double h0 = br.holeMinMs(), h1 = br.holeMaxMs();
     const QString gap = std::abs(h1 - h0) < 0.5 ? W::fig(h0) + QStringLiteral(" ms")
                                                 : W::fig(h0) + QStringLiteral("–") + W::fig(h1) + QStringLiteral(" ms");
-    out << QVariantMap{ { QStringLiteral("kind"), QStringLiteral("chestProbable") },
-                        { QStringLiteral("text"),
+    line(QStringLiteral("chestProbable"),
                           QStringLiteral("⚠ The chest's peak is probable, not measured, on %1 of %2 shots. The face-on camera loses the chest "
                                          "for %3 where the shoulders square to it, so the peak is read off a smooth fit (a Gaussian process) "
                                          "through the curve either side of the gap, ± from that fit, assuming %4 °/s of noise in each "
                                          "sample and that the chest cannot spike inside the gap. Not yet checked against a trunk sensor.")
-                              .arg(k).arg(n).arg(gap).arg(W::fig(br.kernel.noiseDps)) } };
+                              .arg(k).arg(n).arg(gap).arg(W::fig(br.kernel.noiseDps)));
     const int e = br.earlierCount();
     if (e > 0) {
         // when, as the middle half of those humps' times (a few sit back near the top of the swing)
@@ -2893,26 +2993,24 @@ QVariantList chestTrustLines(const Ctx &c)
         const double lo = quantile7(ts, 0.25), hi = quantile7(ts, 0.75);
         const QString when = std::abs(hi - lo) < 0.5 ? QStringLiteral("at ") + W::signedMs(lo)
                                                      : QStringLiteral("half of them ") + W::minus(W::fig(lo)) + QStringLiteral(" to ") + W::signedMs(hi);
-        out << QVariantMap{ { QStringLiteral("kind"), QStringLiteral("chestEarlier") },
-                            { QStringLiteral("text"),
+        line(QStringLiteral("chestEarlier"),
                               QStringLiteral("On %1 of those shots the chest curve rises higher earlier in the downswing (%2), where the shoulder "
                                              "line turns square to the face-on camera and its keypoints jump. That hump is read as the "
-                                             "measurement, not the chest's peak; it stays drawn on the curve.").arg(e).arg(when) } };
+                                             "measurement, not the chest's peak; it stays drawn on the curve.").arg(e).arg(when));
     }
     return out;
 }
 
 void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
 {
-    QVariantMap out;
+    T::Session out;
     const int n = c.snap ? c.snap->count() : 0;
-    out.insert(QStringLiteral("n"), n);
+    out.n = n;
     const int nA = c.snap ? alignedCount(c) : 0;
-    out.insert(QStringLiteral("aligned"), nA);
+    out.aligned = nA;
     const auto refuse = [&](const QString &why) {
-        W::Sentence s; s.append(why);
-        out.insert(QStringLiteral("available"), false);
-        out.insert(QStringLiteral("why"), s.toVariant());
+        out.available = false;
+        out.why = sentenceOf(why);
         R.session = out;
     };
     if (n < 3) return refuse(refusedSessionWhy(c));
@@ -2920,20 +3018,20 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
     if (c.sessionKeys.isEmpty() || c.grid.empty())
         return refuse(c.presetKeys.isEmpty() ? QStringLiteral("No metric of this preset was measured on three shots.")
                                              : QStringLiteral("No trace of this preset was measured on three shots: it is read at instants only."));
-    out.insert(QStringLiteral("available"), true);
-    out.insert(QStringLiteral("tabCount"), n);
+    out.available = true;
+    out.tabCount = n;
     {
         // every club of the session, in strike order of first use ("7 iron and gap wedge"); past three, "mixed clubs"
         QStringList clubs;
         for (const auto &sh : c.snap->shots)
             if (!sh->club.isEmpty() && !clubs.contains(asciiLower(sh->club))) clubs << asciiLower(sh->club);
         const QString cl = clubs.isEmpty() ? QString() : clubs.size() > 3 ? QStringLiteral("mixed clubs") : W::list(clubs);
-        out.insert(QStringLiteral("kicker"), QStringLiteral("%1 shots").arg(n) + (cl.isEmpty() ? QString() : QStringLiteral("  ·  ") + cl));
+        out.kicker = QStringLiteral("%1 shots").arg(n) + (cl.isEmpty() ? QString() : QStringLiteral("  ·  ") + cl);
     }
-    out.insert(QStringLiteral("axisCaption"), axisCaption(c));
-    out.insert(QStringLiteral("t0"), c.t0);
-    out.insert(QStringLiteral("t1"), c.t1);
-    { W::Sentence a; a.append(alignmentSentence(c)); out.insert(QStringLiteral("alignNote"), a.toVariant()); }
+    out.axisCaption = axisCaption(c);
+    out.t0 = c.t0;
+    out.t1 = c.t1;
+    { W::Sentence a; a.append(alignmentSentence(c)); out.alignNote = sentenceOf(a); }
     {
         W::Sentence cn;
         if (c.w->clubFacet && c.in->facet != QLatin1String("club")) {
@@ -2941,25 +3039,30 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
             for (const FacetGroup &g : c.w->clubFacet->groups) parts << asciiLower(g.key) + QStringLiteral(" on ") + W::word(int(g.ordinals.size()));
             cn.append(QStringLiteral("The clubs are mixed: ") + W::list(parts) + QStringLiteral("; every shot is drawn together."));
         }
-        out.insert(QStringLiteral("clubNote"), cn.toVariant());
+        out.clubNote = sentenceOf(cn);
     }
     // the P ticks, with the middle half of when each P happened (the timing the warp removes)
-    QVariantList ticks;
     for (const CanonicalPhase &p : c.w->alignment.canonical) {
         if (p.tMs < c.t0 - 1 || p.tMs > c.t1 + 1 || c.tag(p.phase).isEmpty()) continue;
-        ticks << QVariantMap{ { QStringLiteral("phase"), p.phase }, { QStringLiteral("tag"), c.tag(p.phase) },
-                              { QStringLiteral("canonMs"), p.tMs }, { QStringLiteral("q1Ms"), p.q1Ms }, { QStringLiteral("q3Ms"), p.q3Ms },
-                              { QStringLiteral("n"), p.n },
-                              { QStringLiteral("when"), std::abs(p.q3Ms - p.q1Ms) < 0.5 ? W::signedMs(p.q1Ms)
-                                                       : W::minus(W::fig(p.q1Ms)) + QStringLiteral(" to ") + W::signedMs(p.q3Ms) } };
+        T::SessionTick k;
+        k.phase = p.phase;
+        k.tag = c.tag(p.phase);
+        k.canonMs = p.tMs;
+        k.q1Ms = p.q1Ms;
+        k.q3Ms = p.q3Ms;
+        k.n = p.n;
+        k.when = std::abs(p.q3Ms - p.q1Ms) < 0.5 ? W::signedMs(p.q1Ms)
+                                                 : W::minus(W::fig(p.q1Ms)) + QStringLiteral(" to ") + W::signedMs(p.q3Ms);
+        // the impact tick is drawn strong and kept when crowded (rule: by its phase, never by its tag's words)
+        k.landmark = p.phase == phase::Impact ? QStringLiteral("impact") : p.phase == phase::Top ? QStringLiteral("top") : QString();
+        out.ticks << k;
     }
-    out.insert(QStringLiteral("ticks"), ticks);
     // the canonical ms axis (the same step rule as This shot's)
     {
         std::vector<double> ms;
         for (const QVariant &v : c.w->cm->timeTicksMs(qint64(std::llround(c.t0 * 1000.0)), qint64(std::llround(c.t1 * 1000.0)), 0))
             ms.push_back(v.toDouble());
-        out.insert(QStringLiteral("msTicks"), tickTexts(ms, true));
+        out.msTicks = tickTexts(ms, true);
     }
 
     QString band = c.in->band;
@@ -2968,20 +3071,24 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
     if (band == QLatin1String("group fit")) band = QStringLiteral("fit");
     if (band != QLatin1String("every") && band != QLatin1String("fit")) band = QStringLiteral("middle");
     const bool fit = band == QLatin1String("fit");
-    out.insert(QStringLiteral("band"), band);
+    out.band = band;
     QString kind;
     const std::vector<Group> groups = facetGroups(c, c.in->facet, &kind);
     const QString facet = kind == QLatin1String("none") ? QString() : c.in->facet;
-    out.insert(QStringLiteral("facet"), facet);
-    QVariantList gl;
-    for (const Group &g : groups)
-        gl << QVariantMap{ { QStringLiteral("key"), g.key }, { QStringLiteral("label"), g.label }, { QStringLiteral("short"), g.shortLabel },
-                           { QStringLiteral("n"), int(g.ords.size()) }, { QStringLiteral("ordinals"), intList(g.ords) }, { QStringLiteral("own"), g.own } };
-    out.insert(QStringLiteral("groups"), gl);
+    out.facet = facet;
+    for (const Group &g : groups) {
+        T::GroupInfo gi;
+        gi.key = g.key;
+        gi.label = g.label;
+        gi.shortLabel = g.shortLabel;
+        gi.n = int(g.ords.size());
+        gi.ordinals = intList(g.ords);
+        gi.own = g.own;
+        out.groups << gi;
+    }
 
     std::vector<int> all;
     for (const auto &s : c.snap->shots) all.push_back(s->ordinal);
-    QVariantList rows;
     struct RowInfo { QString key; PartingPoint part; double relPart = -1; std::vector<double> peaks; double mine = kNaN; int dec = 0; bool headlines = true; };
     std::vector<RowInfo> infos;
     for (const QString &k : c.sessionKeys) {
@@ -3010,34 +3117,42 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
             if (!b) return kNaN;
             return interpAt(bridgeCanon(ord, *b), b->mean, g);
         };
-        QVariantList panels;
+        QList<T::Panel> panels;
         for (size_t gi = 0; gi < groups.size(); ++gi) {
             const Group &g = groups[gi];
-            QVariantMap p{ { QStringLiteral("group"), g.key }, { QStringLiteral("label"), g.label },
-                           { QStringLiteral("n"), int(curvesOf(*curves, g.ords).size()) }, { QStringLiteral("t"), dl(c.grid) } };
+            T::Panel p;
+            p.group = g.key;
+            p.label = g.label;
+            p.n = int(curvesOf(*curves, g.ords).size());
+            p.t = dl(c.grid);
             if (fit) {
                 const GroupFit &f = fitOf(c, k, g.ords);
-                QVariantMap fm{ { QStringLiteral("refused"), f.refused() },
-                                { QStringLiteral("label"), (facet.isEmpty() ? QStringLiteral("All") : g.label) + QStringLiteral("  ·  %1 shots").arg(g.ords.size())
-                                                               + (f.refused() ? QString() : QStringLiteral(", fitted")) } };
+                T::Fit fm;
+                fm.refused = f.refused();
+                fm.label = (facet.isEmpty() ? QStringLiteral("All") : g.label) + QStringLiteral("  ·  %1 shots").arg(g.ords.size())
+                           + (f.refused() ? QString() : QStringLiteral(", fitted"));
                 if (f.refused()) {
-                    fm.insert(QStringLiteral("why"), f.refusal == FitRefusal::GroupTooSmall
-                                                         ? QStringLiteral("fewer than three shots: no group fit")
-                                                         : QStringLiteral("no measured samples: no group fit"));
+                    fm.why = f.refusal == FitRefusal::GroupTooSmall
+                                 ? QStringLiteral("fewer than three shots: no group fit")
+                                 : QStringLiteral("no measured samples: no group fit");
                 } else {
                     std::vector<double> flo(f.v.size()), fhi(f.v.size());
                     std::vector<double> ns(f.nShots.begin(), f.nShots.end());
                     for (size_t i = 0; i < f.v.size(); ++i) { flo[i] = f.v[i] - f.sd[i]; fhi[i] = f.v[i] + f.sd[i]; grow(flo[i]); grow(fhi[i]); }
-                    fm.insert(QStringLiteral("v"), dl(f.v)); fm.insert(QStringLiteral("lo"), dl(flo)); fm.insert(QStringLiteral("hi"), dl(fhi));
-                    fm.insert(QStringLiteral("nShots"), dl(ns));
-                    fm.insert(QStringLiteral("why"), QString());
+                    fm.v = dl(f.v); fm.lo = dl(flo); fm.hi = dl(fhi);
+                    fm.nShots = dl(ns);
+                    fm.why = QString();
                 }
-                p.insert(QStringLiteral("fit"), fm);
+                p.fit = fm;
                 if (groups.size() > 1) {
                     const GroupFit &of = fitOf(c, k, groups[1 - std::min<size_t>(gi, 1)].ords);
-                    if (!of.refused()) p.insert(QStringLiteral("alt"), QVariantMap{ { QStringLiteral("v"), dl(of.v) },
-                                                                                   { QStringLiteral("label"), groups[1 - std::min<size_t>(gi, 1)].label },
-                                                                                   { QStringLiteral("dashed"), true } });
+                    if (!of.refused()) {
+                        T::Alt alt;
+                        alt.v = dl(of.v);
+                        alt.label = groups[1 - std::min<size_t>(gi, 1)].label;
+                        alt.dashed = true;
+                        p.alt = QVariant::fromValue(alt);
+                    }
                 }
             } else {
                 const SessionEnvelope &e = envOf(c, k, g.ords);
@@ -3064,44 +3179,53 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
                     }
                     for (size_t i = 0; i < e.t.size(); ++i)      // the dashed median meets the solid one
                         if (!est[i] && ((i > 0 && est[i - 1]) || (i + 1 < e.t.size() && est[i + 1]))) medEst[i] = e.med[i];
-                    p.insert(QStringLiteral("medEst"), dl(medEst));
+                    p.medEst = dl(medEst);
                 }
-                p.insert(QStringLiteral("q1"), dl(q1)); p.insert(QStringLiteral("med"), dl(med)); p.insert(QStringLiteral("q3"), dl(q3));
+                p.q1 = dl(q1); p.med = dl(med); p.q3 = dl(q3);
                 for (size_t i = 0; i < e.t.size(); ++i) { grow(q1[i]); grow(q3[i]); }
                 if (band == QLatin1String("every")) {
-                    QVariantList others;
                     for (const TraceCurve *tc : curvesOf(*curves, g.ords)) {
                         if (tc->ordinal == c.ordinal && c.index >= 0) continue;
                         std::vector<double> v(c.grid.size());
                         for (size_t i = 0; i < c.grid.size(); ++i) { v[i] = valueAt(*tc, c.grid[i]); grow(v[i]); }
-                        QVariantMap om = shotIds(c, tc->ordinal);
-                        om.insert(QStringLiteral("v"), dl(v));
+                        T::Other om;
+                        setIds(om, shotIds(c, tc->ordinal));
+                        om.v = dl(v);
                         // the grid reads NaN across a bridged run (valueAt); the dashed bridge across it
-                        om.insert(QStringLiteral("bridges"), bridgesOf(tc->t, tc->v, tc->ok, c.t0, c.t1));
+                        om.bridges = bridgesOf(tc->t, tc->v, tc->ok, c.t0, c.t1);
                         if (const ChestBridge *b = bridgeOf(tc->ordinal)) {
                             for (double x : b->mean) grow(x);
-                            om.insert(QStringLiteral("estimate"), QVariantMap{ { QStringLiteral("t"), dl(bridgeCanon(tc->ordinal, *b)) },
-                                                                               { QStringLiteral("v"), dl(b->mean) } });
+                            T::Estimate e;
+                            e.t = dl(bridgeCanon(tc->ordinal, *b));
+                            e.v = dl(b->mean);
+                            om.estimate = QVariant::fromValue(e);
                         }
-                        others << om;
+                        p.others << om;
                     }
-                    p.insert(QStringLiteral("others"), others);
                 }
                 if (groups.size() > 1) {
                     const Group &og = groups[gi == 0 ? 1 : 0];
                     const SessionEnvelope &oe = envOf(c, k, og.ords);
-                    p.insert(QStringLiteral("alt"), QVariantMap{ { QStringLiteral("v"), dl(oe.med) }, { QStringLiteral("label"), og.label },
-                                                                 { QStringLiteral("dashed"), true } });
+                    T::Alt alt;
+                    alt.v = dl(oe.med);
+                    alt.label = og.label;
+                    alt.dashed = true;
+                    p.alt = QVariant::fromValue(alt);
                 }
             }
             panels << p;
         }
         // this shot, full strength, on the canonical axis
-        QVariantMap picked;
+        QVariant picked = T::nullValue();
         const TraceCurve pc = pickedAligned(c, k);
         if (!pc.empty()) {
             std::vector<double> t, v;
-            QVariantList runs;
+            QList<T::IndexRun> runs;
+            const auto run = [&](int from, int to, const QString &style) {
+                T::IndexRun r;
+                r.from = from; r.to = to; r.style = style;
+                runs << r;
+            };
             int a = -1;
             QString st;
             std::vector<uint8_t> ok;
@@ -3117,30 +3241,35 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
             for (size_t i = 0; i < t.size(); ++i) {
                 const QString s = pc.ok[base + i] ? QStringLiteral("measured") : QStringLiteral("bridged");
                 if (a < 0) { a = int(i); st = s; }
-                if (s != st) { runs << QVariantMap{ { QStringLiteral("from"), a }, { QStringLiteral("to"), int(i) - 1 }, { QStringLiteral("style"), st } }; a = int(i); st = s; }
+                if (s != st) { run(a, int(i) - 1, st); a = int(i); st = s; }
             }
-            if (a >= 0) runs << QVariantMap{ { QStringLiteral("from"), a }, { QStringLiteral("to"), int(t.size()) - 1 }, { QStringLiteral("style"), st } };
-            picked = shotIds(c, c.ordinal);
-            picked.insert(QStringLiteral("t"), dl(t)); picked.insert(QStringLiteral("v"), dl(v)); picked.insert(QStringLiteral("runs"), runs);
-            picked.insert(QStringLiteral("bridges"), bridgesOf(t, v, ok));
+            if (a >= 0) run(a, int(t.size()) - 1, st);
+            T::Picked pk;
+            setIds(pk, shotIds(c, c.ordinal));
+            pk.t = dl(t); pk.v = dl(v); pk.runs = runs;
+            pk.bridges = bridgesOf(t, v, ok);
             if (const ChestBridge *b = c.index >= 0 ? bridgeOf(c.ordinal) : nullptr) {
                 std::vector<double> blo(b->mean.size()), bhi(b->mean.size());
                 for (size_t i = 0; i < b->mean.size(); ++i) { blo[i] = b->mean[i] - b->sd[i]; bhi[i] = b->mean[i] + b->sd[i]; grow(blo[i]); grow(bhi[i]); }
-                picked.insert(QStringLiteral("estimate"), QVariantMap{ { QStringLiteral("t"), dl(bridgeCanon(c.ordinal, *b)) }, { QStringLiteral("v"), dl(b->mean) },
-                                                                       { QStringLiteral("lo"), dl(blo) }, { QStringLiteral("hi"), dl(bhi) } });
+                T::Estimate e;
+                e.t = dl(bridgeCanon(c.ordinal, *b)); e.v = dl(b->mean);
+                e.lo = dl(blo); e.hi = dl(bhi);
+                pk.estimate = QVariant::fromValue(e);
             }
+            picked = QVariant::fromValue(pk);
         }
         // coverage (group fit): one hairline per shot, this shot first
-        QVariantList coverage;
+        QList<T::Coverage> coverage;
         if (fit) {
             std::vector<int> ords;
             for (const Group &g : groups) ords.insert(ords.end(), g.ords.begin(), g.ords.end());
             std::stable_sort(ords.begin(), ords.end(), [&](int a2, int b2) { return (a2 == c.ordinal) > (b2 == c.ordinal) || ((a2 == c.ordinal) == (b2 == c.ordinal) && a2 < b2); });
             for (int o : ords) {
                 const TraceCurve &tc = (*curves)[size_t(o - 1)];
-                QVariantMap cm2 = shotIds(c, o);
-                cm2.insert(QStringLiteral("picked"), o == c.ordinal && c.index >= 0);
-                cm2.insert(QStringLiteral("runs"), tc.empty() ? QVariantList{} : runsOf(coverageRuns(tc)));
+                T::Coverage cm2;
+                setIds(cm2, shotIds(c, o));
+                cm2.picked = o == c.ordinal && c.index >= 0;
+                if (!tc.empty()) cm2.runs = runsOf(coverageRuns(tc));
                 coverage << cm2;
             }
         }
@@ -3159,8 +3288,8 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
         info.peaks = peaksOf(c, k);
         info.mine = c.index >= 0 ? info.peaks[size_t(c.index)] : kNaN;
         if (c.index < 0 && c.calcs.contains(k) && c.calcs.constFind(k).value().winPeakOk) info.mine = c.calcs.constFind(k).value().st.value(QStringLiteral("peak")).toDouble();
-        QVariantList figs;
-        const auto fg = [&](const QString &l, const QString &t2) { figs << QVariantMap{ { QStringLiteral("label"), l }, { QStringLiteral("text"), t2 } }; };
+        QList<T::LabelText> figs;
+        const auto fg = [&](const QString &l, const QString &t2) { T::LabelText f; f.label = l; f.text = t2; figs << f; };
         if (fit) {
             const GroupFit &f0 = fitOf(c, k, groups[0].ords);
             fg(QStringLiteral("pooled"), f0.refused() ? QStringLiteral("-") : QStringLiteral("%1 samples").arg(f0.samplesPooled));
@@ -3179,48 +3308,54 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
             if (c.shot) fg(QStringLiteral("shot %1").arg(c.no()), W::fig(info.mine, dec) + QStringLiteral(", ") + placeWord(info.mine, info.peaks));
             if (info.part.found) fg(QStringLiteral("widest"), phaseWord(c, info.part.tCanonMs));
         }
-        QVariantMap partMap{ { QStringLiteral("found"), info.part.found } };
+        T::Part partMap;
+        partMap.found = info.part.found;
         if (info.part.found) {
-            partMap.insert(QStringLiteral("canonMs"), info.part.tCanonMs);
-            partMap.insert(QStringLiteral("q1"), info.part.q1); partMap.insert(QStringLiteral("q3"), info.part.q3);
-            partMap.insert(QStringLiteral("med"), info.part.med);
-            partMap.insert(QStringLiteral("when"), phaseWord(c, info.part.tCanonMs));
+            partMap.canonMs = info.part.tCanonMs;
+            partMap.q1 = info.part.q1; partMap.q3 = info.part.q3;
+            partMap.med = info.part.med;
+            partMap.when = phaseWord(c, info.part.tCanonMs);
         }
-        rows << QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("label"), c.labelOf(k) },
-                             { QStringLiteral("unit"), shortUnitOf(c, unit) }, { QStringLiteral("dec"), dec },
-                             { QStringLiteral("yLo"), lo }, { QStringLiteral("yHi"), hi },
-                             { QStringLiteral("yTicks"), ticksAsDoubles(niceTicksList(c, lo, hi)) },
-                             { QStringLiteral("panels"), panels }, { QStringLiteral("picked"), picked },
-                             { QStringLiteral("coverage"), coverage }, { QStringLiteral("part"), partMap },
-                             { QStringLiteral("figures"), figs },
-                             // R2b: the curves' consistency, one technical Overlay grade per club (none for the
-                             // group fit: a model's curve, not the shots')
-                             { QStringLiteral("clubGrades"), fit ? QVariantList{} : clubGradesOf(c, k) } };
+        T::SessionRow row;
+        row.key = k;
+        row.label = c.labelOf(k);
+        row.unit = shortUnitOf(c, unit);
+        row.dec = dec;
+        row.yLo = lo;
+        row.yHi = hi;
+        row.yTicks = ticksAsDoubles(niceTicksList(c, lo, hi));
+        row.panels = panels;
+        row.picked = picked;
+        row.coverage = coverage;
+        row.part = partMap;
+        row.figures = figs;
+        // R2b: the curves' consistency, one technical Overlay grade per club (none for the
+        // group fit: a model's curve, not the shots')
+        if (!fit) row.clubGrades = clubGradesOf(c, k);
+        out.rows << row;
         infos.push_back(std::move(info));
         // the session median for the playhead's "median" (now.rows[].typicalText)
         for (auto &nr : R.now.rows)
             if (nr.key == k) { nr.medT = ea.t; nr.medV = ea.med; }
     }
-    out.insert(QStringLiteral("rows"), rows);
     // OVERLAID (This shot's F6 "Draw" choice, shared): one value axis across the rows, as This shot's overlay
     {
         double lo = kNaN, hi = kNaN;
         QSet<QString> units;
-        for (const QVariant &rv : rows) {
-            const QVariantMap r = rv.toMap();
-            const double a = r.value(QStringLiteral("yLo")).toDouble(), b = r.value(QStringLiteral("yHi")).toDouble();
+        for (const T::SessionRow &r : out.rows) {
+            const double a = r.yLo, b = r.yHi;
             if (std::isfinite(a)) lo = std::isfinite(lo) ? std::min(lo, a) : a;
             if (std::isfinite(b)) hi = std::isfinite(hi) ? std::max(hi, b) : b;
-            units.insert(r.value(QStringLiteral("unit")).toString());
+            units.insert(r.unit);
         }
-        out.insert(QStringLiteral("overlay"), QVariantMap{ { QStringLiteral("yLo"), lo }, { QStringLiteral("yHi"), hi },
-                                                           { QStringLiteral("yTicks"), ticksAsDoubles(niceTicksList(c, lo, hi)) },
-                                                           { QStringLiteral("sameUnit"), units.size() == 1 } });
+        out.overlay.yLo = lo;
+        out.overlay.yHi = hi;
+        out.overlay.yTicks = ticksAsDoubles(niceTicksList(c, lo, hi));
+        out.overlay.sameUnit = units.size() == 1;
     }
-    out.insert(QStringLiteral("alignedAt"), c.w->impactAligned ? QStringLiteral("impact") : QStringLiteral("p"));
+    out.alignedAt = c.w->impactAligned ? QStringLiteral("impact") : QStringLiteral("p");
     // the chest's probable peak, said in the trust fold (only where its curve or the sequence is on show)
-    out.insert(QStringLiteral("trustLines"), c.sessionKeys.contains(sequenceSeriesKey(kChestSegment)) || c.sequencePreset
-                                                 ? chestTrustLines(c) : QVariantList{});
+    if (c.sessionKeys.contains(sequenceSeriesKey(kChestSegment)) || c.sequencePreset) out.trustLines = chestTrustLines(c);
 
     // ── the head and the standfirst ──
     W::Sentence head, stand, caveat;
@@ -3287,13 +3422,24 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
     } else {
         head.append(W::cap1(W::word(n)) + QStringLiteral(" swings, one shape"));
     }
-    out.insert(QStringLiteral("head"), head.toVariant());
-    out.insert(QStringLiteral("standfirst"), stand.toVariant());
-    out.insert(QStringLiteral("caveat"), caveat.toVariant());
-    out.insert(QStringLiteral("sequence"), sessionSequenceBlock(c));
+    out.head = sentenceOf(head);
+    out.standfirst = sentenceOf(stand);
+    out.caveat = sentenceOf(caveat);
+    out.sequence = sessionSequenceBlock(c);
 
     // ── up to three data-backed questions, answered from the data ──
-    QVariantList qs;
+    QList<T::Question> qs;
+    const auto question = [&](const QString &id, const QString &text, const W::Sentence &answer, const std::vector<int> &lit,
+                              const QString &setFacet, const QString &setBand) {
+        T::Question q;
+        q.id = id;
+        q.text = text;
+        q.answer = sentenceOf(answer);
+        q.lit = intList(lit);
+        q.setFacet = setFacet;
+        q.setBand = setBand;
+        qs << q;
+    };
     if (partRow && facet.isEmpty()) {
         const auto curves = c.w->alignedOf(partRow->key);
         std::vector<int> lit;
@@ -3311,26 +3457,21 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
                        + (c.ordinal <= 0 ? QStringLiteral(".") : mine ? QStringLiteral(", shot %1 among them.").arg(c.no())
                                                                        : QStringLiteral("; shot %1 is inside it.").arg(c.no())));
         }
-        qs << QVariantMap{ { QStringLiteral("id"), QStringLiteral("part") },
-                           { QStringLiteral("text"), c.labelOf(partRow->key) + QStringLiteral(": which shots lie outside the middle half where the curves part?") },
-                           { QStringLiteral("answer"), ans.toVariant() }, { QStringLiteral("lit"), intList(lit) },
-                           { QStringLiteral("setFacet"), QString() }, { QStringLiteral("setBand"), QStringLiteral("every") } };
+        question(QStringLiteral("part"),
+                 c.labelOf(partRow->key) + QStringLiteral(": which shots lie outside the middle half where the curves part?"),
+                 ans, lit, QString(), QStringLiteral("every"));
     }
     if (!c.w->conditionFacets.empty() && facet != c.w->conditionFacets.front().id) {
         const SessionFacet &f = c.w->conditionFacets.front();
         const QString nm = c.snap->conditions.value(f.id).name.isEmpty() ? f.id : c.snap->conditions.value(f.id).name;
-        qs << QVariantMap{ { QStringLiteral("id"), QStringLiteral("facet") },
-                           { QStringLiteral("text"), nm + QStringLiteral(": do the curves differ on the %1 shots it fired?").arg(f.firedCount) },
-                           { QStringLiteral("answer"), W::Sentence{}.toVariant() }, { QStringLiteral("lit"), QVariantList{} },
-                           { QStringLiteral("setFacet"), f.id }, { QStringLiteral("setBand"), QString() } };
+        question(QStringLiteral("facet"), nm + QStringLiteral(": do the curves differ on the %1 shots it fired?").arg(f.firedCount),
+                 W::Sentence{}, {}, f.id, QString());
     }
     if (kind != QLatin1String("half"))
-        qs << QVariantMap{ { QStringLiteral("id"), QStringLiteral("half") },
-                           { QStringLiteral("text"), QStringLiteral("Did the curves change between the first and second half of the session?") },
-                           { QStringLiteral("answer"), W::Sentence{}.toVariant() }, { QStringLiteral("lit"), QVariantList{} },
-                           { QStringLiteral("setFacet"), QStringLiteral("half") }, { QStringLiteral("setBand"), QString() } };
+        question(QStringLiteral("half"), QStringLiteral("Did the curves change between the first and second half of the session?"),
+                 W::Sentence{}, {}, QStringLiteral("half"), QString());
     while (qs.size() > 3) qs.removeLast();
-    out.insert(QStringLiteral("questions"), qs);
+    out.questions = qs;
     R.session = out;
 }
 
@@ -3338,55 +3479,64 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
 
 void buildChoices(Ctx &c, ChartsTracesPresenter::Result &R)
 {
-    QVariantMap out;
-    out.insert(QStringLiteral("register"), c.in->reg);
-    out.insert(QStringLiteral("view"), c.in->view);
-    QVariantList presets;
+    T::Choices out;
+    out.registerName = c.in->reg;
+    out.view = c.in->view;
     for (const QVariant &g : c.groups) {
         const QVariantMap m = g.toMap();
-        presets << QVariantMap{ { QStringLiteral("id"), m.value(QStringLiteral("group")) }, { QStringLiteral("label"), m.value(QStringLiteral("group")) },
-                                { QStringLiteral("count"), m.value(QStringLiteral("keys")).toList().size() } };
+        T::PresetChoice pc;
+        pc.id = m.value(QStringLiteral("group")).toString();
+        pc.label = pc.id;
+        pc.count = int(m.value(QStringLiteral("keys")).toList().size());
+        out.presets << pc;
     }
-    out.insert(QStringLiteral("presets"), presets);
-    out.insert(QStringLiteral("preset"), c.preset);
-    out.insert(QStringLiteral("presetTitle"), c.preset);
+    out.preset = c.preset;
+    out.presetTitle = c.preset;
     // drawn from address (kFromAddressPresets): the Controls line says so, beside the preset's name
-    out.insert(QStringLiteral("fromAddress"), kFromAddressPresets.contains(c.preset) && kFromAddressPresets.contains(c.in->preset));
+    out.fromAddress = kFromAddressPresets.contains(c.preset) && kFromAddressPresets.contains(c.in->preset);
     bool custom = false;
-    QVariantList metrics;
     for (const QString &k : c.presetKeys) {
         const bool on = !c.in->metricsOff.contains(k);
         custom = custom || !on;
         bool curve = false;
         if (c.shot) if (const MetricSeries *m = c.shot->metric(k)) curve = m->hasCurve() && c.w->drawsCurve(k);
-        metrics << QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("label"), c.labelOf(k) },
-                                { QStringLiteral("unit"), shortUnitOf(c, c.unitOf(k)) }, { QStringLiteral("on"), on }, { QStringLiteral("curve"), curve } };
+        T::MetricChoice mc;
+        mc.key = k;
+        mc.label = c.labelOf(k);
+        mc.unit = shortUnitOf(c, c.unitOf(k));
+        mc.on = on;
+        mc.curve = curve;
+        out.metrics << mc;
     }
-    out.insert(QStringLiteral("custom"), custom);
-    out.insert(QStringLiteral("metrics"), metrics);
-    out.insert(QStringLiteral("windows"), c.windowChips);
-    out.insert(QStringLiteral("window"), c.win.key);
+    out.custom = custom;
+    out.windows = c.windowChips;
+    out.window = c.win.key;
     QString band = c.in->band;
     if (band == QLatin1String("middle half")) band = QStringLiteral("middle");
     if (band == QLatin1String("every shot")) band = QStringLiteral("every");
     if (band == QLatin1String("group fit")) band = QStringLiteral("fit");
     if (band != QLatin1String("every") && band != QLatin1String("fit")) band = QStringLiteral("middle");
-    QVariantList bands;
+    const auto option = [](const char *id, const char *label, bool current) {
+        T::OptionChoice o;
+        o.id = QString::fromLatin1(id);
+        o.label = QString::fromLatin1(label);
+        o.current = current;
+        return o;
+    };
     for (const auto &b : { std::pair{ "middle", "middle half" }, std::pair{ "every", "every shot" }, std::pair{ "fit", "group fit" } })
-        bands << QVariantMap{ { QStringLiteral("id"), QString::fromLatin1(b.first) }, { QStringLiteral("label"), QString::fromLatin1(b.second) },
-                              { QStringLiteral("current"), band == QLatin1String(b.first) } };
-    out.insert(QStringLiteral("bands"), bands);
+        out.bands << option(b.first, b.second, band == QLatin1String(b.first));
     // how Session lines the shots up (§2.2.1)
     const QString align = c.in->align == QLatin1String("impact") ? QStringLiteral("impact") : QStringLiteral("p");
-    QVariantList aligns;
     for (const auto &a : { std::pair{ "p", "P-positions" }, std::pair{ "impact", "impact" } })
-        aligns << QVariantMap{ { QStringLiteral("id"), QString::fromLatin1(a.first) }, { QStringLiteral("label"), QString::fromLatin1(a.second) },
-                               { QStringLiteral("current"), align == QLatin1String(a.first) } };
-    out.insert(QStringLiteral("aligns"), aligns);
-    QVariantList facets;
+        out.aligns << option(a.first, a.second, align == QLatin1String(a.first));
     const auto addF = [&](const QString &id, const QString &label, const QString &kind, int n) {
-        facets << QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label }, { QStringLiteral("kind"), kind },
-                               { QStringLiteral("n"), n }, { QStringLiteral("current"), c.in->facet == id } };
+        T::FacetChoice f;
+        f.id = id;
+        f.label = label;
+        f.kind = kind;
+        f.n = n;
+        f.current = c.in->facet == id;
+        out.facets << f;
     };
     addF(QString(), QStringLiteral("none"), QStringLiteral("none"), c.snap ? c.snap->count() : 0);
     if (c.snap && c.snap->count() >= 6) addF(QStringLiteral("half"), QStringLiteral("halves"), QStringLiteral("half"), c.snap->count());
@@ -3397,16 +3547,19 @@ void buildChoices(Ctx &c, ChartsTracesPresenter::Result &R)
     if (c.snap && c.snap->count() >= 6 && std::isfinite(c.t0) && shapeOf(c).found)
         addF(QStringLiteral("shape"), QStringLiteral("by shape"), QStringLiteral("shape"), c.snap->count());
     if (c.w->clubFacet) addF(QStringLiteral("club"), QStringLiteral("club"), QStringLiteral("club"), int(c.w->clubFacet->groups.size()));
-    out.insert(QStringLiteral("facets"), facets);
+
     // Against, with what each would refer to, and why one is not available
     const int n = c.snap ? c.snap->count() : 0;
     const bool sessionOk = n >= 3 && alignedCount(c) >= 3 && c.aligned && !c.grid.empty();
     const QString sessionWhy = !c.aligned ? QStringLiteral("this shot has no impact") : refusedSessionWhy(c);
-    QVariantList ag;
     const auto addA = [&](const QString &id, const QString &label, bool enabled, const QString &why) {
-        ag << QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label },
-                           { QStringLiteral("current"), (c.in->against.isEmpty() ? QStringLiteral("none") : c.in->against) == id },
-                           { QStringLiteral("enabled"), enabled }, { QStringLiteral("why"), enabled ? QString() : why } };
+        T::AgainstChoice a;
+        a.id = id;
+        a.label = label;
+        a.current = (c.in->against.isEmpty() ? QStringLiteral("none") : c.in->against) == id;
+        a.enabled = enabled;
+        a.why = enabled ? QString() : why;
+        out.against << a;
     };
     addA(QStringLiteral("none"), QStringLiteral("nothing"), true, QString());
     // the ★ reference first (the picker lists it first): any session's swing, so no session is needed
@@ -3435,8 +3588,7 @@ void buildChoices(Ctx &c, ChartsTracesPresenter::Result &R)
     }
     addA(QStringLiteral("like"), likeN > 0 ? QStringLiteral("shots like this one (%1)").arg(likeN) : QStringLiteral("shots like this one"), likeN >= 3,
          QStringLiteral("the session does not split into two shapes of three or more"));
-    out.insert(QStringLiteral("against"), ag);
-    out.insert(QStringLiteral("difference"), c.in->difference);
+    out.difference = c.in->difference;
     R.choices = out;
 }
 
@@ -3509,16 +3661,20 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
         c.aligned = c.warp.aligned();
         c.seq = shotSequence(*c.shot);
     }
-    // the ★ reference swing, whenever one is set (Against lists it whatever is picked)
-    if (!in.referenceSwingDir.trimmed().isEmpty()) {
-        c.ref = referenceShot(w, in.referenceSwingDir, c.snap, &c.refWhy);
-        if (c.ref) {
-            c.refLabel = referenceLabelOf(c.ref->swingDir);
-            c.refIsPicked = c.shot && cleanDir(c.ref->swingDir) == cleanDir(c.shot->swingDir);
-            if (c.shot) c.refWarp = warpOnto(*c.ref, *c.shot);
-        }
-    } else {
-        c.refWhy = QStringLiteral("No reference swing is set: ★ marks one, and it stays your reference across sessions.");
+    // the ★ reference swing, whenever one is set (Against lists it whatever is picked): picked on the GUI thread when the
+    // job was asked for (referencePickOf), through the ★'s own session's series, never read by folder here
+    c.ref = in.reference.shot;
+    c.refWhy = in.reference.why;
+    if (c.ref) {
+        // one of this session's shots: the job's own copy of it (a from-address preset reads the rebased session), so
+        // the ★ is drawn as the session's shots are and is still that shot of the session
+        const QString refDir = cleanDir(c.ref->swingDir);
+        if (c.snap)
+            for (const auto &s : c.snap->shots)
+                if (s && cleanDir(s->swingDir) == refDir) { c.ref = s; break; }
+        c.refLabel = referenceLabelOf(c.ref->swingDir);
+        c.refIsPicked = c.shot && cleanDir(c.ref->swingDir) == cleanDir(c.shot->swingDir);
+        if (c.shot) c.refWarp = warpOnto(*c.ref, *c.shot);
     }
     resolvePreset(c);
     if (fromAddr && c.preset == in.preset) c.fromAddressKeys = relKeys;
@@ -3530,14 +3686,15 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
     const qint64 shotNs = part.nsecsElapsed();
     part.restart();
     if (in.view != QLatin1String("session")) buildReference(c, *R);
-    else R->reference = QVariantMap{ { QStringLiteral("mode"), in.against }, { QStringLiteral("active"), false } };
+    else { R->reference = T::Reference{}; R->reference.mode = in.against; R->reference.active = false; }
     const qint64 refNs = part.nsecsElapsed();
     part.restart();
     if (in.view != QLatin1String("shot")) buildSession(c, *R);
     else {
         // not drawn on This shot, but the tab row still counts it, so the label does not jump on a tab change
-        R->session = QVariantMap{ { QStringLiteral("available"), false } };
-        if (sessionDrawable(c)) R->session.insert(QStringLiteral("tabCount"), c.snap->count());
+        R->session = T::Session{};
+        R->session.available = false;
+        if (sessionDrawable(c)) R->session.tabCount = c.snap->count();
     }
     const qint64 sesNs = part.nsecsElapsed();
     buildChoices(c, *R);
@@ -3552,9 +3709,12 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
     R->now.warps = w.alignment.shots;
     for (const QString &k : c.sessionKeys) R->now.aligned.insert(k, w.alignedOf(k));
 
-    R->timings = QVariantMap{ { QStringLiteral("jobMs"), all.nsecsElapsed() / 1e6 }, { QStringLiteral("thisShotMs"), shotNs / 1e6 },
-                              { QStringLiteral("referenceMs"), refNs / 1e6 }, { QStringLiteral("sessionMs"), sesNs / 1e6 },
-                              { QStringLiteral("cacheHit"), hit }, { QStringLiteral("revision"), qulonglong(w.revision) } };
+    R->timings.jobMs = all.nsecsElapsed() / 1e6;
+    R->timings.thisShotMs = shotNs / 1e6;
+    R->timings.referenceMs = refNs / 1e6;
+    R->timings.sessionMs = sesNs / 1e6;
+    R->timings.cacheHit = hit;
+    R->timings.revision = w.revision;
     return R;
 }
 
@@ -3580,12 +3740,38 @@ SeriesSource *ChartsTracesPresenter::model() const { return m_model.data(); }
 void ChartsTracesPresenter::setModel(SeriesSource *m)
 {
     if (m_model == m) return;
-    if (m_model) disconnect(m_model, nullptr, this, nullptr);
+    SeriesSource *old = m_model.data();
     m_model = m;
-    if (m)
-        connect(m, &SeriesSource::snapshotChanged, this, &ChartsTracesPresenter::onSnapshotChanged);
+    rewireSources(old);
     emit inputsChanged();
     schedule();
+}
+
+SeriesSource *ChartsTracesPresenter::referenceModel() const { return m_referenceModel.data(); }
+
+void ChartsTracesPresenter::setReferenceModel(SeriesSource *m)
+{
+    if (m_referenceModel == m) return;
+    SeriesSource *old = m_referenceModel.data();
+    m_referenceModel = m;
+    rewireSources(old);
+    emit inputsChanged();
+    schedule();
+}
+
+void ChartsTracesPresenter::rewireSources(SeriesSource *old)
+{
+    // Cut every connection from the old source and the current two, then make each role's once: the ★'s series is
+    // usually this session's own, and its snapshot is then one trigger, not two. The ★'s series also re-runs the job
+    // when it stops being busy, so a ★ that was still being read is drawn once its session has been read.
+    for (SeriesSource *s : { old, m_model.data(), m_referenceModel.data() })
+        if (s) disconnect(s, nullptr, this, nullptr);
+    if (m_model)
+        connect(m_model, &SeriesSource::snapshotChanged, this, &ChartsTracesPresenter::onSnapshotChanged, Qt::UniqueConnection);
+    if (m_referenceModel) {
+        connect(m_referenceModel, &SeriesSource::snapshotChanged, this, &ChartsTracesPresenter::onSnapshotChanged, Qt::UniqueConnection);
+        connect(m_referenceModel, &SeriesSource::busyChanged, this, &ChartsTracesPresenter::onSnapshotChanged, Qt::UniqueConnection);
+    }
 }
 
 void ChartsTracesPresenter::onSnapshotChanged() { schedule(); }
@@ -3641,33 +3827,22 @@ void ChartsTracesPresenter::setPlayheadUs(qint64 us)
     if (m_playheadUs == us) return;
     m_playheadUs = us;
     emit playheadChanged();
-    if (!m_synchronous || !m_dirty) updateNow(false);
+    if (!m_sched.synchronous() || !m_sched.dirty()) updateNow(false);
 }
 
-QVariantMap ChartsTracesPresenter::choices() { flushIfSynchronous(); return m_result ? m_result->choices : QVariantMap{}; }
-QVariantMap ChartsTracesPresenter::thisShot() { flushIfSynchronous(); return m_result ? m_result->thisShot : QVariantMap{}; }
-QVariantMap ChartsTracesPresenter::reference() { flushIfSynchronous(); return m_result ? m_result->reference : QVariantMap{}; }
-QVariantMap ChartsTracesPresenter::session() { flushIfSynchronous(); return m_result ? m_result->session : QVariantMap{}; }
-QVariantMap ChartsTracesPresenter::now() { flushIfSynchronous(); return m_now; }
-
-void ChartsTracesPresenter::schedule()
-{
-    m_dirty = true;
-    if (m_synchronous || m_scheduled) return;
-    m_scheduled = true;
-    QMetaObject::invokeMethod(this, &ChartsTracesPresenter::startJob, Qt::QueuedConnection);
-}
+T::Choices ChartsTracesPresenter::choices() { flushIfSynchronous(); return m_result ? m_result->choices : T::Choices{}; }
+T::ThisShot ChartsTracesPresenter::thisShot() { flushIfSynchronous(); return m_result ? m_result->thisShot : T::ThisShot{}; }
+T::Reference ChartsTracesPresenter::reference() { flushIfSynchronous(); return m_result ? m_result->reference : T::Reference{}; }
+T::Session ChartsTracesPresenter::session() { flushIfSynchronous(); return m_result ? m_result->session : T::Session{}; }
+T::Now ChartsTracesPresenter::now() { flushIfSynchronous(); return m_now; }
 
 void ChartsTracesPresenter::startJob()
 {
-    m_scheduled = false;
-    if (m_synchronous) return;
-    if (m_running) return;            // apply() re-runs it, dirty
+    if (!m_sched.begin()) return;     // synchronous, or a job in flight: apply() re-runs it, dirty
     followNormSave();
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
-    m_dirty = false;
-    m_running = true;
+    in.reference = referencePickOf(m_in.referenceSwingDir, m_referenceModel.data(), in.snapshot, m_refMemo);
     emit busyChanged();
     auto w = m_worker;
     askLane(m_pool, [w, in]() { return computeAll(*w, in); },
@@ -3676,23 +3851,21 @@ void ChartsTracesPresenter::startJob()
 
 void ChartsTracesPresenter::apply(std::shared_ptr<Result> r)
 {
-    const bool wasRunning = m_running;
-    m_running = false;
+    const bool wasRunning = m_sched.land();
     m_result = std::move(r);
     m_timings = m_result->timings;
     emit resultsChanged();
     updateNow(true);
-    if (m_dirty && !m_synchronous) startJob();
-    else if (wasRunning) emit busyChanged();
+    m_sched.afterLanding(wasRunning);
 }
 
 void ChartsTracesPresenter::flushIfSynchronous()
 {
-    if (!m_synchronous || !m_dirty) return;
-    m_dirty = false;
+    if (!m_sched.takeFlush()) return;
     followNormSave();
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
+    in.reference = referencePickOf(m_in.referenceSwingDir, m_referenceModel.data(), in.snapshot, m_refMemo);
     apply(computeAll(*m_worker, in));
 }
 
@@ -3713,45 +3886,37 @@ void ChartsTracesPresenter::setVariabilityScalesForTest(std::shared_ptr<const IV
     m_pool.waitForDone();
     m_ownScales = false;
     m_worker->scales = std::move(scales);
-    m_dirty = true;
+    m_sched.markDirty();
     schedule();
 }
 
 void ChartsTracesPresenter::setSynchronous(bool on)
 {
-    if (m_synchronous == on) return;
+    if (m_sched.synchronous() == on) return;
     if (on) m_pool.waitForDone();
-    m_synchronous = on;
-    m_dirty = true;
+    m_sched.setSynchronousFlag(on);
+    m_sched.markDirty();
     if (!on) schedule();
 }
 
 bool ChartsTracesPresenter::waitForIdle(int msTimeout)
 {
-    if (m_synchronous) { flushIfSynchronous(); return true; }
-    QDeadlineTimer deadline(msTimeout);
-    while ((m_running || m_scheduled || m_dirty) && !deadline.hasExpired()) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-        m_pool.waitForDone(20);
-    }
-    QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-    return !m_running && !m_scheduled && !m_dirty;
+    return m_sched.waitForIdle(m_pool, msTimeout, [this] { flushIfSynchronous(); });
 }
 
 // ── the playhead and the pointer: GUI-thread lookups into the cached arrays ─────────────────
 
 void ChartsTracesPresenter::updateNow(bool force)
 {
-    QVariantMap out;
     const NowCache *nc = m_result ? &m_result->now : nullptr;
     if (!nc || !nc->hasShot || m_playheadUs < 0) {
-        out.insert(QStringLiteral("valid"), false);
-        if (force || m_now != out) { m_now = out; emit nowChanged(); }
+        // { valid: false } and nothing else: a change only when the last one said something
+        if (force || m_now.valid || !m_now.rows.isEmpty()) { m_now = T::Now{}; emit nowChanged(); }
         return;
     }
     const double shotMs = nc->impactUs >= 0 ? double(m_playheadUs - nc->impactUs) / 1000.0 : double(m_playheadUs) / 1000.0;
     const double canonMs = nc->pickedAligned ? nc->pickedWarp.warpMs(shotMs) : kNaN;
-    QVariantList rows;
+    QList<T::NowRow> rows;
     QString sig = W::signedMs(shotMs);
     for (const NowRow &r : nc->rows) {
         double v = kNaN;
@@ -3769,16 +3934,28 @@ void ChartsTracesPresenter::updateNow(bool force)
         const QString typT = W::figUnit(typ, r.unit), refT = r.refT.empty() ? QString() : W::figUnit(ref, r.unit);
         const QString gapT = std::isfinite(v) && std::isfinite(ref) ? W::figSigned(v - ref, r.unit) : (r.refT.empty() ? QString() : QStringLiteral("-"));
         sig += QLatin1Char('|') + text + addr + typT + refT + gapT;
-        rows << QVariantMap{ { QStringLiteral("key"), r.key }, { QStringLiteral("value"), v }, { QStringLiteral("text"), text },
-                             { QStringLiteral("measured"), measured }, { QStringLiteral("addrText"), addr },
-                             { QStringLiteral("typical"), typ }, { QStringLiteral("typicalText"), r.medT.empty() ? QString() : typT },
-                             { QStringLiteral("refText"), refT }, { QStringLiteral("gapText"), gapT } };
+        T::NowRow row;
+        row.key = r.key;
+        row.value = v;
+        row.text = text;
+        row.measured = measured;
+        row.addrText = addr;
+        row.typical = typ;
+        row.typicalText = r.medT.empty() ? QString() : typT;
+        row.refText = refT;
+        row.gapText = gapT;
+        rows << row;
     }
-    out = QVariantMap{ { QStringLiteral("valid"), true }, { QStringLiteral("us"), m_playheadUs }, { QStringLiteral("shotMs"), shotMs },
-                       { QStringLiteral("canonMs"), canonMs }, { QStringLiteral("when"), W::signedMs(shotMs) },
-                       { QStringLiteral("rows"), rows }, { QStringLiteral("sig"), sig } };
     // throttled to changes of a printed value: the playhead moving inside one sample says nothing new
-    if (!force && m_now.value(QStringLiteral("sig")).toString() == sig) return;
+    if (!force && m_now.sig == sig) return;
+    T::Now out;
+    out.valid = true;
+    out.us = m_playheadUs;
+    out.shotMs = shotMs;
+    out.canonMs = canonMs;
+    out.when = W::signedMs(shotMs);
+    out.rows = rows;
+    out.sig = sig;
     m_now = out;
     emit nowChanged();
 }
@@ -3806,9 +3983,10 @@ double ChartsTracesPresenter::canonMsForShotMs(double shotMs) const
     return nc && nc->pickedAligned ? nc->pickedWarp.warpMs(shotMs) : kNaN;
 }
 
-QVariantMap ChartsTracesPresenter::shotAt(const QString &key, double canonMs, double value) const
+T::ShotHit ChartsTracesPresenter::shotAt(const QString &key, double canonMs, double value) const
 {
-    QVariantMap out{ { QStringLiteral("found"), false } };
+    T::ShotHit out;
+    out.found = false;
     const NowCache *nc = m_result ? &m_result->now : nullptr;
     if (!nc || !nc->snapshot) return out;
     const auto it = nc->aligned.constFind(key);
@@ -3823,16 +4001,20 @@ QVariantMap ChartsTracesPresenter::shotAt(const QString &key, double canonMs, do
     }
     if (ord <= 0 || ord > nc->snapshot->count()) return out;
     const ShotSeries &s = *nc->snapshot->shots[size_t(ord - 1)];
-    return { { QStringLiteral("found"), true }, { QStringLiteral("ordinal"), ord }, { QStringLiteral("shotId"), s.shotId },
-             { QStringLiteral("swingDir"), s.swingDir }, { QStringLiteral("value"), bv } };
+    out.found = true;
+    out.ordinal = ord;
+    out.shotId = s.shotId;
+    out.swingDir = s.swingDir;
+    out.value = bv;
+    return out;
 }
 
-QVariantMap ChartsTracesPresenter::hoverAt(double shotMs) const
+T::Hover ChartsTracesPresenter::hoverAt(double shotMs) const
 {
+    T::Hover out;          // invalid: shotMs NaN, so no crosshair is drawn
     const NowCache *nc = m_result ? &m_result->now : nullptr;
-    if (!nc || !nc->hasShot || !std::isfinite(shotMs)) return QVariantMap{ { QStringLiteral("valid"), false } };
+    if (!nc || !nc->hasShot || !std::isfinite(shotMs)) return out;
     const qint64 us = (nc->impactUs >= 0 ? nc->impactUs : 0) + qint64(std::llround(shotMs * 1000.0));
-    QVariantList rows;
     for (const NowRow &r : nc->rows) {
         QString text = QStringLiteral("-"), raw, trustSubj;
         bool measured = false;
@@ -3850,12 +4032,22 @@ QVariantMap ChartsTracesPresenter::hoverAt(double shotMs) const
             if (!gw.isEmpty()) text = gw;
             else trustSubj.clear();
         }
-        rows << QVariantMap{ { QStringLiteral("key"), r.key }, { QStringLiteral("label"), r.label }, { QStringLiteral("text"), text },
-                             { QStringLiteral("raw"), raw }, { QStringLiteral("measured"), measured }, { QStringLiteral("grossWarn"), r.grossWarn },
-                             { QStringLiteral("trust"), trustSubj } };
+        T::HoverRow row;
+        row.key = r.key;
+        row.label = r.label;
+        row.text = text;
+        row.raw = raw;
+        row.measured = measured;
+        row.grossWarn = r.grossWarn;
+        row.trust = trustSubj;
+        out.rows << row;
     }
-    return { { QStringLiteral("valid"), true }, { QStringLiteral("shotMs"), shotMs },
-             { QStringLiteral("when"), W::signedMs(shotMs) + QStringLiteral(" · impact") }, { QStringLiteral("rows"), rows } };
+    out.valid = true;
+    out.shotMs = shotMs;
+    out.when = W::signedMs(shotMs) + QStringLiteral(" · impact");
+    return out;
 }
 
 } // namespace pinpoint::charts
+
+#include "moc_charts_traces_types.cpp"

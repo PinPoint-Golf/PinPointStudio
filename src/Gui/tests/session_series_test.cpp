@@ -30,6 +30,8 @@
 //   EVT21      a declared club reads that shot again and shows it
 //   EVT02      a re-analysis reads its shot whatever its stamp says
 //   EVT22      a late part's rewrite reads that shot again
+//   ALONE      EVT05, EVT21 and EVT22 on a Session with no diagnostics owner: only the series' own listeners can read the
+//              shot again (refactor 5.5c; review 5.5b m2)
 //   EVT03      a trashed swing leaves the snapshot
 //   EVT13      a saved pack edit republishes at once (no relaunch)
 //   BOUND      a third series read empties the oldest one nobody listens to
@@ -96,6 +98,7 @@ struct GatedReader final : SeriesReader {
         cv->wait(lk, [this] { return *open; });
         return inner->analysis(s);
     }
+    SeriesRead document(const ShotRef &s) const override { return inner->document(s); }
     void release() const { { std::lock_guard<std::mutex> lk(*m); *open = true; } cv->notify_all(); }
 };
 
@@ -242,7 +245,7 @@ int main(int argc, char **argv)
             emit cs->captureCompleted(cs->ref());
         }
         (void)series->snapshot();
-        check(QStringLiteral("EVT22   that shot read again"), cs && series->loadStats().docReads >= before22 + 1);
+        check(QStringLiteral("EVT22   that shot read again, once"), cs && series->loadStats().docReads == before22 + 1);
     }
 
     std::printf("\nEVT03 — a trashed swing leaves\n");
@@ -250,6 +253,70 @@ int main(int argc, char **argv)
     const WriteResult t = s->trashShot(ShotRef(s->id(), snap->shots.back()->shotId));
     snap = series->snapshot();
     check(QStringLiteral("EVT03   trashed, and one shot fewer"), t.ok() && snap->count() == before3 - 1);
+
+    // THE SERIES' OWN LISTENERS (refactor 5.5c; review 5.5b m2). In the rig above the Session's diagnostics owner hears
+    // EVT-05, 21 and 22 too, and its synchronous diagnosis then emits diagnosisApplied, which also schedules the series:
+    // so those checks would pass with the series' own connections deleted. Here the Session has NO diagnostics owner —
+    // the attach makes only its series — so only the series' own listeners can read the shot again.
+    std::printf("\nALONE — EVT05, EVT21, EVT22 with no diagnostics owner to mask them\n");
+    {
+        QTemporaryDir tmpA;
+        owner_rig::ViewRig rigA(QDir(tmpA.path()).filePath(QStringLiteral("lib/Alone-Golfer")));
+        charts::SeriesDoors doorsA = doors;
+        doorsA.reader = std::make_shared<SwingStoreSeriesReader>(rigA.store);
+        DiagnosticsDoors dA = rigA.athlete->diagnosticsDoors();
+        dA.attach = [doorsA](Session *x, const DiagnosticsDoors &) {
+            SessionSeries::attach(x, doorsA);
+            return static_cast<SessionDiagnostics *>(nullptr);
+        };
+        rigA.athlete->setDiagnosticsDoors(dA);
+        Session *sa = rigA.startLive();
+        SessionSeries *alone = sa ? SessionSeries::of(sa) : nullptr;
+        check(QStringLiteral("ALONE   a Session with a series and no diagnostics owner"), alone && sa->diagnostics() == nullptr);
+        if (alone) {
+            for (const char *f : { "rich_7iron", "lm_7iron" }) rigA.addLive(sa, fixture(f));
+            std::shared_ptr<const SessionSnapshot> sn = alone->snapshot();
+            std::shared_ptr<const charts::ShotSeries> lmA;
+            for (const auto &x : sn->shots)
+                for (const QString &k : x->metricOrder) if (k.startsWith(QLatin1String("lm."))) { lmA = x; break; }
+            check(QStringLiteral("ALONE   two shots, one with launch monitor series"), sn->count() == 2 && lmA != nullptr);
+            if (lmA) {
+                Shot *ls = sa->shot(ShotRef(sa->id(), lmA->shotId));
+                int before = alone->loadStats().docReads;
+                const WriteResult w5 = ls ? ls->excludeReading(true) : WriteResult{};
+                sn = alone->snapshot();
+                bool anyLm = false;
+                for (const auto &x : sn->shots)
+                    if (x->shotId == lmA->shotId) for (const QString &k : x->metricOrder) anyLm = anyLm || k.startsWith(QLatin1String("lm."));
+                check(QStringLiteral("ALONE   EVT05 left out: that shot read again, by the series alone"), w5.ok() && alone->loadStats().docReads == before + 1);
+                check(QStringLiteral("ALONE   EVT05 and its monitor series are gone"), !anyLm);
+
+                Shot *ds = sa->shot(ShotRef(sa->id(), sn->shots.front()->shotId));
+                before = alone->loadStats().docReads;
+                const WriteResult w21 = ds ? ds->setDeclaredClub(QStringLiteral("8 IRON")) : WriteResult{};
+                sn = alone->snapshot();
+                check(QStringLiteral("ALONE   EVT21 declared: that shot read again, by the series alone"), w21.ok() && alone->loadStats().docReads == before + 1);
+                check(QStringLiteral("ALONE   EVT21 and shows the declared club (%1)").arg(sn->shots.front()->club),
+                      sn->shots.front()->club.contains(QLatin1String("8"), Qt::CaseInsensitive));
+
+                Shot *cs = sa->shot(ShotRef(sa->id(), sn->shots.front()->shotId));
+                before = alone->loadStats().docReads;
+                if (cs) {
+                    for (const QString &name : QDir(cs->folder()).entryList({ QStringLiteral("swing.ppsw"), QStringLiteral("swing.json") }, QDir::Files)) {
+                        QFile f(QDir(cs->folder()).filePath(name));
+                        if (f.open(QIODevice::ReadWrite)) {
+                            f.setFileTime(QDateTime::currentDateTimeUtc().addSecs(120), QFileDevice::FileModificationTime);
+                            f.close();
+                        }
+                    }
+                    emit cs->captureCompleted(cs->ref());
+                }
+                (void)alone->snapshot();
+                check(QStringLiteral("ALONE   EVT22 a late part: that shot read again, once, by the series alone"),
+                      cs && alone->loadStats().docReads == before + 1);
+            }
+        }
+    }
 
     std::printf("\nEVT13 — a saved pack edit\n");
     const quint64 rev13 = snap->revision;

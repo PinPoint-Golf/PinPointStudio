@@ -42,8 +42,11 @@
 #include <QtQuickTest>
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QSettings>
@@ -259,9 +262,13 @@ public:
                     p->setSnapshot(s);
                     // the picture strip's document for every shot (data/posture/picture_doc.json, a real re-analysed
                     // swing trimmed; no video, so the frames draw their lines on an empty frame)
-                    if (opts.value(QStringLiteral("picture")).toBool())
-                        for (const auto &sh : s->shots)
-                            p->setPictureDocumentForTest(sh->swingDir, QStringLiteral(QUICK_TEST_SOURCE_DIR "/../data/posture/picture_doc.json"));
+                    if (opts.value(QStringLiteral("picture")).toBool()) {
+                        // the test reads its own fixture: the presenter opens no file (refactor 5.5c)
+                        const QString file = QStringLiteral(QUICK_TEST_SOURCE_DIR "/../data/posture/picture_doc.json");
+                        QFile f(file);
+                        const QJsonObject root = f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject{};
+                        for (const auto &sh : s->shots) p->setPictureDocumentForTest(sh->swingDir, root, file);
+                    }
                 }
                 else {
                     auto e = std::make_shared<SessionSnapshot>();

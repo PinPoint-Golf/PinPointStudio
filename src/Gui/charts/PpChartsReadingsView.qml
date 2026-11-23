@@ -54,7 +54,7 @@ PpChViewBase {
             const rows = (g.rows || []).filter(function (r) {
                 return String(r.label || "").toLowerCase().indexOf(f) >= 0 || String(r.short || "").toLowerCase().indexOf(f) >= 0
                        || String(g.name || "").toLowerCase().indexOf(f) >= 0 })
-            if (rows.length) out.push(Object.assign({}, g, { rows: rows }))
+            if (rows.length) out.push({ name: g.name, rows: rows })     // a group is its name and rows (a typed value: no Object.assign)
         }
         return out
     }
@@ -64,7 +64,7 @@ PpChViewBase {
         const out = []
         for (const g of named) {
             const rows = (g.rows || []).filter(function (r) { return rv.inVerdict(r, rv.verdict) })
-            if (rows.length) out.push(Object.assign({}, g, { rows: rows }))
+            if (rows.length) out.push({ name: g.name, rows: rows })
         }
         return out
     }

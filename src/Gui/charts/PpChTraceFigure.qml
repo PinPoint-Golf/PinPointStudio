@@ -415,7 +415,7 @@ Item {
                                     ctx.stroke()
                                 }
                                 MouseArea { anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor
-                                            readonly property string subject: "ks." + pk.modelData.seg
+                                            readonly property string subject: pk.p.trustSubject || ""
                                             onClicked: tf.trustClicked(subject) }
                             }
                             Rectangle {

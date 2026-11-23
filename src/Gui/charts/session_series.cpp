@@ -79,6 +79,59 @@ struct JobOut {
     qint64                                                   wallMs = 0;
 };
 
+// THE SNAPSHOT'S READ DOOR (refactor 5.5c; SnapshotShotReader, session_series_types.h): the session's own shots by
+// folder, each read through the series' SeriesReader by its ShotRef. A folder that is not one of them reads nothing.
+class SeriesShotDoor final : public SnapshotShotReader
+{
+public:
+    SeriesShotDoor(std::shared_ptr<const pinpoint::SeriesReader> reader, QHash<QString, pinpoint::ShotRef> refs)
+        : m_reader(std::move(reader)), m_refs(std::move(refs)) {}
+
+    SnapshotShotRead stamp(const QString &swingDir) const override
+    {
+        SnapshotShotRead out;
+        const pinpoint::ShotRef *ref = refOf(swingDir, &out);
+        if (!ref) return out;
+        const pinpoint::DocumentStamp st = m_reader->stamp(*ref);
+        out.exists = st.exists; out.size = st.size; out.mtimeMs = st.mtimeMs;
+        return out;
+    }
+    SnapshotShotRead analysis(const QString &swingDir) const override
+    {
+        SnapshotShotRead out;
+        const pinpoint::ShotRef *ref = refOf(swingDir, &out);
+        return ref ? of(m_reader->analysis(*ref)) : out;
+    }
+    SnapshotShotRead document(const QString &swingDir) const override
+    {
+        SnapshotShotRead out;
+        const pinpoint::ShotRef *ref = refOf(swingDir, &out);
+        return ref ? of(m_reader->document(*ref)) : out;
+    }
+
+private:
+    const pinpoint::ShotRef *refOf(const QString &swingDir, SnapshotShotRead *out) const
+    {
+        const auto it = m_refs.constFind(QDir::cleanPath(swingDir.trimmed()));
+        if (it == m_refs.constEnd() || !m_reader) {
+            out->error = QStringLiteral("not one of this session's shots");
+            return nullptr;
+        }
+        return &it.value();
+    }
+    static SnapshotShotRead of(pinpoint::SeriesRead &&r)
+    {
+        SnapshotShotRead out;
+        out.exists = r.stamp.exists; out.size = r.stamp.size; out.mtimeMs = r.stamp.mtimeMs;
+        out.root = std::move(r.root);
+        out.error = std::move(r.error);
+        return out;
+    }
+
+    std::shared_ptr<const pinpoint::SeriesReader> m_reader;
+    QHash<QString, pinpoint::ShotRef>             m_refs;   // by cleaned folder
+};
+
 bool sameSkips(const std::vector<SeriesSkip> &a, const std::vector<SeriesSkip> &b)
 {
     if (a.size() != b.size()) return false;
@@ -171,6 +224,11 @@ JobOut runSeriesJob(const JobIn &in)
         snap->shots.push_back(pub);
     }
     seriesLinkConditions(*snap, pack);
+    {
+        QHash<QString, pinpoint::ShotRef> refs;
+        for (const JobShot &s : in.shots) refs.insert(s.folder, s.ref);
+        snap->reader = std::make_shared<SeriesShotDoor>(in.reader, std::move(refs));
+    }
 
     const bool same = in.last && in.last->sessionDir == snap->sessionDir && in.last->shots == snap->shots
                    && in.last->tiers == snap->tiers && in.last->workOnOrder == snap->workOnOrder
@@ -394,6 +452,14 @@ void SessionSeries::start()
     }
     m_lane.ask([in = std::move(in)]() { return std::any(std::make_shared<JobOut>(runSeriesJob(in))); },
                [apply](std::any &&v) { apply(std::move(*std::any_cast<std::shared_ptr<JobOut>>(v))); });
+}
+
+QString SessionSeries::skipReasonOf(const QString &swingDir) const
+{
+    const QString dir = QDir::cleanPath(swingDir.trimmed());
+    for (const SeriesSkip &k : m_skipped)
+        if (QDir::cleanPath(k.swingDir) == dir) return k.reason.isEmpty() ? QStringLiteral("the swing could not be read") : k.reason;
+    return {};
 }
 
 bool SessionSeries::waitForIdle(int msTimeout)

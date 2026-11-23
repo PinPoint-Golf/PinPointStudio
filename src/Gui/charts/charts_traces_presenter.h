@@ -19,6 +19,7 @@
 #pragma once
 
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
+#include "charts_traces_types.h"     // the typed results (refactor 5.5c)
 #include "session_series_types.h"
 #include "session_traces.h"
 #include "session_warp.h"
@@ -28,7 +29,6 @@
 #include <QString>
 #include <QStringList>
 #include "charts_presenter_core.h"   // the one base and idiom (refactor 5.5a)   // the jobs' shared pool: destroying a presenter never waits (#173)
-#include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
@@ -61,8 +61,8 @@ class TimelineLabels;
 // ── THREADING (STEP2A, the series' pattern) ──────────────────────────────────────
 // Any input change or snapshot change schedules ONE coalesced recompute (posted, so a burst of
 // property writes in one event-loop turn costs one job) on a private single-thread pool. The job
-// reads an immutable snapshot and the choices, and returns complete QVariantMaps that are swapped
-// in by a queued invocation; `resultsChanged` fires once per delivered job. A change arriving while
+// reads an immutable snapshot and the choices, and returns complete typed values (charts_traces_types.h)
+// that are swapped in by a queued invocation; `resultsChanged` fires once per delivered job. A change arriving while
 // a job runs marks the presenter dirty and re-runs once the job lands. setSynchronous(true) runs
 // the same job inline when an output is next read (tests).
 //
@@ -75,8 +75,14 @@ class TimelineLabels;
 // search per row, no QVariant marshalling of series), and `nowChanged` fires only when a printed
 // value changed — never a recompute per frame.
 //
-// ── OUTPUT SHAPES (every row a QVariantMap with stable keys) ─────────────────────────────────
-// A Sentence is words::Sentence::toVariant(): { text, runs: [{ text, fig }] } (empty text = none).
+// ── OUTPUT SHAPES (refactor 5.5c: Q_GADGET values, charts_traces_types.h, each property named as the key below) ──
+// The shapes below are the gadgets' fields. Besides them: a row carries `estimate` (the chest's fit across the gap,
+// or null), `blind` (the stretches a gate could not see, [{ t0, t1, gate, label, subject }]) and `trustSubject`; a
+// card `stub` (a refused reading); thisShot `trust` (the readings a gate touched) and `window.hasImpact`; a peak
+// `trustSubject` (the reading its unplaced ring opens); a session tick `landmark` ("impact" | "top" | ""); session
+// `tabCount`, `alignedAt` and `trustLines`; choices `aligns` and `fromAddress`; now `sig`. An object a reader tests
+// for presence (thisShot.window, estimate, panel.alt, row.picked, typicality, sequence.checks) is null when absent.
+// A Sentence is { text, runs: [{ text, fig }], clause } (empty text = none).
 // Numeric arrays are QList<double> (QML sees a JS array; NaN = missing, draw nothing there).
 // A TICK LIST is [{ v, text }]: the value and its figure text (U+2212 minus; time axes signed "+50").
 // A BRIDGE LIST is [{ t0, v0, t1, v1 }]: a dashed straight line across a run of samples that are not
@@ -237,19 +243,22 @@ class ChartsTracesPresenter : public QObject
     // This shot and Against keep the P-alignment whatever this says.
     Q_PROPERTY(QString align READ align WRITE setAlign NOTIFY inputsChanged)
     // ADDED 15 Oct (build/wrist-tab): the ★ reference swing for Against "reference" — a swing dir in ANY
-    // session (QML binds appSettings.wristReferenceSwingDir). Read off the GUI thread through
-    // SwingStore::loadAnalysis + extractShot, cached by its document stamp, and lined
-    // up on the picked shot's own clock by their shared P-positions (warpAgainst). "" = none set.
+    // session (QML binds appSettings.wristReferenceSwingDir), lined up on the picked shot's own clock by their
+    // shared P-positions (warpAgainst). "" = none set.
     Q_PROPERTY(QString referenceSwingDir READ referenceSwingDir WRITE setReferenceSwingDir NOTIFY inputsChanged)
+    // The ★ swing's own session's series (refactor 5.5c): this session's when the ★ is one of its shots, else the
+    // series of the Session that holds it (the panel's referenceSeries). The ★ is picked from it on the GUI thread
+    // when a job is asked for (referencePickOf), never read by folder.
+    Q_PROPERTY(pinpoint::charts::SeriesSource *referenceModel READ referenceModel WRITE setReferenceModel NOTIFY inputsChanged)
     Q_PROPERTY(qint64 playheadUs READ playheadUs WRITE setPlayheadUs NOTIFY playheadChanged)
 
     // ── outputs ──
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
-    Q_PROPERTY(QVariantMap choices READ choices NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap thisShot READ thisShot NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap reference READ reference NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap session READ session NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap now READ now NOTIFY nowChanged)
+    Q_PROPERTY(pinpoint::charts::tracesui::Choices choices READ choices NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::tracesui::ThisShot thisShot READ thisShot NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::tracesui::Reference reference READ reference NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::tracesui::Session session READ session NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::tracesui::Now now READ now NOTIFY nowChanged)
 
 public:
     explicit ChartsTracesPresenter(QObject *parent = nullptr);
@@ -291,15 +300,17 @@ public:
     void setAlign(const QString &a);
     QString referenceSwingDir() const { return m_in.referenceSwingDir; }
     void setReferenceSwingDir(const QString &d);
+    SeriesSource *referenceModel() const;
+    void setReferenceModel(SeriesSource *m);
     qint64 playheadUs() const { return m_playheadUs; }
     void setPlayheadUs(qint64 us);
 
-    bool busy() const { return m_running; }
-    QVariantMap choices();
-    QVariantMap thisShot();
-    QVariantMap reference();
-    QVariantMap session();
-    QVariantMap now();
+    bool busy() const { return m_sched.busy(); }
+    tracesui::Choices choices();
+    tracesui::ThisShot thisShot();
+    tracesui::Reference reference();
+    tracesui::Session session();
+    tracesui::Now now();
 
     // ── what QML calls (lookups into cached arrays; never per frame) ──
     // The µs on `ordinal`'s own window-relative clock of canonical time canonMs (−1 when unknown).
@@ -310,10 +321,10 @@ public:
     Q_INVOKABLE double canonMsForShotMs(double shotMs) const;
     // The shot whose aligned `key` curve passes nearest `value` at canonMs:
     //   { found, ordinal, shotId, swingDir, value }.
-    Q_INVOKABLE QVariantMap shotAt(const QString &key, double canonMs, double value) const;
-    // This shot's hover tooltip at shotMs: { shotMs, when ("+12 ms · impact"), rows: [{ key, label,
-    // text (the mean, "-" where not measured), raw ("raw 81" | ""), measured, grossWarn }] }.
-    Q_INVOKABLE QVariantMap hoverAt(double shotMs) const;
+    Q_INVOKABLE pinpoint::charts::tracesui::ShotHit shotAt(const QString &key, double canonMs, double value) const;
+    // This shot's hover tooltip at shotMs: { valid, shotMs, when ("+12 ms · impact"), rows: [{ key, label,
+    // text (the mean, "-" where not measured), raw ("raw 81" | ""), measured, grossWarn, trust }] }.
+    Q_INVOKABLE pinpoint::charts::tracesui::Hover hoverAt(double shotMs) const;
 
     // ── test and measurement seams ──
     // A snapshot given directly, used while no series is set (tests; the fixture).
@@ -325,7 +336,7 @@ public:
     Q_INVOKABLE void setSynchronous(bool on);
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);
     // The last job's cost: { jobMs, thisShotMs, referenceMs, sessionMs, cacheHit, revision }.
-    Q_INVOKABLE QVariantMap lastTimings() const { return m_timings; }
+    Q_INVOKABLE pinpoint::charts::tracesui::Timings lastTimings() const { return m_timings; }
 
     struct Inputs {
         std::shared_ptr<const SessionSnapshot> snapshot;
@@ -343,6 +354,9 @@ public:
         bool difference = false;
         QString align = QStringLiteral("p");
         QString referenceSwingDir;
+        // the ★, picked on the GUI thread when the job was asked for (referencePickOf): a shot of this session's
+        // snapshot, another session's shot without its place or findings, or none and why
+        ReferencePick reference;
     };
     struct NowRow;
     struct NowCache;
@@ -357,7 +371,7 @@ signals:
     void playheadChanged();
 
 private:
-    void schedule();
+    void schedule() { m_sched.schedule(); }
     void startJob();
     void apply(std::shared_ptr<Result> r);
     void flushIfSynchronous();
@@ -366,21 +380,24 @@ private:
     void followNormSave();
     void updateNow(bool force);
     void onSnapshotChanged();
+    // The two series' connections, made again whenever either changes: `model` and `referenceModel` are often the
+    // same object, and a disconnect of one must not cut the other's.
+    void rewireSources(SeriesSource *old);
 
     Inputs m_in;
     QPointer<SeriesSource> m_model;
+    QPointer<SeriesSource> m_referenceModel;
+    ReferenceMemo m_refMemo;            // the ★ copy kept between jobs (GUI thread only)
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
     qint64 m_playheadUs = -1;
 
-    bool m_synchronous = false;
-    bool m_dirty = true;          // inputs changed since the last job started
-    bool m_scheduled = false;     // a startJob is posted
-    bool m_running = false;       // a job is on the pool
+    // the one scheduler (charts_presenter_core.h): queued, coalesced, busy while a job is in flight
+    ChartsScheduler m_sched{ this, ChartsScheduler::Policy::Queued, [this] { startJob(); }, [this] { emit busyChanged(); } };
 
     std::shared_ptr<Result> m_result;   // the last delivered result (GUI thread only)
-    QVariantMap m_now;
-    QVariantMap m_timings;
+    tracesui::Now m_now;
+    tracesui::Timings m_timings;
 
     std::shared_ptr<Worker> m_worker;   // the worker's caches; touched only by jobs
     quint64 m_normsGeneration = 0;      // the shared norm set's generation the worker's scale provider was made at

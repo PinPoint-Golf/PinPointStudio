@@ -21,13 +21,14 @@
 // SwingStoreSeriesReader — SeriesReader (src/DomainModel/series_reader.h) over the swing documents (refactor 5.5a).
 // Adapters ring. The read the Charts panel's old loader made (SessionSeriesModel::ensureShot, deleted in 5.5a), moved:
 // the document's stamp BEFORE the read (SwingStore::info), then SwingStore::loadAnalysis — the root chunk and
-// /analysis/metrics, never a per-frame track (7–9 ms a swing, where the whole document costs 150–220 ms). The folder is
+// /analysis/metrics, never a per-frame track (7–9 ms a swing, where the whole document costs 150–220 ms); document() is
+// SwingStore::load, the whole document, for the Posture picture's poses only (refactor 5.5c). The folder is
 // resolved ONLY through SessionRepository::swingFolder (any thread); "" reads nothing. Safe from any thread; holds a
 // reference to the session repository, which outlives every job (the composition root's).
 //
 // Also here, the ★ reference swing's label (`seriesSwingLabelOf`): its swing number and its session's day, through the
-// session store's one-argument identity (SessionDiagnosticsFiles::identityOf), for the Charts presenters' reference read,
-// which stays a folder read until its presenters are typed (5.5c; J-58).
+// session store's one-argument identity (SessionDiagnosticsFiles::identityOf), for the Charts presenters' ★ label. Since
+// 5.5c the ★ itself is read through its own session's series, never by folder.
 
 #include "../DomainModel/series_reader.h"
 
@@ -46,6 +47,7 @@ public:
 
     DocumentStamp stamp(const ShotRef &shot) const override;
     SeriesRead    analysis(const ShotRef &shot) const override;
+    SeriesRead    document(const ShotRef &shot) const override;
 
 private:
     QString folderOf(const ShotRef &shot) const;

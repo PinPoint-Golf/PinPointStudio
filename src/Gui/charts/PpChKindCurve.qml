@@ -73,8 +73,9 @@ Item {
         delegate: Item {
             required property var modelData
             readonly property real px: Math.round(kf.tx(modelData.tMs))
-            Rectangle { x: parent.px; y: kf.pTop; width: kf.roles.hw; height: kf.plotH; color: kf.roles.grid; opacity: modelData.tag === "P7" ? 1 : 0.55 }
-            Text { x: parent.px - width / 2; y: kf.pTop - height - kf.roles.u(2); text: modelData.tag; font: kf.roles.fFigLabel; color: modelData.tag === "P7" ? kf.roles.ink2 : kf.roles.ink3 }
+            // impact is marked heavier; which P-position is impact is the presenter's (`impact`), not read off the tag
+            Rectangle { x: parent.px; y: kf.pTop; width: kf.roles.hw; height: kf.plotH; color: kf.roles.grid; opacity: modelData.impact === true ? 1 : 0.55 }
+            Text { x: parent.px - width / 2; y: kf.pTop - height - kf.roles.u(2); text: modelData.tag; font: kf.roles.fFigLabel; color: modelData.impact === true ? kf.roles.ink2 : kf.roles.ink3 }
         }
     }
     Text { x: kf.gutL + kf.pw - width; y: kf.pTop + kf.plotH + (kf.roles ? kf.roles.u(5) : 5); text: "time lined up on the P-positions"

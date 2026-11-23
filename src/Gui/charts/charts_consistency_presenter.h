@@ -30,9 +30,9 @@
 //
 // ── THE OUTPUTS (all NOTIFY resultsChanged) ──────────────────────────────────────────────────
 // TYPED (refactor 5.5b, lint A6): status, head, matrix, shots and empty are Q_GADGET values (charts_consistency_types.h),
-// each property named as the key below. `cell` and `shot` are still maps: their rows are READING ROWs, the Relations
-// presenter's shape, typed with it (5.5c). A gadget has every property, so a key shown below as absent or {} is there
-// with its default ("", 0, false, an empty list or sentence).
+// each property named as the key below. `cell` and `shot` are typed too (5.5c): their rows are READING ROWs, the
+// Relations presenter's RelationsReadingRow. A gadget has every property, so a key shown below as absent or {} is there
+// with its default ("", 0, false, an empty list or sentence); a row's `variability` is null where it had none.
 // A Sentence is { text, runs: [{ text, fig }] } (charts_words.h). A row is a READING ROW (charts_relations_presenter.h).
 // THE GRADES (docs/design/system/variability.md; Mark's rulings R1, R2a, R3, R8, R11, 7 Nov). Every reading and cell is
 // graded in C++ (consistency_grades.h); a result reaches QML as a RESULT MAP, the façade's variabilityResult field for
@@ -134,9 +134,9 @@ class ChartsConsistencyPresenter : public QObject
     Q_PROPERTY(QString key READ key NOTIFY resultsChanged)
     Q_PROPERTY(QString keyMarks READ keyMarks NOTIFY resultsChanged)
     Q_PROPERTY(QList<pinpoint::charts::ConsistencyTabShot> shots READ shots NOTIFY resultsChanged)
-    // still maps: their rows are READING ROWs (charts_relations_presenter.h), typed with the Relations presenter (5.5c)
-    Q_PROPERTY(QVariantMap cell READ cell NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap shot READ shot NOTIFY resultsChanged)
+    // their rows are READING ROWs, the Relations presenter's typed row (charts_relations_types.h, refactor 5.5c)
+    Q_PROPERTY(pinpoint::charts::ConsistencyTabCellDetail cell READ cell NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::ConsistencyTabShotDetail shot READ shot NOTIFY resultsChanged)
     Q_PROPERTY(pinpoint::charts::ConsistencyTabEmpty empty READ empty NOTIFY resultsChanged)
 
 public:
@@ -156,7 +156,7 @@ public:
     QString  gradePolicy() const { return m_gradePolicy; }
     void     setGradePolicy(const QString &p);
 
-    bool busy() const { return m_running || m_scheduled; }
+    bool busy() const { return m_sched.busy(); }
     bool ready() const;
     ConsistencyTabStatus      status() const;
     ConsistencyTabHead        head() const;
@@ -164,8 +164,8 @@ public:
     QString                   key() const;
     QString                   keyMarks() const;
     QList<ConsistencyTabShot> shots() const;
-    QVariantMap               cell() const;
-    QVariantMap               shot() const;
+    ConsistencyTabCellDetail  cell() const;
+    ConsistencyTabShotDetail  shot() const;
     ConsistencyTabEmpty       empty() const;
 
     // The table in one sentence (doc §3), as `head.headline` (above): consistencyHead's kind as words, the grade words
@@ -173,7 +173,7 @@ public:
     static ConsistencyTabHeadline headline(const ConsistencyHead &head);
 
     // Test seams.
-    Q_INVOKABLE void setSynchronous(bool on) { m_synchronous = on; }
+    Q_INVOKABLE void setSynchronous(bool on) { m_sched.setSynchronousFlag(on); }
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);
     void setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot);     // replaces `model`'s
     int sessionRuns() const;                        // how many times the session-level work has run
@@ -194,7 +194,7 @@ signals:
 
 private:
     void onSnapshotChanged();
-    void schedule();
+    void schedule() { m_sched.schedule(); }
     void start();
     void deliver(std::shared_ptr<const Output> out);
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
@@ -215,10 +215,8 @@ private:
     ConsistencyEnv m_env;               // taken on the GUI thread; a job holds a copy
     std::shared_ptr<const IVariabilityScaleProvider> m_scales;   // made on the GUI thread; a job holds a reference
     quint64 m_normsGeneration = 0;      // the shared norm set's generation the three above were made at
-    bool m_synchronous = false;
-    bool m_running = false;
-    bool m_scheduled = false;   // a start is posted (refactor 5.5a: the one scheduler)
-    bool m_dirty = false;
+    // the one scheduler (charts_presenter_core.h): coalesced, busy from the ask (P11)
+    ChartsScheduler m_sched{ this, ChartsScheduler::Policy::BusyFromAsk, [this] { start(); }, [this] { emit busyChanged(); } };
 };
 
 // THE SESSION REPORT'S READING (doc §3, Print): the head, the table and every launch-monitor flagged shot, in the tab's

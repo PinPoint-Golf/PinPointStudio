@@ -219,41 +219,42 @@ struct Px {
     double x(double nx) const { return nx * W - ox; }
     double y(double ny) const { return ny * H - oy; }
 };
-QVariantList ptsList(const QVector<QPointF> &pts)
+QList<QList<double>> ptsList(const QVector<QPointF> &pts)
 {
-    QVariantList out;
-    for (const QPointF &p : pts) out.append(QVariant(QVariantList{ p.x(), p.y() }));
+    QList<QList<double>> out;
+    for (const QPointF &p : pts) out.append(QList<double>{ p.x(), p.y() });
     return out;
 }
-QVariantMap markMap(const Mark &m, const Px &px, const QString &role)
+postureui::PictureMark markOf(const Mark &m, const Px &px, const QString &role)
 {
-    QVariantMap o{ { QStringLiteral("kind"), m.kind }, { QStringLiteral("role"), role }, { QStringLiteral("set"), m.set },
-                   { QStringLiteral("label"), m.label }, { QStringLiteral("dash"), m.dash }, { QStringLiteral("hueKey"), QString() } };
+    postureui::PictureMark o;
+    o.kind = m.kind; o.role = role; o.set = m.set; o.label = m.label; o.dash = m.dash;
     if (m.kind == QLatin1String("circle")) {
-        o.insert(QStringLiteral("cx"), px.x(m.cx)); o.insert(QStringLiteral("cy"), px.y(m.cy)); o.insert(QStringLiteral("r"), m.r * px.H);
+        o.cx = px.x(m.cx); o.cy = px.y(m.cy); o.r = m.r * px.H;
     } else if (m.kind == QLatin1String("vline")) {
-        o.insert(QStringLiteral("x"), px.x(m.x));
+        o.x = px.x(m.x);
     } else {
         QVector<QPointF> p;
         for (const QPointF &q : m.pts) p << QPointF(px.x(q.x()), px.y(q.y()));
-        o.insert(QStringLiteral("pts"), ptsList(p));
+        o.pts = ptsList(p);
     }
     return o;
 }
-QVariantMap rectMark(double x, double y, double w, double h, const QString &label, const QString &hueKey)
+postureui::PictureMark rectMark(double x, double y, double w, double h, const QString &label, const QString &hueKey)
 {
-    return { { QStringLiteral("kind"), QStringLiteral("rect") }, { QStringLiteral("role"), QStringLiteral("band") },
-             { QStringLiteral("set"), QString() }, { QStringLiteral("label"), label }, { QStringLiteral("dash"), QString() },
-             { QStringLiteral("hueKey"), hueKey }, { QStringLiteral("x"), x }, { QStringLiteral("y"), y },
-             { QStringLiteral("w"), w }, { QStringLiteral("h"), h } };
+    postureui::PictureMark o;
+    o.kind = QStringLiteral("rect"); o.role = QStringLiteral("band"); o.label = label; o.hueKey = hueKey;
+    o.x = x; o.y = y; o.w = w; o.h = h;
+    return o;
 }
 
 // A horizontal tick in the frame's own pixels (the head ticks: already crop-local).
-QVariantMap tickMark(double x0, double x1, double y, const QString &label, const QString &role, const QString &hueKey)
+postureui::PictureMark tickMark(double x0, double x1, double y, const QString &label, const QString &role, const QString &hueKey)
 {
-    return { { QStringLiteral("kind"), QStringLiteral("polyline") }, { QStringLiteral("role"), role }, { QStringLiteral("set"), QString() },
-             { QStringLiteral("label"), label }, { QStringLiteral("dash"), QString() }, { QStringLiteral("hueKey"), hueKey },
-             { QStringLiteral("pts"), ptsList({ QPointF(x0, y), QPointF(x1, y) }) } };
+    postureui::PictureMark o;
+    o.kind = QStringLiteral("polyline"); o.role = role; o.label = label; o.hueKey = hueKey;
+    o.pts = ptsList({ QPointF(x0, y), QPointF(x1, y) });
+    return o;
 }
 
 QString sentence(QString s)
@@ -543,17 +544,15 @@ PictureCameraDoc pictureCameraDocFrom(const QJsonObject &root, bool dtl)
     return c;
 }
 
-QVariantMap posturePictureUnread(const QString &swingDir, const QString &why)
+postureui::Picture posturePictureUnread(const QString &swingDir, const QString &why)
 {
-    return { { QStringLiteral("available"), false }, { QStringLiteral("swingDir"), swingDir },
-             { QStringLiteral("groups"), QVariantList{} }, { QStringLiteral("legend"), QString() },
-             { QStringLiteral("why"), QStringList{ sentence(QStringLiteral("no picture: ") + why) } },
-             { QStringLiteral("pending"), false }, { QStringLiteral("typical"), QString() },
-             { QStringLiteral("defaultSets"), QVariantMap{ { QStringLiteral("posture"), true }, { QStringLiteral("plane"), false },
-                                                           { QStringLiteral("headHips"), true } } } };
+    postureui::Picture p;   // not available, no groups, no legend, not pending, the default sets
+    p.swingDir = swingDir;
+    p.why = QStringList{ sentence(QStringLiteral("no picture: ") + why) };
+    return p;
 }
 
-QVariantMap posturePicture(const PictureDoc &doc, const PictureBands &bands, const PictureOptions &opt)
+postureui::Picture posturePicture(const PictureDoc &doc, const PictureBands &bands, const PictureOptions &opt)
 {
     if (!doc.ok) return posturePictureUnread(doc.swingDir, doc.why.isEmpty() ? QStringLiteral("the swing's document could not be read") : doc.why);
     QStringList why;
@@ -581,7 +580,7 @@ QVariantMap posturePicture(const PictureDoc &doc, const PictureBands &bands, con
                             c->dtl ? QString() : QStringLiteral(", and the head circle is drawn from the face points"));
 
     bool anyBand = false, anyInk = false, anyHeadInk = false, anyFrame = false, pending = false;
-    QVariantList groups;
+    QList<postureui::PictureGroup> groups;
     for (const PictureCameraDoc *cp : { &doc.dtl, &doc.faceOn }) {
         const PictureCameraDoc &c = *cp;
         if (!c.present) continue;
@@ -589,27 +588,33 @@ QVariantMap posturePicture(const PictureDoc &doc, const PictureBands &bands, con
         const bool sized = c.W > 0 && c.H > 0 && c.cropPx.isValid() && c.cropPx.width() >= 8 && c.cropPx.height() >= 8;
         const Px px{ double(c.W), double(c.H), double(c.cropPx.x()), double(c.cropPx.y()) };
         const QVector<Mark> coach = coachMarks(c, doc.leadIsLeft);
-        QVariantList frames;
+        QList<postureui::PictureFrame> frames;
         for (int k = 0; k < kPicturePositions; ++k) {
             const QString tag = QString::fromLatin1(kTags[k]);
-            QVariantMap f{ { QStringLiteral("key"), camId + QLatin1Char('_') + tag }, { QStringLiteral("camera"), camId },
-                           { QStringLiteral("tag"), tag }, { QStringLiteral("pos"), kPosIndex[k] },
-                           { QStringLiteral("when"), QString::fromLatin1(kWhen[k]) },
-                           { QStringLiteral("tUs"), qlonglong(c.posUs[size_t(k)]) }, { QStringLiteral("seekUs"), qlonglong(c.posUs[size_t(k)]) },
-                           { QStringLiteral("frameUs"), qlonglong(c.frameUs[size_t(k)]) }, { QStringLiteral("frameIndex"), c.frameIndex[size_t(k)] },
-                           { QStringLiteral("frameWidth"), c.W }, { QStringLiteral("frameHeight"), c.H },
-                           { QStringLiteral("width"), sized ? c.cropPx.width() : 0 }, { QStringLiteral("height"), sized ? c.cropPx.height() : 0 },
-                           { QStringLiteral("crop"), QVariantMap{ { QStringLiteral("x"), c.cropPx.x() }, { QStringLiteral("y"), c.cropPx.y() },
-                                                                  { QStringLiteral("w"), c.cropPx.width() }, { QStringLiteral("h"), c.cropPx.height() } } } };
+            postureui::PictureFrame f;
+            f.key = camId + QLatin1Char('_') + tag;
+            f.camera = camId;
+            f.tag = tag;
+            f.pos = kPosIndex[k];
+            f.when = QString::fromLatin1(kWhen[k]);
+            f.tUs = c.posUs[size_t(k)];
+            f.seekUs = c.posUs[size_t(k)];
+            f.frameUs = c.frameUs[size_t(k)];
+            f.frameIndex = c.frameIndex[size_t(k)];
+            f.frameWidth = c.W;
+            f.frameHeight = c.H;
+            f.width = sized ? c.cropPx.width() : 0;
+            f.height = sized ? c.cropPx.height() : 0;
+            f.crop = postureui::PictureCrop{ c.cropPx.x(), c.cropPx.y(), c.cropPx.width(), c.cropPx.height() };
             QString caption = QString::fromLatin1(kWhen[k]);
             QStringList notes;
-            QVariantList marks;
+            QList<postureui::PictureMark> marks;
             QString imageWhy;
             if (!sized) imageWhy = QStringLiteral("The frame's size is not recorded on this swing.");
             else if (c.posUs[size_t(k)] < 0) imageWhy = QStringLiteral("This swing has no %1 position.").arg(tag);
             else if (c.frameIndex[size_t(k)] < 0) imageWhy = QStringLiteral("The video has no frames.");
             if (sized) {
-                for (const Mark &m : coach) marks.append(markMap(m, px, QStringLiteral("coach")));
+                for (const Mark &m : coach) marks.append(markOf(m, px, QStringLiteral("coach")));
                 if (k == 2 && c.dtl) {
                     // the strip in front of the address butt line, and the golfer's own butt line at impact
                     const bool butt = c.marksFound && fin(c.buttX);
@@ -625,7 +630,7 @@ QVariantMap posturePicture(const PictureDoc &doc, const PictureBands &bands, con
                     }
                     if (c.impactButtFound) {
                         Mark m; m.kind = QStringLiteral("vline"); m.x = c.impactButtX; m.label = QStringLiteral("your butt line at impact");
-                        marks.append(markMap(m, px, QStringLiteral("ink")));
+                        marks.append(markOf(m, px, QStringLiteral("ink")));
                         anyInk = true;
                         double cm = kPicNaN;
                         if (butt && fin(doc.dtlCmPerPx)) {
@@ -667,11 +672,11 @@ QVariantMap posturePicture(const PictureDoc &doc, const PictureBands &bands, con
                     }
                 }
             }
-            f.insert(QStringLiteral("caption"), caption);
+            f.caption = caption;
             QStringList ns;
             for (const QString &n : std::as_const(notes)) ns << sentence(n);
-            f.insert(QStringLiteral("note"), ns.join(QLatin1Char(' ')));
-            f.insert(QStringLiteral("marks"), marks);
+            f.note = ns.join(QLatin1Char(' '));
+            f.marks = marks;
             // the still: what to make, and where it is
             QString outPath, src;
             if (imageWhy.isEmpty() && !opt.stillDir.isEmpty()) {
@@ -683,31 +688,34 @@ QVariantMap posturePicture(const PictureDoc &doc, const PictureBands &bands, con
                 else if (opt.stillErrors.contains(outPath)) imageWhy = sentence(QStringLiteral("the frame could not be read: ") + opt.stillErrors.value(outPath));
                 else pending = true;
             }
-            f.insert(QStringLiteral("src"), src);
-            f.insert(QStringLiteral("imageWhy"), imageWhy);
-            f.insert(QStringLiteral("still"), imageWhy.isEmpty() || !outPath.isEmpty()
-                ? QVariant(QVariantMap{ { QStringLiteral("swingDir"), doc.swingDir }, { QStringLiteral("camera"), camId }, { QStringLiteral("phase"), tag },
-                                        { QStringLiteral("x"), c.cropPx.x() }, { QStringLiteral("y"), c.cropPx.y() },
-                                        { QStringLiteral("w"), c.cropPx.width() }, { QStringLiteral("h"), c.cropPx.height() },
-                                        { QStringLiteral("maxPx"), opt.maxPx }, { QStringLiteral("outPath"), outPath } })
-                : QVariant::fromValue(nullptr));
+            f.src = src;
+            f.imageWhy = imageWhy;
+            if (imageWhy.isEmpty() || !outPath.isEmpty())
+                f.still = QVariant::fromValue(postureui::PictureStill{ doc.swingDir, camId, tag, c.cropPx.x(), c.cropPx.y(),
+                                                                       c.cropPx.width(), c.cropPx.height(), opt.maxPx, outPath });
             anyFrame = anyFrame || sized;
             frames.append(f);
         }
-        groups.append(QVariantMap{ { QStringLiteral("camera"), camId },
-                                   { QStringLiteral("label"), c.dtl ? QStringLiteral("down the line") : QStringLiteral("face-on") },
-                                   { QStringLiteral("frames"), frames } });
+        groups.append(postureui::PictureGroup{ camId, c.dtl ? QStringLiteral("down the line") : QStringLiteral("face-on"), frames });
     }
     QString legend = QStringLiteral("Thin lines: your lines at address, frozen on every frame.");
     if (anyBand) legend += QStringLiteral(" Shaded: where good players are at impact (the %1 band).")
                                .arg(bands.patternName.isEmpty() ? QStringLiteral("pattern's") : bands.patternName);
     if (anyInk) legend += QStringLiteral(" The white line: your butt line at impact.");
     if (anyHeadInk) legend += QStringLiteral(" The white tick: your head at impact, against the tick at your head at address.");
-    return { { QStringLiteral("available"), anyFrame }, { QStringLiteral("swingDir"), doc.swingDir }, { QStringLiteral("ordinal"), opt.ordinal },
-             { QStringLiteral("typical"), QString() }, { QStringLiteral("legend"), anyFrame ? legend : QString() },
-             { QStringLiteral("why"), why }, { QStringLiteral("pending"), pending }, { QStringLiteral("groups"), groups },
-             { QStringLiteral("defaultSets"), QVariantMap{ { QStringLiteral("posture"), true }, { QStringLiteral("plane"), false },
-                                                           { QStringLiteral("headHips"), true } } } };
+    postureui::Picture p;   // `typical` is the report's; the default sets: posture and head-and-hips
+    p.available = anyFrame;
+    p.swingDir = doc.swingDir;
+    p.ordinal = opt.ordinal;
+    p.legend = anyFrame ? legend : QString();
+    p.why = why;
+    p.pending = pending;
+    p.groups = groups;
+    return p;
 }
 
 } // namespace pinpoint::charts
+
+// moc for the picture's gadgets (posture_picture.h): here, not in a presenter's file, because the Club delivery targets
+// compile this file without the Posture presenter
+#include "moc_posture_picture.cpp"

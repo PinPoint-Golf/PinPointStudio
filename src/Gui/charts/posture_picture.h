@@ -62,7 +62,8 @@
 //   · DTL impact — the golfer's OWN butt line at impact (addressMarks.dtlPhases, Impact: stage 4a) in ink against the
 //     frozen address butt line, with its travel in cm (address_marks.h buttShiftCm) in the frame's note.
 //
-// ── SHAPE (every coordinate in the FRAME'S OWN IMAGE: crop-local pixels of the native frame) ────────────
+// ── SHAPE (every coordinate in the FRAME'S OWN IMAGE: crop-local pixels of the native frame; typed since refactor 5.5c:
+//    postureui::Picture below, each property named as the old map's key) ─────────────────────────────────────────
 //  picture: {
 //    available (a frame to show), swingDir, ordinal, typical (the report's: "" on Charts), legend,
 //    why: [string] (what is absent and why, said once: no address marks, a camera missing, the document unread),
@@ -83,16 +84,177 @@
 
 #include <QHash>
 #include <QJsonObject>
+#include <QList>
+#include <QMetaType>
 #include <QPointF>
 #include <QRect>
 #include <QString>
 #include <QStringList>
+#include <QVariant>
 #include <QVariantMap>
 #include <QVector>
+#include <QtGlobal>
 
 #include <array>
 #include <cmath>
 #include <limits>
+
+// ── THE PICTURE AS QML TAKES IT (refactor 5.5c, lint A6): Q_GADGET values, each property named as the SHAPE's key above,
+// so PpChPictureStrip and PpChPostureFrame read them as they read the map. They live here, not in the presenter's types
+// header, because the Club delivery targets compile this file without the Posture presenter: moc reaches this header
+// through posture_picture.cpp's own #include of its moc file.
+//   · A frame's `still` is a QVariant holding a PictureStill, or null (it was a map or null).
+//   · A mark carries every kind's numbers; each kind reads only its own (cx, cy, r · x · pts · x, y, w, h), as before.
+// The report's payload, and the still maker (main.cpp reads each still as a map), take these through chartsGadgetMap.
+namespace pinpoint::charts::postureui {
+
+inline QVariant nullValue() { return QVariant::fromValue(nullptr); }
+
+struct PictureCrop
+{
+    Q_GADGET
+    Q_PROPERTY(int x MEMBER x FINAL)
+    Q_PROPERTY(int y MEMBER y FINAL)
+    Q_PROPERTY(int w MEMBER w FINAL)
+    Q_PROPERTY(int h MEMBER h FINAL)
+public:
+    int x = 0, y = 0, w = 0, h = 0;
+    friend bool operator==(const PictureCrop &, const PictureCrop &) = default;
+};
+
+// What the still maker is asked for.
+struct PictureStill
+{
+    Q_GADGET
+    Q_PROPERTY(QString swingDir MEMBER swingDir FINAL)
+    Q_PROPERTY(QString camera   MEMBER camera   FINAL)
+    Q_PROPERTY(QString phase    MEMBER phase    FINAL)
+    Q_PROPERTY(int     x        MEMBER x        FINAL)
+    Q_PROPERTY(int     y        MEMBER y        FINAL)
+    Q_PROPERTY(int     w        MEMBER w        FINAL)
+    Q_PROPERTY(int     h        MEMBER h        FINAL)
+    Q_PROPERTY(int     maxPx    MEMBER maxPx    FINAL)
+    Q_PROPERTY(QString outPath  MEMBER outPath  FINAL)
+public:
+    QString swingDir, camera, phase;
+    int     x = 0, y = 0, w = 0, h = 0, maxPx = 0;
+    QString outPath;
+    friend bool operator==(const PictureStill &, const PictureStill &) = default;
+};
+
+// MARK: pts are [x, y] pairs (PpChPostureFrame reads pts[i][0], pts[i][1]).
+struct PictureMark
+{
+    Q_GADGET
+    Q_PROPERTY(QString kind   MEMBER kind   FINAL)
+    Q_PROPERTY(QString role   MEMBER role   FINAL)
+    Q_PROPERTY(QString set    MEMBER set    FINAL)
+    Q_PROPERTY(QString label  MEMBER label  FINAL)
+    Q_PROPERTY(QString dash   MEMBER dash   FINAL)
+    Q_PROPERTY(QString hueKey MEMBER hueKey FINAL)
+    Q_PROPERTY(double  cx     MEMBER cx     FINAL)
+    Q_PROPERTY(double  cy     MEMBER cy     FINAL)
+    Q_PROPERTY(double  r      MEMBER r      FINAL)
+    Q_PROPERTY(double  x      MEMBER x      FINAL)
+    Q_PROPERTY(double  y      MEMBER y      FINAL)
+    Q_PROPERTY(double  w      MEMBER w      FINAL)
+    Q_PROPERTY(double  h      MEMBER h      FINAL)
+    Q_PROPERTY(QList<QList<double>> pts MEMBER pts FINAL)
+public:
+    QString kind, role, set, label, dash, hueKey;
+    double  cx = 0, cy = 0, r = 0, x = 0, y = 0, w = 0, h = 0;
+    QList<QList<double>> pts;
+    friend bool operator==(const PictureMark &, const PictureMark &) = default;
+};
+
+// FRAME
+struct PictureFrame
+{
+    Q_GADGET
+    Q_PROPERTY(QString  key         MEMBER key         FINAL)
+    Q_PROPERTY(QString  camera      MEMBER camera      FINAL)
+    Q_PROPERTY(QString  tag         MEMBER tag         FINAL)
+    Q_PROPERTY(int      pos         MEMBER pos         FINAL)
+    Q_PROPERTY(QString  when        MEMBER when        FINAL)
+    Q_PROPERTY(QString  caption     MEMBER caption     FINAL)
+    Q_PROPERTY(QString  note        MEMBER note        FINAL)
+    Q_PROPERTY(qint64   tUs         MEMBER tUs         FINAL)
+    Q_PROPERTY(qint64   seekUs      MEMBER seekUs      FINAL)
+    Q_PROPERTY(qint64   frameUs     MEMBER frameUs     FINAL)
+    Q_PROPERTY(int      frameIndex  MEMBER frameIndex  FINAL)
+    Q_PROPERTY(int      frameWidth  MEMBER frameWidth  FINAL)
+    Q_PROPERTY(int      frameHeight MEMBER frameHeight FINAL)
+    Q_PROPERTY(int      width       MEMBER width       FINAL)
+    Q_PROPERTY(int      height      MEMBER height      FINAL)
+    Q_PROPERTY(pinpoint::charts::postureui::PictureCrop crop MEMBER crop FINAL)
+    Q_PROPERTY(QString  src         MEMBER src         FINAL)
+    Q_PROPERTY(QString  imageWhy    MEMBER imageWhy    FINAL)
+    Q_PROPERTY(QVariant still       MEMBER still       FINAL)   // PictureStill | null
+    Q_PROPERTY(QList<pinpoint::charts::postureui::PictureMark> marks MEMBER marks FINAL)
+public:
+    QString     key, camera, tag;
+    int         pos = 0;
+    QString     when, caption, note;
+    qint64      tUs = -1, seekUs = -1, frameUs = -1;
+    int         frameIndex = -1, frameWidth = 0, frameHeight = 0, width = 0, height = 0;
+    PictureCrop crop;
+    QString     src, imageWhy;
+    QVariant    still = nullValue();
+    QList<PictureMark> marks;
+    friend bool operator==(const PictureFrame &, const PictureFrame &) = default;
+};
+
+struct PictureGroup
+{
+    Q_GADGET
+    Q_PROPERTY(QString camera MEMBER camera FINAL)
+    Q_PROPERTY(QString label  MEMBER label  FINAL)
+    Q_PROPERTY(QList<pinpoint::charts::postureui::PictureFrame> frames MEMBER frames FINAL)
+public:
+    QString camera, label;
+    QList<PictureFrame> frames;
+    friend bool operator==(const PictureGroup &, const PictureGroup &) = default;
+};
+
+// The coach sets drawn when the reader has none on, and in print (PpChPostureFrame: sets[mark.set] === true).
+struct PictureSets
+{
+    Q_GADGET
+    Q_PROPERTY(bool posture  MEMBER posture  FINAL)
+    Q_PROPERTY(bool plane    MEMBER plane    FINAL)
+    Q_PROPERTY(bool headHips MEMBER headHips FINAL)
+public:
+    bool posture = true, plane = false, headHips = true;
+    friend bool operator==(const PictureSets &, const PictureSets &) = default;
+};
+
+// PICTURE
+struct Picture
+{
+    Q_GADGET
+    Q_PROPERTY(bool        available   MEMBER available   FINAL)
+    Q_PROPERTY(QString     swingDir    MEMBER swingDir    FINAL)
+    Q_PROPERTY(int         ordinal     MEMBER ordinal     FINAL)
+    Q_PROPERTY(QString     typical     MEMBER typical     FINAL)
+    Q_PROPERTY(QString     legend      MEMBER legend      FINAL)
+    Q_PROPERTY(QStringList why         MEMBER why         FINAL)
+    Q_PROPERTY(bool        pending     MEMBER pending     FINAL)
+    Q_PROPERTY(QList<pinpoint::charts::postureui::PictureGroup> groups MEMBER groups FINAL)
+    Q_PROPERTY(pinpoint::charts::postureui::PictureSets defaultSets MEMBER defaultSets FINAL)
+public:
+    bool                available = false;
+    QString             swingDir;
+    int                 ordinal = 0;
+    QString             typical;              // the report's ("" on Charts)
+    QString             legend;
+    QStringList         why;
+    bool                pending = false;
+    QList<PictureGroup> groups;
+    PictureSets         defaultSets;
+    friend bool operator==(const Picture &, const Picture &) = default;
+};
+
+} // namespace pinpoint::charts::postureui
 
 namespace pinpoint::charts {
 
@@ -172,10 +334,10 @@ struct PictureOptions {
     QHash<QString, QString> stillErrors;      // outPath → why the still could not be made (the maker's answer)
 };
 
-QVariantMap posturePicture(const PictureDoc &doc, const PictureBands &bands, const PictureOptions &opt);
+postureui::Picture posturePicture(const PictureDoc &doc, const PictureBands &bands, const PictureOptions &opt);
 
 // The picture's reason when the swing's document could not be read at all.
-QVariantMap posturePictureUnread(const QString &swingDir, const QString &why);
+postureui::Picture posturePictureUnread(const QString &swingDir, const QString &why);
 
 // The figure words the picture's notes use: "7.6 cm toward the ball" | "1.2 cm back from the ball".
 QString postureButtTravelWords(double cm);

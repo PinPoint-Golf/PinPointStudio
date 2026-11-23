@@ -19,12 +19,14 @@
 #pragma once
 
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
+#include "charts_posture_types.h"  // the typed results (refactor 5.5c)
 #include "session_series_types.h"
 #include "session_posture.h"      // PostureAddressHistory, PostureEnv
 #include "session_neighbours.h"   // the golfer's other sessions, from their summaries (refactor 5.5d)
 
 #include <QObject>
 #include <QHash>
+#include <QJsonObject>
 #include <QPointer>
 #include <QSet>
 #include <QString>
@@ -60,7 +62,8 @@
 // in the snapshot still reads, ungraded), register ("analyse" | "replay"), playheadUs (the picked shot's
 // window-relative clock), scope ("shot" | "session", following body.shownView), against ("address" |
 // "previous" | "reference" | "median"; a ghost value per cell), pattern (-1 Auto | 0 Level | 1 Squat
-// and push), referenceSwingDir (the ★ swing, any session).
+// and push), referenceSwingDir (the ★ swing, any session), referenceModel (the ★ swing's own session's series: the ★
+// is read through it, never by folder — refactor 5.5c, referencePickOf in charts_presenter_core.h).
 //
 // ── THREADING (the wrist presenter's, exactly) ───────────────────────────────────────────────
 // Any input or snapshot change schedules ONE coalesced job on a private single-thread pool; results are
@@ -70,8 +73,9 @@
 // read (tests). Each shot's reading (postureInputFromShot) is cached by the shot's shared_ptr, so a
 // re-analysed shot (a new pointer) is read again and an unchanged one is not.
 //
-// ── OUTPUT SHAPES ────────────────────────────────────────────────────────────────────────────
-// A Sentence is words::Sentence::toVariant(): { text, runs: [{ text, fig }] }. A missing number is null
+// ── OUTPUT SHAPES (typed since refactor 5.5c: charts_posture_types.h, postureui::Choices, ThisShot, Session and
+//    Sentence, each property named as the key below; the picture is posture_picture.h's postureui::Picture) ───────
+// A Sentence is words::Sentence's { text, runs: [{ text, fig }], clause }. A missing number is null
 // and its text "-", never 0. Figures use U+2212 for minus; cm to one decimal, ° and % stance whole. A
 // value is the CHANGE FROM ADDRESS in the row's unit. A BOX is box_map.h's { n, min, max, q1, med, q3,
 // lo, hi, outliers: [ordinal], texts }.
@@ -255,15 +259,16 @@ class ChartsPosturePresenter : public QObject
     Q_PROPERTY(QString against READ against WRITE setAgainst NOTIFY inputsChanged)
     Q_PROPERTY(int pattern READ pattern WRITE setPattern NOTIFY inputsChanged)
     Q_PROPERTY(QString referenceSwingDir READ referenceSwingDir WRITE setReferenceSwingDir NOTIFY inputsChanged)
+    Q_PROPERTY(pinpoint::charts::SeriesSource *referenceModel READ referenceModel WRITE setReferenceModel NOTIFY inputsChanged)
 
     // ── outputs ──
     Q_PROPERTY(bool available READ available NOTIFY resultsChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
-    Q_PROPERTY(QVariantMap choices READ choices NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap thisShot READ thisShot NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap session READ session NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::postureui::Choices choices READ choices NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::postureui::ThisShot thisShot READ thisShot NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::postureui::Session session READ session NOTIFY resultsChanged)
     Q_PROPERTY(int selected READ selected NOTIFY selectedChanged)
-    Q_PROPERTY(QVariantMap standfirst READ standfirst NOTIFY selectedChanged)
+    Q_PROPERTY(pinpoint::charts::postureui::Sentence standfirst READ standfirst NOTIFY selectedChanged)
 
 public:
     explicit ChartsPosturePresenter(QObject *parent = nullptr);
@@ -289,14 +294,16 @@ public:
     void setPattern(int p);
     QString referenceSwingDir() const { return m_in.referenceSwingDir; }
     void setReferenceSwingDir(const QString &d);
+    SeriesSource *referenceModel() const;
+    void setReferenceModel(SeriesSource *m);
 
     bool available();
-    bool busy() const { return m_running; }
-    QVariantMap choices();
-    QVariantMap thisShot();
-    QVariantMap session();
+    bool busy() const { return m_sched.busy(); }
+    postureui::Choices choices();
+    postureui::ThisShot thisShot();
+    postureui::Session session();
     int selected() const { return m_selected; }
-    QVariantMap standfirst() const;
+    postureui::Sentence standfirst() const;
 
     // The picked shot's window-relative µs of position `tag` ("P1" … "P8"), for shotReplay.seekToUs; −1
     // when the swing has no such position. A lookup into the delivered result.
@@ -311,9 +318,9 @@ public:
 
     // ── test seams ──
     void setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot);   // used while no model is set
-    // The picture's document for a swing folder, from a JSON file (a swing document) instead of the disk's: kept
-    // whatever the disk says. An empty path forgets it.
-    Q_INVOKABLE void setPictureDocumentForTest(const QString &swingDir, const QString &jsonFile);
+    // The picture's document for a swing folder, a swing document the test read itself (the presenter opens no file):
+    // kept whatever the session says. `source` names it in the words when `root` is empty; an empty `source` forgets it.
+    Q_INVOKABLE void setPictureDocumentForTest(const QString &swingDir, const QJsonObject &root, const QString &source);
     Q_INVOKABLE void setSynchronous(bool on);
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);
 
@@ -326,6 +333,7 @@ public:
         QString against = QStringLiteral("address");
         int pattern = -1;
         QString referenceSwingDir;
+        ReferencePick reference;        // the ★, picked on the GUI thread through its own session (refactor 5.5c)
         SessionNeighbours neighbours;   // the golfer's other sessions (refactor 5.5d): taken on the GUI thread
     };
     struct Result;
@@ -339,26 +347,28 @@ signals:
     void selectedChanged();
 
 private:
-    void schedule();
+    void schedule() { m_sched.schedule(); }
     void startJob();
     void apply(std::shared_ptr<Result> r);
     void flushIfSynchronous();
     void updateSelected(bool force);
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
     void watchHistory(const QString &sessionDir);   // the athlete level of the session's history (refactor 5.5d)
+    void rewireSources();                           // the model's and the ★ session's series (refactor 5.5c)
 
     Inputs m_in;
     QString m_watchedDir;
     QList<QMetaObject::Connection> m_historyWatch;
     QPointer<SeriesSource> m_model;
+    QPointer<SeriesSource> m_referenceModel;        // the ★ swing's own session's series
+    QList<QMetaObject::Connection> m_sourceWatch;
+    ReferenceMemo m_refMemo;                        // another session's ★, copied once per change of that shot
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     qint64 m_playheadUs = -1;
     int m_selected = 0;
 
-    bool m_synchronous = false;
-    bool m_dirty = true;
-    bool m_scheduled = false;
-    bool m_running = false;
+    // the one scheduler (charts_presenter_core.h): queued, coalesced, busy while a job is in flight
+    ChartsScheduler m_sched{ this, ChartsScheduler::Policy::Queued, [this] { startJob(); }, [this] { emit busyChanged(); } };
 
     void makeStills();
 

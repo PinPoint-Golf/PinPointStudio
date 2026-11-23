@@ -433,7 +433,7 @@ PpChViewBase {
             width: parent.width; roles: sv.roles; key: "apart"; title: sv.rs && sv.rs.head ? (sv.rs.head.text || "") : ""
             interactive: sv.interactive
             collapsed: sv.apartFolded
-            state_: (sv.rs.apart || []).length > 0 ? (sv.rs.apart || []).length + ((sv.rs.apart || []).length === 1 ? " reading" : " readings") : ""
+            state_: sv.rs ? (sv.rs.apartLabel || "") : ""         // "2 readings", "" with none: the presenter's words
             onToggled: if (sv.body) sv.body.toggleSection("apart")
         }
         PpChText { visible: !sv.apartFolded && present; roles: sv.roles; sentence: sv.rs ? sv.rs.standfirst : null; font: sv.roles ? sv.roles.fBody : Qt.application.font }

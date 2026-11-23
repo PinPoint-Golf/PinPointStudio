@@ -44,7 +44,6 @@
 #include <QPointer>
 #include <QSet>
 #include <QStandardPaths>
-#include <QThreadPool>
 
 #include <algorithm>
 #include <cmath>
@@ -986,18 +985,9 @@ qint64 ChartsDeliveryPresenter::seekUsFor(const QString &tag) const
     return ok && i >= 0 && i < kPos ? m_result->posUs[size_t(i)] : -1;
 }
 
-void ChartsDeliveryPresenter::schedule()
-{
-    m_dirty = true;
-    if (m_synchronous || m_scheduled) return;
-    m_scheduled = true;
-    QMetaObject::invokeMethod(this, &ChartsDeliveryPresenter::startJob, Qt::QueuedConnection);
-}
-
 void ChartsDeliveryPresenter::startJob()
 {
-    m_scheduled = false;
-    if (m_synchronous || m_running) return;     // apply() re-runs a dirty presenter
+    if (!m_sched.begin()) return;     // synchronous, or a job in flight: apply() re-runs a dirty presenter
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
     // THE DAY'S OTHER SESSIONS, from their summaries (refactor 5.5d): taken here, on the GUI thread, from the athlete level,
@@ -1005,8 +995,6 @@ void ChartsDeliveryPresenter::startJob()
     const QString dir = in.snapshot ? sessionDirOf(*in.snapshot, in.pickedSwingDir) : QString();
     in.neighbours = neighboursOf(dir);
     watchDay(dir);
-    m_dirty = false;
-    m_running = true;
     emit busyChanged();
     auto w = m_worker;
     askLane(m_pool, [w, in]() { return computeDelivery(*w, in); },
@@ -1024,20 +1012,17 @@ void ChartsDeliveryPresenter::watchDay(const QString &sessionDir)
 
 void ChartsDeliveryPresenter::apply(std::shared_ptr<Result> r)
 {
-    const bool wasRunning = m_running;
-    m_running = false;
+    const bool wasRunning = m_sched.land();
     m_result = std::move(r);
     emit resultsChanged();
     updateSelected(true);
-    if (m_dirty && !m_synchronous) startJob();
-    else if (wasRunning) emit busyChanged();
+    m_sched.afterLanding(wasRunning);
     makeStills();
 }
 
 void ChartsDeliveryPresenter::flushIfSynchronous()
 {
-    if (!m_synchronous || !m_dirty) return;
-    m_dirty = false;
+    if (!m_sched.takeFlush()) return;
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
     in.neighbours = neighboursOf(in.snapshot ? sessionDirOf(*in.snapshot, in.pickedSwingDir) : QString());   // refactor 5.5d
@@ -1064,7 +1049,7 @@ void ChartsDeliveryPresenter::flushIfSynchronous()
 // The picture's stills, made once each off the GUI thread by the app's maker; the picture is read again when they land.
 void ChartsDeliveryPresenter::makeStills()
 {
-    if (m_synchronous || m_stillsBusy || !m_result || m_result->pendingStills.isEmpty() || !stillMaker()) return;
+    if (m_sched.synchronous() || m_stillsBusy || !m_result || m_result->pendingStills.isEmpty() || !stillMaker()) return;
     QVariantList todo;
     for (const QVariant &v : std::as_const(m_result->pendingStills)) {
         const QString out = v.toMap().value(QStringLiteral("outPath")).toString();
@@ -1116,26 +1101,19 @@ void ChartsDeliveryPresenter::setPictureDocumentForTest(const QString &swingDir,
 
 void ChartsDeliveryPresenter::setSynchronous(bool on)
 {
-    m_synchronous = on;
+    m_sched.setSynchronousFlag(on);
     if (on) {
         m_pool.waitForDone();
         QCoreApplication::processEvents();
-        m_dirty = true;
-    } else if (m_dirty) {
+        m_sched.markDirty();
+    } else if (m_sched.dirty()) {
         schedule();
     }
 }
 
 bool ChartsDeliveryPresenter::waitForIdle(int msTimeout)
 {
-    if (m_synchronous) { flushIfSynchronous(); return true; }
-    QDeadlineTimer deadline(msTimeout);
-    while ((m_running || m_dirty || m_scheduled) && !deadline.hasExpired()) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-        m_pool.waitForDone(20);
-    }
-    QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-    return !m_running && !m_dirty;
+    return m_sched.waitForIdle(m_pool, msTimeout, [this] { flushIfSynchronous(); });
 }
 
 // The playhead's position: the latest present position at or before it, else the first present one (the posture

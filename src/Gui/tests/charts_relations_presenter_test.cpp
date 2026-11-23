@@ -24,6 +24,7 @@
 // stand-out rule (consistency_design.md §5): its rows are checked against the rule itself, and on the 5 Oct
 // launch-monitor fixture against that session's golden.
 
+#include "charts/charts_gadget.h"   // chartsGadgetMap: the typed results read as maps (refactor 5.5c)
 #include "charts/charts_relations_presenter.h"
 #include "../../Export/rule_data_install.h"
 #include "charts/charts_words.h"
@@ -143,12 +144,12 @@ std::optional<pinpoint::variability::ScalarTypicality> expectedTypicality(const 
     for (const auto &sh : s.shots) {
         if (sh->ordinal == ordinal || sh->club != me.club || consistencyGuarded(*sh, al.warpFor(sh->ordinal))) continue;
         const QVariant v = values.value(sh->ordinal - 1);
-        if (!v.isNull()) window.push_back(v.toDouble());
+        if (!v.isNull() && std::isfinite(v.toDouble())) window.push_back(v.toDouble());     // a typed row's gap is NaN
     }
     static const pinpoint::analysis::MetricCatalogue cat = pinpoint::analysis::makeMetricCatalogue();
     const pinpoint::analysis::MetricDescriptor *d = cat.descriptor(key);
     const QVariant mine = values.value(ordinal - 1);
-    if (mine.isNull()) return std::nullopt;
+    if (mine.isNull() || !std::isfinite(mine.toDouble())) return std::nullopt;
     return pinpoint::variability::scalarTypicality(mine.toDouble(), window, d ? d->scaleType : pinpoint::variability::ScaleType::Interval);
 }
 
@@ -226,7 +227,7 @@ private slots:
         const charts_test::Fixture oct = charts_test::loadFixture(kDataDir + QStringLiteral("/session_1005.json"));
         QVERIFY(oct.ok);
         auto p = make(withDirs(oct.session), 7);
-        for (const QVariant &v : p->thisShot().value(QStringLiteral("apart")).toList()) {
+        for (const QVariant &v : chartsGadgetMap(p->thisShot()).value(QStringLiteral("apart")).toList()) {
             const QVariantMap r = v.toMap();
             if (r.value(QStringLiteral("key")).toString() != QLatin1String("lm.smashFactor")) continue;
             QCOMPARE(r.value(QStringLiteral("valueText")).toString(), QStringLiteral("0.99"));
@@ -253,14 +254,14 @@ private slots:
         p->setSynchronous(true);
         p->setSnapshot(snap);
         p->setPickedSwingDir(dirOf(1));
-        const double firstMs = p->status().value(QStringLiteral("timings")).toMap().value(QStringLiteral("consistencyMs")).toDouble();
+        const double firstMs = chartsGadgetMap(p->status()).value(QStringLiteral("timings")).toMap().value(QStringLiteral("consistencyMs")).toDouble();
         QVERIFY(firstMs > 0.0);
         QStringList counts;
         for (const auto &sh : snap->shots) {
             p->setPickedSwingDir(dirOf(sh->ordinal));
             if (sh->ordinal > 1)
-                QCOMPARE(p->status().value(QStringLiteral("timings")).toMap().value(QStringLiteral("consistencyMs")).toDouble(), 0.0);
-            const QVariantMap ts = p->thisShot();
+                QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("timings")).toMap().value(QStringLiteral("consistencyMs")).toDouble(), 0.0);
+            const QVariantMap ts = chartsGadgetMap(p->thisShot());
             const QVariantList rows = ts.value(QStringLiteral("apart")).toList();
             checkApart(*snap, sh->ordinal, rows);
 
@@ -282,7 +283,7 @@ private slots:
         qInfo().noquote() << "[apart 5 Oct] shot:past-a-whisker>apart" << counts.join(QLatin1Char(' ')) << "| rule" << firstMs << "ms";
         for (int shot : { 7, 8 }) {     // for reading: the words as a golfer gets them
             p->setPickedSwingDir(dirOf(shot));
-            const QVariantMap ts = p->thisShot();
+            const QVariantMap ts = chartsGadgetMap(p->thisShot());
             qInfo().noquote() << "[apart 5 Oct]" << text(ts.value(QStringLiteral("head"))) << "|" << text(ts.value(QStringLiteral("standfirst")));
             for (const QVariant &v : ts.value(QStringLiteral("apart")).toList()) {
                 const QVariantMap r = v.toMap();
@@ -293,8 +294,8 @@ private slots:
 
         // Shot 2's ladder is guarded: it says so, and its spans are not counted.
         p->setPickedSwingDir(dirOf(2));
-        QVERIFY2(text(p->thisShot().value(QStringLiteral("standfirst"))).contains(QStringLiteral("⚠ The timing of this swing's positions looks unusual")),
-                 qPrintable(text(p->thisShot().value(QStringLiteral("standfirst")))));
+        QVERIFY2(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("standfirst"))).contains(QStringLiteral("⚠ The timing of this swing's positions looks unusual")),
+                 qPrintable(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("standfirst")))));
 
         // Two clubs in one session: the row still shows what was judged, on the shot's own club's scale.
         auto mixed = std::make_shared<SessionSnapshot>(*snap);
@@ -307,7 +308,7 @@ private slots:
         p->setSnapshot(mixed);
         for (const auto &sh : mixed->shots) {
             p->setPickedSwingDir(dirOf(sh->ordinal));
-            checkApart(*mixed, sh->ordinal, p->thisShot().value(QStringLiteral("apart")).toList());
+            checkApart(*mixed, sh->ordinal, chartsGadgetMap(p->thisShot()).value(QStringLiteral("apart")).toList());
         }
     }
 
@@ -319,7 +320,7 @@ private slots:
         int none = 0;
         for (int ordinal = 1; ordinal <= 15; ++ordinal) {
             p->setPickedSwingDir(dirOf(ordinal));
-            const QVariantMap ts = p->thisShot();
+            const QVariantMap ts = chartsGadgetMap(p->thisShot());
             const int n = ts.value(QStringLiteral("apartCount")).toInt();
             counts << QStringLiteral("%1:%2>%3").arg(ordinal).arg(boxApartCount(ts)).arg(n);
             if (n) continue;
@@ -351,9 +352,10 @@ private slots:
             s->shots.push_back(sh);
         }
         auto p = make(s, 3);
-        QCOMPARE(p->thisShot().value(QStringLiteral("apartCount")).toInt(), 0);
-        QCOMPARE(text(p->thisShot().value(QStringLiteral("head"))), QStringLiteral("Shot 3 cannot be compared"));
-        QCOMPARE(text(p->thisShot().value(QStringLiteral("standfirst"))),
+        QCOMPARE(chartsGadgetMap(p->thisShot()).value(QStringLiteral("apartCount")).toInt(), 0);
+        QVERIFY(p->thisShot().apartLabel.isEmpty());               // none apart: no fold state
+        QCOMPARE(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("head"))), QStringLiteral("Shot 3 cannot be compared"));
+        QCOMPARE(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("standfirst"))),
                  QStringLiteral("This shot has no camera readings, and the launch monitor needs eight shots with a club to compare it."));
     }
 
@@ -369,12 +371,12 @@ private slots:
             s->shots[size_t(i)] = c;
         }
         auto p = make(s, 3);
-        QCOMPARE(p->thisShot().value(QStringLiteral("apartCount")).toInt(), 0);
-        QCOMPARE(text(p->thisShot().value(QStringLiteral("head"))), QStringLiteral("Shot 3 cannot be compared"));
-        QVERIFY(text(p->thisShot().value(QStringLiteral("standfirst"))).contains(QStringLiteral("too few shots in the session")));
+        QCOMPARE(chartsGadgetMap(p->thisShot()).value(QStringLiteral("apartCount")).toInt(), 0);
+        QCOMPARE(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("head"))), QStringLiteral("Shot 3 cannot be compared"));
+        QVERIFY(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("standfirst"))).contains(QStringLiteral("too few shots in the session")));
         p->setPickedSwingDir(dirOf(7));
-        QCOMPARE(text(p->thisShot().value(QStringLiteral("head"))), QStringLiteral("Shot 7 cannot be compared"));
-        QVERIFY(text(p->thisShot().value(QStringLiteral("standfirst"))).contains(QStringLiteral("too few shots with this club")));
+        QCOMPARE(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("head"))), QStringLiteral("Shot 7 cannot be compared"));
+        QVERIFY(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("standfirst"))).contains(QStringLiteral("too few shots with this club")));
     }
 
     // A stand-out on a key with a curve and no phase samples: no reading in the session, and it opens its curve.
@@ -383,18 +385,18 @@ private slots:
         const QString key = QStringLiteral("thoraxRotationSigned");
         auto p = make(withCurveOnly(*m_snap, key, 8), 8);
         QVariantMap row;
-        for (const QVariant &v : p->thisShot().value(QStringLiteral("apart")).toList())
+        for (const QVariant &v : chartsGadgetMap(p->thisShot()).value(QStringLiteral("apart")).toList())
             if (v.toMap().value(QStringLiteral("key")).toString() == key) row = v.toMap();
         QVERIFY2(!row.isEmpty(), "the curve stands out");
         const QString id = row.value(QStringLiteral("readingId")).toString();
         QVERIFY(id.startsWith(key + QLatin1Char('@')));
-        QVERIFY(rowOf(p->thisShot(), id).isEmpty());               // there is no such reading
+        QVERIFY(rowOf(chartsGadgetMap(p->thisShot()), id).isEmpty());               // there is no such reading
         QCOMPARE(row.value(QStringLiteral("opens")).toString(), QStringLiteral("trace"));
         QVERIFY(row.value(QStringLiteral("hasCurve")).toBool());
         QCOMPARE(row.value(QStringLiteral("group")).toString(), QStringLiteral("Body rotation"));
 
         p->setOpenId(id);
-        const QVariantMap open = p->openRow();
+        const QVariantMap open = chartsGadgetMap(p->openRow());
         QCOMPARE(open.value(QStringLiteral("readingId")).toString(), id);
         QCOMPARE(open.value(QStringLiteral("opens")).toString(), QStringLiteral("trace"));
         const QVariantMap trace = open.value(QStringLiteral("trace")).toMap();
@@ -409,10 +411,10 @@ private slots:
         const QString key = QStringLiteral("swingPlaneCurve");
         auto p = make(withCurveOnly(*m_snap, key, 8), 8);
         QVariantMap row;
-        for (const QVariant &v : p->thisShot().value(QStringLiteral("apart")).toList())
+        for (const QVariant &v : chartsGadgetMap(p->thisShot()).value(QStringLiteral("apart")).toList())
             if (v.toMap().value(QStringLiteral("key")).toString() == key) row = v.toMap();
         QVERIFY2(!row.isEmpty(), "the curve stands out");
-        QVERIFY(!rowOf(p->thisShot(), row.value(QStringLiteral("readingId")).toString()).isEmpty());
+        QVERIFY(!rowOf(chartsGadgetMap(p->thisShot()), row.value(QStringLiteral("readingId")).toString()).isEmpty());
     }
 
     void apartTooFewToCompare()
@@ -421,8 +423,8 @@ private slots:
         few->shots.resize(6);
         ++few->revision;
         auto p = make(few, 3);
-        QCOMPARE(p->thisShot().value(QStringLiteral("apartCount")).toInt(), 0);
-        QCOMPARE(text(p->thisShot().value(QStringLiteral("head"))), QStringLiteral("Shot 3 cannot be compared"));
+        QCOMPARE(chartsGadgetMap(p->thisShot()).value(QStringLiteral("apartCount")).toInt(), 0);
+        QCOMPARE(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("head"))), QStringLiteral("Shot 3 cannot be compared"));
 
         auto one = std::make_shared<SessionSnapshot>(*m_snap);
         ++one->revision;
@@ -430,21 +432,21 @@ private slots:
         lone->club = QStringLiteral("Other");
         one->shots[2] = lone;
         auto q = make(one, 3);
-        QCOMPARE(q->thisShot().value(QStringLiteral("apartCount")).toInt(), 0);
-        QVERIFY(text(q->thisShot().value(QStringLiteral("standfirst"))).contains(QStringLiteral("too few shots with this club")));
+        QCOMPARE(chartsGadgetMap(q->thisShot()).value(QStringLiteral("apartCount")).toInt(), 0);
+        QVERIFY(text(chartsGadgetMap(q->thisShot()).value(QStringLiteral("standfirst"))).contains(QStringLiteral("too few shots with this club")));
     }
 
     // A row opens that reading's curve or its run, though a span has no key@phase of its own.
     void anApartRowOpens()
     {
         auto p = make(m_snap, 8);
-        const QVariantList rows = p->thisShot().value(QStringLiteral("apart")).toList();
+        const QVariantList rows = chartsGadgetMap(p->thisShot()).value(QStringLiteral("apart")).toList();
         QVERIFY(!rows.isEmpty());
         for (const QVariant &v : rows) {
             const QVariantMap r = v.toMap();
             const QString id = r.value(QStringLiteral("readingId")).toString();
             p->setOpenId(id);
-            const QVariantMap open = p->openRow();
+            const QVariantMap open = chartsGadgetMap(p->openRow());
             QCOMPARE(open.value(QStringLiteral("readingId")).toString(), id);
             QVERIFY(!open.value(QStringLiteral("run")).toMap().isEmpty());
             if (r.value(QStringLiteral("hasCurve")).toBool()) QVERIFY(!open.value(QStringLiteral("trace")).toMap().isEmpty());
@@ -468,12 +470,14 @@ private slots:
     {
         auto p = make(m_snap, 8);
         QVERIFY(p->ready());
-        const QVariantMap ts = p->thisShot();
+        const QVariantMap ts = chartsGadgetMap(p->thisShot());
         QVERIFY(ts.value(QStringLiteral("available")).toBool());
         const QVariantList rows = ts.value(QStringLiteral("apart")).toList();
         checkApart(*m_snap, 8, rows);
         QCOMPARE(ts.value(QStringLiteral("apartCount")).toInt(), rows.size());
         QCOMPARE(rows.size(), 6);                                  // all swing: no launch monitor on 4 July
+        // the Apart fold's state, the presenter's words (refactor 5.5c: the view counted and pluralised it)
+        QCOMPARE(ts.value(QStringLiteral("apartLabel")).toString(), QStringLiteral("6 readings"));
         QCOMPARE(text(ts.value(QStringLiteral("head"))), QStringLiteral("Six readings apart from the session"));
         const QString st = text(ts.value(QStringLiteral("standfirst")));
         QVERIFY2(st.contains(QStringLiteral("shot 8 stood out on six readings, starting with")), qPrintable(st));
@@ -484,14 +488,14 @@ private slots:
         for (const QVariant &g : ts.value(QStringLiteral("groups")).toList()) all += g.toMap().value(QStringLiteral("rows")).toList().size();
         QCOMPARE(all, ts.value(QStringLiteral("total")).toInt());
         QCOMPARE(all, 66);   // the two face-on inclinations are not offered (isResearchOnlySeries)
-        QCOMPARE(p->status().value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 8 of 15  ·  7 iron"));
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 8 of 15  ·  7 iron"));
     }
 
     void keyFiguresSayWhereTheNumberSits()
     {
         auto p = make(m_snap, 8, QStringLiteral("replay"));
-        QCOMPARE(p->status().value(QStringLiteral("family")).toString(), QStringLiteral("Club delivery"));
-        const QVariantMap kf = p->thisShot().value(QStringLiteral("keyFigures")).toMap();
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("family")).toString(), QStringLiteral("Club delivery"));
+        const QVariantMap kf = chartsGadgetMap(p->thisShot()).value(QStringLiteral("keyFigures")).toMap();
         const QVariantList items = kf.value(QStringLiteral("items")).toList();
         QVERIFY(!items.isEmpty());
         QVariantMap chs;
@@ -508,13 +512,13 @@ private slots:
         QCOMPARE(chs.value(QStringLiteral("unit")).toString(), QStringLiteral("mph"));
         // shot 14 is the third fastest: "85 mph, median 72, 3rd highest"
         auto q = make(m_snap, 14, QStringLiteral("replay"));
-        for (const QVariant &i : q->thisShot().value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList())
+        for (const QVariant &i : chartsGadgetMap(q->thisShot()).value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList())
             if (i.toMap().value(QStringLiteral("readingId")) == QStringLiteral("clubheadSpeed@5")) {
                 QCOMPARE(text(i.toMap().value(QStringLiteral("sentence"))), words::figUnit(84.82, QStringLiteral("mph")) + QStringLiteral(", median 72, 3rd highest"));
                 QCOMPARE(i.toMap().value(QStringLiteral("foot")).toString(), QStringLiteral("median 72  ·  3rd highest"));
             }
         // the lead reading's trace, on this shot's clock
-        const QVariantMap lead = p->thisShot().value(QStringLiteral("lead")).toMap();
+        const QVariantMap lead = chartsGadgetMap(p->thisShot()).value(QStringLiteral("lead")).toMap();
         QCOMPARE(lead.value(QStringLiteral("readingId")).toString(), QStringLiteral("clubheadSpeed@5"));
         const QVariantMap tr = lead.value(QStringLiteral("trace")).toMap();
         QVERIFY(tr.value(QStringLiteral("curve")).toMap().value(QStringLiteral("t")).toList().size() > 50);
@@ -524,7 +528,7 @@ private slots:
     void keyFiguresForTheSequenceArePeakTimes()
     {
         auto p = make(m_snap, 8);          // Analyse defaults to the Kinematic sequence
-        const QVariantMap kf = p->thisShot().value(QStringLiteral("keyFigures")).toMap();
+        const QVariantMap kf = chartsGadgetMap(p->thisShot()).value(QStringLiteral("keyFigures")).toMap();
         QVERIFY(kf.value(QStringLiteral("sequence")).toBool());
         const QVariantList items = kf.value(QStringLiteral("items")).toList();
         QCOMPARE(items.size(), 4);
@@ -532,7 +536,7 @@ private slots:
         // D4: on shot 8 the pelvis peaked late
         QVERIFY(items[0].toMap().value(QStringLiteral("warn")).toBool());
         QCOMPARE(items[0].toMap().value(QStringLiteral("warnWord")).toString(), QStringLiteral("late"));
-        const QVariantMap sq = p->sequence();
+        const QVariantMap sq = chartsGadgetMap(p->sequence());
         QVERIFY(text(sq.value(QStringLiteral("chainSentence"))).endsWith(QStringLiteral(", late")));
         QVERIFY2(text(sq.value(QStringLiteral("note"))).contains(QStringLiteral("cannot yet tell them apart")), qPrintable(text(sq.value(QStringLiteral("note")))));
         QVERIFY(text(sq.value(QStringLiteral("verdict"))).startsWith(QStringLiteral("Out of sequence: the pelvis peaked late")));
@@ -543,19 +547,19 @@ private slots:
         // #8: the toe line is a body-line tilt, so 4 July reads −6.9 … +2.3° and the row is an
         // ordinary one: no unwrap, no † mark, no note about angles across ±180°.
         auto p = make(m_snap, 8);
-        const QVariantMap row = rowOf(p->thisShot(), QStringLiteral("toeLineAngle@0"));
+        const QVariantMap row = rowOf(chartsGadgetMap(p->thisShot()), QStringLiteral("toeLineAngle@0"));
         QVERIFY(!row.isEmpty());
         const QVariantMap box = row.value(QStringLiteral("box")).toMap();
         QVERIFY(box.value(QStringLiteral("min")).toDouble() > -10.0 && box.value(QStringLiteral("max")).toDouble() < 10.0);
         QVERIFY(!row.contains(QStringLiteral("wrappedMark")));
-        QVERIFY(!p->thisShot().value(QStringLiteral("notes")).toString().contains(QStringLiteral("†")));
+        QVERIFY(!chartsGadgetMap(p->thisShot()).value(QStringLiteral("notes")).toString().contains(QStringLiteral("†")));
     }
 
     void openRowIsATraceOrARun()
     {
         auto p = make(m_snap, 8);
         p->setOpenId(QStringLiteral("clubheadSpeed@5"));
-        QVariantMap o = p->openRow();
+        QVariantMap o = chartsGadgetMap(p->openRow());
         QCOMPARE(o.value(QStringLiteral("opens")).toString(), QStringLiteral("trace"));
         const QVariantMap tr = o.value(QStringLiteral("trace")).toMap();
         bool own = false;
@@ -564,11 +568,11 @@ private slots:
         QVERIFY(own);
         // a reading with no curve on this shot opens its run in shot order
         p->setOpenId(QStringLiteral("tempoRatio@5"));
-        o = p->openRow();
+        o = chartsGadgetMap(p->openRow());
         QCOMPARE(o.value(QStringLiteral("opens")).toString(), QStringLiteral("run"));
         QCOMPARE(o.value(QStringLiteral("run")).toMap().value(QStringLiteral("points")).toList().size(), 15);
         // seeking: the picked shot's own clock
-        const qint64 impact = p->status().value(QStringLiteral("pickedImpactUs")).toLongLong();
+        const qint64 impact = chartsGadgetMap(p->status()).value(QStringLiteral("pickedImpactUs")).toLongLong();
         QCOMPARE(p->seekUsAtShotMs(-12.5), impact - 12500);
         QCOMPARE(p->seekUsFor(5), impact);
     }
@@ -584,7 +588,7 @@ private slots:
         c3->diagnostics.drivenBy.insert(QStringLiteral("over_the_top"), ChartShotFindings::Reading{ QStringLiteral("m_x"), QStringLiteral("leadHandWidth"), 2 });
         s->shots[2] = c3;
         auto p = make(s, 8);
-        const QVariantMap row = rowOf(p->thisShot(), QStringLiteral("handPathLoop@2"));
+        const QVariantMap row = rowOf(chartsGadgetMap(p->thisShot()), QStringLiteral("handPathLoop@2"));
         QVERIFY(!row.isEmpty());
         const QVariantList fired = row.value(QStringLiteral("firedShots")).toList();
         int n = 0;
@@ -599,11 +603,11 @@ private slots:
             QCOMPARE(row.value(QStringLiteral("conditions")).toList().value(0).toString(), QStringLiteral("Over the top"));
             QCOMPARE(row.value(QStringLiteral("firedWord")).toString(), QStringLiteral("out of its corridor"));
         }
-        const QVariantMap other = rowOf(p->thisShot(), QStringLiteral("leadHandWidth@2"));
+        const QVariantMap other = rowOf(chartsGadgetMap(p->thisShot()), QStringLiteral("leadHandWidth@2"));
         QVERIFY(other.value(QStringLiteral("firedShots")).toList()[2].toBool());   // drivenBy put it here
         // with no link at all, nothing is fired (never a join by value)
         auto plain = make(m_snap, 8);
-        for (const QVariant &g : plain->thisShot().value(QStringLiteral("groups")).toList())
+        for (const QVariant &g : chartsGadgetMap(plain->thisShot()).value(QStringLiteral("groups")).toList())
             for (const QVariant &r : g.toMap().value(QStringLiteral("rows")).toList())
                 for (const QVariant &f : r.toMap().value(QStringLiteral("firedShots")).toList()) QVERIFY(!f.toBool());
     }
@@ -632,7 +636,7 @@ private slots:
         const auto row = [&](int shot, const QString &policy = QStringLiteral("standard")) {
             auto p = make(s, shot);
             p->setGradePolicy(policy);
-            return rowOf(p->thisShot(), QStringLiteral("handPathLoop@2"));
+            return rowOf(chartsGadgetMap(p->thisShot()), QStringLiteral("handPathLoop@2"));
         };
         // the filters a row shows under (the tab's grouping): past the fault line counts as out of the corridor too
         const auto verdicts = [&](int shot) { return row(shot).value(QStringLiteral("verdicts")).toStringList(); };
@@ -684,9 +688,9 @@ private slots:
             QCOMPARE(f(3, "noneNamed").toString().arg(QStringLiteral("sway")), QStringLiteral("No reading named “sway” was graded inside its corridor on this shot."));
             QCOMPARE(ts.value(QStringLiteral("noName")).toString().arg(QStringLiteral("sway")), QStringLiteral("No reading's name holds “sway”."));
         };
-        check(make(m_snap, 8)->thisShot());
-        check(make(m_snap, 0)->thisShot());                          // nothing picked: the words are there all the same
-        check(make(std::make_shared<SessionSnapshot>(), 0)->thisShot());
+        check(chartsGadgetMap(make(m_snap, 8)->thisShot()));
+        check(chartsGadgetMap(make(m_snap, 0)->thisShot()));                          // nothing picked: the words are there all the same
+        check(chartsGadgetMap(make(std::make_shared<SessionSnapshot>(), 0)->thisShot()));
 
         // the counts the tab makes from the rows' `verdicts` are the old rule's: a fault counts under Faults and Outside
         auto s = withDirs(m_fx.session);
@@ -694,7 +698,7 @@ private slots:
         s->conditions[QStringLiteral("sway")].phase = 2;
         for (int shot = 1; shot <= int(s->shots.size()); ++shot) {
             QHash<QString, int> byList, byRule;
-            for (const QVariant &g : make(s, shot)->thisShot().value(QStringLiteral("groups")).toList())
+            for (const QVariant &g : chartsGadgetMap(make(s, shot)->thisShot()).value(QStringLiteral("groups")).toList())
                 for (const QVariant &rv : g.toMap().value(QStringLiteral("rows")).toList()) {
                     const QVariantMap r = rv.toMap();
                     for (const QString &v : r.value(QStringLiteral("verdicts")).toStringList()) ++byList[v];
@@ -746,7 +750,7 @@ private slots:
         }
         QVERIFY(eeShot && lsShot);
         auto p = make(s, eeShot);
-        QVariantMap row = rowOf(p->thisShot(), QStringLiteral("pelvisThrust@5"));
+        QVariantMap row = rowOf(chartsGadgetMap(p->thisShot()), QStringLiteral("pelvisThrust@5"));
         QVERIFY(row.value(QStringLiteral("fired")).toBool());
         QCOMPARE(row.value(QStringLiteral("conditions")).toList().value(0).toString(), QStringLiteral("Early extension, peak before P7"));
         QCOMPARE(row.value(QStringLiteral("firedWord")).toString(), QStringLiteral("the peak before P7 out of its corridor"));
@@ -754,18 +758,18 @@ private slots:
         QCOMPARE(fc.value(QStringLiteral("reducer")).toInt(), 3);
         QCOMPARE(fc.value(QStringLiteral("instant")).toString(), QStringLiteral("peak before P7"));
         auto q = make(s, lsShot);
-        row = rowOf(q->thisShot(), QStringLiteral("shaftLie@5"));
+        row = rowOf(chartsGadgetMap(q->thisShot()), QStringLiteral("shaftLie@5"));
         QVERIFY(row.value(QStringLiteral("fired")).toBool());
         QCOMPARE(row.value(QStringLiteral("conditions")).toList().value(0).toString(),
                  s->conditions.value(QStringLiteral("lie_steep_at_impact")).name + QStringLiteral(", change to P7"));
         QCOMPARE(row.value(QStringLiteral("firedWord")).toString(), QStringLiteral("the change to P7 out of its corridor"));
         // an At link says "at"; a Rate link "rate of change to"
         ee.reducer = 0;
-        QCOMPARE(rowOf(make(s, eeShot)->thisShot(), QStringLiteral("pelvisThrust@5")).value(QStringLiteral("conditions")).toList().value(0).toString(),
+        QCOMPARE(rowOf(chartsGadgetMap(make(s, eeShot)->thisShot()), QStringLiteral("pelvisThrust@5")).value(QStringLiteral("conditions")).toList().value(0).toString(),
                  QStringLiteral("Early extension, at P7"));
-        QCOMPARE(rowOf(make(s, eeShot)->thisShot(), QStringLiteral("pelvisThrust@5")).value(QStringLiteral("firedWord")).toString(), QStringLiteral("out of its corridor"));
+        QCOMPARE(rowOf(chartsGadgetMap(make(s, eeShot)->thisShot()), QStringLiteral("pelvisThrust@5")).value(QStringLiteral("firedWord")).toString(), QStringLiteral("out of its corridor"));
         ee.reducer = 2;
-        QCOMPARE(rowOf(make(s, eeShot)->thisShot(), QStringLiteral("pelvisThrust@5")).value(QStringLiteral("conditions")).toList().value(0).toString(),
+        QCOMPARE(rowOf(chartsGadgetMap(make(s, eeShot)->thisShot()), QStringLiteral("pelvisThrust@5")).value(QStringLiteral("conditions")).toList().value(0).toString(),
                  QStringLiteral("Early extension, rate of change to P7"));
     }
 
@@ -781,7 +785,7 @@ private slots:
             g->setReadAt([this](const QString &k) { return m_fx.readAtOf(k); });
             g->setPickedSwingDir(dirOf(8));
             g->setSnapshot(m_snap);
-            const QVariantList ledger = g->relations().value(QStringLiteral("ledger")).toList();
+            const QVariantList ledger = chartsGadgetMap(g->relations()).value(QStringLiteral("ledger")).toList();
             // The mock's rows, less the two face-on inclinations no chart offers now (isResearchOnlySeries).
             QJsonArray want;
             for (const QJsonValue &v : m_g.value(QStringLiteral("corr")).toObject().value(QStringLiteral("rows")).toArray())
@@ -794,7 +798,7 @@ private slots:
         }
         // … and the build's: the catalogue's card instants today.
         auto p = make(m_snap, 8);
-        const QVariantMap rel = p->relations();
+        const QVariantMap rel = chartsGadgetMap(p->relations());
         QVERIFY(rel.value(QStringLiteral("available")).toBool());
         QCOMPARE(rel.value(QStringLiteral("upId")).toString(), QStringLiteral("clubheadSpeed@5"));
         const QVariantList ledger = rel.value(QStringLiteral("ledger")).toList();
@@ -821,7 +825,7 @@ private slots:
         auto p = make(m_snap, 8);
         int expectRank = 0;
         bool sawSame = false;
-        for (const QVariant &v : p->relations().value(QStringLiteral("ledger")).toList()) {
+        for (const QVariant &v : chartsGadgetMap(p->relations()).value(QStringLiteral("ledger")).toList()) {
             const QVariantMap r = v.toMap();
             if (r.value(QStringLiteral("readingId")).toString() == QStringLiteral("clubAngularSpeed@5")) {
                 sawSame = true;
@@ -835,13 +839,13 @@ private slots:
             QCOMPARE(r.value(QStringLiteral("rank")).toInt(), ++expectRank);
         }
         QVERIFY(sawSame);
-        QVERIFY(p->relations().value(QStringLiteral("acrossId")).toString() != QStringLiteral("clubAngularSpeed@5"));
+        QVERIFY(chartsGadgetMap(p->relations()).value(QStringLiteral("acrossId")).toString() != QStringLiteral("clubAngularSpeed@5"));
     }
 
     void shaftLeanDriftsThroughTheSession()
     {
         auto p = make(m_snap, 8);
-        const QVariantMap dr = p->relations().value(QStringLiteral("drifts")).toMap();
+        const QVariantMap dr = chartsGadgetMap(p->relations()).value(QStringLiteral("drifts")).toMap();
         const QVariantList items = dr.value(QStringLiteral("items")).toList();
         QVERIFY(!items.isEmpty());
         const QVariantMap d = items[0].toMap();
@@ -856,12 +860,12 @@ private slots:
     void facetSplitsThePair()
     {
         auto p = make(m_snap, 8);
-        const QVariantList facets = p->relations().value(QStringLiteral("facets")).toList();
+        const QVariantList facets = chartsGadgetMap(p->relations()).value(QStringLiteral("facets")).toList();
         QVERIFY(facets.size() >= 2);
         const QVariantMap f0 = facets[0].toMap();
         QCOMPARE(f0.value(QStringLiteral("kind")).toString(), QStringLiteral("condition"));
         p->setFacetId(f0.value(QStringLiteral("id")).toString());
-        const QVariantMap fc = p->relations().value(QStringLiteral("facet")).toMap();
+        const QVariantMap fc = chartsGadgetMap(p->relations()).value(QStringLiteral("facet")).toMap();
         const QVariantList panels = fc.value(QStringLiteral("panels")).toList();
         QCOMPARE(panels.size(), 2);
         const int n0 = panels[0].toMap().value(QStringLiteral("n")).toInt(), n1 = panels[1].toMap().value(QStringLiteral("n")).toInt();
@@ -871,9 +875,9 @@ private slots:
         QVERIFY2(s.contains(QStringLiteral(": fired on %1 / clean on %2.").arg(n0).arg(n1)), qPrintable(s));
         QVERIFY(s.endsWith(words::coOccurrenceNote()));
         p->setFacetId(QStringLiteral("half"));
-        QCOMPARE(p->relations().value(QStringLiteral("facet")).toMap().value(QStringLiteral("panels")).toList().size(), 2);
+        QCOMPARE(chartsGadgetMap(p->relations()).value(QStringLiteral("facet")).toMap().value(QStringLiteral("panels")).toList().size(), 2);
         // the matrix is the Up reading's family, lower triangle
-        const QVariantMap mx = p->relations().value(QStringLiteral("matrix")).toMap();
+        const QVariantMap mx = chartsGadgetMap(p->relations()).value(QStringLiteral("matrix")).toMap();
         const QVariantList cells = mx.value(QStringLiteral("cells")).toList();
         for (int i = 0; i < cells.size(); ++i) QCOMPARE(cells[i].toList().size(), i);
     }
@@ -883,7 +887,7 @@ private slots:
     void kindsSayNoStructureThenTheSplit()
     {
         auto p = make(m_snap, 8);
-        const QVariantMap k = p->kinds();
+        const QVariantMap k = chartsGadgetMap(p->kinds());
         QVERIFY(k.value(QStringLiteral("available")).toBool());
         QCOMPARE(k.value(QStringLiteral("method")).toString(), QStringLiteral("split"));
         QVERIFY(!k.value(QStringLiteral("structure")).toBool());
@@ -913,11 +917,14 @@ private slots:
     void kindCurveWindowFollowsTheFiniteValues()
     {
         auto p = make(m_snap, 8);
-        const QVariantList curves = p->kinds().value(QStringLiteral("curves")).toList();
+        const QVariantList curves = chartsGadgetMap(p->kinds()).value(QStringLiteral("curves")).toList();
         QVERIFY(!curves.isEmpty());
         for (const QVariant &cv : curves) {
             const QVariantMap c = cv.toMap();
             QVERIFY(!c.value(QStringLiteral("window")).isNull());
+            // impact is the P-position the curve marks heavier: the presenter says which (refactor 5.5c, never by its tag)
+            for (const QVariant &ph : c.value(QStringLiteral("phases")).toList())
+                QCOMPARE(ph.toMap().value(QStringLiteral("impact")).toBool(), ph.toMap().value(QStringLiteral("phase")).toInt() == phase::Impact);
             const double t0 = c.value(QStringLiteral("window")).toMap().value(QStringLiteral("t0")).toDouble();
             const double t1 = c.value(QStringLiteral("window")).toMap().value(QStringLiteral("t1")).toDouble();
             double first = std::numeric_limits<double>::infinity(), last = -first;
@@ -926,7 +933,7 @@ private slots:
                 QCOMPARE(t.size(), v.size());
                 for (int i = 0; i < t.size(); ++i) {
                     QVERIFY(t[i].toDouble() >= t0 - 1e-9 && t[i].toDouble() <= t1 + 1e-9);     // trimmed to the window
-                    if (!v[i].isNull()) { first = std::min(first, t[i].toDouble()); last = std::max(last, t[i].toDouble()); }
+                    if (std::isfinite(v[i].toDouble())) { first = std::min(first, t[i].toDouble()); last = std::max(last, t[i].toDouble()); }
                 }
             }
             QVERIFY(std::isfinite(last));
@@ -940,7 +947,7 @@ private slots:
         }
         // no finite value anywhere: the refusals stand and there is no window
         auto s = withDirs(m_fx.session);
-        const QVariantList g = p->kinds().value(QStringLiteral("groups")).toList();
+        const QVariantList g = chartsGadgetMap(p->kinds()).value(QStringLiteral("groups")).toList();
         for (int k = 0; k < 2; ++k) {
             const QVariantList mem = g[k].toMap().value(QStringLiteral("members")).toList();
             for (int i = 2; i < mem.size(); ++i) {
@@ -952,7 +959,7 @@ private slots:
             }
         }
         QVariantMap none;
-        for (const QVariant &cv : make(s, 8)->kinds().value(QStringLiteral("curves")).toList())
+        for (const QVariant &cv : chartsGadgetMap(make(s, 8)->kinds()).value(QStringLiteral("curves")).toList())
             if (cv.toMap().value(QStringLiteral("key")).toString() == QStringLiteral("clubheadSpeed")) none = cv.toMap();
         QVERIFY(!none.isEmpty());
         QVERIFY(none.value(QStringLiteral("window")).isNull());
@@ -966,7 +973,7 @@ private slots:
     void kindCurveRefusedForUnderThreeShots()
     {
         auto p0 = make(m_snap, 8);
-        QVariantList a = p0->kinds().value(QStringLiteral("groups")).toList()[0].toMap().value(QStringLiteral("members")).toList();
+        QVariantList a = chartsGadgetMap(p0->kinds()).value(QStringLiteral("groups")).toList()[0].toMap().value(QStringLiteral("members")).toList();
         QCOMPARE(a.size(), 6);
         // strip the clubhead-speed CURVE (not its readings) from four of the six faster shots
         auto s = withDirs(m_fx.session);
@@ -979,7 +986,7 @@ private slots:
         }
         auto p = make(s, 8);
         QVariantMap curve;
-        for (const QVariant &c : p->kinds().value(QStringLiteral("curves")).toList())
+        for (const QVariant &c : chartsGadgetMap(p->kinds()).value(QStringLiteral("curves")).toList())
             if (c.toMap().value(QStringLiteral("key")).toString() == QStringLiteral("clubheadSpeed")) curve = c.toMap();
         QVERIFY(!curve.isEmpty());
         const QVariantList fits = curve.value(QStringLiteral("fits")).toList();
@@ -1002,7 +1009,7 @@ private slots:
             s->shots[size_t(o - 1)] = c;
         }
         auto p = make(s, 4);
-        const QVariantMap k = p->kinds();
+        const QVariantMap k = chartsGadgetMap(p->kinds());
         QCOMPARE(k.value(QStringLiteral("method")).toString(), QStringLiteral("split"));
         const QVariantList g = k.value(QStringLiteral("groups")).toList();
         QCOMPARE(g.size(), 3);
@@ -1022,7 +1029,7 @@ private slots:
         QCOMPARE(k.value(QStringLiteral("pickedKind")).toString(), QString());
         qInfo().noquote() << "kinds with unmeasured shots:" << head;
         // the full 4 July session places every shot: no third set
-        QCOMPARE(make(m_snap, 8)->kinds().value(QStringLiteral("groups")).toList().size(), 2);
+        QCOMPARE(chartsGadgetMap(make(m_snap, 8)->kinds()).value(QStringLiteral("groups")).toList().size(), 2);
     }
 
     // ── Replay Session follows the playhead (D6) ──────────────────────────────────────────
@@ -1036,7 +1043,7 @@ private slots:
         const QString id = QStringLiteral("clubheadSpeed@5");
         {
             auto p = make(m_snap, 8, QStringLiteral("replay"));
-            const QVariantMap row = rowOf(p->thisShot(), id);
+            const QVariantMap row = rowOf(chartsGadgetMap(p->thisShot()), id);
             QVERIFY(!row.isEmpty());
             const auto want = expectedTypicality(*m_snap, 8, row.value(QStringLiteral("values")).toList(), QStringLiteral("clubheadSpeed"));
             QVERIFY(want);
@@ -1044,7 +1051,7 @@ private slots:
             qInfo().noquote() << "typicality:" << row.value(QStringLiteral("variability")).toMap().value(QStringLiteral("basisText")).toString();
             // the key figure carries the same badge; its foot stays
             QVariantMap fig;
-            for (const QVariant &i : p->thisShot().value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList())
+            for (const QVariant &i : chartsGadgetMap(p->thisShot()).value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList())
                 if (i.toMap().value(QStringLiteral("readingId")) == id) fig = i.toMap();
             QVERIFY(!fig.isEmpty());
             checkTypicality(fig.value(QStringLiteral("typicality")).toMap(), *want, 8);
@@ -1054,7 +1061,7 @@ private slots:
             const QList<int> drivers{ 1, 2, 3, 4 };
             auto snap = withShots(*m_snap, drivers, QStringLiteral("DRIVER"));
             auto p = make(snap, 8, QStringLiteral("replay"));
-            const QVariantMap row = rowOf(p->thisShot(), id);
+            const QVariantMap row = rowOf(chartsGadgetMap(p->thisShot()), id);
             const auto want = expectedTypicality(*snap, 8, row.value(QStringLiteral("values")).toList(), QStringLiteral("clubheadSpeed"));
             QVERIFY(want);
             checkTypicality(row.value(QStringLiteral("variability")).toMap(), *want, 8, drivers);
@@ -1062,12 +1069,12 @@ private slots:
         {   // seven others with the club: no badge on any row, nor on a key figure
             auto snap = withShots(*m_snap, { 1, 2, 3, 4, 5, 6, 7 }, QStringLiteral("DRIVER"));
             auto p = make(snap, 8, QStringLiteral("replay"));
-            const QVariantMap ts = p->thisShot();
+            const QVariantMap ts = chartsGadgetMap(p->thisShot());
             QVERIFY(!expectedTypicality(*snap, 8, rowOf(ts, id).value(QStringLiteral("values")).toList(), QStringLiteral("clubheadSpeed")));
             for (const QVariant &g : ts.value(QStringLiteral("groups")).toList())
                 for (const QVariant &r : g.toMap().value(QStringLiteral("rows")).toList())
-                    QVERIFY2(!r.toMap().contains(QStringLiteral("variability")), qPrintable(r.toMap().value(QStringLiteral("readingId")).toString()));
-            for (const QVariant &r : ts.value(QStringLiteral("apart")).toList()) QVERIFY(!r.toMap().contains(QStringLiteral("variability")));
+                    QVERIFY2(r.toMap().value(QStringLiteral("variability")).isNull(), qPrintable(r.toMap().value(QStringLiteral("readingId")).toString()));
+            for (const QVariant &r : ts.value(QStringLiteral("apart")).toList()) QVERIFY(r.toMap().value(QStringLiteral("variability")).isNull());
             for (const QVariant &i : ts.value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList())
                 QVERIFY(i.toMap().value(QStringLiteral("typicality")).isNull());
         }
@@ -1087,16 +1094,16 @@ private slots:
                 const QString key = row.value(QStringLiteral("key")).toString();
                 if (pinpoint::variability::isOutcomeMetric(key)) {
                     ++outcomes;
-                    QVERIFY2(!row.contains(QStringLiteral("variability")), qPrintable(key + QStringLiteral(": an outcome has no typicality")));
+                    QVERIFY2(row.value(QStringLiteral("variability")).isNull(), qPrintable(key + QStringLiteral(": an outcome has no typicality")));
                     continue;
                 }
                 const auto want = expectedTypicality(s, 7, row.value(QStringLiteral("values")).toList(), key);
                 if (want) checkTypicality(row.value(QStringLiteral("variability")).toMap(), *want, 7);
-                else QVERIFY2(!row.contains(QStringLiteral("variability")), qPrintable(key));
+                else QVERIFY2(row.value(QStringLiteral("variability")).isNull(), qPrintable(key));
             }
         };
         auto p = make(snap, 7);
-        const QVariantMap ts = p->thisShot();
+        const QVariantMap ts = chartsGadgetMap(p->thisShot());
         checkRows(*snap, ts);
         QVERIFY2(outcomes > 0, "the fixture's Apart has a ball-flight or smash row (smash factor on shot 7)");
     }
@@ -1106,7 +1113,7 @@ private slots:
     {
         auto p = make(m_snap, 8, QStringLiteral("replay"));
         p->setPlayheadUs(m_snap->shots[7]->impactUs);
-        const QVariantMap now = p->replaySession().value(QStringLiteral("now")).toMap();
+        const QVariantMap now = chartsGadgetMap(p->replaySession()).value(QStringLiteral("now")).toMap();
         const QString s = text(now.value(QStringLiteral("sentence")));
         QVERIFY2(s.startsWith(QStringLiteral("This shot ")) && s.contains(QStringLiteral("; median ") + now.value(QStringLiteral("medianText")).toString()),
                  qPrintable(s));
@@ -1122,8 +1129,8 @@ private slots:
         snap->shots[7] = c8;
         auto q = make(snap, 8, QStringLiteral("replay"));
         q->setPlayheadUs(c8->impactUs);
-        QCOMPARE(q->replaySession().value(QStringLiteral("tag")).toString(), QStringLiteral("P7"));
-        const QVariantMap un = q->replaySession().value(QStringLiteral("now")).toMap();
+        QCOMPARE(chartsGadgetMap(q->replaySession()).value(QStringLiteral("tag")).toString(), QStringLiteral("P7"));
+        const QVariantMap un = chartsGadgetMap(q->replaySession()).value(QStringLiteral("now")).toMap();
         QCOMPARE(text(un.value(QStringLiteral("sentence"))), QStringLiteral("Not measured on this shot; median ") + un.value(QStringLiteral("medianText")).toString()
                                                              + QStringLiteral("."));
         QVERIFY(un.value(QStringLiteral("typicality")).isNull());
@@ -1138,17 +1145,17 @@ private slots:
         for (const PhaseMark &m : s8.phases) { if (m.phase == 2) top = m.tUs; if (m.phase == 0) addr = m.tUs; }
         QVERIFY(top > 0 && impact > top);
         p->setPlayheadUs(addr - 100000);            // before every P-position: the first
-        const QString first = p->replaySession().value(QStringLiteral("tag")).toString();
-        QCOMPARE(p->replaySession().value(QStringLiteral("key")).toString(), QStringLiteral("clubheadSpeed"));
+        const QString first = chartsGadgetMap(p->replaySession()).value(QStringLiteral("tag")).toString();
+        QCOMPARE(chartsGadgetMap(p->replaySession()).value(QStringLiteral("key")).toString(), QStringLiteral("clubheadSpeed"));
         p->setPlayheadUs(top + 2000);
-        QCOMPARE(p->replaySession().value(QStringLiteral("tag")).toString(), QStringLiteral("P4"));
-        QCOMPARE(p->replaySession().value(QStringLiteral("readingId")).toString(), QStringLiteral("clubheadSpeed@2"));
+        QCOMPARE(chartsGadgetMap(p->replaySession()).value(QStringLiteral("tag")).toString(), QStringLiteral("P4"));
+        QCOMPARE(chartsGadgetMap(p->replaySession()).value(QStringLiteral("readingId")).toString(), QStringLiteral("clubheadSpeed@2"));
         const int afterTop = spy.count();
         p->setPlayheadUs(top + 3000);               // same P-position, value unchanged: no signal unless the readout moved
         p->setPlayheadUs(impact);
-        QCOMPARE(p->replaySession().value(QStringLiteral("tag")).toString(), QStringLiteral("P7"));
+        QCOMPARE(chartsGadgetMap(p->replaySession()).value(QStringLiteral("tag")).toString(), QStringLiteral("P7"));
         QVERIFY(spy.count() > afterTop);
-        const QVariantMap rs = p->replaySession();
+        const QVariantMap rs = chartsGadgetMap(p->replaySession());
         QCOMPARE(text(rs.value(QStringLiteral("head"))), QStringLiteral("Clubhead speed at P7, impact, every shot"));
         QCOMPARE(rs.value(QStringLiteral("movesWith")).toList().size(), 3);
         QVERIFY(text(rs.value(QStringLiteral("note"))).endsWith(words::coOccurrenceNote()));
@@ -1160,7 +1167,7 @@ private slots:
         QVERIFY(first != QStringLiteral("P7"));
         // the lead's value at the playhead, as text (clubhead speed is bridged after impact: read it before)
         p->setPlayheadUs(impact - 30000);
-        QVERIFY(p->playhead().value(QStringLiteral("leadValueText")).toString().endsWith(QStringLiteral("mph")));
+        QVERIFY(chartsGadgetMap(p->playhead()).value(QStringLiteral("leadValueText")).toString().endsWith(QStringLiteral("mph")));
     }
 
     void portGapsAreFilled()
@@ -1168,18 +1175,18 @@ private slots:
         auto p = make(m_snap, 8, QStringLiteral("replay"));
         const QChar nb(0x00A0);
         // 1. every shot, for an ordinal → carousel request
-        const QVariantList shots = p->status().value(QStringLiteral("shots")).toList();
+        const QVariantList shots = chartsGadgetMap(p->status()).value(QStringLiteral("shots")).toList();
         QCOMPARE(shots.size(), 15);
         QCOMPARE(shots[7].toMap().value(QStringLiteral("ordinal")).toInt(), 8);
         QCOMPARE(shots[7].toMap().value(QStringLiteral("swingDir")).toString(), dirOf(8));
         QCOMPARE(shots[7].toMap().value(QStringLiteral("shotId")).toInt(), 8);
         QCOMPARE(shots[7].toMap().value(QStringLiteral("club")).toString(), QStringLiteral("7 IRON"));
         // 5. the profile's column heads
-        QCOMPARE(p->status().value(QStringLiteral("shotLabel")).toString(), QStringLiteral("Shot 8"));
-        QCOMPARE(p->status().value(QStringLiteral("countLabel")).toString(), QStringLiteral("15 shots, low to high"));
-        QCOMPARE(p->status().value(QStringLiteral("countLabelShort")).toString(), QStringLiteral("15 shots"));
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("shotLabel")).toString(), QStringLiteral("Shot 8"));
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("countLabel")).toString(), QStringLiteral("15 shots, low to high"));
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("countLabelShort")).toString(), QStringLiteral("15 shots"));
         // 2. each kind's curve carries its ±sd hairlines and the scale that holds them
-        const QVariantList curves = p->kinds().value(QStringLiteral("curves")).toList();
+        const QVariantList curves = chartsGadgetMap(p->kinds()).value(QStringLiteral("curves")).toList();
         QVERIFY(!curves.isEmpty());
         for (const QVariant &cv : curves) {
             const QVariantMap c = cv.toMap();
@@ -1195,7 +1202,8 @@ private slots:
                 QCOMPARE(hi.size(), v.size());
                 int drawn = 0;
                 for (int i = 0; i < v.size(); ++i) {
-                    if (v[i].isNull() || sd[i].isNull()) { QVERIFY(lo[i].isNull()); continue; }
+                    // a blank is NaN in the typed lists (it was null)
+                    if (!std::isfinite(v[i].toDouble()) || !std::isfinite(sd[i].toDouble())) { QVERIFY(!std::isfinite(lo[i].toDouble())); continue; }
                     ++drawn;
                     QCOMPARE(lo[i].toDouble(), v[i].toDouble() - sd[i].toDouble());
                     QCOMPARE(hi[i].toDouble(), v[i].toDouble() + sd[i].toDouble());
@@ -1205,29 +1213,29 @@ private slots:
             }
         }
         // 3. the ledger's sparkline is scaled from data
-        const QVariantMap rel = p->relations();
+        const QVariantMap rel = chartsGadgetMap(p->relations());
         for (const QVariant &rv : rel.value(QStringLiteral("ledger")).toList()) {
             const QVariantMap pair = rv.toMap().value(QStringLiteral("pair")).toMap();
             const double xlo = pair.value(QStringLiteral("xRange")).toMap().value(QStringLiteral("lo")).toDouble();
             const double xhi = pair.value(QStringLiteral("xRange")).toMap().value(QStringLiteral("hi")).toDouble();
             const double ylo = pair.value(QStringLiteral("yRange")).toMap().value(QStringLiteral("lo")).toDouble();
             const double yhi = pair.value(QStringLiteral("yRange")).toMap().value(QStringLiteral("hi")).toDouble();
-            for (const QVariant &x : pair.value(QStringLiteral("xs")).toList()) if (!x.isNull()) QVERIFY(x.toDouble() >= xlo && x.toDouble() <= xhi);
-            for (const QVariant &y : pair.value(QStringLiteral("ys")).toList()) if (!y.isNull()) QVERIFY(y.toDouble() >= ylo && y.toDouble() <= yhi);
+            for (const QVariant &x : pair.value(QStringLiteral("xs")).toList()) if (std::isfinite(x.toDouble())) QVERIFY(x.toDouble() >= xlo && x.toDouble() <= xhi);
+            for (const QVariant &y : pair.value(QStringLiteral("ys")).toList()) if (std::isfinite(y.toDouble())) QVERIFY(y.toDouble() >= ylo && y.toDouble() <= yhi);
         }
         // 4. metric keys for hue, never split out of an id
-        for (const QVariant &i : p->thisShot().value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList())
+        for (const QVariant &i : chartsGadgetMap(p->thisShot()).value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList())
             QCOMPARE(i.toMap().value(QStringLiteral("key")).toString(), i.toMap().value(QStringLiteral("readingId")).toString().section(QLatin1Char('@'), 0, 0));
-        for (const QVariant &r : p->kinds().value(QStringLiteral("separation")).toMap().value(QStringLiteral("rows")).toList())
+        for (const QVariant &r : chartsGadgetMap(p->kinds()).value(QStringLiteral("separation")).toMap().value(QStringLiteral("rows")).toList())
             QCOMPARE(r.toMap().value(QStringLiteral("key")).toString(), r.toMap().value(QStringLiteral("readingId")).toString().section(QLatin1Char('@'), 0, 0));
         const QVariantMap sc = rel.value(QStringLiteral("scatter")).toMap();
         QCOMPARE(sc.value(QStringLiteral("yKey")).toString(), QStringLiteral("clubheadSpeed"));
         QCOMPARE(sc.value(QStringLiteral("xKey")).toString(), sc.value(QStringLiteral("xId")).toString().section(QLatin1Char('@'), 0, 0));
         p->setFacetId(QStringLiteral("half"));
-        for (const QVariant &pl : p->relations().value(QStringLiteral("facet")).toMap().value(QStringLiteral("panels")).toList())
+        for (const QVariant &pl : chartsGadgetMap(p->relations()).value(QStringLiteral("facet")).toMap().value(QStringLiteral("panels")).toList())
             QCOMPARE(pl.toMap().value(QStringLiteral("scatter")).toMap().value(QStringLiteral("yKey")).toString(), QStringLiteral("clubheadSpeed"));
         p->setPlayheadUs(m_snap->shots[7]->impactUs);
-        QCOMPARE(p->replaySession().value(QStringLiteral("partner")).toMap().value(QStringLiteral("scatter")).toMap().value(QStringLiteral("yKey")).toString(),
+        QCOMPARE(chartsGadgetMap(p->replaySession()).value(QStringLiteral("partner")).toMap().value(QStringLiteral("scatter")).toMap().value(QStringLiteral("yKey")).toString(),
                  QStringLiteral("clubheadSpeed"));
         // 6. a number meets its unit across U+00A0 in the joins made here
         QVERIFY(text(rel.value(QStringLiteral("standfirst"))).contains(QStringLiteral("95") + nb + QStringLiteral("%")));
@@ -1235,20 +1243,25 @@ private slots:
         const QString slope = rel.value(QStringLiteral("ledger")).toList()[0].toMap().value(QStringLiteral("slopeText")).toString();
         QVERIFY2(slope.contains(nb + QStringLiteral("mph per ")) && !slope.contains(QStringLiteral(" mph")), qPrintable(slope));
         // the sequence's bare figures drop the unit whichever space charts_words.h joins it with
-        for (const QVariant &r : p->sequence().value(QStringLiteral("rows")).toList())
+        for (const QVariant &r : chartsGadgetMap(p->sequence()).value(QStringLiteral("rows")).toList())
             QVERIFY(!r.toMap().value(QStringLiteral("valueText")).toString().contains(QStringLiteral("ms")));
     }
 
     void ticksAreNice()
     {
         ChartsRelationsPresenter p;
-        QVariantList t = p.ticks(63.0, 86.2, 4, QStringLiteral("mph"));
+        QList<RelationsTick> t = p.ticks(63.0, 86.2, 4, QStringLiteral("mph"));
         QStringList got;
-        for (const QVariant &v : t) got << v.toMap().value(QStringLiteral("text")).toString();
+        for (const RelationsTick &v : t) got << v.text;
         QCOMPARE(got, (QStringList{ QStringLiteral("65"), QStringLiteral("70"), QStringLiteral("75"), QStringLiteral("80"), QStringLiteral("85") }));
         t = p.ticks(-1.4, 0.6, 4, QStringLiteral("in"));
-        QCOMPARE(t.first().toMap().value(QStringLiteral("text")).toString(), QStringLiteral("\u22121.0"));
+        QCOMPARE(t.first().text, QStringLiteral("\u22121.0"));
         QVERIFY(p.ticks(kNaN, 1, 4).isEmpty());
+        // the payloads' maps are the same ticks (axisTicks: the report's and the Wrist page's scales)
+        const QVariantList maps = ChartsRelationsPresenter::axisTicks(63.0, 86.2, 4, QStringLiteral("mph"));
+        QCOMPARE(maps.size(), 5);
+        QCOMPARE(maps.first().toMap().value(QStringLiteral("text")).toString(), QStringLiteral("65"));
+        QCOMPARE(maps.first().toMap().value(QStringLiteral("v")).toDouble(), 65.0);
     }
 
     // ── Edge states (STEP2A) ──────────────────────────────────────────────────────────────
@@ -1257,27 +1270,27 @@ private slots:
     {
         auto p = make(std::make_shared<SessionSnapshot>(), 0);
         QVERIFY(p->ready());
-        QCOMPARE(p->status().value(QStringLiteral("shotCount")).toInt(), 0);
-        QVERIFY(!p->thisShot().value(QStringLiteral("available")).toBool());
-        QVERIFY(!p->relations().value(QStringLiteral("available")).toBool());
-        QVERIFY(!p->kinds().value(QStringLiteral("available")).toBool());
-        QVERIFY(p->replaySession().isEmpty());
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("shotCount")).toInt(), 0);
+        QVERIFY(!chartsGadgetMap(p->thisShot()).value(QStringLiteral("available")).toBool());
+        QVERIFY(!chartsGadgetMap(p->relations()).value(QStringLiteral("available")).toBool());
+        QVERIFY(!chartsGadgetMap(p->kinds()).value(QStringLiteral("available")).toBool());
+        QVERIFY(p->replaySession().readingId.isEmpty());          // none: the typed value's default
         QCOMPARE(p->seekUsFor(5), qint64(-1));
         // no session is said as that, never as "N shots are needed; this session has none"
         const QString none = QStringLiteral("No session is loaded.");
-        QCOMPARE(text(p->status().value(QStringLiteral("refusal"))), none);
-        QCOMPARE(text(p->relations().value(QStringLiteral("refusal"))), none);
-        QCOMPARE(text(p->kinds().value(QStringLiteral("refusal"))), none);
-        QCOMPARE(text(p->kinds().value(QStringLiteral("head"))), none);
-        QCOMPARE(text(p->thisShot().value(QStringLiteral("head"))), none);
+        QCOMPARE(text(chartsGadgetMap(p->status()).value(QStringLiteral("refusal"))), none);
+        QCOMPARE(text(chartsGadgetMap(p->relations()).value(QStringLiteral("refusal"))), none);
+        QCOMPARE(text(chartsGadgetMap(p->kinds()).value(QStringLiteral("refusal"))), none);
+        QCOMPARE(text(chartsGadgetMap(p->kinds()).value(QStringLiteral("head"))), none);
+        QCOMPARE(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("head"))), none);
         auto emptyDir = std::make_shared<SessionSnapshot>();
         emptyDir->sessionDir = QStringLiteral("/fixture/empty");
         auto e = make(emptyDir, 0);
-        QCOMPARE(text(e->relations().value(QStringLiteral("refusal"))), QStringLiteral("No shot in this session has been analysed yet."));
-        QCOMPARE(text(e->kinds().value(QStringLiteral("refusal"))), QStringLiteral("No shot in this session has been analysed yet."));
+        QCOMPARE(text(chartsGadgetMap(e->relations()).value(QStringLiteral("refusal"))), QStringLiteral("No shot in this session has been analysed yet."));
+        QCOMPARE(text(chartsGadgetMap(e->kinds()).value(QStringLiteral("refusal"))), QStringLiteral("No shot in this session has been analysed yet."));
         auto q = make(m_snap, 0);                   // a session, nothing picked
-        QVERIFY(!q->thisShot().value(QStringLiteral("available")).toBool());
-        QVERIFY(q->relations().value(QStringLiteral("available")).toBool());
+        QVERIFY(!chartsGadgetMap(q->thisShot()).value(QStringLiteral("available")).toBool());
+        QVERIFY(chartsGadgetMap(q->relations()).value(QStringLiteral("available")).toBool());
     }
 
     void edgeTwoShots()
@@ -1285,43 +1298,43 @@ private slots:
         auto s = withDirs(m_fx.session);
         s->shots.resize(2);
         auto p = make(s, 2);
-        QVERIFY(p->status().value(QStringLiteral("refused")).toBool());
-        QCOMPARE(text(p->status().value(QStringLiteral("refusal"))), QStringLiteral("Three shots are needed to draw the session; this session has two."));
-        QCOMPARE(text(p->thisShot().value(QStringLiteral("head"))), QStringLiteral("Three shots are needed to set a shot against its session; this session has two."));
-        QVERIFY(!p->relations().value(QStringLiteral("available")).toBool());
-        QCOMPARE(text(p->kinds().value(QStringLiteral("head"))), QStringLiteral("Six shots are needed to look for kinds of swing; this session has two."));
-        QCOMPARE(text(p->kinds().value(QStringLiteral("refusal"))), QStringLiteral("Six shots are needed to look for kinds of swing; this session has two."));
-        QCOMPARE(text(p->relations().value(QStringLiteral("refusal"))), QStringLiteral("Five shots are needed to relate readings across a session; this session has two."));
+        QVERIFY(chartsGadgetMap(p->status()).value(QStringLiteral("refused")).toBool());
+        QCOMPARE(text(chartsGadgetMap(p->status()).value(QStringLiteral("refusal"))), QStringLiteral("Three shots are needed to draw the session; this session has two."));
+        QCOMPARE(text(chartsGadgetMap(p->thisShot()).value(QStringLiteral("head"))), QStringLiteral("Three shots are needed to set a shot against its session; this session has two."));
+        QVERIFY(!chartsGadgetMap(p->relations()).value(QStringLiteral("available")).toBool());
+        QCOMPARE(text(chartsGadgetMap(p->kinds()).value(QStringLiteral("head"))), QStringLiteral("Six shots are needed to look for kinds of swing; this session has two."));
+        QCOMPARE(text(chartsGadgetMap(p->kinds()).value(QStringLiteral("refusal"))), QStringLiteral("Six shots are needed to look for kinds of swing; this session has two."));
+        QCOMPARE(text(chartsGadgetMap(p->relations()).value(QStringLiteral("refusal"))), QStringLiteral("Five shots are needed to relate readings across a session; this session has two."));
         // this shot's own figures are still published: the value, no median or place, and why
         p->setRegisterMode(QStringLiteral("replay"));
-        const QVariantList kf = p->thisShot().value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList();
+        const QVariantList kf = chartsGadgetMap(p->thisShot()).value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList();
         QVERIFY(!kf.isEmpty());
         QCOMPARE(kf[0].toMap().value(QStringLiteral("key")).toString(), QStringLiteral("clubheadSpeed"));
         QCOMPARE(text(kf[0].toMap().value(QStringLiteral("sentence"))), words::figUnit(71.26, QStringLiteral("mph")));
         QCOMPARE(kf[0].toMap().value(QStringLiteral("foot")).toString(), QStringLiteral("Two shots: too few to place it"));
         QVERIFY(kf[0].toMap().value(QStringLiteral("place")).toString().isEmpty());
-        QCOMPARE(p->thisShot().value(QStringLiteral("lead")).toMap().value(QStringLiteral("readingId")).toString(), QStringLiteral("clubheadSpeed@5"));
-        QVERIFY(!p->thisShot().value(QStringLiteral("lead")).toMap().value(QStringLiteral("trace")).isNull());
+        QCOMPARE(chartsGadgetMap(p->thisShot()).value(QStringLiteral("lead")).toMap().value(QStringLiteral("readingId")).toString(), QStringLiteral("clubheadSpeed@5"));
+        QVERIFY(!chartsGadgetMap(p->thisShot()).value(QStringLiteral("lead")).toMap().value(QStringLiteral("trace")).isNull());
         // one shot: "the session's only shot"
         auto one = withDirs(m_fx.session);
         one->shots.resize(1);
         auto q = make(one, 1, QStringLiteral("replay"));
-        QCOMPARE(q->thisShot().value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList().value(0).toMap().value(QStringLiteral("foot")).toString(),
+        QCOMPARE(chartsGadgetMap(q->thisShot()).value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList().value(0).toMap().value(QStringLiteral("foot")).toString(),
                  QStringLiteral("the session's only shot"));
         // four shots: placed against the session, but too few to relate
         auto four = withDirs(m_fx.session);
         four->shots.resize(4);
         auto f = make(four, 2, QStringLiteral("replay"));
-        QVERIFY(f->thisShot().value(QStringLiteral("available")).toBool());
-        QVERIFY(text(f->thisShot().value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList().value(0).toMap().value(QStringLiteral("sentence"))).contains(QStringLiteral(", median ")));
-        QCOMPARE(text(f->relations().value(QStringLiteral("refusal"))), QStringLiteral("Five shots are needed to relate readings across a session; this session has four."));
+        QVERIFY(chartsGadgetMap(f->thisShot()).value(QStringLiteral("available")).toBool());
+        QVERIFY(text(chartsGadgetMap(f->thisShot()).value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList().value(0).toMap().value(QStringLiteral("sentence"))).contains(QStringLiteral(", median ")));
+        QCOMPARE(text(chartsGadgetMap(f->relations()).value(QStringLiteral("refusal"))), QStringLiteral("Five shots are needed to relate readings across a session; this session has four."));
     }
 
     void kindsThatAreTheClubsAreSaidToBe()
     {
         // label the six faster shots DRIVER: the 8 mph split is then the club, not a kind of swing
         auto p0 = make(m_snap, 8);
-        const QVariantList faster = p0->kinds().value(QStringLiteral("groups")).toList()[0].toMap().value(QStringLiteral("members")).toList();
+        const QVariantList faster = chartsGadgetMap(p0->kinds()).value(QStringLiteral("groups")).toList()[0].toMap().value(QStringLiteral("members")).toList();
         QCOMPARE(faster.size(), 6);
         auto s = withDirs(m_fx.session);
         for (const QVariant &mm : faster) {
@@ -1331,12 +1344,12 @@ private slots:
             s->shots[size_t(o - 1)] = c;
         }
         auto p = make(s, 8);
-        QVariantMap k = p->kinds();
+        QVariantMap k = chartsGadgetMap(p->kinds());
         QCOMPARE(k.value(QStringLiteral("method")).toString(), QStringLiteral("clubs"));
         QVERIFY(!k.value(QStringLiteral("structure")).toBool());
         QCOMPARE(text(k.value(QStringLiteral("head"))), QStringLiteral("The two kinds are the two clubs: driver and 7 iron"));
         QCOMPARE(k.value(QStringLiteral("kicker")).toString(), QStringLiteral("Kinds of swing  ·  fifteen shots  ·  mixed clubs"));
-        QCOMPARE(p->status().value(QStringLiteral("club")).toString(), QStringLiteral("mixed clubs"));
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("club")).toString(), QStringLiteral("mixed clubs"));
         const QString st = text(k.value(QStringLiteral("standfirst")));
         QVERIFY2(st.contains(QStringLiteral("15 of the 15 grouped shots sit with their own club")) && st.contains(QStringLiteral("Kinds across clubs are not meaningful.")), qPrintable(st));
         // within the largest club: the nine 7 irons alone
@@ -1364,15 +1377,49 @@ private slots:
             if (flipped == 2 || sp->club != QStringLiteral("7 IRON")) continue;
             auto c = std::make_shared<ShotSeries>(*sp); c->club = QStringLiteral("DRIVER"); sp = c; ++flipped;
         }
-        k = make(s2, 8)->kinds();
+        k = chartsGadgetMap(make(s2, 8)->kinds());
         QVERIFY2(text(k.value(QStringLiteral("head"))).startsWith(QStringLiteral("The two kinds are mostly the two clubs")), qPrintable(text(k.value(QStringLiteral("head")))));
         // clubs that do NOT line up with the kinds: kinds as before, and the mix is said
         auto s3 = withDirs(m_fx.session);
         for (int o : { 1, 2, 3 }) { auto c = std::make_shared<ShotSeries>(*s3->shots[size_t(o - 1)]); c->club = QStringLiteral("DRIVER"); s3->shots[size_t(o - 1)] = c; }
-        k = make(s3, 8)->kinds();
+        k = chartsGadgetMap(make(s3, 8)->kinds());
         QCOMPARE(k.value(QStringLiteral("method")).toString(), QStringLiteral("split"));
         QVERIFY(text(k.value(QStringLiteral("standfirst"))).endsWith(QStringLiteral("they are not the clubs.")));
         QVERIFY(k.value(QStringLiteral("kicker")).toString().endsWith(QStringLiteral("mixed clubs")));
+        // the note is the standfirst's last run, and its clause is cut from the sentence it now is (5.5b review m4)
+        const RelationsKinds typed = make(s3, 8)->kinds();
+        QCOMPARE(typed.standfirst.runs.last().text, QStringLiteral(" ") + typed.clubsNote);
+        QCOMPARE(typed.standfirst.clause, words::firstClauseOf(typed.standfirst.text));
+    }
+
+    // The Wrist tab's question, typed (RelationsMovesWith): the Relations ledger's own rows, asked of one reading.
+    void movesWithIsTheLedgersRows()
+    {
+        const QString up = QStringLiteral("clubheadSpeed@5");
+        const RelationsMovesWith mw = ChartsRelationsPresenter::movesWith(m_snap, up, 4, 3);
+        QVERIFY(mw.available);
+        QCOMPARE(mw.upId, up);
+        QCOMPARE(mw.up.readingId, up);
+        QVERIFY(!mw.rows.isEmpty() && mw.rows.size() <= 7);
+        QCOMPARE(text(chartsGadgetMap(mw.chance).value(QStringLiteral("line"))), QStringLiteral("|r| under .51 is chance at n = 15"));
+        QVERIFY(mw.relationsUpId.isEmpty() && mw.sub.isEmpty());   // the caller's two, left to it
+        auto p = make(m_snap, 8);
+        p->setUpId(up);
+        int k = 0;
+        for (const RelationsLedgerRow &r : p->relations().ledger) {
+            if (r.same) continue;
+            if (k >= 4) break;
+            QCOMPARE(mw.rows[k].readingId, r.readingId);
+            QCOMPARE(mw.rows[k].rank, r.rank);
+            QCOMPARE(mw.rows[k].rText, r.rText);
+            QCOMPARE(mw.rows[k].slopeText, r.slopeText);
+            ++k;
+        }
+        QCOMPARE(k, 4);
+        const RelationsMovesWith none = ChartsRelationsPresenter::movesWith(m_snap, QStringLiteral("noSuchKey@5"), 4, 3);
+        QVERIFY(!none.available);
+        QVERIFY(none.rows.isEmpty());
+        QCOMPARE(none.refusal.text, QStringLiteral("This session does not read noSuchKey@5 on three shots or more."));
     }
 
     void familyDefaultsByData()
@@ -1380,7 +1427,7 @@ private slots:
         // shot 8 without any Club delivery reading: Replay falls to a family this shot measured
         auto p0 = make(m_snap, 8, QStringLiteral("replay"));
         QStringList keys;
-        for (const QVariant &g : p0->thisShot().value(QStringLiteral("groups")).toList())
+        for (const QVariant &g : chartsGadgetMap(p0->thisShot()).value(QStringLiteral("groups")).toList())
             if (g.toMap().value(QStringLiteral("name")).toString() == QStringLiteral("Club delivery"))
                 for (const QVariant &r : g.toMap().value(QStringLiteral("rows")).toList()) keys << r.toMap().value(QStringLiteral("key")).toString();
         QVERIFY(!keys.isEmpty());
@@ -1389,13 +1436,13 @@ private slots:
         for (const QString &k : keys) { c->metrics.remove(k); c->metricOrder.removeAll(k); }
         s->shots[7] = c;
         auto p = make(s, 8, QStringLiteral("replay"));
-        const QString fam = p->status().value(QStringLiteral("family")).toString();
+        const QString fam = chartsGadgetMap(p->status()).value(QStringLiteral("family")).toString();
         QVERIFY2(fam != QStringLiteral("Club delivery") && !fam.isEmpty(), qPrintable(fam));
-        QVERIFY(!p->thisShot().value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList().isEmpty());
-        QVERIFY(!p->thisShot().value(QStringLiteral("lead")).toMap().value(QStringLiteral("readingId")).toString().isEmpty());
+        QVERIFY(!chartsGadgetMap(p->thisShot()).value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList().isEmpty());
+        QVERIFY(!chartsGadgetMap(p->thisShot()).value(QStringLiteral("lead")).toMap().value(QStringLiteral("readingId")).toString().isEmpty());
         // the reader's own choice stands when the session has it
         p->setFamily(QStringLiteral("Club delivery"));
-        QCOMPARE(p->status().value(QStringLiteral("family")).toString(), QStringLiteral("Club delivery"));
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("family")).toString(), QStringLiteral("Club delivery"));
     }
 
     void edgePickedShotNotYetInTheSession()
@@ -1421,15 +1468,15 @@ private slots:
         p->setPickedDetail({ { QStringLiteral("series"), series }, { QStringLiteral("phases"), phases }, { QStringLiteral("kinematicSequence"), last.kinematicSequence } });
         p->setPickedSwingDir(dirOf(15));
         p->setSnapshot(s);
-        QVERIFY(p->status().value(QStringLiteral("pickedFromDetail")).toBool());
-        QCOMPARE(p->status().value(QStringLiteral("shotCount")).toInt(), 15);
-        QCOMPARE(p->status().value(QStringLiteral("pickedOrdinal")).toInt(), 15);
-        QVERIFY(p->thisShot().value(QStringLiteral("available")).toBool());
-        QCOMPARE(p->thisShot().value(QStringLiteral("total")).toInt(), 66);
+        QVERIFY(chartsGadgetMap(p->status()).value(QStringLiteral("pickedFromDetail")).toBool());
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("shotCount")).toInt(), 15);
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("pickedOrdinal")).toInt(), 15);
+        QVERIFY(chartsGadgetMap(p->thisShot()).value(QStringLiteral("available")).toBool());
+        QCOMPARE(chartsGadgetMap(p->thisShot()).value(QStringLiteral("total")).toInt(), 66);
         // once the session has it, the detail is no longer used
         p->setSnapshot(m_snap);
-        QVERIFY(p->status().value(QStringLiteral("pickedInSession")).toBool());
-        QVERIFY(!p->status().value(QStringLiteral("pickedFromDetail")).toBool());
+        QVERIFY(chartsGadgetMap(p->status()).value(QStringLiteral("pickedInSession")).toBool());
+        QVERIFY(!chartsGadgetMap(p->status()).value(QStringLiteral("pickedFromDetail")).toBool());
     }
 
     void edgeMixedClubsAndMissingDevices()
@@ -1443,22 +1490,22 @@ private slots:
             s->shots[size_t(i)] = c;
         }
         auto p = make(s, 3);
-        QVERIFY(p->status().value(QStringLiteral("clubsMixed")).toBool());
-        QVERIFY(p->status().value(QStringLiteral("clubsSentence")).toString().startsWith(QStringLiteral("The clubs are mixed: ")));
+        QVERIFY(chartsGadgetMap(p->status()).value(QStringLiteral("clubsMixed")).toBool());
+        QVERIFY(chartsGadgetMap(p->status()).value(QStringLiteral("clubsSentence")).toString().startsWith(QStringLiteral("The clubs are mixed: ")));
         bool club = false;
-        for (const QVariant &f : p->relations().value(QStringLiteral("facets")).toList()) club = club || f.toMap().value(QStringLiteral("id")) == QStringLiteral("club");
+        for (const QVariant &f : chartsGadgetMap(p->relations()).value(QStringLiteral("facets")).toList()) club = club || f.toMap().value(QStringLiteral("id")) == QStringLiteral("club");
         QVERIFY(club);
         p->setFacetId(QStringLiteral("club"));
-        QCOMPARE(p->relations().value(QStringLiteral("facet")).toMap().value(QStringLiteral("panels")).toList().size(), 2);
+        QCOMPARE(chartsGadgetMap(p->relations()).value(QStringLiteral("facet")).toMap().value(QStringLiteral("panels")).toList().size(), 2);
         // a key nobody measured is no row at all; one measured on some is a row with "-" for the others
-        const QVariantMap row = rowOf(p->thisShot(), QStringLiteral("clubheadSpeed@5"));
+        const QVariantMap row = rowOf(chartsGadgetMap(p->thisShot()), QStringLiteral("clubheadSpeed@5"));
         QCOMPARE(row.value(QStringLiteral("box")).toMap().value(QStringLiteral("n")).toInt(), 10);
-        QVERIFY(row.value(QStringLiteral("values")).toList()[12].isNull());
+        QVERIFY(!std::isfinite(row.value(QStringLiteral("values")).toList()[12].toDouble()));     // NaN where unmeasured (the map's null)
         auto q = make(s, 13);
-        QCOMPARE(rowOf(q->thisShot(), QStringLiteral("clubheadSpeed@5")).value(QStringLiteral("valueText")).toString(), QStringLiteral("-"));
+        QCOMPARE(rowOf(chartsGadgetMap(q->thisShot()), QStringLiteral("clubheadSpeed@5")).value(QStringLiteral("valueText")).toString(), QStringLiteral("-"));
         auto none = withDirs(m_fx.session);
         for (auto &sp : none->shots) { auto c = std::make_shared<ShotSeries>(*sp); c->metrics.remove(QStringLiteral("clubheadSpeed")); c->metricOrder.removeAll(QStringLiteral("clubheadSpeed")); sp = c; }
-        QVERIFY(rowOf(make(none, 3)->thisShot(), QStringLiteral("clubheadSpeed@5")).isEmpty());
+        QVERIFY(rowOf(chartsGadgetMap(make(none, 3)->thisShot()), QStringLiteral("clubheadSpeed@5")).isEmpty());
     }
 
     void edgeImpactOnlyShotsSayTheirRoute()
@@ -1472,7 +1519,7 @@ private slots:
             s->shots[size_t(i)] = c;
         }
         auto p = make(s, 8);
-        const QString note = text(p->kinds().value(QStringLiteral("alignNote")));
+        const QString note = text(chartsGadgetMap(p->kinds()).value(QStringLiteral("alignNote")));
         QVERIFY2(note.contains(QStringLiteral("Only impact is known on shots 2 and 5")) || note.contains(QStringLiteral("only impact is known")), qPrintable(note));
     }
 
@@ -1500,7 +1547,7 @@ private slots:
         p.setRegisterMode(QStringLiteral("replay"));
         if (snap->count()) p.setPickedSwingDir(snap->shots[size_t(snap->count() / 2)]->swingDir);
         p.setModel(&model);
-        const QVariantMap st = p.status(), ts = p.thisShot(), rel = p.relations(), k = p.kinds();
+        const QVariantMap st = chartsGadgetMap(p.status()), ts = chartsGadgetMap(p.thisShot()), rel = chartsGadgetMap(p.relations()), k = chartsGadgetMap(p.kinds());
         const QVariantList kf = ts.value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList();
         QStringList clubs;
         for (const QVariant &s : st.value(QStringLiteral("shots")).toList()) if (!clubs.contains(s.toMap().value(QStringLiteral("club")).toString())) clubs << s.toMap().value(QStringLiteral("club")).toString();
@@ -1562,7 +1609,7 @@ private slots:
         p.setModel(&model);
         QVERIFY(p.waitForIdle(120000));
         int known = 0, graded = 0;
-        for (const QVariant &g : p.thisShot().value(QStringLiteral("groups")).toList())
+        for (const QVariant &g : chartsGadgetMap(p.thisShot()).value(QStringLiteral("groups")).toList())
             for (const QVariant &rv : g.toMap().value(QStringLiteral("rows")).toList()) {
                 const QVariantMap r = rv.toMap();
                 const QVariantMap c = r.value(QStringLiteral("corridor")).toMap();
@@ -1580,7 +1627,7 @@ private slots:
             }
         qInfo().noquote() << "  4 July shot 8:" << known << "readings carry a corridor," << graded << "graded on this shot";
         QVERIFY(known >= 5);
-        const QVariantMap club = rowOf(p.thisShot(), QStringLiteral("clubheadSpeed@5"));
+        const QVariantMap club = rowOf(chartsGadgetMap(p.thisShot()), QStringLiteral("clubheadSpeed@5"));
         if (!club.isEmpty() && club.value(QStringLiteral("verdict")).toString().isEmpty() && club.value(QStringLiteral("conditions")).toList().isEmpty())
             QVERIFY(!club.value(QStringLiteral("corridor")).toMap().value(QStringLiteral("known")).toBool());
     }
@@ -1606,19 +1653,19 @@ private:
         QVERIFY(p.waitForIdle(120000));
         const double wall = double(t.nsecsElapsed()) / 1e6;
         QVERIFY(p.ready());
-        const QVariantMap st = p.status();
+        const QVariantMap st = chartsGadgetMap(p.status());
         const double job = st.value(QStringLiteral("timings")).toMap().value(QStringLiteral("jobMs")).toDouble();
         const double apply = st.value(QStringLiteral("timings")).toMap().value(QStringLiteral("applyMs")).toDouble();
         QCOMPARE(st.value(QStringLiteral("shotCount")).toInt(), n);
         int fired = 0;
-        for (const QVariant &g : p.thisShot().value(QStringLiteral("groups")).toList())
+        for (const QVariant &g : chartsGadgetMap(p.thisShot()).value(QStringLiteral("groups")).toList())
             for (const QVariant &r : g.toMap().value(QStringLiteral("rows")).toList())
                 for (const QVariant &f : r.toMap().value(QStringLiteral("firedShots")).toList()) fired += f.toBool();
 
         // the shipped pack's links carry the reducer: 4 July's early extension is an extremum, said as a peak
         if (QFileInfo(dir).fileName().startsWith(QStringLiteral("2026-07-04"))) {
             QStringList said;
-            for (const QVariant &g : p.thisShot().value(QStringLiteral("groups")).toList())
+            for (const QVariant &g : chartsGadgetMap(p.thisShot()).value(QStringLiteral("groups")).toList())
                 for (const QVariant &r : g.toMap().value(QStringLiteral("rows")).toList())
                     for (const QVariant &c : r.toMap().value(QStringLiteral("conditions")).toList()) said << c.toString();
             if (!qEnvironmentVariableIsEmpty("PINPOINT_CORE_PACK")) {
@@ -1633,10 +1680,10 @@ private:
         p.setFacetId(QStringLiteral("half"));
         QVERIFY(p.waitForIdle(60000));
         const double choice = double(t.nsecsElapsed()) / 1e6;
-        const double job2 = p.status().value(QStringLiteral("timings")).toMap().value(QStringLiteral("jobMs")).toDouble();
+        const double job2 = chartsGadgetMap(p.status()).value(QStringLiteral("timings")).toMap().value(QStringLiteral("jobMs")).toDouble();
 
         // the playhead: GUI thread, every frame of a 240 fps second
-        const qint64 impact = p.status().value(QStringLiteral("pickedImpactUs")).toLongLong();
+        const qint64 impact = chartsGadgetMap(p.status()).value(QStringLiteral("pickedImpactUs")).toLongLong();
         double worst = 0;
         int signals_ = 0;
         QObject::connect(&p, &ChartsRelationsPresenter::playheadChanged, &p, [&] { ++signals_; });
@@ -1649,12 +1696,12 @@ private:
                                             "full recompute job %7 ms (wall %8 ms incl. waits), GUI apply %9 ms; choice change job %10 ms "
                                             "(wall %11 ms); playhead worst %12 ms per frame, %13 signals over 240 frames; kinds %14")
                                  .arg(QFileInfo(dir).fileName()).arg(n).arg(st.value(QStringLiteral("readingCount")).toInt())
-                                 .arg(p.thisShot().value(QStringLiteral("apartCount")).toInt()).arg(std::min(pickOrdinal, n)).arg(fired)
+                                 .arg(chartsGadgetMap(p.thisShot()).value(QStringLiteral("apartCount")).toInt()).arg(std::min(pickOrdinal, n)).arg(fired)
                                  .arg(job, 0, 'f', 1).arg(wall, 0, 'f', 1).arg(apply, 0, 'f', 2).arg(job2, 0, 'f', 1).arg(choice, 0, 'f', 1)
-                                 .arg(worst, 0, 'f', 3).arg(signals_).arg(text(p.kinds().value(QStringLiteral("head"))));
-        qInfo().noquote() << "  apart head:" << text(p.thisShot().value(QStringLiteral("head")))
-                          << "| chance:" << text(p.relations().value(QStringLiteral("chance")).toMap().value(QStringLiteral("sentence"))).section(QLatin1Char('.'), 0, 0)
-                          << "| drifts clearing chance:" << p.relations().value(QStringLiteral("drifts")).toMap().value(QStringLiteral("clearCount")).toInt();
+                                 .arg(worst, 0, 'f', 3).arg(signals_).arg(text(chartsGadgetMap(p.kinds()).value(QStringLiteral("head"))));
+        qInfo().noquote() << "  apart head:" << text(chartsGadgetMap(p.thisShot()).value(QStringLiteral("head")))
+                          << "| chance:" << text(chartsGadgetMap(p.relations()).value(QStringLiteral("chance")).toMap().value(QStringLiteral("sentence"))).section(QLatin1Char('.'), 0, 0)
+                          << "| drifts clearing chance:" << chartsGadgetMap(p.relations()).value(QStringLiteral("drifts")).toMap().value(QStringLiteral("clearCount")).toInt();
     }
 };
 

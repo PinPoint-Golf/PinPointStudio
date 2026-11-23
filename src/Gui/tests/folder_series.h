@@ -127,6 +127,10 @@ namespace pinpoint::charts {
 // by itself, for the presenter tests that point a presenter at a real or synthetic folder, and as the OLD half of the
 // parity dump (tools/diagnostics/charts_series_dump). The app reads each Session's own series (session_series.h) and
 // never makes one of these: it is not in the app or its QML module.
+// The double's read door for a snapshot's shots (refactor 5.5c; SnapshotShotReader): reads the folder it is given. A test
+// that hands a presenter a hand-made snapshot sets it so the presenter can read a fixture's picture or cameras.
+std::shared_ptr<const SnapshotShotReader> folderShotReader();
+
 class FolderSeries : public SeriesSource
 {
     Q_OBJECT
@@ -139,6 +143,7 @@ public:
     bool    busy() const override { return m_pending > 0; }
     int     skippedCount() const override { return int(m_skipped.size()); }
     QVariantList skippedList() const;
+    QString skipReasonOf(const QString &swingDir) const override;
 
     // What the session maths reads. Never null; an empty session is an empty snapshot.
     std::shared_ptr<const SessionSnapshot> snapshot() const override { return m_snapshot; }

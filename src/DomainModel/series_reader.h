@@ -26,7 +26,8 @@
 //
 // What it reads: the shot's analysis WITHOUT its per-frame tracks (the root chunk and /analysis/metrics; never the pose
 // blob), with the document's stamp taken BEFORE the read, so a re-analysis that rewrites the document after it leaves
-// a stamp that no longer matches.
+// a stamp that no longer matches. And, for the one view that draws poses (the Posture picture strip, refactor 5.5c), the
+// whole document, stamped the same way.
 //
 // Stateless and safe from worker threads; a job holds it as a shared_ptr<const>.
 //
@@ -54,6 +55,9 @@ public:
     virtual DocumentStamp stamp(const ShotRef &shot) const = 0;
     // The shot's analysis without its tracks. Any thread.
     virtual SeriesRead analysis(const ShotRef &shot) const = 0;
+    // The shot's WHOLE document, its per-frame tracks included: the Posture picture's poses (refactor 5.5c). The heavy
+    // read (150–220 ms a swing), made only for the few shots a picture draws. Any thread.
+    virtual SeriesRead document(const ShotRef &shot) const = 0;
 };
 
 } // namespace pinpoint

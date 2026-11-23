@@ -18,7 +18,6 @@
 
 #include "charts_relations_presenter.h"
 
-#include "box_map.h"
 #include "charts_words.h"
 #include "consistency_env.h"
 #include "session_consistency.h"
@@ -50,6 +49,7 @@
 #include <cmath>
 #include <limits>
 #include <numeric>
+#include <optional>
 
 namespace pinpoint::charts {
 
@@ -77,19 +77,18 @@ std::vector<int> catalogueReadAt(const QString &key)
 
 using words::fin;
 QVariant num(double v) { return fin(v) ? QVariant(v) : QVariant::fromValue(nullptr); }
-QVariantList nums(const std::vector<double> &v)
+// A per-shot (or per-sample) list of numbers, typed: NaN stays NaN where the map had null, which every reader of these
+// lists takes alike (charts_relations_types.h).
+QList<double> dbls(const std::vector<double> &v) { return QList<double>(v.begin(), v.end()); }
+QList<int> intList(const std::vector<int> &v) { return QList<int>(v.begin(), v.end()); }
+QList<bool> boolList(const std::vector<uint8_t> &f)
 {
-    QVariantList out;
-    out.reserve(qsizetype(v.size()));
-    for (double x : v) out.append(num(x));
+    QList<bool> out;
+    out.reserve(qsizetype(f.size()));
+    for (uint8_t x : f) out.append(bool(x));
     return out;
 }
-QVariantList ints(const std::vector<int> &v)
-{
-    QVariantList out;
-    for (int x : v) out.append(x);
-    return out;
-}
+RelationsSentence sentenceOf(const Sentence &s) { return relationsSentence(s); }
 // r as an annual report sets it: ".62", "−.88"; "-" when undefined (figure_format.h figR).
 using words::figR;
 QString dText(double d)
@@ -141,14 +140,36 @@ struct Vocab {
     bool isP(int ph) const { return tl.hasPositionTag(ph); }
 };
 
-// boxMap is box_map.h's (the one serialisation); a box's value texts in a reading's own rounding:
-std::function<QString(double)> figOf(const QString &unit) { return [unit](double v) { return figBare(v, unit); }; }
-QVariantMap rangeMap(double lo, double hi) { return { { QStringLiteral("lo"), num(lo) }, { QStringLiteral("hi"), num(hi) } }; }
-QVariantMap paddedRange(const BoxStats &b, double frac)
+// A box in box_map.h's shape (the one serialisation), typed: its numbers null when n = 0, outliers by ordinal, and with a
+// formatter its `texts` in the reading's own rounding (left "" when n = 0, where the map had none).
+RelationsBox boxOf(const BoxStats &b, const std::function<QString(double)> &fmt = {})
 {
-    if (!b.n) return rangeMap(0, 1);
+    RelationsBox out;
+    out.n = b.n;
+    out.min = num(b.min); out.max = num(b.max);
+    out.q1 = num(b.q1); out.med = num(b.med); out.q3 = num(b.q3);
+    out.lo = num(b.lo); out.hi = num(b.hi);
+    for (int i : b.outliers) out.outliers.append(i + 1);       // values are per shot: index + 1 = ordinal
+    if (fmt && b.n > 0) {
+        out.texts.lo = fmt(b.lo); out.texts.q1 = fmt(b.q1); out.texts.med = fmt(b.med);
+        out.texts.q3 = fmt(b.q3); out.texts.hi = fmt(b.hi);
+    }
+    return out;
+}
+// a box's value texts in a reading's own rounding:
+std::function<QString(double)> figOf(const QString &unit) { return [unit](double v) { return figBare(v, unit); }; }
+RelationsRange rangeOf(double lo, double hi)
+{
+    RelationsRange r;
+    r.lo = num(lo);
+    r.hi = num(hi);
+    return r;
+}
+RelationsRange paddedRange(const BoxStats &b, double frac)
+{
+    if (!b.n) return rangeOf(0, 1);
     const double p = std::max(1e-6, (b.max - b.min) * frac);
-    return rangeMap(b.min - p, b.max + p);
+    return rangeOf(b.min - p, b.max + p);
 }
 
 double valueAtPhaseOf(const ShotSeries &s, const QString &key, int ph)
@@ -317,7 +338,7 @@ struct ChartsRelationsPresenter::Cache {
     QHash<QString, int> byId;
     QStringList groupOrder;
     QHash<qint64, QList<FiredLink>> firedBy;        // reading × N + shot → the fired links on it
-    QHash<int, QVariantList> firedElsewhere;        // shot index → links that land on no reading
+    QHash<int, QList<RelationsFiredElsewhere>> firedElsewhere;   // shot index → links that land on no reading
     struct Family { QString name; bool preset = false; std::vector<int> readings; };
     std::vector<Family> families;
     SessionKinds kinds;
@@ -327,8 +348,8 @@ struct ChartsRelationsPresenter::Cache {
     SessionAlignment alignment;
     QHash<QString, std::vector<TraceCurve>> curves;   // aligned, per key
     QHash<int, std::vector<CorrRow>> corr;            // per Up reading
-    QHash<QString, QVariantMap> kindCurves;           // per key
-    QHash<QString, QVariantMap> shapes;               // per family
+    QHash<QString, std::optional<RelationsKindCurve>> kindCurves;   // per key; nullopt: no curve to draw
+    QHash<QString, RelationsShapes> shapes;           // per family
     std::shared_ptr<const SessionSnapshot> clubBase;  // the largest club's shots, for kinds within it
     QString clubName;
 
@@ -376,9 +397,14 @@ struct ChartsRelationsPresenter::Cache {
 
 struct ChartsRelationsPresenter::Output {
     bool ready = false;
-    QVariantMap status, thisShot, openRow, sequence, relations, kinds;
-    QVariantList families;
-    struct ReplayEntry { qint64 tUs = std::numeric_limits<qint64>::max(); QVariantMap map; };
+    RelationsStatus status;
+    RelationsThisShot thisShot;
+    RelationsOpenRow openRow;
+    RelationsSequence sequence;
+    RelationsRelations relations;
+    RelationsKinds kinds;
+    QList<RelationsFamily> families;
+    struct ReplayEntry { qint64 tUs = std::numeric_limits<qint64>::max(); RelationsReplaySession entry; };
     std::vector<ReplayEntry> replay;
     qint64 pickedImpactUs = -1;
     std::vector<PhaseMark> pickedPhases;
@@ -395,7 +421,7 @@ using Output = ChartsRelationsPresenter::Output;
 
 // Fired, from the condition link only: per shot the reading drivenBy names, else ConditionInfo's.
 void linkFired(const SessionSnapshot &s, std::vector<SessionReading> &rs, QHash<qint64, QList<FiredLink>> *firedBy,
-               QHash<int, QVariantList> *elsewhere)
+               QHash<int, QList<RelationsFiredElsewhere>> *elsewhere)
 {
     const Vocab v;
     const int N = s.count();
@@ -429,11 +455,16 @@ void linkFired(const SessionSnapshot &s, std::vector<SessionReading> &rs, QHash<
             if (key.isEmpty()) continue;
             const int t = target(key, ph);
             if (t < 0) {
-                if (elsewhere)
-                    (*elsewhere)[i].append(QVariantMap{ { QStringLiteral("condition"), c },
-                                                        { QStringLiteral("name"), s.conditions.value(c).name.isEmpty() ? c : s.conditions.value(c).name },
-                                                        { QStringLiteral("metricKey"), key }, { QStringLiteral("phase"), ph },
-                                                        { QStringLiteral("reducer"), red }, { QStringLiteral("instant"), instantPhrase(v, red, ph) } });
+                if (elsewhere) {
+                    RelationsFiredElsewhere e;
+                    e.condition = c;
+                    e.name = s.conditions.value(c).name.isEmpty() ? c : s.conditions.value(c).name;
+                    e.metricKey = key;
+                    e.phase = ph;
+                    e.reducer = red;
+                    e.instant = instantPhrase(v, red, ph);
+                    (*elsewhere)[i].append(e);
+                }
                 continue;
             }
             SessionReading &r = rs[size_t(t)];
@@ -594,10 +625,15 @@ struct Ctx {
     const SessionReading &r(int i) const { return c.readings[size_t(i)]; }
     const ReadingMeta &m(int i) const { return c.meta[size_t(i)]; }
     QString readingText(int i) const { return lowerLabel(r(i).label) + QStringLiteral(" at ") + v.tag(r(i).phase); }
-    QVariantMap shotMark(int idx) const
+    // A SHOT MARK { ordinal, shotId, swingDir } as the gadget T that carries one (a run's point, a scatter's, a member).
+    template <typename T> T shotMark(int idx) const
     {
         const ShotSeries &s = *S.shots[size_t(idx)];
-        return { { QStringLiteral("ordinal"), s.ordinal }, { QStringLiteral("shotId"), s.shotId }, { QStringLiteral("swingDir"), s.swingDir } };
+        T m;
+        m.ordinal = s.ordinal;
+        m.shotId = s.shotId;
+        m.swingDir = s.swingDir;
+        return m;
     }
     bool pickedHasCurve(const QString &key) const
     {
@@ -654,13 +690,6 @@ QString cautionOfPicked(const Ctx &x, const SessionReading &r)
     return {};
 }
 
-QVariantList boolsOf(const std::vector<uint8_t> &f)
-{
-    QVariantList out;
-    for (uint8_t x : f) out.append(bool(x));
-    return out;
-}
-
 // #10: the corridor a diagnostics condition grades this reading against — the norm for the measure that graded
 // it, resolved for that shot's context and turned into bands by the same function Session diagnostics draws
 // with (corridorForRow), so the two screens agree. The ledger row's own corridorLo/Hi are only its stored Ideal
@@ -670,9 +699,9 @@ QVariantList boolsOf(const std::vector<uint8_t> &f)
 // unanchored peak over the window ending there. A change, a rate or a peak deviation from address is another
 // quantity — hip stall grades pelvisRotationSigned@P7 by its P6→P7 rate in °/s, and drawn on the reading in °
 // its corridor would be nonsense.
-QVariantMap corridorOf(const Ctx &x, const SessionReading &r)
+RelationsCorridor corridorOf(const Ctx &x, const SessionReading &r)
 {
-    if (!x.norms) return { { QStringLiteral("known"), false } };
+    if (!x.norms) return {};
     const int N = x.n;
     for (int k = -1; k < N; ++k) {
         const int idx = k < 0 ? x.pick : k;
@@ -687,34 +716,41 @@ QVariantMap corridorOf(const Ctx &x, const SessionReading &r)
             const auto shape = g.shape >= 0 ? pinpoint::analysis::Shape(g.shape) : pinpoint::analysis::Shape::Target;
             const pinpoint::analysis::SpreadCorridor c = pinpoint::analysis::spreadCorridorFromNorm(*res.norm, shape, x.policy);
             if (!c.known) continue;
-            return { { QStringLiteral("known"), true }, { QStringLiteral("lowOpen"), c.lowOpen }, { QStringLiteral("highOpen"), c.highOpen },
-                     { QStringLiteral("signalLo"), c.signalLo }, { QStringLiteral("signalHi"), c.signalHi },
-                     { QStringLiteral("faultLo"), c.faultLo }, { QStringLiteral("faultHi"), c.faultHi } };
+            RelationsCorridor out;
+            out.known = true;
+            out.lowOpen = c.lowOpen;
+            out.highOpen = c.highOpen;
+            out.signalLo = c.signalLo;
+            out.signalHi = c.signalHi;
+            out.faultLo = c.faultLo;
+            out.faultHi = c.faultHi;
+            return out;
         }
     }
-    return { { QStringLiteral("known"), false } };
+    return {};
 }
 
 // The box plot's own numbers, in the row's rounding, for the values a hover lays on the plot (Mark, 18 Oct: "all the
 // values you would see on a box plot"): the whiskers' ends, the quartiles, the median, and the corridor's edges and
 // fault lines where one is drawn. QML only places them.
-QVariantMap boxTexts(const SessionReading &r, const QVariantMap &c)
+RelationsBoxTexts boxTextsOf(const SessionReading &r, const RelationsCorridor &c)
 {
     const BoxStats &b = r.box;
-    QVariantMap m;
+    RelationsBoxTexts m;
     if (b.n < 3) return m;
-    m.insert(QStringLiteral("lo"), figBare(b.lo, r.unit));   m.insert(QStringLiteral("hi"), figBare(b.hi, r.unit));
-    m.insert(QStringLiteral("q1"), figBare(b.q1, r.unit));   m.insert(QStringLiteral("q3"), figBare(b.q3, r.unit));
-    m.insert(QStringLiteral("med"), figBare(b.med, r.unit));
-    if (c.value(QStringLiteral("known")).toBool())
-        for (const char *k : { "signalLo", "signalHi", "faultLo", "faultHi" })
-            m.insert(QLatin1String(k), figBare(c.value(QLatin1String(k)).toDouble(), r.unit));
+    m.lo = figBare(b.lo, r.unit);   m.hi = figBare(b.hi, r.unit);
+    m.q1 = figBare(b.q1, r.unit);   m.q3 = figBare(b.q3, r.unit);
+    m.med = figBare(b.med, r.unit);
+    if (c.known) {
+        m.signalLo = figBare(c.signalLo, r.unit); m.signalHi = figBare(c.signalHi, r.unit);
+        m.faultLo = figBare(c.faultLo, r.unit);   m.faultHi = figBare(c.faultHi, r.unit);
+    }
     return m;
 }
 
 // `link` is the reading whose fired links and corridor belong to the row, or -1 for a row that reads something
 // else: what a condition graded is an instant, and a point inside a span is not it.
-QVariantMap rowMapOf(const Ctx &x, const SessionReading &r, const ReadingMeta &m, int link)
+RelationsReadingRow rowOf(const Ctx &x, const SessionReading &r, const ReadingMeta &m, int link)
 {
     const ReadingPlace p = x.pick >= 0 ? placeOf(r, x.pick) : ReadingPlace{};
     const bool fired = link >= 0 && x.pick >= 0 && size_t(x.pick) < r.fired.size() && r.fired[size_t(x.pick)];
@@ -722,32 +758,36 @@ QVariantMap rowMapOf(const Ctx &x, const SessionReading &r, const ReadingMeta &m
     // out of its corridor (Watch), graded inside it, or "" when no condition graded it on this shot
     const bool fault = fired && size_t(x.pick) < r.firedZ.size() && r.firedZ[size_t(x.pick)] > x.faultZ;
     const bool inside = !fired && link >= 0 && x.pick >= 0 && size_t(x.pick) < r.clean.size() && r.clean[size_t(x.pick)];
-    const QString verdict = fault ? QStringLiteral("fault") : fired ? QStringLiteral("outside") : inside ? QStringLiteral("inside") : QString();
+    RelationsReadingRow row;
+    row.verdict = fault ? QStringLiteral("fault") : fired ? QStringLiteral("outside") : inside ? QStringLiteral("inside") : QString();
     // the filters the row shows under (thisShot.verdictFilters): every row under All, and past the fault line counts as out
     // of its corridor too, so a fault shows under Faults and Outside
-    QVariantList verdicts{ QStringLiteral("all") };   // a list of strings, a plain JS array in QML
-    if (fault) verdicts << QStringLiteral("fault");
-    if (fired) verdicts << QStringLiteral("outside");
-    if (inside) verdicts << QStringLiteral("inside");
-    QVariantList conds, links;
+    row.verdicts << QStringLiteral("all");
+    if (fault) row.verdicts << QStringLiteral("fault");
+    if (fired) row.verdicts << QStringLiteral("outside");
+    if (inside) row.verdicts << QStringLiteral("inside");
     QString firedWord;
     if (fired)
         for (const FiredLink &l : x.c.firedBy.value(qint64(link) * x.n + x.pick)) {
             const QString name = x.S.conditions.value(l.id).name.isEmpty() ? l.id : x.S.conditions.value(l.id).name;
             const QString inst = instantPhrase(x.v, l.reducer, l.phase);
             const QString text = inst.isEmpty() ? name : name + QStringLiteral(", ") + inst;
-            conds << text;
-            links << QVariantMap{ { QStringLiteral("id"), l.id }, { QStringLiteral("name"), name }, { QStringLiteral("reducer"), l.reducer },
-                                  { QStringLiteral("instant"), inst }, { QStringLiteral("text"), text } };
+            row.conditions << text;
+            RelationsFiredCondition fc;
+            fc.id = l.id;
+            fc.name = name;
+            fc.reducer = l.reducer;
+            fc.instant = inst;
+            fc.text = text;
+            row.firedConditions.append(fc);
             if (firedWord.isEmpty()) firedWord = firedWordFor(x.v, l, fault);
         }
     if (fired && firedWord.isEmpty()) firedWord = fault ? QStringLiteral("past its fault line") : QStringLiteral("out of its corridor");
     const bool curve = m.drawsCurve && x.pickedHasCurve(r.key);
-    const QVariantMap corr = link >= 0 ? corridorOf(x, r) : QVariantMap{ { QStringLiteral("known"), false } };
+    const RelationsCorridor corr = link >= 0 ? corridorOf(x, r) : RelationsCorridor{};
     // no value on this shot because a gate refused it: a plain "-" in the row; why is said once, in the panel's tail
-    // (Mark, 17 Oct 2026). gateWords stays on the map for readers that name it (none on screen).
+    // (Mark, 17 Oct 2026). gateWords stays on the row for readers that name it (none on screen).
     const QVariantMap gate = x.pick >= 0 && !p.measured ? gateOfPicked(x, r.key) : QVariantMap{};
-    const QString gateWords = gate.value(QStringLiteral("words")).toString();
     // a value a gate refused, bounded, downgraded or masked: shown, with its health warning under it (Mark, 17 Oct
     // 2026); a trunk peak the sequence could not place says how rough, the rest say their gate's words
     const bool estimate = x.pick >= 0 && size_t(x.pick) < r.refused.size() && r.refused[size_t(x.pick)] && p.measured;
@@ -756,30 +796,44 @@ QVariantMap rowMapOf(const Ctx &x, const SessionReading &r, const ReadingMeta &m
     const QString cautionText = estimate ? (fin(cSigma) ? QStringLiteral("⚠ a rough estimate, ±%1 %2").arg(qRound(cSigma)).arg(r.unit)
                                                         : QStringLiteral("⚠ a rough estimate"))
                               : !gateCaution.isEmpty() ? QStringLiteral("⚠ ") + gateCaution : QString();
-    const bool caution = !cautionText.isEmpty();
-    return {
-        { QStringLiteral("caution"), caution }, { QStringLiteral("cautionText"), cautionText },
-        { QStringLiteral("trustSubject"), QString() },
-        { QStringLiteral("gateWords"), gateWords },
-        { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("phase"), r.phase },
-        { QStringLiteral("tag"), x.v.tag(r.phase) }, { QStringLiteral("phaseName"), x.v.name(r.phase) },
-        { QStringLiteral("label"), r.label }, { QStringLiteral("short"), m.shortLabel }, { QStringLiteral("unit"), r.unit },
-        { QStringLiteral("unitText"), unitText(r.unit) }, { QStringLiteral("group"), m.group }, { QStringLiteral("multi"), r.multi },
-        { QStringLiteral("measured"), p.measured }, { QStringLiteral("value"), num(p.measured ? p.value : kNaN) },
-        { QStringLiteral("valueText"), figBare(p.measured ? p.value : kNaN, r.unit) },
-        { QStringLiteral("valueFigure"), figU(p.measured ? p.value : kNaN, r.unit) },
-        { QStringLiteral("medianText"), figBare(r.box.med, r.unit) },
-        { QStringLiteral("place"), placeWords(p, r.box.n) }, { QStringLiteral("rankHi"), p.rankHi }, { QStringLiteral("rankLo"), p.rankLo },
-        { QStringLiteral("rz"), p.rz }, { QStringLiteral("side"), p.side }, { QStringLiteral("apart"), p.side != 0 },
-        { QStringLiteral("box"), boxMap(r.box, figOf(r.unit)) }, { QStringLiteral("values"), nums(r.values) },
-        { QStringLiteral("firedShots"), boolsOf(r.fired) }, { QStringLiteral("fired"), fired },
-        { QStringLiteral("firedWord"), firedWord }, { QStringLiteral("verdict"), verdict }, { QStringLiteral("verdicts"), verdicts },
-        { QStringLiteral("conditions"), conds }, { QStringLiteral("firedConditions"), links },
-        { QStringLiteral("corridor"), corr }, { QStringLiteral("boxText"), boxTexts(r, corr) },
-        { QStringLiteral("hasCurve"), curve }, { QStringLiteral("opens"), curve ? QStringLiteral("trace") : QStringLiteral("run") } };
+    row.caution = !cautionText.isEmpty();
+    row.cautionText = cautionText;
+    row.gateWords = gate.value(QStringLiteral("words")).toString();
+    row.readingId = r.id;
+    row.key = r.key;
+    row.phase = r.phase;
+    row.tag = x.v.tag(r.phase);
+    row.phaseName = x.v.name(r.phase);
+    row.label = r.label;
+    row.shortText = m.shortLabel;
+    row.unit = r.unit;
+    row.unitText = unitText(r.unit);
+    row.group = m.group;
+    row.multi = r.multi;
+    row.measured = p.measured;
+    row.value = num(p.measured ? p.value : kNaN);
+    row.valueText = figBare(p.measured ? p.value : kNaN, r.unit);
+    row.valueFigure = figU(p.measured ? p.value : kNaN, r.unit);
+    row.medianText = figBare(r.box.med, r.unit);
+    row.place = placeWords(p, r.box.n);
+    row.rankHi = p.rankHi;
+    row.rankLo = p.rankLo;
+    row.rz = p.rz;
+    row.side = p.side;
+    row.apart = p.side != 0;
+    row.box = boxOf(r.box, figOf(r.unit));
+    row.values = dbls(r.values);
+    row.firedShots = boolList(r.fired);
+    row.fired = fired;
+    row.firedWord = firedWord;
+    row.corridor = corr;
+    row.boxText = boxTextsOf(r, corr);
+    row.hasCurve = curve;
+    row.opens = curve ? QStringLiteral("trace") : QStringLiteral("run");
+    return row;
 }
 
-QVariantMap rowMap(const Ctx &x, int i) { return rowMapOf(x, x.r(i), x.m(i), i); }
+RelationsReadingRow rowAt(const Ctx &x, int i) { return rowOf(x, x.r(i), x.m(i), i); }
 
 // ── Typicality: this shot against the usual (Mark's ruling R8; docs/design/system/variability.md) ─────────
 // Charts is the technical layer: each surface shows a Typicality badge with the grader's basis ("this swing 82 mph ·
@@ -806,11 +860,12 @@ std::vector<uint8_t> outOfTypicalityWindow(Cache &c, const SessionSnapshot &S, i
 // `values` (one per shot, strike order: a reading's, or a row's) of this shot against R8's window — the session's OTHER
 // shots with this shot's club, guarded shots left out, at least N_MIN of them. An outcome (ball flight, smash factor)
 // has none: ball flight has no badge at all (R4). `corridor` is a row's
-// corridorOf() map: its edges (signalLo/Hi) set the badge's corridor when both are closed. The map is a row's
-// `variability` as PpChProfile reads it, { kind: "typicality", values, basisText, showCorridor }; an invalid QVariant
-// when there is no result (too few others, or no value on this shot), and the row is then drawn as it always was.
+// corridorOf(): its edges (signalLo/Hi) set the badge's corridor when both are closed. The result is a row's
+// `variability` as PpChProfile reads it, a RelationsVariability { kind: "typicality", values, basisText, showCorridor };
+// an invalid QVariant when there is no result (too few others, or no value on this shot), and the row is then drawn as
+// it always was.
 QVariant typicalityOf(const Ctx &x, const std::vector<double> &values, const QString &key, const QString &unit,
-                      const QVariantMap &corridor)
+                      const RelationsCorridor &corridor)
 {
     if (x.pick < 0 || x.typicalOut.empty() || size_t(x.pick) >= values.size() || !fin(values[size_t(x.pick)])) return {};
     if (pv::isOutcomeMetric(key)) return {};
@@ -822,9 +877,9 @@ QVariant typicalityOf(const Ctx &x, const std::vector<double> &values, const QSt
         swings.push_back({ QString::number(s.ordinal), s.club, counted && size_t(i) < values.size() ? values[size_t(i)] : kNaN });
     }
     std::optional<double> lo, hi;
-    if (corridor.value(QStringLiteral("known")).toBool()) {
-        if (!corridor.value(QStringLiteral("lowOpen")).toBool()) lo = corridor.value(QStringLiteral("signalLo")).toDouble();
-        if (!corridor.value(QStringLiteral("highOpen")).toBool()) hi = corridor.value(QStringLiteral("signalHi")).toDouble();
+    if (corridor.known) {
+        if (!corridor.lowOpen) lo = corridor.signalLo;
+        if (!corridor.highOpen) hi = corridor.signalHi;
     }
     const pa::MetricDescriptor *d = key.isEmpty() ? nullptr : catalogue().descriptor(key);   // "" a time: Interval
     const std::optional<pv::ScalarTypicalityWindow> w =
@@ -833,19 +888,16 @@ QVariant typicalityOf(const Ctx &x, const std::vector<double> &values, const QSt
     if (!w) return {};
     const pv::TypicalityPayload p = pv::typicalityPayload(*w, isRatio(unit) ? QString() : unit,
                                                           isRatio(unit) ? 2 : words::decimalsFor(unit));
-    return QVariantMap{ { QStringLiteral("kind"), QStringLiteral("typicality") }, { QStringLiteral("values"), p.values },
-                        { QStringLiteral("basisText"), p.basisText }, { QStringLiteral("showCorridor"), w->corridor.has_value() } };
+    return QVariant::fromValue(relationsTypicality(*w, p.basisText, w->corridor.has_value()));
 }
 
 // A READING ROW with its typicality badge when R8 gives one, from the row's own `values` (what the row shows: a
 // launch-monitor row's club values, a stand-out's point on this shot's club's scale) and its corridor.
-QVariantMap withTypicality(const Ctx &x, QVariantMap row)
+RelationsReadingRow withTypicality(const Ctx &x, RelationsReadingRow row)
 {
-    std::vector<double> values;
-    for (const QVariant &v : row.value(QStringLiteral("values")).toList()) values.push_back(v.isNull() ? kNaN : v.toDouble());
-    const QVariant t = typicalityOf(x, values, row.value(QStringLiteral("key")).toString(), row.value(QStringLiteral("unit")).toString(),
-                                    row.value(QStringLiteral("corridor")).toMap());
-    if (t.isValid()) row.insert(QStringLiteral("variability"), t);
+    const std::vector<double> values(row.values.cbegin(), row.values.cend());
+    const QVariant t = typicalityOf(x, values, row.key, row.unit, row.corridor);
+    if (t.isValid()) row.variability = t;
     return row;
 }
 
@@ -855,7 +907,7 @@ QVariantMap withTypicality(const Ctx &x, QVariantMap row)
 // monitor's run. -1 when the session has no reading of the key: the key has a curve but no phase samples
 // (swingPlaneCurve), or too few shots read it at a P-position. See curveOnlyReading.
 struct ApartRow {
-    QVariantMap row;
+    RelationsReadingRow row;
     QString key;
     int reading = -1;
     int side = 0;           // the side of the others the shot fell on
@@ -926,10 +978,10 @@ SessionReading curveOnlyReading(const Ctx &x, const QString &id)
 void offerWhatOpens(const Ctx &x, ApartRow &a)
 {
     if (a.reading >= 0) return;
-    const bool curve = !curveOnlyReading(x, a.row.value(QStringLiteral("readingId")).toString()).id.isEmpty();
-    a.row.insert(QStringLiteral("hasCurve"), curve);
-    a.row.insert(QStringLiteral("opens"), curve ? QStringLiteral("trace") : QString());
-    if (!curve) a.row.insert(QStringLiteral("readingId"), QString());
+    const bool curve = !curveOnlyReading(x, a.row.readingId).id.isEmpty();
+    a.row.hasCurve = curve;
+    a.row.opens = curve ? QStringLiteral("trace") : QString();
+    if (!curve) a.row.readingId.clear();
 }
 
 // The launch monitor's reading against its own club: the club's values, and the club's box, the shot in it,
@@ -943,7 +995,7 @@ ApartRow lmRowOf(const Ctx &x, const ConsistencyLmRow &lm)
     a.words = lowerLabel(lm.label);
     SessionReading r = readingLike(x, a.reading, lm.key, lm.label, lm.unit, phase::Impact, lm.values);
     r.box = boxStats(r.values);
-    a.row = rowMapOf(x, r, metaOf(x, a.reading, lm.key, lm.label), a.reading);
+    a.row = rowOf(x, r, metaOf(x, a.reading, lm.key, lm.label), a.reading);
     offerWhatOpens(x, a);
     return a;
 }
@@ -999,10 +1051,10 @@ ApartRow testedRowOf(const Ctx &x, const ConsistencyReading &tested, int column,
     SessionReading r = readingAtPoint(x, tested, a.reading, column, sample, leaveShotOut);
     const bool sameInstant = tested.kind == ConsistencyReadingKind::Position && a.reading >= 0 && x.r(a.reading).phase == kConsistencyPhases[column];
     if (!sameInstant) std::fill(r.fired.begin(), r.fired.end(), uint8_t(0));
-    a.row = rowMapOf(x, r, metaOf(x, a.reading, tested.key, tested.label), sameInstant ? a.reading : -1);
+    a.row = rowOf(x, r, metaOf(x, a.reading, tested.key, tested.label), sameInstant ? a.reading : -1);
     offerWhatOpens(x, a);
-    a.row.insert(QStringLiteral("tag"), tag);
-    a.row.insert(QStringLiteral("phaseName"), atImpact ? x.v.name(phase::Impact) : tag);
+    a.row.tag = tag;
+    a.row.phaseName = atImpact ? x.v.name(phase::Impact) : tag;
     return a;
 }
 
@@ -1055,49 +1107,64 @@ QString cannotCompare(const Ctx &x, bool swingOnly)
     return QStringLiteral("There are too few shots in the session to set shot %1 against them.").arg(ordinal);
 }
 
-QVariantMap driftMap(const Correlation &d, int n)
+RelationsDrift driftValue(const Correlation &d, int n)
 {
-    QVariantMap out{ { QStringLiteral("defined"), d.defined }, { QStringLiteral("r"), num(d.r) }, { QStringLiteral("lo"), num(d.lo) },
-                     { QStringLiteral("hi"), num(d.hi) }, { QStringLiteral("clear"), d.clear }, { QStringLiteral("rText"), figR(d.r) },
-                     { QStringLiteral("ciText"), d.defined ? QStringLiteral("(%1 to %2)").arg(figR(d.lo), figR(d.hi)) : QString() },
-                     { QStringLiteral("slope"), num(d.slope) }, { QStringLiteral("intercept"), num(d.intercept) } };
-    out.insert(QStringLiteral("line"), d.defined && d.clear
-        ? QVariant(QVariantMap{ { QStringLiteral("x0"), 1 }, { QStringLiteral("y0"), d.intercept + d.slope },
-                                { QStringLiteral("x1"), n }, { QStringLiteral("y1"), d.intercept + d.slope * n } })
-        : QVariant::fromValue(nullptr));
+    RelationsDrift out;
+    out.defined = d.defined;
+    out.r = num(d.r);
+    out.lo = num(d.lo);
+    out.hi = num(d.hi);
+    out.clear = d.clear;
+    out.rText = figR(d.r);
+    out.ciText = d.defined ? QStringLiteral("(%1 to %2)").arg(figR(d.lo), figR(d.hi)) : QString();
+    out.slope = num(d.slope);
+    out.intercept = num(d.intercept);
+    if (d.defined && d.clear) {
+        RelationsLine l;
+        l.x0 = 1; l.y0 = d.intercept + d.slope;
+        l.x1 = n; l.y1 = d.intercept + d.slope * n;
+        out.line = QVariant::fromValue(l);
+    }
     return out;
 }
 
-QVariantMap runMap(const Ctx &x, const SessionReading &r)
+RelationsReadingRun runOf(const Ctx &x, const SessionReading &r)
 {
-    QVariantList pts;
+    RelationsReadingRun out;
     for (int i = 0; i < x.n; ++i) {
-        QVariantMap p = x.shotMark(i);
+        RelationsRunPoint p = x.shotMark<RelationsRunPoint>(i);
         const double v = size_t(i) < r.values.size() ? r.values[size_t(i)] : kNaN;
-        p.insert(QStringLiteral("value"), num(v));
-        p.insert(QStringLiteral("measured"), fin(v));
-        p.insert(QStringLiteral("fired"), size_t(i) < r.fired.size() && r.fired[size_t(i)]);
-        p.insert(QStringLiteral("picked"), i == x.pick);
-        pts.append(p);
+        p.value = num(v);
+        p.measured = fin(v);
+        p.fired = size_t(i) < r.fired.size() && r.fired[size_t(i)];
+        p.picked = i == x.pick;
+        out.points.append(p);
     }
     const Correlation d = driftOf(r);
     QString cap = r.label + QStringLiteral(" at ") + x.v.tag(r.phase) + QStringLiteral(", shot by shot");
     if (d.defined)
         cap += QStringLiteral("  ·  drift r %1 (%2 to %3)").arg(figR(d.r), figR(d.lo), figR(d.hi)) + (d.clear ? QString() : QStringLiteral(", inside chance"));
-    return { { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("label"), r.label },
-             { QStringLiteral("tag"), x.v.tag(r.phase) }, { QStringLiteral("unit"), r.unit }, { QStringLiteral("unitText"), unitText(r.unit) },
-             { QStringLiteral("caption"), cap }, { QStringLiteral("points"), pts }, { QStringLiteral("box"), boxMap(r.box, figOf(r.unit)) },
-             { QStringLiteral("yRange"), paddedRange(r.box, 0.1) }, { QStringLiteral("drift"), driftMap(d, x.n) } };
+    out.readingId = r.id;
+    out.key = r.key;
+    out.label = r.label;
+    out.tag = x.v.tag(r.phase);
+    out.unit = r.unit;
+    out.unitText = unitText(r.unit);
+    out.caption = cap;
+    out.box = boxOf(r.box, figOf(r.unit));
+    out.yRange = paddedRange(r.box, 0.1);
+    out.drift = driftValue(d, x.n);
+    return out;
 }
 
 // One reading's curve on the picked shot's own clock, with a box of every shot at each P-position the
-// key is read at (Trace.qml).
-QVariantMap traceMap(const Ctx &x, const SessionReading &r, TraceCurve *keep)
+// key is read at (Trace.qml). nullopt with no picked shot or no curve on it.
+std::optional<RelationsTrace> traceOf(const Ctx &x, const SessionReading &r, TraceCurve *keep)
 {
-    if (x.pick < 0) return {};
+    if (x.pick < 0) return std::nullopt;
     const ShotSeries &s = *x.S.shots[size_t(x.pick)];
     const TraceCurve c = shotCurve(s, r.key);
-    if (c.empty()) return {};
+    if (c.empty()) return std::nullopt;
     double lo = kNaN, hi = kNaN;
     for (size_t i = 0; i < c.t.size(); ++i) if (fin(c.v[i])) { if (!fin(lo)) lo = c.t[i]; hi = c.t[i]; }
     const qint64 a = phaseUsOf(s, phase::Address), f = phaseUsOf(s, phase::Finish);
@@ -1106,23 +1173,26 @@ QVariantMap traceMap(const Ctx &x, const SessionReading &r, TraceCurve *keep)
     if (f >= 0) t1 = std::min(t1, double(f - s.impactUs) / 1000.0 + 100.0);
     if (!(t1 > t0)) { t0 = c.t.front(); t1 = c.t.back(); }
 
-    QVariantList tt, vv, rr, ok;
+    RelationsTrace out;
     double ylo = std::numeric_limits<double>::infinity(), yhi = -ylo;
     for (size_t i = 0; i < c.t.size(); ++i) {
         if (c.t[i] < t0 - 1e-9 || c.t[i] > t1 + 1e-9) continue;
-        tt.append(c.t[i]);
-        vv.append(c.ok[i] ? num(c.v[i]) : QVariant::fromValue(nullptr));
-        rr.append(num(c.raw[i]));
-        ok.append(bool(c.ok[i]));
+        out.curve.t.append(c.t[i]);
+        out.curve.v.append(c.ok[i] && fin(c.v[i]) ? c.v[i] : kNaN);     // NaN where bridged (the map's null)
+        out.curve.raw.append(fin(c.raw[i]) ? c.raw[i] : kNaN);
+        out.curve.ok.append(bool(c.ok[i]));
         if (c.ok[i] && fin(c.v[i])) { ylo = std::min(ylo, c.v[i]); yhi = std::max(yhi, c.v[i]); }
     }
-    QVariantList phases;
     for (const PhaseMark &p : s.phases) {
         if (!x.v.isP(p.phase)) continue;
         const double ms = double(p.tUs - s.impactUs) / 1000.0;
         if (ms < t0 || ms > t1) continue;
-        phases.append(QVariantMap{ { QStringLiteral("phase"), p.phase }, { QStringLiteral("tag"), x.v.tag(p.phase) },
-                                   { QStringLiteral("shotMs"), ms }, { QStringLiteral("impact"), p.phase == phase::Impact } });
+        RelationsTracePhase ph;
+        ph.phase = p.phase;
+        ph.tag = x.v.tag(p.phase);
+        ph.shotMs = ms;
+        ph.impact = p.phase == phase::Impact;
+        out.phases.append(ph);
     }
     // every P-position the key is sampled at on some shot
     std::vector<int> phs;
@@ -1130,7 +1200,6 @@ QVariantMap traceMap(const Ctx &x, const SessionReading &r, TraceCurve *keep)
         if (const MetricSeries *ms = sh->metric(r.key))
             for (const PhaseSample &p : ms->phaseSamples)
                 if (fin(p.value) && std::find(phs.begin(), phs.end(), p.phase) == phs.end()) phs.push_back(p.phase);
-    QVariantList instants;
     for (int ph : phs) {
         const qint64 us = phaseUsOf(s, ph);
         if (us < 0) continue;
@@ -1140,24 +1209,33 @@ QVariantMap traceMap(const Ctx &x, const SessionReading &r, TraceCurve *keep)
         if (b.n < 3) continue;
         ylo = std::min(ylo, b.min); yhi = std::max(yhi, b.max);
         const double pv = vals[size_t(x.pick)];
-        instants.append(QVariantMap{ { QStringLiteral("phase"), ph }, { QStringLiteral("tag"), x.v.tag(ph) },
-                                     { QStringLiteral("shotMs"), double(us - s.impactUs) / 1000.0 }, { QStringLiteral("box"), boxMap(b, figOf(r.unit)) },
-                                     { QStringLiteral("values"), nums(vals) },
-                                     { QStringLiteral("firedShots"), ph == r.phase ? boolsOf(r.fired) : QVariantList{} },
-                                     { QStringLiteral("pickedValue"), num(pv) }, { QStringLiteral("pickedText"), figU(pv, r.unit) },
-                                     { QStringLiteral("own"), ph == r.phase } });
+        RelationsTraceInstant in;
+        in.phase = ph;
+        in.tag = x.v.tag(ph);
+        in.shotMs = double(us - s.impactUs) / 1000.0;
+        in.box = boxOf(b, figOf(r.unit));
+        in.values = dbls(vals);
+        if (ph == r.phase) in.firedShots = boolList(r.fired);
+        in.pickedValue = num(pv);
+        in.pickedText = figU(pv, r.unit);
+        in.own = ph == r.phase;
+        out.instants.append(in);
     }
     if (!fin(ylo)) { ylo = 0; yhi = 1; }
     const double pad = std::max(1e-6, (yhi - ylo) * 0.08);
     if (keep) *keep = c;
-    return { { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("label"), r.label },
-             { QStringLiteral("tag"), x.v.tag(r.phase) }, { QStringLiteral("unit"), r.unit }, { QStringLiteral("unitText"), unitText(r.unit) },
-             { QStringLiteral("caption"), instants.isEmpty() ? QStringLiteral("%1, shot %2").arg(r.label).arg(words::shotNumber(s.shotId, s.ordinal))
-                                                             : QStringLiteral("%1, shot %2; at each P-position a box of all %3 shots").arg(r.label).arg(words::shotNumber(s.shotId, s.ordinal)).arg(x.n) },
-             { QStringLiteral("window"), QVariantMap{ { QStringLiteral("t0"), t0 }, { QStringLiteral("t1"), t1 } } },
-             { QStringLiteral("yRange"), rangeMap(ylo - pad, yhi + pad) },
-             { QStringLiteral("curve"), QVariantMap{ { QStringLiteral("t"), tt }, { QStringLiteral("v"), vv }, { QStringLiteral("raw"), rr }, { QStringLiteral("ok"), ok } } },
-             { QStringLiteral("phases"), phases }, { QStringLiteral("instants"), instants } };
+    out.readingId = r.id;
+    out.key = r.key;
+    out.label = r.label;
+    out.tag = x.v.tag(r.phase);
+    out.unit = r.unit;
+    out.unitText = unitText(r.unit);
+    out.caption = out.instants.isEmpty() ? QStringLiteral("%1, shot %2").arg(r.label).arg(words::shotNumber(s.shotId, s.ordinal))
+                                         : QStringLiteral("%1, shot %2; at each P-position a box of all %3 shots").arg(r.label).arg(words::shotNumber(s.shotId, s.ordinal)).arg(x.n);
+    out.window.t0 = t0;
+    out.window.t1 = t1;
+    out.yRange = rangeOf(ylo - pad, yhi + pad);
+    return out;
 }
 
 QString axisName(const Ctx &x, const SessionReading &r)
@@ -1166,45 +1244,57 @@ QString axisName(const Ctx &x, const SessionReading &r)
          + ((!r.unit.isEmpty() && r.unit != QStringLiteral("°")) ? QStringLiteral(", ") + r.unit : QString());
 }
 
-QVariantMap scatterMap(const Ctx &x, const SessionReading &rx, const SessionReading &ry, const std::vector<int> &subset,
-                       const std::vector<uint8_t> &firedMask)
+RelationsScatter scatterOf(const Ctx &x, const SessionReading &rx, const SessionReading &ry, const std::vector<int> &subset,
+                           const std::vector<uint8_t> &firedMask)
 {
     std::vector<int> idx;
     if (subset.empty()) { for (int i = 0; i < x.n; ++i) idx.push_back(i); }
     else for (int o : subset) idx.push_back(o - 1);
     std::vector<double> xs, ys, xa(size_t(x.n), kNaN), ya(size_t(x.n), kNaN);
-    QVariantList pts;
+    RelationsScatter out;
     for (int i : idx) {
         const double a = rx.values[size_t(i)], b = ry.values[size_t(i)];
         xs.push_back(a); ys.push_back(b); xa[size_t(i)] = a; ya[size_t(i)] = b;
         if (!fin(a) || !fin(b)) continue;
-        QVariantMap p = x.shotMark(i);
-        p.insert(QStringLiteral("x"), a); p.insert(QStringLiteral("y"), b);
-        p.insert(QStringLiteral("picked"), i == x.pick);
-        p.insert(QStringLiteral("fired"), size_t(i) < firedMask.size() && firedMask[size_t(i)]);
-        pts.append(p);
+        RelationsScatterPoint p = x.shotMark<RelationsScatterPoint>(i);
+        p.x = a; p.y = b;
+        p.picked = i == x.pick;
+        p.fired = size_t(i) < firedMask.size() && firedMask[size_t(i)];
+        out.points.append(p);
     }
     const Correlation f = pearson(xs, ys);
-    QVariant line = QVariant::fromValue(nullptr);
     if (f.defined) {
         double x0 = kNaN, x1 = kNaN;
         for (size_t i = 0; i < xs.size(); ++i) if (fin(xs[i]) && fin(ys[i])) { x0 = fin(x0) ? std::min(x0, xs[i]) : xs[i]; x1 = fin(x1) ? std::max(x1, xs[i]) : xs[i]; }
-        line = QVariantMap{ { QStringLiteral("x0"), x0 }, { QStringLiteral("y0"), f.intercept + f.slope * x0 },
-                            { QStringLiteral("x1"), x1 }, { QStringLiteral("y1"), f.intercept + f.slope * x1 } };
+        RelationsLine l;
+        l.x0 = x0; l.y0 = f.intercept + f.slope * x0;
+        l.x1 = x1; l.y1 = f.intercept + f.slope * x1;
+        out.line = QVariant::fromValue(l);
     }
-    const QString cap = f.defined ? QStringLiteral("r %1 (%2 to %3)  ·  n %4").arg(figR(f.r), figR(f.lo), figR(f.hi)).arg(f.n)
-                                        + (f.clear ? QString() : QStringLiteral("  ·  inside chance"))
-                                  : QStringLiteral("Too few shots for a line.");
-    return { { QStringLiteral("xId"), rx.id }, { QStringLiteral("yId"), ry.id }, { QStringLiteral("xKey"), rx.key }, { QStringLiteral("yKey"), ry.key },
-             { QStringLiteral("xLabel"), axisName(x, rx) + QStringLiteral("  →") }, { QStringLiteral("yLabel"), QStringLiteral("↑  ") + axisName(x, ry) },
-             { QStringLiteral("xUnit"), rx.unit }, { QStringLiteral("yUnit"), ry.unit },
-             { QStringLiteral("xRange"), paddedRange(rx.box, 0.08) }, { QStringLiteral("yRange"), paddedRange(ry.box, 0.08) },
-             { QStringLiteral("xBox"), boxMap(boxStats(xa), figOf(rx.unit)) }, { QStringLiteral("yBox"), boxMap(boxStats(ya), figOf(ry.unit)) },
-             { QStringLiteral("points"), pts }, { QStringLiteral("defined"), f.defined }, { QStringLiteral("r"), num(f.r) },
-             { QStringLiteral("lo"), num(f.lo) }, { QStringLiteral("hi"), num(f.hi) }, { QStringLiteral("n"), f.n },
-             { QStringLiteral("clear"), f.clear }, { QStringLiteral("rText"), figR(f.r) },
-             { QStringLiteral("ciText"), f.defined ? QStringLiteral("(%1 to %2)").arg(figR(f.lo), figR(f.hi)) : QString() },
-             { QStringLiteral("line"), line }, { QStringLiteral("caption"), cap } };
+    out.caption = f.defined ? QStringLiteral("r %1 (%2 to %3)  ·  n %4").arg(figR(f.r), figR(f.lo), figR(f.hi)).arg(f.n)
+                                  + (f.clear ? QString() : QStringLiteral("  ·  inside chance"))
+                            : QStringLiteral("Too few shots for a line.");
+    out.xId = rx.id;
+    out.yId = ry.id;
+    out.xKey = rx.key;
+    out.yKey = ry.key;
+    out.xLabel = axisName(x, rx) + QStringLiteral("  →");
+    out.yLabel = QStringLiteral("↑  ") + axisName(x, ry);
+    out.xUnit = rx.unit;
+    out.yUnit = ry.unit;
+    out.xRange = paddedRange(rx.box, 0.08);
+    out.yRange = paddedRange(ry.box, 0.08);
+    out.xBox = boxOf(boxStats(xa), figOf(rx.unit));
+    out.yBox = boxOf(boxStats(ya), figOf(ry.unit));
+    out.defined = f.defined;
+    out.r = num(f.r);
+    out.lo = num(f.lo);
+    out.hi = num(f.hi);
+    out.n = f.n;
+    out.clear = f.clear;
+    out.rText = figR(f.r);
+    out.ciText = f.defined ? QStringLiteral("(%1 to %2)").arg(figR(f.lo), figR(f.hi)) : QString();
+    return out;
 }
 
 QString slopeText(const Correlation &c, const SessionReading &x, const SessionReading &y)
@@ -1216,29 +1306,51 @@ QString slopeText(const Correlation &c, const SessionReading &x, const SessionRe
     return words::withUnit(words::figSigned(c.slope, d), y.unit) + QStringLiteral(" per ") + xu;
 }
 
-QVariantMap ledgerRow(const Ctx &x, const CorrRow &row, const SessionReading &y, int rank)
+RelationsLedgerRow ledgerRowOf(const Ctx &x, const CorrRow &row, const SessionReading &y, int rank)
 {
     const SessionReading &r = x.r(row.reading);
     const Correlation &c = row.c;
-    return { { QStringLiteral("rank"), row.same ? 0 : rank }, { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key },
-             { QStringLiteral("label"), r.label }, { QStringLiteral("short"), x.m(row.reading).shortLabel }, { QStringLiteral("tag"), x.v.tag(r.phase) },
-             { QStringLiteral("same"), row.same }, { QStringLiteral("sameMark"), row.same ? QStringLiteral("‡") : QString() },
-             { QStringLiteral("finding"), !row.same && c.clear },
-             { QStringLiteral("r"), num(c.r) }, { QStringLiteral("rText"), figR(c.r) }, { QStringLiteral("lo"), num(c.lo) }, { QStringLiteral("hi"), num(c.hi) },
-             { QStringLiteral("loText"), figR(c.lo) }, { QStringLiteral("hiText"), figR(c.hi) },
-             { QStringLiteral("ciText"), QStringLiteral("(%1 to %2)").arg(figR(c.lo), figR(c.hi)) }, { QStringLiteral("n"), c.n },
-             { QStringLiteral("clear"), c.clear }, { QStringLiteral("slope"), num(c.slope) }, { QStringLiteral("slopeText"), slopeText(c, r, y) },
-             { QStringLiteral("pair"), QVariantMap{ { QStringLiteral("xs"), nums(r.values) }, { QStringLiteral("ys"), nums(y.values) },
-                                                    { QStringLiteral("xRange"), rangeMap(r.box.min, r.box.max) },
-                                                    { QStringLiteral("yRange"), rangeMap(y.box.min, y.box.max) } } } };
+    RelationsLedgerRow out;
+    out.rank = row.same ? 0 : rank;
+    out.readingId = r.id;
+    out.key = r.key;
+    out.label = r.label;
+    out.shortText = x.m(row.reading).shortLabel;
+    out.tag = x.v.tag(r.phase);
+    out.same = row.same;
+    out.sameMark = row.same ? QStringLiteral("‡") : QString();
+    out.finding = !row.same && c.clear;
+    out.r = num(c.r);
+    out.rText = figR(c.r);
+    out.lo = num(c.lo);
+    out.hi = num(c.hi);
+    out.loText = figR(c.lo);
+    out.hiText = figR(c.hi);
+    out.ciText = QStringLiteral("(%1 to %2)").arg(figR(c.lo), figR(c.hi));
+    out.n = c.n;
+    out.clear = c.clear;
+    out.slope = num(c.slope);
+    out.slopeText = slopeText(c, r, y);
+    out.pair.xs = dbls(r.values);
+    out.pair.ys = dbls(y.values);
+    out.pair.xRange = rangeOf(r.box.min, r.box.max);
+    out.pair.yRange = rangeOf(y.box.min, y.box.max);
+    return out;
 }
 
-QVariantMap briefMap(const Ctx &x, int i)
+RelationsBrief briefOf(const Ctx &x, int i)
 {
     const SessionReading &r = x.r(i);
-    return { { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("label"), r.label },
-             { QStringLiteral("short"), x.m(i).shortLabel }, { QStringLiteral("tag"), x.v.tag(r.phase) }, { QStringLiteral("unit"), r.unit },
-             { QStringLiteral("group"), x.m(i).group }, { QStringLiteral("text"), x.m(i).shortLabel + QLatin1Char(' ') + x.v.tag(r.phase) } };
+    RelationsBrief out;
+    out.readingId = r.id;
+    out.key = r.key;
+    out.label = r.label;
+    out.shortText = x.m(i).shortLabel;
+    out.tag = x.v.tag(r.phase);
+    out.unit = r.unit;
+    out.group = x.m(i).group;
+    out.text = x.m(i).shortLabel + QLatin1Char(' ') + x.v.tag(r.phase);
+    return out;
 }
 
 Sentence refusalSentence(const QString &what, int need, int have)
@@ -1299,9 +1411,9 @@ QString signedMsBare(double ms)
     return (s.endsWith(QStringLiteral(" ms")) || s.endsWith(QString(QChar(0x00A0)) + QStringLiteral("ms"))) ? s.chopped(3) : s;
 }
 
-QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
+RelationsKeyFigures keyFiguresOf(const Ctx &x, const Cache::Family *fam)
 {
-    QVariantList items;
+    RelationsKeyFigures out;
     const bool seq = fam && fam->name == kSeqFamily;
     if (seq && x.pick >= 0) {
         const ShotSequence &q = x.c.seq.shots[size_t(x.pick)];
@@ -1326,18 +1438,22 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
             // SAID ONCE (Mark, 17 Oct 2026): the headline names an unplaced node and the panel's tail says why; the
             // tile is a plain "-" with the median, no bound, no gate words, no link
             const QString foot = p.timed() ? (median.isEmpty() ? QStringLiteral("median needs 3 shots") : median) : median;
-            items.append(QVariantMap{ { QStringLiteral("readingId"), sequenceSeriesKey(s) }, { QStringLiteral("key"), sequenceSeriesKey(s) }, { QStringLiteral("label"), kSegLabels[s] + QStringLiteral(" peak") + (p.probable ? QStringLiteral(" ⚠") : QString()) },
-                                      { QStringLiteral("figure"), p.timed() ? signedMsBare(v) : QStringLiteral("-") }, { QStringLiteral("unit"), p.timed() && fin(v) ? QStringLiteral("ms") : QString() },
-                                      { QStringLiteral("foot"), foot }, { QStringLiteral("median"), timedN >= 3 ? words::signedMs(sm.medianMs) : QString() },
-                                      { QStringLiteral("place"), QString() }, { QStringLiteral("warn"), p.late },
-                                      { QStringLiteral("warnWord"), p.late ? QStringLiteral("late") : QString() },
-                                      // the reason lives in the panel's tail ("How far can I trust this?"), not on the tile
-                                      { QStringLiteral("trustSubject"), QString() },
-                                      { QStringLiteral("sentence"), (p.timed() || why.sentence.isEmpty() ? Sentence().figure(words::signedMs(v)) : Sentence().append(why.sentence))
-                                                                      .append(p.probable ? (p.probableHow == QLatin1String("seen") ? QStringLiteral(", indicated") : QStringLiteral(", probable")) : QString())
-                                                                      .append(timedN >= 3 ? QStringLiteral(", median ") : QString())
-                                                                      .figure(timedN >= 3 ? words::signedMs(sm.medianMs) : QString())
-                                                                      .append(p.late ? QStringLiteral(", late") : QString()).toVariant() } });
+            RelationsKeyFigure item;
+            item.readingId = sequenceSeriesKey(s);
+            item.key = sequenceSeriesKey(s);
+            item.label = kSegLabels[s] + QStringLiteral(" peak") + (p.probable ? QStringLiteral(" ⚠") : QString());
+            item.figure = p.timed() ? signedMsBare(v) : QStringLiteral("-");
+            item.unit = p.timed() && fin(v) ? QStringLiteral("ms") : QString();
+            item.foot = foot;
+            item.median = timedN >= 3 ? words::signedMs(sm.medianMs) : QString();
+            item.warn = p.late;
+            item.warnWord = p.late ? QStringLiteral("late") : QString();
+            // the reason lives in the panel's tail ("How far can I trust this?"), not on the tile: no trustSubject
+            item.sentence = sentenceOf((p.timed() || why.sentence.isEmpty() ? Sentence().figure(words::signedMs(v)) : Sentence().append(why.sentence))
+                                           .append(p.probable ? (p.probableHow == QLatin1String("seen") ? QStringLiteral(", indicated") : QStringLiteral(", probable")) : QString())
+                                           .append(timedN >= 3 ? QStringLiteral(", median ") : QString())
+                                           .figure(timedN >= 3 ? words::signedMs(sm.medianMs) : QString())
+                                           .append(p.late ? QStringLiteral(", late") : QString()));
             // R8: this shot's peak time against the usual, from every timed node of the segment (a probable chest peak
             // counts, with its ⚠ on the label); none when the node is not timed on this shot
             std::vector<double> times(size_t(x.n), kNaN);
@@ -1345,14 +1461,13 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
                 const SegmentPeak &o = x.c.seq.shots[size_t(k)].segments[size_t(s)];
                 if (o.timed()) times[size_t(k)] = o.timeMs();
             }
-            const QVariant typ = p.timed() ? typicalityOf(x, times, QString(), QStringLiteral("ms"), QVariantMap{}) : QVariant();
-            QVariantMap item = items.takeLast().toMap();
-            item.insert(QStringLiteral("typicality"), typ.isValid() ? typ : QVariant::fromValue(nullptr));
-            items.append(item);
+            const QVariant typ = p.timed() ? typicalityOf(x, times, QString(), QStringLiteral("ms"), RelationsCorridor{}) : QVariant();
+            if (typ.isValid()) item.typicality = typ;
+            out.items.append(item);
         }
     } else if (fam && x.pick >= 0) {
         for (int i : fam->readings) {
-            if (items.size() >= 4) break;
+            if (out.items.size() >= 4) break;
             const SessionReading &r = x.r(i);
             const ReadingPlace p = placeOf(r, x.pick);
             if (!p.measured) {
@@ -1361,15 +1476,15 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
                 if (g.isEmpty()) continue;
                 const bool solo = x.c.solo || x.n < 3;
                 const QString med = solo ? QString() : figBare(r.box.med, r.unit);
-                items.append(QVariantMap{ { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key },
-                                          { QStringLiteral("label"), x.m(i).shortLabel + QStringLiteral(" at ") + x.v.tag(r.phase) },
-                                          { QStringLiteral("figure"), QStringLiteral("-") },
-                                          { QStringLiteral("unit"), QString() },
-                                          { QStringLiteral("foot"), med.isEmpty() ? QString() : QStringLiteral("median ") + med },
-                                          { QStringLiteral("median"), med }, { QStringLiteral("place"), QString() },
-                                          { QStringLiteral("warn"), false }, { QStringLiteral("warnWord"), QString() },
-                                          { QStringLiteral("trustSubject"), QString() }, { QStringLiteral("typicality"), QVariant::fromValue(nullptr) },
-                                          { QStringLiteral("sentence"), Sentence().append(g.value(QStringLiteral("words")).toString()).toVariant() } });
+                RelationsKeyFigure item;
+                item.readingId = r.id;
+                item.key = r.key;
+                item.label = x.m(i).shortLabel + QStringLiteral(" at ") + x.v.tag(r.phase);
+                item.figure = QStringLiteral("-");
+                item.foot = med.isEmpty() ? QString() : QStringLiteral("median ") + med;
+                item.median = med;
+                item.sentence = sentenceOf(Sentence().append(g.value(QStringLiteral("words")).toString()));
+                out.items.append(item);
                 continue;
             }
             const bool fired = r.fired[size_t(x.pick)];
@@ -1391,30 +1506,41 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
             if (!place.isEmpty()) foot << place;
             // R8: a technical Typicality badge under the figure, when the window holds 8 (the foot stays)
             const QVariant typ = solo ? QVariant() : typicalityOf(x, r.values, r.key, r.unit, corridorOf(x, r));
-            items.append(QVariantMap{ { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("label"), x.m(i).shortLabel + QStringLiteral(" at ") + x.v.tag(r.phase) },
-                                      { QStringLiteral("figure"), closedUnit(r.unit) ? figU(p.value, r.unit) : figBare(p.value, r.unit) },
-                                      { QStringLiteral("unit"), closedUnit(r.unit) ? QString() : r.unit },
-                                      { QStringLiteral("foot"), foot.join(QStringLiteral("  ·  ")) }, { QStringLiteral("median"), med },
-                                      { QStringLiteral("place"), place }, { QStringLiteral("warn"), fired },
-                                      { QStringLiteral("warnWord"), warnWord },
-                                      { QStringLiteral("typicality"), typ.isValid() ? typ : QVariant::fromValue(nullptr) },
-                                      { QStringLiteral("sentence"), s.toVariant() } });
+            RelationsKeyFigure item;
+            item.readingId = r.id;
+            item.key = r.key;
+            item.label = x.m(i).shortLabel + QStringLiteral(" at ") + x.v.tag(r.phase);
+            item.figure = closedUnit(r.unit) ? figU(p.value, r.unit) : figBare(p.value, r.unit);
+            item.unit = closedUnit(r.unit) ? QString() : r.unit;
+            item.foot = foot.join(QStringLiteral("  ·  "));
+            item.median = med;
+            item.place = place;
+            item.warn = fired;
+            item.warnWord = warnWord;
+            if (typ.isValid()) item.typicality = typ;
+            item.sentence = sentenceOf(s);
+            out.items.append(item);
         }
     }
-    return { { QStringLiteral("family"), fam ? fam->name : QString() }, { QStringLiteral("sequence"), seq }, { QStringLiteral("items"), items } };
+    out.family = fam ? fam->name : QString();
+    out.sequence = seq;
+    return out;
 }
 
 // The Readings tab's verdict filters, in the order the tab shows them: the word, whether a count under it wears the
 // warn tone (a fault, or out of the corridor), and what the tab says when nothing is under it — `none` with no name
 // filter, `noneNamed` with one (%1 the filter's text). All has no empty words of its own: with nothing under All the
 // name filter let nothing through, and the tab says thisShot.noName. A row's `verdicts` says which ones it shows under.
-QVariantList readingVerdictFilters()
+QList<RelationsVerdictFilter> readingVerdictFilters()
 {
     const auto filter = [](const char *v, const char *word, bool warm, const QString &tail) {
-        return QVariantMap{ { QStringLiteral("verdict"), QString::fromLatin1(v) }, { QStringLiteral("word"), QString::fromLatin1(word) },
-                            { QStringLiteral("warm"), warm },
-                            { QStringLiteral("none"), tail.isEmpty() ? QString() : QStringLiteral("No reading ") + tail },
-                            { QStringLiteral("noneNamed"), tail.isEmpty() ? QString() : QStringLiteral("No reading named “%1” ") + tail } };
+        RelationsVerdictFilter f;
+        f.verdict = QString::fromLatin1(v);
+        f.word = QString::fromLatin1(word);
+        f.warm = warm;
+        f.none = tail.isEmpty() ? QString() : QStringLiteral("No reading ") + tail;
+        f.noneNamed = tail.isEmpty() ? QString() : QStringLiteral("No reading named “%1” ") + tail;
+        return f;
     };
     return { filter("all", "All", false, QString()),
              filter("fault", "Faults", true, QStringLiteral("is past its fault line on this shot.")),
@@ -1422,25 +1548,36 @@ QVariantList readingVerdictFilters()
              filter("inside", "Inside", false, QStringLiteral("was graded inside its corridor on this shot.")) };
 }
 
-QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
+RelationsAsk askOf(const QString &id, const QString &text, const QString &answer, const std::vector<int> &lit,
+                   const QString &go = QString(), const QString &upId = QString())
 {
-    QVariantMap m;
-    const int total = int(x.c.readings.size());
-    m.insert(QStringLiteral("total"), total);
+    RelationsAsk a;
+    a.id = id;
+    a.text = text;
+    a.answer = answer;
+    a.lit = intList(lit);
+    a.go = go;
+    a.upId = upId;
+    return a;
+}
+
+RelationsThisShot thisShotOf(const Ctx &x, const Cache::Family *fam, Output *out)
+{
+    RelationsThisShot m;
+    m.total = int(x.c.readings.size());
     // the Readings tab's filter words, whatever the shot (the tab draws them only when there are readings)
-    m.insert(QStringLiteral("verdictFilters"), readingVerdictFilters());
-    m.insert(QStringLiteral("noName"), QStringLiteral("No reading's name holds “%1”."));
+    m.verdictFilters = readingVerdictFilters();
+    m.noName = QStringLiteral("No reading's name holds “%1”.");
     if (x.pick < 0) {
-        m.insert(QStringLiteral("available"), false);
-        m.insert(QStringLiteral("head"), (x.n == 0 ? emptySession(x) : Sentence().append(QStringLiteral("No shot is picked"))).toVariant());
+        m.available = false;
+        m.head = sentenceOf(x.n == 0 ? emptySession(x) : Sentence().append(QStringLiteral("No shot is picked")));
         return m;
     }
     const ShotSeries &ps = *x.S.shots[size_t(x.pick)];
-    m.insert(QStringLiteral("kicker"), words::shotOfText(ps.shotId, ps.ordinal, x.n)
-                                       + (ps.club.isEmpty() ? QString() : QStringLiteral("  ·  ") + ps.club.toLower()));
-    m.insert(QStringLiteral("keyFigures"), keyFiguresMap(x, fam));
+    m.kicker = words::shotOfText(ps.shotId, ps.ordinal, x.n)
+               + (ps.club.isEmpty() ? QString() : QStringLiteral("  ·  ") + ps.club.toLower());
+    m.keyFigures = keyFiguresOf(x, fam);
     // the family's lead reading on this shot — this shot's own, so published at any n
-    QVariantMap lead;
     if (fam) {
         int li = -1;
         if (fam->name == kSeqFamily) li = x.c.indexOf(QStringLiteral("clubAngularSpeed@%1").arg(phase::Impact));
@@ -1448,32 +1585,31 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
         if (li < 0) for (int i : fam->readings) if (placeOf(x.r(i), x.pick).measured) { li = i; break; }
         if (li < 0 && !fam->readings.empty()) li = fam->readings.front();
         if (li >= 0) {
-            const QVariantMap tr = traceMap(x, x.r(li), &out->leadCurve);
+            const std::optional<RelationsTrace> tr = traceOf(x, x.r(li), &out->leadCurve);
             out->leadUnit = x.r(li).unit;
-            lead = { { QStringLiteral("readingId"), x.r(li).id }, { QStringLiteral("trace"), tr.isEmpty() ? QVariant::fromValue(nullptr) : QVariant(tr) } };
+            m.lead.readingId = x.r(li).id;
+            if (tr) m.lead.trace = QVariant::fromValue(*tr);
         }
     }
-    m.insert(QStringLiteral("lead"), lead);
     if (x.n < 3) {
-        m.insert(QStringLiteral("available"), false);
-        m.insert(QStringLiteral("head"), tooFew(x, QStringLiteral("to set a shot against its session"), 3).toVariant());
+        m.available = false;
+        m.head = sentenceOf(tooFew(x, QStringLiteral("to set a shot against its session"), 3));
         return m;
     }
-    m.insert(QStringLiteral("available"), true);
+    m.available = true;
 
     // apart: the launch monitor's rows, then the stand-outs, by the rule the Consistency tab shares
     out->consistencyMs = x.c.ensureConsistency(*x.env);
     const std::vector<ApartRow> ap = apartRows(x);
-    QVariantList apart;
-    for (const ApartRow &a : ap) apart.append(withTypicality(x, a.row));     // R8: the badge, when the window holds 8
+    for (const ApartRow &a : ap) m.apart.append(withTypicality(x, a.row));     // R8: the badge, when the window holds 8
     const int na = int(ap.size());
     const QString cannot = na ? QString() : cannotCompare(x, false);
-    m.insert(QStringLiteral("apartCount"), na);
-    m.insert(QStringLiteral("apart"), apart);
-    m.insert(QStringLiteral("head"), (na ? Sentence().append(words::cap1(words::word(na)) + (na == 1 ? QStringLiteral(" reading") : QStringLiteral(" readings"))
-                                                             + QStringLiteral(" apart from the session"))
-                                         : !cannot.isEmpty() ? Sentence().append(QStringLiteral("Shot %1 cannot be compared").arg(words::shotNumber(ps.shotId, ps.ordinal)))
-                                                             : Sentence().append(QStringLiteral("Nothing stood out on shot %1").arg(words::shotNumber(ps.shotId, ps.ordinal)))).toVariant());
+    m.apartCount = na;
+    m.apartLabel = na > 0 ? QStringLiteral("%1 %2").arg(na).arg(na == 1 ? QStringLiteral("reading") : QStringLiteral("readings")) : QString();
+    m.head = sentenceOf(na ? Sentence().append(words::cap1(words::word(na)) + (na == 1 ? QStringLiteral(" reading") : QStringLiteral(" readings"))
+                                               + QStringLiteral(" apart from the session"))
+                           : !cannot.isEmpty() ? Sentence().append(QStringLiteral("Shot %1 cannot be compared").arg(words::shotNumber(ps.shotId, ps.ordinal)))
+                                               : Sentence().append(QStringLiteral("Nothing stood out on shot %1").arg(words::shotNumber(ps.shotId, ps.ordinal))));
     Sentence st;
     if (!cannot.isEmpty()) st.append(cannot);
     else if (!na) st.append(QStringLiteral("Set against the other shots, club for club, nothing on shot %1 stood out.").arg(words::shotNumber(ps.shotId, ps.ordinal)));
@@ -1484,26 +1620,24 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
     }
     if (x.c.consistencyIn.shots[size_t(x.pick)].guarded)
         st.append(QLatin1Char(' ') + ConsistencyReadingRows::guardNote());
-    m.insert(QStringLiteral("standfirst"), st.toVariant());
+    m.standfirst = sentenceOf(st);
 
     // every reading by family (D5)
-    QVariantList groups;
     for (const QString &g : x.c.groupOrder) {
-        QVariantList rows;
+        RelationsRowGroup group;
+        group.name = g;
         for (size_t i = 0; i < x.c.readings.size(); ++i)
-            if (x.c.meta[i].group == g) rows.append(withTypicality(x, rowMap(x, int(i))));   // R8, as Apart's
-        if (!rows.isEmpty()) groups.append(QVariantMap{ { QStringLiteral("name"), g }, { QStringLiteral("rows"), rows } });
+            if (x.c.meta[i].group == g) group.rows.append(withTypicality(x, rowAt(x, int(i))));   // R8, as Apart's
+        if (!group.rows.isEmpty()) m.groups.append(group);
     }
-    m.insert(QStringLiteral("groups"), groups);
-    m.insert(QStringLiteral("notes"), QStringLiteral("Apart: a long way from the other shots, each shot set against its own club, across the whole "
-                                                     "of a span and not at one instant in it. A launch-monitor figure is apart when it falls well "
-                                                     "outside its club's usual range, which takes eight shots with that club. A span's row shows the "
-                                                     "point closest to the others, with their box at that point. Each row has its own scale, lowest "
-                                                     "to highest. A fired mark is a reading a diagnostics condition graded and found outside its corridor."));
-    m.insert(QStringLiteral("firedElsewhere"), x.c.firedElsewhere.value(x.pick));
+    m.notes = QStringLiteral("Apart: a long way from the other shots, each shot set against its own club, across the whole "
+                             "of a span and not at one instant in it. A launch-monitor figure is apart when it falls well "
+                             "outside its club's usual range, which takes eight shots with that club. A span's row shows the "
+                             "point closest to the others, with their box at that point. Each row has its own scale, lowest "
+                             "to highest. A fired mark is a reading a diagnostics condition graded and found outside its corridor.");
+    m.firedElsewhere = x.c.firedElsewhere.value(x.pick);
 
     // the family: the lead reading's trace and the other rows (Replay)
-    QVariantList famRows;
     if (fam) {
         const bool seq = fam->name == kSeqFamily;
         if (!seq) {
@@ -1512,46 +1646,40 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
             QStringList seen;
             std::vector<int> order(fam->readings.begin() + std::min<size_t>(size_t(figs), fam->readings.size()), fam->readings.end());
             for (int k = 0; k < figs && k < int(fam->readings.size()); ++k) if (x.r(fam->readings[size_t(k)]).multi) order.push_back(fam->readings[size_t(k)]);
-            for (int i : order) if (!seen.contains(x.r(i).id)) { seen << x.r(i).id; famRows.append(rowMap(x, i)); }
+            for (int i : order) if (!seen.contains(x.r(i).id)) { seen << x.r(i).id; m.familyRows.append(rowAt(x, i)); }
         }
     }
-    m.insert(QStringLiteral("familyRows"), famRows);
 
     // questions (Analyse.qml shotAsks)
-    QVariantList asks;
     for (const ApartRow &a : ap) {
         const std::vector<int> same = othersApart(x, a);
         if (same.empty()) continue;
         std::vector<int> lit = same; lit.push_back(ps.ordinal);
-        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("same") },
-                                 { QStringLiteral("text"), a.row.value(QStringLiteral("label")).toString() + QStringLiteral(": was any other shot out there?") },
-                                 { QStringLiteral("answer"), words::cap1(words::shotsList(same)) + (same.size() == 1 ? QStringLiteral(" was") : QStringLiteral(" were"))
-                                                             + QStringLiteral(" apart the same way; lit in every row.") },
-                                 { QStringLiteral("lit"), ints(lit) }, { QStringLiteral("go"), QString() }, { QStringLiteral("upId"), QString() } });
+        m.asks.append(askOf(QStringLiteral("same"), a.row.label + QStringLiteral(": was any other shot out there?"),
+                            words::cap1(words::shotsList(same)) + (same.size() == 1 ? QStringLiteral(" was") : QStringLiteral(" were"))
+                                + QStringLiteral(" apart the same way; lit in every row."),
+                            lit));
         break;
     }
     if (!ap.empty() && ap[0].reading >= 0)
-        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("moves") }, { QStringLiteral("text"), x.r(ap[0].reading).label + QStringLiteral(": what moves with it?") },
-                                 { QStringLiteral("answer"), QStringLiteral("Relations opens on it.") }, { QStringLiteral("lit"), QVariantList{} },
-                                 { QStringLiteral("go"), QStringLiteral("relations") }, { QStringLiteral("upId"), x.r(ap[0].reading).id } });
+        m.asks.append(askOf(QStringLiteral("moves"), x.r(ap[0].reading).label + QStringLiteral(": what moves with it?"),
+                            QStringLiteral("Relations opens on it."), {}, QStringLiteral("relations"), x.r(ap[0].reading).id));
     if (x.c.kinds.method != KindsMethod::None)
-        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("kind") }, { QStringLiteral("text"), QStringLiteral("Shot %1: which kind of swing was it?").arg(words::shotNumber(ps.shotId, ps.ordinal)) },
-                                 { QStringLiteral("answer"), QStringLiteral("Kinds opens with shot %1 marked.").arg(words::shotNumber(ps.shotId, ps.ordinal)) },
-                                 { QStringLiteral("lit"), QVariantList{ ps.ordinal } }, { QStringLiteral("go"), QStringLiteral("kinds") }, { QStringLiteral("upId"), QString() } });
-    m.insert(QStringLiteral("asks"), asks);
+        m.asks.append(askOf(QStringLiteral("kind"), QStringLiteral("Shot %1: which kind of swing was it?").arg(words::shotNumber(ps.shotId, ps.ordinal)),
+                            QStringLiteral("Kinds opens with shot %1 marked.").arg(words::shotNumber(ps.shotId, ps.ordinal)),
+                            { ps.ordinal }, QStringLiteral("kinds")));
     return m;
 }
 
 // ── the sequence (SeqTiming) ────────────────────────────────────────────────────────────────
 
-QVariantMap sequenceMap(const Ctx &x)
+RelationsSequence sequenceOf(const Ctx &x)
 {
     const SessionSequence &q = x.c.seq;
-    QVariantMap m;
-    if (x.n == 0) { m.insert(QStringLiteral("available"), false); return m; }
-    m.insert(QStringLiteral("available"), true);
+    RelationsSequence m;
+    if (x.n == 0) { m.available = false; return m; }
+    m.available = true;
     const ShotSequence *ps = x.pick >= 0 ? &q.shots[size_t(x.pick)] : nullptr;
-    QVariantList chain;
     Sentence cs;
     QStringList unplaced, late;
     if (ps) {
@@ -1568,83 +1696,90 @@ QVariantMap sequenceMap(const Ctx &x)
             if (k) cs.append(QStringLiteral("  →  "));
             cs.append(kSegLabels[order[k]] + (p.probable ? QStringLiteral(" ⚠ ") : QStringLiteral(" "))).figure(words::signedMs(p.timeMs()));
             if (p.late) cs.append(QStringLiteral(", late"));
-            chain.append(QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(order[k])] }, { QStringLiteral("label"), kSegLabels[order[k]] },
-                                      { QStringLiteral("probable"), p.probable },
-                                      { QStringLiteral("shotMs"), p.timeMs() }, { QStringLiteral("msText"), words::signedMs(p.timeMs()) },
-                                      { QStringLiteral("late"), p.late }, { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() } });
+            RelationsChainLink link;
+            link.segment = sequenceSegmentIds()[size_t(order[k])];
+            link.label = kSegLabels[order[k]];
+            link.probable = p.probable;
+            link.shotMs = p.timeMs();
+            link.msText = words::signedMs(p.timeMs());
+            link.late = p.late;
+            link.lateWord = p.late ? QStringLiteral("late") : QString();
+            m.chain.append(link);
         }
     }
     if (cs.isEmpty()) cs.append(QStringLiteral("No segment placed on this shot."));
-    m.insert(QStringLiteral("chain"), chain);
-    m.insert(QStringLiteral("chainSentence"), cs.toVariant());
+    m.chainSentence = sentenceOf(cs);
     const QString unplacedText = unplaced.isEmpty() ? QString() : words::list(unplaced) + QStringLiteral(" not placed");
-    m.insert(QStringLiteral("unplaced"), unplacedText);
+    m.unplaced = unplacedText;
     int same = 0;
     const QString mine = ps ? ps->order.join(QLatin1Char(',')) : QString();
     for (const ShotSequence &s : q.shots) if (!mine.isEmpty() && s.order.join(QLatin1Char(',')) == mine) ++same;
-    m.insert(QStringLiteral("orderSame"), same);
-    m.insert(QStringLiteral("orderCount"), x.n);
+    m.orderSame = same;
+    m.orderCount = x.n;
     QStringList parts;
     if (ps && ps->timedCount >= 2)
         parts << (late.isEmpty() ? QStringLiteral("in sequence") : QStringLiteral("out of sequence: the ") + words::list(late) + QStringLiteral(" peaked late"));
     if (!unplacedText.isEmpty()) parts << unplacedText;
     if (!mine.isEmpty()) parts << QStringLiteral("this order on %1 of %2 shots").arg(same).arg(x.n);
-    m.insert(QStringLiteral("verdict"), Sentence().append(parts.isEmpty() ? QString() : words::cap1(parts.join(QStringLiteral("; "))) + QStringLiteral(".")).toVariant());
+    m.verdict = sentenceOf(Sentence().append(parts.isEmpty() ? QString() : words::cap1(parts.join(QStringLiteral("; "))) + QStringLiteral(".")));
 
     double lo = -150, hi = 40;
     for (const ShotSequence &s : q.shots) for (const SegmentPeak &p : s.segments) if (p.timed() && fin(p.timeMs())) { lo = std::min(lo, p.timeMs()); hi = std::max(hi, p.timeMs()); }
     lo = std::floor((lo - 10) / 25) * 25; hi = std::ceil((hi + 10) / 25) * 25;
-    m.insert(QStringLiteral("axis"), rangeMap(lo, hi));
-    QVariantList ticks;
+    m.axis = rangeOf(lo, hi);
     const double step = (hi - lo) > 300 ? 100 : 50;
-    for (double t = std::ceil(lo / step) * step; t <= hi + 1e-9; t += step)
-        ticks.append(QVariantMap{ { QStringLiteral("ms"), t }, { QStringLiteral("text"), t == 0 ? QStringLiteral("impact") : signedMsBare(t) } });
-    m.insert(QStringLiteral("ticks"), ticks);
-    QVariantList rows;
+    for (double t = std::ceil(lo / step) * step; t <= hi + 1e-9; t += step) {
+        RelationsSequenceTick tk;
+        tk.ms = t;
+        tk.text = t == 0 ? QStringLiteral("impact") : signedMsBare(t);
+        m.ticks.append(tk);
+    }
     for (int s = 0; s < kSequenceSegments; ++s) {
         std::vector<double> ms;
-        QVariantList lateShots;
+        RelationsSequenceRow row;
         for (const ShotSequence &sh : q.shots) {
             const SegmentPeak &p = sh.segments[size_t(s)];
             ms.push_back(p.timed() ? p.timeMs() : kNaN);
-            lateShots.append(p.late);
+            row.lateShots.append(p.late);
         }
         const SegmentSummary &sm = q.segments[size_t(s)];
         const double v = ps && ps->segments[size_t(s)].timed() ? ps->segments[size_t(s)].timeMs() : kNaN;
         const int timedN = sm.placed + sm.probable;
-        rows.append(QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(s)] },
-                                 { QStringLiteral("label"), kSegLabels[s] + (sm.probable > 0 ? QStringLiteral(" ⚠") : QString()) },
-                                 { QStringLiteral("valueText"), signedMsBare(v) }, { QStringLiteral("shotMs"), num(v) },
-                                 { QStringLiteral("placed"), timedN },
-                                 { QStringLiteral("placedText"), sm.probable > 0 ? QStringLiteral("%1 of %2, probable").arg(timedN).arg(x.n)
-                                                                                 : QStringLiteral("%1 of %2").arg(sm.placed).arg(x.n) },
-                                 { QStringLiteral("box"), boxMap(boxStats(ms), [](double v) { return signedMsBare(v); }) }, { QStringLiteral("values"), nums(ms) }, { QStringLiteral("lateShots"), lateShots },
-                                 { QStringLiteral("hasBox"), timedN >= 3 },
-                                 { QStringLiteral("notPlacedText"), timedN == 0 ? QStringLiteral("not placed on any shot")
-                                                                    : timedN < 3 ? QStringLiteral("placed on too few shots for a box") : QString() } });
+        row.segment = sequenceSegmentIds()[size_t(s)];
+        row.label = kSegLabels[s] + (sm.probable > 0 ? QStringLiteral(" ⚠") : QString());
+        row.valueText = signedMsBare(v);
+        row.shotMs = num(v);
+        row.placed = timedN;
+        row.placedText = sm.probable > 0 ? QStringLiteral("%1 of %2, probable").arg(timedN).arg(x.n)
+                                         : QStringLiteral("%1 of %2").arg(sm.placed).arg(x.n);
+        row.box = boxOf(boxStats(ms), [](double v) { return signedMsBare(v); });
+        row.values = dbls(ms);
+        row.hasBox = timedN >= 3;
+        row.notPlacedText = timedN == 0 ? QStringLiteral("not placed on any shot")
+                          : timedN < 3 ? QStringLiteral("placed on too few shots for a box") : QString();
+        m.rows.append(row);
     }
-    m.insert(QStringLiteral("rows"), rows);
     const SegmentSummary &pel = q.segments[0];
     Sentence note;
     if (pel.placed >= 3 && pel.afterImpact * 2 >= pel.placed)
         note.append(QStringLiteral("The pelvis peaks after impact on ")).figure(QString::number(pel.afterImpact))
             .append(QStringLiteral(" of ")).figure(QString::number(pel.placed)).append(QStringLiteral(" placed shots. ") + words::latePelvisNote());
-    m.insert(QStringLiteral("note"), note.toVariant());
+    m.note = sentenceOf(note);
     return m;
 }
 
 // ── Relations ──────────────────────────────────────────────────────────────────────────────
 
-QVariantMap relationsMap(Ctx &x, const QString &upWanted, const QString &acrossWanted, const QString &facetWanted, QString *upOut)
+RelationsRelations relationsOf(Ctx &x, const QString &upWanted, const QString &acrossWanted, const QString &facetWanted, QString *upOut)
 {
-    QVariantMap m;
+    RelationsRelations m;
     Cache &c = x.c;
     // r needs five shots both readings were read on (session_relations.h pearson), so below five there is
     // nothing to relate: refused with the reason, never an empty ledger.
     if (x.n < 5 || c.readings.size() < 2) {
-        m.insert(QStringLiteral("available"), false);
-        m.insert(QStringLiteral("refusal"), (x.n < 5 ? tooFew(x, QStringLiteral("to relate readings across a session"), 5)
-                                                     : Sentence().append(QStringLiteral("This session has too few readings to relate."))).toVariant());
+        m.available = false;
+        m.refusal = sentenceOf(x.n < 5 ? tooFew(x, QStringLiteral("to relate readings across a session"), 5)
+                                       : Sentence().append(QStringLiteral("This session has too few readings to relate.")));
         return m;
     }
     int y = c.indexOf(upWanted);
@@ -1657,26 +1792,29 @@ QVariantMap relationsMap(Ctx &x, const QString &upWanted, const QString &acrossW
     if (xi < 0) xi = y == 0 ? 1 : 0;
     const SessionReading &Y = x.r(y), &X = x.r(xi);
     if (upOut) *upOut = Y.id;
-    m.insert(QStringLiteral("available"), true);
-    m.insert(QStringLiteral("upId"), Y.id);
-    m.insert(QStringLiteral("acrossId"), X.id);
-    m.insert(QStringLiteral("up"), briefMap(x, y));
-    m.insert(QStringLiteral("across"), briefMap(x, xi));
-    m.insert(QStringLiteral("upValues"), nums(Y.values));
+    m.available = true;
+    m.upId = Y.id;
+    m.acrossId = X.id;
+    m.up = briefOf(x, y);
+    m.across = briefOf(x, xi);
+    m.upValues = dbls(Y.values);
 
     // the pickers' catalogue
-    QVariantList cat;
     for (const QString &g : c.groupOrder) {
-        QVariantList rs;
+        RelationsCatalogueGroup group;
+        group.name = g;
         for (size_t i = 0; i < c.readings.size(); ++i) if (c.meta[i].group == g) {
-            const QVariantMap b = briefMap(x, int(i));
-            rs.append(QVariantMap{ { QStringLiteral("readingId"), b.value(QStringLiteral("readingId")) }, { QStringLiteral("short"), b.value(QStringLiteral("short")) },
-                                   { QStringLiteral("tag"), b.value(QStringLiteral("tag")) }, { QStringLiteral("text"), b.value(QStringLiteral("text")) },
-                                   { QStringLiteral("label"), b.value(QStringLiteral("label")) } });
+            const RelationsBrief b = briefOf(x, int(i));
+            RelationsCatalogueReading cr;
+            cr.readingId = b.readingId;
+            cr.shortText = b.shortText;
+            cr.tag = b.tag;
+            cr.text = b.text;
+            cr.label = b.label;
+            group.readings.append(cr);
         }
-        cat.append(QVariantMap{ { QStringLiteral("name"), g }, { QStringLiteral("readings"), rs } });
+        m.catalogue.append(group);
     }
-    m.insert(QStringLiteral("catalogue"), cat);
 
     // the chance line, said out loud
     const int tests = int(rows.size());
@@ -1685,10 +1823,10 @@ QVariantMap relationsMap(Ctx &x, const QString &upWanted, const QString &acrossW
     const int ch = chanceCount(tests), nY = Y.box.n;
     const double rc = rCritical(nY);
     QString upName = lowerLabel(Y.label);
-    m.insert(QStringLiteral("head"), Sentence().append(QStringLiteral("What moves with ") + upName).toVariant());
-    m.insert(QStringLiteral("short"), Sentence().append(words::cap1(words::word(clear)) + QStringLiteral(" of ")).figure(QString::number(tests))
-                                         .append(QStringLiteral(" readings clear chance with ") + x.readingText(y) + QStringLiteral("; chance alone would clear about ")
-                                                 + words::word(ch) + QStringLiteral(".")).toVariant());
+    m.head = sentenceOf(Sentence().append(QStringLiteral("What moves with ") + upName));
+    m.shortText = sentenceOf(Sentence().append(words::cap1(words::word(clear)) + QStringLiteral(" of ")).figure(QString::number(tests))
+                                 .append(QStringLiteral(" readings clear chance with ") + x.readingText(y) + QStringLiteral("; chance alone would clear about ")
+                                         + words::word(ch) + QStringLiteral(".")));
     Sentence sf;
     sf.append(words::cap1(words::word(clear)) + QStringLiteral(" of ")).figure(QString::number(tests))
       .append(QStringLiteral(" readings moved with ") + x.readingText(y) + QStringLiteral(" closely enough for the 95\u00A0% interval to clear zero"))
@@ -1696,51 +1834,56 @@ QVariantMap relationsMap(Ctx &x, const QString &upWanted, const QString &acrossW
                               : QStringLiteral("; chance alone would clear about ") + words::word(ch) + QStringLiteral(". "))
       .append(QStringLiteral("With ") + words::word(nY) + QStringLiteral(" shots an r inside ±")).figure(figR(rc))
       .append(QStringLiteral(" is what chance gives. ") + words::coOccurrenceNote());
-    m.insert(QStringLiteral("standfirst"), sf.toVariant());
-    m.insert(QStringLiteral("chance"), QVariantMap{
-        { QStringLiteral("n"), nY }, { QStringLiteral("tests"), tests }, { QStringLiteral("clearCount"), clear }, { QStringLiteral("chanceCount"), ch },
-        { QStringLiteral("rCritical"), rc }, { QStringLiteral("rCriticalText"), figR(rc) },
-        { QStringLiteral("line"), Sentence().append(QStringLiteral("|r| under ")).figure(figR(rc)).append(QStringLiteral(" is chance at n = ")).figure(QString::number(nY)).toVariant() },
-        { QStringLiteral("sentence"), Sentence().figure(QString::number(clear)).append(QStringLiteral(" of ")).figure(QString::number(tests))
-                                         .append(QStringLiteral(" readings clear chance; chance alone would clear about ")).figure(QString::number(ch))
-                                         .append(QStringLiteral(". ") + words::coOccurrenceNote()).toVariant() } });
+    m.standfirst = sentenceOf(sf);
+    m.chance.n = nY;
+    m.chance.tests = tests;
+    m.chance.clearCount = clear;
+    m.chance.chanceCount = ch;
+    m.chance.rCritical = rc;
+    m.chance.rCriticalText = figR(rc);
+    m.chance.line = sentenceOf(Sentence().append(QStringLiteral("|r| under ")).figure(figR(rc)).append(QStringLiteral(" is chance at n = ")).figure(QString::number(nY)));
+    m.chance.sentence = sentenceOf(Sentence().figure(QString::number(clear)).append(QStringLiteral(" of ")).figure(QString::number(tests))
+                                       .append(QStringLiteral(" readings clear chance; chance alone would clear about ")).figure(QString::number(ch))
+                                       .append(QStringLiteral(". ") + words::coOccurrenceNote()));
 
-    m.insert(QStringLiteral("scatter"), scatterMap(x, X, Y, {}, {}));
-    m.insert(QStringLiteral("upRun"), runMap(x, Y));
+    m.scatter = scatterOf(x, X, Y, {}, {});
+    m.upRun = runOf(x, Y);
 
     // the ledger, ranked by |r|; a same-quantity row is labelled and not ranked as a finding
-    QVariantList ledger;
     int rank = 0;
-    for (const CorrRow &r : rows) ledger.append(ledgerRow(x, r, Y, r.same ? 0 : ++rank));
-    m.insert(QStringLiteral("ledger"), ledger);
+    for (const CorrRow &r : rows) m.ledger.append(ledgerRowOf(x, r, Y, r.same ? 0 : ++rank));
     int restClear = 0;
     for (size_t i = 10; i < rows.size(); ++i) if (rows[i].c.clear) ++restClear;
-    m.insert(QStringLiteral("restText"), rows.size() > 10 ? QStringLiteral("The other %1 readings, %2").arg(rows.size() - 10)
-                                                                .arg(restClear ? QStringLiteral("%1 of them clearing chance").arg(restClear) : QStringLiteral("all inside chance"))
-                                                          : QString());
-    m.insert(QStringLiteral("ledgerNote"), Sentence().append(QStringLiteral("r: how closely the two moved together across the shots both were read on, from −1 to 1. "
-                                                                            "The interval is 95\u00A0% (Fisher); one that crosses the centre line could be no relation at all. With "))
-                                              .figure(QString::number(nY)).append(QStringLiteral(" shots an r inside ±")).figure(figR(rc))
-                                              .append(QStringLiteral(" is what chance gives. ‡ The same quantity measured another way, so the pair says little and is not ranked. ")
-                                                      + words::coOccurrenceNote()).toVariant());
+    m.restText = rows.size() > 10 ? QStringLiteral("The other %1 readings, %2").arg(rows.size() - 10)
+                                        .arg(restClear ? QStringLiteral("%1 of them clearing chance").arg(restClear) : QStringLiteral("all inside chance"))
+                                  : QString();
+    m.ledgerNote = sentenceOf(Sentence().append(QStringLiteral("r: how closely the two moved together across the shots both were read on, from −1 to 1. "
+                                                               "The interval is 95\u00A0% (Fisher); one that crosses the centre line could be no relation at all. With "))
+                                  .figure(QString::number(nY)).append(QStringLiteral(" shots an r inside ±")).figure(figR(rc))
+                                  .append(QStringLiteral(" is what chance gives. ‡ The same quantity measured another way, so the pair says little and is not ranked. ")
+                                          + words::coOccurrenceNote()));
 
     // facets offered
-    QVariantList facets;
+    const auto facetChoice = [](const QString &id, const QString &kind, const QString &name, const QString &label, int n) {
+        RelationsFacetChoice f;
+        f.id = id;
+        f.kind = kind;
+        f.name = name;
+        f.label = label;
+        f.n = n;
+        return f;
+    };
     const std::vector<SessionFacet> cf = conditionFacets(x.S);
     for (size_t i = 0; i < cf.size() && i < 3; ++i) {
         const QString name = x.S.conditions.value(cf[i].id).name.isEmpty() ? cf[i].id : x.S.conditions.value(cf[i].id).name;
-        facets.append(QVariantMap{ { QStringLiteral("id"), cf[i].id }, { QStringLiteral("kind"), QStringLiteral("condition") }, { QStringLiteral("name"), name },
-                                   { QStringLiteral("label"), lowerLabel(name) + QLatin1Char(' ') + QString::number(cf[i].firedCount) }, { QStringLiteral("n"), cf[i].firedCount } });
+        m.facets.append(facetChoice(cf[i].id, QStringLiteral("condition"), name, lowerLabel(name) + QLatin1Char(' ') + QString::number(cf[i].firedCount),
+                                    cf[i].firedCount));
     }
-    facets.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("half") }, { QStringLiteral("kind"), QStringLiteral("half") },
-                               { QStringLiteral("name"), QStringLiteral("Session half") }, { QStringLiteral("label"), QStringLiteral("session half") }, { QStringLiteral("n"), 0 } });
+    m.facets.append(facetChoice(QStringLiteral("half"), QStringLiteral("half"), QStringLiteral("Session half"), QStringLiteral("session half"), 0));
     const std::optional<SessionFacet> club = clubFacet(x.S);
-    if (club) facets.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("club") }, { QStringLiteral("kind"), QStringLiteral("club") },
-                                         { QStringLiteral("name"), QStringLiteral("Club") }, { QStringLiteral("label"), QStringLiteral("club") }, { QStringLiteral("n"), 0 } });
-    m.insert(QStringLiteral("facets"), facets);
+    if (club) m.facets.append(facetChoice(QStringLiteral("club"), QStringLiteral("club"), QStringLiteral("Club"), QStringLiteral("club"), 0));
 
-    // the chosen facet: the same pair as small multiples, each panel its own r
-    QVariantMap facet;
+    // the chosen facet: the same pair as small multiples, each panel its own r (null when none is chosen, or it has no panels)
     if (!facetWanted.isEmpty()) {
         std::vector<std::pair<QString, std::vector<int>>> panels;
         std::vector<uint8_t> mask(size_t(x.n), 0);
@@ -1769,38 +1912,49 @@ QVariantMap relationsMap(Ctx &x, const QString &upWanted, const QString &acrossW
             }
         }
         if (!panels.empty()) {
-            QVariantList pl;
-            for (size_t k = 0; k < panels.size(); ++k)
-                pl.append(QVariantMap{ { QStringLiteral("title"), panels[k].first }, { QStringLiteral("n"), int(panels[k].second.size()) },
-                                       { QStringLiteral("ordinals"), ints(panels[k].second) }, { QStringLiteral("fired"), kind == QLatin1String("condition") && k == 0 },
-                                       { QStringLiteral("scatter"), scatterMap(x, X, Y, panels[k].second, mask) } });
+            RelationsFacet facet;
+            for (size_t k = 0; k < panels.size(); ++k) {
+                RelationsFacetPanel pl;
+                pl.title = panels[k].first;
+                pl.n = int(panels[k].second.size());
+                pl.ordinals = intList(panels[k].second);
+                pl.fired = kind == QLatin1String("condition") && k == 0;
+                pl.scatter = scatterOf(x, X, Y, panels[k].second, mask);
+                facet.panels.append(pl);
+            }
             fs.append(words::coOccurrenceNote());
-            facet = { { QStringLiteral("id"), facetWanted }, { QStringLiteral("kind"), kind }, { QStringLiteral("name"), name },
-                      { QStringLiteral("sentence"), fs.toVariant() }, { QStringLiteral("panels"), pl } };
+            facet.id = facetWanted;
+            facet.kind = kind;
+            facet.name = name;
+            facet.sentence = sentenceOf(fs);
+            m.facet = QVariant::fromValue(facet);
         }
     }
-    m.insert(QStringLiteral("facet"), facet);
 
     // the family matrix: Up's family, lower triangle
     std::vector<int> mids;
     for (size_t i = 0; i < c.readings.size() && mids.size() < 9; ++i) if (c.meta[i].group == c.meta[size_t(y)].group) mids.push_back(int(i));
-    QVariantList mr, cells;
     for (size_t a = 0; a < mids.size(); ++a) {
-        mr.append(briefMap(x, mids[a]));
-        QVariantList row;
+        m.matrix.readings.append(briefOf(x, mids[a]));
+        QList<RelationsMatrixCell> row;
         for (size_t b = 0; b < a; ++b) {
             const Correlation p = pairOf(x.r(mids[a]), x.r(mids[b]));
             const QString ya = x.r(mids[a]).id, xb = x.r(mids[b]).id;
-            row.append(QVariantMap{ { QStringLiteral("defined"), p.defined }, { QStringLiteral("r"), num(p.r) }, { QStringLiteral("rText"), figR(p.r) },
-                                    { QStringLiteral("clear"), p.clear }, { QStringLiteral("xId"), xb }, { QStringLiteral("yId"), ya },
-                                    { QStringLiteral("on"), (ya == Y.id && xb == X.id) || (ya == X.id && xb == Y.id) } });
+            RelationsMatrixCell cell;
+            cell.defined = p.defined;
+            cell.r = num(p.r);
+            cell.rText = figR(p.r);
+            cell.clear = p.clear;
+            cell.xId = xb;
+            cell.yId = ya;
+            cell.on = (ya == Y.id && xb == X.id) || (ya == X.id && xb == Y.id);
+            row.append(cell);
         }
-        cells.append(QVariant(row));
+        m.matrix.cells.append(row);
     }
-    m.insert(QStringLiteral("matrix"), QVariantMap{ { QStringLiteral("group"), c.meta[size_t(y)].group }, { QStringLiteral("readings"), mr }, { QStringLiteral("cells"), cells } });
+    m.matrix.group = c.meta[size_t(y)].group;
 
     // drift: the drifts that clear chance, strongest first
-    QVariantList di;
     int dclear = 0;
     for (const CorrRow &d : c.drifts) {
         if (!d.c.clear) continue;
@@ -1809,20 +1963,29 @@ QVariantMap relationsMap(Ctx &x, const QString &upWanted, const QString &acrossW
         const QString dir = d.c.r > 0 ? QStringLiteral("rising") : QStringLiteral("falling");
         Sentence s;
         s.append(words::cap1(x.readingText(d.reading)) + QStringLiteral(", r ")).figure(figR(d.c.r)).append(QStringLiteral(", ") + dir + QStringLiteral(" through the session"));
-        di.append(QVariantMap{ { QStringLiteral("readingId"), r.id }, { QStringLiteral("label"), r.label }, { QStringLiteral("tag"), x.v.tag(r.phase) },
-                               { QStringLiteral("r"), d.c.r }, { QStringLiteral("rText"), figR(d.c.r) }, { QStringLiteral("lo"), d.c.lo }, { QStringLiteral("hi"), d.c.hi },
-                               { QStringLiteral("ciText"), QStringLiteral("(%1 to %2)").arg(figR(d.c.lo), figR(d.c.hi)) }, { QStringLiteral("clear"), true },
-                               { QStringLiteral("direction"), dir }, { QStringLiteral("sentence"), s.toVariant() }, { QStringLiteral("run"), runMap(x, r) } });
+        RelationsDriftItem item;
+        item.readingId = r.id;
+        item.label = r.label;
+        item.tag = x.v.tag(r.phase);
+        item.r = d.c.r;
+        item.rText = figR(d.c.r);
+        item.lo = d.c.lo;
+        item.hi = d.c.hi;
+        item.ciText = QStringLiteral("(%1 to %2)").arg(figR(d.c.lo), figR(d.c.hi));
+        item.clear = true;
+        item.direction = dir;
+        item.sentence = sentenceOf(s);
+        item.run = runOf(x, r);
+        m.drifts.items.append(item);
     }
     const int dtests = int(c.drifts.size()), dch = chanceCount(dtests);
-    m.insert(QStringLiteral("drifts"), QVariantMap{
-        { QStringLiteral("clearCount"), dclear }, { QStringLiteral("tests"), dtests }, { QStringLiteral("items"), di },
-        { QStringLiteral("sentence"), Sentence().append(words::cap1(words::word(dclear)) + QStringLiteral(" of ")).figure(QString::number(dtests))
-                                         .append(QStringLiteral(" readings ran with shot order closely enough to clear chance; chance alone would clear about ")
-                                                 + words::word(dch) + QStringLiteral(". ") + words::coOccurrenceNote()).toVariant() } });
+    m.drifts.clearCount = dclear;
+    m.drifts.tests = dtests;
+    m.drifts.sentence = sentenceOf(Sentence().append(words::cap1(words::word(dclear)) + QStringLiteral(" of ")).figure(QString::number(dtests))
+                                       .append(QStringLiteral(" readings ran with shot order closely enough to clear chance; chance alone would clear about ")
+                                               + words::word(dch) + QStringLiteral(". ") + words::coOccurrenceNote()));
 
     // questions (Analyse.qml sessionAsks)
-    QVariantList asks;
     const Correlation f = pairOf(X, Y);
     if (f.defined) {
         std::vector<std::pair<double, int>> res;
@@ -1831,11 +1994,11 @@ QVariantMap relationsMap(Ctx &x, const QString &upWanted, const QString &acrossW
                 res.push_back({ Y.values[size_t(i)] - (f.intercept + f.slope * X.values[size_t(i)]), i });
         std::stable_sort(res.begin(), res.end(), [](const auto &a, const auto &b) { return std::abs(a.first) > std::abs(b.first); });
         if (res.size() >= 2) {
-            std::vector<int> two{ res[0].second + 1, res[1].second + 1 };
-            asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("line") }, { QStringLiteral("text"), X.label + QStringLiteral(": which shots break the line?") },
-                                     { QStringLiteral("answer"), words::cap1(words::shotsList(two)) + QStringLiteral(" sit furthest from it, ")
-                                                                 + figU(std::abs(res[0].first), Y.unit) + QStringLiteral(" and ") + figU(std::abs(res[1].first), Y.unit) + QStringLiteral(" off the line.") },
-                                     { QStringLiteral("lit"), ints(two) }, { QStringLiteral("go"), QString() }, { QStringLiteral("upId"), QString() } });
+            const std::vector<int> two{ res[0].second + 1, res[1].second + 1 };
+            m.asks.append(askOf(QStringLiteral("line"), X.label + QStringLiteral(": which shots break the line?"),
+                                words::cap1(words::shotsList(two)) + QStringLiteral(" sit furthest from it, ")
+                                    + figU(std::abs(res[0].first), Y.unit) + QStringLiteral(" and ") + figU(std::abs(res[1].first), Y.unit) + QStringLiteral(" off the line."),
+                                two));
         }
     }
     const Correlation d = driftOf(Y);
@@ -1844,11 +2007,11 @@ QVariantMap relationsMap(Ctx &x, const QString &upWanted, const QString &acrossW
         std::vector<int> lit;
         for (int i = 1; i <= third; ++i) lit.push_back(i);
         for (int i = x.n - third + 1; i <= x.n; ++i) lit.push_back(i);
-        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("drift") }, { QStringLiteral("text"), Y.label + QStringLiteral(": is it drifting through the session?") },
-                                 { QStringLiteral("answer"), (d.clear ? (d.r > 0 ? QStringLiteral("Rising: ") : QStringLiteral("Falling: "))
-                                                                      : QStringLiteral("Not that %1 shots can show: ").arg(words::word(d.n)))
-                                                             + QStringLiteral("r %1 (%2 to %3) with shot order. The first and last thirds are lit.").arg(figR(d.r), figR(d.lo), figR(d.hi)) },
-                                 { QStringLiteral("lit"), ints(lit) }, { QStringLiteral("go"), QString() }, { QStringLiteral("upId"), QString() } });
+        m.asks.append(askOf(QStringLiteral("drift"), Y.label + QStringLiteral(": is it drifting through the session?"),
+                            (d.clear ? (d.r > 0 ? QStringLiteral("Rising: ") : QStringLiteral("Falling: "))
+                                     : QStringLiteral("Not that %1 shots can show: ").arg(words::word(d.n)))
+                                + QStringLiteral("r %1 (%2 to %3) with shot order. The first and last thirds are lit.").arg(figR(d.r), figR(d.lo), figR(d.hi)),
+                            lit));
     }
     if (c.kinds.method != KindsMethod::None) {
         QStringList nm;
@@ -1856,11 +2019,9 @@ QVariantMap relationsMap(Ctx &x, const QString &upWanted, const QString &acrossW
             const QString k = x.r(c.kinds.splitReading).key;
             nm = k.contains(QStringLiteral("peed")) ? QStringList{ QStringLiteral("Faster"), QStringLiteral("slower") } : QStringList{ QStringLiteral("Higher"), QStringLiteral("lower") };
         } else nm = QStringList{ QStringLiteral("Kind A"), QStringLiteral("kind B") };
-        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("kind") }, { QStringLiteral("text"), nm[0] + QStringLiteral(" and ") + nm[1] + QStringLiteral(" swings: what separates them?") },
-                                 { QStringLiteral("answer"), QStringLiteral("Kinds opens on them.") }, { QStringLiteral("lit"), QVariantList{} },
-                                 { QStringLiteral("go"), QStringLiteral("kinds") }, { QStringLiteral("upId"), QString() } });
+        m.asks.append(askOf(QStringLiteral("kind"), nm[0] + QStringLiteral(" and ") + nm[1] + QStringLiteral(" swings: what separates them?"),
+                            QStringLiteral("Kinds opens on them."), {}, QStringLiteral("kinds")));
     }
-    m.insert(QStringLiteral("asks"), asks);
     return m;
 }
 
@@ -1889,7 +2050,7 @@ double sparsity(const SessionSnapshot &S, const QString &key)
     return n ? double(bad) / double(n) : 0.0;
 }
 
-QVariantMap kindCurveMap(Ctx &x, int ri, const QStringList &names)
+std::optional<RelationsKindCurve> kindCurveOf(Ctx &x, int ri, const QStringList &names)
 {
     Cache &c = x.c;
     const SessionReading &r = x.r(ri);
@@ -1898,12 +2059,12 @@ QVariantMap kindCurveMap(Ctx &x, int ri, const QStringList &names)
     const std::vector<TraceCurve> &cs = c.alignedOf(r.key);
     double lo = std::numeric_limits<double>::infinity(), hi = -lo;
     for (const TraceCurve &t : cs) if (!t.empty()) { lo = std::min(lo, t.t.front()); hi = std::max(hi, t.t.back()); }
-    if (!fin(lo)) return {};
+    if (!fin(lo)) return std::nullopt;
     if (const CanonicalPhase *a = al.canonicalOf(phase::Address)) lo = std::max(lo, a->tMs - 150.0);
     if (const CanonicalPhase *f = al.canonicalOf(phase::Finish)) hi = std::min(hi, f->tMs + 150.0);
-    if (!(hi > lo)) return {};
+    if (!(hi > lo)) return std::nullopt;
     const std::vector<double> grid = sessionGrid(lo, hi);
-    QVariantList fits;
+    RelationsKindCurve out;
     double ylo = std::numeric_limits<double>::infinity(), yhi = -ylo;
     double dataLo = std::numeric_limits<double>::infinity(), dataHi = -dataLo;   // where any fit has a value
     const std::vector<int> *groups[2] = { &k.groupA, &k.groupB };
@@ -1914,18 +2075,19 @@ QVariantMap kindCurveMap(Ctx &x, int ri, const QStringList &names)
         for (int o : *groups[g]) if (!cs[size_t(o - 1)].empty()) contributing.push_back(o);
         const GroupFit f = pooledFit(cs, contributing, grid);
         const int n = int(groups[g]->size()), nc = int(contributing.size());
-        QVariantList cover;
+        RelationsKindFit fit;
         for (int o : *groups[g]) {
             const TraceCurve &t = cs[size_t(o - 1)];
-            QVariantList runs;
-            for (const TimeSpan &s : coverageRuns(t)) runs.append(QVariant(QVariantList{ s.t0, s.t1 }));
+            RelationsCover cover;
+            for (const TimeSpan &s : coverageRuns(t)) cover.runs.append(QList<double>{ s.t0, s.t1 });
             int okN = 0;
             for (uint8_t v : t.ok) okN += v;
-            cover.append(QVariantMap{ { QStringLiteral("ordinal"), x.ord(o) }, { QStringLiteral("picked"), o - 1 == x.pick },
-                                      { QStringLiteral("frac"), t.t.empty() ? 0.0 : double(okN) / double(t.t.size()) }, { QStringLiteral("runs"), runs } });
+            cover.ordinal = x.ord(o);
+            cover.picked = o - 1 == x.pick;
+            cover.frac = t.t.empty() ? 0.0 : double(okN) / double(t.t.size());
+            fit.cover.append(cover);
         }
-        QVariantList nShots;
-        for (int v : f.nShots) nShots.append(v);
+        fit.nShots = intList(f.nShots);
         // the ±1 sd hairlines (D2: the pooled spread), and the scale that holds them
         std::vector<double> flo(f.v.size(), kNaN), fhi(f.v.size(), kNaN);
         int drawn = 0;
@@ -1944,20 +2106,25 @@ QVariantMap kindCurveMap(Ctx &x, int ri, const QStringList &names)
                                     .arg(nc == 0 ? QStringLiteral("none") : words::word(nc)).arg(words::word(n)).arg(names[g].toLower());
         else if (f.refusal == FitRefusal::NoSamples)
             refusal = QStringLiteral("No measured samples to fit.");
-        fits.append(QVariantMap{ { QStringLiteral("name"), names[g] }, { QStringLiteral("n"), n }, { QStringLiteral("contributing"), nc },
-                                 { QStringLiteral("label"), f.refused() ? label + QStringLiteral(": too few for a curve") : label },
-                                 { QStringLiteral("refused"), f.refused() }, { QStringLiteral("refusal"), refusal },
-                                 { QStringLiteral("t"), nums(f.t) }, { QStringLiteral("v"), nums(f.v) }, { QStringLiteral("sd"), nums(f.sd) },
-                                 { QStringLiteral("lo"), nums(flo) }, { QStringLiteral("hi"), nums(fhi) }, { QStringLiteral("drawn"), drawn },
-                                 { QStringLiteral("nShots"), nShots }, { QStringLiteral("cover"), cover } });
+        fit.name = names[g];
+        fit.n = n;
+        fit.contributing = nc;
+        fit.label = f.refused() ? label + QStringLiteral(": too few for a curve") : label;
+        fit.refused = f.refused();
+        fit.refusal = refusal;
+        fit.t = dbls(f.t);
+        fit.v = dbls(f.v);
+        fit.sd = dbls(f.sd);
+        fit.lo = dbls(flo);
+        fit.hi = dbls(fhi);
+        fit.drawn = drawn;
+        out.fits.append(fit);
     }
     // THE WINDOW FOLLOWS THE FITS' FINITE VALUES, not the curves' extent: the plot spans where at least
     // one kind has a value, padded by 5 % of that span (at least 2 ms) each side; an end is stretched to a
     // canonical P-position lying within 20 ms beyond the finite span, so its tag is on the plot rather than
     // just off it. Clipped to the fitted grid. A curve with no finite value anywhere keeps its fits'
     // refusals and has no window (null) and no phases. Each fit's arrays are trimmed to the window.
-    QVariant window = QVariant::fromValue(nullptr);
-    QVariantList phases;
     if (fin(dataLo) && fin(dataHi)) {
         const double pad = std::max(2.0, 0.05 * (dataHi - dataLo));
         double w0 = dataLo - pad, w1 = dataHi + pad;
@@ -1966,26 +2133,38 @@ QVariantMap kindCurveMap(Ctx &x, int ri, const QStringList &names)
             if (p.tMs > w1 && p.tMs <= dataHi + 20.0) w1 = p.tMs;
         }
         w0 = std::max(w0, lo); w1 = std::min(w1, hi);
-        window = QVariantMap{ { QStringLiteral("t0"), w0 }, { QStringLiteral("t1"), w1 } };
+        RelationsWindow window;
+        window.t0 = w0;
+        window.t1 = w1;
+        out.window = QVariant::fromValue(window);
         for (const CanonicalPhase &p : al.canonical)
-            if (p.tMs >= w0 - 1e-9 && p.tMs <= w1 + 1e-9)
-                phases.append(QVariantMap{ { QStringLiteral("phase"), p.phase }, { QStringLiteral("tag"), x.v.tag(p.phase) }, { QStringLiteral("tMs"), p.tMs } });
-        const QStringList arrays{ QStringLiteral("t"), QStringLiteral("v"), QStringLiteral("sd"), QStringLiteral("lo"), QStringLiteral("hi"), QStringLiteral("nShots") };
-        for (QVariant &fv : fits) {
-            QVariantMap fm = fv.toMap();
-            const QVariantList t = fm.value(QStringLiteral("t")).toList();
-            qsizetype a = 0, b = t.size();
-            while (a < b && t[a].toDouble() < w0 - 1e-9) ++a;
-            while (b > a && t[b - 1].toDouble() > w1 + 1e-9) --b;
-            for (const QString &k : arrays) fm.insert(k, fm.value(k).toList().mid(a, b - a));
-            fv = fm;
+            if (p.tMs >= w0 - 1e-9 && p.tMs <= w1 + 1e-9) {
+                RelationsKindPhase ph;
+                ph.phase = p.phase;
+                ph.tag = x.v.tag(p.phase);
+                ph.tMs = p.tMs;
+                ph.impact = p.phase == phase::Impact;     // the curve marks impact by its P-position, never its tag (PpChKindCurve)
+                out.phases.append(ph);
+            }
+        for (RelationsKindFit &fit : out.fits) {
+            qsizetype a = 0, b = fit.t.size();
+            while (a < b && fit.t[a] < w0 - 1e-9) ++a;
+            while (b > a && fit.t[b - 1] > w1 + 1e-9) --b;
+            fit.t = fit.t.mid(a, b - a);
+            fit.v = fit.v.mid(a, b - a);
+            fit.sd = fit.sd.mid(a, b - a);
+            fit.lo = fit.lo.mid(a, b - a);
+            fit.hi = fit.hi.mid(a, b - a);
+            fit.nShots = fit.nShots.mid(a, b - a);
         }
     }
-    return { { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("label"), r.label },
-             { QStringLiteral("unit"), r.unit }, { QStringLiteral("unitText"), unitText(r.unit) },
-             { QStringLiteral("window"), window },
-             { QStringLiteral("yRange"), fin(ylo) ? rangeMap(ylo - 0.05 * std::max(1e-6, yhi - ylo), yhi + 0.05 * std::max(1e-6, yhi - ylo)) : rangeMap(0, 1) },
-             { QStringLiteral("phases"), phases }, { QStringLiteral("fits"), fits } };
+    out.readingId = r.id;
+    out.key = r.key;
+    out.label = r.label;
+    out.unit = r.unit;
+    out.unitText = unitText(r.unit);
+    out.yRange = fin(ylo) ? rangeOf(ylo - 0.05 * std::max(1e-6, yhi - ylo), yhi + 0.05 * std::max(1e-6, yhi - ylo)) : rangeOf(0, 1);
+    return out;
 }
 
 Sentence alignNote(const Ctx &x, const SessionAlignment &al)
@@ -2014,18 +2193,18 @@ Sentence alignNote(const Ctx &x, const SessionAlignment &al)
     return s;
 }
 
-QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
+RelationsKinds kindsCoreOf(Ctx &x, const Cache::Family *fam)
 {
-    QVariantMap m;
+    RelationsKinds m;
     Cache &c = x.c;
     const SessionKinds &k = c.kinds;
     if (k.method == KindsMethod::None) {
         const Sentence why = x.n < 6 ? tooFew(x, QStringLiteral("to look for kinds of swing"), 6)
                                      : Sentence().append(QStringLiteral("No kinds and no clean split in this session."));
-        m.insert(QStringLiteral("available"), false);
-        m.insert(QStringLiteral("method"), QStringLiteral("none"));
-        m.insert(QStringLiteral("head"), why.toVariant());
-        m.insert(QStringLiteral("refusal"), why.toVariant());
+        m.available = false;
+        m.method = QStringLiteral("none");
+        m.head = sentenceOf(why);
+        m.refusal = sentenceOf(why);
         return m;
     }
     const QStringList nm = kindNames(x);
@@ -2039,14 +2218,14 @@ QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
             missing.push_back(o);
     const int nM = int(missing.size());
     const QString missingWord = km ? QStringLiteral("not grouped") : QStringLiteral("not measured");
-    m.insert(QStringLiteral("available"), true);
-    m.insert(QStringLiteral("method"), km ? QStringLiteral("kmedoids") : QStringLiteral("split"));
-    m.insert(QStringLiteral("structure"), km);
-    m.insert(QStringLiteral("silhouette"), num(k.silhouette));
-    m.insert(QStringLiteral("silhouetteText"), figR(k.silhouette));
-    m.insert(QStringLiteral("readingsUsed"), k.readingsUsed);
-    m.insert(QStringLiteral("minSize"), k.minSize);
-    m.insert(QStringLiteral("names"), nm);
+    m.available = true;
+    m.method = km ? QStringLiteral("kmedoids") : QStringLiteral("split");
+    m.structure = km;
+    m.silhouette = num(k.silhouette);
+    m.silhouetteText = figR(k.silhouette);
+    m.readingsUsed = k.readingsUsed;
+    m.minSize = k.minSize;
+    m.names = nm;
 
     // the head says how weak the structure is FIRST (D7)
     Sentence head, st, split;
@@ -2086,67 +2265,87 @@ QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
             const QString ps = QStringLiteral("Shot %1 is one of the %2%3.").arg(x.no(o)).arg(words::word(inA ? nA : nB))
                                .arg(km ? QStringLiteral(" in ") + pickedKind : QLatin1Char(' ') + pickedKind.toLower());
             st.append(ps);
-            m.insert(QStringLiteral("pickedSentence"), ps);
+            m.pickedSentence = ps;
         } else if (std::find(missing.begin(), missing.end(), o) != missing.end()) {
             const QString ps = km ? QStringLiteral("Shot %1 could not be grouped.").arg(x.no(o))
                                   : QStringLiteral("Shot %1 has no %2, so it is in neither.").arg(x.no(o)).arg(x.readingText(k.splitReading));
             st.append(ps);
-            m.insert(QStringLiteral("pickedSentence"), ps);
+            m.pickedSentence = ps;
         }
     }
-    m.insert(QStringLiteral("pickedKind"), pickedKind);
-    m.insert(QStringLiteral("head"), head.toVariant());
-    m.insert(QStringLiteral("standfirst"), st.toVariant());
-    m.insert(QStringLiteral("splitLine"), split.toVariant());
+    m.pickedKind = pickedKind;
+    m.head = sentenceOf(head);
+    m.standfirst = sentenceOf(st);
+    m.splitLine = sentenceOf(split);
 
     // members
-    QVariantList groups;
+    const auto membersOf = [&](const std::vector<int> &ordinals) {
+        QList<RelationsMember> out;
+        for (int o : ordinals) { RelationsMember mk = x.shotMark<RelationsMember>(o - 1); mk.picked = o - 1 == x.pick; out.append(mk); }
+        return out;
+    };
     const std::vector<int> *gs[2] = { &k.groupA, &k.groupB };
     const int meds[2] = { k.medoidA, k.medoidB };
     for (int g = 0; g < 2; ++g) {
-        QVariantList members;
-        for (int o : *gs[g]) { QVariantMap mk = x.shotMark(o - 1); mk.insert(QStringLiteral("picked"), o - 1 == x.pick); members.append(mk); }
-        groups.append(QVariantMap{ { QStringLiteral("name"), nm[g] }, { QStringLiteral("n"), int(gs[g]->size()) }, { QStringLiteral("members"), members },
-                                   { QStringLiteral("medoid"), x.ord(meds[g]) }, { QStringLiteral("medoidText"), QStringLiteral("most typical: shot %1").arg(x.no(meds[g])) },
-                                   { QStringLiteral("neutral"), false } });
+        RelationsKindGroup group;
+        group.name = nm[g];
+        group.n = int(gs[g]->size());
+        group.members = membersOf(*gs[g]);
+        group.medoid = x.ord(meds[g]);
+        group.medoidText = QStringLiteral("most typical: shot %1").arg(x.no(meds[g]));
+        group.neutral = false;
+        m.groups.append(group);
     }
     if (nM) {
-        QVariantList members;
-        for (int o : missing) { QVariantMap mk = x.shotMark(o - 1); mk.insert(QStringLiteral("picked"), o - 1 == x.pick); members.append(mk); }
-        groups.append(QVariantMap{ { QStringLiteral("name"), words::cap1(missingWord) }, { QStringLiteral("n"), nM }, { QStringLiteral("members"), members },
-                                   { QStringLiteral("medoid"), 0 }, { QStringLiteral("medoidText"), QString() }, { QStringLiteral("neutral"), true },
-                                   { QStringLiteral("text"), missingWord + QStringLiteral(": ") + words::shotsList(x.ords(missing)) } });
+        RelationsKindGroup group;
+        group.name = words::cap1(missingWord);
+        group.n = nM;
+        group.members = membersOf(missing);
+        group.medoid = 0;
+        group.neutral = true;
+        group.text = missingWord + QStringLiteral(": ") + words::shotsList(x.ords(missing));
+        m.groups.append(group);
     }
-    m.insert(QStringLiteral("groups"), groups);
-    m.insert(QStringLiteral("unplacedCount"), nM);
+    m.unplacedCount = nM;
 
     // the separation table
     const QString splitKey = k.splitReading >= 0 ? x.r(k.splitReading).key : QString();
-    QVariantList seps;
     for (const KindSeparation &s : k.separations) {
-        if (seps.size() >= 8) break;
+        if (m.separation.rows.size() >= 8) break;
         if (!km && s.reading == k.splitReading) continue;
         const SessionReading &r = x.r(s.reading);
         std::vector<double> va(size_t(x.n), kNaN), vb(size_t(x.n), kNaN);
         for (int o : k.groupA) va[size_t(o - 1)] = r.values[size_t(o - 1)];
         for (int o : k.groupB) vb[size_t(o - 1)] = r.values[size_t(o - 1)];
         const bool same = !km && sameQuantityAs(r.key, splitKey);
-        seps.append(QVariantMap{ { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("label"), r.label }, { QStringLiteral("tag"), x.v.tag(r.phase) },
-                                 { QStringLiteral("same"), same }, { QStringLiteral("sameMark"), same ? QStringLiteral("‡") : QString() },
-                                 { QStringLiteral("d"), s.d }, { QStringLiteral("dText"), dText(s.d) }, { QStringLiteral("clear"), std::abs(s.d) >= k.dCritical },
-                                 { QStringLiteral("medAText"), figBare(s.medA, r.unit) }, { QStringLiteral("medBText"), figBare(s.medB, r.unit) },
-                                 { QStringLiteral("unitText"), unitText(r.unit) }, { QStringLiteral("scale"), paddedRange(r.box, 0.06) },
-                                 { QStringLiteral("boxA"), boxMap(boxStats(va), figOf(r.unit)) }, { QStringLiteral("boxB"), boxMap(boxStats(vb), figOf(r.unit)) },
-                                 { QStringLiteral("valuesA"), nums(va) }, { QStringLiteral("valuesB"), nums(vb) } });
+        RelationsSeparationRow row;
+        row.readingId = r.id;
+        row.key = r.key;
+        row.label = r.label;
+        row.tag = x.v.tag(r.phase);
+        row.same = same;
+        row.sameMark = same ? QStringLiteral("‡") : QString();
+        row.d = s.d;
+        row.dText = dText(s.d);
+        row.clear = std::abs(s.d) >= k.dCritical;
+        row.medAText = figBare(s.medA, r.unit);
+        row.medBText = figBare(s.medB, r.unit);
+        row.unitText = unitText(r.unit);
+        row.scale = paddedRange(r.box, 0.06);
+        row.boxA = boxOf(boxStats(va), figOf(r.unit));
+        row.boxB = boxOf(boxStats(vb), figOf(r.unit));
+        row.valuesA = dbls(va);
+        row.valuesB = dbls(vb);
+        m.separation.rows.append(row);
     }
-    m.insert(QStringLiteral("separation"), QVariantMap{
-        { QStringLiteral("dCritical"), k.dCritical }, { QStringLiteral("dCriticalText"), words::fig(k.dCritical, 1) }, { QStringLiteral("rows"), seps },
-        { QStringLiteral("note"), Sentence().append(QStringLiteral("d: the gap between the kinds' means in their pooled standard deviation. With ")
-                                                    + words::word(nA) + QStringLiteral(" and ") + words::word(nB) + QStringLiteral(" shots, a d under about "))
-                                     .figure(words::fig(k.dCritical, 1))
-                                     .append(QStringLiteral(" is within what chance gives, and a reading that clears it is still one of "))
-                                     .figure(QString::number(k.separations.size()))
-                                     .append(QStringLiteral(" tested. ‡ The same quantity measured another way. ") + words::coOccurrenceNote()).toVariant() } });
+    m.separation.dCritical = k.dCritical;
+    m.separation.dCriticalText = words::fig(k.dCritical, 1);
+    m.separation.note = sentenceOf(Sentence().append(QStringLiteral("d: the gap between the kinds' means in their pooled standard deviation. With ")
+                                                     + words::word(nA) + QStringLiteral(" and ") + words::word(nB) + QStringLiteral(" shots, a d under about "))
+                                       .figure(words::fig(k.dCritical, 1))
+                                       .append(QStringLiteral(" is within what chance gives, and a reading that clears it is still one of "))
+                                       .figure(QString::number(k.separations.size()))
+                                       .append(QStringLiteral(" tested. ‡ The same quantity measured another way. ") + words::coOccurrenceNote()));
 
     // each kind's curve: the split reading, the best-separating curves, and the sparsest of the next
     std::vector<int> cand;
@@ -2166,29 +2365,20 @@ QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
     int sparse = -1; double sf = 0.1;
     for (size_t i = 2; i < cand.size() && i < 14; ++i) { const double f = sparsity(x.S, x.r(cand[i]).key); if (f > sf) { sf = f; sparse = cand[i]; } }
     if (sparse >= 0) chosen.push_back(sparse);
-    QVariantList curves;
     for (int ri : chosen) {
         const QString key = x.r(ri).key;
         auto it = c.kindCurves.find(key);
-        if (it == c.kindCurves.end()) it = c.kindCurves.insert(key, kindCurveMap(x, ri, nm));
-        if (it.value().isEmpty()) continue;
-        QVariantMap cm = it.value();
+        if (it == c.kindCurves.end()) it = c.kindCurves.insert(key, kindCurveOf(x, ri, nm));
+        if (!it.value()) continue;
+        RelationsKindCurve cm = *it.value();
         // the picked flag on coverage rows follows the picked shot, which the cache does not know
-        QVariantList fits = cm.value(QStringLiteral("fits")).toList();
-        for (QVariant &fv : fits) {
-            QVariantMap fm = fv.toMap();
-            QVariantList cov = fm.value(QStringLiteral("cover")).toList();
-            for (QVariant &cv : cov) { QVariantMap cmm = cv.toMap(); cmm.insert(QStringLiteral("picked"), x.pick >= 0 && cmm.value(QStringLiteral("ordinal")).toInt() == x.ord(x.pick + 1)); cv = cmm; }
-            fm.insert(QStringLiteral("cover"), cov); fv = fm;
-        }
-        cm.insert(QStringLiteral("fits"), fits);
-        curves.append(cm);
+        for (RelationsKindFit &fit : cm.fits)
+            for (RelationsCover &cover : fit.cover) cover.picked = x.pick >= 0 && cover.ordinal == x.ord(x.pick + 1);
+        m.curves.append(cm);
     }
-    m.insert(QStringLiteral("curves"), curves);
-    m.insert(QStringLiteral("alignNote"), alignNote(x, c.align()).toVariant());
+    m.alignNote = sentenceOf(alignNote(x, c.align()));
 
     // A's curve-shape groups, a second grouping
-    QVariantMap shapes{ { QStringLiteral("found"), false } };
     if (fam) {
         const QString fk = fam->name;
         auto it = c.shapes.find(fk);
@@ -2201,7 +2391,7 @@ QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
                 for (const auto &sh : x.S.shots) if (const MetricSeries *ms = sh->metric(key)) if (ms->hasCurve()) { any = true; break; }
                 if (any) skeys << key;
             }
-            QVariantMap sm{ { QStringLiteral("found"), false } };
+            RelationsShapes sm;
             const SessionAlignment &al = c.align();
             const CanonicalPhase *t0 = al.canonicalOf(phase::Top), *t1 = al.canonicalOf(phase::P8);
             if (!skeys.isEmpty() && t0 && t1) {
@@ -2210,32 +2400,36 @@ QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
                 const ShapeSplit sp = shapeSplit(per, t0->tMs, t1->tMs);
                 if (sp.found) {
                     const auto g = [&](int med, const std::vector<int> &ords) {
-                        return QVariantMap{ { QStringLiteral("name"), QStringLiteral("shaped like shot %1").arg(x.no(med)) },
-                                            { QStringLiteral("label"), QStringLiteral("shaped like shot %1 · %2").arg(x.no(med)).arg(ords.size()) },
-                                            { QStringLiteral("medoid"), med }, { QStringLiteral("n"), int(ords.size()) }, { QStringLiteral("ordinals"), ints(ords) } };
+                        RelationsShapeGroup group;
+                        group.name = QStringLiteral("shaped like shot %1").arg(x.no(med));
+                        group.label = QStringLiteral("shaped like shot %1 · %2").arg(x.no(med)).arg(ords.size());
+                        group.medoid = med;
+                        group.n = int(ords.size());
+                        group.ordinals = intList(ords);
+                        return group;
                     };
-                    sm = { { QStringLiteral("found"), true }, { QStringLiteral("groups"), QVariantList{ g(sp.medoidA, sp.groupA), g(sp.medoidB, sp.groupB) } },
-                           { QStringLiteral("sentence"), Sentence().append(QStringLiteral("By the shape of their ") + lowerLabel(fk)
-                                                                           + QStringLiteral(" curves from P4 to P8, a second grouping: shaped like shot %1 (%2) and like shot %3 (%4).")
-                                                                                 .arg(x.no(sp.medoidA)).arg(sp.groupA.size()).arg(x.no(sp.medoidB)).arg(sp.groupB.size())).toVariant() } };
+                    sm.found = true;
+                    sm.groups = { g(sp.medoidA, sp.groupA), g(sp.medoidB, sp.groupB) };
+                    sm.sentence = sentenceOf(Sentence().append(QStringLiteral("By the shape of their ") + lowerLabel(fk)
+                                                               + QStringLiteral(" curves from P4 to P8, a second grouping: shaped like shot %1 (%2) and like shot %3 (%4).")
+                                                                     .arg(x.no(sp.medoidA)).arg(sp.groupA.size()).arg(x.no(sp.medoidB)).arg(sp.groupB.size())));
                 }
             }
             it = c.shapes.insert(fk, sm);
         }
-        shapes = it.value();
+        m.shapes = it.value();
     }
-    m.insert(QStringLiteral("shapes"), shapes);
-    m.insert(QStringLiteral("fitNote"), QStringLiteral("Each kind's curve is fitted to the pooled valid samples of every shot in it (a local straight line, "
-                                                       "weighted, over 20 ms either side), on a clock that lines the shots' P-positions up on the session's median "
-                                                       "ones; the hairlines either side are the pooled samples' spread, one standard deviation. Under it, each "
-                                                       "shot's own measured stretches: a gap is where that shot was bridged or not sampled, and its kind's other "
-                                                       "shots carry the curve there. The curve is the kind's, not any shot's, and no shot's number is read from "
-                                                       "it. It breaks where fewer than three shots contribute, and a kind of fewer than three has none."));
-    m.insert(QStringLiteral("methodNote"), QStringLiteral("How the kinds were found: every reading all %1 shots have, set on a common scale (median and "
-                                                          "middle half, held to ±2.5), the shots grouped by k-medoids into two of at least %2. When that "
-                                                          "grouping is no better than chance would make it, the single widest gap in any one reading is used "
-                                                          "instead, and the sentence above says which. %3 shots can suggest kinds; they cannot confirm them.")
-                                              .arg(x.n).arg(k.minSize).arg(words::cap1(words::word(x.n))));
+    m.fitNote = QStringLiteral("Each kind's curve is fitted to the pooled valid samples of every shot in it (a local straight line, "
+                               "weighted, over 20 ms either side), on a clock that lines the shots' P-positions up on the session's median "
+                               "ones; the hairlines either side are the pooled samples' spread, one standard deviation. Under it, each "
+                               "shot's own measured stretches: a gap is where that shot was bridged or not sampled, and its kind's other "
+                               "shots carry the curve there. The curve is the kind's, not any shot's, and no shot's number is read from "
+                               "it. It breaks where fewer than three shots contribute, and a kind of fewer than three has none.");
+    m.methodNote = QStringLiteral("How the kinds were found: every reading all %1 shots have, set on a common scale (median and "
+                                  "middle half, held to ±2.5), the shots grouped by k-medoids into two of at least %2. When that "
+                                  "grouping is no better than chance would make it, the single widest gap in any one reading is used "
+                                  "instead, and the sentence above says which. %3 shots can suggest kinds; they cannot confirm them.")
+                       .arg(x.n).arg(k.minSize).arg(words::cap1(words::word(x.n)));
     return m;
 }
 
@@ -2250,31 +2444,31 @@ QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
 // has the six shots kinds need (`withinClub`); otherwise the panel says kinds across clubs are not meaningful.
 constexpr double kClubAgreement = 0.75, kClubAgreementClean = 0.90;
 
-QVariantMap kindsMap(Ctx &x, const Cache::Family *fam, bool nested = false);
+RelationsKinds kindsOf(Ctx &x, const Cache::Family *fam, bool nested = false);
 
-QVariantMap clubKinds(Ctx &x, const SessionFacet &clubs, const QString &cA, const QString &cB, int agree, int grouped)
+RelationsKinds clubKindsOf(Ctx &x, const SessionFacet &clubs, const QString &cA, const QString &cB, int agree, int grouped)
 {
     Cache &c = x.c;
     const SessionKinds &k = c.kinds;
-    QVariantMap m;
-    m.insert(QStringLiteral("available"), true);
-    m.insert(QStringLiteral("method"), QStringLiteral("clubs"));
-    m.insert(QStringLiteral("structure"), false);
-    m.insert(QStringLiteral("silhouette"), num(k.silhouette));
-    m.insert(QStringLiteral("silhouetteText"), figR(k.silhouette));
-    m.insert(QStringLiteral("readingsUsed"), k.readingsUsed);
-    m.insert(QStringLiteral("minSize"), k.minSize);
-    m.insert(QStringLiteral("names"), QStringList{ cA.toLower(), cB.toLower() });
-    m.insert(QStringLiteral("clubAgreement"), QVariantMap{ { QStringLiteral("agree"), agree }, { QStringLiteral("grouped"), grouped } });
-    m.insert(QStringLiteral("head"), Sentence().append((agree >= kClubAgreementClean * grouped ? QStringLiteral("The two kinds are the two clubs: ")
-                                                                                                : QStringLiteral("The two kinds are mostly the two clubs: "))
-                                                       + cA.toLower() + QStringLiteral(" and ") + cB.toLower()).toVariant());
+    RelationsKinds m;
+    m.available = true;
+    m.method = QStringLiteral("clubs");
+    m.structure = false;
+    m.silhouette = num(k.silhouette);
+    m.silhouetteText = figR(k.silhouette);
+    m.readingsUsed = k.readingsUsed;
+    m.minSize = k.minSize;
+    m.names = QStringList{ cA.toLower(), cB.toLower() };
+    m.clubAgreement.agree = agree;
+    m.clubAgreement.grouped = grouped;
+    m.head = sentenceOf(Sentence().append((agree >= kClubAgreementClean * grouped ? QStringLiteral("The two kinds are the two clubs: ")
+                                                                                  : QStringLiteral("The two kinds are mostly the two clubs: "))
+                                          + cA.toLower() + QStringLiteral(" and ") + cB.toLower()));
 
     // within the largest club, when it has the shots kinds need
     const FacetGroup *big = nullptr;
     for (const FacetGroup &g : clubs.groups) if (!big || g.ordinals.size() > big->ordinals.size()) big = &g;
     Sentence within;
-    QVariant withinMap = QVariant::fromValue(nullptr);
     if (big && big->ordinals.size() >= 6) {
         if (!c.clubBase || c.clubName != big->key) {
             auto sub = std::make_shared<SessionSnapshot>();
@@ -2287,18 +2481,21 @@ QVariantMap clubKinds(Ctx &x, const SessionFacet &clubs, const QString &cA, cons
         Ctx sx{ *c.clubCache, *c.clubCache->snap, x.v };
         sx.n = sx.S.count(); sx.readAtGen = x.readAtGen;
         for (int i = 0; i < sx.n; ++i) if (!pd.isEmpty() && cleanDir(sx.S.shots[size_t(i)]->swingDir) == pd) { sx.pick = i; break; }
-        const QVariantMap inner = kindsMap(sx, nullptr, true);
-        QString innerHead = inner.value(QStringLiteral("head")).toMap().value(QStringLiteral("text")).toString();
+        const RelationsKinds inner = kindsOf(sx, nullptr, true);
+        QString innerHead = inner.head.text;
         if (!innerHead.isEmpty() && innerHead[0].isUpper() && !innerHead.startsWith(QStringLiteral("Six"))) innerHead[0] = innerHead[0].toLower();
         if (!innerHead.endsWith(QLatin1Char('.'))) innerHead += QLatin1Char('.');
         within.append(QStringLiteral("Within the ") + words::word(int(big->ordinals.size())) + QLatin1Char(' ') + big->key.toLower()
                       + QStringLiteral(" shots alone: ") + innerHead);
-        withinMap = QVariantMap{ { QStringLiteral("club"), big->key.toLower() }, { QStringLiteral("n"), int(big->ordinals.size()) },
-                                 { QStringLiteral("sentence"), within.toVariant() }, { QStringLiteral("kinds"), inner } };
+        RelationsWithinClub wc;
+        wc.club = big->key.toLower();
+        wc.n = int(big->ordinals.size());
+        wc.sentence = sentenceOf(within);
+        wc.kinds = inner;
+        m.withinClub = QVariant::fromValue(wc);
     } else {
         within.append(QStringLiteral("Neither club has the six shots kinds need, so this session cannot be split into kinds of swing."));
     }
-    m.insert(QStringLiteral("withinClub"), withinMap);
 
     Sentence st;
     st.append(QStringLiteral("Taken on all ")).figure(QString::number(k.readingsUsed))
@@ -2309,44 +2506,40 @@ QVariantMap clubKinds(Ctx &x, const SessionFacet &clubs, const QString &cA, cons
       .append(QStringLiteral(" grouped shots sit with their own club: the groups say which club was hit, not what kinds of swing there were. "
                              "Kinds across clubs are not meaningful. "));
     for (const auto &r : within.runs) { if (r.fig) st.figure(r.text); else st.append(r.text); }
-    m.insert(QStringLiteral("standfirst"), st.toVariant());
-    m.insert(QStringLiteral("splitLine"), Sentence().toVariant());
+    m.standfirst = sentenceOf(st);
 
     // the groups ARE the clubs: shown as the clubs
-    QVariantList groups;
     QString pickedClub;
     for (const FacetGroup &g : clubs.groups) {
-        QVariantList members;
+        RelationsKindGroup group;
         for (int o : g.ordinals) {
-            QVariantMap mk = x.shotMark(o - 1);
-            mk.insert(QStringLiteral("picked"), o - 1 == x.pick);
-            members.append(mk);
+            RelationsMember mk = x.shotMark<RelationsMember>(o - 1);
+            mk.picked = o - 1 == x.pick;
+            group.members.append(mk);
             if (o - 1 == x.pick) pickedClub = g.key.toLower();
         }
-        groups.append(QVariantMap{ { QStringLiteral("name"), g.key.isEmpty() ? QStringLiteral("No club") : g.key.toLower() },
-                                   { QStringLiteral("n"), int(g.ordinals.size()) }, { QStringLiteral("members"), members },
-                                   { QStringLiteral("medoid"), 0 }, { QStringLiteral("medoidText"), QString() }, { QStringLiteral("neutral"), false } });
+        group.name = g.key.isEmpty() ? QStringLiteral("No club") : g.key.toLower();
+        group.n = int(g.ordinals.size());
+        group.medoid = 0;
+        group.neutral = false;
+        m.groups.append(group);
     }
-    m.insert(QStringLiteral("groups"), groups);
-    m.insert(QStringLiteral("unplacedCount"), 0);
-    m.insert(QStringLiteral("pickedKind"), pickedClub);
-    m.insert(QStringLiteral("separation"), QVariantMap{ { QStringLiteral("rows"), QVariantList{} } });
-    m.insert(QStringLiteral("curves"), QVariantList{});
-    m.insert(QStringLiteral("shapes"), QVariantMap{ { QStringLiteral("found"), false } });
-    m.insert(QStringLiteral("alignNote"), Sentence().toVariant());
-    m.insert(QStringLiteral("methodNote"), QStringLiteral("The kinds are called the clubs when each kind has a majority club, the two majorities differ, "
-                                                          "and at least 75\u00A0% of the grouped shots sit with their kind's majority club "
-                                                          "(\u201Care the two clubs\u201D from 90\u00A0%, \u201Cmostly\u201D below that)."));
+    m.unplacedCount = 0;
+    m.pickedKind = pickedClub;
+    // no separation, no curves, no shapes, no notes: each at its default (an empty list, `found` false, an empty Sentence)
+    m.methodNote = QStringLiteral("The kinds are called the clubs when each kind has a majority club, the two majorities differ, "
+                                  "and at least 75\u00A0% of the grouped shots sit with their kind's majority club "
+                                  "(\u201Care the two clubs\u201D from 90\u00A0%, \u201Cmostly\u201D below that).");
     return m;
 }
 
-QVariantMap kindsMap(Ctx &x, const Cache::Family *fam, bool nested)
+RelationsKinds kindsOf(Ctx &x, const Cache::Family *fam, bool nested)
 {
     const std::optional<SessionFacet> clubs = clubFacet(x.S);
     const QString clubText = clubs ? QStringLiteral("mixed clubs") : (x.n ? x.S.shots.front()->club.toLower() : QString());
     const QString kicker = QStringLiteral("Kinds of swing  ·  ") + words::word(x.n) + (x.n == 1 ? QStringLiteral(" shot") : QStringLiteral(" shots"))
                            + (clubText.isEmpty() ? QString() : QStringLiteral("  ·  ") + clubText);
-    QVariantMap m;
+    std::optional<RelationsKinds> m;
     const SessionKinds &k = x.c.kinds;
     if (!nested && clubs && k.method != KindsMethod::None) {
         QHash<QString, int> ca, cb;
@@ -2362,24 +2555,24 @@ QVariantMap kindsMap(Ctx &x, const Cache::Family *fam, bool nested)
         const int agree = ca.value(cA) + cb.value(cB);
         // gate rule: PP_GATE("rule.charts.kindsAsClubs")
         if (!cA.isEmpty() && !cB.isEmpty() && cA != cB && grouped > 0 && agree >= kClubAgreement * grouped)
-            m = clubKinds(x, *clubs, cA, cB, agree, grouped);
+            m = clubKindsOf(x, *clubs, cA, cB, agree, grouped);
     }
-    if (m.isEmpty()) {
-        m = kindsCore(x, fam);
-        if (!nested && clubs && m.value(QStringLiteral("available")).toBool()) {
+    if (!m) {
+        m = kindsCoreOf(x, fam);
+        if (!nested && clubs && m->available) {
             const QString note = QStringLiteral("The clubs are mixed; these kinds are taken across them, and they are not the clubs.");
-            m.insert(QStringLiteral("clubsNote"), note);
-            QVariantMap st = m.value(QStringLiteral("standfirst")).toMap();
-            QVariantList runs = st.value(QStringLiteral("runs")).toList();
-            runs.append(QVariantMap{ { QStringLiteral("text"), QStringLiteral(" ") + note }, { QStringLiteral("fig"), false } });
-            st.insert(QStringLiteral("runs"), runs);
-            st.insert(QStringLiteral("text"), st.value(QStringLiteral("text")).toString() + QStringLiteral(" ") + note);
-            m.insert(QStringLiteral("standfirst"), st);
+            m->clubsNote = note;
+            RelationsWordRun run;
+            run.text = QStringLiteral(" ") + note;
+            m->standfirst.runs.append(run);
+            m->standfirst.text += QStringLiteral(" ") + note;
+            // the clause follows the sentence it now is (5.5b review m4: it was cut before the note was appended)
+            m->standfirst.clause = words::firstClauseOf(m->standfirst.text);
         }
     }
-    if (!m.contains(QStringLiteral("refusal"))) m.insert(QStringLiteral("refusal"), QVariantMap{});
-    m.insert(QStringLiteral("kicker"), kicker);
-    return m;
+    // `refusal` is an empty Sentence where the map had {} (available): PpChRoles.has() reads both as none
+    m->kicker = kicker;
+    return *m;
 }
 
 // ── Replay Session (D6): one entry per P-position the lead reading is read at ────────────────
@@ -2415,26 +2608,30 @@ std::vector<Output::ReplayEntry> replayEntries(Ctx &x, const Cache::Family *fam)
         rs.push_back(std::move(one.front()));
     }
     linkFired(x.S, rs, nullptr, nullptr);
-    QVariantList phaseLinks;
-    for (const SessionReading &r : rs)
-        phaseLinks.append(QVariantMap{ { QStringLiteral("phase"), r.phase }, { QStringLiteral("tag"), x.v.tag(r.phase) },
-                                       { QStringLiteral("seekUs"), phaseUsOf(ps, r.phase) }, { QStringLiteral("current"), false } });
+    QList<RelationsReplayPhase> phaseLinks;
+    for (const SessionReading &r : rs) {
+        RelationsReplayPhase link;
+        link.phase = r.phase;
+        link.tag = x.v.tag(r.phase);
+        link.seekUs = phaseUsOf(ps, r.phase);
+        link.current = false;
+        phaseLinks.append(link);
+    }
     const double rc = rCritical(x.n);
     for (size_t e = 0; e < rs.size(); ++e) {
         const SessionReading &r = rs[e];
-        QVariantMap m;
-        m.insert(QStringLiteral("readingId"), r.id);
-        m.insert(QStringLiteral("key"), r.key);
-        m.insert(QStringLiteral("label"), r.label);
-        m.insert(QStringLiteral("tag"), x.v.tag(r.phase));
-        m.insert(QStringLiteral("phaseName"), x.v.name(r.phase));
-        m.insert(QStringLiteral("head"), Sentence().append(r.label + QStringLiteral(" at ") + x.v.tag(r.phase) + QStringLiteral(", ")
-                                                           + x.v.name(r.phase).toLower() + QStringLiteral(", every shot")).toVariant());
-        m.insert(QStringLiteral("follows"), QStringLiteral("follows the video"));
-        QVariantList links = phaseLinks;
-        for (QVariant &l : links) { QVariantMap lm = l.toMap(); lm.insert(QStringLiteral("current"), lm.value(QStringLiteral("phase")).toInt() == r.phase); l = lm; }
-        m.insert(QStringLiteral("phases"), links);
-        m.insert(QStringLiteral("run"), runMap(x, r));
+        RelationsReplaySession m;
+        m.readingId = r.id;
+        m.key = r.key;
+        m.label = r.label;
+        m.tag = x.v.tag(r.phase);
+        m.phaseName = x.v.name(r.phase);
+        m.head = sentenceOf(Sentence().append(r.label + QStringLiteral(" at ") + x.v.tag(r.phase) + QStringLiteral(", ")
+                                              + x.v.name(r.phase).toLower() + QStringLiteral(", every shot")));
+        m.follows = QStringLiteral("follows the video");
+        m.phases = phaseLinks;
+        for (RelationsReplayPhase &l : m.phases) l.current = l.phase == r.phase;
+        m.run = runOf(x, r);
         const ReadingPlace p = placeOf(r, x.pick);
         Sentence now;
         if (p.measured) {
@@ -2451,11 +2648,11 @@ std::vector<Output::ReplayEntry> replayEntries(Ctx &x, const Cache::Family *fam)
         }
         // R8: a technical Typicality badge beside "This shot …", when the window holds 8 (null otherwise)
         const QVariant typ = p.measured ? typicalityOf(x, r.values, r.key, r.unit, corridorOf(x, r)) : QVariant();
-        m.insert(QStringLiteral("now"), QVariantMap{ { QStringLiteral("valueText"), figU(p.measured ? p.value : kNaN, r.unit) },
-                                                     { QStringLiteral("trustSubject"), QString() },
-                                                     { QStringLiteral("typicality"), typ.isValid() ? typ : QVariant::fromValue(nullptr) },
-                                                     { QStringLiteral("medianText"), figU(r.box.med, r.unit) },
-                                                     { QStringLiteral("place"), placeWords(p, r.box.n) }, { QStringLiteral("sentence"), now.toVariant() } });
+        m.now.valueText = figU(p.measured ? p.value : kNaN, r.unit);
+        if (typ.isValid()) m.now.typicality = typ;
+        m.now.medianText = figU(r.box.med, r.unit);
+        m.now.place = placeWords(p, r.box.n);
+        m.now.sentence = sentenceOf(now);
         // partners: every other key's reading against this one
         std::vector<CorrRow> partners;
         for (size_t i = 0; i < x.c.readings.size(); ++i) {
@@ -2464,15 +2661,17 @@ std::vector<Output::ReplayEntry> replayEntries(Ctx &x, const Cache::Family *fam)
             if (c.defined) partners.push_back(CorrRow{ int(i), sameQuantityAs(x.c.readings[i].key, key), c });
         }
         std::stable_sort(partners.begin(), partners.end(), [](const CorrRow &a, const CorrRow &b) { return std::abs(a.c.r) > std::abs(b.c.r); });
-        QVariant partner = QVariant::fromValue(nullptr);
         for (const CorrRow &pr : partners) if (!pr.same) {
             const SessionReading &pr_r = x.r(pr.reading);
-            partner = QVariantMap{ { QStringLiteral("readingId"), pr_r.id }, { QStringLiteral("label"), pr_r.label }, { QStringLiteral("tag"), x.v.tag(pr_r.phase) },
-                                   { QStringLiteral("rText"), figR(pr.c.r) }, { QStringLiteral("scatter"), scatterMap(x, pr_r, r, {}, {}) } };
+            RelationsPartner partner;
+            partner.readingId = pr_r.id;
+            partner.label = pr_r.label;
+            partner.tag = x.v.tag(pr_r.phase);
+            partner.rText = figR(pr.c.r);
+            partner.scatter = scatterOf(x, pr_r, r, {}, {});
+            m.partner = QVariant::fromValue(partner);
             break;
         }
-        m.insert(QStringLiteral("partner"), partner);
-        QVariantList mw;
         for (size_t i = 0; i < partners.size() && i < 3; ++i) {
             const CorrRow &pr = partners[i];
             const SessionReading &q = x.r(pr.reading);
@@ -2480,19 +2679,28 @@ std::vector<Output::ReplayEntry> replayEntries(Ctx &x, const Cache::Family *fam)
             s.append(q.label + QStringLiteral(" at ") + x.v.tag(q.phase) + (pr.same ? QStringLiteral(" ‡") : QString()) + QStringLiteral(": r "))
              .figure(figR(pr.c.r)).append(QStringLiteral(" (")).figure(figR(pr.c.lo)).append(QStringLiteral(" to ")).figure(figR(pr.c.hi))
              .append(QStringLiteral("), n ")).figure(QString::number(pr.c.n)).append(pr.c.clear ? QString() : QStringLiteral(", inside chance"));
-            mw.append(QVariantMap{ { QStringLiteral("readingId"), q.id }, { QStringLiteral("label"), q.label }, { QStringLiteral("tag"), x.v.tag(q.phase) },
-                                   { QStringLiteral("same"), pr.same }, { QStringLiteral("sameMark"), pr.same ? QStringLiteral("‡") : QString() },
-                                   { QStringLiteral("r"), pr.c.r }, { QStringLiteral("rText"), figR(pr.c.r) }, { QStringLiteral("lo"), pr.c.lo }, { QStringLiteral("hi"), pr.c.hi },
-                                   { QStringLiteral("ciText"), QStringLiteral("(%1 to %2)").arg(figR(pr.c.lo), figR(pr.c.hi)) }, { QStringLiteral("n"), pr.c.n },
-                                   { QStringLiteral("clear"), pr.c.clear }, { QStringLiteral("sentence"), s.toVariant() } });
+            RelationsPartnerRow row;
+            row.readingId = q.id;
+            row.label = q.label;
+            row.tag = x.v.tag(q.phase);
+            row.same = pr.same;
+            row.sameMark = pr.same ? QStringLiteral("‡") : QString();
+            row.r = pr.c.r;
+            row.rText = figR(pr.c.r);
+            row.lo = pr.c.lo;
+            row.hi = pr.c.hi;
+            row.ciText = QStringLiteral("(%1 to %2)").arg(figR(pr.c.lo), figR(pr.c.hi));
+            row.n = pr.c.n;
+            row.clear = pr.c.clear;
+            row.sentence = sentenceOf(s);
+            m.movesWith.append(row);
         }
-        m.insert(QStringLiteral("movesWith"), mw);
-        m.insert(QStringLiteral("note"), Sentence().append(QStringLiteral("With ")).figure(QString::number(x.n)).append(QStringLiteral(" shots an r inside ±"))
-                                            .figure(figR(rc)).append(QStringLiteral(" is what chance gives. ") + words::coOccurrenceNote()).toVariant());
+        m.note = sentenceOf(Sentence().append(QStringLiteral("With ")).figure(QString::number(x.n)).append(QStringLiteral(" shots an r inside ±"))
+                                .figure(figR(rc)).append(QStringLiteral(" is what chance gives. ") + words::coOccurrenceNote()));
         Output::ReplayEntry re;
         const qint64 us = phaseUsOf(ps, r.phase);
         re.tUs = us >= 0 ? us : std::numeric_limits<qint64>::max();
-        re.map = m;
+        re.entry = m;
         out.push_back(std::move(re));
     }
     return out;
@@ -2533,20 +2741,20 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
     const ChartsRelationsPresenter::Cache::Family *fam = fi >= 0 ? &cache.families[size_t(fi)] : nullptr;
 
     // status
-    QVariantMap st;
+    RelationsStatus &st = out->status;
     const ShotSeries *ps = x.pick >= 0 ? S.shots[size_t(x.pick)].get() : nullptr;
     const std::optional<SessionFacet> club = clubFacet(S);
     QString clubText = ps ? ps->club.toLower() : (x.n ? S.shots.front()->club.toLower() : QString());
-    st.insert(QStringLiteral("ready"), true);
-    st.insert(QStringLiteral("shotCount"), x.n);
-    st.insert(QStringLiteral("pickedOrdinal"), ps ? ps->ordinal : 0);
-    st.insert(QStringLiteral("pickedShotId"), ps ? ps->shotId : -1);
-    st.insert(QStringLiteral("pickedSwingDir"), ps ? ps->swingDir : QString());
-    st.insert(QStringLiteral("pickedInSession"), ps && cache.augmentedDir.isEmpty());
-    st.insert(QStringLiteral("pickedFromDetail"), ps && !cache.augmentedDir.isEmpty());
-    st.insert(QStringLiteral("pickedImpactUs"), ps ? ps->impactUs : -1);
-    st.insert(QStringLiteral("club"), club ? QStringLiteral("mixed clubs") : clubText);
-    st.insert(QStringLiteral("clubsMixed"), bool(club));
+    st.ready = true;
+    st.shotCount = x.n;
+    st.pickedOrdinal = ps ? ps->ordinal : 0;
+    st.pickedShotId = ps ? ps->shotId : -1;
+    st.pickedSwingDir = ps ? ps->swingDir : QString();
+    st.pickedInSession = ps && cache.augmentedDir.isEmpty();
+    st.pickedFromDetail = ps && !cache.augmentedDir.isEmpty();
+    st.pickedImpactUs = ps ? ps->impactUs : -1;
+    st.club = club ? QStringLiteral("mixed clubs") : clubText;
+    st.clubsMixed = bool(club);
     QString clubs;
     if (club) {
         QStringList parts;
@@ -2554,55 +2762,66 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
             parts << (g.key.isEmpty() ? QStringLiteral("no club") : g.key.toLower()) + QStringLiteral(" on %1").arg(words::word(int(g.ordinals.size())));
         clubs = QStringLiteral("The clubs are mixed: ") + words::list(parts) + QStringLiteral("; every shot is shown together unless split by club.");
     }
-    st.insert(QStringLiteral("clubsSentence"), clubs);
-    st.insert(QStringLiteral("kicker"), ps ? words::shotOfText(ps->shotId, ps->ordinal, x.n) + (clubText.isEmpty() || club ? QString() : QStringLiteral("  ·  ") + clubText)
-                                           : QStringLiteral("%1 shots").arg(x.n));
-    st.insert(QStringLiteral("family"), fam ? fam->name : QString());
-    st.insert(QStringLiteral("readingCount"), int(cache.readings.size()));
-    QVariantList shots;
-    for (const auto &sh : S.shots)
-        shots.append(QVariantMap{ { QStringLiteral("ordinal"), sh->ordinal }, { QStringLiteral("shotId"), sh->shotId },
-                                  { QStringLiteral("swingDir"), sh->swingDir }, { QStringLiteral("club"), sh->club } });
-    st.insert(QStringLiteral("shots"), shots);
+    st.clubsSentence = clubs;
+    st.kicker = ps ? words::shotOfText(ps->shotId, ps->ordinal, x.n) + (clubText.isEmpty() || club ? QString() : QStringLiteral("  ·  ") + clubText)
+                   : QStringLiteral("%1 shots").arg(x.n);
+    st.family = fam ? fam->name : QString();
+    st.readingCount = int(cache.readings.size());
+    for (const auto &sh : S.shots) {
+        RelationsShot shot;
+        shot.ordinal = sh->ordinal;
+        shot.shotId = sh->shotId;
+        shot.swingDir = sh->swingDir;
+        shot.club = sh->club;
+        st.shots.append(shot);
+    }
     // the profile's column heads (ProfileTable: "Shot 8" over the value, "15 shots, low to high" over the box)
-    st.insert(QStringLiteral("shotLabel"), ps ? QStringLiteral("Shot %1").arg(words::shotNumber(ps->shotId, ps->ordinal)) : QString());
-    st.insert(QStringLiteral("countLabel"), QStringLiteral("%1 shots, low to high").arg(x.n));
-    st.insert(QStringLiteral("countLabelShort"), QStringLiteral("%1 shots").arg(x.n));
-    st.insert(QStringLiteral("refused"), x.n < 3);
-    st.insert(QStringLiteral("refusal"), x.n < 3 ? tooFew(x, QStringLiteral("to draw the session"), 3).toVariant() : QVariant(QVariantMap{}));
-    out->status = st;
+    st.shotLabel = ps ? QStringLiteral("Shot %1").arg(words::shotNumber(ps->shotId, ps->ordinal)) : QString();
+    st.countLabel = QStringLiteral("%1 shots, low to high").arg(x.n);
+    st.countLabelShort = QStringLiteral("%1 shots").arg(x.n);
+    st.refused = x.n < 3;
+    if (x.n < 3) st.refusal = sentenceOf(tooFew(x, QStringLiteral("to draw the session"), 3));    // else an empty Sentence, the map's {}
 
     for (size_t i = 0; i < cache.families.size(); ++i) {
         const auto &f = cache.families[i];
-        out->families.append(QVariantMap{ { QStringLiteral("name"), f.name }, { QStringLiteral("count"), int(f.readings.size()) },
-                                          { QStringLiteral("note"), f.name == kSeqFamily ? QStringLiteral("peak times")
-                                                                    : QStringLiteral("%1 %2").arg(f.readings.size()).arg(f.readings.size() == 1 ? QStringLiteral("reading") : QStringLiteral("readings")) },
-                                          { QStringLiteral("preset"), f.preset }, { QStringLiteral("current"), int(i) == fi },
-                                          { QStringLiteral("sequence"), f.name == kSeqFamily } });
+        RelationsFamily fm;
+        fm.name = f.name;
+        fm.count = int(f.readings.size());
+        fm.note = f.name == kSeqFamily ? QStringLiteral("peak times")
+                                       : QStringLiteral("%1 %2").arg(f.readings.size()).arg(f.readings.size() == 1 ? QStringLiteral("reading") : QStringLiteral("readings"));
+        fm.preset = f.preset;
+        fm.current = int(i) == fi;
+        fm.sequence = f.name == kSeqFamily;
+        out->families.append(fm);
     }
 
-    out->thisShot = thisShotMap(x, fam, out.get());
-    // the open row: its curve on this shot's clock, or its run when it has none
+    out->thisShot = thisShotOf(x, fam, out.get());
+    // the open row: its curve on this shot's clock, or its run when it has none ("" readingId: none open)
     const int oi = cache.indexOf(open);
     if (oi >= 0 && x.n >= 3) {
-        const QVariantMap row = rowMap(x, oi);
-        const bool trace = row.value(QStringLiteral("opens")).toString() == QLatin1String("trace");
-        QVariantMap tr;
-        if (trace) { tr = traceMap(x, x.r(oi), &out->openCurve); out->openUnit = x.r(oi).unit; }
-        out->openRow = { { QStringLiteral("readingId"), x.r(oi).id }, { QStringLiteral("opens"), trace && !tr.isEmpty() ? QStringLiteral("trace") : QStringLiteral("run") },
-                         { QStringLiteral("trace"), tr.isEmpty() ? QVariant::fromValue(nullptr) : QVariant(tr) }, { QStringLiteral("run"), runMap(x, x.r(oi)) } };
+        const RelationsReadingRow row = rowAt(x, oi);
+        const bool trace = row.opens == QLatin1String("trace");
+        std::optional<RelationsTrace> tr;
+        if (trace) { tr = traceOf(x, x.r(oi), &out->openCurve); out->openUnit = x.r(oi).unit; }
+        out->openRow.readingId = x.r(oi).id;
+        out->openRow.opens = trace && tr ? QStringLiteral("trace") : QStringLiteral("run");
+        if (tr) out->openRow.trace = QVariant::fromValue(*tr);
+        out->openRow.run = runOf(x, x.r(oi));
     } else if (x.n >= 3) {
         const SessionReading r = curveOnlyReading(x, open);     // a row with no reading behind it: its curve, by key
         if (!r.id.isEmpty()) {
-            const QVariantMap tr = traceMap(x, r, &out->openCurve);
+            const std::optional<RelationsTrace> tr = traceOf(x, r, &out->openCurve);
             out->openUnit = r.unit;
-            out->openRow = { { QStringLiteral("readingId"), r.id }, { QStringLiteral("opens"), QStringLiteral("trace") },
-                             { QStringLiteral("trace"), tr }, { QStringLiteral("run"), runMap(x, r) } };
+            out->openRow.readingId = r.id;
+            out->openRow.opens = QStringLiteral("trace");
+            // always a trace here: curveOnlyReading has found the picked shot's curve
+            if (tr) out->openRow.trace = QVariant::fromValue(*tr);
+            out->openRow.run = runOf(x, r);
         }
     }
-    out->sequence = sequenceMap(x);
-    out->relations = relationsMap(x, up, across, facet, nullptr);
-    out->kinds = kindsMap(x, fam);
+    out->sequence = sequenceOf(x);
+    out->relations = relationsOf(x, up, across, facet, nullptr);
+    out->kinds = kindsOf(x, fam);
     out->replay = replayEntries(x, fam);
     if (ps) { out->pickedImpactUs = ps->impactUs; out->pickedPhases = ps->phases; }
     out->ready = true;
@@ -2659,17 +2878,17 @@ const ConsistencyInput &ConsistencyReadingRows::input() const { return m->cache.
 const ConsistencyResult &ConsistencyReadingRows::result() const { return m->cache.consistencyOut; }
 const std::vector<ConsistencyLmRow> &ConsistencyReadingRows::lmRows(int shot) const { return m->cache.lmRows[size_t(shot)]; }
 
-QVariantMap ConsistencyReadingRows::lmRow(int shot, const ConsistencyLmRow &row) const
+RelationsReadingRow ConsistencyReadingRows::lmRow(int shot, const ConsistencyLmRow &row) const
 {
     return m->with(shot, [&](const Ctx &x) { return lmRowOf(x, row).row; });
 }
 
-QVariantMap ConsistencyReadingRows::standOutRow(int shot, const ConsistencyStandOut &standOut) const
+RelationsReadingRow ConsistencyReadingRows::standOutRow(int shot, const ConsistencyStandOut &standOut) const
 {
     return m->with(shot, [&](const Ctx &x) { return standOutRowOf(x, standOut).row; });
 }
 
-QVariantMap ConsistencyReadingRows::readingRow(int shot, const ConsistencyJudged &judged) const
+RelationsReadingRow ConsistencyReadingRows::readingRow(int shot, const ConsistencyJudged &judged) const
 {
     return m->with(shot, [&](const Ctx &x) {
         const ConsistencyReading &tested = x.c.consistencyIn.readings[size_t(judged.reading)];
@@ -2758,24 +2977,10 @@ std::shared_ptr<const SessionSnapshot> ChartsRelationsPresenter::currentSnapshot
     return chosenSnapshot(m_directSnapshot, m_model.data());   // P2: a direct snapshot wins
 }
 
-void ChartsRelationsPresenter::schedule()
-{
-    // THE ONE SCHEDULER (refactor 5.5a, charts_presenter_core.h P3): coalesced — one job in flight, a change meanwhile
-    // marks it dirty and one more runs with the latest inputs — and busy from the ask (P11). Synchronous: at once.
-    if (m_synchronous) { start(); return; }
-    m_dirty = true;
-    if (m_running || m_scheduled) return;
-    m_scheduled = true;
-    emit busyChanged();
-    QMetaObject::invokeMethod(this, [this] {
-        m_scheduled = false;
-        if (!m_running) start();
-    }, Qt::QueuedConnection);
-}
-
 void ChartsRelationsPresenter::start()
 {
-    m_dirty = false;
+    // THE ONE SCHEDULER (charts_presenter_core.h, BusyFromAsk): coalesced, busy from the ask (P11); synchronous at once.
+    m_sched.begin();
     // A corridor saved in the Diagnostic Model since the last job: the env and the cache start again, as a new
     // presenter's would, so this job reads ONE norm set, the new (ChartsConsistencyPresenter::start, the same rule).
     if (m_normsGeneration != consistencyEnvGeneration()) {
@@ -2793,18 +2998,17 @@ void ChartsRelationsPresenter::start()
     const auto norms = pinpoint::analysis::sharedNormProvider();
     const ConsistencyEnv env = m_consistencyEnv;
     auto cache = m_cache;
-    if (m_synchronous) {
+    if (m_sched.synchronous()) {
         m_pool.waitForDone();
         deliver(computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, *cache));
         return;
     }
-    m_running = true;
     emit busyChanged();
     askLane(m_pool, [snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, cache]() { return computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, *cache); },
             [this](auto out) {
-            m_running = false;
+            const bool wasRunning = m_sched.land();
             deliver(out);
-            if (m_dirty) start(); else emit busyChanged();
+            m_sched.afterLanding(wasRunning);
         });
 }
 
@@ -2813,32 +3017,31 @@ void ChartsRelationsPresenter::deliver(std::shared_ptr<const Output> out)
     QElapsedTimer t;
     t.start();
     auto o = std::const_pointer_cast<Output>(out);
-    QVariantMap st = o->status;
     m_out = o;
     m_replayIndex = -2;          // force the playhead outputs
     emit resultsChanged();
     updatePlayhead(true);
-    QVariantMap tm{ { QStringLiteral("jobMs"), o->jobMs }, { QStringLiteral("consistencyMs"), o->consistencyMs },
-                    { QStringLiteral("applyMs"), double(t.nsecsElapsed()) / 1e6 } };
-    st.insert(QStringLiteral("timings"), tm);
-    o->status = st;              // read on this thread only
+    o->status.timings.jobMs = o->jobMs;          // read on this thread only
+    o->status.timings.consistencyMs = o->consistencyMs;
+    o->status.timings.applyMs = double(t.nsecsElapsed()) / 1e6;
     if (o->jobMs > 250.0)
-        ppInfo() << "[Charts] relations recompute" << qRound(o->jobMs) << "ms for" << o->status.value(QStringLiteral("shotCount")).toInt() << "shots";
+        ppInfo() << "[Charts] relations recompute" << qRound(o->jobMs) << "ms for" << o->status.shotCount << "shots";
 }
 
 bool ChartsRelationsPresenter::ready() const { return m_out && m_out->ready; }
-QVariantMap ChartsRelationsPresenter::status() const { return m_out ? m_out->status : QVariantMap{}; }
-QVariantList ChartsRelationsPresenter::families() const { return m_out ? m_out->families : QVariantList{}; }
-QVariantMap ChartsRelationsPresenter::thisShot() const { return m_out ? m_out->thisShot : QVariantMap{}; }
-QVariantMap ChartsRelationsPresenter::openRow() const { return m_out ? m_out->openRow : QVariantMap{}; }
-QVariantMap ChartsRelationsPresenter::sequence() const { return m_out ? m_out->sequence : QVariantMap{}; }
-QVariantMap ChartsRelationsPresenter::relations() const { return m_out ? m_out->relations : QVariantMap{}; }
-QVariantMap ChartsRelationsPresenter::kinds() const { return m_out ? m_out->kinds : QVariantMap{}; }
+// Before the first result each output is its gadget's default, where the map was {} (charts_relations_types.h).
+RelationsStatus ChartsRelationsPresenter::status() const { return m_out ? m_out->status : RelationsStatus{}; }
+QList<RelationsFamily> ChartsRelationsPresenter::families() const { return m_out ? m_out->families : QList<RelationsFamily>{}; }
+RelationsThisShot ChartsRelationsPresenter::thisShot() const { return m_out ? m_out->thisShot : RelationsThisShot{}; }
+RelationsOpenRow ChartsRelationsPresenter::openRow() const { return m_out ? m_out->openRow : RelationsOpenRow{}; }
+RelationsSequence ChartsRelationsPresenter::sequence() const { return m_out ? m_out->sequence : RelationsSequence{}; }
+RelationsRelations ChartsRelationsPresenter::relations() const { return m_out ? m_out->relations : RelationsRelations{}; }
+RelationsKinds ChartsRelationsPresenter::kinds() const { return m_out ? m_out->kinds : RelationsKinds{}; }
 
-QVariantMap ChartsRelationsPresenter::replaySession() const
+RelationsReplaySession ChartsRelationsPresenter::replaySession() const
 {
     if (!m_out || m_replayIndex < 0 || size_t(m_replayIndex) >= m_out->replay.size()) return {};
-    return m_out->replay[size_t(m_replayIndex)].map;
+    return m_out->replay[size_t(m_replayIndex)].entry;
 }
 
 void ChartsRelationsPresenter::updatePlayhead(bool force)
@@ -2852,18 +3055,18 @@ void ChartsRelationsPresenter::updatePlayhead(bool force)
     const bool replayMoved = idx != m_replayIndex;
     m_replayIndex = idx;
 
-    QVariantMap ph;
+    RelationsPlayhead ph;
     const double ms = (m_out->pickedImpactUs >= 0 && m_playheadUs >= 0) ? double(m_playheadUs - m_out->pickedImpactUs) / 1000.0 : kNaN;
     const auto read = [&](const TraceCurve &c, const QString &unit) {
         if (!fin(ms) || c.empty()) return QString();
         const double v = valueAt(c, ms);
         return fin(v) ? figU(v, unit) : QString();
     };
-    ph.insert(QStringLiteral("openValueText"), read(m_out->openCurve, m_out->openUnit));
-    ph.insert(QStringLiteral("leadValueText"), read(m_out->leadCurve, m_out->leadUnit));
-    ph.insert(QStringLiteral("replayIndex"), idx);
-    const bool changed = force || replayMoved || ph != m_playheadMap;
-    m_playheadMap = ph;
+    ph.openValueText = read(m_out->openCurve, m_out->openUnit);
+    ph.leadValueText = read(m_out->leadCurve, m_out->leadUnit);
+    ph.replayIndex = idx;
+    const bool changed = force || replayMoved || ph != m_playhead;
+    m_playhead = ph;
     if (changed) emit playheadChanged();
 }
 
@@ -2880,42 +3083,48 @@ qint64 ChartsRelationsPresenter::seekUsAtShotMs(double shotMs) const
     return m_out->pickedImpactUs + qint64(std::llround(shotMs * 1000.0));
 }
 
-QVariantList ChartsRelationsPresenter::ticks(double lo, double hi, int maxTicks, const QString &unit) const
+namespace {
+
+// Nice axis ticks: the app's one tick rule (figure_format.h), printed at the unit's decimals or the step's, whichever is
+// finer. ticks() and axisTicks() both read these, so the screen and the paper cannot disagree.
+QList<RelationsTick> ticksOf(double lo, double hi, int maxTicks, const QString &unit)
 {
-    return axisTicks(lo, hi, maxTicks, unit);
+    QList<RelationsTick> out;
+    if (!fin(lo) || !fin(hi)) return out;
+    const auto tick = [](double v, const QString &text) { RelationsTick t; t.v = v; t.text = text; return t; };
+    if (!(hi > lo)) { out.append(tick(lo, figBare(lo, shortUnit(unit)))); return out; }
+    const double st = words::tickStep(lo, hi, std::max(1, maxTicks));
+    const int dec = std::max(words::decimalsFor(shortUnit(unit)), words::tickDecimals(st));
+    for (double v : words::tickValues(lo, hi, std::max(1, maxTicks))) out.append(tick(v, words::fig(v, dec)));
+    return out;
+}
+
+} // namespace
+
+QList<RelationsTick> ChartsRelationsPresenter::ticks(double lo, double hi, int maxTicks, const QString &unit) const
+{
+    return ticksOf(lo, hi, maxTicks, unit);
 }
 
 QVariantList ChartsRelationsPresenter::axisTicks(double lo, double hi, int maxTicks, const QString &unit)
 {
-    QVariantList out;
-    if (!fin(lo) || !fin(hi)) return out;
-    if (!(hi > lo)) { out.append(QVariantMap{ { QStringLiteral("v"), lo }, { QStringLiteral("text"), figBare(lo, shortUnit(unit)) } }); return out; }
-    // the app's one tick rule (figure_format.h), printed at the unit's decimals or the step's, whichever is finer
-    const double st = words::tickStep(lo, hi, std::max(1, maxTicks));
-    const int dec = std::max(words::decimalsFor(shortUnit(unit)), words::tickDecimals(st));
-    for (double v : words::tickValues(lo, hi, std::max(1, maxTicks)))
-        out.append(QVariantMap{ { QStringLiteral("v"), v }, { QStringLiteral("text"), words::fig(v, dec) } });
+    QVariantList out;       // the payloads' maps { v, text }, as before
+    for (const RelationsTick &t : ticksOf(lo, hi, maxTicks, unit))
+        out.append(QVariantMap{ { QStringLiteral("v"), t.v }, { QStringLiteral("text"), t.text } });
     return out;
 }
 
 bool ChartsRelationsPresenter::waitForIdle(int msTimeout)
 {
-    if (m_synchronous) return true;
-    QDeadlineTimer deadline(msTimeout);
-    while ((m_running || m_scheduled || m_dirty) && !deadline.hasExpired()) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-        m_pool.waitForDone(20);
-    }
-    QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-    return !m_running && !m_scheduled && !m_dirty;
+    return m_sched.waitForIdle(m_pool, msTimeout);
 }
 
 // ── What moves with one reading (the Wrist tab's "what moves with the lead wrist at impact") ──────
 
-QVariantMap ChartsRelationsPresenter::movesWith(const std::shared_ptr<const SessionSnapshot> &snapshot,
-                                                const QString &readingId, int k, int lmK, const ReadAt &readAt)
+RelationsMovesWith ChartsRelationsPresenter::movesWith(const std::shared_ptr<const SessionSnapshot> &snapshot,
+                                                       const QString &readingId, int k, int lmK, const ReadAt &readAt)
 {
-    QVariantMap m;
+    RelationsMovesWith m;
     const auto empty = std::make_shared<SessionSnapshot>();
     Cache cache;
     ensureSession(cache, snapshot ? snapshot : empty, QString(), {}, readAt, 0, false);
@@ -2924,23 +3133,22 @@ QVariantMap ChartsRelationsPresenter::movesWith(const std::shared_ptr<const Sess
     x.n = cache.snap->count();
     // the Relations tab's own refusal: r needs five shots both readings were read on
     if (x.n < 5 || cache.readings.size() < 2) {
-        m.insert(QStringLiteral("available"), false);
-        m.insert(QStringLiteral("refusal"), (x.n < 5 ? tooFew(x, QStringLiteral("to relate readings across a session"), 5)
-                                                     : Sentence().append(QStringLiteral("This session has too few readings to relate."))).toVariant());
+        m.available = false;
+        m.refusal = sentenceOf(x.n < 5 ? tooFew(x, QStringLiteral("to relate readings across a session"), 5)
+                                       : Sentence().append(QStringLiteral("This session has too few readings to relate.")));
         return m;
     }
     const int y = cache.indexOf(readingId);
     if (y < 0) {
-        m.insert(QStringLiteral("available"), false);
-        m.insert(QStringLiteral("refusal"), Sentence().append(QStringLiteral("This session does not read ") + readingId
-                                                              + QStringLiteral(" on three shots or more.")).toVariant());
+        m.available = false;
+        m.refusal = sentenceOf(Sentence().append(QStringLiteral("This session does not read ") + readingId
+                                                 + QStringLiteral(" on three shots or more.")));
         return m;
     }
     const SessionReading &Y = x.r(y);
     const std::vector<CorrRow> &rows = cache.corrOf(y);
     // the top k readings that are not the same quantity, then the top lmK launch-monitor readings not
     // already among them — each the Relations ledger's own row
-    QVariantList out;
     std::vector<int> taken;
     int rank = 0;
     for (const CorrRow &r : rows) {
@@ -2948,7 +3156,7 @@ QVariantMap ChartsRelationsPresenter::movesWith(const std::shared_ptr<const Sess
         ++rank;
         if (int(taken.size()) >= std::max(0, k)) break;
         taken.push_back(r.reading);
-        out.append(ledgerRow(x, r, Y, rank));
+        m.rows.append(ledgerRowOf(x, r, Y, rank));
     }
     int lm = 0;
     rank = 0;
@@ -2958,26 +3166,71 @@ QVariantMap ChartsRelationsPresenter::movesWith(const std::shared_ptr<const Sess
         if (lm >= std::max(0, lmK)) break;
         if (!x.r(r.reading).key.startsWith(QLatin1String("lm."))) continue;
         if (std::find(taken.begin(), taken.end(), r.reading) != taken.end()) continue;
-        out.append(ledgerRow(x, r, Y, rank));
+        m.rows.append(ledgerRowOf(x, r, Y, rank));
         ++lm;
     }
     const int tests = int(rows.size()), nY = Y.box.n;
     int clear = 0;
     for (const CorrRow &r : rows) if (r.c.clear) ++clear;
     const double rc = rCritical(nY);
-    m.insert(QStringLiteral("available"), true);
-    m.insert(QStringLiteral("upId"), Y.id);
-    m.insert(QStringLiteral("up"), briefMap(x, y));
-    m.insert(QStringLiteral("head"), Sentence().append(QStringLiteral("What moves with ") + x.readingText(y)).toVariant());
-    m.insert(QStringLiteral("chance"), QVariantMap{
-        { QStringLiteral("n"), nY }, { QStringLiteral("tests"), tests }, { QStringLiteral("clearCount"), clear },
-        { QStringLiteral("chanceCount"), chanceCount(tests) }, { QStringLiteral("rCritical"), rc }, { QStringLiteral("rCriticalText"), figR(rc) },
-        { QStringLiteral("line"), Sentence().append(QStringLiteral("|r| under ")).figure(figR(rc)).append(QStringLiteral(" is chance at n = "))
-                                      .figure(QString::number(nY)).toVariant() } });
-    m.insert(QStringLiteral("rows"), out);
-    m.insert(QStringLiteral("note"), Sentence().append(nY < 10 ? QStringLiteral("A small session. ") : QString())
-                                         .append(words::coOccurrenceNote()).toVariant());
+    m.available = true;
+    m.upId = Y.id;
+    m.up = briefOf(x, y);
+    m.head = sentenceOf(Sentence().append(QStringLiteral("What moves with ") + x.readingText(y)));
+    m.chance.n = nY;
+    m.chance.tests = tests;
+    m.chance.clearCount = clear;
+    m.chance.chanceCount = chanceCount(tests);
+    m.chance.rCritical = rc;
+    m.chance.rCriticalText = figR(rc);
+    m.chance.line = sentenceOf(Sentence().append(QStringLiteral("|r| under ")).figure(figR(rc)).append(QStringLiteral(" is chance at n = "))
+                                   .figure(QString::number(nY)));
+    m.note = sentenceOf(Sentence().append(nY < 10 ? QStringLiteral("A small session. ") : QString())
+                            .append(words::coOccurrenceNote()));
     return m;
 }
 
+// ── the shared builders (charts_relations_presenter.h) ───────────────────────────────────────
+
+RelationsSentence relationsSentence(const words::Sentence &s)
+{
+    RelationsSentence out;
+    out.text = s.text();
+    out.runs.reserve(qsizetype(s.runs.size()));
+    for (const words::Sentence::Run &r : s.runs) {
+        RelationsWordRun run;
+        run.text = r.text;
+        run.fig = r.fig;
+        out.runs.append(run);
+    }
+    out.clause = words::firstClauseOf(out.text);
+    return out;
+}
+
+RelationsVariability relationsTypicality(const pinpoint::variability::ScalarTypicalityWindow &window,
+                                         const QString &basisText, bool showCorridor)
+{
+    RelationsVariability out;
+    out.kind = QStringLiteral("typicality");
+    out.values.z = window.typicality.z;
+    for (const pinpoint::variability::TypicalityGhost &g : window.ghosts) {
+        RelationsTypicalityGhost ghost;
+        ghost.swingId = g.swingId;
+        ghost.z = g.z;
+        out.values.ghosts.append(ghost);
+    }
+    if (window.corridor) {
+        RelationsTypicalityCorridor c;
+        c.loZ = window.corridor->loZ;
+        c.hiZ = window.corridor->hiZ;
+        out.values.corridor = QVariant::fromValue(c);
+    }
+    out.values.band = pinpoint::variability::VariabilityResultView::typicalityBandToken(window.typicality.band);
+    out.basisText = basisText;
+    out.showCorridor = showCorridor;
+    return out;
+}
+
 } // namespace pinpoint::charts
+
+#include "moc_charts_relations_types.cpp"

@@ -202,7 +202,7 @@ public:
     void setScope(const QString &s);
 
     bool available();
-    bool busy() const { return m_running; }
+    bool busy() const { return m_sched.busy(); }
     deliveryui::Choices choices();
     deliveryui::ThisShot thisShot();
     deliveryui::Session session();
@@ -248,7 +248,7 @@ signals:
     void selectedChanged();
 
 private:
-    void schedule();
+    void schedule() { m_sched.schedule(); }
     void startJob();
     void apply(std::shared_ptr<Result> r);
     void flushIfSynchronous();
@@ -265,10 +265,8 @@ private:
     qint64 m_playheadUs = -1;
     int m_selected = 0;
 
-    bool m_synchronous = false;
-    bool m_dirty = true;
-    bool m_scheduled = false;
-    bool m_running = false;
+    // the one scheduler (charts_presenter_core.h): queued, coalesced, busy while a job is in flight
+    ChartsScheduler m_sched{ this, ChartsScheduler::Policy::Queued, [this] { startJob(); }, [this] { emit busyChanged(); } };
 
     std::shared_ptr<Result> m_result;
     std::shared_ptr<Worker> m_worker;

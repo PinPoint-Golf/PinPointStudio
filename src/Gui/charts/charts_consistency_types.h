@@ -23,18 +23,21 @@
 // gadget as it read the map. A gadget always has every property: where a key used to be absent, the property holds its
 // default ("" , 0, false, an empty list), and every reader in QML already treats those as "none".
 //
-// The two outputs whose rows are READING ROWs (`cell` and `shot`, charts_relations_presenter.h) are still maps: the row is
-// the Relations presenter's shape, and it is typed with that presenter (5.5c).
+// The two outputs whose rows are READING ROWs (`cell` and `shot`) take the Relations presenter's typed row,
+// RelationsReadingRow (charts_relations_types.h, refactor 5.5c), so Charts' Apart and this tab show one shape. Those two
+// are not QML-registered, as the Relations types are not: QML never names them.
 //
 // NO VARIABILITY WORD IS SPELLED HERE (docs/design/system/variability.md): the words are the vocabulary singletons'. A
 // cell says WHICH vocabulary names it and at WHICH grade (`vocabulary`, `vocabularyGrade`); QML only looks the word up.
 
 #include "../variability/variability_facade.h"     // VariabilityResultView: a cell's grade
+#include "charts_relations_types.h"                // RelationsReadingRow, RelationsRowGroup, RelationsSentence: `cell` and `shot`
 
 #include <QList>
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QVariant>
 #include <QtQml/qqmlregistration.h>
 
 namespace pinpoint::charts {
@@ -262,6 +265,72 @@ public:
     ConsistencyTabSentence settling;
     ConsistencyTabTimings  timings;
     friend bool operator==(const ConsistencyTabStatus &, const ConsistencyTabStatus &) = default;
+};
+
+// `cell`: the readings behind an opened cell's word (ChartsConsistencyPresenter, THE OUTPUTS). `title` "" when no cell is
+// open (the map was {}), which is what the view tests. Each row is a READING ROW with its grade (`variability` kind
+// "consistency", `graded`) and, in a mixed P7-P8 cell, `soft` and `softWord`. `sub` is a Sentence.
+struct ConsistencyTabCellDetail
+{
+    Q_GADGET
+    Q_PROPERTY(QString                                      area         MEMBER area         FINAL)
+    Q_PROPERTY(QString                                      areaId       MEMBER areaId       FINAL)
+    Q_PROPERTY(int                                          column       MEMBER column       FINAL)
+    Q_PROPERTY(QString                                      tag          MEMBER tag          FINAL)
+    Q_PROPERTY(pinpoint::variability::VariabilityResultView result       MEMBER result       FINAL)
+    Q_PROPERTY(QString                                      title        MEMBER title        FINAL)
+    Q_PROPERTY(pinpoint::charts::RelationsSentence          sub          MEMBER sub          FINAL)
+    Q_PROPERTY(QList<pinpoint::charts::RelationsReadingRow> rows         MEMBER rows         FINAL)
+    Q_PROPERTY(int                                          unjudged     MEMBER unjudged     FINAL)
+    Q_PROPERTY(QString                                      unjudgedNote MEMBER unjudgedNote FINAL)
+    Q_PROPERTY(QString                                      headLabel    MEMBER headLabel    FINAL)
+    Q_PROPERTY(QString                                      shotLabel    MEMBER shotLabel    FINAL)
+    Q_PROPERTY(QString                                      countLabel   MEMBER countLabel   FINAL)
+public:
+    QString area, areaId;
+    int     column = 0;
+    QString tag;
+    pinpoint::variability::VariabilityResultView result;
+    QString title;
+    RelationsSentence sub;
+    QList<RelationsReadingRow> rows;
+    int     unjudged = 0;
+    QString unjudgedNote, headLabel, shotLabel, countLabel;
+    friend bool operator==(const ConsistencyTabCellDetail &, const ConsistencyTabCellDetail &) = default;
+};
+
+// `shot`: the picked shot. `available` false with only its `note`; else everything. `groups` are The ball, The club and
+// Your swing (those with rows), each a READING ROW list; a club or swing row may carry a typicality `variability`.
+// `carry` is always null (ball flight has no badge, R4).
+struct ConsistencyTabShotDetail
+{
+    Q_GADGET
+    Q_PROPERTY(bool                                        available  MEMBER available  FINAL)
+    Q_PROPERTY(QString                                     note       MEMBER note       FINAL)
+    Q_PROPERTY(int                                         ordinal    MEMBER ordinal    FINAL)
+    Q_PROPERTY(QString                                     kicker     MEMBER kicker     FINAL)
+    Q_PROPERTY(QString                                     shotLabel  MEMBER shotLabel  FINAL)
+    Q_PROPERTY(QString                                     countLabel MEMBER countLabel FINAL)
+    Q_PROPERTY(QString                                     headLabel  MEMBER headLabel  FINAL)
+    Q_PROPERTY(QString                                     lm         MEMBER lm         FINAL)
+    Q_PROPERTY(pinpoint::charts::RelationsSentence         sentence   MEMBER sentence   FINAL)
+    Q_PROPERTY(QVariant                                    carry      MEMBER carry      FINAL)
+    Q_PROPERTY(bool                                        guarded    MEMBER guarded    FINAL)
+    Q_PROPERTY(QString                                     guardNote  MEMBER guardNote  FINAL)
+    Q_PROPERTY(QList<pinpoint::charts::RelationsRowGroup>  groups     MEMBER groups     FINAL)
+    Q_PROPERTY(int                                         count      MEMBER count      FINAL)
+public:
+    bool    available = false;
+    QString note;
+    int     ordinal = 0;
+    QString kicker, shotLabel, countLabel, headLabel, lm;
+    RelationsSentence sentence;
+    QVariant carry = relationsNull();
+    bool    guarded = false;
+    QString guardNote;
+    QList<RelationsRowGroup> groups;
+    int     count = 0;
+    friend bool operator==(const ConsistencyTabShotDetail &, const ConsistencyTabShotDetail &) = default;
 };
 
 } // namespace pinpoint::charts

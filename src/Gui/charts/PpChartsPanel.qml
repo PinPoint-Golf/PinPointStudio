@@ -107,6 +107,14 @@ Item {
     readonly property var seriesModel: (typeof ChartsSeries !== "undefined" && typeof app !== "undefined" && !!app)
                                        ? ChartsSeries.of(app.session) : null
 
+    // THE ★ SWING'S OWN SESSION'S SERIES (refactor 5.5c): the ★ is read through its own session, never by folder. This
+    // session's series when the ★ is one of its shots; else the Session that holds the ★'s folder (app.sessionAt), as a
+    // Trust view finds a swing in another session. Null with no ★, or for a folder no golfer's session holds.
+    function _sessionOfSwing(d) { const s = SessionMode.folderKey(d); return s.substring(0, s.lastIndexOf("/")) }
+    readonly property string _refSession: appSettings.wristReferenceSwingDir ? _sessionOfSwing(appSettings.wristReferenceSwingDir) : ""
+    readonly property var referenceSeries: (_refSession === "" || typeof ChartsSeries === "undefined" || typeof app === "undefined" || !app) ? null
+        : SessionMode.sameFolder(_refSession, sessionDir) ? seriesModel : ChartsSeries.of(app.sessionAt(_refSession))
+
     // what the presenters are told of the replay: copied only while this screen is the visible one
     property string _swingDir: ""
     // The picked shot's detail as an OPAQUE ref (app.state.replay.analysisDetailRef, qml_map_ref.h): passed on to the
@@ -150,8 +158,10 @@ Item {
         difference: body.difference
         align: body.align
         playheadUs: root._playUs
-        // the ★ reference swing for Against "reference" (any session; the wrist section's ★ link writes it)
+        // the ★ reference swing for Against "reference" (any session; the wrist section's ★ link writes it), read through
+        // its own session's series (refactor 5.5c)
         referenceSwingDir: appSettings.wristReferenceSwingDir
+        referenceModel: root.referenceSeries
     }
     ChartsRelationsPresenter {
         id: relationsPresenter
@@ -182,6 +192,7 @@ Item {
         curvesBehind: body.wristCurves
         archetype: body.wristArchetype
         referenceSwingDir: appSettings.wristReferenceSwingDir
+        referenceModel: root.referenceSeries
     }
     // the Posture sections (docs/design/posture_chart_design.md §5, stage 3a): their findings are the posture
     // conditions off the model's snapshot, as the wrist's are; the scope follows the view on show, the ★ is the
@@ -197,6 +208,7 @@ Item {
         against: body.postureAgainst
         pattern: body.posturePattern
         referenceSwingDir: appSettings.wristReferenceSwingDir
+        referenceModel: root.referenceSeries
     }
     // the Club delivery sections (docs/design/club_delivery_chart_design.md §4, stage 3): the plane story, the fit to the
     // ball flight over the golfer's day, the impact lines and the shot shape, and the plot's plane lines; the scope

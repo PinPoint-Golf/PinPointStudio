@@ -40,6 +40,7 @@
 #include "../../Wrist/wrist_profile.h"      // ChartShotFindings::wrist (DEC-123)
 
 #include <QHash>
+#include <QJsonObject>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -198,6 +199,31 @@ struct ConditionInfo {
     int     reducer = -1;
 };
 
+// HOW A JOB READS ONE OF THE SESSION'S OWN SHOTS AGAIN (refactor 5.5c; P11: an object's files are its own). The series
+// hands this door out with each snapshot, so a presenter that needs more of a shot than its series (the Posture picture
+// strip's poses, the session's cameras) asks the session for it, by the shot's folder as the snapshot names it, and never
+// opens a file itself. SessionSeries makes it over its SeriesReader, by ShotRef, resolved only through the session
+// repository (a session no longer open reads nothing); a test double may read its fixture folders. A folder that is not
+// one of the session's shots reads nothing. Stateless and safe from any thread.
+struct SnapshotShotRead {
+    bool        exists = false;   // the shot has a document (its stamp below, taken before the read)
+    qint64      size = 0;
+    qint64      mtimeMs = 0;
+    QJsonObject root;             // empty when nothing was read
+    QString     error;            // why nothing was read; may be empty when the store gave no reason
+};
+class SnapshotShotReader
+{
+public:
+    virtual ~SnapshotShotReader() = default;
+    // The shot's document stamp now (a stat; no read).
+    virtual SnapshotShotRead stamp(const QString &swingDir) const = 0;
+    // The shot's analysis without its per-frame tracks.
+    virtual SnapshotShotRead analysis(const QString &swingDir) const = 0;
+    // The shot's whole document, its tracks included (the Posture picture's poses).
+    virtual SnapshotShotRead document(const QString &swingDir) const = 0;
+};
+
 // What the panel reads: an immutable snapshot of the session.
 struct SessionSnapshot {
     QString sessionDir;
@@ -218,6 +244,9 @@ struct SessionSnapshot {
     // read, or has not graded that shot. The Wrist chart says it in the cells, never leaves them empty.
     QString wristPendingWhy;
     quint64 revision = 0;                                    // bumps on every change
+    // ADDED 23 Nov (refactor 5.5c): the session's own read door for its shots (above). Null: nothing can be read again
+    // (a test's hand-made snapshot), and a reader says so in words.
+    std::shared_ptr<const SnapshotShotReader> reader;
 
     int count() const { return int(shots.size()); }
 };

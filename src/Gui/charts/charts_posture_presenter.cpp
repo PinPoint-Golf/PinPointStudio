@@ -18,11 +18,12 @@
 
 #include "charts_posture_presenter.h"
 
-#include "box_map.h"
+#include "charts_gadget.h"   // chartsGadgetMap: the report's payload and the still maker's maps, off the typed results
+#include "../typeset/box_stats.h"
 #include "charts_words.h"
 #include "posture_picture.h"
 #include "session_posture.h"
-#include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
+#include "session_series_extract.h"   // folderShotId (refactor 5.5a)
 #include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "variability_clubs.h"                              // perClubInputs: one window per club (R2b)
 
@@ -32,8 +33,6 @@
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/characteristic.h"
 #include "../../Diagnostics/engine/condition_reading.h"
-#include "../../Export/swing_store.h"
-#include "../../Export/swing_paths.h"
 #include "../../Coaching/session_day_readings_rules.h"   // sessionCamerasOf: this session's cameras (refactor 5.5d)
 
 #include <QCoreApplication>
@@ -41,9 +40,6 @@
 #include <QDateTime>
 #include <QDeadlineTimer>
 #include <QDir>
-#include <QFile>
-#include <QFileInfo>
-#include <QJsonDocument>
 #include <QStandardPaths>
 #include <QHash>
 #include <QJsonObject>
@@ -53,7 +49,6 @@
 #include <QMutexLocker>
 #include <QPointer>
 #include <QSet>
-#include <QThreadPool>
 
 #include <algorithm>
 #include <cmath>
@@ -78,27 +73,23 @@ namespace pinpoint::charts {
 using namespace postureview;
 namespace W = words;
 namespace pa = pinpoint::analysis;
+namespace U = postureui;
 
 // ── the result and the worker ───────────────────────────────────────────────────────────────
 
 struct ChartsPosturePresenter::Result {
     bool available = false;
-    QVariantMap choices, thisShot, session;
-    QVariantList standfirsts;                          // 8 Sentences (thisShot.standfirsts)
+    postureui::Choices  choices;
+    postureui::ThisShot thisShot;
+    postureui::Session  session;
+    QList<postureui::Sentence> standfirsts;            // 8 Sentences (thisShot.standfirsts)
     std::array<qint64, kPosturePositions> posUs{};     // the picked shot's P µs, −1 none
-    QVariantList pendingStills;                        // the picture's stills not made yet (thisShot.picture)
+    QVariantList pendingStills;                        // the picture's stills not made yet, as the still maker reads them
 };
 
 struct ChartsPosturePresenter::Worker {
     QMutex mutex;                                      // held for a whole job
     QHash<const ShotSeries *, CacheEntry> cache;
-
-    // the ★ reference swing outside the session, by its cleaned dir and document stamp
-    QString refDir;
-    qint64  refSize = -1, refMtimeMs = -1;
-    bool    refOk = false;
-    PostureShotInput refIn;
-    QString refWhy;
 
     // the picture strip's documents (posture_picture.h), by cleaned dir and document stamp; a few kept
     struct PictureEntry { qint64 size = -1, mtimeMs = -1; bool pinned = false; PictureDoc doc; };
@@ -108,8 +99,8 @@ struct ChartsPosturePresenter::Worker {
     QMutex stillMutex;
     QHash<QString, QString> stillErrors;
 
-    // THIS session's cameras, off its first swing document (the earlier sessions' come from their summaries: refactor
-    // 5.5d), kept per session folder once read
+    // THIS session's cameras, off the first of its shots whose document records them, read through the snapshot's own
+    // door (the earlier sessions' come from their summaries: refactor 5.5d), kept per session folder once read
     QString camerasDir;
     pinpoint::analysis::SessionCameras cameras;
 
@@ -130,6 +121,18 @@ const QString kLossOfPosture = QStringLiteral("loss_of_posture");
 using W::fin;
 QVariant nv(double v) { return fin(v) ? QVariant(v) : QVariant::fromValue(nullptr); }
 QVariant nullv() { return QVariant::fromValue(nullptr); }
+double nanv() { return std::numeric_limits<double>::quiet_NaN(); }
+
+// words::Sentence as the gadget QML reads: its text, its runs and its first clause (Sentence::toVariant's shape).
+U::Sentence sentenceOf(const W::Sentence &s)
+{
+    U::Sentence out;
+    out.text = s.text();
+    for (const W::Sentence::Run &r : s.runs) out.runs.append(U::Run{ r.text, r.fig });
+    out.clause = W::firstClauseOf(out.text);
+    return out;
+}
+U::Sentence sentenceOf(const QString &text) { return sentenceOf(W::Sentence().append(text)); }
 QString cleanDir(const QString &d) { return d.trimmed().isEmpty() ? QString() : QDir::cleanPath(d.trimmed()); }
 QString golferSafe(const QString &t) { return t.contains(QLatin1Char('`')) ? QString() : t; }   // a backtick = an author's note
 
@@ -299,73 +302,82 @@ struct Ctx {
     QString refWhy, refLabel, refDir;
 };
 
-// The reference: the session's own reading when it is one of its shots, else SwingStore::loadAnalysis →
-// extractShot → postureInputFromShot, cached by the document's stamp (the wrist presenter's rule).
+// The reference: the session's own reading when it is one of its shots; else the ★ the GUI thread picked through the ★
+// swing's own session (referencePickOf, charts_presenter_core.h: that session's shot as its series read it, without its
+// place or findings), read here as any shot is (postureInputFromShot); else why, in its words.
 void resolveReference(Ctx &c)
 {
     const QString dir = cleanDir(c.in.referenceSwingDir);
     c.refDir = dir;
     c.refSet = !dir.isEmpty();
-    if (!c.refSet) { c.refWhy = QStringLiteral("No reference swing is set: ★ marks one, and it stays your reference across sessions."); return; }
+    if (!c.refSet) { c.refWhy = c.in.reference.why; return; }
     c.refLabel = referenceLabelOf(dir);
     c.refIsPicked = c.shot && cleanDir(c.shot->swingDir) == dir;
     for (int i = 0; i < c.n; ++i)
         if (cleanDir(c.snap->shots[size_t(i)]->swingDir) == dir) { c.refOk = true; c.refIn = c.inputs[size_t(i)]; return; }
-    ChartsPosturePresenter::Worker &w = c.w;
-    const pinpoint::SwingStore::DocInfo info = pinpoint::SwingStore::info(dir);
-    if (!(dir == w.refDir && info.size == w.refSize && info.mtimeMs == w.refMtimeMs)) {
-        w.refDir = dir; w.refSize = info.size; w.refMtimeMs = info.mtimeMs;
-        w.refOk = false; w.refIn = PostureShotInput{}; w.refWhy.clear();
-        if (!info.exists()) {
-            w.refWhy = QStringLiteral("The reference swing is no longer on disk.");
-        } else {
-            QString err, whyNot;
-            const QJsonObject root = pinpoint::SwingStore::loadAnalysis(dir, &err);
-            std::shared_ptr<ShotSeries> shot;
-            if (!root.isEmpty()) shot = extractShot(root, dir, &whyNot);
-            if (shot) { w.refOk = true; w.refIn = postureInputFromShot(*shot, c.env); }
-            else w.refWhy = QStringLiteral("The reference swing cannot be read: %1.")
-                                .arg(whyNot.isEmpty() ? QStringLiteral("the swing document could not be read") : whyNot);
-            if (!err.isEmpty()) ppWarn() << "[Charts] posture reference" << dir << err;
-        }
+    if (c.in.reference.shot) {
+        c.refOk = true;
+        c.refIn = postureInputFromShot(*c.in.reference.shot, c.env);
+    } else {
+        c.refWhy = c.in.reference.why;
     }
-    c.refOk = w.refOk;
-    c.refIn = w.refIn;
-    c.refWhy = w.refWhy;
 }
 
-// ── maps ────────────────────────────────────────────────────────────────────────────────────
+// ── the typed values (charts_posture_types.h) ───────────────────────────────────────────────
 
-QVariantMap posMap(int i, qint64 us)
+U::Position positionOf(int i, qint64 us)
 {
-    return { { QStringLiteral("index"), i }, { QStringLiteral("tag"), posturePositionTag(i) },
-             { QStringLiteral("phase"), posturePhaseIds()[size_t(i)] }, { QStringLiteral("name"), posturePositionWhen(i) },
-             { QStringLiteral("available"), us >= 0 }, { QStringLiteral("tUs"), qlonglong(us) }, { QStringLiteral("seekUs"), qlonglong(us) } };
+    U::Position p;
+    p.index = i;
+    p.tag = posturePositionTag(i);
+    p.phase = posturePhaseIds()[size_t(i)];
+    p.name = posturePositionWhen(i);
+    p.available = us >= 0;
+    p.tUs = us;
+    p.seekUs = us;
+    return p;
 }
-QVariantList positionsList(const std::array<qint64, kPos> &us)
+QList<U::Position> positionsList(const std::array<qint64, kPos> &us)
 {
-    QVariantList out;
-    for (int i = 0; i < kPos; ++i) out.append(posMap(i, us[size_t(i)]));
+    QList<U::Position> out;
+    for (int i = 0; i < kPos; ++i) out.append(positionOf(i, us[size_t(i)]));
     return out;
 }
 
-QVariant faultMap(const PostureFault &f, PostureRow r)
+// FAULT, or null when the cell has no fault line on that side.
+QVariant faultOf(const PostureFault &f, PostureRow r)
 {
     if (!f.has) return nullv();
-    return QVariantMap{ { QStringLiteral("edge"), nv(f.edge) }, { QStringLiteral("edgeText"), postureFigure(r, f.edge) },
-                        { QStringLiteral("conditionId"), f.conditionId }, { QStringLiteral("label"), f.label } };
+    U::Fault out;
+    out.edge = nv(f.edge);
+    out.edgeText = postureFigure(r, f.edge);
+    out.conditionId = f.conditionId;
+    out.label = f.label;
+    return QVariant::fromValue(out);
 }
 
 QString boxFmt(PostureRow r, double v) { return postureFigure(r, v); }
 
-// A box, its outliers re-numbered from the core's pool order (the shots with a posture reading) to ordinals.
-QVariantMap boxOf(const box::BoxStats &b, PostureRow r, const std::vector<int> &poolOrdinals)
+// box_map.h's BOX, typed: the outliers as `i + 1` (values are per shot) and the texts once there is a shot.
+U::Box boxGadget(const box::BoxStats &b, const std::function<QString(double)> &fmt)
 {
-    QVariantMap m = boxMap(b, [r](double v) { return boxFmt(r, v); });
-    QVariantList out;
-    for (int i : b.outliers) out.append(i >= 0 && size_t(i) < poolOrdinals.size() ? poolOrdinals[size_t(i)] : i + 1);
-    m.insert(QStringLiteral("outliers"), out);
-    return m;
+    U::Box out;
+    out.n = b.n;
+    out.min = nv(b.min); out.max = nv(b.max);
+    out.q1 = nv(b.q1); out.med = nv(b.med); out.q3 = nv(b.q3);
+    out.lo = nv(b.lo); out.hi = nv(b.hi);
+    for (int i : b.outliers) out.outliers.append(i + 1);
+    if (fmt && b.n > 0) out.texts = U::BoxTexts{ fmt(b.lo), fmt(b.q1), fmt(b.med), fmt(b.q3), fmt(b.hi) };
+    return out;
+}
+
+// A box, its outliers re-numbered from the core's pool order (the shots with a posture reading) to ordinals.
+U::Box boxOf(const box::BoxStats &b, PostureRow r, const std::vector<int> &poolOrdinals)
+{
+    U::Box out = boxGadget(b, [r](double v) { return boxFmt(r, v); });
+    out.outliers.clear();
+    for (int i : b.outliers) out.outliers.append(i >= 0 && size_t(i) < poolOrdinals.size() ? poolOrdinals[size_t(i)] : i + 1);
+    return out;
 }
 
 // The ⚠'s short words, under the cell's figure (the full reason is said once, in the trust fold): the gate's
@@ -382,67 +394,92 @@ QString warnShortOf(PostureRow r, const PostureCellView &c)
     }
 }
 
-QVariantMap cellMap(const PostureRowView &rv, const PostureCellView &c, double ghost, qint64 seekUs, double picked)
+U::Cell cellOf(const PostureRowView &rv, const PostureCellView &c, double ghost, qint64 seekUs, double picked)
 {
     const PostureRow r = rv.row;
     const bool avail = fin(c.value);
     const PostureBand &b = c.band;
     // decision 16: the cell's second reading (trunk bend at P3–P5: the back line), under its own ⚠
     const bool altAvail = c.alt && fin(c.altValue);
-    return {
-        { QStringLiteral("alt"), c.alt }, { QStringLiteral("altAvailable"), altAvail }, { QStringLiteral("altValue"), nv(c.altValue) },
-        { QStringLiteral("altLabel"), c.altLabel }, { QStringLiteral("altFigure"), c.altFigure }, { QStringLiteral("altText"), c.altText },
-        { QStringLiteral("altWarn"), c.altWarned && altAvail ? QStringLiteral("⚠") : QString() },
-        { QStringLiteral("altWarnShort"), altAvail ? c.altWarnShort : QString() },
-        { QStringLiteral("index"), c.pos }, { QStringLiteral("tag"), c.tag }, { QStringLiteral("available"), avail },
-        { QStringLiteral("value"), nv(c.value) }, { QStringLiteral("text"), c.text }, { QStringLiteral("valueText"), valueText(r, c.value) },
-        // the ⚠ is DRAWN only on a figure: a refused reading is a plain "-" (its reason is said once, in TRUST)
-        { QStringLiteral("warned"), c.warned }, { QStringLiteral("warn"), c.warned && avail ? QStringLiteral("⚠") : QString() },
-        { QStringLiteral("warnReason"), c.warnReason }, { QStringLiteral("warnShort"), avail ? warnShortOf(r, c) : QString() },
-        { QStringLiteral("gateWords"), c.gateWords },
-        { QStringLiteral("counted"), c.counted },
-        { QStringLiteral("banded"), b.has }, { QStringLiteral("bandLo"), nv(b.lo) }, { QStringLiteral("bandHi"), nv(b.hi) },
-        { QStringLiteral("bandMu"), nv(b.mu) }, { QStringLiteral("watchLo"), nv(b.watchLo) }, { QStringLiteral("watchHi"), nv(b.watchHi) },
-        { QStringLiteral("bandContext"), b.contextId }, { QStringLiteral("bandInherited"), b.inherited },
-        { QStringLiteral("bandSource"), b.source }, { QStringLiteral("wash"), b.has ? QStringLiteral("band") : QStringLiteral("none") },
-        { QStringLiteral("z"), nv(c.z) }, { QStringLiteral("outside"), c.outside }, { QStringLiteral("ring"), c.outside },
-        { QStringLiteral("ringWord"), c.ring }, { QStringLiteral("exit"), c.exit }, { QStringLiteral("beyondFault"), c.beyondFault },
-        { QStringLiteral("faultHi"), faultMap(c.fault.hi, r) }, { QStringLiteral("faultLo"), faultMap(c.fault.lo, r) },
-        { QStringLiteral("firedShots"), c.firedShots }, { QStringLiteral("note"), c.note },
-        { QStringLiteral("mark"), c.outside ? QStringLiteral("ring") : avail ? QStringLiteral("dot") : QStringLiteral("none") },
-        { QStringLiteral("ghost"), nv(ghost) }, { QStringLiteral("ghostText"), postureFigure(r, ghost) },
-        { QStringLiteral("seekUs"), qlonglong(seekUs) },
-        { QStringLiteral("picked"), nv(picked) }, { QStringLiteral("pickedText"), postureFigure(r, picked) } };
-}
-
-// Each shot's value at one cell, index = ordinal − 1, null where unmeasured (PpChBoxCell's `values`: the
-// shots past the whiskers and the picked one are drawn from these).
-QVariantList valuesOf(const std::vector<PostureShotInput> *inputs, int maxOrdinal, PostureRow r, int p)
-{
-    QVariantList out;
-    if (!inputs || maxOrdinal <= 0) return out;
-    for (int i = 0; i < maxOrdinal; ++i) out.append(nullv());
-    for (const PostureShotInput &s : *inputs)
-        if (s.ordinal >= 1 && s.ordinal <= maxOrdinal) out[s.ordinal - 1] = nv(s.value[size_t(r)][size_t(p)]);
+    U::Cell out;
+    out.alt = c.alt;
+    out.altAvailable = altAvail;
+    out.altValue = nv(c.altValue);
+    out.altLabel = c.altLabel;
+    out.altFigure = c.altFigure;
+    out.altText = c.altText;
+    out.altWarn = c.altWarned && altAvail ? QStringLiteral("⚠") : QString();
+    out.altWarnShort = altAvail ? c.altWarnShort : QString();
+    out.index = c.pos;
+    out.tag = c.tag;
+    out.available = avail;
+    out.value = nv(c.value);
+    out.text = c.text;
+    out.valueText = valueText(r, c.value);
+    // the ⚠ is DRAWN only on a figure: a refused reading is a plain "-" (its reason is said once, in TRUST)
+    out.warned = c.warned;
+    out.warn = c.warned && avail ? QStringLiteral("⚠") : QString();
+    out.warnReason = c.warnReason;
+    out.warnShort = avail ? warnShortOf(r, c) : QString();
+    out.gateWords = c.gateWords;
+    out.counted = c.counted;
+    out.banded = b.has;
+    out.bandLo = nv(b.lo); out.bandHi = nv(b.hi); out.bandMu = nv(b.mu);
+    out.watchLo = nv(b.watchLo); out.watchHi = nv(b.watchHi);
+    out.bandContext = b.contextId;
+    out.bandInherited = b.inherited;
+    out.bandSource = b.source;
+    out.wash = b.has ? QStringLiteral("band") : QStringLiteral("none");
+    out.z = nv(c.z);
+    out.outside = c.outside;
+    out.ring = c.outside;
+    out.ringWord = c.ring;
+    out.exit = c.exit;
+    out.beyondFault = c.beyondFault;
+    out.faultHi = faultOf(c.fault.hi, r);
+    out.faultLo = faultOf(c.fault.lo, r);
+    out.firedShots = c.firedShots;
+    out.note = c.note;
+    out.mark = c.outside ? QStringLiteral("ring") : avail ? QStringLiteral("dot") : QStringLiteral("none");
+    out.ghost = nv(ghost);
+    out.ghostText = postureFigure(r, ghost);
+    out.seekUs = seekUs;
+    out.picked = nv(picked);
+    out.pickedText = postureFigure(r, picked);
     return out;
 }
 
-// One row. `ghost` / `picked` NaN-filled when absent; `boxes` non-null on Session.
-QVariantMap rowMap(const PostureRowView &rv, const std::array<double, kPos> &ghost, const std::array<double, kPos> &picked,
-                   const std::array<qint64, kPos> &us, const std::array<box::BoxStats, kPos> *boxes,
-                   const std::vector<int> &poolOrdinals, const std::vector<PostureShotInput> *inputs = nullptr)
+// Each shot's value at one cell, index = ordinal − 1, NaN where unmeasured (PpChBoxCell's `values`: the shots past the
+// whiskers and the picked one are drawn from these; it reads NaN as it read null).
+QList<double> valuesOf(const std::vector<PostureShotInput> *inputs, int maxOrdinal, PostureRow r, int p)
+{
+    QList<double> out;
+    if (!inputs || maxOrdinal <= 0) return out;
+    for (int i = 0; i < maxOrdinal; ++i) out.append(nanv());
+    for (const PostureShotInput &s : *inputs)
+        if (s.ordinal >= 1 && s.ordinal <= maxOrdinal) {
+            const double v = s.value[size_t(r)][size_t(p)];
+            out[s.ordinal - 1] = fin(v) ? v : nanv();
+        }
+    return out;
+}
+
+// One row. `ghost` / `picked` NaN-filled when absent; `boxes` non-null on Session (This shot's row has none).
+U::Row rowOf(const PostureRowView &rv, const std::array<double, kPos> &ghost, const std::array<double, kPos> &picked,
+             const std::array<qint64, kPos> &us, const std::array<box::BoxStats, kPos> *boxes,
+             const std::vector<int> &poolOrdinals, const std::vector<PostureShotInput> *inputs = nullptr)
 {
     int maxOrdinal = 0;
     if (inputs) for (const PostureShotInput &s : *inputs) maxOrdinal = std::max(maxOrdinal, s.ordinal);
     const PostureRow r = rv.row;
     const PostureRowSpec &s = specOf(r);
     Span sc;
-    QVariantList cells, bx;
+    U::Row out;
     int outCount = 0;
     bool hasAlt = false;   // decision 16: a second reading under some cell (the QML gives the row its line)
     for (int p = 0; p < kPos; ++p) {
         const PostureCellView &c = rv.cells[size_t(p)];
-        cells.append(cellMap(rv, c, ghost[size_t(p)], us[size_t(p)], picked[size_t(p)]));
+        out.cells.append(cellOf(rv, c, ghost[size_t(p)], us[size_t(p)], picked[size_t(p)]));
         sc.add(c.value); sc.add(ghost[size_t(p)]); sc.add(picked[size_t(p)]);
         if (c.band.has) { sc.add(c.band.lo); sc.add(c.band.hi); }
         if (c.fault.hi.has) sc.add(c.fault.hi.edge);
@@ -454,87 +491,158 @@ QVariantMap rowMap(const PostureRowView &rv, const std::array<double, kPos> &gho
             sc.add(b.min); sc.add(b.max);
             // P1 is address itself: its figure alone ("0"), never a "0 cm wide" line
             const double med = b.n >= 1 ? b.med : kNaN, wide = b.n >= 3 && p > 0 ? b.iqr : kNaN;
-            bx.append(QVariantMap{ { QStringLiteral("box"), boxOf(b, r, poolOrdinals) }, { QStringLiteral("n"), b.n },
-                                   { QStringLiteral("median"), nv(med) }, { QStringLiteral("medianText"), postureFigure(r, med) },
-                                   { QStringLiteral("wide"), nv(wide) },
-                                   { QStringLiteral("wideText"), fin(wide) ? bareText(r, wide) + QStringLiteral(" wide") : QString() },
-                                   { QStringLiteral("picked"), nv(picked[size_t(p)]) },
-                                   { QStringLiteral("values"), valuesOf(inputs, maxOrdinal, r, p) } });
+            U::BoxCell bc;
+            bc.box = boxOf(b, r, poolOrdinals);
+            bc.n = b.n;
+            bc.median = nv(med);
+            bc.medianText = postureFigure(r, med);
+            bc.wide = nv(wide);
+            bc.wideText = fin(wide) ? bareText(r, wide) + QStringLiteral(" wide") : QString();
+            bc.picked = nv(picked[size_t(p)]);
+            bc.values = valuesOf(inputs, maxOrdinal, r, p);
+            out.boxes.append(bc);
         }
     }
     sc.finish(minSpanOf(r));
-    return {
-        { QStringLiteral("key"), rv.key }, { QStringLiteral("label"), rv.label }, { QStringLiteral("metricKey"), rv.metricKey },
-        { QStringLiteral("hueKey"), rv.metricKey }, { QStringLiteral("camera"), rv.camera }, { QStringLiteral("unit"), rv.unit },
-        { QStringLiteral("decimals"), s.decimals }, { QStringLiteral("poleWord"), rv.poleWord },
-        { QStringLiteral("poleText"), rv.poleWord.isEmpty() ? QString() : rv.poleWord + QStringLiteral(" ▲") },
-        { QStringLiteral("plusWord"), rv.plusWord }, { QStringLiteral("minusWord"), rv.minusWord },
-        { QStringLiteral("present"), rv.present }, { QStringLiteral("style"), rv.style }, { QStringLiteral("styleWord"), rv.styleWord },
-        { QStringLiteral("styleText"), rv.style && !rv.styleWord.isEmpty() ? QStringLiteral("style: ") + rv.styleWord : QString() },
-        { QStringLiteral("outCount"), outCount }, { QStringLiteral("hasAlt"), hasAlt }, { QStringLiteral("yLo"), sc.lo }, { QStringLiteral("yHi"), sc.hi },
-        { QStringLiteral("cells"), cells }, { QStringLiteral("boxes"), boxes ? QVariant(bx) : nullv() } };
+    out.key = rv.key;
+    out.label = rv.label;
+    out.metricKey = rv.metricKey;
+    out.hueKey = rv.metricKey;
+    out.camera = rv.camera;
+    out.unit = rv.unit;
+    out.decimals = s.decimals;
+    out.poleWord = rv.poleWord;
+    out.poleText = rv.poleWord.isEmpty() ? QString() : rv.poleWord + QStringLiteral(" ▲");
+    out.plusWord = rv.plusWord;
+    out.minusWord = rv.minusWord;
+    out.present = rv.present;
+    out.style = rv.style;
+    out.styleWord = rv.styleWord;
+    out.styleText = rv.style && !rv.styleWord.isEmpty() ? QStringLiteral("style: ") + rv.styleWord : QString();
+    out.outCount = outCount;
+    out.hasAlt = hasAlt;
+    out.yLo = sc.lo;
+    out.yHi = sc.hi;
+    return out;
 }
 
-QVariantMap trailMap(const PostureTrailStyle &t)
+U::Trail trailOf(const PostureTrailStyle &t)
 {
-    return { { QStringLiteral("known"), t.known }, { QStringLiteral("kept"), t.kept }, { QStringLiteral("word"), t.word },
-             { QStringLiteral("words"), t.words }, { QStringLiteral("changeAtTop"), nv(t.changeAtTop) },
-             { QStringLiteral("changeText"), valueText(PostureRow::TrailKnee, t.changeAtTop) } };
+    U::Trail out;
+    out.known = t.known;
+    out.kept = t.kept;
+    out.word = t.word;
+    out.words = t.words;
+    out.changeAtTop = nv(t.changeAtTop);
+    out.changeText = valueText(PostureRow::TrailKnee, t.changeAtTop);
+    return out;
 }
 
-QVariantMap matchFields(const PostureMatch &m)
+U::Match matchOf(const PostureMatch &m)
 {
-    return { { QStringLiteral("ok"), m.ok }, { QStringLiteral("nearest"), m.ok ? QVariant(int(m.nearest)) : nullv() },
-             { QStringLiteral("nearestName"), m.ok ? posturePatternName(m.nearest) : QString() },
-             { QStringLiteral("fit"), m.fit }, { QStringLiteral("fitWords"), m.words }, { QStringLiteral("basis"), m.basis },
-             { QStringLiteral("basisWords"), m.basisWords }, { QStringLiteral("dLevel"), nv(m.dLevel) },
-             { QStringLiteral("dSquatPush"), nv(m.dSquatPush) }, { QStringLiteral("dLevelText"), W::fig(m.dLevel, 2) },
-             { QStringLiteral("dSquatPushText"), W::fig(m.dSquatPush, 2) }, { QStringLiteral("gap"), nv(m.gap) },
-             { QStringLiteral("cells"), m.cells }, { QStringLiteral("rows"), m.rows } };
+    U::Match out;
+    out.ok = m.ok;
+    out.nearest = m.ok ? QVariant(int(m.nearest)) : nullv();
+    out.nearestName = m.ok ? posturePatternName(m.nearest) : QString();
+    out.fit = m.fit;
+    out.fitWords = m.words;
+    out.basis = m.basis;
+    out.basisWords = m.basisWords;
+    out.dLevel = nv(m.dLevel);
+    out.dSquatPush = nv(m.dSquatPush);
+    out.dLevelText = W::fig(m.dLevel, 2);
+    out.dSquatPushText = W::fig(m.dSquatPush, 2);
+    out.gap = nv(m.gap);
+    out.cells = m.cells;
+    out.rows = m.rows;
+    return out;
 }
 
-QVariantMap patternMap(int mode, PosturePattern pat, const QString &name, const QString &source, const QString &sourceWords,
-                       const QString &line, const PostureMatch &used, const PostureMatch &own, const PostureTrailStyle &trail)
+U::Pattern patternOf(int mode, PosturePattern pat, const QString &name, const QString &source, const QString &sourceWords,
+                     const QString &line, const PostureMatch &used, const PostureMatch &own, const PostureTrailStyle &trail)
 {
-    QVariantMap m = matchFields(used);
-    m.insert(QStringLiteral("mode"), mode);
-    m.insert(QStringLiteral("pattern"), int(pat));
-    m.insert(QStringLiteral("name"), name);
-    m.insert(QStringLiteral("source"), source);
-    m.insert(QStringLiteral("sourceWords"), sourceWords);
-    m.insert(QStringLiteral("line"), line);
-    m.insert(QStringLiteral("own"), matchFields(own));
-    m.insert(QStringLiteral("trail"), trailMap(trail));
-    return m;
+    const U::Match m = matchOf(used);
+    U::Pattern out;
+    out.ok = m.ok;
+    out.nearest = m.nearest;
+    out.nearestName = m.nearestName;
+    out.fit = m.fit;
+    out.fitWords = m.fitWords;
+    out.basis = m.basis;
+    out.basisWords = m.basisWords;
+    out.dLevel = m.dLevel;
+    out.dSquatPush = m.dSquatPush;
+    out.dLevelText = m.dLevelText;
+    out.dSquatPushText = m.dSquatPushText;
+    out.gap = m.gap;
+    out.cells = m.cells;
+    out.rows = m.rows;
+    out.mode = mode;
+    out.pattern = int(pat);
+    out.name = name;
+    out.source = source;
+    out.sourceWords = sourceWords;
+    out.line = line;
+    out.own = matchOf(own);
+    out.trail = trailOf(trail);
+    return out;
 }
 
-QVariantMap exitMap(const PostureExit &e, const std::array<qint64, kPos> &us)
+U::Exit exitOf(const PostureExit &e, const std::array<qint64, kPos> &us)
 {
-    return { { QStringLiteral("row"), specOf(e.row).key }, { QStringLiteral("rowLabel"), specOf(e.row).label },
-             { QStringLiteral("pos"), e.pos }, { QStringLiteral("tag"), posturePositionTag(e.pos) },
-             { QStringLiteral("value"), nv(e.value) }, { QStringLiteral("valueText"), valueText(e.row, e.value) },
-             { QStringLiteral("z"), nv(e.z) }, { QStringLiteral("zText"), W::fig(e.z, 1) },
-             { QStringLiteral("departure"), e.departure }, { QStringLiteral("name"), e.name },
-             { QStringLiteral("conditionIds"), e.conditionIds }, { QStringLiteral("named"), e.named },
-             { QStringLiteral("words"), e.words },
-             { QStringLiteral("seekUs"), qlonglong(usAt(us, e.pos)) } };
+    U::Exit out;
+    out.row = specOf(e.row).key;
+    out.rowLabel = specOf(e.row).label;
+    out.pos = e.pos;
+    out.tag = posturePositionTag(e.pos);
+    out.value = nv(e.value);
+    out.valueText = valueText(e.row, e.value);
+    out.z = nv(e.z);
+    out.zText = W::fig(e.z, 1);
+    out.departure = e.departure;
+    out.name = e.name;
+    out.conditionIds = e.conditionIds;
+    out.named = e.named;
+    out.words = e.words;
+    out.seekUs = usAt(us, e.pos);
+    return out;
 }
 
-QVariantMap departureMap(const PostureDeparture &d, const std::array<qint64, kPos> &us)
+U::Departure departureOf(const PostureDeparture &d, const std::array<qint64, kPos> &us)
 {
-    return { { QStringLiteral("id"), d.id }, { QStringLiteral("name"), d.name }, { QStringLiteral("conditionIds"), d.conditionIds },
-             { QStringLiteral("positions"), tagsOf(d.positions) }, { QStringLiteral("positionsText"), rangeText(d.positions) },
-             { QStringLiteral("firstTag"), d.firstPos >= 0 ? posturePositionTag(d.firstPos) : QString() },
-             { QStringLiteral("seekUs"), qlonglong(usAt(us, d.firstPos)) } };
+    U::Departure out;
+    out.id = d.id;
+    out.name = d.name;
+    out.conditionIds = d.conditionIds;
+    out.positions = tagsOf(d.positions);
+    out.positionsText = rangeText(d.positions);
+    out.firstTag = d.firstPos >= 0 ? posturePositionTag(d.firstPos) : QString();
+    out.seekUs = usAt(us, d.firstPos);
+    return out;
 }
 
-QVariantMap movedMap(const PostureMoved &m, const std::array<qint64, kPos> &us)
+U::Moved movedOf(const PostureMoved &m, const std::array<qint64, kPos> &us)
 {
-    return { { QStringLiteral("pos"), m.pos }, { QStringLiteral("tag"), posturePositionTag(m.pos) }, { QStringLiteral("when"), m.when },
-             { QStringLiteral("line"), m.line }, { QStringLiteral("head"), m.head }, { QStringLiteral("bend"), m.bend },
-             { QStringLiteral("attribution"), m.attribution }, { QStringLiteral("hipsIn"), m.hipsIn },
-             { QStringLiteral("hipsWarned"), m.hipsWarned }, { QStringLiteral("bendWarned"), m.bendWarned },
-             { QStringLiteral("seekUs"), qlonglong(usAt(us, m.pos)) } };
+    U::Moved out;
+    out.pos = m.pos;
+    out.tag = posturePositionTag(m.pos);
+    out.when = m.when;
+    out.line = m.line;
+    out.head = m.head;
+    out.bend = m.bend;
+    out.attribution = m.attribution;
+    out.hipsIn = m.hipsIn;
+    out.hipsWarned = m.hipsWarned;
+    out.bendWarned = m.bendWarned;
+    out.seekUs = usAt(us, m.pos);
+    return out;
+}
+U::WhatMoved whatMovedOf(const PostureMoved &top, const PostureMoved &impact, const std::array<qint64, kPos> &us)
+{
+    U::WhatMoved out;
+    out.top = movedOf(top, us);
+    out.impact = movedOf(impact, us);
+    return out;
 }
 
 // ── THE "AT ADDRESS" BLOCK (posture_chart_design.md §7.4.2) ─────────────────────────────────────
@@ -543,31 +651,30 @@ QVariantMap movedMap(const PostureMoved &m, const std::array<qint64, kPos> &us)
 // (xLo…xHi over the band, both boxes and the number), this session's box with a value per shot (index = ordinal − 1)
 // for its marks, and the history box (no shot marks: its swings are other sessions'). `pool`: the ordinals the core's
 // session box was taken over (its outliers are indices into it). `shotView`: the dot is this shot's number.
-QVariantMap addressMapOf(const std::vector<PostureAbsoluteView> &rows, const QStringList &lines, const PostureEnv &env,
-                         const std::vector<PostureShotInput> &inputs, const std::vector<int> &pool, bool shotView,
-                         const QString &many)
+U::AddressBlock addressOf(const std::vector<PostureAbsoluteView> &rows, const QStringList &lines, const PostureEnv &env,
+                          const std::vector<PostureShotInput> &inputs, const std::vector<int> &pool, bool shotView,
+                          const QString &many)
 {
     int maxOrd = 0;
     for (const PostureShotInput &s : inputs) maxOrd = std::max(maxOrd, s.ordinal);
-    QVariantList out;
+    U::AddressBlock block;
     for (const PostureAbsoluteView &a : rows) {
         size_t spec = env.absolutes.size();
         for (size_t i = 0; i < env.absolutes.size(); ++i) if (env.absolutes[i].measureId == a.measureId) spec = i;
         const auto fmt = [u = a.unit](double v) { return postureAddressFigure(v, u); };
-        QVariantMap box = boxMap(a.box, fmt);
-        QVariantList ol;
-        for (int i : a.box.outliers) ol.append(i >= 0 && size_t(i) < pool.size() ? pool[size_t(i)] : i + 1);
-        box.insert(QStringLiteral("outliers"), ol);
-        QVariantList values;
-        for (int k = 0; k < maxOrd; ++k) values.append(nullv());
+        U::Box box = boxGadget(a.box, fmt);
+        box.outliers.clear();
+        for (int i : a.box.outliers) box.outliers.append(i >= 0 && size_t(i) < pool.size() ? pool[size_t(i)] : i + 1);
+        QList<double> values;
+        for (int k = 0; k < maxOrd; ++k) values.append(nanv());
         for (const PostureShotInput &s : inputs)
             if (s.ordinal >= 1 && s.ordinal <= maxOrd && spec < s.absolutes.size() && std::find(pool.begin(), pool.end(), s.ordinal) != pool.end())
-                values[s.ordinal - 1] = nv(s.absolutes[spec]);
+                values[s.ordinal - 1] = fin(s.absolutes[spec]) ? s.absolutes[spec] : nanv();
         QVariant hist = nullv();
         if (a.history.n > 0) {
-            QVariantMap hb = boxMap(a.history, fmt);
-            hb.insert(QStringLiteral("outliers"), QVariantList{});   // other sessions' swings: no marks here
-            hist = hb;
+            U::Box hb = boxGadget(a.history, fmt);
+            hb.outliers.clear();   // other sessions' swings: no marks here
+            hist = QVariant::fromValue(hb);
         }
         // the row's scale: the band, both boxes and the number, never narrower than a few units
         Span sp;   // an absolute: no address zero in it
@@ -579,50 +686,71 @@ QVariantMap addressMapOf(const std::vector<PostureAbsoluteView> &rows, const QSt
         if (!fin(sp.lo) || !fin(sp.hi)) { sp.lo = 0; sp.hi = 1; }
         sp.finish(a.unit == QStringLiteral("cm") ? 4.0 : 10.0);
         const bool banded = a.band.has && fin(a.band.lo) && fin(a.band.hi);
-        out.append(QVariantMap{
-            { QStringLiteral("measureId"), a.measureId }, { QStringLiteral("label"), a.name }, { QStringLiteral("measureLabel"), a.label },
-            { QStringLiteral("unit"), a.unit }, { QStringLiteral("camera"), postureCameraWords(a.camera) },
-            { QStringLiteral("cameraKey"), a.camera == PostureCamera::FaceOn ? QStringLiteral("faceOn") : QStringLiteral("dtl") },
-            { QStringLiteral("metricKey"), a.metricKey }, { QStringLiteral("hueKey"), a.metricKey },
-            { QStringLiteral("value"), nv(a.value) }, { QStringLiteral("text"), a.text },
-            { QStringLiteral("valueWord"), shotView ? QStringLiteral("this shot") : QStringLiteral("median") },
-            { QStringLiteral("banded"), banded }, { QStringLiteral("bandLo"), banded ? nv(a.band.lo) : nullv() },
-            { QStringLiteral("bandHi"), banded ? nv(a.band.hi) : nullv() }, { QStringLiteral("bandMu"), banded ? nv(a.band.mu) : nullv() },
-            { QStringLiteral("bandText"), a.bandText }, { QStringLiteral("bandSource"), banded ? a.band.source : QString() },
-            { QStringLiteral("bandContext"), banded ? a.band.contextId : QString() }, { QStringLiteral("bandInherited"), banded && a.band.inherited },
-            { QStringLiteral("box"), box }, { QStringLiteral("boxN"), a.box.n }, { QStringLiteral("boxText"), a.boxText },
-            { QStringLiteral("values"), values },
-            { QStringLiteral("dot"), shotView ? nv(a.value) : nullv() },
-            { QStringLiteral("history"), hist }, { QStringLiteral("historyN"), a.history.n },
-            { QStringLiteral("historySessions"), a.historySessions }, { QStringLiteral("hasHistory"), a.history.n > 0 },
-            { QStringLiteral("historyText"), a.historyText }, { QStringLiteral("historyWhy"), a.historyWhy },
-            { QStringLiteral("warned"), a.warned }, { QStringLiteral("warn"), a.warned ? a.warn : QString() },
-            { QStringLiteral("warnShort"), a.warned ? a.warnShort : QString() },
-            { QStringLiteral("xLo"), sp.lo }, { QStringLiteral("xHi"), sp.hi }, { QStringLiteral("trust"), a.trust } });
+        U::AddressRow r;
+        r.measureId = a.measureId;
+        r.label = a.name;
+        r.measureLabel = a.label;
+        r.unit = a.unit;
+        r.camera = postureCameraWords(a.camera);
+        r.cameraKey = a.camera == PostureCamera::FaceOn ? QStringLiteral("faceOn") : QStringLiteral("dtl");
+        r.metricKey = a.metricKey;
+        r.hueKey = a.metricKey;
+        r.value = nv(a.value);
+        r.text = a.text;
+        r.valueWord = shotView ? QStringLiteral("this shot") : QStringLiteral("median");
+        r.banded = banded;
+        r.bandLo = banded ? nv(a.band.lo) : nullv();
+        r.bandHi = banded ? nv(a.band.hi) : nullv();
+        r.bandMu = banded ? nv(a.band.mu) : nullv();
+        r.bandText = a.bandText;
+        r.bandSource = banded ? a.band.source : QString();
+        r.bandContext = banded ? a.band.contextId : QString();
+        r.bandInherited = banded && a.band.inherited;
+        r.box = box;
+        r.boxN = a.box.n;
+        r.boxText = a.boxText;
+        r.values = values;
+        r.dot = shotView ? nv(a.value) : nullv();
+        r.history = hist;
+        r.historyN = a.history.n;
+        r.historySessions = a.historySessions;
+        r.hasHistory = a.history.n > 0;
+        r.historyText = a.historyText;
+        r.historyWhy = a.historyWhy;
+        r.warned = a.warned;
+        r.warn = a.warned ? a.warn : QString();
+        r.warnShort = a.warned ? a.warnShort : QString();
+        r.xLo = sp.lo;
+        r.xHi = sp.hi;
+        r.trust = a.trust;
+        block.rows.append(r);
     }
     const QString one = many.endsWith(QLatin1Char('s')) ? many.chopped(1) : many;
-    return { { QStringLiteral("available"), !out.isEmpty() }, { QStringLiteral("title"), QStringLiteral("At address") },
-             { QStringLiteral("sub"), shotView ? QStringLiteral("this %1's number against the good-player band, this session and your earlier sessions").arg(one)
-                                               : QStringLiteral("this session against the good-player band, and your earlier sessions") },
-             { QStringLiteral("rows"), out },
-             { QStringLiteral("legend"), shotView
-                   ? QStringLiteral("Shaded: the good-player band. Upper box: this session, the dot this %1. Lower box: your earlier sessions from this set-up.").arg(one)
-                   : QStringLiteral("Shaded: the good-player band. Upper box: this session. Lower box: your earlier sessions from this set-up.") },
-             { QStringLiteral("lines"), lines } };
+    block.available = !block.rows.isEmpty();
+    block.title = QStringLiteral("At address");
+    block.sub = shotView ? QStringLiteral("this %1's number against the good-player band, this session and your earlier sessions").arg(one)
+                         : QStringLiteral("this session against the good-player band, and your earlier sessions");
+    block.legend = shotView
+        ? QStringLiteral("Shaded: the good-player band. Upper box: this session, the dot this %1. Lower box: your earlier sessions from this set-up.").arg(one)
+        : QStringLiteral("Shaded: the good-player band. Upper box: this session. Lower box: your earlier sessions from this set-up.");
+    block.lines = lines;
+    return block;
 }
 
 // ── the golfer's earlier sessions from the same set-up (§7.4.2) ──
 
-// THIS session's cameras, from its first swing document's streams (the one rule: session_day_readings_rules.h
-// sessionCamerasOf). `known` false when no document was read. The earlier sessions' cameras are their summaries'.
-pa::SessionCameras camerasOf(const QString &sessionDir)
+// THIS session's cameras, from the streams of the first of its shots whose document records them (the one rule:
+// session_day_readings_rules.h sessionCamerasOf), read through the snapshot's own door (SnapshotShotReader: the
+// session's files are its own, P11), shot by shot in the snapshot's order. `known` false when none was read, and with
+// no door (a test's hand-made snapshot). The earlier sessions' cameras are their summaries'.
+pa::SessionCameras camerasOf(const SessionSnapshot &snap)
 {
-    const QDir sd(sessionDir);
-    const QStringList swings = pinpoint::SwingPaths::swingFolders(sessionDir);   // THE one listing (step 2.7b)
-    for (const QString &sw : swings) {
-        const QString dir = sd.filePath(sw);
-        if (!pinpoint::SwingStore::hasDocument(dir)) continue;
-        const pa::SessionCameras c = pa::sessionCamerasOf(pinpoint::SwingStore::loadAnalysis(dir));
+    if (!snap.reader) return {};
+    for (const auto &s : snap.shots) {
+        if (!s) continue;
+        const SnapshotShotRead r = snap.reader->analysis(s->swingDir);
+        if (r.root.isEmpty()) continue;
+        const pa::SessionCameras c = pa::sessionCamerasOf(r.root);
         if (c.known) return c;
     }
     return {};
@@ -703,22 +831,27 @@ PostureAddressHistory postureHistoryFrom(const SessionNeighbours &n, const pa::S
 namespace {
 
 // This session's cameras through the worker's cache (once read, kept for the session folder).
-const pa::SessionCameras &camerasHeld(ChartsPosturePresenter::Worker &w, const QString &sessionDir)
+const pa::SessionCameras &camerasHeld(ChartsPosturePresenter::Worker &w, const SessionSnapshot &snap)
 {
-    const QString dir = cleanDir(sessionDir);
+    const QString dir = cleanDir(snap.sessionDir);
     if (w.camerasDir != dir || !w.cameras.known) {
-        w.cameras = dir.isEmpty() ? pa::SessionCameras{} : camerasOf(dir);
+        w.cameras = dir.isEmpty() ? pa::SessionCameras{} : camerasOf(snap);
         w.camerasDir = dir;
     }
     return w.cameras;
 }
 
-QVariantMap trustMap(const PostureTrust &t)
+U::Trust trustOf(const PostureTrust &t)
 {
-    return { { QStringLiteral("lines"), t.lines }, { QStringLiteral("cameras"), t.cameras }, { QStringLiteral("absent"), t.absent },
-             { QStringLiteral("warnings"), t.warnings },
-             { QStringLiteral("bandSources"), t.bandSources }, { QStringLiteral("trunkDatum"), t.trunkDatum },
-             { QStringLiteral("rigRule"), t.rigRule } };
+    U::Trust out;
+    out.lines = t.lines;
+    out.cameras = t.cameras;
+    out.absent = t.absent;
+    out.warnings = t.warnings;
+    out.bandSources = t.bandSources;
+    out.trunkDatum = t.trunkDatum;
+    out.rigRule = t.rigRule;
+    return out;
 }
 
 std::array<double, kPos> nanRow()
@@ -778,9 +911,9 @@ bool rowUnit(const PostureEnv &env, const ShotSeries *s, const QString &id, cons
     return !m || m->kind != pa::MeasureKind::Composite;
 }
 
-QVariantMap findingMap(const PostureEnv &env, const SessionSnapshot *snap, const ShotSeries *s, const QString &id,
-                       const QString &kind, const PostureDepartureSpec *dep, const std::vector<int> &positions, int seekPos,
-                       const std::array<qint64, kPos> &us)
+U::Finding findingOf(const PostureEnv &env, const SessionSnapshot *snap, const ShotSeries *s, const QString &id,
+                     const QString &kind, const PostureDepartureSpec *dep, const std::vector<int> &positions, int seekPos,
+                     const std::array<qint64, kPos> &us)
 {
     const pa::Condition *c = env.pack ? env.pack->condition(id) : nullptr;
     const bool working = kind == QLatin1String("working");
@@ -796,28 +929,29 @@ QVariantMap findingMap(const PostureEnv &env, const SessionSnapshot *snap, const
     const bool figure = !working && rowUnit(env, s, id, unit);
     const QString tag = seekPos >= 0 ? posturePositionTag(seekPos) : QString();
     const qint64 seek = usAt(us, seekPos);
-    return {
-        { QStringLiteral("id"), id },
-        { QStringLiteral("name"), working ? W::cap1(well) : label },
-        { QStringLiteral("kind"), kind },
-        { QStringLiteral("departure"), dep ? dep->id : QString() },
-        { QStringLiteral("departureName"), dep ? dep->name : QString() },
-        { QStringLiteral("severity"), severity },
-        { QStringLiteral("severityWord"), working ? QStringLiteral("working") : severity },
-        { QStringLiteral("tier"), tier },
-        { QStringLiteral("positions"), tagsOf(positions) },
-        { QStringLiteral("positionsText"), positions.empty() ? QString()
-                                           : positions.size() == 1 ? QStringLiteral("at ") + posturePositionTag(positions.front())
-                                                                   : rangeText(positions) },
-        { QStringLiteral("tag"), tag },
-        { QStringLiteral("seekUs"), qlonglong(seek) },
-        { QStringLiteral("seekText"), tag.isEmpty() || seek < 0 ? QString() : QStringLiteral("Go to ") + tag },
-        { QStringLiteral("value"), figure ? nv(val.value) : nullv() },
-        { QStringLiteral("valueText"), figure ? W::figUnit(val.value, unit) : QString() },
-        { QStringLiteral("z"), nv(val.z) },
-        { QStringLiteral("explanation"), working ? QString() : (why.isEmpty() ? W::cap1(golfer) : why) },
-        // Working well says its golferWell line only: golferWhy describes the FAULT
-        { QStringLiteral("protect"), QString() } };
+    U::Finding out;
+    out.id = id;
+    out.name = working ? W::cap1(well) : label;
+    out.kind = kind;
+    out.departure = dep ? dep->id : QString();
+    out.departureName = dep ? dep->name : QString();
+    out.severity = severity;
+    out.severityWord = working ? QStringLiteral("working") : severity;
+    out.tier = tier;
+    out.positions = tagsOf(positions);
+    out.positionsText = positions.empty() ? QString()
+                      : positions.size() == 1 ? QStringLiteral("at ") + posturePositionTag(positions.front())
+                                              : rangeText(positions);
+    out.tag = tag;
+    out.seekUs = seek;
+    out.seekText = tag.isEmpty() || seek < 0 ? QString() : QStringLiteral("Go to ") + tag;
+    out.value = figure ? nv(val.value) : nullv();
+    out.valueText = figure ? W::figUnit(val.value, unit) : QString();
+    out.z = nv(val.z);
+    out.explanation = working ? QString() : (why.isEmpty() ? W::cap1(golfer) : why);
+    // Working well says its golferWell line only: golferWhy describes the FAULT
+    out.protect = QString();
+    return out;
 }
 
 // Findings: the fired conditions that name a departure, plus trail_knee_straighten and loss_of_posture;
@@ -826,12 +960,12 @@ QVariantMap findingMap(const PostureEnv &env, const SessionSnapshot *snap, const
 // the ledger graded them. Working well: per axis, the first posture condition graded clean, inside its
 // band, with golfer words — none where the axis fired.
 void ledgersOf(const PostureEnv &env, const SessionSnapshot *snap, const ShotSeries *s, const PostureShotInput &in,
-               const PostureShotView &v, const std::array<qint64, kPos> &us, QVariantList *findings, QVariantList *working)
+               const PostureShotView &v, const std::array<qint64, kPos> &us, QList<U::Finding> *findings, QList<U::Finding> *working)
 {
     if (!in.graded) return;
     const std::vector<PostureDepartureSpec> specs = postureDepartureSpecs(env);
     const QStringList *order = snap ? &snap->workOnOrder : nullptr;
-    struct F { QVariantMap m; int rank; bool pattern; double z; };
+    struct F { U::Finding m; int rank; bool pattern; double z; };
     std::vector<F> fs;
     for (const QString &id : in.fired) {
         // the departure this shot left by that names it, else the first in the table that does
@@ -853,7 +987,7 @@ void ledgersOf(const PostureEnv &env, const SessionSnapshot *snap, const ShotSer
         const int seek = at >= 0 ? at : (positions.empty() ? -1 : positions.front());
         const double z = s ? s->diagnostics.values.value(id).z : kNaN;
         const QString kind = dep ? QStringLiteral("departure") : trail ? QStringLiteral("trailKnee") : QStringLiteral("finding");
-        fs.push_back({ findingMap(env, snap, s, id, kind, dep, positions, seek, us), postureWorkOnRank(order, id),
+        fs.push_back({ findingOf(env, snap, s, id, kind, dep, positions, seek, us), postureWorkOnRank(order, id),
                        sessionTier(snap, id, true) == QLatin1String("pattern"), fin(z) ? std::fabs(z) : 0.0 });
     }
     std::stable_sort(fs.begin(), fs.end(), [](const F &a, const F &b) {
@@ -902,15 +1036,15 @@ void ledgersOf(const PostureEnv &env, const SessionSnapshot *snap, const ShotSer
         const int at = conditionPos(s, env, speak);
         std::vector<int> positions;
         if (at >= 0) positions.push_back(at);
-        working->append(findingMap(env, snap, s, speak, QStringLiteral("working"), nullptr, positions, at, us));
+        working->append(findingOf(env, snap, s, speak, QStringLiteral("working"), nullptr, positions, at, us));
     }
 }
 
 // ── the standfirsts ─────────────────────────────────────────────────────────────────────────
 
-QVariantList standfirstsOf(const PostureShotView &v, const std::array<qint64, kPos> &us)
+QList<U::Sentence> standfirstsOf(const PostureShotView &v, const std::array<qint64, kPos> &us)
 {
-    QVariantList out;
+    QList<U::Sentence> out;
     for (int p = 0; p < kPos; ++p) {
         W::Sentence st;
         const QString tag = posturePositionTag(p), when = posturePositionWhen(p);
@@ -939,7 +1073,7 @@ QVariantList standfirstsOf(const PostureShotView &v, const std::array<qint64, kP
             }
             st.append(QStringLiteral(", from address."));
         }
-        out.append(st.toVariant());
+        out.append(sentenceOf(st));
     }
     return out;
 }
@@ -1002,9 +1136,9 @@ std::vector<PostureClubGrades> postureGrades(const std::vector<PostureShotInput>
     return out;
 }
 
-QVariant postureResultOf(const pv::VariabilityResult &res, PostureRow r)
+pv::VariabilityResultView postureResultOf(const pv::VariabilityResult &res, PostureRow r)
 {
-    return QVariant::fromValue(pv::VariabilityResultView::fromResult(res, specOf(r).unit, specOf(r).decimals));
+    return pv::VariabilityResultView::fromResult(res, specOf(r).unit, specOf(r).decimals);
 }
 
 // A club's cells on one row are all "Not enough swings": the row names the club once, with that grade.
@@ -1020,25 +1154,24 @@ bool postureRowTooFew(const PostureClubGrades &g, int r)
 }
 
 // ROW.grades: per club, the graded cells (or the one grade-0 result for a club too few to grade).
-QVariantList postureRowGrades(const std::vector<PostureClubGrades> &grades, int r)
+QList<U::Grade> postureRowGrades(const std::vector<PostureClubGrades> &grades, int r)
 {
-    QVariantList out;
+    QList<U::Grade> out;
     const bool named = grades.size() > 1;
     for (const PostureClubGrades &g : grades) {
-        QVariantList cells;
-        QVariant first;
+        QList<U::GradeCell> cells;
         for (int p = 1; p < kPos; ++p) {
             if (!g.has[size_t(r)][size_t(p)]) continue;
-            const QVariant res = postureResultOf(g.result[size_t(r)][size_t(p)], PostureRow(r));
-            if (!first.isValid()) first = res;
-            cells.append(QVariantMap{ { QStringLiteral("index"), p }, { QStringLiteral("tag"), posturePositionTag(p) },
-                                      { QStringLiteral("result"), res } });
+            cells.append(U::GradeCell{ p, posturePositionTag(p), postureResultOf(g.result[size_t(r)][size_t(p)], PostureRow(r)) });
         }
         if (cells.isEmpty()) continue;
-        const bool tooFew = postureRowTooFew(g, r);
-        out.append(QVariantMap{ { QStringLiteral("club"), g.club }, { QStringLiteral("named"), named },
-                                { QStringLiteral("tooFew"), tooFew }, { QStringLiteral("result"), tooFew ? first : nullv() },
-                                { QStringLiteral("cells"), tooFew ? QVariantList{} : cells } });
+        U::Grade gr;
+        gr.club = g.club;
+        gr.named = named;
+        gr.tooFew = postureRowTooFew(g, r);
+        gr.result = gr.tooFew ? QVariant::fromValue(cells.first().result) : nullv();
+        if (!gr.tooFew) gr.cells = cells;
+        out.append(gr);
     }
     return out;
 }
@@ -1047,9 +1180,9 @@ QVariantList postureRowGrades(const std::vector<PostureClubGrades> &grades, int 
 // over the row's graded positions for that club, as a plain map (toMap) so it travels to paper. A club with no graded
 // position on the row has no entry. The report's Posture and Wrist pages draw it beside the row's name; the Charts
 // screens keep ROW.grades, the badge per position.
-QVariantList postureRowCellGrades(const std::vector<PostureClubGrades> &grades, int r)
+QList<U::RowGrade> postureRowCellGrades(const std::vector<PostureClubGrades> &grades, int r)
 {
-    QVariantList out;
+    QList<U::RowGrade> out;
     const bool named = grades.size() > 1;
     for (const PostureClubGrades &g : grades) {
         std::vector<pv::VariabilityResult> readings;
@@ -1058,16 +1191,15 @@ QVariantList postureRowCellGrades(const std::vector<PostureClubGrades> &grades, 
         if (readings.empty()) continue;
         const pv::CellGrade cell = pv::cellGrade(readings);
         if (!cell.graded) continue;
-        out.append(QVariantMap{ { QStringLiteral("club"), g.club }, { QStringLiteral("named"), named },
-                                { QStringLiteral("result"), pv::VariabilityResultView::fromCellGrade(cell).toMap() } });
+        out.append(U::RowGrade{ g.club, named, pv::VariabilityResultView::fromCellGrade(cell) });
     }
     return out;
 }
 
 // consistency.lines: per club, its most and least consistent cell from P2 on, ranked by ρ (graded 1–5 only).
-QVariantMap postureConsistency(const std::vector<PostureClubGrades> &grades)
+U::Consistency postureConsistency(const std::vector<PostureClubGrades> &grades)
 {
-    QVariantList lines;
+    U::Consistency out;
     const bool named = grades.size() > 1;
     for (const PostureClubGrades &g : grades) {
         struct Ranked { int r, p; double rho; };
@@ -1078,18 +1210,16 @@ QVariantMap postureConsistency(const std::vector<PostureClubGrades> &grades)
                 if (!g.has[size_t(r)][size_t(p)]) continue;
                 const pv::VariabilityResult &res = g.result[size_t(r)][size_t(p)];
                 if (res.grade >= 1 && fin(res.rho)) ranked.push_back({ r, p, res.rho });
-                else if (res.grade == 0 && !zero.isValid()) zero = postureResultOf(res, PostureRow(r));
+                else if (res.grade == 0 && !zero.isValid()) zero = QVariant::fromValue(postureResultOf(res, PostureRow(r)));
             }
-        QVariantMap line{ { QStringLiteral("club"), g.club }, { QStringLiteral("named"), named } };
+        U::ConsistencyLine line;   // most and least null, their texts "", until ranked
+        line.club = g.club;
+        line.named = named;
         if (ranked.empty()) {
             if (!zero.isValid()) continue;   // nothing graded for this club: no line
-            line.insert(QStringLiteral("tooFew"), true);
-            line.insert(QStringLiteral("result"), zero);
-            line.insert(QStringLiteral("mostText"), QString());
-            line.insert(QStringLiteral("most"), nullv());
-            line.insert(QStringLiteral("leastText"), QString());
-            line.insert(QStringLiteral("least"), nullv());
-            lines.append(line);
+            line.tooFew = true;
+            line.result = zero;
+            out.lines.append(line);
             continue;
         }
         std::stable_sort(ranked.begin(), ranked.end(), [](const Ranked &a, const Ranked &b) { return a.rho < b.rho; });
@@ -1097,43 +1227,38 @@ QVariantMap postureConsistency(const std::vector<PostureClubGrades> &grades)
         const auto where = [](const Ranked &x) {
             return QStringLiteral("%1 at %2").arg(postureRowSpec(PostureRow(x.r)).noun, posturePositionTag(x.p));
         };
-        line.insert(QStringLiteral("tooFew"), false);
-        line.insert(QStringLiteral("result"), nullv());
-        line.insert(QStringLiteral("mostText"), QStringLiteral("Most: ") + where(lo));
-        line.insert(QStringLiteral("most"), postureResultOf(g.result[size_t(lo.r)][size_t(lo.p)], PostureRow(lo.r)));
+        line.tooFew = false;
+        line.mostText = QStringLiteral("Most: ") + where(lo);
+        line.most = QVariant::fromValue(postureResultOf(g.result[size_t(lo.r)][size_t(lo.p)], PostureRow(lo.r)));
         const bool two = ranked.size() >= 2;
-        line.insert(QStringLiteral("leastText"), two ? QStringLiteral("Least: ") + where(hi) : QString());
-        line.insert(QStringLiteral("least"), two ? postureResultOf(g.result[size_t(hi.r)][size_t(hi.p)], PostureRow(hi.r)) : nullv());
-        lines.append(line);
+        line.leastText = two ? QStringLiteral("Least: ") + where(hi) : QString();
+        line.least = two ? QVariant::fromValue(postureResultOf(g.result[size_t(hi.r)][size_t(hi.p)], PostureRow(hi.r))) : nullv();
+        out.lines.append(line);
     }
-    return { { QStringLiteral("lines"), lines } };
+    return out;
 }
 
 // `picked` may be a shot outside the snapshot (its own detail): then nothing in the strip is picked. `noun`:
 // what the words count, plural ("shots" on Charts, "swings" in the report) — the core's sentences take the same.
-QVariantMap sessionMapOf(const PostureEnv &env, const std::vector<PostureShotInput> &inputs, const PostureSessionView &sv,
-                         int patternMode, int pickedIndex, const PostureShotInput *picked, const std::array<qint64, kPos> &us,
-                         const QString &noun = QStringLiteral("shots"))
+U::Session sessionOf(const PostureEnv &env, const std::vector<PostureShotInput> &inputs, const PostureSessionView &sv,
+                     int patternMode, int pickedIndex, const PostureShotInput *picked, const std::array<qint64, kPos> &us,
+                     const QString &noun = QStringLiteral("shots"))
 {
-    QVariantMap out;
+    U::Session out;
     const QString many = noun, one = noun.endsWith(QLatin1Char('s')) ? noun.chopped(1) : noun;
     const int n = int(inputs.size());
-    out.insert(QStringLiteral("n"), n);
-    out.insert(QStringLiteral("shots"), sv.shots);
-    out.insert(QStringLiteral("small"), sv.shots < 10);
-    out.insert(QStringLiteral("available"), sv.available);
-    out.insert(QStringLiteral("fromSession"), sv.fromSession);
-    out.insert(QStringLiteral("kicker"), QStringLiteral("%1 %2").arg(n).arg(n == 1 ? one : many)
-                                             + clubsWords(inputs) + QStringLiteral("  ·  Posture"));
-    out.insert(QStringLiteral("departuresEmpty"), QStringLiteral("No %1 left the pattern's band.").arg(one));
+    out.n = n;
+    out.shots = sv.shots;
+    out.isSmall = sv.shots < 10;
+    out.available = sv.available;
+    out.fromSession = sv.fromSession;
+    out.kicker = QStringLiteral("%1 %2").arg(n).arg(n == 1 ? one : many) + clubsWords(inputs) + QStringLiteral("  ·  Posture");
+    out.departuresEmpty = QStringLiteral("No %1 left the pattern's band.").arg(one);
     if (!sv.available) {
+        // the rest stays at its defaults (no departures, an empty strip, no profile): every reader tests `available`
         const QString h = QStringLiteral("No %1 in this session carries a posture reading").arg(one);
-        out.insert(QStringLiteral("head"), W::Sentence().append(h).toVariant());
-        out.insert(QStringLiteral("headText"), h);
-        out.insert(QStringLiteral("patternLine"), QString());
-        out.insert(QStringLiteral("departures"), QVariantList{});
-        out.insert(QStringLiteral("strip"), QVariantMap{ { QStringLiteral("marks"), QVariantList{} }, { QStringLiteral("onPattern"), 0 },
-                                                          { QStringLiteral("line"), QString() }, { QStringLiteral("legend"), QString() } });
+        out.head = sentenceOf(h);
+        out.headText = h;
         return out;
     }
     std::vector<int> pool;   // the core's pool (shots with a reading), as ordinals
@@ -1148,87 +1273,83 @@ QVariantMap sessionMapOf(const PostureEnv &env, const std::vector<PostureShotInp
     };
     const int pickedOrdinal = pickedIndex >= 0 && picked ? picked->ordinal : -1;
 
-    out.insert(QStringLiteral("head"), W::Sentence().append(sv.headline).toVariant());
-    out.insert(QStringLiteral("headText"), sv.headline);
-    out.insert(QStringLiteral("patternLine"), sv.patternLine);
-    out.insert(QStringLiteral("pattern"), patternMap(patternMode, sv.pattern, sv.patternName, sv.patternSource, sv.patternSourceWords,
-                                                     sv.patternLine, sv.match, sv.match, sv.trail));
+    out.head = sentenceOf(sv.headline);
+    out.headText = sv.headline;
+    out.patternLine = sv.patternLine;
+    out.pattern = patternOf(patternMode, sv.pattern, sv.patternName, sv.patternSource, sv.patternSourceWords,
+                            sv.patternLine, sv.match, sv.match, sv.trail);
 
     // THE PROFILE: the medians against the session's pattern, a box per position, this shot ringed
     // consistency, per club against the band (decision 6, R7): each row's badges, and each box marked graded or not
     const std::vector<PostureClubGrades> grades = postureGrades(inputs, sv);
-    QVariantList rows;
     for (int r = 0; r < kPostureRows; ++r) {
         const PostureSessionRow &sr = sv.rows[size_t(r)];
         std::array<double, kPos> pk = nanRow();
         if (picked) pk = picked->value[size_t(r)];
-        QVariantMap rm = rowMap(sr.view, nanRow(), pk, us, &sr.boxes, pool, &inputs);
-        QVariantList bx = rm.value(QStringLiteral("boxes")).toList();
-        for (int p = 0; p < bx.size(); ++p) {
+        U::Row rm = rowOf(sr.view, nanRow(), pk, us, &sr.boxes, pool, &inputs);
+        for (int p = 0; p < rm.boxes.size(); ++p) {
             bool graded = false;
             for (const PostureClubGrades &g : grades) graded = graded || (p > 0 && p < kPos && g.has[size_t(r)][size_t(p)]);
-            QVariantMap b = bx[p].toMap();
-            b.insert(QStringLiteral("graded"), graded);
-            bx[p] = b;
+            rm.boxes[p].graded = graded;
         }
-        rm.insert(QStringLiteral("boxes"), bx);
-        rm.insert(QStringLiteral("grades"), postureRowGrades(grades, r));
-        rm.insert(QStringLiteral("rowGrades"), postureRowCellGrades(grades, r));
-        rows.append(rm);
+        rm.grades = postureRowGrades(grades, r);
+        rm.rowGrades = postureRowCellGrades(grades, r);
+        out.profile.rows.append(rm);
     }
-    out.insert(QStringLiteral("profile"), QVariantMap{
-        { QStringLiteral("positions"), positionsList(us) }, { QStringLiteral("rows"), rows },
-        { QStringLiteral("sub"), QStringLiteral("change from address  ·  a box per position, n %1%2  ·  under each: the median, and how wide the middle half is")
-                                     .arg(sv.shots).arg(pickedOrdinal >= 0 ? QStringLiteral(", this %1 ringed").arg(one) : QString()) },
-        { QStringLiteral("caption"), QStringLiteral("Shaded: the %1 band, where good players are at each position. The hairline: where a fault "
-                                                    "fires. A ring and a word: the session's median outside the band, and on which side. "
-                                                    "⚠: drawn, not matched, never ringed.").arg(sv.patternName) } });
+    out.profile.positions = positionsList(us);
+    out.profile.sub = QStringLiteral("change from address  ·  a box per position, n %1%2  ·  under each: the median, and how wide the middle half is")
+                          .arg(sv.shots).arg(pickedOrdinal >= 0 ? QStringLiteral(", this %1 ringed").arg(one) : QString());
+    out.profile.caption = QStringLiteral("Shaded: the %1 band, where good players are at each position. The hairline: where a fault "
+                                         "fires. A ring and a word: the session's median outside the band, and on which side. "
+                                         "⚠: drawn, not matched, never ringed.").arg(sv.patternName);
 
     // THE PATTERN BY SHOT
-    QVariantList marks;
     for (const PosturePatternMark &m : sv.strip) {
         const QString word = !m.ok ? QStringLiteral("-") : m.between ? QStringLiteral("between") : posturePatternName(m.nearest);
-        marks.append(QVariantMap{ { QStringLiteral("ordinal"), m.ordinal }, { QStringLiteral("shotId"), idOf(m.ordinal) },
-                                  { QStringLiteral("swingDir"), dirOf(m.ordinal) }, { QStringLiteral("ok"), m.ok },
-                                  { QStringLiteral("nearest"), m.ok ? QVariant(int(m.nearest)) : nullv() },
-                                  { QStringLiteral("nearestName"), m.ok ? posturePatternName(m.nearest) : QString() },
-                                  { QStringLiteral("between"), m.between }, { QStringLiteral("differs"), m.differs },
-                                  { QStringLiteral("picked"), m.ordinal == pickedOrdinal },
-                                  { QStringLiteral("dLevel"), nv(m.dLevel) }, { QStringLiteral("dSquatPush"), nv(m.dSquatPush) },
-                                  { QStringLiteral("word"), word },
-                                  { QStringLiteral("label"), QStringLiteral("%1 %2: %3").arg(one).arg(W::shotNumber(idOf(m.ordinal), m.ordinal)).arg(word) } });
+        U::StripMark mk;
+        mk.ordinal = m.ordinal;
+        mk.shotId = idOf(m.ordinal);
+        mk.swingDir = dirOf(m.ordinal);
+        mk.ok = m.ok;
+        mk.nearest = m.ok ? QVariant(int(m.nearest)) : nullv();
+        mk.nearestName = m.ok ? posturePatternName(m.nearest) : QString();
+        mk.between = m.between;
+        mk.differs = m.differs;
+        mk.picked = m.ordinal == pickedOrdinal;
+        mk.dLevel = nv(m.dLevel);
+        mk.dSquatPush = nv(m.dSquatPush);
+        mk.word = word;
+        mk.label = QStringLiteral("%1 %2: %3").arg(one).arg(W::shotNumber(idOf(m.ordinal), m.ordinal)).arg(word);
+        out.strip.marks.append(mk);
     }
-    out.insert(QStringLiteral("strip"), QVariantMap{
-        { QStringLiteral("marks"), marks }, { QStringLiteral("onPattern"), sv.onPattern },
-        { QStringLiteral("line"), QStringLiteral("%1 on %2 of %3 %4").arg(sv.patternName).arg(sv.onPattern).arg(sv.shots).arg(many) },
-        { QStringLiteral("legend"), QStringLiteral("each mark is a %1's nearest pattern; ringed: not the session's (%2), or between the two").arg(one, sv.patternName) } });
+    out.strip.onPattern = sv.onPattern;
+    out.strip.line = QStringLiteral("%1 on %2 of %3 %4").arg(sv.patternName).arg(sv.onPattern).arg(sv.shots).arg(many);
+    out.strip.legend = QStringLiteral("each mark is a %1's nearest pattern; ringed: not the session's (%2), or between the two").arg(one, sv.patternName);
 
     // THE DEPARTURES, across shots
-    QVariantList deps;
     for (const PostureDepartureCount &d : sv.departureCounts) {
-        QVariantList dm;
-        for (int o : d.ordinals) dm.append(QVariantMap{ { QStringLiteral("ordinal"), o }, { QStringLiteral("swingDir"), dirOf(o) } });
-        QVariantList ords;
-        for (int o : d.ordinals) ords.append(o);
+        U::SessionDeparture dp;
+        for (int o : d.ordinals) {
+            dp.marks.append(U::DepartureMark{ o, dirOf(o) });
+            dp.ordinals.append(o);
+        }
         const QString count = QStringLiteral("%1 of %2 %3").arg(d.shots).arg(sv.shots).arg(many);
         const QString first = d.firstPos >= 0 ? posturePositionTag(d.firstPos) : QString();
-        deps.append(QVariantMap{ { QStringLiteral("id"), d.id }, { QStringLiteral("name"), d.name },
-                                 { QStringLiteral("conditionIds"), d.conditionIds }, { QStringLiteral("shots"), d.shots },
-                                 { QStringLiteral("countText"), count }, { QStringLiteral("ordinals"), ords },
-                                 { QStringLiteral("marks"), dm }, { QStringLiteral("firstTag"), first },
-                                 { QStringLiteral("line"), d.name + (first.isEmpty() ? QString() : QStringLiteral(", from ") + first)
-                                                               + QStringLiteral(": ") + count },
-                                 { QStringLiteral("detail"), (first.isEmpty() ? QString() : QStringLiteral("from ") + first + QStringLiteral("  ·  "))
-                                                                 + count } });
+        dp.id = d.id;
+        dp.name = d.name;
+        dp.conditionIds = d.conditionIds;
+        dp.shots = d.shots;
+        dp.countText = count;
+        dp.firstTag = first;
+        dp.line = d.name + (first.isEmpty() ? QString() : QStringLiteral(", from ") + first) + QStringLiteral(": ") + count;
+        dp.detail = (first.isEmpty() ? QString() : QStringLiteral("from ") + first + QStringLiteral("  ·  ")) + count;
+        out.departures.append(dp);
     }
-    out.insert(QStringLiteral("departures"), deps);
-    out.insert(QStringLiteral("consistency"), postureConsistency(grades));
-    out.insert(QStringLiteral("whatMoved"), QVariantMap{ { QStringLiteral("top"), movedMap(sv.top, us) },
-                                                          { QStringLiteral("impact"), movedMap(sv.impact, us) } });
-    const QVariantMap address = addressMapOf(sv.absolutes, sv.addressLines, env, inputs, pool, false, many);
-    out.insert(QStringLiteral("address"), address);
-    out.insert(QStringLiteral("absolutes"), address.value(QStringLiteral("rows")));   // the same rows (ABSOLUTE = ADDRESS)
-    out.insert(QStringLiteral("trust"), trustMap(sv.trust));
+    out.consistency = postureConsistency(grades);
+    out.whatMoved = whatMovedOf(sv.top, sv.impact, us);
+    out.address = addressOf(sv.absolutes, sv.addressLines, env, inputs, pool, false, many);
+    out.absolutes = out.address.rows;   // the same rows (ABSOLUTE = ADDRESS)
+    out.trust = trustOf(sv.trust);
     return out;
 }
 
@@ -1236,14 +1357,15 @@ QVariantMap sessionMapOf(const PostureEnv &env, const std::vector<PostureShotInp
 
 // ── the picture strip (posture_chart_design.md §5.4, stage 5) ─────────────────────────────────
 
-// The swing's document → the picture's inputs, cached by the document's stamp (a re-analysed swing is read
-// again). A pinned entry (the tests' seam) is kept whatever the disk says.
-const PictureDoc &pictureDocOf(ChartsPosturePresenter::Worker &w, const QString &swingDir)
+// The swing's document → the picture's inputs, read through the snapshot's own door (SnapshotShotReader: the session's
+// files are its own, P11) and cached by the document's stamp (a re-analysed swing is read again). No door (a test's
+// hand-made snapshot) reads as no document. A pinned entry (the tests' seam) is kept whatever the session says.
+const PictureDoc &pictureDocOf(ChartsPosturePresenter::Worker &w, const SnapshotShotReader *reader, const QString &swingDir)
 {
     const QString dir = cleanDir(swingDir);
     auto it = w.pictures.find(dir);
     if (it != w.pictures.end() && it->pinned) return it->doc;
-    const pinpoint::SwingStore::DocInfo info = pinpoint::SwingStore::info(dir);
+    const SnapshotShotRead info = reader ? reader->stamp(dir) : SnapshotShotRead{};
     if (it != w.pictures.end() && it->size == info.size && it->mtimeMs == info.mtimeMs) {
         w.pictureOrder.removeAll(dir);
         w.pictureOrder << dir;
@@ -1252,14 +1374,14 @@ const PictureDoc &pictureDocOf(ChartsPosturePresenter::Worker &w, const QString 
     ChartsPosturePresenter::Worker::PictureEntry e;
     e.size = info.size;
     e.mtimeMs = info.mtimeMs;
-    if (!info.exists()) {
+    if (!info.exists) {
         e.doc.swingDir = dir;
         e.doc.why = QStringLiteral("the swing's document is not on disk");
     } else {
-        QString err;
-        const QJsonObject root = pinpoint::SwingStore::load(dir, &err);
-        e.doc = postureDocFrom(root, dir, QStringLiteral("%1-%2").arg(info.size).arg(info.mtimeMs));
-        if (root.isEmpty()) e.doc.why = QStringLiteral("the swing's document could not be read%1").arg(err.isEmpty() ? QString() : QStringLiteral(": ") + err);
+        const SnapshotShotRead read = reader->document(dir);
+        const QString &err = read.error;
+        e.doc = postureDocFrom(read.root, dir, QStringLiteral("%1-%2").arg(info.size).arg(info.mtimeMs));
+        if (read.root.isEmpty()) e.doc.why = QStringLiteral("the swing's document could not be read%1").arg(err.isEmpty() ? QString() : QStringLiteral(": ") + err);
     }
     w.pictureOrder.removeAll(dir);
     w.pictureOrder << dir;
@@ -1295,17 +1417,16 @@ QString pictureStillDir()
     return QDir(base.isEmpty() ? QDir::tempPath() : base).filePath(QStringLiteral("posture-picture"));
 }
 
-// The stills a picture still needs made.
-QVariantList pendingStillsOf(const QVariantMap &picture)
+// The stills a picture still needs made, as the still maker reads them (maps: main.cpp's maker).
+QVariantList pendingStillsOf(const U::Picture &picture)
 {
     QVariantList out;
-    for (const QVariant &g : picture.value(QStringLiteral("groups")).toList())
-        for (const QVariant &fv : g.toMap().value(QStringLiteral("frames")).toList()) {
-            const QVariantMap f = fv.toMap();
-            const QVariantMap still = f.value(QStringLiteral("still")).toMap();
-            if (f.value(QStringLiteral("src")).toString().isEmpty() && f.value(QStringLiteral("imageWhy")).toString().isEmpty()
-                && !still.value(QStringLiteral("outPath")).toString().isEmpty())
-                out.append(still);
+    for (const U::PictureGroup &g : picture.groups)
+        for (const U::PictureFrame &f : g.frames) {
+            if (f.still.metaType() != QMetaType::fromType<U::PictureStill>()) continue;   // null: nothing to make
+            const U::PictureStill still = f.still.value<U::PictureStill>();
+            if (f.src.isEmpty() && f.imageWhy.isEmpty() && !still.outPath.isEmpty())
+                out.append(chartsGadgetMap(still));
         }
     return out;
 }
@@ -1318,35 +1439,36 @@ QString emptyTail()
 
 void buildThisShot(Ctx &c, ChartsPosturePresenter::Result &R)
 {
-    QVariantMap out;
+    U::ThisShot out;
     R.posUs = c.pUs;
     const bool has = c.shot && c.view.available;
-    out.insert(QStringLiteral("available"), has);
+    out.available = has;
     if (!has) {
-        out.insert(QStringLiteral("empty"), (c.shot || !c.in.pickedSwingDir.trimmed().isEmpty()
-                                                 ? QStringLiteral("No posture readings for this swing.") : QStringLiteral("Select a swing to review."))
-                                                + emptyTail());
+        // the rest stays at its defaults: every reader tests `available`
+        out.empty = (c.shot || !c.in.pickedSwingDir.trimmed().isEmpty()
+                         ? QStringLiteral("No posture readings for this swing.") : QStringLiteral("Select a swing to review."))
+                    + emptyTail();
         R.thisShot = out;
         return;
     }
     const ShotSeries &s = *c.shot;
     const PostureShotView &v = c.view;
     const bool inSession = c.index >= 0;
-    out.insert(QStringLiteral("empty"), QString());
-    out.insert(QStringLiteral("ordinal"), s.ordinal);
-    out.insert(QStringLiteral("shotId"), s.shotId);
-    out.insert(QStringLiteral("swingDir"), s.swingDir);
-    out.insert(QStringLiteral("inSession"), inSession);
+    out.empty = QString();
+    out.ordinal = s.ordinal;
+    out.shotId = s.shotId;
+    out.swingDir = s.swingDir;
+    out.inSession = inSession;
     const QString club = s.club.toLower();
-    out.insert(QStringLiteral("kicker"), (inSession ? W::shotOfText(s.shotId, s.ordinal, c.n) : QStringLiteral("This swing"))
-                                             + (club.isEmpty() ? QString() : QStringLiteral("  ·  ") + club) + QStringLiteral("  ·  Posture"));
-    out.insert(QStringLiteral("graded"), c.pick.graded);
-    out.insert(QStringLiteral("head"), W::Sentence().append(v.headline).toVariant());
-    out.insert(QStringLiteral("headText"), v.headline);
+    out.kicker = (inSession ? W::shotOfText(s.shotId, s.ordinal, c.n) : QStringLiteral("This swing"))
+                 + (club.isEmpty() ? QString() : QStringLiteral("  ·  ") + club) + QStringLiteral("  ·  Posture");
+    out.graded = c.pick.graded;
+    out.head = sentenceOf(v.headline);
+    out.headText = v.headline;
     const PostureMatch &used = v.patternSource == QLatin1String("session") ? v.sessionMatch : v.match;
-    out.insert(QStringLiteral("pattern"), patternMap(c.in.pattern, v.pattern, v.patternName, v.patternSource, v.patternSourceWords,
-                                                     v.patternLine, used, v.match, v.trail));
-    out.insert(QStringLiteral("patternLine"), v.patternLine);
+    out.pattern = patternOf(c.in.pattern, v.pattern, v.patternName, v.patternSource, v.patternSourceWords,
+                            v.patternLine, used, v.match, v.trail);
+    out.patternLine = v.patternLine;
 
     // THE GHOST (Against)
     const QString ag = c.in.against;
@@ -1374,34 +1496,27 @@ void buildThisShot(Ctx &c, ChartsPosturePresenter::Result &R)
         }
     }
 
-    QVariantList rows;
     for (int r = 0; r < kPostureRows; ++r)
-        rows.append(rowMap(v.rows[size_t(r)], ghost[size_t(r)], c.pick.value[size_t(r)], c.pUs, nullptr, {}));
+        out.profile.rows.append(rowOf(v.rows[size_t(r)], ghost[size_t(r)], c.pick.value[size_t(r)], c.pUs, nullptr, {}));
     QString sub = QStringLiteral("change from address");
     if (!ghostWord.isEmpty()) sub += QStringLiteral("  ·  dashed: ") + ghostWord;
-    out.insert(QStringLiteral("profile"), QVariantMap{
-        { QStringLiteral("positions"), positionsList(c.pUs) }, { QStringLiteral("rows"), rows },
-        { QStringLiteral("ghostWord"), ghostWord }, { QStringLiteral("ghostRefusal"), ghostRefusal }, { QStringLiteral("sub"), sub },
-        { QStringLiteral("caption"), QStringLiteral("Shaded: the %1 band, where good players are at each position. The hairline: where a "
-                                                    "fault fires. A ring and a word: outside the band, and on which side. ⚠: drawn, not "
-                                                    "matched, never ringed.").arg(v.patternName) } });
+    out.profile.positions = positionsList(c.pUs);
+    out.profile.ghostWord = ghostWord;
+    out.profile.ghostRefusal = ghostRefusal;
+    out.profile.sub = sub;
+    out.profile.caption = QStringLiteral("Shaded: the %1 band, where good players are at each position. The hairline: where a "
+                                         "fault fires. A ring and a word: outside the band, and on which side. ⚠: drawn, not "
+                                         "matched, never ringed.").arg(v.patternName);
 
-    QVariantList exits, deps;
-    for (const PostureExit &e : v.exits) exits.append(exitMap(e, c.pUs));
-    for (const PostureDeparture &d : v.departures) deps.append(departureMap(d, c.pUs));
-    out.insert(QStringLiteral("exits"), exits);
-    out.insert(QStringLiteral("departures"), deps);
-    out.insert(QStringLiteral("whatMoved"), QVariantMap{ { QStringLiteral("top"), movedMap(v.top, c.pUs) },
-                                                          { QStringLiteral("impact"), movedMap(v.impact, c.pUs) } });
+    for (const PostureExit &e : v.exits) out.exits.append(exitOf(e, c.pUs));
+    for (const PostureDeparture &d : v.departures) out.departures.append(departureOf(d, c.pUs));
+    out.whatMoved = whatMovedOf(v.top, v.impact, c.pUs);
 
-    QVariantList findings, working;
-    ledgersOf(c.env, c.snap.get(), c.shot.get(), c.pick, v, c.pUs, &findings, &working);
-    out.insert(QStringLiteral("findings"), findings);
-    out.insert(QStringLiteral("workingWell"), working);
-    out.insert(QStringLiteral("findingsEmpty"), c.pick.graded ? QStringLiteral("No posture fault fired on this swing.")
-                                                              : QStringLiteral("Diagnostics have not graded this swing yet."));
-    out.insert(QStringLiteral("workingWellEmpty"), c.pick.graded ? QStringLiteral("Nothing in the posture stood out as working well on this swing.")
-                                                                 : QStringLiteral("Diagnostics have not graded this swing yet."));
+    ledgersOf(c.env, c.snap.get(), c.shot.get(), c.pick, v, c.pUs, &out.findings, &out.workingWell);
+    out.findingsEmpty = c.pick.graded ? QStringLiteral("No posture fault fired on this swing.")
+                                      : QStringLiteral("Diagnostics have not graded this swing yet.");
+    out.workingWellEmpty = c.pick.graded ? QStringLiteral("Nothing in the posture stood out as working well on this swing.")
+                                         : QStringLiteral("Diagnostics have not graded this swing yet.");
 
     // the absolutes' boxes are the session's pool (the shots with a reading), else this shot alone
     std::vector<int> pool;
@@ -1410,11 +1525,10 @@ void buildThisShot(Ctx &c, ChartsPosturePresenter::Result &R)
     } else {
         pool.push_back(s.ordinal);
     }
-    const QVariantMap address = addressMapOf(v.absolutes, v.addressLines, c.env, c.sess.available ? c.inputs : std::vector<PostureShotInput>{ c.pick },
-                                             pool, true, QStringLiteral("shots"));
-    out.insert(QStringLiteral("address"), address);
-    out.insert(QStringLiteral("absolutes"), address.value(QStringLiteral("rows")));   // the same rows (ABSOLUTE = ADDRESS)
-    out.insert(QStringLiteral("trust"), trustMap(v.trust));
+    out.address = addressOf(v.absolutes, v.addressLines, c.env, c.sess.available ? c.inputs : std::vector<PostureShotInput>{ c.pick },
+                            pool, true, QStringLiteral("shots"));
+    out.absolutes = out.address.rows;   // the same rows (ABSOLUTE = ADDRESS)
+    out.trust = trustOf(v.trust);
 
     // THE PICTURE: this swing's frames at address, the top and impact, the frozen coach lines, the bands at impact
     {
@@ -1425,12 +1539,11 @@ void buildThisShot(Ctx &c, ChartsPosturePresenter::Result &R)
             QMutexLocker sl(&c.w.stillMutex);
             po.stillErrors = c.w.stillErrors;
         }
-        const QVariantMap pic = posturePicture(pictureDocOf(c.w, s.swingDir), pictureBandsOf(c.env, v.pattern, v.patternName), po);
-        out.insert(QStringLiteral("picture"), pic);
-        R.pendingStills = pendingStillsOf(pic);
+        out.picture = posturePicture(pictureDocOf(c.w, c.snap->reader.get(), s.swingDir), pictureBandsOf(c.env, v.pattern, v.patternName), po);
+        R.pendingStills = pendingStillsOf(out.picture);
     }
     R.standfirsts = standfirstsOf(v, c.pUs);
-    out.insert(QStringLiteral("standfirsts"), R.standfirsts);
+    out.standfirsts = R.standfirsts;
     R.thisShot = out;
 }
 
@@ -1438,12 +1551,11 @@ void buildThisShot(Ctx &c, ChartsPosturePresenter::Result &R)
 
 void buildChoices(Ctx &c, ChartsPosturePresenter::Result &R)
 {
-    QVariantMap out;
+    U::Choices out;
     const QString scope = c.in.scope == QLatin1String("session") ? QStringLiteral("session") : QStringLiteral("shot");
-    out.insert(QStringLiteral("scope"), scope);
-    out.insert(QStringLiteral("scopes"), QVariantList{
-        QVariantMap{ { QStringLiteral("id"), QStringLiteral("shot") }, { QStringLiteral("label"), QStringLiteral("This shot") }, { QStringLiteral("current"), scope == QLatin1String("shot") } },
-        QVariantMap{ { QStringLiteral("id"), QStringLiteral("session") }, { QStringLiteral("label"), QStringLiteral("Session") }, { QStringLiteral("current"), scope == QLatin1String("session") } } });
+    out.scope = scope;
+    out.scopes = { U::ScopeChoice{ QStringLiteral("shot"), QStringLiteral("This shot"), scope == QLatin1String("shot") },
+                   U::ScopeChoice{ QStringLiteral("session"), QStringLiteral("Session"), scope == QLatin1String("session") } };
 
     const QString ag = c.in.against;
     const int pi = c.index >= 0 ? c.index - 1 : c.n - 1;
@@ -1453,47 +1565,42 @@ void buildChoices(Ctx &c, ChartsPosturePresenter::Result &R)
                          : !c.refOk ? c.refWhy
                          : c.refIsPicked ? QStringLiteral("this swing is your reference")
                          : QStringLiteral("the reference swing carries no posture reading");
-    QVariantList ags;
+    QList<U::AgainstOption> ags;
     const auto addA = [&](const QString &id, const QString &label, bool enabled, const QString &why) {
-        ags.append(QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label }, { QStringLiteral("current"), ag == id },
-                                { QStringLiteral("enabled"), enabled }, { QStringLiteral("why"), enabled ? QString() : why } });
+        ags.append(U::AgainstOption{ id, label, ag == id, enabled, enabled ? QString() : why });
     };
     addA(QStringLiteral("address"), QStringLiteral("address"), true, QString());
     addA(QStringLiteral("previous"), QStringLiteral("previous"), prevOk, QStringLiteral("the swing before this one has no posture reading"));
     addA(QStringLiteral("reference"), QStringLiteral("reference ★"), refOk, refWhy);
     addA(QStringLiteral("median"), QStringLiteral("session median"), c.ready >= 3,
          QStringLiteral("three shots with a posture reading are needed; this session has %1").arg(W::countWord(c.ready)));
-    out.insert(QStringLiteral("against"), ag);
-    out.insert(QStringLiteral("againstOptions"), ags);
+    out.against = ag;
+    out.againstOptions = ags;
 
-    QVariantList pats;
     static const char *const names[] = { "Auto", "Level", "Squat and push" };
     for (int p = -1; p <= 1; ++p)
-        pats.append(QVariantMap{ { QStringLiteral("id"), p }, { QStringLiteral("label"), QString::fromLatin1(names[p + 1]) },
-                                 { QStringLiteral("current"), c.in.pattern == p } });
-    out.insert(QStringLiteral("pattern"), c.in.pattern);
-    out.insert(QStringLiteral("patterns"), pats);
+        out.patterns.append(U::PatternChoice{ p, QString::fromLatin1(names[p + 1]), c.in.pattern == p });
+    out.pattern = c.in.pattern;
     const bool resolvedKnown = c.view.available || c.sess.available;
     const PosturePattern resolved = c.view.available ? c.view.pattern : c.sess.pattern;
-    out.insert(QStringLiteral("patternResolved"), resolvedKnown ? QVariant(int(resolved)) : nullv());
+    out.patternResolved = resolvedKnown ? QVariant(int(resolved)) : nullv();
     const QString after = c.in.pattern < 0 && resolvedKnown ? QStringLiteral("→ ") + posturePatternName(resolved) : QString();
-    out.insert(QStringLiteral("patternAfter"), after);
+    out.patternAfter = after;
 
-    out.insert(QStringLiteral("reference"), QVariantMap{
-        { QStringLiteral("set"), c.refSet }, { QStringLiteral("swingDir"), c.refDir },
-        { QStringLiteral("label"), c.refLabel }, { QStringLiteral("isThisShot"), c.refIsPicked },
-        { QStringLiteral("linkText"), c.refIsPicked ? QStringLiteral("★ this swing is your reference") : QStringLiteral("★ set this swing as your reference") },
-        { QStringLiteral("canSet"), bool(c.shot) } });
+    out.reference.set = c.refSet;
+    out.reference.swingDir = c.refDir;
+    out.reference.label = c.refLabel;
+    out.reference.isThisShot = c.refIsPicked;
+    out.reference.linkText = c.refIsPicked ? QStringLiteral("★ this swing is your reference") : QStringLiteral("★ set this swing as your reference");
+    out.reference.canSet = bool(c.shot);
 
     QString agLabel = QStringLiteral("address");
-    for (const QVariant &a : ags) if (a.toMap().value(QStringLiteral("current")).toBool()) agLabel = a.toMap().value(QStringLiteral("label")).toString();
-    out.insert(QStringLiteral("summary"), QStringLiteral("Pattern %1%2  ·  against %3")
-                                              .arg(QString::fromLatin1(names[c.in.pattern + 1]), after.isEmpty() ? QString() : QStringLiteral(" ") + after, agLabel));
+    for (const U::AgainstOption &a : std::as_const(ags)) if (a.current) agLabel = a.label;
+    out.summary = QStringLiteral("Pattern %1%2  ·  against %3")
+                      .arg(QString::fromLatin1(names[c.in.pattern + 1]), after.isEmpty() ? QString() : QStringLiteral(" ") + after, agLabel);
     // the series whose curve on show adds the Posture section (the rows' own, and the head's rise)
-    QStringList keys;
-    for (const PostureRowSpec &sp : postureRowSpecs()) keys << sp.metricKey;
-    keys << QStringLiteral("headRise");
-    out.insert(QStringLiteral("onShowKeys"), keys);
+    for (const PostureRowSpec &sp : postureRowSpecs()) out.onShowKeys << sp.metricKey;
+    out.onShowKeys << QStringLiteral("headRise");
     R.choices = out;
 }
 
@@ -1519,6 +1626,93 @@ std::vector<PostureShotInput> readInputs(ChartsPosturePresenter::Worker *w, cons
     return out;
 }
 
+// THE REPORT'S PAYLOAD AS IT HAS ALWAYS BEEN (until 5.6 types the report): the typed session as a map (chartsGadgetMap),
+// with what the reflection would change put back, so the page, the still maker and the parity tools read the same map:
+//   · each consistency result stays the `variabilityResult` value it was (a grade's, a graded position's, a consistency
+//     line's; null where there is none), and a row grade its plain map (toMap: ρ null when there is none);
+//   · a per-shot value list (a box cell's, an address row's) carries null, not NaN, for an unmeasured shot;
+//   · the profile carries no `ghostWord` / `ghostRefusal` (This shot's only), and a box with no shot no `texts`.
+QVariantList nullsForNaN(const QList<double> &values)
+{
+    QVariantList out;
+    for (double v : values) out.append(fin(v) ? QVariant(v) : nullv());
+    return out;
+}
+QVariantList reportAddressRows(const QVariantList &rows, const QList<U::AddressRow> &typed)
+{
+    QVariantList out = rows;
+    for (int i = 0; i < out.size() && i < typed.size(); ++i) {
+        QVariantMap r = out[i].toMap();
+        r.insert(QStringLiteral("values"), nullsForNaN(typed.at(i).values));
+        out[i] = r;
+    }
+    return out;
+}
+QVariantMap reportMapOf(const U::Session &s)
+{
+    QVariantMap out = chartsGadgetMap(s);
+    QVariantMap prof = out.value(QStringLiteral("profile")).toMap();
+    prof.remove(QStringLiteral("ghostWord"));
+    prof.remove(QStringLiteral("ghostRefusal"));
+    QVariantList rows = prof.value(QStringLiteral("rows")).toList();
+    for (int r = 0; r < rows.size() && r < s.profile.rows.size(); ++r) {
+        const U::Row &row = s.profile.rows.at(r);
+        QVariantMap rm = rows[r].toMap();
+        QVariantList bx = rm.value(QStringLiteral("boxes")).toList();
+        for (int b = 0; b < bx.size() && b < row.boxes.size(); ++b) {
+            QVariantMap bm = bx[b].toMap();
+            bm.insert(QStringLiteral("values"), nullsForNaN(row.boxes.at(b).values));
+            // a box with no shot carried no `texts` (box_map.h's BOX); the gadget's are "" there
+            QVariantMap box = bm.value(QStringLiteral("box")).toMap();
+            if (box.value(QStringLiteral("n")).toInt() <= 0 && box.remove(QStringLiteral("texts")) > 0) bm.insert(QStringLiteral("box"), box);
+            bx[b] = bm;
+        }
+        rm.insert(QStringLiteral("boxes"), bx);
+        QVariantList gs = rm.value(QStringLiteral("grades")).toList();
+        for (int g = 0; g < gs.size() && g < row.grades.size(); ++g) {
+            const U::Grade &grade = row.grades.at(g);
+            QVariantMap gm = gs[g].toMap();
+            gm.insert(QStringLiteral("result"), grade.result);
+            QVariantList cs = gm.value(QStringLiteral("cells")).toList();
+            for (int k = 0; k < cs.size() && k < grade.cells.size(); ++k) {
+                QVariantMap cm = cs[k].toMap();
+                cm.insert(QStringLiteral("result"), QVariant::fromValue(grade.cells.at(k).result));
+                cs[k] = cm;
+            }
+            gm.insert(QStringLiteral("cells"), cs);
+            gs[g] = gm;
+        }
+        rm.insert(QStringLiteral("grades"), gs);
+        QVariantList rg = rm.value(QStringLiteral("rowGrades")).toList();
+        for (int g = 0; g < rg.size() && g < row.rowGrades.size(); ++g) {
+            QVariantMap gm = rg[g].toMap();
+            gm.insert(QStringLiteral("result"), row.rowGrades.at(g).result.toMap());
+            rg[g] = gm;
+        }
+        rm.insert(QStringLiteral("rowGrades"), rg);
+        rows[r] = rm;
+    }
+    prof.insert(QStringLiteral("rows"), rows);
+    out.insert(QStringLiteral("profile"), prof);
+    QVariantMap cons = out.value(QStringLiteral("consistency")).toMap();
+    QVariantList lines = cons.value(QStringLiteral("lines")).toList();
+    for (int i = 0; i < lines.size() && i < s.consistency.lines.size(); ++i) {
+        const U::ConsistencyLine &l = s.consistency.lines.at(i);
+        QVariantMap lm = lines[i].toMap();
+        lm.insert(QStringLiteral("result"), l.result);
+        lm.insert(QStringLiteral("most"), l.most);
+        lm.insert(QStringLiteral("least"), l.least);
+        lines[i] = lm;
+    }
+    cons.insert(QStringLiteral("lines"), lines);
+    out.insert(QStringLiteral("consistency"), cons);
+    QVariantMap address = out.value(QStringLiteral("address")).toMap();
+    address.insert(QStringLiteral("rows"), reportAddressRows(address.value(QStringLiteral("rows")).toList(), s.address.rows));
+    out.insert(QStringLiteral("address"), address);
+    out.insert(QStringLiteral("absolutes"), reportAddressRows(out.value(QStringLiteral("absolutes")).toList(), s.absolutes));
+    return out;
+}
+
 } // namespace
 
 // ── the still maker (process-wide: the app sets it once) ────────────────────────────────────────
@@ -1540,7 +1734,6 @@ static std::shared_ptr<ChartsPosturePresenter::Result> computePosture(ChartsPost
     const std::shared_ptr<const PostureEnv> envHeld = postureSharedEnv();
     if (w.env != envHeld) {
         w.cache.clear();
-        w.refDir.clear(); w.refSize = -1; w.refMtimeMs = -1;
         w.env = envHeld;
     }
     const PostureEnv &env = *envHeld;
@@ -1569,7 +1762,7 @@ static std::shared_ptr<ChartsPosturePresenter::Result> computePosture(ChartsPost
     c.hasPick = c.shot && hasPosture(c.pick);
     resolveReference(c);
 
-    const PostureAddressHistory hist = postureHistoryFrom(in.neighbours, camerasHeld(w, c.snap->sessionDir), env);
+    const PostureAddressHistory hist = postureHistoryFrom(in.neighbours, camerasHeld(w, *c.snap), env);
     c.sess = postureSession(c.inputs, env, in.pattern, &c.snap->tiers, &c.snap->workOnOrder, QStringLiteral("shots"), &hist);
     if (c.shot) c.view = postureShot(c.pick, env, in.pattern, c.sess.available ? &c.sess : nullptr, &c.snap->workOnOrder, &hist);
     c.pUs = positionUs(c.shot.get());
@@ -1580,7 +1773,7 @@ static std::shared_ptr<ChartsPosturePresenter::Result> computePosture(ChartsPost
     std::array<qint64, kPos> sessUs = c.pUs;
     if (!c.shot)
         for (int i = 0; i < c.n; ++i) if (hasPosture(c.inputs[size_t(i)])) { sessUs = positionUs(c.snap->shots[size_t(i)].get()); break; }
-    R->session = sessionMapOf(env, c.inputs, c.sess, in.pattern, c.index, c.shot ? &c.pick : nullptr, sessUs);
+    R->session = sessionOf(env, c.inputs, c.sess, in.pattern, c.index, c.shot ? &c.pick : nullptr, sessUs);
     buildChoices(c, *R);
     return R;
 }
@@ -1590,7 +1783,7 @@ QVariantMap postureSessionReportPayload(const SessionSnapshot &snapshot, int pat
 {
     const std::shared_ptr<const PostureEnv> envHeld = postureSharedEnv();
     const PostureAddressHistory hist = postureHistoryFrom(neighbours, cleanDir(snapshot.sessionDir).isEmpty() ? pa::SessionCameras{}
-                                                                                                              : camerasOf(cleanDir(snapshot.sessionDir)),
+                                                                                                              : camerasOf(snapshot),
                                                           *envHeld);
     return postureSessionReportPayloadOfHistory(snapshot, patternMode, noun, hist);
 }
@@ -1606,7 +1799,7 @@ QVariantMap postureSessionReportPayloadOfHistory(const SessionSnapshot &snapshot
     const PostureSessionView sv = postureSession(inputs, env, mode, &snapshot.tiers, &snapshot.workOnOrder, many, &hist);
     std::array<qint64, kPos> us = positionUs(nullptr);
     for (size_t i = 0; i < inputs.size(); ++i) if (hasPosture(inputs[i])) { us = positionUs(snapshot.shots[i].get()); break; }
-    QVariantMap out = sessionMapOf(env, inputs, sv, mode, -1, nullptr, us, many);
+    QVariantMap out = reportMapOf(sessionOf(env, inputs, sv, mode, -1, nullptr, us, many));
     if (!sv.available) return out;
 
     // THE PICTURE (§5.7): the session's TYPICAL swing — the one whose distance to the session's pattern is nearest the
@@ -1631,17 +1824,19 @@ QVariantMap postureSessionReportPayloadOfHistory(const SessionSnapshot &snapshot
     QString dir;
     for (const PostureShotInput &s : inputs) if (s.ordinal == typical) dir = s.swingDir;
     if (dir.isEmpty()) return out;
-    const pinpoint::SwingStore::DocInfo info = pinpoint::SwingStore::info(dir);
-    QString err;
-    const QJsonObject root = info.exists() ? pinpoint::SwingStore::load(dir, &err) : QJsonObject{};
+    // the swing's document through the snapshot's own door (P11); no door reads as no document
+    const SnapshotShotReader *reader = snapshot.reader.get();
+    const SnapshotShotRead info = reader ? reader->stamp(dir) : SnapshotShotRead{};
+    const QJsonObject root = info.exists ? reader->document(dir).root : QJsonObject{};
     PictureDoc doc = postureDocFrom(root, dir, QStringLiteral("%1-%2").arg(info.size).arg(info.mtimeMs));
-    if (root.isEmpty()) doc.why = info.exists() ? QStringLiteral("the swing's document could not be read") : QStringLiteral("the swing's document is not on disk");
+    if (root.isEmpty()) doc.why = info.exists ? QStringLiteral("the swing's document could not be read") : QStringLiteral("the swing's document is not on disk");
     PictureOptions po;
     po.ordinal = typical;
     po.maxPx = 1400;
-    QVariantMap pic = posturePicture(doc, pictureBandsOf(env, sv.pattern, sv.patternName), po);
+    U::Picture typed = posturePicture(doc, pictureBandsOf(env, sv.pattern, sv.patternName), po);
     const QString one = many.endsWith(QLatin1Char('s')) ? many.chopped(1) : many;
-    pic.insert(QStringLiteral("typical"), QStringLiteral("A typical %1: %1 %2").arg(one).arg(typical));
+    typed.typical = QStringLiteral("A typical %1: %1 %2").arg(one).arg(typical);
+    QVariantMap pic = chartsGadgetMap(typed);
     pic.insert(QStringLiteral("typicalWhy"), std::isfinite(median)
         ? QStringLiteral("the %1 whose fit to %2 is nearest the session's median").arg(one, sv.patternName)
         : QStringLiteral("the first %1 with a posture reading").arg(one));
@@ -1667,12 +1862,36 @@ SeriesSource *ChartsPosturePresenter::model() const { return m_model.data(); }
 void ChartsPosturePresenter::setModel(SeriesSource *m)
 {
     if (m_model == m) return;
-    if (m_model) disconnect(m_model, nullptr, this, nullptr);
     m_model = m;
-    if (m)
-        connect(m, &SeriesSource::snapshotChanged, this, &ChartsPosturePresenter::schedule);
+    rewireSources();
     emit inputsChanged();
     schedule();
+}
+
+SeriesSource *ChartsPosturePresenter::referenceModel() const { return m_referenceModel.data(); }
+
+void ChartsPosturePresenter::setReferenceModel(SeriesSource *m)
+{
+    if (m_referenceModel == m) return;
+    m_referenceModel = m;
+    rewireSources();
+    emit inputsChanged();
+    schedule();
+}
+
+// What re-runs the job: the model's snapshot; the ★ swing's session's snapshot and busy (its ★ lands when that session
+// has been read). The same series in both roles is heard once. Kept by handle, so a change of one role leaves the other.
+void ChartsPosturePresenter::rewireSources()
+{
+    for (const QMetaObject::Connection &c : std::as_const(m_sourceWatch)) disconnect(c);
+    m_sourceWatch.clear();
+    if (m_model)
+        m_sourceWatch << connect(m_model.data(), &SeriesSource::snapshotChanged, this, &ChartsPosturePresenter::schedule);
+    if (m_referenceModel) {
+        if (m_referenceModel != m_model)
+            m_sourceWatch << connect(m_referenceModel.data(), &SeriesSource::snapshotChanged, this, &ChartsPosturePresenter::schedule);
+        m_sourceWatch << connect(m_referenceModel.data(), &SeriesSource::busyChanged, this, &ChartsPosturePresenter::schedule);
+    }
 }
 
 std::shared_ptr<const SessionSnapshot> ChartsPosturePresenter::currentSnapshot() const
@@ -1727,14 +1946,15 @@ void ChartsPosturePresenter::setPlayheadUs(qint64 us)
 }
 
 bool ChartsPosturePresenter::available() { flushIfSynchronous(); return m_result && m_result->available; }
-QVariantMap ChartsPosturePresenter::choices() { flushIfSynchronous(); return m_result ? m_result->choices : QVariantMap{}; }
-QVariantMap ChartsPosturePresenter::thisShot() { flushIfSynchronous(); return m_result ? m_result->thisShot : QVariantMap{}; }
-QVariantMap ChartsPosturePresenter::session() { flushIfSynchronous(); return m_result ? m_result->session : QVariantMap{}; }
+postureui::Choices ChartsPosturePresenter::choices() { flushIfSynchronous(); return m_result ? m_result->choices : postureui::Choices{}; }
+postureui::ThisShot ChartsPosturePresenter::thisShot() { flushIfSynchronous(); return m_result ? m_result->thisShot : postureui::ThisShot{}; }
+postureui::Session ChartsPosturePresenter::session() { flushIfSynchronous(); return m_result ? m_result->session : postureui::Session{}; }
 
-QVariantMap ChartsPosturePresenter::standfirst() const
+// None (no result, no position): the empty sentence, which no view draws (PpChRoles.has), as the empty map was.
+postureui::Sentence ChartsPosturePresenter::standfirst() const
 {
     if (!m_result || m_selected < 0 || m_selected >= m_result->standfirsts.size()) return {};
-    return m_result->standfirsts.at(m_selected).toMap();
+    return m_result->standfirsts.at(m_selected);
 }
 
 qint64 ChartsPosturePresenter::seekUsFor(const QString &tag) const
@@ -1747,27 +1967,17 @@ qint64 ChartsPosturePresenter::seekUsFor(const QString &tag) const
     return ok && i >= 0 && i < kPos ? m_result->posUs[size_t(i)] : -1;
 }
 
-void ChartsPosturePresenter::schedule()
-{
-    m_dirty = true;
-    if (m_synchronous || m_scheduled) return;
-    m_scheduled = true;
-    QMetaObject::invokeMethod(this, &ChartsPosturePresenter::startJob, Qt::QueuedConnection);
-}
-
 void ChartsPosturePresenter::startJob()
 {
-    m_scheduled = false;
-    if (m_synchronous || m_running) return;     // apply() re-runs a dirty presenter
+    if (!m_sched.begin()) return;     // synchronous, or a job in flight: apply() re-runs a dirty presenter
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
+    in.reference = referencePickOf(m_in.referenceSwingDir, m_referenceModel.data(), in.snapshot, m_refMemo);
     // THE GOLFER'S EARLIER SESSIONS, from their summaries (refactor 5.5d): taken here, on the GUI thread, from the athlete
     // level, and handed to the job by value; heard again when that athlete level changes (a summary written).
     const QString dir = in.snapshot ? in.snapshot->sessionDir : QString();
     in.neighbours = neighboursOf(dir);
     watchHistory(dir);
-    m_dirty = false;
-    m_running = true;
     emit busyChanged();
     auto w = m_worker;
     askLane(m_pool, [w, in]() { return computePosture(*w, in); },
@@ -1785,22 +1995,20 @@ void ChartsPosturePresenter::watchHistory(const QString &sessionDir)
 
 void ChartsPosturePresenter::apply(std::shared_ptr<Result> r)
 {
-    const bool wasRunning = m_running;
-    m_running = false;
+    const bool wasRunning = m_sched.land();
     m_result = std::move(r);
     emit resultsChanged();
     updateSelected(true);
-    if (m_dirty && !m_synchronous) startJob();
-    else if (wasRunning) emit busyChanged();
+    m_sched.afterLanding(wasRunning);
     makeStills();
 }
 
 void ChartsPosturePresenter::flushIfSynchronous()
 {
-    if (!m_synchronous || !m_dirty) return;
-    m_dirty = false;
+    if (!m_sched.takeFlush()) return;
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
+    in.reference = referencePickOf(m_in.referenceSwingDir, m_referenceModel.data(), in.snapshot, m_refMemo);
     in.neighbours = neighboursOf(in.snapshot ? in.snapshot->sessionDir : QString());   // refactor 5.5d
     m_result = computePosture(*m_worker, in);
     // synchronous (tests): the stills are made inline and the result read once more with them
@@ -1825,7 +2033,7 @@ void ChartsPosturePresenter::flushIfSynchronous()
 // The picture's stills, made once each off the GUI thread by the app's maker; the picture is read again when they land.
 void ChartsPosturePresenter::makeStills()
 {
-    if (m_synchronous || m_stillsBusy || !m_result || m_result->pendingStills.isEmpty() || !stillMaker()) return;
+    if (m_sched.synchronous() || m_stillsBusy || !m_result || m_result->pendingStills.isEmpty() || !stillMaker()) return;
     QVariantList todo;
     for (const QVariant &v : std::as_const(m_result->pendingStills)) {
         const QString out = v.toMap().value(QStringLiteral("outPath")).toString();
@@ -1854,21 +2062,18 @@ void ChartsPosturePresenter::setStillMaker(StillMaker maker)
     stillMakerRef() = std::move(maker);
 }
 
-void ChartsPosturePresenter::setPictureDocumentForTest(const QString &swingDir, const QString &jsonFile)
+void ChartsPosturePresenter::setPictureDocumentForTest(const QString &swingDir, const QJsonObject &root, const QString &source)
 {
     const QString dir = cleanDir(swingDir);
     {
         QMutexLocker lk(&m_worker->mutex);
-        if (jsonFile.trimmed().isEmpty()) {
+        if (source.trimmed().isEmpty()) {
             m_worker->pictures.remove(dir);
         } else {
-            QFile f(jsonFile);
-            QJsonObject root;
-            if (f.open(QIODevice::ReadOnly)) root = QJsonDocument::fromJson(f.readAll()).object();
             Worker::PictureEntry e;
             e.pinned = true;
             e.doc = postureDocFrom(root, dir, QStringLiteral("test"));
-            if (root.isEmpty()) e.doc.why = QStringLiteral("the test's document %1 could not be read").arg(jsonFile);
+            if (root.isEmpty()) e.doc.why = QStringLiteral("the test's document %1 could not be read").arg(source);
             m_worker->pictures.insert(dir, std::move(e));
         }
     }
@@ -1877,26 +2082,19 @@ void ChartsPosturePresenter::setPictureDocumentForTest(const QString &swingDir, 
 
 void ChartsPosturePresenter::setSynchronous(bool on)
 {
-    m_synchronous = on;
+    m_sched.setSynchronousFlag(on);
     if (on) {
         m_pool.waitForDone();
         QCoreApplication::processEvents();
-        m_dirty = true;
-    } else if (m_dirty) {
+        m_sched.markDirty();
+    } else if (m_sched.dirty()) {
         schedule();
     }
 }
 
 bool ChartsPosturePresenter::waitForIdle(int msTimeout)
 {
-    if (m_synchronous) { flushIfSynchronous(); return true; }
-    QDeadlineTimer deadline(msTimeout);
-    while ((m_running || m_dirty || m_scheduled) && !deadline.hasExpired()) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-        m_pool.waitForDone(20);
-    }
-    QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-    return !m_running && !m_dirty;
+    return m_sched.waitForIdle(m_pool, msTimeout, [this] { flushIfSynchronous(); });
 }
 
 // The playhead's position: the latest present position at or before it, else the first present one
@@ -1918,3 +2116,6 @@ void ChartsPosturePresenter::updateSelected(bool force)
 }
 
 } // namespace pinpoint::charts
+
+// moc for the typed results' gadgets (charts_posture_types.h has no .cpp of its own)
+#include "moc_charts_posture_types.cpp"

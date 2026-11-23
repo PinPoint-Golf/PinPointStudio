@@ -286,7 +286,9 @@ Item {
             else if (k === "wristMedian") wristAgainst = "median"
             else if (/^atP[1-8]$/.test(k)) _pendingSeekTag = k.slice(2)
             else if (k === "open") {
-                const ap = (rShot && rShot.apart) || [], all = [].concat.apply(ap, ((rShot && rShot.groups) || []).map(function (g) { return g.rows || [] }))
+                // the typed rows are lists, not arrays: copied once into plain arrays, so concat spreads them and indexOf
+                // finds an apart row by identity (refactor 5.5c)
+                const ap = Array.from((rShot && rShot.apart) || []), all = [].concat.apply(ap, Array.from((rShot && rShot.groups) || []).map(function (g) { return Array.from(g.rows || []) }))
                 const pick = v === "curve" ? all.filter(function (r) { return r.opens === "trace" })[0]
                            : v === "run" ? all.filter(function (r) { return r.opens === "run" })[0] : ap[0]
                 openId = pick ? pick.readingId : ""

@@ -86,10 +86,10 @@
 //   · A Sentence is { text, runs: [{ text, fig }] } (charts_words.h Sentence::toVariant()).
 //   · A number meets its unit across U+00A0 (charts_words.h figUnit / signedMs, and every join made here:
 //     "95 %", the slope's "+1.3 mph"), so a line never breaks between them.
-//   · A missing number is null in a number field and "-" in a text field; never 0.
+//   · A missing number is null in a number field (NaN in a typed list of numbers) and "-" in a text field; never 0.
 //   · A SHOT MARK carries { ordinal, shotId, swingDir } so the body can emit shotRequested.
-//   · `values` lists are one entry per shot of the session in strike order (index = ordinal − 1), null
-//     where unmeasured. `box` = { n, min, max, q1, med, q3, lo, hi, outliers: [ordinal] } (lo/hi the
+//   · `values` lists are one entry per shot of the session in strike order (index = ordinal − 1), NaN
+//     where unmeasured (null before 5.5c typed them). `box` = { n, min, max, q1, med, q3, lo, hi, outliers: [ordinal] } (lo/hi the
 //     whiskers' ends), numbers null when n = 0.
 //   · A READING ROW (thisShot rows, family rows) =
 //       { readingId, key, phase, tag ("P7"), phaseName ("Impact"), label, short, unit ("mph", "°", "%"),
@@ -110,7 +110,7 @@
 //         diagnostics draws them; known false when no condition grades the reading), boxText ({ lo, q1, med, q3, hi
 //         [, signalLo, signalHi, faultLo, faultHi] } — the plot's numbers as text, for the hover labels), hasCurve (this shot
 //         has the curve and the catalogue draws it), opens ("trace"|"run"),
-//         variability (thisShot.apart and thisShot.groups only; ABSENT when there is no result): { kind "typicality",
+//         variability (thisShot.apart and thisShot.groups only; null when there is no result): { kind "typicality",
 //         values ({ z, ghosts, corridor, band }, PpVariabilityMark's Typicality shape), basisText ("this swing 82 mph ·
 //         usual 72 mph"), showCorridor (the reading's norm corridor is in values) } — see TYPICALITY below }
 //   · A RUN (RunBox) = { readingId, key, label, tag, unit, unitText, caption (string),
@@ -131,6 +131,10 @@
 //       caption ("r .62 (.17 to .86)  ·  n 15  ·  inside chance" | "Too few shots for a line.") }
 //
 // ── THE OUTPUTS (all NOTIFY resultsChanged, except replaySession and playhead) ─────────────────
+// TYPED (refactor 5.5c, lint A6): every output below is a Q_GADGET value (charts_relations_types.h), each property named
+// as the key shown here. A gadget has every property, so a key shown below as absent or {} is there at its default ("",
+// 0, false, an empty list or Sentence); a "| null" object is a QVariant holding the gadget or null, and a list of numbers
+// "null where …" holds NaN there. The kinds' curve phases also carry `impact` (the QML no longer asks a tag for "P7").
 // status: { ready, shotCount, pickedOrdinal (0 none), pickedShotId, pickedSwingDir, pickedInSession,
 //   club is "mixed clubs" when the session mixes clubs;
 //   pickedFromDetail, pickedImpactUs (window-relative µs; −1 none — QML draws the playhead on a trace at
@@ -141,7 +145,7 @@
 //   countLabelShort ("15 shots") — the profile's column heads,
 //   refusal (Sentence), timings { jobMs (worker), applyMs (GUI thread) } }
 // families: [{ name, count, note ("9 readings"), preset (bool), current (bool), sequence (bool) }]
-// thisShot: { available, kicker, head (Sentence), standfirst (Sentence), apartCount, total,
+// thisShot: { available, kicker, head (Sentence), standfirst (Sentence), apartCount, apartLabel ("2 readings" | ""), total,
 //   keyFigures (published at ANY n with a picked shot: below three shots the value alone, median "" and
 //     place "", foot "Two shots: too few to place it" / "the session's only shot"; the family defaults BY
 //     DATA — the reader's choice, else the register's default, Club delivery, then manifest order, the
@@ -215,7 +219,7 @@
 //     at least one fit has a finite value, padded 5 % of it (≥ 2 ms) each side, an end stretched to a
 //     canonical P-position within 20 ms beyond the data; null when no fit has a value), yRange { lo, hi }
 //     (every fit's v ± sd, padded 5 %),
-//     phases: [{ phase, tag, tMs }], fits: [{ name, n, contributing (shots with the curve: the group
+//     phases: [{ phase, tag, tMs, impact }], fits: [{ name, n, contributing (shots with the curve: the group
 //     fitted), label ("Faster, 6 shots"), refused (< 3 contributing), refusal (sentence),
 //     drawn (finite points), t: [ms], v: [..|null], sd: [..|null], lo: [v − sd | null], hi: [v + sd | null]
 //     (all trimmed to the window; the ±1 sd
@@ -248,6 +252,7 @@
 // Unit-tested in src/Gui/tests/charts_relations_presenter_test.cpp.
 
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
+#include "charts_relations_types.h"   // the typed results (refactor 5.5c)
 #include "session_consistency.h"
 #include "session_curves.h"
 #include "session_series_types.h"
@@ -268,6 +273,12 @@
 namespace pinpoint::analysis {
 struct GradePolicy;
 class INormProvider;
+}
+namespace pinpoint::variability {
+struct ScalarTypicalityWindow;
+}
+namespace pinpoint::charts::words {
+struct Sentence;
 }
 
 namespace pinpoint::charts {
@@ -297,15 +308,16 @@ class ChartsRelationsPresenter : public QObject
     // ── outputs ──
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(bool ready READ ready NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap status READ status NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantList families READ families NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap thisShot READ thisShot NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap openRow READ openRow NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap sequence READ sequence NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap relations READ relations NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap kinds READ kinds NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap replaySession READ replaySession NOTIFY playheadChanged)
-    Q_PROPERTY(QVariantMap playhead READ playhead NOTIFY playheadChanged)
+    // typed (refactor 5.5c, lint A6): charts_relations_types.h
+    Q_PROPERTY(pinpoint::charts::RelationsStatus status READ status NOTIFY resultsChanged)
+    Q_PROPERTY(QList<pinpoint::charts::RelationsFamily> families READ families NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::RelationsThisShot thisShot READ thisShot NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::RelationsOpenRow openRow READ openRow NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::RelationsSequence sequence READ sequence NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::RelationsRelations relations READ relations NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::RelationsKinds kinds READ kinds NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::RelationsReplaySession replaySession READ replaySession NOTIFY playheadChanged)
+    Q_PROPERTY(pinpoint::charts::RelationsPlayhead playhead READ playhead NOTIFY playheadChanged)
 
 public:
     explicit ChartsRelationsPresenter(QObject *parent = nullptr);
@@ -336,17 +348,17 @@ public:
     QVariant pickedDetailRef() const { return qmlMapRef(pickedDetail()); }
     void     setPickedDetailRef(const QVariant &v) { setPickedDetail(qmlMapRefValue(v)); }
 
-    bool busy() const { return m_running || m_scheduled; }
+    bool busy() const { return m_sched.busy(); }
     bool ready() const;
-    QVariantMap  status() const;
-    QVariantList families() const;
-    QVariantMap  thisShot() const;
-    QVariantMap  openRow() const;
-    QVariantMap  sequence() const;
-    QVariantMap  relations() const;
-    QVariantMap  kinds() const;
-    QVariantMap  replaySession() const;
-    QVariantMap  playhead() const { return m_playheadMap; }
+    RelationsStatus         status() const;
+    QList<RelationsFamily>  families() const;
+    RelationsThisShot       thisShot() const;
+    RelationsOpenRow        openRow() const;
+    RelationsSequence       sequence() const;
+    RelationsRelations      relations() const;
+    RelationsKinds          kinds() const;
+    RelationsReplaySession  replaySession() const;
+    RelationsPlayhead       playhead() const { return m_playhead; }
 
     // The picked shot's window-relative µs of a P-position (−1 when it has none), and of a time in ms
     // from impact on its own clock (−1 when it has no impact) — hand either to shotReplay.seekToUs.
@@ -357,12 +369,13 @@ public:
     // { v, text } with the text in the unit's display precision (or finer when the step needs it), U+2212
     // minus. For every value axis the figures draw (trace, run, scatter, kind curve); call it when a range
     // or a width changes, never per frame.
-    Q_INVOKABLE QVariantList ticks(double lo, double hi, int maxTicks, const QString &unit = QString()) const;
-    // The same, with no presenter: for a payload that carries its ticks to paper (wristSessionReportPayload's score run).
+    Q_INVOKABLE QList<pinpoint::charts::RelationsTick> ticks(double lo, double hi, int maxTicks, const QString &unit = QString()) const;
+    // The same, with no presenter, as maps { v, text }: for a payload that carries its ticks to paper
+    // (wristSessionReportPayload's score run, the report's delivery scales). Not on the QML boundary.
     static QVariantList axisTicks(double lo, double hi, int maxTicks, const QString &unit = QString());
 
     // Test seams.
-    Q_INVOKABLE void setSynchronous(bool on) { m_synchronous = on; }
+    Q_INVOKABLE void setSynchronous(bool on) { m_sched.setSynchronousFlag(on); }
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);
     // Feed a snapshot directly (no series): tests on the fixture. Replaces `model`'s.
     void setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot);
@@ -375,13 +388,14 @@ public:
     // impact". The SAME readings, r, interval and ledger rows as `relations.ledger` (one row builder),
     // computed on the CALLER's thread from `snapshot` (the Wrist presenter's worker): the top `k`
     // readings that are not the same quantity, then the top `lmK` launch-monitor (lm.*) readings not
-    // already among them, each with its rank in the full ledger. Shape:
+    // already among them, each with its rank in the full ledger. Typed (RelationsMovesWith, refactor 5.5c):
     //   { available, refusal (Sentence; below five shots, or the reading not read on three),
     //     upId, up: { readingId, key, label, short, tag, unit, group, text }, head (Sentence),
     //     chance: { n, tests, clearCount, chanceCount, rCritical, rCriticalText, line (Sentence) },
     //     rows: [LEDGER ROW as relations.ledger], note (Sentence: "A small session. " + co-occurrence) }
-    static QVariantMap movesWith(const std::shared_ptr<const SessionSnapshot> &snapshot, const QString &readingId,
-                                 int k, int lmK, const ReadAt &readAt = {});
+    // and `relationsUpId`, `sub` left "" for the caller to set.
+    static RelationsMovesWith movesWith(const std::shared_ptr<const SessionSnapshot> &snapshot, const QString &readingId,
+                                        int k, int lmK, const ReadAt &readAt = {});
 
     struct Output;
     struct Cache;
@@ -412,7 +426,7 @@ private:
     };
 
     void onSnapshotChanged();
-    void schedule();
+    void schedule() { m_sched.schedule(); }
     void start();
     void deliver(std::shared_ptr<const Output> out);
     void updatePlayhead(bool force);
@@ -430,17 +444,15 @@ private:
     // outputs
     std::shared_ptr<const Output> m_out;
     int         m_replayIndex = -1;
-    QVariantMap m_playheadMap;
+    RelationsPlayhead m_playhead;
 
     // the worker
     ChartsLane m_pool{ this };          // the one idiom (charts_work.h)
     std::shared_ptr<Cache> m_cache;        // touched only inside a job (jobs never overlap)
     ConsistencyEnv m_consistencyEnv;       // taken on the GUI thread; a job holds a copy
     quint64 m_normsGeneration = 0;         // the shared norm set's generation the env and cache were made at
-    bool m_synchronous = false;
-    bool m_running = false;
-    bool m_scheduled = false;   // a start is posted (refactor 5.5a: the one scheduler)
-    bool m_dirty = false;
+    // the one scheduler (charts_presenter_core.h): coalesced, busy from the ask (P11)
+    ChartsScheduler m_sched{ this, ChartsScheduler::Policy::BusyFromAsk, [this] { start(); }, [this] { emit busyChanged(); } };
     int  m_generation = 0;
 };
 
@@ -467,11 +479,11 @@ public:
     const ConsistencyResult &result() const;
     const std::vector<ConsistencyLmRow> &lmRows(int shot) const;
 
-    // READING ROWs. readingRow is a reading of the table at the middle of its span (its one point for a position),
-    // against every shot's box there.
-    QVariantMap lmRow(int shot, const ConsistencyLmRow &row) const;
-    QVariantMap standOutRow(int shot, const ConsistencyStandOut &standOut) const;
-    QVariantMap readingRow(int shot, const ConsistencyJudged &judged) const;
+    // READING ROWs (typed: RelationsReadingRow). readingRow is a reading of the table at the middle of its span (its one
+    // point for a position), against every shot's box there.
+    RelationsReadingRow lmRow(int shot, const ConsistencyLmRow &row) const;
+    RelationsReadingRow standOutRow(int shot, const ConsistencyStandOut &standOut) const;
+    RelationsReadingRow readingRow(int shot, const ConsistencyJudged &judged) const;
 
     // Why no test could run on this shot, "" when one could; `swingOnly` asks of the swing's tests alone.
     QString cannotCompare(int shot, bool swingOnly) const;
@@ -481,5 +493,14 @@ private:
     struct Impl;
     std::unique_ptr<Impl> m;
 };
+
+// A Sentence as the typed results carry it: its text, its runs and its first clause (words::firstClauseOf).
+RelationsSentence relationsSentence(const words::Sentence &s);
+
+// A typicality badge (R8) as a row, a key figure or Replay's "now" carries it: kind "typicality", PpVariabilityMark's
+// Typicality `values` read off the window (as variability_facade.h's typicalityPayload spells them), and the basis line
+// that payload built. The one builder: Charts' rows and the Consistency tab's both take it.
+RelationsVariability relationsTypicality(const pinpoint::variability::ScalarTypicalityWindow &window,
+                                         const QString &basisText, bool showCorridor);
 
 } // namespace pinpoint::charts

@@ -111,6 +111,7 @@ public:
     bool    busy() const override { return m_running || m_dirty; }
     int     skippedCount() const override { return int(m_skipped.size()); }
     const std::vector<SeriesSkip> &skipped() const { return m_skipped; }
+    QString skipReasonOf(const QString &swingDir) const override;
     pinpoint::Session *session() const;
 
     // Spin the GUI thread's event loop until nothing is in flight. False on timeout. Tests and tools.

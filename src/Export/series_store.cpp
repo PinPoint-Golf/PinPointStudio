@@ -62,6 +62,26 @@ SeriesRead SwingStoreSeriesReader::analysis(const ShotRef &shot) const
     return out;
 }
 
+SeriesRead SwingStoreSeriesReader::document(const ShotRef &shot) const
+{
+    SeriesRead out;
+    const QString swingDir = folderOf(shot);
+    if (swingDir.isEmpty()) {
+        out.error = QStringLiteral("the session of %1 is not open").arg(shot.toString());
+        return out;
+    }
+    const SwingStore::DocInfo doc = SwingStore::info(swingDir);   // stamped BEFORE the read
+    out.stamp = { doc.exists(), doc.size, doc.mtimeMs };
+    if (!doc.exists()) {
+        out.error = QStringLiteral("no swing document");
+        return out;
+    }
+    QString err;
+    out.root = SwingStore::load(swingDir, &err);
+    if (out.root.isEmpty()) out.error = err;
+    return out;
+}
+
 QString seriesSwingLabelOf(const QString &swingDir)
 {
     const int n = swingDir.isEmpty() ? -1 : SwingPaths::swingNumberOf(QFileInfo(QDir::cleanPath(swingDir)).fileName());

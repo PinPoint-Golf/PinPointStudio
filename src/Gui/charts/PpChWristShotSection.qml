@@ -46,7 +46,7 @@ PpChSection {
     objectName: "chWristSection"
     // folds like every section after the Charts' Summary (Mark, 17 Oct 2026), saved with the others
     key: "wrist"; title: "Wrist"
-    foldState: score && score.scoreText ? "score " + score.scoreText : ""
+    foldState: score && score.foldText ? score.foldText : ""   // the presenter's words ("score 84")
     has: !!roles && !!sh && sh.available === true
     mainHeight: rail ? Math.max(mainCol.height, railCol.height) : mainCol.height
     readonly property var wc: body ? body.wChoices : ({})
@@ -70,13 +70,14 @@ PpChSection {
     readonly property string _dir: sh ? (sh.swingDir || "") : ""
     on_DirChanged: trustSubject = ""
     function esc(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") }
-    // the caption, and the DOFs not measured on this swing, each a gate refused naming its words as a link
+    // the caption, and the DOFs not measured on this swing (after the presenter's lead words), each a gate refused
+    // naming its words as a link
     readonly property bool missingLinks: (prof.missingParts || []).some(function (m) { return !!m.subject })
     readonly property string missingRich: {
         const parts = prof.missingParts || []
         let t = esc(prof.caption || "")
         if (parts.length)
-            t += " Not measured on this swing: " + parts.map(function (m) {
+            t += " " + esc(prof.missingLead || "") + parts.map(function (m) {
                 return esc(m.name) + (m.subject ? " (<a href=\"" + esc(m.subject) + "\">" + esc(m.words) + " ›</a>)" : "") }).join(", ") + "."
         if (prof.missingTail) t += " " + esc(prof.missingTail)
         return t

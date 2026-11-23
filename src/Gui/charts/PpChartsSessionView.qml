@@ -62,7 +62,8 @@ PpChViewBase {
         for (const f of fs) if (f.kind !== "condition") out.push(f)
         const cur = fs.filter(function (f) { return f.current && f.kind === "condition" })[0]
         const lead = cond.slice(0, facetShown)
-        if (cur && lead.indexOf(cur) < 0) lead.push(cur)
+        // by id: each read of a typed list hands a new value, so two reads of one facet are never the same object
+        if (cur && !lead.some(function (f) { return f.id === cur.id })) lead.push(cur)
         return out.slice(0, 2).concat(lead).concat(out.slice(2))
     }
     readonly property var sets: {

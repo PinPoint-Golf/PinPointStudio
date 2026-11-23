@@ -103,7 +103,8 @@ Item {
     }
     function ownIndex() { for (let i = 0; i < groups.length; ++i) if (groups[i].own) return i; return 0 }
     function panelOf(r, group) { const ps = r.panels || []; for (let i = 0; i < ps.length; ++i) if (ps[i].group === group) return ps[i]; return null }
-    readonly property var pLines: pTicks.map(function (p) { return { t: p.canonMs, strong: p.tag === "P7" } })
+    // impact is the strong tick, kept when crowded: the presenter's landmark (by phase, never by the tag's words)
+    readonly property var pLines: pTicks.map(function (p) { return { t: p.canonMs, strong: p.landmark === "impact" } })
 
     // the layers one panel draws: the metric's hue at the ch weights and alphas, never a second hue
     function layersFor(r, p, withPicked, withAlt) {
@@ -125,7 +126,7 @@ Item {
                     out.push({ k: "line", t: o.estimate.t, v: o.estimate.v, color: col, w: 0.8, alpha: c.otherShotAlpha, dash: roles.dash(c.fitDash), shot: o.ordinal, z: 0 })
             }
             if (p.med) out.push({ k: "line", t: p.t, v: p.med, color: col, w: c.medianW, alpha: c.medianAlpha, z: 1 })
-            if (p.medEst) out.push({ k: "line", t: p.t, v: p.medEst, color: col, w: c.medianW, alpha: c.medianAlpha, dash: roles.dash(c.fitDash), z: 1 })
+            if (p.medEst && p.medEst.length) out.push({ k: "line", t: p.t, v: p.medEst, color: col, w: c.medianW, alpha: c.medianAlpha, dash: roles.dash(c.fitDash), z: 1 })
         }
         if (withAlt && p.alt && p.alt.v)
             out.push({ k: "line", t: p.t, v: p.alt.v, color: col, w: c.otherFacetW, dash: roles.dash(c.otherFacetDash), z: 1 })
@@ -178,9 +179,9 @@ Item {
                     required property int index
                     readonly property real cx: sf.yGut + (modelData.canonMs - sf.x0) / Math.max(1e-9, sf.x1 - sf.x0) * sf.innerW
                     readonly property real prevX: index > 0 ? sf.yGut + (sf.pTicks[index - 1].canonMs - sf.x0) / Math.max(1e-9, sf.x1 - sf.x0) * sf.innerW : -1e9
-                    visible: (cx - prevX >= sf.roles.u(19) || modelData.tag === "P7") && cx >= sf.yGut - 2 && cx <= sf.yGut + sf.innerW + 2
+                    visible: (cx - prevX >= sf.roles.u(19) || modelData.landmark === "impact") && cx >= sf.yGut - 2 && cx <= sf.yGut + sf.innerW + 2
                     x: Math.max(0, Math.min(sf.panelW - width, cx - width / 2)); y: sf.topH - height - sf.roles.u(1)
-                    text: modelData.tag; font: sf.roles.fFigLabel; color: modelData.tag === "P7" ? sf.roles.ink2 : sf.roles.ink3
+                    text: modelData.tag; font: sf.roles.fFigLabel; color: modelData.landmark === "impact" ? sf.roles.ink2 : sf.roles.ink3
                 }
             }
         }

@@ -239,6 +239,13 @@ The rule (now in spec §15.4 item 1, written after round 1 drew every curve in i
    Session, attached with it, read lazily through its `SeriesReader`, following the Session's events and showing its
    diagnostics owner's findings; a view reaches it through its Session (`ChartsSeries.of(app.session)`) and never makes
    one. Its jobs run on the app's one pool (`charts_work.h`), as every presenter's do.*[^r55a]
+   *Since refactor 5.5c the Traces, Relations, Wrist and Posture presenters hand QML typed values (Q_GADGETs named as the
+   old keys, `charts_*_types.h`), as Trust, Consistency and Club delivery have since 5.5b; the six presenters share one
+   scheduler (`ChartsScheduler`, `charts_presenter_core.h`). The ★ reference is read through the ★ swing's own session's
+   series (this session's when it is one of its shots; otherwise `ChartsSeries.of(app.sessionAt(...))`), without its
+   place or findings, so it draws its Δ only; no presenter reads another session's swing document. What a presenter
+   needs of a shot beyond its series (the Posture picture's poses, the session's cameras) it asks of the snapshot's own
+   read door (`SnapshotShotReader`).*[^r55c]
 2. **Session maths (C++, with tests),** probably ChartMetrics plus a new session-statistics class:
    - A: `canonicalPhases`, `warp` / `warpMs` / `unwarpMs`, `envelope` (type-7 quantiles, at least 3
      shots), `partAt`, `pooledFit` (the §4 engine: keys, shots, window, align, half-width 20 ms, tricube,
@@ -308,3 +315,4 @@ next panel: brief what the shipped panel already does that the Product Owner ask
 window size, not only a grid.
 
 [^r55a]: Refactor 5.5a (Charts onto the session; coordinator judgement call J-74).
+[^r55c]: Refactor 5.5c (typed presenters: Traces, Relations, Wrist, Posture; build/refactor/step-5/NOTES-5.5c.md).

@@ -19,6 +19,8 @@
 #pragma once
 
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
+#include "charts_relations_types.h"   // RelationsMovesWith: the Relations ledger the Wrist tab shows (refactor 5.5c)
+#include "charts_wrist_types.h"   // the typed results QML reads (refactor 5.5c)
 #include "session_series_types.h"
 
 #include <QObject>
@@ -60,7 +62,8 @@
 //     it: "No finding fired; 2 checkpoints sat outside a band".
 //
 // ── INPUTS ───────────────────────────────────────────────────────────────────────────────────
-// model (the session's SeriesSource: its SessionSeries), pickedSwingDir + pickedDetailRef (shotReplay.analysisDetailRef: a shot not
+// model (the session's SeriesSource: its SessionSeries), referenceModel (the ★ swing's own session's series: this
+// session's when the ★ is one of its shots; charts_presenter_core.h referencePickOf), pickedSwingDir + pickedDetailRef (shotReplay.analysisDetailRef: a shot not
 // yet in the snapshot still reads), register ("analyse" | "replay"), playheadUs (the picked shot's
 // window-relative clock), scope ("shot" | "session"), against ("address" | "previous" | "reference" |
 // "median"), curvesBehind, archetype (-1 Auto | 0 Neutral | 1 Bowed | 2 Cupped: which of the styles the findings graded
@@ -74,7 +77,12 @@
 // runs the job inline when an output is next read (tests).
 //
 // ── OUTPUT SHAPES ────────────────────────────────────────────────────────────────────────────
-// A Sentence is words::Sentence::toVariant(): { text, runs: [{ text, fig }] }. A missing number is
+// TYPED (refactor 5.5c, lint A6): `choices`, `thisShot`, `session` and `standfirst` are the Q_GADGET values of
+// charts_wrist_types.h (wristui::Choices, ThisShot, Session, Sentence), each property named as the key below; the
+// shapes below are theirs. They add SCORE.foldText ("score 84": the folded section's state) and PROFILE.missingLead
+// ("Not measured on this swing: ", the words the QML links the missing DOFs after). `movesWith` is the Relations
+// presenter's own typed ledger (RelationsMovesWith, charts_relations_types.h), with its `sub` and `relationsUpId` set here. wristSessionReportPayload is the typed session as a map (chartsGadgetMap).
+// A Sentence is words::Sentence::toVariant(): { text, runs: [{ text, fig }], clause }. A missing number is
 // null (JS null) and its text "-", never 0. Figure texts use U+2212 for minus. Angles are degrees, Δ
 // from address. A BOX is { n, min, max, q1, med, q3, lo, hi, outliers: [ordinals] } (PpChBoxCell's).
 //
@@ -123,9 +131,9 @@
 //  ROW  = strip: { numbersOnly: false, dof, key (metricKey), name, sub, source, confidence, pips ("●●●○"),
 //                  sourceText ("IMU ●●●○"), short ("bow / cup"), poleTop, poleBottom, poleTopText ("↑ closed"),
 //                  poleBottomText ("↓ open"),
-//                  points: [8 × POINT], ghost: [8 × number|null] | null, trace: [{ x (0..7, checkpoint
-//                  index), v (Δ°|null) }] ([] when off or unavailable), boxes: [8 × BOXCELL] | null
-//                  (Session scope only), yLo, yHi (the row's own scale from its data), outCount }
+//                  points: [8 × POINT], ghost: [8 × number|NaN] ([] none), trace: [{ x (0..7, checkpoint
+//                  index), v (Δ°|null) }] ([] when off or unavailable), boxes: [8 × BOXCELL] ([] on
+//                  This shot: Session scope only), yLo, yHi (the row's own scale from its data), outCount }
 //         numbers-only (the grid-only lead elbow): { numbersOnly: true, dof, key, name, sub
 //                  ("no corridor: the angle only"), cells: [8 × { available, value, valueText }] }
 //  POINT = { available, value (Δ° | null), valueText ("−19°" | "-"), rag ("green"|"amber"|"red"|"ref"|"none"),
@@ -165,14 +173,14 @@
 //      a small session — the standfirst's size words) }
 //  TRUST = { lines: [string] } — said once, in order, only lines that are true; the Posture presenter's shape.
 //      Golfer's words: the sensor is "the wrist sensor", the camera "the face-on camera", never a product's name.
-//  BOXCELL = { box: BOX, values: [per shot Δ° | null], n, median (| null, n < 3), medianText,
+//  BOXCELL = { box: BOX, values: [per shot Δ° | NaN], n, median (| null, n < 3), medianText,
 //              wide (q3 − q1 | null), wideText ("2° wide" | ""), graded (some club's consistency is graded here: the
 //              dominant style has a band at the checkpoint; never P1), picked (this shot's Δ | null) }
 //  (Session rows add grades: [GRADE], as the Posture presenter's: per club { club, named, tooFew, result, cells: [{ index,
 //   tag, result (variabilityResult: Dispersion, scalar, against the dominant style's band σ, "σ 3° · 0.40 of scale · n 12")
 //   }] } — Mark's rulings R2b, R7: one window per club, the band the session draws, its σ the Ideal half-width.
-//   And rowGrades: [{ club, named, result (a plain map: VariabilityResultView::fromCellGrade(cellGrade(…)).toMap(), the
-//   cell rule R1 — the loosest third — over the club's graded checkpoints from P2 on) }] — Mark's ruling R20: the
+//   And rowGrades: [{ club, named, result (VariabilityResultView::fromCellGrade(cellGrade(…)), the cell rule R1 — the
+//   loosest third — over the club's graded checkpoints from P2 on; a plain map in the report's payload) }] — Mark's ruling R20: the
 //   report's Wrist page draws one badge per row from it; the Charts screen keeps grades, a badge per checkpoint.)
 //  consistency (Session) = { sub ("ranked from P3 on"), lines: [{ club, named, tooFew, result (the grade-0 result when tooFew),
 //              mostText ("Most: lead wrist hinge at P4"), most, leastText ("Least: …" | ""), least }] } — per club, its
@@ -237,16 +245,18 @@ class ChartsWristPresenter : public QObject
     Q_PROPERTY(bool curvesBehind READ curvesBehind WRITE setCurvesBehind NOTIFY inputsChanged)
     Q_PROPERTY(int archetype READ archetype WRITE setArchetype NOTIFY inputsChanged)
     Q_PROPERTY(QString referenceSwingDir READ referenceSwingDir WRITE setReferenceSwingDir NOTIFY inputsChanged)
+    // the ★ swing's own session's series (PpChartsPanel.referenceSeries): the ★ is read through it, never by folder
+    Q_PROPERTY(pinpoint::charts::SeriesSource *referenceModel READ referenceModel WRITE setReferenceModel NOTIFY inputsChanged)
 
     // ── outputs ──
     Q_PROPERTY(bool available READ available NOTIFY resultsChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
-    Q_PROPERTY(QVariantMap choices READ choices NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap thisShot READ thisShot NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap session READ session NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap movesWith READ movesWith NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::wristui::Choices choices READ choices NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::wristui::ThisShot thisShot READ thisShot NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::wristui::Session session READ session NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::RelationsMovesWith movesWith READ movesWith NOTIFY resultsChanged)
     Q_PROPERTY(int selected READ selected NOTIFY selectedChanged)
-    Q_PROPERTY(QVariantMap standfirst READ standfirst NOTIFY selectedChanged)
+    Q_PROPERTY(pinpoint::charts::wristui::Sentence standfirst READ standfirst NOTIFY selectedChanged)
 
 public:
     explicit ChartsWristPresenter(QObject *parent = nullptr);
@@ -274,15 +284,17 @@ public:
     void setArchetype(int a);
     QString referenceSwingDir() const { return m_in.referenceSwingDir; }
     void setReferenceSwingDir(const QString &d);
+    SeriesSource *referenceModel() const { return m_referenceModel.data(); }
+    void setReferenceModel(SeriesSource *m);
 
     bool available();
-    bool busy() const { return m_running; }
-    QVariantMap choices();
-    QVariantMap thisShot();
-    QVariantMap session();
-    QVariantMap movesWith();
+    bool busy() const { return m_sched.busy(); }
+    wristui::Choices choices();
+    wristui::ThisShot thisShot();
+    wristui::Session session();
+    RelationsMovesWith movesWith();
     int selected() const { return m_selected; }
-    QVariantMap standfirst() const;
+    wristui::Sentence standfirst() const;
 
     // The picked shot's window-relative µs of checkpoint `tag` ("P4"), for shotReplay.seekToUs; −1 when
     // the swing has no such checkpoint. A lookup into the delivered result.
@@ -303,6 +315,7 @@ public:
         bool curvesBehind = false;
         int archetype = -1;
         QString referenceSwingDir;
+        ReferencePick reference;   // the ★, picked on the GUI thread when the job is asked for (referencePickOf)
     };
     struct Result;
     struct Worker;
@@ -315,23 +328,24 @@ signals:
     void selectedChanged();
 
 private:
-    void schedule();
+    void schedule() { m_sched.schedule(); }
     void startJob();
     void apply(std::shared_ptr<Result> r);
     void flushIfSynchronous();
     void updateSelected(bool force);
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
+    void wireSources(SeriesSource *oldModel, SeriesSource *oldReference);
 
     Inputs m_in;
     QPointer<SeriesSource> m_model;
+    QPointer<SeriesSource> m_referenceModel;
+    ReferenceMemo m_refMemo;
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     qint64 m_playheadUs = -1;
     int m_selected = 0;
 
-    bool m_synchronous = false;
-    bool m_dirty = true;
-    bool m_scheduled = false;
-    bool m_running = false;
+    // the one scheduler (charts_presenter_core.h): queued, coalesced, busy while a job is in flight
+    ChartsScheduler m_sched{ this, ChartsScheduler::Policy::Queued, [this] { startJob(); }, [this] { emit busyChanged(); } };
 
     std::shared_ptr<Result> m_result;
     std::shared_ptr<Worker> m_worker;

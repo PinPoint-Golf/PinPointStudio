@@ -81,6 +81,9 @@ public:
     virtual QString sessionDir() const = 0;
     virtual bool    busy() const = 0;
     virtual int     skippedCount() const { return 0; }
+    // Why a swing of this session is not in the snapshot ("" when it is, or when it is not one of the session's swings:
+    // a trashed one). The ★ reference's words when its swing is left out (refactor 5.5c).
+    virtual QString skipReasonOf(const QString &swingDir) const { Q_UNUSED(swingDir); return {}; }
     int shotCount() const { const auto s = snapshot(); return s ? s->count() : 0; }
     int revision() const { const auto s = snapshot(); return s ? int(s->revision & 0x7fffffff) : 0; }
 

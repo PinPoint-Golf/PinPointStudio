@@ -513,8 +513,8 @@ All of it is in the working tree, uncommitted. Commits come after the Product Ow
 9. **The grades** (7 Nov). `src/Gui/charts/consistency_grades.{h,cpp}` grades every reading and cell and builds the head;
    the presenter hands QML typed values (`charts_consistency_types.h`) and word templates (`charts_consistency_presenter.h`,
    THE GRADES); each graded cell names its vocabulary and grade, so the view only looks its word up in the vocabulary
-   singletons, where the words live[^r55b]. The open row's `cell` and `shot` are still maps: they are the Relations
-   presenter's reading rows, typed with it[^r55b].
+   singletons, where the words live[^r55b]. The open row's `cell` and `shot` are the Relations
+   presenter's reading rows, one typed READING ROW (`RelationsReadingRow`, `charts_relations_types.h`)[^r55c].
 
 **Corrections to the 6 Nov plan:**
 
@@ -628,4 +628,5 @@ Variability marks Session 5 put the design system's grades on this feature. The 
 - **Unchanged:** the sampling (§4.1), the stand-out and bad-shot rules (§4.3, §4.4), the guard, the P7–P8 window, the heat
   wash and the layout.
 
+[^r55c]: Refactor 5.5c (typed presenters: Traces, Relations, Wrist, Posture).
 [^r55b]: Refactor 5.5b (typed presenters: Trust, Consistency, Club delivery). The Relations rows follow in 5.5c; whether the key's and headline's `%n` filling becomes a vocabulary function is a question for the Design Lead.

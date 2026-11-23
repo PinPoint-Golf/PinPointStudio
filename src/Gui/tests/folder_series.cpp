@@ -410,6 +410,50 @@ FolderSeries::~FolderSeries()
     m_pool.waitForDone();
 }
 
+// THE DOUBLE'S READ DOOR (refactor 5.5c; SnapshotShotReader): the app's is SessionSeries', by ShotRef through the session
+// repository; a test's snapshot reads its fixture folders straight from the store.
+namespace {
+class FolderShotReader final : public SnapshotShotReader
+{
+public:
+    SnapshotShotRead stamp(const QString &swingDir) const override
+    {
+        SnapshotShotRead out;
+        const pinpoint::SwingStore::DocInfo i = pinpoint::SwingStore::info(QDir::cleanPath(swingDir));
+        out.exists = i.exists(); out.size = i.size; out.mtimeMs = i.mtimeMs;
+        return out;
+    }
+    SnapshotShotRead analysis(const QString &swingDir) const override { return read(swingDir, false); }
+    SnapshotShotRead document(const QString &swingDir) const override { return read(swingDir, true); }
+
+private:
+    static SnapshotShotRead read(const QString &swingDir, bool whole)
+    {
+        const QString dir = QDir::cleanPath(swingDir);
+        SnapshotShotRead out;
+        const pinpoint::SwingStore::DocInfo i = pinpoint::SwingStore::info(dir);
+        out.exists = i.exists(); out.size = i.size; out.mtimeMs = i.mtimeMs;
+        if (!out.exists) { out.error = QStringLiteral("no swing document"); return out; }
+        out.root = whole ? pinpoint::SwingStore::load(dir, &out.error) : pinpoint::SwingStore::loadAnalysis(dir, &out.error);
+        return out;
+    }
+};
+} // namespace
+
+std::shared_ptr<const SnapshotShotReader> folderShotReader()
+{
+    static const std::shared_ptr<const SnapshotShotReader> r = std::make_shared<FolderShotReader>();
+    return r;
+}
+
+QString FolderSeries::skipReasonOf(const QString &swingDir) const
+{
+    const QString dir = QDir::cleanPath(swingDir.trimmed());
+    for (const Skip &k : m_skipped)
+        if (QDir::cleanPath(k.swingDir) == dir) return k.reason.isEmpty() ? QStringLiteral("the swing could not be read") : k.reason;
+    return {};
+}
+
 QVariantList FolderSeries::skippedList() const
 {
     QVariantList out;
@@ -864,6 +908,7 @@ FolderSeries::Result FolderSeries::buildSnapshot(int generation, bool forcePubli
     }
 
     auto snap = std::make_shared<SessionSnapshot>();
+    snap->reader     = folderShotReader();   // the double's door reads its folders (refactor 5.5c)
     snap->sessionDir = m_wSessionDir;
     snap->tiers      = m_ledgerTiers;
     snap->workOnOrder = m_ledgerWorkOnOrder;
