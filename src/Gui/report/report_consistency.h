@@ -19,7 +19,7 @@
 #pragma once
 
 // THE REPORT'S CONSISTENCY PAGE — the map's `consistency` block (docs/design/consistency_design.md §3, Print), cut from
-// the Consistency presenter's report payload (charts/charts_consistency_presenter.h consistencySessionReportPayload: the
+// the Consistency presenter's report payload (charts/charts_consistency_presenter.h consistencySessionReport: the
 // tab's words and rows, nothing picked). Pure and header-only, like report_delivery.h, so report_model_test proves its
 // shape and absence without a session behind it.
 //

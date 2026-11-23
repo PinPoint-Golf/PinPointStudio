@@ -81,7 +81,7 @@
 // charts_wrist_types.h (wristui::Choices, ThisShot, Session, Sentence), each property named as the key below; the
 // shapes below are theirs. They add SCORE.foldText ("score 84": the folded section's state) and PROFILE.missingLead
 // ("Not measured on this swing: ", the words the QML links the missing DOFs after). `movesWith` is the Relations
-// presenter's own typed ledger (RelationsMovesWith, charts_relations_types.h), with its `sub` and `relationsUpId` set here. wristSessionReportPayload is the typed session as a map (chartsGadgetMap).
+// presenter's own typed ledger (RelationsMovesWith, charts_relations_types.h), with its `sub` and `relationsUpId` set here. wristSessionReport is the typed session with paper's figures; reportPayloadOf its map.
 // A Sentence is words::Sentence::toVariant(): { text, runs: [{ text, fig }], clause }. A missing number is
 // null (JS null) and its text "-", never 0. Figure texts use U+2212 for minus. Angles are degrees, Δ
 // from address. A BOX is { n, min, max, q1, med, q3, lo, hi, outliers: [ordinals] } (PpChBoxCell's).
@@ -223,8 +223,37 @@ namespace pinpoint::charts {
 //     know it) — "the style it was graded against", "the band of its own style", "graded as a Cupped wrist";
 //   · movesWith: what the tab draws (no picked shot), its refusal re-worded in the noun (the Relations presenter
 //     counts "shots" in its refusals and takes no noun); its rows, chance line and note verbatim.
-QVariantMap wristSessionReportPayload(const SessionSnapshot &snapshot, int archetypeMode = -1,
+// Typed since refactor 5.6c (Q5): the screen's typed session and Relations ledger, and paper's own figures beside them,
+// computed here (the dominant style's bands, the boxes past them, each row's scale, source and label; the caption, the
+// sub-line, the dominant style, the standfirst's parts and the score run's ticks). reportPayloadOf is the report's map.
+struct WristSessionReport {
+    // Paper's own figures for one of the session's rows, in the session's row order.
+    struct PaperRow {
+        QList<bool>   banded;                 // per checkpoint: the dominant style's band reaches it
+        QList<double> bandLo, bandHi;         // per checkpoint: its edges (NaN where none)
+        QList<bool>   outside;                // per box: its median past the band (never at address, P1)
+        QStringList   ringWord;               // per box: the pole it is past ("" inside)
+        double        yLo = 0.0, yHi = 0.0;   // the row's scale over the bands and the boxes
+        int           outCount = 0;
+        QString       label, source, camera;  // the row's name, and the source most shots read it from
+    };
+    wristui::Session   session;
+    bool               ready = false;         // a shot has a reading: paper's own figures follow
+    QVariantList       scoreTicks;            // the score run's value axis (ChartsRelationsPresenter::axisTicks)
+    QList<PaperRow>    rows;
+    QString            caption, sub;
+    int                dominant = 0, dominantN = 0, dominantOf = 0;
+    QString            dominantName;
+    bool               hasParts = false;      // the standfirst's parts, for paper (scoreLine … sizeLine)
+    QString            scoreLine, styleLine, repeat, sizeLine;
+    RelationsMovesWith movesWith;
+    QString            one, many;             // the report's noun, for the ledger's refusal
+};
+WristSessionReport wristSessionReport(const SessionSnapshot &snapshot, int archetypeMode = -1,
                                       const QString &noun = QStringLiteral("shots"));
+// THE PAGE AS THE REPORT'S MAP (Q5): the one conversion of the typed page — the session's map, with paper's figures put
+// into it under the keys above.
+QVariantMap reportPayloadOf(const WristSessionReport &page);
 
 class ChartsWristPresenter : public QObject
 {

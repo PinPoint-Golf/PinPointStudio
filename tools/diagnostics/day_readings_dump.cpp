@@ -434,10 +434,10 @@ int main(int argc, char **argv)
         const DeliveryDay newDay = deliveryDayFrom(n, dir);
         const PostureAddressHistory newHist = postureHistoryFrom(n, newCamerasOf(dir), *env);
 
-        const QJsonValue dOld = jsonOf(deliverySessionReportPayloadOfDay(*snap, QStringLiteral("swings"), oldDay));
-        const QJsonValue dNew = jsonOf(deliverySessionReportPayloadOfDay(*snap, QStringLiteral("swings"), newDay));
-        const QJsonValue pOld = jsonOf(postureSessionReportPayloadOfHistory(*snap, -1, QStringLiteral("swings"), oldHist));
-        const QJsonValue pNew = jsonOf(postureSessionReportPayloadOfHistory(*snap, -1, QStringLiteral("swings"), newHist));
+        const QJsonValue dOld = jsonOf(reportPayloadOf(deliverySessionReportOfDay(*snap, QStringLiteral("swings"), oldDay)));
+        const QJsonValue dNew = jsonOf(reportPayloadOf(deliverySessionReportOfDay(*snap, QStringLiteral("swings"), newDay)));
+        const QJsonValue pOld = jsonOf(reportPayloadOf(postureSessionReportOfHistory(*snap, -1, QStringLiteral("swings"), oldHist)));
+        const QJsonValue pNew = jsonOf(reportPayloadOf(postureSessionReportOfHistory(*snap, -1, QStringLiteral("swings"), newHist)));
         QStringList diffs;
         differences(dOld, dNew, QStringLiteral("delivery"), diffs);
         differences(pOld, pNew, QStringLiteral("posture"), diffs);

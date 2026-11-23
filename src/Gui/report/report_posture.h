@@ -20,7 +20,7 @@
 
 // THE REPORT'S POSTURE PAGE — the map's `posture` block (docs/design/posture_chart_design.md §5.7, stage 3b;
 // build/report-build/REPORT_MAP.md `posture`), cut from the Charts Posture presenter's SESSION payload
-// (charts/charts_posture_presenter.h postureSessionReportPayload: the same numbers and words the screen draws,
+// (charts/charts_posture_presenter.h postureSessionReport: the same numbers and words the screen draws,
 // nothing picked, every sentence counting "swings" — the report's word). Pure and header-only, so report_model_test proves its shape, caps and absence without a
 // session behind it; SessionReportModel feeds it the payload it read for the session and the report's own
 // swing numbers.

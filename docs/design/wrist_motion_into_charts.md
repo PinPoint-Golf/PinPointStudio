@@ -346,7 +346,7 @@ score line and profile, no controls. Session diagnostics still uses the old rule
 ### 8.2 The report's Wrist page and the trust fold (23 Oct 2026)
 
 The Session view prints as the session report's Wrist page (`docs/design/session_report_design.md`, "The Wrist
-page"). The presenter gained `wristSessionReportPayload(snapshot, archetypeMode, noun)` — the Session map with no
+page"). The presenter gained `wristSessionReport(snapshot, archetypeMode, noun)` (typed since refactor 5.6c; `reportPayloadOf` is its map) — the Session map with no
 pick, its sentences in the noun ("shots" on screen, unchanged byte for byte; "swings" in the report), the band wash
 of the dominant style with `outside` / `ringWord` per median, the standfirst's parts as lines (`scoreLine`,
 `styleLine`, `repeat`, `sizeLine`), and movesWith (its refusal re-worded in the noun: the Relations presenter counts

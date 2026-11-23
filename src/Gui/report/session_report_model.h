@@ -33,8 +33,8 @@
 //      owner is idle; meanwhile the swing documents' small blocks — launch monitor, athlete, clock, cameras — are
 //      read on a worker thread, and, once the owner is idle, the session's own series (the snapshot the Charts tab
 //      reads: SessionSeries, refactor 5.5a) is taken on the GUI thread and, on another, the Posture, Wrist, Club delivery and Consistency
-//      presenters' session payloads read off it (postureSessionReportPayload, wristSessionReportPayload,
-//      deliverySessionReportPayload, consistencySessionReportPayload) for those four pages — the swings as the golfer
+//      presenters' session payloads read off it (postureSessionReport, wristSessionReport,
+//      deliverySessionReport, consistencySessionReport) for those four pages — the swings as the golfer
 //      annotated them on the board, as the Charts tab publishes them (J-45) — and the Tendencies page's (the board's
 //      left-out readings and club overrides honoured: WorkOnsController::tendenciesAsOf with the pack's monitor measures);
 //   2. once all three have landed, the work-on list, the rows and the ledgers are THE OWNER'S, read through the Session

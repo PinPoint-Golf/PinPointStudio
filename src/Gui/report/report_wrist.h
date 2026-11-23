@@ -19,7 +19,7 @@
 #pragma once
 
 // THE REPORT'S WRIST PAGE — the map's `wrist` block, cut from the Charts Wrist presenter's SESSION payload
-// (charts/charts_wrist_presenter.h wristSessionReportPayload: the numbers and words the Wrist section's Session
+// (charts/charts_wrist_presenter.h wristSessionReport: the numbers and words the Wrist section's Session
 // view draws, nothing picked, Auto, the wash the DOMINANT style's band, every sentence counting "swings" — the
 // report's word). Pure and header-only, like report_posture.h, so report_model_test proves its shape, caps and
 // absence without a session behind it; SessionReportModel feeds it the payload it read and the report's own swing

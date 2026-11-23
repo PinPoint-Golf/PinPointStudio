@@ -292,7 +292,7 @@ private slots:
                  QStringLiteral("Wrist grades aren't ready yet: 1 of 1 shot is waiting for its findings"));
         QCOMPARE(se.value(QStringLiteral("standfirst")).toMap().value(QStringLiteral("text")).toString(), snap->wristPendingWhy);
         QVERIFY(se.value(QStringLiteral("keys")).toStringList().contains(QStringLiteral("hm.leadWristFlexExt")));
-        const QVariantMap rep = wristSessionReportPayload(*snap, -1, QStringLiteral("swings"));
+        const QVariantMap rep = reportPayloadOf(wristSessionReport(*snap, -1, QStringLiteral("swings")));
         QVERIFY(rep.value(QStringLiteral("pending")).toBool());
         QVERIFY(rep.value(QStringLiteral("head")).toMap().value(QStringLiteral("text")).toString().startsWith(QStringLiteral("Wrist grades aren't ready yet: 1 of 1 swing")));
         const QVariantMap page = pinpoint::report::wristReportBlock(rep, {}).toMap();
@@ -326,7 +326,7 @@ private slots:
         QVERIFY2(t.contains(QStringLiteral("No wrist reading on 1 of 3 shots.")), qPrintable(t.join(QLatin1Char('\n'))));
         QVERIFY2(t.contains(QStringLiteral("Not graded yet on 1 of 3 shots: diagnostics have not graded the wrist checkpoints yet.")),
                  qPrintable(t.join(QLatin1Char('\n'))));
-        const QStringList r = trustLines(wristSessionReportPayload(*snap, -1, QStringLiteral("swings")));
+        const QStringList r = trustLines(reportPayloadOf(wristSessionReport(*snap, -1, QStringLiteral("swings"))));
         QVERIFY2(r.contains(QStringLiteral("No wrist reading on 1 of 3 swings.")) && anyLine(r, QStringLiteral("Not graded yet on 1 of 3 swings")),
                  qPrintable(r.join(QLatin1Char('\n'))));
     }
@@ -636,7 +636,7 @@ private slots:
             grade(*sh);
             snap->shots.push_back(sh);
         }
-        const QVariantMap rep = wristSessionReportPayload(*snap, -1, QStringLiteral("shots"));
+        const QVariantMap rep = reportPayloadOf(wristSessionReport(*snap, -1, QStringLiteral("shots")));
         QVERIFY(rep.value(QStringLiteral("available")).toBool());
         const auto grader = pv::makeVariabilityGrader(pv::Basis::Scalar);
         double minRho = 1e9, maxRho = -1e9;
@@ -751,7 +751,7 @@ private slots:
         QVERIFY(rowOne);
     }
 
-    // ── the session report's Wrist page (wristSessionReportPayload, report/report_wrist.h) ──────────
+    // ── the session report's Wrist page (wristSessionReport, report/report_wrist.h) ──────────
     // the screen's Session map is unchanged by the report's noun: with "shots" every key the report does not
     // re-make for paper (rows' wash, caption, sub) and the new trust is the screen's, byte for byte
     void reportPayloadScreenUnchanged()
@@ -760,7 +760,7 @@ private slots:
         setUp(p, 0);
         p.setScope(QStringLiteral("session"));
         const QVariantMap scr = chartsGadgetMap(p.session());
-        const QVariantMap rep = wristSessionReportPayload(*m_snap, -1, QStringLiteral("shots"));
+        const QVariantMap rep = reportPayloadOf(wristSessionReport(*m_snap, -1, QStringLiteral("shots")));
         for (auto it = scr.cbegin(); it != scr.cend(); ++it) {
             if (it.key() == QLatin1String("trust") || it.key() == QLatin1String("rows") || it.key() == QLatin1String("caption")
                 || it.key() == QLatin1String("sub")) continue;
@@ -803,7 +803,7 @@ private slots:
     // the report's words count swings, the wash is the dominant style's band, a median outside it says its side
     void reportPayloadSingleStyle()
     {
-        const QVariantMap rep = wristSessionReportPayload(*m_snap, -1, QStringLiteral("swings"));
+        const QVariantMap rep = reportPayloadOf(wristSessionReport(*m_snap, -1, QStringLiteral("swings")));
         QVERIFY(rep.value(QStringLiteral("available")).toBool());
         QCOMPARE(rep.value(QStringLiteral("kicker")).toString(), QStringLiteral("3 swings  ·  7 iron  ·  Wrist"));
         QStringList all;
@@ -882,7 +882,7 @@ private slots:
         QCOMPARE(c3.value(QStringLiteral("text")).toString(), tb.value(QStringLiteral("medianText")).toString());
         QCOMPARE(b.value(QStringLiteral("scoreRun")).toMap().value(QStringLiteral("points")).toList().first().toMap().value(QStringLiteral("swing")).toInt(), 11);
         QCOMPARE(b.value(QStringLiteral("trust")).toStringList(), t);
-        QVERIFY(pinpoint::report::wristReportBlock(wristSessionReportPayload(SessionSnapshot{}, -1, QStringLiteral("swings")), swingNo).isNull());
+        QVERIFY(pinpoint::report::wristReportBlock(reportPayloadOf(wristSessionReport(SessionSnapshot{}, -1, QStringLiteral("swings"))), swingNo).isNull());
     }
 
     // every swing scores 100: the middle half is one value, said as one (screen and paper)
@@ -894,7 +894,7 @@ private slots:
         const QStringList ids{ QStringLiteral("cupped_at_top"), QStringLiteral("bowed_at_top"), QStringLiteral("scooping"), QStringLiteral("bowed_lead_wrist") };
         for (int i = 1; i <= 3; ++i) { auto s = makeShot(i, -30); clean(*s, ids); snap->shots.push_back(s); }
         for (const QString &id : ids) snap->tiers.insert(id, QStringLiteral("clean"));
-        const QVariantMap rep = wristSessionReportPayload(*snap, -1, QStringLiteral("swings"));
+        const QVariantMap rep = reportPayloadOf(wristSessionReport(*snap, -1, QStringLiteral("swings")));
         QCOMPARE(rep.value(QStringLiteral("scoreLine")).toString(), QStringLiteral("Wrist score median 100, middle half all at 100"));
         ChartsWristPresenter p;
         p.setSynchronous(true);
@@ -915,7 +915,7 @@ private slots:
         auto bare = std::make_shared<ShotSeries>();
         bare->ordinal = 4; bare->shotId = 4; bare->swingDir = dirOf(4); bare->club = QStringLiteral("7 IRON");
         snap->shots = { makeShot(1, -30, false), makeShot(2, -40, false), makeShot(3, 0, false), bare };
-        const QVariantMap rep = wristSessionReportPayload(*snap, -1, QStringLiteral("swings"));
+        const QVariantMap rep = reportPayloadOf(wristSessionReport(*snap, -1, QStringLiteral("swings")));
         QCOMPARE(rep.value(QStringLiteral("ready")).toInt(), 3);
         QCOMPARE(rep.value(QStringLiteral("dominant")).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Cupped"));
         QCOMPARE(rep.value(QStringLiteral("caption")).toString(),
@@ -932,7 +932,7 @@ private slots:
         // a tie goes to Neutral, and trust says the tie plainly
         snap->shots = { makeShot(1, -30, false), makeShot(2, 0, false) };
         {
-            const QVariantMap tie = wristSessionReportPayload(*snap, -1, QStringLiteral("swings"));
+            const QVariantMap tie = reportPayloadOf(wristSessionReport(*snap, -1, QStringLiteral("swings")));
             QCOMPARE(tie.value(QStringLiteral("dominant")).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Neutral"));
             const QStringList tt = trustLines(tie);
             QVERIFY2(tt.contains(QStringLiteral("Neutral and Cupped were tied; the Neutral band is shaded.")), qPrintable(tt.join(QLatin1Char('\n'))));
@@ -947,7 +947,7 @@ private slots:
             t1->metricOrder.removeAll(QStringLiteral("hm.leadWristFlexExt"));
             grade(*t1);
             cam->shots = { t1 };
-            const QVariantMap crep = wristSessionReportPayload(*cam, -1, QStringLiteral("swings"));
+            const QVariantMap crep = reportPayloadOf(wristSessionReport(*cam, -1, QStringLiteral("swings")));
             const QStringList ct = trustLines(crep);
             QVERIFY2(ct.contains(QStringLiteral("No swing reads the lead wrist's bow / cup, so every swing is graded against the Neutral band.")),
                      qPrintable(ct.join(QLatin1Char('\n'))));

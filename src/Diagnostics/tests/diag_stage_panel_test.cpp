@@ -104,6 +104,8 @@
 #include "../../Gui/diagnostics/diag_parallel_run.h"
 #include "../../Gui/diagnostics/session_diagnostics_adapter.h"
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
+#include "../../Gui/diagnostics/spread_readout.h"   // REPORTi: the habit runs the report reads (5.6c)
+#include "../../Coaching/sequence_checks.h"         // REPORTj: the session's sequence reading (5.6c)
 #include "../../LaunchMonitor/launch_monitor_reading.h"
 #include "../measures/measure_sample.h"
 #include "../norms/norm_provider.h"   // EVT13n: the norm set a corridor edit saves
@@ -1392,6 +1394,68 @@ static void testReport()
           three && lmRows > 0 && lmAssessed == 0);
     check(QStringLiteral("REPORTf the work-on list the report reads is the owner's, over those rows (refactor 5.6b: through the Session)"),
           s->diagnostics() && s->diagnostics()->diagnosis() && s->diagnostics()->diagnosis()->results.workOns.shotCount == kShots);
+    // REPORTi/j (refactor 5.6c, B5/B6): the report reads each habit's run and the session's sequence reading from the
+    // Session's own diagnosis (the owner's rows and ledgers), by the rule the panel's readout draws by — never the
+    // adapter. Over every per-swing ledger of this session, the two agree to the bit.
+    {
+        const SessionDiagnostics *own = s->diagnostics();
+        const std::shared_ptr<const analysis::SessionReductionInput> in = own ? own->diagnosisInput() : nullptr;
+        const analysis::SessionDiagnosis *dg = own ? own->diagnosis() : nullptr;
+        const std::shared_ptr<const RuleDataSnapshot> rules = RuleData::installed()->snapshot();
+        const std::shared_ptr<const analysis::INormProvider> norms = analysis::sharedNormProvider();
+        const analysis::GradePolicy policy = analysis::gradePolicyByName(m->gradePolicy());
+        int compared = 0, same = 0, readings = 0;
+        if (in && dg)
+            for (const analysis::ConditionLedger &l : dg->ledgers) {
+                if (l.sessionScope) continue;
+                const QVariantMap sp = m->spreadOf(l.id);
+                if (sp.isEmpty() || sp.value(QStringLiteral("composite")).toBool()) continue;
+                const analysis::HabitSpread h = analysis::habitSpreadOf(in->shots, l, int(in->shots.size()) - 1, QString(),
+                                                                        norms.get(), &rules->pack->pack(), policy);
+                ++compared;
+                bool ok = !h.composite && h.axis.decimals == sp.value(QStringLiteral("decimals")).toInt()
+                       && h.corridor.known == sp.value(QStringLiteral("corridorKnown")).toBool()
+                       && h.unit == sp.value(QStringLiteral("unit")).toString();
+                const QVariantList run = sp.value(QStringLiteral("run")).toList();
+                ok = ok && run.size() == int(h.readings.size());
+                for (int i = 0; ok && i < run.size(); ++i) {
+                    const QVariantMap pt = run[i].toMap();
+                    const bool has = std::isfinite(h.readings[size_t(i)].value);
+                    if (has) ++readings;
+                    ok = pt.value(QStringLiteral("assessable")).toBool() == has
+                      && (!has || pt.value(QStringLiteral("value")).toDouble() == h.readings[size_t(i)].value);
+                }
+                const std::vector<analysis::SpreadBand> bands = analysis::spreadBands(h.corridor, h.axis);
+                const QVariantList sb = sp.value(QStringLiteral("bands")).toList();
+                ok = ok && sb.size() == int(bands.size());
+                for (int i = 0; ok && i < sb.size(); ++i) {
+                    const QVariantMap b = sb[i].toMap();
+                    ok = b.value(QStringLiteral("grade")).toString() == bands[size_t(i)].grade
+                      && b.value(QStringLiteral("lo")).toDouble() == bands[size_t(i)].lo
+                      && b.value(QStringLiteral("hi")).toDouble() == bands[size_t(i)].hi;
+                }
+                if (ok) ++same;
+            }
+        check(QStringLiteral("REPORTi each habit's run read from the Session's diagnosis (readings, corridor, decimals, bands) is the "
+                             "panel's readout: %1 of %2 ledgers, %3 readings (refactor 5.6c B5)").arg(same).arg(compared).arg(readings),
+              compared > 0 && same == compared);
+        const QVariantMap sc = m->sequenceConsistency();
+        const analysis::SessionSequenceConsistency seq =
+            in ? analysis::sessionSequenceConsistency(in->shots, in->options) : analysis::SessionSequenceConsistency{};
+        const bool sp = seq.spread.available;
+        check(QStringLiteral("REPORTj the session's sequence reading over the Session's diagnosis is the panel's (%1, %2 of %3; B6)")
+                  .arg(analysis::sessionScopeConditionOf(dg ? dg->ledgers : std::vector<analysis::ConditionLedger>{}))
+                  .arg(seq.share.inOrder).arg(seq.share.resolved),
+              in && dg && sc.value(QStringLiteral("conditionId")).toString() == analysis::sessionScopeConditionOf(dg->ledgers)
+                  && sc.value(QStringLiteral("resolved")).toInt() == seq.share.resolved
+                  && sc.value(QStringLiteral("inOrder")).toInt() == seq.share.inOrder
+                  && sc.value(QStringLiteral("shareAvailable")).toBool() == seq.share.available
+                  && sc.value(QStringLiteral("spreadAvailable")).toBool() == sp
+                  && (!sp || (sc.value(QStringLiteral("spreadValue")).toDouble() == seq.spread.value
+                              && sc.value(QStringLiteral("spreadSigma")).toDouble() == seq.spread.sigma
+                              && sc.value(QStringLiteral("spreadSegment")).toString()
+                                     == seq.spread.segments[size_t(seq.spread.best)].piece)));
+    }
     check(QStringLiteral("REPORTg nothing written into the session by it (diagnostics.json byte-equal; no baseline frozen)"),
           fileBytes(folder + QStringLiteral("/diagnostics.json")) == diagBefore
               && QFile::exists(folder + QStringLiteral("/club_baseline.json")) == baselineBefore);

@@ -368,7 +368,7 @@ private slots:
         QCOMPARE(sc.value(QStringLiteral("points")).toList().size(), 14);
 
         // the report's page: the same shape, no picked shot, its own noun
-        const QVariantMap r = deliverySessionReportPayload(*makeSession(14), QStringLiteral("swings"));
+        const QVariantMap r = reportPayloadOf(deliverySessionReport(*makeSession(14), QStringLiteral("swings")));
         QCOMPARE(r.keys(), s.keys());
         QCOMPARE(r.value(QStringLiteral("kicker")).toString(), QStringLiteral("14 swings  ·  7 iron  ·  Club delivery"));
         QVERIFY(r.value(QStringLiteral("band")).toMap().value(QStringLiteral("positions")).toList()[5].toMap().value(QStringLiteral("picked")).isNull());
@@ -474,8 +474,8 @@ private slots:
         const auto nOf = [](const QVariantMap &section) {
             return section.value(QStringLiteral("flight")).toMap().value(QStringLiteral("fit")).toMap().value(QStringLiteral("n")).toInt();
         };
-        QCOMPARE(nOf(deliverySessionReportPayload(*snap, QStringLiteral("shots"), n)), 14);
-        QCOMPARE(nOf(deliverySessionReportPayload(*snap)), 6);
+        QCOMPARE(nOf(reportPayloadOf(deliverySessionReport(*snap, QStringLiteral("shots"), n))), 14);
+        QCOMPARE(nOf(reportPayloadOf(deliverySessionReport(*snap))), 6);
     }
 
     // THE DAY FOLLOWS THE ATHLETE LEVEL (refactor 5.5d): a summary written on the day (the athlete level's Changed, heard

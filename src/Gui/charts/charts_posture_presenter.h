@@ -228,8 +228,18 @@ namespace pinpoint::charts {
 // ordinal: the report renumbers it) and `typicalWhy`; its frames carry their `still` and no `src` (the report makes them).
 // `neighbours`: the golfer's other sessions from their summaries (refactor 5.5d; DEC-74), taken by the caller on the GUI
 // thread from the session's athlete level (neighboursFrom); none (the default): no earlier session.
-QVariantMap postureSessionReportPayload(const SessionSnapshot &snapshot, int patternMode = -1,
-                                        const QString &noun = QStringLiteral("shots"), const SessionNeighbours &neighbours = {});
+// Typed since refactor 5.6c (Q5): the session, and the picture with its `typicalWhy`; reportPayloadOf is the report's map.
+struct PostureSessionReport {
+    postureui::Session session;
+    bool               hasPicture = false;   // a typical swing with a reading and a folder
+    postureui::Picture picture;
+    QString            typicalWhy;
+};
+PostureSessionReport postureSessionReport(const SessionSnapshot &snapshot, int patternMode = -1,
+                                          const QString &noun = QStringLiteral("shots"), const SessionNeighbours &neighbours = {});
+// THE PAGE AS THE REPORT'S MAP (Q5): the one conversion of the typed page — the session in the shape the report's page
+// reads (a box's values with nulls, a box with no shot without `texts`, no ghost words), then the picture.
+QVariantMap reportPayloadOf(const PostureSessionReport &page);
 
 // THE "AT ADDRESS" HISTORY (§7.4.2; refactor 5.5d): the golfer's EARLIER sessions (every one, not only the day's), from their
 // summaries' day readings, kept per view on this session's camera (`mine`: this session's own, off its first swing
@@ -238,8 +248,8 @@ PostureAddressHistory postureHistoryFrom(const SessionNeighbours &neighbours, co
                                          const PostureEnv &env);
 // The report's page over a history already made (the parity tool's seam: tools/diagnostics/day_readings_dump.cpp sets the
 // history the old reader read beside the one from the summaries).
-QVariantMap postureSessionReportPayloadOfHistory(const SessionSnapshot &snapshot, int patternMode, const QString &noun,
-                                                 const PostureAddressHistory &history);
+PostureSessionReport postureSessionReportOfHistory(const SessionSnapshot &snapshot, int patternMode, const QString &noun,
+                                                   const PostureAddressHistory &history);
 
 class ChartsPosturePresenter : public QObject
 {

@@ -604,14 +604,6 @@ public:
     // This session's evidence per condition, for work_ons.json: what the tendency reduction needs to
     // re-compose a shot without re-deriving the session (Contract: per condition, not per shot).
     pinpoint::analysis::TendencySessionEvidence outcomeEvidence() const;
-    // The corridor a condition's run of readings is drawn against (spreadCorridorOf, at the focus
-    // shot), for a holder that builds its own figures from ledgerRows() — the session report does.
-    // `measureId` empty = the driving measure. An empty corridor when the condition has no ledger.
-    pinpoint::analysis::SpreadCorridor corridorOf(const QString &conditionId, const QString &measureId = QString()) const
-    {
-        const pinpoint::analysis::ConditionLedger *l = ledger(conditionId);
-        return l ? spreadCorridorOf(*l, focusIndex(), nullptr, measureId) : pinpoint::analysis::SpreadCorridor{};
-    }
     // Spin the caller's event loop until the Session's owner is idle (busy false). Returns false on timeout. For a
     // probe or a tool; a screen never waits.
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);

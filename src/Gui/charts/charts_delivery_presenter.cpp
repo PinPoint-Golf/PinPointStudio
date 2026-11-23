@@ -875,17 +875,22 @@ static std::shared_ptr<ChartsDeliveryPresenter::Result> computeDelivery(ChartsDe
     return R;
 }
 
-QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const QString &noun, const SessionNeighbours &neighbours)
+DeliverySessionReport deliverySessionReport(const SessionSnapshot &snapshot, const QString &noun, const SessionNeighbours &neighbours)
 {
-    return deliverySessionReportPayloadOfDay(snapshot, noun, deliveryDayFrom(neighbours, sessionDirOf(snapshot, QString())));
+    return deliverySessionReportOfDay(snapshot, noun, deliveryDayFrom(neighbours, sessionDirOf(snapshot, QString())));
 }
 
-QVariantMap deliverySessionReportPayloadOfDay(const SessionSnapshot &snapshot, const QString &noun, const DeliveryDay &day)
+DeliverySessionReport deliverySessionReportOfDay(const SessionSnapshot &snapshot, const QString &noun, const DeliveryDay &day)
 {
     const QString many = noun.trimmed().isEmpty() ? QStringLiteral("shots") : noun.trimmed();
     const std::vector<DeliveryShotInput> inputs = readInputs(nullptr, snapshot);
     const DeliverySessionView sv = deliverySession(inputs, many, &day);
-    return chartsGadgetMap(sessionOf(inputs, sv, day, -1, nullptr, many));
+    return DeliverySessionReport{ sessionOf(inputs, sv, day, -1, nullptr, many) };
+}
+
+QVariantMap reportPayloadOf(const DeliverySessionReport &page)
+{
+    return chartsGadgetMap(page.session);
 }
 
 // ── the still maker (process-wide: the app sets it once) ────────────────────────────────────────

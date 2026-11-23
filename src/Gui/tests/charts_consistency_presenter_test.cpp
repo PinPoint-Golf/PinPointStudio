@@ -697,8 +697,8 @@ private slots:
         QCOMPARE(tab, consistencyAreas());
         QVERIFY(!tab.contains(golfer));
 
-        const QVariantMap report = consistencySessionReportPayload(m_oct, consistencyEnvFromPacks(), QStringLiteral("standard"),
-                                                                   pinpoint::analysis::sharedNormProvider(), QStringLiteral("swings"));
+        const QVariantMap report = reportPayloadOf(consistencySessionReport(m_oct, consistencyEnvFromPacks(), QStringLiteral("standard"),
+                                                                   pinpoint::analysis::sharedNormProvider(), QStringLiteral("swings")));
         const QStringList paper = rowsOf(report.value(QStringLiteral("matrix")).toMap());
         QCOMPARE(paper, consistencyAreas());
         QVERIFY(!paper.contains(golfer));
@@ -728,8 +728,8 @@ private slots:
         QVERIFY2(kind == QLatin1String("halves") || kind == QLatin1String("most"), qPrintable(kind));
         QVERIFY(p->head().ball.runs.isEmpty());       // no ball line: a sentence with no runs
         // the report's payload keeps {} for it (a map until 5.6 types the report)
-        QVERIFY(consistencySessionReportPayload(m_july, consistencyEnvFromPacks(), QStringLiteral("standard"),
-                                                pinpoint::analysis::sharedNormProvider())
+        QVERIFY(reportPayloadOf(consistencySessionReport(m_july, consistencyEnvFromPacks(), QStringLiteral("standard"),
+                                                pinpoint::analysis::sharedNormProvider()))
                     .value(QStringLiteral("ball")).toMap().isEmpty());
         QVERIFY(head.value(QStringLiteral("notes")).toList().isEmpty());
         for (const QVariant &s : shotsOf(*p))
@@ -1145,8 +1145,8 @@ private slots:
     void theReportReadsTheTabsWords()
     {
         const auto p = make(m_oct);
-        const QVariantMap r = consistencySessionReportPayload(m_oct, consistencyEnvFromPacks(), QStringLiteral("standard"),
-                                                              pinpoint::analysis::sharedNormProvider(), QStringLiteral("swings"));
+        const QVariantMap r = reportPayloadOf(consistencySessionReport(m_oct, consistencyEnvFromPacks(), QStringLiteral("standard"),
+                                                              pinpoint::analysis::sharedNormProvider(), QStringLiteral("swings")));
         QVERIFY(r.value(QStringLiteral("available")).toBool());
         QVERIFY(r.value(QStringLiteral("table")).toBool());
         QCOMPARE(r.value(QStringLiteral("headline")).toMap().value(QStringLiteral("text")).toString(),

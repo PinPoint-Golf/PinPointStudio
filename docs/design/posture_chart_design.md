@@ -770,7 +770,7 @@ when D8 builds Charts print.
 
 Built 22 Oct (stage 3b): `PpPosturePage.qml`, after the work-on pages and before "Between now and next time"
 (`session_report_design.md` §3, "The Posture page"); the map's `posture` block is cut from
-`postureSessionReportPayload` by `src/Gui/report/report_posture.h`. The profile is a print-only sibling of
+`postureSessionReport` (typed since refactor 5.6c; `reportPayloadOf` is its map) by `src/Gui/report/report_posture.h`. The profile is a print-only sibling of
 `PpChPostureProfile` reading the same rows (the screen geometry would need two pages for six rows); the box is
 `PpChBoxCell` → `PpBoxPlot`. The picture strip's place is marked in the page, between "Repeatable?" and the trust
 note.

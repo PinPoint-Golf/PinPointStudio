@@ -139,14 +139,18 @@
 //  selected: int (the playhead's position, 0..6), standfirst: Sentence (thisShot.standfirsts[selected]).
 namespace pinpoint::charts {
 
-// THE SESSION REPORT'S CLUB DELIVERY PAGE (§4.8, stage 4): the `session` map above for a snapshot, with no picked
-// shot (every `picked` null) and no QObject, built on the caller's thread. `noun`: what its sentences count, plural —
-// "shots" as on Charts, "swings" for the report.
-// It stays a map until the report is typed (5.6): the typed session, through chartsGadgetMap. `neighbours`: the golfer's
-// other sessions from their summaries (refactor 5.5d; DEC-74), taken by the caller on the GUI thread from the session's
-// athlete level (neighboursFrom); none (the default): the day is the session alone.
-QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const QString &noun = QStringLiteral("shots"),
-                                         const SessionNeighbours &neighbours = {});
+// THE SESSION REPORT'S CLUB DELIVERY PAGE (§4.8, stage 4), TYPED (refactor 5.6c, Q5): the typed `session` above for a
+// snapshot, with no picked shot (every `picked` null) and no QObject, built on the caller's thread. `noun`: what its
+// sentences count, plural — "shots" as on Charts, "swings" for the report. `neighbours`: the golfer's other sessions from
+// their summaries (refactor 5.5d; DEC-74), taken by the caller on the GUI thread from the session's athlete level
+// (neighboursFrom); none (the default): the day is the session alone. The report's map of it is reportPayloadOf's.
+struct DeliverySessionReport {
+    deliveryui::Session session;
+};
+DeliverySessionReport deliverySessionReport(const SessionSnapshot &snapshot, const QString &noun = QStringLiteral("shots"),
+                                            const SessionNeighbours &neighbours = {});
+// THE PAGE AS THE REPORT'S MAP (Q5): the one conversion of the typed page, chartsGadgetMap of its session.
+QVariantMap reportPayloadOf(const DeliverySessionReport &page);
 
 // THE GOLFER'S DAY (session_delivery.h decision 13; refactor 5.5d): this session's other sessions on its local day, in
 // their place in the day, their delivery readings as their own summaries hold them (`dayReadings.delivery`); a session
@@ -154,7 +158,7 @@ QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const 
 DeliveryDay deliveryDayFrom(const SessionNeighbours &neighbours, const QString &sessionDir);
 // The same page over a day already made (the parity tool's seam: tools/diagnostics/day_readings_dump.cpp sets the day the
 // old reader read beside the day from the summaries).
-QVariantMap deliverySessionReportPayloadOfDay(const SessionSnapshot &snapshot, const QString &noun, const DeliveryDay &day);
+DeliverySessionReport deliverySessionReportOfDay(const SessionSnapshot &snapshot, const QString &noun, const DeliveryDay &day);
 
 class ChartsDeliveryPresenter : public QObject
 {

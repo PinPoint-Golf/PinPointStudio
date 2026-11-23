@@ -43,6 +43,7 @@
 #include <functional>
 #include "../charts/session_wrist.h"
 #include "../diagnostics/session_diagnostics_model.h"
+#include "../diagnostics/spread_readout.h"   // the habit runs over the Session's diagnosis (refactor 5.6c, B5)
 #include "../launchmonitor/lm_session_model.h"
 #include "../../LaunchMonitor/lm_device.h"         // the device of a launchMonitor block
 #include "../shot/shot_list_model.h"
@@ -51,6 +52,7 @@
 #include "../variability/variability_measures.h"       // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth
 #include "../../Coaching/board_annotations.h"         // the board's annotations, as every reduction reads them (3.7-d)
 #include "../../Coaching/session_report.h"
+#include "../../Coaching/sequence_checks.h"   // the session's sequence reading over the Session's diagnosis (5.6c, B6)
 #include "../../Coaching/swing_areas_pack.h"          // areaConditionInfoForPack: a yes/no condition has no grade
 #include "../../Coaching/shot_outcomes_pack.h"
 #include "../../Coaching/work_ons.h"
@@ -126,23 +128,34 @@ struct DocFacts {
     QStringList videoAliases;
 };
 
+// THE FOUR PAGES TYPED (refactor 5.6c, Q5): what the worker reads — each presenter's typed page — and the Tendencies page's
+// block beside them; chartsPagesPayload below is the one conversion of them into the report's map.
+struct ChartsPages {
+    bool                                         read = false;   // the snapshot had swings: the pages were read
+    pinpoint::charts::PostureSessionReport       posture;
+    pinpoint::charts::WristSessionReport         wrist;
+    pinpoint::charts::DeliverySessionReport      delivery;
+    pinpoint::charts::ConsistencySessionReport   consistency;
+    QVariant                                     tendencies;
+};
+
 // THE CHARTS PAGES' READING (posture_chart_design.md §5.7; the Wrist page; club_delivery_chart_design.md §4.8): the
 // session's own series' snapshot (SessionSeries, the one the Charts tab reads: refactor 5.5a; the analysis' series, phases
 // and the owner's findings, never the pose blob), and over it the Posture presenter's
-// session payload (nothing picked, Auto pattern), the Wrist presenter's (nothing picked, Auto style, the dominant
+// typed session page (nothing picked, Auto pattern), the Wrist presenter's (nothing picked, Auto style, the dominant
 // style's wash) and the Club delivery presenter's (nothing picked; its fits over the golfer's day). THE GOLFER'S OTHER
 // SESSIONS — the Club delivery page's day and the Posture page's earlier sessions at address — are their SUMMARIES' day
 // readings (refactor 5.5d; DEC-74: `neighbours`, taken on the GUI thread from the session's athlete level, the Athlete's
 // SessionIndex summaries), never their files. The same numbers and words the Charts Posture, Wrist and Club delivery
-// sections draw for the session. Over it too the Consistency presenter's report payload (the Consistency tab's table and
+// sections draw for the session. Over it too the Consistency presenter's typed report page (the Consistency tab's table and
 // flagged shots, on a swings kicker); `env` and `norms` come from the GUI thread (consistency_env.h).
-// { posture, wrist, delivery, consistency, tendencies }, each empty when nothing reads. `tendencies`: the athlete level's
+// Nothing is read when the snapshot has no swings. `tendencies`: the athlete level's
 // tendencies AS OF this session (AthleteDiagnostics::tendenciesAsOf, taken on the GUI thread: refactor 3.7-f, from the
 // summaries, the board's annotations applied by each session's own reduction), null when no owner reads it; then
 // `tendenciesWhy` keeps the page with those words as its standfirst — W::tendenciesUnread() (R1-m6), or, for a session
 // with no golfer, W::tendenciesNoGolfer() (step 5.1 review B1: the Unassigned owner has no athlete level) — else there is
 // none.
-QVariantMap readChartsPages(const std::shared_ptr<const pinpoint::charts::SessionSnapshot> &snap,
+ChartsPages readChartsPages(const std::shared_ptr<const pinpoint::charts::SessionSnapshot> &snap,
                             const pinpoint::charts::ConsistencyEnv &env, const QString &gradePolicy,
                             const std::shared_ptr<const INormProvider> &norms, const ShotOutcomePack &outcomePack,
                             const std::optional<TendencySet> &tendencies, int tendenciesLeftOut, int tendenciesLeftOutNewer,
@@ -152,24 +165,39 @@ QVariantMap readChartsPages(const std::shared_ptr<const pinpoint::charts::Sessio
     // was idle and handed here by value. THE SWINGS AS THE GOLFER ANNOTATED THEM ON THE BOARD (refactor 3.7-d; J-45): the
     // series publishes them that way (seriesAnnotateForBoard), so no page groups or norms a re-labelled swing under another
     // club than the work-on facts and the kicker do.
-    if (!snap || snap->count() == 0) return {};
-    return { { QStringLiteral("posture"), pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings"), neighbours) },   // the report says swings
-             { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) },
-             { QStringLiteral("delivery"), pinpoint::charts::deliverySessionReportPayload(*snap, QStringLiteral("swings"), neighbours) },
-             { QStringLiteral("consistency"), pinpoint::charts::consistencySessionReportPayload(snap, env, gradePolicy, norms, QStringLiteral("swings")) },
-             { QStringLiteral("tendencies"), tendencies ? QVariant([&] {
-                   QVariantMap t = pinpoint::report::tendenciesReportBlock(*tendencies, &outcomePack);
-                   // J-51 (round 0c): the sessions up to this one the athlete level could not use, said after the standfirst.
-                   // 4-e: one sentence for those still being brought up to date, one for a newer build's.
-                   if (tendenciesLeftOut > 0)
-                       t[QStringLiteral("standfirst")] = t.value(QStringLiteral("standfirst")).toString() + QLatin1Char(' ')
-                                                         + W::tendenciesNotUpToDate(tendenciesLeftOut);
-                   if (tendenciesLeftOutNewer > 0)
-                       t[QStringLiteral("standfirst")] = t.value(QStringLiteral("standfirst")).toString() + QLatin1Char(' ')
-                                                         + W::tendenciesNotSummedUp(tendenciesLeftOutNewer);
-                   return t;
-               }()) : !tendenciesWhy.isEmpty() ? QVariant(pinpoint::report::tendenciesUnreadBlock(tendenciesWhy))   // kept, saying why
-                                              : kNull } };
+    ChartsPages out;
+    if (!snap || snap->count() == 0) return out;
+    out.read = true;
+    out.posture = pinpoint::charts::postureSessionReport(*snap, -1, QStringLiteral("swings"), neighbours);   // the report says swings
+    out.wrist = pinpoint::charts::wristSessionReport(*snap, -1, QStringLiteral("swings"));
+    out.delivery = pinpoint::charts::deliverySessionReport(*snap, QStringLiteral("swings"), neighbours);
+    out.consistency = pinpoint::charts::consistencySessionReport(snap, env, gradePolicy, norms, QStringLiteral("swings"));
+    out.tendencies = tendencies ? QVariant([&] {
+                         QVariantMap t = pinpoint::report::tendenciesReportBlock(*tendencies, &outcomePack);
+                         // J-51 (round 0c): the sessions up to this one the athlete level could not use, said after the standfirst.
+                         // 4-e: one sentence for those still being brought up to date, one for a newer build's.
+                         if (tendenciesLeftOut > 0)
+                             t[QStringLiteral("standfirst")] = t.value(QStringLiteral("standfirst")).toString() + QLatin1Char(' ')
+                                                               + W::tendenciesNotUpToDate(tendenciesLeftOut);
+                         if (tendenciesLeftOutNewer > 0)
+                             t[QStringLiteral("standfirst")] = t.value(QStringLiteral("standfirst")).toString() + QLatin1Char(' ')
+                                                               + W::tendenciesNotSummedUp(tendenciesLeftOutNewer);
+                         return t;
+                     }()) : !tendenciesWhy.isEmpty() ? QVariant(pinpoint::report::tendenciesUnreadBlock(tendenciesWhy))   // kept, saying why
+                                                    : kNull;
+    return out;
+}
+
+// THE ONE CONVERSION (Q5): the typed pages into the report's map, each by its presenter's reportPayloadOf (the shape the
+// report's pages read). { posture, wrist, delivery, consistency, tendencies }; nothing when the pages were not read.
+QVariantMap chartsPagesPayload(const ChartsPages &p)
+{
+    if (!p.read) return {};
+    return { { QStringLiteral("posture"), pinpoint::charts::reportPayloadOf(p.posture) },
+             { QStringLiteral("wrist"), pinpoint::charts::reportPayloadOf(p.wrist) },
+             { QStringLiteral("delivery"), pinpoint::charts::reportPayloadOf(p.delivery) },
+             { QStringLiteral("consistency"), pinpoint::charts::reportPayloadOf(p.consistency) },
+             { QStringLiteral("tendencies"), p.tendencies } };
 }
 
 QVector<DocFacts> readDocs(const QString &sessionDir)
@@ -266,10 +294,11 @@ QString athleteFolderKey(const QString &folder)
     return folder.trimmed().isEmpty() ? QString() : QDir::cleanPath(QFileInfo(folder).absoluteFilePath());
 }
 
-// SET-15 as RuleData holds it (refactor step 3.2: its repository is the one reader of the settings key).
-QString gradePolicyName()
+// SET-15 as RuleData holds it (refactor step 3.2: its repository is the one reader of the settings key), from the make's
+// one snapshot (refactor 5.6c, Q9).
+QString gradePolicyName(const pinpoint::RuleDataSnapshot &rules)
 {
-    const QString p = pinpoint::RuleData::current()->gradePolicy;
+    const QString p = rules.gradePolicy;
     return p.isEmpty() ? QStringLiteral("standard") : p;
 }
 
@@ -298,7 +327,7 @@ struct SessionReportModel::Job {
     bool        built = false;
     QFutureWatcher<QVector<DocFacts>> docsWatcher;
     QVector<DocFacts> docs;
-    QFutureWatcher<QVariantMap> chartsWatcher;      // the Posture, Wrist, Club delivery and Consistency pages' payloads (readChartsPages)
+    QFutureWatcher<ChartsPages> chartsWatcher;      // the Posture, Wrist, Club delivery and Consistency pages, typed (readChartsPages)
     // THE SESSION'S SERIES (refactor 5.5a): the charts pages are read from its snapshot once the diagnosis is in and the
     // series is idle (launchCharts); a series busy then is waited for (seriesWait).
     QPointer<pinpoint::charts::SessionSeries>                                  series;
@@ -311,6 +340,11 @@ struct SessionReportModel::Job {
     QVector<StillRequest> requests;
     QVector<StillSlot>  stillSlots;
     QPointer<pinpoint::Session> session;   // the Session the records and stills are saved through (5.6a)
+    // THE MAKE'S RULE DATA, TAKEN ONCE (refactor 5.6c, Q9): RuleData's snapshot at start — the pack, drills, gate words
+    // and grade policy every part of this make reads, so the Tendencies page's outcome words and the pages' pack are one
+    // pack, and one load per make — and the norm set taken beside it on the GUI thread.
+    std::shared_ptr<const pinpoint::RuleDataSnapshot> rules;
+    std::shared_ptr<const INormProvider>              norms;
     QString             pdfPath;          // the PDF's place in the session (FILE-SESS-08)
     QString             printPath;        // where the print host writes it first, outside the library (5.6b)
     QString             fingerprint;
@@ -547,11 +581,12 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     // The Posture and Wrist pages' reading, alongside (the Wrist page's cells are the findings': nothing to warm up).
     // The Consistency page's env and norms are taken here for the same reason, and handed over by value.
     const pinpoint::charts::ConsistencyEnv consistencyEnv = pinpoint::charts::consistencyEnvFromPacks();
-    const std::shared_ptr<const INormProvider> norms = sharedNormProvider();
-    const QString policy = gradePolicyName();
+    m_job->rules = pinpoint::RuleData::current();   // THE ONE TAKE OF THE RULE DATA FOR THIS MAKE (Q9)
+    m_job->norms = sharedNormProvider();
+    const std::shared_ptr<const INormProvider> norms = m_job->norms;
+    const QString policy = gradePolicyName(*m_job->rules);
     // The Tendencies page reads the sessions up to this one with the same outcome words Home uses.
-    const std::unique_ptr<ICharacteristicPackProvider> outcomeProvider = makeCharacteristicPackProvider();
-    const ShotOutcomePack outcomePack = shotOutcomePackFor(&outcomeProvider->pack());
+    const ShotOutcomePack outcomePack = shotOutcomePackFor(&m_job->rules->pack->pack());
     // THE TENDENCIES AS THEY STOOD AT THIS SESSION (refactor 3.7-f; CARRY 3.7-d M5): the athlete level's read, taken here on
     // the GUI thread and handed over by value. The door gives no owner, or the owner does not list the session (a make
     // queued across an athlete switch): the page is kept and says why it is empty (REVIEW-f R1-m6; show with a warning,
@@ -586,7 +621,7 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
             tendenciesUnread = true;
         }
     }
-    connect(&m_job->chartsWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onChartsRead);
+    connect(&m_job->chartsWatcher, &QFutureWatcher<ChartsPages>::finished, this, &SessionReportModel::onChartsRead);
     const QString tendenciesWhy = noGolfer ? W::tendenciesNoGolfer() : tendenciesUnread ? W::tendenciesUnread() : QString();
     // THE GOLFER'S OTHER SESSIONS FROM THEIR SUMMARIES (refactor 5.5d; DEC-74), taken here on the GUI thread from the same
     // athlete level and handed over by value: the Club delivery page's day, the Posture page's earlier sessions. A session
@@ -622,7 +657,7 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     // REVIEWING: it reads recorded sessions, never the live one, and a reviewed session's footer is final. The adapter
     // judges and writes nothing of the session (refactor 5.4b: the old engine's switches went with it).
     m->setReviewing(true);
-    m->setGradePolicy(gradePolicyName());
+    m->setGradePolicy(policy);
     m->setSelectedSwingDir(QString());
     m->setSelectedShot(QString());
     m->closeDetail();
@@ -677,7 +712,8 @@ void SessionReportModel::onDocsRead()
 void SessionReportModel::onChartsRead()
 {
     if (!m_job) return;
-    const QVariantMap pages = m_job->chartsWatcher.result();
+    // The typed pages land on the GUI thread, and are converted here once (Q5: never by a payload static on the worker).
+    const QVariantMap pages = chartsPagesPayload(m_job->chartsWatcher.result());
     m_job->posture = pages.value(QStringLiteral("posture")).toMap();
     m_job->wrist = pages.value(QStringLiteral("wrist")).toMap();
     m_job->delivery = pages.value(QStringLiteral("delivery")).toMap();
@@ -743,7 +779,9 @@ struct Ctx {
     const DrillSet *drills = nullptr;
     const GateWordSet *gateWords = nullptr;   // what we could not check, in golfer words (gate_words_pack.h)
     R::ReportPack rpack;
-    const SessionDiagnosticsModel *model = nullptr;
+    // What the habit runs are drawn against (B5): the make's norm set and grade policy, as the panel grades its strip.
+    const INormProvider *norms = nullptr;
+    GradePolicy policy;
     const std::vector<ShotRecord> *shots = nullptr;
     const std::vector<ConditionLedger> *ledgers = nullptr;
     SessionWorkOns workOns;
@@ -847,17 +885,21 @@ struct Run {
     R::HabitRun h;
     QString measureId, unit, golferName, golferLow;
     int decimals = 0, sign = 1;
-    QVariantMap spread;
+    // The run chart's corridor bands (spreadBands over the corridor and its axis), when the corridor is known.
+    bool corridorKnown = false;
+    std::vector<SpreadBand> bands;
     // A COMPOSITE habit (posture_metrics_design.md §8): its number is never shown, so the run carries
     // no values, no corridor and no name to quote one under — the page says how often, not how far.
     bool composite = false;
 };
 
+// THE HABIT'S RUN FROM THE SESSION'S DIAGNOSIS (refactor 5.6c, B5): habitSpreadOf (spread_readout.h) over the owner's
+// rows and ledger, through the Session — the rule the diagnostics panel's strip draws by, at the panel's focus shot when
+// nothing is picked (the session's last shot) — never the panel adapter's readout.
 Run runOf(const Ctx &x, const QString &id)
 {
     Run r;
     r.h.id = id;
-    r.spread = x.model->spreadOf(id);
     const ConditionLedger *l = x.ledger(id);
     r.measureId = l ? l->drivingMeasureId : QString();
     const Measure *m = x.measure(r.measureId);
@@ -866,20 +908,27 @@ Run runOf(const Ctx &x, const QString &id)
         r.h.values.assign(size_t(x.N), std::numeric_limits<double>::quiet_NaN());
         return r;
     }
-    r.unit = r.spread.value(QStringLiteral("unit")).toString();
+    // A session-scope condition has no per-swing readings to spread (the readout's rule); no ledger, nothing to read.
+    const bool reads = l && !l->sessionScope;
+    const int fi = int(x.shots->size()) - 1;
+    const HabitSpread hs = reads ? habitSpreadOf(*x.shots, *l, fi, QString(), x.norms, x.pack, x.policy) : HabitSpread{};
+    // A composite on the rows' word alone (the pack says otherwise): no readings, no corridor drawn (NOTES-5.6c, EDGE).
+    const bool spread = reads && !hs.composite;
+    r.unit = spread ? hs.unit : QString();
     if (r.unit.isEmpty() && m) r.unit = m->unit;
-    r.decimals = r.spread.value(QStringLiteral("decimals")).toInt();
+    r.decimals = spread ? hs.axis.decimals : 0;
     r.sign = (m && m->golferSign < 0) ? -1 : 1;
     r.golferName = m && !m->golferName.trimmed().isEmpty() ? m->golferName.trimmed()
                  : m ? W::low1(m->label.section(QLatin1Char(','), 0, 0).trimmed()) : QString();
     r.golferLow = m ? m->golferLow.trimmed() : QString();
-    r.h.corridor = x.model->corridorOf(id);
-    QHash<int, double> byShot;
-    for (const QVariant &v : r.spread.value(QStringLiteral("run")).toList()) {
-        const QVariantMap p = v.toMap();
-        if (p.value(QStringLiteral("assessable")).toBool())
-            byShot.insert(p.value(QStringLiteral("shotId")).toInt(), p.value(QStringLiteral("value")).toDouble());
+    r.h.corridor = l ? spreadCorridorOfRows(*x.shots, *l, fi, QString(), x.norms, x.pack, x.policy) : SpreadCorridor{};
+    if (spread) {
+        r.corridorKnown = hs.corridor.known;
+        r.bands = spreadBands(hs.corridor, hs.axis);
     }
+    QHash<int, double> byShot;
+    for (size_t i = 0; spread && i < hs.readings.size(); ++i)
+        if (std::isfinite(hs.readings[i].value)) byShot.insert((*x.shots)[i].shotId, hs.readings[i].value);
     r.h.values.assign(size_t(x.N), std::numeric_limits<double>::quiet_NaN());
     for (int k = 0; k < x.N; ++k) {
         const auto it = byShot.constFind(x.swings[size_t(k)].shotId);
@@ -913,13 +962,12 @@ QString valueWords(const Run &r, double raw)
 // The run chart, in the golfer's sign (the target band mirrored too when the words carry the sign).
 QVariant figureOf(const Ctx &x, const Run &r)
 {
-    if (!r.spread.value(QStringLiteral("corridorKnown")).toBool()) return kNull;
+    if (!r.corridorKnown) return kNull;
     QVariantList bands, points;
-    for (const QVariant &v : r.spread.value(QStringLiteral("bands")).toList()) {
-        const QVariantMap b = v.toMap();
-        double lo = b.value(QStringLiteral("lo")).toDouble(), hi = b.value(QStringLiteral("hi")).toDouble();
+    for (const SpreadBand &b : r.bands) {
+        double lo = b.lo, hi = b.hi;
         if (r.sign < 0) { const double t = lo; lo = -hi; hi = -t; }
-        bands << QVariantMap{ { QStringLiteral("grade"), b.value(QStringLiteral("grade")) }, { QStringLiteral("lo"), lo }, { QStringLiteral("hi"), hi } };
+        bands << QVariantMap{ { QStringLiteral("grade"), b.grade }, { QStringLiteral("lo"), lo }, { QStringLiteral("hi"), hi } };
     }
     int judged = 0;
     for (int k = 0; k < x.N; ++k) {
@@ -1014,6 +1062,8 @@ struct MapState {
     Ctx                                          x;
     std::shared_ptr<const SessionReductionInput> input;     // the rows x.shots points into (the owner's applied reduction)
     std::vector<ConditionLedger>                 ledgers;   // the ledgers x.ledgers points into (the same reduction)
+    std::shared_ptr<const INormProvider>         norms;     // the make's norm set (taken at start; x.norms points into it)
+    QString                                      policy;    // the make's grade policy, by name (its one snapshot: Q9)
     // The job's inputs, copied in.
     QString     dir;
     QVariantMap options;
@@ -1145,7 +1195,7 @@ void launchMonitorPart(MapState &state, bool anyLmBlock, const std::function<std
         LmSessionModel lmModel;
         lmModel.setReviewing(true);
         lmModel.setLeftHanded(x.leftHanded);
-        lmModel.setGradePolicy(gradePolicyName());
+        lmModel.setGradePolicy(state.policy);
         lmModel.setDeviceName(x.lmDevice);
         lmModel.setShotModel(&lmShots);          // rebuilds now
         lmGraphics = lmModel.graphics();
@@ -1717,9 +1767,10 @@ void orderPart(MapState &state)
 }
 
 // THE WORK-ON PAGES: per work-on, what we saw, its consistency, its run chart and target, its pictures, what came with
-// it and what might be behind it. The habit runs and the session-level work-on's sentences are the diagnostics panel's
-// spread readout (SessionDiagnosticsModel::spreadOf, corridorOf, sequenceConsistency) until it is its own item (5.6b B5/B6).
-void workOnPagesPart(MapState &state, const SessionDiagnosticsModel *m)
+// it and what might be behind it. The habit runs (runOf) and the session-level work-on's sentences read the Session's
+// own diagnosis (refactor 5.6c, B5/B6): the sequence reading is sessionSequenceConsistency (Coaching/sequence_checks.h)
+// over the rows the owner reduced, the rule the owner's session-scope ledgers come from; never the panel adapter.
+void workOnPagesPart(MapState &state)
 {
     Ctx &x = state.x;
     QVariantMap &map = state.map;
@@ -1740,7 +1791,7 @@ void workOnPagesPart(MapState &state, const SessionDiagnosticsModel *m)
         const int of = int(wos.size());
         // For each work-on's consistency badge (R10): the norms (built on this, the GUI thread, by start()) and what the
         // pack says before a reading is looked at — a yes/no condition has no grade.
-        const std::shared_ptr<const INormProvider> norms = isReport ? sharedNormProvider() : nullptr;
+        const std::shared_ptr<const INormProvider> norms = isReport ? state.norms : nullptr;
         const QHash<QString, AreaConditionInfo> condInfo = isReport ? areaConditionInfoForPack(*x.pack) : QHash<QString, AreaConditionInfo>();
         for (size_t i = 0; i < wos.size() && isReport; ++i) {
             const WorkOnEntry &e = *wos[i];
@@ -1762,18 +1813,17 @@ void workOnPagesPart(MapState &state, const SessionDiagnosticsModel *m)
             QVariant figure = kNull;
             if (scope) {
                 QStringList parts{ W::sawSessionLevel(x.golfer(e.id)) };
-                const QVariantMap sc = m->sequenceConsistency();
-                if (sc.value(QStringLiteral("conditionId")).toString() == e.id) {
-                    if (sc.value(QStringLiteral("spreadAvailable")).toBool())
-                        parts << W::timingSpreadSentence(sc.value(QStringLiteral("spreadSegment")).toString(),
-                                                         sc.value(QStringLiteral("spreadValue")).toDouble(), sc.value(QStringLiteral("spreadSigma")).toDouble());
-                    parts << W::orderCountSentence(sc.value(QStringLiteral("inOrder")).toInt(), sc.value(QStringLiteral("shareAvailable")).toBool()
-                                                                                                 ? sc.value(QStringLiteral("resolved")).toInt() : 0);
+                if (sessionScopeConditionOf(*x.ledgers) == e.id) {
+                    const SessionSequenceConsistency sc = sessionSequenceConsistency(*x.shots, state.input->options);
+                    if (sc.spread.available)
+                        parts << W::timingSpreadSentence(sc.spread.segments[size_t(sc.spread.best)].piece, sc.spread.value, sc.spread.sigma);
+                    parts << W::orderCountSentence(sc.share.inOrder, sc.share.available ? sc.share.resolved : 0);
                 }
                 saw = W::esc(parts.join(QLatin1Char(' ')));
                 // The session-level target, when the timing spread's corridor is known.
                 const Measure *ms = x.measure(l ? l->drivingMeasureId : QString());
-                const SpreadCorridor cor = m->corridorOf(e.id);
+                const SpreadCorridor cor = l ? spreadCorridorOfRows(*x.shots, *l, int(x.shots->size()) - 1, QString(), x.norms, x.pack, x.policy)
+                                             : SpreadCorridor{};
                 if (ms && cor.known)
                     target = W::targetLine(ms->golferName.isEmpty() ? W::low1(ms->label) : ms->golferName,
                                            W::targetWords(cor, ms->unit, ms->golferSign, W::isInstantVsImpact(ms->unit, ms->golferName)), QString(), true);
@@ -2134,20 +2184,24 @@ void SessionReportModel::build()
     if (!session || !diagnosis || !input) { fail(QStringLiteral("The session has no swings the diagnostics could read.")); return; }
 
     // ── the pack, the ledger, the work-on list ──
-    // The pack as it stands now (a coach's pack edit reaches the next report), loaded per make.
-    const std::unique_ptr<ICharacteristicPackProvider> packProv = makeCharacteristicPackProvider();
+    // The pack as it stood when this make started (a coach's pack edit reaches the next report): the make's one snapshot
+    // of the rule data (refactor 5.6c, Q9), the one the Tendencies page's outcome words were taken from.
+    const pinpoint::RuleDataSnapshot &rules = *job.rules;
     MapState state;
     Ctx &x = state.x;
-    x.pack    = &packProv->pack();
-    x.drills  = &sharedDrillSet();
+    x.pack    = &rules.pack->pack();
+    x.drills  = &rules.drills->merged;
     // The gate words as they stand now, for the same reason as the pack: a studio's edit on the Gates
     // page reaches the next report. No re-read here (refactor step 3.2): the Gates page's save is
     // RuleData's command, which publishes the new set at once, so this make already reads it. A re-read
     // per make would publish a snapshot (and an EVT-13) on every report, for nothing. A gate-words file
     // edited by hand outside the app is read at the next launch, as every other rule-data file is.
-    x.gateWords = &sharedGateWordSet();
+    x.gateWords = &rules.gateWords->merged;
     x.rpack   = R::reportPackOf(*x.pack);
-    x.model   = m;                          // the panel's spread readout only (workOnPagesPart, runOf)
+    state.norms  = job.norms;
+    state.policy = gradePolicyName(rules);
+    x.norms   = state.norms.get();
+    x.policy  = gradePolicyByName(state.policy);
     state.input   = input;
     state.ledgers = diagnosis->ledgers;
     x.shots   = &state.input->shots;
@@ -2219,7 +2273,7 @@ void SessionReportModel::build()
     gridPart(state);
     todayPart(state);
     orderPart(state);
-    workOnPagesPart(state, m);
+    workOnPagesPart(state);
     pagesPart(state, m_studio);
     aboutPart(state);
 

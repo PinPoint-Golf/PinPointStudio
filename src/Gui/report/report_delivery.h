@@ -20,7 +20,7 @@
 
 // THE REPORT'S CLUB DELIVERY PAGE — the map's `delivery` block (docs/design/club_delivery_chart_design.md §4.8, stage 4),
 // cut from the Charts Club delivery presenter's SESSION payload (charts/charts_delivery_presenter.h
-// deliverySessionReportPayload: the numbers and words the Club delivery section's Session view draws, nothing picked,
+// deliverySessionReport: the numbers and words the Club delivery section's Session view draws, nothing picked,
 // the fits over the golfer's day, every sentence counting "swings" — the report's word). Pure and header-only, like
 // report_posture.h, so report_model_test proves its shape and absence without a session behind it; SessionReportModel
 // feeds it the payload it read, the report's own swing numbers and the axis ticks (paper has no ticker to ask).

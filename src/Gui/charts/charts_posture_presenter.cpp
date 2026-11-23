@@ -1778,18 +1778,18 @@ static std::shared_ptr<ChartsPosturePresenter::Result> computePosture(ChartsPost
     return R;
 }
 
-QVariantMap postureSessionReportPayload(const SessionSnapshot &snapshot, int patternMode, const QString &noun,
-                                        const SessionNeighbours &neighbours)
+PostureSessionReport postureSessionReport(const SessionSnapshot &snapshot, int patternMode, const QString &noun,
+                                          const SessionNeighbours &neighbours)
 {
     const std::shared_ptr<const PostureEnv> envHeld = postureSharedEnv();
     const PostureAddressHistory hist = postureHistoryFrom(neighbours, cleanDir(snapshot.sessionDir).isEmpty() ? pa::SessionCameras{}
                                                                                                               : camerasOf(snapshot),
                                                           *envHeld);
-    return postureSessionReportPayloadOfHistory(snapshot, patternMode, noun, hist);
+    return postureSessionReportOfHistory(snapshot, patternMode, noun, hist);
 }
 
-QVariantMap postureSessionReportPayloadOfHistory(const SessionSnapshot &snapshot, int patternMode, const QString &noun,
-                                                 const PostureAddressHistory &hist)
+PostureSessionReport postureSessionReportOfHistory(const SessionSnapshot &snapshot, int patternMode, const QString &noun,
+                                                   const PostureAddressHistory &hist)
 {
     const int mode = patternMode < -1 || patternMode > 1 ? -1 : patternMode;
     const QString many = noun.trimmed().isEmpty() ? QStringLiteral("shots") : noun.trimmed();
@@ -1799,7 +1799,8 @@ QVariantMap postureSessionReportPayloadOfHistory(const SessionSnapshot &snapshot
     const PostureSessionView sv = postureSession(inputs, env, mode, &snapshot.tiers, &snapshot.workOnOrder, many, &hist);
     std::array<qint64, kPos> us = positionUs(nullptr);
     for (size_t i = 0; i < inputs.size(); ++i) if (hasPosture(inputs[i])) { us = positionUs(snapshot.shots[i].get()); break; }
-    QVariantMap out = reportMapOf(sessionOf(env, inputs, sv, mode, -1, nullptr, us, many));
+    PostureSessionReport out;
+    out.session = sessionOf(env, inputs, sv, mode, -1, nullptr, us, many);
     if (!sv.available) return out;
 
     // THE PICTURE (§5.7): the session's TYPICAL swing — the one whose distance to the session's pattern is nearest the
@@ -1833,16 +1834,26 @@ QVariantMap postureSessionReportPayloadOfHistory(const SessionSnapshot &snapshot
     PictureOptions po;
     po.ordinal = typical;
     po.maxPx = 1400;
-    U::Picture typed = posturePicture(doc, pictureBandsOf(env, sv.pattern, sv.patternName), po);
+    out.picture = posturePicture(doc, pictureBandsOf(env, sv.pattern, sv.patternName), po);
     const QString one = many.endsWith(QLatin1Char('s')) ? many.chopped(1) : many;
-    typed.typical = QStringLiteral("A typical %1: %1 %2").arg(one).arg(typical);
-    QVariantMap pic = chartsGadgetMap(typed);
-    pic.insert(QStringLiteral("typicalWhy"), std::isfinite(median)
+    out.picture.typical = QStringLiteral("A typical %1: %1 %2").arg(one).arg(typical);
+    out.typicalWhy = std::isfinite(median)
         ? QStringLiteral("the %1 whose fit to %2 is nearest the session's median").arg(one, sv.patternName)
-        : QStringLiteral("the first %1 with a posture reading").arg(one));
+        : QStringLiteral("the first %1 with a posture reading").arg(one);
+    out.hasPicture = true;
+    return out;
+}
+
+QVariantMap reportPayloadOf(const PostureSessionReport &page)
+{
+    QVariantMap out = reportMapOf(page.session);
+    if (!page.hasPicture) return out;
+    QVariantMap pic = chartsGadgetMap(page.picture);
+    pic.insert(QStringLiteral("typicalWhy"), page.typicalWhy);
     out.insert(QStringLiteral("picture"), pic);
     return out;
 }
+
 
 // ── the object ──────────────────────────────────────────────────────────────────────────────
 

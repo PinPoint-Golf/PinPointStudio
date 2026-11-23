@@ -800,9 +800,9 @@ computeConsistency(const std::shared_ptr<const SessionSnapshot> &snapshot, const
 
 // ── the session report's reading (doc §3, Print) ────────────────────────────────────────────
 
-QVariantMap consistencySessionReportPayload(const std::shared_ptr<const SessionSnapshot> &snapshot, const ConsistencyEnv &env,
-                                            const QString &gradePolicy, const std::shared_ptr<const pa::INormProvider> &norms,
-                                            const QString &noun, const IVariabilityScaleProvider *scaleProvider)
+ConsistencySessionReport consistencySessionReport(const std::shared_ptr<const SessionSnapshot> &snapshot, const ConsistencyEnv &env,
+                                                  const QString &gradePolicy, const std::shared_ptr<const pa::INormProvider> &norms,
+                                                  const QString &noun, const IVariabilityScaleProvider *scaleProvider)
 {
     ConsistencyReadingRows rows;
     const pa::GradePolicy policy = pa::gradePolicyByName(gradePolicy);
@@ -816,27 +816,40 @@ QVariantMap consistencySessionReportPayload(const std::shared_ptr<const SessionS
     const ConsistencyGradeScales scales = consistencyGradeScales(*scaleProvider);
     const ConsistencyGrades grades = consistencyGrades(in, scales);
 
-    QVariantList flagged;
+    ConsistencySessionReport out;
     for (size_t i = 0; i < in.shots.size(); ++i) {
         if (flagsOf(res, in.shots[i].ordinal).isEmpty()) continue;
-        QVariantMap shot = chartsGadgetMap(shotDetail(rows, scales, int(i), false));     // the report's map, until 5.6
-        shot.insert(QStringLiteral("swingDir"), S.shots[i]->swingDir);
-        shot.insert(QStringLiteral("club"), in.shots[i].club);
-        flagged.append(shot);
+        out.flagged.append(ConsistencySessionReport::Flagged{ shotDetail(rows, scales, int(i), false), S.shots[i]->swingDir,
+                                                              in.shots[i].club });
     }
 
     QString kind;
     const Sentence empty = emptySentence(S, in, &kind);
-    const ConsistencyTabHead head = headOf(S, in, grades, empty, noun);
-    const bool table = std::any_of(grades.cells.begin(), grades.cells.end(), [](const ConsistencyCellGrade &c) { return c.grade.graded; });
-    const QString line = head.headline.text;
+    out.head = headOf(S, in, grades, empty, noun);
+    out.table = std::any_of(grades.cells.begin(), grades.cells.end(), [](const ConsistencyCellGrade &c) { return c.grade.graded; });
+    const QString line = out.head.headline.text;
+    out.available = out.table || !out.head.ball.runs.isEmpty() || !out.flagged.isEmpty();
+    out.empty = kind.isEmpty() || empty.text() == line ? QString() : empty.text();
+    out.matrix = matrixOf(in, res, grades, 0, QString(), false);
+    return out;
+}
+
+QVariantMap reportPayloadOf(const ConsistencySessionReport &page)
+{
+    QVariantList flagged;
+    for (const ConsistencySessionReport::Flagged &f : page.flagged) {
+        QVariantMap shot = chartsGadgetMap(f.shot);
+        shot.insert(QStringLiteral("swingDir"), f.swingDir);
+        shot.insert(QStringLiteral("club"), f.club);
+        flagged.append(shot);
+    }
     QVariantList notes;
-    for (const ConsistencyTabSentence &n : head.notes) notes.append(chartsGadgetMap(n));
-    return { { QStringLiteral("available"), table || !head.ball.runs.isEmpty() || !flagged.isEmpty() },
-             { QStringLiteral("kicker"), head.kicker }, { QStringLiteral("headline"), reportHeadlineMap(head.headline) },
-             { QStringLiteral("ball"), reportSentenceMap(head.ball) }, { QStringLiteral("notes"), notes },
-             { QStringLiteral("empty"), kind.isEmpty() || empty.text() == line ? QString() : empty.text() },
-             { QStringLiteral("table"), table }, { QStringLiteral("matrix"), reportMatrixMap(matrixOf(in, res, grades, 0, QString(), false)) },
+    for (const ConsistencyTabSentence &n : page.head.notes) notes.append(chartsGadgetMap(n));
+    return { { QStringLiteral("available"), page.available },
+             { QStringLiteral("kicker"), page.head.kicker }, { QStringLiteral("headline"), reportHeadlineMap(page.head.headline) },
+             { QStringLiteral("ball"), reportSentenceMap(page.head.ball) }, { QStringLiteral("notes"), notes },
+             { QStringLiteral("empty"), page.empty },
+             { QStringLiteral("table"), page.table }, { QStringLiteral("matrix"), reportMatrixMap(page.matrix) },
              { QStringLiteral("key"), keyWords(false) }, { QStringLiteral("keyMarks"), keyMarks(false) },
              { QStringLiteral("flagged"), flagged } };
 }

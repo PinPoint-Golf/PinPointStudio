@@ -490,16 +490,16 @@ private slots:
         requireKeys(b7.value(QStringLiteral("box")).toMap(), { "n", "min", "max", "q1", "med", "q3", "lo", "hi", "outliers", "texts" }, "BOX");
 
         // the report's page is the session map, with nothing picked
-        const QVariantMap rep = postureSessionReportPayload(*m_five);
+        const QVariantMap rep = reportPayloadOf(postureSessionReport(*m_five));
         QStringList repKeys = rep.keys();
         QVERIFY(repKeys.removeOne(QStringLiteral("picture")));   // + the typical swing's picture strip (stage 5)
         QCOMPARE(repKeys, QStringList(s.keys()));
         QCOMPARE(rep.value(QStringLiteral("headText")).toString(), s.value(QStringLiteral("headText")).toString());
         for (const QVariant &m : rep.value(QStringLiteral("strip")).toMap().value(QStringLiteral("marks")).toList())
             QVERIFY(!m.toMap().value(QStringLiteral("picked")).toBool());
-        QVERIFY(!postureSessionReportPayload(SessionSnapshot{}).value(QStringLiteral("available")).toBool());
+        QVERIFY(!reportPayloadOf(postureSessionReport(SessionSnapshot{})).value(QStringLiteral("available")).toBool());
         // the report counts swings: one sentence code, the noun passed in
-        const QVariantMap sw = postureSessionReportPayload(*m_five, -1, QStringLiteral("swings"));
+        const QVariantMap sw = reportPayloadOf(postureSessionReport(*m_five, -1, QStringLiteral("swings")));
         QVERIFY2(sw.value(QStringLiteral("kicker")).toString().startsWith(QStringLiteral("5 swings")), qPrintable(sw.value(QStringLiteral("kicker")).toString()));
         QVERIFY2(sw.value(QStringLiteral("headText")).toString().contains(QStringLiteral(" swings")), qPrintable(sw.value(QStringLiteral("headText")).toString()));
         for (const char *k : { "headText", "patternLine", "kicker", "departuresEmpty" })
@@ -523,7 +523,7 @@ private slots:
         QCOMPARE(bMarks.size(), 5);
         QCOMPARE(bMarks.at(0).toMap().value(QStringLiteral("swing")).toInt(), 11);
         QVERIFY(!blk.value(QStringLiteral("trust")).toStringList().isEmpty());
-        QVERIFY(pinpoint::report::postureReportBlock(postureSessionReportPayload(SessionSnapshot{}), swingNo).isNull());
+        QVERIFY(pinpoint::report::postureReportBlock(reportPayloadOf(postureSessionReport(SessionSnapshot{})), swingNo).isNull());
     }
 
     // ── Mark's honesty rule (22 Oct; decision 16): every reading shown, under a ⚠ where it may be unreliable ──
@@ -540,7 +540,7 @@ private slots:
             sh->club = i < 10 ? QStringLiteral("7 IRON") : QStringLiteral("DRIVER");
             snap->shots.push_back(sh);
         }
-        const QVariantMap s = postureSessionReportPayload(*snap);
+        const QVariantMap s = reportPayloadOf(postureSessionReport(*snap));
         QVERIFY(s.value(QStringLiteral("available")).toBool());
 
         // the core's own reading of the same shots: the band each cell draws, and the readings it grades
@@ -1135,7 +1135,7 @@ private slots:
         QCOMPARE(sb.value(QStringLiteral("boxN")).toInt(), 5);
 
         // the report: the same block, counting swings, through the page's block
-        const QVariantMap rep = postureSessionReportPayload(*snap, -1, QStringLiteral("swings"), neighboursOf(snap->sessionDir));
+        const QVariantMap rep = reportPayloadOf(postureSessionReport(*snap, -1, QStringLiteral("swings"), neighboursOf(snap->sessionDir)));
         const QVariantMap rb = addressRowOf(rep, QStringLiteral("m_spineBendAtAddress"));
         QCOMPARE(rb.value(QStringLiteral("historyText")).toString(), QStringLiteral("your earlier sessions: median 39°, n 3 swings over 1 session"));
         const QVariantMap block = pinpoint::report::postureReportBlock(rep, {}).toMap();
@@ -1213,7 +1213,7 @@ private slots:
             // Session and the report's page say the same
             const QStringList sl = chartsGadgetMap(p.session()).value(QStringLiteral("trust")).toMap().value(QStringLiteral("lines")).toStringList();
             QVERIFY(sl.contains(notYet) && sl.contains(newer));
-            const QVariantMap rep = postureSessionReportPayload(*snap, -1, QStringLiteral("swings"), neighboursOf(cur));
+            const QVariantMap rep = reportPayloadOf(postureSessionReport(*snap, -1, QStringLiteral("swings"), neighboursOf(cur)));
             const QStringList rl = rep.value(QStringLiteral("trust")).toMap().value(QStringLiteral("lines")).toStringList();
             QVERIFY(rl.contains(notYet) && rl.contains(newer));
         }
@@ -1657,7 +1657,7 @@ private slots:
         QVERIFY(p2.value(QStringLiteral("why")).toStringList().value(0).contains(QStringLiteral("not on disk")));
 
         // the report: the typical swing's picture (here not on disk) cut to the page, null with its reasons
-        const QVariantMap rep = postureSessionReportPayload(*m_five, -1, QStringLiteral("swings"));
+        const QVariantMap rep = reportPayloadOf(postureSessionReport(*m_five, -1, QStringLiteral("swings")));
         const QVariantMap rp = rep.value(QStringLiteral("picture")).toMap();
         QVERIFY(rp.contains(QStringLiteral("why")));
         const QVariantMap block = pinpoint::report::postureReportBlock(rep, {}).toMap();

@@ -88,7 +88,7 @@
 // a job holds a copy (consistency_env.h). setSynchronous(true) runs the job inline (tests).
 //
 // ── THE REPORT ───────────────────────────────────────────────────────────────────────────────
-// consistencySessionReportPayload (below): the session report's Consistency page, off the same builders, for one call
+// consistencySessionReport (below): the session report's Consistency page, off the same builders, for one call
 // on a worker. Nothing picked and nothing to press, so no ◆ in the table or the key. report/report_consistency.h cuts it.
 //
 // Unit-tested in src/Gui/tests/charts_consistency_presenter_test.cpp.
@@ -231,10 +231,27 @@ private:
 //     flagged: [`shot` + { swingDir, club }], in strike order, ball rows first }
 // `scales`: the variability scale provider (variability_env.h); null makes the production one here, which is safe once
 // `env` has been taken on the GUI thread.
-QVariantMap consistencySessionReportPayload(const std::shared_ptr<const SessionSnapshot> &snapshot, const ConsistencyEnv &env,
-                                            const QString &gradePolicy,
-                                            const std::shared_ptr<const pinpoint::analysis::INormProvider> &norms,
-                                            const QString &noun = QStringLiteral("shots"),
-                                            const IVariabilityScaleProvider *scales = nullptr);
+// Typed since refactor 5.6c (Q5): the head, the empty sentence, the matrix and the flagged shots as the presenter's typed
+// values; reportPayloadOf is the report's map of them.
+struct ConsistencySessionReport {
+    struct Flagged {
+        ConsistencyTabShotDetail shot;
+        QString                  swingDir, club;
+    };
+    bool                 available = false;
+    ConsistencyTabHead   head;
+    QString              empty;
+    bool                 table = false;
+    ConsistencyTabMatrix matrix;
+    QList<Flagged>       flagged;
+};
+ConsistencySessionReport consistencySessionReport(const std::shared_ptr<const SessionSnapshot> &snapshot, const ConsistencyEnv &env,
+                                                  const QString &gradePolicy,
+                                                  const std::shared_ptr<const pinpoint::analysis::INormProvider> &norms,
+                                                  const QString &noun = QStringLiteral("shots"),
+                                                  const IVariabilityScaleProvider *scales = nullptr);
+// THE PAGE AS THE REPORT'S MAP (Q5): the one conversion of the typed page, in the shape the report's page reads (the shape
+// before 5.5b: a column that does not apply its two texts alone, a result its façade map, no sentence `{}`).
+QVariantMap reportPayloadOf(const ConsistencySessionReport &page);
 
 } // namespace pinpoint::charts

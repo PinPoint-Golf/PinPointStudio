@@ -135,7 +135,7 @@ struct ChartsWristPresenter::Result {
     WU::ThisShot thisShot;
     WU::Session session;
     RelationsMovesWith movesWith;             // the Relations presenter's ledger, its own type (5.5c)
-    // the session standfirst's parts, for paper (wristSessionReportPayload): scoreLine, styleLine, repeat,
+    // the session standfirst's parts, for paper (wristSessionReport): scoreLine, styleLine, repeat,
     // sizeLine. Not in `session`: the screen's value is unchanged by them.
     QVariantMap sessionParts;
     QList<WU::Sentence> standfirsts;          // 8 Sentences (thisShot.standfirsts)
@@ -395,7 +395,7 @@ struct Ctx {
     bool refIsPicked = false;
     // THE NOUN the session's sentences count in: "shots" on Charts, "swings" in the report (its own word).
     QString many = QStringLiteral("shots"), one = QStringLiteral("shot");
-    // the report's band wash (wristSessionReportPayload): the dominant style, −1 = the screen (the picked shot's)
+    // the report's band wash (wristSessionReport): the dominant style, −1 = the screen (the picked shot's)
     int washStyle = -1;
     // paper (the report payload): its sentences never name the Auto control, which only the screen has
     bool paper = false;
@@ -2046,7 +2046,7 @@ QVariantMap nounSentence(QVariantMap sentence, const QString &one, const QString
 
 } // namespace
 
-QVariantMap wristSessionReportPayload(const SessionSnapshot &snapshot, int archetypeMode, const QString &noun)
+WristSessionReport wristSessionReport(const SessionSnapshot &snapshot, int archetypeMode, const QString &noun)
 {
     const int mode = archetypeMode < -1 || archetypeMode > 2 ? -1 : archetypeMode;
     const QString many = noun.trimmed().isEmpty() ? QStringLiteral("shots") : noun.trimmed();
@@ -2081,28 +2081,25 @@ QVariantMap wristSessionReportPayload(const SessionSnapshot &snapshot, int arche
     ChartsWristPresenter::Result R;
     buildSession(c, aggs, R);
     buildMovesWith(c, R);
-    // the screen's typed session as the report's map (the report is typed in 5.6): every key the screen has, a
-    // grade (VariabilityResultView) as its fields, then paper's own keys below
-    QVariantMap out = chartsGadgetMap(R.session);
-    if (c.ready == 0) return out;
+    // the screen's typed session and ledger, then paper's own figures beside them (reportPayloadOf puts them in the map)
+    WristSessionReport out;
+    out.session = R.session;
+    out.movesWith = R.movesWith;
+    out.one = one;
+    out.many = many;
+    out.ready = c.ready > 0;
+    if (!out.ready) return out;
     // the score run's value axis on paper: the presenter's ticks, made here (PpChRunBox asks a ticker; the report
     // has no Relations presenter to ask, so the ticks travel in the payload)
-    {
-        QVariantMap sr = out.value(QStringLiteral("scoreRun")).toMap();
-        const QVariantMap yr = sr.value(QStringLiteral("yRange")).toMap();
-        sr.insert(QStringLiteral("ticks"), ChartsRelationsPresenter::axisTicks(yr.value(QStringLiteral("lo")).toDouble(), yr.value(QStringLiteral("hi")).toDouble(), 3,
-                                                                               sr.value(QStringLiteral("unit")).toString()));
-        out.insert(QStringLiteral("scoreRun"), sr);
-    }
+    out.scoreTicks = ChartsRelationsPresenter::axisTicks(R.session.scoreRun.yRange.lo, R.session.scoreRun.yRange.hi, 3,
+                                                         R.session.scoreRun.unit);
 
     // the dominant style's band at a checkpoint (dominantBandAt: the one the session's consistency is graded against)
     std::map<QString, Profile> regraded;
     const auto bandAt = [&](const QString &id, int p, double *lo, double *hi) { return dominantBandAt(c, dom, regraded, id, p, lo, hi); };
 
-    QVariantList rows;
-    for (const QVariant &rv : out.value(QStringLiteral("rows")).toList()) {
-        QVariantMap row = rv.toMap();
-        const QString id = row.value(QStringLiteral("dof")).toString();
+    for (const WU::Row &row : R.session.rows) {
+        const QString &id = row.dof;
         const DofAgg *a = aggOf(aggs, id);
         // the row's source on paper: the one most shots read it from
         QMap<QString, int> bySource;
@@ -2110,64 +2107,115 @@ QVariantMap wristSessionReportPayload(const SessionSnapshot &snapshot, int arche
         QString source;
         int best = 0;
         for (auto it = bySource.cbegin(); it != bySource.cend(); ++it) if (it.value() > best) { best = it.value(); source = it.key(); }
-        const QString poleTop = row.value(QStringLiteral("poleTop")).toString(), poleBottom = row.value(QStringLiteral("poleBottom")).toString();
-        QVariantList points, boxes = row.value(QStringLiteral("boxes")).toList();
+        WristSessionReport::PaperRow pr;
         Scale sc;
-        int outCount = 0;
         for (int p = 0; p < kP; ++p) {
             double lo = kNaN, hi = kNaN;
             const bool banded = bandAt(id, p, &lo, &hi);
-            points.append(QVariantMap{ { QStringLiteral("available"), false }, { QStringLiteral("value"), nullv() },
-                                       { QStringLiteral("valueText"), QStringLiteral("-") }, { QStringLiteral("banded"), banded },
-                                       { QStringLiteral("bandLo"), nv(lo) }, { QStringLiteral("bandHi"), nv(hi) },
-                                       { QStringLiteral("wash"), banded ? QStringLiteral("band") : QStringLiteral("none") },
-                                       { QStringLiteral("out"), false } });
+            pr.banded.append(banded);
+            pr.bandLo.append(lo);
+            pr.bandHi.append(hi);
             if (banded) { sc.add(lo); sc.add(hi); }
             if (a) { sc.add(a->box[size_t(p)].min); sc.add(a->box[size_t(p)].max); }
-            if (p < boxes.size()) {
-                QVariantMap bm = boxes[p].toMap();
-                const QVariant mv = bm.value(QStringLiteral("median"));
+            if (p < row.boxes.size()) {
+                const QVariant mv = row.boxes.at(p).median;
                 const double med = mv.isNull() ? kNaN : mv.toDouble();
                 // P1 is address, the reference every Δ is taken from (the engine's "ref" cell): never outside
                 const bool outside = p > 0 && banded && std::isfinite(med) && (med > hi || med < lo);
-                if (outside) ++outCount;
-                bm.insert(QStringLiteral("outside"), outside);
-                bm.insert(QStringLiteral("ringWord"), outside ? (med > hi ? poleTop : poleBottom) : QString());
-                boxes[p] = bm;
+                if (outside) ++pr.outCount;
+                pr.outside.append(outside);
+                pr.ringWord.append(outside ? (med > hi ? row.poleTop : row.poleBottom) : QString());
             }
         }
         sc.finish();
-        row.insert(QStringLiteral("points"), points);
-        row.insert(QStringLiteral("boxes"), boxes);
-        row.insert(QStringLiteral("yLo"), sc.lo);
-        row.insert(QStringLiteral("yHi"), sc.hi);
-        row.insert(QStringLiteral("outCount"), outCount);
-        row.insert(QStringLiteral("label"), W::cap1(longName(id)));
-        row.insert(QStringLiteral("source"), source);
-        row.insert(QStringLiteral("camera"), sourceLabel(source));
-        row.insert(QStringLiteral("unit"), QStringLiteral("°"));
-        rows.append(row);
+        pr.yLo = sc.lo;
+        pr.yHi = sc.hi;
+        pr.label = W::cap1(longName(id));
+        pr.source = source;
+        pr.camera = sourceLabel(source);
+        out.rows.append(pr);
     }
-    out.insert(QStringLiteral("rows"), rows);
     const QString domName = wristArchetypeName(dom);
     const int k = graded[size_t(dom)];
     // no swing reads the lead wrist's bow / cup (a camera-only session): nothing chose the style, so the caption
     // names the band alone and the trust line says why
     bool anyFe = false;
     for (const Profile &pf : c.profs) anyFe = anyFe || (pf.has && pf.dof(QStringLiteral("leadWristFlexExt")));
-    out.insert(QStringLiteral("caption"),
-               mode >= 0 ? QStringLiteral("Shaded: the %1 band, set by hand; every %2 is graded against it.").arg(domName, one)
-               : !anyFe ? QStringLiteral("Shaded: the %1 band.").arg(domName)
-               : k == c.ready ? QStringLiteral("Shaded: the %1 band, the style every %2 was graded as.").arg(domName, one)
-               : QStringLiteral("Shaded: the %1 band, the style %2 of %3 %4 were graded as. Each %5 was graded against its own style’s band.")
-                     .arg(domName).arg(k).arg(c.ready).arg(many, one));
-    out.insert(QStringLiteral("sub"), QStringLiteral("Δ from address, degrees  ·  a box per checkpoint, n %1  ·  under each: median, and how wide the middle half is").arg(c.ready));
-    out.insert(QStringLiteral("dominant"), QVariantMap{ { QStringLiteral("archetype"), dom }, { QStringLiteral("name"), domName },
-                                                        { QStringLiteral("n"), k }, { QStringLiteral("of"), c.ready } });
-    for (auto it = R.sessionParts.cbegin(); it != R.sessionParts.cend(); ++it) out.insert(it.key(), it.value());
-    QVariantMap mw = chartsGadgetMap(R.movesWith);
-    if (!R.movesWith.available)   // a refusal is there only when it is not available
-        mw.insert(QStringLiteral("refusal"), nounSentence(mw.value(QStringLiteral("refusal")).toMap(), one, many));
+    out.caption = mode >= 0 ? QStringLiteral("Shaded: the %1 band, set by hand; every %2 is graded against it.").arg(domName, one)
+                : !anyFe ? QStringLiteral("Shaded: the %1 band.").arg(domName)
+                : k == c.ready ? QStringLiteral("Shaded: the %1 band, the style every %2 was graded as.").arg(domName, one)
+                : QStringLiteral("Shaded: the %1 band, the style %2 of %3 %4 were graded as. Each %5 was graded against its own style’s band.")
+                      .arg(domName).arg(k).arg(c.ready).arg(many, one);
+    out.sub = QStringLiteral("Δ from address, degrees  ·  a box per checkpoint, n %1  ·  under each: median, and how wide the middle half is").arg(c.ready);
+    out.dominant = dom;
+    out.dominantName = domName;
+    out.dominantN = k;
+    out.dominantOf = c.ready;
+    out.hasParts = !R.sessionParts.isEmpty();
+    out.scoreLine = R.sessionParts.value(QStringLiteral("scoreLine")).toString();
+    out.styleLine = R.sessionParts.value(QStringLiteral("styleLine")).toString();
+    out.repeat = R.sessionParts.value(QStringLiteral("repeat")).toString();
+    out.sizeLine = R.sessionParts.value(QStringLiteral("sizeLine")).toString();
+    return out;
+}
+
+QVariantMap reportPayloadOf(const WristSessionReport &page)
+{
+    // the screen's typed session as the report's map: every key the screen has, a grade (VariabilityResultView) as its
+    // fields, then paper's own keys below
+    QVariantMap out = chartsGadgetMap(page.session);
+    if (!page.ready) return out;
+    {
+        QVariantMap sr = out.value(QStringLiteral("scoreRun")).toMap();
+        sr.insert(QStringLiteral("ticks"), page.scoreTicks);
+        out.insert(QStringLiteral("scoreRun"), sr);
+    }
+    QVariantList rows;
+    const QVariantList in = out.value(QStringLiteral("rows")).toList();
+    for (int r = 0; r < in.size(); ++r) {
+        QVariantMap row = in[r].toMap();
+        if (r >= page.rows.size()) { rows.append(row); continue; }
+        const WristSessionReport::PaperRow &pr = page.rows.at(r);
+        QVariantList points, boxes = row.value(QStringLiteral("boxes")).toList();
+        for (int p = 0; p < pr.banded.size(); ++p) {
+            const bool banded = pr.banded.at(p);
+            points.append(QVariantMap{ { QStringLiteral("available"), false }, { QStringLiteral("value"), nullv() },
+                                       { QStringLiteral("valueText"), QStringLiteral("-") }, { QStringLiteral("banded"), banded },
+                                       { QStringLiteral("bandLo"), nv(pr.bandLo.at(p)) }, { QStringLiteral("bandHi"), nv(pr.bandHi.at(p)) },
+                                       { QStringLiteral("wash"), banded ? QStringLiteral("band") : QStringLiteral("none") },
+                                       { QStringLiteral("out"), false } });
+        }
+        for (int p = 0; p < boxes.size() && p < pr.outside.size(); ++p) {
+            QVariantMap bm = boxes[p].toMap();
+            bm.insert(QStringLiteral("outside"), pr.outside.at(p));
+            bm.insert(QStringLiteral("ringWord"), pr.ringWord.at(p));
+            boxes[p] = bm;
+        }
+        row.insert(QStringLiteral("points"), points);
+        row.insert(QStringLiteral("boxes"), boxes);
+        row.insert(QStringLiteral("yLo"), pr.yLo);
+        row.insert(QStringLiteral("yHi"), pr.yHi);
+        row.insert(QStringLiteral("outCount"), pr.outCount);
+        row.insert(QStringLiteral("label"), pr.label);
+        row.insert(QStringLiteral("source"), pr.source);
+        row.insert(QStringLiteral("camera"), pr.camera);
+        row.insert(QStringLiteral("unit"), QStringLiteral("°"));
+        rows.append(row);
+    }
+    out.insert(QStringLiteral("rows"), rows);
+    out.insert(QStringLiteral("caption"), page.caption);
+    out.insert(QStringLiteral("sub"), page.sub);
+    out.insert(QStringLiteral("dominant"), QVariantMap{ { QStringLiteral("archetype"), page.dominant }, { QStringLiteral("name"), page.dominantName },
+                                                        { QStringLiteral("n"), page.dominantN }, { QStringLiteral("of"), page.dominantOf } });
+    if (page.hasParts) {
+        out.insert(QStringLiteral("scoreLine"), page.scoreLine);
+        out.insert(QStringLiteral("styleLine"), page.styleLine);
+        out.insert(QStringLiteral("repeat"), page.repeat);
+        out.insert(QStringLiteral("sizeLine"), page.sizeLine);
+    }
+    QVariantMap mw = chartsGadgetMap(page.movesWith);
+    if (!page.movesWith.available)   // a refusal is there only when it is not available
+        mw.insert(QStringLiteral("refusal"), nounSentence(mw.value(QStringLiteral("refusal")).toMap(), page.one, page.many));
     out.insert(QStringLiteral("movesWith"), mw);
     return out;
 }

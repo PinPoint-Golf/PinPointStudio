@@ -159,7 +159,7 @@ flows on `PpPager` anyway.)
 `posture_chart_design.md` §5.7). After the work-on pages and before "Between now and next time": it is a client
 page about this session's swings, so it sits with the work-ons, and the back matter (practice and numbers, About,
 the appendices) follows it. It starts a fresh page and may run on ("Posture, continued"). It is the Charts Posture
-section's *session* reading, printed from the same presenter output (`postureSessionReportPayload`, nothing
+section's *session* reading, printed from the same presenter output (`postureSessionReport`, nothing
 picked, the Auto pattern): the head and pattern line; the session profile, one row per reading, P1 to P8, the
 pattern's band as a wash in the reading's own metric colour (Folio light), the fault line as a hairline, the
 session's box per position (`PpBoxPlot`), and under each column the median ("-" for none), how wide the middle half
@@ -191,7 +191,7 @@ lines the Charts fold shows, plus the wash rule when more than one style was gra
 screen keeps it. A camera-only session's caption is "Shaded: the Neutral band." and its trust note says why. Gated on DATA: any
 wrist DOF read, a camera-only session included (the trail wrist from the face-on camera); no wrist reading, no page.
 Not on the cover's contents line. The same worker read builds the snapshot once and returns both payloads
-(`readChartsPages`: `postureSessionReportPayload` and `wristSessionReportPayload`); `report_wrist.h` cuts the map's
+(`readChartsPages`: `postureSessionReport` and `wristSessionReport`, typed; `chartsPagesPayload` makes their maps); `report_wrist.h` cuts the map's
 `wrist` block, its profile rows on the posture row's keys so one QML profile component draws both pages.
 
 **Page 8. Between now and next time.**
@@ -648,6 +648,17 @@ yet — add it in Settings → Studio".
   built in named parts, one per piece of the report (`session_report_model.cpp`: the swings, the launch monitor, the
   day, the brand, the meta, the headline, the cover, the reference swing, the grid, Earlier today, the order, the work-on
   pages, the later pages, About).
+- **Each habit's run and the session-level sentences read the same diagnosis**[^report-reads-5-6c]: the run's readings,
+  the corridor it is drawn against (at the session's last shot, as the panel draws it with nothing picked) and its axis
+  are `habitSpreadOf` over the owner's rows and ledger (`src/Gui/diagnostics/spread_readout.h`), the rule the
+  diagnostics panel's strip calls too; the session-level work-on's timing spread and order count are
+  `sessionSequenceConsistency` over those rows (`src/Coaching/sequence_checks.h`), the rule the owner's session-scope
+  ledgers come from. The panel's adapter is held only to wait for the owner and for the print.
+- **The rule data is taken once per make**[^report-reads-5-6c]: one RuleData snapshot at the make's start gives the
+  pack, the drills, the gate words and the grade policy to every part, and the norm set is taken beside it.
+- **The Charts pages are typed**[^report-reads-5-6c]: the worker reads each presenter's typed page
+  (`postureSessionReport`, `wristSessionReport`, `deliverySessionReport`, `consistencySessionReport`); when they land, one
+  conversion (`chartsPagesPayload`, each page by its presenter's `reportPayloadOf`) makes the map the pages read.
 - Stills and overlays are made on a worker thread from the swing's video, through the replay's
   own frame source (not ffmpeg).
 - The register `PpSessionReport` lies on an A4 sheet that is never shown, in the main window, and
@@ -1094,4 +1105,5 @@ directly, so it does not depend on the fix, but the panel does.
 11. **Decided 20 Oct:** the document carries both the session date and the date it was prepared
     (§8.4).
 
+[^report-reads-5-6c]: Refactor step 5.6c, 23 Nov 2026 (`build/refactor/step-5/NOTES-5.6c.md`): B5, B6, Q5 and Q9 of `build/refactor/step-5/DUTIES-5.6b.md`, under DEC-81 as the Solution Architect amended it (the session's diagnosis is a source for the report); its review is pending.
 [^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `docs/developer/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.

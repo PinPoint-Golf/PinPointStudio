@@ -17,6 +17,7 @@
  */
 
 #include "session_diagnostics_model.h"
+#include "spread_readout.h"   // the habit run's readings and corridor: one rule with the report's (refactor 5.6c)
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
@@ -2190,76 +2191,24 @@ SpreadCorridor SessionDiagnosticsModel::spreadCorridorOf(const ConditionLedger &
                                                          QVariantMap *normInfo,
                                                          const QString &measure) const
 {
-    const QString measureId = measure.isEmpty() ? l.drivingMeasureId : measure;
-    auto usable = [&](const ConditionRow *r) {
-        if (!r || r->state == ShotState::NotAssessable) return false;
-        if (measureId.isEmpty()) return std::isfinite(r->value);
-        const std::optional<MeasureRow> m = rowReadingOf(*r, measureId);
-        return m && std::isfinite(m->value);
-    };
-
-    // WHICH CONTEXT'S NORM. The focus shot's, when it read this condition — that is the swing the
-    // ringed dot is, and its corridor is the one it was graded against. Otherwise the session's
-    // commonest, so a strip over a one-club session does not change its bands because the newest
-    // swing happened to be unmeasurable.
-    const ConditionRow *rep = nullptr;
-    if (fi >= 0 && fi < int(m_shots.size())) {
-        const ConditionRow *r = rowFor(m_shots[size_t(fi)], l.id);
-        if (usable(r)) rep = r;
+    // THE RULE IS spreadCorridorOfRows (spread_readout.h; refactor 5.6c): the report draws its habit runs against the
+    // same corridor over the same rows. Here only the caption's provenance is added.
+    SpreadCorridorSource src;
+    const SpreadCorridor c = spreadCorridorOfRows(m_shots, l, fi, measure, m_norms.get(),
+                                                  m_packProv ? &m_packProv->pack() : nullptr,
+                                                  gradePolicyByName(m_policyName), &src);
+    if (normInfo && src.norm) {
+        (*normInfo)[QStringLiteral("source")]   = normSourceName(src.norm->source);
+        (*normInfo)[QStringLiteral("tag")]      = normTagOf(true, src.norm->source, src.norm->n);
+        (*normInfo)[QStringLiteral("tagLong")]  = normTagLongOf(true, src.norm->source, src.norm->n);
+        (*normInfo)[QStringLiteral("citation")] = src.norm->citation;
     }
-    if (!rep) {
-        QHash<QString, int> seen;
-        int best = 0;
-        for (const ShotRecord &s : m_shots) {
-            const ConditionRow *r = rowFor(s, l.id);
-            if (!usable(r)) continue;
-            const int k = ++seen[r->contextId];
-            if (k > best) { best = k; rep = r; }
-        }
+    if (normInfo && src.stored) {
+        (*normInfo)[QStringLiteral("source")]   = QStringLiteral("stored");
+        (*normInfo)[QStringLiteral("tag")]      = normTagOf(false, NormSource::Heuristic, 0);
+        (*normInfo)[QStringLiteral("tagLong")]  = normTagLongOf(false, NormSource::Heuristic, 0);
+        (*normInfo)[QStringLiteral("citation")] = QString();
     }
-
-    const GradePolicy policy = gradePolicyByName(m_policyName);
-    SpreadCorridor c;
-    if (m_norms && !measureId.isEmpty()) {
-        Shape shape = Shape::Target;
-        if (m_packProv)
-            if (const Measure *m = m_packProv->pack().measure(measureId)) shape = m->shape;
-        const NormResolution res = m_norms->resolve(measureId, rep ? rep->contextId : QString());
-        if (res.found()) {
-            c = spreadCorridorFromNorm(*res.norm, shape, policy);
-            if (normInfo) {
-                (*normInfo)[QStringLiteral("source")]   = normSourceName(res.norm->source);
-                (*normInfo)[QStringLiteral("tag")]      = normTagOf(true, res.norm->source, res.norm->n);
-                (*normInfo)[QStringLiteral("tagLong")]  = normTagLongOf(true, res.norm->source, res.norm->n);
-                (*normInfo)[QStringLiteral("citation")] = res.norm->citation;
-            }
-        }
-    }
-    if (!c.known && rep) {
-        // The stored band of THIS measure's reading, not the driving one's.
-        ConditionRow band = *rep;
-        if (!measureId.isEmpty())
-            if (const std::optional<MeasureRow> m = rowReadingOf(*rep, measureId)) {
-                band.drivingMeasureId = m->measureId;
-                band.value            = m->value;
-                band.corridorLo       = m->corridorLo;
-                band.corridorHi       = m->corridorHi;
-                band.z                = m->z;
-                band.corridorShape    = m->corridorShape;
-            }
-        c = spreadCorridorFromRow(band, policy);
-        if (c.known && normInfo) {
-            (*normInfo)[QStringLiteral("source")]   = QStringLiteral("stored");
-            (*normInfo)[QStringLiteral("tag")]      = normTagOf(false, NormSource::Heuristic, 0);
-            (*normInfo)[QStringLiteral("tagLong")]  = normTagLongOf(false, NormSource::Heuristic, 0);
-            (*normInfo)[QStringLiteral("citation")] = QString();
-        }
-    }
-    // THE CONDITION'S TAIL of this measure (#16), as the rows recorded it: the strip, its fault line
-    // and the sentence all state the end this condition fires at, and the other end opens.
-    if (rep && !measureId.isEmpty())
-        if (const std::optional<MeasureRow> m = rowReadingOf(*rep, measureId))
-            c = spreadCorridorOnSide(c, m->firingSide);
     return c;
 }
 
@@ -2500,27 +2449,16 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
     // were recorded holds its driving measure alone, and a shot decided by another is not
     // placeable here — the honest reading of "not on this ruler"; the ledger's counts are
     // untouched either way.
+    // (spreadReadingsOf, spread_readout.h: the report reads the same readings; refactor 5.6c)
+    const std::vector<SpreadReading> readings = spreadReadingsOf(m_shots, l.id, measureId);
     std::vector<double> values(size_t(n), std::numeric_limits<double>::quiet_NaN());
     std::vector<QString> states(size_t(n), QStringLiteral("notAssessable"));
     // the gate or rule behind each shot's missing reading, where one accounts for it (rowGate)
     std::vector<RowGate> gatesOf(static_cast<size_t>(n));
     for (int i = 0; i < n; ++i) {
-        const ConditionRow *r = rowFor(m_shots[size_t(i)], l.id);
-        if (!r) continue;
-        gatesOf[size_t(i)] = rowGate(r);
-        states[size_t(i)] = shotStateKind(r->state);
-        if (r->state == ShotState::NotAssessable) continue;
-        if (measureId.isEmpty()) {
-            if (std::isfinite(r->value)) values[size_t(i)] = r->value;
-            continue;
-        }
-        const std::optional<MeasureRow> m = rowReadingOf(*r, measureId);
-        if (!m || !std::isfinite(m->value)) {
-            states[size_t(i)] = QStringLiteral("notAssessable");
-            continue;
-        }
-        states[size_t(i)] = m->fired ? QStringLiteral("fired") : QStringLiteral("clean");
-        values[size_t(i)] = m->value;
+        values[size_t(i)] = readings[size_t(i)].value;
+        states[size_t(i)] = shotStateKind(readings[size_t(i)].state);
+        if (const ConditionRow *r = rowFor(m_shots[size_t(i)], l.id)) gatesOf[size_t(i)] = rowGate(r);
     }
 
     std::vector<double> placed;
@@ -2818,17 +2756,8 @@ bool SessionDiagnosticsModel::isCompositeMeasure(const QString &measureId) const
 
 bool SessionDiagnosticsModel::readsComposite(const ConditionLedger &l, const QString &measureId) const
 {
-    // The pack's word first; then the ROWS' — a row graded as a composite carries its parts whatever the
-    // pack says today, and its stored value is still the composite's number.
-    if (isCompositeMeasure(measureId)) return true;
-    for (const ShotRecord &s : m_shots) {
-        const ConditionRow *r = rowFor(s, l.id);
-        if (!r) continue;
-        if (r->drivingMeasureId == measureId && r->composite.present()) return true;
-        for (const MeasureRow &mr : r->readings)
-            if (mr.measureId == measureId && mr.composite.present()) return true;
-    }
-    return false;
+    // The pack's word first; then the ROWS' (spreadReadsComposite, spread_readout.h: one rule with the report's).
+    return spreadReadsComposite(m_shots, l.id, measureId, m_packProv ? &m_packProv->pack() : nullptr);
 }
 
 SessionDiagnosticsModel::PartBand SessionDiagnosticsModel::partBandOf(const QString &measureId,

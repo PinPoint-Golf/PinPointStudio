@@ -371,7 +371,7 @@ public:
     // or a width changes, never per frame.
     Q_INVOKABLE QList<pinpoint::charts::RelationsTick> ticks(double lo, double hi, int maxTicks, const QString &unit = QString()) const;
     // The same, with no presenter, as maps { v, text }: for a payload that carries its ticks to paper
-    // (wristSessionReportPayload's score run, the report's delivery scales). Not on the QML boundary.
+    // (wristSessionReport's score run, the report's delivery scales). Not on the QML boundary.
     static QVariantList axisTicks(double lo, double hi, int maxTicks, const QString &unit = QString());
 
     // Test seams.

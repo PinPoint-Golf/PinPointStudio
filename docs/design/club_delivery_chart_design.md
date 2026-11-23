@@ -484,7 +484,7 @@ Q1 decided: the trail shoulder (§8.1).
    and `plotLayers` (per row key: the address and shoulder `hline`s, the slot `band`, the hands-carry `span`s,
    with their labels). One coalesced job at a time, on the presenters' shared pool (`presenter_pool.h`: destroying
    the presenter never waits for its job); `setSnapshot`/`setSynchronous`/`waitForIdle` test seams;
-   `deliverySessionReportPayload(snap, …)` for print. `pickedDetailRef` is `shotReplay.analysisDetailRef`, the
+   `deliverySessionReport(snap, …)` for print (typed since refactor 5.6c; `reportPayloadOf` is its map). `pickedDetailRef` is `shotReplay.analysisDetailRef`, the
    detail opaque to QML (`qml_map_ref.h`) — never the JS detail, which a `QVariantMap` property copied back whole on
    every shot change (#173).
 3. `cmake/PinPointQmlModule.cmake`: register both sources.
