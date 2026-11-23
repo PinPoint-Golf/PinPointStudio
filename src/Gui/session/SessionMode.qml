@@ -60,7 +60,7 @@ QtObject {
     // timeline (ScreenWrist) or feed its presenters (PpChartsPanel, PpTrustPanel). Guarded because a
     // test engine provides navController only when it asks for it.
     readonly property bool sessionScreenActive:
-        (typeof app !== "undefined" && !!app.navController) && app.navController !== null
+        (typeof app !== "undefined" && !!app && !!app.navController) && app.navController !== null
         && app.navController.currentIndex === AppScreen.Session
 
     // A session or swing folder as one spelling, so two can be compared: backslashes to slashes (a

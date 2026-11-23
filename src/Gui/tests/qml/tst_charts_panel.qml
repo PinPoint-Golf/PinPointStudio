@@ -342,7 +342,9 @@ Item {
             verify(refusedTexts.length >= 1, "the driver pair says why it has no fit")
             // and no curve is read from a refused fit
             const driver = hn.body.tSession.rows[0].panels.filter(function (p) { return p.fit && p.fit.refused })[0]
-            verify(!!driver && driver.fit.v === undefined, "a refused fit carries no values")
+            // the fit is a typed value (6e9cb3a9): a refused one carries empty lists, never undefined ones
+            verify(!!driver && driver.fit.v.length === 0 && driver.fit.lo.length === 0 && driver.fit.hi.length === 0,
+                   "a refused fit carries no values")
             const iron = hn.body.tSession.rows[0].panels.filter(function (p) { return p.fit && !p.fit.refused })[0]
             verify(!!iron && iron.fit.label.indexOf("13 shots") >= 0, "the other group is fitted and labelled with its n")
         }

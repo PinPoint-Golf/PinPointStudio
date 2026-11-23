@@ -150,6 +150,11 @@ Item {
         property int    aliasWrites: 0
         property string lastAlias:   ""
 
+        // The studio name field (PhonesPanel, since fc998857) reads these off PpcpHostService.
+        property string studioName: ""
+        function defaultStudioName() { return "Test studio" }
+        function setStudioName(name) { fakePhoneHost.studioName = name }
+
         function phoneHealth(pairingId) {
             return { batteryPct: 74, thermal: "nominal", syncSigmaMs: 3.5 }
         }

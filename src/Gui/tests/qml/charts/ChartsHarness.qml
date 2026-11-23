@@ -117,7 +117,11 @@ Item {
         readonly property var reanalysisController: fakeReanalysis
     }
     QtObject { id: fakeNav; property int currentIndex: AppScreen.Session }   // the gate: the session screen is up
-    ListModel { id: carouselShots }
+    // the carousel's shots; shotRefOf as ShotListModel's (4baa30dd: a figure's pick hands app.state the row's ShotRef)
+    ListModel {
+        id: carouselShots
+        function shotRefOf(id) { return "fake-ref:" + id }
+    }
     QtObject {
         id: fakeReview
         property bool reviewActive: false

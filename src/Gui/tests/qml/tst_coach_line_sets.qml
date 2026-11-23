@@ -28,8 +28,20 @@ import PinPointStudio
 TestCase {
     name: "CoachLineSets"
 
+    // `app`, faked: ViewLayout reads the modes off app.state (AppState's enum: Capture 0, Replay 1, Analyse 2) and the
+    // handedness off app.athleteController (refactor 5.8b). Put on this file's engine before any test asks ViewLayout.
+    QtObject {
+        id: fakeApp
+        readonly property QtObject state: QtObject {
+            readonly property int captureMode: 0
+            readonly property int replayMode: 1
+            readonly property int analyseMode: 2
+        }
+        readonly property QtObject athleteController: QtObject { property string currentHandedness: "Right" }
+    }
+
     property var saved: null
-    function initTestCase() { saved = appSettings.viewLayoutByMode }
+    function initTestCase() { chartsFixture.provide("app", fakeApp); saved = appSettings.viewLayoutByMode }
     function cleanupTestCase() { appSettings.viewLayoutByMode = saved }
     function init() { appSettings.viewLayoutByMode = ({}) }
 

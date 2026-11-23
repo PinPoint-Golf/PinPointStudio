@@ -66,6 +66,9 @@ Item {
             { text: "your body turns in the wrong order coming down", share: 0.7, frequency: "most swings",
               trend: -1, sessions: [true, true, true] }]
         property var areaItems: []
+        // Matchups (HmGoesTogether, given this controller by HmHomeTabs): nothing that travels together yet
+        property var    togetherItems: []
+        property string togetherNote: ""
 
         property bool tendenciesUpdating: false
         property string tendencyNote: "From 140 shots over 6 sessions"

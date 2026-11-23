@@ -313,9 +313,15 @@ function carryBlock(over) {
         residual: 0, residualShown: false
     }, over || {})
 }
+// The correction row's words, as shotOutcome() publishes them since refactor 5.8b (the rules are shot_outcomes.h's
+// outcomeNoneWord and outcomeMeantShapes, pinned in shot_outcomes_test.cpp): the "none of these" word for each family,
+// and the shapes the golfer may say they meant off the shot's direction ids ("slice" or "fade" gives fade; no direction
+// label gives both).
+function outcomeNoneWords() { return { strike: "Clean", direction: "Straight", flight: "None" } }
 function fatSliceOutcome() {
     return {
         ready: true, noReading: false, golferMirrored: false, clean: false, noReasonText: "",
+        noneWords: outcomeNoneWords(), meantShapes: ["fade"],
         phrase: "Fat slice, 24 yd short",
         story: "You stand up through the ball: the club bottomed out behind the ball and cut across it.",
         labels: [
@@ -338,16 +344,19 @@ function fatSliceOutcome() {
 }
 function cleanOutcome() {
     return { ready: true, noReading: false, golferMirrored: false, clean: true, noReasonText: "",
+             noneWords: outcomeNoneWords(), meantShapes: ["fade", "draw"],
              phrase: "Good shot", story: "", labels: [], driver: {}, links: [], carry: {} }
 }
 function fadeOutcome() {
     const o = cleanOutcome()
     o.phrase = "Fade, as planned"
     o.labels = [outcomeLabel("fade", "direction", "Fade", "FD", "the ball fades gently right", { intended: true, miss: false })]
+    o.meantShapes = ["fade"]
     return o
 }
 function noReasonOutcome() {
     return { ready: true, noReading: false, golferMirrored: false, clean: false, noReasonText: "No reason found",
+             noneWords: outcomeNoneWords(), meantShapes: ["fade"],
              phrase: "Slice", story: "Cut across it.",
              labels: [outcomeLabel("slice", "direction", "Slice", "SL", "the ball slices, curving hard away from the target")],
              driver: {}, links: [], carry: {} }

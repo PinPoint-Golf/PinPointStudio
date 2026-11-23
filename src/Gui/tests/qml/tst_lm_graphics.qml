@@ -120,6 +120,19 @@ Item {
     // An empty map: the state before a monitor has said anything. Every accessor has to survive it.
     readonly property var emptyFixture: ({})
 
+    // `app`, faked: the body's register reads app.state's mode (4baa30dd). Capture, as SessionMode.mode was in this
+    // harness before it, so the body reads as Replay.
+    QtObject {
+        id: fakeApp
+        readonly property QtObject state: QtObject {
+            readonly property int captureMode: 0
+            readonly property int replayMode: 1
+            readonly property int analyseMode: 2
+            property int mode: 0
+        }
+    }
+    Component.onCompleted: chartsFixture.provide("app", fakeApp)
+
     PpLmGraphicsBody {
         id: body
         anchors.fill: parent
