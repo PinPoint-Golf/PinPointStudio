@@ -28,6 +28,7 @@
 //   shot 3  nothing fired, every wrist row clean — but bowed/cupped −60° at the top, outside any band (W-D6)
 
 #include "charts/charts_wrist_presenter.h"
+#include "charts/charts_words.h"
 #include "../../Export/rule_data_install.h"
 #include "charts/session_series_types.h"
 #include "charts/session_wrist.h"
@@ -250,6 +251,9 @@ private slots:
         QVERIFY(!se.value(QStringLiteral("available")).toBool());                // no graded shot: no session boxes
         QVERIFY(se.value(QStringLiteral("pending")).toBool());
         QCOMPARE(se.value(QStringLiteral("head")).toMap().value(QStringLiteral("text")).toString(),
+                 QStringLiteral("Wrist grades aren't ready yet: 1 of 1 shot is waiting for its findings"));
+        // the folded section's head keeps the sentence's first clause (refactor 5.5b, C6b): here, all of it
+        QCOMPARE(se.value(QStringLiteral("head")).toMap().value(QStringLiteral("clause")).toString(),
                  QStringLiteral("Wrist grades aren't ready yet: 1 of 1 shot is waiting for its findings"));
         QCOMPARE(se.value(QStringLiteral("standfirst")).toMap().value(QStringLiteral("text")).toString(), snap->wristPendingWhy);
         QVERIFY(se.value(QStringLiteral("keys")).toStringList().contains(QStringLiteral("hm.leadWristFlexExt")));

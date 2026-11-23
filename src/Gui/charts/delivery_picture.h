@@ -50,7 +50,7 @@
 // are the section's reading, the plot's own two hairlines, not an overlay to switch off; the strip would otherwise go
 // blank) — `defaultSets` { plane: true } is what the QML hands the frame.
 //
-// ── SHAPE (posture_picture.h's, one camera) ─────────────────────────────────────────────────────────
+// ── SHAPE (posture_picture.h's, one camera; typed: charts_delivery_types.h deliveryui::Picture, refactor 5.5b) ─────
 //  picture: { available, swingDir, ordinal, legend, why: [string], pending, defaultSets: { plane: true },
 //             lines: { address (bool), shoulders (bool), slot (bool) },
 //             groups: [{ camera "dtl", label "down the line", frames: [FRAME × 3] }] }   (no DTL camera: groups [],
@@ -67,7 +67,8 @@
 #include <QPointF>
 #include <QRect>
 #include <QString>
-#include <QVariantMap>
+
+#include "charts_delivery_types.h"
 
 #include <array>
 #include <limits>
@@ -106,9 +107,9 @@ struct DeliveryPictureOptions {
     QHash<QString, QString> stillErrors;      // outPath → why the still could not be made
 };
 
-QVariantMap deliveryPicture(const DeliveryPictureDoc &doc, const DeliveryPictureOptions &opt);
+deliveryui::Picture deliveryPicture(const DeliveryPictureDoc &doc, const DeliveryPictureOptions &opt);
 
 // The picture's reason when the swing's document could not be read at all.
-QVariantMap deliveryPictureUnread(const QString &swingDir, const QString &why);
+deliveryui::Picture deliveryPictureUnread(const QString &swingDir, const QString &why);
 
 } // namespace pinpoint::charts

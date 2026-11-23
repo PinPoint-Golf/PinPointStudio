@@ -217,7 +217,7 @@ PpChViewBase {
     }
     // Analyse: the sequence across the session
     // the sections after the figure fold, as on This shot (Mark, 17 Oct 2026); folded, each keeps its first clause
-    function firstClause(sentence) { const t = String(sentence && sentence.text ? sentence.text : ""); const m = t.match(/^[^;.]*/); return m ? m[0] : t }
+    // (a sentence's `clause`, the presenter's)
     readonly property bool seqFolded: !!body && !!body.collapsed && body.collapsed.seqSession === true
     readonly property bool wristFolded: !!body && !!body.collapsed && body.collapsed.wristSession === true
     PpChFoldHead {
@@ -225,7 +225,7 @@ PpChViewBase {
         width: sv.width; roles: sv.roles; key: "seqSession"; title: "The sequence across the session"
         sub: "kinematic sequence, every shot"; interactive: sv.interactive
         collapsed: sv.seqFolded
-        state_: sv.available && sv.se.sequence ? sv.firstClause(sv.se.sequence.stand) : ""
+        state_: sv.available && sv.se.sequence && sv.se.sequence.stand ? (sv.se.sequence.stand.clause || "") : ""
         onToggled: if (sv.body) sv.body.toggleSection("seqSession")
     }
     PpChSeqSession {
@@ -244,7 +244,7 @@ PpChViewBase {
             spacing: sv.roles.g(14)
             PpChFoldHead { width: parent.width; roles: sv.roles; key: "wristSession"; title: "Wrist"; interactive: sv.interactive
                            collapsed: sv.wristFolded
-                           state_: sv.body && sv.body.wSession ? sv.firstClause(sv.body.wSession.head) : ""
+                           state_: sv.body && sv.body.wSession && sv.body.wSession.head ? (sv.body.wSession.head.clause || "") : ""
                            onToggled: if (sv.body) sv.body.toggleSection("wristSession") }
             PpChWristSession { visible: !sv.wristFolded; width: parent.width; roles: sv.roles; brush: sv.brush; body: sv.body; interactive: sv.interactive }
         }
@@ -260,7 +260,7 @@ PpChViewBase {
             spacing: sv.roles.g(14)
             PpChFoldHead { width: parent.width; roles: sv.roles; key: "postureSession"; title: "Posture"; interactive: sv.interactive
                            collapsed: sv.postureFolded
-                           state_: sv.body && sv.body.pSession ? sv.firstClause(sv.body.pSession.head) : ""
+                           state_: sv.body && sv.body.pSession && sv.body.pSession.head ? (sv.body.pSession.head.clause || "") : ""
                            onToggled: if (sv.body) sv.body.toggleSection("postureSession") }
             PpChPostureSession { visible: !sv.postureFolded; width: parent.width; roles: sv.roles; brush: sv.brush; body: sv.body; interactive: sv.interactive }
         }
@@ -276,7 +276,7 @@ PpChViewBase {
             spacing: sv.roles.g(14)
             PpChFoldHead { width: parent.width; roles: sv.roles; key: "deliverySession"; title: "Club delivery"; interactive: sv.interactive
                            collapsed: sv.deliveryFolded
-                           state_: sv.body && sv.body.dSession ? sv.firstClause(sv.body.dSession.head) : ""
+                           state_: sv.body && sv.body.dSession && sv.body.dSession.head ? (sv.body.dSession.head.clause || "") : ""
                            onToggled: if (sv.body) sv.body.toggleSection("deliverySession") }
             PpChDeliverySession { visible: !sv.deliveryFolded; width: parent.width; roles: sv.roles; brush: sv.brush; body: sv.body; interactive: sv.interactive }
         }

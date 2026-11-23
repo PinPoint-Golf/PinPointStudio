@@ -28,7 +28,8 @@
 // authored), the short figure the claim shows ("after −129 ms"), and every gate behind it in the
 // catalogue's words (Metrics/gate_catalogue.h).
 //
-//  READING = { subject ("ks.pelvis"), area ("Kinematic sequence"), label ("Pelvis peak"), key (the series key,
+//  READING = { subject ("ks.pelvis"), sequenceNode (the subject is a sequence node's, "ks.…"; a route's reading shares
+//              the area but is not one), area ("Kinematic sequence"), label ("Pelvis peak"), key (the series key,
 //              for the reading's hue), level ("bounded" | "notSeen" | "notJudged" | "estimated" | "measured"),
 //              levelWord ("Bounded" | "Not seen" | "Drawn, not judged" | "Estimated" | "Measured"),
 //              levelTip (the level's one-line meaning), figure ("after −129 ms" | "-"), shortText ("out of sight"),

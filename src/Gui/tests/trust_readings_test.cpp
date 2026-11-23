@@ -82,6 +82,9 @@ int main()
     check(rs.size() == 3, "three readings: pelvis, chest, club (the lead arm has no record)");
     check(rs.size() == 3 && rs[0].toMap().value(QStringLiteral("subject")) == QStringLiteral("ks.pelvis")
               && rs[2].toMap().value(QStringLiteral("subject")) == QStringLiteral("ks.club"), "in segment order");
+    // rule C4 (refactor 5.5b): a sequence node's reading says so, for the claim that opens every one of them
+    check(rs.size() == 3 && rs[0].toMap().value(QStringLiteral("sequenceNode")).toBool()
+              && rs[2].toMap().value(QStringLiteral("sequenceNode")).toBool(), "a sequence node's reading is marked as one");
 
     // ── levels (§4.3) and the figure the claim shows ──
     const QVariantMap pel = readingOf(rs, "ks.pelvis"), che = readingOf(rs, "ks.thorax"), clu = readingOf(rs, "ks.club");
@@ -319,6 +322,9 @@ int main()
         check(club.value(QStringLiteral("level")) == QStringLiteral("notSeen") && club.value(QStringLiteral("area")) == QStringLiteral("Club and shaft"),
               "a refused club track: Not seen, under its area's crosshead");
         check(club.value(QStringLiteral("covers")).toStringList().size() == 4, "…naming the four readings it took down");
+        check(club.contains(QStringLiteral("sequenceNode")) && !club.value(QStringLiteral("sequenceNode")).toBool()
+                  && !elbow.value(QStringLiteral("sequenceNode")).toBool(),
+              "a reading from another area is not a sequence node's (rule C4)");
         check(elbow.value(QStringLiteral("level")) == QStringLiteral("masked") && elbow.value(QStringLiteral("levelWord")) == QStringLiteral("Partly drawn"),
               "a reading only a mask touched: Partly drawn");
         const QVariantMap sum = trust::trustSummary(o);

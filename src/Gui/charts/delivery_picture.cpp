@@ -31,6 +31,7 @@
 #include <QStringList>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 
 #include <algorithm>
 #include <cmath>
@@ -177,23 +178,26 @@ struct Px {
     QPointF at(const QPointF &n) const { return QPointF(n.x() * W - ox, n.y() * H - oy); }
 };
 
-QVariantList ptsList(const QVector<QPointF> &pts)
+QList<QList<double>> ptsList(const QVector<QPointF> &pts)
 {
-    QVariantList out;
-    for (const QPointF &p : pts) out.append(QVariant(QVariantList{ p.x(), p.y() }));
+    QList<QList<double>> out;
+    for (const QPointF &p : pts) out.append(QList<double>{ p.x(), p.y() });
     return out;
 }
 
-QVariantMap markOf(const QString &kind, const QString &label, const QString &dash, const QVector<QPointF> &normPts, const Px &px)
+deliveryui::PictureMark markOf(const QString &kind, const QString &label, const QString &dash, const QVector<QPointF> &normPts, const Px &px)
 {
     QVector<QPointF> p;
     for (const QPointF &q : normPts) p << px.at(q);
-    return { { QStringLiteral("kind"), kind }, { QStringLiteral("role"), QStringLiteral("coach") }, { QStringLiteral("set"), QStringLiteral("plane") },
-             { QStringLiteral("label"), label }, { QStringLiteral("dash"), dash }, { QStringLiteral("hueKey"), QString() },
-             { QStringLiteral("pts"), ptsList(p) } };
+    deliveryui::PictureMark m;
+    m.kind = kind;
+    m.role = QStringLiteral("coach");
+    m.set = QStringLiteral("plane");
+    m.label = label;
+    m.dash = dash;
+    m.pts = ptsList(p);
+    return m;
 }
-
-QVariantMap defaultSets() { return { { QStringLiteral("plane"), true } }; }
 
 } // namespace
 
@@ -250,23 +254,24 @@ DeliveryPictureDoc deliveryPictureDocFrom(const QJsonObject &root, const QString
     return d;
 }
 
-QVariantMap deliveryPictureUnread(const QString &swingDir, const QString &why)
+deliveryui::Picture deliveryPictureUnread(const QString &swingDir, const QString &why)
 {
-    return { { QStringLiteral("available"), false }, { QStringLiteral("swingDir"), swingDir },
-             { QStringLiteral("groups"), QVariantList{} }, { QStringLiteral("legend"), QString() },
-             { QStringLiteral("why"), QStringList{ sentence(QStringLiteral("no picture: ") + why) } },
-             { QStringLiteral("pending"), false }, { QStringLiteral("defaultSets"), defaultSets() },
-             { QStringLiteral("lines"), QVariantMap{} } };
+    deliveryui::Picture pic;
+    pic.swingDir = swingDir;
+    pic.why = QStringList{ sentence(QStringLiteral("no picture: ") + why) };
+    return pic;
 }
 
-QVariantMap deliveryPicture(const DeliveryPictureDoc &doc, const DeliveryPictureOptions &opt)
+deliveryui::Picture deliveryPicture(const DeliveryPictureDoc &doc, const DeliveryPictureOptions &opt)
 {
     if (!doc.ok) return deliveryPictureUnread(doc.swingDir, doc.why.isEmpty() ? QStringLiteral("the swing's document could not be read") : doc.why);
     // no down-the-line camera: nothing at all (the section says why the plane is absent, once)
-    if (!doc.dtl)
-        return { { QStringLiteral("available"), false }, { QStringLiteral("swingDir"), doc.swingDir }, { QStringLiteral("ordinal"), opt.ordinal },
-                 { QStringLiteral("groups"), QVariantList{} }, { QStringLiteral("legend"), QString() }, { QStringLiteral("why"), QStringList{} },
-                 { QStringLiteral("pending"), false }, { QStringLiteral("defaultSets"), defaultSets() }, { QStringLiteral("lines"), QVariantMap{} } };
+    if (!doc.dtl) {
+        deliveryui::Picture pic;
+        pic.swingDir = doc.swingDir;
+        pic.ordinal = opt.ordinal;
+        return pic;
+    }
 
     // the lines, normalised in the full frame
     QVector<QPointF> addressLine, shoulderLine, wash;
@@ -301,31 +306,35 @@ QVariantMap deliveryPicture(const DeliveryPictureDoc &doc, const DeliveryPicture
     const bool sized = doc.W > 0 && doc.H > 0 && doc.cropPx.isValid() && doc.cropPx.width() >= 8 && doc.cropPx.height() >= 8;
     const Px px{ double(doc.W), double(doc.H), double(doc.cropPx.x()), double(doc.cropPx.y()) };
     bool pending = false;
-    QVariantList frames;
+    QList<deliveryui::PictureFrame> frames;
     for (int k = 0; k < kDeliveryPictureFrames; ++k) {
         const QString tag = QString::fromLatin1(kTags[k]);
-        QVariantMap f{ { QStringLiteral("key"), QStringLiteral("dtl_") + tag }, { QStringLiteral("camera"), QStringLiteral("dtl") },
-                       { QStringLiteral("tag"), tag }, { QStringLiteral("pos"), kPosIndex[k] },
-                       { QStringLiteral("when"), QString::fromLatin1(kWhen[k]) }, { QStringLiteral("caption"), QString::fromLatin1(kWhen[k]) },
-                       { QStringLiteral("note"), QString() },
-                       { QStringLiteral("tUs"), qlonglong(doc.posUs[size_t(k)]) }, { QStringLiteral("seekUs"), qlonglong(doc.posUs[size_t(k)]) },
-                       { QStringLiteral("frameUs"), qlonglong(doc.frameUs[size_t(k)]) }, { QStringLiteral("frameIndex"), doc.frameIndex[size_t(k)] },
-                       { QStringLiteral("frameWidth"), doc.W }, { QStringLiteral("frameHeight"), doc.H },
-                       { QStringLiteral("width"), sized ? doc.cropPx.width() : 0 }, { QStringLiteral("height"), sized ? doc.cropPx.height() : 0 },
-                       { QStringLiteral("crop"), QVariantMap{ { QStringLiteral("x"), doc.cropPx.x() }, { QStringLiteral("y"), doc.cropPx.y() },
-                                                              { QStringLiteral("w"), doc.cropPx.width() }, { QStringLiteral("h"), doc.cropPx.height() } } } };
+        deliveryui::PictureFrame f;
+        f.key = QStringLiteral("dtl_") + tag;
+        f.camera = QStringLiteral("dtl");
+        f.tag = tag;
+        f.pos = kPosIndex[k];
+        f.when = QString::fromLatin1(kWhen[k]);
+        f.caption = QString::fromLatin1(kWhen[k]);
+        f.tUs = doc.posUs[size_t(k)];
+        f.seekUs = doc.posUs[size_t(k)];
+        f.frameUs = doc.frameUs[size_t(k)];
+        f.frameIndex = doc.frameIndex[size_t(k)];
+        f.frameWidth = doc.W;
+        f.frameHeight = doc.H;
+        f.width = sized ? doc.cropPx.width() : 0;
+        f.height = sized ? doc.cropPx.height() : 0;
+        f.crop = deliveryui::PictureCrop{ doc.cropPx.x(), doc.cropPx.y(), doc.cropPx.width(), doc.cropPx.height() };
         QString imageWhy;
         if (!sized) imageWhy = QStringLiteral("The frame's size is not recorded on this swing.");
         else if (doc.posUs[size_t(k)] < 0) imageWhy = QStringLiteral("This swing has no %1 position.").arg(tag);
         else if (doc.frameIndex[size_t(k)] < 0) imageWhy = QStringLiteral("The video has no frames.");
-        QVariantList marks;
         if (sized) {
             // the wash under the lines; the address line, then the shoulder plane (dashed, as on the plot)
-            if (slot) marks.append(markOf(QStringLiteral("poly"), QStringLiteral("the on-plane window"), QString(), wash, px));
-            if (addressLine.size() == 2) marks.append(markOf(QStringLiteral("polyline"), addressLabel, QString(), addressLine, px));
-            if (shoulderLine.size() == 2) marks.append(markOf(QStringLiteral("polyline"), QStringLiteral("shoulder plane"), QStringLiteral("dash"), shoulderLine, px));
+            if (slot) f.marks.append(markOf(QStringLiteral("poly"), QStringLiteral("the on-plane window"), QString(), wash, px));
+            if (addressLine.size() == 2) f.marks.append(markOf(QStringLiteral("polyline"), addressLabel, QString(), addressLine, px));
+            if (shoulderLine.size() == 2) f.marks.append(markOf(QStringLiteral("polyline"), QStringLiteral("shoulder plane"), QStringLiteral("dash"), shoulderLine, px));
         }
-        f.insert(QStringLiteral("marks"), marks);
         QString outPath, src;
         if (imageWhy.isEmpty() && !opt.stillDir.isEmpty()) {
             const QString key = QStringLiteral("%1|%2|dtl|%3|%4,%5,%6,%7|%8").arg(QDir::cleanPath(doc.swingDir), doc.stamp, tag)
@@ -336,14 +345,21 @@ QVariantMap deliveryPicture(const DeliveryPictureDoc &doc, const DeliveryPicture
             else if (opt.stillErrors.contains(outPath)) imageWhy = sentence(QStringLiteral("the frame could not be read: ") + opt.stillErrors.value(outPath));
             else pending = true;
         }
-        f.insert(QStringLiteral("src"), src);
-        f.insert(QStringLiteral("imageWhy"), imageWhy);
-        f.insert(QStringLiteral("still"), imageWhy.isEmpty() || !outPath.isEmpty()
-            ? QVariant(QVariantMap{ { QStringLiteral("swingDir"), doc.swingDir }, { QStringLiteral("camera"), QStringLiteral("dtl") },
-                                    { QStringLiteral("phase"), tag }, { QStringLiteral("x"), doc.cropPx.x() }, { QStringLiteral("y"), doc.cropPx.y() },
-                                    { QStringLiteral("w"), doc.cropPx.width() }, { QStringLiteral("h"), doc.cropPx.height() },
-                                    { QStringLiteral("maxPx"), opt.maxPx }, { QStringLiteral("outPath"), outPath } })
-            : QVariant::fromValue(nullptr));
+        f.src = src;
+        f.imageWhy = imageWhy;
+        if (imageWhy.isEmpty() || !outPath.isEmpty()) {
+            deliveryui::PictureStill still;
+            still.swingDir = doc.swingDir;
+            still.camera = QStringLiteral("dtl");
+            still.phase = tag;
+            still.x = doc.cropPx.x();
+            still.y = doc.cropPx.y();
+            still.w = doc.cropPx.width();
+            still.h = doc.cropPx.height();
+            still.maxPx = opt.maxPx;
+            still.outPath = outPath;
+            f.still = QVariant::fromValue(still);
+        }
         frames.append(f);
     }
 
@@ -356,15 +372,20 @@ QVariantMap deliveryPicture(const DeliveryPictureDoc &doc, const DeliveryPicture
         legend = QStringLiteral("Your lines at address, frozen on every frame: ") + parts.join(QStringLiteral(", ")) + QLatin1Char('.');
         if (slot) legend += QStringLiteral(" The shaded wedge between them is your on-plane window.");
     }
-    return { { QStringLiteral("available"), sized }, { QStringLiteral("swingDir"), doc.swingDir }, { QStringLiteral("ordinal"), opt.ordinal },
-             { QStringLiteral("legend"), sized ? legend : QString() }, { QStringLiteral("why"), why }, { QStringLiteral("pending"), pending },
-             { QStringLiteral("defaultSets"), defaultSets() },
-             { QStringLiteral("lines"), QVariantMap{ { QStringLiteral("address"), addressLine.size() == 2 },
-                                                     { QStringLiteral("shoulders"), shoulderLine.size() == 2 },
-                                                     { QStringLiteral("slot"), slot } } },
-             { QStringLiteral("groups"), QVariantList{ QVariantMap{ { QStringLiteral("camera"), QStringLiteral("dtl") },
-                                                                    { QStringLiteral("label"), QStringLiteral("down the line") },
-                                                                    { QStringLiteral("frames"), frames } } } } };
+    deliveryui::Picture pic;
+    pic.available = sized;
+    pic.swingDir = doc.swingDir;
+    pic.ordinal = opt.ordinal;
+    pic.legend = sized ? legend : QString();
+    pic.why = why;
+    pic.pending = pending;
+    pic.lines = deliveryui::PictureLines{ addressLine.size() == 2, shoulderLine.size() == 2, slot };
+    deliveryui::PictureGroup group;
+    group.camera = QStringLiteral("dtl");
+    group.label = QStringLiteral("down the line");
+    group.frames = frames;
+    pic.groups = { group };
+    return pic;
 }
 
 } // namespace pinpoint::charts

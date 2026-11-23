@@ -25,8 +25,11 @@
 //   shot:    { available, ordinal, kicker ("Shot 4 of 6 · 7 iron"), swingDir, recorded, head, readings, counts }
 //   session: { n, recorded, head, gates: [{ gate, title, area, acted, subjects, shots, of, countText }] }
 //
+// Both are typed values (trust_types.h, refactor 5.5b): the same names as the keys above.
+//
 // Synchronous on the GUI thread: records are a few dozen small maps per shot, already in the snapshot.
 
+#include "trust_types.h"
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include <QObject>
 #include <QPointer>
@@ -49,8 +52,8 @@ class TrustPresenter : public QObject
     // (qml_map_ref.h). Never a QVariantMap property: writing the JS detail to one copied all
     // ~650k nodes back on every shot change (#173). C++ (and the tests) use setPickedDetail().
     Q_PROPERTY(QVariant pickedDetailRef READ pickedDetailRef WRITE setPickedDetailRef NOTIFY inputsChanged)
-    Q_PROPERTY(QVariantMap shot READ shot NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap session READ session NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::trust::TrustShot shot READ shot NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::trust::TrustSession session READ session NOTIFY resultsChanged)
 
 public:
     explicit TrustPresenter(QObject *parent = nullptr);
@@ -63,8 +66,8 @@ public:
     void setPickedDetail(const QVariantMap &d);
     QVariant pickedDetailRef() const { return qmlMapRef(pickedDetail()); }
     void     setPickedDetailRef(const QVariant &v) { setPickedDetail(qmlMapRefValue(v)); }
-    QVariantMap shot() const { return m_shot; }
-    QVariantMap session() const { return m_session; }
+    TrustShot shot() const { return m_shot; }
+    TrustSession session() const { return m_session; }
 
 signals:
     void inputsChanged();
@@ -76,7 +79,8 @@ private:
     QPointer<charts::SeriesSource> m_model;
     QString     m_pickedSwingDir;
     QVariantMap m_pickedDetail;
-    QVariantMap m_shot, m_session;
+    TrustShot    m_shot;
+    TrustSession m_session;
 };
 
 } // namespace pinpoint::trust

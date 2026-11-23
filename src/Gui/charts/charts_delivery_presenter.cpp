@@ -18,7 +18,7 @@
 
 #include "charts_delivery_presenter.h"
 
-#include "box_map.h"
+#include "charts_gadget.h"   // chartsGadgetMap: the report's payload and the still maker's requests
 #include "delivery_picture.h"
 #include "charts_words.h"
 #include "session_delivery.h"
@@ -74,15 +74,19 @@ namespace pinpoint::charts {
 
 using namespace deliveryview;
 namespace W = words;
+namespace U = deliveryui;
 
 // ── the result and the worker ───────────────────────────────────────────────────────────────
 
 struct ChartsDeliveryPresenter::Result {
     bool available = false;
-    QVariantMap choices, thisShot, session, plotLayers;
-    QVariantList standfirsts;                          // 7 Sentences (thisShot.standfirsts)
+    U::Choices choices;
+    U::ThisShot thisShot;
+    U::Session session;
+    U::PlotLayers plotLayers;
+    QList<U::Sentence> standfirsts;                    // 7 Sentences (thisShot.standfirsts)
     std::array<qint64, kDeliveryPositions> posUs{};    // the picked shot's P µs, −1 none
-    QVariantList pendingStills;                        // the picture's stills not made yet (thisShot.picture)
+    QVariantList pendingStills;                        // the picture's stills not made yet (thisShot.picture), as the maker reads them
 };
 
 struct ChartsDeliveryPresenter::Worker {
@@ -338,27 +342,57 @@ struct Ctx {
     std::array<qint64, kPos> pUs{};
 };
 
-// ── maps ────────────────────────────────────────────────────────────────────────────────────
+// ── the typed results (charts_delivery_types.h) ─────────────────────────────────────────────────
 
 QString xLabel(DeliveryX x) { return x == DeliveryX::Steepening ? QStringLiteral("Hand plane steepening") : QStringLiteral("Swing plane at P6"); }
 QString yLabel(DeliveryY y) { return y == DeliveryY::Attack ? QStringLiteral("Attack angle (monitor)") : QStringLiteral("Club path (monitor)"); }
 
-QVariantMap fitMap(const DeliveryFit &f)
+// words::Sentence as QML takes it, with its first clause (the words module's rule, never cut in a view).
+U::Sentence sentenceOf(const W::Sentence &s)
 {
-    return { { QStringLiteral("key"), deliveryYKey(f.y) + QStringLiteral("~") + deliveryXKey(f.x) },
-             { QStringLiteral("x"), deliveryXKey(f.x) }, { QStringLiteral("y"), deliveryYKey(f.y) },
-             { QStringLiteral("xLabel"), xLabel(f.x) }, { QStringLiteral("yLabel"), yLabel(f.y) },
-             { QStringLiteral("n"), f.n }, { QStringLiteral("slope"), nv(f.slope) }, { QStringLiteral("intercept"), nv(f.intercept) },
-             { QStringLiteral("r"), nv(f.r) }, { QStringLiteral("sd"), nv(f.sd) },
-             { QStringLiteral("slopeText"), W::fig(f.slope, 2) }, { QStringLiteral("rText"), W::fig(f.r, 2) },
-             { QStringLiteral("sdText"), fin(f.sd) ? QStringLiteral("±") + deliveryDeg1(f.sd) : QString() },
-             { QStringLiteral("holds"), f.holds }, { QStringLiteral("verdict"), f.verdict }, { QStringLiteral("why"), f.why } };
+    U::Sentence out;
+    out.text = s.text();
+    for (const W::Sentence::Run &r : s.runs) out.runs.append(U::Run{ r.text, r.fig });
+    out.clause = W::firstClauseOf(out.text);
+    return out;
+}
+
+// box_map.h's BOX, typed: NaN as null, the outliers as ordinals, the texts in the reading's rounding.
+U::Box boxOf(const box::BoxStats &b, const std::function<QString(double)> &fmt)
+{
+    U::Box out;
+    out.n = b.n;
+    out.min = nv(b.min); out.max = nv(b.max);
+    out.q1 = nv(b.q1); out.med = nv(b.med); out.q3 = nv(b.q3);
+    out.lo = nv(b.lo); out.hi = nv(b.hi);
+    for (int i : b.outliers) out.outliers.append(i + 1);   // values are per shot: index + 1 = ordinal
+    if (fmt && b.n > 0) out.texts = U::BoxTexts{ fmt(b.lo), fmt(b.q1), fmt(b.med), fmt(b.q3), fmt(b.hi) };
+    return out;
+}
+
+U::Fit fitOf(const DeliveryFit &f)
+{
+    U::Fit out;
+    out.key = deliveryYKey(f.y) + QStringLiteral("~") + deliveryXKey(f.x);
+    out.x = deliveryXKey(f.x);
+    out.y = deliveryYKey(f.y);
+    out.xLabel = xLabel(f.x);
+    out.yLabel = yLabel(f.y);
+    out.n = f.n;
+    out.slope = nv(f.slope); out.intercept = nv(f.intercept); out.r = nv(f.r); out.sd = nv(f.sd);
+    out.slopeText = W::fig(f.slope, 2);
+    out.rText = W::fig(f.r, 2);
+    out.sdText = fin(f.sd) ? QStringLiteral("±") + deliveryDeg1(f.sd) : QString();
+    out.holds = f.holds;
+    out.verdict = f.verdict;
+    out.why = f.why;
+    return out;
 }
 
 // The scatter: the fit's own points (the day's shots with both readings, this session's marked), the picked one ringed.
-QVariantMap scatterMap(const DeliveryFit &f, const std::vector<DeliveryShotInput> &inputs, const DeliveryShotInput *pick)
+U::Scatter scatterOf(const DeliveryFit &f, const std::vector<DeliveryShotInput> &inputs, const DeliveryShotInput *pick)
 {
-    QVariantList pts;
+    U::Scatter out;
     double xl = kNaN, xh = kNaN, yl = kNaN, yh = kNaN;
     const auto span = [](double &lo, double &hi, double v) { if (!fin(v)) return; lo = fin(lo) ? std::min(lo, v) : v; hi = fin(hi) ? std::max(hi, v) : v; };
     const QString pickDir = pick ? cleanDir(pick->swingDir) : QString();
@@ -368,109 +402,162 @@ QVariantMap scatterMap(const DeliveryFit &f, const std::vector<DeliveryShotInput
         span(xl, xh, x); span(yl, yh, y);
         // shotNo: the swing number its label prints (step 2.7b); sessionLabel: another session's place in the day,
         // by SessionIdentity's n-of-day ("session 2"), never parsed out of its folder's name in the view.
-        pts.append(QVariantMap{ { QStringLiteral("ordinal"), s.ordinal }, { QStringLiteral("swingDir"), s.swingDir },
-                                { QStringLiteral("shotNo"), W::shotNumber(s.shotId, s.ordinal) },
-                                { QStringLiteral("x"), x }, { QStringLiteral("y"), y },
-                                { QStringLiteral("thisSession"), s.thisSession }, { QStringLiteral("session"), s.session },
-                                { QStringLiteral("sessionLabel"), s.thisSession ? QString()
-                                                                  : s.sessionOfDay > 0 ? QStringLiteral("session %1").arg(s.sessionOfDay)
-                                                                                       : QStringLiteral("another session") },
-                                { QStringLiteral("picked"), !pickDir.isEmpty() && cleanDir(s.swingDir) == pickDir } });
+        U::ScatterPoint p;
+        p.ordinal = s.ordinal;
+        p.swingDir = s.swingDir;
+        p.shotNo = W::shotNumber(s.shotId, s.ordinal);
+        p.x = x;
+        p.y = y;
+        p.thisSession = s.thisSession;
+        p.session = s.session;
+        p.sessionLabel = s.thisSession ? QString()
+                       : s.sessionOfDay > 0 ? QStringLiteral("session %1").arg(s.sessionOfDay)
+                                            : QStringLiteral("another session");
+        p.picked = !pickDir.isEmpty() && cleanDir(s.swingDir) == pickDir;
+        out.points.append(p);
     }
-    QVariant picked = nullv();
     if (pick) {
         const double x = deliveryXOf(*pick, f.x), y = deliveryYOf(*pick, f.y);
-        if (fin(x)) { span(xl, xh, x); span(yl, yh, y); picked = QVariantMap{ { QStringLiteral("x"), x }, { QStringLiteral("y"), nv(y) } }; }
+        if (fin(x)) {
+            span(xl, xh, x); span(yl, yh, y);
+            U::ScatterPicked pk;
+            pk.x = x;
+            pk.y = nv(y);
+            out.picked = QVariant::fromValue(pk);
+        }
     }
-    QVariant line = nullv();
     if (f.holds && fin(xl) && fin(xh))
-        line = QVariantMap{ { QStringLiteral("x0"), xl }, { QStringLiteral("y0"), f.intercept + f.slope * xl },
-                            { QStringLiteral("x1"), xh }, { QStringLiteral("y1"), f.intercept + f.slope * xh } };
-    return { { QStringLiteral("xLabel"), xLabel(f.x) }, { QStringLiteral("yLabel"), yLabel(f.y) }, { QStringLiteral("unit"), QStringLiteral("°") },
-             { QStringLiteral("holds"), f.holds }, { QStringLiteral("points"), pts }, { QStringLiteral("picked"), picked },
-             { QStringLiteral("line"), line }, { QStringLiteral("xLo"), nv(xl) }, { QStringLiteral("xHi"), nv(xh) },
-             { QStringLiteral("yLo"), nv(yl) }, { QStringLiteral("yHi"), nv(yh) } };
+        out.line = QVariant::fromValue(U::ScatterLine{ xl, f.intercept + f.slope * xl, xh, f.intercept + f.slope * xh });
+    out.xLabel = xLabel(f.x);
+    out.yLabel = yLabel(f.y);
+    out.unit = QStringLiteral("°");
+    out.holds = f.holds;
+    // rule C3: the hands' steepening is a signed quantity (steeper +, flatter −), the plane at P6 an angle
+    out.xSigned = f.x == DeliveryX::Steepening;
+    out.xLo = nv(xl); out.xHi = nv(xh);
+    out.yLo = nv(yl); out.yHi = nv(yh);
+    return out;
 }
 
-QVariantMap flightMap(bool available, const QString &text, const QString &attackText, const QString &thisLine,
-                      const DeliveryFits &fits, const DeliveryPlace &place,
-                      const std::vector<DeliveryShotInput> &inputs, const DeliveryDay &day, const DeliveryShotInput *pick)
+U::Flight flightOf(bool available, const QString &text, const QString &attackText, const QString &thisLine,
+                   const DeliveryFits &fits, const DeliveryPlace &place,
+                   const std::vector<DeliveryShotInput> &inputs, const DeliveryDay &day, const DeliveryShotInput *pick)
 {
     const DeliveryFit &f = fits.path();
     const std::vector<DeliveryShotInput> pool = deliveryPool(inputs, &day);
-    return { { QStringLiteral("available"), available }, { QStringLiteral("text"), text },
-             { QStringLiteral("pool"), QVariantMap{ { QStringLiteral("date"), day.date }, { QStringLiteral("sessions"), day.sessions },
-                                                    { QStringLiteral("shots"), int(pool.size()) },
-                                                    { QStringLiteral("otherShots"), int(day.others.size()) },
-                                                    { QStringLiteral("words"), deliveryPoolWords(&day) },
-                                                    { QStringLiteral("staleGrids"), day.staleGrids } } },
-             { QStringLiteral("attackText"), attackText }, { QStringLiteral("thisLine"), thisLine },
-             { QStringLiteral("fit"), fitMap(f) }, { QStringLiteral("attack"), fitMap(fits.attackP6) },
-             { QStringLiteral("fits"), QVariantMap{ { QStringLiteral("pathP6"), fitMap(fits.pathP6) },
-                                                    { QStringLiteral("pathSteep"), fitMap(fits.pathSteep) },
-                                                    { QStringLiteral("attackP6"), fitMap(fits.attackP6) } } },
-             { QStringLiteral("place"), QVariantMap{ { QStringLiteral("known"), place.known }, { QStringLiteral("third"), place.third },
-                                                     { QStringLiteral("words"), place.words } } },
-             { QStringLiteral("scatter"), scatterMap(f, pool, pick) } };
+    U::Flight out;
+    out.available = available;
+    out.text = text;
+    out.pool.date = day.date;
+    out.pool.sessions = day.sessions;
+    out.pool.shots = int(pool.size());
+    out.pool.otherShots = int(day.others.size());
+    out.pool.words = deliveryPoolWords(&day);
+    out.pool.staleGrids = day.staleGrids;
+    out.attackText = attackText;
+    out.thisLine = thisLine;
+    out.fit = fitOf(f);
+    out.attack = fitOf(fits.attackP6);
+    out.fits.pathP6 = fitOf(fits.pathP6);
+    out.fits.pathSteep = fitOf(fits.pathSteep);
+    out.fits.attackP6 = fitOf(fits.attackP6);
+    out.place.known = place.known;
+    out.place.third = place.third;
+    out.place.words = place.words;
+    out.scatter = scatterOf(f, pool, pick);
+    return out;
 }
 
-QVariantMap shapeMap(const DeliveryShape &s)
+U::Shape shapeOf(const DeliveryShape &s)
 {
-    return { { QStringLiteral("available"), s.available }, { QStringLiteral("face"), nv(s.face) },
-             { QStringLiteral("faceToPath"), nv(s.faceToPath) }, { QStringLiteral("faceText"), deliveryDeg1(s.face) },
-             { QStringLiteral("faceToPathText"), deliveryDeg1(s.faceToPath) }, { QStringLiteral("fromBall"), s.fromBall },
-             { QStringLiteral("launchDirText"), deliveryDeg1(s.launchDir) }, { QStringLiteral("spinAxisText"), deliveryDeg1(s.spinAxis) },
-             { QStringLiteral("start"), s.start },
-             { QStringLiteral("curve"), s.curve }, { QStringLiteral("slight"), s.slight },
-             { QStringLiteral("startWord"), s.startWord }, { QStringLiteral("curveWord"), s.curveWord }, { QStringLiteral("word"), s.word } };
+    U::Shape out;
+    out.available = s.available;
+    out.face = nv(s.face);
+    out.faceToPath = nv(s.faceToPath);
+    out.faceText = deliveryDeg1(s.face);
+    out.faceToPathText = deliveryDeg1(s.faceToPath);
+    out.fromBall = s.fromBall;
+    out.launchDirText = deliveryDeg1(s.launchDir);
+    out.spinAxisText = deliveryDeg1(s.spinAxis);
+    out.start = s.start;
+    out.curve = s.curve;
+    out.slight = s.slight;
+    out.startWord = s.startWord;
+    out.curveWord = s.curveWord;
+    out.word = s.word;
+    return out;
 }
 
-QVariantMap impactMap(const std::vector<DeliveryImpactLine> &lines)
+U::Impact impactOf(const std::vector<DeliveryImpactLine> &lines)
 {
-    QVariantList out;
-    for (const DeliveryImpactLine &l : lines)
-        out.append(QVariantMap{ { QStringLiteral("key"), l.key }, { QStringLiteral("text"), l.text }, { QStringLiteral("source"), l.source },
-                                { QStringLiteral("value"), nv(l.value) }, { QStringLiteral("face"), nv(l.face) },
-                                { QStringLiteral("loft"), nv(l.loft) }, { QStringLiteral("loftSource"), l.loftSource } });
-    return { { QStringLiteral("available"), !out.isEmpty() }, { QStringLiteral("lines"), out } };
+    U::Impact out;
+    for (const DeliveryImpactLine &l : lines) {
+        U::ImpactLine m;
+        m.key = l.key;
+        m.text = l.text;
+        m.source = l.source;
+        m.value = nv(l.value);
+        m.face = nv(l.face);
+        m.loft = nv(l.loft);
+        m.loftSource = l.loftSource;
+        out.lines.append(m);
+    }
+    out.available = !out.lines.isEmpty();
+    return out;
 }
 
-QVariantMap trustMap(const DeliveryTrust &t) { return { { QStringLiteral("lines"), t.lines } }; }
+U::Trust trustOf(const DeliveryTrust &t) { U::Trust out; out.lines = t.lines; return out; }
 
-QVariantMap storyMap(const DeliveryStory &s, const DeliveryShotInput &in, const std::array<qint64, kPos> &us)
+U::Story storyOf(const DeliveryStory &s, const DeliveryShotInput &in, const std::array<qint64, kPos> &us)
 {
-    QVariantList pos;
-    for (int p = 0; p < kPos; ++p)
-        pos.append(QVariantMap{ { QStringLiteral("index"), p }, { QStringLiteral("tag"), deliveryPositionTag(p) },
-                                { QStringLiteral("phase"), deliveryPhaseIds()[size_t(p)] }, { QStringLiteral("name"), deliveryPositionWhen(p) },
-                                { QStringLiteral("value"), nv(in.plane[size_t(p)]) }, { QStringLiteral("text"), deliveryDeg(in.plane[size_t(p)]) },
-                                { QStringLiteral("hands"), nv(in.hands[size_t(p)]) }, { QStringLiteral("handsText"), deliveryDeg(in.hands[size_t(p)]) },
-                                { QStringLiteral("tUs"), qlonglong(us[size_t(p)]) }, { QStringLiteral("seekUs"), qlonglong(us[size_t(p)]) } });
-    return { { QStringLiteral("available"), s.available }, { QStringLiteral("text"), s.text }, { QStringLiteral("parts"), s.parts },
-             { QStringLiteral("set"), s.set }, { QStringLiteral("back"), s.back }, { QStringLiteral("top"), s.top },
-             { QStringLiteral("delivered"), s.delivered }, { QStringLiteral("hands"), s.hands },
-             { QStringLiteral("shapeRead"), s.shapeRead }, { QStringLiteral("shapeWord"), s.shapeWord },
-             { QStringLiteral("shapeLine"), s.shapeLine }, { QStringLiteral("positions"), pos } };
+    U::Story out;
+    for (int p = 0; p < kPos; ++p) {
+        U::Position pos;
+        pos.index = p;
+        pos.tag = deliveryPositionTag(p);
+        pos.phase = deliveryPhaseIds()[size_t(p)];
+        pos.name = deliveryPositionWhen(p);
+        pos.value = nv(in.plane[size_t(p)]);
+        pos.text = deliveryDeg(in.plane[size_t(p)]);
+        pos.hands = nv(in.hands[size_t(p)]);
+        pos.handsText = deliveryDeg(in.hands[size_t(p)]);
+        pos.tUs = us[size_t(p)];
+        pos.seekUs = us[size_t(p)];
+        out.positions.append(pos);
+    }
+    out.available = s.available;
+    out.text = s.text;
+    out.parts = s.parts;
+    out.set = s.set;
+    out.back = s.back;
+    out.top = s.top;
+    out.delivered = s.delivered;
+    out.hands = s.hands;
+    out.shapeRead = s.shapeRead;
+    out.shapeWord = s.shapeWord;
+    out.shapeLine = s.shapeLine;
+    return out;
 }
 
-QVariantMap slotMap(const DeliverySlot &s)
+U::Slot slotOf(const DeliverySlot &s)
 {
-    QVariantList out;
-    for (const DeliverySlotMark &m : s.outside)
-        out.append(QVariantMap{ { QStringLiteral("index"), m.pos }, { QStringLiteral("tag"), deliveryPositionTag(m.pos) },
-                                { QStringLiteral("side"), m.side }, { QStringLiteral("words"), m.words } });
+    U::Slot out;
+    for (const DeliverySlotMark &m : s.outside) out.outside.append(U::SlotMark{ m.pos, deliveryPositionTag(m.pos), m.side, m.words });
     const bool both = fin(s.address) && fin(s.shoulders);
-    return { { QStringLiteral("available"), s.available }, { QStringLiteral("address"), nv(s.address) },
-             { QStringLiteral("shoulders"), nv(s.shoulders) }, { QStringLiteral("addressText"), deliveryDeg(s.address) },
-             { QStringLiteral("shouldersText"), deliveryDeg(s.shoulders) },
-             { QStringLiteral("widthText"), both ? deliveryDeg(std::round(s.shoulders) - std::round(s.address)) + QStringLiteral(" wide") : QString() },
-             { QStringLiteral("outside"), out }, { QStringLiteral("text"), s.text } };
+    out.available = s.available;
+    out.address = nv(s.address);
+    out.shoulders = nv(s.shoulders);
+    out.addressText = deliveryDeg(s.address);
+    out.shouldersText = deliveryDeg(s.shoulders);
+    out.widthText = both ? deliveryDeg(std::round(s.shoulders) - std::round(s.address)) + QStringLiteral(" wide") : QString();
+    out.text = s.text;
+    return out;
 }
 
 // One standfirst per position: what the plane was there, against where it was set and the on-plane window.
-QVariantList standfirstsOf(const DeliveryShotInput &in)
+QList<U::Sentence> standfirstsOf(const DeliveryShotInput &in)
 {
-    QVariantList out;
+    QList<U::Sentence> out;
     const double a = in.plane[0], sh = in.shoulderPlane;
     for (int p = 0; p < kPos; ++p) {
         W::Sentence s;
@@ -498,11 +585,10 @@ QVariantList standfirstsOf(const DeliveryShotInput &in)
                                                      [t](const DeliverySpan &sp) { return t >= sp.t0Ms - 1e-6 && t <= sp.t1Ms + 1e-6; });
             s.append(hands ? QStringLiteral(" (the hands carry it here).") : QStringLiteral("."));
         }
-        out.append(s.toVariant());
+        out.append(sentenceOf(s));
     }
     return out;
 }
-
 QString clubOf(const std::vector<DeliveryShotInput> &inputs)
 {
     QStringList clubs;
@@ -564,32 +650,27 @@ QString pictureStillDir()
     return QDir(base.isEmpty() ? QDir::tempPath() : base).filePath(QStringLiteral("delivery-picture"));
 }
 
-// The stills a picture still needs made.
-QVariantList pendingStillsOf(const QVariantMap &picture)
+// The stills a picture still needs made, as the still maker reads them (a map each: main.cpp's maker).
+QVariantList pendingStillsOf(const U::Picture &picture)
 {
     QVariantList out;
-    for (const QVariant &g : picture.value(QStringLiteral("groups")).toList())
-        for (const QVariant &fv : g.toMap().value(QStringLiteral("frames")).toList()) {
-            const QVariantMap f = fv.toMap();
-            const QVariantMap still = f.value(QStringLiteral("still")).toMap();
-            if (f.value(QStringLiteral("src")).toString().isEmpty() && f.value(QStringLiteral("imageWhy")).toString().isEmpty()
-                && !still.value(QStringLiteral("outPath")).toString().isEmpty())
-                out.append(still);
+    for (const U::PictureGroup &g : picture.groups)
+        for (const U::PictureFrame &f : g.frames) {
+            if (f.still.metaType() != QMetaType::fromType<U::PictureStill>()) continue;
+            const U::PictureStill still = f.still.value<U::PictureStill>();
+            if (f.src.isEmpty() && f.imageWhy.isEmpty() && !still.outPath.isEmpty())
+                out.append(chartsGadgetMap(still));
         }
     return out;
 }
 
 // Each frame's note, from the plane story (the presenter's own numbers, never the picture's): the address frame names
 // the two lines, the top and P6 the plane there and where it sat against them — "plane 65° · inside the on-plane window".
-QVariantMap withFrameNotes(QVariantMap pic, const DeliveryShotInput &in, const DeliverySlot &slot)
+U::Picture withFrameNotes(U::Picture pic, const DeliveryShotInput &in, const DeliverySlot &slot)
 {
-    QVariantList groups = pic.value(QStringLiteral("groups")).toList();
-    for (int g = 0; g < groups.size(); ++g) {
-        QVariantMap gm = groups[g].toMap();
-        QVariantList frames = gm.value(QStringLiteral("frames")).toList();
-        for (int k = 0; k < frames.size(); ++k) {
-            QVariantMap f = frames[k].toMap();
-            const int pos = f.value(QStringLiteral("pos")).toInt();
+    for (U::PictureGroup &g : pic.groups)
+        for (U::PictureFrame &f : g.frames) {
+            const int pos = f.pos;
             QStringList parts;
             if (pos == 0) {
                 if (fin(in.plane[0])) parts << QStringLiteral("address line %1").arg(deliveryDeg(in.plane[0]));
@@ -602,13 +683,8 @@ QVariantMap withFrameNotes(QVariantMap pic, const DeliveryShotInput &in, const D
                     parts << where;
                 }
             }
-            f.insert(QStringLiteral("note"), parts.join(QStringLiteral("  ·  ")));
-            frames[k] = f;
+            f.note = parts.join(QStringLiteral("  ·  "));
         }
-        gm.insert(QStringLiteral("frames"), frames);
-        groups[g] = gm;
-    }
-    pic.insert(QStringLiteral("groups"), groups);
     return pic;
 }
 
@@ -616,14 +692,14 @@ QVariantMap withFrameNotes(QVariantMap pic, const DeliveryShotInput &in, const D
 
 void buildThisShot(Ctx &c, ChartsDeliveryPresenter::Result &R)
 {
-    QVariantMap out;
+    U::ThisShot out;
     R.posUs = c.pUs;
     const bool has = c.shot && c.view.available;
-    out.insert(QStringLiteral("available"), has);
+    out.available = has;
     if (!has) {
-        out.insert(QStringLiteral("empty"), (c.shot || !c.in.pickedSwingDir.trimmed().isEmpty()
-                                                 ? QStringLiteral("No swing plane or launch monitor reading for this swing.")
-                                                 : QStringLiteral("Select a swing to review.")) + emptyTail());
+        out.empty = (c.shot || !c.in.pickedSwingDir.trimmed().isEmpty()
+                         ? QStringLiteral("No swing plane or launch monitor reading for this swing.")
+                         : QStringLiteral("Select a swing to review.")) + emptyTail();
         R.thisShot = out;
         R.standfirsts.clear();
         return;
@@ -631,32 +707,30 @@ void buildThisShot(Ctx &c, ChartsDeliveryPresenter::Result &R)
     const ShotSeries &s = *c.shot;
     const DeliveryShotView &v = c.view;
     const bool inSession = c.index >= 0;
-    out.insert(QStringLiteral("empty"), QString());
-    out.insert(QStringLiteral("ordinal"), s.ordinal);
-    out.insert(QStringLiteral("shotId"), s.shotId);
-    out.insert(QStringLiteral("swingDir"), s.swingDir);
-    out.insert(QStringLiteral("inSession"), inSession);
+    out.ordinal = s.ordinal;
+    out.shotId = s.shotId;
+    out.swingDir = s.swingDir;
+    out.inSession = inSession;
     const QString club = s.club.trimmed().isEmpty() ? QString() : deliveryClubWords(s.club);
-    out.insert(QStringLiteral("kicker"), (inSession ? W::shotOfText(s.shotId, s.ordinal, c.n) : QStringLiteral("This swing"))
-                                             + (club.isEmpty() ? QString() : QStringLiteral("  ·  ") + club) + QStringLiteral("  ·  Club delivery"));
-    out.insert(QStringLiteral("mode"), v.mode);
-    out.insert(QStringLiteral("hasPlane"), v.hasPlane);
-    out.insert(QStringLiteral("hasMonitor"), v.hasMonitor);
-    out.insert(QStringLiteral("head"), W::Sentence().append(v.head.text).toVariant());
-    out.insert(QStringLiteral("headText"), v.head.text);
-    out.insert(QStringLiteral("headRule"), v.head.rule);
-    out.insert(QStringLiteral("story"), storyMap(v.story, c.pick, c.pUs));
-    out.insert(QStringLiteral("slot"), slotMap(v.slot));
-    out.insert(QStringLiteral("flight"), flightMap(v.flightAvailable, v.flightText, v.attackText, v.thisLine, v.fits, v.place,
-                                                   c.inputs, c.day, &c.pick));
-    out.insert(QStringLiteral("impact"), impactMap(v.impact));
-    out.insert(QStringLiteral("shape"), shapeMap(v.shape));
-    out.insert(QStringLiteral("trust"), trustMap(v.trust));
-    out.insert(QStringLiteral("replay"), QVariantMap{ { QStringLiteral("head"), v.head.text },
-                                                      { QStringLiteral("story"), v.story.available ? v.story.text : QString() },
-                                                      { QStringLiteral("shape"), v.shape.available ? v.shape.word : QString() } });
-    R.standfirsts = v.hasPlane ? standfirstsOf(c.pick) : QVariantList{};
-    out.insert(QStringLiteral("standfirsts"), R.standfirsts);
+    out.kicker = (inSession ? W::shotOfText(s.shotId, s.ordinal, c.n) : QStringLiteral("This swing"))
+                 + (club.isEmpty() ? QString() : QStringLiteral("  ·  ") + club) + QStringLiteral("  ·  Club delivery");
+    out.mode = v.mode;
+    out.hasPlane = v.hasPlane;
+    out.hasMonitor = v.hasMonitor;
+    out.head = sentenceOf(W::Sentence().append(v.head.text));
+    out.headText = v.head.text;
+    out.headRule = v.head.rule;
+    out.story = storyOf(v.story, c.pick, c.pUs);
+    out.slot = slotOf(v.slot);
+    out.flight = flightOf(v.flightAvailable, v.flightText, v.attackText, v.thisLine, v.fits, v.place, c.inputs, c.day, &c.pick);
+    out.impact = impactOf(v.impact);
+    out.shape = shapeOf(v.shape);
+    out.trust = trustOf(v.trust);
+    out.replay.head = v.head.text;
+    out.replay.story = v.story.available ? v.story.text : QString();
+    out.replay.shape = v.shape.available ? v.shape.word : QString();
+    R.standfirsts = v.hasPlane ? standfirstsOf(c.pick) : QList<U::Sentence>{};
+    out.standfirsts = R.standfirsts;
 
     // THE PICTURE (stage 6): this swing's down-the-line frames at address, the top and P6, the address line and the
     // shoulder plane frozen on all three
@@ -668,81 +742,88 @@ void buildThisShot(Ctx &c, ChartsDeliveryPresenter::Result &R)
             QMutexLocker sl(&c.w->stillMutex);
             po.stillErrors = c.w->stillErrors;
         }
-        const QVariantMap pic = withFrameNotes(deliveryPicture(pictureDocOf(*c.w, s.swingDir), po), c.pick, v.slot);
-        out.insert(QStringLiteral("picture"), pic);
-        R.pendingStills = pendingStillsOf(pic);
+        out.picture = withFrameNotes(deliveryPicture(pictureDocOf(*c.w, s.swingDir), po), c.pick, v.slot);
+        R.pendingStills = pendingStillsOf(out.picture);
     } else {
-        out.insert(QStringLiteral("picture"), deliveryPictureUnread(s.swingDir, QStringLiteral("this swing has no folder")));
+        out.picture = deliveryPictureUnread(s.swingDir, QStringLiteral("this swing has no folder"));
     }
     R.thisShot = out;
 }
 
-// The session map (Charts' Session, and the report's page with no picked shot).
-QVariantMap sessionMapOf(const std::vector<DeliveryShotInput> &inputs, const DeliverySessionView &sv, const DeliveryDay &day,
-                         int pickedIndex, const DeliveryShotInput *pick, const QString &noun = QStringLiteral("shots"))
+// The session (Charts' Session, and the report's page with no picked shot).
+U::Session sessionOf(const std::vector<DeliveryShotInput> &inputs, const DeliverySessionView &sv, const DeliveryDay &day,
+                     int pickedIndex, const DeliveryShotInput *pick, const QString &noun = QStringLiteral("shots"))
 {
-    QVariantMap out;
+    U::Session out;
     const int n = int(inputs.size());
-    out.insert(QStringLiteral("available"), sv.available);
-    out.insert(QStringLiteral("n"), n);
-    out.insert(QStringLiteral("shots"), sv.shots);
-    out.insert(QStringLiteral("planeShots"), sv.planeShots);
-    out.insert(QStringLiteral("monitorShots"), sv.monitorShots);
-    out.insert(QStringLiteral("small"), sv.shots < 10);
+    out.available = sv.available;
+    out.n = n;
+    out.shots = sv.shots;
+    out.planeShots = sv.planeShots;
+    out.monitorShots = sv.monitorShots;
+    out.isSmall = sv.shots < 10;
     if (!sv.available) return out;
     const QString clubs = clubOf(inputs);
-    out.insert(QStringLiteral("kicker"), QStringLiteral("%1 %2").arg(sv.shots).arg(noun)
-                                             + (clubs.isEmpty() ? QString() : QStringLiteral("  ·  ") + clubs) + QStringLiteral("  ·  Club delivery"));
-    out.insert(QStringLiteral("head"), W::Sentence().append(sv.head).toVariant());
-    out.insert(QStringLiteral("headText"), sv.head);
+    out.kicker = QStringLiteral("%1 %2").arg(sv.shots).arg(noun)
+                 + (clubs.isEmpty() ? QString() : QStringLiteral("  ·  ") + clubs) + QStringLiteral("  ·  Club delivery");
+    out.head = sentenceOf(W::Sentence().append(sv.head));
+    out.headText = sv.head;
 
-    QVariantList pos;
     for (int p = 0; p < kPos; ++p) {
         const box::BoxStats &b = sv.band.boxes[size_t(p)];
-        QVariantList values;
-        for (const DeliveryShotInput &s : inputs) values.append(nv(s.plane[size_t(p)]));
-        pos.append(QVariantMap{ { QStringLiteral("index"), p }, { QStringLiteral("tag"), deliveryPositionTag(p) },
-                                { QStringLiteral("name"), deliveryPositionWhen(p) },
-                                { QStringLiteral("box"), boxMap(b, [](double v) { return deliveryDeg(v); }) },
-                                { QStringLiteral("median"), nv(b.med) }, { QStringLiteral("medianText"), deliveryDeg(b.med) },
-                                { QStringLiteral("wide"), nv(b.iqr) }, { QStringLiteral("half"), nv(fin(b.iqr) ? b.iqr / 2 : kNaN) },
-                                { QStringLiteral("halfText"), fin(b.iqr) ? QStringLiteral("±") + deliveryDeg1(b.iqr / 2) : QString() },
-                                { QStringLiteral("picked"), pick ? nv(pick->plane[size_t(p)]) : nullv() },
-                                { QStringLiteral("values"), values } });
+        U::BandPosition bp;
+        for (const DeliveryShotInput &s : inputs) bp.values.append(s.plane[size_t(p)]);   // NaN: the shot's plane unread there
+        bp.index = p;
+        bp.tag = deliveryPositionTag(p);
+        bp.name = deliveryPositionWhen(p);
+        bp.box = boxOf(b, [](double v) { return deliveryDeg(v); });
+        bp.median = nv(b.med);
+        bp.medianText = deliveryDeg(b.med);
+        bp.wide = nv(b.iqr);
+        bp.half = nv(fin(b.iqr) ? b.iqr / 2 : kNaN);
+        bp.halfText = fin(b.iqr) ? QStringLiteral("±") + deliveryDeg1(b.iqr / 2) : QString();
+        bp.picked = pick ? nv(pick->plane[size_t(p)]) : nullv();
+        out.band.positions.append(bp);
     }
-    out.insert(QStringLiteral("band"), QVariantMap{ { QStringLiteral("shown"), sv.band.shown }, { QStringLiteral("n"), sv.band.n },
-                                                    { QStringLiteral("positions"), pos } });
-    out.insert(QStringLiteral("varies"), QVariantMap{
-        { QStringLiteral("has"), sv.varies.has },
-        { QStringLiteral("tightest"), sv.varies.has ? deliveryPositionTag(sv.varies.tightest) : QString() },
-        { QStringLiteral("loosest"), sv.varies.has ? deliveryPositionTag(sv.varies.loosest) : QString() },
-        { QStringLiteral("tightHalf"), nv(sv.varies.tightHalf) }, { QStringLiteral("looseHalf"), nv(sv.varies.looseHalf) },
-        { QStringLiteral("words"), sv.varies.words } });
-    out.insert(QStringLiteral("usual"), QVariantMap{
-        { QStringLiteral("address"), nv(sv.usual.plane[0]) }, { QStringLiteral("shoulders"), nv(sv.usual.shoulderPlane) },
-        { QStringLiteral("steepening"), nv(sv.usual.steepening) }, { QStringLiteral("addressText"), deliveryDeg(sv.usual.plane[0]) },
-        { QStringLiteral("shouldersText"), deliveryDeg(sv.usual.shoulderPlane) },
-        { QStringLiteral("steepeningText"), W::figSigned(sv.usual.steepening, QStringLiteral("°")) } });
+    out.band.shown = sv.band.shown;
+    out.band.n = sv.band.n;
+    out.varies.has = sv.varies.has;
+    out.varies.tightest = sv.varies.has ? deliveryPositionTag(sv.varies.tightest) : QString();
+    out.varies.loosest = sv.varies.has ? deliveryPositionTag(sv.varies.loosest) : QString();
+    out.varies.tightHalf = nv(sv.varies.tightHalf);
+    out.varies.looseHalf = nv(sv.varies.looseHalf);
+    out.varies.words = sv.varies.words;
+    out.usual.address = nv(sv.usual.plane[0]);
+    out.usual.shoulders = nv(sv.usual.shoulderPlane);
+    out.usual.steepening = nv(sv.usual.steepening);
+    out.usual.addressText = deliveryDeg(sv.usual.plane[0]);
+    out.usual.shouldersText = deliveryDeg(sv.usual.shoulderPlane);
+    out.usual.steepeningText = W::figSigned(sv.usual.steepening, QStringLiteral("°"));
     DeliveryPlace none;
-    out.insert(QStringLiteral("flight"), flightMap(sv.fits.path().n > 0, sv.flightText, sv.attackText, QString(), sv.fits, none,
-                                                   inputs, day, pick));
-    QVariantList marks;
+    out.flight = flightOf(sv.fits.path().n > 0, sv.flightText, sv.attackText, QString(), sv.fits, none, inputs, day, pick);
     for (size_t i = 0; i < inputs.size() && i < sv.shapes.size(); ++i) {
         const DeliveryShape &sh = sv.shapes[i];
-        marks.append(QVariantMap{ { QStringLiteral("ordinal"), inputs[i].ordinal }, { QStringLiteral("swingDir"), inputs[i].swingDir },
-                                  { QStringLiteral("shotNo"), W::shotNumber(inputs[i].shotId, inputs[i].ordinal) },   // its label's number (2.7b)
-                                  { QStringLiteral("available"), sh.available }, { QStringLiteral("start"), sh.start },
-                                  { QStringLiteral("curve"), sh.curve }, { QStringLiteral("word"), sh.word },
-                                  { QStringLiteral("fromBall"), sh.fromBall },
-                                  { QStringLiteral("picked"), int(i) == pickedIndex } });
+        U::ShapeMark m;
+        m.ordinal = inputs[i].ordinal;
+        m.swingDir = inputs[i].swingDir;
+        m.shotNo = W::shotNumber(inputs[i].shotId, inputs[i].ordinal);   // its label's number (2.7b)
+        m.available = sh.available;
+        m.start = sh.start;
+        m.curve = sh.curve;
+        m.word = sh.word;
+        m.fromBall = sh.fromBall;
+        m.picked = int(i) == pickedIndex;
+        // rule C6: the grid's words while the dot is hovered, by the swing number (the ordinal when it has none)
+        m.hoverText = QStringLiteral("Shot %1  %2").arg(m.shotNo ? m.shotNo : m.ordinal).arg(sh.word);
+        out.shapes.marks.append(m);
     }
-    out.insert(QStringLiteral("shapes"), QVariantMap{ { QStringLiteral("marks"), marks }, { QStringLiteral("line"), sv.shapeLine } });
-    out.insert(QStringLiteral("trust"), trustMap(sv.trust));
+    out.shapes.line = sv.shapeLine;
+    out.trust = trustOf(sv.trust);
     return out;
 }
 
 // The plot's lines over the swing plane curve's row (§4.2): the picked shot's own (This shot), else the session's medians.
-QVariantMap plotLayersOf(Ctx &c)
+U::PlotLayers plotLayersOf(Ctx &c)
 {
     const bool sessionScope = c.in.scope == QLatin1String("session");
     double address = kNaN, shoulders = kNaN, t0 = kNaN, t1 = kNaN;
@@ -762,38 +843,49 @@ QVariantMap plotLayersOf(Ctx &c)
             if (fin(s.curveToMs)) t1 = fin(t1) ? std::max(t1, s.curveToMs) : s.curveToMs;
         }
     }
-    QVariantList layers;
-    if (fin(address))
-        layers.append(QVariantMap{ { QStringLiteral("k"), QStringLiteral("hline") }, { QStringLiteral("v"), address },
-                                   { QStringLiteral("role"), QStringLiteral("address") }, { QStringLiteral("label"), QStringLiteral("address") },
-                                   { QStringLiteral("text"), deliveryDeg(address) } });
-    if (fin(shoulders))
-        layers.append(QVariantMap{ { QStringLiteral("k"), QStringLiteral("hline") }, { QStringLiteral("v"), shoulders },
-                                   { QStringLiteral("role"), QStringLiteral("shoulders") }, { QStringLiteral("label"), QStringLiteral("shoulders") },
-                                   { QStringLiteral("text"), deliveryDeg(shoulders) } });
-    if (fin(address) && fin(shoulders) && fin(t0) && fin(t1))
-        layers.append(QVariantMap{ { QStringLiteral("k"), QStringLiteral("band") }, { QStringLiteral("t"), QVariantList{ t0, t1 } },
-                                   { QStringLiteral("lo"), QVariantList{ std::min(address, shoulders), std::min(address, shoulders) } },
-                                   { QStringLiteral("hi"), QVariantList{ std::max(address, shoulders), std::max(address, shoulders) } },
-                                   { QStringLiteral("role"), QStringLiteral("slot") }, { QStringLiteral("label"), QStringLiteral("the on-plane window") } });
-    for (size_t i = 0; i < spans.size(); ++i)
-        layers.append(QVariantMap{ { QStringLiteral("k"), QStringLiteral("span") }, { QStringLiteral("t0"), spans[i].t0Ms },
-                                   { QStringLiteral("t1"), spans[i].t1Ms }, { QStringLiteral("role"), QStringLiteral("hands") },
-                                   { QStringLiteral("label"), QStringLiteral("hands carry the plane here") },
-                                   { QStringLiteral("labelled"), i == 0 } });
-    if (layers.isEmpty()) return {};
-    return { { QStringLiteral("swingPlaneCurve"), layers } };
+    U::PlotLayers out;
+    QList<U::PlotLayer> &layers = out.swingPlaneCurve;
+    const auto hline = [&](double v, const QString &role) {
+        U::PlotLayer l;
+        l.k = QStringLiteral("hline");
+        l.v = v;
+        l.role = role;
+        l.label = role;
+        l.text = deliveryDeg(v);
+        layers.append(l);
+    };
+    if (fin(address)) hline(address, QStringLiteral("address"));
+    if (fin(shoulders)) hline(shoulders, QStringLiteral("shoulders"));
+    if (fin(address) && fin(shoulders) && fin(t0) && fin(t1)) {
+        U::PlotLayer l;
+        l.k = QStringLiteral("band");
+        l.t = { t0, t1 };
+        l.lo = { std::min(address, shoulders), std::min(address, shoulders) };
+        l.hi = { std::max(address, shoulders), std::max(address, shoulders) };
+        l.role = QStringLiteral("slot");
+        l.label = QStringLiteral("the on-plane window");
+        layers.append(l);
+    }
+    for (size_t i = 0; i < spans.size(); ++i) {
+        U::PlotLayer l;
+        l.k = QStringLiteral("span");
+        l.t0 = spans[i].t0Ms;
+        l.t1 = spans[i].t1Ms;
+        l.role = QStringLiteral("hands");
+        l.label = QStringLiteral("hands carry the plane here");
+        l.labelled = i == 0;
+        layers.append(l);
+    }
+    return out;
 }
 
 void buildChoices(Ctx &c, ChartsDeliveryPresenter::Result &R)
 {
     const QString scope = c.in.scope == QLatin1String("session") ? QStringLiteral("session") : QStringLiteral("shot");
-    R.choices = {
-        { QStringLiteral("scope"), scope },
-        { QStringLiteral("scopes"), QVariantList{
-              QVariantMap{ { QStringLiteral("id"), QStringLiteral("shot") }, { QStringLiteral("label"), QStringLiteral("This shot") }, { QStringLiteral("current"), scope == QLatin1String("shot") } },
-              QVariantMap{ { QStringLiteral("id"), QStringLiteral("session") }, { QStringLiteral("label"), QStringLiteral("Session") }, { QStringLiteral("current"), scope == QLatin1String("session") } } } },
-        { QStringLiteral("onShowKeys"), deliveryOnShowKeys() } };
+    R.choices.scope = scope;
+    R.choices.scopes = { U::ScopeChoice{ QStringLiteral("shot"), QStringLiteral("This shot"), scope == QLatin1String("shot") },
+                         U::ScopeChoice{ QStringLiteral("session"), QStringLiteral("Session"), scope == QLatin1String("session") } };
+    R.choices.onShowKeys = deliveryOnShowKeys();
 }
 
 // The shots' readings, through the worker's cache.
@@ -857,7 +949,7 @@ static std::shared_ptr<ChartsDeliveryPresenter::Result> computeDelivery(ChartsDe
 
     R->available = c.ready > 0 || c.hasPick;
     buildThisShot(c, *R);
-    R->session = sessionMapOf(c.inputs, c.sess, c.day, c.index, c.shot ? &c.pick : nullptr);
+    R->session = sessionOf(c.inputs, c.sess, c.day, c.index, c.shot ? &c.pick : nullptr);
     R->plotLayers = plotLayersOf(c);
     buildChoices(c, *R);
     return R;
@@ -869,7 +961,7 @@ QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const 
     const std::vector<DeliveryShotInput> inputs = readInputs(nullptr, snapshot);
     const DeliveryDay day = dayOf(nullptr, sessionDirOf(snapshot, QString()));
     const DeliverySessionView sv = deliverySession(inputs, many, &day);
-    return sessionMapOf(inputs, sv, day, -1, nullptr, many);
+    return chartsGadgetMap(sessionOf(inputs, sv, day, -1, nullptr, many));
 }
 
 // ── the still maker (process-wide: the app sets it once) ────────────────────────────────────────
@@ -948,15 +1040,15 @@ void ChartsDeliveryPresenter::setPlayheadUs(qint64 us)
 }
 
 bool ChartsDeliveryPresenter::available() { flushIfSynchronous(); return m_result && m_result->available; }
-QVariantMap ChartsDeliveryPresenter::choices() { flushIfSynchronous(); return m_result ? m_result->choices : QVariantMap{}; }
-QVariantMap ChartsDeliveryPresenter::thisShot() { flushIfSynchronous(); return m_result ? m_result->thisShot : QVariantMap{}; }
-QVariantMap ChartsDeliveryPresenter::session() { flushIfSynchronous(); return m_result ? m_result->session : QVariantMap{}; }
-QVariantMap ChartsDeliveryPresenter::plotLayers() { flushIfSynchronous(); return m_result ? m_result->plotLayers : QVariantMap{}; }
+U::Choices ChartsDeliveryPresenter::choices() { flushIfSynchronous(); return m_result ? m_result->choices : U::Choices{}; }
+U::ThisShot ChartsDeliveryPresenter::thisShot() { flushIfSynchronous(); return m_result ? m_result->thisShot : U::ThisShot{}; }
+U::Session ChartsDeliveryPresenter::session() { flushIfSynchronous(); return m_result ? m_result->session : U::Session{}; }
+U::PlotLayers ChartsDeliveryPresenter::plotLayers() { flushIfSynchronous(); return m_result ? m_result->plotLayers : U::PlotLayers{}; }
 
-QVariantMap ChartsDeliveryPresenter::standfirst() const
+U::Sentence ChartsDeliveryPresenter::standfirst() const
 {
     if (!m_result || m_selected < 0 || m_selected >= m_result->standfirsts.size()) return {};
-    return m_result->standfirsts.at(m_selected).toMap();
+    return m_result->standfirsts.at(m_selected);
 }
 
 qint64 ChartsDeliveryPresenter::seekUsFor(const QString &tag) const
@@ -1125,3 +1217,6 @@ void ChartsDeliveryPresenter::updateSelected(bool force)
 }
 
 } // namespace pinpoint::charts
+
+// moc for the typed results' gadgets (charts_delivery_types.h has no .cpp of its own)
+#include "moc_charts_delivery_types.cpp"

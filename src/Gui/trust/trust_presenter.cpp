@@ -77,22 +77,23 @@ void TrustPresenter::recompute()
         sh->gates = m_pickedDetail.value(QStringLiteral("gates")).toList();
         picked = sh;
     }
-    QVariantMap shot;
+    TrustShot shot;
     if (picked) {
-        shot = trustShot(*picked);
+        shot = TrustShot::fromMap(trustShot(*picked));
         const int n = snap ? snap->count() : 0;
         QString kicker = picked->ordinal > 0 && n > 0 ? QStringLiteral("Shot %1 of %2").arg(picked->ordinal).arg(n) : QStringLiteral("This shot");
         // the club as Charts says it ("7 iron"): lower-cased, ASCII only
         QString club = picked->club;
         for (QChar &ch : club) if (ch.unicode() < 128) ch = ch.toLower();
         if (!club.isEmpty()) kicker += QStringLiteral("  ·  ") + club;
-        shot.insert(QStringLiteral("kicker"), kicker);
-        shot.insert(QStringLiteral("ordinal"), picked->ordinal);
-        shot.insert(QStringLiteral("swingDir"), picked->swingDir);
+        shot.kicker = kicker;
+        shot.ordinal = picked->ordinal;
+        shot.swingDir = picked->swingDir;
     }
-    shot.insert(QStringLiteral("available"), bool(picked));
+    shot.available = bool(picked);
     m_shot = shot;
-    m_session = snap ? trustSession(*snap) : QVariantMap{ { QStringLiteral("n"), 0 } };
+    // no session read: `n` 0, every other field empty
+    m_session = snap ? TrustSession::fromMap(trustSession(*snap)) : TrustSession{};
     emit resultsChanged();
 }
 

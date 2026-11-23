@@ -1020,11 +1020,11 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > answers for the shot and the session at once, so both registers have it.
 > Beside the name, this shot's verdict (Mark, 17 Oct 2026: "just glance at the readings that need attention"): All ·
 > Faults (past the fault line) · Outside (out of the corridor, faults included) · Inside (graded clean), each with its
-> count under the name filter; a reading no condition graded shows under All only (row.verdict, the presenter's).
+> count under the name filter; a reading no condition graded shows under All only (row.verdicts and thisShot.verdictFilters, the presenter's).
 > objectName: chReadingsView, chReadingsFilter, chReadingsVerdict:<all|fault|outside|inside>.
 
 - **Properties:** `QtObject roles`, `var brush`, `var body`, `string reg`, `bool interactive`, `bool cast`, `real pageH`, `readonly var rs`, `readonly bool available`, `string filter`, `string verdict`, `readonly var named`, `readonly var groups`, `readonly var counts` … (+3 more)
-- **Functions:** `inVerdict(r, v)`
+- **Functions:** `inVerdict(r, v)` (refactor 5.5b: a row's `verdicts`, the presenter's, list the filters it shows under; the empty-state words are the presenter's too)
 - **Uses:** `PpChProfile`, `PpChText`
 - **Used by (1):** `PpChartsRegister`
 
@@ -1105,7 +1105,7 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > …
 
 - **Properties:** `QtObject roles`, `var brush`, `var body`, `string reg`, `bool interactive`, `bool cast`, `real pageH`, `readonly bool replay`, `readonly var se`, `readonly var tc`, `readonly var tn`, `readonly bool available`, `readonly int nRows`, `readonly real headEst` … (+11 more)
-- **Functions:** `currentLabel(list)`, `picked(set, opt)`, `firstClause(sentence)`
+- **Functions:** `currentLabel(list)`, `picked(set, opt)` (refactor 5.5b: `firstClause` went into C++, each sentence's `clause`)
 - **Uses:** `PpChChoices`, `PpChDeliverySession`, `PpChFoldHead`, `PpChPostureSession`, `PpChQuestions`, `PpChReplaySession`, `PpChSeqSession`, `PpChSessionFigure`, `PpChText`, `PpChWristSession`, `PpInlinePicker`, `PpTrustSummaryFold`
 - **Used by (1):** `PpChartsRegister`
 

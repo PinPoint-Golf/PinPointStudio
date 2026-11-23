@@ -26,8 +26,8 @@ import PinPointStudio
 // the filled dot with a ring and its word; the session's shots are small dots in their cells, spread so a cell of
 // many shows many. The monitor's values only: a shot the monitor gave no face is in no cell (its word "-").
 // Hover a dot: its shot and words, under the grid; a click opens a session shot (shotActivated).
-//   shot: SHAPE (thisShot.shape) | null — the ringed one; marks: session.shapes.marks; line: the words when nothing is
-//   hovered (the session's commonest shape, or this shot's word).
+//   shot: SHAPE (thisShot.shape) | null — the ringed one; marks: session.shapes.marks (each with its hover words,
+//   hoverText); line: the words when nothing is hovered (the session's commonest shape, or this shot's word).
 // objectNames: chShotShapeGrid, chShapeCell (+ start, curve, count), chShapeThis, chShapeMark (+ ordinal), chShapeWords.
 Column {
     id: gr
@@ -115,10 +115,10 @@ Column {
                                 anchors.fill: parent; anchors.margins: -3
                                 hoverEnabled: true; enabled: gr.interactive
                                 cursorShape: Qt.PointingHandCursor
-                                // "Shot N" is the swing number (modelData.shotNo, step 2.7b); the click still names the shot by its ordinal
-                                readonly property int shotNo: dt.modelData.shotNo || dt.modelData.ordinal
-                                onContainsMouseChanged: gr.hoverText = containsMouse ? "Shot " + shotNo + "  " + (dt.modelData.word || "")
-                                                                                     : (gr.hoverText.indexOf("Shot " + shotNo + " ") === 0 ? "" : gr.hoverText)
+                                // the words are the presenter's (modelData.hoverText: "Shot N" is the swing number); the click still
+                                // names the shot by its ordinal. Leaving clears the line only if this dot set it.
+                                readonly property string words: dt.modelData.hoverText || ""
+                                onContainsMouseChanged: gr.hoverText = containsMouse ? words : (gr.hoverText === words ? "" : gr.hoverText)
                                 onClicked: gr.shotActivated(dt.modelData.ordinal)
                             }
                         }

@@ -26,7 +26,9 @@ import PinPointStudio
 // answers for the shot and the session at once, so both registers have it.
 // Beside the name, this shot's verdict (Mark, 17 Oct 2026: "just glance at the readings that need attention"): All ·
 // Faults (past the fault line) · Outside (out of the corridor, faults included) · Inside (graded clean), each with its
-// count under the name filter; a reading no condition graded shows under All only (row.verdict, the presenter's).
+// count under the name filter; a reading no condition graded shows under All only. The presenter says which filters
+// a row shows under (row.verdicts: a fault is out of its corridor too), the filters' words and tones, and what to say
+// when one is empty (thisShot.verdictFilters, thisShot.noName); this view only filters, counts and places them.
 // Each row carries this shot's technical Typicality badge when R8 gives one (row.variability: this shot against the
 // other shots with its club, at least eight), on the row's second line (PpChProfile) once the row is OPEN
 // (variabilityOnOpen; Mark, 8 Nov 2026: on every row it made the list noisy); the session box, pooled across
@@ -41,9 +43,7 @@ PpChViewBase {
     property string verdict: "all"               // all | fault | outside | inside
     spacing: roles ? roles.g(12) : Theme.gap(12)
 
-    function inVerdict(r, v) {
-        return v === "all" || (v === "outside" ? (r.verdict === "fault" || r.verdict === "outside") : r.verdict === v)
-    }
+    function inVerdict(r, v) { return (r.verdicts || []).indexOf(v) >= 0 }
     // the groups with the rows whose name holds the filter (case-insensitive); a family left empty goes
     readonly property var named: {
         const gs = available ? (rs.groups || []) : []
@@ -68,15 +68,13 @@ PpChViewBase {
         }
         return out
     }
+    // the filters, as the presenter gives them (none until it has a result)
+    readonly property var verdictFilters: !!rs && rs.verdictFilters ? rs.verdictFilters : []
     // the count under each verdict, of the rows the name lets through
     readonly property var counts: {
-        const n = { all: 0, fault: 0, outside: 0, inside: 0 }
-        for (const g of named) for (const r of (g.rows || [])) {
-            ++n.all
-            if (r.verdict === "fault") { ++n.fault; ++n.outside }
-            else if (r.verdict === "outside") ++n.outside
-            else if (r.verdict === "inside") ++n.inside
-        }
+        const n = {}
+        for (const e of verdictFilters) n[e.verdict] = 0
+        for (const g of named) for (const r of (g.rows || [])) for (const v of (r.verdicts || [])) n[v] = (n[v] || 0) + 1
         return n
     }
     readonly property int shownCount: { let n = 0; for (const g of groups) n += (g.rows || []).length; return n }
@@ -130,15 +128,15 @@ PpChViewBase {
             height: fi.implicitHeight + (rv.roles ? rv.roles.u(8) : 8)
             spacing: rv.roles ? rv.roles.g(14) : Theme.gap(14)
             Repeater {
-                model: [{ v: "all", word: "All" }, { v: "fault", word: "Faults" }, { v: "outside", word: "Outside" }, { v: "inside", word: "Inside" }]
+                model: rv.verdictFilters
                 delegate: Item {
                     id: chip
                     required property var modelData
-                    readonly property int n: rv.counts[modelData.v] || 0
-                    readonly property bool on: rv.verdict === modelData.v
+                    readonly property int n: rv.counts[modelData.verdict] || 0
+                    readonly property bool on: rv.verdict === modelData.verdict
                     readonly property bool live: on || n > 0
-                    readonly property bool warm: n > 0 && (modelData.v === "fault" || modelData.v === "outside")
-                    objectName: "chReadingsVerdict:" + modelData.v
+                    readonly property bool warm: n > 0 && modelData.warm === true
+                    objectName: "chReadingsVerdict:" + modelData.verdict
                     width: cr.implicitWidth; height: parent.height
                     Row {
                         id: cr
@@ -153,16 +151,21 @@ PpChViewBase {
                                 height: rv.roles ? Math.max(1, 2 * rv.roles.hw) : 2; color: rv.roles ? rv.roles.ink : "black" }
                     MouseArea { anchors.fill: parent; enabled: rv.interactive && chip.live; hoverEnabled: true
                                 cursorShape: chip.live ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                onClicked: rv.verdict = chip.modelData.v }
+                                onClicked: rv.verdict = chip.modelData.verdict }
                 }
             }
         }
     }
+    // nothing to show: the presenter's words, the name filter's text filled in
     Text { visible: rv.available && rv.groups.length === 0; width: rv.width; wrapMode: Text.WordWrap
-           text: rv.named.length === 0 ? "No reading's name holds “" + rv.filter.trim() + "”."
-               : rv.verdict === "fault" ? "No reading" + (rv.filter.trim() ? " named “" + rv.filter.trim() + "”" : "") + " is past its fault line on this shot."
-               : rv.verdict === "outside" ? "No reading" + (rv.filter.trim() ? " named “" + rv.filter.trim() + "”" : "") + " is out of its corridor on this shot."
-               : "No reading" + (rv.filter.trim() ? " named “" + rv.filter.trim() + "”" : "") + " was graded inside its corridor on this shot."
+           text: {
+               if (!rv.available) return ""
+               const f = rv.filter.trim()
+               if (rv.named.length === 0) return String(rv.rs.noName || "").replace("%1", () => f)
+               for (const e of rv.verdictFilters)
+                   if (e.verdict === rv.verdict) return f === "" ? String(e.none || "") : String(e.noneNamed || "").replace("%1", () => f)
+               return ""
+           }
            font: rv.roles ? rv.roles.fBody : Qt.application.font; color: rv.roles ? rv.roles.ink3 : "grey" }
     // by family, two balanced columns at wide, never splitting a family
     Flow {

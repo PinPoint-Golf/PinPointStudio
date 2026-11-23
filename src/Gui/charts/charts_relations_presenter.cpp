@@ -723,6 +723,12 @@ QVariantMap rowMapOf(const Ctx &x, const SessionReading &r, const ReadingMeta &m
     const bool fault = fired && size_t(x.pick) < r.firedZ.size() && r.firedZ[size_t(x.pick)] > x.faultZ;
     const bool inside = !fired && link >= 0 && x.pick >= 0 && size_t(x.pick) < r.clean.size() && r.clean[size_t(x.pick)];
     const QString verdict = fault ? QStringLiteral("fault") : fired ? QStringLiteral("outside") : inside ? QStringLiteral("inside") : QString();
+    // the filters the row shows under (thisShot.verdictFilters): every row under All, and past the fault line counts as out
+    // of its corridor too, so a fault shows under Faults and Outside
+    QVariantList verdicts{ QStringLiteral("all") };   // a list of strings, a plain JS array in QML
+    if (fault) verdicts << QStringLiteral("fault");
+    if (fired) verdicts << QStringLiteral("outside");
+    if (inside) verdicts << QStringLiteral("inside");
     QVariantList conds, links;
     QString firedWord;
     if (fired)
@@ -767,7 +773,7 @@ QVariantMap rowMapOf(const Ctx &x, const SessionReading &r, const ReadingMeta &m
         { QStringLiteral("rz"), p.rz }, { QStringLiteral("side"), p.side }, { QStringLiteral("apart"), p.side != 0 },
         { QStringLiteral("box"), boxMap(r.box, figOf(r.unit)) }, { QStringLiteral("values"), nums(r.values) },
         { QStringLiteral("firedShots"), boolsOf(r.fired) }, { QStringLiteral("fired"), fired },
-        { QStringLiteral("firedWord"), firedWord }, { QStringLiteral("verdict"), verdict },
+        { QStringLiteral("firedWord"), firedWord }, { QStringLiteral("verdict"), verdict }, { QStringLiteral("verdicts"), verdicts },
         { QStringLiteral("conditions"), conds }, { QStringLiteral("firedConditions"), links },
         { QStringLiteral("corridor"), corr }, { QStringLiteral("boxText"), boxTexts(r, corr) },
         { QStringLiteral("hasCurve"), curve }, { QStringLiteral("opens"), curve ? QStringLiteral("trace") : QStringLiteral("run") } };
@@ -1398,11 +1404,32 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
     return { { QStringLiteral("family"), fam ? fam->name : QString() }, { QStringLiteral("sequence"), seq }, { QStringLiteral("items"), items } };
 }
 
+// The Readings tab's verdict filters, in the order the tab shows them: the word, whether a count under it wears the
+// warn tone (a fault, or out of the corridor), and what the tab says when nothing is under it — `none` with no name
+// filter, `noneNamed` with one (%1 the filter's text). All has no empty words of its own: with nothing under All the
+// name filter let nothing through, and the tab says thisShot.noName. A row's `verdicts` says which ones it shows under.
+QVariantList readingVerdictFilters()
+{
+    const auto filter = [](const char *v, const char *word, bool warm, const QString &tail) {
+        return QVariantMap{ { QStringLiteral("verdict"), QString::fromLatin1(v) }, { QStringLiteral("word"), QString::fromLatin1(word) },
+                            { QStringLiteral("warm"), warm },
+                            { QStringLiteral("none"), tail.isEmpty() ? QString() : QStringLiteral("No reading ") + tail },
+                            { QStringLiteral("noneNamed"), tail.isEmpty() ? QString() : QStringLiteral("No reading named “%1” ") + tail } };
+    };
+    return { filter("all", "All", false, QString()),
+             filter("fault", "Faults", true, QStringLiteral("is past its fault line on this shot.")),
+             filter("outside", "Outside", true, QStringLiteral("is out of its corridor on this shot.")),
+             filter("inside", "Inside", false, QStringLiteral("was graded inside its corridor on this shot.")) };
+}
+
 QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
 {
     QVariantMap m;
     const int total = int(x.c.readings.size());
     m.insert(QStringLiteral("total"), total);
+    // the Readings tab's filter words, whatever the shot (the tab draws them only when there are readings)
+    m.insert(QStringLiteral("verdictFilters"), readingVerdictFilters());
+    m.insert(QStringLiteral("noName"), QStringLiteral("No reading's name holds “%1”."));
     if (x.pick < 0) {
         m.insert(QStringLiteral("available"), false);
         m.insert(QStringLiteral("head"), (x.n == 0 ? emptySession(x) : Sentence().append(QStringLiteral("No shot is picked"))).toVariant());

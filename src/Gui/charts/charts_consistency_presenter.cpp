@@ -18,6 +18,7 @@
 
 #include "charts_consistency_presenter.h"
 
+#include "charts_gadget.h"            // chartsGadgetMap: the report's maps, off the typed results
 #include "charts_words.h"
 #include "consistency_env.h"
 #include "consistency_grades.h"
@@ -130,8 +131,18 @@ bool hasCurves(const SessionSnapshot &session)
     return std::any_of(session.shots.begin(), session.shots.end(), [](const auto &sh) { return hasCurve(*sh); });
 }
 
+// A Sentence as the typed results carry it: the same { text, runs } its toVariant() gave.
+QList<ConsistencyTabRun> runsOf(const Sentence &s)
+{
+    QList<ConsistencyTabRun> out;
+    out.reserve(qsizetype(s.runs.size()));
+    for (const Sentence::Run &r : s.runs) out.append(ConsistencyTabRun{ r.text, r.fig });
+    return out;
+}
+ConsistencyTabSentence sentenceOf(const Sentence &s) { return ConsistencyTabSentence{ s.text(), runsOf(s) }; }
+
 QString loadingWords() { return QStringLiteral("Reading this session…"); }
-QVariantMap settlingLine() { return Sentence().append(loadingWords()).toVariant(); }
+ConsistencyTabSentence settlingLine() { return sentenceOf(Sentence().append(loadingWords())); }
 
 // ── the grades, as QML reads them ─────────────────────────────────────────────────────────
 
@@ -243,8 +254,8 @@ Sentence ballLine(const SessionSnapshot &session, const ConsistencyInput &in)
     return s.append(QStringLiteral("."));
 }
 
-QVariantMap headOf(const SessionSnapshot &session, const ConsistencyInput &in, const ConsistencyGrades &grades, const Sentence &empty,
-                   const QString &noun = QStringLiteral("shots"))
+ConsistencyTabHead headOf(const SessionSnapshot &session, const ConsistencyInput &in, const ConsistencyGrades &grades, const Sentence &empty,
+                          const QString &noun = QStringLiteral("shots"))
 {
     const auto clubs = clubCounts(in);
     QString kicker = QStringLiteral("Consistency  ·  %1 %2").arg(int(in.shots.size())).arg(words::plural(int(in.shots.size()), noun.chopped(1), noun));
@@ -254,15 +265,17 @@ QVariantMap headOf(const SessionSnapshot &session, const ConsistencyInput &in, c
     // the grades' sentence when the table has one; else what the table cannot say; else the grade-0 or ungraded line
     const ConsistencyHead graded = consistencyHead(grades);
     const bool says = graded.kind == ConsistencyHead::Kind::Halves || graded.kind == ConsistencyHead::Kind::Most;
-    QVariantMap line = ChartsConsistencyPresenter::headline(graded);
+    ConsistencyTabHeadline line = ChartsConsistencyPresenter::headline(graded);
     if (!says && !empty.isEmpty()) {
-        line = empty.toVariant();
-        line.insert(QStringLiteral("kind"), QStringLiteral("empty"));
+        line = ConsistencyTabHeadline{};        // the empty sentence in its place: no grades, no fallback
+        line.text = empty.text();
+        line.runs = runsOf(empty);
+        line.kind = QStringLiteral("empty");
     }
 
-    QVariantList notes;
+    QList<ConsistencyTabSentence> notes;
     if (anyValue(in, &ConsistencyShot::carry) && !anyValue(in, &ConsistencyShot::offline))
-        notes.append(Sentence().append(QStringLiteral("This launch monitor gives carry but no offline, so only short shots are flagged.")).toVariant());
+        notes.append(sentenceOf(Sentence().append(QStringLiteral("This launch monitor gives carry but no offline, so only short shots are flagged."))));
     std::vector<std::pair<QString, int>> left;
     for (const auto &c : clubs)
         if (c.second < kConsistencyMinClubShots) left.push_back(c);
@@ -275,12 +288,15 @@ QVariantMap headOf(const SessionSnapshot &session, const ConsistencyInput &in, c
             note.figure(QString::number(left[i].second)).append(words::plural(left[i].second, QStringLiteral(" shot)"), QStringLiteral(" shots)")));
         }
         note.append(QStringLiteral(". A club needs %1 shots to be set against itself.").arg(words::word(kConsistencyMinClubShots)));
-        notes.append(note.toVariant());
+        notes.append(sentenceOf(note));
     }
 
-    const Sentence ball = ballLine(session, in);
-    return { { QStringLiteral("kicker"), kicker }, { QStringLiteral("headline"), line },
-             { QStringLiteral("ball"), ball.isEmpty() ? QVariantMap{} : ball.toVariant() }, { QStringLiteral("notes"), notes } };
+    ConsistencyTabHead head;
+    head.kicker = kicker;
+    head.headline = line;
+    head.ball = sentenceOf(ballLine(session, in));      // no runs with no carry
+    head.notes = notes;
+    return head;
 }
 
 // What the table cannot say, and its kind; an empty kind when it can.
@@ -313,45 +329,98 @@ Sentence emptySentence(const SessionSnapshot &session, const ConsistencyInput &i
 // and "" for a graded one (QML's word goes there); a column that does not apply to the area is blank. The short form is
 // the grade's figure ("4"), "⚠" for a measurement-limited cell ("Checking"), "-" ungraded; keyMarks says which is which.
 // The heat says how much, as before: grades 1-2 the most, grade 3 some, nothing else.
-QVariantMap cellMap(const ConsistencyCellGrade *g, int column, bool on, bool marked, bool screen)
+// The word's vocabulary (C1, refactor 5.5b): which vocabulary names a graded cell, and at which grade, is decided here;
+// QML only looks the word up (charts_consistency_types.h). A measurement-limited cell is the Measurement grade 0.
+ConsistencyTabCell cellOf(const ConsistencyCellGrade *g, int column, bool on, bool marked, bool screen)
 {
-    if (!g) return { { QStringLiteral("text"), QString() }, { QStringLiteral("short"), QString() } };   // does not apply
+    ConsistencyTabCell cell;
+    if (!g) return cell;                // does not apply: "" in both texts, nothing else set
     const pv::CellGrade &c = g->grade;
     const bool limited = c.graded && c.measurementLimited;
     const bool moved = c.graded && !limited && c.grade >= 1 && c.grade <= 3;
     const bool most = moved && c.grade <= 2;
-    return { { QStringLiteral("text"), c.graded ? QString() : QStringLiteral("-") },
-             { QStringLiteral("short"), !c.graded ? QStringLiteral("-") : limited ? QStringLiteral("⚠") : QString::number(c.grade) },
-             { QStringLiteral("strong"), moved }, { QStringLiteral("heavy"), most },
-             { QStringLiteral("heat"), most ? 2 : moved ? 1 : 0 },
-             { QStringLiteral("soft"), column == kConsistencyAfterBallColumn && !g->afterBall },
-             { QStringLiteral("on"), on }, { QStringLiteral("mark"), marked ? QStringLiteral("◆") : QString() },
-             { QStringLiteral("tap"), screen && !g->readings.empty() },
-             { QStringLiteral("result"), resultMap(pv::VariabilityResultView::fromCellGrade(c)) } };
+    cell.text = c.graded ? QString() : QStringLiteral("-");
+    cell.shortText = !c.graded ? QStringLiteral("-") : limited ? QStringLiteral("⚠") : QString::number(c.grade);
+    cell.strong = moved;
+    cell.heavy = most;
+    cell.heat = most ? 2 : moved ? 1 : 0;
+    cell.soft = column == kConsistencyAfterBallColumn && !g->afterBall;
+    cell.on = on;
+    cell.mark = marked ? QStringLiteral("◆") : QString();
+    cell.tap = screen && !g->readings.empty();
+    cell.result = pv::VariabilityResultView::fromCellGrade(c);
+    cell.vocabulary = !c.graded ? QString() : limited ? QStringLiteral("measurement") : QStringLiteral("consistency");
+    cell.vocabularyGrade = c.graded && !limited ? c.grade : 0;
+    return cell;
 }
 
-QVariantMap matrixMap(const ConsistencyInput &in, const ConsistencyResult &res, const ConsistencyGrades &grades, int ordinal,
-                      const QString &openCell, bool screen)
+ConsistencyTabMatrix matrixOf(const ConsistencyInput &in, const ConsistencyResult &res, const ConsistencyGrades &grades, int ordinal,
+                              const QString &openCell, bool screen)
 {
-    QVariantList columns;
+    ConsistencyTabMatrix matrix;
     for (int c = 0; c < kConsistencyColumns; ++c) {
         const QString name = consistencyColumnName(c);
-        columns.append(QVariantMap{ { QStringLiteral("text"), name },
-                                    { QStringLiteral("short"), c == 0 ? name : QString(name).remove(QLatin1Char('P')) } });
+        matrix.columns.append(ConsistencyTabColumn{ name, c == 0 ? name : QString(name).remove(QLatin1Char('P')) });
     }
     std::map<std::pair<QString, int>, bool> marked;
     for (const ConsistencyStandOut &s : res.standouts)
         if (s.ordinal == ordinal) marked[{ in.readings[size_t(s.reading)].area, s.column }] = true;
-    QVariantList rows;
     for (const QString &area : consistencyAreas()) {
-        QVariantList cells;
+        ConsistencyTabRow row;
+        row.id = area;
+        row.name = QString::fromUtf8(areaWords(area).name);
         for (int c = 0; c < kConsistencyColumns; ++c)
-            cells.append(cellMap(grades.cellAt(area, c), c, openCell == area + QLatin1Char(':') + QString::number(c),
-                                 marked.count({ area, c }) > 0, screen));
-        rows.append(QVariantMap{ { QStringLiteral("id"), area }, { QStringLiteral("name"), QString::fromUtf8(areaWords(area).name) },
-                                 { QStringLiteral("cells"), cells } });
+            row.cells.append(cellOf(grades.cellAt(area, c), c, openCell == area + QLatin1Char(':') + QString::number(c),
+                                    marked.count({ area, c }) > 0, screen));
+        matrix.rows.append(row);
     }
-    return { { QStringLiteral("columns"), columns }, { QStringLiteral("rows"), rows } };
+    return matrix;
+}
+
+// ── the report's maps, off the typed results (until 5.6 types the report) ───────────────────────
+
+// The shape the report's payload had before 5.5b: a column that does not apply had its two texts alone, a result its
+// façade map (ρ null when there is none), and no cell named its vocabulary (the report's page reads the result).
+QVariantMap reportCellMap(const ConsistencyTabCell &c)
+{
+    if (c.shortText.isEmpty()) return { { QStringLiteral("text"), c.text }, { QStringLiteral("short"), c.shortText } };
+    QVariantMap m = chartsGadgetMap(c);
+    m.remove(QStringLiteral("vocabulary"));
+    m.remove(QStringLiteral("vocabularyGrade"));
+    m.insert(QStringLiteral("result"), resultMap(c.result));
+    return m;
+}
+
+QVariantMap reportMatrixMap(const ConsistencyTabMatrix &matrix)
+{
+    QVariantList rows;
+    for (const ConsistencyTabRow &r : matrix.rows) {
+        QVariantList cells;
+        for (const ConsistencyTabCell &c : r.cells) cells.append(reportCellMap(c));
+        QVariantMap row = chartsGadgetMap(r);
+        row.insert(QStringLiteral("cells"), cells);
+        rows.append(row);
+    }
+    QVariantMap m = chartsGadgetMap(matrix);
+    m.insert(QStringLiteral("rows"), rows);
+    return m;
+}
+
+// The headline as before: "empty" was the empty sentence and its kind alone.
+QVariantMap reportHeadlineMap(const ConsistencyTabHeadline &line)
+{
+    QVariantMap m = chartsGadgetMap(line);
+    if (line.kind == QLatin1String("empty")) {
+        m.remove(QStringLiteral("grades"));
+        m.remove(QStringLiteral("fallback"));
+    }
+    return m;
+}
+
+// A sentence as before: {} when there is none.
+QVariantMap reportSentenceMap(const ConsistencyTabSentence &s)
+{
+    return s.runs.isEmpty() ? QVariantMap{} : chartsGadgetMap(s);
 }
 
 // The key and the marks' key are TEMPLATES (the header): QML puts the vocabularies' words in, %1 to %5 the Consistency
@@ -601,14 +670,14 @@ double faultZOf(const pa::GradePolicy &policy)
     return policy.idealMaxZ > 0.0 ? policy.watchMaxZ / policy.idealMaxZ : 3.0;
 }
 
-QVariantList shotsList(const SessionSnapshot &session, const ConsistencyInput &in, const ConsistencyResult &res)
+QList<ConsistencyTabShot> shotsList(const SessionSnapshot &session, const ConsistencyInput &in, const ConsistencyResult &res)
 {
-    QVariantList out;
+    QList<ConsistencyTabShot> out;
+    out.reserve(qsizetype(in.shots.size()));
     for (size_t i = 0; i < in.shots.size(); ++i) {
         const ConsistencyShot &s = in.shots[i];
         const ShotSeries &sh = *session.shots[i];
-        out.append(QVariantMap{ { QStringLiteral("ordinal"), s.ordinal }, { QStringLiteral("shotId"), sh.shotId }, { QStringLiteral("swingDir"), sh.swingDir },
-                                { QStringLiteral("club"), s.club }, { QStringLiteral("flags"), flagsOf(res, s.ordinal) }, { QStringLiteral("guarded"), s.guarded } });
+        out.append(ConsistencyTabShot{ s.ordinal, sh.shotId, sh.swingDir, s.club, flagsOf(res, s.ordinal), s.guarded });
     }
     return out;
 }
@@ -621,15 +690,20 @@ struct ChartsConsistencyPresenter::Cache {
     ConsistencyReadingRows rows;
     ConsistencyGrades grades;           // the readings and cells graded (consistency_grades.h): once a snapshot
     // what depends on the session alone: made once a snapshot
-    QVariantMap head, empty;
-    QVariantList shots;
+    ConsistencyTabHead head;
+    ConsistencyTabEmpty empty;
+    QList<ConsistencyTabShot> shots;
     QString key;
 };
 
 struct ChartsConsistencyPresenter::Output {
     bool ready = false;
-    QVariantMap status, head, matrix, cell, shot, empty;
-    QVariantList shots;
+    ConsistencyTabStatus status;
+    ConsistencyTabHead head;
+    ConsistencyTabMatrix matrix;
+    QVariantMap cell, shot;             // READING ROWs inside: maps until 5.5c types the row
+    ConsistencyTabEmpty empty;
+    QList<ConsistencyTabShot> shots;
     QString key, keyMarks;
     const void *thread = nullptr;
     double jobMs = 0;
@@ -654,7 +728,7 @@ computeConsistency(const std::shared_ptr<const SessionSnapshot> &snapshot, const
         cache.grades = consistencyGrades(in, scales);
         QString kind;
         const Sentence empty = emptySentence(S, in, &kind);
-        cache.empty = kind.isEmpty() ? QVariantMap{} : QVariantMap{ { QStringLiteral("kind"), kind }, { QStringLiteral("sentence"), empty.toVariant() } };
+        cache.empty = kind.isEmpty() ? ConsistencyTabEmpty{} : ConsistencyTabEmpty{ kind, sentenceOf(empty) };
         cache.head = headOf(S, in, cache.grades, empty);
         cache.shots = shotsList(S, in, res);
         cache.key = keyWords();
@@ -677,24 +751,29 @@ computeConsistency(const std::shared_ptr<const SessionSnapshot> &snapshot, const
     out->shots = cache.shots;
     out->key = cache.key;
     out->keyMarks = keyMarks();
-    out->matrix = matrixMap(in, res, cache.grades, ordinal, openCell, screen);
+    out->matrix = matrixOf(in, res, cache.grades, ordinal, openCell, screen);
     out->cell = cellDetail(rows, cache.grades, openCell, pick, pick >= 0 ? QStringLiteral("Shot %1").arg(words::shotNumber(in.shots[size_t(pick)].shotId, ordinal)) : QString(), screen);
     out->shot = shotDetail(rows, scales, pick, screen);
     out->ready = true;
     out->thread = QThread::currentThread();
     out->jobMs = double(timer.nsecsElapsed()) / 1e6;
     if (loading) {      // nothing is known of this session yet, so nothing is said of it
-        out->head = { { QStringLiteral("kicker"), QStringLiteral("Consistency") },
-                      { QStringLiteral("headline"), settlingLine() },
-                      { QStringLiteral("ball"), QVariantMap{} }, { QStringLiteral("notes"), QVariantList{} } };
-        out->empty.clear();
+        out->head = ConsistencyTabHead{};
+        out->head.kicker = QStringLiteral("Consistency");
+        const ConsistencyTabSentence settling = settlingLine();     // the line alone: no kind, no grades
+        out->head.headline.text = settling.text;
+        out->head.headline.runs = settling.runs;
+        out->empty = ConsistencyTabEmpty{};
         out->key.clear();
         out->keyMarks.clear();
         out->shot.insert(QStringLiteral("note"), QString());
     }
-    out->status = { { QStringLiteral("ready"), true }, { QStringLiteral("shotCount"), int(in.shots.size()) }, { QStringLiteral("pickedOrdinal"), ordinal },
-                    { QStringLiteral("loading"), loading }, { QStringLiteral("settling"), settlingLine() },
-                    { QStringLiteral("timings"), QVariantMap{ { QStringLiteral("jobMs"), out->jobMs }, { QStringLiteral("consistencyMs"), rows.ms() } } } };
+    out->status.ready = true;
+    out->status.shotCount = int(in.shots.size());
+    out->status.pickedOrdinal = ordinal;
+    out->status.loading = loading;
+    out->status.settling = settlingLine();
+    out->status.timings = ConsistencyTabTimings{ out->jobMs, rows.ms() };
     return out;
 }
 
@@ -727,26 +806,27 @@ QVariantMap consistencySessionReportPayload(const std::shared_ptr<const SessionS
 
     QString kind;
     const Sentence empty = emptySentence(S, in, &kind);
-    const QVariantMap head = headOf(S, in, grades, empty, noun);
-    const QVariantMap ball = head.value(QStringLiteral("ball")).toMap();
+    const ConsistencyTabHead head = headOf(S, in, grades, empty, noun);
     const bool table = std::any_of(grades.cells.begin(), grades.cells.end(), [](const ConsistencyCellGrade &c) { return c.grade.graded; });
-    const QString line = head.value(QStringLiteral("headline")).toMap().value(QStringLiteral("text")).toString();
-    return { { QStringLiteral("available"), table || !ball.isEmpty() || !flagged.isEmpty() },
-             { QStringLiteral("kicker"), head.value(QStringLiteral("kicker")) }, { QStringLiteral("headline"), head.value(QStringLiteral("headline")) },
-             { QStringLiteral("ball"), ball }, { QStringLiteral("notes"), head.value(QStringLiteral("notes")) },
+    const QString line = head.headline.text;
+    QVariantList notes;
+    for (const ConsistencyTabSentence &n : head.notes) notes.append(chartsGadgetMap(n));
+    return { { QStringLiteral("available"), table || !head.ball.runs.isEmpty() || !flagged.isEmpty() },
+             { QStringLiteral("kicker"), head.kicker }, { QStringLiteral("headline"), reportHeadlineMap(head.headline) },
+             { QStringLiteral("ball"), reportSentenceMap(head.ball) }, { QStringLiteral("notes"), notes },
              { QStringLiteral("empty"), kind.isEmpty() || empty.text() == line ? QString() : empty.text() },
-             { QStringLiteral("table"), table }, { QStringLiteral("matrix"), matrixMap(in, res, grades, 0, QString(), false) },
+             { QStringLiteral("table"), table }, { QStringLiteral("matrix"), reportMatrixMap(matrixOf(in, res, grades, 0, QString(), false)) },
              { QStringLiteral("key"), keyWords(false) }, { QStringLiteral("keyMarks"), keyMarks(false) },
              { QStringLiteral("flagged"), flagged } };
 }
 
 // ── the headline (doc §3): built from the grades. The grade words are QML's (the header) ─────────
 
-QVariantMap ChartsConsistencyPresenter::headline(const ConsistencyHead &head)
+ConsistencyTabHeadline ChartsConsistencyPresenter::headline(const ConsistencyHead &head)
 {
     const QString most = head.most.isEmpty() ? QString() : movesMost(head.most);
     QString text, kind;
-    QVariantList grades;
+    QList<ConsistencyTabHeadlineGrade> grades;
     QString fallback;
     switch (head.kind) {
     case ConsistencyHead::Kind::Halves:
@@ -754,7 +834,7 @@ QVariantMap ChartsConsistencyPresenter::headline(const ConsistencyHead &head)
         text = QStringLiteral("Your backswing is %1, your downswing %2; ") + most + QLatin1Char('.');
         fallback = words::cap1(most) + QLatin1Char('.');
         for (const variability::CellGrade *g : { &head.back, &head.down })
-            grades.append(QVariantMap{ { QStringLiteral("grade"), g->grade }, { QStringLiteral("measurementLimited"), g->measurementLimited } });
+            grades.append(ConsistencyTabHeadlineGrade{ g->grade, g->measurementLimited });
         break;
     case ConsistencyHead::Kind::Most:
         kind = QStringLiteral("most");
@@ -768,11 +848,14 @@ QVariantMap ChartsConsistencyPresenter::headline(const ConsistencyHead &head)
         text = QStringLiteral("Nothing here has a range to judge it against.");
         break;
     }
-    QVariantMap m = Sentence().append(text).toVariant();
-    m.insert(QStringLiteral("kind"), kind);
-    m.insert(QStringLiteral("grades"), grades);
-    m.insert(QStringLiteral("fallback"), fallback.isEmpty() ? text : fallback);
-    return m;
+    const Sentence s = Sentence().append(text);
+    ConsistencyTabHeadline line;
+    line.text = s.text();
+    line.runs = runsOf(s);
+    line.kind = kind;
+    line.grades = grades;
+    line.fallback = fallback.isEmpty() ? text : fallback;
+    return line;
 }
 
 // ── the QObject ───────────────────────────────────────────────────────────────────────────
@@ -901,22 +984,25 @@ void ChartsConsistencyPresenter::deliver(std::shared_ptr<const Output> out)
     m_out = std::move(out);
     emit resultsChanged();
     if (m_out->jobMs > 250.0)
-        ppInfo() << "[Consistency] recompute" << qRound(m_out->jobMs) << "ms for" << m_out->status.value(QStringLiteral("shotCount")).toInt() << "shots";
+        ppInfo() << "[Consistency] recompute" << qRound(m_out->jobMs) << "ms for" << m_out->status.shotCount << "shots";
 }
 
 bool ChartsConsistencyPresenter::ready() const { return m_out && m_out->ready; }
-QVariantMap ChartsConsistencyPresenter::status() const
+ConsistencyTabStatus ChartsConsistencyPresenter::status() const
 {
-    return m_out ? m_out->status : QVariantMap{ { QStringLiteral("settling"), settlingLine() } };   // before the first job too
+    if (m_out) return m_out->status;
+    ConsistencyTabStatus before;            // before the first job too
+    before.settling = settlingLine();
+    return before;
 }
-QVariantMap ChartsConsistencyPresenter::head() const { return m_out ? m_out->head : QVariantMap{}; }
-QVariantMap ChartsConsistencyPresenter::matrix() const { return m_out ? m_out->matrix : QVariantMap{}; }
+ConsistencyTabHead ChartsConsistencyPresenter::head() const { return m_out ? m_out->head : ConsistencyTabHead{}; }
+ConsistencyTabMatrix ChartsConsistencyPresenter::matrix() const { return m_out ? m_out->matrix : ConsistencyTabMatrix{}; }
 QString ChartsConsistencyPresenter::key() const { return m_out ? m_out->key : QString(); }
 QString ChartsConsistencyPresenter::keyMarks() const { return m_out ? m_out->keyMarks : QString(); }
-QVariantList ChartsConsistencyPresenter::shots() const { return m_out ? m_out->shots : QVariantList{}; }
+QList<ConsistencyTabShot> ChartsConsistencyPresenter::shots() const { return m_out ? m_out->shots : QList<ConsistencyTabShot>{}; }
 QVariantMap ChartsConsistencyPresenter::cell() const { return m_out ? m_out->cell : QVariantMap{}; }
 QVariantMap ChartsConsistencyPresenter::shot() const { return m_out ? m_out->shot : QVariantMap{}; }
-QVariantMap ChartsConsistencyPresenter::empty() const { return m_out ? m_out->empty : QVariantMap{}; }
+ConsistencyTabEmpty ChartsConsistencyPresenter::empty() const { return m_out ? m_out->empty : ConsistencyTabEmpty{}; }
 
 bool ChartsConsistencyPresenter::waitForIdle(int msTimeout)
 {

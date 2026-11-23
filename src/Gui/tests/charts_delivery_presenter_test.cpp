@@ -33,6 +33,7 @@
 //     swing is counted ("One of them was cached before its swing was last changed."), its rebuilt grid is not.
 
 #include "charts/charts_delivery_presenter.h"
+#include "charts/charts_gadget.h"   // the typed results as maps, for the assertions (refactor 5.5b)
 #include "../../Export/rule_data_install.h"
 #include "charts/session_delivery.h"
 #include "charts/session_series_types.h"
@@ -146,7 +147,7 @@ void hasKeys(const QVariantMap &m, const QStringList &keys, const char *what)
     for (const QString &k : keys) QVERIFY2(m.contains(k), qPrintable(QStringLiteral("%1 lacks %2").arg(QString::fromLatin1(what), k)));
 }
 
-QVariantList layersOf(ChartsDeliveryPresenter &p) { return p.plotLayers().value(QStringLiteral("swingPlaneCurve")).toList(); }
+QVariantList layersOf(ChartsDeliveryPresenter &p) { return chartsGadgetMap(p.plotLayers()).value(QStringLiteral("swingPlaneCurve")).toList(); }
 QVariantMap layerOf(const QVariantList &ls, const QString &role)
 {
     for (const QVariant &l : ls) if (l.toMap().value(QStringLiteral("role")).toString() == role) return l.toMap();
@@ -167,12 +168,12 @@ private slots:
         p.setSynchronous(true);
         p.setSnapshot(std::make_shared<SessionSnapshot>());
         QVERIFY(!p.available());
-        QVERIFY(!p.thisShot().value(QStringLiteral("available")).toBool());
-        QVERIFY(p.thisShot().value(QStringLiteral("empty")).toString().startsWith(QStringLiteral("Select a swing to review.")));
-        QVERIFY(!p.session().value(QStringLiteral("available")).toBool());
-        QVERIFY(p.plotLayers().isEmpty());
+        QVERIFY(!chartsGadgetMap(p.thisShot()).value(QStringLiteral("available")).toBool());
+        QVERIFY(chartsGadgetMap(p.thisShot()).value(QStringLiteral("empty")).toString().startsWith(QStringLiteral("Select a swing to review.")));
+        QVERIFY(!chartsGadgetMap(p.session()).value(QStringLiteral("available")).toBool());
+        QVERIFY(p.plotLayers().swingPlaneCurve.isEmpty());   // no lines: the row's list is empty (a typed value always has its key)
         QCOMPARE(p.seekUsFor(QStringLiteral("P4")), qint64(-1));
-        QCOMPARE(p.choices().value(QStringLiteral("onShowKeys")).toStringList(), deliveryOnShowKeys());
+        QCOMPARE(chartsGadgetMap(p.choices()).value(QStringLiteral("onShowKeys")).toStringList(), deliveryOnShowKeys());
     }
 
     void thisShotPayload()
@@ -182,7 +183,7 @@ private slots:
         p.setSnapshot(makeSession(14));
         p.setPickedSwingDir(dirOf(14));
         QVERIFY(p.available());
-        const QVariantMap t = p.thisShot();
+        const QVariantMap t = chartsGadgetMap(p.thisShot());
         hasKeys(t, { "available", "empty", "ordinal", "shotId", "swingDir", "inSession", "kicker", "mode", "hasPlane", "hasMonitor",
                      "head", "headText", "headRule", "story", "slot", "flight", "impact", "shape", "trust", "replay", "standfirsts" }, "thisShot");
         QVERIFY(t.value(QStringLiteral("available")).toBool());
@@ -223,6 +224,9 @@ private slots:
         QVERIFY(sc.value(QStringLiteral("line")).toMap().contains(QStringLiteral("y1")));
         QCOMPARE(sc.value(QStringLiteral("xLo")).toDouble(), 58.0);
         QCOMPARE(sc.value(QStringLiteral("xHi")).toDouble(), 64.5);
+        // rule C3: the x axis is signed only for the hands' steepening, by the fit's series (never its label's words)
+        QCOMPARE(sc.value(QStringLiteral("xSigned")).toBool(), fit.value(QStringLiteral("x")).toString() == QLatin1String("steepening"));
+        QVERIFY(!sc.value(QStringLiteral("xSigned")).toBool());   // this day's stronger fit is the plane at P6
 
         const QVariantList impact = t.value(QStringLiteral("impact")).toMap().value(QStringLiteral("lines")).toList();
         QCOMPARE(impact.size(), 3);   // lie (the monitor's), the monitor's loft (no shaft lean on these shots) and attack
@@ -241,11 +245,11 @@ private slots:
         QCOMPARE(p.seekUsFor(QStringLiteral("P8")), qint64(-1));
         p.setPlayheadUs(kImpactUs - 120000 + 1000);
         QCOMPARE(p.selected(), 5);
-        QCOMPARE(p.standfirst().value(QStringLiteral("text")).toString(),
+        QCOMPARE(chartsGadgetMap(p.standfirst()).value(QStringLiteral("text")).toString(),
                  QStringLiteral("At P6 the plane was 65°, 7° above where you set it (the hands carry it here)."));
         p.setPlayheadUs(kImpactUs - 1200000);
         QCOMPARE(p.selected(), 0);
-        QCOMPARE(p.standfirst().value(QStringLiteral("text")).toString(),
+        QCOMPARE(chartsGadgetMap(p.standfirst()).value(QStringLiteral("text")).toString(),
                  QStringLiteral("At address the plane is 58°, your shoulders' 68°: an on-plane window 10° wide."));
     }
 
@@ -255,7 +259,7 @@ private slots:
         p.setSynchronous(true);
         p.setSnapshot(makeSession(14));
         p.setPickedSwingDir(dirOf(3));
-        QCOMPARE(p.plotLayers().keys(), QStringList{ QStringLiteral("swingPlaneCurve") });
+        QCOMPARE(chartsGadgetMap(p.plotLayers()).keys(), QStringList{ QStringLiteral("swingPlaneCurve") });
         QVariantList ls = layersOf(p);
         QCOMPARE(ls.size(), 4);
         const QVariantMap a = layerOf(ls, QStringLiteral("address")), s = layerOf(ls, QStringLiteral("shoulders"));
@@ -278,7 +282,7 @@ private slots:
 
         // Session: the session's medians, and no stretch (a stretch is one shot's)
         p.setScope(QStringLiteral("session"));
-        QCOMPARE(p.choices().value(QStringLiteral("scope")).toString(), QStringLiteral("session"));
+        QCOMPARE(chartsGadgetMap(p.choices()).value(QStringLiteral("scope")).toString(), QStringLiteral("session"));
         ls = layersOf(p);
         QCOMPARE(ls.size(), 3);
         QVERIFY(layerOf(ls, QStringLiteral("hands")).isEmpty());
@@ -289,7 +293,7 @@ private slots:
         QCOMPARE(layersOf(p).size(), 4);
         // no picked shot on This shot: no lines
         p.setPickedSwingDir(QString());
-        QVERIFY(p.plotLayers().isEmpty());
+        QVERIFY(p.plotLayers().swingPlaneCurve.isEmpty());   // no lines: the row's list is empty (a typed value always has its key)
     }
 
     void sessionPayload()
@@ -299,7 +303,7 @@ private slots:
         p.setSnapshot(makeSession(14));
         p.setPickedSwingDir(dirOf(2));
         p.setScope(QStringLiteral("session"));
-        const QVariantMap s = p.session();
+        const QVariantMap s = chartsGadgetMap(p.session());
         hasKeys(s, { "available", "n", "shots", "planeShots", "monitorShots", "small", "kicker", "head", "headText", "band", "varies",
                      "usual", "flight", "shapes", "trust" }, "session");
         QCOMPARE(s.value(QStringLiteral("n")).toInt(), 14);
@@ -325,6 +329,12 @@ private slots:
         QVERIFY(marks.value(QStringLiteral("marks")).toList()[1].toMap().value(QStringLiteral("picked")).toBool());
         QCOMPARE(marks.value(QStringLiteral("line")).toString(), QStringLiteral("Pull, slight fade on 14 of 14 shots"));
         QVERIFY(marks.value(QStringLiteral("marks")).toList()[1].toMap().contains(QStringLiteral("fromBall")));   // the report's grid says what it read
+        // rule C6: the grid's hover words are the presenter's, by the swing number
+        QCOMPARE(marks.value(QStringLiteral("marks")).toList()[1].toMap().value(QStringLiteral("hoverText")).toString(),
+                 QStringLiteral("Shot 2  Pull, slight fade"));
+        // the folded section keeps the head's first clause (words::firstClauseOf: up to the first ';' or '.')
+        QCOMPARE(s.value(QStringLiteral("head")).toMap().value(QStringLiteral("clause")).toString(),
+                 QStringLiteral("Your path follows your plane: steeper at P6 by a degree, 0"));
         const QVariantMap sc = s.value(QStringLiteral("flight")).toMap().value(QStringLiteral("scatter")).toMap();
         QCOMPARE(sc.value(QStringLiteral("points")).toList().size(), 14);
 
@@ -345,7 +355,7 @@ private slots:
         live->swingDir = QStringLiteral("/elsewhere/2026-10-30_Live/swing_0099");
         p.setPickedDetail(detailOf(*live));
         p.setPickedSwingDir(live->swingDir);
-        const QVariantMap t = p.thisShot();
+        const QVariantMap t = chartsGadgetMap(p.thisShot());
         QVERIFY(t.value(QStringLiteral("available")).toBool());
         QVERIFY(!t.value(QStringLiteral("inSession")).toBool());
         QVERIFY(t.value(QStringLiteral("kicker")).toString().startsWith(QStringLiteral("This swing")));
@@ -414,7 +424,7 @@ private slots:
         p.setSynchronous(true);
         p.setSnapshot(snap);
         p.setPickedSwingDir(snap->shots[5]->swingDir);
-        const QVariantMap flight = p.thisShot().value(QStringLiteral("flight")).toMap();
+        const QVariantMap flight = chartsGadgetMap(p.thisShot()).value(QStringLiteral("flight")).toMap();
         const QVariantMap fit = flight.value(QStringLiteral("fit")).toMap();
         QCOMPARE(fit.value(QStringLiteral("n")).toInt(), 14);
         QVERIFY(fit.value(QStringLiteral("holds")).toBool());
@@ -446,7 +456,7 @@ private slots:
         QCOMPARE(theirs, 8);
         QCOMPARE(picked, 1);
         // the session view's flight is the same pool; its band stays the session's
-        const QVariantMap s = p.session();
+        const QVariantMap s = chartsGadgetMap(p.session());
         QCOMPARE(s.value(QStringLiteral("flight")).toMap().value(QStringLiteral("fit")).toMap().value(QStringLiteral("n")).toInt(), 14);
         QCOMPARE(s.value(QStringLiteral("headText")).toString(),
                  QStringLiteral("Your path follows your plane: steeper at P6 by a degree, 0.9° further left (14 shots on 20 Oct, 2 sessions)."));
@@ -478,18 +488,18 @@ private slots:
             QCOMPARE(QFileInfo(g4).size(), before.size());
         }
         p.setPickedSwingDir(snap->shots[0]->swingDir);
-        QCOMPARE(nOf(p.thisShot()), 14);
+        QCOMPARE(nOf(chartsGadgetMap(p.thisShot())), 14);
         QCOMPARE(reportN(), 13);
         // the cache sees inside the swing folders (issue #174): a sidecar gone from one is re-read though the day's
         // session folders stand — both of the day's changes now show (n 12) …
         QVERIFY(QFile::remove(sib + QStringLiteral("/swing_0002/swing_phasegrid.json")));
         p.setPickedSwingDir(snap->shots[1]->swingDir);
-        QCOMPARE(nOf(p.thisShot()), 12);
+        QCOMPARE(nOf(chartsGadgetMap(p.thisShot())), 12);
         QCOMPARE(reportN(), 12);
         // … and a new session folder on the day re-reads it: its one grid raises n
         QVERIFY(writeGrid(golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_03"), 1, 8, false));
         p.setPickedSwingDir(snap->shots[2]->swingDir);
-        QCOMPARE(nOf(p.thisShot()), 13);
+        QCOMPARE(nOf(chartsGadgetMap(p.thisShot())), 13);
         QCOMPARE(reportN(), 13);
     }
 
@@ -532,7 +542,7 @@ private slots:
         p.setSynchronous(true);
         p.setSnapshot(snap);
         p.setPickedSwingDir(snap->shots[5]->swingDir);
-        const QVariantMap t = p.thisShot();
+        const QVariantMap t = chartsGadgetMap(p.thisShot());
         QCOMPARE(t.value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 7 · 6 of 6  ·  7 iron  ·  Club delivery"));
         const QVariantMap flight = t.value(QStringLiteral("flight")).toMap();
         QCOMPARE(flight.value(QStringLiteral("fit")).toMap().value(QStringLiteral("n")).toInt(), 14);
@@ -554,7 +564,7 @@ private slots:
         }
         QCOMPARE(theirs, 8);
         // the shape grid's marks carry the number their label prints
-        const QVariantList marks = p.session().value(QStringLiteral("shapes")).toMap().value(QStringLiteral("marks")).toList();
+        const QVariantList marks = chartsGadgetMap(p.session()).value(QStringLiteral("shapes")).toMap().value(QStringLiteral("marks")).toList();
         QCOMPARE(marks.size(), 6);
         QCOMPARE(marks[3].toMap().value(QStringLiteral("ordinal")).toInt(), 4);
         QCOMPARE(marks[3].toMap().value(QStringLiteral("shotNo")).toInt(), 5);
@@ -621,9 +631,9 @@ private slots:
         // the copy: nothing stale, on the presenter and on the report, read after read
         for (int read = 0; read < 2; ++read) {
             p.setPickedSwingDir(snap->shots[size_t(read)]->swingDir);
-            QCOMPARE(pool(p.thisShot()).value(QStringLiteral("otherShots")).toInt(), 8);
-            QCOMPARE(pool(p.thisShot()).value(QStringLiteral("staleGrids")).toInt(), 0);
-            QVERIFY2(poolLine(p.session()).endsWith(cachedWords), qPrintable(poolLine(p.session())));
+            QCOMPARE(pool(chartsGadgetMap(p.thisShot())).value(QStringLiteral("otherShots")).toInt(), 8);
+            QCOMPARE(pool(chartsGadgetMap(p.thisShot())).value(QStringLiteral("staleGrids")).toInt(), 0);
+            QVERIFY2(poolLine(chartsGadgetMap(p.session())).endsWith(cachedWords), qPrintable(poolLine(chartsGadgetMap(p.session()))));
             const QVariantMap report = deliverySessionReportPayload(*snap, QStringLiteral("swings"));
             QCOMPARE(pool(report).value(QStringLiteral("staleGrids")).toInt(), 0);
             QVERIFY2(poolLine(report).endsWith(reportWords), qPrintable(poolLine(report)));
@@ -640,8 +650,8 @@ private slots:
         }
         const QString one = QStringLiteral(" One of them was cached before its swing was last changed.");
         p.setPickedSwingDir(snap->shots[2]->swingDir);
-        QCOMPARE(pool(p.thisShot()).value(QStringLiteral("staleGrids")).toInt(), 1);
-        QVERIFY2(poolLine(p.session()).endsWith(cachedWords + one), qPrintable(poolLine(p.session())));
+        QCOMPARE(pool(chartsGadgetMap(p.thisShot())).value(QStringLiteral("staleGrids")).toInt(), 1);
+        QVERIFY2(poolLine(chartsGadgetMap(p.session())).endsWith(cachedWords + one), qPrintable(poolLine(chartsGadgetMap(p.session()))));
         QCOMPARE(pool(deliverySessionReportPayload(*snap, QStringLiteral("swings"))).value(QStringLiteral("staleGrids")).toInt(), 1);
         // a second re-analysed swing, said in words and the plural
         {
@@ -652,9 +662,9 @@ private slots:
             QVERIFY(setMtime(d.fileName(), (copiedSec + 700) * 1000));
         }
         p.setPickedSwingDir(snap->shots[3]->swingDir);
-        QCOMPARE(pool(p.thisShot()).value(QStringLiteral("staleGrids")).toInt(), 2);
-        QVERIFY2(poolLine(p.session()).endsWith(QStringLiteral(" Two of them were cached before their swings were last changed.")),
-                 qPrintable(poolLine(p.session())));
+        QCOMPARE(pool(chartsGadgetMap(p.thisShot())).value(QStringLiteral("staleGrids")).toInt(), 2);
+        QVERIFY2(poolLine(chartsGadgetMap(p.session())).endsWith(QStringLiteral(" Two of them were cached before their swings were last changed.")),
+                 qPrintable(poolLine(chartsGadgetMap(p.session()))));
 
         // their grids rebuilt, stamped from the new documents as readPhaseGrid's rebuild stamps them: the cached day
         // re-reads (no session folder changed) and counts none
@@ -670,8 +680,8 @@ private slots:
             QVERIFY(setMtime(f.fileName(), (copiedSec + 900 + k) * 1000 + 1));   // the grid's own stat moves, whatever the clock
         }
         p.setPickedSwingDir(snap->shots[4]->swingDir);
-        QCOMPARE(pool(p.thisShot()).value(QStringLiteral("staleGrids")).toInt(), 0);
-        QVERIFY2(poolLine(p.session()).endsWith(cachedWords), qPrintable(poolLine(p.session())));
+        QCOMPARE(pool(chartsGadgetMap(p.thisShot())).value(QStringLiteral("staleGrids")).toInt(), 0);
+        QVERIFY2(poolLine(chartsGadgetMap(p.session())).endsWith(cachedWords), qPrintable(poolLine(chartsGadgetMap(p.session()))));
         QCOMPARE(pool(deliverySessionReportPayload(*snap, QStringLiteral("swings"))).value(QStringLiteral("staleGrids")).toInt(), 0);
     }
 
@@ -683,7 +693,7 @@ private slots:
         p.setPickedSwingDir(dirOf(1));
         QVERIFY(p.waitForIdle(20000));
         QVERIFY(p.available());
-        QCOMPARE(p.thisShot().value(QStringLiteral("ordinal")).toInt(), 1);
+        QCOMPARE(chartsGadgetMap(p.thisShot()).value(QStringLiteral("ordinal")).toInt(), 1);
     }
 };
 

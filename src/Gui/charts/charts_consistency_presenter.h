@@ -29,6 +29,10 @@
 // the rows' fired words).
 //
 // ── THE OUTPUTS (all NOTIFY resultsChanged) ──────────────────────────────────────────────────
+// TYPED (refactor 5.5b, lint A6): status, head, matrix, shots and empty are Q_GADGET values (charts_consistency_types.h),
+// each property named as the key below. `cell` and `shot` are still maps: their rows are READING ROWs, the Relations
+// presenter's shape, typed with it (5.5c). A gadget has every property, so a key shown below as absent or {} is there
+// with its default ("", 0, false, an empty list or sentence).
 // A Sentence is { text, runs: [{ text, fig }] } (charts_words.h). A row is a READING ROW (charts_relations_presenter.h).
 // THE GRADES (docs/design/system/variability.md; Mark's rulings R1, R2a, R3, R8, R11, 7 Nov). Every reading and cell is
 // graded in C++ (consistency_grades.h); a result reaches QML as a RESULT MAP, the façade's variabilityResult field for
@@ -48,11 +52,11 @@
 //           "Nothing here has a range to judge it against." "empty": what the table cannot say (the empty sentence).
 // matrix: { columns: [{ text, short }], rows: [{ id, name, cells: [{ text, short, strong, heavy, on, mark, tap, heat, soft,
 //           result }] }] }. PpChMatrix's rectangle: one cell per column. A cell with a graded `result` (its cellGrade, R1)
-//           has text "" and QML sets the word: ConsistencyVocabulary.shortWord(grade) (grade 0 "Too few", R33: in this
-//           table only), or MeasurementVocabulary.word(0) ("Checking") when measurementLimited; "-" for an applicable cell
-//           with no graded reading; "" with no result
-//           where the column does not apply. Short forms: the grade's figure, "⚠" for Checking, "-". No marks: the marks
-//           go on the readings a cell opens to.
+//           has text "" and QML sets the word, from the vocabulary the cell names (`vocabulary`, `vocabularyGrade`):
+//           "consistency" ConsistencyVocabulary.shortWord(grade) (grade 0 "Too few", R33: in this table only),
+//           "measurement" MeasurementVocabulary.word(0) ("Checking") when measurementLimited; "-" for an applicable cell
+//           with no graded reading (`vocabulary` ""); "" and nothing else set where the column does not apply. Short
+//           forms: the grade's figure, "⚠" for Checking, "-". No marks: the marks go on the readings a cell opens to.
 // key:    the words of the table (a template), for a note under it in either form. keyMarks: the short forms (a template),
 //           for keyText.
 // shots:  [{ ordinal, shotId, swingDir, club, flags (["short", "offline"], either or neither), guarded }], strike order
@@ -89,6 +93,7 @@
 //
 // Unit-tested in src/Gui/tests/charts_consistency_presenter_test.cpp.
 
+#include "charts_consistency_types.h"      // the typed results
 #include "charts_relations_presenter.h"     // ConsistencyReadingRows
 #include "consistency_grades.h"             // ConsistencyHead
 
@@ -96,6 +101,7 @@
 #include <QPointer>
 #include <QString>
 #include "charts_presenter_core.h"   // the one base and idiom (refactor 5.5a)   // the jobs' shared pool: destroying a presenter never waits (#173)
+#include <QList>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -122,15 +128,16 @@ class ChartsConsistencyPresenter : public QObject
     // ── outputs ──
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(bool ready READ ready NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap status READ status NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap head READ head NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap matrix READ matrix NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::ConsistencyTabStatus status READ status NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::ConsistencyTabHead head READ head NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::ConsistencyTabMatrix matrix READ matrix NOTIFY resultsChanged)
     Q_PROPERTY(QString key READ key NOTIFY resultsChanged)
     Q_PROPERTY(QString keyMarks READ keyMarks NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantList shots READ shots NOTIFY resultsChanged)
+    Q_PROPERTY(QList<pinpoint::charts::ConsistencyTabShot> shots READ shots NOTIFY resultsChanged)
+    // still maps: their rows are READING ROWs (charts_relations_presenter.h), typed with the Relations presenter (5.5c)
     Q_PROPERTY(QVariantMap cell READ cell NOTIFY resultsChanged)
     Q_PROPERTY(QVariantMap shot READ shot NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap empty READ empty NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::ConsistencyTabEmpty empty READ empty NOTIFY resultsChanged)
 
 public:
     explicit ChartsConsistencyPresenter(QObject *parent = nullptr);
@@ -151,19 +158,19 @@ public:
 
     bool busy() const { return m_running || m_scheduled; }
     bool ready() const;
-    QVariantMap  status() const;
-    QVariantMap  head() const;
-    QVariantMap  matrix() const;
-    QString      key() const;
-    QString      keyMarks() const;
-    QVariantList shots() const;
-    QVariantMap  cell() const;
-    QVariantMap  shot() const;
-    QVariantMap  empty() const;
+    ConsistencyTabStatus      status() const;
+    ConsistencyTabHead        head() const;
+    ConsistencyTabMatrix      matrix() const;
+    QString                   key() const;
+    QString                   keyMarks() const;
+    QList<ConsistencyTabShot> shots() const;
+    QVariantMap               cell() const;
+    QVariantMap               shot() const;
+    ConsistencyTabEmpty       empty() const;
 
     // The table in one sentence (doc §3), as `head.headline` (above): consistencyHead's kind as words, the grade words
     // left for QML.
-    static QVariantMap headline(const ConsistencyHead &head);
+    static ConsistencyTabHeadline headline(const ConsistencyHead &head);
 
     // Test seams.
     Q_INVOKABLE void setSynchronous(bool on) { m_synchronous = on; }
@@ -215,7 +222,9 @@ private:
 };
 
 // THE SESSION REPORT'S READING (doc §3, Print): the head, the table and every launch-monitor flagged shot, in the tab's
-// own words and off its own rows. Runs on the caller's thread and holds nothing. `env` and `norms` are taken on the GUI
+// own words and off its own rows. Still a map until the report is typed (5.6): the tab's typed head and table, as maps
+// of the shape they had before (chartsGadgetMap, and `ball` {} with no carry, a cell that does not apply its two texts
+// alone, a result's missing ρ null). Runs on the caller's thread and holds nothing. `env` and `norms` are taken on the GUI
 // thread and handed over, as a job's are (consistency_env.h); `noun` is the kicker's plural ("swings" in the report).
 //   { available (the table has a word, or there is a ball line, or a shot is flagged),
 //     kicker, headline, ball, notes  (as `head`),

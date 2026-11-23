@@ -5,6 +5,7 @@
 // (against the grader run on its own) and the templates' placeholders.
 
 #include "charts/charts_consistency_presenter.h"
+#include "charts/charts_gadget.h"     // the typed results as maps, for the assertions (refactor 5.5b)
 #include "../../Export/rule_data_install.h"
 #include "charts/consistency_env.h"
 #include "charts/consistency_grades.h"
@@ -113,6 +114,14 @@ std::unique_ptr<ChartsConsistencyPresenter> make(std::shared_ptr<const SessionSn
     return p;
 }
 
+// The typed shots as maps, as the assertions read them (charts_gadget.h).
+QVariantList shotsOf(const ChartsConsistencyPresenter &p)
+{
+    QVariantList out;
+    for (const ConsistencyTabShot &s : p.shots()) out.append(chartsGadgetMap(s));
+    return out;
+}
+
 QVariantMap groupOf(const QVariantMap &shot, const QString &name)
 {
     for (const QVariant &g : shot.value(QStringLiteral("groups")).toList())
@@ -198,11 +207,11 @@ private slots:
     void theHead()
     {
         const auto p = make(m_oct);
-        const QVariantMap head = p->head();
+        const QVariantMap head = chartsGadgetMap(p->head());
         QCOMPARE(head.value(QStringLiteral("kicker")).toString(), QStringLiteral("Consistency  ·  31 shots  ·  Gap wedge"));
         // the headline is the grades' (the rule's own cases are theHeadlineRule's): the session's head, worked out here
         const Graded g = gradedOf(*m_oct);
-        const QVariantMap want = ChartsConsistencyPresenter::headline(consistencyHead(g.grades));
+        const QVariantMap want = chartsGadgetMap(ChartsConsistencyPresenter::headline(consistencyHead(g.grades)));
         const QVariantMap line = head.value(QStringLiteral("headline")).toMap();
         QCOMPARE(line.value(QStringLiteral("kind")).toString(), want.value(QStringLiteral("kind")).toString());
         QVERIFY2(line.value(QStringLiteral("kind")).toString() == QLatin1String("halves") || line.value(QStringLiteral("kind")).toString() == QLatin1String("most"),
@@ -212,7 +221,7 @@ private slots:
         QCOMPARE(text(head.value(QStringLiteral("ball"))).replace(kNbsp, QLatin1Char(' ')),
                  QStringLiteral("Your ball: carry 100 yd, middle half 97 to 103 yd. It finishes 5 yd left, middle half 2 to 10 yd left."));
         QVERIFY(head.value(QStringLiteral("notes")).toList().isEmpty());
-        QVERIFY(p->empty().isEmpty());
+        QVERIFY(p->empty().kind.isEmpty());       // the table can say it: no kind
         QVERIFY(p->key().contains(QStringLiteral("P7-P8 is after the ball has gone")));
         QVERIFY(p->key().contains(QStringLiteral("after impact on every shot, and is shown lighter")));
         QVERIFY(!p->key().contains(QStringLiteral("spread")));
@@ -263,7 +272,7 @@ private slots:
             cell.afterBall = f.size() > 4 && f[4] == QLatin1String("after");
             g.cells.push_back(cell);
         }
-        const QVariantMap h = ChartsConsistencyPresenter::headline(consistencyHead(g));
+        const QVariantMap h = chartsGadgetMap(ChartsConsistencyPresenter::headline(consistencyHead(g)));
         QCOMPARE(h.value(QStringLiteral("kind")).toString(), kind);
         QCOMPARE(text(h), want);
         QStringList got;
@@ -352,7 +361,7 @@ private slots:
     void theMatrix()
     {
         const auto p = make(m_oct, 8, QStringLiteral("lateral:7"));
-        const QVariantMap matrix = p->matrix();
+        const QVariantMap matrix = chartsGadgetMap(p->matrix());
         const QVariantList columns = matrix.value(QStringLiteral("columns")).toList();
         QCOMPARE(columns.size(), kConsistencyColumns);
         QCOMPARE(columns.at(0).toMap().value(QStringLiteral("text")).toString(), QStringLiteral("P1"));
@@ -397,6 +406,10 @@ private slots:
             QCOMPARE(cell.value(QStringLiteral("strong")).toBool(), moved);
             QCOMPARE(cell.value(QStringLiteral("heavy")).toBool(), moved && want.grade <= 2);
             QCOMPARE(cell.value(QStringLiteral("tap")).toBool(), at > 0);
+            // which vocabulary names the cell, and at which grade, is the presenter's (C1): QML only looks the word up
+            QCOMPARE(cell.value(QStringLiteral("vocabulary")).toString(),
+                     !want.graded ? QString() : limited ? QStringLiteral("measurement") : QStringLiteral("consistency"));
+            QCOMPARE(cell.value(QStringLiteral("vocabularyGrade")).toInt(), want.graded && !limited ? want.grade : 0);
             QVERIFY(cell.value(QStringLiteral("mark")).toString().isEmpty() || cell.value(QStringLiteral("mark")).toString() == QStringLiteral("◆"));
             ++cells;
             graded += want.graded && want.grade >= 1 ? 1 : 0;
@@ -408,6 +421,7 @@ private slots:
         QCOMPARE(blank.value(QStringLiteral("text")).toString(), QString());
         QCOMPARE(blank.value(QStringLiteral("short")).toString(), QString());
         QVERIFY(!blank.value(QStringLiteral("tap")).toBool());
+        QCOMPARE(blank.value(QStringLiteral("vocabulary")).toString(), QString());
         // the key says how long P7-P8 is, the same on every session
         QVERIFY2(p->key().contains(QStringLiteral("read over the same 100\u00A0ms after impact on every shot")), qPrintable(p->key()));
         // after the ball has gone: lighter, except a cell holding a reading a condition reads at the finish
@@ -437,13 +451,13 @@ private slots:
         QCOMPARE(got, want);
 
         p->setMedium(QStringLiteral("print"));      // paper has nothing to press
-        QVERIFY(!cellAt(p->matrix(), QStringLiteral("lateral"), 7).value(QStringLiteral("tap")).toBool());
+        QVERIFY(!cellAt(chartsGadgetMap(p->matrix()), QStringLiteral("lateral"), 7).value(QStringLiteral("tap")).toBool());
     }
 
     void theShotsList()
     {
         const auto p = make(m_oct);
-        const QVariantList shots = p->shots();
+        const QVariantList shots = shotsOf(*p);
         QCOMPARE(shots.size(), 31);
         QStringList flagged, guarded;
         for (const QVariant &s : shots) {
@@ -658,7 +672,7 @@ private slots:
 
         // the shipped pack's P7-P8 column: thoraxRotation grades Turn and sequence, others stay shown and soft
         const auto p = make(m_oct, 0, QStringLiteral("rotation:7"));
-        QVERIFY(!cellAt(p->matrix(), QStringLiteral("rotation"), 7).value(QStringLiteral("soft")).toBool());
+        QVERIFY(!cellAt(chartsGadgetMap(p->matrix()), QStringLiteral("rotation"), 7).value(QStringLiteral("soft")).toBool());
         bool sawCounted = false, sawSoft = false;
         for (const QVariant &v : p->cell().value(QStringLiteral("rows")).toList()) {
             const QVariantMap row = v.toMap();
@@ -679,7 +693,7 @@ private slots:
             for (const QVariant &r : matrix.value(QStringLiteral("rows")).toList()) out << r.toMap().value(QStringLiteral("id")).toString();
             return out;
         };
-        const QStringList tab = rowsOf(make(m_oct)->matrix());
+        const QStringList tab = rowsOf(chartsGadgetMap(make(m_oct)->matrix()));
         QCOMPARE(tab, consistencyAreas());
         QVERIFY(!tab.contains(golfer));
 
@@ -708,13 +722,17 @@ private slots:
     void noLaunchMonitor()
     {
         const auto p = make(m_july, 8);
-        const QVariantMap head = p->head();
+        const QVariantMap head = chartsGadgetMap(p->head());
         QCOMPARE(head.value(QStringLiteral("kicker")).toString(), QStringLiteral("Consistency  ·  15 shots  ·  7 iron"));
         const QString kind = head.value(QStringLiteral("headline")).toMap().value(QStringLiteral("kind")).toString();
         QVERIFY2(kind == QLatin1String("halves") || kind == QLatin1String("most"), qPrintable(kind));
-        QVERIFY(head.value(QStringLiteral("ball")).toMap().isEmpty());
+        QVERIFY(p->head().ball.runs.isEmpty());       // no ball line: a sentence with no runs
+        // the report's payload keeps {} for it (a map until 5.6 types the report)
+        QVERIFY(consistencySessionReportPayload(m_july, consistencyEnvFromPacks(), QStringLiteral("standard"),
+                                                pinpoint::analysis::sharedNormProvider())
+                    .value(QStringLiteral("ball")).toMap().isEmpty());
         QVERIFY(head.value(QStringLiteral("notes")).toList().isEmpty());
-        for (const QVariant &s : p->shots())
+        for (const QVariant &s : shotsOf(*p))
             QVERIFY(s.toMap().value(QStringLiteral("flags")).toStringList().isEmpty());
         const QVariantMap shot = p->shot();
         QVERIFY(shot.value(QStringLiteral("available")).toBool());
@@ -729,13 +747,13 @@ private slots:
     void carryWithNoOffline()
     {
         const auto p = make(without(*m_oct, QStringLiteral("lm.offline")), 8);
-        const QVariantMap head = p->head();
+        const QVariantMap head = chartsGadgetMap(p->head());
         QCOMPARE(text(head.value(QStringLiteral("ball"))).replace(kNbsp, QLatin1Char(' ')),
                  QStringLiteral("Your ball: carry 100 yd, middle half 97 to 103 yd."));
         QCOMPARE(text(head.value(QStringLiteral("notes")).toList().value(0)),
                  QStringLiteral("This launch monitor gives carry but no offline, so only short shots are flagged."));
         QStringList flagged;
-        for (const QVariant &s : p->shots())
+        for (const QVariant &s : shotsOf(*p))
             for (const QString &f : s.toMap().value(QStringLiteral("flags")).toStringList())
                 flagged << QString::number(s.toMap().value(QStringLiteral("ordinal")).toInt()) + f;
         QCOMPARE(flagged, QStringList({ QStringLiteral("7short"), QStringLiteral("8short") }));
@@ -753,7 +771,7 @@ private slots:
             s->shots[size_t(i)] = c;
         }
         const auto p = make(s, 5);
-        const QVariantMap head = p->head();
+        const QVariantMap head = chartsGadgetMap(p->head());
         QCOMPARE(head.value(QStringLiteral("kicker")).toString(), QStringLiteral("Consistency  ·  31 shots  ·  mixed clubs"));
         QCOMPARE(text(head.value(QStringLiteral("notes")).toList().value(0)),
                  QStringLiteral("Left out of the table: the driver (2 shots). A club needs three shots to be set against itself."));
@@ -835,14 +853,14 @@ private slots:
         auto s = std::make_shared<SessionSnapshot>(*m_oct);
         s->shots.resize(4);
         const auto p = make(s, 2);
-        QCOMPARE(p->empty().value(QStringLiteral("kind")).toString(), QStringLiteral("tooFew"));
+        QCOMPARE(chartsGadgetMap(p->empty()).value(QStringLiteral("kind")).toString(), QStringLiteral("tooFew"));
         const QString words = QStringLiteral("Most of this table can't be graded yet: a reading needs eight shots with one club to show how much it moves.");
-        QCOMPARE(text(p->empty().value(QStringLiteral("sentence"))), words);
-        QCOMPARE(text(p->head().value(QStringLiteral("headline"))), words);
-        QCOMPARE(p->head().value(QStringLiteral("headline")).toMap().value(QStringLiteral("kind")).toString(), QStringLiteral("empty"));
+        QCOMPARE(text(chartsGadgetMap(p->empty()).value(QStringLiteral("sentence"))), words);
+        QCOMPARE(text(chartsGadgetMap(p->head()).value(QStringLiteral("headline"))), words);
+        QCOMPARE(chartsGadgetMap(p->head()).value(QStringLiteral("headline")).toMap().value(QStringLiteral("kind")).toString(), QStringLiteral("empty"));
         // under eight shots a graded cell is grade 0 ("Not enough swings", QML's word), its short form "0"
         int zero = 0;
-        for (const QVariant &r : p->matrix().value(QStringLiteral("rows")).toList())
+        for (const QVariant &r : chartsGadgetMap(p->matrix()).value(QStringLiteral("rows")).toList())
             for (const QVariant &c : r.toMap().value(QStringLiteral("cells")).toList()) {
                 const QVariantMap res = c.toMap().value(QStringLiteral("result")).toMap();
                 if (!res.value(QStringLiteral("graded")).toBool()) continue;
@@ -852,14 +870,14 @@ private slots:
                 ++zero;
             }
         QVERIFY(zero > 0);
-        QCOMPARE(cellAt(p->matrix(), QStringLiteral("setup"), 3).value(QStringLiteral("text")).toString(), QString());
+        QCOMPARE(cellAt(chartsGadgetMap(p->matrix()), QStringLiteral("setup"), 3).value(QStringLiteral("text")).toString(), QString());
         QVERIFY(p->shot().value(QStringLiteral("available")).toBool());
 
         // down to one shot, it still speaks
         s = std::make_shared<SessionSnapshot>(*m_oct);
         s->shots.resize(1);
         const auto one = make(s, 1);
-        QCOMPARE(one->empty().value(QStringLiteral("kind")).toString(), QStringLiteral("tooFew"));
+        QCOMPARE(chartsGadgetMap(one->empty()).value(QStringLiteral("kind")).toString(), QStringLiteral("tooFew"));
         QVERIFY(one->shot().value(QStringLiteral("available")).toBool());
     }
 
@@ -896,12 +914,12 @@ private slots:
     {
         const auto p = make(launchMonitorOnly(*m_oct), 8);
         const QString words = QStringLiteral("This session has no camera shots, so only launch monitor readings can be judged.");
-        QCOMPARE(p->empty().value(QStringLiteral("kind")).toString(), QStringLiteral("noCamera"));
-        QCOMPARE(text(p->empty().value(QStringLiteral("sentence"))), words);
-        QCOMPARE(text(p->head().value(QStringLiteral("headline"))), words);
-        QVERIFY(!p->head().value(QStringLiteral("ball")).toMap().isEmpty());
-        QCOMPARE(cellAt(p->matrix(), QStringLiteral("posture"), 3).value(QStringLiteral("text")).toString(), QStringLiteral("-"));
-        QVERIFY(!cellAt(p->matrix(), QStringLiteral("posture"), 3).value(QStringLiteral("tap")).toBool());
+        QCOMPARE(chartsGadgetMap(p->empty()).value(QStringLiteral("kind")).toString(), QStringLiteral("noCamera"));
+        QCOMPARE(text(chartsGadgetMap(p->empty()).value(QStringLiteral("sentence"))), words);
+        QCOMPARE(text(chartsGadgetMap(p->head()).value(QStringLiteral("headline"))), words);
+        QVERIFY(!p->head().ball.runs.isEmpty());
+        QCOMPARE(cellAt(chartsGadgetMap(p->matrix()), QStringLiteral("posture"), 3).value(QStringLiteral("text")).toString(), QStringLiteral("-"));
+        QVERIFY(!cellAt(chartsGadgetMap(p->matrix()), QStringLiteral("posture"), 3).value(QStringLiteral("tap")).toBool());
         QVERIFY(text(p->shot().value(QStringLiteral("sentence"))).endsWith(QStringLiteral("This shot has no camera readings, so there is no swing to set against the others.")));
         QVERIFY(!p->shot().value(QStringLiteral("guarded")).toBool());
     }
@@ -925,12 +943,12 @@ private slots:
         }
         const auto p = make(s, 8);
         const QString words = QStringLiteral("This session has no camera shots, so only launch monitor readings can be judged.");
-        QCOMPARE(p->empty().value(QStringLiteral("kind")).toString(), QStringLiteral("noCamera"));
-        QCOMPARE(text(p->head().value(QStringLiteral("headline"))), words);
-        QCOMPARE(text(p->head().value(QStringLiteral("notes")).toList().value(0)),
+        QCOMPARE(chartsGadgetMap(p->empty()).value(QStringLiteral("kind")).toString(), QStringLiteral("noCamera"));
+        QCOMPARE(text(chartsGadgetMap(p->head()).value(QStringLiteral("headline"))), words);
+        QCOMPARE(text(chartsGadgetMap(p->head()).value(QStringLiteral("notes")).toList().value(0)),
                  QStringLiteral("This launch monitor gives carry but no offline, so only short shots are flagged."));
         // the reading keeps its word in the table
-        QVERIFY(cellAt(p->matrix(), QStringLiteral("delivery"), 6).value(QStringLiteral("tap")).toBool());
+        QVERIFY(cellAt(chartsGadgetMap(p->matrix()), QStringLiteral("delivery"), 6).value(QStringLiteral("tap")).toBool());
         QVERIFY2(text(p->shot().value(QStringLiteral("sentence"))).contains(QStringLiteral("This shot has no camera readings")),
                  qPrintable(text(p->shot().value(QStringLiteral("sentence")))));
     }
@@ -959,15 +977,15 @@ private slots:
     void noSession()
     {
         const auto p = make(nullptr);
-        QCOMPARE(p->empty().value(QStringLiteral("kind")).toString(), QStringLiteral("noSession"));
-        QCOMPARE(text(p->head().value(QStringLiteral("headline"))), QStringLiteral("No session is loaded."));
+        QCOMPARE(chartsGadgetMap(p->empty()).value(QStringLiteral("kind")).toString(), QStringLiteral("noSession"));
+        QCOMPARE(text(chartsGadgetMap(p->head()).value(QStringLiteral("headline"))), QStringLiteral("No session is loaded."));
         QVERIFY(p->shots().isEmpty());
         QVERIFY(!p->shot().value(QStringLiteral("available")).toBool());
 
         auto none = std::make_shared<SessionSnapshot>();
         none->sessionDir = QStringLiteral("/fixture/none");
         const auto q = make(none);
-        QCOMPARE(q->empty().value(QStringLiteral("kind")).toString(), QStringLiteral("noShots"));
+        QCOMPARE(chartsGadgetMap(q->empty()).value(QStringLiteral("kind")).toString(), QStringLiteral("noShots"));
     }
 
     // While the model reads a session, nothing is said of it: "not loaded yet" is not "nothing here".
@@ -988,33 +1006,33 @@ private slots:
             return QJsonObject{};
         });
         ChartsConsistencyPresenter p;
-        QCOMPARE(text(p.status().value(QStringLiteral("settling"))), QStringLiteral("Reading this session…"));  // before any job
+        QCOMPARE(text(chartsGadgetMap(p.status()).value(QStringLiteral("settling"))), QStringLiteral("Reading this session…"));  // before any job
         p.setModel(&model);
         QVERIFY(p.waitForIdle());
-        QCOMPARE(p.empty().value(QStringLiteral("kind")).toString(), QStringLiteral("noSession"));
-        QVERIFY(!p.status().value(QStringLiteral("loading")).toBool());
+        QCOMPARE(chartsGadgetMap(p.empty()).value(QStringLiteral("kind")).toString(), QStringLiteral("noSession"));
+        QVERIFY(!chartsGadgetMap(p.status()).value(QStringLiteral("loading")).toBool());
 
         bool saidTooSoon = false;
         connect(&p, &ChartsConsistencyPresenter::resultsChanged, this, [&]() {
-            if (model.busy() && !p.empty().isEmpty()) saidTooSoon = true;
+            if (model.busy() && !p.empty().kind.isEmpty()) saidTooSoon = true;
         });
         model.activateSession(dir.path());
         QVERIFY(model.busy());
-        QTRY_VERIFY(p.status().value(QStringLiteral("loading")).toBool());
+        QTRY_VERIFY(chartsGadgetMap(p.status()).value(QStringLiteral("loading")).toBool());
         QVERIFY(p.waitForIdle());
-        QCOMPARE(text(p.status().value(QStringLiteral("settling"))), QStringLiteral("Reading this session…"));
-        QVERIFY(p.empty().isEmpty());
-        QCOMPARE(p.head().value(QStringLiteral("kicker")).toString(), QStringLiteral("Consistency"));
-        QCOMPARE(text(p.head().value(QStringLiteral("headline"))), QStringLiteral("Reading this session…"));
+        QCOMPARE(text(chartsGadgetMap(p.status()).value(QStringLiteral("settling"))), QStringLiteral("Reading this session…"));
+        QVERIFY(p.empty().kind.isEmpty());
+        QCOMPARE(chartsGadgetMap(p.head()).value(QStringLiteral("kicker")).toString(), QStringLiteral("Consistency"));
+        QCOMPARE(text(chartsGadgetMap(p.head()).value(QStringLiteral("headline"))), QStringLiteral("Reading this session…"));
         QCOMPARE(p.key(), QString());
         QCOMPARE(p.shot().value(QStringLiteral("note")).toString(), QString());
 
         gate.release();
         QVERIFY(model.waitForIdle());
-        QTRY_VERIFY(!p.status().value(QStringLiteral("loading")).toBool());
+        QTRY_VERIFY(!chartsGadgetMap(p.status()).value(QStringLiteral("loading")).toBool());
         QVERIFY(p.waitForIdle());
-        QCOMPARE(p.empty().value(QStringLiteral("kind")).toString(), QStringLiteral("noShots"));
-        QCOMPARE(text(p.head().value(QStringLiteral("headline"))), QStringLiteral("No shot in this session has been analysed yet."));
+        QCOMPARE(chartsGadgetMap(p.empty()).value(QStringLiteral("kind")).toString(), QStringLiteral("noShots"));
+        QCOMPARE(text(chartsGadgetMap(p.head()).value(QStringLiteral("headline"))), QStringLiteral("No shot in this session has been analysed yet."));
         QVERIFY(!saidTooSoon);
     }
 
@@ -1033,7 +1051,7 @@ private slots:
         QCOMPARE(p.sessionRuns(), 1);
         QVERIFY(p.lastJobThread() != nullptr);
         QVERIFY(p.lastJobThread() != QThread::currentThread());
-        QVERIFY(p.status().value(QStringLiteral("timings")).toMap().value(QStringLiteral("consistencyMs")).toDouble() > 0.0);
+        QVERIFY(chartsGadgetMap(p.status()).value(QStringLiteral("timings")).toMap().value(QStringLiteral("consistencyMs")).toDouble() > 0.0);
 
         for (int ordinal = 1; ordinal <= 31; ++ordinal) {
             p.setPickedOrdinal(ordinal);
@@ -1044,7 +1062,7 @@ private slots:
         QVERIFY(p.waitForIdle());
         QCOMPARE(p.cell().value(QStringLiteral("areaId")).toString(), QStringLiteral("lateral"));
         QCOMPARE(p.sessionRuns(), 1);
-        QCOMPARE(p.status().value(QStringLiteral("timings")).toMap().value(QStringLiteral("consistencyMs")).toDouble(), 0.0);
+        QCOMPARE(chartsGadgetMap(p.status()).value(QStringLiteral("timings")).toMap().value(QStringLiteral("consistencyMs")).toDouble(), 0.0);
 
         // a burst coalesces, and the last pick wins
         for (int ordinal = 1; ordinal <= 5; ++ordinal) p.setPickedOrdinal(ordinal);
@@ -1067,7 +1085,7 @@ private slots:
         QCOMPARE(p->shot().value(QStringLiteral("ordinal")).toInt(), 8);
         p->setPickedSwingDir(QStringLiteral("/somewhere/else"));        // not in the session: no pick, and not the ordinal
         QVERIFY(!p->shot().value(QStringLiteral("available")).toBool());
-        QCOMPARE(p->status().value(QStringLiteral("pickedOrdinal")).toInt(), 0);
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("pickedOrdinal")).toInt(), 0);
         p->setPickedSwingDir(QString());
         QCOMPARE(p->shot().value(QStringLiteral("ordinal")).toInt(), 3);
     }
@@ -1088,8 +1106,8 @@ private slots:
         QCOMPARE(p->openCell(), QString());
         QVERIFY(!p->shot().value(QStringLiteral("available")).toBool());
         QVERIFY(p->cell().isEmpty());
-        QCOMPARE(p->status().value(QStringLiteral("pickedOrdinal")).toInt(), 0);
-        for (const QVariant &r : p->matrix().value(QStringLiteral("rows")).toList())
+        QCOMPARE(chartsGadgetMap(p->status()).value(QStringLiteral("pickedOrdinal")).toInt(), 0);
+        for (const QVariant &r : chartsGadgetMap(p->matrix()).value(QStringLiteral("rows")).toList())
             for (const QVariant &c : r.toMap().value(QStringLiteral("cells")).toList()) {
                 QVERIFY(c.toMap().value(QStringLiteral("mark")).toString().isEmpty());
                 QVERIFY(!c.toMap().value(QStringLiteral("on")).toBool());
@@ -1110,7 +1128,7 @@ private slots:
             }
             return s;
         };
-        const auto ballOf = [&](double k) { return text(make(scaled(k))->head().value(QStringLiteral("ball"))).replace(kNbsp, QLatin1Char(' ')); };
+        const auto ballOf = [&](double k) { return text(chartsGadgetMap(make(scaled(k))->head()).value(QStringLiteral("ball"))).replace(kNbsp, QLatin1Char(' ')); };
         QVERIFY2(ballOf(0.01).endsWith(QStringLiteral("It finishes on line, middle half on line.")), qPrintable(ballOf(0.01)));
         QVERIFY2(ballOf(0.1).endsWith(QStringLiteral("It finishes 1 yd left, middle half on line to 1 yd left.")), qPrintable(ballOf(0.1)));
     }
@@ -1132,9 +1150,9 @@ private slots:
         QVERIFY(r.value(QStringLiteral("available")).toBool());
         QVERIFY(r.value(QStringLiteral("table")).toBool());
         QCOMPARE(r.value(QStringLiteral("headline")).toMap().value(QStringLiteral("text")).toString(),
-                 p->head().value(QStringLiteral("headline")).toMap().value(QStringLiteral("text")).toString());
+                 chartsGadgetMap(p->head()).value(QStringLiteral("headline")).toMap().value(QStringLiteral("text")).toString());
         QCOMPARE(r.value(QStringLiteral("ball")).toMap().value(QStringLiteral("text")).toString(),
-                 p->head().value(QStringLiteral("ball")).toMap().value(QStringLiteral("text")).toString());
+                 chartsGadgetMap(p->head()).value(QStringLiteral("ball")).toMap().value(QStringLiteral("text")).toString());
         QVERIFY(r.value(QStringLiteral("kicker")).toString().contains(QStringLiteral(" swings")));
 
         const QString diamond = QStringLiteral("◆");
@@ -1147,10 +1165,20 @@ private slots:
                 QVERIFY(!cell.value(QStringLiteral("tap")).toBool());
                 QVERIFY(!cell.value(QStringLiteral("on")).toBool());
                 QVERIFY(cell.value(QStringLiteral("mark")).toString().isEmpty());
+                // the shape the report had before the tab was typed (5.6 types the report): no vocabulary, a column
+                // that does not apply its two texts alone, a missing ρ null
+                QVERIFY(!cell.contains(QStringLiteral("vocabulary")) && !cell.contains(QStringLiteral("vocabularyGrade")));
+                if (cell.value(QStringLiteral("short")).toString().isEmpty()) {
+                    QCOMPARE(cell.size(), 2);
+                } else {
+                    const QVariantMap res = cell.value(QStringLiteral("result")).toMap();
+                    QVERIFY(res.contains(QStringLiteral("graded")));
+                    if (!res.value(QStringLiteral("hasRho")).toBool()) QVERIFY(res.value(QStringLiteral("rho")).isNull());
+                }
             }
 
         QList<int> want;
-        for (const QVariant &s : p->shots())
+        for (const QVariant &s : shotsOf(*p))
             if (!s.toMap().value(QStringLiteral("flags")).toStringList().isEmpty()) want << s.toMap().value(QStringLiteral("ordinal")).toInt();
         QList<int> got;
         for (const QVariant &s : r.value(QStringLiteral("flagged")).toList()) {

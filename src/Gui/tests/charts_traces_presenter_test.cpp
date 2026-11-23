@@ -1151,6 +1151,14 @@ private slots:
         for (const QVariant &c : p.choices().value(QStringLiteral("windows")).toList())
             chip = chip || (c.toMap().value(QStringLiteral("key")).toString() == QLatin1String("custom") && c.toMap().value(QStringLiteral("current")).toBool());
         QVERIFY(chip);
+        // rule C5 (refactor 5.5b): a window says whether it is an adjacent P-position pair; the view never reads its key
+        int pairs = 0;
+        for (const QVariant &c : p.choices().value(QStringLiteral("windows")).toList()) {
+            const QVariantMap w = c.toMap();
+            QCOMPARE(w.value(QStringLiteral("segment")).toBool(), w.value(QStringLiteral("key")).toString().startsWith(QLatin1String("seg:")));
+            if (w.value(QStringLiteral("segment")).toBool()) ++pairs;
+        }
+        QVERIFY2(pairs > 0, "the adjacent P-position pairs are marked as segments");
         // a window wholly outside the data: "-" figures, never 0
         p.setCustomStartUs(0);
         p.setCustomEndUs(1000);

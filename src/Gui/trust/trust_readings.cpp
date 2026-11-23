@@ -254,6 +254,8 @@ QVariantList trustReadings(const charts::ShotSeries &shot)
         const gates::GateEntry *areaOf = gates::gateEntry((primary.isEmpty() ? records.first().toMap() : primary)
                                                               .value(QStringLiteral("gate")).toString());
         out << QVariantMap{ { QStringLiteral("subject"), subject },
+                            // a sequence node's reading: what a sequence claim that names no one subject opens (rule C4)
+                            { QStringLiteral("sequenceNode"), subject.startsWith(QLatin1String("ks.")) },
                             { QStringLiteral("area"), seg >= 0 || subject.startsWith(QLatin1String("route.")) ? QStringLiteral("Kinematic sequence")
                                                       : areaOf ? areaOf->area : QString() },
                             // a cascade's readings it took down (stage 6): "Club track — 14 readings"

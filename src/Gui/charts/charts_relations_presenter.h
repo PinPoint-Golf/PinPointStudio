@@ -103,7 +103,9 @@
 //         reducer (0 At 1 Delta 2 Rate 3 Extremum −1), instant ("at P7" | "peak before P7" | "change to P7" |
 //         "rate of change to P7" | ""), text }], verdict ("fault" past the fault line — "past its fault
 //         line" replaces "out of its corridor" in firedWord then — | "outside" | "inside" graded clean |
-//         "" not graded on this shot; the Readings tab's filter), corridor ({ known, lowOpen, highOpen,
+//         "" not graded on this shot), verdicts (the Readings tab's filters the row shows under: "all", then
+//         "fault" and "outside" for a fault — past the fault line counts as out of the corridor —, "outside", or
+//         "inside"; see thisShot.verdictFilters), corridor ({ known, lowOpen, highOpen,
 //         signalLo, signalHi, faultLo, faultHi } — the norm's bands under the grade policy, as Session
 //         diagnostics draws them; known false when no condition grades the reading), boxText ({ lo, q1, med, q3, hi
 //         [, signalLo, signalHi, faultLo, faultHi] } — the plot's numbers as text, for the hover labels), hasCurve (this shot
@@ -153,7 +155,11 @@
 //   groups: [{ name, rows: [READING ROW] }]         — EVERY reading by family (D5)
 //   notes (string; what apart means),
 //   firedElsewhere: [{ condition, name, metricKey, phase }],
-//   asks: [{ id, text, answer, lit: [ordinal], go ("" | "relations" | "kinds"), upId }] }
+//   asks: [{ id, text, answer, lit: [ordinal], go ("" | "relations" | "kinds"), upId }],
+//   verdictFilters (whatever the shot): [{ verdict ("all" | "fault" | "outside" | "inside"), word ("Faults"),
+//     warm (its count wears the warn tone), none ("No reading is past its fault line on this shot."), noneNamed
+//     ("No reading named “%1” is past …"; %1 the name filter) — both "" for All }] — the Readings tab's filters, in order,
+//   noName ("No reading's name holds “%1”.") — the Readings tab when the name filter lets nothing through }
 // openRow: {} or { readingId, opens: "trace" | "run", trace: TRACE | null, run: RUN }
 // sequence (SeqTiming): { available, chain: [{ segment, label, shotMs, msText, late, lateWord }],
 //   chainSentence (Sentence, "Lead arm −58 ms  →  Club −3 ms  →  Pelvis +25 ms, late"),

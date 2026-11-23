@@ -1966,6 +1966,8 @@ QVariantMap nounSentence(QVariantMap sentence, const QString &one, const QString
         return t;
     };
     sentence.insert(QStringLiteral("text"), swap(sentence.value(QStringLiteral("text")).toString()));
+    // its first clause, as the words module cuts every sentence (refactor 5.5b): from the re-worded text
+    sentence.insert(QStringLiteral("clause"), W::firstClauseOf(sentence.value(QStringLiteral("text")).toString()));
     QVariantList runs = sentence.value(QStringLiteral("runs")).toList();
     for (QVariant &r : runs) {
         QVariantMap m = r.toMap();

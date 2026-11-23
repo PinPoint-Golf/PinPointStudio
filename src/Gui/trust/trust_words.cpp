@@ -23,9 +23,9 @@
 
 namespace pinpoint::trust {
 
-QVariantMap TrustWords::gateFor(const QVariant &gates, const QString &key) const
+TrustGateHit TrustWords::gateFor(const QVariant &gates, const QString &key) const
 {
-    return trust::gateFor(gates.toList(), key);
+    return TrustGateHit::fromMap(trust::gateFor(gates.toList(), key));
 }
 
 QString TrustWords::words(const QString &gateId) const

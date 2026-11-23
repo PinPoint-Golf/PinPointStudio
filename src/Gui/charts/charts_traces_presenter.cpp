@@ -1269,9 +1269,11 @@ void resolveWindow(Ctx &c)
     if (!pick) pick = data ? *data : swing ? *swing : full;      // auto
     c.win = *pick;
     if (c.win.key == QLatin1String("custom")) chips.push_back(c.win);
+    // `segment`: an adjacent P-position pair, which the view lists under its own opener (rule C5)
     for (const Win &x : chips)
         c.windowChips << QVariantMap{ { QStringLiteral("key"), x.key }, { QStringLiteral("label"), x.label },
                                       { QStringLiteral("current"), x.key == c.win.key },
+                                      { QStringLiteral("segment"), x.key.startsWith(QLatin1String("seg:")) },
                                       { QStringLiteral("startUs"), x.startUs }, { QStringLiteral("endUs"), x.endUs },
                                       { QStringLiteral("phaseA"), x.phaseA }, { QStringLiteral("phaseB"), x.phaseB } };
 }

@@ -666,6 +666,7 @@ set(PP_QML_SOURCES
     # The Consistency tab's presenter (consistency_design.md §3): its words and figures, on the rows Charts' Apart builds.
     src/Gui/charts/charts_consistency_presenter.h
     src/Gui/charts/charts_consistency_presenter.cpp
+    src/Gui/charts/charts_consistency_types.h   # its typed values (refactor 5.5b)
     src/Gui/charts/session_wrist.h
     src/Gui/charts/session_wrist.cpp
     # The Posture section's core (posture_chart_design.md stage 2a): pure C++ over the snapshot.
@@ -706,6 +707,7 @@ set(PP_QML_SOURCES
     src/Gui/trust/trust_presenter.cpp
     src/Gui/trust/trust_words.h
     src/Gui/trust/trust_words.cpp
+    src/Gui/trust/trust_types.h      # the Trust presenter's typed values (refactor 5.5b)
     # The variability façade (docs/design/variability-mark/spec.md §4.1, §8): the `variabilityResult` value
     # type and the `Variability` constants singleton. RESULTS only; the grader it reads is
     # src/Metrics/variability/, which every consumer must compile (the app's Metrics list, and the

@@ -30,7 +30,7 @@
 // which the session report (report/report_words.h) uses too.
 //
 // A SENTENCE is published to QML as plain text plus runs, so the panel can set the figures in the
-// figure face without parsing: { text, runs: [ { text, fig } ] }. Sentence::toVariant() makes that.
+// figure face without parsing: { text, runs: [ { text, fig } ], clause }. Sentence::toVariant() makes that.
 
 #include "../../Core/figure_format.h"
 
@@ -135,7 +135,18 @@ inline QString latePelvisNote()
                           "two-camera measurement; it cannot yet tell them apart.");
 }
 
+// A sentence's first clause: its text up to the first ';' or '.', or the whole text when it has neither — what a
+// folded section's head keeps of its sentence (the session view's fold heads). It cuts at the point in "1.6 in" and
+// gives "" for a text that starts with one, as the view's old /^[^;.]*/ did.
+inline QString firstClauseOf(const QString &text)
+{
+    for (qsizetype i = 0; i < text.size(); ++i)
+        if (text.at(i) == QLatin1Char(';') || text.at(i) == QLatin1Char('.')) return text.left(i);
+    return text;
+}
+
 // A sentence as text plus runs; append() for words, figure() for a figure set in the figure face.
+// toVariant() also carries `clause`, the text's firstClauseOf, so no view cuts a sentence itself.
 struct Sentence {
     struct Run { QString text; bool fig = false; };
     std::vector<Run> runs;
@@ -149,7 +160,8 @@ struct Sentence {
         QVariantList rl;
         for (const Run &r : runs)
             rl.append(QVariantMap{ { QStringLiteral("text"), r.text }, { QStringLiteral("fig"), r.fig } });
-        return { { QStringLiteral("text"), text() }, { QStringLiteral("runs"), rl } };
+        const QString t = text();
+        return { { QStringLiteral("text"), t }, { QStringLiteral("runs"), rl }, { QStringLiteral("clause"), firstClauseOf(t) } };
     }
 };
 

@@ -23,10 +23,11 @@
 // badge, the 3-D panel (trust stage 6 session 2). One call, the same answer trust_readings.h gives the
 // presenters, so a tile and the Trust panel never word a refusal differently.
 
+#include "trust_types.h"   // TrustGateHit
+
 #include <QObject>
 #include <QString>
 #include <QVariant>
-#include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
 namespace pinpoint::trust {
@@ -40,8 +41,9 @@ class TrustWords : public QObject
 public:
     explicit TrustWords(QObject *parent = nullptr) : QObject(parent) {}
 
-    // trust_readings.h gateFor: { subject, gate, effect, words, title, sentence } or {}.
-    Q_INVOKABLE QVariantMap gateFor(const QVariant &gates, const QString &key) const;
+    // trust_readings.h gateFor, typed (trust_types.h): { subject, gate, effect, words, title, sentence }, every
+    // field empty when no gate acted on the reading.
+    Q_INVOKABLE pinpoint::trust::TrustGateHit gateFor(const QVariant &gates, const QString &key) const;
     // A gate's short words for a claim, by id ("" when unknown).
     Q_INVOKABLE QString words(const QString &gateId) const;
 };

@@ -45,7 +45,8 @@ Column {
     // "+3.2°", "−3°", "0°" (rounds to zero: no sign), "-" when missing
     function deg(v, dp, signed) { return ok ? roles.withUnit(signed ? roles.figureSigned(v, dp) : roles.figure(v, dp), "°") : "-" }
     readonly property var sc: ok ? (flight.scatter || null) : null
-    readonly property bool xSigned: !!sc && String(sc.xLabel || "").toLowerCase().indexOf("steepening") >= 0
+    // the x axis carries a signed figure when the presenter says it reads a signed quantity (the hands' steepening)
+    readonly property bool xSigned: !!sc && sc.xSigned === true
     readonly property var adapted: {
         if (!sc || sc.xLo === null || sc.xLo === undefined || sc.yLo === null || sc.yLo === undefined) return null
         const pts = (sc.points || []).filter(function (p) { return p.x !== null && p.y !== null && p.x !== undefined && p.y !== undefined })

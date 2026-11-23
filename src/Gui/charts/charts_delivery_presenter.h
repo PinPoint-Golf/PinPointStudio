@@ -20,6 +20,7 @@
 
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include "session_series_types.h"
+#include "charts_delivery_types.h"   // the typed results (refactor 5.5b)
 
 #include <QObject>
 #include <QHash>
@@ -53,7 +54,8 @@
 // shot's reading (deliveryInputFromShot) is cached by the shot's shared_ptr.
 //
 // ── OUTPUT SHAPES ────────────────────────────────────────────────────────────────────────────
-// A Sentence is words::Sentence::toVariant(): { text, runs: [{ text, fig }] }. A missing number is null and its
+// Each output is a typed value (charts_delivery_types.h, refactor 5.5b), its properties named as below.
+// A Sentence is words::Sentence as QML takes it: { text, runs: [{ text, fig }], clause (words::firstClauseOf) }. A missing number is null and its
 // text "-", never 0. Plane angles whole degrees; the monitor's one decimal (session_delivery.h decision 9).
 // A BOX is box_map.h's { n, min, max, q1, med, q3, lo, hi, outliers: [ordinal], texts }.
 //
@@ -101,7 +103,7 @@
 //             xLabel ("Swing plane at P6" | "Hand plane steepening"), yLabel ("Club path (monitor)" | "Attack angle (monitor)"),
 //             n, slope, intercept, r, sd (| null), slopeText ("−0.92"), rText ("−0.80"), sdText ("±1.4°" | ""), holds,
 //             verdict ("shown"|"weak"|"wrongSign"|"tooFew"|"none"), why }
-//  SCATTER = { xLabel, yLabel, unit ("°"), holds, points: [{ ordinal, swingDir, x, y, thisSession (false: another session of
+//  SCATTER = { xLabel, yLabel, unit ("°"), holds, xSigned (the x is the hands' steepening: a signed figure), points: [{ ordinal, swingDir, x, y, thisSession (false: another session of
 //             the day), session (its folder name), picked }], picked: { x, y } | null
 //             (This shot, even with no monitor: x only, y null), line: { x0, y0, x1, y1 } | null (only when the fit holds),
 //             xLo, xHi, yLo, yHi (| null with no point) }
@@ -119,7 +121,8 @@
 //    varies: { has, tightest, loosest (tags | ""), tightHalf, looseHalf (| null), words },
 //    usual: { address, shoulders, steepening (| null), addressText, shouldersText, steepeningText },
 //    flight: FLIGHT (the day's pool, as This shot's; the picked one ringed; thisLine ""),
-//    shapes: { marks: [{ ordinal, swingDir, available, start, curve, word, fromBall, picked }], line ("Pull, slight fade on 5 of 8 shots" | "") },
+//    shapes: { marks: [{ ordinal, swingDir, shotNo, available, start, curve, word, fromBall, picked,
+//                        hoverText ("Shot 7  Pull, slight fade": the grid's words while the dot is hovered) }], line ("Pull, slight fade on 5 of 8 shots" | "") },
 //    trust: TRUST }
 //
 //  plotLayers: { "swingPlaneCurve": [LAYER] } — the lines the trace figure draws over the swing plane curve's row, in
@@ -137,6 +140,7 @@ namespace pinpoint::charts {
 // THE SESSION REPORT'S CLUB DELIVERY PAGE (§4.8, stage 4): the `session` map above for a snapshot, with no picked
 // shot (every `picked` null) and no QObject, built on the caller's thread. `noun`: what its sentences count, plural —
 // "shots" as on Charts, "swings" for the report.
+// It stays a map until the report is typed (5.6): the typed session, through chartsGadgetMap.
 QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const QString &noun = QStringLiteral("shots"));
 
 class ChartsDeliveryPresenter : public QObject
@@ -158,12 +162,12 @@ class ChartsDeliveryPresenter : public QObject
     // ── outputs ──
     Q_PROPERTY(bool available READ available NOTIFY resultsChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
-    Q_PROPERTY(QVariantMap choices READ choices NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap thisShot READ thisShot NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap session READ session NOTIFY resultsChanged)
-    Q_PROPERTY(QVariantMap plotLayers READ plotLayers NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::deliveryui::Choices choices READ choices NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::deliveryui::ThisShot thisShot READ thisShot NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::deliveryui::Session session READ session NOTIFY resultsChanged)
+    Q_PROPERTY(pinpoint::charts::deliveryui::PlotLayers plotLayers READ plotLayers NOTIFY resultsChanged)
     Q_PROPERTY(int selected READ selected NOTIFY selectedChanged)
-    Q_PROPERTY(QVariantMap standfirst READ standfirst NOTIFY selectedChanged)
+    Q_PROPERTY(pinpoint::charts::deliveryui::Sentence standfirst READ standfirst NOTIFY selectedChanged)
 
 public:
     explicit ChartsDeliveryPresenter(QObject *parent = nullptr);
@@ -186,12 +190,12 @@ public:
 
     bool available();
     bool busy() const { return m_running; }
-    QVariantMap choices();
-    QVariantMap thisShot();
-    QVariantMap session();
-    QVariantMap plotLayers();
+    deliveryui::Choices choices();
+    deliveryui::ThisShot thisShot();
+    deliveryui::Session session();
+    deliveryui::PlotLayers plotLayers();
     int selected() const { return m_selected; }
-    QVariantMap standfirst() const;
+    deliveryui::Sentence standfirst() const;
 
     // The picked shot's window-relative µs of position `tag` ("P1" … "P7"), for shotReplay.seekToUs; −1 when the
     // swing has no such position. A lookup into the delivered result.

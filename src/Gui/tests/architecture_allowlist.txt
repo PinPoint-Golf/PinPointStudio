@@ -42,9 +42,9 @@ Update/win_sparkle_update.cpp | A1 | 2 | DEC-146: the updater takes the app's se
 # ── A2 QML creating a session/athlete-scoped type ──
 Gui/charts/PpChartsPanel.qml | A2 | 5 | the Charts panel creates its five presenters (5.5a: the series is the session's, no longer made here); the typed presenters items (5.5b, 5.5c) take them  # step 5
 Gui/diagnostics/PpConsistencyView.qml | A2 | 2 | the Consistency view creates its two presenters (5.5a: the series is the session's); the typed presenters items (5.5b, 5.5c) take them  # step 5
-Gui/trust/PpTrustInlineFor.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's); the typed Trust presenter (5.5b) takes it  # step 5
-Gui/trust/PpTrustPanel.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's); the typed Trust presenter (5.5b) takes it  # step 5
-Gui/trust/PpTrustSummaryFold.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's); the typed Trust presenter (5.5b) takes it  # step 5
+Gui/trust/PpTrustInlineFor.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's). Each view has its own picked shot, so one presenter per session cannot serve them; making them elsewhere is an ownership change for the Product Owner (5.5b)  # step 5
+Gui/trust/PpTrustPanel.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's). Each view has its own picked shot, so one presenter per session cannot serve them; making them elsewhere is an ownership change for the Product Owner (5.5b)  # step 5
+Gui/trust/PpTrustSummaryFold.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's). Each view has its own picked shot, so one presenter per session cannot serve them; making them elsewhere is an ownership change for the Product Owner (5.5b)  # step 5
 Gui/session/PpLaunchMonitorPanel.qml | A2 | 1 | the LM board creates its own LmSessionModel; step 6 makes the board a presenter over the session's measurements  # step 6
 Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates a SwingDataSource that reads a swing document itself; step 5 makes it a presenter over the shot, like the Charts panel (triage, Mark 14 Nov 2026)  # step 5
 
@@ -138,8 +138,7 @@ Video/spinnaker_runtime.cpp | A5 | 2 | P11: update payloads and runtime installs
 Gui/athlete/athlete_controller.h | A6 | 6 | athlete records reach QML as QVariantMaps: the athlete list, the club records keyed by club (clubsFor, defaultClubRecord, setClubRecord), the distances' rows and the report details; typing them changes the athlete screens' data shapes, which needs those screens run (step 4-a typed sexOptions and deleted recentSessions and cohortFor; app.athlete arrived); they go with the views' typed presenters (re-tagged in 4-a, for Mark)  # step 5
 Gui/diagnostics/session_diagnostics_model.h | A6 | 29 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them; a thin adapter until then (Mark, 15 Nov 2026: DEC-165, D3)  # step 5
 Gui/diagnostics/work_ons_controller.h | A6 | 14 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them; a thin adapter until then (Mark, 15 Nov 2026: DEC-165, D3)  # step 5
-Gui/charts/charts_consistency_presenter.h | A6 | 7 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
-Gui/charts/charts_delivery_presenter.h | A6 | 5 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/charts/charts_consistency_presenter.h | A6 | 2 | `cell` and `shot` still hand QML maps: their rows are READING ROWs, the Relations presenter's shape, typed with it (5.5c); 5.5b typed the other five  # step 5
 Gui/charts/charts_posture_presenter.h | A6 | 4 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/charts/charts_relations_presenter.h | A6 | 10 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/charts/charts_traces_presenter.h | A6 | 8 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
@@ -148,7 +147,6 @@ Gui/print/pdf_document_writer.h | A6 | 1 | the report's PDF writer takes its pag
 Gui/report/report_mailer.h | A6 | 4 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/report/session_report_list_model.h | A6 | 3 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/report/session_report_model.h | A6 | 6 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
-Gui/trust/trust_presenter.h | A6 | 2 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/launchmonitor/launch_monitor_controller.h | A6 | 1 | the LM board's readings reach QML as QVariantMaps; step 6 makes the board a presenter over typed measurements  # step 6
 Gui/launchmonitor/lm_club_art.h | A6 | 3 | the LM board's readings reach QML as QVariantMaps; step 6 makes the board a presenter over typed measurements  # step 6
 Gui/launchmonitor/lm_session_model.h | A6 | 2 | the LM board's readings reach QML as QVariantMaps; step 6 makes the board a presenter over typed measurements  # step 6
@@ -177,7 +175,6 @@ Gui/settings/archive_controller.h | A6 | 1 | a settings, monitoring or tool obje
 Gui/shot/reanalysis_controller.h | A6 | 1 | re-analysis' QML API; step 1 rewrites re-analysis around the one job builder and reanalyseAndPersist (triage, Mark 14 Nov 2026)  # step 1
 Gui/shot/shot_list_model.h | A6 | 1 | the carousel's shot summary (shotSummary, the action bar's and the edit popover's read): typed with the carousel shot summary, step 4-b (the ids, the folders and the row's detail were typed or deleted in 4-a)  # step 4
 Gui/swing3d/swing_rig_driver.h | A6 | 1 | a shot/review view's QML API; step 5's typed presenters, one view at a time, widened to the review views (triage, Mark 14 Nov 2026)  # step 5
-Gui/trust/trust_words.h | A6 | 1 | a trust view's QML API; step 5 already takes the trust presenter and views (triage, Mark 14 Nov 2026)  # step 5
 Gui/viz/body_pose_adapter.h | A6 | 1 | a shot/review view's QML API; step 5's typed presenters, one view at a time, widened to the review views (triage, Mark 14 Nov 2026)  # step 5
 LLM/LlmWorker.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
 Pose/motion_capture_probe.h | A6 | 1 | the motion-capture hardware probe's QML API (a device / execution-provider probe that lives in src/Pose); no step 1-8 types it (the platform refactor (capture); 05 §1)  # unplanned

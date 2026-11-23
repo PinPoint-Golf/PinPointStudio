@@ -32,6 +32,7 @@
 //     trail_knee_straighten (fired on this swing) is a finding.
 
 #include "charts/charts_posture_presenter.h"
+#include "charts/charts_words.h"
 #include "../../Export/rule_data_install.h"
 #include "charts/posture_picture.h"
 #include "charts/session_posture.h"
@@ -397,6 +398,10 @@ private slots:
         requireKeys(s, { "available", "n", "shots", "small", "kicker", "fromSession", "head", "headText", "pattern", "patternLine",
                          "profile", "strip", "departures", "departuresEmpty", "consistency", "whatMoved", "address", "absolutes", "trust" }, "session");
         QVERIFY(!s.contains(QStringLiteral("repeat")));   // the old "the tightest … the loosest" words are gone (R11)
+        // the folded section's head keeps the sentence's first clause (refactor 5.5b, C6b)
+        QVERIFY(s.value(QStringLiteral("head")).toMap().contains(QStringLiteral("clause")));
+        QCOMPARE(s.value(QStringLiteral("head")).toMap().value(QStringLiteral("clause")).toString(),
+                 words::firstClauseOf(s.value(QStringLiteral("head")).toMap().value(QStringLiteral("text")).toString()));
         QVERIFY(s.value(QStringLiteral("available")).toBool());
         QVERIFY(s.value(QStringLiteral("fromSession")).toBool());
         QCOMPARE(s.value(QStringLiteral("shots")).toInt(), 5);

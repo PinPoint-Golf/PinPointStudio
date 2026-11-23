@@ -26,6 +26,10 @@
 //   UNCHANGED  a re-join reads no document again (a stat each)
 //   EVT01      a live shot appends; the revision moves
 //   EVT04      a board club override reads that shot again and shows the board's club
+//   EVT05      a reading left out on the board reads that shot again, its monitor series gone
+//   EVT21      a declared club reads that shot again and shows it
+//   EVT02      a re-analysis reads its shot whatever its stamp says
+//   EVT22      a late part's rewrite reads that shot again
 //   EVT03      a trashed swing leaves the snapshot
 //   EVT13      a saved pack edit republishes at once (no relaunch)
 //   BOUND      a third series read empties the oldest one nobody listens to
@@ -176,6 +180,70 @@ int main(int argc, char **argv)
     check(QStringLiteral("EVT04   that shot was read again"), series->loadStats().docReads == readsBefore4 + 1);
     check(QStringLiteral("EVT04   and shows the board's club (%1)").arg(snap->shots.front()->club),
           snap->shots.front()->club.contains(QLatin1String("9"), Qt::CaseInsensitive));
+
+    std::printf("\nEVT05 — a reading left out on the board\n");
+    {
+        // the launch monitor shot (lm_7iron): its monitor series go once the board leaves its reading out (J-45)
+        std::shared_ptr<const charts::ShotSeries> lmShot;
+        for (const auto &x : snap->shots)
+            for (const QString &k : x->metricOrder) if (k.startsWith(QLatin1String("lm."))) { lmShot = x; break; }
+        check(QStringLiteral("EVT05   a shot with launch monitor series"), lmShot != nullptr);
+        if (lmShot) {
+            Shot *ls = s->shot(ShotRef(s->id(), lmShot->shotId));
+            const int before5 = series->loadStats().docReads;
+            const WriteResult w5 = ls ? ls->excludeReading(true) : WriteResult{};
+            snap = series->snapshot();
+            std::shared_ptr<const charts::ShotSeries> after;
+            for (const auto &x : snap->shots) if (x->shotId == lmShot->shotId) after = x;
+            bool anyLm = false;
+            if (after) for (const QString &k : after->metricOrder) anyLm = anyLm || k.startsWith(QLatin1String("lm."));
+            check(QStringLiteral("EVT05   left out, that shot read again"), w5.ok() && series->loadStats().docReads == before5 + 1);
+            check(QStringLiteral("EVT05   and its monitor series are no longer read"), after && !anyLm);
+        }
+    }
+
+    std::printf("\nEVT21 — the declared club\n");
+    {
+        const int n21 = snap->shots.back()->shotId;
+        Shot *ds = s->shot(ShotRef(s->id(), n21));
+        const int before21 = series->loadStats().docReads;
+        const WriteResult w21 = ds ? ds->setDeclaredClub(QStringLiteral("8 IRON")) : WriteResult{};
+        snap = series->snapshot();
+        check(QStringLiteral("EVT21   declared, and that shot read again"), w21.ok() && series->loadStats().docReads == before21 + 1);
+        check(QStringLiteral("EVT21   and shows the declared club (%1)").arg(snap->shots.back()->club),
+              snap->shots.back()->club.contains(QLatin1String("8"), Qt::CaseInsensitive));
+    }
+
+    std::printf("\nEVT02 — a re-analysis is read whatever the stamp says\n");
+    {
+        Shot *rs = s->shot(ShotRef(s->id(), snap->shots.front()->shotId));
+        const int before2 = series->loadStats().docReads;
+        const quint64 rev2 = snap->revision;
+        if (rs) emit rs->reanalysed(rs->ref());   // the document unchanged: only the event names the shot
+        snap = series->snapshot();
+        check(QStringLiteral("EVT02   that shot read again, its stamp unchanged"), series->loadStats().docReads == before2 + 1);
+        check(QStringLiteral("EVT02   a new shot object, so a reader sees it moved"), snap->revision != rev2);
+    }
+
+    std::printf("\nEVT22 — a late part rewrites the document\n");
+    {
+        Shot *cs = s->shot(ShotRef(s->id(), snap->shots.front()->shotId));
+        const int before22 = series->loadStats().docReads;
+        if (cs) {
+            // the late part's write moves the stamp (here by touching the document), then its event (Shot::completeCapture)
+            // the document as it is stored now: an edit before may have rewritten it as swing.ppsw
+            for (const QString &name : QDir(cs->folder()).entryList({ QStringLiteral("swing.ppsw"), QStringLiteral("swing.json") }, QDir::Files)) {
+                QFile f(QDir(cs->folder()).filePath(name));
+                if (f.open(QIODevice::ReadWrite)) {
+                    f.setFileTime(QDateTime::currentDateTimeUtc().addSecs(60), QFileDevice::FileModificationTime);
+                    f.close();
+                }
+            }
+            emit cs->captureCompleted(cs->ref());
+        }
+        (void)series->snapshot();
+        check(QStringLiteral("EVT22   that shot read again"), cs && series->loadStats().docReads >= before22 + 1);
+    }
 
     std::printf("\nEVT03 — a trashed swing leaves\n");
     const int before3 = snap->count();

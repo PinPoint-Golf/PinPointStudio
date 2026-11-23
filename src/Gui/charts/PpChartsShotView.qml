@@ -75,7 +75,7 @@ PpChViewBase {
     function trustReadings(origin) {
         if (!available || trustOrigin !== origin) return []
         return (ts.trust || []).filter(function (r) {
-            return sv.trustSubject === "" ? String(r.subject).indexOf("ks.") === 0 : r.subject === sv.trustSubject })
+            return sv.trustSubject === "" ? r.sequenceNode === true : r.subject === sv.trustSubject })
     }
     readonly property string _pickedDir: ts.swingDir || ""
     on_PickedDirChanged: { trustSubject = ""; trustOrigin = "" }
@@ -111,10 +111,10 @@ PpChViewBase {
         // the window (F11-F13): Full recording, the swing, the data window, back/downswing and Custom as chips;
         // the adjacent P-position pairs open IN PLACE (the current one, if any, named on the opener)
         const hasWindows = (tc.windows || []).length > 0
-        const segs = (tc.windows || []).filter(function (w) { return String(w.key).indexOf("seg:") === 0 })
+        const segs = (tc.windows || []).filter(function (w) { return w.segment === true })
         const segCur = segs.filter(function (w) { return w.current })[0]
         if (hasWindows) s.push({ key: "window", label: "Window", current: tc.window || "",
-                 options: (tc.windows || []).filter(function (w) { return String(w.key).indexOf("seg:") !== 0 }).map(function (w) { return { key: w.key, label: w.label } })
+                 options: (tc.windows || []).filter(function (w) { return w.segment !== true }).map(function (w) { return { key: w.key, label: w.label } })
                           .concat(segs.length ? [{ key: "_segs", label: (segCur ? segCur.label + "  " : "between P-positions  ") + (pickerOpen === "segs" ? "▴" : "▾") }] : []) })
         s.push({ key: "against", label: "Against", opens: true, open: openPicker === "against" || pickerOpen === "against",
                  options: [{ key: "open", label: againstLabel() }] })
@@ -331,7 +331,7 @@ PpChViewBase {
             open: visible; width: Math.min(parent.width, sv.roles ? sv.roles.u(320) : 320)
             roles: sv.roles; interactive: sv.interactive
             title: "Between two P-positions"
-            items: visible ? (sv.tc.windows || []).filter(function (w) { return String(w.key).indexOf("seg:") === 0 }).map(function (w) { return { id: w.key, label: w.label } }) : []
+            items: visible ? (sv.tc.windows || []).filter(function (w) { return w.segment === true }).map(function (w) { return { id: w.key, label: w.label } }) : []
             current: sv.tc.window || ""
             clearLabel: "The default: around the data"
             itemObjectName: "chWindowOption"; clearObjectName: "chWindowDefault"

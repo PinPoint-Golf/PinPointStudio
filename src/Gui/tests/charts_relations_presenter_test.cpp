@@ -634,12 +634,16 @@ private slots:
             p->setGradePolicy(policy);
             return rowOf(p->thisShot(), QStringLiteral("handPathLoop@2"));
         };
+        // the filters a row shows under (the tab's grouping): past the fault line counts as out of the corridor too
+        const auto verdicts = [&](int shot) { return row(shot).value(QStringLiteral("verdicts")).toStringList(); };
         setZ(5.0);
         QCOMPARE(row(firedShot).value(QStringLiteral("verdict")).toString(), QStringLiteral("fault"));
         QCOMPARE(row(firedShot).value(QStringLiteral("firedWord")).toString(), QStringLiteral("past its fault line"));
+        QCOMPARE(verdicts(firedShot), (QStringList{ QStringLiteral("all"), QStringLiteral("fault"), QStringLiteral("outside") }));
         setZ(-2.5);
         QCOMPARE(row(firedShot).value(QStringLiteral("verdict")).toString(), QStringLiteral("outside"));
         QCOMPARE(row(firedShot).value(QStringLiteral("firedWord")).toString(), QStringLiteral("out of its corridor"));
+        QCOMPARE(verdicts(firedShot), (QStringList{ QStringLiteral("all"), QStringLiteral("outside") }));
         // Lenient puts the fault line at 3.5 / 1.5 Ideal half-widths
         QCOMPARE(row(firedShot, QStringLiteral("lenient")).value(QStringLiteral("verdict")).toString(), QStringLiteral("fault"));
         // graded clean through the row's own reading → inside; nothing graded it → no verdict
@@ -649,6 +653,80 @@ private slots:
         s->shots[size_t(cleanShot - 1)] = c;
         QCOMPARE(row(cleanShot).value(QStringLiteral("verdict")).toString(), QStringLiteral("inside"));
         QCOMPARE(row(plainShot).value(QStringLiteral("verdict")).toString(), QString());
+        QCOMPARE(verdicts(cleanShot), (QStringList{ QStringLiteral("all"), QStringLiteral("inside") }));
+        QCOMPARE(verdicts(plainShot), QStringList{ QStringLiteral("all") });   // not graded: under All only
+    }
+
+    void readingsFiltersAreThePresenters()
+    {
+        // the Readings tab's filters (refactor 5.5b, rule C2): their order, words, tones and empty-state words come
+        // from thisShot, word for word as the tab said them; the tab fills %1 with the name filter's text
+        const auto check = [](const QVariantMap &ts) {
+            const QVariantList fs = ts.value(QStringLiteral("verdictFilters")).toList();
+            QCOMPARE(fs.size(), 4);
+            const auto f = [&](int i, const char *key) { return fs[i].toMap().value(QLatin1String(key)); };
+            QCOMPARE(f(0, "verdict").toString(), QStringLiteral("all"));
+            QCOMPARE(f(1, "verdict").toString(), QStringLiteral("fault"));
+            QCOMPARE(f(2, "verdict").toString(), QStringLiteral("outside"));
+            QCOMPARE(f(3, "verdict").toString(), QStringLiteral("inside"));
+            QCOMPARE(f(0, "word").toString(), QStringLiteral("All"));
+            QCOMPARE(f(1, "word").toString(), QStringLiteral("Faults"));
+            QCOMPARE(f(2, "word").toString(), QStringLiteral("Outside"));
+            QCOMPARE(f(3, "word").toString(), QStringLiteral("Inside"));
+            QVERIFY(!f(0, "warm").toBool() && f(1, "warm").toBool() && f(2, "warm").toBool() && !f(3, "warm").toBool());
+            QCOMPARE(f(0, "none").toString(), QString());
+            QCOMPARE(f(0, "noneNamed").toString(), QString());
+            QCOMPARE(f(1, "none").toString(), QStringLiteral("No reading is past its fault line on this shot."));
+            QCOMPARE(f(1, "noneNamed").toString().arg(QStringLiteral("sway")), QStringLiteral("No reading named “sway” is past its fault line on this shot."));
+            QCOMPARE(f(2, "none").toString(), QStringLiteral("No reading is out of its corridor on this shot."));
+            QCOMPARE(f(2, "noneNamed").toString().arg(QStringLiteral("sway")), QStringLiteral("No reading named “sway” is out of its corridor on this shot."));
+            QCOMPARE(f(3, "none").toString(), QStringLiteral("No reading was graded inside its corridor on this shot."));
+            QCOMPARE(f(3, "noneNamed").toString().arg(QStringLiteral("sway")), QStringLiteral("No reading named “sway” was graded inside its corridor on this shot."));
+            QCOMPARE(ts.value(QStringLiteral("noName")).toString().arg(QStringLiteral("sway")), QStringLiteral("No reading's name holds “sway”."));
+        };
+        check(make(m_snap, 8)->thisShot());
+        check(make(m_snap, 0)->thisShot());                          // nothing picked: the words are there all the same
+        check(make(std::make_shared<SessionSnapshot>(), 0)->thisShot());
+
+        // the counts the tab makes from the rows' `verdicts` are the old rule's: a fault counts under Faults and Outside
+        auto s = withDirs(m_fx.session);
+        s->conditions[QStringLiteral("sway")].metricKey = QStringLiteral("handPathLoop");
+        s->conditions[QStringLiteral("sway")].phase = 2;
+        for (int shot = 1; shot <= int(s->shots.size()); ++shot) {
+            QHash<QString, int> byList, byRule;
+            for (const QVariant &g : make(s, shot)->thisShot().value(QStringLiteral("groups")).toList())
+                for (const QVariant &rv : g.toMap().value(QStringLiteral("rows")).toList()) {
+                    const QVariantMap r = rv.toMap();
+                    for (const QString &v : r.value(QStringLiteral("verdicts")).toStringList()) ++byList[v];
+                    const QString v = r.value(QStringLiteral("verdict")).toString();
+                    ++byRule[QStringLiteral("all")];
+                    if (v == QLatin1String("fault")) { ++byRule[QStringLiteral("fault")]; ++byRule[QStringLiteral("outside")]; }
+                    else if (v == QLatin1String("outside")) ++byRule[QStringLiteral("outside")];
+                    else if (v == QLatin1String("inside")) ++byRule[QStringLiteral("inside")];
+                }
+            for (const QString &k : byList.keys()) QVERIFY2(byRule.contains(k), qPrintable(k));
+            for (const char *k : { "all", "fault", "outside", "inside" })
+                QCOMPARE(byList.value(QLatin1String(k)), byRule.value(QLatin1String(k)));
+        }
+    }
+
+    void aSentenceCarriesItsFirstClause()
+    {
+        // what a folded section's head keeps (refactor 5.5b, rule C6b): the text up to the first ';' or '.', as the
+        // session view's old /^[^;.]*/ cut it
+        using words::firstClauseOf;
+        QCOMPARE(firstClauseOf(QString()), QString());
+        QCOMPARE(firstClauseOf(QStringLiteral("No full stop here")), QStringLiteral("No full stop here"));
+        QCOMPARE(firstClauseOf(QStringLiteral("Pelvis first; club last.")), QStringLiteral("Pelvis first"));
+        QCOMPARE(firstClauseOf(QStringLiteral("Pelvis first. Then; the club")), QStringLiteral("Pelvis first"));
+        QCOMPARE(firstClauseOf(QStringLiteral(".leading")), QString());
+        QCOMPARE(firstClauseOf(QStringLiteral("Hands 1.6 in ahead")), QStringLiteral("Hands 1"));   // the regex cut at a point too
+        words::Sentence sn;
+        sn.append(QStringLiteral("Clubhead ")).figure(QStringLiteral("82 mph")).append(QStringLiteral("; the median 72."));
+        const QVariantMap m = sn.toVariant();
+        QCOMPARE(m.value(QStringLiteral("text")).toString(), QStringLiteral("Clubhead 82 mph; the median 72."));
+        QCOMPARE(m.value(QStringLiteral("clause")).toString(), QStringLiteral("Clubhead 82 mph"));
+        QCOMPARE(words::Sentence().toVariant().value(QStringLiteral("clause")).toString(), QString());
     }
 
     void firedConditionsSayHowTheyRead()

@@ -66,6 +66,7 @@ pp_add_test(charts_consistency_presenter_test
     SOURCES charts_consistency_presenter_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_consistency_presenter.cpp
+            ${GUI}/charts/charts_consistency_types.h   # its typed values: moc (refactor 5.5b)
             ${GUI}/charts/consistency_grades.cpp
             ${GUI}/charts/variability_clubs.cpp
             ${GUI}/charts/variability_env.cpp

@@ -35,6 +35,7 @@
 #include "charts/charts_delivery_presenter.h"
 #include "../../Export/rule_data_install.h"
 #include "charts/delivery_picture.h"
+#include "charts/charts_gadget.h"
 #include "charts/posture_picture.h"
 #include "charts/session_series_types.h"
 #include "Club/shaft_plane_curve.h"
@@ -67,6 +68,9 @@ QJsonObject fixture()
     if (!f.open(QIODevice::ReadOnly)) return {};
     return QJsonDocument::fromJson(f.readAll()).object();
 }
+
+// The picture as a map (charts_gadget.h), so the assertions read it by its keys (refactor 5.5b: it is typed).
+QVariantMap pictureMap(const DeliveryPictureDoc &d, const DeliveryPictureOptions &o) { return chartsGadgetMap(deliveryPicture(d, o)); }
 
 QVariantList framesOf(const QVariantMap &pic)
 {
@@ -188,7 +192,7 @@ private slots:
     void lines()
     {
         const DeliveryPictureDoc d = deliveryPictureDocFrom(fixture(), kDir);
-        const QVariantMap pic = deliveryPicture(d, DeliveryPictureOptions{});
+        const QVariantMap pic = pictureMap(d, DeliveryPictureOptions{});
         QVERIFY(pic.value(QStringLiteral("available")).toBool());
         QVERIFY(pic.value(QStringLiteral("why")).toStringList().isEmpty());
         QCOMPARE(pic.value(QStringLiteral("defaultSets")).toMap().value(QStringLiteral("plane")).toBool(), true);
@@ -246,7 +250,7 @@ private slots:
         root.insert(QStringLiteral("analysis"), an);
         const DeliveryPictureDoc d = deliveryPictureDocFrom(root, kDir);
         QVERIFY(!d.hasBall && d.hasClub && !d.hasShoulder);
-        const QVariantMap pic = deliveryPicture(d, DeliveryPictureOptions{});
+        const QVariantMap pic = pictureMap(d, DeliveryPictureOptions{});
         QVERIFY(pic.value(QStringLiteral("available")).toBool());
         const QVariantMap f = framesOf(pic).value(1).toMap();
         QCOMPARE(f.value(QStringLiteral("marks")).toList().size(), 1);
@@ -268,7 +272,7 @@ private slots:
         root.insert(QStringLiteral("analysis"), an);
         const DeliveryPictureDoc d = deliveryPictureDocFrom(root, kDir);
         QVERIFY(d.hasBall && !d.shoulderMetric && !d.hasShoulder);
-        const QVariantMap pic = deliveryPicture(d, DeliveryPictureOptions{});
+        const QVariantMap pic = pictureMap(d, DeliveryPictureOptions{});
         const QVariantMap f = framesOf(pic).value(0).toMap();
         QCOMPARE(f.value(QStringLiteral("marks")).toList().size(), 1);
         QVERIFY(!markOf(f, QStringLiteral("address line")).isEmpty());
@@ -282,11 +286,11 @@ private slots:
     {
         QJsonObject root = fixture();
         root.insert(QStringLiteral("streams"), QJsonArray{});
-        const QVariantMap pic = deliveryPicture(deliveryPictureDocFrom(root, kDir), DeliveryPictureOptions{});
+        const QVariantMap pic = pictureMap(deliveryPictureDocFrom(root, kDir), DeliveryPictureOptions{});
         QVERIFY(!pic.value(QStringLiteral("available")).toBool());
         QVERIFY(pic.value(QStringLiteral("groups")).toList().isEmpty());
         QVERIFY(pic.value(QStringLiteral("why")).toStringList().isEmpty());
-        const QVariantMap none = deliveryPicture(deliveryPictureDocFrom(QJsonObject{}, QStringLiteral("/x")), DeliveryPictureOptions{});
+        const QVariantMap none = pictureMap(deliveryPictureDocFrom(QJsonObject{}, QStringLiteral("/x")), DeliveryPictureOptions{});
         QVERIFY(!none.value(QStringLiteral("available")).toBool());
         QVERIFY(!none.value(QStringLiteral("why")).toStringList().isEmpty());
     }
@@ -298,7 +302,7 @@ private slots:
         DeliveryPictureOptions po;
         po.stillDir = tmp.path();
         const DeliveryPictureDoc d = deliveryPictureDocFrom(fixture(), kDir);
-        const QVariantMap pic = deliveryPicture(d, po);
+        const QVariantMap pic = pictureMap(d, po);
         QVERIFY(pic.value(QStringLiteral("pending")).toBool());
         const QVariantMap f = framesOf(pic).value(2).toMap();
         const QVariantMap still = f.value(QStringLiteral("still")).toMap();
@@ -310,7 +314,7 @@ private slots:
         QImage img(8, 8, QImage::Format_RGB32);
         img.fill(Qt::gray);
         QVERIFY(img.save(out, "JPG"));
-        const QVariantMap again = framesOf(deliveryPicture(d, po)).value(2).toMap();
+        const QVariantMap again = framesOf(pictureMap(d, po)).value(2).toMap();
         QCOMPARE(QUrl(again.value(QStringLiteral("src")).toString()).toLocalFile(), out);
     }
 
@@ -339,7 +343,7 @@ private slots:
         p.setSnapshot(snap);
         p.setPickedSwingDir(kDir);
         p.setPictureDocumentForTest(kDir, qEnvironmentVariable("PP_DELIVERY_PICTURE"));
-        const QVariantMap t = p.thisShot();
+        const QVariantMap t = chartsGadgetMap(p.thisShot());
         ChartsDeliveryPresenter::setStillMaker({});
         QVERIFY(t.value(QStringLiteral("available")).toBool());
         const QVariantMap pic = t.value(QStringLiteral("picture")).toMap();
@@ -357,7 +361,7 @@ private slots:
 
         // a shot whose document is not there: no frames, said
         p.setPictureDocumentForTest(kDir, QString());
-        const QVariantMap gone = p.thisShot().value(QStringLiteral("picture")).toMap();
+        const QVariantMap gone = chartsGadgetMap(p.thisShot()).value(QStringLiteral("picture")).toMap();
         QVERIFY(!gone.value(QStringLiteral("available")).toBool());
         QVERIFY(gone.value(QStringLiteral("why")).toStringList().value(0).contains(QStringLiteral("not on disk")));
     }

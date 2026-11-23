@@ -57,7 +57,9 @@ Column {
     objectName: _name + "View"
     spacing: ro.g(10)
 
-    // ── the presenter's outputs, read once per publish (a read is a deep copy) ──
+    // ── the presenter's outputs, read once per publish (a read is a deep copy). status, head, matrix, shots and empty are
+    // typed values (charts_consistency_types.h): every property is there, "" / 0 / false / [] where a key used to be
+    // absent. Their lists are copied into plain arrays (_list) before a Repeater, a JS loop or a component takes them. ──
     readonly property bool ready: presenter.ready
     readonly property var hd: presenter.head
     readonly property var matrix: presenter.matrix
@@ -73,7 +75,14 @@ Column {
     readonly property bool settling: (!ready || presenter.busy || (!!seriesModel && seriesModel.busy)) && !(status.shotCount > 0)
     readonly property var settlingLine: status.settling || null
 
-    // ── the vocabularies' words into the presenter's grades (THE GRADES in charts_consistency_presenter.h) ──
+    function _list(l) {
+        const out = []
+        for (let i = 0; l && i < l.length; ++i) out.push(l[i])
+        return out
+    }
+
+    // ── the vocabularies' words into the presenter's grades (THE GRADES in charts_consistency_presenter.h). Which word
+    // goes where is the presenter's; this file only looks the words up, because they live in the vocabularies alone ──
     // %1-%5 the Consistency words of grades 5 to 1, %6 its grade 0 in the table's form ("Too few", R33: the key says
     // what the cells say), %7 the Measurement grade 0 ("Checking")
     function _fill(t) {
@@ -82,24 +91,26 @@ Column {
                 .arg(ConsistencyVocabulary.word(2)).arg(ConsistencyVocabulary.word(1)).arg(ConsistencyVocabulary.shortWord(0))
                 .arg(MeasurementVocabulary.word(0))
     }
-    // a graded cell's word: its grade's in the table's form (grade 0 "Too few", R33), or "Checking" when
-    // measurement-limited; the presenter's "-" or blank otherwise
-    function _cells(rows) {
-        return (rows || []).map(r => ({ id: r.id, name: r.name, cells: (r.cells || []).map(c => {
-            const v = c.result
-            if (!v || !v.graded) return c
-            const o = Object.assign({}, c)
-            o.text = v.measurementLimited ? MeasurementVocabulary.word(0) : ConsistencyVocabulary.shortWord(v.grade)
-            return o
-        }) }))
+    // a cell's word from the vocabulary the presenter names: the Consistency word in the table's form (grade 0 "Too
+    // few", R33), or the Measurement word ("Checking"); with none, the presenter's "-" or blank
+    function _word(c) {
+        if (c.vocabulary === "measurement") return MeasurementVocabulary.word(c.vocabularyGrade)
+        if (c.vocabulary === "consistency") return ConsistencyVocabulary.shortWord(c.vocabularyGrade)
+        return c.text
     }
+    function _cells(rows) {
+        return _list(rows).map(r => ({ id: r.id, name: r.name, cells: _list(r.cells).map(c => ({
+            text: _word(c), short: c.short, strong: c.strong, heavy: c.heavy, on: c.on, mark: c.mark, tap: c.tap,
+            heat: c.heat, soft: c.soft, result: c.result })) }))
+    }
+    function _columns(cols) { return _list(cols).map(c => ({ text: c.text, short: c.short })) }
     // the headline: the halves' grade words, lower case, into its template; the grade-0 line; else its own words
     function _head(h) {
         if (!h) return ""
         if (h.kind === "grade0") return ConsistencyVocabulary.line(0)
         if (h.kind !== "halves") return h.text || ""
         let t = h.text || ""
-        for (const g of (h.grades || [])) t = t.arg(ConsistencyVocabulary.word(g.grade).toLowerCase())
+        for (const g of _list(h.grades)) t = t.arg(ConsistencyVocabulary.word(g.grade).toLowerCase())
         return t
     }
     readonly property var matrixRows: _cells(matrix.rows)
@@ -151,7 +162,7 @@ Column {
     on_SwingDirChanged: if (_openIn === "shot") _closeRow()
     // a press on a shot goes to the carousel, by swing folder; the pick then comes back through SessionMode
     function _pickOrdinal(ordinal) {
-        const s = (presenter.shots || []).find(x => x.ordinal === ordinal)
+        const s = _list(presenter.shots).find(x => x.ordinal === ordinal)
         if (s && s.swingDir && root.body && root.interactive) root.body.shotRequested(s.swingDir, s.shotId)
     }
 
@@ -218,7 +229,7 @@ Column {
         visible: root.ready && root.status.shotCount > 0
         width: root.width
         roles: ro
-        columns: root.matrix.columns || []
+        columns: root._columns(root.matrix.columns)
         rows: root.matrixRows
         keyText: root._fill(presenter.keyMarks)
         interactive: root.interactive
@@ -230,7 +241,7 @@ Column {
         spacing: ro.g(2)
         PpNotes { visible: root.status.shotCount > 0; width: parent.width; roles: ro; text: ro.esc(root._fill(presenter.key)) }
         Repeater {
-            model: root.hd.notes || []
+            model: root._list(root.hd.notes)
             delegate: PpChText { required property var modelData; roles: ro; sentence: modelData }
         }
     }
