@@ -169,7 +169,11 @@ The picture strip (address, top, impact) joins it in stage 5, between "Repeatabl
 reading in the session: no page. Not on the cover's contents line (the line shares the folio with the studio's
 contact). `SessionReportModel` reads it on a worker while the documents are read: a private `SessionSeriesModel`
 (the Charts panel's loader, inline) builds the session snapshot and the presenter's payload is cut to the map's
-`posture` block by `report_posture.h` (the strip renumbered to the report's swings, the lists capped).
+`posture` block by `report_posture.h` (the strip renumbered to the report's swings, the lists capped). Its "At
+address" history (the golfer's earlier sessions) and the Club delivery page's fits over the golfer's day read the
+other sessions' summaries, taken on the GUI thread from the session's athlete level and handed to the worker, never
+those sessions' files[^dec-74-sum]. A session with no golfer has neither (its report compares it with no other
+session).
 
 **The Wrist page** (added 23 October, Product Owner: the Charts Wrist section's Session view prints as a page, after the
 Posture page, mirroring its order). The head ("Graded as a Cupped wrist on every swing"), a Style line and a Score
@@ -1060,3 +1064,5 @@ directly, so it does not depend on the fix, but the panel does.
     The session drawer has no report actions.
 11. **Decided 20 Oct:** the document carries both the session date and the date it was prepared
     (§8.4).
+
+[^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `docs/developer/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.

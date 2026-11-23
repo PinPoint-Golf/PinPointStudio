@@ -59,6 +59,7 @@
 #include "../../Core/folder_lock.h"
 #include "../../Core/work_pool.h"
 #include "../../Diagnostics/measures/live_measure_source.h"
+#include "../../Coaching/session_day_readings_rules.h"   // the day readings' rules (refactor 5.5d)
 #include "../../Export/firing_reader_store.h"
 #include "../../Export/recording_loader.h"
 #include "../../Export/rule_data_install.h"
@@ -1669,6 +1670,81 @@ static void testResultsJson()
               && back.gradedFrom.value(1).content == QLatin1String("c") && back.sessionId == st.sessionId);
 }
 
+// DAY (refactor 5.5d; DEC-74): the summary's day readings — what another session's Charts and report read of this one —
+// written by the owner: each shot's delivery readings off its phase grid (the one rule, delivery_grid_numbers.h), its
+// readings at address off its kept rows, and the cameras off the first swing document. A session loaded from its file
+// with NO re-fire still writes them (the grids read through the firing reader's door, on the lane). The file: version 4,
+// an older one reads without them, a newer one is a newer build's (R-PERS-3).
+static void testDayReadings()
+{
+    std::printf("\nDAY — the summary's day readings (refactor 5.5d; DEC-74)\n");
+    Rig rig(/*synchronous=*/true, 0, /*realReader=*/true);
+    Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
+    if (!s) { check(QStringLiteral("DAY setup"), false); return; }
+    rig.addShot(s, Spec{}, "rich_7iron");   // face-on camera 17453937; no monitor, no swing plane
+    rig.addShot(s, Spec{}, "lm_7iron");     // the monitor; no streams
+    rig.addShot(s, Spec{}, "lm_7iron");
+    SessionDiagnostics *d = s->diagnostics();
+    if (!Rig::settled(d)) { check(QStringLiteral("DAY setup: settled"), false); return; }
+    const SessionId id = s->id();
+    const QString folder = rig.folderOf(id);
+    s->end();
+    d->flush(/*final=*/true);
+    bool ok = false;
+    const analysis::SessionResults first = analysis::sessionResultsFromJson(rig.store.readWorkOns(id).root,
+                                                                            analysis::SessionResultsRead::Strict, &ok);
+    const analysis::SessionDayReadings &day = first.dayReadings;
+    // the expected readings, by the one rule over each shot's own grid
+    std::vector<analysis::ShotDeliveryReading> want;
+    for (int n = 1; n <= 3; ++n) {
+        const analysis::SwingPhaseGrid g = analysis::readLivePhaseGrid(QDir(folder).filePath(QStringLiteral("swing_%1").arg(n, 4, 10, QLatin1Char('0'))),
+                                                                       g_rules->pack->pack());
+        if (auto r = analysis::shotDeliveryReadingOf(analysis::deliveryGridNumbersOf(g), n, g.ordinal)) want.push_back(*r);
+    }
+    const auto same = [](const analysis::ShotDeliveryReading &a, const analysis::ShotDeliveryReading &b) {
+        const auto eq = [](double x, double y) { return (std::isnan(x) && std::isnan(y)) || x == y; };
+        return a.shotId == b.shotId && a.ordinal == b.ordinal && eq(a.planeP6, b.planeP6) && eq(a.steepening, b.steepening)
+            && eq(a.lmPath, b.lmPath) && eq(a.lmAttack, b.lmAttack);
+    };
+    check(QStringLiteral("DAYa written: version 4's day readings, the monitor's two shots' delivery readings by the one rule"),
+          ok && day.has && day.delivery.size() == 2 && want.size() == 2 && same(day.delivery[0], want[0]) && same(day.delivery[1], want[1])
+              && day.delivery[0].shotId == 2 && std::isfinite(day.delivery[0].lmPath) && std::isfinite(day.delivery[0].lmAttack));
+    check(QStringLiteral("DAYb the cameras off the first swing document: face-on, its serial; no down-the-line"),
+          day.cameras.known && day.cameras.faceOn.present && day.cameras.faceOn.serial == QLatin1String("17453937")
+              && !day.cameras.dtl.present);
+    const QStringList absolutes = analysis::addressAbsoluteIds(g_rules->pack->pack());
+    const bool addressOk = std::all_of(day.address.begin(), day.address.end(), [&](const analysis::ShotAddressReading &a) {
+        return !a.values.isEmpty() && std::all_of(a.values.keyBegin(), a.values.keyEnd(), [&](const QString &k) { return absolutes.contains(k); });
+    });
+    check(QStringLiteral("DAYc the readings at address: only the pack's address absolutes, only finite (%1 shots)").arg(day.address.size()),
+          !absolutes.isEmpty() && addressOk);
+    // A RESULT LOADED FROM THE FILE: released, held again — nothing fired, and the day readings are the same.
+    if (!rig.athlete->releaseSession(id)) { check(QStringLiteral("DAY released"), false); return; }
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QFile::remove(QDir(folder).filePath(QStringLiteral("work_ons.json")));
+    Session *again = rig.athlete->session(id);
+    SessionDiagnostics *d2 = again ? again->diagnostics() : nullptr;
+    if (!Rig::settled(d2)) { check(QStringLiteral("DAY held again"), false); return; }
+    const AskTally t = asksSince(d2, 0);
+    d2->flushWithSummary();
+    const analysis::SessionResults back = analysis::sessionResultsFromJson(rig.store.readWorkOns(id).root,
+                                                                           analysis::SessionResultsRead::Strict, &ok);
+    check(QStringLiteral("DAYd loaded from its file, no shot fired (%1): the same day readings, its grids read through the door").arg(t.totalFires),
+          ok && t.totalFires == 0 && back.dayReadings.has
+              && analysis::sessionDayReadingsToJson(back.dayReadings) == analysis::sessionDayReadingsToJson(day));
+    // THE FILE: an older summary reads without them; a newer one is a newer build's.
+    QJsonObject root = analysis::sessionResultsToJson(back);
+    QJsonObject older = root;
+    older.remove(QStringLiteral("dayReadings"));
+    older.insert(QStringLiteral("resultsVersion"), 3);
+    const analysis::SessionResults o = analysis::sessionResultsFromJson(older, analysis::SessionResultsRead::Strict, &ok);
+    QJsonObject newer = root;
+    newer.insert(QStringLiteral("resultsVersion"), analysis::kSessionResultsVersion + 1);
+    check(QStringLiteral("DAYe version 4; an older summary reads with no day readings (not summed up yet), a newer one is a newer build's"),
+          root.value(QStringLiteral("resultsVersion")).toInt() == 4 && ok && o.hasFacts == back.hasFacts && !o.dayReadings.has
+              && analysis::sessionResultsFromNewerBuild(newer) && !analysis::sessionResultsFromNewerBuild(root));
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -1705,6 +1781,7 @@ int main(int argc, char **argv)
     testDerivedRestored();
     testDiagnosis();
     testResultsJson();
+    testDayReadings();
     testRealReaderBesideReviewWrites();
     testG08();
     testUnreadableFile();

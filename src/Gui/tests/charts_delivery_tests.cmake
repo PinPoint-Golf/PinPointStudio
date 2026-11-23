@@ -79,3 +79,24 @@ pp_add_test(delivery_picture_test
     AUTOMOC)
 set_tests_properties(delivery_picture_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_DELIVERY_PICTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/delivery/picture_doc.json")
+
+# day_readings_dump — THE DAY-LEVEL READS, OLD AGAINST NEW (refactor 5.5d, deliverable 6; DEC-74): not a ctest. The report's
+# Club delivery and Posture pages over the same snapshot, from the readers before 5.5d (kept in the tool, verbatim: the
+# day's sibling phase grids, the earlier sessions' diagnostics.json and swing documents) and from the other sessions'
+# summaries' day readings. It only reads: run it on a scratch copy whose catch-up has written every summary again
+# (build/refactor/step-5/5.5d/run-parity.sh).
+add_executable(day_readings_dump
+    ${SRC}/../tools/diagnostics/day_readings_dump.cpp
+    ${RULE_DATA_SOURCES}
+    ${GUI}/charts/charts_delivery_presenter.cpp
+    ${GUI}/charts/charts_posture_presenter.cpp
+    ${POSTURE_VARIABILITY_SRC}
+    ${DELIVERY_PICTURE_SRC}
+    ${GUI}/charts/session_delivery.cpp
+    ${GUI}/tests/folder_series.cpp
+    ${CHARTS_WRIST_SRC})
+target_include_directories(day_readings_dump PRIVATE ${PP_BUFFER} ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis
+                                                     ${SRC}/Diagnostics ${SRC}/Metrics)
+pp_require_swingstore()
+target_link_libraries(day_readings_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+set_target_properties(day_readings_dump PROPERTIES AUTOMOC ON)

@@ -128,8 +128,10 @@ struct DocFacts {
 // session's own series' snapshot (SessionSeries, the one the Charts tab reads: refactor 5.5a; the analysis' series, phases
 // and the owner's findings, never the pose blob), and over it the Posture presenter's
 // session payload (nothing picked, Auto pattern), the Wrist presenter's (nothing picked, Auto style, the dominant
-// style's wash) and the Club delivery presenter's (nothing picked; its fits over the golfer's day, read from the day's
-// other sessions' swing_phasegrid.json). The same numbers and words the Charts Posture, Wrist and Club delivery
+// style's wash) and the Club delivery presenter's (nothing picked; its fits over the golfer's day). THE GOLFER'S OTHER
+// SESSIONS — the Club delivery page's day and the Posture page's earlier sessions at address — are their SUMMARIES' day
+// readings (refactor 5.5d; DEC-74: `neighbours`, taken on the GUI thread from the session's athlete level, the Athlete's
+// SessionIndex summaries), never their files. The same numbers and words the Charts Posture, Wrist and Club delivery
 // sections draw for the session. Over it too the Consistency presenter's report payload (the Consistency tab's table and
 // flagged shots, on a swings kicker); `env` and `norms` come from the GUI thread (consistency_env.h).
 // { posture, wrist, delivery, consistency, tendencies }, each empty when nothing reads. `tendencies`: the athlete level's
@@ -142,16 +144,16 @@ QVariantMap readChartsPages(const std::shared_ptr<const pinpoint::charts::Sessio
                             const pinpoint::charts::ConsistencyEnv &env, const QString &gradePolicy,
                             const std::shared_ptr<const INormProvider> &norms, const ShotOutcomePack &outcomePack,
                             const std::optional<TendencySet> &tendencies, int tendenciesLeftOut, int tendenciesLeftOutNewer,
-                            const QString &tendenciesWhy)
+                            const QString &tendenciesWhy, const pinpoint::charts::SessionNeighbours &neighbours)
 {
     // THE SESSION'S OWN SERIES (refactor 5.5a): the snapshot the Charts tab reads, taken on the GUI thread once the series
     // was idle and handed here by value. THE SWINGS AS THE GOLFER ANNOTATED THEM ON THE BOARD (refactor 3.7-d; J-45): the
     // series publishes them that way (seriesAnnotateForBoard), so no page groups or norms a re-labelled swing under another
     // club than the work-on facts and the kicker do.
     if (!snap || snap->count() == 0) return {};
-    return { { QStringLiteral("posture"), pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings")) },   // the report says swings
+    return { { QStringLiteral("posture"), pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings"), neighbours) },   // the report says swings
              { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) },
-             { QStringLiteral("delivery"), pinpoint::charts::deliverySessionReportPayload(*snap, QStringLiteral("swings")) },
+             { QStringLiteral("delivery"), pinpoint::charts::deliverySessionReportPayload(*snap, QStringLiteral("swings"), neighbours) },
              { QStringLiteral("consistency"), pinpoint::charts::consistencySessionReportPayload(snap, env, gradePolicy, norms, QStringLiteral("swings")) },
              { QStringLiteral("tendencies"), tendencies ? QVariant([&] {
                    QVariantMap t = pinpoint::report::tendenciesReportBlock(*tendencies, &outcomePack);
@@ -574,13 +576,17 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     }
     connect(&m_job->chartsWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onChartsRead);
     const QString tendenciesWhy = noGolfer ? W::tendenciesNoGolfer() : tendenciesUnread ? W::tendenciesUnread() : QString();
+    // THE GOLFER'S OTHER SESSIONS FROM THEIR SUMMARIES (refactor 5.5d; DEC-74), taken here on the GUI thread from the same
+    // athlete level and handed over by value: the Club delivery page's day, the Posture page's earlier sessions. A session
+    // with no golfer has none (no athlete level: J-68 B1), so nothing is pooled.
+    const pinpoint::charts::SessionNeighbours neighbours = ad ? pinpoint::charts::neighboursFrom(ad, dir) : pinpoint::charts::SessionNeighbours{};
     Job *jobp = m_job.get();
     m_job->launchCharts = [jobp, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut, tendenciesLeftOutNewer,
-                           tendenciesWhy](std::shared_ptr<const pinpoint::charts::SessionSnapshot> snap) {
+                           tendenciesWhy, neighbours](std::shared_ptr<const pinpoint::charts::SessionSnapshot> snap) {
         jobp->chartsWatcher.setFuture(QtConcurrent::run([snap, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
-                                                         tendenciesLeftOutNewer, tendenciesWhy] {
+                                                         tendenciesLeftOutNewer, tendenciesWhy, neighbours] {
             return readChartsPages(snap, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
-                                   tendenciesLeftOutNewer, tendenciesWhy);
+                                   tendenciesLeftOutNewer, tendenciesWhy, neighbours);
         }));
     };
     // The adapter is its Session's child: that Session's series (attached with it by the composition root).

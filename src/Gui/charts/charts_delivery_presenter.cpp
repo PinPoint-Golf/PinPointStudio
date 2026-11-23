@@ -28,7 +28,6 @@
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"
 #include "../../Export/swing_paths.h"
-#include "../../Export/session_diagnostics_files.h"   // the day's sessions, by SessionIdentity (step 2.7b)
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
@@ -60,14 +59,6 @@ struct CacheEntry {
     DeliveryShotInput in;
 };
 
-// The golfer's day beyond this session (session_delivery.h decision 13): its other sessions' shots, read off their
-// swing_phasegrid.json files, keyed by the session folder and stamped by the day's sibling folders and the stats of their
-// swings' grids and documents (dayStamp).
-struct DayEntry {
-    QString stamp;
-    DeliveryDay day;           // `sessions` counts the OTHER sessions with a reading; the job adds this one
-};
-
 } // namespace pinpoint::charts::deliveryview
 
 namespace pinpoint::charts {
@@ -92,7 +83,6 @@ struct ChartsDeliveryPresenter::Result {
 struct ChartsDeliveryPresenter::Worker {
     QMutex mutex;                                      // held for a whole job
     QHash<const ShotSeries *, CacheEntry> cache;
-    QHash<QString, DayEntry> days;                     // by the cleaned session folder
     // the picture strip's documents (delivery_picture.h), by cleaned dir and document stamp; a few kept
     struct PictureEntry { qint64 size = -1, mtimeMs = -1; bool pinned = false; DeliveryPictureDoc doc; };
     QHash<QString, PictureEntry> pictures;
@@ -200,127 +190,57 @@ QString sessionDirOf(const SessionSnapshot &snap, const QString &picked)
     return picked.isEmpty() ? QString() : cleanDir(QFileInfo(picked).absolutePath());
 }
 
-// The day's other sessions: the golfer's sessions whose local day is this one's — SessionIdentity's day, by start
-// time (or, for a session older than step 2, the day its folder's name records, under every naming pattern: F-06) —
-// never a folder name's first ten characters, which `name-date-type` never starts with (step 2.7b). Each with its
-// place in the day (n-of-day), in that order; `date` is the day ("yyyy-MM-dd"), "" when this session has none.
-struct DaySibling { QString dir; int nOfDay = 0; };
-std::vector<DaySibling> daySiblings(const QString &sessionDir, QString *date)
-{
-    if (date) date->clear();
-    const QString athleteDir = QFileInfo(sessionDir).absolutePath();
-    const QList<pinpoint::SessionIndexEntry> index = pinpoint::SessionDiagnosticsFiles::sessionPlaces(athleteDir);
-    const pinpoint::analysis::SessionPlace self = pinpoint::SessionDiagnosticsFiles::placeOf(index, sessionDir);
-    if (!self.day.isValid()) return {};
-    if (date) *date = self.day.toString(QStringLiteral("yyyy-MM-dd"));
-    std::vector<DaySibling> out;
-    const QString me = cleanDir(QFileInfo(sessionDir).absoluteFilePath());
-    for (const pinpoint::SessionIndexEntry &e : index) {
-        if (e.identity.localDay() != self.day) continue;
-        const QString dir = cleanDir(QFileInfo(e.folder).absoluteFilePath());
-        if (dir == me) continue;
-        out.push_back(DaySibling{ dir, e.identity.nOfDay() });
-    }
-    std::stable_sort(out.begin(), out.end(), [](const DaySibling &a, const DaySibling &b) { return a.nOfDay < b.nOfDay; });
-    return out;
-}
+// THE GOLFER'S DAY FROM THE OTHER SESSIONS' SUMMARIES (refactor 5.5d; DEC-74; session_delivery.h decision 13): the
+// sessions on this session's local day (SessionIdentity's, as the athlete level places them), in their place in the day,
+// each one's delivery readings as its own SessionDiagnostics wrote them into its summary (`dayReadings.delivery`, off its
+// shots' phase grids by the one rule). Never another session's files. A session not summed up yet, or a newer build's, is
+// counted (notSummedUp, newer) and said; `date` is the day ("yyyy-MM-dd"), "" when this session has none.
+} // namespace
 
-// What the day's reading was made from: each sibling folder, and in each of its swing folders the phase grid and the
-// swing document (size and mtime, a stat each — never a read). A folder's own mtime moves only when a swing folder comes
-// or goes; a grid rebuilt by a regrade, or a swing re-analysed, changes only the files inside a swing folder, so those
-// are stamped too (issue #174: the day used to keep a count of stale grids the regrade had since rebuilt).
-QString dayStamp(const std::vector<DaySibling> &siblings)
+DeliveryDay deliveryDayFrom(const SessionNeighbours &n, const QString &sessionDir)
 {
-    QStringList parts;
-    const auto stat = [](const QFileInfo &f) { return f.exists() ? QStringLiteral("%1:%2").arg(f.size()).arg(f.lastModified().toMSecsSinceEpoch())
-                                                                 : QStringLiteral("-"); };
-    for (const DaySibling &sib : siblings) {
-        const QString &s = sib.dir;
-        parts << QStringLiteral("%1@%2#%3").arg(QFileInfo(s).fileName()).arg(QFileInfo(s).lastModified().toMSecsSinceEpoch()).arg(sib.nOfDay);
-        const QDir dir(s);
-        for (const QString &sw : pinpoint::SwingPaths::swingFolders(s)) {
-            const QString swingDir = dir.filePath(sw);
-            const SwingStore::DocInfo doc = SwingStore::info(swingDir);
-            parts << QStringLiteral("%1 %2 %3:%4").arg(sw, stat(QFileInfo(QDir(swingDir).filePath(QStringLiteral("swing_phasegrid.json")))))
-                                                  .arg(doc.size).arg(doc.mtimeMs);
-        }
-    }
-    return parts.join(QLatin1Char('|'));
-}
-
-// Read the siblings' sidecars — never a swing document (a 28 MB parse froze the GUI once): each swing's
-// swing_phasegrid.json, its staleness judged by a stat of the document beside it, by THE stamp rule the grid's own
-// reader uses (SwingStore::sameDocumentStamp), so a grid the reader would serve is never counted as stale and a grid
-// it would rebuild always is.
-DeliveryDay readDay(const std::vector<DaySibling> &siblings, const QString &date)
-{
-    DeliveryDay day;
-    day.date = date;
-    day.sessions = 0;
-    QElapsedTimer t;
-    t.start();
-    int files = 0, unread = 0;
-    for (const DaySibling &sib : siblings) {
-        const QString &sd = sib.dir;
-        const QDir dir(sd);
-        bool any = false;
-        for (const QString &sw : pinpoint::SwingPaths::swingFolders(sd)) {
-            const QString swingDir = dir.filePath(sw);
-            QFile f(QDir(swingDir).filePath(QStringLiteral("swing_phasegrid.json")));
-            if (!f.open(QIODevice::ReadOnly)) continue;
-            ++files;
-            const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-            bool ok = false;
-            DeliveryShotInput in = deliveryInputFromPhaseGrid(root, swingDir, &ok);
-            if (!ok) { ++unread; continue; }
-            if (!in.hasPlane() && !in.hasMonitor()) continue;
-            in.session = QFileInfo(sd).fileName();
-            in.sessionOfDay = sib.nOfDay;
-            in.thisSession = false;
-            if (in.ordinal <= 0) in.ordinal = folderShotId(swingDir);
-            in.shotId = folderShotId(swingDir);
-            const QJsonObject src = root.value(QStringLiteral("source")).toObject();
-            const SwingStore::DocInfo doc = SwingStore::info(swingDir);   // swing.ppsw, else swing.json; none: nothing to be stale against
-            if (doc.exists()
-                && !SwingStore::sameDocumentStamp(src.value(QStringLiteral("size")).toVariant().toLongLong(),
-                                                  src.value(QStringLiteral("mtime_ms")).toVariant().toLongLong(), doc.size, doc.mtimeMs))
-                ++day.staleGrids;
-            day.others.push_back(std::move(in));
-            any = true;
-        }
-        if (any) ++day.sessions;
-    }
-    ppInfo() << "[Charts] delivery day" << date << ":" << siblings.size() << "other sessions," << files << "phase grids,"
-             << day.others.size() << "shots read," << unread << "of another schema," << day.staleGrids << "older than their swing,"
-             << t.elapsed() << "ms";
-    return day;
-}
-
-// The day, through the worker's cache: re-read only when the day's sibling folders, or a grid or swing document in one
-// of their swing folders, change (dayStamp).
-DeliveryDay dayOf(ChartsDeliveryPresenter::Worker *w, const QString &sessionDir)
-{
-    QString date;
-    const std::vector<DaySibling> siblings = sessionDir.isEmpty() ? std::vector<DaySibling>{} : daySiblings(sessionDir, &date);
     DeliveryDay day;
     day.sessions = 0;   // the other sessions with a reading; this one is added below
-    if (!siblings.empty()) {
-        if (w) {
-            const QString stamp = dayStamp(siblings);   // only a cached day pays the stats; the report reads afresh
-            auto it = w->days.find(sessionDir);
-            if (it == w->days.end() || it->stamp != stamp) {
-                if (w->days.size() > 8) w->days.clear();
-                it = w->days.insert(sessionDir, DayEntry{ stamp, readDay(siblings, date) });
+    if (n.known && n.self.day.isValid()) {
+        day.date = n.self.day.toString(QStringLiteral("yyyy-MM-dd"));
+        // A neighbour's swing folder, as its index places it beside this one (path text only: nothing is read).
+        const QString athleteDir = cleanDir(QFileInfo(cleanDir(sessionDir)).absolutePath());
+        std::vector<const NeighbourSession *> same;
+        for (const NeighbourSession &o : n.others)
+            if (o.place.day == n.self.day) same.push_back(&o);
+        std::stable_sort(same.begin(), same.end(), [](const NeighbourSession *a, const NeighbourSession *b) { return a->place.nOfDay < b->place.nOfDay; });
+        for (const NeighbourSession *o : same) {
+            if (o->state == NeighbourSession::State::NotYet) { ++day.notSummedUp; continue; }
+            if (o->state == NeighbourSession::State::Newer) { ++day.newer; continue; }
+            bool any = false;
+            for (const pinpoint::analysis::ShotDeliveryReading &r : o->readings.delivery) {
+                DeliveryShotInput in;
+                in.ordinal      = r.ordinal;
+                in.shotId       = r.shotId;
+                in.swingDir     = athleteDir.isEmpty() ? QString()
+                                                       : athleteDir + QLatin1Char('/') + o->place.folder + QLatin1Char('/')
+                                                             + pinpoint::SwingPaths::swingFolderName(r.shotId);
+                in.session      = o->place.folder;
+                in.sessionOfDay = o->place.nOfDay;
+                in.thisSession  = false;
+                in.plane[5]     = r.planeP6;   // P6
+                in.steepening   = r.steepening;
+                in.lmPath       = r.lmPath;
+                in.lmAttack     = r.lmAttack;
+                day.others.push_back(std::move(in));
+                any = true;
             }
-            day = it->day;
-        } else {
-            day = readDay(siblings, date);
+            if (any) ++day.sessions;
         }
     }
-    day.date = date;
     day.sessions += 1;   // this session
+    if (day.notSummedUp > 0 || day.newer > 0)   // said in the trust note too (show with a warning, never hide)
+        ppInfo() << "[Charts] delivery day" << day.date << ":" << (day.sessions - 1) << "other sessions read from their summaries,"
+                 << day.others.size() << "shots," << day.notSummedUp << "not summed up yet," << day.newer << "of a newer build";
     return day;
 }
+
+namespace {
 
 // ── the job's context ───────────────────────────────────────────────────────────────────────
 
@@ -453,7 +373,8 @@ U::Flight flightOf(bool available, const QString &text, const QString &attackTex
     out.pool.shots = int(pool.size());
     out.pool.otherShots = int(day.others.size());
     out.pool.words = deliveryPoolWords(&day);
-    out.pool.staleGrids = day.staleGrids;
+    out.pool.notSummedUp = day.notSummedUp;
+    out.pool.newer = day.newer;
     out.attackText = attackText;
     out.thisLine = thisLine;
     out.fit = fitOf(f);
@@ -942,7 +863,7 @@ static std::shared_ptr<ChartsDeliveryPresenter::Result> computeDelivery(ChartsDe
     }
     c.hasPick = c.shot && hasDelivery(c.pick);
 
-    c.day = dayOf(&w, sessionDirOf(*c.snap, want));
+    c.day = deliveryDayFrom(in.neighbours, sessionDirOf(*c.snap, want));
     c.sess = deliverySession(c.inputs, QStringLiteral("shots"), &c.day);
     if (c.shot) c.view = deliveryShot(c.pick, c.inputs, &c.day);
     c.pUs = positionUs(c.shot.get());
@@ -955,11 +876,15 @@ static std::shared_ptr<ChartsDeliveryPresenter::Result> computeDelivery(ChartsDe
     return R;
 }
 
-QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const QString &noun)
+QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const QString &noun, const SessionNeighbours &neighbours)
+{
+    return deliverySessionReportPayloadOfDay(snapshot, noun, deliveryDayFrom(neighbours, sessionDirOf(snapshot, QString())));
+}
+
+QVariantMap deliverySessionReportPayloadOfDay(const SessionSnapshot &snapshot, const QString &noun, const DeliveryDay &day)
 {
     const QString many = noun.trimmed().isEmpty() ? QStringLiteral("shots") : noun.trimmed();
     const std::vector<DeliveryShotInput> inputs = readInputs(nullptr, snapshot);
-    const DeliveryDay day = dayOf(nullptr, sessionDirOf(snapshot, QString()));
     const DeliverySessionView sv = deliverySession(inputs, many, &day);
     return chartsGadgetMap(sessionOf(inputs, sv, day, -1, nullptr, many));
 }
@@ -1075,12 +1000,26 @@ void ChartsDeliveryPresenter::startJob()
     if (m_synchronous || m_running) return;     // apply() re-runs a dirty presenter
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
+    // THE DAY'S OTHER SESSIONS, from their summaries (refactor 5.5d): taken here, on the GUI thread, from the athlete level,
+    // and handed to the job by value; heard again when that athlete level changes (a summary written).
+    const QString dir = in.snapshot ? sessionDirOf(*in.snapshot, in.pickedSwingDir) : QString();
+    in.neighbours = neighboursOf(dir);
+    watchDay(dir);
     m_dirty = false;
     m_running = true;
     emit busyChanged();
     auto w = m_worker;
     askLane(m_pool, [w, in]() { return computeDelivery(*w, in); },
             [this](auto r) { apply(r); });
+}
+
+void ChartsDeliveryPresenter::watchDay(const QString &sessionDir)
+{
+    if (sessionDir == m_watchedDir) return;
+    for (const QMetaObject::Connection &c : std::as_const(m_dayWatch)) disconnect(c);
+    m_watchedDir = sessionDir;
+    m_dayWatch = sessionDir.isEmpty() ? QList<QMetaObject::Connection>{}
+                                      : watchNeighbours(this, sessionDir, [this] { schedule(); });
 }
 
 void ChartsDeliveryPresenter::apply(std::shared_ptr<Result> r)
@@ -1101,6 +1040,7 @@ void ChartsDeliveryPresenter::flushIfSynchronous()
     m_dirty = false;
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
+    in.neighbours = neighboursOf(in.snapshot ? sessionDirOf(*in.snapshot, in.pickedSwingDir) : QString());   // refactor 5.5d
     m_result = computeDelivery(*m_worker, in);
     // synchronous (tests): the stills are made inline and the result read once more with them
     if (m_result && !m_result->pendingStills.isEmpty() && stillMaker()) {

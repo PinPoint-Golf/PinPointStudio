@@ -45,6 +45,9 @@
 #include "Diagnostics/measures/measure_sample.h"
 #include "Diagnostics/norms/norm_provider.h"
 #include "Export/swing_store.h"
+#include "Coaching/session_day_readings_rules.h"   // the owner's rules: an earlier session's summary (refactor 5.5d)
+#include "Coaching/diagnostic_ledger.h"
+#include "charts/session_neighbours.h"
 
 #include <QDir>
 #include <QFile>
@@ -59,6 +62,7 @@
 #include <QTest>
 
 #include <cmath>
+#include <optional>
 
 using namespace pinpoint::charts;
 
@@ -199,14 +203,6 @@ pinpoint::charts::PictureBands levelBands()
 }
 
 // ── the "At address" block's history fixture: an athlete folder of session folders ──
-bool writeFile(const QString &path, const QJsonObject &o)
-{
-    QDir().mkpath(QFileInfo(path).absolutePath());
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
-    f.write(QJsonDocument(o).toJson(QJsonDocument::Compact));
-    return true;
-}
 // A swing document holding only its streams: the cameras (a serial "" records none).
 bool writeSwingDoc(const QString &sessionDir, const QString &dtlSerial, const QString &faceSerial)
 {
@@ -243,12 +239,48 @@ QJsonObject ledgerShot(int id, double bend, double arm, double tilt)
     return { { QStringLiteral("shotId"), id }, { QStringLiteral("club"), QStringLiteral("7 IRON") }, { QStringLiteral("contextId"), QStringLiteral("iron_7") },
              { QStringLiteral("rows"), rows } };
 }
-bool writeLedger(const QString &sessionDir, const QJsonArray &shots)
+// AN EARLIER SESSION AS ITS SUMMARY HOLDS IT (refactor 5.5d; DEC-74): its readings at address off its ledger shots and its
+// cameras off its swing document, by the owner's own rules (session_day_readings_rules.h), at its place.
+pinpoint::analysis::SessionCameras camerasFrom(const QString &dtlSerial, const QString &faceSerial)
 {
-    return writeFile(sessionDir + QStringLiteral("/diagnostics.json"),
-                     QJsonObject{ { QStringLiteral("schemaVersion"), 1 },
-                                  { QStringLiteral("ledger"), QJsonObject{ { QStringLiteral("schemaVersion"), 9 }, { QStringLiteral("shots"), shots } } } });
+    const auto stream = [](const char *alias, const char *persp, const QString &serial) {
+        QJsonObject src{ { QStringLiteral("width"), 640 } };
+        if (!serial.isEmpty()) src.insert(QStringLiteral("serial"), serial);
+        return QJsonObject{ { QStringLiteral("kind"), QStringLiteral("video") }, { QStringLiteral("alias"), QLatin1String(alias) },
+                            { QStringLiteral("setup"), QJsonObject{ { QStringLiteral("perspectiveName"), QLatin1String(persp) } } },
+                            { QStringLiteral("source"), src } };
+    };
+    return pinpoint::analysis::sessionCamerasOf(QJsonObject{ { QStringLiteral("schema"), QStringLiteral("pinpoint.swing/2") },
+        { QStringLiteral("streams"), QJsonArray{ stream("DTL", "DownTheLine", dtlSerial), stream("Face-On", "FaceOn", faceSerial) } } });
 }
+NeighbourSession earlierSession(const QString &folder, const QDate &day, int nOfDay, const QJsonArray &ledgerShots,
+                                const QString &dtlSerial, const QString &faceSerial)
+{
+    NeighbourSession o;
+    o.place = { folder, day, nOfDay };
+    o.readings.has = true;
+    o.readings.cameras = camerasFrom(dtlSerial, faceSerial);
+    const QStringList ids = pinpoint::analysis::addressAbsoluteIds(*postureSharedEnv()->pack);
+    const std::vector<pinpoint::analysis::ShotRecord> rows =
+        pinpoint::analysis::fromJson(QJsonObject{ { QStringLiteral("schemaVersion"), 9 }, { QStringLiteral("shots"), ledgerShots } });
+    for (const pinpoint::analysis::ShotRecord &r : rows)
+        if (auto a = pinpoint::analysis::shotAddressReadingOf(r, ids)) o.readings.address.push_back(*a);
+    return o;
+}
+struct DoorScope {
+    explicit DoorScope(const QString &cur, const QDate &day, int nOfDay, std::vector<NeighbourSession> others)
+    {
+        SessionNeighbours n;
+        n.known = true;
+        n.self = { QFileInfo(cur).fileName(), day, nOfDay };
+        n.others = std::move(others);
+        std::stable_sort(n.others.begin(), n.others.end(), [](const NeighbourSession &a, const NeighbourSession &b) {
+            return pinpoint::analysis::sessionPlaceBefore(a.place, b.place); });
+        setNeighboursDoor({ [n](const QString &) { return n; }, {} });
+    }
+    ~DoorScope() { setNeighboursDoor({}); }
+};
+
 QVariantMap addressRowOf(const QVariantMap &section, const QString &measureId)
 {
     for (const QVariant &r : section.value(QStringLiteral("address")).toMap().value(QStringLiteral("rows")).toList())
@@ -1002,11 +1034,14 @@ private slots:
         const QString cur = athlete + QStringLiteral("/Nick-Henn_2026-10-20_Wrist_03");
         const QString earlier = athlete + QStringLiteral("/Nick-Henn_2026-10-13_Wrist_01");
         const QString later = athlete + QStringLiteral("/Henn_2026-10-25_Wrist_01");          // sorts first by name
-        for (const QString &s : { cur, earlier, later })
-            QVERIFY(writeSwingDoc(s, QStringLiteral("18277032"), QStringLiteral("17453937")));
-        QVERIFY(writeLedger(earlier, QJsonArray{ ledgerShot(1, 38.0, 4.0, -1.0), ledgerShot(2, 39.0, 5.0, -2.0), ledgerShot(3, 41.0, 6.0, -3.0) }));
-        QVERIFY(writeLedger(later, QJsonArray{ ledgerShot(1, 50.0, 12.0, 4.0) }));
-        QVERIFY(writeLedger(cur, QJsonArray{}));
+        QVERIFY(writeSwingDoc(cur, QStringLiteral("18277032"), QStringLiteral("17453937")));   // this session's cameras: its own document
+        // the athlete level's places: SessionIdentity's, whatever the folders' names say (refactor 5.5d: their summaries)
+        DoorScope door(cur, QDate(2026, 10, 20), 3,
+                       { earlierSession(QFileInfo(later).fileName(), QDate(2026, 10, 25), 1, QJsonArray{ ledgerShot(1, 50.0, 12.0, 4.0) },
+                                        QStringLiteral("18277032"), QStringLiteral("17453937")),
+                         earlierSession(QFileInfo(earlier).fileName(), QDate(2026, 10, 13), 1,
+                                        QJsonArray{ ledgerShot(1, 38.0, 4.0, -1.0), ledgerShot(2, 39.0, 5.0, -2.0), ledgerShot(3, 41.0, 6.0, -3.0) },
+                                        QStringLiteral("18277032"), QStringLiteral("17453937")) });
         auto snap = std::make_shared<SessionSnapshot>(*m_five);
         snap->sessionDir = cur;
         snap->revision = 9;
@@ -1028,14 +1063,20 @@ private slots:
         const QString same = athlete + QStringLiteral("/2026-10-13_Nick-Henn_Wrist_01");
         const QString other = athlete + QStringLiteral("/2026-10-13_Nick-Henn_Wrist_02");
         const QString later = athlete + QStringLiteral("/2026-10-25_Nick-Henn_Wrist_01");
-        QVERIFY(writeSwingDoc(cur, QStringLiteral("18277032"), QStringLiteral("17453937")));
-        QVERIFY(writeSwingDoc(same, QStringLiteral("18277032"), QStringLiteral("17453937")));
-        QVERIFY(writeSwingDoc(other, QStringLiteral("99999999"), QStringLiteral("17453937")));   // another DTL camera
-        QVERIFY(writeSwingDoc(later, QStringLiteral("18277032"), QStringLiteral("17453937")));
-        QVERIFY(writeLedger(same, QJsonArray{ ledgerShot(1, 38.0, 4.0, -1.0), ledgerShot(2, 39.0, 5.0, -2.0), ledgerShot(3, 41.0, 6.0, -3.0) }));
-        QVERIFY(writeLedger(other, QJsonArray{ ledgerShot(1, 30.0, 9.0, -4.0), ledgerShot(2, 31.0, 9.5, -5.0) }));
-        QVERIFY(writeLedger(later, QJsonArray{ ledgerShot(1, 50.0, 12.0, 4.0) }));
-        QVERIFY(writeLedger(cur, QJsonArray{}));
+        QVERIFY(writeSwingDoc(cur, QStringLiteral("18277032"), QStringLiteral("17453937")));   // this session's cameras: its own document
+        // the earlier sessions as their summaries hold them (refactor 5.5d): the same ledgers and cameras as before
+        const auto sessionsWith = [&](const QJsonArray &sameShots) {
+            return std::vector<NeighbourSession>{
+                earlierSession(QFileInfo(same).fileName(), QDate(2026, 10, 13), 1, sameShots, QStringLiteral("18277032"), QStringLiteral("17453937")),
+                earlierSession(QFileInfo(other).fileName(), QDate(2026, 10, 13), 2,
+                               QJsonArray{ ledgerShot(1, 30.0, 9.0, -4.0), ledgerShot(2, 31.0, 9.5, -5.0) },
+                               QStringLiteral("99999999"), QStringLiteral("17453937")),   // another DTL camera
+                earlierSession(QFileInfo(later).fileName(), QDate(2026, 10, 25), 1, QJsonArray{ ledgerShot(1, 50.0, 12.0, 4.0) },
+                               QStringLiteral("18277032"), QStringLiteral("17453937")) };
+        };
+        std::optional<DoorScope> door;
+        door.emplace(cur, QDate(2026, 10, 20), 3,
+                     sessionsWith(QJsonArray{ ledgerShot(1, 38.0, 4.0, -1.0), ledgerShot(2, 39.0, 5.0, -2.0), ledgerShot(3, 41.0, 6.0, -3.0) }));
 
         auto snap = std::make_shared<SessionSnapshot>(*m_five);
         snap->sessionDir = cur;
@@ -1080,7 +1121,7 @@ private slots:
         QCOMPARE(sb.value(QStringLiteral("boxN")).toInt(), 5);
 
         // the report: the same block, counting swings, through the page's block
-        const QVariantMap rep = postureSessionReportPayload(*snap, -1, QStringLiteral("swings"));
+        const QVariantMap rep = postureSessionReportPayload(*snap, -1, QStringLiteral("swings"), neighboursOf(snap->sessionDir));
         const QVariantMap rb = addressRowOf(rep, QStringLiteral("m_spineBendAtAddress"));
         QCOMPARE(rb.value(QStringLiteral("historyText")).toString(), QStringLiteral("your earlier sessions: median 39°, n 3 swings over 1 session"));
         const QVariantMap block = pinpoint::report::postureReportBlock(rep, {}).toMap();
@@ -1107,7 +1148,8 @@ private slots:
             wrows.append(r);
         }
         warned.insert(QStringLiteral("rows"), wrows);
-        QVERIFY(writeLedger(same, QJsonArray{ ledgerShot(1, 38.0, 4.0, -1.0), ledgerShot(2, 39.0, 5.0, -2.0), warned }));
+        door.reset();
+        door.emplace(cur, QDate(2026, 10, 20), 3, sessionsWith(QJsonArray{ ledgerShot(1, 38.0, 4.0, -1.0), ledgerShot(2, 39.0, 5.0, -2.0), warned }));
         ChartsPosturePresenter w;
         setUp(w, snap, 3);
         const QVariantMap wt = w.thisShot();

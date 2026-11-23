@@ -781,7 +781,7 @@ int main(int argc, char *argv[])
     // athlete level and no same-day siblings, and says why (step 5.1 review B1; J-67 7). Path text only, nothing read.
     // The report's private carousel lists the session's shots through `app`, as every carousel does (step 5.1).
     sessionReport.setShotSourceFor(shotSourceFor);
-    sessionReport.setNoGolferTest([&athleteStore](const QString &dir) {
+    const auto noGolferAt = [&athleteStore](const QString &dir) {
         const QString parent = QDir::cleanPath(QFileInfo(QDir::cleanPath(dir)).absolutePath());
         for (const pinpoint::Athlete *a : athleteStore.heldAthletes()) {
             if (!a || !a->isUnassigned())
@@ -793,7 +793,28 @@ int main(int argc, char *argv[])
                     return true;
         }
         return false;
-    });
+    };
+    sessionReport.setNoGolferTest(noGolferAt);
+    // THE GOLFER'S OTHER SESSIONS FOR THE CHARTS DELIVERY AND POSTURE SECTIONS (refactor 5.5d; DEC-74): their summaries'
+    // day readings, from the session's own golfer's athlete level — the report's door — on the GUI thread; none for a
+    // session with no golfer (J-68 B1: nothing pooled across golfers). A presenter hears that athlete level change (a
+    // summary written: AthleteLevel::Event::Changed) and reads again.
+    {
+        const auto levelOf = [&athleteStore, noGolferAt](const QString &dir) -> pinpoint::AthleteLevel * {
+            return dir.trimmed().isEmpty() || noGolferAt(dir) ? nullptr
+                                                              : pinpoint::athleteLevelOfSession(athleteStore.heldAthletes(), dir);
+        };
+        pinpoint::charts::NeighboursDoor door;
+        door.read = [levelOf](const QString &dir) { return pinpoint::charts::neighboursFrom(levelOf(dir), dir); };
+        door.watch = [levelOf](QObject *context, const QString &dir, std::function<void()> changed) {
+            pinpoint::AthleteLevel *level = levelOf(dir);
+            if (!level) return QList<QMetaObject::Connection>{};
+            return level->watch(context, [changed](pinpoint::AthleteLevel::Event e, const QString &, const QString &) {
+                if (e == pinpoint::AthleteLevel::Event::Changed) changed();
+            });
+        };
+        pinpoint::charts::setNeighboursDoor(std::move(door));
+    }
     sessionReportList.setReportModel(&sessionReport);
     // Archive and restore re-stamp a report that was current, so it still reads current (S-D6).
     archiveController.setReportFingerprint([&sessionReport] { return sessionReport.fingerprintFunction(); });
@@ -1990,5 +2011,6 @@ int main(int argc, char *argv[])
     SessionDiagnosticsModel::setShotCommands(nullptr);   // `app` is a local of main (step 3.4b-i)
     diagLookup = {};                                     // a result still queued finds no owner (the store goes first)
     ppcpClipFiler.setShotCommands(nullptr);              // a static: it outlives `app`
+    pinpoint::charts::setNeighboursDoor({});             // a static: it outlives the athlete store (refactor 5.5d)
     return exitCode;
 }

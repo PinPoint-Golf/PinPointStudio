@@ -26,6 +26,7 @@
 #include "../DomainModel/recording_repository.h"
 #include "../DomainModel/session_repository.h"
 #include "../Diagnostics/measures/live_measure_source.h"
+#include "../Coaching/session_day_readings_rules.h"   // sessionCamerasOf: the cameras' one rule (refactor 5.5d)
 
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -124,6 +125,28 @@ FiringRead SwingStoreFiringReader::read(const ShotRef &shot, const analysis::Cha
     out.review = m_recordings.readReview(shot);
     out.ok = true;
     return out;
+}
+
+std::optional<analysis::SwingPhaseGrid> SwingStoreFiringReader::phaseGrid(const ShotRef &shot,
+                                                                     const analysis::CharacteristicPack &pack) const
+{
+    const QString swingDir = m_sessions.swingFolder(shot);
+    if (swingDir.isEmpty() || !SwingStore::info(swingDir).exists())
+        return std::nullopt;
+    SwingStore::LazyDocument parsed(swingDir);
+    analysis::SwingPhaseGrid grid = analysis::readLivePhaseGrid(swingDir, pack, SidecarPolicy::ParseNoWrite, analysis::PhaseGridConfig{}, &parsed);
+    if (mayWriteSidecar(m_policy) && parsed.loaded())
+        writeSidecarsUnderLock(swingDir, &grid, nullptr, parsed);
+    parsed.release();
+    return grid;
+}
+
+analysis::SessionCameras SwingStoreFiringReader::cameras(const ShotRef &shot) const
+{
+    const QString swingDir = m_sessions.swingFolder(shot);
+    if (swingDir.isEmpty() || !SwingStore::hasDocument(swingDir))
+        return {};
+    return analysis::sessionCamerasOf(SwingStore::loadAnalysis(swingDir));
 }
 
 } // namespace pinpoint

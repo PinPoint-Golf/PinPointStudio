@@ -257,12 +257,14 @@ struct Pool
     Q_PROPERTY(int     shots      MEMBER shots      FINAL)
     Q_PROPERTY(int     otherShots MEMBER otherShots FINAL)
     Q_PROPERTY(QString words      MEMBER words      FINAL)
-    Q_PROPERTY(int     staleGrids MEMBER staleGrids FINAL)
+    Q_PROPERTY(int     notSummedUp MEMBER notSummedUp FINAL)
+    Q_PROPERTY(int     newer       MEMBER newer       FINAL)
 public:
     QString date;
     int     sessions = 0, shots = 0, otherShots = 0;
     QString words;
-    int     staleGrids = 0;
+    // The day's other sessions with shots that are not in the pool (refactor 5.5d): not summed up yet, and a newer build's.
+    int     notSummedUp = 0, newer = 0;
     friend bool operator==(const Pool &, const Pool &) = default;
 };
 

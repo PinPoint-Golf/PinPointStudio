@@ -25,6 +25,7 @@
 #include "../Coaching/board_annotations.h"     // the board's annotations, read by the reduction (step 3.6)
 #include "../Coaching/club_distances.h"        // clubBaselineFromJson
 #include "../Coaching/strike_from_flight.h"    // sessionFlightUsuals, checkShotAgainstFlight
+#include "../Coaching/session_day_readings_rules.h"   // the summary's day readings' rules (refactor 5.5d)
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 #include "../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
@@ -111,6 +112,7 @@ struct FireOutcome {
     ShotDerived                  derived;
     ShotReview                   review;
     analysis::Cohort             cohort;
+    std::optional<analysis::ShotDeliveryReading> delivery;   // off the grid it read (refactor 5.5d)
 };
 
 struct DeriveOutcome {
@@ -154,6 +156,9 @@ FireOutcome fireOn(const FiringSnapshot &snap, const ShotRef &shot, const Firing
     analysis::FiringInputs inputs = snap.inputs;
     // Dated by the capture instant the document records, else the session's day — never the file's mtime (review 2).
     inputs.cohort = cohortOnShotDate(snap.dob, snap.sex, read.captureMs, snap.sessionDay);
+    // THE SUMMARY'S DELIVERY READINGS off the grid this fire read (refactor 5.5d; DEC-74): taken before the readings move.
+    out.delivery = analysis::shotDeliveryReadingOf(analysis::deliveryGridNumbersOf(read.readings.grid), shot.swingNumber(),
+                                                   read.readings.grid.ordinal);
     analysis::FiredShot fired = analysis::fireFindings(std::move(read.readings), inputs);
     if (!fired.ok) {
         out.error = QStringLiteral("no pack or norms to fire against");
@@ -172,9 +177,54 @@ FireOutcome fireOn(const FiringSnapshot &snap, const ShotRef &shot, const Firing
 }
 
 // ── §4.4 step 7: the reduction's job (values in, values out) ────────────────────────────────────────────────────
+struct DayOutcome {
+    analysis::SessionDayReadings readings;
+    QHash<int, DayReadingsAsk::Shot>     read;          // swing → the delivery reading read on the lane, with its document
+    analysis::SessionCameras     cameras;
+    QString                      camerasKey;
+};
+// The cameras' key: the first kept shot's swing and document (an archive or a re-analysis moves it).
+QString camerasKeyOf(const DayReadingsAsk::Shot &s)
+{
+    return QStringLiteral("%1:%2:%3").arg(s.swing).arg(s.document.size).arg(s.document.mtimeMs);
+}
+DayOutcome dayReadingsOn(const DayReadingsAsk &ask)
+{
+    DayOutcome out;
+    out.readings.has = true;
+    out.readings.address = ask.address;
+    for (const DayReadingsAsk::Shot &s : ask.shots) {
+        std::optional<analysis::ShotDeliveryReading> d = s.delivery;
+        if (!s.read) {
+            const std::optional<analysis::SwingPhaseGrid> grid = ask.reader && ask.pack ? ask.reader->phaseGrid(s.ref, ask.pack->pack())
+                                                                                      : std::nullopt;
+            d = grid ? analysis::shotDeliveryReadingOf(analysis::deliveryGridNumbersOf(*grid), s.swing, grid->ordinal) : std::nullopt;
+            DayReadingsAsk::Shot r = s;
+            r.read = true;
+            r.delivery = d;
+            out.read.insert(s.swing, r);
+        }
+        if (d) out.readings.delivery.push_back(*d);
+    }
+    if (ask.camerasKnown) {
+        out.cameras = ask.cameras;
+        out.camerasKey = ask.camerasKey;
+    } else if (!ask.shots.empty()) {
+        // The first shot whose document reads (the old reader's first swing with a document): its streams.
+        out.camerasKey = camerasKeyOf(ask.shots.front());
+        for (const DayReadingsAsk::Shot &s : ask.shots) {
+            const analysis::SessionCameras c = ask.reader ? ask.reader->cameras(s.ref) : analysis::SessionCameras{};
+            if (c.known) { out.cameras = c; break; }
+        }
+    }
+    out.readings.cameras = out.cameras;
+    return out;
+}
+
 struct ReductionOutcome {
     analysis::SessionDiagnosis diagnosis;
     qint64                     ms = 0;
+    DayOutcome                 day;   // refactor 5.5d
 };
 
 // One shot's derived data as FILE-SESS-03 keeps it (DEC-135): ids and numbers only (R-DER-9) — the outcome's facts,
@@ -775,6 +825,8 @@ void SessionDiagnostics::deliver(WorkVerdict verdict, WorkResult &&result)
             k.cohort           = fired->cohort;
             k.derived          = fired->derived;
             if (fired->review.ok) k.review = fired->review;
+            k.deliveryRead     = true;   // off the grid this fire read (refactor 5.5d)
+            k.delivery         = fired->delivery;
             m_kept.insert(swing, std::move(k));
             m_unread.remove(swing);
             m_dirty = true;
@@ -1279,6 +1331,40 @@ analysis::SessionReductionInput SessionDiagnostics::reductionInput() const
     return in;
 }
 
+// THE DAY READINGS' ASK (refactor 5.5d; DEC-74), beside the reduction's input: each kept shot, strike order, with its
+// delivery reading when it has one for its document; its readings at address off its rows CHECKED against the flight (the
+// rows diagnostics.json holds, as write() makes them; never the board-annotated rows the reduction reads), for the pack's
+// address absolutes; and the cameras when the first kept shot and its document are the ones they were read from.
+DayReadingsAsk SessionDiagnostics::dayAsk() const
+{
+    DayReadingsAsk ask;
+    ask.reader = m_doors.reader;
+    ask.pack   = m_snapshot ? m_snapshot->inputs.pack : nullptr;
+    const QStringList absolutes = ask.pack ? analysis::addressAbsoluteIds(ask.pack->pack()) : QStringList{};
+    const analysis::FlightNorms flight = m_snapshot ? m_snapshot->inputs.flightNorms : analysis::FlightNorms{};
+    for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it) {
+        DayReadingsAsk::Shot s;
+        s.swing    = it.key();
+        s.ref      = ShotRef(m_id, it.key());
+        s.document = it->document;
+        s.read     = it->deliveryRead;
+        s.delivery = it->delivery;
+        ask.shots.push_back(std::move(s));
+        if (!absolutes.isEmpty()) {
+            ShotRecord r = it->findings;
+            analysis::checkShotAgainstFlight(r, m_usuals, flight);
+            if (std::optional<analysis::ShotAddressReading> a = analysis::shotAddressReadingOf(r, absolutes))
+                ask.address.push_back(std::move(*a));
+        }
+    }
+    if (!ask.shots.empty() && !m_camerasKey.isEmpty() && m_camerasKey == camerasKeyOf(ask.shots.front())) {
+        ask.camerasKnown = true;
+        ask.cameras      = m_cameras;
+        ask.camerasKey   = m_camerasKey;
+    }
+    return ask;
+}
+
 void SessionDiagnostics::askReduction()
 {
     if (m_retired || !m_snapshot)
@@ -1293,12 +1379,14 @@ void SessionDiagnostics::askReduction()
     ++m_counts.reductionsAsked;
     auto input = std::make_shared<const analysis::SessionReductionInput>(reductionInput());   // values only
     m_askedInput = input;   // a kept reduction is the latest asked (§4.4 step 6), so this is what it was reduced from
+    auto day = std::make_shared<const DayReadingsAsk>(dayAsk());
     submit(WorkAddress{ m_id.toString(), m_instance, QString(), m_reductionLatest },
-           [input]() -> std::any {
+           [input, day]() -> std::any {
                QElapsedTimer t;
                t.start();
                ReductionOutcome out;
                out.diagnosis = analysis::reduceSession(*input);
+               out.day = dayReadingsOn(*day);
                out.ms = t.elapsed();
                return out;
            });
@@ -1325,6 +1413,16 @@ void SessionDiagnostics::deliverReduction(WorkVerdict verdict, WorkResult &&resu
         m_lastReductionMs    = r->ms;
         m_diagnosis          = std::move(r->diagnosis);
         m_diagnosisInput     = m_askedInput;   // kept means latest: the input asked last (refactor 3.7-a)
+        // The day readings it was asked with (refactor 5.5d): the delivery readings read on the lane kept on their shots
+        // while each shot's document is still the one read; the cameras with their key.
+        for (auto it = r->day.read.constBegin(); it != r->day.read.constEnd(); ++it)
+            if (auto k = m_kept.find(it.key()); k != m_kept.end() && !k->deliveryRead && k->document == it->document) {
+                k->deliveryRead = true;
+                k->delivery     = it->delivery;
+            }
+        m_dayReadings = std::move(r->day.readings);
+        m_cameras     = r->day.cameras;
+        m_camerasKey  = r->day.camerasKey;
         m_summaryFingerprint = summaryFingerprint();   // its Session's shots as they are now (3.7-e)
         m_dirty              = true;   // the diagnosis state is written with what is kept (§4.4 step 8)
         ++m_counts.reductions;
@@ -1408,6 +1506,7 @@ analysis::SessionResults SessionDiagnostics::summary() const
     if (!m_diagnosis)
         return {};
     analysis::SessionResults r = m_diagnosis->results;
+    r.dayReadings = m_dayReadings;   // refactor 5.5d (DEC-74): what another session's Charts and report read of this one
     r.derivedFrom.fingerprint  = m_summaryFingerprint;
     r.derivedFrom.contentStamp = m_findingsStamp;
     r.derivedFrom.gradePolicy  = m_snapshot ? m_snapshot->inputs.gradePolicy : QString();

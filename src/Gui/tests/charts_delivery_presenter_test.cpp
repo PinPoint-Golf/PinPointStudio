@@ -25,12 +25,11 @@
 //   · plotLayers: the picked shot's address line, shoulder plane, slot and the hands' stretch (This shot), the
 //     session's medians and no stretch (Session) — the scope switch;
 //   · seekUsFor, the playhead's standfirst, a shot from its own detail, an empty model, the report's payload;
-//   · the golfer's day (session_delivery.h decision 13): a temp golfer folder with a sibling session of the same date,
-//     its swings as swing_phasegrid.json files only (written by the app's own savePhaseGrid), is pooled into the fit
-//     and the scatter, another date is not; a shot read from its sidecar agrees with the same shot read from the
-//     snapshot; the day is cached until its folders, or a grid or document inside them, change;
-//   · a copied day (issue #174): documents back at the whole second read as unchanged (no stale count), a re-analysed
-//     swing is counted ("One of them was cached before its swing was last changed."), its rebuilt grid is not.
+//   · the golfer's day (session_delivery.h decision 13), FROM THE OTHER SESSIONS' SUMMARIES (refactor 5.5d; DEC-74): a
+//     sibling session of the same day, its day readings made by the one rule off its shots' grids, handed in through
+//     the neighbours door, is pooled into the fit and the scatter, another day is not; a shot's day reading agrees
+//     with the same shot read from the snapshot; the presenter reads the day again when the athlete level changes;
+//   · a session of the day not summed up yet, or a newer build's, is left out and said in the trust note.
 
 #include "charts/charts_delivery_presenter.h"
 #include "charts/charts_gadget.h"   // the typed results as maps, for the assertions (refactor 5.5b)
@@ -38,7 +37,8 @@
 #include "charts/session_delivery.h"
 #include "charts/session_series_types.h"
 #include "Diagnostics/measures/measure_sample.h"
-#include "Export/swing_store.h"
+#include "Coaching/session_day_readings_rules.h"   // the day readings' one rule (refactor 5.5d)
+#include "charts/session_neighbours.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -141,6 +141,35 @@ QVariantMap detailOf(const ShotSeries &s)
     return { { QStringLiteral("club"), s.club }, { QStringLiteral("phases"), phases }, { QStringLiteral("series"), series },
              { QStringLiteral("impactUs"), qlonglong(s.impactUs) } };
 }
+
+// THE OTHER SESSIONS AS THEIR SUMMARIES HOLD THEM (refactor 5.5d): a sibling's day readings, by the one rule over each
+// shot's grid (swing number, fixture shot), and the neighbours of this session.
+NeighbourSession summed(const QString &folder, const QDate &day, int nOfDay, const std::vector<std::pair<int, int>> &shots)
+{
+    NeighbourSession o;
+    o.place = { folder, day, nOfDay };
+    o.readings.has = true;
+    for (const auto &[swing, i] : shots) {
+        pinpoint::analysis::SwingPhaseGrid g = deliveryPhaseGridOf(*makeShot(i));
+        g.ordinal = swing;
+        if (auto r = pinpoint::analysis::shotDeliveryReadingOf(pinpoint::analysis::deliveryGridNumbersOf(g), swing, g.ordinal))
+            o.readings.delivery.push_back(*r);
+    }
+    return o;
+}
+SessionNeighbours neighbours(const QString &sessionDir, const QDate &day, int nOfDay, std::vector<NeighbourSession> others)
+{
+    SessionNeighbours n;
+    n.known = true;
+    n.self = { QFileInfo(sessionDir).fileName(), day, nOfDay };
+    n.others = std::move(others);
+    return n;
+}
+// The process's door, for one test.
+struct DoorScope {
+    explicit DoorScope(SessionNeighbours n) { setNeighboursDoor({ [n](const QString &) { return n; }, {} }); }
+    ~DoorScope() { setNeighboursDoor({}); }
+};
 
 void hasKeys(const QVariantMap &m, const QStringList &keys, const char *what)
 {
@@ -369,47 +398,25 @@ private slots:
 
     void golfersDay()
     {
-        QTemporaryDir tmp;
-        QVERIFY(tmp.isValid());
-        const QString golfer = tmp.filePath(QStringLiteral("Golfer"));
+        const QString golfer = QStringLiteral("/fixture/Golfer");
         const QString cur = golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_01");
-        const QString sib = golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_02");
-        const QString other = golfer + QStringLiteral("/2026-10-21_Golfer_Wrist_01");
-        // a sibling's swing as its sidecar alone (no swing document; one gets a stand-in document of another size)
-        const auto writeGrid = [](const QString &session, int folder, int i, bool staleDoc) {
-            const QString dir = session + QStringLiteral("/swing_%1").arg(folder, 4, 10, QLatin1Char('0'));
-            QDir().mkpath(dir);
-            pinpoint::analysis::SwingPhaseGrid g = deliveryPhaseGridOf(*makeShot(i));
-            g.sessionId = QFileInfo(session).fileName();
-            g.ordinal = folder;
-            QFile f(dir + QStringLiteral("/swing_phasegrid.json"));
-            if (!f.open(QIODevice::WriteOnly)) return false;
-            f.write(QJsonDocument(pinpoint::analysis::savePhaseGrid(g, 1234, 5678)).toJson(QJsonDocument::Compact));
-            if (staleDoc) { QFile d(dir + QStringLiteral("/swing.ppsw")); if (d.open(QIODevice::WriteOnly)) d.write("x"); }
-            return true;
-        };
-        QVERIFY(QDir().mkpath(cur));
-        for (int k = 1; k <= 8; ++k) QVERIFY(writeGrid(sib, k, 6 + k, k == 1));     // shots 7..14 of the fit's line
-        for (int k = 1; k <= 8; ++k) QVERIFY(writeGrid(other, k, k, false));        // another date: never pooled
+        const QDate day(2026, 10, 20);
+        // the sibling: shots 7..14 of the fit's line, as swings 1..8; another day's eight never pooled
+        std::vector<std::pair<int, int>> sibShots, otherShots;
+        for (int k = 1; k <= 8; ++k) { sibShots.push_back({ k, 6 + k }); otherShots.push_back({ k, k }); }
+        SessionNeighbours n = neighbours(cur, day, 1, { summed(QStringLiteral("2026-10-21_Golfer_Wrist_01"), day.addDays(1), 1, otherShots),
+                                                        summed(QStringLiteral("2026-10-20_Golfer_Wrist_02"), day, 2, sibShots) });
+        DoorScope door(n);
 
-        // a shot read from its sidecar agrees with the same shot read from the snapshot
+        // a shot's day reading (its summary's) agrees with the same shot read from the snapshot: the one rule
         {
-            QFile f(sib + QStringLiteral("/swing_0003/swing_phasegrid.json"));
-            QVERIFY(f.open(QIODevice::ReadOnly));
-            bool ok = false;
-            const DeliveryShotInput a = deliveryInputFromPhaseGrid(QJsonDocument::fromJson(f.readAll()).object(), QStringLiteral("x"), &ok);
             const DeliveryShotInput b = deliveryInputFromShot(*makeShot(9));
-            QVERIFY(ok);
-            for (int p = 0; p < kDeliveryPositions; ++p) {
-                QCOMPARE(a.plane[size_t(p)], b.plane[size_t(p)]);
-                QCOMPARE(a.hands[size_t(p)], b.hands[size_t(p)]);
-            }
+            const pinpoint::analysis::ShotDeliveryReading &a = n.others[1].readings.delivery[2];   // the sibling's swing 3 = shot 9
+            QCOMPARE(a.shotId, 3);
+            QCOMPARE(a.planeP6, b.plane[5]);
             QCOMPARE(a.steepening, b.steepening);
-            QCOMPARE(a.shoulderPlane, b.shoulderPlane);
             QCOMPARE(a.lmPath, b.lmPath);
             QCOMPARE(a.lmAttack, b.lmAttack);
-            QCOMPARE(a.planeSigma, b.planeSigma);
-            QCOMPARE(a.session, QStringLiteral("2026-10-20_Golfer_Wrist_02"));
         }
 
         // this session: shots 1..6 (too few alone)
@@ -435,7 +442,8 @@ private slots:
         QCOMPARE(pool.value(QStringLiteral("sessions")).toInt(), 2);
         QCOMPARE(pool.value(QStringLiteral("shots")).toInt(), 14);
         QCOMPARE(pool.value(QStringLiteral("otherShots")).toInt(), 8);
-        QCOMPARE(pool.value(QStringLiteral("staleGrids")).toInt(), 1);
+        QCOMPARE(pool.value(QStringLiteral("notSummedUp")).toInt(), 0);
+        QCOMPARE(pool.value(QStringLiteral("newer")).toInt(), 0);
         const QVariantList pts = flight.value(QStringLiteral("scatter")).toMap().value(QStringLiteral("points")).toList();
         QCOMPARE(pts.size(), 14);
         int mine = 0, theirs = 0, picked = 0;
@@ -449,6 +457,7 @@ private slots:
                 // named by its place in the day (SessionIdentity's n-of-day, step 2.7b), numbered by its swing folder
                 QCOMPARE(m.value(QStringLiteral("sessionLabel")).toString(), QStringLiteral("session 2"));
                 QCOMPARE(m.value(QStringLiteral("shotNo")).toInt(), m.value(QStringLiteral("ordinal")).toInt());
+                QVERIFY(m.value(QStringLiteral("swingDir")).toString().startsWith(golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_02/swing_")));
             }
             if (m.value(QStringLiteral("picked")).toBool()) { ++picked; QVERIFY(m.value(QStringLiteral("thisSession")).toBool()); }
         }
@@ -461,74 +470,103 @@ private slots:
         QCOMPARE(s.value(QStringLiteral("headText")).toString(),
                  QStringLiteral("Your path follows your plane: steeper at P6 by a degree, 0.9° further left (14 shots on 20 Oct, 2 sessions)."));
         QCOMPARE(s.value(QStringLiteral("band")).toMap().value(QStringLiteral("n")).toInt(), 6);
-        // the report's page pools the same day
-        QCOMPARE(deliverySessionReportPayload(*snap).value(QStringLiteral("flight")).toMap().value(QStringLiteral("fit")).toMap()
-                     .value(QStringLiteral("n")).toInt(), 14);
-
+        // the report's page pools the same day from the same neighbours; with none, the session alone
         const auto nOf = [](const QVariantMap &section) {
             return section.value(QStringLiteral("flight")).toMap().value(QStringLiteral("fit")).toMap().value(QStringLiteral("n")).toInt();
         };
-        const auto reportN = [&]() { return nOf(deliverySessionReportPayload(*snap)); };
-
-        // CACHED PER DAY. A HIT: one sibling grid overwritten with unreadable bytes of the same size and given back its
-        // mtime, so no stat on the day moved. The caching presenter keeps its reading (n 14); the report, which never
-        // caches, reads the day afresh and loses that shot (n 13) — so the 14 is the cache, not a re-read.
-        {
-            const QString g4 = sib + QStringLiteral("/swing_0004/swing_phasegrid.json");
-            const QFileInfo before(g4);
-            const QDateTime was = before.lastModified();
-            QFile f(g4);
-            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            QCOMPARE(f.write(QByteArray(int(before.size()), '#')), before.size());
-            f.close();                                                     // written out first: a close after the stamp moves it
-            QVERIFY(f.open(QIODevice::ReadWrite));
-            QVERIFY(f.setFileTime(was, QFileDevice::FileModificationTime));
-            f.close();
-            QCOMPARE(QFileInfo(g4).lastModified(), was);
-            QCOMPARE(QFileInfo(g4).size(), before.size());
-        }
-        p.setPickedSwingDir(snap->shots[0]->swingDir);
-        QCOMPARE(nOf(chartsGadgetMap(p.thisShot())), 14);
-        QCOMPARE(reportN(), 13);
-        // the cache sees inside the swing folders (issue #174): a sidecar gone from one is re-read though the day's
-        // session folders stand — both of the day's changes now show (n 12) …
-        QVERIFY(QFile::remove(sib + QStringLiteral("/swing_0002/swing_phasegrid.json")));
-        p.setPickedSwingDir(snap->shots[1]->swingDir);
-        QCOMPARE(nOf(chartsGadgetMap(p.thisShot())), 12);
-        QCOMPARE(reportN(), 12);
-        // … and a new session folder on the day re-reads it: its one grid raises n
-        QVERIFY(writeGrid(golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_03"), 1, 8, false));
-        p.setPickedSwingDir(snap->shots[2]->swingDir);
-        QCOMPARE(nOf(chartsGadgetMap(p.thisShot())), 13);
-        QCOMPARE(reportN(), 13);
+        QCOMPARE(nOf(deliverySessionReportPayload(*snap, QStringLiteral("shots"), n)), 14);
+        QCOMPARE(nOf(deliverySessionReportPayload(*snap)), 6);
     }
 
-    // THE DAY UNDER EVERY NAMING PATTERN, AND "SHOT N" AFTER A GAP (step 2.7b, audit F-06 and E-06). The golfer's day is
-    // SessionIdentity's: under `name-date-type` no folder starts with its date, so the day used to be empty (no pool, the
-    // fit refused on six shots); now the sibling is pooled and named "session 2". This session lost swing 4 to the trash:
-    // its six shots are swings 1–3 and 5–7, and the kicker names the picked one by its swing number.
+    // THE DAY FOLLOWS THE ATHLETE LEVEL (refactor 5.5d): a summary written on the day (the athlete level's Changed, heard
+    // through the door's watch) reads the day again — a third session's one shot raises n.
+    void dayFollowsTheAthleteLevel()
+    {
+        const QString cur = QStringLiteral("/fixture/Golfer/2026-10-20_Golfer_Wrist_01");
+        const QDate day(2026, 10, 20);
+        std::vector<std::pair<int, int>> sibShots;
+        for (int k = 1; k <= 8; ++k) sibShots.push_back({ k, 6 + k });
+        auto held = std::make_shared<SessionNeighbours>(neighbours(cur, day, 1, { summed(QStringLiteral("2026-10-20_Golfer_Wrist_02"), day, 2, sibShots) }));
+        auto changed = std::make_shared<std::function<void()>>();
+        NeighboursDoor d;
+        d.read = [held](const QString &) { return *held; };
+        d.watch = [changed](QObject *, const QString &, std::function<void()> cb) { *changed = std::move(cb); return QList<QMetaObject::Connection>{}; };
+        setNeighboursDoor(d);
+        auto snap = std::make_shared<SessionSnapshot>();
+        snap->sessionDir = cur;
+        for (int i = 1; i <= 6; ++i) {
+            auto s = makeShot(i);
+            s->swingDir = cur + QStringLiteral("/swing_%1").arg(i, 4, 10, QLatin1Char('0'));
+            snap->shots.push_back(s);
+        }
+        ChartsDeliveryPresenter p;   // asynchronous: its job reads the door on the GUI thread and watches it
+        p.setSnapshot(snap);
+        QVERIFY(p.waitForIdle(20000));
+        const auto nOf = [&p]() { return chartsGadgetMap(p.session()).value(QStringLiteral("flight")).toMap().value(QStringLiteral("fit")).toMap().value(QStringLiteral("n")).toInt(); };
+        QCOMPARE(nOf(), 14);
+        QVERIFY(*changed);
+        held->others.push_back(summed(QStringLiteral("2026-10-20_Golfer_Wrist_03"), day, 3, { { 1, 8 } }));
+        (*changed)();
+        QTRY_VERIFY_WITH_TIMEOUT(!p.busy() && nOf() == 15, 20000);
+        setNeighboursDoor({});
+    }
+
+    // A SESSION OF THE DAY NOT SUMMED UP YET (a summary older than version 4: the catch-up writes it again, minutes after a
+    // new build's first launch), or a newer build's, is left out of the pool and said, never left out silently.
+    void dayNotSummedUp()
+    {
+        const QString cur = QStringLiteral("/fixture/Golfer/2026-10-20_Golfer_Wrist_01");
+        const QDate day(2026, 10, 20);
+        std::vector<std::pair<int, int>> sibShots;
+        for (int k = 1; k <= 8; ++k) sibShots.push_back({ k, 6 + k });
+        NeighbourSession notYet, newer;
+        notYet.place = { QStringLiteral("2026-10-20_Golfer_Wrist_03"), day, 3 };
+        notYet.state = NeighbourSession::State::NotYet;
+        newer.place = { QStringLiteral("2026-10-20_Golfer_Wrist_04"), day, 4 };
+        newer.state = NeighbourSession::State::Newer;
+        const SessionNeighbours n = neighbours(cur, day, 1, { summed(QStringLiteral("2026-10-20_Golfer_Wrist_02"), day, 2, sibShots), notYet, newer });
+        DoorScope door(n);
+        auto snap = std::make_shared<SessionSnapshot>();
+        snap->sessionDir = cur;
+        for (int i = 1; i <= 6; ++i) {
+            auto s = makeShot(i);
+            s->swingDir = cur + QStringLiteral("/swing_%1").arg(i, 4, 10, QLatin1Char('0'));
+            snap->shots.push_back(s);
+        }
+        ChartsDeliveryPresenter p;
+        p.setSynchronous(true);
+        p.setSnapshot(snap);
+        const QVariantMap sess = chartsGadgetMap(p.session());
+        const QVariantMap pool = sess.value(QStringLiteral("flight")).toMap().value(QStringLiteral("pool")).toMap();
+        QCOMPARE(pool.value(QStringLiteral("sessions")).toInt(), 2);
+        QCOMPARE(pool.value(QStringLiteral("otherShots")).toInt(), 8);
+        QCOMPARE(pool.value(QStringLiteral("notSummedUp")).toInt(), 1);
+        QCOMPARE(pool.value(QStringLiteral("newer")).toInt(), 1);
+        const QStringList lines = sess.value(QStringLiteral("trust")).toMap().value(QStringLiteral("lines")).toStringList();
+        QVERIFY2(lines.contains(QStringLiteral("One other session from this day isn't counted in the fits yet: it is still being brought up to date.")),
+                 qPrintable(lines.join(QLatin1Char('\n'))));
+        QVERIFY(lines.contains(QStringLiteral("One other session from this day isn't counted in the fits: this version of PinPoint Studio can't read it in full yet.")));
+        // a day whose only other session is not summed up yet: the session's own wording, and the line
+        DoorScope alone(neighbours(cur, day, 1, { notYet, notYet }));
+        p.setSnapshot(std::make_shared<SessionSnapshot>(*snap));
+        const QVariantMap s2 = chartsGadgetMap(p.session());
+        QCOMPARE(s2.value(QStringLiteral("flight")).toMap().value(QStringLiteral("pool")).toMap().value(QStringLiteral("sessions")).toInt(), 1);
+        QVERIFY(s2.value(QStringLiteral("trust")).toMap().value(QStringLiteral("lines")).toStringList()
+                    .contains(QStringLiteral("Two other sessions from this day aren't counted in the fits yet: they are still being brought up to date.")));
+    }
+
+    // "SHOT N" AFTER A GAP, AND THE DAY'S PLACE (step 2.7b, audit F-06 and E-06): the day's sessions are placed by the
+    // athlete level (SessionIdentity's n-of-day), never by folder names — under `name-date-type` no folder starts with its
+    // date. The sibling first in the day is "session 1". This session lost swing 4 to the trash: its six shots are swings
+    // 1–3 and 5–7, and the kicker names the picked one by its swing number.
     void golfersDayNameDateType()
     {
-        QTemporaryDir tmp;
-        QVERIFY(tmp.isValid());
-        const QString golfer = tmp.filePath(QStringLiteral("Golfer"));
-        const QString cur = golfer + QStringLiteral("/Golfer_2026-10-20_Wrist_02");
-        const QString sib = golfer + QStringLiteral("/Golfer_2026-10-20_Wrist_01");
-        const QString other = golfer + QStringLiteral("/Golfer_2026-10-21_Wrist_01");
-        const auto writeGrid = [](const QString &session, int folder, int i) {
-            const QString dir = session + QStringLiteral("/swing_%1").arg(folder, 4, 10, QLatin1Char('0'));
-            QDir().mkpath(dir);
-            pinpoint::analysis::SwingPhaseGrid g = deliveryPhaseGridOf(*makeShot(i));
-            g.sessionId = QFileInfo(session).fileName();
-            g.ordinal = folder;
-            QFile f(dir + QStringLiteral("/swing_phasegrid.json"));
-            if (!f.open(QIODevice::WriteOnly)) return false;
-            f.write(QJsonDocument(pinpoint::analysis::savePhaseGrid(g, 1234, 5678)).toJson(QJsonDocument::Compact));
-            return true;
-        };
-        QVERIFY(QDir().mkpath(cur));
-        for (int k = 1; k <= 8; ++k) QVERIFY(writeGrid(sib, k, 6 + k));
-        for (int k = 1; k <= 8; ++k) QVERIFY(writeGrid(other, k, k));      // another date: never pooled
+        const QString cur = QStringLiteral("/fixture/Golfer/Golfer_2026-10-20_Wrist_02");
+        const QDate day(2026, 10, 20);
+        std::vector<std::pair<int, int>> sibShots, otherShots;
+        for (int k = 1; k <= 8; ++k) { sibShots.push_back({ k, 6 + k }); otherShots.push_back({ k, k }); }
+        DoorScope door(neighbours(cur, day, 2, { summed(QStringLiteral("Golfer_2026-10-20_Wrist_01"), day, 1, sibShots),
+                                                 summed(QStringLiteral("Golfer_2026-10-21_Wrist_01"), day.addDays(1), 1, otherShots) }));
 
         auto snap = std::make_shared<SessionSnapshot>();
         snap->sessionDir = cur;
@@ -568,121 +606,6 @@ private slots:
         QCOMPARE(marks.size(), 6);
         QCOMPARE(marks[3].toMap().value(QStringLiteral("ordinal")).toInt(), 4);
         QCOMPARE(marks[3].toMap().value(QStringLiteral("shotNo")).toInt(), 5);
-    }
-
-    // A COPIED DAY (issue #174). macOS's rsync -a (openrsync) keeps each swing document's mtime to the whole second while its
-    // swing_phasegrid.json recorded it to the millisecond: the swings are unchanged, so no reading is "cached before its
-    // swing last changed". One swing re-analysed after the copy is counted, by the presenter's cached day as well as the
-    // report's uncached read; its grid rebuilt (as a regrade does) is counted no more — with no session folder touched.
-    void copiedDay()
-    {
-        QTemporaryDir tmp;
-        QVERIFY(tmp.isValid());
-        const QString golfer = tmp.filePath(QStringLiteral("Golfer"));
-        const QString cur = golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_01");
-        const QString sib = golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_02");
-        const qint64 copiedSec = 1794051638;                         // the second rsync kept
-        const auto swingOf = [&](int folder) { return sib + QStringLiteral("/swing_%1").arg(folder, 4, 10, QLatin1Char('0')); };
-        const auto setMtime = [](const QString &path, qint64 ms) {
-            QFile f(path);
-            return f.open(QIODevice::ReadWrite) && f.setFileTime(QDateTime::fromMSecsSinceEpoch(ms, QTimeZone::UTC),
-                                                                 QFileDevice::FileModificationTime);
-        };
-        // the swing document (a stand-in of `bytes` bytes at `docMs`) and its grid, stamped (bytes, stampMs)
-        const auto writeSwing = [&](int folder, int i, qint64 bytes, qint64 docMs, qint64 stampMs) {
-            const QString dir = swingOf(folder);
-            QDir().mkpath(dir);
-            QFile d(pinpoint::SwingStore::ppswPath(dir));
-            if (!d.open(QIODevice::WriteOnly | QIODevice::Truncate) || d.write(QByteArray(int(bytes), 'x')) != bytes) return false;
-            d.close();
-            pinpoint::analysis::SwingPhaseGrid g = deliveryPhaseGridOf(*makeShot(i));
-            g.sessionId = QFileInfo(sib).fileName();
-            g.ordinal = folder;
-            QFile f(dir + QStringLiteral("/swing_phasegrid.json"));
-            if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
-            f.write(QJsonDocument(pinpoint::analysis::savePhaseGrid(g, bytes, stampMs)).toJson(QJsonDocument::Compact));
-            f.close();
-            return setMtime(d.fileName(), docMs);
-        };
-        QVERIFY(QDir().mkpath(cur));
-        for (int k = 1; k <= 8; ++k)   // each grid built at …(100 k + 50) ms in the second the copy kept
-            QVERIFY(writeSwing(k, 6 + k, 4000 + k, copiedSec * 1000, copiedSec * 1000 + 100 * k + 50));
-        QCOMPARE(pinpoint::SwingStore::info(swingOf(3)).mtimeMs, copiedSec * 1000);
-
-        auto snap = std::make_shared<SessionSnapshot>();
-        snap->sessionDir = cur;
-        for (int i = 1; i <= 6; ++i) {
-            auto s = makeShot(i);
-            s->swingDir = cur + QStringLiteral("/swing_%1").arg(i, 4, 10, QLatin1Char('0'));
-            snap->shots.push_back(s);
-        }
-        ChartsDeliveryPresenter p;
-        p.setSynchronous(true);
-        p.setSnapshot(snap);
-        const auto pool = [](const QVariantMap &section) { return section.value(QStringLiteral("flight")).toMap().value(QStringLiteral("pool")).toMap(); };
-        const auto poolLine = [](const QVariantMap &section) {
-            for (const QString &l : section.value(QStringLiteral("trust")).toMap().value(QStringLiteral("lines")).toStringList())
-                if (l.startsWith(QStringLiteral("The fits pool your day"))) return l;
-            return QString();
-        };
-        const QString cachedWords = QStringLiteral("the other sessions' shots are read from their cached readings.");
-        const QString reportWords = QStringLiteral("the other sessions' swings are read from their cached readings.");
-
-        // the copy: nothing stale, on the presenter and on the report, read after read
-        for (int read = 0; read < 2; ++read) {
-            p.setPickedSwingDir(snap->shots[size_t(read)]->swingDir);
-            QCOMPARE(pool(chartsGadgetMap(p.thisShot())).value(QStringLiteral("otherShots")).toInt(), 8);
-            QCOMPARE(pool(chartsGadgetMap(p.thisShot())).value(QStringLiteral("staleGrids")).toInt(), 0);
-            QVERIFY2(poolLine(chartsGadgetMap(p.session())).endsWith(cachedWords), qPrintable(poolLine(chartsGadgetMap(p.session()))));
-            const QVariantMap report = deliverySessionReportPayload(*snap, QStringLiteral("swings"));
-            QCOMPARE(pool(report).value(QStringLiteral("staleGrids")).toInt(), 0);
-            QVERIFY2(poolLine(report).endsWith(reportWords), qPrintable(poolLine(report)));
-        }
-
-        // one swing re-analysed after the copy: a new document (another size, a later time) beside its old grid. Only the
-        // file inside the swing folder changed; the cached day sees it.
-        {
-            QFile d(pinpoint::SwingStore::ppswPath(swingOf(3)));
-            QVERIFY(d.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            d.write(QByteArray(5003, 'y'));
-            d.close();
-            QVERIFY(setMtime(d.fileName(), (copiedSec + 600) * 1000 + 125));
-        }
-        const QString one = QStringLiteral(" One of them was cached before its swing was last changed.");
-        p.setPickedSwingDir(snap->shots[2]->swingDir);
-        QCOMPARE(pool(chartsGadgetMap(p.thisShot())).value(QStringLiteral("staleGrids")).toInt(), 1);
-        QVERIFY2(poolLine(chartsGadgetMap(p.session())).endsWith(cachedWords + one), qPrintable(poolLine(chartsGadgetMap(p.session()))));
-        QCOMPARE(pool(deliverySessionReportPayload(*snap, QStringLiteral("swings"))).value(QStringLiteral("staleGrids")).toInt(), 1);
-        // a second re-analysed swing, said in words and the plural
-        {
-            QFile d(pinpoint::SwingStore::ppswPath(swingOf(5)));
-            QVERIFY(d.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            d.write(QByteArray(5005, 'y'));
-            d.close();
-            QVERIFY(setMtime(d.fileName(), (copiedSec + 700) * 1000));
-        }
-        p.setPickedSwingDir(snap->shots[3]->swingDir);
-        QCOMPARE(pool(chartsGadgetMap(p.thisShot())).value(QStringLiteral("staleGrids")).toInt(), 2);
-        QVERIFY2(poolLine(chartsGadgetMap(p.session())).endsWith(QStringLiteral(" Two of them were cached before their swings were last changed.")),
-                 qPrintable(poolLine(chartsGadgetMap(p.session()))));
-
-        // their grids rebuilt, stamped from the new documents as readPhaseGrid's rebuild stamps them: the cached day
-        // re-reads (no session folder changed) and counts none
-        for (int k : { 3, 5 }) {
-            const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(swingOf(k));
-            pinpoint::analysis::SwingPhaseGrid g = deliveryPhaseGridOf(*makeShot(6 + k));
-            g.sessionId = QFileInfo(sib).fileName();
-            g.ordinal = k;
-            QFile f(swingOf(k) + QStringLiteral("/swing_phasegrid.json"));
-            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            f.write(QJsonDocument(pinpoint::analysis::savePhaseGrid(g, doc.size, doc.mtimeMs)).toJson(QJsonDocument::Compact));
-            f.close();
-            QVERIFY(setMtime(f.fileName(), (copiedSec + 900 + k) * 1000 + 1));   // the grid's own stat moves, whatever the clock
-        }
-        p.setPickedSwingDir(snap->shots[4]->swingDir);
-        QCOMPARE(pool(chartsGadgetMap(p.thisShot())).value(QStringLiteral("staleGrids")).toInt(), 0);
-        QVERIFY2(poolLine(chartsGadgetMap(p.session())).endsWith(cachedWords), qPrintable(poolLine(chartsGadgetMap(p.session()))));
-        QCOMPARE(pool(deliverySessionReportPayload(*snap, QStringLiteral("swings"))).value(QStringLiteral("staleGrids")).toInt(), 0);
     }
 
     // The asynchronous path: one coalesced job, delivered by a queued call.

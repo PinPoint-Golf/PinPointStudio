@@ -51,6 +51,7 @@
 #include "shot_outcomes.h"
 #include "strike_from_flight.h"
 #include "board_annotations.h"   // kBoardAnnotationRuleVersion: a fact's rule (review 2 of 3.6)
+#include "session_day_readings.h"   // version 4's day readings (refactor 5.5d; DEC-74)
 #include "swing_themes.h"   // ThemeShot (DEC-192 as amended, round 3)
 #include "tendencies.h"
 #include "work_ons.h"
@@ -95,7 +96,14 @@ static_assert(int(LinkGrade::Unanchored) == 0 && int(LinkGrade::PresentTogether)
 //   kBoardAnnotationRuleVersion; review 2 of 3.6), and facts made under another rule read as absent, in either mode — so
 //   a bump of any of them leaves the athlete level without that session's facts until its summary is written again
 //   (the derived stamp, and so the summary's fingerprint, hashes the same three).
-inline constexpr int kSessionResultsVersion = 3;
+// 4 (23 Nov 2026, refactor 5.5d; DEC-74, the Solution Architect's "You can grow the summary file to support this"): the
+//   DAY READINGS (`dayReadings`, session_day_readings.h) another session's Charts and report read of this one — per shot
+//   its delivery readings and its readings at address, and the session's cameras — so they read it through its summary,
+//   never its files. A version 1–3 file reads without them (`dayReadings.has` false: a reader says it is not summed up
+//   yet). The bump is in the fingerprint (summaryFingerprintOf), so every summary is written again once by the catch-up;
+//   an older build reads a version 4 file as a newer build's and leaves it alone (R-PERS-3). The rules that make them
+//   (session_day_readings_rules.h) change only with a bump of this version.
+inline constexpr int kSessionResultsVersion = 4;
 
 // ── FIELD-LIST §3.1: one club's carry today against the FROZEN usual ─────────────────────────────────────────────
 struct ClubCarryToday {
@@ -205,6 +213,9 @@ struct SessionResults {
     std::vector<ThemeShot>                      themeShots;
     QHash<int, QString>                         shotIntents;          // resolved; only where there is one
     QHash<int, std::vector<ShotCorrection>>     shotCorrections;
+    // Version 4 (refactor 5.5d; DEC-74): what another session's Charts and report read of this one. `has` false: an
+    // older file, read without them.
+    SessionDayReadings                          dayReadings;
 };
 
 // ── JSON ──────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -574,6 +585,10 @@ inline QJsonObject sessionResultsToJson(const SessionResults &r)
         root.insert(QStringLiteral("shotIntents"), intents);
         root.insert(QStringLiteral("shotCorrections"), shotCorrectionsToJson(r.shotCorrections));
     }
+    // Version 4: the day readings, when they were made (the session's SessionDiagnostics always makes them; an empty block
+    // is a session with none).
+    if (r.dayReadings.has)
+        root.insert(QStringLiteral("dayReadings"), sessionDayReadingsToJson(r.dayReadings));
     return root;
 }
 
@@ -740,6 +755,8 @@ inline SessionResults sessionResultsFromJson(const QJsonObject &root, SessionRes
         r.shotIntents     = shotIntentsFromJson(src.value(QStringLiteral("shotIntents")).toObject());
         r.shotCorrections = shotCorrectionsFromJson(src.value(QStringLiteral("shotCorrections")).toObject());
     }
+    if (version >= 4)
+        r.dayReadings = sessionDayReadingsFromJson(src.value(QStringLiteral("dayReadings")));
     return r;
 }
 

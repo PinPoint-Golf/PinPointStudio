@@ -29,6 +29,7 @@
 #include "../../Metrics/gate_catalogue.h"                // a gate's words for a refused reading
 #include "../../Analysis/route_substitution.h"           // substitutedGapGate: a gap in a substituted reading
 #include "../../Coaching/diagnostic_ledger.h"            // conditionTier, wilsonLowerBound: the session's pattern gate
+#include "../../Coaching/session_day_readings_rules.h"   // isAddressAbsolute: the address block's measures (refactor 5.5d)
 
 #include <QHash>
 #include <QJsonArray>
@@ -831,9 +832,9 @@ PostureEnv postureEnv(const pa::CharacteristicPack *pack, std::shared_ptr<const 
     if (pack) {
         e.faultLinks = faultLinksOf(*pack);
         for (const pa::Measure &m : pack->measures) {
-            if (!m.rigSensitive || m.kind == pa::MeasureKind::Composite) continue;
+            // THE ONE RULE (refactor 5.5d): the measures the session summary's address readings carry, too.
+            if (!pa::isAddressAbsolute(m)) continue;
             const QStringList ladder = pa::measureKeyLadder(m);
-            if (ladder.isEmpty()) continue;
             PostureAbsoluteSpec a;
             a.measureId = m.id; a.label = m.label.isEmpty() ? m.id : m.label; a.unit = m.unit; a.metricKey = ladder.front();
             // the golfer's words, the block's title saying "at address" once
@@ -1474,6 +1475,18 @@ QStringList addressLines(const std::vector<PostureAbsoluteView> &rows, const std
                               v.unrecorded == 1 ? QStringLiteral("it is") : QStringLiteral("they are"));
             out << l;
         }
+        // THE EARLIER SESSIONS NOT IN THE BOX (refactor 5.5d): their summaries still being brought up to date, or a newer
+        // build's
+        if (h && h->notSummedUp > 0)
+            out << (h->notSummedUp == 1
+                        ? QStringLiteral("One of your earlier sessions isn't counted here yet: it is still being brought up to date.")
+                        : QStringLiteral("%1 of your earlier sessions aren't counted here yet: they are still being brought up to date.")
+                              .arg(W::cap1(W::word(h->notSummedUp))));
+        if (h && h->newer > 0)
+            out << (h->newer == 1
+                        ? QStringLiteral("One of your earlier sessions isn't counted here: this version of PinPoint Studio can't read it in full yet.")
+                        : QStringLiteral("%1 of your earlier sessions aren't counted here: this version of PinPoint Studio can't read them in full yet.")
+                              .arg(W::cap1(W::word(h->newer))));
         // the earlier sessions' swings with a data warning: counted, as this session's box counts its own
         if (h && h->dataWarned > 0)
             out << QStringLiteral("Your earlier sessions include %1 with a data warning (a recording flagged as possibly broken); "

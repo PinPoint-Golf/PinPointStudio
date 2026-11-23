@@ -38,11 +38,13 @@
 
 #include "recording_repository.h"                     // ShotReview
 #include "../Diagnostics/engine/fire_findings.h"      // FiringReadings
+#include "../Coaching/session_day_readings.h"         // SessionCameras (refactor 5.5d)
 #include "../Identity/identity.h"
 
 #include <QString>
 #include <QtGlobal>
 
+#include <optional>
 #include <vector>
 
 namespace pinpoint {
@@ -88,6 +90,23 @@ public:
     // The shot's review alone (the document's root, never its tracks): what a derive reads for a shot whose kept
     // result came from the file, which holds no golfer input (review 1 of 3.5-i, C1). Any thread.
     virtual ShotReview review(const ShotRef &shot) const = 0;
+
+    // THE SUMMARY'S DAY READINGS (refactor 5.5d; DEC-74): what the session's SessionDiagnostics reads of a shot whose kept
+    // result came from the file (a fired shot hands its grid over from read()). Any thread; nothing is written.
+    //   phaseGrid  the shot's phase grid as read() reads it for `pack` (its sidecar when current, else one parse of the
+    //              document); none when the session is not open or there is no document.
+    //   cameras    the cameras its document's streams record, by view; `known` false when no document could be read.
+    // A reader that has none (a test double) answers none: the summary then carries no delivery readings or cameras.
+    virtual std::optional<analysis::SwingPhaseGrid> phaseGrid(const ShotRef &shot, const analysis::CharacteristicPack &pack) const
+    {
+        Q_UNUSED(shot) Q_UNUSED(pack)
+        return std::nullopt;
+    }
+    virtual analysis::SessionCameras cameras(const ShotRef &shot) const
+    {
+        Q_UNUSED(shot)
+        return {};
+    }
 };
 
 } // namespace pinpoint

@@ -239,8 +239,11 @@ The section's reason to exist (§2.2).
 - **What is fitted:** per golfer, over the shots the section can see that have both readings: monitor path
   against the swing plane at P6, and against the hand-plane steepening; monitor attack against the plane at P6.
   Least squares, slope, intercept, r, the residual scatter and n. In v1 that is **the golfer's day**: this
-  session and the golfer's other sessions on the same date, read from their `swing_phasegrid.json` files (small,
-  and they already carry the plane and the `lm.*` values). "The same date" is the sessions' own local day
+  session and the golfer's other sessions on the same date, read from **their session summaries**: each
+  session's `work_ons.json` carries, per shot, the plane at P6, the hands' steepening and the monitor's path and
+  attack (`dayReadings.delivery`), written by that session's own diagnostics off its shots' phase grids by the same
+  rule this section uses (`delivery_grid_numbers.h`), and read through the athlete level's session index, never the
+  other session's files[^dec-74-sum]. "The same date" is the sessions' own local day
   (`SessionIdentity`, by start time; a session older than step 2 by the day in its folder's name, under every
   naming pattern), and the scatter names another session's dots by its place in that day ("session 2, shot 5":
   n-of-day and the swing number) — never parsed from a folder name (step 2.7b, F-06). A day is one camera set-up, so the uncalibrated
@@ -317,12 +320,11 @@ In the fold under the plot, once:
 - where the hands carry the curve, and why (the shaft points along the target line);
 - each fit's n, r and that it is this golfer's own;
 - the monitor's role (primary) and which readings it lacked on this session (5 Oct: no face, no lie);
-- the pool's source: the day's other sessions are read from their cached readings (`swing_phasegrid.json`), and
-  how many of those were cached before their swing was last changed ("One of them was cached before its swing was
-  last changed."). That count uses the grid reader's own stamp rule (`SwingStore::sameDocumentStamp`: same size,
-  same mtime — to the whole second when the document's mtime has no milliseconds), so a copied or restored day
-  whose swings are unchanged counts none. The presenter's cached day is stamped by every sibling swing's grid and
-  document as well as the session folders, so a grid a regrade rebuilds is re-read and stops counting (issue #174);
+- the pool's source: the day's other sessions are read from their cached readings, now their session summaries
+  (above). A session of the day whose summary is not brought up to date yet, or was written by a newer version, is
+  left out of the pool and said ("One other session from this day isn't counted in the fits yet: it is still being
+  brought up to date."). That state lasts until the catch-up writes its summary again, minutes after a new version's
+  first launch[^dec-74-sum];
 - the literature line of §3, briefly.
 
 Nothing in the body repeats it.
@@ -543,3 +545,5 @@ tools/diagnostics/club_delivery_extract.py fits    docs/research/data/club_deliv
 a412aed3). The curve values come from each swing's `swing_phasegrid.json` (the app's own sampler); the monitor
 values and the shoulder plane from `swing.ppsw`. The slot counts of §2.3 and the swing pair of §2.4 are read
 from the same CSV.
+
+[^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `docs/developer/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d. Before it, the presenter read the other sessions' `swing_phasegrid.json` itself, and the trust note counted the readings "cached before their swing was last changed" (issue #174). That count has gone: a summary is written again whenever one of its swings changes.

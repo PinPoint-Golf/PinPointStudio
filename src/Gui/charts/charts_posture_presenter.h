@@ -20,6 +20,8 @@
 
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include "session_series_types.h"
+#include "session_posture.h"      // PostureAddressHistory, PostureEnv
+#include "session_neighbours.h"   // the golfer's other sessions, from their summaries (refactor 5.5d)
 
 #include <QObject>
 #include <QHash>
@@ -177,7 +179,8 @@
 //              band yet"), bandSource, bandContext, bandInherited, box: BOX (this session's shots), boxN, boxText ("this
 //              session: median 39°, n 10"), values: [per shot, index = ordinal − 1], dot (This shot: = value; Session null),
 //              history: BOX | null (the golfer's EARLIER sessions from the same set-up: the same view and camera serial —
-//              where the camera stood is recorded by nothing — each session's ledger `value` per swing), historyN,
+//              where the camera stood is recorded by nothing — each session's ledger `value` per swing, as its summary's
+//              day readings carry it: refactor 5.5d, postureHistoryFrom), historyN,
 //              historySessions, hasHistory, historyText ("your earlier sessions: median 38°, n 34 shots over 4 sessions"),
 //              historyWhy ("No earlier session of yours from this set-up yet." | ""), warned (true until a capture can be
 //              declared trusted), warn ("⚠"), warnShort ("depends on where the camera stands"), xLo, xHi (the row's
@@ -219,8 +222,20 @@ namespace pinpoint::charts {
 // It adds `picture` (posture_picture.h) for the session's TYPICAL swing — the one whose distance to the session's
 // pattern is nearest the session's median distance — with `typical` ("A typical swing: swing 4", the presenter's
 // ordinal: the report renumbers it) and `typicalWhy`; its frames carry their `still` and no `src` (the report makes them).
+// `neighbours`: the golfer's other sessions from their summaries (refactor 5.5d; DEC-74), taken by the caller on the GUI
+// thread from the session's athlete level (neighboursFrom); none (the default): no earlier session.
 QVariantMap postureSessionReportPayload(const SessionSnapshot &snapshot, int patternMode = -1,
-                                        const QString &noun = QStringLiteral("shots"));
+                                        const QString &noun = QStringLiteral("shots"), const SessionNeighbours &neighbours = {});
+
+// THE "AT ADDRESS" HISTORY (§7.4.2; refactor 5.5d): the golfer's EARLIER sessions (every one, not only the day's), from their
+// summaries' day readings, kept per view on this session's camera (`mine`: this session's own, off its first swing
+// document); one not summed up yet, or a newer build's, counted and said. Values only: no file is read.
+PostureAddressHistory postureHistoryFrom(const SessionNeighbours &neighbours, const pinpoint::analysis::SessionCameras &mine,
+                                         const PostureEnv &env);
+// The report's page over a history already made (the parity tool's seam: tools/diagnostics/day_readings_dump.cpp sets the
+// history the old reader read beside the one from the summaries).
+QVariantMap postureSessionReportPayloadOfHistory(const SessionSnapshot &snapshot, int patternMode, const QString &noun,
+                                                 const PostureAddressHistory &history);
 
 class ChartsPosturePresenter : public QObject
 {
@@ -311,6 +326,7 @@ public:
         QString against = QStringLiteral("address");
         int pattern = -1;
         QString referenceSwingDir;
+        SessionNeighbours neighbours;   // the golfer's other sessions (refactor 5.5d): taken on the GUI thread
     };
     struct Result;
     struct Worker;
@@ -329,8 +345,11 @@ private:
     void flushIfSynchronous();
     void updateSelected(bool force);
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
+    void watchHistory(const QString &sessionDir);   // the athlete level of the session's history (refactor 5.5d)
 
     Inputs m_in;
+    QString m_watchedDir;
+    QList<QMetaObject::Connection> m_historyWatch;
     QPointer<SeriesSource> m_model;
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     qint64 m_playheadUs = -1;

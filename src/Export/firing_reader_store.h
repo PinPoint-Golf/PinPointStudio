@@ -61,6 +61,11 @@ public:
     FiringRead    read(const ShotRef &shot, const analysis::CharacteristicPack &pack) const override;
     DocumentStamp stamp(const ShotRef &shot) const override;
     ShotReview    review(const ShotRef &shot) const override;
+    // The summary's day readings (refactor 5.5d; DEC-74): the grid exactly as read() reads it (its sidecar written, as
+    // read()'s is, only under this reader's policy, the lock and outside the archive window), and the first stream
+    // block's cameras (SwingStore::loadAnalysis: the root chunk, never the tracks).
+    std::optional<analysis::SwingPhaseGrid> phaseGrid(const ShotRef &shot, const analysis::CharacteristicPack &pack) const override;
+    analysis::SessionCameras                cameras(const ShotRef &shot) const override;
 
 private:
     const SessionRepository &m_sessions;

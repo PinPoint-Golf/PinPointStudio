@@ -976,7 +976,13 @@ absolutes. The upgrade, if per-club pattern rows are ever needed, is a fourth op
    - its number;
    - the good-player band, keyed by club where a source gives one, for example trunk bend at address
      against Kim's 40.6 ± 2.7° (5-iron);
-   - the golfer's own sessions from the same set-up, as a box beside it;
+   - the golfer's own sessions from the same set-up, as a box beside it. These are every earlier session (not only
+     the day's), read from **their session summaries**: per swing the reading as that session's diagnostics graded
+     it, and the session's cameras by view (`dayReadings.address`, `dayReadings.cameras`), through the athlete level's
+     session index, never the other session's files[^dec-74-sum]. An earlier session not brought up to date yet, or
+     written by a newer version, is left out of the box and said ("One of your earlier sessions isn't counted here
+     yet: it is still being brought up to date."). This session's own cameras still come from its first swing
+     document, because a live session has no summary yet;
    - a ⚠ with the short words "depends on where the camera stands".
 3. **The trust fold says why once**, in these words: *"How bent you are at address depends on where the
    camera stands, so read the good-player band as a guide and your own sessions from this set-up as the
@@ -1153,3 +1159,5 @@ for name, g in G.items():
 (The §7.1 seed for trunk bend at P7 is −6…0, μ −3. This appendix uses Kim's −6 as μ. With μ −3 the
 distances are Mark 1.39 / 1.52, Nick 1.61 / 1.79, Jess 1.48 / 1.37 (Level / Squat and push): no
 golfer's nearest pattern changes.)
+
+[^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `docs/developer/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.

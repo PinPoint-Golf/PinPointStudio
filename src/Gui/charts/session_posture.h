@@ -292,6 +292,10 @@ struct PostureAddressHistory {
     QHash<QString, std::vector<double>> values;   // measureId → one reading per swing, the kept sessions'
     QHash<QString, int> sessions;              // measureId → the kept sessions those readings came from
     int dataWarned = 0;                        // swings with a data warning among the kept readings (counted, as the session box counts its own)
+    // The earlier sessions with shots left out of the box (refactor 5.5d): their summaries not summed up yet (the
+    // catch-up's to write), or a newer build's. Said in the block's trust lines (show with a warning, never hide).
+    int notSummedUp = 0;
+    int newer = 0;
 };
 
 // The pack and the norms the section reads, with both patterns' bands resolved once.

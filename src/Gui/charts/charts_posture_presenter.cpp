@@ -34,8 +34,7 @@
 #include "../../Diagnostics/engine/condition_reading.h"
 #include "../../Export/swing_store.h"
 #include "../../Export/swing_paths.h"
-#include "../../Export/session_diagnostics_files.h"   // diagnostics.json's one reader (step 2.5)
-#include "../../Coaching/diagnostic_ledger.h"   // the ledger's own deserialiser: the earlier sessions' readings
+#include "../../Coaching/session_day_readings_rules.h"   // sessionCamerasOf: this session's cameras (refactor 5.5d)
 
 #include <QCoreApplication>
 #include <QDate>
@@ -109,10 +108,10 @@ struct ChartsPosturePresenter::Worker {
     QMutex stillMutex;
     QHash<QString, QString> stillErrors;
 
-    // the "At address" block's history (the golfer's earlier sessions from the same set-up), by the session folder
-    // and the stamp of every sibling ledger (readAddressHistory)
-    QString histStamp;
-    PostureAddressHistory hist;
+    // THIS session's cameras, off its first swing document (the earlier sessions' come from their summaries: refactor
+    // 5.5d), kept per session folder once read
+    QString camerasDir;
+    pinpoint::analysis::SessionCameras cameras;
 
     // The env the caches above were read through (postureSharedEnv's snapshot). A new one — the shared
     // norm set moved after a corridor save — empties them, so no shot keeps an input read over the old.
@@ -614,134 +613,73 @@ QVariantMap addressMapOf(const std::vector<PostureAbsoluteView> &rows, const QSt
 
 // ── the golfer's earlier sessions from the same set-up (§7.4.2) ──
 
-// A session's cameras, from its first swing document's streams: the view each stands on (setup.perspectiveName,
-// else the alias) and its serial (source.serial). `known` false when no document was read.
-struct SessionCameras { bool known = false; std::array<bool, 2> present{}; std::array<QString, 2> serial; };
-SessionCameras camerasOf(const QString &sessionDir)
+// THIS session's cameras, from its first swing document's streams (the one rule: session_day_readings_rules.h
+// sessionCamerasOf). `known` false when no document was read. The earlier sessions' cameras are their summaries'.
+pa::SessionCameras camerasOf(const QString &sessionDir)
 {
-    SessionCameras c;
     const QDir sd(sessionDir);
     const QStringList swings = pinpoint::SwingPaths::swingFolders(sessionDir);   // THE one listing (step 2.7b)
     for (const QString &sw : swings) {
         const QString dir = sd.filePath(sw);
         if (!pinpoint::SwingStore::hasDocument(dir)) continue;
-        const QJsonObject root = pinpoint::SwingStore::loadAnalysis(dir);
-        if (root.isEmpty()) continue;
-        c.known = true;
-        for (const QJsonValue &sv : root.value(QStringLiteral("streams")).toArray()) {
-            const QJsonObject st = sv.toObject();
-            if (st.value(QStringLiteral("kind")).toString() != QLatin1String("video")) continue;
-            const QString persp = st.value(QStringLiteral("setup")).toObject().value(QStringLiteral("perspectiveName")).toString();
-            const QString alias = st.value(QStringLiteral("alias")).toString();
-            int cam = -1;
-            if (persp == QLatin1String("DownTheLine") || (persp.isEmpty() && alias.compare(QLatin1String("DTL"), Qt::CaseInsensitive) == 0))
-                cam = int(PostureCamera::Dtl);
-            else if (persp == QLatin1String("FaceOn") || (persp.isEmpty() && alias.startsWith(QLatin1String("Face"), Qt::CaseInsensitive)))
-                cam = int(PostureCamera::FaceOn);
-            if (cam < 0) continue;
-            c.present[size_t(cam)] = true;
-            c.serial[size_t(cam)] = st.value(QStringLiteral("source")).toObject().value(QStringLiteral("serial")).toVariant().toString();
-        }
-        break;
+        const pa::SessionCameras c = pa::sessionCamerasOf(pinpoint::SwingStore::loadAnalysis(dir));
+        if (c.known) return c;
     }
-    return c;
+    return {};
 }
 
-// A measure's graded reading on one ledger shot: a row driven or read by it that the engine could assess, else a
-// composite's part read by it. NaN when the shot carries none.
-// A shot with a DATA WARNING (fireFindings) has every row turned NotAssessable after it was read,
-// its value kept: such a row counts when the corridor was applied to it (corridorHi > corridorLo) — it was measured
-// and then withheld, unlike a row the engine never assessed, whose 0 nobody measured.
-double ledgerReading(const pa::ShotRecord &shot, const QString &measureId)
+const pa::SessionCameraView &viewOf(const pa::SessionCameras &c, int cam)
 {
-    for (const pa::ConditionRow &r : shot.rows) {
-        if (r.state == pa::ShotState::NotAssessable && !(shot.dataWarning && r.corridorHi > r.corridorLo)) continue;
-        for (const pa::MeasureRow &m : pa::rowReadings(r))
-            if (m.measureId == measureId && fin(m.value)) return m.value;
-    }
-    for (const pa::ConditionRow &r : shot.rows) {
-        for (const pa::CompositePartRow &p : r.composite.parts)
-            if (p.measureId == measureId && fin(p.value)) return p.value;
-        for (const pa::MeasureRow &m : r.readings)
-            for (const pa::CompositePartRow &p : m.composite.parts)
-                if (p.measureId == measureId && fin(p.value)) return p.value;
-    }
-    return kNaN;
+    return cam == int(PostureCamera::Dtl) ? c.dtl : c.faceOn;
 }
 
-// The stamp of what the history reads: the session folder and every sibling ledger's name, size and time.
-QString addressHistoryStamp(const QString &sessionDir)
-{
-    const QFileInfo fi(cleanDir(sessionDir));
-    if (sessionDir.trimmed().isEmpty() || !fi.isDir()) return cleanDir(sessionDir) + QStringLiteral("|none");
-    QStringList parts{ fi.absoluteFilePath() };
-    const QDir athlete = fi.dir();
-    for (const QString &name : athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-        const QFileInfo d(pinpoint::SessionFiles::diagnosticsFile(athlete.filePath(name)));
-        if (d.exists()) parts << QStringLiteral("%1:%2:%3").arg(name).arg(d.size()).arg(d.lastModified().toMSecsSinceEpoch());
-    }
-    return parts.join(QLatin1Char('|'));
-}
+} // namespace
 
-// THE HISTORY: every EARLIER session in the athlete folder — earlier by SessionIdentity's place (an earlier local day,
-// or the same day and a lower n-of-day, by start time: SessionDiagnosticsFiles::sessionPlaces, step 2.7b), never by
-// folder-name order, which `name-date-type` and a renamed athlete's folders break (F-06); a session with no day has
-// no history — whose diagnostics ledger reads the measure, kept per view when its camera on
-// that view is this session's (by serial; a serial not recorded on either side keeps it, counted as unrecorded).
-// One reading per swing: the ledger's graded value — the measure engine's own number, as Session diagnostics graded it.
-PostureAddressHistory readAddressHistory(const QString &sessionDir, const PostureEnv &env)
+// THE HISTORY (refactor 5.5d; DEC-74): every EARLIER session of the golfer — earlier by SessionIdentity's place, as the
+// athlete level places them (an earlier local day, or the same day and a lower n-of-day), never by folder-name order
+// (F-06); a session with no day has no history — from ITS SUMMARY's day readings, never its files: per swing the
+// measure's graded reading as its own SessionDiagnostics wrote it (`dayReadings.address`, off the rows its diagnostics
+// file holds), kept per view when its camera on that view is this session's (`dayReadings.cameras`, by serial; a serial
+// not recorded on either side keeps it, counted as unrecorded). An earlier session not summed up yet, or a newer build's,
+// is counted and said (notSummedUp, newer).
+PostureAddressHistory postureHistoryFrom(const SessionNeighbours &n, const pa::SessionCameras &mine, const PostureEnv &env)
 {
     PostureAddressHistory h;
-    const QFileInfo fi(cleanDir(sessionDir));
-    if (sessionDir.trimmed().isEmpty() || !fi.isDir()) return h;
-    const QDir athlete = fi.dir();
-    if (!athlete.exists()) return h;
     h.looked = true;
-    const SessionCameras mine = camerasOf(fi.absoluteFilePath());
     for (int c = 0; c < 2; ++c) {
         h.views[size_t(c)].known = mine.known;
-        h.views[size_t(c)].present = mine.present[size_t(c)];
-        h.views[size_t(c)].serial = mine.serial[size_t(c)];
+        h.views[size_t(c)].present = viewOf(mine, c).present;
+        h.views[size_t(c)].serial = viewOf(mine, c).serial;
     }
-    const QList<pinpoint::SessionIndexEntry> places = pinpoint::SessionDiagnosticsFiles::sessionPlaces(athlete.absolutePath());
-    const pa::SessionPlace me = pinpoint::SessionDiagnosticsFiles::placeOf(places, fi.absoluteFilePath());
-    std::vector<std::pair<pa::SessionPlace, QString>> earlier;   // oldest first
-    if (me.day.isValid())
-        for (const pinpoint::SessionIndexEntry &e : places) {
-            const pa::SessionPlace p{ e.identity.folderName(), e.identity.localDay(), e.identity.nOfDay() };
-            if (p.day.isValid() && pa::sessionPlaceBefore(p, me)) earlier.emplace_back(p, e.folder);
-        }
-    std::stable_sort(earlier.begin(), earlier.end(), [](const auto &a, const auto &b) { return pa::sessionPlaceBefore(a.first, b.first); });
-    for (const auto &[place, dir] : earlier) {
-        Q_UNUSED(place)
-        // Through the envelope's one reader (step 2.5).
-        const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(dir);
-        if (!read.parsed()) continue;
-        const std::vector<pa::ShotRecord> shots = pa::fromJson(read.envelope.ledger);
+    if (!n.known || !n.self.day.isValid()) return h;
+    for (const NeighbourSession &o : n.others) {   // oldest first
+        if (!o.place.day.isValid() || !pa::sessionPlaceBefore(o.place, n.self)) continue;
+        if (o.state == NeighbourSession::State::NotYet) { ++h.notSummedUp; continue; }
+        if (o.state == NeighbourSession::State::Newer) { ++h.newer; continue; }
         QHash<QString, std::vector<double>> got;
         std::array<int, 2> swingsWith{};
         // A swing with a data warning COUNTS, as it does in this session's box (the session's shots are boxed
         // whatever their warning): the two medians side by side are one rule. How many are in is said once
         // (addressLines). One swing read on both views is one swing.
         std::vector<std::array<bool, 2>> warnedWith;
-        for (const pa::ShotRecord &shot : shots) {
+        for (const pa::ShotAddressReading &shot : o.readings.address) {
             std::array<bool, 2> any{};
             for (const PostureAbsoluteSpec &sp : env.absolutes) {
-                const double v = ledgerReading(shot, sp.measureId);
-                if (!fin(v)) continue;
-                got[sp.measureId].push_back(v);
+                const auto v = shot.values.constFind(sp.measureId);
+                if (v == shot.values.constEnd() || !fin(*v)) continue;
+                got[sp.measureId].push_back(*v);
                 any[size_t(int(sp.camera))] = true;
             }
             for (int c = 0; c < 2; ++c) if (any[size_t(c)]) ++swingsWith[size_t(c)];
             if (shot.dataWarning && (any[0] || any[1])) warnedWith.push_back(any);
         }
         if (got.isEmpty()) continue;
-        const SessionCameras theirs = camerasOf(dir);
+        const pa::SessionCameras &theirs = o.readings.cameras;
         std::array<bool, 2> keptView{};
         for (int c = 0; c < 2; ++c) {
             if (swingsWith[size_t(c)] == 0) continue;
             PostureAddressHistory::View &v = h.views[size_t(c)];
-            const QString &a = mine.serial[size_t(c)], &b = theirs.serial[size_t(c)];
+            const QString &a = viewOf(mine, c).serial, &b = viewOf(theirs, c).serial;
             if (!a.isEmpty() && !b.isEmpty() && a != b) { ++v.otherCamera; continue; }
             keptView[size_t(c)] = true;
             if (a.isEmpty() || b.isEmpty()) ++v.unrecorded;
@@ -762,15 +700,17 @@ PostureAddressHistory readAddressHistory(const QString &sessionDir, const Postur
     return h;
 }
 
-// Through the worker's cache (re-read when a sibling ledger, or the session, changes).
-const PostureAddressHistory &addressHistoryOf(ChartsPosturePresenter::Worker &w, const QString &sessionDir, const PostureEnv &env)
+namespace {
+
+// This session's cameras through the worker's cache (once read, kept for the session folder).
+const pa::SessionCameras &camerasHeld(ChartsPosturePresenter::Worker &w, const QString &sessionDir)
 {
-    const QString stamp = addressHistoryStamp(sessionDir);
-    if (stamp != w.histStamp) {
-        w.hist = readAddressHistory(sessionDir, env);
-        w.histStamp = stamp;
+    const QString dir = cleanDir(sessionDir);
+    if (w.camerasDir != dir || !w.cameras.known) {
+        w.cameras = dir.isEmpty() ? pa::SessionCameras{} : camerasOf(dir);
+        w.camerasDir = dir;
     }
-    return w.hist;
+    return w.cameras;
 }
 
 QVariantMap trustMap(const PostureTrust &t)
@@ -1601,7 +1541,6 @@ static std::shared_ptr<ChartsPosturePresenter::Result> computePosture(ChartsPost
     if (w.env != envHeld) {
         w.cache.clear();
         w.refDir.clear(); w.refSize = -1; w.refMtimeMs = -1;
-        w.histStamp.clear();
         w.env = envHeld;
     }
     const PostureEnv &env = *envHeld;
@@ -1630,7 +1569,7 @@ static std::shared_ptr<ChartsPosturePresenter::Result> computePosture(ChartsPost
     c.hasPick = c.shot && hasPosture(c.pick);
     resolveReference(c);
 
-    const PostureAddressHistory &hist = addressHistoryOf(w, c.snap->sessionDir, env);
+    const PostureAddressHistory hist = postureHistoryFrom(in.neighbours, camerasHeld(w, c.snap->sessionDir), env);
     c.sess = postureSession(c.inputs, env, in.pattern, &c.snap->tiers, &c.snap->workOnOrder, QStringLiteral("shots"), &hist);
     if (c.shot) c.view = postureShot(c.pick, env, in.pattern, c.sess.available ? &c.sess : nullptr, &c.snap->workOnOrder, &hist);
     c.pUs = positionUs(c.shot.get());
@@ -1646,14 +1585,24 @@ static std::shared_ptr<ChartsPosturePresenter::Result> computePosture(ChartsPost
     return R;
 }
 
-QVariantMap postureSessionReportPayload(const SessionSnapshot &snapshot, int patternMode, const QString &noun)
+QVariantMap postureSessionReportPayload(const SessionSnapshot &snapshot, int patternMode, const QString &noun,
+                                        const SessionNeighbours &neighbours)
+{
+    const std::shared_ptr<const PostureEnv> envHeld = postureSharedEnv();
+    const PostureAddressHistory hist = postureHistoryFrom(neighbours, cleanDir(snapshot.sessionDir).isEmpty() ? pa::SessionCameras{}
+                                                                                                              : camerasOf(cleanDir(snapshot.sessionDir)),
+                                                          *envHeld);
+    return postureSessionReportPayloadOfHistory(snapshot, patternMode, noun, hist);
+}
+
+QVariantMap postureSessionReportPayloadOfHistory(const SessionSnapshot &snapshot, int patternMode, const QString &noun,
+                                                 const PostureAddressHistory &hist)
 {
     const int mode = patternMode < -1 || patternMode > 1 ? -1 : patternMode;
     const QString many = noun.trimmed().isEmpty() ? QStringLiteral("shots") : noun.trimmed();
     const std::shared_ptr<const PostureEnv> envHeld = postureSharedEnv();
     const PostureEnv &env = *envHeld;
     const std::vector<PostureShotInput> inputs = readInputs(nullptr, snapshot, env);
-    const PostureAddressHistory hist = readAddressHistory(snapshot.sessionDir, env);
     const PostureSessionView sv = postureSession(inputs, env, mode, &snapshot.tiers, &snapshot.workOnOrder, many, &hist);
     std::array<qint64, kPos> us = positionUs(nullptr);
     for (size_t i = 0; i < inputs.size(); ++i) if (hasPosture(inputs[i])) { us = positionUs(snapshot.shots[i].get()); break; }
@@ -1812,12 +1761,26 @@ void ChartsPosturePresenter::startJob()
     if (m_synchronous || m_running) return;     // apply() re-runs a dirty presenter
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
+    // THE GOLFER'S EARLIER SESSIONS, from their summaries (refactor 5.5d): taken here, on the GUI thread, from the athlete
+    // level, and handed to the job by value; heard again when that athlete level changes (a summary written).
+    const QString dir = in.snapshot ? in.snapshot->sessionDir : QString();
+    in.neighbours = neighboursOf(dir);
+    watchHistory(dir);
     m_dirty = false;
     m_running = true;
     emit busyChanged();
     auto w = m_worker;
     askLane(m_pool, [w, in]() { return computePosture(*w, in); },
             [this](auto r) { apply(r); });
+}
+
+void ChartsPosturePresenter::watchHistory(const QString &sessionDir)
+{
+    if (sessionDir == m_watchedDir) return;
+    for (const QMetaObject::Connection &c : std::as_const(m_historyWatch)) disconnect(c);
+    m_watchedDir = sessionDir;
+    m_historyWatch = sessionDir.isEmpty() ? QList<QMetaObject::Connection>{}
+                                          : watchNeighbours(this, sessionDir, [this] { schedule(); });
 }
 
 void ChartsPosturePresenter::apply(std::shared_ptr<Result> r)
@@ -1838,6 +1801,7 @@ void ChartsPosturePresenter::flushIfSynchronous()
     m_dirty = false;
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
+    in.neighbours = neighboursOf(in.snapshot ? in.snapshot->sessionDir : QString());   // refactor 5.5d
     m_result = computePosture(*m_worker, in);
     // synchronous (tests): the stills are made inline and the result read once more with them
     if (m_result && !m_result->pendingStills.isEmpty() && stillMaker()) {

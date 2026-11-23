@@ -21,6 +21,8 @@
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include "session_series_types.h"
 #include "charts_delivery_types.h"   // the typed results (refactor 5.5b)
+#include "session_delivery.h"   // DeliveryDay
+#include "session_neighbours.h"   // the golfer's other sessions, from their summaries (refactor 5.5d)
 
 #include <QObject>
 #include <QHash>
@@ -93,12 +95,12 @@
 //             fit: FIT (the stronger path fit, decision 7), attack: FIT, fits: { pathP6: FIT, pathSteep: FIT, attackP6: FIT },
 //             place: { known, third (−1|0|1), words }, scatter: SCATTER,
 //             pool: { date ("2026-10-20" | ""), sessions (this one included), shots, otherShots, words ("on 20 Oct (3 sessions)" |
-//                     "" for a day of one session), staleGrids (other sessions' sidecars stamped from an older swing document) } }
+//                     "" for a day of one session), notSummedUp, newer (the day's other sessions left out: not summed up
+//                     yet, a newer build's) } }
 //           The fits, the place and the scatter are over THE GOLFER'S DAY (session_delivery.h decision 13): this session's
-//           shots and the golfer's other sessions on the same date — sibling folders under the golfer folder whose names
-//           start with the same yyyy-MM-dd — read from each swing's swing_phasegrid.json on the worker (never a sibling's
-//           swing document), cached per session folder until the day's folders, or a grid or swing document in one of
-//           their swing folders, change.
+//           shots and the golfer's other sessions on the same local day, read from THEIR SUMMARIES (refactor 5.5d;
+//           DEC-74: each session's `dayReadings`, through the athlete level's SessionIndex summaries, taken on the GUI
+//           thread: deliveryDayFrom), read again when that athlete level changes (a summary written). Never their files.
 //  FIT    = { key ("path~planeP6" | "path~steepening" | "attack~planeP6"), x ("planeP6"|"steepening"), y ("path"|"attack"),
 //             xLabel ("Swing plane at P6" | "Hand plane steepening"), yLabel ("Club path (monitor)" | "Attack angle (monitor)"),
 //             n, slope, intercept, r, sd (| null), slopeText ("−0.92"), rText ("−0.80"), sdText ("±1.4°" | ""), holds,
@@ -140,8 +142,19 @@ namespace pinpoint::charts {
 // THE SESSION REPORT'S CLUB DELIVERY PAGE (§4.8, stage 4): the `session` map above for a snapshot, with no picked
 // shot (every `picked` null) and no QObject, built on the caller's thread. `noun`: what its sentences count, plural —
 // "shots" as on Charts, "swings" for the report.
-// It stays a map until the report is typed (5.6): the typed session, through chartsGadgetMap.
-QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const QString &noun = QStringLiteral("shots"));
+// It stays a map until the report is typed (5.6): the typed session, through chartsGadgetMap. `neighbours`: the golfer's
+// other sessions from their summaries (refactor 5.5d; DEC-74), taken by the caller on the GUI thread from the session's
+// athlete level (neighboursFrom); none (the default): the day is the session alone.
+QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const QString &noun = QStringLiteral("shots"),
+                                         const SessionNeighbours &neighbours = {});
+
+// THE GOLFER'S DAY (session_delivery.h decision 13; refactor 5.5d): this session's other sessions on its local day, in
+// their place in the day, their delivery readings as their own summaries hold them (`dayReadings.delivery`); a session
+// not summed up yet, or a newer build's, counted and said. Values only: no file is read.
+DeliveryDay deliveryDayFrom(const SessionNeighbours &neighbours, const QString &sessionDir);
+// The same page over a day already made (the parity tool's seam: tools/diagnostics/day_readings_dump.cpp sets the day the
+// old reader read beside the day from the summaries).
+QVariantMap deliverySessionReportPayloadOfDay(const SessionSnapshot &snapshot, const QString &noun, const DeliveryDay &day);
 
 class ChartsDeliveryPresenter : public QObject
 {
@@ -222,6 +235,7 @@ public:
         QVariantMap pickedDetail;
         QString reg = QStringLiteral("analyse");
         QString scope = QStringLiteral("shot");
+        SessionNeighbours neighbours;   // the golfer's other sessions (refactor 5.5d): taken on the GUI thread
     };
     struct Result;
     struct Worker;
@@ -240,9 +254,12 @@ private:
     void flushIfSynchronous();
     void makeStills();
     void updateSelected(bool force);
+    void watchDay(const QString &sessionDir);   // the athlete level of the session's day (refactor 5.5d)
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
 
     Inputs m_in;
+    QString m_watchedDir;
+    QList<QMetaObject::Connection> m_dayWatch;
     QPointer<SeriesSource> m_model;
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     qint64 m_playheadUs = -1;

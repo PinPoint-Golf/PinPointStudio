@@ -20,6 +20,7 @@
 
 #include "charts_words.h"
 #include "../../Diagnostics/measures/measure_sample.h"   // buildPhaseGrid: THE sampler
+#include "../../Diagnostics/measures/delivery_grid_numbers.h"   // the grid → numbers rule (refactor 5.5d)
 #include "../../LaunchMonitor/lm_inferred_reads.h"       // lmShapeClass: THE shot-shape classifier (decision 10)
 
 #include <QHash>
@@ -294,44 +295,31 @@ DeliveryShotInput deliveryInputFromGrid(const pa::SwingPhaseGrid &grid)
     DeliveryShotInput in;
     in.ordinal = grid.ordinal; in.swingDir = grid.swingDir; in.club = grid.club; in.session = grid.sessionId;
     in.nominalLoft = deliveryNominalLoft(grid.club);
-    const auto at = [&](const QString &key, int phase) {
-        const pa::MetricPhaseGrid *g = grid.metric(key);
-        const pa::PhaseGridValue *v = g ? g->at(static_cast<pa::Phase>(phase)) : nullptr;
-        return v && fin(v->value) ? v->value : kNaN;
-    };
-    // An instant reading: at its own phase, else the first the grid holds (a phase sample anywhere).
-    const auto instant = [&](const QString &key, pa::Phase phase) {
-        const double v = at(key, int(phase));
-        if (fin(v)) return v;
-        if (const pa::MetricPhaseGrid *g = grid.metric(key))
-            for (const pa::PhaseGridValue &x : g->values) if (fin(x.value)) return x.value;
-        return kNaN;
-    };
-    for (int p = 0; p < kDeliveryPositions; ++p) {
-        const int ph = deliveryPhaseIds()[size_t(p)];
-        in.plane[size_t(p)] = at(QStringLiteral("swingPlaneCurve"), ph);
-        in.hands[size_t(p)] = at(QStringLiteral("handPlaneCurve"), ph);
-    }
-    if (const pa::MetricPhaseGrid *g = grid.metric(QStringLiteral("swingPlaneCurve"))) in.planeSigma = g->seriesSigma;
-    in.steepening    = instant(QStringLiteral("handPlaneSteepening"), pa::Phase::Top);
-    in.shoulderPlane = instant(QStringLiteral("shoulderPlane"), pa::Phase::Address);
-    in.lieP1         = at(QStringLiteral("shaftLie"), int(pa::Phase::Address));
-    in.lieP7         = at(QStringLiteral("shaftLie"), int(pa::Phase::Impact));
-    in.shaftLean     = instant(QStringLiteral("impactShaftLean"), pa::Phase::Impact);
-    in.lowPoint      = instant(QStringLiteral("lowPointAhead"), pa::Phase::Impact);
-    in.ourPath       = instant(QStringLiteral("clubPath"), pa::Phase::Impact);
-    in.ourAttack     = instant(QStringLiteral("attackAngle"), pa::Phase::Impact);
-    in.lmPath        = instant(QStringLiteral("lm.clubPath"), pa::Phase::Impact);
-    in.lmFace        = instant(QStringLiteral("lm.faceAngle"), pa::Phase::Impact);
-    in.lmFaceToPath  = instant(QStringLiteral("lm.faceToPath"), pa::Phase::Impact);
-    in.lmAttack      = instant(QStringLiteral("lm.attackAngle"), pa::Phase::Impact);
-    in.lmLoft        = instant(QStringLiteral("lm.dynamicLoft"), pa::Phase::Impact);
-    in.lmLie         = instant(QStringLiteral("lm.lieAngle"), pa::Phase::Impact);
-    in.lmLowPoint    = instant(QStringLiteral("lm.lowPointAhead"), pa::Phase::Impact);
-    in.lmLaunchDir   = instant(QStringLiteral("lm.launchDirection"), pa::Phase::Impact);
-    in.lmSpinAxis    = instant(QStringLiteral("lm.spinAxis"), pa::Phase::Impact);
-    in.lmCarry       = instant(QStringLiteral("lm.carryDistance"), pa::Phase::Impact);
-    in.lmOffline     = instant(QStringLiteral("lm.offline"), pa::Phase::Impact);
+    // THE ONE RULE (refactor 5.5d): the grid's numbers as the session summary's day readings take them too
+    // (Diagnostics/measures/delivery_grid_numbers.h), so another session's day reads what this section reads.
+    const pa::DeliveryGridNumbers n = pa::deliveryGridNumbersOf(grid);
+    in.plane = n.plane;
+    in.hands = n.hands;
+    in.planeSigma    = n.planeSigma;
+    in.steepening    = n.steepening;
+    in.shoulderPlane = n.shoulderPlane;
+    in.lieP1         = n.lieP1;
+    in.lieP7         = n.lieP7;
+    in.shaftLean     = n.shaftLean;
+    in.lowPoint      = n.lowPoint;
+    in.ourPath       = n.ourPath;
+    in.ourAttack     = n.ourAttack;
+    in.lmPath        = n.lmPath;
+    in.lmFace        = n.lmFace;
+    in.lmFaceToPath  = n.lmFaceToPath;
+    in.lmAttack      = n.lmAttack;
+    in.lmLoft        = n.lmLoft;
+    in.lmLie         = n.lmLie;
+    in.lmLowPoint    = n.lmLowPoint;
+    in.lmLaunchDir   = n.lmLaunchDir;
+    in.lmSpinAxis    = n.lmSpinAxis;
+    in.lmCarry       = n.lmCarry;
+    in.lmOffline     = n.lmOffline;
     return in;
 }
 
@@ -883,15 +871,19 @@ DeliveryTrust deliveryTrust(const std::vector<DeliveryShotInput> &shots, const D
     const QString pool = deliveryPoolWords(day);
     if (!pool.isEmpty())
         t.lines << QStringLiteral("The fits pool your day, %1: one camera set-up, so its offset cancels; the other sessions' "
-                                  "%2 are read from their cached readings.").arg(pool, noun)
-                       // What it counts (charts_delivery_presenter.cpp readDay): cached readings whose swing document has been
-                       // rewritten since — a re-analysis, or a rating, note or monitor edit — so "changed", not "analysed".
-                       + (day->staleGrids > 0 ? QStringLiteral(" %1 of them %2 cached before %3 %4 last changed.")
-                                                    .arg(W::cap1(W::word(day->staleGrids)),
-                                                         W::plural(day->staleGrids, QStringLiteral("was"), QStringLiteral("were")),
-                                                         W::plural(day->staleGrids, QStringLiteral("its"), QStringLiteral("their")),
-                                                         W::plural(day->staleGrids, QStringLiteral("swing was"), QStringLiteral("swings were")))
-                                              : QString());
+                                  "%2 are read from their cached readings.").arg(pool, noun);
+    // THE DAY'S SESSIONS NOT IN THE POOL (refactor 5.5d; show with a warning, never hide): their summaries are still being
+    // brought up to date (a new build's catch-up writes them again), or a newer build wrote them.
+    if (day && day->notSummedUp > 0)
+        t.lines << (day->notSummedUp == 1
+                        ? QStringLiteral("One other session from this day isn't counted in the fits yet: it is still being brought up to date.")
+                        : QStringLiteral("%1 other sessions from this day aren't counted in the fits yet: they are still being brought up to date.")
+                              .arg(W::cap1(W::word(day->notSummedUp))));
+    if (day && day->newer > 0)
+        t.lines << (day->newer == 1
+                        ? QStringLiteral("One other session from this day isn't counted in the fits: this version of PinPoint Studio can't read it in full yet.")
+                        : QStringLiteral("%1 other sessions from this day aren't counted in the fits: this version of PinPoint Studio can't read them in full yet.")
+                              .arg(W::cap1(W::word(day->newer))));
     const auto fitLine = [&](const DeliveryFit &f, const QString &what) {
         if (f.n == 0) return;
         QString state = f.holds ? QStringLiteral("shown") : QStringLiteral("not shown: ") + f.why;

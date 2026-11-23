@@ -108,6 +108,7 @@
 #include "../Core/work_pool.h"
 #include "../Diagnostics/engine/fire_findings.h"
 #include "../Diagnostics/engine/session_reduction.h"
+#include "../Coaching/session_day_readings.h"   // the summary's day readings (refactor 5.5d)
 #include "../Identity/identity.h"
 
 #include <QDate>
@@ -187,6 +188,32 @@ struct KeptShot {
     // none until read, so the next derive reads it on the worker (C1).
     std::optional<ShotReview>    review;
     std::optional<DeriveFailure> deriveFailed;   // its last derive threw, under these inputs (C3)
+    // ITS DELIVERY READINGS for the summary's day readings (refactor 5.5d; DEC-74), off its phase grid: handed over by its
+    // fire (the grid it read), else read once on the lane by the next reduction (a result loaded from the file). In
+    // memory only: never in diagnostics.json. `deliveryRead` false: not read yet for `document`; then `delivery` none.
+    bool                                       deliveryRead = false;
+    std::optional<analysis::ShotDeliveryReading> delivery;   // none: it read neither a swing plane nor the monitor
+};
+
+// THE SUMMARY'S DAY READINGS, ASKED WITH A REDUCTION (refactor 5.5d; DEC-74): what the reduction was asked with — each kept
+// shot's delivery reading (or the shot to read it from: a result loaded from the file), its readings at address off its
+// rows as diagnostics.json holds them (checked against the flight), and the cameras (or the shots to read them from) —
+// made into the summary's day readings on the lane. Values and the firing reader only (any thread).
+struct DayReadingsAsk {
+    struct Shot {
+        int                                          swing = 0;
+        ShotRef                                      ref;
+        DocumentStamp                                document;
+        bool                                         read = false;   // `delivery` is known; else read it on the lane
+        std::optional<analysis::ShotDeliveryReading> delivery;
+    };
+    std::vector<Shot>                          shots;     // strike order
+    std::vector<analysis::ShotAddressReading>  address;   // strike order
+    bool                                       camerasKnown = false;   // `cameras` is the kept one; else read on the lane
+    analysis::SessionCameras                   cameras;
+    QString                                    camerasKey;
+    std::shared_ptr<const FiringReader>        reader;
+    std::shared_ptr<const analysis::ICharacteristicPackProvider> pack;
 };
 
 class SessionDiagnostics : public QObject
@@ -348,6 +375,7 @@ private:
     void onAthleteChanged();
     void onIntentRunChanged();
     void onSessionIntentChanged();   // EVT-10: the declared focus, miss or a screen answer
+    DayReadingsAsk dayAsk() const;   // the day readings' ask, beside the reduction's input (refactor 5.5d)
 
     Session           *m_session  = nullptr;
     SessionRepository *m_sessions = nullptr;
@@ -430,6 +458,12 @@ private:
     bool                 m_baselineWaiting = false;   // the last freeze attempt was not computable (J-49)
     bool                 m_reductionOwed = false;  // what is kept moved since the last reduction was asked
     qint64               m_lastReductionMs = 0;
+    // THE SUMMARY'S DAY READINGS (refactor 5.5d; DEC-74): made with each reduction from what it was asked with (the kept
+    // shots' delivery readings and rows, the cameras), applied with its diagnosis; summary() carries them. The cameras
+    // are read once per first kept shot and its document (m_camerasKey).
+    analysis::SessionDayReadings m_dayReadings;
+    analysis::SessionCameras     m_cameras;
+    QString                      m_camerasKey;     // "" never read; else the swing and document they were read from
 };
 
 // THE COMPOSITION ROOT'S LOOKUP, for its WorkResolver (§4.4 step 6; U9: a function, no interface): what the receiver

@@ -102,12 +102,15 @@
 //      "widest" middle half (R11).
 //  13. THE FITS POOL THE GOLFER'S DAY (§4.4, §8.2 as revised 29 Oct): this session's shots and the golfer's other
 //      sessions on the same date — one camera set-up, so the uncalibrated camera's offset cancels — read from their
-//      swing_phasegrid.json alone (deliveryInputFromPhaseGrid; the presenter never opens a sibling swing document). The
-//      sentences say the pool ("On your 16 shots with the monitor on 20 Oct (3 sessions), …"); a day of one session
-//      keeps the session's wording. The shot's place (decision 8) is over the same pool; the usual, the band, the slot
-//      and the shapes stay the session's. The trust note counts the cached readings whose swing document has changed
-//      since they were cached (DeliveryDay::staleGrids, judged by SwingStore::sameDocumentStamp — the grid reader's own
-//      rule, so a copied or restored day whose swings kept their mtimes to the second counts none; issue #174).
+//      SESSION SUMMARIES (refactor 5.5d; DEC-74: their `dayReadings`, made by each session's own SessionDiagnostics off
+//      its shots' phase grids by the one rule, delivery_grid_numbers.h; read through the athlete level's SessionIndex
+//      summaries, never another session's files: charts_delivery_presenter.h deliveryDayFrom). The sentences say the
+//      pool ("On your 16 shots with the monitor on 20 Oct (3 sessions), …"); a day of one session keeps the session's
+//      wording. The shot's place (decision 8) is over the same pool; the usual, the band, the slot and the shapes stay
+//      the session's. A session of the day whose summary is not summed up yet (or is a newer build's) is not pooled, and
+//      the trust note says so (DeliveryDay::notSummedUp, ::newer; show with a warning, never hide). Before 5.5d the note
+//      counted sidecars cached before their swing changed (issue #174); a summary is written again whenever a swing
+//      changes (its fingerprint), so that count has gone.
 
 #include "session_series_types.h"
 #include "../typeset/box_stats.h"
@@ -212,7 +215,10 @@ struct DeliveryDay {
     QString date;                                     // "2026-10-20"; "" unknown
     int     sessions = 1;                             // session folders in the pool with a reading, this one included
     std::vector<DeliveryShotInput> others;            // the day's other sessions' shots (thisSession false)
-    int     staleGrids = 0;                           // of `others`: sidecars stamped from an older swing document (SwingStore::sameDocumentStamp)
+    // The day's other sessions with shots left out of the pool (refactor 5.5d): their summary is not summed up yet (the
+    // catch-up's to write), or is a newer build's (this build cannot read it in full). Said in the trust note.
+    int     notSummedUp = 0;
+    int     newer = 0;
 };
 // The fit's pool: the session's shots, then the day's others.
 std::vector<DeliveryShotInput> deliveryPool(const std::vector<DeliveryShotInput> &shots, const DeliveryDay *day);
