@@ -28,7 +28,7 @@ Every captured shot produces one directory (`<session>/swing_<NNNN>/`) holding t
 | `archive` block (stubbed swings) | `src/Export/session_archiver.cpp` `stubOf()` |
 | JSON-era → `.ppsw` conversion | `SwingStore::convertDir` via `SwingDocWriter::convertToPpsw` (`RecordingRepository::convert`); in-app `src/Gui/settings/library_converter.cpp`, CLI `tools/storage/pps_convert_library.cpp`, the archiver |
 | Readers | `SwingDocReader::readSwingJson` / `readSwingSummary` / `readLaunchMonitorDetail` (`swing_doc_reader.cpp`), the Recording loader `loadRecording` (`src/Export/recording_loader.{h,cpp}`, step 1.2; `SwingDiskLoader::load` in `src/Analysis/swing_reanalyzer.cpp` builds the job from it), `disk_replay_source.cpp`, `swing_data_source.cpp`; the charts and report read through `SwingStore::loadAnalysis`, the 3-D panel through `SwingStore::loadParts` (`swing_rig_driver.cpp`) |
-| Enums (Phase, SegmentRole, ReconstructionTier, ShaftSampleFlags) | `src/Analysis/swing_analysis.h` |
+| Enums (Phase, SegmentRole, ReconstructionTier, ShaftSampleFlags) | `src/Vocabulary/Analysis/swing_analysis.h` |
 
 > The writer is still called `writeSwingJson` and the reader `readSwingJson`. The names predate the switch; both go through `SwingStore` and only `swing.ppsw` is written.
 
@@ -811,7 +811,7 @@ Added 2026-09-09 for `pose`, `ball` and `shaft`. The producer keys are written o
 | `shoulderTiltVsBend` | `{code}` | the `shoulderTiltVsBend` series (no block of its own) | 2 | Added 2026-11-13. 2 (2026-11-13, FB): the −20° backstop record `body.tiltBendOutOfRange`. Present only when the reading was written: the step after the trunk-sensor precedence in `runProfile` (`shoulder_tilt_vs_bend.h`) found a shoulder plane at the top and a forward bend at address. Not a stage. Never reused: it is the difference of two readings already in the document. |
 | `clubSlotTop` | `{code}` | the `clubSlotTop` series (no block of its own) | 1 | Added 2026-11-13 (plane stack D3). Present only when the reading was written: the step after the run in `runProfile` (`club_slot_top.h`) found the swing plane at address and at P3 and the shoulder plane at address, with a slot at least `club.slotMinWidthDeg` (4°) wide. Not a stage. Never reused: it is a ratio of three readings already in the document. |
 
-The current codes are the `k*StageVersion` constants in `src/Analysis/analysis_versions.h`, and each bump has a comment there. When **Storage → Save pose keypoints** is off, `pose2d`, `poseDtl`, `versions.pose` and `versions.poseDtl` are all removed at write (since 2026-09-23). A version that promises a pose not in the file would send re-analysis looking for it.
+The current codes are the `k*StageVersion` constants in `src/Vocabulary/Analysis/analysis_versions.h`, and each bump has a comment there. When **Storage → Save pose keypoints** is off, `pose2d`, `poseDtl`, `versions.pose` and `versions.poseDtl` are all removed at write (since 2026-09-23). A version that promises a pose not in the file would send re-analysis looking for it.
 
 ### `score` (ScoreBreakdown, /3)
 
@@ -924,7 +924,7 @@ Added 2026-09-17 (`docs/design/kinematic_sequence_design.md`). The kinematic seq
 
 ### `gates`, `gatesVersion` — why readings were refused, bounded or withheld (optional)
 
-Since 2026-10-16, every analysis stamps `gatesVersion`, so the pair is present on every newly analysed swing. Device-only swings are stamped too. If both keys are absent, the swing was analysed before records existed, so its reasons are "not recorded". An empty `gates: []` means no gate fired. One record per gate firing (`src/Analysis/gate_record.h`; `docs/design/trust_and_gates_design.md` §4.2, §6).
+Since 2026-10-16, every analysis stamps `gatesVersion`, so the pair is present on every newly analysed swing. Device-only swings are stamped too. If both keys are absent, the swing was analysed before records existed, so its reasons are "not recorded". An empty `gates: []` means no gate fired. One record per gate firing (`src/Vocabulary/Analysis/gate_record.h`; `docs/design/trust_and_gates_design.md` §4.2, §6).
 
 `gatesVersion`: `1` = the kinematic sequence's gates only. `2` (current) = every per-swing gate.
 
@@ -1194,7 +1194,7 @@ There is **no `valid` key**: the in-memory track's validity flag is not persiste
 | `clockOffsetUs` | num µs | DTL `t_us` − face-on `t_us`, `0` on a shared clock. Add it to a face-on instant to land on the DTL clock. |
 | `config` | obj | The resolved DTL tracker settings the track ran under (`src/Club/dtl_shaft_json.cpp`), hashed into `summary.configHash`. |
 | `frames[].t_us` | int µs | Window-relative. |
-| `frames[].tier` | str | `UNSEEN` · `END_ON` (the shaft points at the camera, ρ̂ too short to see) · `OCCLUDED` · `OCCLUDED_WRIST` · `OCCLUDED_ROW` (anchor quarantined: no grip / no confident wrist / disagrees with face-on on the image row) · `RAY` · `SEG` · `BAND` (**measured**) · `HELD` (drawn inside a band between two measurements, not measured) (`src/Club/dtl_shaft_track.h`). Fusion, the P-position borrow and every "published" count read only `RAY` / `SEG` / `BAND`. |
+| `frames[].tier` | str | `UNSEEN` · `END_ON` (the shaft points at the camera, ρ̂ too short to see) · `OCCLUDED` · `OCCLUDED_WRIST` · `OCCLUDED_ROW` (anchor quarantined: no grip / no confident wrist / disagrees with face-on on the image row) · `RAY` · `SEG` · `BAND` (**measured**) · `HELD` (drawn inside a band between two measurements, not measured) (`src/Vocabulary/Analysis/dtl_shaft_track.h`). Fusion, the P-position borrow and every "published" count read only `RAY` / `SEG` / `BAND`. |
 | `frames[].grip` / `head` | float[2] \| null | Normalised to the DTL frame (x / width, y / height). `grip` is the DTL pose anchor. `head` is `null` when nothing was measured. |
 | `frames[].theta` | float rad \| null | Image angle grip→head, atan2 convention (y down), **not unwrapped**. |
 | `frames[].lenPx` | float px \| null | The **drawn** length along θ. `lenSrc` says where it came from: `rend` · `snapLine` · `latBand` (measured runs) · `schedule` (the visibility law's ρ̂·L̂, one length per band). When `lenSrc` is `schedule`, the measured run is in `runPx`. |

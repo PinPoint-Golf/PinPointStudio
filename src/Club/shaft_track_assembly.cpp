@@ -25,7 +25,7 @@
 #include "shaft_track_assembly.h"
 
 #include "shaft_track_shared.h"    // the view-independent half (bodies still live HERE)
-#include "../Analysis/analysis_tuning.h" // pinpoint::analysis::tuning::apply
+#include "../Vocabulary/Analysis/analysis_tuning.h" // pinpoint::analysis::tuning::apply
 #include "ball_anchor.h"           // medianGripBallLenPx (A1 — L_px before head placement)
 #include "shaft_kinematics.h"      // R6 predictor (swingProgress/phiClubPred/envelope, S2 wedge)
 #include "shaft_sigma.h"           // uncertainty helpers (shaft_uncertainty_propagation_design.md)

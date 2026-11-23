@@ -40,7 +40,7 @@
 //     goes through esc() before it is put in one.
 
 #include "../charts/charts_words.h"          // the number words, cap1, list, plural — and the figures (figure_format.h)
-#include "../diagnostics/session_spread.h"
+#include "../../Coaching/session_spread.h"
 
 #include <QDate>
 #include <QLocale>

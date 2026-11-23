@@ -46,8 +46,8 @@
 // Header-only (step 1.3a) so every target that writes a document links the pair without a source
 // list entry of its own.
 
-#include "swing_analysis.h"   // ShaftTrack2D, Segmentation, windowTimeUs
-#include "uncertainty_json.h" // the σ keys of a sample
+#include "../Vocabulary/Analysis/swing_analysis.h"   // ShaftTrack2D, Segmentation, windowTimeUs
+#include "../Vocabulary/Analysis/uncertainty_json.h" // the σ keys of a sample
 
 #include <QJsonArray>
 #include <QJsonObject>

@@ -153,6 +153,9 @@ const char *ringName(int r)
 const QVector<QPair<QString, int>> &dirRings()
 {
     static const QVector<QPair<QString, int>> t{
+        // The Vocabulary ring's one root folder, an area per subfolder; Analysis's shared types are its first area
+        // (Solution Architect, 23 Nov 2026). The other areas below move under it in the platform refactor.
+        { QStringLiteral("Vocabulary/"), Vocabulary },
         { QStringLiteral("Metrics/"), Vocabulary },
         { QStringLiteral("Recording/"), Vocabulary },     // the Recording contract's types (step 1, IM-6)
         { QStringLiteral("Identity/"), Vocabulary },      // AthleteId, SessionId, ShotRef (step 2.1; D1, DEC-148)
@@ -219,21 +222,12 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Core/app_info"), Adapters },
         { QStringLiteral("Core/pp_settings"), Adapters },
         { QStringLiteral("Core/studio_profile"), Adapters },
-        // Analysis: the per-shot stages' shared vocabulary and their pure rules; reading a recorded MP4 and rebuilding products from a document are the store's.
-        { QStringLiteral("Analysis/swing_analysis"), Vocabulary },
-        { QStringLiteral("Analysis/gate_record"), Vocabulary },
-        { QStringLiteral("Analysis/analysis_tuning"), Vocabulary },
-        { QStringLiteral("Analysis/analysis_versions"), Vocabulary },
-        { QStringLiteral("Analysis/uncertainty_config"), Vocabulary },
-        { QStringLiteral("Analysis/uncertainty_json"), Vocabulary },
-        { QStringLiteral("Analysis/segment_role"), Vocabulary },
-        { QStringLiteral("Analysis/det_rng"), Vocabulary },
+        // Analysis: the per-shot stages' pure rules (their shared vocabulary is Vocabulary/Analysis/); reading a recorded MP4 and rebuilding products from a document are the store's.
         { QStringLiteral("Analysis/shot_analysis_job"), Rules },      // the job carries SkeletonCalib (Rules)
         { QStringLiteral("Analysis/effective_context"), Rules },      // the effective-club rule (IM-3)
         { QStringLiteral("Analysis/analysis_job_builder"), Rules },   // the one job builder
         { QStringLiteral("Analysis/recording_integrity"), Rules },    // the one integrity rule (step 1.5)
         { QStringLiteral("Analysis/reuse_gate"), Rules },             // the one reuse gate + input-stamp staleness (step 1.6)
-        { QStringLiteral("Analysis/swing_analysis_rebase"), Vocabulary },   // the one rebase, beside windowTimeUs
         { QStringLiteral("Analysis/route_substitution"), Rules },
         { QStringLiteral("Analysis/seg_resolve"), Rules },
         { QStringLiteral("Analysis/stream_trim"), Rules },
@@ -842,7 +836,7 @@ void selfTest()
     Tree t;
     for (const char *f : { "Gui/shot/shot_processor.h", "Gui/athlete/athlete_controller.h", "Coaching/shot_factors.h",
                            "Metrics/metric_catalogue.h", "Buffer/source_ring.h", "Buffer/types.h", "Core/pp_debug.h",
-                           "Analysis/swing_analysis.h", "Analysis/analysis_pipeline.h", "Export/session_store.h",
+                           "Vocabulary/Analysis/swing_analysis.h", "Analysis/analysis_pipeline.h", "Export/session_store.h",
                            "Export/swing_paths.h", "DomainModel/session_repository.h", "DomainModel/athlete.h" }) {
         t.files.insert(QString::fromLatin1(f));
         t.byName[QFileInfo(QString::fromLatin1(f)).fileName()].append(QString::fromLatin1(f));
@@ -858,8 +852,8 @@ void selfTest()
           QStringLiteral("A1 passes inward includes, Platform logging, the Recording's types and system headers"));
     check(countRule(run("Coaching/x.cpp", QStringLiteral("// #include \"../Gui/shot/shot_processor.h\"\n")), "A1") == 0,
           QStringLiteral("A1 ignores a commented-out include"));
-    check(countRule(run("Analysis/swing_analysis.h", QStringLiteral("#include \"../Analysis/analysis_pipeline.h\"\n")), "A1") == 1,
-          QStringLiteral("A1 uses the per-file ring of a straddling directory (Vocabulary → Application)"));
+    check(countRule(run("Vocabulary/Analysis/swing_analysis.h", QStringLiteral("#include \"../../Analysis/analysis_pipeline.h\"\n")), "A1") == 1,
+          QStringLiteral("A1 catches the Vocabulary folder including an Analysis stage (Vocabulary → Application)"));
     const auto exportToGui = run("Export/x.cpp", QStringLiteral("#include \"../Gui/athlete/athlete_controller.h\"\n#include \"swing_paths.h\"\n"));
     check(countRule(exportToGui, "A1") == 1 && exportToGui.first().text.contains(QLatin1String("Gui/athlete/athlete_controller.h")),
           QStringLiteral("A1 catches Export including a Gui header inside the Adapters ring (DEC-146); passes Export → Export"));
@@ -956,7 +950,7 @@ void selfTest()
     check(countRule(a7s, "A7") == 1 && a7s.first().text.startsWith(QLatin1String("composed is")),
           QStringLiteral("A7 finds a long function whose signature is longer than 240 characters and has a {} default (got: %1)")
               .arg(a7s.isEmpty() ? QStringLiteral("none") : a7s.first().text));
-    check(ringOf(QStringLiteral("Analysis/analysis_pipeline.cpp")) == Application && ringOf(QStringLiteral("Analysis/gate_record.h")) == Vocabulary
+    check(ringOf(QStringLiteral("Analysis/analysis_pipeline.cpp")) == Application && ringOf(QStringLiteral("Vocabulary/Analysis/gate_record.h")) == Vocabulary
               && ringOf(QStringLiteral("Core/pp_debug.cpp")) == Platform && ringOf(QStringLiteral("Gui/diagnostics/x.h")) == Adapters
               && ringOf(QStringLiteral("NoSuchDir/x.h")) == -1 && ringOf(QStringLiteral("Gui/shot/shot_processor.cpp")) == Application,
           QStringLiteral("the ring table: per-file entries over directory defaults; unknown directories have no ring"));

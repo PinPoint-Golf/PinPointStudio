@@ -45,7 +45,7 @@
 #include <vector>
 
 #include "swing_exporter.h"                 // SwingExportJob, SwingExportCamera, SwingImuDeviceInfo
-#include "../Analysis/swing_analysis.h"     // ImuSegmentBinding, segmentRoleName
+#include "../Vocabulary/Analysis/swing_analysis.h"     // ImuSegmentBinding, segmentRoleName
 
 namespace pinpoint {
 

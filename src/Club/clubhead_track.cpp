@@ -18,7 +18,7 @@
 
 #include "clubhead_track.h"
 
-#include "../Analysis/analysis_tuning.h" // pinpoint::analysis::tuning::apply
+#include "../Vocabulary/Analysis/analysis_tuning.h" // pinpoint::analysis::tuning::apply
 
 #include <opencv2/imgproc.hpp>
 

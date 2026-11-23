@@ -29,8 +29,8 @@
 #include "analysis_stage.h"
 #include "analysis_dag.h"           // runStagesParallel / buildStageGraph (analysis.parallel)
 #include "analysis_profiling.h"
-#include "swing_analysis_rebase.h"   // the one rebase to window time (step 1.5)
-#include "analysis_tuning.h"
+#include "../Vocabulary/Analysis/swing_analysis_rebase.h"   // the one rebase to window time (step 1.5)
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "../Ball/ball_position.h"
 #include "../Ball/ball_runner.h"
 #include "../Body/body_rotation.h"
@@ -78,9 +78,9 @@
 #include "../Pose/pose_synthesis.h"
 #include "../Kinematics/segment_rates.h"
 #include "../Club/shaft_plane.h"
-#include "det_rng.h"
+#include "../Vocabulary/Analysis/det_rng.h"
 #include "../Club/shaft_sigma.h"   // uncertainty budgets (shaft_uncertainty_propagation_design.md)
-#include "uncertainty_config.h"
+#include "../Vocabulary/Analysis/uncertainty_config.h"
 #include "../Skeleton3d/skeleton3d_json.h"
 #include "../Club/shaft_tracker.h"
 #include "../Club/shaft_frame_io.h"

@@ -19,7 +19,7 @@
 #pragma once
 
 #include "assessment_rule.h"
-#include "../Analysis/gate_record.h"   // GateLog, PP_GATE
+#include "../Vocabulary/Analysis/gate_record.h"   // GateLog, PP_GATE
 
 #include <functional>
 #include <memory>

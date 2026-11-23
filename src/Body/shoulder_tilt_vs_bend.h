@@ -76,8 +76,8 @@
 // The down-the-line posture series states no route (dtl_posture.h); a bend with none is that camera's.
 
 #include "grader_sample.h"   // grader::graderReadingAt — the grader's `at` reading, shared with club_slot_top.h
-#include "../Analysis/gate_record.h"
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/gate_record.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Core/pp_tuned_constants.h"
 
 #include <QString>

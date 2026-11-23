@@ -134,8 +134,8 @@
 
 #include "skeleton3d_body_metrics.h"
 #include "../Analysis/route_substitution.h"
-#include "../Analysis/gate_record.h"
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/gate_record.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Metrics/series_reduce.h"
 #include "grader_sample.h"   // grader::graderReadingAt — the top end of leadElbowBendChange3d, as graded (D6)
 

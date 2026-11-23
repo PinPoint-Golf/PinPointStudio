@@ -19,7 +19,7 @@
 #pragma once
 
 #include "wrist_assessment_contract.h"
-#include "../Analysis/swing_analysis.h" // MetricSeries, PhaseEvent (in-memory analyzer types)
+#include "../Vocabulary/Analysis/swing_analysis.h" // MetricSeries, PhaseEvent (in-memory analyzer types)
 
 #include <QVariantMap>
 #include <vector>

@@ -35,7 +35,7 @@
 // The same rule as the blocks themselves: a block that checked nothing (camerasChecked / sourcesChecked
 // 0) or passed leaves no record. Times are ms from impact, + after.
 
-#include "gate_record.h"
+#include "../Vocabulary/Analysis/gate_record.h"
 
 #include <QJsonObject>
 #include <QString>

@@ -797,12 +797,13 @@ set(PP_QML_SOURCES
     src/Export/rule_data_store.cpp
     src/Export/rule_data_install.h
     src/Gui/diagnostics/session_diagnostics_model.h
-    src/Gui/diagnostics/session_spread.h
+    src/Coaching/session_spread.h
     src/Gui/diagnostics/session_diagnostics_model.cpp
     src/Coaching/work_ons.h
     src/Gui/diagnostics/work_ons_controller.h
     src/Gui/diagnostics/work_ons_controller.cpp
     src/Wrist/reference_bands.h
+    src/Vocabulary/Analysis/reference_band_context.h
     src/Wrist/reference_bands.cpp
     src/Wrist/wrist_assessment_engine.h
     src/Wrist/wrist_assessment_engine.cpp

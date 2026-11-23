@@ -31,7 +31,7 @@
 #include <algorithm>
 #include <cmath>
 
-#include "../Analysis/swing_analysis.h" // PoseFrame2D, kLeftHandFirstKp, kRightHandFirstKp
+#include "../Vocabulary/Analysis/swing_analysis.h" // PoseFrame2D, kLeftHandFirstKp, kRightHandFirstKp
 
 namespace pinpoint::analysis {
 

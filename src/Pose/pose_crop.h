@@ -32,7 +32,7 @@
 #include <optional>
 
 #include "../Core/pp_tuned_constants.h"
-#include "../Analysis/analysis_tuning.h"
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 
 namespace pinpoint::analysis {
 

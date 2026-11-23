@@ -51,9 +51,9 @@
 #include "../LaunchMonitor/lm_inferred_reads.h"
 #include "../LaunchMonitor/lm_gates.h"              // the import's dropped fields → analysis.gates
 #include "../LaunchMonitor/lm_device.h"             // connector vs device: launchMonitor.device
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Metrics/measurement.h"            // lmDerivedKeys: the vocabulary's one list (6.1a)
-#include "../Analysis/uncertainty_json.h"         // σ fields — one spelling, four paths
+#include "../Vocabulary/Analysis/uncertainty_json.h"         // σ fields — one spelling, four paths
 #include "../Club/dtl_shaft_json.h"                // dtlStreamName — the DTL club block names its stream
 #include "../Core/club_standards.h"            // lmArcRadiusM — the club's standard length
 #include "../Analysis/effective_context.h"     // lmArcRadiusM — the effective club (step 1.6)

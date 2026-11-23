@@ -15,7 +15,7 @@ describes. Standard library only.
 import csv, glob, json, os, statistics, sys, collections
 
 GOLFERS = ("Mark-Liversedge", "Nick-Henn", "Jess-Ratcliffe")
-# Phase ids from src/Analysis/swing_analysis.h, in swing order.
+# Phase ids from src/Vocabulary/Analysis/swing_analysis.h, in swing order.
 POSITIONS = [("P1", 0), ("P2", 12), ("P3", 8), ("P4", 2), ("P5", 13), ("P6", 9), ("P7", 5), ("P8", 14)]
 KEYS = ["headLift", "pelvisThrust", "spineForwardBend", "leadKneeFlexion", "trailKneeFlexion", "pelvisLift"]
 

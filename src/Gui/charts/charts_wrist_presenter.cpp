@@ -38,7 +38,7 @@
 #include "../../Diagnostics/norms/norm.h"            // NormSource: where the wrist bands come from (TRUST)
 #include "../../Diagnostics/norms/norm_provider.h"   // sharedNormProvider: the bands' own rows
 #include "../../Diagnostics/packs/pack_provider.h"
-#include "../../Wrist/wrist_assessment_types.h"   // dofForMetricKey
+#include "../../Vocabulary/Analysis/wrist_assessment_types.h"   // dofForMetricKey
 #include "../../Wrist/reference_bands.h"          // NormBandProvider::cellMeasureId, BandContext
 #include "../review/timeline_labels.h"
 #include "../../Metrics/gate_catalogue.h"   // the gate behind an empty wrist value (its words)

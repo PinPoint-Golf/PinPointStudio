@@ -31,7 +31,7 @@
 #include <vector>
 
 #include "types.h"
-#include "swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Skeleton3d/skeleton3d_fit.h"
 
 // Value-type analysis job — everything is resolved before the job is handed to

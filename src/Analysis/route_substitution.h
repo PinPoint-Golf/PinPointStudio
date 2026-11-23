@@ -62,7 +62,7 @@
 // writes a QStringList as a JSON array, and a reloaded record's QVariantList reads back through
 // toStringList().
 
-#include "gate_record.h"   // only this: the GUI's trust readers include this header without the analysis types
+#include "../Vocabulary/Analysis/gate_record.h"   // only this: the GUI's trust readers include this header without the analysis types
 
 #include <QString>
 #include <QStringList>

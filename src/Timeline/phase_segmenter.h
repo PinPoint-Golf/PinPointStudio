@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "../IMU/imu_vision_fuser.h" // FusedStreams
-#include "../Analysis/swing_analysis.h" // Phase, PhaseEvent, SegmentRole
+#include "../Vocabulary/Analysis/swing_analysis.h" // Phase, PhaseEvent, SegmentRole
 
 namespace pinpoint::analysis {
 

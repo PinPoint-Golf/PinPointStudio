@@ -47,7 +47,7 @@
 #include <limits>
 #include <vector>
 
-#include "../Analysis/analysis_tuning.h" // pinpoint::analysis::tuning::apply ("fusion.*" keys)
+#include "../Vocabulary/Analysis/analysis_tuning.h" // pinpoint::analysis::tuning::apply ("fusion.*" keys)
 
 namespace pinpoint::analysis {
 

@@ -47,9 +47,9 @@
 #include <cstdint>
 #include <vector>
 
-#include "../Analysis/analysis_versions.h" // kDtlShaftStageVersion
-#include "dtl_shaft_track.h"     // DtlShaftTrack2D (OpenCV-free)
-#include "../Analysis/swing_analysis.h" // windowTimeUs — the one time rule
+#include "../Vocabulary/Analysis/analysis_versions.h" // kDtlShaftStageVersion
+#include "../Vocabulary/Analysis/dtl_shaft_track.h"     // DtlShaftTrack2D (OpenCV-free)
+#include "../Vocabulary/Analysis/swing_analysis.h" // windowTimeUs — the one time rule
 
 namespace pinpoint::analysis {
 

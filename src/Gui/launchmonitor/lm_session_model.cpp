@@ -27,7 +27,7 @@
 #include "../../LaunchMonitor/lm_flight_path.h"
 #include "../../LaunchMonitor/lm_inferred_reads.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
-#include "../../Analysis/swing_analysis.h"
+#include "../../Vocabulary/Analysis/swing_analysis.h"
 #include "../../Metrics/measurement.h"                       // the Shot's set: a row's readings (refactor 6.1a)
 #include "../../Diagnostics/measures/measurement_precedence.h" // which source wins for a metric (R-INS-3)
 #include "../trust/trust_readings.h"

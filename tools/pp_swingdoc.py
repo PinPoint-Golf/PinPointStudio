@@ -78,7 +78,7 @@ def load_swing(path):
 
 def analysis_origin_us(doc):
     """The origin every analysis time of `doc` is read against: the C++ documentAnalysisOriginUs
-    (src/Analysis/swing_analysis.h), ported. A stamped document (analysis.timeBase "window") is
+    (src/Vocabulary/Analysis/swing_analysis.h), ported. A stamped document (analysis.timeBase "window") is
     window time already: 0. An unstamped one gives its clock.t0_us."""
     an = doc.get("analysis") if isinstance(doc, dict) else None
     if isinstance(an, dict) and an.get("timeBase") == "window":

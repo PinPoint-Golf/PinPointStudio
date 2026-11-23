@@ -20,7 +20,7 @@
 
 #include "wrist_assessment_contract.h"
 #include "../Core/pp_tuned_constants.h"
-#include "../Analysis/gate_record.h"   // GateRecord, GateLog, PP_GATE (cellGates)
+#include "../Vocabulary/Analysis/gate_record.h"   // GateRecord, GateLog, PP_GATE (cellGates)
 
 #include <QString>
 

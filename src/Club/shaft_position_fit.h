@@ -29,7 +29,7 @@
 
 #include "shaft_tracker_math.h"   // RidgeConfig (shared ridge line evaluation)
 #include "shaft_positions.h"      // PositionFitConfig (the "positions.*" B-fit tuning)
-#include "../Analysis/swing_analysis.h" // QPointF / BallSample2D / ShaftPosition / PositionSource
+#include "../Vocabulary/Analysis/swing_analysis.h" // QPointF / BallSample2D / ShaftPosition / PositionSource
 
 // Position-first shaft measurement — Layer B "B-fit" (the milestone fitter),
 // docs/design/shaft_position_first_design.md §2 Layer B. Header-only (inline);

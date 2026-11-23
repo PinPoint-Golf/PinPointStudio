@@ -36,7 +36,7 @@
 // Rules ring: pure, no file, no QObject; any thread.
 
 #include "wrist_profile.h"
-#include "wrist_assessment_types.h"   // dofForMetricKey, isCameraWristDofSeries (inline)
+#include "../Vocabulary/Analysis/wrist_assessment_types.h"   // dofForMetricKey, isCameraWristDofSeries (inline)
 
 #include <QJsonArray>
 #include <QJsonObject>

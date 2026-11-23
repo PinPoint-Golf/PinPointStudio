@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "wrist_assessment_types.h"
+#include "../Vocabulary/Analysis/wrist_assessment_types.h"
 
 #include <array>
 #include <cstdint>

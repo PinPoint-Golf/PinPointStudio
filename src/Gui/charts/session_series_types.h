@@ -166,7 +166,7 @@ struct ShotSeries {
     QHash<QString, MetricSeries> metrics;      // key → series
     QStringList metricOrder;                   // keys in the swing's own order
     QVariantMap kinematicSequence;             // the analysisDetail.kinematicSequence shape (ChartMetrics reads it)
-    // analysis.gates (Analysis/gate_record.h) as stored — evidence times are ms from impact, so no
+    // analysis.gates (Vocabulary/Analysis/gate_record.h) as stored — evidence times are ms from impact, so no
     // re-timing. gatesVersion 0 = analysed before records existed (the reader says so and falls back).
     QVariantList gates;
     int          gatesVersion = 0;

@@ -23,8 +23,8 @@
 
 #include "session_series_extract.h"
 
-#include "../../Analysis/swing_analysis.h"              // Phase::Impact
-#include "../../Analysis/uncertainty_json.h"            // copyPhaseSampleSigma
+#include "../../Vocabulary/Analysis/swing_analysis.h"              // Phase::Impact
+#include "../../Vocabulary/Analysis/uncertainty_json.h"            // copyPhaseSampleSigma
 #include "../../Coaching/sequence_checks.h"             // the KS checks off the ledger's signal rows
 #include "../../Core/club_vocabulary.h"                 // swingDocDeclaredClub
 #include "../../Core/pp_debug.h"

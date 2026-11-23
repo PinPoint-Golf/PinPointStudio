@@ -21,7 +21,7 @@ The instrumented writer **refuses to overwrite** a truth.json whose `meta.source
 | Markup writer (Python, the byte oracle) | `tools/swinglab/swinglab/label.py` |
 | Validation reader / scorer | `tools/swinglab/score.py` (Tier-3) |
 | Instrumented writers | `tools/shaftlab/{club_track_v3,stripe_annotate,stripe_fusion}.py` (`--truth-out`) |
-| Enums (Phase) + P-system mapping | `src/Analysis/swing_analysis.h`, `markup_truth.h` |
+| Enums (Phase) + P-system mapping | `src/Vocabulary/Analysis/swing_analysis.h`, `markup_truth.h` |
 
 ## Conventions
 

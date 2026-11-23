@@ -46,9 +46,9 @@
 
 #include <QVariantMap>
 
-#include "../Analysis/swing_analysis.h"    // PoseTrack2D, PhaseEvent
+#include "../Vocabulary/Analysis/swing_analysis.h"    // PoseTrack2D, PhaseEvent
 #include "wrist_assessment_contract.h"     // InMemoryWristAngleSource / IWristAngleSource
-#include "../Analysis/analysis_tuning.h"   // tuning::apply
+#include "../Vocabulary/Analysis/analysis_tuning.h"   // tuning::apply
 #include "../Core/pp_tuned_constants.h"    // tuned::pose::wristAngles::
 
 namespace pinpoint::analysis {

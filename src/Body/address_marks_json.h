@@ -44,7 +44,7 @@
 #include <limits>
 
 #include "address_marks.h"
-#include "../Analysis/swing_analysis.h" // analysis::windowTimeUs — the one time rule
+#include "../Vocabulary/Analysis/swing_analysis.h" // analysis::windowTimeUs — the one time rule
 
 namespace pinpoint::analysis {
 

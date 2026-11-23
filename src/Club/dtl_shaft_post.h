@@ -46,7 +46,7 @@
 #include "dtl_shaft_types.h"
 #include "shaft_track_assembly.h"   // FrameSource
 #include "shaft_tracker_math.h"     // SegmentGeom
-#include "../Analysis/gate_record.h" // GateRecord (dtlShaftGates, trust stage 6)
+#include "../Vocabulary/Analysis/gate_record.h" // GateRecord (dtlShaftGates, trust stage 6)
 
 namespace pinpoint::analysis {
 

@@ -49,8 +49,8 @@
 // Evidence: code, minAfterMs, maxAfterMs, stallBandDeg, stallMinMs (the window and stall the tracker used).
 
 #include "shaft_positions.h"
-#include "../Analysis/gate_record.h"
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/gate_record.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 
 #include <QString>
 #include <QVariantMap>

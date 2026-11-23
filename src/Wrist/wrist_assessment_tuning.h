@@ -20,7 +20,7 @@
 
 #include <QVariantMap>
 
-#include "../Analysis/analysis_tuning.h"
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "wrist_assessment_engine.h"
 
 // SwingLab tuning for the Tier-1/2 wrist assessment engine. Builds a WristAssessmentConfig

@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "../IMU/imu_vision_fuser.h" // FusedStreams
-#include "../Analysis/swing_analysis.h" // MetricSeries, PhaseEvent
+#include "../Vocabulary/Analysis/swing_analysis.h" // MetricSeries, PhaseEvent
 
 namespace pinpoint::analysis {
 

@@ -28,7 +28,7 @@
 // [launch{x, y}] } — normalized [0,1] full-frame centre + radius; found=false marks the
 // post-launch gap. TIMES go through windowTimeUs (swing_analysis.h): `t0Us` 0 = as written.
 
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 
 #include <QJsonArray>
 #include <QJsonObject>

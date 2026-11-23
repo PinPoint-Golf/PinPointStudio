@@ -6,9 +6,9 @@
 //   ctest --test-dir <build> -R uncertainty_delta --output-on-failure
 
 #include "../../Club/shaft_sigma.h"
-#include "../uncertainty_config.h"
-#include "../uncertainty_json.h"
-#include "../det_rng.h"
+#include "../../Vocabulary/Analysis/uncertainty_config.h"
+#include "../../Vocabulary/Analysis/uncertainty_json.h"
+#include "../../Vocabulary/Analysis/det_rng.h"
 
 #include <cmath>
 #include <cstdio>

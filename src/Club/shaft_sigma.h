@@ -30,7 +30,7 @@
 #include <limits>
 #include <vector>
 
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Core/pp_tuned_constants.h"
 
 namespace pinpoint::analysis::shaftsigma {

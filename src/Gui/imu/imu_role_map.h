@@ -24,7 +24,7 @@
 #include <QVariantMap>
 #include <functional>
 
-#include "../../Analysis/segment_role.h"
+#include "../../Vocabulary/Analysis/segment_role.h"
 
 // ---------------------------------------------------------------------------
 // Role-keyed IMU placement — the pure logic (session_wizard_refactor_design.md §4.13)

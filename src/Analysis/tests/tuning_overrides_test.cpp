@@ -7,7 +7,7 @@
 
 #include "../../Wrist/wrist_assessment_tuning.h"
 #include "../../Wrist/reference_bands.h"
-#include "../analysis_tuning.h"
+#include "../../Vocabulary/Analysis/analysis_tuning.h"
 #include "../../Ball/ball_position.h"
 #include "../../Timeline/event_refine.h"
 #include "../../Kinematics/kinematic_series.h"

@@ -32,7 +32,7 @@
 //   ball                      ballTrackToAnalysisJson / …FromAnalysisJson Ball/ball_track_json.h
 //   impact                    impactTrackToAnalysisJson / …FromAnalysisJson Ball/impact_track_json.h
 //   kinematicSequence         kinematicSequenceToJson / …FromJson         Kinematics/kinematic_sequence_json.h
-//   gates                     gateRecordsToJson / gateRecordsFromJson     Analysis/gate_record.h
+//   gates                     gateRecordsToJson / gateRecordsFromJson     Vocabulary/Analysis/gate_record.h
 //   dtlRuler                  dtlRulerToJson / dtlRulerFromJson           Body/dtl_ruler_json.h
 //   clubDtl, club3d,          writer only (their readers build other      Club/dtl_shaft_json.h,
 //   skeleton3d, addressMarks  shapes: the replay payloads, Skeleton3DTrack) Club/shaft_fusion_json.h, …
@@ -47,11 +47,11 @@
 
 #include <QJsonArray>
 
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Analysis/swing_analysis_json.h"       // score, metrics, versions, filter, assessment, timings, bindings
 #include "analysis_path_json.h"                 // path
 #include "../Analysis/recorded_products.h"         // phases, segmentation, club
-#include "../Analysis/gate_record.h"               // gates
+#include "../Vocabulary/Analysis/gate_record.h"               // gates
 #include "../Analysis/manifest_gates.h"            // the integrity blocks → analysis.gates (shot.*)
 #include "../Pose/pose_track_json.h"               // pose2d, poseDtl
 #include "../Ball/ball_track_json.h"               // ball

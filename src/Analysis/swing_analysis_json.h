@@ -32,8 +32,8 @@
 // TIMES go through windowTimeUs (swing_analysis.h): `t0Us` 0 = as written. Only `metrics` carries
 // instants; the other blocks hold durations, versions and names.
 
-#include "swing_analysis.h"
-#include "uncertainty_json.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/uncertainty_json.h"
 
 #include <QJsonArray>
 #include <QJsonObject>

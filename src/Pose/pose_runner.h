@@ -31,7 +31,7 @@
 #include <functional>
 
 #include "types.h"
-#include "../Analysis/swing_analysis.h" // PoseFrame2D / PoseTrack2D (canonical output shapes)
+#include "../Vocabulary/Analysis/swing_analysis.h" // PoseFrame2D / PoseTrack2D (canonical output shapes)
 #include "pose_timing.h"           // PoseTiming (lastTiming — perf plan step 0)
 #include "pose_schedule.h"         // PoseZone (zoneSchedule — perf plan step 4)
 

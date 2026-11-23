@@ -7,7 +7,7 @@
 
 #include "../../Club/shaft_plane.h"
 #include "../../Club/shaft_fusion.h"
-#include "../det_rng.h"
+#include "../../Vocabulary/Analysis/det_rng.h"
 
 #include <cmath>
 #include <cstdio>

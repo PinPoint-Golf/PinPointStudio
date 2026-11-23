@@ -58,7 +58,7 @@
 
 #include "../../Identity/identity.h"           // ShotRef: the live join's write is keyed by it (step 2.4)
 #include "../../Recording/recording.h"
-#include "../../Analysis/swing_analysis.h"        // BallTrack2D, SwingAnalysis
+#include "../../Vocabulary/Analysis/swing_analysis.h"        // BallTrack2D, SwingAnalysis
 #include "../../Analysis/recording_integrity.h"   // IntegrityVerdicts
 #include "../../Club/club_length_fusion.h"        // LengthPriorState
 #include "../../Export/capture_export_facts.h"     // the Recording's inputs the export takes from the freeze

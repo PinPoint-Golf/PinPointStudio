@@ -19,10 +19,10 @@
 #pragma once
 
 #include "metric_type.h"
-#include "swing_analysis.h"          // Phase, SegmentRole, ReconstructionTier
+#include "../Vocabulary/Analysis/swing_analysis.h"          // Phase, SegmentRole, ReconstructionTier
 // wrist_assessment_types.h is no longer needed HERE (PpJointDof left with MetricNormative at stage 9)
 // but several includers of this header have always got PpJointDof / PpSwingPosition through it.
-#include "../Wrist/wrist_assessment_types.h"
+#include "../Vocabulary/Analysis/wrist_assessment_types.h"
 #include "variability/variability_scale_type.h"   // ScaleType — the variability grade basis
 
 #include <QString>

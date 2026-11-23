@@ -21,7 +21,7 @@
 #include "../../Metrics/fitted_curve.h"
 #include "../../Metrics/series_reduce.h"    // C8 — reduceAt / reduceExtremum / reduceRate
 #include "timeline_labels.h"                    // the one phase-tag vocabulary (hasPositionTag)
-#include "../../Analysis/swing_analysis.h"      // SigmaKind (sigmaInfo)
+#include "../../Vocabulary/Analysis/swing_analysis.h"      // SigmaKind (sigmaInfo)
 #include "../../Kinematics/kinematic_sequence.h" // seqSegmentFromKey (the tile's tie-break)
 #include "../../Core/pp_tuned_constants.h"     // tuned::uncertainty::kGrossWarn
 #include "../../Core/figure_format.h"           // the app's one figure formatter, unit rule and tick rule

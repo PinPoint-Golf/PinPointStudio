@@ -45,7 +45,7 @@
 #include "skeleton3d_fit.h"
 #include "club_plane_catalogue.h"
 
-// A GATE ID AT A FIRING SITE (Analysis/gate_record.h's PP_GATE). The solver builds without Qt
+// A GATE ID AT A FIRING SITE (Vocabulary/Analysis/gate_record.h's PP_GATE). The solver builds without Qt
 // (skeleton3d_test is NO_QT), so the id is a plain string literal here; gate_catalogue_test still
 // finds each id spelled with the macro below, and Skeleton3DStage turns it into the record.
 #ifndef PP_GATE

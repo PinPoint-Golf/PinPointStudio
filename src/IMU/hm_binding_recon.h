@@ -23,8 +23,8 @@
 #include <optional>
 #include <vector>
 
-#include "../Analysis/swing_analysis.h" // ImuSegmentBinding, SegmentRole, SourceId
-#include "../Analysis/gate_record.h"    // GateRecord, GateLog, PP_GATE (refusalRecords)
+#include "../Vocabulary/Analysis/swing_analysis.h" // ImuSegmentBinding, SegmentRole, SourceId
+#include "../Vocabulary/Analysis/gate_record.h"    // GateRecord, GateLog, PP_GATE (refusalRecords)
 #include "hm_frame.h"             // the frame constant — a wG3 binding needs no calibration
 #include "hm_unit_id.h"           // "<deviceId>#lowerArm" / "#palm" -> which segment
 

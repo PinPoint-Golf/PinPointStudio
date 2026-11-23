@@ -18,7 +18,7 @@
 
 #include "kinematic_series.h"
 
-#include "../Analysis/det_rng.h" // deterministic Monte Carlo (uncertainty design principle 7)
+#include "../Vocabulary/Analysis/det_rng.h" // deterministic Monte Carlo (uncertainty design principle 7)
 #include "../Club/shaft_sigma.h" // σ helpers
 #include "../Club/shaft_synthesis.h" // synthDraws
 

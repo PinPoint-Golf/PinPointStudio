@@ -49,9 +49,9 @@
 //     trail hip IR = trail thigh turn − pelvis turn    (the pelvis closing over the trail leg)
 // A backswing turn loads the trail hip (+), a downswing the lead hip (+).
 
-#include "../Analysis/gate_record.h"
+#include "../Vocabulary/Analysis/gate_record.h"
 #include "../Analysis/route_substitution.h"
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Core/pp_tuned_constants.h"
 #include "../Metrics/series_reduce.h"
 

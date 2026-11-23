@@ -70,7 +70,7 @@
 #include "../swing_paths.h"
 #include "../swing_store.h"
 #include "../../Analysis/reanalyse_and_persist.h"
-#include "../../Analysis/swing_analysis.h"
+#include "../../Vocabulary/Analysis/swing_analysis.h"
 #include "../../Analysis/capture_integrity_check.h"
 #include "../../IMU/imu_refusion_check.h"
 #include "../../LaunchMonitor/launch_monitor_reading.h"

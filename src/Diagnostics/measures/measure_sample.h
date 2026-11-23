@@ -23,7 +23,7 @@
 #include "../../Core/pp_tuned_constants.h"
 #include "../../Core/sidecar_policy.h"   // SidecarPolicy: what a miss may cost (3.7-0)
 #include "../../Metrics/metric_reducer.h"
-#include "../../Analysis/gate_record.h"   // GateRecord — why a reading is absent (schema 8)
+#include "../../Vocabulary/Analysis/gate_record.h"   // GateRecord — why a reading is absent (schema 8)
 
 #include <QByteArray>
 #include <QJsonObject>

@@ -35,7 +35,7 @@
 #include "../Club/club_length_fusion.h"
 #include "../IMU/imu_vision_fuser.h"
 #include "../Timeline/phase_segmenter.h"
-#include "../Analysis/swing_analysis.h"
+#include "../../Vocabulary/Analysis/swing_analysis.h"
 #include "../Analysis/analysis_job_builder.h"   // the ONE job builder
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"

@@ -18,7 +18,7 @@
 
 #include "club_delivery.h"
 
-#include "../Analysis/det_rng.h" // deterministic Monte Carlo (uncertainty design principle 7)
+#include "../Vocabulary/Analysis/det_rng.h" // deterministic Monte Carlo (uncertainty design principle 7)
 #include "shaft_sigma.h"
 #include "shaft_synthesis.h"   // synthDraws
 

@@ -22,7 +22,7 @@
 // written once: its title, the paragraph that explains it, the sentence its records fill, the tuned
 // constants it reads (with their CURRENT values, straight from pp_tuned_constants.h), and the routes
 // that do not have it. Every surface reads its words from here, so the chart, the diagnostics and the
-// docs cannot drift apart. A record (Analysis/gate_record.h) carries only evidence.
+// docs cannot drift apart. A record (Vocabulary/Analysis/gate_record.h) carries only evidence.
 //
 // ONLY GATES THAT ARE EMITTED. An entry joins when its producer starts firing it (gate_catalogue_test
 // ties the two both ways: every id fired in a producer source is here, every entry here is fired by
@@ -41,8 +41,8 @@
 
 #include "../Core/figure_format.h"      // every evidence figure and threshold: the app's one formatter
 #include "../Core/pp_tuned_constants.h"
-#include "../Analysis/gate_record.h"
-#include "../Analysis/swing_analysis.h"   // Phase (phaseSubject)
+#include "../Vocabulary/Analysis/gate_record.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"   // Phase (phaseSubject)
 
 #include <QChar>
 #include <QHash>

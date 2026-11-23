@@ -47,7 +47,7 @@
 #include "shot/shot_list_model.h"
 #include "shot/qml_payload.h"
 #include "fake_shot_source.h"
-#include "Analysis/swing_analysis.h"
+#include "Vocabulary/Analysis/swing_analysis.h"
 #include "norms/norm_provider.h"
 #include "norms/context_tree.h"
 #include "norms/metric_corridor.h"

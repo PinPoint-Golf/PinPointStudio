@@ -31,7 +31,7 @@
 
 #include <limits>
 
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 
 namespace pinpoint::analysis {
 

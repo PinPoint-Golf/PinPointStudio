@@ -30,7 +30,7 @@
 // TIMES go through windowTimeUs (swing_analysis.h): `t0Us` 0 = as written, else the clock the
 // track is on. `scanPath` is run telemetry (analysis.path.pose) and is not part of the block.
 
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 
 #include <QJsonArray>
 #include <QJsonObject>

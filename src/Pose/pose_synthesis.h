@@ -25,7 +25,7 @@
 
 #include <QPointF>
 
-#include "../Analysis/swing_analysis.h" // PoseFrame2D / kWholeBodyJoints
+#include "../Vocabulary/Analysis/swing_analysis.h" // PoseFrame2D / kWholeBodyJoints
 
 // Motion-overlay pose synthesis — temporal upsampling of the offline-smoothed
 // skeleton (pose_smoother.{h,cpp}) onto a dense fixed-rate grid; the body-side

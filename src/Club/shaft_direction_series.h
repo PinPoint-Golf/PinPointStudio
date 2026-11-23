@@ -32,8 +32,8 @@
 //     not a graded reading and do not fire it; the curve's share is in the evidence and the log.
 
 #include "shaft_direction.h"
-#include "../Analysis/swing_analysis.h"
-#include "../Analysis/gate_record.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/gate_record.h"
 
 #include <QString>
 #include <QStringList>

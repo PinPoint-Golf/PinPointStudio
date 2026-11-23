@@ -37,6 +37,7 @@
 // down-weighted is counted, and that count is the developer diagnostic (ClubFilterStats).
 
 #include "../Core/kf3_smoother.h"
+#include "../Vocabulary/Analysis/club_filter_stats.h"   // ClubFilterStats (vocabulary since refactor 7.3)
 
 #include <cstdint>
 #include <memory>
@@ -66,21 +67,6 @@ struct ClubFilterObs {
     double  thetaRad = 0.0;
     double  sigmaRad = 0.0;
     Kind    kind     = Frame;
-};
-
-// The per-swing diagnostic (developer only, persisted as analysis.club.filter). How far the frames
-// sat off the filtered track IS the wobble — the measurement error the tracker made.
-struct ClubFilterStats {
-    bool   ran            = false;
-    int    version        = 1;
-    int    nEvidence      = 0;      // observations read, both segments
-    int    nGated         = 0;      // thrown out by pass 1's gate
-    int    nDownweighted  = 0;      // R inflated on the final pass (|residual| > robustK·σ)
-    double nisMean        = -1.0;   // mean normalised innovation on the final pass (≈ 1 when σθ is honest)
-    double residualRmsDeg = -1.0;   // RMS of frame − filtered θ over the downswing
-    double rateWobble     = -1.0;   // RMS of (raw dθ/dt − filtered θ̇) / max(|θ̇|, floor), downswing
-    int    humpsRaw       = -1;     // countHumps of the raw |dθ/dt|, last 250 ms before impact
-    int    humpsFiltered  = -1;     // the same on the filtered |θ̇|
 };
 
 // One filtered segment, kept so the uncertainty draws can sample it (forward-filter backward-sample).

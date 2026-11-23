@@ -23,7 +23,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "../Analysis/swing_analysis.h" // SegmentRole, ImuSegmentBinding
+#include "../Vocabulary/Analysis/swing_analysis.h" // SegmentRole, ImuSegmentBinding
 #include "orientation_refuser.h"          // RefuseConfig (optional offline re-fusion)
 
 namespace pinpoint { class SwingWindow; }

@@ -27,7 +27,7 @@
 #include "../../Diagnostics/engine/relation_resolver.h"
 #include "../../DomainModel/session_input.h"
 #include "../../DomainModel/session_identity.h"   // the held session's identity (its id names its shots)
-#include "session_spread.h"
+#include "../../Coaching/session_spread.h"
 
 #include "../../Coaching/session_results.h"   // SessionResults (the thin adapter's view of its owner: 3.7-a)
 

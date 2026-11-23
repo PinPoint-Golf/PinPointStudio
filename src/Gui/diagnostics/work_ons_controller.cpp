@@ -20,7 +20,7 @@
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../../Coaching/tendency_flow_map.h"
 
-#include "session_spread.h"
+#include "../../Coaching/session_spread.h"
 
 
 #include "../../Coaching/board_annotations.h"   // the launch monitor board's annotations (step 3.6)

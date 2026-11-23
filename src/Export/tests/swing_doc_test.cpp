@@ -11,7 +11,8 @@
 #include "../../IMU/imu_refusion_check.h"   // ImuRefusionVerdict (header-only)
 #include "../../Analysis/capture_integrity_check.h"   // CaptureIntegrityVerdict (header-only)
 #include "../../Analysis/manifest_gates.h"            // the whole-shot records the blocks derive
-#include "../../Analysis/swing_analysis.h"
+#include "../../Vocabulary/Analysis/swing_analysis.h"
+#include "../../Pose/pose_timing.h"   // PoseTimingSink, PoseScopedTimer (swing_analysis.h carries PoseTiming only, refactor 7.3)
 #include "../../Analysis/recorded_products.h"   // the club / ladder readers this file round-trips
 #include "../../Club/dtl_shaft_json.h"      // dtlShaftTrackToJson — analysis.clubDtl's builder
 #include "../../Body/address_marks_json.h"  // dtlPhaseMarksPayload — the /1 and /2 readers

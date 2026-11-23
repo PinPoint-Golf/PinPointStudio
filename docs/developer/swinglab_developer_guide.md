@@ -639,9 +639,9 @@ src/Analysis/swing_reanalyzer.h # SwingDiskLoader — the SHARED disk → SwingW
                                 #   re-analyse path
 src/Analysis/shot_analyzer.h    # ShotAnalysisJob (tuningOverrides, poseTrackPath,
                                 #   ballTrackPath)
-src/Analysis/analysis_tuning.h  # tuning::apply — dotted key → config struct field
+src/Vocabulary/Analysis/analysis_tuning.h  # tuning::apply — dotted key → config struct field
 src/Core/pp_tuned_constants.h   # pinpoint::tuned::* — the frozen defaults
-src/Analysis/swing_analysis.h   # ImuSegmentBinding / BindingRecord (calibration status)
+src/Vocabulary/Analysis/swing_analysis.h   # ImuSegmentBinding / BindingRecord (calibration status)
 src/Export/swing_doc.{h,cpp}    # result.json writer (shared with the app)
 
 docs/implementation/swinglab_impl.md      # design + stage history (L0–L5)

@@ -73,8 +73,8 @@
 #include <QVariantMap>
 #include <cstdint>
 
-#include "../Analysis/swing_analysis.h"    // ShaftTrack2D, BallTrack2D, Segmentation
-#include "../Analysis/analysis_tuning.h"   // tuning::apply
+#include "../Vocabulary/Analysis/swing_analysis.h"    // ShaftTrack2D, BallTrack2D, Segmentation
+#include "../Vocabulary/Analysis/analysis_tuning.h"   // tuning::apply
 #include "../Core/pp_tuned_constants.h"    // tuned::refine::
 
 namespace pinpoint::analysis {

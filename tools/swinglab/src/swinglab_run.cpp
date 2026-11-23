@@ -112,7 +112,7 @@
 #include "../../../src/Export/recording_loader.h"            // SwingStoreRecordingReader — the reading door
 #include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)
 #include "../../../src/IMU/orientation_refuser.h"    // refuseOrientation / refuseOrientationAdaptive / parity
-#include "../../../src/Analysis/analysis_tuning.h"   // tuning::apply (filter.* keys)
+#include "../../../src/Vocabulary/Analysis/analysis_tuning.h"   // tuning::apply (filter.* keys)
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;

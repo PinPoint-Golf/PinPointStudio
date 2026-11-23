@@ -100,7 +100,7 @@
 // Unit-tested standalone in src/Analysis/tests/swing_themes_test.cpp; held to the Python reference
 // on real ledgers in src/Analysis/tests/swing_themes_golden_test.cpp.
 
-#include "../Analysis/det_rng.h"
+#include "../Vocabulary/Analysis/det_rng.h"
 #include "diagnostic_ledger.h"
 #include "frequency_words.h"
 

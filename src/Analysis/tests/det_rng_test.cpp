@@ -1,9 +1,9 @@
 // The deterministic random source the uncertainty Monte Carlo and bootstraps run on
-// (src/Analysis/det_rng.h; shaft_uncertainty_propagation_design.md principle 7). Pure std.
+// (src/Vocabulary/Analysis/det_rng.h; shaft_uncertainty_propagation_design.md principle 7). Pure std.
 //
 //   ctest --test-dir <build> -R det_rng --output-on-failure
 
-#include "../det_rng.h"
+#include "../../Vocabulary/Analysis/det_rng.h"
 
 #include <cmath>
 #include <cstdio>

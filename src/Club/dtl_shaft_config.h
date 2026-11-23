@@ -43,10 +43,10 @@
 
 #include <cstdint>
 
-#include "../Analysis/analysis_tuning.h" // pinpoint::analysis::tuning::apply
+#include "../Vocabulary/Analysis/analysis_tuning.h" // pinpoint::analysis::tuning::apply
 #include "shaft_track_assembly.h"     // ShaftV3Config (the source of the shared defaults)
 #include "shaft_tracker_math.h"       // RidgeConfig / BandMatchConfig / SegmentConfig
-#include "../Analysis/uncertainty_config.h" // UncertaintyConfig (shaft_uncertainty_propagation_design.md)
+#include "../Vocabulary/Analysis/uncertainty_config.h" // UncertaintyConfig (shaft_uncertainty_propagation_design.md)
 
 namespace pinpoint::analysis {
 

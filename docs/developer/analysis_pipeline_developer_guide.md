@@ -707,7 +707,7 @@ as a bug.
 
 Re-analysis used to re-run ViTPose, the ball replay and the shaft tracker every time —
 about 11 s of pose per swing on a CPU host — although nothing that produces them had
-changed. Each producer now has a version (`src/Analysis/analysis_versions.h`), the
+changed. Each producer now has a version (`src/Vocabulary/Analysis/analysis_versions.h`), the
 stages stamp them into `SwingAnalysis::versions`, and `serializeAnalysis` writes them
 as `analysis.versions`:
 

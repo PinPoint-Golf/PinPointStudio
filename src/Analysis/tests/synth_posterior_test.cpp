@@ -7,7 +7,7 @@
 //   ctest --test-dir <build> -R synth_posterior --output-on-failure
 
 #include "../../Club/shaft_synthesis.h"
-#include "../det_rng.h"
+#include "../../Vocabulary/Analysis/det_rng.h"
 
 #include <cmath>
 #include <cstdio>

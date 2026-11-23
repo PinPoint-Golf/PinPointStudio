@@ -20,7 +20,7 @@
 
 #include <optional>
 
-#include "swing_analysis.h"   // Segmentation
+#include "../Vocabulary/Analysis/swing_analysis.h"   // Segmentation
 
 // ---------------------------------------------------------------------------
 // Which segmentation becomes the swing's ladder (SegResolveStage)

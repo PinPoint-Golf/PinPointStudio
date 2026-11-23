@@ -34,7 +34,7 @@
 // series σ — a full budget when it carries a SigmaKind (Series), the frame-to-frame noise floor when it
 // carries none (Noise). No σ anywhere: None (not characterised, never zero).
 
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Core/pp_tuned_constants.h"
 #include "../Metrics/fitted_curve.h"
 #include "../Metrics/line_angle.h"

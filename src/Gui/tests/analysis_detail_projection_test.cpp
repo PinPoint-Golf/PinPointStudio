@@ -52,7 +52,7 @@
 #include "../../Export/swing_store_repository.h"   // the one door: create() writes the document
 #include "../../Export/tests/swing_doc_test_writes.h"   // testdoc::ref — the test folder's ShotRef
 #include "../../Export/swing_store.h"
-#include "../../Analysis/swing_analysis.h"
+#include "../../Vocabulary/Analysis/swing_analysis.h"
 #include "../../Export/tests/analysis_fixture.h"
 #include "../shot/disk_replay_source.h"
 

@@ -23,7 +23,7 @@
 #include <QVariantMap>
 #include <memory>
 
-#include "swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "shot_analysis_job.h"   // ShotAnalysisJob — the value an analysis consumes (step 1.1)
 
 namespace pinpoint { class SwingWindow; }

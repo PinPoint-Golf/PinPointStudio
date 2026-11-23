@@ -23,7 +23,7 @@
 // where it was written) and analysis_detail_projection_test (step 1.3b). Frame sizes are powers of
 // two so normalise-then-denormalise is exact in binary floating point.
 
-#include "../../Analysis/swing_analysis.h"
+#include "../../Vocabulary/Analysis/swing_analysis.h"
 
 #include <QPointF>
 #include <QRectF>

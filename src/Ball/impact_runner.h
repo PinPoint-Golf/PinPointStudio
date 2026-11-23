@@ -45,8 +45,8 @@
 // Output is in the clip's normalised coordinates (ImpactSample2D). Runs in a
 // few hundred ms; never reused across re-analyses (analysis_versions.h).
 
-#include "../Analysis/swing_analysis.h"
-#include "../Analysis/gate_record.h"   // GateRecord (trust stage 6)
+#include "../Vocabulary/Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/gate_record.h"   // GateRecord (trust stage 6)
 #include <cstdint>
 
 namespace pinpoint { class SwingWindow; }

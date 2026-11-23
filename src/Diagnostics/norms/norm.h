@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../Wrist/wrist_assessment_types.h"   // PpRag
+#include "../../Vocabulary/Analysis/wrist_assessment_types.h"   // PpRag
 #include "../measures/measure_vocabulary.h"       // Shape — a property of the MEASURE
 
 #include <QDate>

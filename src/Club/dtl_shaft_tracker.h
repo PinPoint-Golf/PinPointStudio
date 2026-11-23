@@ -35,7 +35,7 @@
 // swing's face-on products are the same with or without a DTL camera.
 
 #include "dtl_shaft_types.h"
-#include "../Analysis/swing_analysis.h" // PoseTrack2D
+#include "../Vocabulary/Analysis/swing_analysis.h" // PoseTrack2D
 
 namespace pinpoint { class SwingWindow; }
 struct ShotAnalysisJob;

@@ -18,10 +18,10 @@
 
 #pragma once
 
-#include "../../Coaching/diagnostic_ledger.h"
-#include "../../Diagnostics/norms/norm.h"
-#include "../typeset/box_stats.h"
-#include "../../Core/figure_format.h"
+#include "diagnostic_ledger.h"
+#include "../Diagnostics/norms/norm.h"
+#include "../Metrics/box_stats.h"
+#include "../Core/figure_format.h"
 
 #include <algorithm>
 #include <cmath>

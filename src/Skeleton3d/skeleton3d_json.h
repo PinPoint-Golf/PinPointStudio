@@ -38,9 +38,9 @@
 #include <cmath>
 #include <vector>
 
-#include "../Analysis/analysis_tuning.h"
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "skeleton3d_fit.h"
-#include "../Analysis/swing_analysis.h" // analysis::windowTimeUs — the one time rule
+#include "../Vocabulary/Analysis/swing_analysis.h" // analysis::windowTimeUs — the one time rule
 #include "skeleton3d_rig.h"
 
 namespace pinpoint::skeleton3d {

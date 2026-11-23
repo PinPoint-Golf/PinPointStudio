@@ -35,7 +35,7 @@
 #include "../../Metrics/metric_catalogue.h"
 #include "../../Diagnostics/norms/norm.h"   // the grade policy: where a fired reading is past its fault line
 #include "../../Diagnostics/norms/norm_provider.h"   // the Readings rows' corridor: the norm the reading grades against
-#include "../diagnostics/session_spread.h"           // …turned into bands exactly as Session diagnostics draws them
+#include "../../Coaching/session_spread.h"           // …turned into bands exactly as Session diagnostics draws them
 #include "../variability/variability_facade.h"       // R8 typicality: the session window and the badge's `values`
 #include "../../Metrics/variability/variability_outcome.h"   // isOutcomeMetric: ball flight has no typicality (R4)
 

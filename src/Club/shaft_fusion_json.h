@@ -33,9 +33,9 @@
 
 #include <cmath>
 
-#include "../Analysis/analysis_tuning.h"
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "shaft_fusion.h"
-#include "../Analysis/swing_analysis.h" // windowTimeUs — the one time rule
+#include "../Vocabulary/Analysis/swing_analysis.h" // windowTimeUs — the one time rule
 
 namespace pinpoint::analysis {
 

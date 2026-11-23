@@ -31,7 +31,7 @@
 // old severity×confidence central term is gone (wrist_assessment_engine), and confidence
 // now only widens the band.
 
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 
 #include <QVariantMap>
 #include <vector>

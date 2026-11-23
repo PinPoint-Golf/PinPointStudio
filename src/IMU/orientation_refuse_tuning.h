@@ -21,7 +21,7 @@
 #include <QVariantMap>
 #include <cstdint>
 
-#include "../Analysis/analysis_tuning.h"
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "orientation_refuser.h"
 
 // SwingLab tuning for the orientation re-fusion filter (validation §5.3.1). Single source for the

@@ -77,8 +77,8 @@
 // a withheld part withholds the reading. Run once, AFTER the run (runProfile), on the series and records as they
 // will be written. Idempotent: a reading, record or cover this left on an earlier call is taken back first.
 
-#include "../Analysis/gate_record.h"
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/gate_record.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Body/grader_sample.h"   // grader::graderReadingAt — the grader's `at` sampling
 #include "../Core/pp_tuned_constants.h"
 

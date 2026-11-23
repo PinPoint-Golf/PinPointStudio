@@ -22,7 +22,7 @@
 
 #include <QElapsedTimer>
 
-#include "analysis_tuning.h"
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "swing_window.h"
 #include "../Core/pp_tuned_constants.h"
 #include "../Export/frame_decode.h"

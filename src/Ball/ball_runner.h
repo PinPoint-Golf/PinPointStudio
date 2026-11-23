@@ -33,7 +33,7 @@
 #include <cstdint>
 
 #include "types.h"
-#include "../Analysis/swing_analysis.h" // BallSample2D / BallTrack2D (canonical output shapes)
+#include "../Vocabulary/Analysis/swing_analysis.h" // BallSample2D / BallTrack2D (canonical output shapes)
 #include "../Pose/pose_runner.h" // ShotAnalysisRunnerOptions (shared with PoseRunner)
 
 namespace pinpoint { class SwingWindow; }

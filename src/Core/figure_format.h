@@ -36,7 +36,7 @@
 //   · axis ticks step 1-2-5, cut at 1.5 / 3 / 7                                     — tickValues
 //
 // Header-only and Qt Core only, and in Core so every library can use it: the gate catalogue (Metrics) sets its
-// evidence figures with it, diagnostics/session_spread.h (and through it Coaching/session_report.h) its
+// evidence figures with it, Coaching/session_spread.h (and through it Coaching/session_report.h) its
 // corridor words, and Gui/charts/charts_words.h re-exports all of it into charts::words.
 
 #include <QChar>

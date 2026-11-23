@@ -55,7 +55,7 @@ from theta_psi_model import (  # noqa: E402  - the conventions live there, once
 
 LAB_ROOT_DEFAULT = "/mnt/swingdata/corpus/shaftlab/lab/tape_20260705"
 
-# COCO-WholeBody hand blocks (src/Analysis/swing_analysis.h:249-250) and the
+# COCO-WholeBody hand blocks (src/Vocabulary/Analysis/swing_analysis.h:249-250) and the
 # hand-axis endpoint (src/Pose/hand_axis.h:43). Used ONLY for the accuracy
 # cross-check -- the hand keypoints are not trustworthy through a fast swing and
 # nothing here may feed a model.

@@ -59,7 +59,7 @@
 
 #include "work_ons.h"
 #include "condition_role_pack.h"    // conditionRoleFor, FactKind
-#include "../Gui/diagnostics/session_spread.h"
+#include "session_spread.h"
 #include "../Diagnostics/engine/characteristic.h"
 
 #include <QDate>

@@ -98,7 +98,7 @@ endforeach()
 # header). Header-only, Qt-only (QString), no fixture.
 pp_add_test(kinematic_sequence_test SOURCES kinematic_sequence_test.cpp)
 
-# Gate catalogue + record format (Metrics/gate_catalogue.h, Analysis/gate_record.h;
+# Gate catalogue + record format (Metrics/gate_catalogue.h, Vocabulary/Analysis/gate_record.h;
 # trust_and_gates_design.md §5, §6). BOTH WAYS against the producers' sources: every
 # PP_GATE("…") id a producer fires is catalogued, every entry is fired by the producer it
 # names — read from the source tree, so a gate added without its words fails here. Also the

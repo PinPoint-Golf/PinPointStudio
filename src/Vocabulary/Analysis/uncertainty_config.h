@@ -32,7 +32,7 @@
 #include <cstdint>
 
 #include "analysis_tuning.h"
-#include "../Core/pp_tuned_constants.h"
+#include "../../Core/pp_tuned_constants.h"
 
 namespace pinpoint::analysis {
 

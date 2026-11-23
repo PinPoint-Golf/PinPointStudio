@@ -50,7 +50,7 @@
 #include "../Identity/identity.h"
 #include "../Recording/recording.h"
 #include "../Analysis/effective_context.h"   // pinpoint::analysis::ClubReview
-#include "../Analysis/gate_record.h"         // loadGates
+#include "../Vocabulary/Analysis/gate_record.h"         // loadGates
 
 namespace pinpoint {
 

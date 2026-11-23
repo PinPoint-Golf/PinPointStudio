@@ -18,11 +18,11 @@
 
 #pragma once
 
-#include "../Analysis/swing_analysis.h"
-#include "../Analysis/uncertainty_config.h"
-#include "../Analysis/analysis_tuning.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/uncertainty_config.h"
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "../Core/pp_tuned_constants.h"
-#include "../Analysis/gate_record.h"   // GateRecord (trust stage 6)
+#include "../Vocabulary/Analysis/gate_record.h"   // GateRecord (trust stage 6)
 
 #include <QVariantMap>
 

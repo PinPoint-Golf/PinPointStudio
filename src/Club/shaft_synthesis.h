@@ -26,7 +26,8 @@
 
 #include <QPointF>
 
-#include "../Analysis/swing_analysis.h" // ShaftSample2D / ShaftPosition / ShaftSynthesized flag
+#include "../Vocabulary/Analysis/swing_analysis.h" // ShaftSample2D / ShaftPosition / ShaftSynthesized flag
+#include "club_rate_filter.h"   // ClubFilterSegment (swing_analysis.h no longer brings it, refactor 7.3)
 
 // Position-first shaft measurement — Layer C "synthesis between anchors"
 // (docs/design/shaft_position_first_design.md §2 Layer C). Header-only, unit-tested

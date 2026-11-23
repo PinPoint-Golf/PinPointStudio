@@ -32,7 +32,7 @@ using pinpoint::analysis::PoseTrack2D;
 
 #include <QElapsedTimer>
 
-#include "../Analysis/analysis_tuning.h"
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "format_descriptor.h"
 #include "swing_window.h"
 #include "../Core/pp_debug.h"

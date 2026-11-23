@@ -118,11 +118,11 @@
 #include <optional>
 #include <vector>
 
-#include "../Analysis/analysis_tuning.h"
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "../Core/pp_tuned_constants.h"   // sampler::kWindowHalfUs, body3d::kConfSigmaRef (armLiftTop)
-#include "../Analysis/gate_record.h"   // GateRecord (trust stage 6)
+#include "../Vocabulary/Analysis/gate_record.h"   // GateRecord (trust stage 6)
 #include "../Metrics/metric_channel.h"
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 
 namespace pinpoint::analysis {
 

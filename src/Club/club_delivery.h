@@ -113,12 +113,12 @@
 #include <cstdint>
 #include <vector>
 
-#include "../Analysis/swing_analysis.h" // ShaftTrack2D, MetricSeries, PhaseEvent
+#include "../Vocabulary/Analysis/swing_analysis.h" // ShaftTrack2D, MetricSeries, PhaseEvent
 #include "../Metrics/metric_channel.h" // MetricChannel, buildChannelSeries
-#include "../Analysis/analysis_tuning.h" // tuning::apply
-#include "../Analysis/uncertainty_config.h" // UncertaintyConfig
+#include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply
+#include "../Vocabulary/Analysis/uncertainty_config.h" // UncertaintyConfig
 #include "../Core/pp_tuned_constants.h"   // tuned::clubDelivery::
-#include "../Analysis/gate_record.h"      // GateRecord (trust stage 6)
+#include "../Vocabulary/Analysis/gate_record.h"      // GateRecord (trust stage 6)
 
 namespace pinpoint::analysis {
 

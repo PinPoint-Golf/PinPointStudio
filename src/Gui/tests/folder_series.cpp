@@ -20,8 +20,8 @@
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
-#include "../../Analysis/swing_analysis.h"              // Phase::Impact
-#include "../../Analysis/uncertainty_json.h"            // copyPhaseSampleSigma — σ keys, one spelling
+#include "../../Vocabulary/Analysis/swing_analysis.h"              // Phase::Impact
+#include "../../Vocabulary/Analysis/uncertainty_json.h"            // copyPhaseSampleSigma — σ keys, one spelling
 #include "../../Coaching/diagnostic_ledger.h"
 #include "../../Coaching/work_ons_pack.h"           // the work-on order (SessionSnapshot::workOnOrder)
 #include "../../Coaching/sequence_checks.h"         // the KS checks off the ledger's signal rows           // the ledger's one deserialiser

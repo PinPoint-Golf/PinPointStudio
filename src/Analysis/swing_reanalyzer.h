@@ -29,7 +29,7 @@
 #include "shot_analyzer.h"
 #include "../IMU/imu_refusion_check.h"
 #include "capture_integrity_check.h"
-#include "gate_record.h"   // LoadedSwing::loadGates
+#include "../Vocabulary/Analysis/gate_record.h"   // LoadedSwing::loadGates
 #include "effective_context.h"   // ClubReview
 #include "../Recording/recording.h"
 #include "../DomainModel/recording_source.h"   // RecordingSource: how a stored shot is read (refactor step 3.4b-ii)

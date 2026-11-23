@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "shaft_track_assembly.h"   // ShaftV3Config + deciding stages
-#include "../Analysis/swing_analysis.h" // ShaftTrack2D, PoseTrack2D, Segmentation
+#include "../Vocabulary/Analysis/swing_analysis.h" // ShaftTrack2D, PoseTrack2D, Segmentation
 
 struct ShotAnalysisJob;
 

@@ -54,6 +54,7 @@
 #include <vector>
 
 #include "ybot_rig.h"
+#include "../Vocabulary/Analysis/skeleton3d_types.h"   // V3, LengthGroup, kMarkerCount, kSymGroups (vocabulary since refactor 7.3)
 
 namespace pinpoint::skeleton3d {
 
@@ -61,20 +62,7 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double kDeg = kPi / 180.0;
 
 // ── minimal vector / quaternion ──────────────────────────────────────────────
-struct V3 {
-    double x = 0, y = 0, z = 0;
-    V3 operator+(const V3 &o) const { return { x + o.x, y + o.y, z + o.z }; }
-    V3 operator-(const V3 &o) const { return { x - o.x, y - o.y, z - o.z }; }
-    V3 operator*(double s) const { return { x * s, y * s, z * s }; }
-    V3 operator-() const { return { -x, -y, -z }; }
-    V3 &operator+=(const V3 &o) { x += o.x; y += o.y; z += o.z; return *this; }
-    double dot(const V3 &o) const { return x * o.x + y * o.y + z * o.z; }
-    V3 cross(const V3 &o) const { return { y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x }; }
-    double norm() const { return std::sqrt(dot(*this)); }
-    V3 unit() const { const double n = norm(); return n > 0 ? (*this) * (1.0 / n) : *this; }
-    double operator[](int i) const { return i == 0 ? x : i == 1 ? y : z; }
-};
-
+// V3 is in Vocabulary/Analysis/skeleton3d_types.h.
 struct Q {
     double w = 1, x = 0, y = 0, z = 0;
     Q operator*(const Q &o) const
@@ -112,10 +100,7 @@ struct Q {
 };
 
 // ── length groups: one scale each, L = R ─────────────────────────────────────
-enum LengthGroup : int {
-    GPelvis = 0, GSpine, GHead, GClavicle, GUpperArm, GForearm, GHand, GThigh, GShank, GFoot,
-    GroupCount
-};
+// The LengthGroup enum is in Vocabulary/Analysis/skeleton3d_types.h.
 inline const char *groupName(int g)
 {
     static const char *n[GroupCount] = { "pelvis", "spine", "head", "clavicle", "upperArm",
@@ -153,9 +138,6 @@ struct Dof {
     const char *name = "";
 };
 
-// COCO-WholeBody body + feet markers the fit reads (0–16 body, 17–22 feet).
-constexpr int kMarkerCount = 23;
-
 struct Marker {
     int  joint = 0;             // the segment the marker rides on
     V3   offsetPrior;           // joint-LOCAL offset prior (m, at unit scale)
@@ -174,11 +156,11 @@ struct Marker {
     double side = 0;            // +1 left, −1 right
     V3   latLocal, upLocal;     // joint-local lateral (toward the model's left) and up axes
 };
-constexpr int kSymGroups = 2;
 
 // The model's rest data, derived once from ybot_rig.h.
 struct Rig {
     static constexpr int N = ybot::JointCount;
+    static_assert(N == kRigJointCount, "skeleton3d_types.h sizes FitResult by kRigJointCount: keep it ybot::JointCount");
     std::array<int, N>  parent {};
     std::array<V3, N>   restT {};
     std::array<Q, N>    restQ {};

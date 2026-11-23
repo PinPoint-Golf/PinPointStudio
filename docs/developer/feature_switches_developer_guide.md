@@ -1,7 +1,7 @@
 # Pinpoint Feature Switches — Developer Guide
 
 **Audience**: Developers changing analysis behaviour, running SwingLab gates, or wondering why a feature "does nothing"
-**Location**: `src/Core/pp_tuned_constants.h` (frozen defaults), per-module `*Config` structs in `src/Analysis` / `src/Pose` (their `fromOverrides`), `src/Analysis/analysis_tuning.h` (the override mechanism), `src/Gui/app/app_settings.h`, `CMakeLists.txt`
+**Location**: `src/Core/pp_tuned_constants.h` (frozen defaults), per-module `*Config` structs in `src/Analysis` / `src/Pose` (their `fromOverrides`), `src/Vocabulary/Analysis/analysis_tuning.h` (the override mechanism), `src/Gui/app/app_settings.h`, `CMakeLists.txt`
 **Status**: Snapshot at `a7380850` (2026-10-01). Every default below was read at that commit; history comes from `git log -S` plus the commit bodies and gate documents cited. When a switch flips, update its row here in the same commit.
 
 **Vocabulary**: **LIVE** = on by default, runs in production. **DARK** = built, off by default, OFF path byte-identical to "not built". **mode** = a numeric/enum constant where a sentinel (usually `0`) disables the feature. **oracle** = a switch that exists only to reproduce an older or reference behaviour for A/B; it is never meant to flip.
@@ -43,7 +43,7 @@ Score and rule constants (`score.*`, `rules.*`) are **frozen until labels exist*
 
 ### 1.3 Flipping a default does not reach the stored library by itself
 
-Re-analysis reuses recorded stage outputs when the producer version matches (`src/Analysis/analysis_versions.h`). The shaft stage is reused only when pose and ball are reused **and the override map is empty**. When it is reused, the recorded **ladder comes back with it**, and EventRefine, PositionsLadder and TimelineFusion are skipped (`ctx.job.ladderPreloaded`).
+Re-analysis reuses recorded stage outputs when the producer version matches (`src/Vocabulary/Analysis/analysis_versions.h`). The shaft stage is reused only when pose and ball are reused **and the override map is empty**. When it is reused, the recorded **ladder comes back with it**, and EventRefine, PositionsLadder and TimelineFusion are skipped (`ctx.job.ladderPreloaded`).
 
 | You flip… | Reaches re-analysed swings? |
 |---|---|

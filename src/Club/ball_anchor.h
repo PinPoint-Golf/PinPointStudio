@@ -44,7 +44,7 @@
 
 #include <QPointF>
 
-#include "../Analysis/swing_analysis.h" // ShaftTrack2D, BallTrack2D
+#include "../Vocabulary/Analysis/swing_analysis.h" // ShaftTrack2D, BallTrack2D
 #include "shaft_track_assembly.h" // ShaftDecideTrace
 
 struct ShotAnalysisJob;

@@ -28,7 +28,7 @@
 
 #include "../Core/pp_tuned_constants.h"  // tuned::shaft:: (Stage-A no-return veto + Takeaway defaults)
 #include "shaft_tracker_math.h"    // RidgeConfig, BandMatchConfig, BandMatch
-#include "../Analysis/swing_analysis.h" // ShaftTrack2D / ShaftSample2D / ClubLengthEstimate / flags
+#include "../Vocabulary/Analysis/swing_analysis.h" // ShaftTrack2D / ShaftSample2D / ClubLengthEstimate / flags
 #include "clubhead_track.h"        // ClubheadConfig (Stage-2 head measurement)
 #include "club_length_fusion.h"    // LengthFusionConfig / LengthPriorState / fuseClubLength
 #include "shaft_positions.h"       // PositionsConfig / PTime / locatePTimes (Layer B B-time location)
@@ -36,8 +36,8 @@
 #include "club_rate_filter.h"      // ClubRateFilterConfig / runClubRateFilter (one θ̇ for the club)
 #include "shaft_wedge.h"           // WedgeConfig / measureWedge (R8-T1 blur-wedge, S2)
 #include "impact_geom.h"           // ImpactGeomConfig / locateImpactGeom (P7 club-at-ball)
-#include "../Analysis/uncertainty_config.h" // UncertaintyConfig (shaft_uncertainty_propagation_design.md)
-#include "../Analysis/gate_record.h" // GateRecord (faceOnTrackGates, trust stage 6)
+#include "../Vocabulary/Analysis/uncertainty_config.h" // UncertaintyConfig (shaft_uncertainty_propagation_design.md)
+#include "../Vocabulary/Analysis/gate_record.h" // GateRecord (faceOnTrackGates, trust stage 6)
 
 // Shaft-tracker v3.0-r1 DECIDING HALF — the physics/statistics that turn
 // per-frame evidence into one globally-consistent shaft-angle track. Faithful

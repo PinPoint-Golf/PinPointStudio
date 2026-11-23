@@ -724,7 +724,7 @@ qt_add_executable(PinPointStudio
     src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp
     src/Gui/imu/imu_role_map.h               src/Gui/imu/imu_role_map.cpp
     src/Gui/imu/paced_connect_queue.h        src/Gui/imu/paced_connect_queue.cpp
-    src/Analysis/segment_role.h
+    src/Vocabulary/Analysis/segment_role.h
     src/Gui/imu/imu_instance.h               src/Gui/imu/imu_instance.cpp
     # imu_device.h carries Q_OBJECT and has no .cpp of its own, so AUTOMOC only
     # sees it if it is listed here — without the line, HmInstance links against
@@ -2819,7 +2819,12 @@ target_sources(PinPointStudio PRIVATE
     src/Export/session_list_reads.h src/Export/session_list_reads.cpp   # the one session list's kept read (5.7a; cut in 5.7a-P1)
     src/Export/session_index_summary.h src/Export/session_index_summary.cpp   # the index entry's summary reads (5.7a-P1)
     src/DomainModel/session_roll_up.h
-    src/Analysis/swing_analysis.h
+    src/Vocabulary/Analysis/swing_analysis.h
+    src/Vocabulary/Analysis/address_marks_types.h
+    src/Vocabulary/Analysis/pose_timing_types.h
+    src/Vocabulary/Analysis/trunk_calib_provenance.h
+    src/Vocabulary/Analysis/wrist_finding.h
+    src/Vocabulary/Analysis/wrist_assessment_types.h
     src/Analysis/analysis_stage.h
     src/Wrist/wrist_angles.h
     src/Wrist/metric_extractor.h
@@ -2837,6 +2842,7 @@ target_sources(PinPointStudio PRIVATE
     src/Club/shaft_track_assembly.h
     src/Club/shaft_track_assembly.cpp
     src/Club/club_rate_filter.h
+    src/Vocabulary/Analysis/club_filter_stats.h
     src/Club/club_rate_filter.cpp
     src/Core/kf3_smoother.h
     src/Club/shaft_track_shared.h
@@ -2844,10 +2850,11 @@ target_sources(PinPointStudio PRIVATE
     # Down-the-line shaft tracker (dtl_shaft_tracker_design.md). Run in the app by
     # DtlShaftStage (analysis_pipeline.cpp) and by swinglab_run --dtl, through the one
     # witness builder and the one clubDtl/1 writer.
-    src/Club/dtl_shaft_track.h
+    src/Vocabulary/Analysis/dtl_shaft_track.h
     src/Club/dtl_shaft_types.h
     src/Body/dtl_posture.h
     src/Club/shaft_fusion.h
+    src/Vocabulary/Analysis/shaft_fusion_types.h
     src/Club/shaft_fusion_json.h
     src/Club/dtl_face_on_witness.h
     src/Club/dtl_face_on_witness.cpp
@@ -2879,6 +2886,7 @@ target_sources(PinPointStudio PRIVATE
     src/Body/body_rotation.cpp
     src/Kinematics/angular_rate.h
     src/Kinematics/kinematic_sequence.h
+    src/Vocabulary/Analysis/kinematic_sequence_types.h
     src/Kinematics/kinematic_sequence_json.h
     src/Kinematics/segment_rates.h
     src/Kinematics/segment_rates.cpp
@@ -2909,6 +2917,7 @@ target_sources(PinPointStudio PRIVATE
     src/Skeleton3d/ybot_rig.h
     src/Skeleton3d/skeleton3d_rig.h
     src/Skeleton3d/skeleton3d_fit.h
+    src/Vocabulary/Analysis/skeleton3d_types.h
     src/Skeleton3d/skeleton3d_fit.cpp
     src/Skeleton3d/skeleton3d_json.h
     src/Analysis/analysis_profiling.h
@@ -2942,7 +2951,7 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/analysis_service.cpp
     src/Analysis/recording_integrity.h
     src/Analysis/recording_integrity.cpp
-    src/Analysis/swing_analysis_rebase.h
+    src/Vocabulary/Analysis/swing_analysis_rebase.h
     # The Recording contract (refactor step 1): the types, the effective club, the one job
     # builder, and the store side — the one header writer and the Recording loader (1.2).
     src/Recording/recording.h

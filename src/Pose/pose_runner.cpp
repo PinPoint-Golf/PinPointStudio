@@ -52,7 +52,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include "hand_axis.h"             // handCentroid / HandCentroid (shared with the smoothed-grip recompute)
 #include "pose_track_json.h"       // poseTrackFromAnalysisJson — the pose block's one typed reader
 #include "../Club/shaft_track_assembly.h" // estimateSwingSpanUs / ShaftV3Config (Stage B span estimate)
-#include "../Analysis/analysis_tuning.h" // tuning::apply — pose.intraOpThreads resolution
+#include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply — pose.intraOpThreads resolution
 #include "pose_pipeline.h"          // InstanceCache (session cache) + runOrderedPipeline (producer pool)
 #include "../Core/pp_tuned_constants.h"   // pose::kSessionCache / kProducerThreads / kQueueDepth
 #include "../Core/cpu_topology.h"   // physicalCoreCount() — pose.producerThreads auto

@@ -16,7 +16,7 @@
 
 #include "../norms/norm_measure_source.h"
 #include "../norms/composite_reading.h"
-#include "../../Analysis/det_rng.h"   // seeded, platform-identical normals for the null calibration
+#include "../../Vocabulary/Analysis/det_rng.h"   // seeded, platform-identical normals for the null calibration
 
 #include <cmath>
 #include <cstdio>

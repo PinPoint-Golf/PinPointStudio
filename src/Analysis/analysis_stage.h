@@ -47,7 +47,7 @@
 #include <vector>
 
 #include "shot_analyzer.h"      // ShotAnalysisJob
-#include "swing_analysis.h"     // Segmentation, MetricSeries, BallTrack2D, SwingAnalysis, SegmentRole, ImuSegmentBinding
+#include "../Vocabulary/Analysis/swing_analysis.h"     // Segmentation, MetricSeries, BallTrack2D, SwingAnalysis, SegmentRole, ImuSegmentBinding
 #include "../IMU/imu_vision_fuser.h" // FusedStreams
 #include "../Pose/pose_runner.h" // ShotAnalysisRunnerOptions
 

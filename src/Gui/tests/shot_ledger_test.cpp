@@ -39,7 +39,7 @@
 #include "session_store.h"   // the one allocator (step 2.2)
 #include "temp_library.h"
 #include "swing_store.h"
-#include "Analysis/swing_analysis.h"
+#include "Vocabulary/Analysis/swing_analysis.h"
 #include "launch_monitor_reading.h"
 
 #include <QCoreApplication>

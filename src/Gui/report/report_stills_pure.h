@@ -33,7 +33,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "../../Analysis/swing_analysis.h"   // windowTimeUs, documentAnalysisOriginUs — the one time rule
+#include "../../Vocabulary/Analysis/swing_analysis.h"   // windowTimeUs, documentAnalysisOriginUs — the one time rule
 
 namespace pinpoint::report::stills {
 

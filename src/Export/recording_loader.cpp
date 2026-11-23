@@ -24,9 +24,9 @@
 #include "swing_doc.h"            // analysisReadOriginUs — the one time-base guess
 #include "swing_store.h"          // the document, whichever format it is in
 
-#include "../Analysis/analysis_tuning.h"
+#include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "../Analysis/mp4_frame_reader.h"
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Buffer/format_descriptor.h"
 #include "../Buffer/imu_sample.h"
 #include "../Buffer/pixel_format_names.h"
@@ -39,7 +39,7 @@
 #include "../Core/pp_tuned_constants.h"
 #include "../IMU/hm_binding_recon.h"   // rebuilding a wG3 binding from what the recording holds
 #include "../IMU/hm_unit_id.h"         // "<deviceId>#lowerArm" / "#palm" -> which segment
-#include "../IMU/trunk_calib_provenance.h"
+#include "../Vocabulary/Analysis/trunk_calib_provenance.h"
 
 #include <QFile>
 #include <QFileInfo>

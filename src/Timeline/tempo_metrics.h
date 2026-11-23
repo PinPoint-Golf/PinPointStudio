@@ -60,9 +60,9 @@
 #include <QVariantMap>
 #include <vector>
 
-#include "../Analysis/swing_analysis.h" // Segmentation, PhaseEvent, MetricSeries, Phase
-#include "../Analysis/gate_record.h"   // GateRecord, GateLog, PP_GATE (the refusal record)
-#include "../Analysis/analysis_tuning.h" // tuning::apply
+#include "../Vocabulary/Analysis/swing_analysis.h" // Segmentation, PhaseEvent, MetricSeries, Phase
+#include "../Vocabulary/Analysis/gate_record.h"   // GateRecord, GateLog, PP_GATE (the refusal record)
+#include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply
 #include "../Core/pp_tuned_constants.h"   // tuned::tempo::
 
 namespace pinpoint::analysis {

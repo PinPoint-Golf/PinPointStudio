@@ -61,7 +61,7 @@
 #include <QString>
 #include <QVariantMap>
 
-#include "analysis_versions.h"
+#include "../Vocabulary/Analysis/analysis_versions.h"
 
 namespace pinpoint::analysis {
 

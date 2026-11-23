@@ -69,10 +69,10 @@
 #include <QVariantMap>
 #include <cstdint>
 
-#include "../Analysis/swing_analysis.h" // BallTrack2D, BallSample2D
-#include "../Analysis/analysis_tuning.h" // tuning::apply
+#include "../Vocabulary/Analysis/swing_analysis.h" // BallTrack2D, BallSample2D
+#include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply
 #include "../Core/pp_tuned_constants.h"   // tuned::ballpos::
-#include "../Analysis/gate_record.h"      // GateRecord (trust stage 6)
+#include "../Vocabulary/Analysis/gate_record.h"      // GateRecord (trust stage 6)
 
 #include <vector>
 

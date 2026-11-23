@@ -41,7 +41,7 @@
 #include "launchmonitor/lm_session_model.h"
 #include "shot/shot_list_model.h"
 #include "shot/qml_payload.h"
-#include "Analysis/swing_analysis.h"
+#include "Vocabulary/Analysis/swing_analysis.h"
 #include "LaunchMonitor/launch_monitor_reading.h"
 #include "fake_shot_source.h"   // the report's carousel is a view of the session (step 5.2)
 

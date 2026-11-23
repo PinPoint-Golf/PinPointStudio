@@ -38,10 +38,9 @@
 
 #include "skeleton3d_rig.h"
 #include "../Core/pp_tuned_constants.h"      // tuned::skeleton3d::
+#include "../Vocabulary/Analysis/skeleton3d_types.h"    // kNaN, Cameras, ClubPlane, FitResult (vocabulary since refactor 7.3)
 
 namespace pinpoint::skeleton3d {
-
-constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
 // One keypoint observation in one view (pixels). sigma ≤ 0 ⇒ not observed. `conf` is the detector's
 // confidence (0..1; 1 = not stated): the cross-view pass inflates the LOWER-confidence view of a
@@ -442,101 +441,6 @@ struct FitInput {
     const std::vector<std::vector<double>> *debugInitTheta = nullptr;
     // A session pool's values, fixed in this fit (null: the swing fits its own).
     const SkeletonCalib *fixedCalib = nullptr;
-};
-
-struct Cameras {
-    double fF = 0, pF = 0;                   // face-on: focal (px), pitch (rad, + = down); centre at origin
-    V3     cD;                               // DTL centre (world)
-    double psiD = 0, pD = 0, fD = 0;         // DTL yaw (0 = looking +X), pitch, focal
-    double zG = 0;                           // floor height (world Z)
-    double rF = 0, rD = 0;                   // roll about each optical axis (rad, + = image clockwise)
-};
-
-enum Tier : uint8_t { TierAbsent = 0, TierInferred = 1, TierConstrained = 2, TierMeasured = 3 };
-enum FrameFlag : uint8_t { FlagSwapFo = 0x01, FlagSwapDtl = 0x02, FlagLimitHeld = 0x04,
-                           FlagShaftBranch = 0x08 };   // the branch pass put the club on its other depth branch
-
-// A reference plane for the club (through the origin: a plane of DIRECTIONS).
-struct ClubPlane {
-    bool   valid = false;
-    V3     n;                                // unit normal
-    int    count = 0;                        // frames it rests on (self-planes)
-    double rmsDeg = std::numeric_limits<double>::quiet_NaN();
-    std::string source;                      // "self" | "catalogue" | ""
-};
-
-struct FitResult {
-    bool valid = false;
-    std::string reason;
-    // THE GATE BEHIND A REFUSAL (trust stage 6): the catalogue id and a short code per reason
-    // ("fewFrames", "noScale", "noHips", "noConverge", "noDtl", "dtlDropped"), set where the fit refuses — empty when it
-    // did not, or when it was switched off (a switch is not a gate). Plain strings: the solver
-    // builds without Qt; Skeleton3DStage turns them into the swing's gate record.
-    std::string gateId;
-    std::string reasonCode;
-    int faceOnFrames = 0;                    // the face-on frames the fit was handed
-    int minFaceOnFrames = 10;                // the floor it compared them against
-    bool   dtlUsed = false;
-    // Why a DTL view that was supplied did not make it into the fit ("" when it did, or none was
-    // supplied) — the caller logs it; the fit used to drop the camera without a word.
-    std::string dtlDropReason;
-    bool   foMirrored = false;
-    std::string scaleSource;                 // "height" | "default"
-    double scaleGlobal = 1.0;
-    std::array<double, GroupCount> scale {};
-    std::array<std::array<double, 3>, kMarkerCount> markerOffset {};
-    Cameras cam;
-    double gammaDeg = kNaN;                  // angle between the two views' ground-plane rays
-    double rRatio = kNaN;                    // DTL px-per-m ÷ face-on px-per-m, at the golfer
-    std::array<double, 3> gripAxisLocal {}, gripOffsetLocal {}, trailGripOffsetLocal {};
-    std::array<double, 2 * kSymGroups> symOffsets {};   // the shoulder/hip pairs' width, height offsets
-    bool calibFixed = false;                  // the shared values came from a session pool
-    double clubLengthM = kNaN;               // fitted (the club record is its prior)
-
-    std::vector<int64_t> t_us;
-    std::vector<std::vector<double>> theta;  // per frame, rig().dofCount() values
-    std::vector<std::array<V3, Rig::N>> joints;
-    std::vector<std::array<uint8_t, Rig::N>> tier;
-    std::vector<std::array<float, Rig::N>> sigmaM;
-    std::vector<uint8_t> flags;
-    std::vector<V3> grip, shaftDir;          // lead-hand grip point, shaft direction (butt → head)
-    std::vector<uint8_t> shaftTier;          // 0 none, 1 inferred (model only), 2 one view, 3 both views
-
-    // Diagnostics (design §8.2).
-    double costInit = 0, costFinal = 0;
-    int    iterations = 0;
-    double ms = 0;
-    double reprojMedPxFo = kNaN, reprojMedPxDtl = kNaN;
-    std::array<double, GroupCount> rawLengthCv {};   // the unconstrained triangulation's length CV
-    int    nSwapFo = 0, nSwapDtl = 0, nLimitHeld = 0;
-    // The cross-view pass (FitConfig::crossViewMissMm): keypoints whose σ it inflated, per view, and
-    // the frames with at least one.
-    int    nCrossViewFo = 0, nCrossViewDtl = 0, nCrossViewFrames = 0;
-    double footSlipP90Mm = kNaN;
-    // THE HANDS' LOCK (Mark, 19 Oct: both hands are locked together on the grip — anything else means
-    // the fit is wrong): how far the FIT left the trail grip point from its locked place (on the
-    // shaft's line, the swing's spacing down it), p90 and worst, mm, over the frames the view shows
-    // (address − 150 ms on) — before FitConfig::gripLockExact moves the trail arm onto it. NaN = no
-    // grip term.
-    double gripLockP90Mm = kNaN, gripLockMaxMm = kNaN;
-    double debugJacobianErr = kNaN;          // max |analytic − numeric| / (1 + |numeric|)
-    std::string debugJacobianWorst;
-    // The depth branch (skeleton3d_shaft_branch_design.md): the planes used (address → top, top →
-    // finish), the catalogue inclination where one stood in, how many blind frames the plane term
-    // held, and what the branch pass tried and kept.
-    ClubPlane planeBack, planeDown;
-    double catalogueInclDeg = kNaN;
-    bool   catalogueUncalibrated = false;
-    int    nPlaneFrames = 0, nBranchRuns = 0, nBranchKept = 0;
-    int    nUnknowns = 0;                    // the per-swing motion unknowns (per-frame or spline) + the free shared ones
-    double branchMs = 0;
-
-    // Display frame: origin (ball at address on the floor, else mid-heels) and the
-    // stance axis's heading (trail heel → lead heel) in the world XY plane.
-    V3     displayOrigin;
-    double stanceYawRad = 0;
-    bool   ballValid = false;
-    V3     ballWorld;
 };
 
 FitResult fitSkeleton(const FitInput &in);

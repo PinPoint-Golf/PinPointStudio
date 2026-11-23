@@ -17,7 +17,7 @@
  */
 
 #include "live_measure_source.h"                 // readWristInput
-#include "../../Wrist/wrist_assessment_types.h"   // dofForMetricKey (readWristInput)
+#include "../../Vocabulary/Analysis/wrist_assessment_types.h"   // dofForMetricKey (readWristInput)
 #include "measure_sample.h"
 
 #include "../../Metrics/series_reduce.h"

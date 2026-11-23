@@ -17,14 +17,14 @@
  */
 
 #include "ball_anchor.h"
-#include "../Analysis/uncertainty_config.h" // sigTableDeg (the BALL row)
+#include "../Vocabulary/Analysis/uncertainty_config.h" // sigTableDeg (the BALL row)
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
 #include "../Analysis/shot_analysis_job.h" // ShotAnalysisJob
-#include "../Analysis/analysis_tuning.h" // tuning::apply (ball.tk0AddressOverride A/B key)
+#include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply (ball.tk0AddressOverride A/B key)
 #include "../Core/pp_debug.h"
 #include "../Core/pp_tuned_constants.h"   // tuned::ball::kTk0AddressOverride
 

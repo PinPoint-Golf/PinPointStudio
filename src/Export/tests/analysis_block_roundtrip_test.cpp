@@ -37,18 +37,18 @@
 // Frame sizes are powers of two so normalise-then-denormalise is exact in binary floating point.
 
 #include "../swing_doc.h"
-#include "../../Analysis/swing_analysis.h"
+#include "../../Vocabulary/Analysis/swing_analysis.h"
 #include "../../Analysis/swing_analysis_json.h"
 #include "../analysis_path_json.h"
 #include "../../Analysis/recorded_products.h"
-#include "../../Analysis/gate_record.h"
+#include "../../Vocabulary/Analysis/gate_record.h"
 #include "../../Pose/pose_track_json.h"
 #include "../../Ball/ball_track_json.h"
 #include "../../Ball/impact_track_json.h"
 #include "../../Kinematics/kinematic_sequence_json.h"
 #include "../../Body/dtl_ruler_json.h"
 #include "analysis_fixture.h"
-#include "../../Analysis/swing_analysis_rebase.h"   // the pipeline's one rebase (step 1.5)
+#include "../../Vocabulary/Analysis/swing_analysis_rebase.h"   // the pipeline's one rebase (step 1.5)
 
 #include <QJsonArray>
 #include <QJsonDocument>

@@ -18,7 +18,7 @@
 
 #include "swing_reanalyzer.h"
 #include "recorded_products.h"   // shaftTrackFromAnalysisJson / segmentationFromAnalysisJson
-#include "analysis_versions.h"
+#include "../Vocabulary/Analysis/analysis_versions.h"
 #include "analysis_job_builder.h"   // the one job builder
 #include "analysis_service.h"      // the run and the integrity verdicts (step 1.5)
 #include "effective_context.h"

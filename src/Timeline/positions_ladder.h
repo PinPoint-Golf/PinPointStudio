@@ -66,8 +66,8 @@
 #include <cstdint>
 #include <vector>
 
-#include "../Analysis/swing_analysis.h"    // Segmentation, PhaseEvent, ShaftPosition
-#include "../Analysis/analysis_tuning.h"   // tuning::apply
+#include "../Vocabulary/Analysis/swing_analysis.h"    // Segmentation, PhaseEvent, ShaftPosition
+#include "../Vocabulary/Analysis/analysis_tuning.h"   // tuning::apply
 #include "../Core/pp_tuned_constants.h"    // tuned::refine::
 
 namespace pinpoint::analysis {

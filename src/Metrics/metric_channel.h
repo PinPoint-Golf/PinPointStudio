@@ -40,7 +40,7 @@
 // Pure, header-only, Qt-only (no OpenCV / no Qt-GUI). Everything is deterministic and testable
 // without video.
 
-#include "../Analysis/swing_analysis.h" // MetricSeries, PhaseEvent, Phase
+#include "../Vocabulary/Analysis/swing_analysis.h" // MetricSeries, PhaseEvent, Phase
 #include "../Core/pp_tuned_constants.h"   // tuned::channel:: (the bridge allowance)
 
 #include <QtGlobal>                 // Q_ASSERT — see medianSigmaOverValid on why not ppWarn

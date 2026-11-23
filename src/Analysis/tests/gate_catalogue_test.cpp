@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// The gate catalogue (Metrics/gate_catalogue.h) and the record format (Analysis/gate_record.h) —
+// The gate catalogue (Metrics/gate_catalogue.h) and the record format (Vocabulary/Analysis/gate_record.h) —
 // docs/design/trust_and_gates_design.md §5, §6, §10 item 6.
 //
 // BOTH WAYS. Every id a producer fires — spelled PP_GATE("…") at the firing site — is in the
@@ -25,7 +25,7 @@
 // removed) fails here rather than reaching the reader as a bare id.
 
 #include "../../Metrics/gate_catalogue.h"
-#include "../gate_record.h"
+#include "../../Vocabulary/Analysis/gate_record.h"
 
 #include <QFile>
 #include <QRegularExpression>

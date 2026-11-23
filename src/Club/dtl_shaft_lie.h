@@ -47,10 +47,10 @@
 // the span so it plots, with the gaps bridged by interpolation and flagged `valid` 0, which the
 // chart draws as not-measured; a reading is only ever taken off a frame whose `valid` is 1.
 
-#include "dtl_shaft_track.h"
+#include "../Vocabulary/Analysis/dtl_shaft_track.h"
 #include "../Core/pp_tuned_constants.h"   // tuned::uncertainty (σ budget)
-#include "../Analysis/swing_analysis.h"
-#include "../Analysis/gate_record.h"     // GateRecord (trust stage 6)
+#include "../Vocabulary/Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/gate_record.h"     // GateRecord (trust stage 6)
 
 #include <QString>
 

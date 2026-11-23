@@ -66,7 +66,7 @@
 #include "shaft_tracker_math.h"   // BandMatch (the E1 lock the DTL solve carries per frame)
 #include "types.h"                // pinpoint::SourceId
 
-#include "dtl_shaft_track.h"   // the product types: DtlTier … DtlShaftTrack2D (OpenCV-free)
+#include "../Vocabulary/Analysis/dtl_shaft_track.h"   // the product types: DtlTier … DtlShaftTrack2D (OpenCV-free)
 
 namespace pinpoint::analysis {
 

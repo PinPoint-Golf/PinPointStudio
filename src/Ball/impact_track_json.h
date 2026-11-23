@@ -28,7 +28,7 @@
 // Coordinates are normalised to the CLIP frame. TIMES go through windowTimeUs (swing_analysis.h):
 // `t0Us` 0 = as written. The path's `kind` is always "synth" and is not read back.
 
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 
 #include <QJsonArray>
 #include <QJsonObject>

@@ -30,7 +30,7 @@
 // inverse: it moves those two fields back with whatever offset the caller's other series got.
 
 #include "kinematic_sequence.h"
-#include "../Analysis/swing_analysis.h"   // windowTimeUs — the one time rule
+#include "../Vocabulary/Analysis/swing_analysis.h"   // windowTimeUs — the one time rule
 
 #include <QJsonArray>
 #include <QJsonObject>

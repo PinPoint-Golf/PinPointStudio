@@ -34,7 +34,7 @@
 
 #include "../Core/pp_debug.h"
 #include "../../Export/swing_doc.h"   // takeJustWritten; analysisDetailForDocument — the one projection
-#include "../../Analysis/swing_analysis.h"            // Phase — the trim's Address / Finish, the impact
+#include "../../Vocabulary/Analysis/swing_analysis.h"            // Phase — the trim's Address / Finish, the impact
 #include "../markup/markup_truth.h"                   // streamLooksDownTheLine — the setup-less DTL rule
 
 namespace {

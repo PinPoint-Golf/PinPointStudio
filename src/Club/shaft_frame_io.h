@@ -43,7 +43,7 @@
 
 #include "shaft_track_assembly.h"   // FrameSource
 #include "shaft_track_shared.h"     // kFrameCacheCapBytes (shared with the assembly's own cache)
-#include "../Analysis/swing_analysis.h" // PoseTrack2D / PoseFrame2D / kWholeBodyJoints
+#include "../Vocabulary/Analysis/swing_analysis.h" // PoseTrack2D / PoseFrame2D / kWholeBodyJoints
 #include "../Analysis/frame_store.h" // decode.frameStore: the analysis' one decode of this camera
 #include "swing_window.h"
 #include "types.h"

@@ -19,7 +19,8 @@
 #pragma once
 
 #include "wrist_assessment_contract.h"
-#include "../Analysis/gate_record.h"   // GateRecord — the rule post-pass's records (trust stage 6)
+#include "../Vocabulary/Analysis/wrist_finding.h"   // PpFindingSeverity, PpWristFinding (vocabulary since refactor 7.3)
+#include "../Vocabulary/Analysis/gate_record.h"   // GateRecord — the rule post-pass's records (trust stage 6)
 
 #include <QString>
 #include <QStringList>
@@ -71,40 +72,6 @@ struct PpScoreBreakdown {
     int                              base  = 100;
     int                              total = 100;   // the displayed score (clamped 0..100)
     std::vector<PpScoreContribution> contributions;
-};
-
-// ── Tier-2 finding (design §7.2) — a named fault or strength ─────────────────────────────────
-enum class PpFindingSeverity { Good, Watch, Fault };
-
-inline const char *severityName(PpFindingSeverity s)
-{
-    switch (s) {
-    case PpFindingSeverity::Good:  return "good";
-    case PpFindingSeverity::Watch: return "watch";
-    case PpFindingSeverity::Fault: return "fault";
-    }
-    return "watch";
-}
-
-// `protect` is set for strengths (severity == Good); `linkedTo` carries a sibling id (cast↔flip);
-// `corroboratedBy` lists independent confirming signals; `lowConfidence` demotes (never drops).
-struct PpWristFinding {
-    QString                      id;
-    QString                      name;
-    QString                      category;     // face | strike | power | sequence | structure
-    PpFindingSeverity            severity     = PpFindingSeverity::Fault;
-    double                       magnitudeDeg = 0.0;
-    double                       weight       = 1.0;   // clinical importance → score v2
-    float                        confidence   = 1.0f;
-    bool                         lowConfidence = false;
-    std::vector<PpJointDof>      dofs;
-    std::vector<PpSwingPosition> positions;
-    QStringList                  ballFlight;
-    QString                      explanation;
-    QString                      coaching;     // fault: feel/drill
-    QString                      protect;      // strength: what to keep
-    QStringList                  corroboratedBy;
-    QString                      linkedTo;
 };
 
 // The whole result (Tier-1 RAG matrix + score + Tier-2 findings).

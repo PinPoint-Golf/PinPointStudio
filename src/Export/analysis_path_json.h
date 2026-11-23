@@ -24,7 +24,7 @@
 // because the block spells the `origin` key, and no analysis code may (swing_doc_test's provenance
 // guard, the sibling of CT-I37): the document's adapter writes and reads it.
 
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 
 #include <QJsonArray>
 #include <QJsonObject>

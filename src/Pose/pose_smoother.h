@@ -66,8 +66,8 @@
 // OpenCV, mirroring swing_analysis.h's cv-free convention. A single pure free
 // function; no class, no factory (the segmented KF is a private .cpp helper).
 
-#include "../Analysis/swing_analysis.h" // PoseFrame2D, PoseKpAux, PoseTier (Qt-only)
-#include "../Analysis/analysis_tuning.h" // tuning::apply (header-only, Qt types only)
+#include "../Vocabulary/Analysis/swing_analysis.h" // PoseFrame2D, PoseKpAux, PoseTier (Qt-only)
+#include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply (header-only, Qt types only)
 #include "../Core/pp_tuned_constants.h"   // tuned::pose::smoother::
 
 #include <QByteArray>

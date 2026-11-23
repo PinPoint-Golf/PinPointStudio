@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import REPO_ROOT, load_json
 
-# Phase enum ints (src/Analysis/swing_analysis.h Phase), spelled out because
+# Phase enum ints (src/Vocabulary/Analysis/swing_analysis.h Phase), spelled out because
 # swinglab has no compiled bridge to the C++ enum.
 PHASE_LABEL = {
     0: "Address(P1)", 1: "Takeaway", 2: "Top(P4)", 3: "Transition",

@@ -37,7 +37,7 @@
 // noise; measurement uncertainty is a separate interval filled by the uncertainty
 // pass (§B.7), left unset here.
 
-#include "../Analysis/swing_analysis.h"
+#include "../Vocabulary/Analysis/swing_analysis.h"
 
 #include <QString>
 #include <QVariantMap>

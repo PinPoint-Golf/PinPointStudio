@@ -83,10 +83,10 @@
 #include <cstdint>
 #include <vector>
 
-#include "../Analysis/swing_analysis.h" // PoseTrack2D, ShaftTrack2D, MetricSeries, PhaseEvent, SegmentRole
+#include "../Vocabulary/Analysis/swing_analysis.h" // PoseTrack2D, ShaftTrack2D, MetricSeries, PhaseEvent, SegmentRole
 #include "../IMU/imu_vision_fuser.h" // FusedStreams, SegmentStream
 #include "kinematic_sequence.h"      // KsNode, KinematicSequence
-#include "../Analysis/analysis_tuning.h" // tuning::apply
+#include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply
 #include "../Core/pp_tuned_constants.h"   // tuned::sequence::
 
 namespace pinpoint::analysis {
