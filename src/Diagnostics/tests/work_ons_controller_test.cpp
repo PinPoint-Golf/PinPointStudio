@@ -56,6 +56,7 @@
 // summary, as the owner rewrites both together, so the scan asks for it again.
 
 #include "Gui/diagnostics/work_ons_controller.h"
+#include "Coaching/condition_in_hand.h"   // the one function Home words a condition through (6.3b fix round, B-2)
 #include "Gui/diagnostics/session_diagnostics_model.h"   // currentContentStamp (the record's content stamp)
 #include "Diagnostics/engine/session_reduction.h"   // the catch-up's stand-in: the owner's reduction (5.4a)
 #include "Coaching/strike_from_flight.h"   // sessionFlightUsuals
@@ -1203,6 +1204,100 @@ static void checkBoardFollowUp(const QString &root)
     bool woodKey = false;
     for (const TendencyItem &it : annotated.items) woodKey = woodKey || it.clubId == wood;
     check(woodKey, "Tendencies: the re-labelled shot is judged under the 3 wood");
+}
+
+// G-02 (refactor 6.3b): HOME'S WORK-ONS NAME A LEFT-HANDER'S SIDE THROUGH THE ONE GLOSS. Two sessions of a left-hander's
+// shots with an in-to-out path on every swing (a row, target-relative): the work-on reads as THEIR out-to-in path, as
+// the outcome and the Tendencies chain already did. The same sessions right-handed are the control.
+static void stageSidedSession(const QString &athleteDir, const QString &session, qint64 t0, int shots, const QString &hand)
+{
+    const QString dir = QDir(athleteDir).filePath(session);
+    std::vector<ShotRecord> out;
+    for (int i = 0; i < shots; ++i) {
+        QDir().mkpath(dir + QStringLiteral("/swing_%1").arg(i + 1, 4, 10, QLatin1Char('0')));
+        ShotRecord s;
+        s.shotId = i + 1;
+        s.club   = QStringLiteral("7 IRON");
+        s.contextId = QStringLiteral("iron_7");
+        s.timestampMs = t0 + i * 45'000LL;
+        s.carry  = 160.0 + double(i % 5);
+        s.ballSpeed = 120.0;
+        s.swingLength = QStringLiteral("full");
+        s.handedness = hand;
+        for (const char *id : { "in_to_out_path", "push" }) {
+            ConditionRow r;
+            r.conditionId = QString::fromLatin1(id);
+            r.drivingMeasureId = QStringLiteral("m_clubPathAtImpact");
+            r.state = ShotState::Fired;
+            r.value = 6.0;
+            r.corridorLo = -2.0; r.corridorHi = 2.0;
+            r.corridorShape = CorridorShape::TwoSided;
+            r.z = 3.0;
+            r.direction = 1;
+            r.firedSignalCount = 1;
+            s.rows.push_back(r);
+        }
+        out.push_back(s);
+    }
+    QJsonObject root;
+    root[QStringLiteral("schemaVersion")] = 1;
+    root[QStringLiteral("ledger")] = toJson(out);
+    QFile f(dir + QStringLiteral("/diagnostics.json"));
+    if (f.open(QIODevice::WriteOnly))
+        f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+}
+
+static void checkLeftHandedWorkOns(const QString &root)
+{
+    std::printf("\na left-hander's work-ons name their own side (refactor 6.3b, G-02)\n");
+    const qint64 day = 86'400'000LL, t0 = 1'781'000'000'000LL;
+    const std::unique_ptr<ICharacteristicPackProvider> packProv = makeCharacteristicPackProvider();
+    const auto labelOf = [&packProv](const char *id) {
+        const Condition *c = packProv->pack().condition(QString::fromLatin1(id));
+        return c ? c->label : QString();
+    };
+    for (const char *hand : { "Right", "Left" }) {
+        const QString golfer = root + QStringLiteral("/tHand") + QString::fromLatin1(hand);
+        QDir().mkpath(golfer);
+        stageSidedSession(golfer, QStringLiteral("2026-05-01_M_01"), t0, 12, QString::fromLatin1(hand));
+        stageSidedSession(golfer, QStringLiteral("2026-05-02_M_01"), t0 + day, 12, QString::fromLatin1(hand));
+        WorkOnsController c;
+        catchUp(c);
+        c.setSynchronous(true);
+        c.setAthleteDir(golfer);
+        c.waitForIdle(5000);
+        const QVariantMap w = item(c, "in_to_out_path");
+        const bool left = qstrcmp(hand, "Left") == 0;
+        const QString want = labelOf(left ? "out_to_in_path" : "in_to_out_path");
+        std::printf("      %s-handed: the in-to-out path row's work-on reads \"%s\"\n", hand,
+                    qPrintable(w.value(QStringLiteral("name")).toString()));
+        check(!w.isEmpty() && !want.isEmpty() && w.value(QStringLiteral("name")).toString() == want,
+              left ? "a left-hander's in-to-out path row reads as their out-to-in path on Home"
+                   : "a right-hander's reads as it is (the control)");
+
+        // B-2 (refactor 6.3b fix round): EVERY HOME SURFACE GLOSSES ONCE, through the one function. The detail's
+        // sentence is the named condition's own, and a Swing area's items read the same name as its top fault.
+        const ConditionInHand words = conditionInGolfersHand(packProv->pack(), QStringLiteral("in_to_out_path"),
+                                                             QString::fromLatin1(hand));
+        const QVariantMap d = c.faultDetail(QStringLiteral("in_to_out_path"));
+        check(d.value(QStringLiteral("name")).toString() == want && !words.consequence.isEmpty()
+                  && d.value(QStringLiteral("consequence")).toString() == words.consequence,
+              left ? "a left-hander's detail reads their out-to-in path's sentence under its name, not the row's"
+                   : "a right-hander's detail sentence is the row's (the control)");
+        int listed = 0, named = 0;
+        for (const QVariant &a : c.areaItems())
+            for (const QVariant &iv : a.toMap().value(QStringLiteral("items")).toList()) {
+                const QVariantMap it = iv.toMap();
+                const QString id = it.value(QStringLiteral("conditionId")).toString();
+                if (id != QStringLiteral("in_to_out_path") && id != QStringLiteral("push")) continue;
+                ++listed;
+                if (it.value(QStringLiteral("label")).toString()
+                    == conditionInGolfersHand(packProv->pack(), id, QString::fromLatin1(hand)).label) ++named;
+            }
+        std::printf("      %s-handed: %d of %d area items name the golfer's side\n", hand, named, listed);
+        check(named == listed, left ? "a left-hander's Swing area items name their own side (as the area's top fault does)"
+                                    : "a right-hander's area items read as they are (the control)");
+    }
 }
 
 static void checkTendencies(const QString &root)
@@ -2866,6 +2961,7 @@ int main(int argc, char **argv)
 
     checkConsistencyMarks(tmp.path());
     checkTendencies(tmp.path());
+    checkLeftHandedWorkOns(tmp.path());
     checkBoardFollowUp(tmp.path());
     checkClubScope(tmp.path());
     checkShotFilter(tmp.path());

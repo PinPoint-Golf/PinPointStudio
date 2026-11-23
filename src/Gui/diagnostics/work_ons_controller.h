@@ -490,6 +490,7 @@ public:
     // For the tools and tests: what Your swing shows (every club, or the scope's), and the owner it reads (or null).
     const pinpoint::analysis::SwingThemes &swingThemes() const { return m_themes; }
     const pinpoint::analysis::TendencySet &tendencySet() const { return m_tendencySet; }
+    QString golferHandedness() const;   // the golfer's hand, off their tendencies: the one gloss's input (refactor 6.3b)
     pinpoint::AthleteLevel *owner() const;
     bool ownerReading();   // its summaries are being read on its lane: wait for its changed() (R1-m9 a)
     pinpoint::AthleteLevel *publishSource(bool *hold);   // what a publish shows: the owner, nothing yet, or hold (R2-B2)

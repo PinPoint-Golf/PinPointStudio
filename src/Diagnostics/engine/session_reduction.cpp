@@ -277,7 +277,8 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in)
     r.outcomeEvidence.chainConfirmed = chainConfirmedConditions(outcomePack, outcomeLinks);
 
     // ── Each shot's outcome WITH the session's evidence: its "because" (J-14 (b)) ──
-    const ShotOutcomeSessionFacts facts{ r.outcomeEvidence.links, r.outcomeEvidence.tiers, in.usuals };
+    const ShotOutcomeSessionFacts facts{ r.outcomeEvidence.links, r.outcomeEvidence.tiers, in.usuals, &in.flightNorms,
+                                         in.athleteHandedness };
     const int nShots = int(in.shots.size());
     out.composed.reserve(size_t(nShots));
     for (const ShotRecord &s : in.shots) {
@@ -295,6 +296,7 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in)
     FiringInputs derivedFrom;
     derivedFrom.flightNorms = in.flightNorms;
     derivedFrom.usuals      = in.usuals;
+    derivedFrom.athleteHandedness = in.athleteHandedness;
     std::vector<ShotFactors> factorsAt(static_cast<size_t>(nShots), ShotFactors{});
     for (int i = 0; i < nShots; ++i) {
         const ShotRecord &s = in.shots[size_t(i)];
@@ -306,7 +308,8 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in)
             sr.factors = it->factors;
         } else {
             sr.outcome = composeShotOutcome(s, in.corrections.value(s.shotId), in.intents.value(s.shotId),
-                                            usualOf(in, s.club), outcomePack, ShotOutcomeSessionFacts{ {}, {}, in.usuals });
+                                            usualOf(in, s.club), outcomePack, ShotOutcomeSessionFacts{ {}, {}, in.usuals, &in.flightNorms,
+                                                                                     in.athleteHandedness });
             sr.factors = deriveShotFactors(s, sr.outcome, outcomePack, derivedFrom);
         }
         factorsAt[size_t(i)] = sr.factors;
@@ -475,6 +478,7 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in)
         self.intents             = in.intents;
         self.evidence            = r.outcomeEvidence;
         self.baseline            = in.baseline.value_or(QHash<QString, ClubBaselineEntry>{});
+        self.athleteHandedness   = in.athleteHandedness;
         r.tendencyShots = tendencySessionShots(self, outcomePack, in.flightNorms).shots;
         r.themeShots.reserve(in.shots.size());
         for (const ShotRecord &s : in.shots) r.themeShots.push_back(themes::themeShotOf(s));

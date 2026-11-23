@@ -275,9 +275,11 @@ inline const QStringList &shotFactorNames()
 
 // The three factors of one composed shot. `outcome` is composeShotOutcome's for this shot (its corrections,
 // intent and session already applied); `norms` the flight table (shippedFlightNorms); `usuals` the session's
-// sessionFlightUsuals, which Sky is judged against.
+// sessionFlightUsuals, which Sky is judged against. `athleteHandedness`: the athlete's recorded hand, the one a shot
+// that records none is named in (golferHand; refactor 6.3b fix round, B-3), as the composer was given it.
 inline ShotFactors shotFactors(const ShotRecord &shot, const ShotOutcome &outcome, const ShotOutcomePack &pack,
-                               const FlightNorms &norms, const QHash<QString, ClubFlightUsual> &usuals)
+                               const FlightNorms &norms, const QHash<QString, ClubFlightUsual> &usuals,
+                               const QString &athleteHandedness = QString())
 {
     ShotFactors f;
     if (!outcome.ready) return f;
@@ -321,9 +323,10 @@ inline ShotFactors shotFactors(const ShotRecord &shot, const ShotOutcome &outcom
     }
     if (!absorbed && (!directionLabels.empty() || (directionAssessed && !outcome.noReading))) {
         f.direction.read = true;
-        for (const TendencyShotMiss &m : tendencyShotMisses(directionMisses, pack, shot.handedness))
+        const QString hand = golferHand(shot.handedness, athleteHandedness);
+        for (const TendencyShotMiss &m : tendencyShotMisses(directionMisses, pack, hand))
             f.direction.faults << m.displayId;
-        for (const TendencyShotMiss &m : tendencyShotMisses(directionLabels, pack, shot.handedness))
+        for (const TendencyShotMiss &m : tendencyShotMisses(directionLabels, pack, hand))
             f.direction.values << m.displayId;
         if (f.direction.values.isEmpty()) f.direction.values << QStringLiteral("straight");
     }
@@ -347,8 +350,9 @@ inline ShotFactors shotFactors(const ShotRecord &shot, const ShotOutcome &outcom
     f.flight.method = reading->method;
     f.flight.rawValue = reading->rawValue;
     QString value = reading->value;
-    // flightSaysSky's rule, on the reading already in hand.
-    if (value == QLatin1String("high") && flightSkied(shot, usuals)) value = QStringLiteral("sky");
+    // flightSaysSky's rule, on the reading already in hand — unless the golfer took that Sky off the shot (the label and
+    // this factor are one Sky: refactor 6.3b, G-04).
+    if (value == QLatin1String("high") && flightSkied(shot, usuals) && !outcome.skyTakenOff) value = QStringLiteral("sky");
     f.flight.values << value;
     if (value == QLatin1String("sky")) f.flight.faults << value;
     return f;

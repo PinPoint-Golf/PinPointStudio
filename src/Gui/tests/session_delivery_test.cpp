@@ -35,6 +35,7 @@
 #include "charts/session_delivery.h"
 #include "../../Export/rule_data_install.h"
 #include "charts/session_series_types.h"
+#include "charts/session_series_extract.h"   // extractShot: the swing's handedness (refactor 6.3b)
 #include "../../LaunchMonitor/lm_inferred_reads.h"   // the launch monitor card's classifier, which the shapes must agree with
 
 #include <QFile>
@@ -309,15 +310,16 @@ private slots:
         QVERIFY(!v.slot.available);
         QVERIFY(!v.flightAvailable);
         QVERIFY(v.shape.available);
-        QCOMPARE(v.shape.start, 1);
+        // face 2.4° right is inside the pack's 4° start corridor (refactor 6.3b, F-05): a straight start, as the factors read it
+        QCOMPARE(v.shape.start, 0);
         QCOMPARE(v.shape.curve, 1);
-        QCOMPARE(v.shape.word, QStringLiteral("Push, fade"));
+        QCOMPARE(v.shape.word, QStringLiteral("Straight start, fade"));
         QCOMPARE(v.head.rule, 4);
-        QCOMPARE(v.head.text, QStringLiteral("Push, fade: face 2.4° right, 3.2° open to the path."));
+        QCOMPARE(v.head.text, QStringLiteral("Straight start, fade: face 2.4° right, 3.2° open to the path."));
         QVERIFY(v.trust.lines.join(QLatin1Char('\n')).contains(QStringLiteral("The swing plane was not read on this shot")));
         // the grid's words, and their mirror for a left-handed golfer
         DeliveryShotInput g = *s;
-        g.lmFace = -2.0; g.lmFaceToPath = 1.5;
+        g.lmFace = -5.0; g.lmFaceToPath = 1.5;
         QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, slight fade"));
         g.leftHanded = true;
         QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Push, slight draw"));
@@ -335,10 +337,11 @@ private slots:
 
     // §4.6, decision 10: past the launch monitor's face-to-path severity (LmInferenceTuning::f2pSevereT, 4°, strictly)
     // the curve is a hook (left) or a slice (right), mirrored for a left-handed golfer; "slight" up to half of it (2°).
+    // The face 5° left is past the pack's 4° start corridor: a pull (refactor 6.3b).
     void bigCurvesAreHooksAndSlices()
     {
         DeliveryShotInput g;
-        g.lmFace = -2.0;
+        g.lmFace = -5.0;
         g.lmFaceToPath = -13.8;   // Jess 20 Oct shot 3
         QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, hook"));
         QCOMPARE(deliveryShotShape(g).curveWord, QStringLiteral("hook"));
@@ -360,43 +363,45 @@ private slots:
     // §4.6, decision 10: the ball's start and spin axis first; the 5 Oct monitor gave no face, and the grid stood empty.
     void theBallShapesTheShotFirst()
     {
-        DeliveryShotInput m;          // Mark 5 Oct swing 1: no face; launch −1.37°, spin axis +1.20°
+        // Mark 5 Oct swing 1 had no face; its launch moved past the pack's 4° start corridor here (refactor 6.3b), so
+        // each spin axis below is read on a pull, by the pack's boundaries: a curve past ±4°, hook or slice past ±10°.
+        DeliveryShotInput m;
         m.lmPath = 0.72;
-        m.lmLaunchDir = -1.37;
+        m.lmLaunchDir = -5.0;
         m.lmSpinAxis = 1.20;
         DeliveryShape s = deliveryShotShape(m);
         QVERIFY(s.available);
         QVERIFY(s.fromBall);
-        QCOMPARE(s.word, QStringLiteral("Pull"));            // 1.2° of spin axis is inside ±2°: straight
-        m.lmSpinAxis = 1.8;                                  // was a slight fade (±1.5°); the card says straight
+        QCOMPARE(s.word, QStringLiteral("Pull"));            // 1.2° of spin axis is inside ±4°: straight
+        m.lmSpinAxis = 1.8;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull"));
-        m.lmSpinAxis = 2.0;                                  // the edge is straight still
+        m.lmSpinAxis = 4.0;                                  // the edge is straight still (sig_fadeBeyondStraight, strict)
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull"));
-        m.lmSpinAxis = 4.0;
+        m.lmSpinAxis = 4.5;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, slight fade"));   // ≤ 5°
         m.lmSpinAxis = 5.0;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, slight fade"));
         m.lmSpinAxis = 5.1;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, fade"));
         m.lmSpinAxis = -8.0;
-        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, draw"));          // < 10°
-        m.lmSpinAxis = -9.5;                                 // was a hook (past 9°); the card says a draw
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, draw"));
-        m.lmSpinAxis = -10.0;
+        m.lmSpinAxis = -10.0;                                // the corridor's edge is a draw still
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, draw"));
+        m.lmSpinAxis = -10.5;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, hook"));
         m.lmSpinAxis = -12.0;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, hook"));
-        // how far it actually curved: 150 yd carry, 4.0° of axis, finishing 8.5 yd right of a −1.37° start line has
-        // bent 4.6° — a slice, as the card says; 4.5 yd right has bent 3.1°, past half way, so a fade, not slight
-        m.lmSpinAxis = 4.0; m.lmCarry = 150.0; m.lmOffline = 8.5;
-        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, slice"));
-        m.lmOffline = 4.5;
+        // how far it actually curved: 150 yd carry, 4.5° of axis, finishing 8.5 yd right of a −5° start line has bent
+        // 8.2°: a fade still (the pack's slice is the axis's), but not slight; bending 1.6° is slight
+        m.lmSpinAxis = 4.5; m.lmCarry = 150.0; m.lmOffline = 8.5;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, fade"));
+        m.lmOffline = -9.0;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, slight fade"));
         m.lmCarry = N; m.lmOffline = N;
         m.lmLaunchDir = 0.5; m.lmSpinAxis = 0.0;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Straight"));
         // the ball wins over the club when both are there
-        m.lmFace = -3.0; m.lmFaceToPath = -13.8; m.lmLaunchDir = 2.0; m.lmSpinAxis = 3.0;
+        m.lmFace = -3.0; m.lmFaceToPath = -13.8; m.lmLaunchDir = 5.0; m.lmSpinAxis = 4.5;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Push, slight fade"));
         // no ball, no face: nothing
         DeliveryShotInput none; none.lmPath = 1.0;
@@ -421,28 +426,36 @@ private slots:
             if (club) { in.lmFace = start; in.lmFaceToPath = f2p; }
             else      { in.lmLaunchDir = start; in.lmSpinAxis = axis; in.lmCarry = carry; in.lmOffline = offline; }
             const DeliveryShape d = deliveryShotShape(in);
-            const pa::LmFlightShape card = pa::lmFlightShape(opt(start), opt(axis), opt(f2p), opt(carry), opt(offline), lh);
-            const pa::LmShapeClass k = pa::lmShapeClass(opt(start), opt(axis), opt(f2p),
-                                                        pa::lmCurvature(opt(start), opt(carry), opt(offline)), lh);
+            // the one rule: the ball's pair as the card reads it; the club's pair with the face as the start's proxy
+            // (no compound miss: that is the ball's)
+            const pa::LmShapeClass k = club
+                ? pa::lmShapeClass(opt(start), std::optional<double>(), opt(f2p), pa::LmCurvature(), lh,
+                                   pa::ShotDirectionBounds(), pa::LmInferenceTuning(), /*startIsBall*/ false)
+                : pa::lmShapeClass(opt(start), opt(axis), opt(f2p), pa::lmCurvature(opt(start), opt(carry), opt(offline)), lh);
             ++compared;
             const int st = lh ? -d.start : d.start, cv = lh ? -d.curve : d.curve;   // the delivery's, in the gloss
             const QString where = QStringLiteral("start %1 axis %2 f2p %3 carry %4 offline %5 lh %6 club %7")
                                       .arg(start).arg(axis).arg(f2p).arg(carry).arg(offline).arg(lh).arg(club);
-            QVERIFY2(d.available == card.has, qPrintable(where));
-            if (!card.has) return;
+            QVERIFY2(d.available == k.has, qPrintable(where));
+            if (!k.has) return;
+            if (!club) {   // the card asks the same rule: its cell is this one
+                const pa::LmFlightShape card = pa::lmFlightShape(opt(start), opt(axis), opt(f2p), opt(carry), opt(offline), lh);
+                QVERIFY2(card.has && card.windowIdx == k.windowIdx && card.curveIdx == k.curveIdx && card.severe == k.severe,
+                         qPrintable(where));
+            }
             QVERIFY2(d.fromBall == !club, qPrintable(where));
-            QVERIFY2(st == card.windowIdx - 1, qPrintable(where));
-            QVERIFY2(cv == card.curveIdx - 1, qPrintable(where));
-            QVERIFY2(d.severe == (card.severe && card.curveIdx != 1), qPrintable(where));
+            QVERIFY2(st == k.windowIdx - 1, qPrintable(where));
+            QVERIFY2(cv == k.curveIdx - 1, qPrintable(where));
+            QVERIFY2(d.severe == (k.severe && k.curveIdx != 1), qPrintable(where));
             QVERIFY2(d.slight == k.slight, qPrintable(where));
-            // the words: the card's "Pull–fade" and the section's "Pull, slight fade" name the same cell
-            const bool hookOrSlice = card.name.contains(QStringLiteral("ook")) || card.name.contains(QStringLiteral("lice"));
+            const bool hookOrSlice = k.severe && k.curveIdx != 1;
             QVERIFY2(cv == 0 || hookOrSlice == (d.curveWord == QStringLiteral("hook") || d.curveWord == QStringLiteral("slice")),
                      qPrintable(where));
         };
-        for (double start : { -3.0, -1.01, -1.0, 0.0, 0.5, 1.0, 1.01, 3.0 })
+        for (double start : { -5.0, -4.01, -4.0, -3.0, -1.0, 0.0, 0.5, 1.0, 3.0, 4.0, 4.01, 5.0 })
             for (bool lh : { false, true }) {
-                for (double axis : { -12.0, -10.0, -9.5, -5.01, -5.0, -2.01, -2.0, -1.8, 0.0, 1.8, 2.0, 2.01, 4.5, 5.0, 5.01, 9.5, 10.0, 12.0 })
+                for (double axis : { -12.0, -10.01, -10.0, -9.5, -5.01, -5.0, -4.01, -4.0, -1.8, 0.0, 1.8, 4.0, 4.01, 4.5, 5.0,
+                                     5.01, 9.5, 10.0, 10.01, 12.0 })
                     agree(start, axis, N, N, N, lh, false);
                 for (double offline : { -20.0, -8.0, -3.0, 0.0, 3.0, 8.0, 20.0 })
                     agree(start, 4.0, N, 150.0, offline, lh, false);
@@ -460,7 +473,7 @@ private slots:
         mixed.lmFace = -2.0; mixed.lmSpinAxis = 3.0;
         QVERIFY(!deliveryShotShape(mixed).available);
         // both pairs: the ball's decides
-        mixed.lmFaceToPath = -6.0; mixed.lmLaunchDir = 2.0;
+        mixed.lmFaceToPath = -6.0; mixed.lmLaunchDir = 5.0; mixed.lmSpinAxis = 4.5;
         QVERIFY(deliveryShotShape(mixed).fromBall);
         QCOMPARE(deliveryShotShape(mixed).word, QStringLiteral("Push, slight fade"));
         // a straight curve is never a hook or a slice, even where the measured curvature is past 4.5°
@@ -468,6 +481,55 @@ private slots:
         straight.lmLaunchDir = 0.0; straight.lmSpinAxis = 1.0; straight.lmCarry = 150.0; straight.lmOffline = 20.0;
         QCOMPARE(deliveryShotShape(straight).curve, 0);
         QVERIFY(!deliveryShotShape(straight).severe);
+    }
+
+    // REFACTOR 6.3b (F-05, G-02): the one direction rule and the one handedness gloss.
+    //   · the audit's 7 iron: started 2.5° left on a 5° spin axis. The card's old 1° window called it "Pull–fade"; the
+    //     pack's corridor (the factors, Tendencies) a straight start. Here, the card and Tendencies: the same cell;
+    //   · the boundaries are the ones handed in (the presenter resolves the pack's): a narrower start corridor pulls it;
+    //   · a left-handed golfer's shot reaches this section glossed: ShotSeries carries the swing's handedness, and the
+    //     words name the mirrored side (it was never set before: every golfer read right-handed here).
+    void oneDirectionRuleAndHand()
+    {
+        namespace pa = pinpoint::analysis;
+        DeliveryShotInput in;
+        in.lmLaunchDir = -2.5; in.lmSpinAxis = 5.0;
+        const DeliveryShape d = deliveryShotShape(in);
+        QCOMPARE(d.word, QStringLiteral("Straight start, slight fade"));
+        QCOMPARE(d.start, 0);
+        QCOMPARE(d.curve, 1);
+        const pa::LmFlightShape card = pa::lmFlightShape(-2.5, 5.0, std::optional<double>(), std::optional<double>(),
+                                                         std::optional<double>());
+        QCOMPARE(card.name, QStringLiteral("Fade"));
+        QCOMPARE(card.windowIdx - 1, d.start);
+        QCOMPARE(card.curveIdx - 1, d.curve);
+        in.direction.startLo = -2.0;
+        QCOMPARE(deliveryShotShape(in).word, QStringLiteral("Pull, slight fade"));
+
+        ShotSeries sh;
+        sh.handedness = QStringLiteral("Left");
+        QVERIFY(deliveryInputFromShot(sh).leftHanded);
+        sh.handedness = QStringLiteral("Right");
+        QVERIFY(!deliveryInputFromShot(sh).leftHanded);
+        sh.handedness.clear();
+        QVERIFY(!deliveryInputFromShot(sh).leftHanded);
+        // …read off the swing document as the firing reads it (its `athlete.handedness`, SwingSummary's key)
+        {
+            const QJsonObject metric{ { QStringLiteral("key"), QStringLiteral("lm.spinAxis") },
+                                      { QStringLiteral("t_us"), QJsonArray{ 0 } }, { QStringLiteral("value"), QJsonArray{ 6.0 } } };
+            const QJsonObject root{ { QStringLiteral("analysis"), QJsonObject{ { QStringLiteral("metrics"), QJsonArray{ metric } } } },
+                                    { QStringLiteral("athlete"), QJsonObject{ { QStringLiteral("handedness"), QStringLiteral("Left") } } } };
+            QString why;
+            const auto read = extractShot(root, QStringLiteral("/scratch/s/swing_0001"), &why);
+            QVERIFY2(read, qPrintable(why));
+            QCOMPARE(read->handedness, QStringLiteral("Left"));
+            QVERIFY(deliveryInputFromShot(*read).leftHanded);
+        }
+        DeliveryShotInput lefty;
+        lefty.leftHanded = true;
+        lefty.lmLaunchDir = -5.0; lefty.lmSpinAxis = 6.0;
+        QCOMPARE(deliveryShotShape(lefty).word, QStringLiteral("Push, draw"));   // the ball went left and curved right
+        QCOMPARE(deliveryShotShape(lefty).start, -1);                            // the stored side stays physical
     }
 
     // §4.5: Δface ≈ Δlie × sin(loft).

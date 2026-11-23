@@ -81,9 +81,10 @@
 //   9. FIGURES. Plane angles whole degrees; the monitor's path, face, attack, lie and loft one decimal
 //      (its own resolution, and the design's words: "path went 4.3° left"); our camera's whole degrees;
 //      a fit's slope one decimal, r two, scatter one; a middle half's ± one decimal. U+2212 minus.
-//  10. SHOT SHAPE (§4.6) is the monitor's alone, and CLASSIFIED BY THE LAUNCH MONITOR'S OWN CLASSIFIER,
-//      pa::lmShapeClass (LaunchMonitor/lm_inferred_reads.h) with its LmInferenceTuning, so this section, its
-//      grid and the report's Delivery page name every shot the way the launch monitor card does (they once
+//  10. SHOT SHAPE (§4.6) is the monitor's alone, and CLASSIFIED BY THE ONE DIRECTION RULE,
+//      pa::lmShapeClass (LaunchMonitor/lm_inferred_reads.h) on the pack's corridors (DeliveryShotInput::direction,
+//      refactor 6.3b), so this section, its grid and the report's Delivery page name every shot the way the launch
+//      monitor card, the factors and Tendencies do, and in the golfer's hand (leftHanded, off the swing) (they once
 //      kept thresholds of their own and drifted: a 1.8° spin axis was a fade here and straight there). Only
 //      the WORDS are this section's ("Pull, slight fade" against the card's "Pull–fade"), and "slight" is the
 //      classifier's too (half way to hook or slice). ONE PAIR, NEVER MIXED: the BALL's first — start from
@@ -113,6 +114,7 @@
 //      changes (its fingerprint), so that count has gone.
 
 #include "session_series_types.h"
+#include "../../LaunchMonitor/lm_inferred_reads.h"   // ShotDirectionBounds: the one direction rule's (refactor 6.3b)
 #include "../typeset/box_stats.h"
 
 #include <QJsonObject>
@@ -171,7 +173,10 @@ struct DeliveryShotInput {
     int     sessionOfDay = 0;                         // its session's place in the golfer's day (SessionIdentity's n-of-day,
                                                       // by start time: step 2.7b); 0 unknown
     bool    thisSession = true;                       // false: another session of the golfer's day (decision 13)
-    bool    leftHanded = false;                       // the words mirror (§4.6); the snapshot carries none today
+    bool    leftHanded = false;                       // the words mirror (§4.6): the shot's own handedness (ShotSeries)
+    // The pack's direction boundaries for this shot's club (refactor 6.3b, F-05): the presenter resolves them
+    // (shotDirectionBounds); the default is the shipped pack's, so a caller without one names a shot as it does.
+    pinpoint::analysis::ShotDirectionBounds direction;
 
     std::array<double, kDeliveryPositions> plane;     // swingPlaneCurve at P1..P7
     std::array<double, kDeliveryPositions> hands;     // handPlaneCurve at P1..P7

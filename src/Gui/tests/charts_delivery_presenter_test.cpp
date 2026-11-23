@@ -106,7 +106,7 @@ std::shared_ptr<ShotSeries> makeShot(int i, bool monitor = true)
     if (monitor) {
         instant(QStringLiteral("lm.clubPath"), 5, pathOf(i));
         instant(QStringLiteral("lm.attackAngle"), 5, 28.0 - 0.5 * p6Of(i) + (i % 2 ? 0.2 : -0.2));
-        instant(QStringLiteral("lm.faceAngle"), 5, -2.0);
+        instant(QStringLiteral("lm.faceAngle"), 5, -2.0);   // inside the pack's 4° start corridor: a straight start (refactor 6.3b)
         instant(QStringLiteral("lm.faceToPath"), 5, 1.5);
         instant(QStringLiteral("lm.lieAngle"), 5, 2.0);
         instant(QStringLiteral("lm.dynamicLoft"), 5, 30.0);
@@ -264,8 +264,8 @@ private slots:
         QCOMPARE(impact[1].toMap().value(QStringLiteral("text")).toString(), QStringLiteral("The monitor saw 30.0° of loft."));
         QCOMPARE(impact[2].toMap().value(QStringLiteral("source")).toString(), QStringLiteral("monitor"));
         const QVariantMap shape = t.value(QStringLiteral("shape")).toMap();
-        QCOMPARE(shape.value(QStringLiteral("word")).toString(), QStringLiteral("Pull, slight fade"));
-        QCOMPARE(t.value(QStringLiteral("replay")).toMap().value(QStringLiteral("shape")).toString(), QStringLiteral("Pull, slight fade"));
+        QCOMPARE(shape.value(QStringLiteral("word")).toString(), QStringLiteral("Straight start, slight fade"));
+        QCOMPARE(t.value(QStringLiteral("replay")).toMap().value(QStringLiteral("shape")).toString(), QStringLiteral("Straight start, slight fade"));
         QVERIFY(!t.value(QStringLiteral("trust")).toMap().value(QStringLiteral("lines")).toStringList().isEmpty());
 
         // the standfirsts and the playhead
@@ -356,11 +356,11 @@ private slots:
         const QVariantMap marks = s.value(QStringLiteral("shapes")).toMap();
         QCOMPARE(marks.value(QStringLiteral("marks")).toList().size(), 14);
         QVERIFY(marks.value(QStringLiteral("marks")).toList()[1].toMap().value(QStringLiteral("picked")).toBool());
-        QCOMPARE(marks.value(QStringLiteral("line")).toString(), QStringLiteral("Pull, slight fade on 14 of 14 shots"));
+        QCOMPARE(marks.value(QStringLiteral("line")).toString(), QStringLiteral("Straight start, slight fade on 14 of 14 shots"));
         QVERIFY(marks.value(QStringLiteral("marks")).toList()[1].toMap().contains(QStringLiteral("fromBall")));   // the report's grid says what it read
         // rule C6: the grid's hover words are the presenter's, by the swing number
         QCOMPARE(marks.value(QStringLiteral("marks")).toList()[1].toMap().value(QStringLiteral("hoverText")).toString(),
-                 QStringLiteral("Shot 2  Pull, slight fade"));
+                 QStringLiteral("Shot 2  Straight start, slight fade"));
         // the folded section keeps the head's first clause (words::firstClauseOf: up to the first ';' or '.')
         QCOMPARE(s.value(QStringLiteral("head")).toMap().value(QStringLiteral("clause")).toString(),
                  QStringLiteral("Your path follows your plane: steeper at P6 by a degree, 0"));

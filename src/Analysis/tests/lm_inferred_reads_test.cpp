@@ -53,174 +53,176 @@ int main()
 {
     std::printf("lm_inferred_reads_test\n");
 
-    // ── The nine windows ────────────────────────────────────────────────────────
+    // ── The nine windows (the pack's corridors, refactor 6.3b) ───────────────────
     //
     // Every cell of the 3 x 3, named. The grid on the card has nine lights and each one
-    // has to be reachable, or a golfer will hit a shot the panel has no word for.
-    //
-    // Driven by the SPIN AXIS, which is what bends the ball — see the header for the 25
-    // shots that established it and the nine the old face-to-path model got wrong.
+    // has to be reachable, or a golfer will hit a shot the panel has no word for. Since
+    // 6.3b the windows are the PACK'S (ShotDirectionBounds: a start beyond ±4°, an axis
+    // beyond ±4° a fade or a draw, beyond ±10° a slice or a hook), so the card names a
+    // shot exactly as the factors and Tendencies do.
     {
-        checkStr(shape(-3.0, -4.0).name, "Pull–draw",  "left window, left curve");
-        checkStr(shape(-3.0,  0.0).name, "Pull",       "left window, no curve");
-        checkStr(shape(-3.0,  4.0).name, "Pull–fade",  "left window, right curve");
-        checkStr(shape( 0.0, -4.0).name, "Draw",       "centre window, left curve");
+        checkStr(shape(-5.0, -6.0).name, "Pull–draw",  "left window, left curve");
+        checkStr(shape(-5.0,  0.0).name, "Pull",       "left window, no curve");
+        checkStr(shape(-5.0,  6.0).name, "Pull–fade",  "left window, right curve");
+        checkStr(shape( 0.0, -6.0).name, "Draw",       "centre window, left curve");
         checkStr(shape( 0.0,  0.0).name, "Straight",   "centre window, no curve");
-        checkStr(shape( 0.0,  4.0).name, "Fade",       "centre window, right curve");
-        checkStr(shape( 3.0, -4.0).name, "Push–draw",  "right window, left curve");
-        checkStr(shape( 3.0,  0.0).name, "Push",       "right window, no curve");
-        checkStr(shape( 3.0,  4.0).name, "Push–fade",  "right window, right curve");
+        checkStr(shape( 0.0,  6.0).name, "Fade",       "centre window, right curve");
+        checkStr(shape( 5.0, -6.0).name, "Push–draw",  "right window, left curve");
+        checkStr(shape( 5.0,  0.0).name, "Push",       "right window, no curve");
+        checkStr(shape( 5.0,  6.0).name, "Push–fade",  "right window, right curve");
     }
 
     // ── The grid indices agree with the words ───────────────────────────────────
-    //
-    // The lit cell and the label are read together; if they can disagree, one of them
-    // is lying and the reader cannot tell which.
     {
-        const LmFlightShape s = shape(-3.0, 4.0);
+        const LmFlightShape s = shape(-5.0, 6.0);
         check(s.windowIdx == 0 && s.curveIdx == 2, "Pull-fade lights the left/fade cell");
         const LmFlightShape c = shape(0.0, 0.0);
         check(c.windowIdx == 1 && c.curveIdx == 1, "Straight lights the centre cell");
-        const LmFlightShape p = shape(3.0, -4.0);
+        const LmFlightShape p = shape(5.0, -6.0);
         check(p.windowIdx == 2 && p.curveIdx == 0, "Push-draw lights the right/draw cell");
+    }
+
+    // ── F-05: the 7 iron that started 2.5° left reads the same everywhere ─────────
+    //
+    // The audit's case: the card's old 1° window called it a pull ("Pull–fade" on a 5° axis), the pack's corridor
+    // (and so the factors and Tendencies) "Straight" start. One rule now, so the card says what the pack fires.
+    {
+        checkStr(shape(-2.5, 5.0).name, "Fade",     "start 2.5 left, axis 5: inside the start corridor, a fade (was Pull–fade)");
+        checkStr(shape(-2.5, 0.0).name, "Straight", "start 2.5 left, no curve: Straight (was Pull)");
+        checkStr(shape(-4.5, 5.0).name, "Pull–fade", "past the corridor's 4°, it is a pull");
     }
 
     // ── The axis leads, and face-to-path does not overrule it ───────────────────
     //
     // The correction this model exists for. Face-to-path is a cause of the axis, not of
     // the flight, and on the two shots in the session where they disagreed in sign the
-    // ball went the axis's way both times.
+    // ball went the axis's way both times. The names are the pack's corridors' (6.3b).
     {
-        // swing_0012: face 2.9 deg CLOSED, axis 2.3 deg right, ball curved 2.1 yd RIGHT.
-        // The old model called this a draw — the exact opposite of what happened.
-        checkStr(flown(-2.5, 2.3, -2.9, 190.3, -6.1).name, "Pull–fade",
-                 "a closed face with a right-tilted axis still fades");
-        // swing_0018: same disagreement, smaller. Under the axis threshold, so straight.
-        checkStr(flown(-0.6, 1.0, -1.4, 150.2, -0.4).name, "Straight",
-                 "…and below the threshold it is simply straight");
-        // swing_0009: face-to-path exactly 1.0, axis 16.3, 25 yd of curve. The old model
-        // called this dead straight because 1.0 was not greater than 1.0.
+        // swing_0012: face 2.9 deg CLOSED, axis 2.3 deg right. Never a draw; inside both corridors, straight.
+        checkStr(flown(-2.5, 2.3, -2.9, 190.3, -6.1).name, "Straight",
+                 "a closed face with a gently right-tilted axis is not a draw");
+        // swing_0009: face-to-path exactly 1.0, axis 16.3, 25 yd of curve: a slice, and with its start a push-slice
+        // through the compound miss.
         checkStr(flown(1.8, 16.3, 1.0, 193.2, 31.5).name, "Push–slice",
                  "a square-ish face with a steep axis is not a straight ball");
-        // swing_0013 and swing_0020: gentle axis, real curve, called Straight before.
+        // swing_0013: a 4.8 deg axis is a fade by the axis, whatever face-to-path says.
         checkStr(flown(-0.3, 4.8, 0.7, 150.8, 5.5).name, "Fade",
-                 "a 4.8 deg axis curving 6 yd is a fade, not a straight ball");
-        checkStr(flown(-0.7, 3.5, -0.0, 148.5, 2.6).name, "Fade",
-                 "…and so is a 3.5 deg one");
+                 "a 4.8 deg axis curving 6 yd is a fade");
+        // swing_0020: a 3.5 deg axis is inside the pack's straight corridor (was a fade on the card's old 2°).
+        checkStr(flown(-0.7, 3.5, -0.0, 148.5, 2.6).name, "Straight", "…a 3.5 deg one is straight");
     }
 
-    // ── Severity is measured, not assumed ───────────────────────────────────────
+    // ── Severity is the axis's (and the compound miss's) ─────────────────────────
     //
-    // Fade against slice is a question about how much the ball curved, so it is answered
-    // with how much the ball curved. Curvature is the finish LESS where the ball would
-    // have finished flying straight down its own start line — which is why a big pull
-    // that never bent is not a hook.
+    // Slice against fade is the pack's: the spin axis beyond its corridor (±10°). The measured curvature no longer
+    // promotes a fade on its own (the pack never did); it still counts in the compound miss, whose own halves keep it.
     {
-        // swing_0011 and swing_0007: 23-24 yd of curve, steep axes.
-        checkStr(flown(0.6, 13.0, 2.1, 204.2, 26.1).name, "Slice", "a 24 yd curve is a slice");
-        checkStr(flown(-2.7, 15.7, 3.2, 185.9, 14.9).name, "Pull–slice",
-                 "…and starting left does not make it a fade");
-        // swing_0010: axis only 7.8, but 14.2 yd of curve on a 178 yd carry — the
-        // measured curvature promotes it where the axis alone would not have.
+        checkStr(flown(0.6, 13.0, 2.1, 204.2, 26.1).name, "Slice", "a 13 deg axis is a slice");
+        checkStr(flown(-2.7, 15.7, 3.2, 185.9, 14.9).name, "Slice",
+                 "…and a 2.7 deg left start inside the corridor does not make it a pull-slice");
+        // swing_0010: axis only 7.8, but 14.2 yd of curve on a 178 yd carry. The compound miss (its own halves read
+        // the curvature) is past −1, so the pack fires pull_hook and the card says Pull–hook too.
         checkStr(flown(-8.7, -7.8, -3.8, 177.8, -41.5).name, "Pull–hook",
-                 "measured curvature promotes a draw to a hook");
-        // swing_0021: started 3.1 deg left and finished 10.7 yd left having barely bent.
-        // Offline says "miles left"; curvature says "straight", and curvature is right.
-        checkStr(flown(-3.1, -0.7, -0.9, 167.0, -10.7).name, "Pull",
-                 "a pull that never curved is a pull, not a hook");
-        // swing_0001: an 8.5 deg axis that bent only 3.6 deg on a short carry. Under both
-        // thresholds, so it stays a fade — and it stays one whether or not the device
-        // reported the distances, which is what makes the two routes one boundary.
-        checkStr(shape(0.8, 8.5).name, "Fade", "axis under 10 with no distances is a fade");
-        checkStr(flown(0.8, 8.5, 1.3, 125.8, 9.8).name, "Fade",
-                 "…and the measured curvature agrees");
+                 "a compound miss names both halves");
+        // swing_0021: started 3.1 deg left and finished 10.7 yd left having barely bent: inside the start corridor.
+        checkStr(flown(-3.1, -0.7, -0.9, 167.0, -10.7).name, "Straight",
+                 "a 3.1 deg start is inside the corridor, and it never curved");
+        checkStr(shape(0.8, 8.5).name, "Fade", "axis under 10 is a fade");
+        checkStr(flown(0.8, 8.5, 1.3, 125.8, 9.8).name, "Fade", "…with the distances too");
+        checkStr(flown(0.0, 6.0, 2.0, 160.0, 20.0).name, "Fade",
+                 "a 6 deg axis bending 20 yd is a fade: the curvature alone no longer promotes (was Slice)");
     }
 
     // ── Boundaries, exactly on the threshold ────────────────────────────────────
     //
-    // Every comparison is strict, so a reading sitting exactly on a threshold stays in
-    // the calmer category. That is the right way round: a golfer told "straight" at
-    // exactly 1.0 deg has been told something defensible, and one told "pull" has not.
+    // Every comparison is the engine's: strict, beyond the edge. A reading sitting exactly on a boundary stays in
+    // the calmer category, as the pack's signals do.
     {
-        checkStr(shape(-1.0, 0.0).name, "Straight", "start exactly -1.0 is still straight");
-        checkStr(shape( 1.0, 0.0).name, "Straight", "start exactly +1.0 is still straight");
-        checkStr(shape(-1.001, 0.0).name, "Pull",   "just past -1.0 is a pull");
-        checkStr(shape( 1.001, 0.0).name, "Push",   "just past +1.0 is a push");
+        checkStr(shape(-4.0, 0.0).name, "Straight", "start exactly -4.0 is still straight");
+        checkStr(shape( 4.0, 0.0).name, "Straight", "start exactly +4.0 is still straight");
+        checkStr(shape(-4.001, 0.0).name, "Pull",   "just past -4.0 is a pull");
+        checkStr(shape( 4.001, 0.0).name, "Push",   "just past +4.0 is a push");
 
-        checkStr(shape(0.0, -2.0).name, "Straight", "axis exactly -2.0 is still straight");
-        checkStr(shape(0.0,  2.0).name, "Straight", "axis exactly +2.0 is still straight");
-        checkStr(shape(0.0,  2.001).name, "Fade",   "just past +2.0 is a fade");
-        checkStr(shape(0.0, -2.001).name, "Draw",   "just past -2.0 is a draw");
+        checkStr(shape(0.0, -4.0).name, "Straight", "axis exactly -4.0 is still straight");
+        checkStr(shape(0.0,  4.0).name, "Straight", "axis exactly +4.0 is still straight");
+        checkStr(shape(0.0,  4.001).name, "Fade",   "just past +4.0 is a fade");
+        checkStr(shape(0.0, -4.001).name, "Draw",   "just past -4.0 is a draw");
 
-        // The axis severity route uses >=.
-        checkStr(shape(0.0,  9.999).name, "Fade",  "axis just under 10 does not promote");
-        checkStr(shape(0.0, 10.0).name,   "Slice", "axis exactly 10 does promote");
-        checkStr(shape(0.0, -10.0).name,  "Hook",  "…and mirrors");
-
-        // The curvature route also uses >=. 100 yd carry: 4.5 deg is 7.87 yd of bend.
-        const double atThreshold = 100.0 * std::tan(4.5 * kDegToRadIr);
-        checkStr(flown(0.0, 3.0, 0.0, 100.0, atThreshold * 0.99).name, "Fade",
-                 "curvature just under 4.5 deg stays a fade");
-        checkStr(flown(0.0, 3.0, 0.0, 100.0, atThreshold * 1.01).name, "Slice",
-                 "curvature past 4.5 deg is a slice");
+        checkStr(shape(0.0,  10.0).name,   "Fade",  "axis exactly 10 is still a fade (the corridor edge is strict)");
+        checkStr(shape(0.0,  10.001).name, "Slice", "just past 10 is a slice");
+        checkStr(shape(0.0, -10.0).name,   "Draw",  "…and mirrors");
+        checkStr(shape(0.0, -10.001).name, "Hook",  "…to a hook");
     }
 
-    // ── The shared classifier: lmShapeClass ─────────────────────────────────────
+    // ── The one direction rule: lmShapeClass ────────────────────────────────────
     //
-    // The one classifier every shape-naming surface asks (the card through lmFlightShape, Club
-    // delivery and the report through session_delivery's deliveryShotShape, which tests its own
-    // agreement with the card in session_delivery_test). Club delivery once kept its own
-    // thresholds and called a 1.8 deg axis a fade; here it is straight, for both.
+    // The one classifier every shape-naming surface asks (the card through lmFlightShape, Club delivery and the
+    // report through session_delivery's deliveryShotShape), on the pack's boundaries. lm_corridor_test asserts the
+    // defaults ARE the shipped pack's, and sweeps this rule against the engine's own signals.
     {
         const std::optional<double> none;
         const LmCurvature noCurve;
         const auto k = [&](double start, std::optional<double> axis, std::optional<double> f2p,
                            bool lh = false) { return lmShapeClass(start, axis, f2p, noCurve, lh); };
 
-        check(k(0.0, 1.8, none).curveIdx == 1, "a 1.8 deg axis is straight (Club delivery once said a fade)");
-        check(k(0.0, 2.0, none).curveIdx == 1 && k(0.0, 2.001, none).curveIdx == 2,
-              "the curve starts past 2.0 deg of axis, strictly");
-        check(k(1.0, 0.0, none).windowIdx == 1 && k(1.001, 0.0, none).windowIdx == 2,
-              "the window starts past 1.0 deg, strictly");
+        check(k(0.0, 1.8, none).curveIdx == 1, "a 1.8 deg axis is straight");
+        check(k(0.0, 4.0, none).curveIdx == 1 && k(0.0, 4.001, none).curveIdx == 2,
+              "the curve starts past 4.0 deg of axis, strictly (sig_fadeBeyondStraight)");
+        check(k(4.0, 0.0, none).windowIdx == 1 && k(4.001, 0.0, none).windowIdx == 2,
+              "the window starts past 4.0 deg, strictly (sig_push)");
 
-        // "Slight": at or inside half of each severe boundary, never when severe, never when straight.
-        check(k(0.0, 2.001, none).slight, "just past the curve boundary is slight");
+        // "Slight": at or inside half of the severe edge, never when severe, never when straight.
+        check(k(0.0, 4.001, none).slight, "just past the curve boundary is slight");
         check(k(0.0, 5.0, none).slight, "axis exactly 5.0 (half of 10) is still slight");
         check(!k(0.0, 5.001, none).slight && !k(0.0, 5.001, none).severe, "just past 5.0 is a plain fade");
-        check(!k(0.0, 9.999, none).severe && k(0.0, 10.0, none).severe && !k(0.0, 10.0, none).slight,
-              "axis 10 is severe, and severe is never slight");
+        check(!k(0.0, 10.0, none).severe && k(0.0, 10.001, none).severe && !k(0.0, 10.001, none).slight,
+              "past axis 10 is severe, and severe is never slight");
         check(!k(0.0, 1.8, none).slight, "a straight shot is never slight");
-        check(k(0.0, -4.0, none).slight && k(0.0, -4.0, none).curveIdx == 0, "slight mirrors to the draw side");
+        check(k(0.0, -4.5, none).slight && k(0.0, -4.5, none).curveIdx == 0, "slight mirrors to the draw side");
 
-        // The face-to-path fallback: curve past 1, slight to 2 (half of 4), severe strictly past 4.
+        // The face-to-path fallback (the pack fires no curve without an axis): curve past 1, slight to 2 (half of
+        // 4), severe strictly past 4, as before.
         check(k(0.0, none, 1.0).curveIdx == 1 && k(0.0, none, 1.001).curveIdx == 2, "f2p curve past 1.0");
         check(k(0.0, none, -2.0).slight && !k(0.0, none, -2.001).slight, "f2p slight to 2.0, inclusive");
         check(!k(0.0, none, 4.0).severe && k(0.0, none, 4.001).severe, "f2p severity is strict at 4.0");
         check(!k(0.0, none, 4.0).slight && k(0.0, none, 4.0).curveIdx == 2, "f2p 4.0 is a plain fade");
         check(!k(0.0, none, 2.0).fromAxis && k(0.0, 3.0, 2.0).fromAxis, "fromAxis says which signal spoke");
 
-        // Measured curvature: slight only while it is at most half of 4.5 deg too.
+        // Measured curvature: slight only while it is at most half of 4.5 deg too; it never makes a fade severe.
         const double halfYd = 100.0 * std::tan(2.25 * kDegToRadIr);
         const LmCurvature under = lmCurvature(0.0, 100.0, halfYd * 0.99);
         const LmCurvature over  = lmCurvature(0.0, 100.0, halfYd * 1.01);
-        check(lmShapeClass(0.0, 3.0, none, under).slight, "axis 3, curvature just under 2.25 deg: slight");
-        check(!lmShapeClass(0.0, 3.0, none, over).slight && !lmShapeClass(0.0, 3.0, none, over).severe,
-              "axis 3, curvature just over 2.25 deg: a plain fade");
+        check(lmShapeClass(0.0, 4.5, none, under).slight, "axis 4.5, curvature just under 2.25 deg: slight");
+        check(!lmShapeClass(0.0, 4.5, none, over).slight && !lmShapeClass(0.0, 4.5, none, over).severe,
+              "axis 4.5, curvature just over 2.25 deg: a plain fade");
 
-        // Left-handed: the indices are in the gloss, as lmFlightShape's are.
-        const LmShapeClass lh = k(-2.0, 4.0, none, true);
-        check(lh.windowIdx == 2 && lh.curveIdx == 0 && lh.slight, "left-handed: 2 left, 4 right is a push, slight draw");
+        // Left-handed: the indices are in the gloss (glossedSideIndex), as lmFlightShape's are.
+        const LmShapeClass lh = k(-5.0, 4.5, none, true);
+        check(lh.windowIdx == 2 && lh.curveIdx == 0 && lh.slight, "left-handed: 5 left, 4.5 right is a push, slight draw");
 
         // No start, or nothing for the curve: no class.
         check(!k(std::numeric_limits<double>::quiet_NaN(), 4.0, none).has, "NaN start: no class");
         check(!k(0.0, none, none).has, "no curve signal: no class");
 
-        // A GUARD, not a proof: lmFlightShape calls lmShapeClass, so this holds by construction today. It is here so
-        // that a future edit giving lmFlightShape a comparison of its own (the drift this classifier replaced) fails
-        // here. That the CARD's answers did not move is pinned shot by shot in the block below.
+        // The compound miss decides both halves, on the ball's pair only.
+        const LmShapeClass ph = k(-3.0, -12.0, none);
+        check(ph.compound && ph.windowIdx == 0 && ph.curveIdx == 0 && ph.severe, "start 3 left, axis 12 left: a pull-hook");
+        const LmShapeClass club = lmShapeClass(-3.0, none, -6.0, noCurve, false, ShotDirectionBounds(), LmInferenceTuning(),
+                                               /*startIsBall*/ false);
+        check(!club.compound && club.windowIdx == 1, "the club's pair (the face as the start) makes no compound miss");
+
+        // The boundaries are the pack's, as handed in: an asymmetric start corridor is read on the side it was set,
+        // in the raw frame, and only then glossed for the hand.
+        ShotDirectionBounds b;
+        b.startLo = -6.0; b.startHi = 2.0;
+        check(lmShapeClass(3.0, 0.0, none, noCurve, false, b).windowIdx == 2, "start 3 right past a 2 deg edge: a push");
+        check(lmShapeClass(-5.0, 0.0, none, noCurve, false, b).windowIdx == 1, "start 5 left inside a 6 deg edge: straight");
+        check(lmShapeClass(3.0, 0.0, none, noCurve, true, b).windowIdx == 0, "…and the left-hander's push of it is their pull");
+
+        // A GUARD, not a proof: lmFlightShape calls lmShapeClass, so this holds by construction today.
         bool same = true;
-        for (double st : { -3.0, -1.0, -0.5, 0.0, 1.0, 1.01, 3.0 })
-            for (double ax : { -12.0, -10.0, -9.5, -5.0, -2.0, -1.8, 0.0, 1.8, 2.0, 2.01, 4.5, 5.0, 5.01, 9.5, 10.0, 12.0 })
+        for (double st : { -5.0, -4.0, -1.0, 0.0, 1.0, 4.0, 4.01, 5.0 })
+            for (double ax : { -12.0, -10.0, -9.5, -5.0, -4.0, -1.8, 0.0, 1.8, 4.0, 4.01, 4.5, 5.0, 5.01, 9.5, 10.0, 12.0 })
                 for (bool lhd : { false, true }) {
                     const LmShapeClass c = k(st, ax, 1.0, lhd);
                     const LmFlightShape f = shape(st, ax, 1.0, lhd);
@@ -230,38 +232,31 @@ int main()
         check(same, "lmFlightShape's indices and severity are lmShapeClass's on a grid of shots");
     }
 
-    // ── The card did not move: the shots Club delivery used to name differently ──
-    //
-    // Each name below is what the card said BEFORE the classifier was shared (the old Club delivery
-    // answer in the comment), so the extraction is pinned to the card's own behaviour, not to itself.
+    // ── What moved in 6.3b: the card's old 1° / 2° answers against the pack's ─────
     {
         const std::optional<double> none;
-        checkStr(shape(0.5, 1.8).name, "Straight", "axis 1.8: Straight (Club delivery said 'Straight start, slight fade')");
-        checkStr(shape(-1.5, -2.0).name, "Pull", "axis -2.0 on the edge: Pull (Club delivery said 'Pull, slight draw')");
-        checkStr(shape(-2.0, -9.5).name, "Pull–draw", "axis -9.5: Pull–draw (Club delivery said 'Pull, hook')");
-        checkStr(shape(1.0, 10.0).name, "Slice", "axis 10 at start 1.0: Slice (Club delivery said 'Straight start, slice')");
-        check(lmShapeClass(2.0, 4.8, none, LmCurvature()).slight,
-              "axis 4.8 is slight now: 'Push, slight fade' (Club delivery said 'Push, fade'); the card's word is unchanged");
-        checkStr(shape(2.0, 4.8).name, "Push–fade", "…and the card still says Push–fade");
-        checkStr(lmFlightShape(-2.0, none, 6.0, none, none).name, "Pull–slice",
-                 "face-to-path 6.0, no axis: Pull–slice (Club delivery said 'Pull, fade')");
-        checkStr(lmFlightShape(-2.0, none, -2.5, none, none).name, "Pull–draw",
-                 "face-to-path -2.5, no axis: Pull–draw (Club delivery said 'Pull, slight draw'; now 'Pull, draw')");
+        checkStr(shape(-1.5, -2.0).name, "Straight", "start 1.5 left, axis 2.0 left: Straight (was Pull)");
+        checkStr(shape(-2.0, -9.5).name, "Draw", "axis -9.5 from 2 left: Draw (was Pull–draw)");
+        checkStr(shape(1.0, 10.0).name, "Fade", "axis exactly 10: Fade (was Slice: the corridor edge is strict)");
+        checkStr(shape(2.0, 4.8).name, "Fade", "start 2 right, axis 4.8: Fade (was Push–fade)");
+        checkStr(lmFlightShape(-2.0, none, 6.0, none, none).name, "Slice",
+                 "face-to-path 6.0, no axis, start 2 left: Slice (was Pull–slice)");
+        checkStr(lmFlightShape(-2.0, none, -2.5, none, none).name, "Draw",
+                 "face-to-path -2.5, no axis, start 2 left: Draw (was Pull–draw)");
     }
 
     // ── Curvature is not offline ────────────────────────────────────────────────
     //
-    // The distinction the whole severity tier rests on. Same finish, same axis, two very
-    // different shots: one started straight and bent 20 yards, the other started 7 deg
-    // right and bent almost nothing.
+    // The distinction the compound miss rests on. Same finish, same axis, two very different shots: one started
+    // straight and bent 20 yards, the other started 7 deg right and bent almost nothing.
     {
         const LmFlightShape bent  = flown(0.0, 6.0, 2.0, 160.0, 20.0);
         const LmFlightShape aimed = flown(7.0, 6.0, 2.0, 160.0, 20.0);
         check(bent.hasCurve && aimed.hasCurve, "both carry a measured curvature");
         check(std::abs(bent.curveYd - 20.0) < 0.01, "a straight start makes finish = curve");
         check(aimed.curveYd < 1.0, "…while starting right accounts for nearly all of it");
-        checkStr(bent.name,  "Slice",      "the one that bent 20 yd is a slice");
-        checkStr(aimed.name, "Push–fade",  "the one that was aimed there is not");
+        checkStr(bent.name,  "Fade",       "the one that bent 20 yd on a 6 deg axis is a fade (the axis decides)");
+        checkStr(aimed.name, "Push–fade",  "the one that was aimed there is a push");
     }
 
     // ── Left-handed: the gloss mirrors, the reading does not ────────────────────
@@ -271,8 +266,8 @@ int main()
     // same ball, same numbers, different words. The EVIDENCE keeps saying "left",
     // because that is still where it went.
     {
-        const LmFlightShape r = flown(-1.3, 4.7, 1.6, 166.6, 5.1, false);
-        const LmFlightShape l = flown(-1.3, 4.7, 1.6, 166.6, 5.1, true);
+        const LmFlightShape r = flown(-5.3, 4.7, 1.6, 166.6, 5.1, false);
+        const LmFlightShape l = flown(-5.3, 4.7, 1.6, 166.6, 5.1, true);
         checkStr(r.name, "Pull–fade", "right-handed reference shot");
         checkStr(l.name, "Push–draw", "the same shot, left-handed");
         check(r.windowIdx == 0 && l.windowIdx == 2, "the grid column mirrors with the name");
@@ -329,7 +324,7 @@ int main()
         checkStr(noAxis.evidence,
                  "start 1.3° left · face +1.6° to path · curved 8.9 yd right",
                  "with no axis the evidence cites what it did use");
-        checkStr(noAxis.name, "Pull–fade", "…and the fallback still reads the shot");
+        checkStr(noAxis.name, "Fade", "…and the fallback still reads the shot (start inside the corridor)");
     }
 
     // ── No read rather than a default one ───────────────────────────────────────
@@ -423,23 +418,25 @@ int main()
     // reads. A test that only ever exercised the defaults would not notice a function
     // that had quietly hard-coded them back in.
     {
-        LmInferenceTuning t;
-        t.startT = 3.0; t.curveT = 5.0; t.centreMm = 8.0;
-        checkStr(lmFlightShape(-2.0, 4.0, 0.0, std::optional<double>{},
-                               std::optional<double>{}, false, t).name,
-                 "Straight", "a wider window and a wider axis forgive the same shot");
-
-        // The two severity routes are independently tunable, which is what lets a coach
-        // trust one device's axis more than another's.
-        LmInferenceTuning strict;
-        strict.severeAxisT = 5.0;
-        checkStr(lmFlightShape(0.0, 6.0, 0.0, std::optional<double>{},
-                               std::optional<double>{}, false, strict).name,
-                 "Slice", "a lower axis threshold promotes sooner");
+        // The shape's boundaries are the pack's (ShotDirectionBounds): a narrower corridor calls the same shot sooner.
+        const std::optional<double> none;
+        ShotDirectionBounds narrow;
+        narrow.startLo = -1.0; narrow.startHi = 1.0;
+        checkStr(lmFlightShape(-2.0, 0.0, 0.0, none, none, false, narrow).name,
+                 "Pull", "a narrower start corridor calls a 2 deg start a pull");
+        ShotDirectionBounds strict;
+        strict.axisHi = 5.0;
+        checkStr(lmFlightShape(0.0, 6.0, 0.0, none, none, false, strict).name,
+                 "Slice", "a lower axis edge promotes sooner");
+        // The compound miss's own halves are LmInferenceTuning's: a higher curvature threshold stops its promotion,
+        // and the shot is then the pack's pull and draw.
         LmInferenceTuning lenient;
         lenient.severeCurveDeg = 20.0;
-        checkStr(lmFlightShape(-8.7, -7.8, -3.8, 177.8, -41.5, false, lenient).name,
-                 "Pull–draw", "…and a higher curvature threshold stops promoting");
+        checkStr(lmFlightShape(-8.7, -7.8, -3.8, 177.8, -41.5, false, ShotDirectionBounds(), lenient).name,
+                 "Pull–draw", "…and a higher curvature threshold stops the compound miss promoting");
+
+        LmInferenceTuning t;
+        t.centreMm = 8.0;
 
         checkStr(lmStrikeQuality(6.0, -6.0, std::optional<double>{}, std::optional<double>{}, t).name,
                  "Flushed", "a wider centre forgives the same strike");
@@ -447,19 +444,10 @@ int main()
 
     // ── The compound miss ───────────────────────────────────────────────────────
     //
-    // The metric the diagnostic pack grades `pull_hook` and `push_slice` from. It has ONE
-    // obligation and everything below is a way of stating it: |value| >= 1 EXACTLY WHEN THE
-    // PANEL WOULD PRINT "PULL–HOOK" OR "PUSH–SLICE". Two code paths that name the same shot
-    // must never be able to name it differently, and the header shares its arithmetic with
-    // lmFlightShape precisely so this can be checked rather than hoped for.
-    //
-    // It holds by construction — lmCompoundMiss calls lmFlightShape rather than reapplying its
-    // rules — so the sweep below requires ZERO disagreements rather than few. An earlier
-    // version normalised both halves to ratios and re-derived the verdict from them, and
-    // disagreed on ten shots out of 1225: every one of them sat exactly on the start-line
-    // threshold, where the window comparison is strict and a ratio test is not. That is the
-    // failure this shape of code exists to make impossible, and it is why the sweep is a
-    // sweep and not three hand-picked shots.
+    // The metric the diagnostic pack grades `pull_hook` and `push_slice` from. Since 6.3b the card reads its value
+    // exactly as the pack does (strictly beyond ±1), so the obligation is: the card prints "PULL–HOOK" OR
+    // "PUSH–SLICE" EXACTLY WHEN |value| > 1. The value itself is the metric's own halves (lmCompoundHalves, the
+    // pre-6.3b windows), kept so the stored measurement never moves; the sweep requires ZERO disagreements.
     {
         // The claim, swept: every shot in a grid is put through both, and the two answers
         // are required to be the same answer. This is the test — the cases below it are
@@ -475,7 +463,8 @@ int main()
                 const double  v = lmCompoundMiss(startDir, axis, 0.0, std::optional<double>{},
                                                  std::optional<double>{}).value;
                 if (named) ++compounds;
-                if (named == (std::abs(v) >= 1.0)) ++agreed; else ++disagreed;
+                // Since 6.3b the card reads the value as the pack does: strictly beyond ±1 (sig_pushSlice, sig_pullHook).
+                if (named == (std::abs(v) > 1.0)) ++agreed; else ++disagreed;
             }
         }
         check(disagreed == 0, "the metric and the panel's name agree on every shot in the sweep");

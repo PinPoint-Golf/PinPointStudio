@@ -20,6 +20,7 @@
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "report_meta.h"
+#include "../../Coaching/handedness_gloss.h"   // golferHand: the athlete's hand for a device-only session (6.3b fix, B-3)
 #include "report_lm.h"
 #include "report_consistency.h"
 #include "report_tendencies.h"
@@ -1169,7 +1170,8 @@ bool gatherSwings(MapState &state, const QVector<DocFacts> &docs, const QHash<QS
             }
         }
         for (const QString &a : d.videoAliases) if (!x.cameraAliases.contains(a)) x.cameraAliases << a;
-        if (x.name.isEmpty()) { x.name = d.athleteName; x.uuid = d.athleteUuid; x.leftHanded = d.hand.compare(QLatin1String("left"), Qt::CaseInsensitive) == 0; }
+        if (x.name.isEmpty()) { x.name = d.athleteName; x.uuid = d.athleteUuid; x.leftHanded = pinpoint::analysis::golferIsLeftHanded(
+            pinpoint::analysis::golferHand(d.hand, state.input ? state.input->athleteHandedness : QString())); }   // B-3
         if (!s.club.isEmpty() && !x.clubs.contains(s.club)) x.clubs << s.club;
     }
     x.N = int(x.swings.size());

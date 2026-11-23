@@ -116,6 +116,10 @@ struct FiringInputs {
     Cohort cohort;
     // Whether readings carry their measurement σ (session_diagnostics_design.md §A8.3). Read by fireFindings().
     bool withSigma = tuned::diagUncertainty::kEnabled;
+    // The athlete's recorded handedness (OBJ-ATHLETE-RECORD): the hand a shot that records none is NAMED in (golferHand;
+    // refactor 6.3b fix round, B-3, J-101). Read by deriveShotData() / deriveShotFactors() only, for the words; never by
+    // fireFindings() and never into a ShotRecord, so it moves no finding and no stamp.
+    QString athleteHandedness;
 };
 
 // The club baseline's entry for `club` (any spelling; the keys are canonical), or null when the session has no

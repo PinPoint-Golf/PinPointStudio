@@ -1315,6 +1315,7 @@ ScopedPrep prepareScoped(const std::vector<ScopedSession> &sessions, const analy
             tin.intents             = s.rows->intents;
             tin.evidence            = s.evidence;
             if (s.rows->baseline) tin.baseline = *s.rows->baseline;
+            tin.athleteHandedness   = s.rows->athleteHandedness;   // the hand the owner named its shots in (B-3)
             QHash<int, analysis::ShotFactors> judged = analysis::judgedShotFactors(tin, outcomePack, flight);
             // Tendencies leaves out a club with no group (a putter, an undeclared club): judged by nothing here either.
             for (const analysis::ShotRecord &shot : tin.session.shots)

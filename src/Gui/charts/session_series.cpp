@@ -20,6 +20,7 @@
 #include "session_series_extract.h"
 
 #include "../../Coaching/board_annotations.h"
+#include "../../Coaching/handedness_gloss.h"   // golferHand: the hand a shot is named in (refactor 6.3b fix round, B-3)
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../Core/pp_debug.h"
 #include "../../DomainModel/rule_data.h"
@@ -67,6 +68,7 @@ struct JobIn {
     QHash<QString, QString>                               tiers;
     QStringList                                           workOnOrder;
     QString                                               pendingWhy;
+    QString                                               athleteHandedness;   // the record's: golferHand's fallback (B-3)
     bool                                                  rulesMoved = false;
     std::shared_ptr<const SessionSnapshot>                last;
     std::vector<SeriesSkip>                               lastSkipped;
@@ -208,13 +210,16 @@ JobOut runSeriesJob(const JobIn &in)
         const auto row = rows.constFind(s.swing);
         const ChartShotFindings diag = row != rows.constEnd() ? seriesDiagnosticsOf(**row, pack) : ChartShotFindings();
         std::shared_ptr<const ShotSeries> pub = e->published;
+        // The hand its sides are named in: the swing's own, else the athlete's (golferHand; refactor 6.3b fix round, B-3).
+        const QString hand = pa::golferHand(e->base->handedness, in.athleteHandedness);
         if (fresh || !pub || pub->ordinal != ordinal || pub->shotId != s.swing
-            || !seriesSameDiagnostics(pub->diagnostics, diag)) {
+            || !seriesSameDiagnostics(pub->diagnostics, diag) || pub->handedness != hand) {
             // A PUBLISHED SHOT NEVER CHANGES (decision 4): a new one, its series copied once per change.
             auto copy = std::make_shared<ShotSeries>(*e->base);
             copy->ordinal     = ordinal;
             copy->shotId      = s.swing;
             copy->diagnostics = diag;
+            copy->handedness  = hand;
             auto ne = std::make_shared<SessionSeries::Entry>(*e);
             ne->published = copy;
             pub = copy;
@@ -384,6 +389,7 @@ void SessionSeries::start()
     pinpoint::RuleData *rd = m_doors.ruleData ? m_doors.ruleData : nullptr;
     in.rules      = rd ? rd->snapshot() : pinpoint::RuleData::current();
     in.sessionDir = m_sessionDir;
+    in.athleteHandedness = m_session->athlete() ? m_session->athlete()->record().handedness : QString();
     for (pinpoint::Shot *shot : m_session->shots()) {
         if (!shot) continue;
         hearShot(shot);

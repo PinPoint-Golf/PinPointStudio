@@ -41,6 +41,7 @@
 
 #include "../charts/charts_words.h"          // the number words, cap1, list, plural — and the figures (figure_format.h)
 #include "../../Coaching/session_spread.h"
+#include "../../Coaching/handedness_gloss.h"   // the one handedness gloss (refactor 6.3b)
 
 #include <QDate>
 #include <QLocale>
@@ -1080,7 +1081,8 @@ inline QString lmTablesNote(bool leftHanded, bool anyOut, bool anyRelabelled, co
                                "toe up), %4 (%5), toward the toe (%6) and high (%7); minus the other way.")
                     .arg(words({ "lm.launchDirection", "lm.sideSpin", "lm.spinAxis", "lm.offline", "lm.clubPath", "lm.faceAngle" }),
                          lmWord(QStringLiteral("lm.attackAngle")), lmWord(QStringLiteral("lm.lieAngle")),
-                         leftHanded ? QStringLiteral("closed") : QStringLiteral("open"), lmWord(QStringLiteral("lm.faceToPath")),
+                         pinpoint::analysis::glossedSign(1.0, leftHanded) > 0 ? QStringLiteral("open") : QStringLiteral("closed"),
+                         lmWord(QStringLiteral("lm.faceToPath")),
                          lmWord(QStringLiteral("lm.strikeLocation")), lmWord(QStringLiteral("lm.strikeHeight")));
     s += lmMarksNote(anyOut, anyRelabelled);
     if (!noReading.isEmpty()) s += QStringLiteral(" ") + noReading;

@@ -161,6 +161,9 @@ struct ShotSeries {
     int     shotId   = -1;    // the session's shot id (ledger / carousel identity)
     QString swingDir;         // absolute swing directory (carousel identity)
     QString club;             // the swing's own club label
+    QString handedness;       // the golfer's, as the swing records it ("Left", "Right", "" before it was recorded);
+                              // a PUBLISHED shot's is the hand its sides are named in: the swing's, else the athlete's
+                              // (golferHand; the series job). The words a side is named in (Club delivery; 6.3b, G-02)
     qint64  impactUs = -1;    // window-relative µs; -1 when the swing has no impact
     std::vector<PhaseMark> phases;
     QHash<QString, MetricSeries> metrics;      // key → series

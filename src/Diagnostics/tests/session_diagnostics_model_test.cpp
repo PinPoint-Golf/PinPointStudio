@@ -41,6 +41,7 @@
 #include "../../Export/swing_store_repository.h"
 #include "../../Gui/variability/variability_facade.h"   // the per-club badges' variabilityResult
 #include "../../Coaching/sequence_checks.h"
+#include "../../Coaching/condition_in_hand.h"   // the one function a condition is worded through (6.3b fix round, B-2)
 #include "../engine/characteristic_engine.h"
 #include "../packs/pack_provider.h"                // makeCharacteristicPackProvider (#16 side checks)
 #include "../norms/norm_provider.h"                // a saved corridor edit (audit B-01, Stage 0.4b)
@@ -1881,6 +1882,63 @@ static void shotOutcomesSuite(const QTemporaryDir &tmp)
         const QVector<pinpoint::LabelCorrection> corrections = reviewOf(leftDir, 3).labelCorrections;
         check(corrections.size() == 1 && corrections.first().to == QStringLiteral("push"),
               "a left-hander's correction is stored as the row's id");
+
+        // G-02 (refactor 6.3b): THE PATTERN CARDS AND THE CHAINS name the golfer's side too, through the one gloss
+        // (conditionName), once: every entry whose row id has a mirror reads as the mirrored condition, never the row.
+        const std::unique_ptr<ICharacteristicPackProvider> packProv = makeCharacteristicPackProvider();
+        const auto labelOf = [&packProv](const QString &id) {
+            const Condition *c = packProv->pack().condition(id);
+            return c ? c->label : id;
+        };
+        int sided = 0, wrong = 0;
+        const auto look = [&](const QVariantMap &e) {
+            const QString id = e.value(QStringLiteral("id")).toString();
+            if (id.isEmpty() || glossedConditionId(id, QStringLiteral("Left")) == id || !e.contains(QStringLiteral("name"))) return;
+            ++sided;
+            if (e.value(QStringLiteral("name")).toString() != labelOf(glossedConditionId(id, QStringLiteral("Left")))) {
+                ++wrong;
+                std::printf("      %s reads \"%s\"\n", qPrintable(id), qPrintable(e.value(QStringLiteral("name")).toString()));
+            }
+        };
+        for (const QVariant &c : ml->cards()) look(c.toMap());
+        for (const QVariant &c : ml->watching()) look(c.toMap());
+        for (const QVariant &c : ml->unchained()) look(c.toMap());
+        for (const QVariant &ch : ml->chains())
+            for (const QVariant &nd : ch.toMap().value(QStringLiteral("nodes")).toList()) look(nd.toMap());
+        check(sided > 0 && wrong == 0, "a left-hander's pattern cards and chain nodes name the mirrored side (the slice row reads Hook)");
+        std::printf("      (%d side-naming entries)\n", sided);
+
+        // B-1 (refactor 6.3b fix round): THE SENTENCES. A condition that names no side reads exactly as the pack authors
+        // it, on the shipped pack: its "left" (remaining) and "right" (correct) are never mirrored.
+        const CharacteristicPack &real = packProv->pack();
+        const QStringList notSides{ QStringLiteral("hanging_back"), QStringLiteral("hip_spin_out"), QStringLiteral("bowed_at_top"),
+                                    QStringLiteral("shallowing"), QStringLiteral("reverse_spine_p7"),
+                                    QStringLiteral("hips_under_rotated_at_top"), QStringLiteral("hip_alignment_open"),
+                                    QStringLiteral("face_held_shut_takeaway") };
+        int asAuthored = 0;
+        for (const QString &id : notSides) {
+            const Condition *c = real.condition(id);
+            const QString got = ml->conditionDetail(id).value(QStringLiteral("header")).toMap()
+                                    .value(QStringLiteral("consequence")).toString();
+            const bool hasWord = c && QRegularExpression(QStringLiteral("\\b(left|right)\\b")).match(c->consequence.text()).hasMatch();
+            if (c && hasWord && got == c->consequence.text()) ++asAuthored;
+            else std::printf("      %s reads \"%s\"\n", qPrintable(id), qPrintable(got.left(80)));
+        }
+        check(asAuthored == int(notSides.size()),
+              "a left-hander's detail reads the 8 non-side sentences as authored (\"Weight left on the trail side\", \"left behind\")");
+        // A side-naming one: the slice row reads Hook over the hook's own sentence, mirrored (the ball went right).
+        const Condition *hook = real.condition(QStringLiteral("hook"));
+        const QVariantMap sliceHead = ml->conditionDetail(QStringLiteral("slice")).value(QStringLiteral("header")).toMap();
+        check(hook && sliceHead.value(QStringLiteral("name")).toString() == hook->label
+                  && sliceHead.value(QStringLiteral("consequence")).toString() == mirrorLeftRightWords(hook->consequence.text()),
+              "a left-hander's slice row: \"Hook\" over the hook's sentence, its sides mirrored");
+        // B-2: the one function Home words a condition through says the same, name and sentence together.
+        const ConditionInHand w = conditionInGolfersHand(real, QStringLiteral("slice"), QStringLiteral("Left"));
+        check(hook && w.displayId == QStringLiteral("hook") && w.label == hook->label
+                  && w.consequence == sliceHead.value(QStringLiteral("consequence")).toString()
+                  && conditionInGolfersHand(real, QStringLiteral("hanging_back"), QStringLiteral("Left")).consequence
+                         == real.condition(QStringLiteral("hanging_back"))->consequence.text(),
+              "conditionInGolfersHand: the panel's name and sentence, and a non-side sentence as authored");
     }
 }
 

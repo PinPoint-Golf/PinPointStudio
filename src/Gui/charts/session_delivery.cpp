@@ -347,6 +347,7 @@ DeliveryShotInput deliveryInputFromShot(const ShotSeries &shot)
 {
     DeliveryShotInput in = deliveryInputFromGrid(deliveryPhaseGridOf(shot));
     in.ordinal = shot.ordinal; in.shotId = shot.shotId; in.swingDir = shot.swingDir;
+    in.leftHanded = pa::golferIsLeftHanded(shot.handedness);   // the shot's own (refactor 6.3b, G-02: it was never set)
     in.session = shot.swingDir.trimmed().isEmpty() ? QString() : QFileInfo(QFileInfo(shot.swingDir).absolutePath()).fileName();
     for (int p = 0; p < kDeliveryPositions; ++p)
         for (const PhaseMark &pm : shot.phases)
@@ -704,19 +705,22 @@ DeliveryShape deliveryShotShape(const DeliveryShotInput &in)
     if (!s.fromBall && (!fin(s.face) || !fin(s.faceToPath))) return s;
     const auto opt = [](double v) { return fin(v) ? std::optional<double>(v) : std::optional<double>(); };
     const std::optional<double> none;
-    // THE LAUNCH MONITOR'S CLASSIFIER, in physical space (handedness is mirrored below, in the words): the thresholds,
-    // the slight band and hook / slice are its, so this section and the launch monitor card name a shot alike.
+    // THE ONE DIRECTION RULE (refactor 6.3b, F-05), in physical space (handedness is mirrored below, in the words): the
+    // pack's corridors (in.direction), the slight band and hook / slice, so this section, the launch monitor card, the
+    // factors and Tendencies name a shot alike. The club's pair hands it the face as the start's proxy (no compound).
     const pa::LmShapeClass k = s.fromBall
-        ? pa::lmShapeClass(s.launchDir, s.spinAxis, none, pa::lmCurvature(s.launchDir, opt(in.lmCarry), opt(in.lmOffline)))
-        : pa::lmShapeClass(s.face, none, s.faceToPath, pa::LmCurvature());
+        ? pa::lmShapeClass(s.launchDir, s.spinAxis, none, pa::lmCurvature(s.launchDir, opt(in.lmCarry), opt(in.lmOffline)),
+                           false, in.direction)
+        : pa::lmShapeClass(s.face, none, s.faceToPath, pa::LmCurvature(), false, in.direction, pa::LmInferenceTuning(),
+                           /*startIsBall*/ false);
     if (!k.has) return s;
     s.available = true;
     s.start = k.windowIdx - 1;
     s.curve = k.curveIdx - 1;
     s.slight = k.slight;
     s.severe = k.severe && k.curveIdx != 1;   // a hook or a slice is a curve: never on a straight-curve shot
-    // the words mirror for a left-handed golfer: right of the target is a pull, a curve right a draw
-    const int st = in.leftHanded ? -s.start : s.start, cv = in.leftHanded ? -s.curve : s.curve;
+    // the words mirror for a left-handed golfer: right of the target is a pull, a curve right a draw (the one gloss)
+    const int st = pa::glossedSideIndex(s.start + 1, in.leftHanded) - 1, cv = pa::glossedSideIndex(s.curve + 1, in.leftHanded) - 1;
     s.startWord = st > 0 ? QStringLiteral("push") : st < 0 ? QStringLiteral("pull") : QStringLiteral("straight");
     const QString base = cv > 0 ? (s.severe ? QStringLiteral("slice") : QStringLiteral("fade"))
                                 : (s.severe ? QStringLiteral("hook") : QStringLiteral("draw"));
@@ -802,7 +806,7 @@ DeliveryHead deliveryHead(const DeliveryShotInput &in, const std::vector<Deliver
         if (sh.available)
             h.text = QStringLiteral("%1: face %2, %3 %4 to the path.")
                          .arg(sh.word, deliveryDirection(sh.face), absDeg1(sh.faceToPath),
-                              (sh.faceToPath >= 0) != in.leftHanded ? QStringLiteral("open") : QStringLiteral("closed"));
+                              pa::glossedSign(sh.faceToPath, in.leftHanded) >= 0 ? QStringLiteral("open") : QStringLiteral("closed"));
         else if (in.hasPath())
             h.text = QStringLiteral("Path %1.").arg(deliveryDirection(in.lmPath));
         else

@@ -404,6 +404,9 @@ private:
     std::optional<QHash<QString, analysis::ClubBaselineEntry>> m_baseline;
     QDate                                                m_dob;
     QString                                              m_sex;
+    // The athlete record's handedness (OBJ-ATHLETE-RECORD): the hand a shot that records none is named in (golferHand;
+    // refactor 6.3b fix round, B-3, J-101). Read with the cohort facts; layer 3's words only, never a finding.
+    QString                                              m_athleteHandedness;
     QDate                                                m_sessionDay;
     IntentRun                                            m_intentRun;
     QHash<int, QString>                                  m_legacyIntents;

@@ -2457,6 +2457,9 @@ pp_add_test(lm_corridor_test
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            # the engine's own signal evaluation (evaluateSignal), which the one direction rule is swept against
+            # (refactor 6.3b)
+            ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS}
     AUTOMOC)
 set_tests_properties(lm_corridor_test PROPERTIES

@@ -22,6 +22,7 @@
 #include "report_words.h"
 
 #include "../../Coaching/diagnostic_ledger.h"          // medianOf — the report's one median
+#include "../../Coaching/handedness_gloss.h"           // the one handedness gloss (refactor 6.3b)
 #include "../../Core/figure_format.h"
 #include "../../LaunchMonitor/launch_monitor_reading.h" // lm::fieldDefs()
 #include "../../LaunchMonitor/lm_session_reductions.h"  // lmDecimals
@@ -114,7 +115,7 @@ QVariantList ballTiles(const LmFigures &f, const QString *club)
             const double med = median(v);
             // GC Quad's path is + to the right of the target line: in-to-out for a right-hander.
             const bool square = std::fabs(med) < 0.5;
-            const bool inToOut = f.leftHanded ? med < 0 : med > 0;
+            const bool inToOut = pinpoint::analysis::glossedSign(med, f.leftHanded) > 0;   // the one gloss (6.3b)
             const auto [lo, hi] = std::minmax_element(v.begin(), v.end());
             tiles << QVariantMap{ { QStringLiteral("key"), key }, { QStringLiteral("label"), golferLabel(key) },
                                   { QStringLiteral("value"), lmFig(std::fabs(med), 0) + QStringLiteral("°") },

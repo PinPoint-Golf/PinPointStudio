@@ -596,6 +596,9 @@ static void testCatchUpAndFreeze()
             bool okb = false;
             const auto b = analysis::clubBaselineFromJson(readJson(SessionFiles::clubBaselineFile(folder)), &okb);
             if (okb) in.baseline = b.clubs;
+            // The hand the owner names a shot that records none in: the athlete record's (golferHand; refactor 6.3b fix
+            // round, B-3), as SessionDiagnostics reads it with the cohort facts.
+            in.athleteHandedness = rig.athlete->record().handedness;
             themeLed.push_back(analysis::ThemeSessionInput{ in.session.folder, in.session.shots });
             led.push_back(std::move(in));
         }

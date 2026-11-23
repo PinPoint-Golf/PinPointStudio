@@ -24,6 +24,9 @@
 #include "session_delivery.h"
 #include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
 #include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
+#include "../../DomainModel/rule_data.h"   // RuleData's snapshot: the pack the direction rule's boundaries come from
+#include "../../Diagnostics/norms/context_tree.h"
+#include "../../Diagnostics/norms/shot_direction_bounds.h"   // the one direction rule's boundaries (refactor 6.3b)
 
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"
@@ -808,6 +811,27 @@ void buildChoices(Ctx &c, ChartsDeliveryPresenter::Result &R)
     R.choices.onShowKeys = deliveryOnShowKeys();
 }
 
+// THE ONE DIRECTION RULE'S BOUNDARIES (refactor 6.3b, F-05) for each shot's club: the pack and the norms the app fires
+// against (RuleData's snapshot), at its grade policy, so this section names a shot as the factors and Tendencies do.
+// With no rule data (a test's bare process) a shot keeps the shipped default, which is the same numbers.
+void resolveDirection(std::vector<DeliveryShotInput> &inputs)
+{
+    const std::shared_ptr<const pinpoint::RuleDataSnapshot> rules = pinpoint::RuleData::current();
+    if (!rules || !rules->pack || !rules->norms) return;
+    const pinpoint::analysis::CharacteristicPack &pack = rules->pack->pack();
+    const pinpoint::analysis::GradePolicy policy = pinpoint::analysis::gradePolicyByName(rules->gradePolicy);
+    QHash<QString, pinpoint::analysis::ShotDirectionBounds> byClub;
+    for (DeliveryShotInput &in : inputs) {
+        auto it = byClub.find(in.club);
+        if (it == byClub.end())
+            it = byClub.insert(in.club, pinpoint::analysis::shotDirectionBounds(
+                                            pack, *rules->norms,
+                                            in.club.trimmed().isEmpty() ? QString() : pinpoint::analysis::contextIdForClub(in.club),
+                                            policy));
+        in.direction = *it;
+    }
+}
+
 // The shots' readings, through the worker's cache.
 std::vector<DeliveryShotInput> readInputs(ChartsDeliveryPresenter::Worker *w, const SessionSnapshot &snap)
 {
@@ -827,6 +851,7 @@ std::vector<DeliveryShotInput> readInputs(ChartsDeliveryPresenter::Worker *w, co
         if (w) fresh.insert(s.get(), CacheEntry{ s, out.back() });
     }
     if (w) w->cache = std::move(fresh);
+    resolveDirection(out);
     return out;
 }
 
@@ -857,7 +882,9 @@ static std::shared_ptr<ChartsDeliveryPresenter::Result> computeDelivery(ChartsDe
     } else if (!want.isEmpty() && !in.pickedDetail.value(QStringLiteral("series")).toList().isEmpty()) {
         auto sh = deliveryShotFromDetail(in.pickedDetail, want);
         sh->ordinal = c.n + 1;
-        c.pick = deliveryInputFromShot(*sh);
+        std::vector<DeliveryShotInput> one{ deliveryInputFromShot(*sh) };
+        resolveDirection(one);
+        c.pick = one.front();
         c.shot = sh;
     }
     c.hasPick = c.shot && hasDelivery(c.pick);

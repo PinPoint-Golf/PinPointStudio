@@ -35,6 +35,7 @@
 
 #include "club_distances.h"
 #include "condition_role.h"          // ShotConditionLayer
+#include "handedness_gloss.h"        // the one handedness gloss (refactor 6.3b)
 
 #include <QHash>
 #include <QJsonArray>
@@ -97,6 +98,13 @@ struct ShotOutcomeSessionFacts {
     std::vector<LinkEvidence> links;
     QHash<QString, Tier>      tiers;
     QHash<QString, ClubFlightUsual> flightUsuals;   // by canonical club; empty = nothing is read from the flight
+    // The flight table the shot's flight factor reads (classifyFlight): with it, Sky is a label wherever the flight
+    // says Sky (flightSaysSky; refactor 6.3b, G-04). Null: no Sky label is made from the flight (a caller with no
+    // table, a test); a golfer's own Sky still stands.
+    const FlightNorms *flightNorms = nullptr;
+    // The athlete's recorded handedness (OBJ-ATHLETE-RECORD), the hand a shot that records none is named in
+    // (golferHand; refactor 6.3b fix round, B-3, J-101). In memory only; "" names such a shot right-handed.
+    QString athleteHandedness;
 };
 
 struct ShotOutcomeEvidence {
@@ -178,6 +186,9 @@ struct ShotOutcome {
     std::vector<ShotOutcomeLink> links;
     ShotCarryBlock carry;
     bool    clean = false;      // no miss label; never true without a reading
+    // The golfer took the flight's Sky off ("Not right?"; refactor 6.3b, G-04): the flight factor then reads the
+    // height without it (shotFactors), so the label and the flight bar still agree. Composed with the shot, never stored.
+    bool    skyTakenOff = false;
     std::vector<QString> cellLines;     // the shot-log cell: at most two lines
     QString cell;               // those lines joined by a space
 };
@@ -190,48 +201,7 @@ struct ShotMix {
 
 // ── Handedness ──────────────────────────────────────────────────────────────
 
-// The condition a left-hander's row should read as. Rows stay target-relative; a left-hander's ball
-// going right is a hook and their out-to-in path is on the other side of zero.
-inline QString glossedConditionId(const QString &id, const QString &handedness)
-{
-    if (handedness != QLatin1String("Left")) return id;
-    static const QHash<QString, QString> kGloss = {
-        { QStringLiteral("pull"),                QStringLiteral("push") },
-        { QStringLiteral("push"),                QStringLiteral("pull") },
-        { QStringLiteral("slice"),               QStringLiteral("hook") },
-        { QStringLiteral("hook"),                QStringLiteral("slice") },
-        { QStringLiteral("pull_hook"),           QStringLiteral("push_slice") },
-        { QStringLiteral("push_slice"),          QStringLiteral("pull_hook") },
-        { QStringLiteral("fade"),                QStringLiteral("draw") },
-        { QStringLiteral("draw"),                QStringLiteral("fade") },
-        { QStringLiteral("in_to_out_path"),      QStringLiteral("out_to_in_path") },
-        { QStringLiteral("out_to_in_path"),      QStringLiteral("in_to_out_path") },
-        { QStringLiteral("open_face_to_path"),   QStringLiteral("closed_face_to_path") },
-        { QStringLiteral("closed_face_to_path"), QStringLiteral("open_face_to_path") },
-    };
-    return kGloss.value(id, id);
-}
-
-// The left/right words of a playTo line swapped, for a left-hander.
-inline QString mirrorLeftRightWords(const QString &text)
-{
-    static const QRegularExpression re(QStringLiteral("\\b(left|right|Left|Right)\\b"));
-    QString out;
-    qsizetype last = 0;
-    QRegularExpressionMatchIterator it = re.globalMatch(text);
-    while (it.hasNext()) {
-        const QRegularExpressionMatch m = it.next();
-        out += text.mid(last, m.capturedStart() - last);
-        const QString w = m.captured(0);
-        if (w == QLatin1String("left"))       out += QStringLiteral("right");
-        else if (w == QLatin1String("right")) out += QStringLiteral("left");
-        else if (w == QLatin1String("Left"))  out += QStringLiteral("Right");
-        else                                  out += QStringLiteral("Left");
-        last = m.capturedEnd();
-    }
-    out += text.mid(last);
-    return out;
-}
+// glossedConditionId, mirrorLeftRightWords: the one handedness gloss, handedness_gloss.h (refactor 6.3b, G-02).
 
 // The playTo line for this golfer: the glossed condition's words, mirrored for a left-hander.
 inline QString outcomePlayTo(const ShotOutcomePack &pack, const QString &id, const QString &handedness)
@@ -239,7 +209,7 @@ inline QString outcomePlayTo(const ShotOutcomePack &pack, const QString &id, con
     const QString display = glossedConditionId(id, handedness);
     const auto it = pack.conditions.constFind(display);
     if (it == pack.conditions.constEnd()) return QString();
-    return handedness == QLatin1String("Left") ? mirrorLeftRightWords(it->playTo) : it->playTo;
+    return conditionWordsInHand(display, it->playTo, handedness);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -621,8 +591,7 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
 
     // Sky is a FLIGHT fault (shot_factors.h, 10 Nov 2026): a High flight, an attack steeper than the club's usual
     // and a carry well short, on a driver, wood or hybrid (flightSaysSky). The ledger keeps a measured sky row
-    // fired only where that rule holds, and the three factors name it (shotFactors), so it is no label here: the
-    // phrase and the strike stay the strike's. A golfer's own correction to Sky still stands.
+    // fired only where that rule holds. The row itself is not the label: the label is the flight's, below.
     fired.removeAll(QStringLiteral("sky"));
 
     // Step 1: excludes, then corrections, then intent. No reading means no word on where the ball went.
@@ -646,8 +615,18 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
     if (!flightStrike.isEmpty() && outcomeFacts(pack, flightStrike) && !active.contains(flightStrike))
         active << flightStrike;
 
+    // SKY IS A LABEL WHEREVER THE FLIGHT SAYS SKY (refactor 6.3b, audit G-04): by the one rule the flight factor calls
+    // it by (flightSaysSky, the shot's flight High and skied against its club's usual), so This shot, the flight bar
+    // and Tendencies name the same shots. Before, the flight factor counted a Sky fault while the shot read "Good shot".
+    // Ahead of the corrections, so "Not right?" takes it off like any other label.
+    const QString kSky = QStringLiteral("sky");
+    if (hasLm && session.flightNorms && outcomeFacts(pack, kSky) && !active.contains(kSky)
+        && flightSaysSky(shot, session.flightUsuals, *session.flightNorms))
+        active << kSky;
+
     QSet<QString> correctedIds;
     for (const ShotCorrection &c : corrections) {
+        if (c.from == kSky && active.contains(kSky)) out.skyTakenOff = true;
         if (!c.from.isEmpty()) active.removeAll(c.from);
         if (!c.to.isEmpty() && outcomeFacts(pack, c.to)) {
             if (!active.contains(c.to)) active << c.to;
@@ -662,14 +641,14 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
         }
     }
 
-    const bool leftHanded = shot.handedness == QLatin1String("Left");
-    const auto inGolfersHand = [leftHanded](const QString &words) {
-        return leftHanded ? mirrorLeftRightWords(words) : words;
-    };
+    // The hand this shot is named in: its own, else the athlete's (golferHand; B-3). Each label's words are its glossed
+    // condition's, mirrored only when that condition names a side (conditionWordsInHand; B-1: "left it short" is not).
+    const QString hand = golferHand(shot.handedness, session.athleteHandedness);
+    const auto inHand = [&hand](const QString &id, const QString &words) { return conditionWordsInHand(id, words, hand); };
 
     for (const QString &id : active) {
         const ShotConditionFacts *rowFacts = outcomeFacts(pack, id);
-        const QString displayId = glossedConditionId(id, shot.handedness);
+        const QString displayId = glossedConditionId(id, hand);
         const ShotConditionFacts *facts = outcomeFacts(pack, displayId);
         if (!facts) facts = rowFacts;
 
@@ -678,9 +657,9 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
         l.displayId = displayId;
         l.family    = rowFacts->family;
         l.shortText = !facts->golferShort.isEmpty() ? facts->golferShort : facts->label;
-        l.golfer    = inGolfersHand(facts->golfer);
+        l.golfer    = inHand(id, facts->golfer);
         l.abbr      = facts->golferAbbr;
-        l.story     = inGolfersHand(facts->golferStory);
+        l.story     = inHand(id, facts->golferStory);
         l.corrected = correctedIds.contains(id);
         l.intended  = !intent.isEmpty() && intent != QLatin1String("straight") && displayId == intent;
         l.miss      = !l.intended && !isOutcomeCurveOnly(id);
@@ -809,14 +788,14 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
 
     if (best) {
         const ShotConditionFacts *rowFacts = outcomeFacts(pack, best->id);
-        const QString displayId = glossedConditionId(best->id, shot.handedness);
+        const QString displayId = glossedConditionId(best->id, hand);
         const ShotConditionFacts *facts = outcomeFacts(pack, displayId);
         if (!facts) facts = rowFacts;
 
         out.driver.id        = best->id;
         out.driver.displayId = displayId;
         out.driver.name      = facts->label;
-        out.driver.golfer    = inGolfersHand(facts->golfer);
+        out.driver.golfer    = inHand(best->id, facts->golfer);
         out.driver.explains  = best->explains;
         out.driver.of        = missCount;
 

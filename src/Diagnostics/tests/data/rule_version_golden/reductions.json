@@ -25,7 +25,7 @@
             "sha1": "1beb948d517cef000c017b97f4221aea8b1a9610",
             "versions": {
                 "clubBaselineSchema": 4,
-                "tendencyRule": 18
+                "tendencyRule": 19
             }
         },
         "outcomeScope": {
@@ -48,9 +48,9 @@
             }
         },
         "tendencies": {
-            "sha1": "775e78f8145fa55e2ed3954db12d22eb8aa72c0b",
+            "sha1": "45c6aa8652ad644695075145b157bf19ee12102a",
             "versions": {
-                "tendencyRule": 18,
+                "tendencyRule": 19,
                 "tendencySchema": 1
             }
         },

@@ -21,6 +21,7 @@
 
 #include "../../Coaching/shot_outcomes.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -361,6 +362,71 @@ int main()
         check(mirrorLeftRightWords(QStringLiteral("Left of the green, right of the bunker")) == QStringLiteral("Right of the green, left of the bunker"),
               "the mirror keeps case");
         check(glossedConditionId(QStringLiteral("slice"), QString()) == SL, "no handedness: no gloss");
+    }
+
+    // B-1 (refactor 6.3b fix round): the words are glossed by the CONDITION, never by the word. Only a condition that
+    // names a side (the table's) has its left / right mirrored; every other sentence is shown as authored.
+    std::printf("the gloss mirrors only a condition that names a side:\n");
+    {
+        const QString L = QStringLiteral("Left");
+        // The pack's own sentences whose "left" / "right" are not sides (the review's live finds, and the pack scan's 8).
+        const std::vector<std::pair<const char *, const char *>> notSides{
+            { "hanging_back", "Weight left on the trail side at impact moves the low point behind the ball." },
+            { "hip_spin_out", "The club is left behind and the strike moves toward the heel." },
+            { "bowed_at_top", "There is nothing left to square on the way down." },
+            { "shallowing", "How much of it is right for a golfer is the coach's call." },
+            { "reverse_spine_p7", "With a driver there is no room left to hit up on the ball." },
+            { "hips_under_rotated_at_top", "A pelvis that has not finished turning away by the top has little left to unwind from." },
+            { "hip_alignment_open", "Part of the turn has been spent before the swing starts and there is less left to give." },
+            { "face_held_shut_takeaway", "It arrives at the top already shut, and there is no time left to open it." },
+            { "carry_deficit", "left it short" },
+        };
+        int kept = 0;
+        for (const auto &[id, text] : notSides) {
+            const QString t = QString::fromUtf8(text);
+            if (conditionWordsInHand(QString::fromLatin1(id), t, L) == t && !conditionNamesASide(QString::fromLatin1(id))) ++kept;
+            else std::printf("      %s flipped\n", id);
+        }
+        check(kept == int(notSides.size()), "a left-hander reads every one of them as authored (\"weight left\", \"left it short\")");
+        check(conditionWordsInHand(QStringLiteral("hook"), QStringLiteral("Curves hard to the left"), L) == QStringLiteral("Curves hard to the right")
+                  && conditionWordsInHand(QStringLiteral("hook"), QStringLiteral("Curves hard to the left"), QStringLiteral("Right"))
+                         == QStringLiteral("Curves hard to the left"),
+              "a side-naming condition's sentence still mirrors, for a left-hander only");
+
+        // The composer: a left-hander's carry_deficit story is not "right it short".
+        ShotOutcomePack withStory = pack;
+        withStory.conditions[QStringLiteral("carry_deficit")].golferStory = QStringLiteral("left it short");
+        ShotRecord s = lmShot();
+        s.handedness = L;
+        s.rows = { rowOf("carry_deficit") };
+        const ShotOutcome o = composeShotOutcome(s, {}, QString(), nullptr, withStory, ShotOutcomeSessionFacts());
+        const auto carry = std::find_if(o.labels.begin(), o.labels.end(),
+                                        [](const ShotOutcomeLabel &l) { return l.id == QStringLiteral("carry_deficit"); });
+        check(carry != o.labels.end() && carry->story == QStringLiteral("left it short"),
+              "a left-hander's short carry story reads \"left it short\"");
+    }
+
+    // B-3 (refactor 6.3b fix round; J-101): the hand a shot is named in is its own, else the athlete's.
+    std::printf("a shot that records no hand is named in the athlete's:\n");
+    {
+        check(golferHand(QString(), QStringLiteral("Left")) == QStringLiteral("Left")
+                  && golferHand(QStringLiteral("Right"), QStringLiteral("Left")) == QStringLiteral("Right")
+                  && golferHand(QString(), QString()).isEmpty(),
+              "golferHand: the shot's own, else the athlete's");
+        ShotRecord dev = lmShot();          // a device-only shot: no hand recorded
+        dev.rows = { rowOf("slice") };
+        ShotOutcomeSessionFacts lefty;
+        lefty.athleteHandedness = QStringLiteral("Left");
+        const ShotOutcome o = composeShotOutcome(dev, {}, QString(), nullptr, pack, lefty);
+        check(o.labels.size() == 1 && o.labels[0].id == SL && o.labels[0].displayId == QStringLiteral("hook")
+                  && o.phrase == QStringLiteral("Hook") && o.labels[0].story == QStringLiteral("turned over"),
+              "a left-handed athlete's device-only slice row reads Hook, the row untouched");
+        check(composeShotOutcome(dev, {}, QString(), nullptr, pack, ShotOutcomeSessionFacts()).phrase == QStringLiteral("Slice"),
+              "with no athlete hand it reads as before");
+        ShotRecord own = dev;
+        own.handedness = QStringLiteral("Right");
+        check(composeShotOutcome(own, {}, QString(), nullptr, pack, lefty).phrase == QStringLiteral("Slice"),
+              "a shot's own recorded hand wins over the athlete's");
     }
 
     std::printf("a missing LM reading is never clean:\n");

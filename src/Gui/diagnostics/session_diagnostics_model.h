@@ -52,6 +52,7 @@
 namespace pinpoint {
 class Session;
 class SessionDiagnostics;
+struct RuleDataSnapshot;
 struct WriteResult;
 class ShotCommandDoor;
 struct LabelCorrectionNote;
@@ -770,6 +771,7 @@ private:
     void         ensureOutcomes() const;
     QString      intentFor(int shotId) const;
     pinpoint::analysis::ShotOutcomeSessionFacts outcomeSessionFacts() const;
+    mutable std::shared_ptr<const pinpoint::RuleDataSnapshot> m_factsRules;   // outcomeSessionFacts' flight table, held
     QVariantMap  outcomeLabelMap(const pinpoint::analysis::ShotOutcomeLabel &l, const pinpoint::analysis::ShotRecord &s,
                                  const pinpoint::analysis::ClubBaselineEntry *usual) const;
 
@@ -823,8 +825,11 @@ private:
                           const std::vector<pinpoint::analysis::LinkEvidence> &links) const;
 
     // ── Small shared formatters, so an export and the screen cannot disagree ────────
-    QString conditionName(const QString &id) const;
-    QString consequenceOf(const QString &id) const;
+    QString conditionName(const QString &id) const;   // glossed for the session's golfer's hand (refactor 6.3b)
+    QString consequenceOf(const QString &id) const;   // the same, its side words mirrored
+    QString sessionHandedness() const;
+    QString athleteHandedness() const;                                        // golferHand's fallback (B-3)
+    QString handOf(const pinpoint::analysis::ShotRecord &s) const;            // one shot's hand (golferHand)
     QString measureLabelOf(const QString &measureId) const;
     QString measureUnitOf(const QString &measureId) const;
     QString measurePhaseOf(const QString &measureId) const;

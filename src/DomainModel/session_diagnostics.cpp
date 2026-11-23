@@ -449,6 +449,7 @@ void SessionDiagnostics::load()
         const AthleteRecord rec = m_session->athlete() ? m_session->athlete()->record() : AthleteRecord();
         m_dob = QDate::fromString(rec.dob, Qt::ISODate);
         m_sex = rec.sex;
+        m_athleteHandedness = m_session->athlete() ? rec.handedness : QString();
     }
 
     // What was kept (FILE-SESS-03).
@@ -633,6 +634,7 @@ std::shared_ptr<const FiringSnapshot> SessionDiagnostics::makeSnapshot() const
     in.clubBaseline = m_baseline;
     in.usuals       = m_usuals;
     if (m_doors.withSigma) in.withSigma = *m_doors.withSigma;   // the gate report's switch (DiagnosticsDoors); else tuned
+    in.athleteHandedness = m_athleteHandedness;   // the words of a shot that records no hand (golferHand; B-3)
     // in.cohort stays unqualified here: each fire sets the shot's own (cohortOnShotDate).
     s->outcomePack       = m_outcomePack;
     s->dob               = m_dob;
@@ -974,8 +976,20 @@ void SessionDiagnostics::onAthleteChanged()
         return;
     const AthleteRecord &rec = m_session->athlete()->record();
     const QDate dob = QDate::fromString(rec.dob, Qt::ISODate);
-    if (dob == m_dob && rec.sex == m_sex)
-        return;   // a record edit that leaves the cohort's facts where they were asks nothing
+    if (dob == m_dob && rec.sex == m_sex) {
+        // A handedness edit re-words the shots that record no hand (golferHand; B-3): their derived data only.
+        if (rec.handedness == m_athleteHandedness)
+            return;   // a record edit that leaves the cohort's facts and the hand where they were asks nothing
+        m_athleteHandedness = rec.handedness;
+        if (m_archiveOut) m_eventAll = true;   // a change to every shot meanwhile (the record)
+        ++m_derivedGeneration;
+        m_snapshot = makeSnapshot();
+        m_reductionOwed = true;
+        reconcile();
+        settleIfDone();
+        return;
+    }
+    m_athleteHandedness = rec.handedness;
     m_dob = dob;
     m_sex = rec.sex;
     refreshFindingsInputs();
@@ -1324,6 +1338,7 @@ analysis::SessionReductionInput SessionDiagnostics::reductionInput() const
     in.usuals      = m_usuals;
     in.baseline    = m_baseline;
     in.flightNorms = m_snapshot->inputs.flightNorms;
+    in.athleteHandedness = m_snapshot->inputs.athleteHandedness;
     in.shots.reserve(size_t(m_kept.size()));
     // THE BOARD'S ANNOTATIONS (step 3.6; Stage 0.5's follow-up; board_annotations.h): the session's results read each
     // shot as the golfer annotated it on the launch monitor board — its club override (the club it is pooled and summed
@@ -1572,7 +1587,9 @@ QString SessionDiagnostics::derivedBaseStamp() const
          + QString::number(analysis::kSessionReductionVersion)
          // The rules the summary's per-shot facts are made under (review 2 of 3.6: a bump of either re-derives them).
          + QLatin1Char('|') + QString::number(analysis::kTendencyRuleVersion) + QLatin1Char(':')
-         + QString::number(analysis::kThemeRuleVersion) + QLatin1Char(':') + QString::number(analysis::kBoardAnnotationRuleVersion);
+         + QString::number(analysis::kThemeRuleVersion) + QLatin1Char(':') + QString::number(analysis::kBoardAnnotationRuleVersion)
+         // The athlete's hand, which a shot that records none is worded in (golferHand; refactor 6.3b fix round, B-3).
+         + QLatin1Char('|') + m_athleteHandedness;
 }
 
 QString SessionDiagnostics::derivedStampOf(const QString &base, int swing, const ClubFlightUsual &usual,

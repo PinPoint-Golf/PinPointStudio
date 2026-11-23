@@ -137,8 +137,10 @@ inline QByteArray swingsIdentity(const QString &sessionDir)
 //   1 (to 21 Nov 2026): the report's own SessionDiagnosticsModel (no version was stamped: the content stamp alone).
 //   2 (21 Nov 2026, refactor 3.7-d): the Session's owner through its thin adapter — every page reads the shots as the
 //     golfer annotated them on the board, and the appendix's carry cost is "-" until a club's usual is earned (G-08).
-// A report made before 3.7-d therefore reads "out of date" once: a remake says something else.
-inline constexpr int kReportDiagnosisVersion = 2;
+//   3 (23 Nov 2026, refactor 6.3b): the shot shape on the Delivery page is the pack's direction rule (the corridors, F-05)
+//     and a left-hander's is glossed (G-02); a skied shot is labelled Sky on every page (G-04).
+// A report made before 6.3b therefore reads "out of date" once: a remake says something else.
+inline constexpr int kReportDiagnosisVersion = 3;
 
 // The content stamp a report's fingerprint carries: the diagnostics' content stamp plus the report's rule versions.
 inline QString reportRulesStamp(const QString &contentStamp, int boardRuleVersion)

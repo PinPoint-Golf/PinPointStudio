@@ -648,14 +648,15 @@ FiredShot fireFindings(FiringReadings readings, const FiringInputs &inputs)
 ShotFactors deriveShotFactors(const ShotRecord &shot, const ShotOutcome &outcome, const ShotOutcomePack &outcomePack,
                               const FiringInputs &inputs)
 {
-    return shotFactors(shot, outcome, outcomePack, inputs.flightNorms, inputs.usuals);
+    return shotFactors(shot, outcome, outcomePack, inputs.flightNorms, inputs.usuals, inputs.athleteHandedness);
 }
 
 ShotDerivedData deriveShotData(const ShotRecord &shot, const std::vector<ShotCorrection> &corrections,
                                const QString &intent, const ShotOutcomePack &outcomePack,
                                const ShotOutcomeSessionFacts &diagnosis, const FiringInputs &inputs)
 {
-    const ShotOutcomeSessionFacts facts{ diagnosis.links, diagnosis.tiers, inputs.usuals };
+    const ShotOutcomeSessionFacts facts{ diagnosis.links, diagnosis.tiers, inputs.usuals, &inputs.flightNorms,
+                                         inputs.athleteHandedness };
     ShotDerivedData out;
     out.outcome = composeShotOutcome(shot, corrections, intent, clubUsualOf(inputs, shot.club), outcomePack, facts);
     out.factors = deriveShotFactors(shot, out.outcome, outcomePack, inputs);

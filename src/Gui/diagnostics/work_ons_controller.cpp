@@ -27,6 +27,7 @@
 #include "../../Coaching/club_scope.h"
 #include "../../Coaching/tendencies_pack.h"   // the tendencies over read sessions: one rule (3.6)
 #include "../../Coaching/shot_outcomes_pack.h"
+#include "../../Coaching/condition_in_hand.h"   // a condition worded for the golfer's hand (refactor 6.3b fix round, B-2)
 #include "../../Coaching/swing_areas_pack.h"
 #include "../../Coaching/work_ons_pack.h"
 
@@ -132,11 +133,14 @@ QString swingsText(int fired, int total)
                       : QStringLiteral("%1 of %2 swings").arg(fired).arg(total);
 }
 
-// A condition's name as the golfer reads it: the pack label, else the fallback, else the id.
-QString packLabel(const CharacteristicPack &pack, const QString &id, const QString &fallback = QString())
+// A condition's name as the golfer reads it: the pack label of the condition as glossed for their hand (the one
+// handedness gloss, refactor 6.3b, G-02: a left-hander's slice row is their hook), else the row's, else the fallback,
+// else the id. `id` is a ROW id.
+QString packLabel(const CharacteristicPack &pack, const QString &id, const QString &handedness,
+                  const QString &fallback = QString())
 {
-    const Condition *c = pack.condition(id);
-    if (c && !c->label.isEmpty()) return c->label;
+    const ConditionInHand w = conditionInGolfersHand(pack, id, handedness);   // the one function (B-2)
+    if (!w.label.isEmpty()) return w.label;
     return fallback.isEmpty() ? id : fallback;
 }
 
@@ -849,8 +853,9 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
     // Every condition any session assessed, for the details Home opens in place; then the list (the caller's aggregates:
     // the owner's, or the scoped job's).
 
-    const auto nameOf = [&pack](const QString &id, const QString &fallback = QString()) {
-        return packLabel(pack, id, fallback);
+    const QString hand = golferHandedness();
+    const auto nameOf = [&pack, &hand](const QString &id, const QString &fallback = QString()) {
+        return packLabel(pack, id, hand, fallback);
     };
 
     // One condition's summary in words: a work-on row, or the detail of any condition.
@@ -871,7 +876,8 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
         const int unjudged = std::max(0, totalSwings - w.swingsAssessable);
         m[QStringLiteral("coverageText")] =
             unjudged == 0 ? QString() : QStringLiteral("not measurable on %1 of them").arg(unjudged);
-        m[QStringLiteral("consequence")] = cond ? cond->consequence.text() : QString();
+        // The glossed condition's sentence under its glossed name, never the row's under another's (B-2).
+        m[QStringLiteral("consequence")] = conditionInGolfersHand(pack, w.id, hand).consequence;
 
         // One tick per session, oldest first, in PpTickRun's own vocabulary: a pattern is a
         // firing, a quiet session is clean, and a session that could not tell is the short
@@ -1238,6 +1244,7 @@ void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::
     if (sessions.empty()) return;
 
     const GradePolicy policy = gradePolicyByName(m_gradePolicy);
+    const QString hand = golferHandedness();   // the one gloss's hand, for every name and phrase below (B-2)
     // Every condition in an area, not the first kAreaMaxItems: Home's open area is the only list
     // of them now, each opening in place (Mark, 28 Oct).
     AreaOptions opt;
@@ -1263,10 +1270,13 @@ void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::
                 // to grade a distance on, so a firing is Action and a clean one is left ungraded.
                 grade = gradeName(Grade::Action);
             }
+            // Worded for the golfer's hand by the one function, as the area's topFault is (B-2): a left-hander's hook
+            // row reads "Slice" here and in its detail. `conditionId` stays the row's: it opens that row's detail.
+            const ConditionInHand words = conditionInGolfersHand(pack, it.conditionId, hand);
             items.append(QVariantMap{
                 { QStringLiteral("conditionId"),    it.conditionId },
-                { QStringLiteral("label"),          it.label },
-                { QStringLiteral("golfer"),         it.golfer },
+                { QStringLiteral("label"),          !words.label.isEmpty() ? words.label : it.label },
+                { QStringLiteral("golfer"),         words.condition ? words.golfer : it.golfer },
                 { QStringLiteral("band"),           areaBandToString(it.band) },
                 { QStringLiteral("share"),          it.share },
                 { QStringLiteral("fired"),          it.fired },
@@ -1304,7 +1314,7 @@ void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::
             { QStringLiteral("unclear"),       a.unclear },
             { QStringLiteral("habitTrend"),    a.habitTrend },
             { QStringLiteral("hasTrend"),      a.hasTrend },
-            { QStringLiteral("topFault"),      a.topFaultId.isEmpty() ? QString() : packLabel(pack, a.topFaultId) },
+            { QStringLiteral("topFault"),      a.topFaultId.isEmpty() ? QString() : packLabel(pack, a.topFaultId, hand) },
             { QStringLiteral("topFaultId"),    a.topFaultId },
             { QStringLiteral("workOnsActive"), a.workOnsActive },
             { QStringLiteral("workOnsNew"),    a.workOnsNew },
@@ -1892,7 +1902,17 @@ QString WorkOnsController::conditionLabel(const QString &id) const
 {
     if (id.isEmpty()) return QString();
     followPackSave();
-    return packLabel(m_packProv->pack(), id);
+    return packLabel(m_packProv->pack(), id, golferHandedness());
+}
+
+// The golfer's handedness, as their shots record it: the tendencies' (each item carries its shots' hand), once they
+// have landed; "" (right-handed words) before. A landing publishes again, so the names follow it.
+QString WorkOnsController::golferHandedness() const
+{
+    if (!m_tendenciesReady) return QString();
+    for (const TendencyItem &it : m_tendencySet.items)
+        if (!it.handedness.isEmpty()) return it.handedness;
+    return QString();
 }
 
 void WorkOnsController::clearSummary()

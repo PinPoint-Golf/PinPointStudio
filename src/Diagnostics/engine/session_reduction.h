@@ -85,6 +85,9 @@ struct SessionReductionInput {
     QHash<QString, ClubFlightUsual>                  usuals;
     std::optional<QHash<QString, ClubBaselineEntry>> baseline;
     FlightNorms                                      flightNorms;
+    // The athlete's recorded handedness (OBJ-ATHLETE-RECORD): the hand a shot that records none is named in (golferHand;
+    // refactor 6.3b fix round, B-3, J-101). The words only; no row, tier or link reads it.
+    QString                                          athleteHandedness;
 
     // The golfer's session-level word (FILE-SESS-02, resolved by golfer_input_rules.h): the declared focus (the
     // moved-together split), the declared miss (a seed of the pattern graph), the screen answers.

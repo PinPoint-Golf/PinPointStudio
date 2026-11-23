@@ -69,7 +69,7 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kTendencyRuleVersion   = 18;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees); 12: three factors per row, strike, direction and flight (shot_factors.h), and each club's shots counted by factor tuple; 13: a factor's usual value is the most common by plain count (faults stay recency-weighted), and a building factor names a fault only at minShare or more; 14: the ledger rows are checked against the flight (checkStrikesAgainstFlight): an overruled thin, top or fat is read, not a miss, and Sky is the flight's; 15: each row says how its factors came together (TendencyTogether): two usual faults' shared shots and where each one's shots went, and the commonest combinations; 16: a factor's bar names a value to watch (Low) as kind "watch", so every bar draws it amber; 17: each row carries its shots' flow combinations (TendencyItem::flow), for the tendency flow (Sankey); 18 (16 Nov 2026, refactor step 3.6, Stage 0.5's follow-up): every shot is read as the launch monitor board annotated it (board_annotations.h: its club override, a left-out reading not read), and so are Your distances
+inline constexpr int kTendencyRuleVersion   = 19;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees); 12: three factors per row, strike, direction and flight (shot_factors.h), and each club's shots counted by factor tuple; 13: a factor's usual value is the most common by plain count (faults stay recency-weighted), and a building factor names a fault only at minShare or more; 14: the ledger rows are checked against the flight (checkStrikesAgainstFlight): an overruled thin, top or fat is read, not a miss, and Sky is the flight's; 15: each row says how its factors came together (TendencyTogether): two usual faults' shared shots and where each one's shots went, and the commonest combinations; 16: a factor's bar names a value to watch (Low) as kind "watch", so every bar draws it amber; 17: each row carries its shots' flow combinations (TendencyItem::flow), for the tendency flow (Sankey); 18 (16 Nov 2026, refactor step 3.6, Stage 0.5's follow-up): every shot is read as the launch monitor board annotated it (board_annotations.h: its club override, a left-out reading not read), and so are Your distances; 19 (23 Nov 2026, refactor 6.3b, G-04): Sky is a label wherever the flight says Sky (flightSaysSky), so a skied shot is a miss in its outcome, its mix key and the usual misses, as the flight bar already counted it
 inline constexpr int kTendencySchemaVersion = 1;
 
 // §7.1 and D5.
@@ -293,6 +293,9 @@ struct TendencySessionInput {
     QHash<int, QString>                 intents;        // resolved onto shots (resolvedShotIntents)
     TendencySessionEvidence             evidence;       // from work_ons.json
     QHash<QString, ClubBaselineEntry>   baseline;       // this session's frozen sidecar; keys canonical
+    // The athlete's recorded handedness (OBJ-ATHLETE-RECORD): the hand a shot that records none is named in (golferHand;
+    // refactor 6.3b fix round, B-3, J-101). In memory only.
+    QString                             athleteHandedness;
 };
 
 struct TendencyChainStep {
@@ -352,7 +355,7 @@ struct TendencyItem {
     QString clubId;         // "7 IRON"
     QString club;           // "7 iron"
     QString length;         // "full", "partial"
-    QString handedness;     // the golfer's, off the documents: "Left", "Right", ""
+    QString handedness;     // the golfer's, as its shots are named: theirs, else the athlete's (golferHand): "Left", "Right", ""
     int     sessions = 0;   // sessions with a counted shot in this key
     int     shots = 0;
     TendencyFactor strike, direction, flight;
@@ -529,7 +532,8 @@ inline QString tendencyLeadMiss(const QStringList &missIds, const QHash<QString,
 // The session's facts every shot of it is composed with.
 inline ShotOutcomeSessionFacts tendencySessionFacts(const TendencySessionInput &s)
 {
-    return ShotOutcomeSessionFacts{ s.evidence.links, s.evidence.tiers, sessionFlightUsuals(s.session.shots) };
+    return ShotOutcomeSessionFacts{ s.evidence.links, s.evidence.tiers, sessionFlightUsuals(s.session.shots), nullptr,
+                                    s.athleteHandedness };
 }
 
 // The session's frozen usual for the shot's club, null when the club has none.
@@ -550,8 +554,11 @@ inline ShotFactors judgeTendencyShot(const ShotRecord &shot, const std::vector<S
 {
     ShotOutcome local;
     ShotOutcome &o = outcome ? *outcome : local;
-    o = composeShotOutcome(shot, corrections, intent, usual, pack, facts);
-    return shotFactors(shot, o, pack, norms, facts.flightUsuals);
+    // The flight table Sky's label is read with is the one the flight factor reads (refactor 6.3b, G-04).
+    ShotOutcomeSessionFacts withTable = facts;
+    if (!withTable.flightNorms) withTable.flightNorms = &norms;
+    o = composeShotOutcome(shot, corrections, intent, usual, pack, withTable);
+    return shotFactors(shot, o, pack, norms, facts.flightUsuals, facts.athleteHandedness);
 }
 
 namespace tendency_detail {
@@ -765,7 +772,7 @@ inline TendencyTogether tendencyTogether(const TendencyItem &item, const std::ve
 struct TendencyShotFacts {
     int         shotId = 0;
     QString     club;              // as judged: the board's override applied (the group and the key read it)
-    QString     handedness;        // "", "Left", "Right"
+    QString     handedness;        // "", "Left", "Right": the hand its words were made in (the shot's, else the athlete's)
     bool        partial = false;   // swingLength == "partial"
     ShotFactors factors;
     QString     driverId, driverDisplayId;
@@ -791,7 +798,7 @@ inline TendencyShotFacts tendencyShotFacts(const TendencySessionInput &s, const 
                                   usual, pack, facts, flightNorms, &o);
     f.shotId          = shot.shotId;
     f.club            = shot.club;
-    f.handedness      = shot.handedness;
+    f.handedness      = golferHand(shot.handedness, s.athleteHandedness);   // the hand its words were made in (B-3)
     f.partial         = shot.swingLength == QLatin1String("partial");
     f.driverId        = o.driver.id;
     f.driverDisplayId = o.driver.displayId;
@@ -826,7 +833,7 @@ inline QString tendencyDriverText(const ShotOutcomePack &pack, const TendencySho
     const ShotConditionFacts *c = outcomeFacts(pack, f.driverDisplayId);
     if (!c) c = outcomeFacts(pack, f.driverId);
     if (!c) return QString();
-    return tendency_detail::stripClause(f.handedness == QLatin1String("Left") ? mirrorLeftRightWords(c->golfer) : c->golfer);
+    return tendency_detail::stripClause(conditionWordsInHand(f.driverId, c->golfer, f.handedness));
 }
 
 inline TendencySet reduceTendencyShots(std::vector<TendencySessionShots> input, const ShotOutcomePack &pack,

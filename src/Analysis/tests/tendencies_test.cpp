@@ -808,7 +808,7 @@ int main()
         thirteen[QStringLiteral("rule")] = 13;
         bool thirteenOk = true;
         tendencySetFromJson(thirteen, &thirteenOk);
-        check(kTendencyRuleVersion == 18 && !thirteenOk, "rule 18: a file of rule 13 is not read");
+        check(kTendencyRuleVersion == 19 && !thirteenOk, "rule 19 (6.3b: Sky a label): a file of rule 13 is not read");
         QJsonObject fourteen = json;
         fourteen[QStringLiteral("rule")] = 14;
         bool fourteenOk = true;

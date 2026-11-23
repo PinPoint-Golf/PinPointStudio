@@ -34,6 +34,7 @@
 
 #include "../../Diagnostics/norms/context_tree.h"
 #include "../../Diagnostics/norms/metric_corridor.h"
+#include "../../Diagnostics/norms/shot_direction_bounds.h"   // the one direction rule's boundaries (refactor 6.3b)
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 
@@ -801,7 +802,8 @@ QVariantMap clubDeliveryGrade(const QString &club, const QString &key, std::vect
 QVariantMap buildGraphics(const std::vector<LmFieldStats> &stats,
                           const QHash<QString, QString> &grades,
                           const std::optional<double> &opticalLowPoint,
-                          bool leftHanded, bool sessionHas, bool *headlineHas)
+                          bool leftHanded, bool sessionHas, bool *headlineHas,
+                          const ShotDirectionBounds &direction)
 {
     QVariantMap g;
     g.insert(QStringLiteral("leftHanded"), leftHanded);
@@ -891,9 +893,11 @@ QVariantMap buildGraphics(const std::vector<LmFieldStats> &stats,
     // ── the two inferred reads ──────────────────────────────────────────────
     // The spin axis leads and carry comes along, because severity is decided from how
     // far the ball actually bent off its own start line — see lm_inferred_reads.h.
+    // THE ONE DIRECTION RULE (refactor 6.3b, F-05): the pack's corridors, resolved for this scope's club (`direction`),
+    // so the card names the shot as the factors and Tendencies do.
     const LmFlightShape shape = lmFlightShape(startDir, spinAxis,
                                               valueOf(stats, "lm.faceToPath"),
-                                              carry, offline, leftHanded);
+                                              carry, offline, leftHanded, direction);
     g.insert(QStringLiteral("shape"), QVariantMap{
         { QStringLiteral("has"),       shape.has },
         { QStringLiteral("name"),      shape.name },
@@ -1166,7 +1170,13 @@ LmBoard lmBoardOf(const std::vector<LmBoardInput> &in, const LmBoardAsk &ask, co
                                  focusExcluded ? rows[size_t(focusedRow)].optical
                                  : (latestIndex >= 0 && size_t(latestIndex) < opticalLowPoint.size())
                                      ? opticalLowPoint[size_t(latestIndex)] : std::nullopt,
-                                 ask.leftHanded, !out.bands.isEmpty(), &out.headlineHasReadings);
+                                 ask.leftHanded, !out.bands.isEmpty(), &out.headlineHasReadings,
+                                 // the pack's direction boundaries in this scope's context (the default with no club,
+                                 // as a shot with none is fired), at the board's grade policy
+                                 rules.pack && rules.norms
+                                     ? shotDirectionBounds(rules.pack->pack(), *rules.norms, contextId,
+                                                           gradePolicyByName(rules.policyName))
+                                     : ShotDirectionBounds());
 
     // The FSX session half: every shot, every effective club with its ellipses, the note and
     // the device. Computed from the SAME rows the board just scoped, so a shot cannot be left

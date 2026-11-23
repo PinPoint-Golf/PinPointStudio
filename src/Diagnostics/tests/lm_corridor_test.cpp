@@ -50,7 +50,11 @@
 // The panel's own tuning, so the numbers the pack authored can be checked against it rather than
 // against a second copy written here — see "one classifier, two readers" at the end of main().
 #include "../../LaunchMonitor/lm_inferred_reads.h"
+#include "../engine/characteristic_engine.h"     // evaluateSignal: the engine's own verdict (refactor 6.3b)
+#include "../norms/norm_measure_source.h"
+#include "../norms/shot_direction_bounds.h"      // the one direction rule's boundaries, off the pack
 
+#include <QHash>
 #include <QSet>
 #include <QStringList>
 
@@ -338,6 +342,79 @@ int main()
                         (s != nullptr && s->threshold) ? *s->threshold : 0.0, w.why);
             if (!ok) ++g_fail;
         }
+    }
+
+    // ── ONE DIRECTION RULE (refactor 6.3b, audit F-05 / G-01) ───────────────
+    //
+    // The card, Club delivery and the report name a shot's start and curve by lmShapeClass; the factors and
+    // Tendencies by the conditions this pack fires. They are one rule only if lmShapeClass's boundaries ARE the
+    // pack's and it answers as the engine does. So: the shipped defaults equal what shotDirectionBounds reads off the
+    // shipped pack under the standard policy; a non-standard policy moves them; and, on a grid straddling every edge,
+    // lmShapeClass's cell and severity equal what evaluateSignal fires, at both policies.
+    std::printf("\n-- one direction rule: the pack's corridors --\n");
+    {
+        const QString ctx = contextIdForClub(QStringLiteral("7-iron"));
+        const GradePolicy standard = gradePolicyByName(QStringLiteral("standard"));
+        const GradePolicy strict   = gradePolicyByName(QStringLiteral("strict"));
+        const ShotDirectionBounds shipped;
+        const ShotDirectionBounds got = shotDirectionBounds(pack, *norms, ctx, standard);
+        check(got.startLo == shipped.startLo && got.startHi == shipped.startHi, "start corridor: the defaults are the shipped pack's (±4)");
+        check(got.axisLo == shipped.axisLo && got.axisHi == shipped.axisHi, "spin-axis corridor: the defaults are the shipped pack's (±10)");
+        check(got.fadeFrom == shipped.fadeFrom && got.fadeTo == shipped.fadeTo
+                  && got.drawFrom == shipped.drawFrom && got.drawTo == shipped.drawTo,
+              "fade / draw: the defaults are the shipped signals' thresholds");
+        check(got.pushSlice == shipped.pushSlice && got.pullHook == shipped.pullHook, "compound: the defaults are the shipped signals'");
+        const ShotDirectionBounds tight = shotDirectionBounds(pack, *norms, ctx, strict);
+        check(std::abs(tight.startHi - 2.0 * strict.goodMaxZ) < 1e-9 && std::abs(tight.axisHi - 5.0 * strict.goodMaxZ) < 1e-9,
+              "the strict policy moves the corridor edges (start 3, axis 7.5)");
+        check(tight.fadeFrom == shipped.fadeFrom, "…and leaves the authored fade threshold where it is (EDGE: it does not follow the policy)");
+
+        // The engine's verdict on one shot: its readings through a NormMeasureSource at the 7 iron's context.
+        struct Values final : IMeasureValueSource {
+            QHash<QString, double> v;
+            std::optional<Value> value(const QString &id) const override
+            {
+                const auto it = v.constFind(id);
+                if (it == v.constEnd()) return std::nullopt;
+                Value out;
+                out.value = *it;
+                return out;
+            }
+        };
+        int compared = 0, disagreed = 0;
+        for (const GradePolicy &policy : { standard, strict }) {
+            const ShotDirectionBounds b = shotDirectionBounds(pack, *norms, ctx, policy);
+            for (double start : { -6.0, -4.001, -4.0, -3.0, -2.5, -1.5, -1.0, 0.0, 1.0, 2.5, 3.0, 4.0, 4.001, 6.0 })
+                for (double axis : { -12.0, -10.001, -10.0, -7.5, -6.0, -5.0, -4.001, -4.0, -2.0, 0.0, 2.0, 4.0, 4.001,
+                                     5.0, 6.0, 7.5, 9.0, 10.0, 10.001, 12.0 }) {
+                    Values vals;
+                    vals.v.insert(QStringLiteral("m_lmLaunchDirection"), start);
+                    vals.v.insert(QStringLiteral("m_spinAxis"), axis);
+                    vals.v.insert(QStringLiteral("m_compoundMiss"),
+                                  lmCompoundMiss(start, axis, std::optional<double>(), std::optional<double>(),
+                                                 std::optional<double>()).value);
+                    const NormMeasureSource src(vals, norms, ctx, policy, &pack);
+                    const auto fired = [&](const char *id) { return evaluateSignal(pack, QString::fromLatin1(id), src).fired; };
+                    int window = fired("sig_pull") ? 0 : fired("sig_push") ? 2 : 1;
+                    int curve = 1;
+                    bool severe = false;
+                    if (fired("sig_slice"))      { curve = 2; severe = true; }
+                    else if (fired("sig_hook"))  { curve = 0; severe = true; }
+                    else if (fired("sig_fadeBeyondStraight") && fired("sig_fadeShortOfSlice")) curve = 2;   // detection: all
+                    else if (fired("sig_drawBeyondStraight") && fired("sig_drawShortOfHook"))  curve = 0;
+                    if (fired("sig_pushSlice"))      { window = 2; curve = 2; severe = true; }
+                    else if (fired("sig_pullHook"))  { window = 0; curve = 0; severe = true; }
+                    const LmShapeClass k = lmShapeClass(start, axis, std::optional<double>(), LmCurvature(), false, b);
+                    ++compared;
+                    if (!k.has || k.windowIdx != window || k.curveIdx != curve || k.severe != severe) {
+                        ++disagreed;
+                        std::printf("  [FAIL] start %.3f axis %.3f: engine (%d,%d,%d) rule (%d,%d,%d)\n", start, axis,
+                                    window, curve, int(severe), k.windowIdx, k.curveIdx, int(k.severe));
+                    }
+                }
+        }
+        check(compared > 500 && disagreed == 0, "lmShapeClass names every shot of the grid as the engine fires it, at both policies");
+        std::printf("      (%d shots, %d disagreements)\n", compared, disagreed);
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail,

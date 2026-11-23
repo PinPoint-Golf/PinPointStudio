@@ -211,6 +211,9 @@ std::shared_ptr<ShotSeries> extractShot(const QJsonObject &root,
     // declares none, never the DRIVER stub the carousel shows: a facet "by club" must not invent
     // a driver for every camera swing recorded before capture.club.name existed.
     shot->club     = pinpoint::swingDocDeclaredClub(root);
+    // The golfer's handedness as the swing records it (the document's `athlete.handedness`, as SwingSummary reads it),
+    // so a presenter that names a side glosses it (refactor 6.3b, G-02).
+    shot->handedness = root.value(QStringLiteral("athlete")).toObject().value(QStringLiteral("handedness")).toString();
 
     // ── analysis.metrics ────────────────────────────────────────────────────────────────
     // The field-by-field twin of DiskReplaySource::load's series loop (and so of ShotProcessor's

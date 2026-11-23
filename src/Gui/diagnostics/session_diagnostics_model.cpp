@@ -27,6 +27,7 @@
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/engine/condition_reading.h"
 #include "../../Diagnostics/engine/fire_findings.h"   // the shot's findings and derived data, pure (refactor step 3.3)
+#include "../../Diagnostics/engine/session_reduction.h"   // SessionReductionInput: the owner's input (its athlete's hand)
 #include "../../Diagnostics/engine/pack_io.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/screen_pack.h"
@@ -34,6 +35,7 @@
 #include "../../Export/session_diagnostics_files.h"   // the history read: the athlete's other sessions' ledgers
 #include "../../Export/swing_paths.h"
 #include "../../Coaching/sequence_checks.h"
+#include "../../Coaching/condition_in_hand.h"   // a condition worded for the golfer's hand (refactor 6.3b fix round, B-2)
 #include "../../Coaching/shot_outcomes_pack.h"
 #include "../../Coaching/work_ons_pack.h"
 #include "../../Metrics/gate_catalogue.h"
@@ -865,7 +867,10 @@ QVariantList SessionDiagnosticsModel::missCandidates() const
         if (c.kind != ConditionKind::Outcome) continue;
         out.append(QVariantMap{
             { QStringLiteral("id"),     c.id },
-            { QStringLiteral("name"),   conditionName(c.id) },
+            // NOT conditionName (which glosses a row for the golfer's hand): these ids are already the golfer's own words
+            // ("Not right?" hands the chosen one to correctOutcome, which glosses it to a row), so the name is the id's
+            // own label, as before 6.3b. Glossing it too would double-flip a left-hander's pick.
+            { QStringLiteral("name"),   c.label.isEmpty() ? c.id : c.label },
             { QStringLiteral("family"), c.family },
         });
     }
@@ -901,7 +906,11 @@ QString SessionDiagnosticsModel::intentFor(int shotId) const
 
 ShotOutcomeSessionFacts SessionDiagnosticsModel::outcomeSessionFacts() const
 {
-    return ShotOutcomeSessionFacts{ m_outcomeEvidence.links, m_outcomeEvidence.tiers, sessionFlightUsuals(m_shots) };
+    // The flight table Sky's label is read with (refactor 6.3b, G-04): the snapshot's, held until the next ask so the
+    // pointer outlives the call that composes with it.
+    m_factsRules = pinpoint::RuleData::current();
+    return ShotOutcomeSessionFacts{ m_outcomeEvidence.links, m_outcomeEvidence.tiers, sessionFlightUsuals(m_shots),
+                                    m_factsRules ? m_factsRules->flightNorms.get() : nullptr, athleteHandedness() };
 }
 
 TendencySessionEvidence SessionDiagnosticsModel::outcomeEvidence() const
@@ -1047,7 +1056,7 @@ void SessionDiagnosticsModel::composeOwnerOutcomes(QHash<QString, int> &reasonIn
             else if (r.trend > 0)  trendWords = QStringLiteral("↑ growing");
             else                   trendWords = QStringLiteral("→ steady");
         }
-        const QString handed = firedAt.empty() ? QString() : m_shots[size_t(firedAt.front())].handedness;
+        const QString handed = firedAt.empty() ? QString() : handOf(m_shots[size_t(firedAt.front())]);
         const ConditionLedger *ledgerRow = id.isEmpty() ? nullptr : ledger(id);
         const QString strengthWord = r.strength.isEmpty() ? QStringLiteral("possible") : r.strength;
         const QString tierText = id.isEmpty()
@@ -1059,7 +1068,7 @@ void SessionDiagnosticsModel::composeOwnerOutcomes(QHash<QString, int> &reasonIn
             if (id.isEmpty()) return QString();
             const QString display = glossedConditionId(id, handed);
             const ShotConditionFacts *f = outcomeFacts(m_outcomePack, display);
-            QString text = f ? f->golfer : conditionName(id);
+            QString text = f ? conditionWordsInHand(id, f->golfer, handed) : conditionName(id);
             while (text.endsWith(QLatin1Char('.'))) text.chop(1);
             return outcomeCapitalised(text);
         }();
@@ -1067,8 +1076,7 @@ void SessionDiagnosticsModel::composeOwnerOutcomes(QHash<QString, int> &reasonIn
         m_reasons.append(QVariantMap{
             { QStringLiteral("id"),             id },
             { QStringLiteral("conditionId"),    id },
-            { QStringLiteral("name"),           id.isEmpty() ? QStringLiteral("No reason found")
-                                                             : conditionName(glossedConditionId(id, handed)) },
+            { QStringLiteral("name"),           id.isEmpty() ? QStringLiteral("No reason found") : conditionName(id) },
             { QStringLiteral("golfer"),         golferPhrase },
             { QStringLiteral("shots"),          r.shots },
             { QStringLiteral("produced"),       producedList },
@@ -1256,7 +1264,7 @@ QVariantMap SessionDiagnosticsModel::shotOutcome(int shotId) const
     return QVariantMap{
         { QStringLiteral("ready"),          o.ready },
         { QStringLiteral("noReading"),      o.noReading },
-        { QStringLiteral("golferMirrored"), s.handedness == QLatin1String("Left") },
+        { QStringLiteral("golferMirrored"), golferIsLeftHanded(handOf(s)) },
         { QStringLiteral("phrase"),         o.phrase },
         { QStringLiteral("story"),          o.story },
         { QStringLiteral("noReasonText"),   o.noReasonText },
@@ -1359,7 +1367,7 @@ QVariantMap SessionDiagnosticsModel::shotOutcomeDetail(int shotId) const
             const ChainNodeKind kind = kindOf(id);
             if (kind == ChainNodeKind::LiveCard) ++live;
             QVariantMap node = nodeMap(id, nodeFor(m_outcomeNodes, id), kind, m_outcomeLinks, at, at);
-            node[QStringLiteral("name")] = conditionName(glossedConditionId(id, shot.handedness));
+            node[QStringLiteral("name")] = conditionName(id);   // glossed for the golfer's hand (conditionName)
             nodes.append(node);
             if (k + 1 < seed.ids.size())
                 links.append(linkFor_(id, seed.ids.at(k + 1), seed.physics[size_t(k)]));
@@ -1433,7 +1441,7 @@ void SessionDiagnosticsModel::correctOutcome(int shotId, const QString &family, 
     const ShotRecord &s = m_shots[size_t(at)];
 
     // The golfer's label names their own shape; the row stays what the ledger holds (Contract D).
-    const QString to = glossedConditionId(toId, s.handedness);
+    const QString to = glossedConditionId(toId, handOf(s));
     if (!to.isEmpty()) {
         const ShotConditionFacts *f = outcomeFacts(m_outcomePack, to);
         if (!f || f->layer != ShotConditionLayer::Ball || f->family != family) return;
@@ -2098,18 +2106,43 @@ const ConditionLedger *SessionDiagnosticsModel::ledger(const QString &id) const
     return ledgerFor(m_ledgers, id);
 }
 
+// The athlete record's handedness, as the owner read it into the diagnosis it handed down (golferHand's fallback;
+// refactor 6.3b fix round, B-3). "" before a diagnosis is mirrored.
+QString SessionDiagnosticsModel::athleteHandedness() const
+{
+    return m_ownerInput ? m_ownerInput->athleteHandedness : QString();
+}
+
+// The hand one shot is named in: its own, else the athlete's (golferHand).
+QString SessionDiagnosticsModel::handOf(const ShotRecord &s) const
+{
+    return golferHand(s.handedness, athleteHandedness());
+}
+
+// The session's golfer's handedness, as its shots record it (one golfer per session), else the athlete's (golferHand).
+QString SessionDiagnosticsModel::sessionHandedness() const
+{
+    for (const ShotRecord &s : m_shots)
+        if (!s.handedness.isEmpty()) return s.handedness;
+    return athleteHandedness();
+}
+
+// A condition's name AS THE GOLFER NAMES IT (refactor 6.3b, G-02): the one handedness gloss, applied here, once, so
+// every surface this model words — the pattern cards, the chains and their nodes, the driver, the reasons — names a
+// left-hander's side as theirs. Callers pass ROW ids, never an id already glossed.
 QString SessionDiagnosticsModel::conditionName(const QString &id) const
 {
     if (!m_packProv) return id;
-    const Condition *c = m_packProv->pack().condition(id);
-    return (c && !c->label.isEmpty()) ? c->label : id;
+    const ConditionInHand w = conditionInGolfersHand(m_packProv->pack(), id, sessionHandedness());
+    return !w.label.isEmpty() ? w.label : id;
 }
 
+// Its consequence in the golfer's hand, by the one function (condition_in_hand.h): the glossed condition's sentence,
+// mirrored only when the condition names a side (B-1: "weight left on the trail side" is never "right").
 QString SessionDiagnosticsModel::consequenceOf(const QString &id) const
 {
     if (!m_packProv) return QString();
-    const Condition *c = m_packProv->pack().condition(id);
-    return c ? c->consequence.text() : QString();
+    return conditionInGolfersHand(m_packProv->pack(), id, sessionHandedness()).consequence;
 }
 
 QString SessionDiagnosticsModel::measureLabelOf(const QString &measureId) const

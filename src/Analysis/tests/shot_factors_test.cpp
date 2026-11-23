@@ -234,6 +234,28 @@ int main()
               "their push slice row is a pull hook, with its hook and pull");
     }
 
+    // B-3 (refactor 6.3b fix round; J-101): a device-only shot records no hand, so it is named in the athlete's.
+    std::printf("\na shot that records no hand, a left-handed athlete:\n");
+    {
+        const auto withAthlete = [&](const ShotRecord &s, const QString &athlete) {
+            ShotOutcomeSessionFacts facts;
+            facts.athleteHandedness = athlete;
+            const ShotOutcome o = composeShotOutcome(s, {}, QString(), nullptr, pack, facts);
+            return shotFactors(s, o, pack, norms, {}, athlete);
+        };
+        const ShotRecord ps = shot(4, { "push_slice" });    // handedness "" (as the device-only writer leaves it)
+        const ShotFactors c = withAthlete(ps, QStringLiteral("Left"));
+        check(c.direction.values.contains(QStringLiteral("pull_hook")) && c.direction.values.contains(QStringLiteral("hook"))
+                  && c.direction.values.contains(QStringLiteral("pull")) && !c.direction.values.contains(QStringLiteral("slice")),
+              "no hand on the shot: the athlete's Left names the push slice row a pull hook, with its hook and pull");
+        check(withAthlete(ps, QString()).direction.values.contains(QStringLiteral("push_slice")),
+              "no hand anywhere: right-handed, as before");
+        ShotRecord own = shot(5, { "slice" });
+        own.handedness = QStringLiteral("Right");
+        check(withAthlete(own, QStringLiteral("Left")).direction.values == QStringList{ "slice" },
+              "a shot that records its own hand keeps it (the athlete's is only the fallback)");
+    }
+
     std::printf("\nflight, landing angle first:\n");
     {
         const auto landing = [&](double deg, const char *club = "7 IRON") {
@@ -404,6 +426,40 @@ int main()
         check(corrected.flight.values == QStringList{ "sky" } && corrected.flight.faults == QStringList{ "sky" }
                   && corrected.flight.method == QStringLiteral("golfer"),
               "a golfer's correction to Sky stands");
+
+        // G-04 (refactor 6.3b): SKY IS A LABEL WHEREVER THE FLIGHT SAYS SKY. Composed with the flight table (as every
+        // owner composes: the shot's derive, the session's reduction, Tendencies), a skied driver carries a Sky label:
+        // a miss, so This shot is not "Good shot", and the flight factor (the flight bar, Tendencies) says the same Sky.
+        {
+            ShotOutcomeSessionFacts withTable;
+            withTable.flightUsuals = usuals;
+            withTable.flightNorms  = &norms;
+            const auto labelSky = [](const ShotOutcome &o) {
+                return std::any_of(o.labels.begin(), o.labels.end(), [](const ShotOutcomeLabel &l) {
+                    return l.id == QLatin1String("sky") && l.family == QLatin1String("flight") && l.miss && !l.corrected;
+                });
+            };
+            ShotRecord skied = shot(4, {}, {}, "DRIVER");
+            skied.descentAngle = 44.0; skied.attackAngle = -3.0; skied.carry = 170.0;
+            const ShotOutcome o = composeShotOutcome(skied, {}, QString(), nullptr, pack, withTable);
+            check(labelSky(o) && !o.clean, "a skied driver is labelled Sky, a miss: not a clean shot");
+            const ShotFactors f = shotFactors(skied, o, pack, norms, usuals);
+            check(f.flight.faults == QStringList{ "sky" }, "…and its flight factor is the same Sky");
+            check(o.mixKey.contains(QStringLiteral("sky")), "…and the session mix counts it as one");
+            const ShotOutcome taken = composeShotOutcome(skied, { ShotCorrection{ QStringLiteral("flight"), QStringLiteral("sky"), QString() } },
+                                                         QString(), nullptr, pack, withTable);
+            check(!labelSky(taken), "Not right? takes the flight's Sky off, like any label");
+            check(shotFactors(skied, taken, pack, norms, usuals).flight.values == QStringList{ "high" },
+                  "…and the flight factor then reads High: the label and the flight bar still agree");
+            ShotRecord high = skied;
+            high.carry = 200.0;   // 87% of the usual: High, not skied
+            check(!labelSky(composeShotOutcome(high, {}, QString(), nullptr, pack, withTable)), "a High drive that was not skied: no Sky");
+            ShotRecord iron = shot(5, {}, {}, "7 IRON");
+            iron.descentAngle = 53.0; iron.attackAngle = -9.0; iron.carry = 100.0;
+            check(!labelSky(composeShotOutcome(iron, {}, QString(), nullptr, pack, withTable)), "an iron is never skied: no Sky");
+            check(!labelSky(composeShotOutcome(skied, {}, QString(), nullptr, pack, ShotOutcomeSessionFacts{ {}, {}, usuals })),
+                  "with no flight table no Sky label is made (a caller with none)");
+        }
     }
 
     std::printf("\nthe ledger, checked against the flight (checkStrikesAgainstFlight):\n");
