@@ -5,6 +5,7 @@
 #include "../../Wrist/reference_bands.h"
 #include "../../Wrist/wrist_assessment_engine.h"
 #include "../../Wrist/wrist_assessment_fixtures.h"
+#include "../../Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 
 #include <cstdio>
 
@@ -35,6 +36,7 @@ static FixtureWristAngleSource withSegConf(FixtureWristAngleSource src, float co
 
 int main()
 {
+    pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
     std::printf("=== Tier-2 confidence ===\n");
     NormBandProvider provider;
 

@@ -170,47 +170,44 @@ inline constexpr const char kContextTreeFileName[] = "contexts.json";
 
 // ── Concrete providers ──────────────────────────────────────────────────────
 
-// The shipped core norm set and context tree, read from Qt resources. Read-only.
-//
-// PINPOINT_CORE_NORMS / PINPOINT_CORE_CONTEXTS override the paths for standalone tests and offline
-// tooling, exactly as PINPOINT_CORE_PACK does for the characteristic pack: the Qt resource exists
-// only inside the app binary, so without this seam no test outside the app could reach the shipped
-// content.
-std::unique_ptr<INormProvider> makeResourceNormProvider(
-    const QString &normsPath    = QStringLiteral(":/diagnostics/norms.json"),
-    const QString &contextsPath = QStringLiteral(":/diagnostics/contexts.json"));
+// The shipped core norm set and context tree, from the bytes the rule data's repository read (the Qt
+// resources, or the files PINPOINT_CORE_NORMS / PINPOINT_CORE_CONTEXTS name; refactor step 7.1, P11:
+// RuleDataStore is the one door to the files). Read-only. Either file absent or unreadable is an error
+// in report(): the shipped content is built into the app. The by-path form, for the tests and offline
+// tools that build a provider from a file of their own, is the repository's (src/Export/rule_data_store.h).
+std::unique_ptr<INormProvider> makeResourceNormProvider(const RuleFile &norms, const RuleFile &contexts);
 
-// Every norm-set file in a directory (QStandardPaths::AppDataLocation/diagnostics by default), in
-// LAYERING ORDER: `user.norms.json` first if present, then the rest alphabetically. The `*.norms
-// .json` suffix is the whole filter — unlike the pack side, nothing else in the shared directory
-// can match it. Exposed for the same reason characteristicPackFilesIn() is: the ordering rule has
-// more than one caller and must not be copied.
-QStringList normSetFilesIn(const QString &directory = QString());
+// Which of a directory's file names are norm sets, in LAYERING ORDER: `user.norms.json` first if
+// present, then the rest alphabetically. The `*.norms.json` suffix is the whole filter — unlike the
+// pack side, nothing else in the shared directory can match it. Pure: the repository lists the
+// directory and asks this which files to read, so the order is ONE decision with one home, as
+// characteristicPackFileOrder() is for the packs.
+QStringList normSetFileOrder(const QStringList &fileNames);
 
-// ONE norm-set file (userNormPath() by default), plus optionally the directory's shared
-// `contexts.json`. A missing file is not an error — no user norm set is the normal case; an
-// unreadable or malformed one is reported through report() and yields an empty set, so a broken
-// community set costs the library that set and nothing else.
+// ONE norm-set file's bytes, plus optionally the directory's shared `contexts.json` (absent for none).
+// A missing file is not an error — no user norm set is the normal case; an unreadable or malformed one
+// is reported through report() and yields an empty set, so a broken community set costs the library
+// that set and nothing else. A tree that is absent or will not open is passed over in silence.
 //
 // `contextsFile` is handed in rather than derived, because the context tree belongs to the
 // DIRECTORY and not to any one norm set: several sets in one directory share one tree, and exactly
 // one provider should carry it. See makeFileNormProviders().
 std::unique_ptr<INormProvider> makeFileNormProvider(
-    const QString &normsFile = QString(), PackOrigin origin = PackOrigin::LocalUser,
-    const QString &contextsFile = QString());
+    const RuleFile &normsFile, PackOrigin origin = PackOrigin::LocalUser,
+    const RuleFile &contextsFile = RuleFile::absent(QString()));
 
-// One provider per norm-set file in the directory, in normSetFilesIn() order, with the origin each
+// One provider per norm-set file, in the order given (normSetFileOrder()), with the origin each
 // file's name implies: `user.norms.json` is LocalUser (the corridor editor writes it), everything
-// else is Community. The shared `contexts.json` goes to the first provider only — the merger unions
-// trees, so a second copy would change nothing and report its faults twice. A directory holding a
-// context tree and no norm sets still yields one (norm-less) provider, so a club the user named
-// does not vanish with their last corridor.
+// else is Community. `contexts` is the directory's shared `contexts.json` (absent when it has none);
+// it goes to the first provider only — the merger unions trees, so a second copy would change
+// nothing and report its faults twice. A directory holding a context tree and no norm sets still
+// yields one (norm-less) provider, so a club the user named does not vanish with their last corridor.
 //
-// One provider PER FILE, which is what the merger has always expected and what nothing built until
-// now: a single directory-wide provider can only hold one set, so every set after the first was
-// parsed, had its faults reported, and then had its corridors silently dropped.
-std::vector<std::unique_ptr<INormProvider>> makeFileNormProviders(
-    const QString &directory = QString());
+// One provider PER FILE, which is what the merger has always expected: a single directory-wide
+// provider can only hold one set, so every set after the first was parsed, had its faults reported,
+// and then had its corridors silently dropped.
+std::vector<std::unique_ptr<INormProvider>> makeFileNormProviders(const std::vector<RuleFile> &files,
+                                                                  const RuleFile               &contexts);
 
 // Core + user, in that order.
 //
@@ -235,8 +232,14 @@ std::unique_ptr<INormProvider> makeMergedNormProvider(
     std::vector<std::unique_ptr<INormProvider>> user,
     const QStringList                          &disabled = {});
 
-// The default assembly: shipped core plus whatever the user has authored.
-std::unique_ptr<INormProvider> makeNormProvider();
+// The norm slot's assembly when no RuleData is installed (a test or an offline tool; the app always installs
+// one): a FACTORY HOOK, as the source below is. The rules read no file and name no adapter (refactor step 7.1,
+// P11): the repository's assembly, shipped core plus whatever the user has authored (makeNormProvider(),
+// src/Export/rule_data_store.h), is installed here by the composition root at start-up
+// (installNormFileFactory(); installProcessRuleData() does too). With no factory and no source, the slot is
+// an empty norm set, as RuleData::current() answers with no RuleData. An empty function uninstalls.
+using NormProviderFactory = std::function<std::unique_ptr<INormProvider>()>;
+void installNormProviderFactory(NormProviderFactory factory);
 
 // A norm set that is already in memory, presented through the provider seam so it can be merged
 // with core exactly as a file-backed one is. The context tree comes from `contexts`, because a norm
@@ -287,8 +290,9 @@ std::unique_ptr<INormProvider> makeMemoryNormProvider(
 // then hands out RuleData's snapshot's norms and never assembles from the files itself, so every
 // reader in the process grades against the one norm set RuleData published. RuleData resets the
 // slot whenever it publishes. With no source installed (a test or tool with no RuleData), the slot
-// assembles makeNormProvider() on first use, as it always did. `source` is called under the slot's
-// lock and must not take it again; an empty function uninstalls.
+// assembles from the factory installed with installNormProviderFactory() on first use (empty with none).
+// `source` and the factory are called under the slot's lock and must not take it again; an empty
+// function uninstalls.
 std::shared_ptr<const INormProvider> sharedNormProvider(quint64 *generation = nullptr);
 quint64                              sharedNormProviderGeneration();
 void                                 resetSharedNormProvider();

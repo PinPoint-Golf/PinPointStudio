@@ -582,7 +582,7 @@ std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &a
         s.mtimeMs     = fi.lastModified().toMSecsSinceEpoch();
         // The baseline's absence queues the session (applyScan) for its freeze; its value is in the fingerprint (R-STAMP-1).
         s.hasBaseline = SessionDiagnosticsFiles::clubBaselineExists(sessionDir)
-                     && !clubBaselineIsOutdated(SessionFiles::clubBaselineFile(sessionDir));
+                     && !clubBaselineIsOutdated(SessionDiagnosticsFiles::readClubBaseline(sessionDir).root);
         const SessionPlace place = SessionDiagnosticsFiles::placeOf(index, sessionDir);
         s.day         = place.day;
         s.nOfDay      = place.nOfDay;

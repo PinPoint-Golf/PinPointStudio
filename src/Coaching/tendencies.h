@@ -760,7 +760,7 @@ inline TendencyTogether tendencyTogether(const TendencyItem &item, const std::ve
 } // namespace tendency_detail
 
 // `clubGroupOf` maps a stored club to "driver", "woods", "long_irons", "mid_irons", "short_irons", "wedges", or "" for a club left out (a
-// putter, an undeclared club). `flightNorms` is the table a shot's height is judged against (shippedFlightNorms;
+// putter, an undeclared club). `flightNorms` is the table a shot's height is judged against (RuleData's flightNorms;
 // an empty one reads no shot's flight). `cancel`, polled between sessions, leaves `.cancelled` set.
 // ── ONE SHOT AS THE TENDENCIES READ IT (refactor step 3.6, round 3; DEC-192 as Mark answered on 16 Nov, "b": the
 // session summary carries COMPACT per-shot facts, never the judged rows) ───────────────────────────────────────────

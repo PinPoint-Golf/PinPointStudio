@@ -14,6 +14,7 @@
 //   ctest --test-dir build/analyzer-tests -R norm_pack_test --output-on-failure
 
 #include "../norms/norm_provider.h"
+#include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
 
 #include <QDir>
 #include <QFile>
@@ -118,6 +119,7 @@ static std::unique_ptr<INormProvider> fake(NormPack p, PackOrigin origin)
 
 int main()
 {
+    pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
     std::printf("=== norm pack: JSON round-trip ===\n");
     {
         NormPack in;
@@ -1286,6 +1288,23 @@ int main()
         check(names == QStringList({ QStringLiteral("user.norms.json"),
                                      QStringLiteral("acme.norms.json") }),
               "the norm-set files are enumerated user-first, then alphabetically");
+        // The order is the rule's, the listing the repository's (refactor step 7.1): the same order from names alone.
+        check(normSetFileOrder({ QStringLiteral("zeta.norms.json"), QStringLiteral("contexts.json"),
+                                 QStringLiteral("user.norms.json"), QStringLiteral("acme.norms.json"),
+                                 QStringLiteral("core.json") })
+                  == QStringList({ QStringLiteral("user.norms.json"), QStringLiteral("acme.norms.json"),
+                                   QStringLiteral("zeta.norms.json") }),
+              "normSetFileOrder: norm sets only, user-first, then alphabetically, whatever order they came in");
+        // A leaf takes the repository's bytes: an unreadable set is a warning against its own name, an absent one silent.
+        {
+            const auto bad  = makeFileNormProvider(RuleFile{ QStringLiteral("/x/odd.norms.json"), RuleFile::State::Unreadable, {} },
+                                                   PackOrigin::Community);
+            const auto none = makeFileNormProvider(RuleFile::absent(QStringLiteral("/x/none.norms.json")), PackOrigin::Community);
+            check(bad->report().issues.size() == 1 && bad->report().issues[0].severity == IssueSeverity::Warning
+                      && bad->report().issues[0].message.contains(QStringLiteral("odd.norms.json"))
+                      && none->report().issues.empty() && none->norms().norms.empty(),
+                  "RuleFile leaf: unreadable warns by its file name, absent is silent");
+        }
 
         auto provs = makeFileNormProviders(dir.path());
         check(provs.size() == 2, "two norm sets in one directory yield TWO providers");

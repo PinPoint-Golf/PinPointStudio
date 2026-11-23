@@ -47,6 +47,7 @@
 #include "../engine/fire_findings.h"
 #include "../../DomainModel/rule_data.h"
 #include "../../Export/rule_data_install.h"
+#include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
 #include "../engine/pack_io.h"                 // RuleFile: the frozen pack's bytes
 #include "../norms/context_tree.h"
 #include "../norms/norm_pack.h"

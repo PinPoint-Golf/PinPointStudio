@@ -23,6 +23,7 @@
 // depending on shipped content at all.
 
 #include "../../Wrist/reference_bands.h"
+#include "../../Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 
 #include <QSet>
 
@@ -103,6 +104,7 @@ private:
 
 int main()
 {
+    pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
     // ── The projection, over a norm set of known shape ──────────────────────
     std::printf("=== NormBandProvider: Norm -> Band ===\n");
     {

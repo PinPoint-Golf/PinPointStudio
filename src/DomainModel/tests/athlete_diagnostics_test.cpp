@@ -603,7 +603,8 @@ static void testCatchUpAndFreeze()
             led.push_back(std::move(in));
         }
         const analysis::ShotOutcomePack outcomes = analysis::shotOutcomePackFor(&pack);
-        const analysis::FlightNorms &flight = snap->flightNorms ? *snap->flightNorms : analysis::shippedFlightNorms();
+        const analysis::FlightNorms  noTable;
+        const analysis::FlightNorms &flight = snap->flightNorms ? *snap->flightNorms : noTable;
         const analysis::TendencySet fromLedgers = analysis::tendencySetFromSessions(led, outcomes, snap->norms->contexts(), flight);
         AthleteDiagnostics *d = AthleteDiagnostics::of(rig.athlete.get());
         d->markStale();

@@ -786,6 +786,7 @@ set(PP_QML_SOURCES
     src/Diagnostics/measures/live_measure_source.cpp
     src/Diagnostics/norms/resource_norm_provider.cpp
     src/Diagnostics/norms/file_norm_provider.cpp
+    src/Export/rule_data_reads.cpp
     src/Diagnostics/norms/merged_norm_provider.cpp
     src/Diagnostics/packs/layered_set.h
     # The packs and norms under one owner (refactor step 3.2; D5: DEC-170): RuleData, its repository

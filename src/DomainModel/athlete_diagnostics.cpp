@@ -1605,7 +1605,8 @@ void AthleteDiagnostics::submitScoped()
     for (auto it = conditions->constBegin(); it != conditions->constEnd(); ++it)
         if (it->fault) faultIds.insert(it.key());
     auto outcomePack = std::make_shared<const analysis::ShotOutcomePack>(analysis::shotOutcomePackFor(&pack));
-    auto flight = std::make_shared<const analysis::FlightNorms>(snap->flightNorms ? *snap->flightNorms : analysis::shippedFlightNorms());
+    // RuleData's table (every snapshot carries one, the empty snapshot an empty one); the rule reads no file (7.1).
+    auto flight = std::make_shared<const analysis::FlightNorms>(snap->flightNorms ? *snap->flightNorms : analysis::FlightNorms{});
     const analysis::ClubScope scope = m_pendingScope;
     const analysis::ShotFilter filter = m_pendingFilter;
     const QString fp = m_scopedAsked;

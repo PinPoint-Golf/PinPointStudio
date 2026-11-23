@@ -64,6 +64,7 @@
 #include "DomainModel/summary_rules.h"
 #include "Export/swing_paths.h"
 #include "../../Export/rule_data_install.h"
+#include "../../Export/rule_data_store.h"   // the shipped flight table, as the repository reads it (7.1)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "Gui/variability/variability_measures.h"
 #include "DomainModel/athlete.h"
@@ -114,6 +115,14 @@
 #include <vector>
 
 using namespace pinpoint::analysis;
+
+// The shipped flight table as RuleData's repository reads it (PINPOINT_CORE_FLIGHT_NORMS): the rules read no
+// file since refactor step 7.1, so the stand-ins take it here, as the app's snapshot carries it.
+static const FlightNorms &shippedFlightNorms()
+{
+    static const FlightNorms k = pinpoint::RuleDataStore().loadFlightNorms();
+    return k;
+}
 
 static int g_fail = 0;
 static void check(bool c, const char *label)

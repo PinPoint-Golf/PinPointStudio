@@ -23,7 +23,6 @@
 #include "../packs/pack_provider.h"
 
 #include <QByteArray>
-#include <QFile>
 #include <QFileInfo>
 #include <QString>
 
@@ -58,68 +57,30 @@
 
 namespace pinpoint::analysis::detail {
 
-// ── The env-var seam ────────────────────────────────────────────────────────
+// ── What it means when the bytes will not come ──────────────────────────────
 //
-// The Qt resource that holds the shipped content only exists inside the app binary, so a standalone
-// test or an offline tool has no way to reach it. Every PINPOINT_CORE_* variable points the
-// corresponding provider at the reviewable JSON in the repo instead, and every one of them is read
-// HERE — the names live in the traits below, so the set of variables the build honours can be read
-// off one page rather than grepped for. Unset in every normal run.
-inline QString overridePath(const char *env, const QString &fallback)
-{
-    const QByteArray ov = qgetenv(env);
-    return ov.isEmpty() ? fallback : QString::fromLocal8Bit(ov);
-}
-
-// ── Getting the bytes, and what it means when you cannot ────────────────────
+// THE BYTES ARE THE REPOSITORY'S (refactor step 7.1; P11): RuleDataStore (src/Export) is the one door to
+// every rule file, the PINPOINT_CORE_* seam a standalone test or an offline tool reaches the shipped
+// content through among them (the Qt resource exists only inside the app binary). A leaf is handed a
+// RuleFile and says what its state means. Two readings, because a missing file means opposite things
+// at the two ends of the layer stack and that difference is the only interesting thing about either.
 //
-// Two readers, because a missing file means opposite things at the two ends of the layer stack and
-// that difference is the only interesting thing about either of them.
-
-// SHIPPED content. It is built into the app, so its absence is an ERROR: something is wrong with the
-// build or with the env override, and the library the user sees will be missing content nobody
-// removed.
-inline std::optional<QByteArray> readShipped(const QString &path, const QString &what,
-                                             ValidationReport &report)
-{
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
-        report.issues.push_back(ValidationIssue{
-            IssueSeverity::Error, QStringLiteral("parse"), path,
-            QStringLiteral("Could not open the core %1 at '%2'.").arg(what, path) });
-        return std::nullopt;
-    }
-    return f.readAll();
-}
-
-// A LAYER on disk. Not being there at all is the NORMAL case — most users author nothing — so it is
+// SHIPPED content is built into the app, so its absence is an ERROR: something is wrong with the build
+// or with the env override, and the library the user sees will be missing content nobody removed.
+//
+// A LAYER on disk not being there at all is the NORMAL case — most users author nothing — so it is
 // silent. Being there and unreadable is a warning against the file's own name, so a health list can
 // say which file to fix, and the layer contributes nothing rather than taking its neighbours down
 // with it.
-inline std::optional<QByteArray> readLayer(const QString &path, const QString &what,
-                                           ValidationReport &report)
-{
-    QFile f(path);
-    if (!f.exists()) return std::nullopt;
-    if (!f.open(QIODevice::ReadOnly)) {
-        report.issues.push_back(ValidationIssue{
-            IssueSeverity::Warning, QStringLiteral("parse"), path,
-            QStringLiteral("Could not read %1 '%2'.")
-                .arg(what, QFileInfo(path).fileName()) });
-        return std::nullopt;
-    }
-    return f.readAll();
-}
 
 inline void appendIssues(ValidationReport &into, const ValidationReport &from)
 {
     for (const ValidationIssue &i : from.issues) into.issues.push_back(i);
 }
 
-// The same two answers, for bytes the rule data's repository has already read (RuleFile, pack_io.h).
-// The characteristic-pack leaves take their content this way (refactor step 3.2: the repository is
-// the one door to the pack files, FILE-APP-01, 04, 05), so the words a broken file earns are the
-// ones above, spelled once.
+// The two answers, for bytes the rule data's repository has read (RuleFile, pack_io.h). The pack leaves
+// take their content this way since refactor step 3.2, the norm leaves since 7.1 (the repository is the
+// one door to the files, FILE-APP-01…05), so the words a broken file earns are spelled once.
 inline std::optional<QByteArray> shippedBytes(const RuleFile &f, const QString &what,
                                               ValidationReport &report)
 {
@@ -150,8 +111,6 @@ inline std::optional<QByteArray> layerBytes(const RuleFile &f, const QString &wh
 struct PackTraits {
     using Iface = ICharacteristicPackProvider;
     using Pack  = CharacteristicPack;
-
-    static constexpr const char *kShippedEnv = "PINPOINT_CORE_PACK";
 
     // The nouns the two readers above put in their messages. Spelled once each, because the message
     // is what an author reads when their file will not load and it should name the thing they think
@@ -188,13 +147,10 @@ struct NormTraits {
     using Iface = INormProvider;
     using Pack  = NormPack;
 
-    static constexpr const char *kShippedEnv = "PINPOINT_CORE_NORMS";
-    // The norm side has a SECOND shipped file the pack side has no counterpart for: the context tree
-    // the corridors hang on. Named here beside the first so the two PINPOINT_CORE_* variables this
-    // registry honours are read off one line; the load itself is hand-written at each norm leaf,
-    // because the tree belongs to the DIRECTORY rather than to any one set and the two leaves
-    // therefore want it on materially different terms. See the notes there.
-    static constexpr const char *kContextsEnv = "PINPOINT_CORE_CONTEXTS";
+    // The norm side has a SECOND file the pack side has no counterpart for: the context tree the
+    // corridors hang on. Its load is hand-written at each norm leaf, because the tree belongs to the
+    // DIRECTORY rather than to any one set and the two leaves therefore want it on materially
+    // different terms. See the notes there.
 
     static QString shippedNoun() { return QStringLiteral("norm set"); }
     static QString layerNoun() { return QStringLiteral("user norm set"); }
@@ -226,19 +182,6 @@ public:
     PackOrigin              origin() const override { return m_origin; }
 
 protected:
-    // The shipped copy, through the env seam. Read-only and Core by construction — those are what
-    // "shipped" means, so a leaf cannot get one and forget the other.
-    void loadShipped(const QString &resourcePath)
-    {
-        const QString path = overridePath(Traits::kShippedEnv, resourcePath);
-        m_label            = path;
-        m_origin           = PackOrigin::Core;
-
-        const std::optional<QByteArray> bytes = readShipped(path, Traits::shippedNoun(), m_report);
-        if (!bytes) return;
-        adoptShipped(*bytes, path, nullptr);
-    }
-
     // The shipped copy, from bytes the repository read (refactor step 3.2).
     void loadShipped(const RuleFile &file, const ReferenceSet *refs)
     {
@@ -249,19 +192,9 @@ protected:
         adoptShipped(*bytes, file.path, refs);
     }
 
-    // ONE layer file. The caller has already decided the path and the origin; what this adds is the
-    // containment: a file that is absent, unreadable or malformed costs this layer and nothing else.
-    void loadLayer(const QString &path)
-    {
-        m_label = path;
-        if (path.isEmpty()) return;   // no writable app data location at all
-
-        const std::optional<QByteArray> bytes = readLayer(path, Traits::layerNoun(), m_report);
-        if (!bytes) return;
-        adoptLayer(*bytes, path, nullptr);
-    }
-
-    // ONE layer file, from bytes the repository read (refactor step 3.2). The same containment.
+    // ONE layer file, from bytes the repository read (refactor step 3.2). The caller has already decided
+    // the path and the origin; what this adds is the containment: a file that is absent, unreadable or
+    // malformed costs this layer and nothing else.
     void loadLayer(const RuleFile &file, const ReferenceSet *refs)
     {
         m_label = file.path;

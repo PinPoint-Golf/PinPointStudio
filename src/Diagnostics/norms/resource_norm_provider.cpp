@@ -124,34 +124,32 @@ namespace {
 // readable content rather than a binary blob.
 class ResourceNormProvider final : public detail::NormLeaf {
 public:
-    ResourceNormProvider(const QString &normsPath, const QString &contextsPath)
+    ResourceNormProvider(const RuleFile &norms, const RuleFile &contexts)
     {
         // Contexts FIRST, and the order is deliberate rather than incidental: the tree is what the
         // norm set's rows are referentially checked against, so a report that lists the tree's own
         // faults before the corridors that hang on them reads in the order an author would fix them.
         //
         // Hand-written where the norm set beside it is loadShipped()'s, because this is the SECOND
-        // shipped file and the leaf skeleton knows about one. Both halves still go through the same
-        // env seam and the same open-or-report — see provider_leaf_p.h; what is spelled here is only
-        // the sequencing and the tree's own loader.
-        const QString cp = detail::overridePath(detail::NormTraits::kContextsEnv, contextsPath);
-        if (const auto data = detail::readShipped(cp, QStringLiteral("context tree"), m_report)) {
-            ContextTreeLoadResult res = loadContextTree(*data, cp);
+        // shipped file and the leaf skeleton knows about one. Both halves are read by the repository
+        // (RuleDataStore, through the same env seam) and earn the same open-or-report — see
+        // provider_leaf_p.h; what is spelled here is only the sequencing and the tree's own loader.
+        if (const auto data = detail::shippedBytes(contexts, QStringLiteral("context tree"), m_report)) {
+            ContextTreeLoadResult res = loadContextTree(*data, contexts.path);
             m_contexts                = std::move(res.tree);
             detail::appendIssues(m_report, res.report);
         }
 
-        // PINPOINT_CORE_NORMS, the label, the read-only mark and the Core origin all come with this.
-        loadShipped(normsPath);
+        // The label, the read-only mark and the Core origin all come with this.
+        loadShipped(norms, nullptr);
     }
 };
 
 } // namespace
 
-std::unique_ptr<INormProvider> makeResourceNormProvider(const QString &normsPath,
-                                                        const QString &contextsPath)
+std::unique_ptr<INormProvider> makeResourceNormProvider(const RuleFile &norms, const RuleFile &contexts)
 {
-    return std::make_unique<ResourceNormProvider>(normsPath, contextsPath);
+    return std::make_unique<ResourceNormProvider>(norms, contexts);
 }
 
 } // namespace pinpoint::analysis

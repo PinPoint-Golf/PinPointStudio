@@ -13,6 +13,7 @@
 #include "../../Kinematics/kinematic_series.h"
 #include "../../Timeline/tempo_metrics.h"
 #include "../../Core/pp_tuned_constants.h"
+#include "../../Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 
 #include <QVariantMap>
 #include <cstdio>
@@ -28,6 +29,7 @@ static void check(bool c, const char *label)
 
 int main()
 {
+    pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
     std::printf("--- assessment engine: sampler.* / rules.* / bands.* ---\n");
 
     // 5. wristAssessmentConfigFor maps every key onto the config; empty map → defaults.

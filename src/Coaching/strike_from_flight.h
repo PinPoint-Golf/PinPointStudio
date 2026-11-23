@@ -44,7 +44,6 @@
 
 #include <QByteArray>
 #include <QCryptographicHash>
-#include <QFile>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -436,38 +435,9 @@ inline std::optional<FlightReading> classifyFlight(const ShotRecord &recorded, c
     return std::nullopt;
 }
 
-// Where the shipped table is read from: the file PINPOINT_CORE_FLIGHT_NORMS names (tests, tooling), else
-// the resource beside norms.json.
-inline QString flightNormsPath()
-{
-    const QByteArray override = qgetenv("PINPOINT_CORE_FLIGHT_NORMS");
-    return override.isEmpty() ? QStringLiteral(":/diagnostics/flight_norms.json") : QString::fromLocal8Bit(override);
-}
-
-// The table at `path`; empty (nothing is read from the flight) when it can't be read, with `*error` saying why.
-inline FlightNorms loadFlightNorms(const QString &path, QString *error = nullptr)
-{
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
-        if (error) *error = f.errorString();
-        return {};
-    }
-    QJsonParseError err;
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-        if (error) *error = err.errorString();
-        return {};
-    }
-    if (error) error->clear();
-    return flightNormsFromJson(doc.object());
-}
-
-// The shipped table, read once.
-inline const FlightNorms &shippedFlightNorms()
-{
-    static const FlightNorms k = loadFlightNorms(flightNormsPath());
-    return k;
-}
+// The shipped table (flight_norms.json, FILE-APP-05) is read by the rule data's repository and handed in
+// as a value: RuleDataStore::loadFlightNorms(), into RuleData's snapshot (`flightNorms`). Since refactor
+// step 7.1 (P11) nothing here reads a file.
 
 inline constexpr double kSkySteeperAttackDeg = 2.0;    // attack at least this much steeper than the usual
 inline constexpr double kSkyCarryShare       = 0.85;   // carry at most this share of the usual

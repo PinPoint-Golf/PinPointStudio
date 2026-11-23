@@ -34,9 +34,11 @@
 //              settings file (ppSettings), where they have always been stored (the v1.9 reviewer's
 //              condition: no settings key moves).
 //
-// THE NORM SETS' BYTES are still read by the norm leaves themselves (src/Diagnostics/norms, the A5 lines
-// tagged step 7: "norms loaded by repositories"): this store decides which ones and assembles them, and
-// writes the user's set. Everything else is read here.
+// THE NORM SETS' BYTES are read here too since refactor step 7.1 (P11: the rules open no file): the norm
+// leaves (src/Diagnostics/norms) take RuleFile values, as the pack leaves have since 3.2. The reads the
+// norm stack needs (readFile, shippedPath, the by-path norm factories, the norm slot's no-RuleData
+// assembly and its installer) are in rule_data_reads.cpp, which links wherever the norm stack does; the
+// rest is in rule_data_store.cpp.
 //
 // THE USER PACK'S REGROUP (characteristic_pack.h) is applied here, once, before the first read of a
 // `user.json` written before the swing areas were regrouped: a backup beside it, then the rewrite.
@@ -108,5 +110,29 @@ std::unique_ptr<ICharacteristicPackProvider> makeFilePackProvider(
 std::vector<std::unique_ptr<ICharacteristicPackProvider>> makeFilePackProviders(
     const QString &directory = QString());
 QStringList characteristicPackFilesIn(const QString &directory = QString());
+
+// The norm side's (refactor step 7.1; src/Diagnostics/norms/norm_provider.h now takes the bytes), in
+// rule_data_reads.cpp. The shipped core norm set and context tree: PINPOINT_CORE_NORMS / _CONTEXTS, else
+// the resources.
+std::unique_ptr<INormProvider> makeResourceNormProvider(
+    const QString &normsPath    = QStringLiteral(":/diagnostics/norms.json"),
+    const QString &contextsPath = QStringLiteral(":/diagnostics/contexts.json"));
+// Every norm-set file in a directory (<AppData>/diagnostics by default), in normSetFileOrder().
+QStringList normSetFilesIn(const QString &directory = QString());
+// ONE norm-set file (userNormPath() by default), plus optionally the directory's shared `contexts.json`.
+std::unique_ptr<INormProvider> makeFileNormProvider(
+    const QString &normsFile = QString(), PackOrigin origin = PackOrigin::LocalUser,
+    const QString &contextsFile = QString());
+// One provider per norm-set file in the directory, its shared `contexts.json` to the first.
+std::vector<std::unique_ptr<INormProvider>> makeFileNormProviders(
+    const QString &directory = QString());
+
+// The default assembly: shipped core plus whatever the user has authored, read through the store. The norm
+// slot's assembly when no RuleData is installed (a test or an offline tool; the app always installs one),
+// which the slot reaches only through its factory hook (installNormProviderFactory(), norm_provider.h), so
+// the rules depend on no adapter. installNormFileFactory() installs it: the composition root of a process
+// with no RuleData calls it at start-up (installProcessRuleData() does too, for after an uninstall).
+std::unique_ptr<INormProvider> makeNormProvider();
+void                           installNormFileFactory();
 
 } // namespace pinpoint::analysis

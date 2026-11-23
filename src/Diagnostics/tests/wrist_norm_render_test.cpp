@@ -19,6 +19,7 @@
 
 #include "../../Wrist/reference_bands.h"
 #include "../../Wrist/wrist_assessment_engine.h"
+#include "../../Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 
 #include <cmath>
 #include <cstdio>
@@ -92,6 +93,7 @@ private:
 
 int main()
 {
+    pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
     const NormBandProvider norms;
 
     // A spread of swings: flat, moderate, large, and offset ones that push cells out through amber

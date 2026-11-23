@@ -274,7 +274,7 @@ inline const QStringList &shotFactorNames()
 }
 
 // The three factors of one composed shot. `outcome` is composeShotOutcome's for this shot (its corrections,
-// intent and session already applied); `norms` the flight table (shippedFlightNorms); `usuals` the session's
+// intent and session already applied); `norms` the flight table (RuleData's flightNorms); `usuals` the session's
 // sessionFlightUsuals, which Sky is judged against. `athleteHandedness`: the athlete's recorded hand, the one a shot
 // that records none is named in (golferHand; refactor 6.3b fix round, B-3), as the composer was given it.
 inline ShotFactors shotFactors(const ShotRecord &shot, const ShotOutcome &outcome, const ShotOutcomePack &pack,

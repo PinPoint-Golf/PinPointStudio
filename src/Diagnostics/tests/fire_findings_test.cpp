@@ -32,6 +32,7 @@
 #include "../norms/context_tree.h"   // kDefaultContextId (ASM)
 #include "../../DomainModel/rule_data.h"
 #include "../../Export/rule_data_install.h"
+#include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
 #include "../../Coaching/shot_outcomes_pack.h"
 
 #include <QCoreApplication>

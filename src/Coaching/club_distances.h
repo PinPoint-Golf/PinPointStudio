@@ -48,7 +48,6 @@
 #include "../LaunchMonitor/lm_session_reductions.h"
 
 #include <QDate>
-#include <QFile>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -256,9 +255,9 @@ struct ClubSessionPool {
 };
 
 // The session's pools, one per club, in the order the clubs were first hit. `norms` is the flight table a
-// shot's Sky is read against (the shipped one unless a test hands another).
+// shot's Sky is read against (RuleData's snapshot's, handed in: the rule reads no file).
 inline std::vector<ClubSessionPool> poolSessionByClub(const ClubDistanceSession &session,
-                                                      const FlightNorms &norms = shippedFlightNorms())
+                                                      const FlightNorms &norms)
 {
     std::vector<ClubSessionPool> pools;
     QHash<QString, int> indexOf;
@@ -365,7 +364,7 @@ inline ClubDistanceWindow clubWindow(const QString &club, const std::vector<Club
 
 // Each club's pools across the given sessions, oldest first.
 inline QHash<QString, std::vector<ClubSessionPool>>
-poolsByClub(const std::vector<const ClubDistanceSession *> &oldestFirst, const FlightNorms &norms = shippedFlightNorms())
+poolsByClub(const std::vector<const ClubDistanceSession *> &oldestFirst, const FlightNorms &norms)
 {
     QHash<QString, std::vector<ClubSessionPool>> out;
     for (const ClubDistanceSession *s : oldestFirst)
@@ -452,7 +451,7 @@ inline ClubBaselineEntry clubBaselineEntryFromWindow(const ClubDistanceWindow &w
 // same-day neighbours never judge each other. A club with no qualifying shots has no entry.
 inline QHash<QString, ClubBaselineEntry> clubBaselineAsOf(const std::vector<ClubDistanceSession> &sessions,
                                                           const QDate &day,
-                                                          const FlightNorms &norms = shippedFlightNorms())
+                                                          const FlightNorms &norms)
 {
     QHash<QString, ClubBaselineEntry> out;
     if (!day.isValid()) return out;
@@ -517,12 +516,12 @@ inline std::vector<ClubBaselineSnapshot::Rewrite> clubBaselineRewritesFromJson(c
 }
 
 // A snapshot written under an older rule for what goes in the pool: the one case a frozen baseline is
-// written again. An unreadable file, or one from a newer build, stays frozen and empty as before.
-inline bool clubBaselineIsOutdated(const QString &path)
+// written again. `root` is the file as its repository read it (SessionDiagnosticsFiles::readClubBaseline;
+// refactor step 7.1, P11: the rule opens no file): an unreadable file, which comes as an empty root, or
+// one from a newer build, stays frozen and empty as before.
+inline bool clubBaselineIsOutdated(const QJsonObject &root)
 {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) return false;
-    const int schema = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("schema")).toInt(0);
+    const int schema = root.value(QStringLiteral("schema")).toInt(0);
     return schema > 0 && schema < kClubBaselineSchemaVersion;
 }
 
@@ -736,8 +735,8 @@ inline std::vector<ClubDistanceItem> clubDistancesFromPools(const QHash<QString,
 }
 
 inline std::vector<ClubDistanceItem> reduceClubDistances(const std::vector<ClubDistanceSession> &sessions,
-                                                         const QStringList &bagOrder = QStringList(),
-                                                         const FlightNorms &norms = shippedFlightNorms())
+                                                         const QStringList &bagOrder,
+                                                         const FlightNorms &norms)
 {
     return clubDistancesFromPools(poolsByClub(sessionsByDay(sessions), norms), bagOrder);
 }

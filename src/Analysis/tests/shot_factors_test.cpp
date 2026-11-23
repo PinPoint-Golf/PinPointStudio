@@ -24,6 +24,7 @@
 #include "../../Coaching/shot_factors.h"
 
 #include <QDate>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 
@@ -763,9 +764,12 @@ int main()
 
     std::printf("\nthe shipped table:\n");
     {
-        QString why;
-        const FlightNorms shipped = loadFlightNorms(QStringLiteral(PP_FLIGHT_NORMS_PATH), &why);
-        check(why.isEmpty() && shipped.schema == 2, "flight_norms.json reads, schema 2");
+        // The file is the rule data's repository's to read (RuleDataStore::loadFlightNorms; refactor step 7.1);
+        // the test reads the source tree's copy itself and hands the rule the JSON, as the store does.
+        QFile f(QStringLiteral(PP_FLIGHT_NORMS_PATH));
+        const bool opened = f.open(QIODevice::ReadOnly);
+        const FlightNorms shipped = flightNormsFromJson(QJsonDocument::fromJson(f.readAll()).object());
+        check(opened && shipped.schema == 2, "flight_norms.json reads, schema 2");
         check(flightClubCategory(shipped, QStringLiteral("DRIVER")) == QStringLiteral("driver")
                   && flightClubCategory(shipped, QStringLiteral("7 IRON")) == QStringLiteral("mid_irons")
                   && flightClubCategory(shipped, QStringLiteral("PITCHING WEDGE")) == QStringLiteral("short_irons")
@@ -780,8 +784,7 @@ int main()
                   && std::fabs(flightReferenceApexYd(shipped, QStringLiteral("driver"), 140.0) - 25.0) < 1e-9,
               "the driver's reference only");
         check(!shipped.sources.isEmpty() && !shipped.notes.isEmpty(), "its sources and notes");
-        check(loadFlightNorms(QStringLiteral("/nonexistent/flight_norms.json"), &why).isEmpty() && !why.isEmpty(),
-              "a table that can't be read is empty, and says why");
+        check(flightNormsFromJson(QJsonObject()).isEmpty(), "no table: empty (the store hands an unreadable file in as none)");
     }
 
     std::printf(g_fail ? "\nFAILED (%d)\n" : "\nall passed\n", g_fail);

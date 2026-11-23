@@ -34,6 +34,7 @@
 
 #include "../rule_data.h"
 #include "../../Export/rule_data_store.h"
+#include "../../Coaching/strike_from_flight.h"   // FlightNorms: the store's read of the flight table (7.1)
 #include "../../Core/pp_settings.h"
 
 #include <QCoreApplication>
@@ -231,6 +232,18 @@ int main(int argc, char **argv)
         check(normSpy.count() == 2, "each change is one EVT-12");
         rules.setGradePolicy(QStringLiteral("strict"));
         check(normSpy.count() == 2, "setting the value already in force publishes nothing");
+    }
+
+    // THE FLIGHT TABLE IS THE STORE'S TO READ (refactor step 7.1: the rules' own loader is gone): the file
+    // PINPOINT_CORE_FLIGHT_NORMS names, else the resource; a table that can't be read is empty, so nothing
+    // is read from the flight.
+    {
+        const QByteArray was = qgetenv("PINPOINT_CORE_FLIGHT_NORMS");
+        const analysis::FlightNorms shipped = RuleDataStore().loadFlightNorms();
+        check(!was.isEmpty() && shipped.schema == 2 && !shipped.isEmpty(), "the store reads the shipped flight table, schema 2");
+        qputenv("PINPOINT_CORE_FLIGHT_NORMS", QByteArray("/nonexistent/flight_norms.json"));
+        check(RuleDataStore().loadFlightNorms().isEmpty(), "a flight table that can't be read is empty");
+        qputenv("PINPOINT_CORE_FLIGHT_NORMS", was);
     }
 
     RuleData::install(nullptr);

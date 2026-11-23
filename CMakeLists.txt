@@ -3459,6 +3459,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Diagnostics/measures/anatomy_vocabulary.cpp
         src/Diagnostics/norms/resource_norm_provider.cpp
         src/Diagnostics/norms/file_norm_provider.cpp
+        src/Export/rule_data_reads.cpp
         src/Diagnostics/norms/merged_norm_provider.cpp
         # screens.json and drills.json are embedded into every offline target by
         # pinpoint_add_diagnostics_resources below, so their loaders belong here too — otherwise the

@@ -47,7 +47,7 @@ pp_add_test(charts_relations_presenter_test
             ${SRC}/Diagnostics/norms/norm_pack.cpp
             ${SRC}/Diagnostics/norms/context_tree.cpp
             ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
@@ -105,7 +105,7 @@ pp_add_test(charts_consistency_presenter_test
             ${SRC}/Diagnostics/norms/norm_pack.cpp
             ${SRC}/Diagnostics/norms/context_tree.cpp
             ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp

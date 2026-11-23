@@ -110,6 +110,7 @@ static void runTogether(int n, F body)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
     // saveUserNormPack() writes under AppDataLocation. A FOLDER OF THIS RUN'S OWN: test mode keeps it
     // away from a real profile, and the application is named after a fresh QTemporaryDir made in the
     // test-mode data location, so AppDataLocation IS that temporary directory — unique to the run and

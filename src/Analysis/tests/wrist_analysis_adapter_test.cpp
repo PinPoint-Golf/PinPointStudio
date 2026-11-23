@@ -12,6 +12,7 @@
 #include "../../Wrist/wrist_analysis_adapter.h"
 #include "../../Wrist/wrist_angle_sampler.h"
 #include "../../Wrist/wrist_assessment_engine.h"
+#include "../../Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 
 #include <QVariantList>
 #include <QVariantMap>
@@ -64,6 +65,7 @@ static PpRag rag(const PpWristAssessmentResult &r, PpJointDof d, PpSwingPosition
 
 int main()
 {
+    pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
     std::printf("=== Wrist analysisDetail adapter ===\n");
 
     // 0. The fixture's phase map IS the header's, and P2 is shaft-parallel back — the instant

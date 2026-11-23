@@ -58,7 +58,7 @@ set(NORM_SRC ${SRC}/Diagnostics/norms/norm.cpp ${SRC}/Diagnostics/norms/norm_pac
              ${SRC}/Diagnostics/packs/reference_pack.cpp
              ${SRC}/Diagnostics/measures/measure_facets.cpp ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
              ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-             ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+             ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
              ${SRC}/Diagnostics/norms/merged_norm_provider.cpp)
 
 # The shipped norm set and context tree live in Qt resources, which exist only inside the app
@@ -1277,7 +1277,7 @@ set(RULE_DATA_SOURCES
     ${SRC}/Diagnostics/packs/reference_pack.cpp ${SRC}/Diagnostics/packs/gate_words_pack.cpp
     ${SRC}/Diagnostics/packs/resource_pack_provider.cpp ${SRC}/Diagnostics/packs/file_pack_provider.cpp
     ${SRC}/Diagnostics/packs/merged_pack_provider.cpp ${SRC}/Diagnostics/packs/memory_pack_provider.cpp
-    ${SRC}/Diagnostics/norms/resource_norm_provider.cpp ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+    ${SRC}/Diagnostics/norms/resource_norm_provider.cpp ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
     ${SRC}/Diagnostics/norms/merged_norm_provider.cpp ${SRC}/Diagnostics/norms/memory_norm_provider.cpp
     ${SRC}/Diagnostics/norms/norm.cpp ${SRC}/Diagnostics/norms/norm_pack.cpp ${SRC}/Diagnostics/norms/context_tree.cpp
     ${SRC}/Diagnostics/engine/pack_io.cpp ${SRC}/Diagnostics/packs/characteristic_pack.cpp
@@ -1460,7 +1460,7 @@ pp_add_test(diagnostics_catalogue_integrity_test
             ${SRC}/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/norms/context_tree.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS} ${SRC}/Gui/diagnosticmodel
     LINK    Qt6::Qml Qt6::Concurrent
@@ -1484,7 +1484,7 @@ pp_add_test(diagnostics_health_test
     SOURCES ${DIAG}/tests/diagnostics_health_test.cpp ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG_PACK}
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/norms/context_tree.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -1560,7 +1560,7 @@ pp_add_test(context_tree_test
 # every club-specific shipped norm beneath it.
 pp_add_test(norm_pack_test
     SOURCES ${DIAG}/tests/norm_pack_test.cpp ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 # The shipped norm set and context tree live in Qt resources, absent from a standalone binary —
@@ -1575,7 +1575,7 @@ set_tests_properties(norm_pack_test PROPERTIES
 pp_add_test(shared_norm_provider_test
     SOURCES ${DIAG}/tests/shared_norm_provider_test.cpp ${DIAG_NORM}
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS}
     AUTOMOC)
@@ -1649,7 +1649,7 @@ pp_add_test(live_measure_source_test
             ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
             ${DIAG}/engine/characteristic_engine.cpp
             ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -1667,7 +1667,7 @@ pp_add_test(club_baseline_provider_test
             ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
             ${DIAG}/engine/characteristic_engine.cpp
             ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -1752,7 +1752,7 @@ pp_add_test(shot_commands_test
             ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
             ${DIAG}/packs/screen_pack.cpp
             ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -1828,7 +1828,7 @@ pp_add_test(work_ons_controller_test
             ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
             ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
             ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -1880,7 +1880,7 @@ add_executable(regrade_ledger
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
     ${DIAG}/packs/screen_pack.cpp
     ${DIAG_NORM}
-    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
     ${DIAG}/norms/merged_norm_provider.cpp
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -2116,7 +2116,7 @@ add_executable(athlete_dump
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
     ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
     ${DIAG_NORM}
-    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
     ${DIAG}/norms/merged_norm_provider.cpp
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
@@ -2169,7 +2169,7 @@ set(MEASURE_DUMP_SRC
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
     ${DIAG}/packs/screen_pack.cpp
     ${DIAG_NORM}
-    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
     ${DIAG}/norms/merged_norm_provider.cpp
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -2207,7 +2207,7 @@ set(FIRE_FINDINGS_TEST_SOURCES
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
     ${DIAG}/packs/screen_pack.cpp
     ${DIAG_NORM}
-    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
     ${DIAG}/norms/merged_norm_provider.cpp
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
@@ -2387,7 +2387,7 @@ pp_add_test(axis_direction_test
 # unknown context against the default, and an absent norm reading as a pass.
 pp_add_test(norm_measure_source_test
     SOURCES ${DIAG}/tests/norm_measure_source_test.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
     INCLUDE ${NORM_INC})
 
@@ -2427,7 +2427,7 @@ pp_norm_env(wrist_domain_score_test)
 pp_add_test(seed_conversion_test
     SOURCES ${DIAG}/tests/seed_conversion_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -2451,7 +2451,7 @@ set_tests_properties(seed_conversion_test PROPERTIES
 pp_add_test(lm_corridor_test
     SOURCES ${DIAG}/tests/lm_corridor_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -2468,7 +2468,7 @@ set_tests_properties(lm_corridor_test PROPERTIES
 pp_add_test(manifest_migration_test
     SOURCES ${DIAG}/tests/manifest_migration_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -2502,7 +2502,7 @@ pp_add_test(model_browser_test
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp ${DIAG}/packs/memory_pack_provider.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp ${DIAG}/norms/memory_norm_provider.cpp ${DIAG_NORM}
             ${SRC}/Metrics/metric_catalogue.cpp
             ${SRC}/Metrics/metric_resolver.cpp
@@ -2537,7 +2537,7 @@ pp_add_test(inspector_refresh_test
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp ${DIAG}/packs/memory_pack_provider.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp ${DIAG}/norms/memory_norm_provider.cpp ${DIAG_NORM}
             ${SRC}/Metrics/metric_catalogue.cpp
             ${SRC}/Metrics/metric_resolver.cpp
@@ -2563,7 +2563,7 @@ pp_add_test(corridor_plot_test
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${DIAG}/norms/merged_norm_provider.cpp ${DIAG_NORM}
             ${SRC}/Metrics/metric_catalogue.cpp
             ${SRC}/Metrics/metric_resolver.cpp

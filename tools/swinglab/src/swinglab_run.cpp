@@ -94,6 +94,7 @@
 #include "../../../src/Analysis/shot_analyzer.h"
 #include "../../../src/Analysis/analysis_pipeline.h"   // analysisGraphJson (--dag)
 #include "../../../src/Analysis/swing_reanalyzer.h"
+#include "../../../src/Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 #include "../../../src/Ball/ball_runner.h"
 #include "../../../src/IMU/imu_vision_fuser.h"
 #include "../../../src/Timeline/phase_segmenter.h"
@@ -574,6 +575,7 @@ StillestWindow stillestWindow(const StandTallLane &L, double spanS)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
 
     // The pipeline explains itself through ppInfo/ppWarn/ppError, and those go to
     // PpMessageLog — which only the GUI drains. Unset, this tool discards every

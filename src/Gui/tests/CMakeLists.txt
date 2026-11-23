@@ -38,7 +38,7 @@ set(RULE_DATA_SOURCES
     ${SRC}/Diagnostics/packs/reference_pack.cpp ${SRC}/Diagnostics/packs/gate_words_pack.cpp
     ${SRC}/Diagnostics/packs/resource_pack_provider.cpp ${SRC}/Diagnostics/packs/file_pack_provider.cpp
     ${SRC}/Diagnostics/packs/merged_pack_provider.cpp ${SRC}/Diagnostics/packs/memory_pack_provider.cpp
-    ${SRC}/Diagnostics/norms/resource_norm_provider.cpp ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+    ${SRC}/Diagnostics/norms/resource_norm_provider.cpp ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
     ${SRC}/Diagnostics/norms/merged_norm_provider.cpp ${SRC}/Diagnostics/norms/memory_norm_provider.cpp
     ${SRC}/Diagnostics/norms/norm.cpp ${SRC}/Diagnostics/norms/norm_pack.cpp ${SRC}/Diagnostics/norms/context_tree.cpp
     ${SRC}/Diagnostics/engine/pack_io.cpp ${SRC}/Diagnostics/packs/characteristic_pack.cpp
@@ -83,7 +83,7 @@ pp_add_test(chart_metrics_test
             ${SRC}/Diagnostics/packs/reference_pack.cpp
             ${SRC}/Diagnostics/measures/measure_facets.cpp ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
             ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     LINK    Qt6::Qml  AUTOMOC)
@@ -345,7 +345,7 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/Diagnostics/norms/norm_pack.cpp
             ${SRC}/Diagnostics/norms/context_tree.cpp
             ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp

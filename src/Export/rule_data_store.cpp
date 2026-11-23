@@ -124,20 +124,7 @@ RuleDataStore::RuleDataStore(QString dataDir) : m_dir(std::move(dataDir)) {}
 // which a test (or a tool) may move after the store is made, as every path function here always did.
 QString RuleDataStore::dataDir() const { return m_dir.isEmpty() ? diagnosticsDataDir() : m_dir; }
 
-RuleFile RuleDataStore::readFile(const QString &path)
-{
-    if (path.isEmpty()) return RuleFile::absent(path);
-    QFile f(path);
-    if (!f.exists()) return RuleFile::absent(path);
-    if (!f.open(QIODevice::ReadOnly)) return { path, RuleFile::State::Unreadable, {} };
-    return RuleFile::read(path, f.readAll());
-}
-
-QString RuleDataStore::shippedPath(const char *env, const QString &resource)
-{
-    const QByteArray ov = qgetenv(env);
-    return ov.isEmpty() ? resource : QString::fromLocal8Bit(ov);
-}
+// readFile and shippedPath: rule_data_reads.cpp (refactor step 7.1), beside the norm reads that need them.
 
 QString RuleDataStore::userFile(const QString &name) const
 {
@@ -267,9 +254,10 @@ RuleNorms RuleDataStore::loadNorms()
 
 FlightNorms RuleDataStore::loadFlightNorms()
 {
-    // The table at flightNormsPath() (PINPOINT_CORE_FLIGHT_NORMS, else the resource beside norms.json);
-    // empty when it cannot be read, as loadFlightNorms() has it.
-    const RuleFile f = readFile(flightNormsPath());
+    // The table PINPOINT_CORE_FLIGHT_NORMS names (tests, tooling), else the resource beside norms.json; empty
+    // (nothing is read from the flight) when it cannot be read. The one read of the file since refactor
+    // step 7.1: the rules' own loader (strike_from_flight.h) is gone.
+    const RuleFile f = readFile(shippedPath("PINPOINT_CORE_FLIGHT_NORMS", QStringLiteral(":/diagnostics/flight_norms.json")));
     if (f.state != RuleFile::State::Read) return {};
     QJsonParseError     err{};
     const QJsonDocument doc = QJsonDocument::fromJson(f.bytes, &err);
@@ -373,6 +361,8 @@ RuleData &installProcessRuleData(std::shared_ptr<const MetricCatalogue> catalogu
     static RuleData *one = [&catalogue] {
         auto *r = new RuleData(makeRuleDataRepository(), std::move(catalogue));
         RuleData::install(r);
+        // The norm slot's assembly should RuleData ever be uninstalled (after the source: no reset).
+        analysis::installNormFileFactory();
         return r;
     }();
     return *one;

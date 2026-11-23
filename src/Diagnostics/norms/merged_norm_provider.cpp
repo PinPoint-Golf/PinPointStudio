@@ -228,15 +228,9 @@ std::unique_ptr<INormProvider> makeMergedNormProvider(
     return std::make_unique<MergedNormProvider>(std::move(core), std::move(user), disabled);
 }
 
-std::unique_ptr<INormProvider> makeNormProvider()
-{
-    // ONE PROVIDER PER NORM-SET FILE, the same correction as makeCharacteristicPackProvider(). This
-    // used to construct a single file provider over the whole directory, which could only hold one
-    // set — so a second installed set was opened, parsed, had its issues added to the health list,
-    // and then had every corridor in it dropped. See makeFileNormProviders() for the order, the
-    // origin rule, and where the shared context tree goes.
-    return makeMergedNormProvider(makeResourceNormProvider(), makeFileNormProviders());
-}
+// The slot's assembly with no RuleData is the repository's since refactor step 7.1 (makeNormProvider(),
+// src/Export/rule_data_reads.cpp), installed as the slot's factory at start-up: it reads the files, and the
+// rules read none and name no adapter.
 
 namespace {
 // The process-wide slot: one immutable snapshot, swapped whole under a lock. Function-local static,
@@ -248,13 +242,15 @@ namespace {
 // second waits and takes the first one's. It also orders a build against a reset: a reset that lands
 // while a build is in progress waits for it, then discards it, so a set assembled from the file
 // before a save can never be handed out after that save's reset. Nothing the assembly calls takes
-// this lock again (makeNormProvider() reads files and the Qt resource, never the slot).
+// this lock again (the factory reads through the repository, never the slot).
 struct SharedNormSlot {
     QMutex                               lock;
     std::shared_ptr<const INormProvider> norms;
     std::atomic<quint64>                 generation{ 0 };   // moved by every reset, under `lock`
     // RuleData's snapshot, when one owns the norms (refactor step 3.2); see the header.
     std::function<std::shared_ptr<const INormProvider>()> source;
+    // The assembly with no source: the repository's, installed at start-up (refactor step 7.1); none is empty.
+    NormProviderFactory factory;
 };
 
 SharedNormSlot &sharedSlot()
@@ -268,9 +264,16 @@ std::shared_ptr<const INormProvider> sharedNormProvider(quint64 *generation)
 {
     SharedNormSlot &s = sharedSlot();
     QMutexLocker    lk(&s.lock);
-    if (!s.norms)
-        s.norms = s.source ? s.source()
-                           : std::shared_ptr<const INormProvider>(makeNormProvider().release());
+    if (!s.norms) {
+        if (s.source) {
+            s.norms = s.source();
+        } else {
+            std::unique_ptr<INormProvider> built = s.factory ? s.factory() : nullptr;
+            // No source and no factory: an empty set, as RuleData::current() answers with no RuleData.
+            if (!built) built = makeMergedNormProvider(nullptr, {});
+            s.norms = std::shared_ptr<const INormProvider>(built.release());
+        }
+    }
     if (generation) *generation = s.generation.load();
     return s.norms;
 }
@@ -302,6 +305,21 @@ void installSharedNormSource(std::function<std::shared_ptr<const INormProvider>(
         s.source = std::move(source);
         retired.swap(s.norms);
         s.generation.fetch_add(1);
+    }
+}
+
+void installNormProviderFactory(NormProviderFactory factory)
+{
+    // A reset only when it is what the slot assembles from: with a source installed, nothing held changes.
+    SharedNormSlot                      &s = sharedSlot();
+    std::shared_ptr<const INormProvider> retired;
+    {
+        QMutexLocker lk(&s.lock);
+        s.factory = std::move(factory);
+        if (!s.source) {
+            retired.swap(s.norms);
+            s.generation.fetch_add(1);
+        }
     }
 }
 

@@ -31,6 +31,11 @@
 
 using namespace pinpoint::analysis;
 
+// No flight table: the rules take RuleData's as a value since refactor step 7.1, and this binary has none
+// (the shipped table was never reachable here: no Qt resource, no PINPOINT_CORE_FLIGHT_NORMS), so the
+// defaults these calls used read an empty one.
+static const FlightNorms kNoFlight;
+
 static int g_fail = 0;
 static void check(bool c, const char *label)
 {
@@ -115,7 +120,7 @@ int main()
         s.shots.push_back(wedge(21, 60.0, 28.0, -1.0, "unread"));    // far short, nothing else to say
         s.shots.push_back(wedge(22, 60.0, 28.0, -1.0, "measured"));  // measured clean: a real distance
 
-        const std::vector<ClubSessionPool> pools = poolSessionByClub(s);
+        const std::vector<ClubSessionPool> pools = poolSessionByClub(s, kNoFlight);
         check(pools.size() == 1, "one club");
         check(pools[0].shots.size() == 7, "six full shots and the measured short one stay");
         check(pools[0].mishits.size() == 2, "the shank and the far-short shot go");
@@ -128,7 +133,7 @@ int main()
             ClubDistanceSession heldCarry = s;
             for (ShotRecord &shot : heldCarry.shots)
                 if (shot.shotId == 21) shot.ungradedReadings = { QStringLiteral("m_carryDistance") };
-            const std::vector<ClubSessionPool> hp = poolSessionByClub(heldCarry);
+            const std::vector<ClubSessionPool> hp = poolSessionByClub(heldCarry, kNoFlight);
             bool anyShort = false;
             for (const auto &m : hp[0].mishits) anyShort = anyShort || m.kind == QStringLiteral("short");
             check(hp.size() == 1 && hp[0].mishits.size() == 1 && hp[0].mishits[0].kind == QStringLiteral("shank") && !anyShort,
@@ -137,7 +142,7 @@ int main()
 
         ClubDistanceSession fixedSession = s;
         fixedSession.corrections[21] = { ShotCorrection{ QStringLiteral("strike"), QString(), QString() } };
-        check(poolSessionByClub(fixedSession)[0].mishits.size() == 1, "the golfer's word keeps the far-short shot in");
+        check(poolSessionByClub(fixedSession, kNoFlight)[0].mishits.size() == 1, "the golfer's word keeps the far-short shot in");
     }
 
     std::printf("swing length, with only a ball speed to go on:\n");
@@ -241,14 +246,14 @@ int main()
         const ClubDistanceSession d3 = sessionOn(QStringLiteral("2026-10-03"), k7i, { 210, 210, 210 });
         const std::vector<ClubDistanceSession> all{ d3, d2b, d1, d2a };
 
-        const auto asOfD2 = clubBaselineAsOf(all, QDate(2026, 10, 2));
+        const auto asOfD2 = clubBaselineAsOf(all, QDate(2026, 10, 2), kNoFlight);
         check(asOfD2.contains(k7i) && asOfD2[k7i].n == 3 && near(asOfD2[k7i].carryMean, 150.0, 1e-9),
               "a same-day session is not a predecessor");
-        const auto asOfD3 = clubBaselineAsOf(all, QDate(2026, 10, 3));
+        const auto asOfD3 = clubBaselineAsOf(all, QDate(2026, 10, 3), kNoFlight);
         check(asOfD3[k7i].n == 9 && near(asOfD3[k7i].carryMean, (150.0 + 170.0 + 190.0) / 3.0, 1e-9),
               "every earlier day counts; the session's own day does not");
-        check(!clubBaselineAsOf(all, QDate(2026, 10, 1)).contains(k7i), "nothing earlier: no entry");
-        check(clubBaselineAsOf(all, QDate()).isEmpty(), "an undated session has no baseline");
+        check(!clubBaselineAsOf(all, QDate(2026, 10, 1), kNoFlight).contains(k7i), "nothing earlier: no entry");
+        check(clubBaselineAsOf(all, QDate(), kNoFlight).isEmpty(), "an undated session has no baseline");
     }
 
     std::printf("the window:\n");
@@ -256,18 +261,18 @@ int main()
         std::vector<ClubDistanceSession> many;
         for (int i = 0; i < 12; ++i)
             many.push_back(sessionOn(QStringLiteral("2026-10-%1").arg(i + 1, 2, 10, QLatin1Char('0')), k7i, { 100.0 + i }));
-        const auto last10 = clubBaselineAsOf(many, QDate(2026, 11, 1));
+        const auto last10 = clubBaselineAsOf(many, QDate(2026, 11, 1), kNoFlight);
         check(last10[k7i].n == 10, "the last 10 sessions");
 
         const std::vector<double> carries(70, 150.0);
-        const auto capped = clubBaselineAsOf({ sessionOn(QStringLiteral("2026-10-01"), k7i, carries) }, QDate(2026, 11, 1));
+        const auto capped = clubBaselineAsOf({ sessionOn(QStringLiteral("2026-10-01"), k7i, carries) }, QDate(2026, 11, 1), kNoFlight);
         check(capped[k7i].n == kClubDistanceWindowShots, "or the last 60 shots, whichever is fewer");
 
         std::vector<double> mixed(58, 150.0);
         mixed.insert(mixed.begin(), { 300.0, 300.0 });
         const auto cut = clubBaselineAsOf({ sessionOn(QStringLiteral("2026-10-01"), k7i, mixed),
                                             sessionOn(QStringLiteral("2026-10-02"), k7i, { 200.0, 200.0 }) },
-                                          QDate(2026, 11, 1));
+                                          QDate(2026, 11, 1), kNoFlight);
         check(cut[k7i].n == 60 && near(cut[k7i].carryMean, (58 * 150.0 + 2 * 200.0) / 60.0, 1e-9),
               "the shots kept are the newest");
     }
@@ -275,24 +280,24 @@ int main()
     std::printf("the statistics:\n");
     {
         const std::vector<ClubDistanceSession> s{ sessionOn(QStringLiteral("2026-10-01"), k7i, { 150, 160, 170 }) };
-        const auto items = reduceClubDistances(s);
+        const auto items = reduceClubDistances(s, {}, kNoFlight);
         const ClubDistanceItem *i = itemFor(items, k7i);
         check(i && near(i->carrySd, 10.0, 1e-9), "SD is n-1");
         check(i && near(i->shortBelow, 160.0 - 1.5 * 10.0, 1e-9), "short is the mean less 1.5 SD");
         check(i && i->carryText == QStringLiteral("160 ± 10 yd"), "the carry words");
         check(i && i->shots == 3 && i->sessions == 1 && i->fewShots, "few shots yet under ten");
 
-        const auto two = reduceClubDistances({ sessionOn(QStringLiteral("2026-10-01"), k7i, { 150, 160 }) });
+        const auto two = reduceClubDistances({ sessionOn(QStringLiteral("2026-10-01"), k7i, { 150, 160 }) }, {}, kNoFlight);
         const ClubDistanceItem *t = itemFor(two, k7i);
         check(t && !std::isfinite(t->carrySd) && near(t->carryMean, 155.0, 1e-9), "below the floor the mean stands and the SD is absent");
         check(t && t->carryText == QStringLiteral("155 ± - yd"), "…printed as \"-\" (Mark: a missing figure shows \"-\")");
 
         ClubDistanceSession none = sessionOn(QStringLiteral("2026-10-01"), k7i, { 150 });
         none.shots.back().carry = std::numeric_limits<double>::quiet_NaN();
-        check(itemFor(reduceClubDistances({ none }), k7i) == nullptr, "no carry reported, no row");
+        check(itemFor(reduceClubDistances({ none }, {}, kNoFlight), k7i) == nullptr, "no carry reported, no row");
 
         ClubDistanceSession tenShots = sessionOn(QStringLiteral("2026-10-01"), k7i, std::vector<double>(10, 150.0));
-        check(!itemFor(reduceClubDistances({ tenShots }), k7i)->fewShots, "ten shots are enough");
+        check(!itemFor(reduceClubDistances({ tenShots }, {}, kNoFlight), k7i)->fewShots, "ten shots are enough");
     }
 
     std::printf("which shots count:\n");
@@ -306,7 +311,7 @@ int main()
         s.shots[5].rows.push_back(firedRow(QStringLiteral("chunk")));
         s.corrections[s.shots[5].shotId] = { ShotCorrection{ QStringLiteral("strike"), QStringLiteral("chunk"), QString() } };
 
-        const auto items = reduceClubDistances({ s });
+        const auto items = reduceClubDistances({ s }, {}, kNoFlight);
         const ClubDistanceItem *i = itemFor(items, k7i);
         check(i && i->shots == 3, "mishits leave the pool");
         check(i && near(i->carryMean, (151.0 + 152.0 + 150.0) / 3.0, 1e-9), "and never enter the mean");
@@ -314,25 +319,25 @@ int main()
 
         ClubDistanceSession partial = sessionOn(QStringLiteral("2026-10-01"), k7i, { 150, 90 });
         partial.shots.back().swingLength = QStringLiteral("partial");
-        check(reduceClubDistances({ partial })[0].shots == 1, "a part swing is left out");
+        check(reduceClubDistances({ partial }, {}, kNoFlight)[0].shots == 1, "a part swing is left out");
 
         ClubDistanceSession warn = sessionOn(QStringLiteral("2026-10-01"), k7i, { 150, 151 });
         warn.shots.back().dataWarning = true;
-        check(reduceClubDistances({ warn })[0].shots == 2, "a data warning does not remove a monitor reading");
+        check(reduceClubDistances({ warn }, {}, kNoFlight)[0].shots == 2, "a data warning does not remove a monitor reading");
 
         ClubDistanceSession top = sessionOn(QStringLiteral("2026-10-01"), k7i, { 120 });
         top.shots.back().rows = { firedRow(QStringLiteral("thin"), 1), firedRow(QStringLiteral("top"), 3) };
         const ClubDistanceSession carryKeep = sessionOn(QStringLiteral("2026-10-02"), k7i, { 160 });
-        const auto topped = reduceClubDistances({ top, carryKeep });
+        const auto topped = reduceClubDistances({ top, carryKeep }, {}, kNoFlight);
         const ClubDistanceItem *tp = itemFor(topped, k7i);
         check(tp && tp->mishits.top == 1 && tp->mishits.thin == 0 && tp->mishits.total() == 1,
               "a topped shot fires thin too and counts once, as a top");
         check(tp && tp->sessions == 1, "a session of only mishits counts their kinds and no session");
 
         ClubDistanceSession noClub = sessionOn(QStringLiteral("2026-10-01"), QString(), { 150 });
-        check(reduceClubDistances({ noClub }).empty(), "no club, no row");
+        check(reduceClubDistances({ noClub }, {}, kNoFlight).empty(), "no club, no row");
         ClubDistanceSession legacy = sessionOn(QStringLiteral("2026-10-01"), QStringLiteral("7-Iron"), { 150 });
-        check(itemFor(reduceClubDistances({ legacy }), k7i) != nullptr, "legacy club spellings become the bag id");
+        check(itemFor(reduceClubDistances({ legacy }, {}, kNoFlight), k7i) != nullptr, "legacy club spellings become the bag id");
     }
 
     std::printf("gapping:\n");
@@ -340,7 +345,7 @@ int main()
         // 6 iron 160 ± 10 and 7 iron 150 ± 10 overlap; 7 iron and 8 iron 110 ± 10 do not.
         const auto items = reduceClubDistances({ sessionOn(QStringLiteral("2026-10-01"), k6i, { 150, 160, 170 }),
                                                  sessionOn(QStringLiteral("2026-10-02"), k7i, { 140, 150, 160 }),
-                                                 sessionOn(QStringLiteral("2026-10-03"), QStringLiteral("8 IRON"), { 100, 110, 120 }) });
+                                                 sessionOn(QStringLiteral("2026-10-03"), QStringLiteral("8 IRON"), { 100, 110, 120 }) }, {}, kNoFlight);
         const ClubDistanceItem *six = itemFor(items, k6i), *seven = itemFor(items, k7i), *eight = itemFor(items, QStringLiteral("8 IRON"));
         check(items.size() == 3 && items[0].club == k6i && items[1].club == k7i, "bag order");
         check(six && six->gapWith == QStringLiteral("overlaps 7 iron"), "the overlap is named on one row");
@@ -357,24 +362,24 @@ int main()
         std::vector<ClubDistanceSession> rising;
         for (int i = 1; i <= 3; ++i) rising.push_back(sessionOn(QStringLiteral("2026-09-%1").arg(i, 2, 10, QLatin1Char('0')), k7i, { 148, 150, 152 }));
         for (int i = 4; i <= 6; ++i) rising.push_back(sessionOn(QStringLiteral("2026-09-%1").arg(i, 2, 10, QLatin1Char('0')), k7i, { 153, 155, 157 }));
-        const auto risingItems = reduceClubDistances(rising);
+        const auto risingItems = reduceClubDistances(rising, {}, kNoFlight);
         const ClubDistanceItem *r = itemFor(risingItems, k7i);
         check(r && r->trend == QStringLiteral("up") && r->trendWords == QStringLiteral("↑ 5 yd"), "a mean that moved reads as a move");
 
         std::vector<ClubDistanceSession> steady;
         for (int i = 1; i <= 6; ++i) steady.push_back(sessionOn(QStringLiteral("2026-09-%1").arg(i, 2, 10, QLatin1Char('0')), k7i, { 148, 150, 152 }));
-        const auto steadyItems = reduceClubDistances(steady);
+        const auto steadyItems = reduceClubDistances(steady, {}, kNoFlight);
         const ClubDistanceItem *st = itemFor(steadyItems, k7i);
         check(st && st->trend == QStringLiteral("steady") && st->trendWords == QStringLiteral("→ steady"), "no move is steady");
 
-        const auto thinItems = reduceClubDistances({ sessionOn(QStringLiteral("2026-09-01"), k7i, { 150, 151, 152 }) });
+        const auto thinItems = reduceClubDistances({ sessionOn(QStringLiteral("2026-09-01"), k7i, { 150, 151, 152 }) }, {}, kNoFlight);
         const ClubDistanceItem *thin = itemFor(thinItems, k7i);
         check(thin && thin->trend.isEmpty(), "three sessions or fewer: nothing to compare");
 
         std::vector<ClubDistanceSession> tighter;
         for (int i = 1; i <= 3; ++i) tighter.push_back(sessionOn(QStringLiteral("2026-09-%1").arg(i, 2, 10, QLatin1Char('0')), k7i, { 140, 150, 160 }));
         for (int i = 4; i <= 6; ++i) tighter.push_back(sessionOn(QStringLiteral("2026-09-%1").arg(i, 2, 10, QLatin1Char('0')), k7i, { 148, 150, 152 }));
-        const auto tighterItems = reduceClubDistances(tighter);
+        const auto tighterItems = reduceClubDistances(tighter, {}, kNoFlight);
         const ClubDistanceItem *ti = itemFor(tighterItems, k7i);
         check(ti && ti->trend == QStringLiteral("tighter") && ti->trendWords == QStringLiteral("↓ spread tighter"), "a tighter spread");
     }
@@ -430,6 +435,19 @@ int main()
         bool badOk = true;
         clubBaselineFromJson(QJsonObject{ { QStringLiteral("schema"), 99 } }, &badOk);
         check(!badOk, "another schema is refused");
+    }
+
+    // The one rewrite of a frozen baseline is for a file of an older rule; the rule takes the file as its
+    // repository read it (refactor step 7.1: SessionDiagnosticsFiles::readClubBaseline's root), never a path.
+    {
+        const auto withSchema = [](int v) { return QJsonObject{ { QStringLiteral("schema"), v } }; };
+        check(kClubBaselineSchemaVersion > 1 && clubBaselineIsOutdated(withSchema(kClubBaselineSchemaVersion - 1)),
+              "a baseline of an older rule is outdated");
+        check(!clubBaselineIsOutdated(withSchema(kClubBaselineSchemaVersion))
+                  && !clubBaselineIsOutdated(withSchema(kClubBaselineSchemaVersion + 1)),
+              "the current rule's and a newer build's are not");
+        check(!clubBaselineIsOutdated(QJsonObject()) && !clubBaselineIsOutdated(withSchema(0)),
+              "an unreadable file (an empty root) or one with no schema stays frozen");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
