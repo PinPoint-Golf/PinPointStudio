@@ -60,7 +60,8 @@ Item {
     function _record(id) {
         void athleteController.athletes
         if (!id || !athleteController.hasCurrentAthlete) return null
-        return athleteController.clubsFor(athleteController.currentUuid)[id] || null
+        const rec = athleteController.clubRecord(athleteController.currentUuid, id)
+        return rec.club !== "" ? rec : null
     }
 
     Column {

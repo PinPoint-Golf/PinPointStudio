@@ -40,6 +40,8 @@
 #include "../../Export/session_files.h"
 #include "../../DomainModel/session.h"
 #include "../../Export/swing_paths.h"
+#include "../../Export/swing_store_repository.h"   // the Shots' recordings door (the Wrist ★, step 5.7b)
+#include "../../DomainModel/shot.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -396,7 +398,7 @@ private slots:
 
         QSignalSpy record(a, &Athlete::recordChanged);
         QSignalSpy switched(&c, &AthleteController::currentAthleteChanged);
-        QVERIFY(c.updateAthlete(uuid, QStringLiteral("handicap"), 12.0));                            // E1
+        QVERIFY(c.updateAthlete(uuid, QStringLiteral("handicap"), QStringLiteral("12")));            // E1 (as text: 5.7b)
         QCOMPARE(record.count(), 1);
         QCOMPARE(switched.count(), 0);
         QCOMPARE(c.saveAthlete(uuid, QStringLiteral("Edited")), uuid);                               // E2 a rename
@@ -434,9 +436,9 @@ private slots:
         QVERIFY(clean(c.folderOf(second)) != clean(firstFolder));
         const QString inFirst  = firstFolder + QStringLiteral("/2026-11-02_Jo-Bloggs_Swing_01");
         const QString inSecond = c.folderOf(second) + QStringLiteral("/2026-11-03_Jo-Bloggs_Swing_01");
-        QCOMPARE(c.reportDetailsForSession(inFirst).value(QStringLiteral("uuid")).toString(), first);     // R1 the folder's owner
-        QCOMPARE(c.reportDetailsForSession(inFirst).value(QStringLiteral("name")).toString(), QStringLiteral("Jo Smith"));
-        QCOMPARE(c.reportDetailsForSession(inSecond).value(QStringLiteral("uuid")).toString(), second);   // R2
+        QCOMPARE(c.reportDetailsForSession(inFirst).uuid, first);     // R1 the folder's owner
+        QCOMPARE(c.reportDetailsForSession(inFirst).name, QStringLiteral("Jo Smith"));
+        QCOMPARE(c.reportDetailsForSession(inSecond).uuid, second);   // R2
         QVERIFY(c.reportDetailsForSession(lib.root() + QStringLiteral("/Nobody/2026-11-02_Nobody_Swing_01")).isEmpty());   // R3
         QVERIFY(c.reportDetailsForSession(QString()).isEmpty());                                         // R4
     }
@@ -474,6 +476,10 @@ private slots:
     void wristReferenceOnTheRecord()
     {
         AthleteTestLibrary lib;
+        // The Wrist ★ goes through the owners since 5.7b (the Session's Shot names its folder), so the Shots have their
+        // recordings door, as main.cpp gives them.
+        SwingStoreRecordingRepository recordings(lib.sessions);
+        lib.athletes->setShotDoors({ &recordings, {} });
         AthleteController &c = lib.makeController();
         const QString uuid = c.saveAthlete(QString(), QStringLiteral("Wrist Golfer"));
         Athlete *a = c.currentAthlete();
@@ -493,6 +499,8 @@ private slots:
         {   // W3 a fresh run (another store and controller) brings the same swing back.
             SessionStore  sessions;
             AthleteStore  athletes([&lib] { return lib.root(); }, &sessions);
+            SwingStoreRecordingRepository againRecordings(sessions);
+            athletes.setShotDoors({ &againRecordings, {} });
             AthleteController again;
             again.setSynchronousActivity(true);
             again.setCallables(callablesOver(athletes), &sessions);
@@ -552,7 +560,59 @@ private slots:
         QVERIFY(lib.sessions.end(s.id).ok());
 
         AthleteController &c = lib.makeController();                                                // the controller's rows
-        QCOMPARE(c.athletes().first().toMap().value(QStringLiteral("sessionCount")).toInt(), 2);
+        QCOMPARE(c.athletes().first().sessionCount, 2);
+        QCOMPARE(c.athletes().first().lastSessionAt, entry->startedAtUtc.toSecsSinceEpoch());
+    }
+
+    // F1–F6 (refactor step 5.7b): the picker's activity follows the owners — the one session list's rows over each Athlete's
+    // SessionIndex — so a session added (its first swing), trashed or moved changes the list at once, with no
+    // refreshActivity (the picker's reopen), and a shot in a session that already has one announces nothing.
+    void activityFollowsTheOwners()
+    {
+        AthleteTestLibrary lib;
+        Athlete *a = lib.athletes->create(named(QStringLiteral("Follow Golfer"))).athlete;
+        Athlete *b = lib.athletes->create(named(QStringLiteral("Target Golfer"))).athlete;
+        Athlete *u = lib.athletes->unassigned(/*create=*/true);
+        QVERIFY(a && b && u);
+        AthleteController &c = lib.makeController();
+        const auto rowOf = [&c](const Athlete *x) {
+            for (const AthleteRow &r : c.athletes())
+                if (r.uuid == x->id().toString()) return r;
+            return AthleteRow{};
+        };
+        QCOMPARE(rowOf(a).sessionCount, 0);
+        QSignalSpy announced(&c, &AthleteController::athletesChanged);
+
+        // F1 a session started (EVT-17) and its first swing (EVT-01): counted, its start the last session.
+        Session *s = a->startSession(QStringLiteral("swing"), QStringLiteral("date-name-type"));
+        QVERIFY(s);
+        QCOMPARE(rowOf(a).sessionCount, 0);                                                          // nothing hit in it yet
+        Shot *first = s->addShot();
+        QVERIFY(first && s->shotDocumentWritten(first->ref()));
+        QCOMPARE(rowOf(a).sessionCount, 1);
+        QCOMPARE(rowOf(a).lastSessionAt, s->entry()->startedAtUtc.toSecsSinceEpoch());
+        QCOMPARE(c.athletes().first().uuid, a->id().toString());                                     // F2 Recent order follows
+        // F3 a second swing changes no figure: the list is not announced again.
+        const int before = announced.count();
+        Shot *second = s->addShot();
+        QVERIFY(second && s->shotDocumentWritten(second->ref()));
+        QCOMPARE(announced.count(), before);
+        QVERIFY(s->end().ok());
+
+        // F4 trashed (EVT-20): gone from the count at once.
+        QVERIFY(a->trashSession(s->id()).ok());
+        QCOMPARE(rowOf(a).sessionCount, 0);
+
+        // F5 moved (the move out and in): Unassigned's session leaves it and joins the golfer's count.
+        Session *loose = u->startSession(QStringLiteral("swing"), QStringLiteral("date-name-type"));
+        QVERIFY(loose);
+        Shot *shot = loose->addShot();
+        QVERIFY(shot && loose->shotDocumentWritten(shot->ref()) && loose->end().ok());
+        QCOMPARE(rowOf(u).sessionCount, 1);                                                          // listed: it holds a session
+        QCOMPARE(rowOf(b).sessionCount, 0);
+        QVERIFY(u->moveSessionTo(loose->id(), *b).ok());
+        QCOMPARE(rowOf(b).sessionCount, 1);
+        QVERIFY(rowOf(u).uuid.isEmpty());                                                            // F6 empty again: not listed
     }
 
     // U1–U8 (refactor step 5.1; information_model.md §5.11, R-UNASSIGNED-1..5; DEC-198; J-66, J-67): the Unassigned
@@ -635,8 +695,8 @@ private slots:
         QVERIFY(u);
         AthleteController &c = lib.makeController();
         const auto listed = [&c](const AthleteId &id) {
-            for (const QVariant &v : c.athletes())
-                if (v.toMap().value(QStringLiteral("uuid")).toString() == id.toString()) return true;
+            for (const AthleteRow &r : c.athletes())
+                if (r.uuid == id.toString()) return true;
             return false;
         };
         QVERIFY(listed(golfer->id()));

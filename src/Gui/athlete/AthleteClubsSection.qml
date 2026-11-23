@@ -130,10 +130,11 @@ PpGroupCard {
         root.selectedClubId = id
     }
 
-    // Re-evaluates whenever the controller reloads (every commit calls reload()).
+    // The bag, typed (ClubRecord, in vocabulary order). Re-evaluates whenever the controller reloads (every commit
+    // announces the record).
     readonly property var clubs: {
         void athleteController.athletes
-        return athleteController.clubsFor(root.athleteUuid)
+        return athleteController.clubRecords(root.athleteUuid)
     }
     readonly property var configuredIds: {
         void athleteController.athletes
@@ -143,20 +144,25 @@ PpGroupCard {
         var out = []
         var vocab = athleteController.clubOptions()
         for (var i = 0; i < vocab.length; i++)
-            if (!(vocab[i] in root.clubs))
+            if (root.configuredIds.indexOf(vocab[i]) < 0)
                 out.push(vocab[i])
         return out
     }
 
+    function _rec(id) {
+        for (var i = 0; i < root.clubs.length; i++)
+            if (root.clubs[i].club === id) return root.clubs[i]
+        return null
+    }
     function recField(id, field, dflt) {
-        var rec = root.clubs[id]
+        var rec = root._rec(id)
         if (!rec || rec[field] === undefined) return dflt
         return rec[field]
     }
+    // A copy of the club's record (a value of its own), the one field changed, handed back: the controller lays it over
+    // the stored record, so a key this build does not know is kept.
     function commitField(id, field, value) {
-        var rec = root.clubs[id] || {}
-        var copy = {}
-        for (var k in rec) copy[k] = rec[k]
+        var copy = athleteController.clubRecord(root.athleteUuid, id)
         copy[field] = value
         athleteController.setClubRecord(root.athleteUuid, id, copy)
     }

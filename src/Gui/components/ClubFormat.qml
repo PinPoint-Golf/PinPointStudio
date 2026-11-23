@@ -25,7 +25,7 @@
 // Never feed display() output back into storage or index lookups.
 //
 // Also the one spelling of "this club is taped": isTaped(record) is true when the
-// club record (AthleteController.clubsFor(uuid)[id]) carries retro-band centres —
+// club record (AthleteController.clubRecord(uuid, id), a ClubRecord) carries retro-band centres —
 // a non-empty bandCentersMm. Empty or absent = an untaped (passive) club.
 
 pragma Singleton

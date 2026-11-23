@@ -392,7 +392,7 @@ QVariantMap SessionReportModel::athleteFor(const QString &sessionDir) const
     // The athlete whose folder the session is in, by the folder each Athlete holds (D4), and only that (E-02;
     // J-66, step 2.8b). Not the name a folder or a swing spells — a RENAMED athlete's old name can be another
     // athlete's now — and not the uuid a swing recorded, which may be the capturing machine's (H-09).
-    return m_athletes ? m_athletes->reportDetailsForSession(sessionDir) : QVariantMap();
+    return m_athletes ? m_athletes->reportDetailsForSession(sessionDir).toMap() : QVariantMap();   // typed since 5.7b
 }
 
 // The photo decision for a session (§7.3), off the session's day (sessionDayOf) so that state() can answer
@@ -441,12 +441,12 @@ M::ReportFingerprintFn SessionReportModel::fingerprintFunction() const
     // R1-m7's left-out stamps, taken now off each athlete's own athlete level (R2-B1: the door answers for any athlete).
     pinpoint::report::AthleteLeftOutStamps leftOut;
     if (m_athletes) {
-        for (const QVariant &v : m_athletes->athletes()) {
-            const QString uuid = v.toMap().value(QStringLiteral("uuid")).toString();
+        for (const AthleteRow &row : m_athletes->athletes()) {
+            const QString uuid = row.uuid;
             const QString real = uuid.isEmpty() ? QString() : m_athletes->folderOf(uuid);
             const QString folder = athleteFolderKey(real);
             if (!folder.isEmpty() && !byFolder.contains(folder)) {
-                byFolder.insert(folder, m_athletes->reportDetails(uuid));
+                byFolder.insert(folder, m_athletes->reportDetails(uuid).toMap());
                 if (m_athleteDoor) leftOut.take(m_athleteDoor(QDir(real).filePath(QStringLiteral("_"))), real);
             }
         }

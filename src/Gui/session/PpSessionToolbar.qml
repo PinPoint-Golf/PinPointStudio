@@ -174,8 +174,7 @@ Item {
         void athleteController.athletes
         var c = root.activeClub
         if (!c || !athleteController.hasCurrentAthlete) return false
-        var rec = athleteController.clubsFor(athleteController.currentUuid)[c]
-        return ClubFormat.isTaped(rec)
+        return ClubFormat.isTaped(athleteController.clubRecord(athleteController.currentUuid, c))
     }
 
     // Start a session: app.state's one command (app_state.h) chooses its on-disk folder, shows it in the

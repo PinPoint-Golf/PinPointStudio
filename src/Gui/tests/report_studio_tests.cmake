@@ -35,6 +35,9 @@ pp_add_test(report_studio_test
             ${SRC}/Diagnostics/packs/reference_pack.cpp
             ${SRC}/Diagnostics/measures/measure_facets.cpp
             ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+            # The one session list: the controller's activity is its rows' (refactor step 5.7b).
+            ${GUI}/session/session_list_presenter.h ${GUI}/session/session_list_presenter.cpp
+            ${GUI}/session/session_list_follow.cpp ${SRC}/Export/session_list_reads.cpp
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis
     LINK    Qt6::Test
     AUTOMOC)

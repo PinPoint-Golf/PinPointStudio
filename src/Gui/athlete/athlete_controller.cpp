@@ -24,9 +24,9 @@
 #include "club_standards.h"
 #include "height_text.h"
 #include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
-#include "../../DomainModel/session_repository.h"
-#include "../../Export/swing_paths.h"           // a swing folder's number, at the Wrist ★'s edge
-#include "../../DomainModel/session.h"   // the move: the Unassigned session by its folder (step 5.1)
+#include "../../DomainModel/session.h"   // the move: the Unassigned session by its folder (step 5.1); the Wrist ★'s edge
+#include "../../DomainModel/shot.h"      // the Wrist ★'s edge: a Shot's ref and folder, through its Session (step 5.7b)
+#include "../session/session_list_presenter.h"   // the one session list: each athlete's activity (step 5.7b)
 #include "../../DomainModel/athlete_diagnostics.h"   // AthleteLevel: Your distances, the athlete level's (3.7-f)
 #include "../../Coaching/tendencies.h"           // clubDistanceItemToJson
 #include <QDate>
@@ -40,7 +40,9 @@
 #include <QVector>
 #include <QDateTime>
 #include <QRegularExpression>
+#include <QTimer>
 #include <algorithm>
+#include <cmath>
 
 using pinpoint::Athlete;
 using pinpoint::AthleteActivity;
@@ -102,16 +104,99 @@ AthleteController::AthleteController(QObject *parent)
 {
 }
 
-AthleteController::~AthleteController()
-{
-    m_pool.waitForDone();
-}
+AthleteController::~AthleteController() = default;
 
 void AthleteController::setCallables(const pinpoint::AthleteCallables &athletes, pinpoint::SessionRepository *sessions)
 {
     m_athletesDoor = athletes;
     m_sessions     = sessions;
     refreshActivity();
+}
+
+// ── The typed values (step 5.7b) ────────────────────────────────────────────────────────────────────────────────────
+
+ClubRecord ClubRecord::fromMap(const QString &clubId, const QVariantMap &m)
+{
+    ClubRecord r;
+    r.club = clubId;
+    const auto has = [&m](const char *k) { return m.contains(QLatin1String(k)); };
+    if (has("shaftType"))       r.shaftType       = m.value(QStringLiteral("shaftType")).toString();
+    if (has("loftDeg"))         r.loftDeg         = m.value(QStringLiteral("loftDeg")).toDouble();
+    if (has("lengthMm"))        r.lengthMm        = m.value(QStringLiteral("lengthMm")).toInt();
+    if (has("bandWidthMm"))     r.bandWidthMm     = m.value(QStringLiteral("bandWidthMm")).toInt();
+    for (const QVariant &c : m.value(QStringLiteral("bandCentersMm")).toList()) r.bandCentersMm.append(c.toInt());
+    if (has("hoselFromButtMm")) r.hoselFromButtMm = m.value(QStringLiteral("hoselFromButtMm")).toInt();
+    if (has("headPatch"))       r.headPatch       = m.value(QStringLiteral("headPatch")).toBool();
+    if (has("shaftLengthMm"))   r.shaftLengthMm   = m.value(QStringLiteral("shaftLengthMm")).toInt();
+    if (has("handsEndMm"))      r.handsEndMm      = m.value(QStringLiteral("handsEndMm")).toInt();
+    if (has("tapedOn"))         r.tapedOn         = m.value(QStringLiteral("tapedOn")).toString();
+    if (has("notes"))           r.notes           = m.value(QStringLiteral("notes")).toString();
+    if (has("lieDeg"))          r.lieDeg          = m.value(QStringLiteral("lieDeg")).toDouble();
+    return r;
+}
+
+QVariantMap ClubRecord::toMap() const
+{
+    QVariantList centres;
+    for (int c : bandCentersMm) centres.append(c);
+    return { { QStringLiteral("shaftType"),       shaftType },
+             { QStringLiteral("loftDeg"),         loftDeg },
+             { QStringLiteral("lengthMm"),        lengthMm },
+             { QStringLiteral("bandWidthMm"),     bandWidthMm },
+             { QStringLiteral("bandCentersMm"),   centres },
+             { QStringLiteral("hoselFromButtMm"), hoselFromButtMm },
+             { QStringLiteral("headPatch"),       headPatch },
+             { QStringLiteral("shaftLengthMm"),   shaftLengthMm },
+             { QStringLiteral("handsEndMm"),      handsEndMm },
+             { QStringLiteral("tapedOn"),         tapedOn },
+             { QStringLiteral("notes"),           notes },
+             { QStringLiteral("lieDeg"),          lieDeg } };
+}
+
+ClubDistanceRow ClubDistanceRow::fromJson(const QJsonObject &o)
+{
+    const auto num = [&o](const char *k) {
+        const QJsonValue v = o.value(QLatin1String(k));
+        return v.isDouble() ? v.toDouble() : kNA;   // left out when not measured
+    };
+    const auto text = [&o](const char *k) { return o.value(QLatin1String(k)).toString(); };
+    ClubDistanceRow r;
+    r.club = text("club");                   r.label = text("label");
+    r.carryMean = num("carryMean");          r.carrySd = num("carrySd");          r.carryText = text("carryText");
+    r.totalMean = num("totalMean");          r.totalSd = num("totalSd");          r.offlineSd = num("offlineSd");
+    r.speedMean = num("speedMean");          r.speedSd = num("speedSd");
+    r.ballSpeedMean = num("ballSpeedMean");  r.ballSpeedSd = num("ballSpeedSd");
+    r.smashMean = num("smashMean");          r.smashSd = num("smashSd");
+    r.shots = o.value(QLatin1String("shots")).toInt();
+    r.sessions = o.value(QLatin1String("sessions")).toInt();
+    r.mishitsText = text("mishitsText");
+    r.fewShots = o.value(QLatin1String("fewShots")).toBool(true);
+    r.fewShotsText = text("fewShotsText");
+    r.trend = text("trend");                 r.trendWords = text("trendWords");   r.gapWith = text("gapWith");
+    r.gapPrev = num("gapPrev");              r.gapNext = num("gapNext");          r.gapsText = text("gapsText");
+    r.shortBelow = num("shortBelow");        r.shortBelowText = text("shortBelowText");
+    for (const QJsonValue &v : o.value(QLatin1String("perSession")).toArray()) {
+        const QJsonObject p = v.toObject();
+        ClubDistancePoint pt;
+        pt.date = p.value(QLatin1String("date")).toString();
+        if (p.value(QLatin1String("mean")).isDouble()) pt.mean = p.value(QLatin1String("mean")).toDouble();
+        if (p.value(QLatin1String("sd")).isDouble())   pt.sd   = p.value(QLatin1String("sd")).toDouble();
+        pt.n = p.value(QLatin1String("n")).toInt();
+        r.perSession.append(pt);
+    }
+    return r;
+}
+
+QVariantMap ReportDetails::toMap() const
+{
+    if (isEmpty()) return {};
+    return { { QStringLiteral("uuid"),             uuid },
+             { QStringLiteral("name"),             name },
+             { QStringLiteral("email"),            email },
+             { QStringLiteral("greeting"),         greeting },
+             { QStringLiteral("dob"),              dob },
+             { QStringLiteral("photosApproved"),   photosApproved },
+             { QStringLiteral("photosApprovedOn"), photosApprovedOn } };
 }
 
 QString AthleteController::computeInitials(const QString &name)
@@ -138,7 +223,7 @@ QString AthleteController::folderOf(const QString &uuid) const
     return a ? a->folder() : QString();
 }
 
-QVariantMap AthleteController::reportDetailsForSession(const QString &sessionDir) const
+ReportDetails AthleteController::reportDetailsForSession(const QString &sessionDir) const
 {
     // An athlete folder as a key, however each side spelled it: absolute and cleaned.
     const auto key = [](const QString &folder) {
@@ -147,11 +232,9 @@ QVariantMap AthleteController::reportDetailsForSession(const QString &sessionDir
     if (sessionDir.trimmed().isEmpty())
         return {};
     const QString folder = key(QFileInfo(QDir::cleanPath(sessionDir)).absolutePath());
-    for (const QVariant &v : m_athletes) {
-        const QString uuid = v.toMap().value(QStringLiteral("uuid")).toString();
-        if (!uuid.isEmpty() && key(folderOf(uuid)) == folder)
-            return reportDetails(uuid);
-    }
+    for (const AthleteRow &row : m_athletes)
+        if (!row.uuid.isEmpty() && key(folderOf(row.uuid)) == folder)
+            return reportDetails(row.uuid);
     return {};
 }
 
@@ -169,47 +252,47 @@ static QVariantMap bagOf(const AthleteRecord &r)
     return bag;
 }
 
-// One row of `athletes`, the keys QML has always read.
-QVariantMap AthleteController::mapOf(const Athlete &a) const
+// One row of `athletes`, the keys QML has always read (the bag is clubRecords' since step 5.7b).
+AthleteRow AthleteController::rowOf(const Athlete &a) const
 {
     const AthleteRecord &r = a.record();
-    QVariantMap m;
-    m[QStringLiteral("uuid")]                   = a.id().toString();
-    m[QStringLiteral("name")]                   = r.name;
-    m[QStringLiteral("handedness")]             = r.handedness;
-    m[QStringLiteral("heightValue")]            = r.heightValue;
-    m[QStringLiteral("heightUnit")]             = r.heightUnit;
-    m[QStringLiteral("weightValue")]            = r.weightValue;
-    m[QStringLiteral("weightUnit")]             = r.weightUnit;
-    m[QStringLiteral("handicap")]               = r.handicap;
-    m[QStringLiteral("primaryClub")]            = normalizeClubId(r.primaryClub);
-    m[QStringLiteral("speedTarget")]            = r.speedTarget;
-    m[QStringLiteral("notes")]                  = r.notes;
-    m[QStringLiteral("dob")]                    = r.dob;
-    m[QStringLiteral("sex")]                    = r.sex;
-    m[QStringLiteral("reportEmail")]            = r.reportEmail;
-    m[QStringLiteral("reportGreeting")]         = r.reportGreeting;
-    m[QStringLiteral("reportPhotosApproved")]   = r.reportPhotosApproved;
-    m[QStringLiteral("reportPhotosApprovedOn")] = r.reportPhotosApprovedOn;
-    m[QStringLiteral("createdAt")]              = r.createdAt;
-    // Derived from the index (DEC-89), never stored: 0 until the first read lands.
-    const AthleteActivity act = m_activity.value(a.id().toString());
-    m[QStringLiteral("lastSessionAt")]          = act.lastAtSec;
-    m[QStringLiteral("sessionCount")]           = act.sessions;
-    m[QStringLiteral("clubs")]                  = bagOf(r);
-    m[QStringLiteral("initials")]               = computeInitials(r.name);
+    AthleteRow m;
+    m.uuid                   = a.id().toString();
+    m.name                   = r.name;
+    m.handedness             = r.handedness;
+    m.heightValue            = r.heightValue;
+    m.heightUnit             = r.heightUnit;
+    m.weightValue            = r.weightValue;
+    m.weightUnit             = r.weightUnit;
+    m.handicap               = r.handicap;
+    m.primaryClub            = normalizeClubId(r.primaryClub);
+    m.speedTarget            = r.speedTarget;
+    m.notes                  = r.notes;
+    m.dob                    = r.dob;
+    m.sex                    = r.sex;
+    m.reportEmail            = r.reportEmail;
+    m.reportGreeting         = r.reportGreeting;
+    m.reportPhotosApproved   = r.reportPhotosApproved;
+    m.reportPhotosApprovedOn = r.reportPhotosApprovedOn;
+    m.createdAt              = r.createdAt;
+    // Derived from the index (DEC-89), never stored: 0 until the athlete's group of the one session list is read.
+    const AthleteActivity act = m_activity.value(m.uuid);
+    m.lastSessionAt          = act.lastAtSec;
+    m.sessionCount           = act.sessions;
+    m.initials               = computeInitials(r.name);
     return m;
 }
 
 void AthleteController::reload()
 {
     m_ids = m_athletesDoor.listAthletes ? m_athletesDoor.listAthletes() : QList<AthleteId>{};
+    followAll();
     rebuild();
 }
 
 void AthleteController::rebuild()
 {
-    QVariantList list;
+    QList<AthleteRow> list;
     list.reserve(m_ids.size());
     const AthleteId wantedNow = AthleteId::fromString(ppSettings().value(kCurrentUuid, QString()).toString());
     for (const AthleteId &id : std::as_const(m_ids)) {
@@ -223,7 +306,7 @@ void AthleteController::rebuild()
             continue;
         // An edit is announced by the Athlete itself (the interim for EVT-14).
         connect(a, &Athlete::recordChanged, this, &AthleteController::rebuild, Qt::UniqueConnection);
-        list.append(mapOf(*a));
+        list.append(rowOf(*a));
     }
 
     // The current athlete: SET-02's, if it is listed. While a session runs the current athlete is kept
@@ -233,7 +316,7 @@ void AthleteController::rebuild()
     Athlete *cur = m_ids.contains(wanted) ? m_athletesDoor.loadAthlete(wanted) : nullptr;
     if (!cur && m_current && sessionRunning() && m_current->id() == wanted) {
         cur = m_current;
-        list.append(mapOf(*cur));
+        list.append(rowOf(*cur));
     }
     sortAthletes(list);
 
@@ -256,49 +339,105 @@ pinpoint::SessionOwner AthleteController::currentSessionOwner() const
 }
 
 // lastSessionAt desc, createdAt desc as tie-breaker.
-void AthleteController::sortAthletes(QVariantList &list)
+void AthleteController::sortAthletes(QList<AthleteRow> &list)
 {
-    std::stable_sort(list.begin(), list.end(), [](const QVariant &a, const QVariant &b) {
-        const auto ma = a.toMap();
-        const auto mb = b.toMap();
-        const qint64 aLast = ma[QStringLiteral("lastSessionAt")].toLongLong();
-        const qint64 bLast = mb[QStringLiteral("lastSessionAt")].toLongLong();
-        if (aLast != bLast) return aLast > bLast;
-        return ma[QStringLiteral("createdAt")].toLongLong() > mb[QStringLiteral("createdAt")].toLongLong();
+    std::stable_sort(list.begin(), list.end(), [](const AthleteRow &a, const AthleteRow &b) {
+        if (a.lastSessionAt != b.lastSessionAt) return a.lastSessionAt > b.lastSessionAt;
+        return a.createdAt > b.createdAt;
     });
 }
 
 void AthleteController::refreshActivity()
 {
-    reload();
-    if (!m_athletesDoor.loadAthlete || !m_athletesDoor.readActivity) return;
-    QVector<QPair<QString, pinpoint::SessionOwner>> owners;   // taken on this thread
-    owners.reserve(m_ids.size());
-    for (const AthleteId &id : std::as_const(m_ids))
-        if (const Athlete *a = m_athletesDoor.loadAthlete(id))
-            owners.append({ id.toString(), a->sessionOwner() });
-    const int generation = ++m_activityGeneration;
-    const auto readActivity = m_athletesDoor.readActivity;   // the repository's thread-safe read
-    const auto readAll = [owners, readActivity]() {
-        QHash<QString, AthleteActivity> out;
-        for (const auto &o : owners) out.insert(o.first, readActivity(o.second));   // thread-safe
-        return out;
-    };
-    if (m_syncActivity) { applyActivity(generation, readAll()); return; }
-    m_pool.start([this, generation, readAll]() {
-        const QHash<QString, AthleteActivity> out = readAll();
-        QMetaObject::invokeMethod(this, [this, generation, out]() { applyActivity(generation, out); },
-                                  Qt::QueuedConnection);
-    });
+    reload();   // re-listed: a new athlete is followed and read (followAll)
+    // The picker shown, or the library moved: every group already read is read again, as 5.7a's screens ask when shown — a
+    // session nobody holds, or one another machine wrote into the library, has no event. Coalesced in the list while a
+    // read runs; one in flight is left to land.
+    if (m_list)
+        for (const AthleteId &id : std::as_const(m_ids))
+            if (m_list->loaded(id) && !m_list->loading(id))
+                m_list->reload(id);
+    applyActivity();
 }
 
-// Patches the list from the athletes held — never a switch, so nothing that follows the current
-// athlete re-points.
-void AthleteController::applyActivity(int generation, const QHash<QString, AthleteActivity> &byUuid)
+// ── The activity, from the one session list (step 5.7b) ───────────────────────────────────────────────────────────────
+
+void AthleteController::setSessionList(pinpoint::SessionListPresenter *list)
 {
-    if (generation != m_activityGeneration) return;          // a newer read is on its way
-    m_activity = byUuid;
-    rebuild();
+    if (m_list == list) return;
+    if (m_list) disconnect(m_list, nullptr, this, nullptr);
+    m_list = list;
+    if (m_list) {
+        // A group's rows added, removed or read again (EVT-17/18/19/20/23 and the move, through the list's follow), or one
+        // row's summary read again (EVT-01/03: a first swing in a session). The list follows the owners; this follows it.
+        connect(m_list, &pinpoint::SessionListPresenter::rowsChanged, this, &AthleteController::activityMoved);
+        connect(m_list, &pinpoint::SessionListPresenter::rowChanged,  this, &AthleteController::activityMoved);
+    }
+    followAll();
+    applyActivity();
+}
+
+// Every listed athlete is followed in the one session list (its events, through its Athlete and the Sessions it holds),
+// and read once when nobody has read it yet. Again for one already followed: nothing.
+void AthleteController::followAll()
+{
+    if (!m_list || !m_athletesDoor.loadAthlete) return;
+    for (const AthleteId &id : std::as_const(m_ids)) {
+        Athlete *a = m_athletesDoor.loadAthlete(id);
+        if (!a) continue;
+        m_list->follow(a);
+        if (!m_list->loaded(id) && !m_list->loading(id))
+            m_list->reload(id);
+    }
+}
+
+// A burst of row changes (a reload's landing, a re-analysis's rows) is recomputed once, on the event loop.
+void AthleteController::activityMoved()
+{
+    if (m_syncActivity) { applyActivity(); return; }
+    if (m_activityArmed) return;
+    m_activityArmed = true;
+    QTimer::singleShot(0, this, [this] { m_activityArmed = false; applyActivity(); });
+}
+
+// The activity of each listed athlete, from its group's rows: the sessions with a swing (the Sessions list's rule: a folder
+// nothing was hit in is not a session) and the latest one's start — its local day's midnight for a session read from its
+// name (DEC-150) — as Athlete::activityOf counts them from the index; and every session the index holds (R-UNASSIGNED-3).
+// A row whose summary is not read yet holds no swing it can count. The list is rebuilt only when an activity moved, so a
+// shot captured in a session that already has one announces nothing.
+void AthleteController::applyActivity()
+{
+    QHash<QString, AthleteActivity> next;
+    if (m_list)
+        for (const AthleteId &id : std::as_const(m_ids)) {
+            if (!m_list->loaded(id)) continue;   // 0 until its first read lands
+            AthleteActivity act;
+            const QVector<pinpoint::SessionListRow> rows = m_list->rowsOf(id);
+            act.indexed = int(rows.size());
+            for (const pinpoint::SessionListRow &r : rows) {
+                if (!r.entry.summary.read || r.entry.summary.swings.swings == 0) continue;
+                ++act.sessions;
+                qint64 at = 0;
+                if (r.entry.startedAtUtc.isValid())
+                    at = r.entry.startedAtUtc.toSecsSinceEpoch();
+                else if (r.entry.identity.localDay().isValid())
+                    at = QDateTime(r.entry.identity.localDay(), QTime(0, 0)).toSecsSinceEpoch();
+                act.lastAtSec = std::max(act.lastAtSec, at);
+            }
+            next.insert(id.toString(), act);
+        }
+    const auto same = [](const QHash<QString, AthleteActivity> &a, const QHash<QString, AthleteActivity> &b) {
+        if (a.size() != b.size()) return false;
+        for (auto it = a.cbegin(); it != a.cend(); ++it) {
+            const auto o = b.constFind(it.key());
+            if (o == b.cend() || o->sessions != it->sessions || o->lastAtSec != it->lastAtSec || o->indexed != it->indexed)
+                return false;
+        }
+        return true;
+    };
+    if (same(next, m_activity)) return;
+    m_activity = next;
+    rebuild();   // patches the list from the athletes held — never a switch, so nothing that follows the current athlete re-points
 }
 
 QString AthleteController::saveAthlete(
@@ -423,7 +562,7 @@ QList<SexOption> AthleteController::sexOptions() const
              { QStringLiteral("declined"), QObject::tr("Prefer not to say") } };
 }
 
-bool AthleteController::updateAthlete(const QString &uuid, const QString &fieldName, const QVariant &value)
+bool AthleteController::updateAthlete(const QString &uuid, const QString &fieldName, const QString &value)
 {
     Athlete *a = athleteFor(uuid);
     if (!a)
@@ -464,33 +603,27 @@ bool AthleteController::currentIsJunior() const
     return juniorOn(QDate::fromString(currentDob(), Qt::ISODate), QDate::currentDate());
 }
 
-QVariantMap AthleteController::reportDetails(const QString &uuidOrName) const
+ReportDetails AthleteController::reportDetails(const QString &uuidOrName) const
 {
     const QString key = uuidOrName.trimmed();
     if (key.isEmpty()) return {};
-    QVariantMap found;
-    for (const QVariant &v : m_athletes) {                 // uuid first: a name can repeat
-        const QVariantMap a = v.toMap();
-        if (a.value(QStringLiteral("uuid")).toString() == key) { found = a; break; }
-    }
-    if (found.isEmpty()) {
-        for (const QVariant &v : m_athletes) {
-            const QVariantMap a = v.toMap();
-            if (a.value(QStringLiteral("name")).toString().trimmed().compare(key, Qt::CaseInsensitive) == 0) { found = a; break; }
-        }
-    }
-    if (found.isEmpty()) return {};
+    const AthleteRow *found = nullptr;
+    for (const AthleteRow &a : m_athletes)                 // uuid first: a name can repeat
+        if (a.uuid == key) { found = &a; break; }
+    if (!found)
+        for (const AthleteRow &a : m_athletes)
+            if (a.name.trimmed().compare(key, Qt::CaseInsensitive) == 0) { found = &a; break; }
+    if (!found || found->uuid.isEmpty()) return {};
 
-    const QString name     = found.value(QStringLiteral("name")).toString();
-    const QString greeting = found.value(QStringLiteral("reportGreeting")).toString().trimmed();
-    QVariantMap out;
-    out.insert(QStringLiteral("uuid"),             found.value(QStringLiteral("uuid")));
-    out.insert(QStringLiteral("name"),             name);
-    out.insert(QStringLiteral("email"),            found.value(QStringLiteral("reportEmail")).toString().trimmed());
-    out.insert(QStringLiteral("greeting"),         greeting.isEmpty() ? firstWordOf(name) : greeting);
-    out.insert(QStringLiteral("dob"),              found.value(QStringLiteral("dob")).toString());
-    out.insert(QStringLiteral("photosApproved"),   found.value(QStringLiteral("reportPhotosApproved")).toBool());
-    out.insert(QStringLiteral("photosApprovedOn"), found.value(QStringLiteral("reportPhotosApprovedOn")).toString());
+    const QString greeting = found->reportGreeting.trimmed();
+    ReportDetails out;
+    out.uuid             = found->uuid;
+    out.name             = found->name;
+    out.email            = found->reportEmail.trimmed();
+    out.greeting         = greeting.isEmpty() ? firstWordOf(found->name) : greeting;
+    out.dob              = found->dob;
+    out.photosApproved   = found->reportPhotosApproved;
+    out.photosApprovedOn = found->reportPhotosApprovedOn;
     return out;
 }
 
@@ -647,10 +780,10 @@ static const QStringList &defaultBag()
     return kBag;
 }
 
-QVariantMap AthleteController::defaultClubRecord(const QString &clubId) const
+ClubRecord AthleteController::defaultClubRecord(const QString &clubId) const
 {
-    return defaultClubRecordFor(clubId, clubSetOf(currentSex(), currentDob()),
-                                currentHeightM());
+    return ClubRecord::fromMap(clubId, defaultClubRecordFor(clubId, clubSetOf(currentSex(), currentDob()),
+                                                            currentHeightM()));
 }
 
 QVariantMap AthleteController::clubsFor(const QString &uuid) const
@@ -659,12 +792,28 @@ QVariantMap AthleteController::clubsFor(const QString &uuid) const
     return a ? bagOf(a->record()) : QVariantMap{};
 }
 
-QVariantMap AthleteController::clubDistances(const QString &uuid) const
+QList<ClubRecord> AthleteController::clubRecords(const QString &uuid) const
+{
+    const QVariantMap bag = clubsFor(uuid);
+    QList<ClubRecord> out;
+    for (const QString &id : bagClubIds(uuid))
+        out.append(ClubRecord::fromMap(id, bag.value(id).toMap()));
+    return out;
+}
+
+ClubRecord AthleteController::clubRecord(const QString &uuid, const QString &clubId) const
+{
+    const QVariantMap bag = clubsFor(uuid);
+    if (clubId.isEmpty() || !bag.contains(clubId)) return {};
+    return ClubRecord::fromMap(clubId, bag.value(clubId).toMap());
+}
+
+ClubDistances AthleteController::clubDistances(const QString &uuid) const
 {
     const QString kReading = QStringLiteral("Distances are worked out when this golfer's sessions are read");
-    QVariantMap out{ { QStringLiteral("items"), QVariantList() },
-                     { QStringLiteral("stale"), true },
-                     { QStringLiteral("note"),  kReading } };
+    ClubDistances out;
+    out.stale = true;
+    out.note  = kReading;
 
     // THE ATHLETE LEVEL'S OWN DISTANCES (refactor 3.7-f; J-51): AthleteDiagnostics pools them from the session summaries'
     // club windows (D7: DEC-172), the rows tendencies.json carries, keys as clubDistanceItemToJson writes them — no longer
@@ -674,14 +823,14 @@ QVariantMap AthleteController::clubDistances(const QString &uuid) const
     Athlete *a = athleteFor(uuid);
     pinpoint::AthleteLevel *ad = (a && m_athleteLevelDoor) ? m_athleteLevelDoor(a) : nullptr;
     if (!ad) return out;
-    QVariantList items;
+    QList<ClubDistanceRow> items;
     for (const pinpoint::analysis::ClubDistanceItem &it : ad->distances())
-        items.append(pinpoint::analysis::clubDistanceItemToJson(it).toVariantMap());
+        items.append(ClubDistanceRow::fromJson(pinpoint::analysis::clubDistanceItemToJson(it)));   // its one rule for the words
     if (ad->summaries().empty()) return out;
-    out[QStringLiteral("items")] = items;
+    out.items = items;
     const bool stale = ad->notSummedUp().count > 0;
-    out[QStringLiteral("stale")] = stale;
-    out[QStringLiteral("note")]  = stale ? kReading : QString();
+    out.stale = stale;
+    out.note  = stale ? kReading : QString();
     return out;
 }
 
@@ -721,7 +870,7 @@ QString AthleteController::effectivePrimaryClub(const QString &uuid) const
 }
 
 bool AthleteController::setClubRecord(const QString &uuid, const QString &clubId,
-                                      const QVariantMap &record)
+                                      const ClubRecord &record)
 {
     if (uuid.isEmpty() || clubId.trimmed().isEmpty())
         return false;
@@ -729,7 +878,12 @@ bool AthleteController::setClubRecord(const QString &uuid, const QString &clubId
     if (!a)
         return false;
     QVariantMap clubs = bagOf(a->record());
-    clubs.insert(clubId, record);
+    // Laid over the stored record, so a key this build does not know is kept (as the form's copy of every key kept it).
+    QVariantMap stored = clubs.value(clubId).toMap();
+    const QVariantMap typed = record.toMap();
+    for (auto it = typed.cbegin(); it != typed.cend(); ++it)
+        stored.insert(it.key(), it.value());
+    clubs.insert(clubId, stored);
     const WriteResult w = a->editBag(clubs);
     if (!w.ok())
         ppWarn() << "[Athlete] could not save the" << clubId << "of" << a->record().name << "-" << w.error;
@@ -781,7 +935,9 @@ QString AthleteController::moveSessionToAthlete(const QString &sessionDir, const
     // (R-UNASSIGNED-3). A switch refused (a session running) keeps it until the next switch.
     if (m_current == from && from->index().isEmpty() && !selectAthlete(toUuid))
         ppInfo() << "[Athlete] Unassigned is empty but stays on screen: the switch to" << to->record().name << "was refused";
-    refreshActivity();   // both golfers' counts; Unassigned leaves the picker once it holds none (R-UNASSIGNED-3)
+    // Both golfers' counts follow the move's events through the one session list (step 5.7b); re-listed here, so Unassigned
+    // leaves the picker once it holds none (R-UNASSIGNED-3).
+    reload();
     emit sessionMoved(QDir::cleanPath(sessionDir), moved);
     return {};
 }
@@ -847,31 +1003,34 @@ void AthleteController::clearCurrentAthlete()
 
 // ── The Wrist reference ★ (D5: DEC-152) ─────────────────────────────────────────────────────────
 
+// Through the owners (step 5.7b; P11): the record's ShotRef → its Session (held by the Athlete) → its Shot → the Shot's
+// folder; and back, the folder → the Athlete's Session that holds it (sessionAt, the edge: DEC-90) → its Shot's ref. A swing
+// gone from its session (no Shot listed) reads as none, as a folder gone did.
 QString AthleteController::wristReferenceSwingDir() const
 {
-    if (!m_current || !m_sessions) return {};
+    if (!m_current) return {};
     const pinpoint::ShotRef ref = m_current->record().wristReference;
     if (ref.isNull()) return {};
-    m_current->index();                              // holds the athlete's sessions, so the ref resolves
-    const QString folder = m_sessions->swingFolder(ref);
-    return QFileInfo(folder).isDir() ? folder : QString();
+    pinpoint::Session *session = m_current->session(ref.session());
+    pinpoint::Shot    *shot    = session ? session->shot(ref) : nullptr;
+    return shot ? shot->folder() : QString();
 }
 
 bool AthleteController::setWristReferenceSwingDir(const QString &swingDir)
 {
-    if (!m_current || !m_sessions) return false;
+    if (!m_current) return false;
     pinpoint::ShotRef ref;
     if (!swingDir.isEmpty()) {
-        // The path the views carry, translated ONCE, here (DEC-90).
-        const QFileInfo swing(swingDir);
-        const QString   sessionDir = QDir::cleanPath(swing.absolutePath());
+        // The path the views carry, translated ONCE, here (DEC-90), by the Session of the current athlete's that holds it.
+        const QString sessionDir = QDir::cleanPath(QFileInfo(QDir::cleanPath(swingDir)).absolutePath());
         if (QDir::cleanPath(QFileInfo(sessionDir).absolutePath()) != QDir::cleanPath(QFileInfo(m_current->folder()).absoluteFilePath())) {
             ppInfo() << "[Athlete] the Wrist reference" << swingDir << "is not a swing of" << m_currentName
                      << "- not recorded on their record";
             return false;
         }
-        ref = pinpoint::ShotRef(m_sessions->openFolder(sessionDir, m_current->id()),
-                                pinpoint::SwingPaths::swingNumberOf(swing.fileName()));
+        pinpoint::Session *session = m_current->sessionAt(sessionDir);
+        pinpoint::Shot    *shot    = session ? session->shotAtFolder(swingDir) : nullptr;
+        ref = shot ? shot->ref() : pinpoint::ShotRef();
         if (ref.isNull()) return false;
     }
     AthleteRecord r = m_current->record();

@@ -20,16 +20,19 @@
 
 #include "../../App/app.h"                // AthleteCallables (the composition root's, D18 (c)); Athlete
 #include "../../DomainModel/athlete.h"   // Athlete, AthleteActivity, SessionOwner (domain, inward)
+#include "../session/session_list_presenter.h"   // the one session list: each athlete's activity (step 5.7b)
 
 #include <QHash>
+#include <QList>
 #include <QObject>
 #include <QPointer>
 #include <QString>
-#include <QThreadPool>
-#include <QVariantList>
 #include <QVariantMap>
 
 #include <functional>
+#include <limits>
+
+#include <QJsonObject>
 
 namespace pinpoint { class SessionRepository; }
 
@@ -40,6 +43,184 @@ struct SexOption {
     Q_PROPERTY(QString label MEMBER label)
 public:
     QString value, label;
+};
+
+// ── THE ATHLETE SCREENS' TYPED VALUES (refactor step 5.7b, lint A6) ─────────────────────────────────────────────────────
+// What the controller hands QML, as Q_GADGETs named as the old maps' keys, so the QML reads them as it read the maps.
+// Display forms of the record's facts (OBJ-ATHLETE-RECORD, OBJ-BAG) and the athlete level's distances
+// (CLS-ATHLETE-DIAG); the record itself and its one writer are unchanged.
+
+// One athlete of the list (athletes): the record's fields, its initials, and its activity, derived from its SessionIndex
+// (DEC-89: the sessions with a swing and the latest one's start; 0 until its group of the one session list is read).
+struct AthleteRow {
+    Q_GADGET
+    Q_PROPERTY(QString uuid                   MEMBER uuid                   FINAL)
+    Q_PROPERTY(QString name                   MEMBER name                   FINAL)
+    Q_PROPERTY(QString handedness             MEMBER handedness             FINAL)
+    Q_PROPERTY(double  heightValue            MEMBER heightValue            FINAL)
+    Q_PROPERTY(QString heightUnit             MEMBER heightUnit             FINAL)
+    Q_PROPERTY(double  weightValue            MEMBER weightValue            FINAL)
+    Q_PROPERTY(QString weightUnit             MEMBER weightUnit             FINAL)
+    Q_PROPERTY(double  handicap               MEMBER handicap               FINAL)
+    Q_PROPERTY(QString primaryClub            MEMBER primaryClub            FINAL)
+    Q_PROPERTY(double  speedTarget            MEMBER speedTarget            FINAL)
+    Q_PROPERTY(QString notes                  MEMBER notes                  FINAL)
+    Q_PROPERTY(QString dob                    MEMBER dob                    FINAL)
+    Q_PROPERTY(QString sex                    MEMBER sex                    FINAL)
+    Q_PROPERTY(QString reportEmail            MEMBER reportEmail            FINAL)
+    Q_PROPERTY(QString reportGreeting         MEMBER reportGreeting         FINAL)
+    Q_PROPERTY(bool    reportPhotosApproved   MEMBER reportPhotosApproved   FINAL)
+    Q_PROPERTY(QString reportPhotosApprovedOn MEMBER reportPhotosApprovedOn FINAL)
+    Q_PROPERTY(qint64  createdAt              MEMBER createdAt              FINAL)
+    Q_PROPERTY(qint64  lastSessionAt          MEMBER lastSessionAt          FINAL)
+    Q_PROPERTY(int     sessionCount           MEMBER sessionCount           FINAL)
+    Q_PROPERTY(QString initials               MEMBER initials               FINAL)
+public:
+    QString uuid, name, handedness, heightUnit, weightUnit, primaryClub, notes, dob, sex, reportEmail, reportGreeting,
+            reportPhotosApprovedOn, initials;
+    double  heightValue = 0.0, weightValue = 0.0, handicap = -999.0, speedTarget = 0.0;
+    bool    reportPhotosApproved = false;
+    qint64  createdAt = 0, lastSessionAt = 0;
+    int     sessionCount = 0;
+    friend bool operator==(const AthleteRow &, const AthleteRow &) = default;
+};
+
+// One club of the bag (clubRecords, clubRecord, defaultClubRecord, setClubRecord): the record's keys as stored, keyed by
+// `club`, the canonical club-vocabulary id (the bag's key). A key a record does not hold reads as the default below —
+// the defaults the club form has always shown for it (0 = unknown; untaped; 25 mm bands; steel). `club` is "" for a
+// club not in the bag.
+struct ClubRecord {
+    Q_GADGET
+    Q_PROPERTY(QString    club            MEMBER club            FINAL)
+    Q_PROPERTY(QString    shaftType       MEMBER shaftType       FINAL)
+    Q_PROPERTY(double     loftDeg         MEMBER loftDeg         FINAL)
+    Q_PROPERTY(int        lengthMm        MEMBER lengthMm        FINAL)
+    Q_PROPERTY(int        bandWidthMm     MEMBER bandWidthMm     FINAL)
+    Q_PROPERTY(QList<int> bandCentersMm   MEMBER bandCentersMm   FINAL)
+    Q_PROPERTY(int        hoselFromButtMm MEMBER hoselFromButtMm FINAL)
+    Q_PROPERTY(bool       headPatch       MEMBER headPatch       FINAL)
+    Q_PROPERTY(int        shaftLengthMm   MEMBER shaftLengthMm   FINAL)
+    Q_PROPERTY(int        handsEndMm      MEMBER handsEndMm      FINAL)
+    Q_PROPERTY(QString    tapedOn         MEMBER tapedOn         FINAL)
+    Q_PROPERTY(QString    notes           MEMBER notes           FINAL)
+    Q_PROPERTY(double     lieDeg          MEMBER lieDeg          FINAL)
+public:
+    QString    club;
+    QString    shaftType = QStringLiteral("steel");
+    double     loftDeg = 0.0;
+    int        lengthMm = 0;
+    int        bandWidthMm = 25;
+    QList<int> bandCentersMm;              // retro-band CENTRES from the butt, mm; empty = untaped
+    int        hoselFromButtMm = 0;
+    bool       headPatch = false;
+    int        shaftLengthMm = 0;          // exposed shaft, grip end → hosel top; 0 unknown
+    int        handsEndMm = 0;             // bottom of the hands from the butt; 0 unknown
+    QString    tapedOn;                    // "YYYY-MM-DD"
+    QString    notes;
+    double     lieDeg = 0.0;
+    // The bag's form (AthleteRecord::bag's value for one club), and back. toMap holds every key above but `club`, the
+    // band centres as a QVariantList (the JSON the store writes).
+    static ClubRecord fromMap(const QString &club, const QVariantMap &record);
+    QVariantMap       toMap() const;
+    friend bool operator==(const ClubRecord &, const ClubRecord &) = default;
+};
+
+// One session's point of a club's distances (perSession): its day, the carry's mean ± SD (NaN: not measured), the shots.
+struct ClubDistancePoint {
+    Q_GADGET
+    Q_PROPERTY(QString date MEMBER date FINAL)
+    Q_PROPERTY(double  mean MEMBER mean FINAL)
+    Q_PROPERTY(double  sd   MEMBER sd   FINAL)
+    Q_PROPERTY(int     n    MEMBER n    FINAL)
+public:
+    QString date;
+    double  mean = std::numeric_limits<double>::quiet_NaN();
+    double  sd   = std::numeric_limits<double>::quiet_NaN();
+    int     n    = 0;
+    friend bool operator==(const ClubDistancePoint &a, const ClubDistancePoint &b)
+    {
+        const auto same = [](double x, double y) { return x == y || (x != x && y != y); };
+        return a.date == b.date && same(a.mean, b.mean) && same(a.sd, b.sd) && a.n == b.n;
+    }
+};
+
+// One club's row of "Your distances": the keys tendencies.h clubDistanceItemToJson writes (made from its output, so the
+// words keep their one rule). A number not measured is NaN, as the JSON leaves it out.
+struct ClubDistanceRow {
+    Q_GADGET
+    Q_PROPERTY(QString club           MEMBER club           FINAL)
+    Q_PROPERTY(QString label          MEMBER label          FINAL)
+    Q_PROPERTY(double  carryMean      MEMBER carryMean      FINAL)
+    Q_PROPERTY(double  carrySd        MEMBER carrySd        FINAL)
+    Q_PROPERTY(QString carryText      MEMBER carryText      FINAL)
+    Q_PROPERTY(double  totalMean      MEMBER totalMean      FINAL)
+    Q_PROPERTY(double  totalSd        MEMBER totalSd        FINAL)
+    Q_PROPERTY(double  offlineSd      MEMBER offlineSd      FINAL)
+    Q_PROPERTY(double  speedMean      MEMBER speedMean      FINAL)
+    Q_PROPERTY(double  speedSd        MEMBER speedSd        FINAL)
+    Q_PROPERTY(double  ballSpeedMean  MEMBER ballSpeedMean  FINAL)
+    Q_PROPERTY(double  ballSpeedSd    MEMBER ballSpeedSd    FINAL)
+    Q_PROPERTY(double  smashMean      MEMBER smashMean      FINAL)
+    Q_PROPERTY(double  smashSd        MEMBER smashSd        FINAL)
+    Q_PROPERTY(int     shots          MEMBER shots          FINAL)
+    Q_PROPERTY(int     sessions       MEMBER sessions       FINAL)
+    Q_PROPERTY(QString mishitsText    MEMBER mishitsText    FINAL)
+    Q_PROPERTY(bool    fewShots       MEMBER fewShots       FINAL)
+    Q_PROPERTY(QString fewShotsText   MEMBER fewShotsText   FINAL)
+    Q_PROPERTY(QString trend          MEMBER trend          FINAL)
+    Q_PROPERTY(QString trendWords     MEMBER trendWords     FINAL)
+    Q_PROPERTY(QString gapWith        MEMBER gapWith        FINAL)
+    Q_PROPERTY(double  gapPrev        MEMBER gapPrev        FINAL)
+    Q_PROPERTY(double  gapNext        MEMBER gapNext        FINAL)
+    Q_PROPERTY(QString gapsText       MEMBER gapsText       FINAL)
+    Q_PROPERTY(double  shortBelow     MEMBER shortBelow     FINAL)
+    Q_PROPERTY(QString shortBelowText MEMBER shortBelowText FINAL)
+    Q_PROPERTY(QList<ClubDistancePoint> perSession MEMBER perSession FINAL)
+public:
+    static constexpr double kNA = std::numeric_limits<double>::quiet_NaN();
+    QString club, label, carryText, mishitsText, fewShotsText, trend, trendWords, gapWith, gapsText, shortBelowText;
+    double  carryMean = kNA, carrySd = kNA, totalMean = kNA, totalSd = kNA, offlineSd = kNA, speedMean = kNA,
+            speedSd = kNA, ballSpeedMean = kNA, ballSpeedSd = kNA, smashMean = kNA, smashSd = kNA, gapPrev = kNA,
+            gapNext = kNA, shortBelow = kNA;
+    int     shots = 0, sessions = 0;
+    bool    fewShots = true;
+    QList<ClubDistancePoint> perSession;   // oldest first
+    static ClubDistanceRow fromJson(const QJsonObject &item);
+    friend bool operator==(const ClubDistanceRow &, const ClubDistanceRow &) = default;
+};
+
+// "Your distances" for a golfer (clubDistances): the per-club rows; stale while no summary is read yet, or a session with
+// shots is not summed up yet; the note says why they are not current ("" when they are).
+struct ClubDistances {
+    Q_GADGET
+    Q_PROPERTY(QList<ClubDistanceRow> items MEMBER items FINAL)
+    Q_PROPERTY(bool                   stale MEMBER stale FINAL)
+    Q_PROPERTY(QString                note  MEMBER note  FINAL)
+public:
+    QList<ClubDistanceRow> items;
+    bool                   stale = true;
+    QString                note;
+    friend bool operator==(const ClubDistances &, const ClubDistances &) = default;
+};
+
+// The session report's details of one athlete (reportDetails, reportDetailsForSession; design §7.3). Empty (no uuid)
+// when there is no such athlete.
+struct ReportDetails {
+    Q_GADGET
+    Q_PROPERTY(QString uuid             MEMBER uuid             FINAL)
+    Q_PROPERTY(QString name             MEMBER name             FINAL)
+    Q_PROPERTY(QString email            MEMBER email            FINAL)
+    Q_PROPERTY(QString greeting         MEMBER greeting         FINAL)
+    Q_PROPERTY(QString dob              MEMBER dob              FINAL)
+    Q_PROPERTY(bool    photosApproved   MEMBER photosApproved   FINAL)
+    Q_PROPERTY(QString photosApprovedOn MEMBER photosApprovedOn FINAL)
+public:
+    QString uuid, name, email, greeting, dob, photosApprovedOn;
+    bool    photosApproved = false;
+    bool        isEmpty() const { return uuid.isEmpty(); }
+    // The report's own form (SessionReportModel's athlete map): the keys above; {} when empty.
+    QVariantMap toMap() const;
+    friend bool operator==(const ReportDetails &, const ReportDetails &) = default;
 };
 
 // AthleteController — THE QML ADAPTER OVER THE CURRENT ATHLETE (refactor step 2.3; brief §4.5). The
@@ -55,9 +236,12 @@ public:
 // record-valued properties notify on. So a listener that reloads data on currentAthleteChanged needs no
 // gate (AthleteSwitchGate is gone).
 //
-// ACTIVITY (each golfer's session count and last session, the picker's rows and Recent order) is derived
-// from each athlete's SessionIndex (DEC-89), read off the GUI thread by AthleteRepository::readActivity;
-// refreshActivity() re-reads the library's athletes and their activity (the picker asks on opening).
+// A LIST OVER THE ATHLETES (refactor step 5.7b). Each row is an Athlete's record (it follows recordChanged) and its
+// ACTIVITY (the session count and last session: the picker's rows and its Recent order), derived from that Athlete's
+// SessionIndex (DEC-89) as the one session list (SessionListPresenter) holds it: every listed athlete is followed there,
+// so a session started, resumed, archived, restored, trashed or moved, or a first swing in one (EVT-17/18/19/20/23,
+// EVT-01/03), changes the picker at once — no reopen. The list's rows are recomputed when a group's rows change, and the
+// list is announced (athletesChanged) only when an activity moved. refreshActivity() re-lists the library's athletes.
 namespace pinpoint { class AthleteLevel; class Athlete; }
 
 class AthleteController : public QObject
@@ -97,21 +281,24 @@ class AthleteController : public QObject
     Q_PROPERTY(bool         currentIsJunior         READ currentIsJunior         NOTIFY athletesChanged)
     Q_PROPERTY(bool         currentPhotosApproved   READ currentPhotosApproved   NOTIFY athletesChanged)
     Q_PROPERTY(QString      currentPhotosApprovedOn READ currentPhotosApprovedOn NOTIFY athletesChanged)
-    Q_PROPERTY(QVariantList athletes          READ athletes          NOTIFY athletesChanged)
+    Q_PROPERTY(QList<AthleteRow> athletes     READ athletes          NOTIFY athletesChanged)
 
 public:
     explicit AthleteController(QObject *parent = nullptr);
-    ~AthleteController() override;   // waits for a running activity read (it posts back to this)
+    ~AthleteController() override;
 
     // The composition root hands in its callables over the athletes (D18 (c); main.cpp; a test, its own over
     // a scratch library) and the session repository (the Wrist reference's edge translation, and the drawer's
     // session delete until step 3.4b). Until then there are no athletes. Reads the library at once.
     void setCallables(const pinpoint::AthleteCallables &athletes, pinpoint::SessionRepository *sessions);
 
-    // Re-reads the library's athletes and every golfer's activity (from their SessionIndex, on a pool
-    // thread; the result patches the list). The picker asks on opening; a library change asks too.
+    // THE ONE SESSION LIST (main.cpp's; a test's own): every listed athlete is followed in it and read once, and the
+    // activity is its rows'. Null (a test of the record alone): every activity is 0.
+    void setSessionList(pinpoint::SessionListPresenter *list);
+    // Re-lists the library's athletes; a new one is followed and read (the others follow their events). The picker asks
+    // on opening; a library change asks too.
     Q_INVOKABLE void refreshActivity();
-    // Tests: read the activity on the calling thread.
+    // Tests: the activity recomputed at once on every change of the list (no coalescing on the event loop).
     void setSynchronousActivity(bool on) { m_syncActivity = on; }
 
     // ── C++ only (not QML) ───────────────────────────────────────────────────────────────────────
@@ -132,7 +319,7 @@ public:
     // uuid may be the capturing machine's, H-09, or a moved session's previous athlete): E-02, J-66 (step
     // 2.8b). The first athlete listed for the folder wins (two can resolve to one before M1: J-30). {} when no
     // athlete's folder holds it. C++ only (the session report).
-    QVariantMap            reportDetailsForSession(const QString &sessionDir) const;
+    ReportDetails          reportDetailsForSession(const QString &sessionDir) const;
     // Who the current athlete's sessions belong to, as SessionRepository takes it (capture's session
     // folder, through capture::athleteIdentity).
     pinpoint::SessionOwner currentSessionOwner() const;
@@ -153,7 +340,7 @@ public:
     QString      currentSex()        const { return currentField(QStringLiteral("sex")); }
     // Standing height in metres, 0 = unknown. Stored in feet whatever unit the form used.
     double       currentHeightM()    const { return currentField(QStringLiteral("heightValue")).toDouble() * 0.3048; }
-    QVariantList athletes()          const { return m_athletes; }
+    QList<AthleteRow> athletes()     const { return m_athletes; }
     QString      currentReportEmail()      const { return currentField(QStringLiteral("reportEmail")); }
     QString      currentReportGreeting()   const;
     bool         currentIsJunior()         const;
@@ -204,7 +391,8 @@ public:
         const QString &notes       = QString()
     );
 
-    Q_INVOKABLE bool updateAthlete(const QString &uuid, const QString &fieldName, const QVariant &value);
+    // One field of the record, by its stored key, as text (AthleteRecord::setValue reads a number or a flag from it).
+    Q_INVOKABLE bool updateAthlete(const QString &uuid, const QString &fieldName, const QString &value);
 
     // ── Demographics, for norm cohorts ──────────────────────────────────────
     //
@@ -252,8 +440,8 @@ public:
     //
     // reportDetails: { uuid, name, email, greeting, dob, photosApproved, photosApprovedOn } for an
     // athlete found by uuid, else by name (case-insensitive) — the report map names its golfer, and a
-    // session folder knows only the name. Empty map when there is no such athlete.
-    Q_INVOKABLE QVariantMap reportDetails(const QString &uuidOrName) const;
+    // session folder knows only the name. Empty (no uuid) when there is no such athlete.
+    Q_INVOKABLE ReportDetails reportDetails(const QString &uuidOrName) const;
     // Under 18 on the day `sessionMs` (ms since the epoch, local date) falls on. Age is taken on the
     // SESSION's date, so an old session's report does not change when the golfer turns 18. An empty
     // or unparseable dob is NOT a junior (design §7.3: no date of birth is treated as an adult). A
@@ -279,29 +467,35 @@ public:
     // (the date records when consent was GIVEN, not when the box was last pressed); unticking clears it.
     Q_INVOKABLE void setPhotosApproved(const QString &uuid, bool approved);
 
-    Q_INVOKABLE QVariantMap clubsFor(const QString &uuid) const;
+    // The bag in the record's own form (club id → its stored record), for the C++ readers (capture's context, the LM
+    // board). Not QML's: it reads clubRecords / clubRecord.
+    QVariantMap clubsFor(const QString &uuid) const;
+    // The bag, typed, in vocabulary order (bagClubIds' order), and one club of it ("" club: not in the bag).
+    Q_INVOKABLE QList<ClubRecord> clubRecords(const QString &uuid) const;
+    Q_INVOKABLE ClubRecord        clubRecord(const QString &uuid, const QString &clubId) const;
     // "Your distances" for any golfer (shot_outcomes_design.md §7.5), from that athlete's AthleteDiagnostics (the session
     // summaries' club windows; refactor 3.7-f):
     // { items: [the per-club rows, keys as tendencies.h clubDistanceItemToJson writes them],
     //   stale: bool (no summary read yet, or a session with shots not summed up yet), note: "" or why they are not current }.
     // clubDistancesChanged is the cue to read again after a catch-up lands.
-    Q_INVOKABLE QVariantMap clubDistances(const QString &uuid) const;
+    Q_INVOKABLE ClubDistances clubDistances(const QString &uuid) const;
     // The athlete level "Your distances" reads (refactor 3.7-f; main.cpp: the Athlete's AthleteDiagnostics). None: "being
     // worked out".
     void setAthleteLevelDoor(std::function<pinpoint::AthleteLevel *(pinpoint::Athlete *)> door) { m_athleteLevelDoor = std::move(door); }
-    Q_INVOKABLE QVariantMap defaultClubRecord(const QString &clubId) const;  // factory spec defaults (loft/length/shaft)
+    Q_INVOKABLE ClubRecord  defaultClubRecord(const QString &clubId) const;  // factory spec defaults (loft/length/shaft)
     Q_INVOKABLE QStringList clubOptions() const;   // canonical vocabulary (club_vocabulary.h)
     // The athlete's bag: the club ids in their records, in vocabulary order (an id outside the
     // vocabulary sorts first). Empty for no uuid or an empty bag. Not a property, so a QML binding
-    // that calls it reads athleteController.athletes to re-evaluate on every club commit.
+    // that calls it reads athleteController.athletes to re-evaluate on every club commit (a record edit announces it).
     Q_INVOKABLE QStringList bagClubIds(const QString &uuid) const;
     // The athlete's default/preferred club, always resolved to a real bag club:
     // the stored primaryClub (legacy tokens normalised to canonical) if it is in
     // the bag, else "DRIVER" if present, else the first bag club, else "". Read on
     // both the QML side (Home / form pickers) and the C++ side (session seeding).
     Q_INVOKABLE QString effectivePrimaryClub(const QString &uuid) const;
+    // The typed fields laid over the club's stored record, so a key this build does not know is kept.
     Q_INVOKABLE bool setClubRecord(const QString &uuid, const QString &clubId,
-                                   const QVariantMap &record);
+                                   const ClubRecord &record);
     Q_INVOKABLE bool removeClubRecord(const QString &uuid, const QString &clubId);
     // deleteAthlete / selectAthlete answer false when refused while a session runs (see
     // the AppState rule above). deleteAthlete moves the athlete's WHOLE folder, sessions and all, to
@@ -337,27 +531,26 @@ private:
     void reload();                       // re-list the library's athletes, then rebuild()
     void rebuild();                      // the list and the current athlete, from the athletes held
     pinpoint::Athlete *athleteFor(const QString &uuid) const;
-    QVariantMap        mapOf(const pinpoint::Athlete &a) const;
+    AthleteRow         rowOf(const pinpoint::Athlete &a) const;
     static QString computeInitials(const QString &name);
-    static void sortAthletes(QVariantList &list);
-    void applyActivity(int generation, const QHash<QString, pinpoint::AthleteActivity> &byUuid);
+    static void sortAthletes(QList<AthleteRow> &list);
+    // The activity (step 5.7b): every listed athlete followed in the one session list and read once; its rows' change
+    // recomputes the activity (coalesced on the event loop unless synchronous), and the list is rebuilt when one moved.
+    void followAll();
+    void activityMoved();
+    void applyActivity();
 
-    // One field off the CURRENT athlete's record, empty when there is none. Read out of m_athletes
-    // rather than mirrored into a member beside m_currentName: those four are set when the current
+    // One field off the CURRENT athlete's record, empty when there is none. Read off the current Athlete's
+    // record rather than mirrored into a member beside m_currentName: those four are set when the current
     // athlete CHANGES, and a demographic edited in the form changes the record without changing
     // which record is current — a mirror would go stale exactly there.
     QString currentField(const QString &key) const
     {
-        if (m_currentUuid.isEmpty()) return {};
-        for (const QVariant &v : m_athletes) {
-            const QVariantMap a = v.toMap();
-            if (a.value(QStringLiteral("uuid")).toString() == m_currentUuid)
-                return a.value(key).toString();
-        }
-        return {};
+        if (m_currentUuid.isEmpty() || !m_current) return {};
+        return m_current->record().value(key).toString();
     }
 
-    QVariantList m_athletes;
+    QList<AthleteRow> m_athletes;
     QString      m_currentUuid;
     QString      m_currentName;
     QString      m_currentInitials;
@@ -368,8 +561,8 @@ private:
     QList<pinpoint::AthleteId>   m_ids;     // the last list(), in its order
     QPointer<pinpoint::Athlete>  m_current;
     const pinpoint::AppState *m_appState = nullptr;   // the switch rule (R-APP-1), from main.cpp
-    QHash<QString, pinpoint::AthleteActivity> m_activity;   // uuid → last read
-    int  m_activityGeneration = 0;
+    QPointer<pinpoint::SessionListPresenter> m_list;     // the one session list (main.cpp's), not owned
+    QHash<QString, pinpoint::AthleteActivity> m_activity;   // uuid → as the list's rows last gave it
+    bool m_activityArmed = false;
     bool m_syncActivity = false;
-    QThreadPool m_pool;
 };

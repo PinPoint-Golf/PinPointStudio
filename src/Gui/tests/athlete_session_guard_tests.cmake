@@ -36,14 +36,22 @@ set(ATHLETE_TEST_SOURCES
     ${SRC}/Diagnostics/engine/characteristic.cpp
     ${SRC}/Diagnostics/packs/reference_pack.cpp
     ${SRC}/Diagnostics/measures/measure_facets.cpp
-    ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp)
+    ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+    # The one session list: the controller's activity is its rows' (refactor step 5.7b).
+    ${GUI}/session/session_list_presenter.h ${GUI}/session/session_list_presenter.cpp
+    ${GUI}/session/session_list_follow.cpp ${SRC}/Export/session_list_reads.cpp
+    # The Shots' recordings door: the Wrist reference ★ goes through the Session's Shot (step 5.7b). report_list_test's set.
+    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+    ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
+    ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+    ${SRC}/Export/session_archiver.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
 pp_add_test(athlete_session_guard_test
     SOURCES athlete_session_guard_test.cpp athlete_test_library.h ${ATHLETE_TEST_SOURCES}
-    INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis
+    INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis ${SRC}/LaunchMonitor
     LINK    Qt6::Test
     AUTOMOC)
 pp_add_test(athlete_repository_test
     SOURCES athlete_repository_test.cpp athlete_test_library.h ${ATHLETE_TEST_SOURCES}
-    INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis
+    INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis ${SRC}/LaunchMonitor
     LINK    Qt6::Test
     AUTOMOC)

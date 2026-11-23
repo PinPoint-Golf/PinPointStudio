@@ -491,6 +491,10 @@ int main(int argc, char *argv[])
         if (pinpoint::Athlete *a = athleteController.currentAthlete()) { sessionList.follow(a); sessionList.reload(a->id()); }
     });
     followCurrent();   // the athlete current at launch: read on the presenter's own worker thread
+    // THE ATHLETE LIST'S ACTIVITY (refactor step 5.7b): every listed athlete followed in the one session list, read after
+    // the current athlete's group (asked just above, so it lands first); the picker's session counts and Recent order follow
+    // their events from then on.
+    athleteController.setSessionList(&sessionList);
     archiveController.setSessionList(&sessionList, [&sessionList, &athleteStore] {
         QList<pinpoint::AthleteId> ids;
         for (const pinpoint::AthleteId &id : athleteStore.list())

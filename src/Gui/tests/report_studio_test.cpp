@@ -376,28 +376,27 @@ private slots:
         session(folderOf(chris), QStringLiteral("Chris-Marriott"), QStringLiteral("2026-10-24"), true);
 
         a.refreshActivity();
-        const QVariantList list = a.athletes();
+        const QList<AthleteRow> list = a.athletes();
         QCOMPARE(list.size(), 3);
-        const QVariantMap first = list.at(0).toMap(), second = list.at(1).toMap(), third = list.at(2).toMap();
-        QCOMPARE(first.value("uuid").toString(), nick);                // the most recent session first
-        QCOMPARE(first.value("sessionCount").toInt(), 2);              // the empty folder is not a session
-        QCOMPARE(first.value("lastSessionAt").toLongLong(),
-                 QDateTime(QDate(2026, 11, 2), QTime(0, 0)).toSecsSinceEpoch());
-        QCOMPARE(second.value("uuid").toString(), chris);
-        QCOMPARE(second.value("sessionCount").toInt(), 1);
-        QCOMPARE(third.value("uuid").toString(), jess);
-        QCOMPARE(third.value("sessionCount").toInt(), 0);
-        QCOMPARE(third.value("lastSessionAt").toLongLong(), 0LL);
+        const AthleteRow first = list.at(0), second = list.at(1), third = list.at(2);
+        QCOMPARE(first.uuid, nick);                                    // the most recent session first
+        QCOMPARE(first.sessionCount, 2);                               // the empty folder is not a session
+        QCOMPARE(first.lastSessionAt, QDateTime(QDate(2026, 11, 2), QTime(0, 0)).toSecsSinceEpoch());
+        QCOMPARE(second.uuid, chris);
+        QCOMPARE(second.sessionCount, 1);
+        QCOMPARE(third.uuid, jess);
+        QCOMPARE(third.sessionCount, 0);
+        QCOMPARE(third.lastSessionAt, 0LL);
 
         // A session recorded later shows on the next refresh (the picker asks each time it opens),
         // and an edit or a switch keeps the figures read.
         session(folderOf(chris), QStringLiteral("Chris-Marriott"), QStringLiteral("2026-11-03"), true);
         a.refreshActivity();
-        QCOMPARE(a.athletes().first().toMap().value("uuid").toString(), chris);
-        QCOMPARE(a.athletes().first().toMap().value("sessionCount").toInt(), 2);
+        QCOMPARE(a.athletes().first().uuid, chris);
+        QCOMPARE(a.athletes().first().sessionCount, 2);
         a.selectAthlete(nick);
-        QCOMPARE(a.athletes().first().toMap().value("uuid").toString(), chris);
-        QCOMPARE(a.athletes().at(1).toMap().value("sessionCount").toInt(), 2);
+        QCOMPARE(a.athletes().first().uuid, chris);
+        QCOMPARE(a.athletes().at(1).sessionCount, 2);
     }
 
     // ── the golfer's report details on AthleteController ─────────────────────────────────────────
@@ -412,16 +411,17 @@ private slots:
             QVERIFY(!uuid.isEmpty());
             QVERIFY(a.updateAthlete(uuid, "reportEmail", QStringLiteral("nick@example.com, parent@example.co.uk")));
             QVERIFY(a.updateAthlete(uuid, "dob", QStringLiteral("2012-03-04")));
-            const QVariantMap d = a.reportDetails(uuid);
-            QCOMPARE(d.value("uuid").toString(), uuid);
-            QCOMPARE(d.value("name").toString(), QStringLiteral("Nick Henn"));
-            QCOMPARE(d.value("email").toString(), QStringLiteral("nick@example.com, parent@example.co.uk"));
-            QCOMPARE(d.value("greeting").toString(), QStringLiteral("Nick"));      // first word of the name
-            QCOMPARE(d.value("dob").toString(), QStringLiteral("2012-03-04"));
-            QCOMPARE(d.value("photosApproved").toBool(), false);
-            QVERIFY(d.value("photosApprovedOn").toString().isEmpty());
+            const ReportDetails d = a.reportDetails(uuid);
+            QCOMPARE(d.uuid, uuid);
+            QCOMPARE(d.name, QStringLiteral("Nick Henn"));
+            QCOMPARE(d.email, QStringLiteral("nick@example.com, parent@example.co.uk"));
+            QCOMPARE(d.greeting, QStringLiteral("Nick"));      // first word of the name
+            QCOMPARE(d.dob, QStringLiteral("2012-03-04"));
+            QCOMPARE(d.photosApproved, false);
+            QVERIFY(d.photosApprovedOn.isEmpty());
+            QCOMPARE(d.toMap().value("greeting").toString(), QStringLiteral("Nick"));   // the report's own form
             // The current athlete (saveAthlete selects a new one) mirrors them.
-            QCOMPARE(a.currentReportEmail(), d.value("email").toString());
+            QCOMPARE(a.currentReportEmail(), d.email);
             QCOMPARE(a.currentReportGreeting(), QStringLiteral("Nick"));
             QVERIFY(a.currentIsJunior());
             QVERIFY(a.updateAthlete(uuid, "reportGreeting", QStringLiteral("Nicky")));
@@ -429,9 +429,9 @@ private slots:
         AthleteController b;                                   // a fresh reload() sees all of it
         b.setSynchronousActivity(true);
         b.setCallables(callablesOver(*lib.athletes), &lib.sessions);
-        QVariantMap d = b.reportDetails(QStringLiteral("  nick henn "));
-        QCOMPARE(d.value("uuid").toString(), uuid);
-        QCOMPARE(d.value("greeting").toString(), QStringLiteral("Nicky"));
+        ReportDetails d = b.reportDetails(QStringLiteral("  nick henn "));
+        QCOMPARE(d.uuid, uuid);
+        QCOMPARE(d.greeting, QStringLiteral("Nicky"));
         QCOMPARE(b.currentReportGreeting(), QStringLiteral("Nicky"));
         QVERIFY(b.reportDetails(QStringLiteral("Nobody")).isEmpty());
         QVERIFY(b.reportDetails(QString()).isEmpty());
@@ -442,18 +442,18 @@ private slots:
         QVERIFY(spy.count() > 0);
         const QString today = QDate::currentDate().toString(Qt::ISODate);
         d = b.reportDetails(uuid);
-        QCOMPARE(d.value("photosApproved").toBool(), true);
-        QCOMPARE(d.value("photosApprovedOn").toString(), today);
+        QCOMPARE(d.photosApproved, true);
+        QCOMPARE(d.photosApprovedOn, today);
         QVERIFY(b.currentPhotosApproved());
         QCOMPARE(b.currentPhotosApprovedOn(), today);
         // backdate the stored date, then tick again: the date the consent was given survives
         QVERIFY(b.updateAthlete(uuid, "reportPhotosApprovedOn", QStringLiteral("2026-01-02")));
         b.setPhotosApproved(uuid, true);
-        QCOMPARE(b.reportDetails(uuid).value("photosApprovedOn").toString(), QStringLiteral("2026-01-02"));
+        QCOMPARE(b.reportDetails(uuid).photosApprovedOn, QStringLiteral("2026-01-02"));
         b.setPhotosApproved(uuid, false);
         d = b.reportDetails(uuid);
-        QCOMPARE(d.value("photosApproved").toBool(), false);
-        QVERIFY(d.value("photosApprovedOn").toString().isEmpty());
+        QCOMPARE(d.photosApproved, false);
+        QVERIFY(d.photosApprovedOn.isEmpty());
         b.setPhotosApproved(QStringLiteral("no-such-uuid"), true);    // no record is created
         QCOMPARE(b.athletes().size(), 1);
 
@@ -552,9 +552,10 @@ private slots:
         QVariantMap bag;
         for (const char *id : {"PUTTER", "7 IRON", "DRIVER", "SAND WEDGE", "3 WOOD", "MYSTERY"})
             bag.insert(QString::fromLatin1(id), QVariantMap{});
-        QVERIFY(a.updateAthlete(uuid, "clubs", bag));
+        pinpoint::Athlete *held = lib.athletes->load(pinpoint::AthleteId::fromString(uuid));   // the bag's own command (the
+        QVERIFY(held && held->editBag(bag).ok());                                                 // text-valued updateAthlete: 5.7b)
         QCOMPARE(a.bagClubIds(uuid), (QStringList{"MYSTERY", "DRIVER", "3 WOOD", "7 IRON", "SAND WEDGE", "PUTTER"}));
-        QVERIFY(a.updateAthlete(uuid, "clubs", QVariantMap{}));
+        QVERIFY(held->editBag(QVariantMap{}).ok());
         QVERIFY(a.bagClubIds(uuid).isEmpty());
     }
 };

@@ -79,6 +79,9 @@ pp_add_test(update_controller_policy_test
             ${SRC}/Diagnostics/packs/reference_pack.cpp
             ${SRC}/Diagnostics/measures/measure_facets.cpp
             ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+            # The one session list: athlete_controller.cpp's activity is its rows' (refactor step 5.7b).
+            ${SRC}/Gui/session/session_list_presenter.h ${SRC}/Gui/session/session_list_presenter.cpp
+            ${SRC}/Gui/session/session_list_follow.cpp ${SRC}/Export/session_list_reads.cpp
     # Diagnostics -> Metrics -> Analysis, all three: metric_reducer.h includes swing_analysis.h
     # non-relatively. Same reason as NORM_INC in src/Analysis/tests/CMakeLists.txt.
     INCLUDE ${UPDATE} ${SRC}/Core ${SRC}/Gui/app ${SRC}/Gui/session ${SRC}/Gui/athlete
