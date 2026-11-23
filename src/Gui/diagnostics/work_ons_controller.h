@@ -660,8 +660,14 @@ private:
     QVariantMap  m_lastSession;
     QVariantList m_areaItems;          // publish()'s, stored: QML reads it many times per frame
 
-    // Lazily made; mutable so conditionLabel() (const) can make it on first need.
+    // THE PACK FOLLOWS ITS SAVES (refactor 5.7e; EVT-13): a view of RuleData's current pack, made again (and the
+    // outcome pack marshalled from it dropped) whenever RuleData has published another since (followPackSave). Mutable so
+    // conditionLabel() (const) can take it. m_packOf is the snapshot's provider it was made over: the key, held, so an
+    // address is never reused under it.
     mutable std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_packProv;
+    mutable std::shared_ptr<const pinpoint::analysis::ICharacteristicPackProvider> m_packOf;
+    void followPackSave() const;
+    void onPackChanged();
     QThreadPool m_pool;
 
     // ── Your swing ──

@@ -576,15 +576,18 @@ int swingNumberOfFolder(const QString &swingDir)
 
 SessionDiagnosticsModel::SessionDiagnosticsModel(QObject *parent)
     : QObject(parent)
-    , m_packProv(makeCharacteristicPackProvider())
 {
+    followPackSave();
     followNormSave();
+    // EVT-13 PackChanged (refactor 5.7e): the surfaces are made again from the new pack at once. The owner's re-fire
+    // (SessionDiagnostics follows the same event) lands through the link and rebuilds again, over the same pack.
+    if (pinpoint::RuleData *rd = pinpoint::RuleData::installed())
+        connect(rd, &pinpoint::RuleData::packChanged, this, [this](const QString &) { rebuild(); });
     // Two pools of one (refactor 5.4b: the old engine's detection and freeze pools went with it): the history read, so
     // reading other sessions never waits on a shot's save; and the forwarded edit's save lane (SaveLater, D25/DEC-183:
     // a swing file rewrite off the GUI thread, a shot's edits landing in the order they were made).
     m_historyPool.setMaxThreadCount(1);
     m_reviewPool.setMaxThreadCount(1);
-    if (m_packProv) m_outcomePack = shotOutcomePackFor(&m_packProv->pack());
     rebuild();
 }
 
@@ -743,6 +746,19 @@ int SessionDiagnosticsModel::patternCount() const
 }
 
 // ── Ingest ──────────────────────────────────────────────────────────────────────────────
+
+// A saved pack edit since the view was made (RuleData published another pack): the view and the outcome pack
+// marshalled from it are made again. GUI thread.
+bool SessionDiagnosticsModel::followPackSave()
+{
+    const std::shared_ptr<const pinpoint::RuleDataSnapshot> now = pinpoint::RuleData::current();
+    if (m_packProv && now->pack == m_packOf) return false;
+    m_packOf      = now->pack;
+    m_packProv    = makeCharacteristicPackProvider();
+    m_outcomePack = shotOutcomePackFor(&m_packProv->pack());
+    m_outcomesDirty = true;
+    return true;
+}
 
 bool SessionDiagnosticsModel::followNormSave()
 {
@@ -1512,6 +1528,8 @@ void SessionDiagnosticsModel::adoptClubBaseline(const QHash<QString, ClubBaselin
 
 void SessionDiagnosticsModel::rebuild()
 {
+    followPackSave();           // the newest saved pack and norm set (refactor 5.7e), before anything reads them
+    followNormSave();
     m_outcomesDirty = true;     // the shot outcomes are composed on their next read
     // THE THIN ADAPTER (3.7-a): the ledgers, the links and the stage are the owner's (mirrorOwner) — nothing is
     // reduced here. Only the view half runs: the session-scope readout (its ledgers are already the owner's), the

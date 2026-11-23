@@ -697,10 +697,23 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
 
 LmSessionModel::LmSessionModel(QObject *parent)
     : QAbstractListModel(parent)
-    , m_pack(makeCharacteristicPackProvider())
     , m_policyName(QStringLiteral("standard"))
 {
+    followPackSave();
     followNormSave();
+    // EVT-13 PackChanged (refactor 5.7e): the board grades again against the new pack at once.
+    if (pinpoint::RuleData *rd = pinpoint::RuleData::installed())
+        connect(rd, &pinpoint::RuleData::packChanged, this, [this](const QString &) { rebuild(); });
+}
+
+// A saved pack edit since the view was made (RuleData published another pack): make it again. GUI thread.
+void LmSessionModel::followPackSave()
+{
+    const std::shared_ptr<const pinpoint::RuleDataSnapshot> now = pinpoint::RuleData::current();
+    if (m_pack && now->pack == m_packOf)
+        return;
+    m_packOf = now->pack;
+    m_pack   = makeCharacteristicPackProvider();
 }
 
 // A corridor edit saved since the set was taken (ModelBrowser::save() resets the shared set and moves
@@ -992,7 +1005,8 @@ QString LmSessionModel::shotEmptyText() const
 
 void LmSessionModel::rebuild()
 {
-    // The grade pass: everything below grades against one norm set, the newest saved one.
+    // The grade pass: everything below grades against one pack and one norm set, the newest saved ones.
+    followPackSave();
     followNormSave();
     beginResetModel();
     m_bands.clear();

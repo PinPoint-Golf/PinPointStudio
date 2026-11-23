@@ -912,6 +912,61 @@ static void testPackEditRefires()
     check(QStringLiteral("EVT13c …and each wrote what it kept"), da->counts().writes > writesA && db->counts().writes > writesB);
 }
 
+// EVT13v (refactor 5.7e): the PANEL follows a saved pack edit at once, in the same process. Its adapter, bound before the
+// edit, had kept the pack it took when it was made; now it re-takes RuleData's new one and makes its surfaces again on the
+// event. The edit renames an outcome the panel offers as a miss. This test's RuleData is installed as the process's one
+// while the adapter is made (the panel reads RuleData::current(), as the app's does), and the process's is put back after.
+static void testPackEditReachesThePanel()
+{
+    std::printf("\nEVT13v — a pack edit reaches the Session diagnostics panel at once (5.7e)\n");
+    QTemporaryDir data;   // the edit's files land here, never in the user's own diagnostics folder
+    RuleData rules(makeRuleDataRepository(data.path()));
+    RuleData *process = RuleData::installed();
+    RuleData::install(&rules);
+    {
+        Rig rig(0, &rules);
+        Session *a = endedSession(rig);
+        SessionDiagnosticsModel *panel = a ? rig.adapters->of(a, QStringLiteral("panel")) : nullptr;
+        const analysis::Condition *miss = nullptr;
+        for (const analysis::Condition &c : rules.snapshot()->pack->pack().conditions)
+            if (c.kind == analysis::ConditionKind::Outcome) { miss = &c; break; }
+        if (!panel || !miss) {
+            check(QStringLiteral("EVT13v pre: an ended session's panel and a shipped outcome"), false);
+        } else {
+            panel->addView();
+            panel->activateSession(a->entry() ? a->entry()->folder : QString());
+            spin();
+            const auto missName = [panel, miss] {
+                for (const QVariant &v : panel->missCandidates()) {
+                    const QVariantMap c = v.toMap();
+                    if (c.value(QStringLiteral("id")).toString() == miss->id) return c.value(QStringLiteral("name")).toString();
+                }
+                return QString();
+            };
+            check(QStringLiteral("EVT13v-a the panel offers the miss in the shipped words (\"%1\")").arg(missName()),
+                  !missName().isEmpty() && missName() == (miss->label.isEmpty() ? miss->id : miss->label));
+            int surfaces = 0;
+            QObject::connect(panel, &SessionDiagnosticsModel::surfaceChanged, panel, [&surfaces] { ++surfaces; });
+            analysis::CharacteristicPack user;
+            user.id      = QStringLiteral("user");
+            user.version = QStringLiteral("1");
+            analysis::Condition renamed = *miss;
+            renamed.label = QStringLiteral("An outcome renamed by diag_stage_panel_test");
+            user.conditions.push_back(renamed);
+            QString why;
+            check(QStringLiteral("EVT13v-b the rename is saved through RuleData's command (EVT-13)"), rules.saveUserPack(user, &why));
+            check(QStringLiteral("EVT13v-c the panel made its surfaces again on the event, at once (%1 times)").arg(surfaces),
+                  surfaces >= 1);
+            check(QStringLiteral("EVT13v-d …and offers the miss in the new words (\"%1\"), the pack it kept at first use gone").arg(missName()),
+                  missName() == renamed.label);
+            Rig::settled(a->diagnostics());
+            check(QStringLiteral("EVT13v-e …and still after the owner's re-fire lands"), missName() == renamed.label);
+            panel->dropView();
+        }
+    }
+    RuleData::install(process);
+}
+
 // EVT13n (refactor 5.4a; the old model test's "a saved corridor edit regrades an open session"): a NORM edit through
 // RuleData's command publishes ONE EVT-12, and every loaded session's owner re-fires every shot under the new snapshot.
 static void testNormEditRefires()
@@ -1587,6 +1642,7 @@ int main(int argc, char **argv)
     testLiveBaselineAppOrder();
     testUse();
     testPackEditRefires();
+    testPackEditReachesThePanel();
     testNormEditRefires();
     testArchive();
     testArchiveEvents();

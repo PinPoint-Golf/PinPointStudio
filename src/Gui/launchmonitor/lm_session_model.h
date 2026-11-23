@@ -374,12 +374,15 @@ private:
     bool          m_focusFound = false;        // the focused shot is in the list
     bool          m_headlineHasReadings = false;   // the shot the board headlines carries a reading
 
-    // The two registries a corridor comes from. The pack is this object's own, assembled once. The norm
-    // provider is the process-wide cached snapshot, so a board opening costs no file read; a saved
-    // corridor edit moves sharedNormProviderGeneration(), and the next grade pass (rebuild(), on the
-    // GUI thread) re-takes the set before it grades (followNormSave). Until then the board shows the
-    // grades it last drew.
+    // The two registries a corridor comes from. The pack is a view of RuleData's current one: a saved pack
+    // edit (EVT-13) publishes another, and the board re-takes it and grades again at once (followPackSave,
+    // refactor 5.7e); m_packOf is the provider it was made over, held, the key. The norm provider is the
+    // process-wide cached snapshot, so a board opening costs no file read; a saved corridor edit moves
+    // sharedNormProviderGeneration(), and the next grade pass (rebuild(), on the GUI thread) re-takes the
+    // set before it grades (followNormSave). Until then the board shows the grades it last drew.
     std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_pack;
+    std::shared_ptr<const pinpoint::analysis::ICharacteristicPackProvider> m_packOf;
+    void                                                             followPackSave();
     std::shared_ptr<const pinpoint::analysis::INormProvider>         m_norms;
     quint64                                                          m_normsGeneration = 0;
     void                                                             followNormSave();

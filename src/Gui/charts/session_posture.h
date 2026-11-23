@@ -317,10 +317,11 @@ struct PostureEnv {
 PostureEnv postureEnv(const analysis::CharacteristicPack *pack,
                       std::shared_ptr<const analysis::INormProvider> norms,
                       const analysis::GradePolicy &policy = {});
-// The shipped pack (makeCharacteristicPackProvider) and sharedNormProvider(), built on first use.
-// A SNAPSHOT: hold the pointer for the whole pass, so one pass reads one norm set. The pack is built
-// once for the process; the norm half is made again when the shared norm set has moved (a corridor
-// saved in the Diagnostic Model), so the next pass after a save reads the new corridors. The norm half
+// RuleData's current pack and sharedNormProvider(), built on first use.
+// A SNAPSHOT: hold the pointer for the whole pass, so one pass reads one pack and one norm set. It is made
+// again when RuleData has published another pack (a saved pack edit, EVT-13: refactor 5.5a) or the shared
+// norm set has moved (a corridor saved in the Diagnostic Model), so the next pass after a save reads the
+// new ones. The norm half
 // is safe on any thread, and so is the pack half since refactor step 3.2: the pack is a view of RuleData's
 // snapshot, built at launch, so nothing is first built here on a worker (audit B-03 closed for the pack).
 std::shared_ptr<const PostureEnv> postureSharedEnv();

@@ -2290,6 +2290,49 @@ static void checkReportStampsAcrossAthletes(const QString &root)
 }
 
 // R2-m2 (J-56): the dev folder's Athlete never takes an id the store already holds; it uses the store's Athlete.
+// ── A SAVED PACK EDIT REACHES THE WORK-ONS WITHOUT A RELAUNCH (refactor 5.7e; EVT-13) ────────────────────────────────────
+// A RuleData of this test's own, over a scratch user folder (never the real AppData), installed as the process's one while
+// the controller is made, so its EVT-13 connection is to it. One user pack renames a condition the list words; RuleData's
+// command publishes it (a real snapshot, not a bare emit). The controller, made BEFORE the edit, then answers in the new
+// words and re-published on the event, in this process. (The Session diagnostics panel's half: diag_stage_panel_test.)
+static void checkPackEditFollows(const QString &root)
+{
+    std::printf("\nA saved pack edit (EVT-13) reaches the work-ons, no relaunch (5.7e)\n");
+    pinpoint::RuleData *process = pinpoint::RuleData::installed();
+    const QString userDir = root + QStringLiteral("/pack_edit_user");
+    QDir().mkpath(userDir);
+    pinpoint::RuleData mine(pinpoint::makeRuleDataRepository(userDir));
+    pinpoint::RuleData::install(&mine);
+    {
+        const std::shared_ptr<const pinpoint::RuleDataSnapshot> before = mine.snapshot();
+        const CharacteristicPack &shipped = before->pack->pack();
+        const Condition *listed = shipped.condition(QStringLiteral("sway"));
+        check(listed, "the shipped pack has the listed condition (sway)");
+        if (listed) {
+            WorkOnsController w;
+            check(w.conditionLabel(listed->id) == listed->label, "the controller words the condition from the shipped pack");
+            int items = 0, summary = 0;
+            QObject::connect(&w, &WorkOnsController::itemsChanged, [&items] { ++items; });
+            QObject::connect(&w, &WorkOnsController::summaryChanged, [&summary] { ++summary; });
+
+            CharacteristicPack user;
+            user.id      = QStringLiteral("user");
+            user.version = QStringLiteral("1");
+            Condition a = *listed;
+            a.label = QStringLiteral("Sway, renamed by 5.7e");
+            user.conditions.push_back(a);
+            QString why;
+            check(mine.saveUserPack(user, &why), "the rename is saved through RuleData's command (EVT-13)");
+            check(mine.snapshot() != before && mine.snapshot()->pack->pack().condition(listed->id)->label == a.label,
+                  "…which published a new snapshot holding it");
+            check(w.conditionLabel(listed->id) == a.label,
+                  "WorkOnsController, made before the edit, words the condition from the new pack (was its first-use copy)");
+            check(items >= 1 && summary >= 1, "…and re-published its list and Your swing on the event, at once");
+        }
+    }
+    pinpoint::RuleData::install(process);
+}
+
 static void checkDevAthlete(const QString &root)
 {
     std::printf("\nthe PINPOINT_WORKONS_DIR folder's Athlete (J-56, R2-m2)\n");
@@ -2832,6 +2875,7 @@ int main(int argc, char **argv)
     checkSwitchEmpties(tmp.path());
     checkReportStampsAcrossAthletes(tmp.path());
     checkDevAthlete(tmp.path());
+    checkPackEditFollows(tmp.path());
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;

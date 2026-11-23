@@ -181,6 +181,32 @@ WorkOnsController::WorkOnsController(QObject *parent)
 {
     m_pool.setMaxThreadCount(1);
     m_filterOptions = shotFilterOptionsFor(m_filter);      // Any alone, until there are tendencies to count
+    // EVT-13 PackChanged (refactor 5.7e): the process's RuleData, the one main.cpp installs before this is made.
+    if (pinpoint::RuleData *rd = pinpoint::RuleData::installed())
+        connect(rd, &pinpoint::RuleData::packChanged, this, [this](const QString &) { onPackChanged(); });
+}
+
+// The view of RuleData's current pack, made again when another has been published since it was made; the outcome pack
+// marshalled from the old one goes with it. GUI thread (RuleData publishes there too).
+void WorkOnsController::followPackSave() const
+{
+    const std::shared_ptr<const pinpoint::RuleDataSnapshot> now = pinpoint::RuleData::current();
+    if (m_packProv && now->pack == m_packOf) return;
+    m_packOf   = now->pack;
+    m_packProv = makeCharacteristicPackProvider();
+    m_outcomePack.reset();
+}
+
+// A saved pack edit (EVT-13): the words shown are made again from the new pack — the list, its areas and screens, Your
+// swing and the tendencies' columns. The records are NOT re-derived here: the rule stamp moved with the snapshot, so the
+// scan finds every summary stale at its own triggers (Home shown, an athlete switch) and the catch-up brings them up to
+// date then, never once per editor save. While the scan, the catch-up or a live session runs, it waits for their publish.
+void WorkOnsController::onPackChanged()
+{
+    followPackSave();
+    if (m_scanning || m_deriving || m_paused || !m_queue.isEmpty()) { m_ownerDirty = true; return; }
+    publish();
+    publishSummary();
 }
 
 WorkOnsController::~WorkOnsController()
@@ -762,7 +788,7 @@ const QHash<QString, SessionWorkOns> &WorkOnsController::shownRecords() const
 
 void WorkOnsController::publishScreens(const DescribedWorkOns *known)
 {
-    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+    followPackSave();
     const CharacteristicPack &pack = m_packProv->pack();
 
     const QHash<QString, SessionWorkOns> &records = shownRecords();
@@ -802,7 +828,7 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
                                                                       const std::vector<WorkOnSummary> &agg,
                                                                       const ShownOutcome *outcome)
 {
-    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+    followPackSave();
     const CharacteristicPack &pack = m_packProv->pack();
     const DrillSet &drills = sharedDrillSet();
 
@@ -1543,7 +1569,7 @@ void WorkOnsController::publishSummary()
         m_togetherNote.clear();
     }
     if (m_summaryReady) {
-        if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+        followPackSave();
         // THE PRAISE RULE (refactor step 3.6; 04 step 3 item 5; D23): "what you do well" keeps a condition only when its
         // consistency grade — the mark Your swing shows beside it — is Repeatable or Grooved; ungraded is not praised
         // (still shown in range in its area). Applied to the stored ranked list before the view caps it.
@@ -1632,10 +1658,9 @@ void WorkOnsController::publishSummary()
 
 const ShotOutcomePack &WorkOnsController::outcomePack() const
 {
-    if (!m_outcomePack) {
-        if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+    followPackSave();   // drops the outcome pack when the pack it was marshalled from has been replaced
+    if (!m_outcomePack)
         m_outcomePack = std::make_unique<ShotOutcomePack>(shotOutcomePackFor(&m_packProv->pack()));
-    }
     return *m_outcomePack;
 }
 
@@ -1866,7 +1891,7 @@ QString WorkOnsController::onTheBallFor(const QString &conditionId) const
 QString WorkOnsController::conditionLabel(const QString &id) const
 {
     if (id.isEmpty()) return QString();
-    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+    followPackSave();
     return packLabel(m_packProv->pack(), id);
 }
 

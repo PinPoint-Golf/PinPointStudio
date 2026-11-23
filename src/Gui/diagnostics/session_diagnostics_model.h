@@ -914,10 +914,15 @@ private:
     pinpoint::analysis::Stage effectiveStage() const;
 
     // ── Owned registries ────────────────────────────────────────────────────────────
+    // The pack: a view of RuleData's current one, made again (with m_outcomePack) when a saved pack edit (EVT-13) has
+    // published another — at the next rebuild() and at once on the event (followPackSave, refactor 5.7e). m_packOf is the
+    // provider it was made over, held, the key. Only on the GUI thread.
     std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_packProv;
+    std::shared_ptr<const pinpoint::analysis::ICharacteristicPackProvider> m_packOf;
+    bool    followPackSave();
     std::shared_ptr<const pinpoint::analysis::INormProvider>         m_norms;
     // The shared norm set's generation m_norms was taken at (sharedNormProviderGeneration()). A saved
-    // corridor edit moves it; the next activation re-takes the set (followNormSave), the content stamp
+    // corridor edit moves it; the next rebuild() re-takes the set (followNormSave), the content stamp
     // moves with the norms it hashes, and the rows graded under the old set regrade through the
     // existing stale-stamp path. Only on the GUI thread, with no detection job in flight.
     quint64 m_normsGeneration = 0;

@@ -47,6 +47,8 @@
 #include "norms/context_tree.h"
 #include "norms/metric_corridor.h"
 #include "packs/pack_provider.h"
+#include "packs/characteristic_pack.h"      // measuresForMetricAtPhase (P, refactor 5.7e)
+#include "measures/measure_vocabulary.h"   // measureKeyLadder
 
 #include <QCoreApplication>
 #include <QDir>
@@ -523,6 +525,62 @@ int main(int argc, char **argv)
         }
         QFile::remove(analysis::userNormPath());
         analysis::resetSharedNormProvider();
+    }
+
+    {
+        std::printf("\nP — a saved pack edit (EVT-13) reaches a board made before it, at once (refactor 5.7e)\n");
+        // The user pack lives under AppDataLocation: this run's own temporary directory, as in N.
+        QStandardPaths::setTestModeEnabled(true);
+        const QString dataBase = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+        QDir().mkpath(dataBase);
+        QTemporaryDir runDir(dataBase + QStringLiteral("/lm_session_model_test-XXXXXX"));
+        QCoreApplication::setOrganizationName(QString());
+        QCoreApplication::setApplicationName(QFileInfo(runDir.path()).fileName());
+        RuleData &rules = pinpoint::installProcessRuleData();
+        rules.reload();   // the data location just moved
+        check("P0 the user pack goes in this run's own temporary directory",
+              runDir.isValid()
+                  && QFileInfo(analysis::userPackPath()).absolutePath().startsWith(QFileInfo(runDir.path()).absoluteFilePath()));
+
+        ShotListModel shots;
+        for (int i = 0; i < 11; ++i)
+            addShot(shots, QStringLiteral("7 IRON"), QVariantMap{ { QStringLiteral("lm.clubPath"), -1.0 + 0.2 * (i % 5) } });
+        LmSessionModel board;
+        board.setDetailReader(&detailOf);
+        board.setReviewing(true);
+        board.setShotModel(&shots);
+        const QVariantMap path0 = varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath");
+        check(QStringLiteral("P1 7 iron path graded against its corridor (\"%1\")").arg(path0.value(QStringLiteral("basisText")).toString()),
+              path0.value(QStringLiteral("graded")).toBool()
+                  && path0.value(QStringLiteral("basisText")).toString().contains(QLatin1String("of corridor")));
+
+        // The edit: no measure reads the device's club path any more (each one that did, replaced by id in the user
+        // layer), so the board has no corridor to grade it against.
+        analysis::CharacteristicPack user;
+        user.id      = QStringLiteral("user");
+        user.version = QStringLiteral("1");
+        for (const analysis::Measure &m : rules.snapshot()->pack->pack().measures) {
+            if (!analysis::measureKeyLadder(m).contains(QStringLiteral("lm.clubPath"))) continue;
+            analysis::Measure c = m;
+            c.preferKeys.removeAll(QStringLiteral("lm.clubPath"));
+            if (c.metricKey == QStringLiteral("lm.clubPath")) c.metricKey = QStringLiteral("clubPath");
+            user.measures.push_back(c);
+        }
+        int resets = 0;
+        QObject::connect(&board, &QAbstractItemModel::modelReset, [&resets] { ++resets; });
+        QString why;
+        check(QStringLiteral("P2 the edit (%1 measures) is saved through RuleData's command").arg(int(user.measures.size())),
+              !user.measures.empty() && rules.saveUserPack(user, &why));
+        check("P3 …and the new snapshot has no measure reading lm.clubPath at impact",
+              analysis::measuresForMetricAtPhase(rules.snapshot()->pack->pack(), QStringLiteral("lm.clubPath"),
+                                                 analysis::Phase::Impact).empty());
+        // No grade pass asked: the event alone.
+        const QVariantMap path1 = varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath");
+        check(QStringLiteral("P4 the board graded again on the event, against the new pack (\"%1\" -> \"%2\")")
+                  .arg(path0.value(QStringLiteral("basisText")).toString(), path1.value(QStringLiteral("basisText")).toString()),
+              resets >= 1 && !path1.value(QStringLiteral("basisText")).toString().contains(QLatin1String("of corridor")));
+        QFile::remove(analysis::userPackPath());
+        rules.reload();
     }
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
