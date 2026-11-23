@@ -1940,4 +1940,4 @@ The decisions and judgement calls each sentence follows. A decision's full text 
 [^sa-staging]: Solution Architect, 23 Nov 2026: the print renders into the cache staging folder and the `Session` moves the PDF into the session, so the `Session` is the PDF's one writer.
 [^sa-shot-changed]: Solution Architect, 23 Nov 2026.
 
-[^sa-r-ins-5]: Solution Architect, 23 Nov 2026: ranking applies to metrics a device reports; a metric no device reports is estimated from all the evidence, not picked from one input. The low point (no supported launch monitor reports it) is the first case. Its estimator and an audit of every derived metric against R-INS-5 follow the refactor (GitHub 229 and 230).
+[^sa-r-ins-5]: Solution Architect, 23 Nov 2026: ranking applies to metrics a device reports; a metric no device reports is estimated from all the evidence, not picked from one input. The low point (no supported launch monitor reports it) is the first case. Its estimator and an audit of every derived metric against R-INS-5 follow the refactor (GitHub #229 and #230).
