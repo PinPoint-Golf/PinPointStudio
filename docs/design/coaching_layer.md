@@ -324,6 +324,24 @@ Further modalities fit the same core with little new structure: a pre-round warm
 - [ ] **Review-package format and privacy.** File format, what is included by default, and how a coach identity is represented without a server.
 - [ ] **Release cut for January 2027.** Proposed: lesson, supervised practice and Watch Me Play (sim) first; fire-fighting next; asynchronous review last, with the package format fixed early.
 
+## Where this meets today's product rules
+
+Several ideas above run into rules the product already holds. None is necessarily wrong, but each one changes a settled decision, so it needs an explicit answer rather than a quiet drift. Each item names the rule, what the coaching layer would change, a possible way through, and who decides.
+
+| # | Today's rule | What the coaching layer changes | A possible way through | Decides |
+| --- | --- | --- | --- | --- |
+| T1 | **Show with a warning, never hide.** Every reading is shown with its trust warning; an app that withholds is worthless[^show-never-hide] | Practice and play profiles hide most metrics; PRA-R4 hides the ball outcome in the acquire block | The profile decides what is *in front of* the golfer while they swing; every number stays one tap away, consistent with principle 1 ("every number remains available on demand"). The rule is reworded to separate *withheld* (never) from *not foregrounded* (by design) | Product Owner |
+| T2 | **PPS never models shot intent.** It reports what it saw; intent is a coaching judgement, and no finding is excused by a declared intent[^no-intent] | WMP-03, WMP-R6 and principle 6 capture stated intent and judge the outcome against it | Stated intent is recorded as a *golfer fact* on the play shot, used only for the play debrief and decision review. It never excuses, suppresses or re-grades a diagnostics finding. The rule is reworded rather than silently overridden | Product Owner, with the Coaching Lead |
+| T3 | **There are no warm-up shots.** Golfers warm up before a session; every shot counts in full in every reduction[^no-warm-up] | LES-R3, LES-02, PRA-02 and the warm-up modality speak of swings "before warm-up" | A cold retest is a deliberate, labelled *test* with its own record, not a status of the session's first shots. No shot-position weighting or skipping returns to any reduction. The note's wording should say "cold test", not "before warm-up" | Product Owner |
+| T4 | **Speech is for instructions only.** Spoken output tells the golfer what to do next; never verdicts, readings or statuses[^tts-instructions] | PRA-03, PRA-05 and PRA-12: spoken verdicts and "how was that?" answers during hands-free practice | Either the rule widens for hands-free practice only, with verdicts spoken under a named feedback profile, or verdicts stay visual (one large verdict, as PRA-R14 already says) and speech keeps to prompts | Product Owner |
+| T5 | **Analysis is session-agnostic.** Stages and metric providers gate on the data and devices available, never on the session type[^session-agnostic] | Five modalities, each with its own feedback profile; play shots kept apart from practice statistics (WMP-R1) | Modalities change only feedback, reductions and what is shown. No analysis stage or metric provider may branch on the modality. State this as a principle of the layer | Solution Architect |
+
+**Structure, for when the design moves beyond thinking.**
+- **The name.** "Coaching layer" overlaps the existing `src/Coaching` code (a rules directory) and the Coaching Lead role. A different name, or an explicit note on the difference, avoids confusion in code and governance.
+- **Placement in the rings.** The information model's rings are Platform, Vocabulary, Rules, Domain model, Application and Adapters (`docs/developer/information_model.md` §4). Most of this layer is domain and application: the golfer model, the work-on lifecycle, the playbook and practice logs, owned at the athlete and session levels. The intervention library, tests and feedback policies are rule data, governed like the diagnostics packs. A new ring is probably not needed.
+- **Approval.** Every new object, file and event here (the golfer model, the work-on lifecycle, PlayShot, PracticeLog, the playbook, the review package) is an information-model change, so the Solution Architect approves it before it is built. The existing work-ons, Tendencies and session summaries are the starting point, not a parallel structure.
+- **The refactor freeze.** Nothing here is built until the current refactor is complete.
+
 ## Literature to resolve before citing
 
 These references were recalled, not looked up. Each must be resolved against CrossRef or PubMed before entering `references.json`.
@@ -342,3 +360,9 @@ These references were recalled, not looked up. Each must be resolved against Cro
 | Learning versus performance | Soderstrom & Bjork, 2015 | Retention and transfer gates |
 | Strokes gained | Broadie, 2012 | Shots lost by domain |
 | Constraints-led approach | Renshaw, Davids et al. | Constraint-type interventions |
+
+[^show-never-hide]: Product Owner, 22 Oct 2026: a product-wide principle; trust indicates how far a reading can be relied on, and nothing is hidden for being unreliable.
+[^no-intent]: Product Owner, 17 Oct 2026: intent is a coaching decision, not PPS's; it stays honest and reports what it saw.
+[^no-warm-up]: Product Owner, 9 Nov 2026 (and the 7 Nov ruling R13): the half-weighted first shots of the original diagnostics design were removed.
+[^tts-instructions]: Product Owner, 27 Oct 2026: speech is used only for instructions, reusing the existing TTS controller.
+[^session-agnostic]: Product Owner, settled before the refactor: analysis gates on data and devices, never on session type.
