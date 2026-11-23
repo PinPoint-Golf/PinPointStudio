@@ -21,7 +21,8 @@
 // a ShotListModel* property, and a pointer meta-type has to point at a complete type.
 #include "shot_list_model.h"
 
-#include <QAbstractListModel>
+#include <QList>
+#include <QObject>
 #include <QPointer>
 
 #include <functional>
@@ -90,14 +91,135 @@ bool lmSameClub(const QString &a, const QString &b);
 // Bag order, driver → wedges (lmClubBagRank), ties by name: the order the board and the report list clubs in.
 bool lmClubBagLess(const QString &a, const QString &b);
 
+// ── THE BOARD'S TYPED BANDS (refactor 6.1b, lint A6): what the panel's reading index and ledger read ──
+// One tile: one reading of the scope, formatted here (lmValueText, lmMeanText, lmSdText) so the panel and any export
+// cannot disagree about what a reading looks like. Named as the old tile map's keys, so the QML reads them as before.
+struct LmTile
+{
+    Q_GADGET
+    Q_PROPERTY(QString key       MEMBER key       FINAL)
+    // "" | "ideal" | "good" | "watch" | "action": the focused shot against its corridor (gradesFor in the .cpp). The panel
+    // paints only the last two; "" is three different facts (no corridor, no reading, an implausible value) drawn alike.
+    Q_PROPERTY(QString grade     MEMBER grade     FINAL)
+    Q_PROPERTY(QString label     MEMBER label     FINAL)
+    Q_PROPERTY(QString abbrev    MEMBER abbrev    FINAL)
+    Q_PROPERTY(QString unit      MEMBER unit      FINAL)
+    Q_PROPERTY(QString group     MEMBER group     FINAL)
+    Q_PROPERTY(QString latest    MEMBER latest    FINAL)
+    Q_PROPERTY(QString mean      MEMBER mean      FINAL)
+    Q_PROPERTY(QString sd        MEMBER sd        FINAL)
+    Q_PROPERTY(int     n         MEMBER n         FINAL)
+    Q_PROPERTY(bool    hasLatest MEMBER hasLatest FINAL)
+    Q_PROPERTY(bool    hasSpread MEMBER hasSpread FINAL)
+    Q_PROPERTY(double  z         MEMBER z         FINAL)
+    // The strip's tick position (lmTickPercent), decided here for the same reason as the numbers.
+    Q_PROPERTY(double  tickPct   MEMBER tickPct   FINAL)
+public:
+    QString key, grade, label, abbrev, unit, group, latest, mean, sd;
+    int     n = 0;
+    bool    hasLatest = false, hasSpread = false;
+    double  z = 0.0, tickPct = 50.0;
+    friend bool operator==(const LmTile &, const LmTile &) = default;
+};
+
+// One band of the board: a gutter rule, a name, a count, then its tiles in fieldDefs() order. A band no shot produced
+// a reading for is not published at all.
+struct LmBand
+{
+    Q_GADGET
+    Q_PROPERTY(QString band  MEMBER band  FINAL)
+    Q_PROPERTY(int     count READ count   FINAL)
+    Q_PROPERTY(QList<pinpoint::lm::LmTile> tiles MEMBER tiles FINAL)
+public:
+    QString       band;
+    QList<LmTile> tiles;
+    int count() const { return int(tiles.size()); }
+    friend bool operator==(const LmBand &, const LmBand &) = default;
+};
+
+// ── THE ONE LAUNCH MONITOR REDUCTION (refactor 6.1b; R-INS-4; 5.6b's C11) ──
+// The board's statistics, scope, corridors, ellipses, club evidence and graphics, as ONE pure function of the session's
+// rows and what it is asked. The board (LmSessionModel, the presenter of the session on screen) and the session report's
+// launch monitor figures (session_report_model.cpp launchMonitorPart) both call it, each with its own asks, so the report
+// can count no shot the board left out and needs no board of its own. No QObject, no file: the rows carry the Shot's
+// measurements (Shot::measurements, read through the shot list: refactor 6.1a).
+
+// One row of the session as the board reads it, in the shot list's order (newest first).
+struct LmBoardInput {
+    int                    id = -1;          // the shot list's row id (the panel's actions and its focus use it)
+    int                    ordinal = 0;      // capture order
+    QString                swingDir;         // "" for a shot never written
+    QString                recorded;         // the club it was recorded under (trimmed)
+    QString                clubOverride;     // the golfer's choice on the board (review.clubOverride), trimmed, or ""
+    bool                   excluded = false; // "Leave out" (review.excluded)
+    QString                kind;             // the device (lm_device.h key), "" when none measured it
+    QHash<QString, double> values;           // the launch monitor's readings, keyed "lm.carryDistance"
+    std::optional<double>  optical;          // our own low point estimate (never in `values`)
+    QVariantMap            gates;            // the gate behind each launch monitor reading the shot lacks, by key
+};
+
+// What the board is asked: the presenter's inputs, or the report's.
+struct LmBoardAsk {
+    bool    hasList = true;        // false: no shot list at all (the board has nothing to board)
+    int     focusedShotId = -1;    // the shot the stage shows, or −1 (the newest in scope is headlined)
+    bool    reviewing = false;     // a loaded session's rows rather than the live one's
+    bool    connected = false;     // a monitor is configured (live only)
+    bool    leftHanded = false;
+    QString deviceName;            // the live connector's short name
+};
+
+// The corridors' sources: the pack and norm set every grade on the board is read against, and the grade policy.
+struct LmBoardRules {
+    const pinpoint::analysis::ICharacteristicPackProvider *pack = nullptr;
+    const pinpoint::analysis::INormProvider               *norms = nullptr;
+    QString                                                policyName = QStringLiteral("standard");
+};
+
+// The reduction's answer.
+struct LmBoard {
+    QList<LmBand>             bands;          // the tiles board, in display order
+    QVariantMap               graphics;       // everything graphics mode draws (LmSessionModel::graphics)
+    std::vector<LmBoardShot>  shots;          // every shot as counted, oldest first (LmSessionModel::boardShots)
+    QString                   scopeText;
+    QString                   valueLabel;
+    QString                   corridorScope;
+    int                       shotCount = 0;
+    bool                      anyReadings = false;
+    bool                      focusFound = false;
+    bool                      headlineHasReadings = false;
+};
+
+// The rows of a shot list, read once: identity, the recorded club, the golfer's two annotations, the device, and from
+// each row's Shot the readings, our own low point and the gate records (ShotListModel::measurementsOf). `detail`, when
+// given, reads a row's in-memory document instead (the tests' seam, LmSessionModel::setDetailReader).
+std::vector<LmBoardInput> lmBoardInputsOf(const ShotListModel &shots,
+                                          const std::function<QVariantMap(const QString &swingDir)> &detail = {});
+
+// THE reduction. `shownGrades` is the live board's hysteresis memory (§8.9), "club|key" → the grade shown last; null, or
+// a reviewed session, keeps none (it is cleared when reviewing).
+LmBoard lmBoardOf(const std::vector<LmBoardInput> &rows, const LmBoardAsk &ask, const LmBoardRules &rules,
+                  QHash<QString, int> *shownGrades = nullptr);
+
+// The same, against the pack and norm set published now (RuleData's current pack, the shared norm set): a reader with
+// no board of its own and no edit to follow (the session report, once per make).
+LmBoard lmBoardOfNow(const std::vector<LmBoardInput> &rows, const LmBoardAsk &ask, const QString &policyName);
+
+// The one line shown INSTEAD of the board, or empty when it renders (LmSessionModel::emptyText), and the line the This
+// shot view shows when the headline shot has no reading (shotEmptyText). From the board and the two live gates, so a
+// monitor connecting needs no new reduction.
+QString lmBoardEmptyText(const LmBoard &b, bool reviewing, bool connected);
+QString lmBoardShotEmptyText(const LmBoard &b, bool reviewing, bool connected);
+
 } // namespace pinpoint::lm
 
-// The launch monitor session board's model (PpLaunchMonitorPanel).
+// The launch monitor session board's presenter (PpLaunchMonitorPanel).
 //
-// Every number is lmSessionStats()' — this class only decides WHICH SHOTS it is asked
-// about, and turns the answer into rows. Instantiated by the panel rather than living
-// in main.cpp as a context property, because the panel is off by default: a golfer with
-// no monitor should not be paying for a model that recomputes on every shot.
+// Every number is lmBoardOf()'s, the one launch monitor reduction above (refactor 6.1b): this class holds what the
+// board is asked (the focus, the two live gates, the device, the policy, the hand), follows its shot list and the
+// rule data, and publishes the answer. NOT MADE BY A VIEW (lint A2; information model C10): the session on screen's
+// board is SessionReviewController::lmBoard, beside the shot list it boards (activeShots), and the panel holds it while
+// it is up (holdLmBoard / releaseLmBoard). With no panel holding it the board boards no list, so a golfer with no
+// monitor and the panel off (the default) pays for no rebuild on every shot.
 //
 // ONE ROW PER BAND, not per field, which is where this departs from the brief's shape.
 // The board is banded — a gutter rule, a name, a count, then that band's tiles — and a
@@ -132,10 +254,11 @@ bool lmClubBagLess(const QString &a, const QString &b);
 // one. The join to the norm set is a projection for a surface to paint, which is this
 // class's job, and it is why the dispersion strip and the corridor cannot be confused:
 // the strip is geometry the reductions computed, the corridor is colour resolved here.
-class LmSessionModel : public QAbstractListModel
+class LmSessionModel : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
+    QML_UNCREATABLE("the launch monitor board belongs to the session on screen: sessionReviewController.lmBoard")
 
     // The session's shots. Any ShotListModel — the panel passes whichever list the
     // screen it sits on is showing, so a review screen boards its own session.
@@ -197,7 +320,10 @@ class LmSessionModel : public QAbstractListModel
     // Tiles per band, in row order. The panel sizes itself to fit the whole board on
     // screen, and it cannot do that arithmetic without knowing the shape up front —
     // a Repeater only reveals a band's tile count once the band is already laid out.
-    Q_PROPERTY(QVariantList bandCounts READ bandCounts NOTIFY headerChanged)
+    Q_PROPERTY(QList<int> bandCounts READ bandCounts NOTIFY headerChanged)
+    // THE BANDS THEMSELVES, typed (refactor 6.1b): one per band of readings, in display order — its name, its count and
+    // its tiles (LmTile above). Published with the graphics, at the end of every rebuild.
+    Q_PROPERTY(QList<pinpoint::lm::LmBand> bands READ bands NOTIFY graphicsChanged)
 
     // EVERYTHING GRAPHICS MODE DRAWS, in one map. See graphics() in the .cpp for the
     // shape and for why it is one property rather than a second model: the two modes
@@ -222,18 +348,8 @@ class LmSessionModel : public QAbstractListModel
     Q_PROPERTY(QVariantMap graphics READ graphics NOTIFY graphicsChanged)
 
 public:
-    enum Roles {
-        BandRole = Qt::UserRole + 1,   // "Club"
-        CountRole,                     // tiles in this band
-        TilesRole,                     // QVariantList of tile maps, in fieldDefs() order
-    };
-
     explicit LmSessionModel(QObject *parent = nullptr);
     ~LmSessionModel() override;
-
-    int                    rowCount(const QModelIndex &parent = QModelIndex()) const override;
-    QVariant               data(const QModelIndex &index, int role) const override;
-    QHash<int, QByteArray> roleNames() const override;
 
     ShotListModel *shotModel() const { return m_shots; }
     // How a row's measurements are read: its Shot's set by default (ShotListModel::measurementsOf; refactor 6.1a). The
@@ -253,18 +369,18 @@ public:
     QString        gradePolicy() const { return m_policyName; }
     void           setGradePolicy(const QString &name);
 
-    QString scopeText()  const { return m_scopeText; }
-    QString valueLabel() const { return m_valueLabel; }
+    QString scopeText()  const { return m_board.scopeText; }
+    QString valueLabel() const { return m_board.valueLabel; }
     QString      emptyText()  const;
     QString      shotEmptyText() const;
-    int          shotCount()  const { return m_shotCount; }
-    QString      corridorScope() const { return m_corridorScope; }
-    QVariantList bandCounts() const;
-    QVariantMap  graphics()   const { return m_graphics; }
+    int          shotCount()  const { return m_board.shotCount; }
+    QString      corridorScope() const { return m_board.corridorScope; }
+    QList<int>   bandCounts() const;
+    QList<pinpoint::lm::LmBand> bands() const { return m_board.bands; }
+    QVariantMap  graphics()   const { return m_board.graphics; }
     // Every shot of the list as the last rebuild counted it, oldest first (capture order): the effective club, left
-    // out or not, the raw readings. The C++ face of graphics.shots, for a reader that quotes the board's figures
-    // without re-deciding which shots count (the session report). Empty with no shot list.
-    const std::vector<pinpoint::lm::LmBoardShot> &boardShots() const { return m_boardShots; }
+    // out or not, the raw readings. The C++ face of graphics.shots (lmBoardOf's `shots`). Empty with no shot list.
+    const std::vector<pinpoint::lm::LmBoardShot> &boardShots() const { return m_board.shots; }
 
     // ── The panel's two inline actions and the mismatch note's Undo (lm_panel_fsx.md) ──
     //
@@ -306,44 +422,6 @@ private:
     // End Session (#52). An edit to a row still rebuilds at once.
     void scheduleRebuild();
     void connectShotModel();
-    // The graphics-mode projection of the SAME statistics rebuild() banded for the
-    // tiles. Takes them as an argument rather than recomputing, which is what keeps the
-    // two modes incapable of disagreeing about one shot.
-    //
-    // `opticalLowPoint` is the FOCUSED shot's camera-estimated low point, or empty. It
-    // arrives separately from the readings because it is not one — see opticalLowPointFor()
-    // in the .cpp for why an estimate must never enter the `lm.` map.
-    //
-    // `grades` is gradesFor()'s answer, HANDED IN for the same reason: the schematics and
-    // the tiles must colour one reading the same way, and two calls to the resolver is two
-    // chances for them not to.
-    void buildGraphics(const std::vector<pinpoint::analysis::LmFieldStats> &stats,
-                       const std::vector<pinpoint::analysis::LmShotValues> &scoped,
-                       const QHash<QString, QString> &grades,
-                       const std::optional<double> &opticalLowPoint);
-
-    // The focused shot's grade for every reading that has both a value and a corridor,
-    // keyed by metric key. Computed ONCE per rebuild and handed to both projections, for
-    // exactly the reason buildGraphics() takes its statistics rather than recomputing
-    // them: a tile and the schematic beside it must not be able to grade one reading two
-    // different ways. A key absent from the map has no corridor, no reading, or a value
-    // the norm calls implausible — three facts the panel draws identically, on purpose.
-    QHash<QString, QString> gradesFor(const std::vector<pinpoint::analysis::LmFieldStats> &stats,
-                                      const QString &contextId);
-
-    // ONE CLUB'S SPREAD OF ONE CLUB-DELIVERY READING, graded (R4b): `values` are the club's included
-    // shots' readings (not left out, carrying a reading), in strike order. The scale is the reading's
-    // tolerance corridor in the club's own context (lmToleranceHalfWidth), else the grader's own rungs —
-    // the CV for a Ratio reading (club speed); an Interval reading with no corridor stays ungraded. As
-    // the `variabilityResult` fields in a plain map (graded, grade, measurementLimited, basisText, basis,
-    // ungradedReason, n), so it survives a JSON trip (the report). Empty for a blank club: a mixed bag is
-    // never graded. Live (not reviewing) the grade passes through the §8.9 hysteresis.
-    QVariantMap clubDeliveryGrade(const QString &club, const QString &key, std::vector<double> values);
-
-    struct Band {
-        QString      name;
-        QVariantList tiles;
-    };
 
     QPointer<ShotListModel> m_shots;
     // The tests' documents (setDetailReader); default: each row's Shot's measurements (ShotListModel::measurementsOf;
@@ -359,16 +437,8 @@ private:
     bool                    m_leftHanded = false;
     QString                 m_deviceName;
 
-    QVector<Band> m_bands;
-    QVariantMap   m_graphics;
-    std::vector<pinpoint::lm::LmBoardShot> m_boardShots;   // boardShots(): the rows rebuild() resolved, oldest first
-    QString       m_scopeText;
-    QString       m_valueLabel;
-    QString       m_corridorScope;
-    int           m_shotCount = 0;
-    bool          m_anyReadings = false;
-    bool          m_focusFound = false;        // the focused shot is in the list
-    bool          m_headlineHasReadings = false;   // the shot the board headlines carries a reading
+    // The last answer of the one reduction (lmBoardOf): the bands, the graphics, the shots as counted, the header.
+    pinpoint::lm::LmBoard m_board;
 
     // The two registries a corridor comes from. The pack is a view of RuleData's current one: a saved pack
     // edit (EVT-13) publishes another, and the board re-takes it and grades again at once (followPackSave,

@@ -60,7 +60,7 @@ tests them hardest:
 | `reduceSessionWorkOns` (`src/Coaching/work_ons.h`) | The list and its order, **derived fresh** from the model, never read from `work_ons.json`. Nick's `work_ons.json` on the share still says 12 measurable swings on a 10-swing session; it was written before two swings were deleted, and is re-derived only at the next catch-up. |
 | `aggregateWorkOns` and the sibling sessions' records | "Earlier today" and "across sessions": Active, Easing, Cleared, and the tick per session. |
 | The pack (`core.json`, `drills.json`, `screens.json`) | Golfer phrasing (`golfer`, `golferWell`, `golferWhy`), aliases, consequences, drills, screens, causal edges. |
-| `LmSessionModel` (the launch monitor board) over the session's shots | Every ball number, with the golfer's "Leave out" and club overrides applied (§3, "Launch monitor figures: one source"). The diagnostics ledger supplies the "what came with it" facts where a condition reads an LM measure. |
+| The launch monitor board's one reduction (`lmBoardOf`) over the session's shots | Every ball number, with the golfer's "Leave out" and club overrides applied (§3, "Launch monitor figures: one source"). The diagnostics ledger supplies the "what came with it" facts where a condition reads an LM measure. |
 | `PpDiagPrint` (the analyst's report) | **Kept, and appended as an optional technical appendix** ("For your coach: the full diagnostics"). It is the same register, unchanged, printed after the client pages from a fresh page. The client report is the front of the same document, not a rival to it. |
 | `PpTrustSummaryFold` / `notJudged` | "What we could not check", rewritten in golfer words and said once, at the back ([feedback_charts_page_pattern]: trust is said once). |
 | `PpPager`, `PpTypeset` print roles, `PpPdfPrinter`, `PdfDocumentWriter` | The page machinery, fonts and PDF/A output. The report is another print register. |
@@ -229,18 +229,19 @@ Three parts, each from a fresh page:
    highest and range, for every reading, under Ball and Club sub-heads. Average and SD are in
    bold.
 
-It reads the panel's own model. `SessionReportModel` builds a private `LmSessionModel` over a
-private `ShotListModel` of the session, and the figures (the map's `lmAppendix.graphics`) and the
-tables come from that one model. So the appendix agrees with the panel on everything: each
+It reads the board's own reduction. `SessionReportModel` reads a private `ShotListModel` of the session into the
+board's rows (`lmBoardInputsOf`) and asks the one launch monitor reduction the board runs (`lmBoardOf`, as a reviewed
+session), and the figures (the map's `lmAppendix.graphics`) and the tables come from that one answer; the report makes no
+board of its own[^lm-board-6-1b]. So the appendix agrees with the panel on everything: each
 shot's effective club (a shot the readings put under another club is listed there, marked *),
 the shots left out (shown as "out", in none of the statistics) and every number (`lmSessionStats`).
 
 **Launch monitor figures: one source** (14 November 2026, audit F-03). Every launch monitor figure in the
 report reads that same board, not the swings' raw `launchMonitor` blocks: the cover's ball tiles, "Your
 numbers" and its Typical row, the swing grid's carry bars, the reference swing's carry (its tie-break,
-"your longest" and its words) and the appendix. `SessionReportModel::build()` runs the private
-`LmSessionModel` once, and `src/Gui/report/report_lm.{h,cpp}` builds every page's block from
-`LmSessionModel::boardShots()` (`pinpoint::lm::LmBoardShot`) joined to the report's swings by folder.
+"your longest" and its words) and the appendix. `SessionReportModel::build()` runs the board's reduction
+once, and `src/Gui/report/report_lm.{h,cpp}` builds every page's block from its shots
+(`pinpoint::lm::LmBoardShot`, the board's `boardShots()`) joined to the report's swings by folder.
 Which shots count is `LmBoardShot::inFigures()` — the board's own rule (not left out, and read) — so a
 golfer's "Leave out" and club override on the panel (`review.excluded`, `review.clubOverride`) apply on
 every page alike:
@@ -289,11 +290,13 @@ fails when a field has no name or a name has no field). The board keeps its comp
 Where the cover already had a word (Smash, Launch, Spin, Club speed) that word is the name everywhere. Names
 are sentence case; the unit is never part of a name (a table sets it under the head).
 
-Not covered (they print other words for some readings):
+Not covered, or only in part (they print other words for some readings):
 - the appendix's embedded launch monitor panel figures (`src/Gui/session/PpLmGraphicsBody.qml`, the board's
-  own view, shared by screen and print) keep the board's tile headings ("Dyn. loft", "Path", "Avg launch",
-  "Avg spin", …). Left for refactor step 6, when the board becomes a presenter and can take its print names
-  from this table;
+  own view, shared by screen and print) name their tiles and the marks under them from this table: the appendix block
+  hands them `readingNames` and `readingWords` (`lmLabel`, `lmWord`), so "Path", "Face", "Attack", "Dyn. loft" and "Lie"
+  print as Club path, Face angle, Attack angle, Dynamic loft and Lie angle[^lm-board-6-1b]. The board keeps its compact
+  headings on screen and in its own print. Not yet from the table: the two scatter captions ("Path ° × face °",
+  "Launch ° × spin rpm"), which set the units in the caption;
 - the Club delivery page's scatter axes, "Club path (monitor)" and "Attack angle (monitor)", are the Charts
   presenter's words (`charts_delivery_presenter.cpp` `yLabel`), kept verbatim by `report_delivery.h`. The
   names are this table's; "(monitor)" says which instrument measured the y axis against the cameras'
@@ -1107,3 +1110,4 @@ directly, so it does not depend on the fix, but the panel does.
 
 [^report-reads-5-6c]: Refactor step 5.6c, 23 Nov 2026 (`build/refactor/step-5/NOTES-5.6c.md`): B5, B6, Q5 and Q9 of `build/refactor/step-5/DUTIES-5.6b.md`, under DEC-81 as the Solution Architect amended it (the session's diagnosis is a source for the report); its review is pending.
 [^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `docs/developer/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.
+[^lm-board-6-1b]: Refactor step 6.1b (`build/refactor/step-6/NOTES-6.1b.md`): the board's statistics are one pure reduction, `lmBoardOf` (`src/Gui/launchmonitor/lm_session_model.h`), which the board and the report each ask; the report's private board (5.6b's C11) is gone. The embedded figures' names follow the Coaching Lead's 14 November decision above.

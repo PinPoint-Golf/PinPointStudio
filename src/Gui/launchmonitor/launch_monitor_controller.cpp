@@ -26,7 +26,6 @@
 #include "session_controller.h"
 #include "standalone_gate.h"
 #include "shot_list_model.h"
-#include "../../Export/swing_doc.h"
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../Export/swing_paths.h"
 #include "../../DomainModel/recording_repository.h"
@@ -448,12 +447,14 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
     meta.standalone = standalone;
     // The rescue path is handed a folder somebody else allocated, so it reads the
     // identity back off the path rather than being told: <session>/<swing_NNNN>.
-    const QDir dir(swingDir);
-    meta.swingId    = swingId.isEmpty() ? dir.dirName() : swingId;
-    meta.sessionId  = sessionId.isEmpty() ? QDir(dir).dirName() : sessionId;
+    // Path text only (refactor 6.1b, P11): the folder's own name and its parent's, never a look at the disk. The folder
+    // was allocated by capture (or handed over by the rescue path) inside its session's, so its parent is the session's.
+    const QString swingName = QFileInfo(QDir::cleanPath(swingDir)).fileName();
+    meta.swingId    = swingId.isEmpty() ? swingName : swingId;
+    meta.sessionId  = sessionId.isEmpty() ? swingName : sessionId;
     if (sessionId.isEmpty()) {
-        QDir parent(swingDir);
-        if (parent.cdUp()) meta.sessionId = parent.dirName();
+        const QString parentName = QFileInfo(pinpoint::sessionFolderOf(swingDir)).fileName();
+        if (!parentName.isEmpty()) meta.sessionId = parentName;
     }
     meta.swingIndex = swingIndex;
     if (swingIndex == 0) {
@@ -461,7 +462,7 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
         // SwingPaths, the one reader of a swing folder's name (step 2.7b, lint A3). 0 when the folder is
         // not a "swing_NNNN" one, which is only an ordering hint. The session's folder name above stays
         // provenance (DeviceOnlyMeta::sessionId), never read back as a key.
-        meta.swingIndex = pinpoint::SwingPaths::swingNumberOf(dir.dirName());
+        meta.swingIndex = pinpoint::SwingPaths::swingNumberOf(swingName);
     }
     if (m_athletes) {
         meta.athleteName = m_athletes->currentName();

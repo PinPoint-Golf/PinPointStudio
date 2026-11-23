@@ -83,8 +83,9 @@ class LaunchMonitorController : public QObject
     //
     // Each entry: { deviceId, peer, shots, messages, identified, connectedAtMs,
     // lastMessageAtMs, label }. `label` is what to show — the DeviceID once the
-    // device has spoken, "connecting…" before that.
-    Q_PROPERTY(QVariantList devices     READ devices     NOTIFY devicesChanged)
+    // device has spoken, "connecting…" before that. NOT ON THE QML BOUNDARY (refactor 6.1b, lint A6): no screen reads
+    // the list; its one reader is the resource monitor, in C++ (devices() below), which appends the rows to its own
+    // in its key vocabulary. QML reads the count.
     Q_PROPERTY(int          deviceCount READ deviceCount NOTIFY devicesChanged)
     // True when this connector enumerates at all, so a panel can show the list for
     // the GSPro link and the configured-folder line for the GCQuad without asking

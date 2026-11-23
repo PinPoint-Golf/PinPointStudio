@@ -81,7 +81,60 @@ SessionReviewController::SessionReviewController(ShotListModel     *liveModel,
     connect(&m_reviewModel, &QAbstractItemModel::modelReset, this, &SessionReviewController::activeClubMixChanged);
     connect(&m_reviewModel, &QAbstractItemModel::dataChanged, this, &SessionReviewController::activeClubMixChanged);
     m_liveSessionDir = liveSessionDir();
+    // The board follows the shots on screen (refactor 6.1b): the loaded session's while reviewing, the live list's else.
+    connect(this, &SessionReviewController::reviewActiveChanged, this, &SessionReviewController::followLmBoard);
     refresh();
+}
+
+LmSessionModel *SessionReviewController::lmBoard()
+{
+    if (!m_lmBoard)
+        m_lmBoard = new LmSessionModel(this);
+    return m_lmBoard;
+}
+
+void SessionReviewController::holdLmBoard(QObject *view)
+{
+    if (!view || m_lmBoardViews.contains(view))
+        return;
+    m_lmBoardViews.insert(view);
+    // A view lets go when it is destroyed (the panel's teardown, a Loader switching it out), whether or not it said so.
+    connect(view, &QObject::destroyed, this, [this, view] {
+        if (m_lmBoardViews.remove(view))
+            followLmBoard();
+    });
+    followLmBoard();
+}
+
+void SessionReviewController::releaseLmBoard(QObject *view)
+{
+    if (!m_lmBoardViews.remove(view))
+        return;
+    disconnect(view, &QObject::destroyed, this, nullptr);
+    followLmBoard();
+}
+
+void SessionReviewController::followLmBoard()
+{
+    if (m_lmBoardViews.isEmpty()) {
+        if (m_lmBoard)
+            m_lmBoard->setShotModel(nullptr);   // boards nothing, and forgets its live grades (setShotModel clears them)
+        return;
+    }
+    // The list first, then the register: one reduction for each, as the panel's two bindings were.
+    LmSessionModel *board = lmBoard();
+    board->setShotModel(activeShots());
+    board->setReviewing(m_reviewActive);
+}
+
+SessionReviewController::~SessionReviewController()
+{
+    // The board first, while the lists it boards are still here; and no view's teardown reaches back in after.
+    for (QObject *view : std::as_const(m_lmBoardViews))
+        disconnect(view, &QObject::destroyed, this, nullptr);
+    m_lmBoardViews.clear();
+    delete m_lmBoard;
+    m_lmBoard = nullptr;
 }
 
 void SessionReviewController::updateLiveSessionDir()

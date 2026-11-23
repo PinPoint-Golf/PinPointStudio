@@ -207,7 +207,7 @@ double LmClubArt::strikeOriginMm(const QString &head) const
 //   lo / hi     the bottom and top of the strike zone about the Foresight centre: iron and wedge
 //               the groove field half a marker in, ±17.1 / ±13.7; woods the outer score rows,
 //               driver ±12.5, 3 wood ±10.3, hybrid ±8.45.
-QVariantList LmClubArt::markers(const QString &head) const
+QList<LmFaceMarker> LmClubArt::markers(const QString &head) const
 {
     struct Marks { double toe, heel, lo, hi; };
     Marks m{ 20.0, -19.8, -17.1, 17.1 };                       // iron (and anything unknown)
@@ -217,11 +217,13 @@ QVariantList LmClubArt::markers(const QString &head) const
     else if (head == QLatin1String("wedge"))  m = { 18.9, -20.0, -13.7, 13.7 };
     const double sc = strikeOriginMm(head);
     auto dot = [](const char *name, double x, double y) {
-        return QVariantMap{ { QStringLiteral("name"), QString::fromLatin1(name) },
-                            { QStringLiteral("xMm"),  x },
-                            { QStringLiteral("yMm"),  y } };
+        LmFaceMarker d;
+        d.name = QString::fromLatin1(name);
+        d.xMm  = x;
+        d.yMm  = y;
+        return d;
     };
-    return QVariantList{
+    return QList<LmFaceMarker>{
         dot("toe",  m.toe,  sc),
         dot("heel", m.heel, sc),
         dot("hi",   m.toe,  sc + m.hi),

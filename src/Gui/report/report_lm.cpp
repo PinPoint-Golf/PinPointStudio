@@ -305,7 +305,7 @@ QString lmReferenceFigure(const LmFigures &f, int k, const QString &key)
 }
 
 // ── The launch monitor appendix (§3, appendix A) ──
-// From the launch monitor panel's own model (LmSessionModel over the session's shots), so the figures, the shot
+// From the launch monitor board's one reduction (lmBoardOf over the session's shots), so the figures, the shot
 // tables and the summary agree with the panel: the same effective club per shot, the same shots left out, the same
 // per-club statistics (lmSessionStats: the n−1 SD, the extremes). The register draws the figures from `graphics`
 // and sets the tables from the strings here.
@@ -451,11 +451,22 @@ QVariant lmAppendixBlock(const LmFigures &f, const QVariantMap &g)
     QStringList clubWords;
     for (const QString &c : std::as_const(groupClubs)) if (!c.isEmpty()) clubWords << c;
 
+    // THE NAMES THE EMBEDDED FIGURES PRINT (refactor 6.1b; session_report_design.md §3): the board's own figures, drawn in
+    // the appendix (PpLmGraphicsBody), name each reading from the one words table, not the board's compact headings.
+    QVariantMap readingNames, readingWords;
+    for (const W::LmGolferLabel &l : W::lmGolferLabels()) {
+        const QString key = QString::fromLatin1(l.key);
+        readingNames.insert(key, W::lmLabel(key));
+        readingWords.insert(key, W::lmWord(key));
+    }
+
     return QVariantMap{
         { QStringLiteral("kicker"), QStringLiteral("Appendix") },
         { QStringLiteral("title"), QStringLiteral("Launch monitor") },
         { QStringLiteral("standfirst"), W::lmAppendixStandfirst(f.device, f.measured, f.N(), clubWords) },
         { QStringLiteral("graphics"), g },
+        { QStringLiteral("readingNames"), readingNames },
+        { QStringLiteral("readingWords"), readingWords },
         { QStringLiteral("figures"), figures },
         { QStringLiteral("ball"), ball },
         { QStringLiteral("club"), club },

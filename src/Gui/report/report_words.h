@@ -348,7 +348,8 @@ inline QString targetWords(const SpreadCorridor &c, const QString &unit, int gol
 // The printed report is the golfer's document, so it names every launch monitor reading ONE way, in plain golfer
 // words (Mark, 14 Nov 2026): the cover's ball tiles, "Your numbers", the swing grid's carry row, the Consistency page's
 // flagged launch monitor rows (report_consistency.h), the appendix's shot tables, its summary and the notes under them.
-// Not yet: the appendix's embedded board figures and the Club delivery axes (session_report_design.md §3). The launch monitor board keeps its
+// The appendix's embedded board figures take their tile names from it too (refactor 6.1b: the appendix block hands them
+// readingNames / readingWords); not yet: their two scatter captions and the Club delivery axes (session_report_design.md §3). The launch monitor board keeps its
 // compact on-screen headings (lm::FieldDef::abbrev, "Smash fac.", "Launch ang."); the report never prints those, nor
 // the catalogue's "(measured)" labels.
 // Keyed by lm::fieldDefs()' key, so the field list stays that one list: report_lm_test fails when a field has no

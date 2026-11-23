@@ -22,6 +22,7 @@
 #include "camera_roi.h"
 #include "imu_manager.h"
 #include "pp_debug.h"
+#include "../launchmonitor/launch_monitor_controller.h"   // its connected devices, in this list's vocabulary
 
 #include <QDateTime>
 #include <QHash>
@@ -466,7 +467,8 @@ void ResourceMonitorController::refresh()
     // list's key vocabulary, and a second shape here would be a second thing to
     // keep in step.
     if (m_launchMonitor) {
-        const QVariantList lms = m_launchMonitor->property("devices").toList();
+        const auto *lmc = qobject_cast<const LaunchMonitorController *>(m_launchMonitor.data());
+        const QVariantList lms = lmc ? lmc->devices() : QVariantList();
         for (const QVariant &l : lms) m_devices.append(l.toMap());
     }
 

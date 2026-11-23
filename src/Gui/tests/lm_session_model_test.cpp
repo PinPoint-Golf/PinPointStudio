@@ -255,6 +255,24 @@ int main(int argc, char **argv)
         checkStr("A1 picked shot with a reading: no shot line", board.shotEmptyText(), QString());
         check("A1 the shot and the session both have readings", has(board) && sessionHas(board));
 
+        // The typed bands (refactor 6.1b, lint A6): one per band with a reading, their counts the band counts, every
+        // tile one reading of the field list, and a tile's formatted latest the annotation's (one formatter, two views).
+        {
+            const QList<lm::LmBand> bands = board.bands();
+            const QList<int> counts = board.bandCounts();
+            bool shaped = !bands.isEmpty() && counts.size() == bands.size();
+            const QVariantMap vals = board.graphics().value(QStringLiteral("values")).toMap();
+            for (int i = 0; shaped && i < bands.size(); ++i) {
+                shaped = counts.at(i) == bands.at(i).count() && bands.at(i).count() == int(bands.at(i).tiles.size())
+                         && !bands.at(i).band.isEmpty();
+                for (const lm::LmTile &t : bands.at(i).tiles)
+                    shaped = shaped && t.group == bands.at(i).band
+                             && t.latest == vals.value(t.key).toMap().value(QStringLiteral("text")).toString();
+            }
+            check(QStringLiteral("A1b the typed bands: %1 bands, counts as published, each tile's latest its annotation's text")
+                      .arg(bands.size()), shaped);
+        }
+
         board.setFocusedShotId(idOf(shots, 1));
         checkStr("A2 picked shot without one: no session line", board.emptyText(), QString());
         checkStr("A2 picked shot without one: says so about the shot", board.shotEmptyText(),
@@ -601,7 +619,7 @@ int main(int argc, char **argv)
             user.measures.push_back(c);
         }
         int resets = 0;
-        QObject::connect(&board, &QAbstractItemModel::modelReset, [&resets] { ++resets; });
+        QObject::connect(&board, &LmSessionModel::graphicsChanged, [&resets] { ++resets; });   // each reduction publishes
         QString why;
         check(QStringLiteral("P2 the edit (%1 measures) is saved through RuleData's command").arg(int(user.measures.size())),
               !user.measures.empty() && rules.saveUserPack(user, &why));

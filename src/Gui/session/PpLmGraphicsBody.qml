@@ -74,6 +74,12 @@ Item {
     // numbers the block's figure head (0: the panel's own numbering).
     property var embedBlocks: []
     property int figNo: 0
+    // THE PRINTED REPORT'S NAMES (refactor 6.1b; session_report_design.md §3, "one name each, the golfer's"): embedded in
+    // the report, a reading is named by the report's one words table (report_words.h lmLabel, and lmWord for the same
+    // name inside a phrase), handed in by the report's appendix block as { key: name }. The board keeps its compact
+    // headings on screen and in its own print; a key the table does not name keeps the board's heading.
+    property var readingNames: ({})
+    property var readingWords: ({})
     readonly property bool embedded: medium === "print" && embedBlocks.length > 0
     readonly property real embedHeight: printCol.height
     readonly property int printPageCount: medium === "print" ? printPlan.length : 1
@@ -443,6 +449,10 @@ Item {
         }
         return null
     }
+    // A reading's name on a tile: the board's heading, or, embedded in the report, the words table's.
+    function nameOf(key, board) { const n = embedded && readingNames ? readingNames[key] : undefined; return n ? String(n) : board }
+    // "Avg carry": the average of a reading, its name in the phrase the words table gives (lmWord), embedded in the report.
+    function avgOf(key, board) { const w = embedded && readingWords ? readingWords[key] : undefined; return w ? "Avg " + String(w) : board }
     function sesTile(key, lab) {
         const st = statsFor(key), p = dirParts(key, st ? fmtKey(key, st.mean) : "-")
         return { key: key, label: lab, value: p.num, dir: p.dir, unit: unitWord(unitOf(key)), footL: (st ? st.n : scopeN) + " shots",
@@ -497,20 +507,21 @@ Item {
     readonly property var statTiles: {
         const c = rangeOf("carry"), o = rangeOf("offline")
         return [
-            sesTile("lm.carryDistance", "Avg carry"),
+            sesTile("lm.carryDistance", avgOf("lm.carryDistance", "Avg carry")),
             { key: "s2", label: "Carry range", value: c ? ts.num(c.hi - c.lo) : "-", unit: "yd", footL: c ? ts.num(c.lo) : "", footR: c ? ts.num(c.hi) : "", out: false, strip: stripFor("lm.carryDistance") },
             { key: "s4", label: "Spray", value: o ? ts.num(o.hi - o.lo) : "-", unit: "yd", footL: o ? lrWord(o.lo) : "", footR: o ? lrWord(o.hi) : "", out: false, strip: stripFor("lm.offline") },
-            sesTile("lm.ballSpeed", "Avg ball speed"),
-            sesTile("lm.launchAngle", "Avg launch"),
-            sesTile("lm.spinRate", "Avg spin")
+            sesTile("lm.ballSpeed", avgOf("lm.ballSpeed", "Avg ball speed")),
+            sesTile("lm.launchAngle", avgOf("lm.launchAngle", "Avg launch")),
+            sesTile("lm.spinRate", avgOf("lm.spinRate", "Avg spin"))
         ]
     }
     // the club half's: delivery and strike, avg ± SD; low point only when the device measured it
     readonly property var clubTiles: {
-        const t = [sesTile("lm.clubheadSpeed", "Club speed"), sesTile("lm.clubPath", "Path"), sesTile("lm.faceAngle", "Face"),
-                   sesTile("lm.faceToPath", "Face to path"), sesTile("lm.attackAngle", "Attack"), sesTile("lm.dynamicLoft", "Dyn. loft"),
-                   sesTile("lm.smashFactor", "Smash"), sesTile("lm.lieAngle", "Lie")]
-        if (statsFor("lm.lowPointAhead")) t.push(sesTile("lm.lowPointAhead", "Low point"))
+        const t = [sesTile("lm.clubheadSpeed", nameOf("lm.clubheadSpeed", "Club speed")), sesTile("lm.clubPath", nameOf("lm.clubPath", "Path")),
+                   sesTile("lm.faceAngle", nameOf("lm.faceAngle", "Face")), sesTile("lm.faceToPath", nameOf("lm.faceToPath", "Face to path")),
+                   sesTile("lm.attackAngle", nameOf("lm.attackAngle", "Attack")), sesTile("lm.dynamicLoft", nameOf("lm.dynamicLoft", "Dyn. loft")),
+                   sesTile("lm.smashFactor", nameOf("lm.smashFactor", "Smash")), sesTile("lm.lieAngle", nameOf("lm.lieAngle", "Lie"))]
+        if (statsFor("lm.lowPointAhead")) t.push(sesTile("lm.lowPointAhead", nameOf("lm.lowPointAhead", "Low point")))
         return t
     }
     readonly property string statKey: "Footers: shots · ±1 SD under an average; shortest · longest, or furthest left · right, under a range. Strips: every shot on ±3 SD, the band ±1 SD" + (focusInScope ? ", the dark tick shot " + shotNo : "") + "."

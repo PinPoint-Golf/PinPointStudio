@@ -1176,34 +1176,32 @@ bool gatherSwings(MapState &state, const QVector<DocFacts> &docs, const QHash<QS
     return anyLmBlock;
 }
 
-// THE LAUNCH MONITOR: the board's own model over the session's shots (F-03). Its reduction moves with the board, when the
-// board becomes a presenter (refactor step 6; 5.6b's C11).
+// THE LAUNCH MONITOR: the board's one reduction (lmBoardOf, lm_session_model.h; refactor 6.1b, 5.6b's C11) over the
+// session's shots (F-03). The report makes no board of its own: it asks the reduction itself, as a reviewed session.
 void launchMonitorPart(MapState &state, bool anyLmBlock, const std::function<std::unique_ptr<pinpoint::ShotSource>(const QString &)> &sourceFor)
 {
     Ctx &x = state.x;
     QVariantMap &lmGraphics = state.lmGraphics;
-    // ── the launch monitor: the board's own model over the session's shots (F-03) ──
-    // A private shot list (the cheap load — the readings come off each swing's document, as the panel reads them) under
-    // a private LmSessionModel: the same effective club per shot and the same shots left out as the golfer set on the
-    // board. EVERY launch monitor figure in the report reads x.lm (report_lm.h) — the cover, the numbers table, the
-    // carry row, the reference swing — and the appendix draws this model's graphics, so no page can count a shot
-    // another page left out.
+    // ── the launch monitor: the board's one reduction over the session's shots (F-03) ──
+    // A private shot list (the cheap load — the readings come off each swing's Shot, as the panel reads them) read into
+    // the board's rows (lmBoardInputsOf), and the ONE reduction the board runs (lmBoardOf): the same effective club per
+    // shot and the same shots left out as the golfer set on the board. EVERY launch monitor figure in the report reads
+    // x.lm (report_lm.h) — the cover, the numbers table, the carry row, the reference swing — and the appendix draws
+    // the reduction's graphics, so no page can count a shot another page left out.
     if (anyLmBlock) {
         ShotListModel lmShots;
         lmShots.setSourceFactory(sourceFor);   // a view over the Session being reported (step 5.2; R-QML-5)
         lmShots.showSession(state.dir);
-        LmSessionModel lmModel;
-        lmModel.setReviewing(true);
-        lmModel.setLeftHanded(x.leftHanded);
-        lmModel.setGradePolicy(state.policy);
-        lmModel.setDeviceName(x.lmDevice);
-        lmModel.setShotModel(&lmShots);          // rebuilds now
-        lmGraphics = lmModel.graphics();
+        pinpoint::lm::LmBoardAsk ask;
+        ask.reviewing  = true;
+        ask.leftHanded = x.leftHanded;
+        ask.deviceName = x.lmDevice;
+        const pinpoint::lm::LmBoard board = pinpoint::lm::lmBoardOfNow(pinpoint::lm::lmBoardInputsOf(lmShots), ask, state.policy);
+        lmGraphics = board.graphics;
         QStringList dirs, clubs;
         QList<int> numbers;
         for (int k = 0; k < int(x.swings.size()); ++k) { dirs << x.swings[size_t(k)].dir; clubs << x.swings[size_t(k)].club; numbers << x.no(k); }
-        x.lm = M::lmFiguresOf(lmModel.boardShots(), dirs, clubs, x.lmDevice, x.leftHanded, numbers);
-        lmModel.setShotModel(nullptr);
+        x.lm = M::lmFiguresOf(board.shots, dirs, clubs, x.lmDevice, x.leftHanded, numbers);
     }
     x.lmSwings = x.lm.measured;
     x.hasLm = x.lm.has();

@@ -80,6 +80,7 @@ Column {
                         width: parent.width; height: embedHeight
                         medium: "print"; printAesthetic: "folio"; interactive: false; reviewing: true
                         g: la.graphics; scopeKey: fc.modelData.key; focusedShotId: -1
+                        readingNames: la.m.readingNames || ({}); readingWords: la.m.readingWords || ({})
                         embedBlocks: ["ballHalf"]; figNo: fc.index * 2 + 1
                     }
                 }
@@ -92,6 +93,7 @@ Column {
                     width: parent.width; height: embedHeight
                     medium: "print"; printAesthetic: "folio"; interactive: false; reviewing: true
                     g: la.graphics; scopeKey: fc.modelData.key; focusedShotId: -1
+                    readingNames: la.m.readingNames || ({}); readingWords: la.m.readingWords || ({})
                     embedBlocks: ["clubHalf"]; figNo: fc.index * 2 + 2
                 }
             }

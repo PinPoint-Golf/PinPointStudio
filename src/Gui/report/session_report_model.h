@@ -41,7 +41,7 @@
 //      (SessionDiagnostics::diagnosis and diagnosisInput: refactor step 5.6b, DEC-81 — no figure computed twice; never
 //      work_ons.json, which can be stale after a delete, and never re-reduced here), the same-day sessions' records are read for
 //      "Earlier today", and the pure reductions (src/Coaching/session_report.h) choose what to say. The launch monitor
-//      board's own model (a private LmSessionModel over the session's shots) is run once, and EVERY launch monitor
+//      board's one reduction (lmBoardOf over the session's shots, as a reviewed session: refactor 6.1b) is run once, and EVERY launch monitor
 //      figure — cover, numbers table, carry row, reference swing, appendix — reads its shots through report_lm.h, so
 //      a shot the golfer left out or re-labelled on the board is treated the same on every page (F-03);
 //   3. the stills are made off the GUI thread (ReportStills::renderAll) unless photos are off;

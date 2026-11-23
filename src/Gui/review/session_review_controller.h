@@ -24,6 +24,9 @@
 
 #include "session_list_model.h"
 #include "shot_list_model.h"
+#include "../launchmonitor/lm_session_model.h"   // the board of the shots on screen (refactor 6.1b)
+
+#include <QSet>
 
 class AppSettings;
 class AthleteController;
@@ -58,6 +61,12 @@ class SessionReviewController : public QObject
     // the launch monitor board took the live model unconditionally and so drew an empty
     // board over a loaded session that was full of readings.
     Q_PROPERTY(ShotListModel *activeShots READ activeShots NOTIFY reviewActiveChanged)
+    // THE LAUNCH MONITOR BOARD OF THE SHOTS ON SCREEN (refactor 6.1b; lint A2, information model C10: no view makes it).
+    // One presenter, beside the list it boards: it boards `activeShots`, as a reviewed session while reviewing, but only
+    // while a panel holds it (holdLmBoard / releaseLmBoard), so with the panel off (the default) it rebuilds on no shot.
+    // The panel binds what it is asked that only a view knows: the focused shot, the live connector's gate and name, the
+    // grade policy and the hand.
+    Q_PROPERTY(LmSessionModel *lmBoard READ lmBoard CONSTANT)
     // THE SESSION ITSELF, not its labels: the absolute directory of the loaded session, empty
     // while live. loadSession() takes the same string as `sessionId` — a session's id IS its
     // directory path — so a panel that has to point something else at the reviewed session
@@ -89,6 +98,7 @@ public:
                             AppSettings       *settings,
                             AthleteController *athlete,
                             QObject           *parent = nullptr);
+    ~SessionReviewController() override;
 
     // The one door to the swing files (main.cpp's): a JSON-era swing's summary sidecar is written through it when the
     // review load indexes a session. (The rows' edits go to their Shots, never through this.)
@@ -100,6 +110,12 @@ public:
     QObject *sessionsModel()        { return &m_sessionsModel; }
     QObject *shots()                { return &m_reviewModel; }
     ShotListModel *activeShots()    { return m_reviewActive ? &m_reviewModel : m_liveModel; }
+    LmSessionModel *lmBoard();
+    // A panel showing the board holds it while it is up (Component.onCompleted) and lets it go when it is destroyed (or
+    // says so). Held by any view, the board boards the shots on screen; held by none, it boards nothing and forgets its
+    // live grades, as a board made and destroyed with its panel did.
+    Q_INVOKABLE void holdLmBoard(QObject *view);
+    Q_INVOKABLE void releaseLmBoard(QObject *view);
     QString  activeSessionId() const { return m_loadedSessionDir; }
     // Absolute path of the session the live model holds (parent of any live shot's
     // swingDir), or empty when no live shot has a folder.
@@ -174,6 +190,11 @@ private:
     SessionListModel   m_sessionsModel;
     pinpoint::RecordingRepository *m_repo = nullptr;   // stateless: used from the pool too
     ShotListModel      m_reviewModel;     // a view of the loaded Session
+
+    // The board (lmBoard): made on first use, after the rule data is installed; boards activeShots while held.
+    LmSessionModel           *m_lmBoard = nullptr;
+    QSet<QObject *>           m_lmBoardViews;
+    void                      followLmBoard();
 
     bool    m_reviewActive = false;
     QString m_activeDayLabel;

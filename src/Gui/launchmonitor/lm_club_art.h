@@ -18,6 +18,7 @@
 #pragma once
 
 #include <QHash>
+#include <QList>
 #include <QObject>
 #include <QQmlEngine>
 #include <QSize>
@@ -44,6 +45,20 @@
 // or what colour anything is (theme roles, in QML). It maps a club LABEL to a head through
 // lmClubHead() in src/LaunchMonitor/lm_club_evidence.h — the same function the club evidence rule
 // checks families with — so the drawing and the rule can never disagree about what "3 WOOD" is.
+// One of Foresight's club markers on a head (LmClubArt::markers): its name and where it sits, in face_frame mm from our
+// face_centre. Typed for QML (refactor 6.1b, lint A6), named as the old map's keys.
+struct LmFaceMarker
+{
+    Q_GADGET
+    Q_PROPERTY(QString name MEMBER name FINAL)   // "toe" | "heel" | "lo" | "hi" | "one"
+    Q_PROPERTY(double  xMm  MEMBER xMm  FINAL)
+    Q_PROPERTY(double  yMm  MEMBER yMm  FINAL)
+public:
+    QString name;
+    double  xMm = 0.0, yMm = 0.0;
+    friend bool operator==(const LmFaceMarker &, const LmFaceMarker &) = default;
+};
+
 class LmClubArt : public QObject
 {
     Q_OBJECT
@@ -90,7 +105,7 @@ public:
     // the same frame anchors().face_frame maps to pixels. toe/heel/lo/hi are the four-dot layout
     // (GC Quad, QuadMAX, Falcon, GCHawk); `one` is the single dot (GC3, HMT on its own). The panel
     // picks which to draw from graphics.device.markers. Derivation in the .cpp.
-    Q_INVOKABLE QVariantList markers(const QString &head) const;
+    Q_INVOKABLE QList<LmFaceMarker> markers(const QString &head) const;
 
     // The impact patch, 20, 25 or 30 mm contact, as the tintable SVG (one evenodd path,
     // fill="currentColor"). Empty for any other size.

@@ -47,6 +47,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 
 #include <QCoreApplication>
@@ -165,6 +167,27 @@ int main(int argc, char **argv)
           f.measured == 7 && f.counted == 6 && f.leftOut == QList<int>{ 6 } && f.anyRelabelled);
     checkStr(QStringLiteral("A6 the clubs, effective, in bag order"), f.clubs.join(QLatin1Char(',')), QStringLiteral("7 IRON,8 IRON"));
 
+    // ONE LAUNCH MONITOR REDUCTION (refactor 6.1b; 5.6b's C11): the report asks lmBoardOf itself, as a reviewed session
+    // (session_report_model.cpp launchMonitorPart), with no board of its own. Over the same rows it answers what the
+    // board publishes: the same shots as counted, and the same graphics, key for key.
+    {
+        lm::LmBoardAsk ask;
+        ask.reviewing  = true;
+        ask.deviceName = QStringLiteral("GC Quad");
+        const lm::LmBoard once = lm::lmBoardOfNow(
+            lm::lmBoardInputsOf(list, [&details](const QString &dir) { return details.value(dir); }), ask, QStringLiteral("standard"));
+        bool sameShots = once.shots.size() == bs.size();
+        for (size_t i = 0; sameShots && i < bs.size(); ++i)
+            sameShots = once.shots[i].id == bs[i].id && once.shots[i].ordinal == bs[i].ordinal && once.shots[i].club == bs[i].club
+                     && once.shots[i].source == bs[i].source && once.shots[i].excluded == bs[i].excluded
+                     && once.shots[i].values == bs[i].values;
+        check(QStringLiteral("R1 the report's reduction counts the board's shots (%1)").arg(int(once.shots.size())), sameShots);
+        const auto json = [](const QVariantMap &m) { return QJsonDocument(QJsonObject::fromVariantMap(m)).toJson(QJsonDocument::Compact); };
+        check(QStringLiteral("R2 …and draws the board's graphics, key for key"),
+              !once.graphics.isEmpty() && json(once.graphics) == json(board.graphics()));
+        checkStr(QStringLiteral("R3 …under the board's scope line"), once.scopeText, board.scopeText());
+    }
+
     std::printf("\nB — the cover's ball tiles\n");
     const QVariant ball = report::lmBallBlock(f);
     const QVariantMap c7 = tileOf(ball, QStringLiteral("7 iron"), QStringLiteral("Carry"));
@@ -216,6 +239,20 @@ int main(int argc, char **argv)
     std::printf("\nE — the appendix agrees with every page above\n");
     const QVariantMap g = board.graphics();
     const QVariantMap apx = report::lmAppendixBlock(f, g).toMap();
+    // The names its embedded board figures print (refactor 6.1b): the one words table, every reading of the field list.
+    {
+        const QVariantMap names = apx.value(QStringLiteral("readingNames")).toMap();
+        const QVariantMap words = apx.value(QStringLiteral("readingWords")).toMap();
+        bool all = names.size() == int(lm::fieldDefs().size()) && words.size() == names.size();
+        for (const lm::FieldDef &fd : lm::fieldDefs()) {
+            const QString k = QString::fromLatin1(fd.key);
+            all = all && names.value(k).toString() == report::words::lmLabel(k) && !names.value(k).toString().isEmpty()
+                      && words.value(k).toString() == report::words::lmWord(k);
+        }
+        check(QStringLiteral("E0 the appendix hands its figures the words table's names (%1), not the board's headings").arg(names.size()), all);
+        checkStr(QStringLiteral("E0b \"Dyn. loft\" prints as the table's name"), names.value(QStringLiteral("lm.dynamicLoft")).toString(),
+                 QStringLiteral("Dynamic loft"));
+    }
     QStringList apxClubs;
     bool countsAgree = true, extremesAgree = true;
     for (const QVariant &cv : g.value(QStringLiteral("clubs")).toList()) {

@@ -23,7 +23,7 @@
 //
 // Every launch monitor number the report prints — the cover's ball tiles, the numbers table and its Typical row, the
 // swing grid's carry bars, the reference swing's carry tie-break and words, and the appendix — is read from the launch
-// monitor board's own shots (LmSessionModel::boardShots(): pinpoint::lm::LmBoardShot), joined to the report's swings by
+// monitor board's own shots (the one reduction's shots, lmBoardOf: pinpoint::lm::LmBoardShot), joined to the report's swings by
 // folder. So the report honours what the golfer did on the board, the same way the board does:
 //   - a shot LEFT OUT ("Leave out", review.excluded) is in no median, range, Typical value, carry bar or reference
 //     tie-break; it is still listed in the tables, marked "out", and the cover says which swing it was;
@@ -36,8 +36,8 @@
 // compact on-screen heading (FieldDef::abbrev) — Mark, 14 Nov 2026. The golfer pages print whole units except smash
 // factor and the club's delivery angles (§0 rule 5: "whole units, or the model's own decimals").
 //
-// Pure: no QObject, no file. SessionReportModel::build() fills it; report_lm_test drives it from a real
-// LmSessionModel over an in-memory shot list.
+// Pure: no QObject, no file. SessionReportModel::build() fills it from lmBoardOf (refactor 6.1b); report_lm_test drives it
+// from a real board over an in-memory shot list.
 
 #include "../launchmonitor/lm_session_model.h"
 
@@ -118,8 +118,9 @@ std::vector<double> lmReferenceCarry(const LmFigures &f);
 // "152" / "-": a reading of report swing k + 1 for the reference swing's words — "-" when it is not in the figures.
 QString lmReferenceFigure(const LmFigures &f, int k, const QString &key);
 
-// The launch monitor appendix (§3, appendix A) from the board's `graphics` (LmSessionModel::graphics(), the figures it
-// draws) and the same shots. Null without a reading.
+// The launch monitor appendix (§3, appendix A) from the board's `graphics` (lmBoardOf's, the figures the board draws) and
+// the same shots. Null without a reading. It carries the reading names the embedded figures print (`readingNames`,
+// `readingWords`: the one words table, lmLabel / lmWord; refactor 6.1b).
 QVariant lmAppendixBlock(const LmFigures &f, const QVariantMap &graphics);
 
 } // namespace pinpoint::report
