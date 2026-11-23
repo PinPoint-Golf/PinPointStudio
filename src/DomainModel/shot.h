@@ -55,7 +55,8 @@
 //   setShotIntent(intent)        the shot intent ("" = none)                               EVT-07
 //   completeCapture(part)        a late part: a launch monitor reading (and follow-club), or a phone clip's
 //                                stream (R-REC-2)                                         EVT-22
-//   setMarkupTruth(view, json)   the video markup's ground truth (FILE-SHOT-12); no event (DEC-187: IM-S3-9)
+//   setMarkupTruth(view, json)   the video markup's ground truth (FILE-SHOT-12); no event (DEC-187: IM-S3-9);
+//                                markupTruth(view) reads it back, kept nowhere (refactor 5.7d)
 //   applyAnalysis(outcome)       re-analysis's write-back: the analysis and both integrity verdicts a pass
 //                                reached, or (no analysis) a launch-monitor-only shot's rows derived again
 //                                (refactor step 3.4b-ii; DEC-103)                          EVT-02
@@ -171,6 +172,10 @@ public:
     WriteResult completeCapture(const StreamArrival &arrival);
     // The markup truth (FILE-SHOT-12), written whole; no event (DEC-187: IM-S3-9).
     WriteResult setMarkupTruth(TruthView view, const QJsonObject &truth);
+    // …and read back through the same repository, as it is stored NOW (OBJ-MARKUP-TRUTH: the Shot its one reader and
+    // its one writer; refactor 5.7d). Nothing is kept: the truth has no event, so a truth written by any path is seen
+    // at the next read. {} when there is none.
+    QJsonObject markupTruth(TruthView view) const;
     // EVT-02 (refactor step 3.4b-ii; DEC-103): re-analysis's write-back through RecordingRepository::writeAnalysis —
     // the pass's analysis and verdicts (a verdict it could not reach withdrawn), or with no analysis a
     // launch-monitor-only shot's rows derived again; the repository's empty-document guard and `options` (Save pose

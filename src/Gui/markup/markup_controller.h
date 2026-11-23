@@ -47,11 +47,7 @@
 // `image://markup/dtl/<dtlFrameToken>` so each new frame renders.
 
 #include "markup_truth.h"
-#include "../../DomainModel/recording_repository.h"   // the swing door the truth goes through (step 2.4)
-
-namespace pinpoint { class ShotCommandDoor; }
-
-#include <QHash>
+#include "../../App/shot_command_door.h"   // the swing's Shot, which reads and writes its truth (refactor 5.7d)
 
 #include <QObject>
 #include <QString>
@@ -148,18 +144,18 @@ public:
     explicit MarkupController(QObject *parent = nullptr);
     ~MarkupController() override;
 
+    // THE SWING'S SHOT READS AND WRITES ITS MARKUP TRUTH (OBJ-MARKUP-TRUTH, FILE-SHOT-12; DEC-187: IM-S3-9; refactor
+    // 3.4b-i, 5.7d; src/App/shot_command_door.h): a save FORWARDS to Shot::setMarkupTruth (no event), and every read —
+    // the focused swing's marks, the queue's rows — is Shot::markupTruth, so a truth written by another path is what
+    // the next read shows. The controller keeps no truth of its own but the edit buffer (m_truth, m_dtlTruth). A swing
+    // no Session holds, or no door, is not read and its save is refused (N1 is gone). main.cpp sets `app`.
+    void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
     // Non-owning; the QML engine owns the provider (addImageProvider). Set once
     // at startup before any swing is opened.
-    // The swing door the truth is read and written through (FILE-SHOT-12; step 2.4).
-    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; m_shots.clear(); }
-    // THE SHOT'S COMMAND FOR ITS MARKUP TRUTH (refactor step 3.4b-i; DEC-187: IM-S3-9; src/App/shot_command_door.h):
-    // a save FORWARDS to the swing's Shot (Shot::setMarkupTruth, no event), which writes it; the controller writes
-    // the truth itself only for a swing no Session holds — a corpus folder, another golfer's session — or with no
-    // door (N1's interim). Reads stay through the swing door. main.cpp sets `app`.
-    void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
     void setImageProvider(MarkupImageProvider *p) { m_provider = p; }
 
-    QVariantList swings()        const { return m_swingsCache; }
+    // The queue's rows, worked out on each read from each swing's Shot (nothing kept).
+    QVariantList swings()        const;
     int          swingCount()    const { return int(m_swingDirs.size()); }
     int          labelledCount() const;
     int          currentIndex()  const { return m_currentIndex; }
@@ -302,7 +298,6 @@ private:
         bool          sourceReady = false;   // media reached LoadedMedia
     };
 
-    void rebuildSwingsCache();
     void decodeFrame(int idx);                // the shared playhead → both panes
     void setDirty(bool d);
     void setDirtyDtl(bool d);
@@ -319,19 +314,16 @@ private:
     // The window-µs instant the playhead is on (the face-on frame's own t_us).
     qint64 playheadUs() const;
 
-    // The truth through the swing door (FILE-SHOT-12): each queued folder's ShotRef, translated once.
-    pinpoint::ShotRef     shotOf(const QString &swingDir);
-    QJsonObject           truthJson(const QString &swingDir, pinpoint::markup::MarkupView view);
+    // The truth through the swing's Shot (FILE-SHOT-12): its ShotRef, translated at the edge by `app` (DEC-90).
+    pinpoint::ShotRef     shotOf(const QString &swingDir) const;
+    QJsonObject           truthJson(const QString &swingDir, pinpoint::markup::MarkupView view) const;
     pinpoint::WriteResult saveTruth(const pinpoint::markup::TruthDoc &doc,
                                     const pinpoint::markup::VideoStreamInfo &vi,
                                     pinpoint::markup::MarkupView view);
 
-    pinpoint::RecordingRepository    *m_repo = nullptr;
-    pinpoint::ShotCommandDoor        *m_commands = nullptr;
-    QHash<QString, pinpoint::ShotRef> m_shots;   // queued folder -> its ShotRef
+    pinpoint::ShotCommandDoor    *m_commands = nullptr;
     MarkupImageProvider          *m_provider = nullptr;
-    QStringList                   m_swingDirs;
-    QVariantList                  m_swingsCache;
+    QStringList                   m_swingDirs;   // the queue: which swings the tool shows (view state)
     int                           m_currentIndex = -1;
 
     pinpoint::markup::VideoStreamInfo m_fo;       // face-on        → truth.json

@@ -834,35 +834,10 @@ Item {
         }
     }
 
-    // A saved swing's document was rewritten under the screens showing it — by a re-analysis,
-    // or by a launch monitor's late club data (Foresight Premier writes a shot's club data with
-    // the NEXT shot). Everything that reads that document reads it again.
-    //
-    // THE ROW IS NOT REFRESHED HERE (refactor step 5.2; R-QML-5): the carousel is a view of the Session, and its row
-    // re-reads its Shot on the rewrite's own event — a late reading's EVT-22, a re-analysis's EVT-02 — in whichever
-    // carousel shows that session, live or review.
-    function _swingRewritten(swingDir) {
-        // The session assessment is graded FROM this document, so it is graded again — by its
-        // owner, which hears the rewrite itself (a re-analysis, EVT-02; a late reading, EVT-22:
-        // 3.7-a), so a panel's adapter is told nothing (refactor 3.7-c; 5.4b deleted the old
-        // engine's regrade here).
-        // The Replay/Analyse panel reads app.state.replay.analysisDetail — a separate,
-        // independently cached disk read of swing.json (ShotReplayController /
-        // DiskReplaySource), not this model — so a model-only row refresh
-        // leaves it showing the pre-rewrite score/metrics/trace/skeleton while
-        // the shot stays focused. Force a reload when it's the one open now
-        // (mirrors what re-selecting the shot already does).
-        if (app.state.replay.active && app.state.replay.swingDir === swingDir)
-            app.state.replay.start(app.state.replay.shotId, swingDir, app.state.replay.speed, app.state.replay.playing)
-    }
-
-    // The launch monitor's late club data. No toast and no chime: the reading already
-    // announced itself when its ball data went in.
-    Connections {
-        target: typeof launchMonitor !== "undefined" ? launchMonitor : null
-        ignoreUnknownSignals: true
-        function onReadingUpdatedForSwing(swingDir) { root._swingRewritten(swingDir) }
-    }
+    // A saved swing's document rewritten under the screens showing it — by a re-analysis (EVT-02) or a launch
+    // monitor's late club data (EVT-22) — is heard by its readers on the Shot's own event: the row re-reads its
+    // Shot (refactor step 5.2; R-QML-5), the session's owner grades it again (3.7-c), and the replay reads its
+    // analysis again through the Shot with no reload (ShotReplayController, refactor 5.7c). Nothing to do here.
 
     // Re-analyse feedback — a sticky notice toast for the whole batch (pinned, with a
     // live elapsed-time readout, instead of PpToast's usual ~7s auto-dismiss — a batch
@@ -881,7 +856,6 @@ Item {
                              : qsTr("Re-analysing · %1 shots").arg(root._reanalyseQueuedCount),
                          "info", "", true)
         }
-        function onReanalysed(swingDir) { root._swingRewritten(swingDir) }
         function onReanalyseFinished(succeeded, failed, lastError) {
             root._reanalyseQueuedCount = 0
             const severity = failed === 0 ? "info" : succeeded === 0 ? "error" : "warn"

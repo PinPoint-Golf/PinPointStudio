@@ -134,6 +134,7 @@ Item {
     Connections {
         target: app.state.replay
         function onActiveChanged()   { root._syncPick() }
+        function onAnalysisDetailChanged() { root._syncPick() }   // the shot re-analysed in place (5.7c)
         function onSpanChanged()     { if (root._screenActive) root._spanUs = app.state.replay.active ? app.state.replay.endUs - app.state.replay.startUs : -1 }
         function onPositionChanged() { if (root._screenActive) root._playUs = app.state.replay.active ? app.state.replay.positionUs : -1 }
     }

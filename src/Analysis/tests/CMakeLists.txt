@@ -2021,6 +2021,29 @@ pp_add_test(session_series_test
     AUTOMOC)
 set_tests_properties(session_series_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+# review_views_shot_test — THE REPLAY AND THE MARKUP READ THROUGH THE SHOT (refactor 5.7c, 5.7d;
+# src/Gui/tests/review_views_shot_test.cpp): the replay follows its Shot's re-analysis through the Shot's RecordingSource
+# with no reload; the markup tool's truth is the Shot's, read and written. Over 5.4's owner rig: the owner view tests'
+# link line plus the replay, the markup controller and the charts' lane.
+find_package(Qt6 REQUIRED COMPONENTS Multimedia Quick Test)
+set(_review_views_shot_sources ${_owner_view_test_sources}
+    ${SRC}/Gui/shot/replay_source.h ${SRC}/Gui/shot/qml_payload.h
+    ${SRC}/Gui/shot/shot_replay_controller.h ${SRC}/Gui/shot/shot_replay_controller.cpp
+    ${SRC}/Gui/shot/disk_replay_source.h ${SRC}/Gui/shot/disk_replay_source.cpp
+    ${SRC}/Gui/charts/charts_work.h ${SRC}/Gui/charts/charts_work.cpp
+    ${SRC}/Gui/markup/markup_controller.h ${SRC}/Gui/markup/markup_controller.cpp
+    ${SRC}/Gui/markup/markup_image_provider.h ${SRC}/Gui/markup/markup_truth.cpp)
+list(REMOVE_DUPLICATES _review_views_shot_sources)
+pp_add_test(review_views_shot_test
+    SOURCES ${SRC}/Gui/tests/review_views_shot_test.cpp ${_review_views_shot_sources}
+    INCLUDE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${SRC}/Gui/shot ${SRC}/Gui/app
+            ${SRC}/Gui/charts ${OpenCV_INCLUDE_DIRS}
+    LINK    Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Multimedia Qt6::Concurrent Qt6::Test ${OpenCV_LIBS}
+    STD 20
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(review_views_shot_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 # charts_series_dump — THE CHARTS SERIES, OLD AGAINST NEW (refactor 5.5a, deliverable 7): not a ctest. It holds each
 # session it is given, so its owner writes into it: run it on a scratch copy of the parity set only.
 add_executable(charts_series_dump ${PP_REPO_ROOT}/tools/diagnostics/charts_series_dump.cpp ${_session_series_sources})

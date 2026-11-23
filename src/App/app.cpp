@@ -115,6 +115,14 @@ ForwardResult App::setMarkupTruth(const QString &sessionFolder, const ShotRef &s
     return forward(shotAt(sessionFolder, shot), [&](Shot &s) { return s.setMarkupTruth(view, truth); });
 }
 
+std::optional<QJsonObject> App::markupTruth(const QString &sessionFolder, const ShotRef &shot, TruthView view)
+{
+    const Shot *s = shotAt(sessionFolder, shot);
+    if (!s)
+        return std::nullopt;
+    return s->markupTruth(view);
+}
+
 bool App::setShotIntent(const QString &sessionFolder, const ShotRef &shot, const QString &intent, bool keepEmpty,
                         const SaveLater &later)
 {

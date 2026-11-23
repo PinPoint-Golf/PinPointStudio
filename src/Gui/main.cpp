@@ -987,6 +987,12 @@ int main(int argc, char *argv[])
     // Disk-backed replay of saved shots (MP4 + swing.json) — independent of the
     // live SwingWindow that ShotProcessor owns for the just-captured shot.
     ShotReplayController      shotReplay(&appSettings);
+    // The replay follows its shot (refactor 5.7c): the edge (DEC-90) from the replayed folder to the Shot its Session
+    // holds, so a re-analysis (EVT-02) or a late part (EVT-22) is read again through that Shot with no reload.
+    shotReplay.setShotResolver([&appObject](const QString &swingDir) -> pinpoint::Shot * {
+        pinpoint::Session *s = appObject.sessionAt(pinpoint::sessionFolderOf(swingDir));
+        return s ? s->shotAtFolder(swingDir) : nullptr;
+    });
     // APP.STATE (refactor step 4-a; src/App/app_state.h): the mode, the selection, the session on screen and the
     // session's start and end, over today's objects. Each door is one call; AppState fixes the order.
     {
@@ -1098,10 +1104,10 @@ int main(int argc, char *argv[])
         });
     }
 
-    // Markup Lab — in-app ground-truth labelling of recorded swings; reads its own
-    // swing.json/MP4 from disk (no buffer/SessionMode coupling), writes a
-    // SwingLab-compatible truth.json sibling. The image provider is owned by the
-    // engine (addImageProvider, below).
+    // Markup Lab — in-app ground-truth labelling of recorded swings; reads the swing's
+    // MP4 and overlay from disk (no buffer/SessionMode coupling); its truth.json is read
+    // and written by the swing's Shot (setShotCommands, below). The image provider is
+    // owned by the engine (addImageProvider, below).
     MarkupController          markupController;
 
     // IMU source register/deregister can change the shared EventBuffer state
@@ -1645,8 +1651,7 @@ int main(int argc, char *argv[])
     // controller keeps a non-owning pointer to push decoded frames into it.
     auto *markupProvider = new MarkupImageProvider();
     markupController.setImageProvider(markupProvider);
-    markupController.setRecordingRepository(&recordingRepository);   // the truth through the door (2.4)
-    markupController.setShotCommands(&appObject);   // … saved by the swing's Shot when a Session holds it (3.4b-i)
+    markupController.setShotCommands(&appObject);   // the truth read and saved by the swing's Shot (3.4b-i, 5.7d)
     engine.addImageProvider(QStringLiteral("markup"), markupProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("libraryConverter"),  &libraryConverter);

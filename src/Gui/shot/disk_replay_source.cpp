@@ -203,41 +203,17 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     // ── Analysis detail: the one projection of the document's analysis block (analysisDetailFor,
     //    swing_doc.h), the map the live shot and the reloaded row carry too — window time, so the
     //    overlays scrub with this window-relative playhead. The trim and the impact come off its
-    //    phases. ───────────────────────────────────────────────────────────────────────────────
+    //    phases (deriveFromAnalysis). At load it comes from the document parsed for the streams;
+    //    after the shot is re-analysed, from its Shot (applyAnalysis; refactor 5.7c). ────────────
     m_analysisDetail = pinpoint::analysisDetailForDocument(root);
-    m_impactUs = -1;
-    qint64 addressUs = -1, finishUs = -1;   // Phase::Address / Phase::Finish, for the trim
-    const bool hasAnalysis = !m_analysisDetail.value(QStringLiteral("series")).toList().isEmpty();
-    for (const QVariant &pv : m_analysisDetail.value(QStringLiteral("phases")).toList()) {
-        using pinpoint::analysis::Phase;
-        const QVariantMap p = pv.toMap();
-        const int phase = p.value(QStringLiteral("phase")).toInt();
-        const qint64 t  = p.value(QStringLiteral("t_us")).toLongLong();
-        if (phase == int(Phase::Address))     addressUs  = t;
-        else if (phase == int(Phase::Impact)) m_impactUs = t;
-        else if (phase == int(Phase::Finish)) finishUs   = t;
-    }
-    if (m_impactUs < 0) {
+    {
         const QJsonObject thumb = root[QStringLiteral("thumbnail")].toObject();
-        m_impactUs = thumb.contains(QStringLiteral("t_us"))
-                         ? static_cast<qint64>(thumb[QStringLiteral("t_us")].toDouble())
-                         : (m_startUs + m_endUs) / 2;
+        m_fallbackImpactUs = thumb.contains(QStringLiteral("t_us"))
+                                 ? static_cast<qint64>(thumb[QStringLiteral("t_us")].toDouble())
+                                 : (m_startUs + m_endUs) / 2;
     }
-
-    // ── Playback trim (Address → Finish) ────────────────────────────────────
-    // Default to the full span; only narrow it when trimming is requested AND the
-    // swing carries a usable Address/Finish pair. The scrub range [m_startUs,
-    // m_endUs] is untouched — this only moves where auto-play starts and stops.
-    m_playStartUs = m_startUs;
-    m_playEndUs   = m_endUs;
-    if (trimToSwing && addressUs >= 0 && finishUs > addressUs) {
-        const qint64 lo = std::clamp(addressUs, m_startUs, m_endUs);
-        const qint64 hi = std::clamp(finishUs,  m_startUs, m_endUs);
-        if (hi > lo) {
-            m_playStartUs = lo;
-            m_playEndUs   = hi;
-        }
-    }
+    m_trimToSwing = trimToSwing;
+    deriveFromAnalysis();
     m_endedAtTrim = false;
     // Seek to the trim start once media is ready (a pre-load setPosition is dropped
     // by the FFmpeg backend). Skip when playback starts at the span start anyway.
@@ -268,7 +244,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         const bool faceOn = pending[i].perspective == kPerspectiveFaceOn;
         m_streamInfo.append(ReplayStreamInfo{
             int(i), pending[i].perspective, pending[i].aspect,
-            faceOn && hasAnalysis, pending[i].viewGain });
+            faceOn && m_hasAnalysis, pending[i].viewGain });
 
         if (i >= m_streams.size())
             m_streams.push_back(Stream{});
@@ -336,30 +312,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     }
     playPlayers();
 
-    // Trim the loop to the action when the impact track says where it is:
-    // the first frame with a club to the last with a club or a departed ball,
-    // padded a few frames either side.
-    {
-        const QVariantMap im = m_analysisDetail.value(QStringLiteral("impact")).toMap();
-        const QVariantList samples = im.value(QStringLiteral("samples")).toList();
-        const qint64 leave = im.value(QStringLiteral("ballLeaveTUs"), -1).toLongLong();
-        qint64 lo = -1, hi = -1;
-        for (const QVariant &v : samples) {
-            const QVariantMap sm = v.toMap();
-            const qint64 t = sm.value(QStringLiteral("t_us")).toLongLong();
-            const bool action = sm.contains(QStringLiteral("hx"))
-                             || (leave >= 0 && t >= leave && sm.contains(QStringLiteral("bx")));
-            if (!action) continue;
-            if (lo < 0 || t < lo) lo = t;
-            if (hi < 0 || t > hi) hi = t;
-        }
-        for (Stream &st : m_streams) {
-            if (!st.loop || lo < 0 || hi <= lo || st.tUs.size() < 2) continue;
-            const qint64 period = std::max<qint64>(1, (st.tUs.back() - st.tUs.front()) / qint64(st.tUs.size() - 1));
-            st.loopStartUs = std::max<qint64>(st.tUs.front(), lo - kImpactLoopPadFrames * period);
-            st.loopEndUs   = std::min<qint64>(st.tUs.back(),  hi + kImpactLoopPadFrames * period);
-        }
-    }
+    deriveLoopBands();
 
     m_loaded = true;
     setPositionUs(m_playStartUs);
@@ -388,6 +341,8 @@ void DiskReplaySource::unload()
     m_streams.clear();
     m_streamInfo.clear();
     m_analysisDetail = QVariantMap{};
+    m_hasAnalysis = false;
+    m_fallbackImpactUs = -1;
     m_impactUs   = -1;
     m_startUs    = 0;
     m_endUs      = 0;
@@ -403,6 +358,82 @@ void DiskReplaySource::unload()
     }
     setPlaying(false);
     emit spanChanged();
+}
+
+// What the slice decides (deriveFromAnalysis, deriveLoopBands): the same rules at load and on a refresh.
+void DiskReplaySource::deriveFromAnalysis()
+{
+    m_impactUs = -1;
+    qint64 addressUs = -1, finishUs = -1;   // Phase::Address / Phase::Finish, for the trim
+    m_hasAnalysis = !m_analysisDetail.value(QStringLiteral("series")).toList().isEmpty();
+    for (const QVariant &pv : m_analysisDetail.value(QStringLiteral("phases")).toList()) {
+        using pinpoint::analysis::Phase;
+        const QVariantMap p = pv.toMap();
+        const int phase = p.value(QStringLiteral("phase")).toInt();
+        const qint64 t  = p.value(QStringLiteral("t_us")).toLongLong();
+        if (phase == int(Phase::Address))     addressUs  = t;
+        else if (phase == int(Phase::Impact)) m_impactUs = t;
+        else if (phase == int(Phase::Finish)) finishUs   = t;
+    }
+    if (m_impactUs < 0)
+        m_impactUs = m_fallbackImpactUs;
+
+    // ── Playback trim (Address → Finish) ────────────────────────────────────
+    // Default to the full span; only narrow it when trimming is requested AND the
+    // swing carries a usable Address/Finish pair. The scrub range [m_startUs,
+    // m_endUs] is untouched — this only moves where auto-play starts and stops.
+    m_playStartUs = m_startUs;
+    m_playEndUs   = m_endUs;
+    if (m_trimToSwing && addressUs >= 0 && finishUs > addressUs) {
+        const qint64 lo = std::clamp(addressUs, m_startUs, m_endUs);
+        const qint64 hi = std::clamp(finishUs,  m_startUs, m_endUs);
+        if (hi > lo) {
+            m_playStartUs = lo;
+            m_playEndUs   = hi;
+        }
+    }
+}
+
+void DiskReplaySource::deriveLoopBands()
+{
+    // Trim the loop to the action when the impact track says where it is:
+    // the first frame with a club to the last with a club or a departed ball,
+    // padded a few frames either side. Else the clip's first to last frame.
+    const QVariantMap im = m_analysisDetail.value(QStringLiteral("impact")).toMap();
+    const QVariantList samples = im.value(QStringLiteral("samples")).toList();
+    const qint64 leave = im.value(QStringLiteral("ballLeaveTUs"), -1).toLongLong();
+    qint64 lo = -1, hi = -1;
+    for (const QVariant &v : samples) {
+        const QVariantMap sm = v.toMap();
+        const qint64 t = sm.value(QStringLiteral("t_us")).toLongLong();
+        const bool action = sm.contains(QStringLiteral("hx"))
+                         || (leave >= 0 && t >= leave && sm.contains(QStringLiteral("bx")));
+        if (!action) continue;
+        if (lo < 0 || t < lo) lo = t;
+        if (hi < 0 || t > hi) hi = t;
+    }
+    for (Stream &st : m_streams) {
+        if (!st.loop || st.tUs.empty()) continue;
+        st.loopStartUs = st.tUs.front();
+        st.loopEndUs   = st.tUs.back();
+        if (lo < 0 || hi <= lo || st.tUs.size() < 2) continue;
+        const qint64 period = std::max<qint64>(1, (st.tUs.back() - st.tUs.front()) / qint64(st.tUs.size() - 1));
+        st.loopStartUs = std::max<qint64>(st.tUs.front(), lo - kImpactLoopPadFrames * period);
+        st.loopEndUs   = std::min<qint64>(st.tUs.back(),  hi + kImpactLoopPadFrames * period);
+    }
+}
+
+bool DiskReplaySource::applyAnalysis(const QJsonObject &analysis, qint64 originUs)
+{
+    if (!m_loaded)
+        return false;
+    m_analysisDetail = pinpoint::analysisDetailFor(analysis, originUs);   // the one projection, as at load
+    deriveFromAnalysis();
+    for (ReplayStreamInfo &si : m_streamInfo)
+        si.hasAnalysis = si.perspective == kPerspectiveFaceOn && m_hasAnalysis;
+    deriveLoopBands();
+    emit spanChanged();   // impactUs and the impact loop's band
+    return true;
 }
 
 void DiskReplaySource::refreshImpactPosition()

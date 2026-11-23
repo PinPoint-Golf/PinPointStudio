@@ -45,6 +45,7 @@ public:
 
     bool load(const QString &swingDir, double speed, bool trimToSwing) override;
     void unload() override;
+    bool applyAnalysis(const QJsonObject &analysis, qint64 originUs) override;
 
     int                       streamCount()    const override { return int(m_streams.size()); }
     QVector<ReplayStreamInfo> streams()        const override { return m_streamInfo; }
@@ -103,6 +104,11 @@ private:
     qint64 captureUsForStream(int streamIdx, qint64 mp4Ms) const;
     qint64 mp4MsForStream(int streamIdx, qint64 captureUs) const;
     qint64 loopClipUsFor(int streamIdx, qint64 captureUs) const;   // playhead → looping clip time
+    // What the analysis slice decides, in one place for the load and a refresh (applyAnalysis): the impact (else the
+    // thumbnail's, else mid-window), the trim (Address → Finish) and whether the slice has series; then the impact
+    // loop's band, once the streams are set.
+    void deriveFromAnalysis();
+    void deriveLoopBands();
 
     bool        m_loaded   = false;
     bool        m_playing  = false;
@@ -132,6 +138,9 @@ private:
     // Guards the trim-end auto-stop so playbackEnded fires once per playthrough.
     bool        m_endedAtTrim = false;
     QVariantMap m_analysisDetail;
+    bool        m_trimToSwing      = false;   // load's trim flag, kept for a refresh
+    bool        m_hasAnalysis      = false;   // the slice has series (the face-on tile's overlay)
+    qint64      m_fallbackImpactUs = -1;      // the thumbnail's instant, else mid-window: the impact with no phase
 
     QVector<ReplayStreamInfo>         m_streamInfo;   // per-stream metadata for the tiles
     std::vector<Stream>               m_streams;

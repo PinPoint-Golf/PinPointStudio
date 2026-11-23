@@ -19,13 +19,35 @@
 #include "shot_replay_controller.h"
 
 #include "app_settings.h"
+#include "../../Core/pp_debug.h"
+#include "../charts/charts_work.h"            // ChartsLane — the one worker idiom (R-CON-5)
+#include "../../DomainModel/shot.h"           // the followed Shot: its events and its RecordingSource
+#include "../../Buffer/swing_window.h"        // a LoadedRecording owns one (RecordingSource::read)
 
 #include <algorithm>
+#include <any>
+
+namespace {
+// What a read of the Shot hands back to the GUI thread: the analysis block and its read origin (LoadedRecording's).
+struct AnalysisRead {
+    pinpoint::ShotRef shot;
+    bool              ok = false;
+    QString           error;
+    QJsonObject       analysis;
+    qint64            originUs = 0;
+};
+} // namespace
 
 ShotReplayController::ShotReplayController(AppSettings *appSettings, QObject *parent)
+    : ShotReplayController(makeDiskReplaySource(), appSettings, parent)
+{
+}
+
+ShotReplayController::ShotReplayController(std::unique_ptr<ReplaySource> source, AppSettings *appSettings,
+                                           QObject *parent)
     : QObject(parent)
     , m_appSettings(appSettings)
-    , m_source(makeDiskReplaySource())
+    , m_source(std::move(source))
 {
     // Forward the source's transport/clock signals as our own; the QML-facing
     // change signals (activeChanged) are owned by the controller and emitted on
@@ -46,7 +68,73 @@ ShotReplayController::ShotReplayController(AppSettings *appSettings, QObject *pa
             Qt::QueuedConnection);
 }
 
-ShotReplayController::~ShotReplayController() = default;
+ShotReplayController::~ShotReplayController()
+{
+    follow(nullptr);   // disconnects; the lane goes with this, and a read in flight finds no owner (charts_work.h)
+}
+
+pinpoint::Shot *ShotReplayController::followedShot() const
+{
+    return m_shot.data();
+}
+
+bool ShotReplayController::waitForAnalysisRead(int msTimeout)
+{
+    return !m_lane || m_lane->waitForDone(msTimeout);
+}
+
+void ShotReplayController::follow(pinpoint::Shot *shot)
+{
+    if (shot == m_shot.data() && (shot != nullptr) == bool(m_onReanalysed))
+        return;
+    QObject::disconnect(m_onReanalysed);
+    QObject::disconnect(m_onCaptureCompleted);
+    m_onReanalysed = m_onCaptureCompleted = {};
+    m_shot = shot;   // a read still in flight for a shot let go is dropped when it comes back (rereadAnalysis)
+    if (!shot)
+        return;
+    // Direct, as every listener of a domain event (work_pool.h): heard in command order, on the GUI thread.
+    m_onReanalysed       = connect(shot, &pinpoint::Shot::reanalysed, this,
+                                   [this](const pinpoint::ShotRef &) { rereadAnalysis(); }, Qt::DirectConnection);   // EVT-02
+    m_onCaptureCompleted = connect(shot, &pinpoint::Shot::captureCompleted, this,
+                                   [this](const pinpoint::ShotRef &) { rereadAnalysis(); }, Qt::DirectConnection);   // EVT-22
+}
+
+// The Shot's Recording, read on the lane (a worker): only its analysis block and read origin come back, and are
+// applied only if the replay is still on that shot. A newer ask supersedes an older one (latest wins).
+void ShotReplayController::rereadAnalysis()
+{
+    pinpoint::Shot *shot = m_shot.data();
+    if (!m_active || !shot)
+        return;
+    if (!m_lane)
+        m_lane = std::make_unique<pinpoint::charts::ChartsLane>(this, pinpoint::WorkPriority::Normal);
+    const pinpoint::RecordingSource source = shot->recordingSource();   // a value: the ShotRef and its reader
+    m_lane->ask(
+        [source] {
+            AnalysisRead r;
+            r.shot = source.shot();
+            const auto loaded = source.read();
+            r.ok       = loaded.ok;
+            r.error    = loaded.error;
+            r.analysis = loaded.analysisIn;
+            r.originUs = loaded.analysisOriginUs;
+            return std::any(std::move(r));
+        },
+        [this](std::any &&v) {
+            const AnalysisRead r = std::any_cast<AnalysisRead>(std::move(v));
+            if (!m_active || !m_shot || !(m_shot->ref() == r.shot))
+                return;   // the replay moved on
+            if (!r.ok) {
+                ppWarn() << "[ShotReplay] the shot" << r.shot.toString() << "could not be read again:" << r.error;
+                return;
+            }
+            if (m_source->applyAnalysis(r.analysis, r.originUs)) {
+                refreshAnalysisDetail();
+                emit analysisDetailChanged();
+            }
+        });
+}
 
 bool ShotReplayController::start(int shotId, const QString &swingDir, double speed, bool autoPlay)
 {
@@ -64,8 +152,9 @@ bool ShotReplayController::start(int shotId, const QString &swingDir, double spe
         m_shotId   = shotId;
         m_swingDir = swingDir;
         m_active   = true;
+        follow(m_resolveShot ? m_resolveShot(swingDir) : nullptr);
         refreshAnalysisDetail();
-        emit activeChanged();   // covers streams / analysisDetail / swingDir / shotId
+        emitActive();   // covers streams / analysisDetail / swingDir / shotId
         return true;
     }
 
@@ -76,8 +165,9 @@ bool ShotReplayController::start(int shotId, const QString &swingDir, double spe
         m_active   = false;
         m_shotId   = -1;
         m_swingDir.clear();
+        follow(nullptr);
         refreshAnalysisDetail();
-        emit activeChanged();
+        emitActive();
     }
     return false;
 }
@@ -90,8 +180,9 @@ void ShotReplayController::stop()
     m_active   = false;
     m_shotId   = -1;
     m_swingDir.clear();
+    follow(nullptr);
     refreshAnalysisDetail();
-    emit activeChanged();
+    emitActive();
 }
 
 void ShotReplayController::onAborted()
@@ -102,6 +193,7 @@ void ShotReplayController::onAborted()
     m_active   = false;
     m_shotId   = -1;
     m_swingDir.clear();
+    follow(nullptr);
     refreshAnalysisDetail();
-    emit activeChanged();
+    emitActive();
 }

@@ -65,6 +65,7 @@ public:
         return { true, repo().completeCapture(s, arrival) };
     }
     ForwardResult setMarkupTruth(const QString &, const ShotRef &, TruthView, const QJsonObject &) override { return {}; }
+    std::optional<QJsonObject> markupTruth(const QString &, const ShotRef &, TruthView) override { return std::nullopt; }
     bool setShotIntent(const QString &, const ShotRef &, const QString &, bool, const SaveLater &) override { return false; }
     bool correctLabel(const QString &, const ShotRef &, const QVector<LabelCorrection> &, const LabelCorrectionNote &, bool,
                       const SaveLater &) override { return false; }

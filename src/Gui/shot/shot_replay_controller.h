@@ -21,14 +21,19 @@
 #include "qml_payload.h"
 #include "replay_source.h"
 
+#include <QMetaObject>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QVariantList>
 #include <QVariantMap>
+#include <functional>
 #include <memory>
 
 class AppSettings;
 class QVideoSink;
+namespace pinpoint { class Shot; }
+namespace pinpoint::charts { class ChartsLane; }
 
 // ShotReplayController (QML context property `shotReplay`) — the QML-facing facade
 // for the unified Review stage. It owns a polymorphic ReplaySource (today a
@@ -40,6 +45,14 @@ class QVideoSink;
 // the `streams` list the Review camera tiles enumerate; everything time/transport
 // related is delegated to the source. A reviewed swing may have been recorded on a
 // different camera rig, so `streams` is built from the swing's OWN swing.json.
+//
+// IT FOLLOWS THE REPLAYED SHOT (refactor 5.7c; build/refactor/step-4/LOCAL-COPIES.md row 13): the replayed swing's Shot,
+// found at the composition root's edge (setShotResolver: the folder → the Shot its Session holds; DEC-90). On that
+// Shot's re-analysis (EVT-02) or late part (EVT-22) the analysis slice is read again THROUGH THE SHOT — its
+// RecordingSource, on a worker (the charts' lane: R-CON-5) — and the source takes it in place
+// (ReplaySource::applyAnalysis): the impact marker, the trim and the overlays follow with no reload and no playhead
+// move. `analysisDetail` then notifies on its own (analysisDetailChanged), never activeChanged. A swing no Session
+// holds is replayed as before and followed by nothing.
 class ShotReplayController : public QObject
 {
     Q_OBJECT
@@ -72,17 +85,27 @@ class ShotReplayController : public QObject
     // ⚠ QJSValue, NOT QVariantMap: the disk shot's detail is the same ~650k-node shape the live
     // one is, read by every replay tile, chart and panel. Converted once per start(), shared by
     // reference after that — as a QVariantMap it was copied on every read. See qml_payload.h.
-    Q_PROPERTY(QJSValue     analysisDetail READ analysisDetailJs NOTIFY activeChanged)
+    Q_PROPERTY(QJSValue     analysisDetail READ analysisDetailJs NOTIFY analysisDetailChanged)
     // The same detail for QML to PASS ON to a C++ object (a presenter's pickedDetailRef): opaque
     // to QML, so it is never converted — see QmlMapRef in qml_payload.h. Reading analysisDetail
     // and writing it to a C++ QVariantMap property instead copies all ~650k nodes back (#173).
-    Q_PROPERTY(QVariant     analysisDetailRef READ analysisDetailRef NOTIFY activeChanged)
+    Q_PROPERTY(QVariant     analysisDetailRef READ analysisDetailRef NOTIFY analysisDetailChanged)
 
 public:
     // appSettings supplies the global replay-trim flag (replayTrimToSwing), read at
     // each start(); may be null in tests/tools (then trimming is off).
     explicit ShotReplayController(AppSettings *appSettings = nullptr, QObject *parent = nullptr);
+    // A source of the caller's own (a test's).
+    ShotReplayController(std::unique_ptr<ReplaySource> source, AppSettings *appSettings, QObject *parent = nullptr);
     ~ShotReplayController() override;
+
+    // The edge (DEC-90): the replayed folder's Shot, the one its Session holds; null when none does. main.cpp: `app`.
+    using ShotResolver = std::function<pinpoint::Shot *(const QString &swingDir)>;
+    void setShotResolver(ShotResolver resolve) { m_resolveShot = std::move(resolve); }
+    // The Shot being followed (null: none, or it is gone).
+    pinpoint::Shot *followedShot() const;
+    // Spin the event loop until no read of the Shot is in flight (tests). True when none is.
+    bool waitForAnalysisRead(int msTimeout = 30000);
 
     bool         active()         const { return m_active; }
     bool         playing()        const { return m_source->playing(); }
@@ -128,6 +151,8 @@ public:
 
 signals:
     void activeChanged();
+    // The analysis slice changed: a start, a stop, or the followed Shot read again after EVT-02 / EVT-22.
+    void analysisDetailChanged();
     void playingChanged();
     void impactLoopPlayingChanged();
     void positionChanged();
@@ -144,6 +169,10 @@ private:
     // Re-snapshots the source's detail for the QML property. Called before EVERY activeChanged
     // emit, which is the property's notify: a load, a failed load and a stop all change it.
     void refreshAnalysisDetail() { m_analysisDetail.set(m_source->analysisDetail()); }
+    // The followed Shot (refactor 5.7c): followed from start(), let go on stop and abort.
+    void follow(pinpoint::Shot *shot);
+    void rereadAnalysis();   // the Shot's RecordingSource, on the lane; applied if the same shot still replays
+    void emitActive() { emit activeChanged(); emit analysisDetailChanged(); }
 
     AppSettings                  *m_appSettings = nullptr;
     QmlPayload                    m_analysisDetail;   // see qml_payload.h
@@ -151,4 +180,8 @@ private:
     int                           m_shotId = -1;
     QString                       m_swingDir;
     std::unique_ptr<ReplaySource> m_source;
+    ShotResolver                  m_resolveShot;
+    QPointer<pinpoint::Shot>      m_shot;
+    QMetaObject::Connection       m_onReanalysed, m_onCaptureCompleted;
+    std::unique_ptr<pinpoint::charts::ChartsLane> m_lane;   // made on the first read; latest ask wins
 };

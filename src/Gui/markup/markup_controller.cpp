@@ -78,7 +78,6 @@ void MarkupController::loadSwings(const QVariantList &swingDirs)
         const QString d = v.toString();
         if (!d.isEmpty()) m_swingDirs << d;
     }
-    rebuildSwingsCache();
     m_currentIndex = -1;
     emit swingsChanged();
     emit currentChanged();
@@ -90,7 +89,6 @@ void MarkupController::loadSwing(const QString &swingDir)
     if (swingDir.isEmpty()) {                      // clear
         if (m_swingDirs.isEmpty() && m_currentIndex < 0) return;
         m_swingDirs.clear();
-        m_swingsCache.clear();
         m_currentIndex = -1;
         m_fo = {};
         m_dtl = {};
@@ -118,7 +116,6 @@ void MarkupController::loadSwing(const QString &swingDir)
     }
     if (hasSwing() && currentSwingDir() == swingDir) return;   // already focused — keep edits
     m_swingDirs = QStringList{ swingDir };
-    rebuildSwingsCache();
     emit swingsChanged();
     openSwing(0);
 }
@@ -130,44 +127,44 @@ pinpoint::TruthView truthViewOf(MarkupView view)
 }
 } // namespace
 
-// The edge (DEC-90): a queued swing folder to its ShotRef, once per folder.
-pinpoint::ShotRef MarkupController::shotOf(const QString &swingDir)
+// THE TRUTH IS THE SHOT'S (OBJ-MARKUP-TRUTH, FILE-SHOT-12; refactor 5.7d): read and written by the swing's Shot, through
+// `app` (the door translates the folder at the edge: DEC-90). Nothing of it is kept here but the edit buffer, so a truth
+// written by any other path is what the next read shows. A swing no Session holds, or no door, has no truth to read and
+// none is written (N1 is gone for markup as for the carousel: 5.1).
+pinpoint::ShotRef MarkupController::shotOf(const QString &swingDir) const
 {
-    auto it = m_shots.find(swingDir);
-    if (it == m_shots.end())
-        it = m_shots.insert(swingDir, m_repo ? m_repo->shotOfFolder(swingDir) : pinpoint::ShotRef());
-    return *it;
+    return (m_commands && !swingDir.isEmpty()) ? m_commands->shotOfFolder(swingDir) : pinpoint::ShotRef();
 }
 
-QJsonObject MarkupController::truthJson(const QString &swingDir, MarkupView view)
+QJsonObject MarkupController::truthJson(const QString &swingDir, MarkupView view) const
 {
-    return m_repo ? m_repo->truth(shotOf(swingDir), truthViewOf(view)) : QJsonObject();
+    const pinpoint::ShotRef shot = shotOf(swingDir);
+    if (shot.isNull())
+        return {};
+    return m_commands->markupTruth(pinpoint::sessionFolderOf(swingDir), shot, truthViewOf(view)).value_or(QJsonObject());
 }
 
 pinpoint::WriteResult MarkupController::saveTruth(const TruthDoc &doc, const VideoStreamInfo &vi, MarkupView view)
 {
-    if (!m_repo) {
-        pinpoint::WriteResult none;
-        none.error = QStringLiteral("no swing store is connected");
-        return none;
-    }
     const QString           swingDir = currentSwingDir();
     const pinpoint::ShotRef shot     = shotOf(swingDir);
-    const QJsonObject       json     = toJson(doc, vi, view);
-    // The Shot's own command (no event: DEC-187), through its Session; today's write only for a swing no Session
-    // holds (N1).
-    if (m_commands) {
-        const pinpoint::ForwardResult f =
-            m_commands->setMarkupTruth(pinpoint::sessionFolderOf(swingDir), shot, truthViewOf(view), json);
+    if (!shot.isNull()) {
+        // The Shot's own command (no event: DEC-187), through its Session.
+        const pinpoint::ForwardResult f = m_commands->setMarkupTruth(pinpoint::sessionFolderOf(swingDir), shot,
+                                                                     truthViewOf(view), toJson(doc, vi, view));
         if (f.reached)
             return f.result;
     }
-    return m_repo->writeTruth(shot, truthViewOf(view), json);
+    pinpoint::WriteResult none;
+    none.error = QStringLiteral("this swing is not in a session of the library");
+    return none;
 }
 
-void MarkupController::rebuildSwingsCache()
+// The queue's rows, worked out on each read from each swing's Shot (nothing kept: d1 in build/refactor/step-5/
+// NOTES-5.7cd.md).
+QVariantList MarkupController::swings() const
 {
-    m_swingsCache.clear();
+    QVariantList out;
     for (const QString &d : m_swingDirs) {
         const TruthSummary s = summarizeJson(truthJson(d, MarkupView::FaceOn));
         QVariantMap m;
@@ -176,14 +173,15 @@ void MarkupController::rebuildSwingsCache()
         m.insert(QStringLiteral("shaftCount"), s.shaftCount);
         m.insert(QStringLiteral("eventCount"), s.eventCount);
         m.insert(QStringLiteral("labelled"),   s.exists && (s.shaftCount > 0 || s.eventCount > 0));
-        m_swingsCache.push_back(m);
+        out.push_back(m);
     }
+    return out;
 }
 
 int MarkupController::labelledCount() const
 {
     int n = 0;
-    for (const QVariant &v : m_swingsCache)
+    for (const QVariant &v : swings())
         if (v.toMap().value(QStringLiteral("labelled")).toBool()) ++n;
     return n;
 }
@@ -757,8 +755,7 @@ bool MarkupController::save()
     }
 
     if (ok) {
-        rebuildSwingsCache();
-        emit swingsChanged();
+        emit swingsChanged();   // the rows read the Shot's truth again
         emit message(QStringLiteral("Saved %1 shaft / %2 events%3%4 → %5")
                          .arg(shaftCount()).arg(eventCount())
                          .arg(m_truth.ball.has ? QStringLiteral(" / ball") : QString())

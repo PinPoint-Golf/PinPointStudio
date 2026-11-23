@@ -274,6 +274,11 @@ WriteResult Shot::setMarkupTruth(TruthView view, const QJsonObject &truth)
                   Event::None, "setMarkupTruth");   // no event (DEC-187: IM-S3-9)
 }
 
+QJsonObject Shot::markupTruth(TruthView view) const
+{
+    return m_doors.recordings ? m_doors.recordings->truth(m_ref, view) : QJsonObject();
+}
+
 WriteResult Shot::applyAnalysis(const AnalysisOutcome &outcome, const PersistOptions &options)
 {
     return finish(m_doors.recordings ? m_doors.recordings->writeAnalysis(m_ref, outcome, options) : noDoor(),

@@ -734,8 +734,8 @@ void LaunchMonitorController::flushUpdates()
         // The carousel's row follows the write's EVT-22 (refactor step 5.2).
         m_lastReading = summaryOf(r);
         emit lastReadingChanged();
-        // The carousel's _swingRewritten (QML): since 3.7-c the replay's reload only — the row follows the write's EVT-22
-        // itself (refactor 5.2), and the owner regrades the shot on the same event (3.7-a).
+        // Nothing in QML reloads on this any more: the row follows the write's EVT-22 itself (refactor 5.2), the owner
+        // regrades the shot on the same event (3.7-a), and the replay reads its slice again through the Shot (5.7c).
         pinpoint::PostShotTrace::Scope traceRewritten("lm.rewritten");
         emit readingUpdatedForSwing(dir);
     }

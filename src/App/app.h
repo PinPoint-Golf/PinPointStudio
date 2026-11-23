@@ -104,6 +104,7 @@ public:
                                   const StreamArrival &arrival) override;
     ForwardResult setMarkupTruth(const QString &sessionFolder, const ShotRef &shot, TruthView view,
                                  const QJsonObject &truth) override;
+    std::optional<QJsonObject> markupTruth(const QString &sessionFolder, const ShotRef &shot, TruthView view) override;
     bool setShotIntent(const QString &sessionFolder, const ShotRef &shot, const QString &intent, bool keepEmpty,
                        const SaveLater &later) override;
     bool correctLabel(const QString &sessionFolder, const ShotRef &shot, const QVector<LabelCorrection> &corrections,

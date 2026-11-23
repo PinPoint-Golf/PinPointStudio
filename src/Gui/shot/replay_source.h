@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <QJsonObject>
 #include <QObject>
 #include <QVariantMap>
 #include <QVector>
@@ -79,6 +80,11 @@ public:
     // no-op when the swing carries no phase analysis (falls back to the full span).
     virtual bool load(const QString &swingDir, double speed, bool trimToSwing) = 0;
     virtual void unload() = 0;
+    // THE SHOT'S ANALYSIS, READ AGAIN (refactor 5.7c): the loaded shot's analysis block as its Shot's RecordingSource
+    // read it after a re-analysis or a late part, with the document's read origin. The slice and everything derived
+    // from it (the impact, the trim, the impact loop's band) take it in place; no stream, player or playhead moves.
+    // False when nothing is loaded.
+    virtual bool applyAnalysis(const QJsonObject &analysis, qint64 originUs) = 0;
 
     virtual int                       streamCount()    const = 0;
     virtual QVector<ReplayStreamInfo> streams()        const = 0;

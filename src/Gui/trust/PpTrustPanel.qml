@@ -56,7 +56,11 @@ Item {
         _detailRef = app.state.replay.active ? app.state.replay.analysisDetailRef : ({})
     }
     on_ScreenActiveChanged: _syncPick()
-    Connections { target: app.state.replay; function onActiveChanged() { root._syncPick() } }
+    Connections {
+        target: app.state.replay
+        function onActiveChanged()         { root._syncPick() }
+        function onAnalysisDetailChanged() { root._syncPick() }   // the shot re-analysed in place (5.7c)
+    }
 
     TrustPresenter {
         id: presenter

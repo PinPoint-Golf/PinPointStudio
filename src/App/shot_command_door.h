@@ -36,8 +36,8 @@
 // athlete whoever is current (J-67): the door finds it through whichever athlete's folder holds it, the Unassigned
 // owner's included (a session captured with no golfer: information_model.md §5.11, DEC-198). Since step 5.1 the
 // carousel, the phone-clip filer, re-analysis and capture keep NO path of their own for a session not reached (N1 is
-// gone): they refuse the write and say so. (The LM board, markup and the diagnostics model still keep theirs for a
-// folder no athlete lists, or no door.)
+// gone): they refuse the write and say so; since step 5.7d the markup tool too, for its reads as for its writes. (The LM
+// board and the diagnostics model still keep theirs for a folder no athlete lists, or no door.)
 //
 // THE ROWS AND THE READERS (refactor step 3.4b-ii): the carousel's rows read a held shot's facts from its Shot
 // (shotSummary, sessionShots — the Shot's summary, never a copy the view made), trash it through its Session
@@ -112,6 +112,8 @@ public:
                                           const StreamArrival &arrival) = 0;
     virtual ForwardResult setMarkupTruth(const QString &sessionFolder, const ShotRef &shot, TruthView view,
                                          const QJsonObject &truth) = 0;
+    // The markup truth as the Shot reads it now (Shot::markupTruth; refactor 5.7d). nullopt: not reached.
+    virtual std::optional<QJsonObject> markupTruth(const QString &sessionFolder, const ShotRef &shot, TruthView view) = 0;
     // True: the Shot took it; its save is made as `later` says and `later.done` is called once it has landed.
     virtual bool setShotIntent(const QString &sessionFolder, const ShotRef &shot, const QString &intent,
                                bool keepEmpty, const SaveLater &later) = 0;
