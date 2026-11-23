@@ -67,6 +67,16 @@ const pinpoint::ShotSummary *ShotListModel::factsOf(const Row &row) const
     return (f && f->ok) ? f : nullptr;
 }
 
+pinpoint::analysis::MeasurementSet ShotListModel::measurementsOf(int row) const
+{
+    if (row < 0 || row >= m_rows.size())
+        return {};
+    const Row &r = m_rows.at(row);
+    if (r.unsaved || !m_source || r.shot.isNull())
+        return {};
+    return m_source->measurements(r.shot);
+}
+
 QVariant ShotListModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_rows.size())

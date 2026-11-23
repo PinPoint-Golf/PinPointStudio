@@ -21,6 +21,7 @@
 #include "charts_words.h"
 #include "../../Diagnostics/measures/measure_sample.h"   // buildPhaseGrid: THE sampler
 #include "../../Diagnostics/measures/delivery_grid_numbers.h"   // the grid → numbers rule (refactor 5.5d)
+#include "../../Diagnostics/measures/measurement_precedence.h"   // pickByPrecedence: THE precedence rule (6.1a)
 #include "../../LaunchMonitor/lm_inferred_reads.h"       // lmShapeClass: THE shot-shape classifier (decision 10)
 
 #include <QHash>
@@ -33,6 +34,7 @@
 
 #include <algorithm>
 #include <map>
+#include <optional>
 
 namespace pinpoint::charts {
 
@@ -655,10 +657,20 @@ std::vector<DeliveryImpactLine> deliveryImpactLines(const DeliveryShotInput &in)
         l.source = fin(in.shaftLean) && fin(in.lmLoft) ? QStringLiteral("both") : fin(in.lmLoft) ? QStringLiteral("monitor") : QStringLiteral("camera");
         out.push_back(l);
     }
-    // Attack and low point: the monitor's, else ours
+    // Attack and low point: whichever source the one precedence rule ranks first (measurement_precedence.h: the
+    // monitor's reading, else ours). The two candidates this section has always shown are offered; the LM-derived low
+    // point is not (as on the launch monitor board, DUTIES-6.1a D-4).
     {
-        const bool monA = fin(in.lmAttack), monL = fin(in.lmLowPoint);
-        const double a = monA ? in.lmAttack : in.ourAttack, lp = monL ? in.lmLowPoint : in.lowPoint;
+        const auto pick = [](const QString &metric, double monitor, double own) {
+            QHash<QString, std::optional<double>> offered;
+            if (fin(monitor)) offered.insert(pa::storedKey(metric, pa::Instrument::LaunchMonitor), monitor);
+            if (fin(own))     offered.insert(metric, own);
+            return pa::pickByPrecedence(metric, offered);
+        };
+        const auto pickA = pick(QStringLiteral("attackAngle"), in.lmAttack, in.ourAttack);
+        const auto pickL = pick(QStringLiteral("lowPointAhead"), in.lmLowPoint, in.lowPoint);
+        const bool monA = pickA && pa::isLaunchMonitorReading(pickA->key), monL = pickL && pa::isLaunchMonitorReading(pickL->key);
+        const double a = pickA ? pickA->value : kNaN, lp = pickL ? pickL->value : kNaN;
         if (fin(a) || fin(lp)) {
             DeliveryImpactLine l;
             l.key = QStringLiteral("attack");

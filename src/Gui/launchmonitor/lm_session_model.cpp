@@ -28,7 +28,8 @@
 #include "../../LaunchMonitor/lm_inferred_reads.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
 #include "../../Analysis/swing_analysis.h"
-#include "../../Export/swing_doc.h"            // readLaunchMonitorDetail — a cheap-loaded row's readings
+#include "../../Metrics/measurement.h"                       // the Shot's set: a row's readings (refactor 6.1a)
+#include "../../Diagnostics/measures/measurement_precedence.h" // which source wins for a metric (R-INS-3)
 #include "../trust/trust_readings.h"
 
 #include "../../Diagnostics/norms/context_tree.h"
@@ -41,6 +42,8 @@
 #include "../variability/variability_facade.h"
 #include "../variability/variability_measures.h"   // metricScaleType, corridorHalfWidthOf, isOutcomeMetric
 
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QPointF>
 #include <QRegularExpression>
 #include <QStringList>
@@ -102,63 +105,45 @@ QString lmBasisUnit(const QString &unit)
 // travel through the report's map too, and a gadget would not survive a JSON trip there.
 QVariantMap variabilityMap(const pv::VariabilityResultView &v) { return v.toMap(); }
 
-// One shot's launch monitor readings, out of the row's analysisDetail.
-//
-// The `series` entries are the swing.json metric objects verbatim; a launch monitor
-// entry is an EMPTY curve carrying a single phaseSample at Impact (see lmMetricEntries
-// — a device reports one number per shot, and inventing a curve for it would be a lie
-// the charts would draw). So the value is looked up by PHASE, exactly as the writer
-// tagged it, rather than by taking whatever sample happens to be first.
-LmShotValues readingsFor(const QVariantMap &analysisDetail)
+// One shot's launch monitor READINGS, from its Shot's set (refactor 6.1a; R-INS-2): every measurement the launch monitor
+// delivered, by stored key ("lm.carryDistance"), at Impact. A device reports one number per shot — an EMPTY curve
+// carrying a single phaseSample at Impact (lmMetricEntries) — so the value is the one the writer tagged, by phase
+// (measurementSetFromAnalysis), never whatever sample happens to be first.
+LmShotValues readingsFor(const pinpoint::analysis::MeasurementSet &set)
 {
-    LmShotValues out;
-    const QVariantList series = analysisDetail.value(QStringLiteral("series")).toList();
-    for (const QVariant &sv : series) {
-        const QVariantMap m = sv.toMap();
-        const QString key = m.value(QStringLiteral("key")).toString();
-        if (!key.startsWith(QStringLiteral("lm.")))
-            continue;
-        for (const QVariant &pv : m.value(QStringLiteral("phaseSamples")).toList()) {
-            const QVariantMap ps = pv.toMap();
-            if (ps.value(QStringLiteral("phase")).toInt() != int(Phase::Impact))
-                continue;
-            bool ok = false;
-            const double v = ps.value(QStringLiteral("value")).toDouble(&ok);
-            if (ok) out.insert(key, v);
-            break;
-        }
-    }
-    return out;
+    using namespace pinpoint::analysis;
+    return set.values(Instrument::LaunchMonitor, MeasurementKind::Reading);
 }
 
 // PinPoint's OWN optical low point for one shot — the bare `lowPointAhead` our cameras
-// estimate (club_delivery.cpp), read the same way as a reading because it reaches Impact
-// the same way: a PointInTime scalar on an otherwise empty curve.
+// estimate (club_delivery.cpp): the set's `lowPointAhead` from our own measurement rules.
 //
-// READ SEPARATELY, AND DELIBERATELY SO. It must not join the LmShotValues map: that map
+// KEPT APART, AND DELIBERATELY SO. It must not join the LmShotValues map: that map
 // is "what the device measured", and rebuild() tests it for emptiness to decide whether
 // the monitor has said anything at all and which device to name. An optical estimate
 // dropped into it would make a camera-only session claim a monitor reported it. It is
-// used for exactly one thing — the IMPACT card's low point falling back to an estimate,
-// badged as one — and nothing else may reach for it.
-std::optional<double> opticalLowPointFor(const QVariantMap &analysisDetail)
+// used for exactly one thing — the IMPACT card's low point, offered to the one precedence
+// rule beside the device's reading (buildGraphics) — and nothing else may reach for it.
+std::optional<double> opticalLowPointFor(const pinpoint::analysis::MeasurementSet &set)
 {
-    const QVariantList series = analysisDetail.value(QStringLiteral("series")).toList();
-    for (const QVariant &sv : series) {
-        const QVariantMap m = sv.toMap();
-        if (m.value(QStringLiteral("key")).toString() != QLatin1String("lowPointAhead"))
-            continue;
-        for (const QVariant &pv : m.value(QStringLiteral("phaseSamples")).toList()) {
-            const QVariantMap ps = pv.toMap();
-            if (ps.value(QStringLiteral("phase")).toInt() != int(Phase::Impact))
-                continue;
-            bool ok = false;
-            const double v = ps.value(QStringLiteral("value")).toDouble(&ok);
-            if (ok) return v;
-            return std::nullopt;
-        }
+    using namespace pinpoint::analysis;
+    const Measurement *m = set.find(QStringLiteral("lowPointAhead"), Instrument::Own);
+    return m ? m->value : std::nullopt;
+}
+
+// A test's in-memory "document" (setDetailReader: the old slice's shape, `series` and `gates`) as the set a Shot
+// would read from it: the same parse, so the board reads one shape whichever source filled the row.
+pinpoint::analysis::MeasurementSet measurementsOfDetail(const QVariantMap &detail)
+{
+    QJsonObject an;
+    an.insert(QStringLiteral("metrics"), QJsonArray::fromVariantList(detail.value(QStringLiteral("series")).toList()));
+    // The old slice carried `gates` only for a document that stamps them (gatesVersion); a test's slice may carry them
+    // bare, and the board read them either way.
+    if (detail.contains(QStringLiteral("gates")) || detail.contains(QStringLiteral("gatesVersion"))) {
+        an.insert(QStringLiteral("gatesVersion"), detail.value(QStringLiteral("gatesVersion")).toInt());
+        an.insert(QStringLiteral("gates"), QJsonArray::fromVariantList(detail.value(QStringLiteral("gates")).toList()));
     }
-    return std::nullopt;
+    return pinpoint::analysis::measurementSetFromAnalysis(an);
 }
 
 QVariantMap tileFor(const LmFieldStats &st, const QString &grade)
@@ -758,7 +743,6 @@ void LmSessionModel::setShotModel(ShotListModel *m)
     if (m_shots)
         m_shots->disconnect(this);
     m_shots = m;
-    m_diskDetail.clear();
     m_shownGrades.clear();
     connectShotModel();
     emit shotModelChanged();
@@ -775,18 +759,13 @@ void LmSessionModel::connectShotModel()
     connect(m_shots, &QAbstractItemModel::rowsInserted,   this, &LmSessionModel::scheduleRebuild);
     connect(m_shots, &QAbstractItemModel::rowsRemoved,    this, &LmSessionModel::scheduleRebuild);
     connect(m_shots, &QAbstractItemModel::modelReset, this, [this]() {
-        m_diskDetail.clear();                     // a reload is a fresh read of the disk
-        m_shownGrades.clear();                    // and a fresh session's grades
+        m_shownGrades.clear();                    // a fresh session's grades
         scheduleRebuild();
     });
     connect(m_shots, &QAbstractItemModel::dataChanged, this,
-            [this](const QModelIndex &topLeft, const QModelIndex &bottomRight, const QVector<int> &roles) {
-                // A reading folded in (EVT-22) or a re-analysis (EVT-02): the cached slice is stale.
-                if (roles.isEmpty()
-                    || roles.contains(int(ShotListModel::LmDeviceRole)))
-                    for (int r = topLeft.row(); r <= bottomRight.row(); ++r)
-                        m_diskDetail.remove(m_shots->data(m_shots->index(r),
-                                                          ShotListModel::SwingDirRole).toString());
+            [this](const QModelIndex &, const QModelIndex &, const QVector<int> &roles) {
+                // A reading folded in (EVT-22) or a re-analysis (EVT-02): the Shot dropped its kept set on its own event
+                // (Shot::measurements, refactor 6.1a), so the rebuild below reads the new one.
                 if (m_batching)
                     return;                       // undoMismatch() rebuilds once at the end
                 if (roles.isEmpty()
@@ -1037,21 +1016,18 @@ void LmSessionModel::rebuild()
     // averaged as a drive because Driver was left selected on the device.
     std::vector<LmShotRow> rows;
     rows.reserve(size_t(nrows));
-    QHash<QString, QVariantMap> diskDetail;       // becomes m_diskDetail: the rows used, no more
     for (int r = 0; r < nrows; ++r) {
         const QModelIndex ix = m_shots->index(r);
-        // The row's launch monitor slice, read from its document (the carousel's rows keep none of a Shot's facts since
-        // refactor step 5.2; R-QML-5). Only a row a device measured is read: a shot with no monitor has no readings to
-        // find, and showing a session must stay cheap for it.
-        QVariantMap detail;
-        {
+        // The row's measurements, from its Shot's one set (refactor 6.1a; R-INS-1, R-INS-2: no store of the board's own;
+        // the Shot keeps it, so a rebuild reads no document). Only a row a device measured is asked: a shot with no
+        // monitor has no readings to find, and showing a session must stay cheap for it.
+        pinpoint::analysis::MeasurementSet set;
+        if (!m_shots->data(ix, ShotListModel::LmDeviceRole).toString().isEmpty()) {
             const QString dir = m_shots->data(ix, ShotListModel::SwingDirRole).toString();
-            if (!dir.isEmpty()
-                && !m_shots->data(ix, ShotListModel::LmDeviceRole).toString().isEmpty()) {
-                const auto hit = m_diskDetail.constFind(dir);
-                detail = hit != m_diskDetail.constEnd() ? *hit
-                       : m_detailReader ? m_detailReader(dir) : pinpoint::SwingDocReader::readLaunchMonitorDetail(dir);
-                diskDetail.insert(dir, detail);
+            if (m_detailReader) {
+                if (!dir.isEmpty()) set = measurementsOfDetail(m_detailReader(dir));
+            } else {
+                set = m_shots->measurementsOf(r);
             }
         }
         LmShotRow row;
@@ -1062,9 +1038,10 @@ void LmSessionModel::rebuild()
         row.clubOverride = m_shots->data(ix, ShotListModel::LmClubOverrideRole).toString().trimmed();
         row.excluded     = m_shots->data(ix, ShotListModel::LmExcludedRole).toBool();
         row.kind         = m_shots->data(ix, ShotListModel::LmDeviceRole).toString();
-        row.values       = readingsFor(detail);
-        row.optical      = opticalLowPointFor(detail);
-        row.gates        = lmGateMap(detail.value(QStringLiteral("gates")).toList());
+        row.values       = readingsFor(set);
+        row.optical      = opticalLowPointFor(set);
+        // The shot's gate records, as the document holds them (none for a document older than the records).
+        row.gates        = set.gatesVersion ? lmGateMap(set.gateRecords) : QVariantMap();
         row.swingDir     = m_shots->data(ix, ShotListModel::SwingDirRole).toString();
         // Session-wide, deliberately: it separates "the monitor has given us nothing"
         // from "this club has nothing yet", which are different sentences to read.
@@ -1072,7 +1049,6 @@ void LmSessionModel::rebuild()
             m_anyReadings = true;
         rows.push_back(std::move(row));
     }
-    m_diskDetail = std::move(diskDetail);
     resolveClubs(rows);
 
     // The shots as counted, oldest first, for boardShots() (the session report's one source, F-03).
@@ -1383,8 +1359,17 @@ void LmSessionModel::buildGraphics(const std::vector<LmFieldStats> &stats,
     // WHICH ONE IT IS TRAVELS WITH IT. `source` is not decoration: an estimate printed as
     // a measurement is the failure this whole `lm.` namespace exists to prevent, and the
     // card badges it from this field rather than inferring it from anything else.
-    const std::optional<double> measuredLowPoint = valueOf(stats, "lm.lowPointAhead");
-    const std::optional<double> lowPoint = measuredLowPoint ? measuredLowPoint : opticalLowPoint;
+    //
+    // WHICH ONE WINS IS THE ONE PRECEDENCE RULE'S (measurement_precedence.h; refactor 6.1a, R-INS-3): the board offers
+    // its two candidates — the device's reading and our own estimate — and the rule orders them. The rule's middle rung
+    // (lowPointFromAttack, derived from the monitor's attack angle) is not offered, as before (6.1a NOTES: a question).
+    using pinpoint::analysis::pickByPrecedence;
+    const QHash<QString, std::optional<double>> offered{ { QStringLiteral("lm.lowPointAhead"), valueOf(stats, "lm.lowPointAhead") },
+                                                         { QStringLiteral("lowPointAhead"), opticalLowPoint } };
+    const auto picked = pickByPrecedence(QStringLiteral("lowPointAhead"), offered);
+    const std::optional<double> lowPoint = picked ? std::optional<double>(picked->value) : std::nullopt;
+    const bool measuredLowPoint = picked && pinpoint::analysis::parseStoredKey(picked->key).kind
+                                                == pinpoint::analysis::MeasurementKind::Reading;
     g.insert(QStringLiteral("lowPoint"), QVariantMap{
         { QStringLiteral("has"),    lowPoint.has_value() },
         { QStringLiteral("value"),  lowPoint.value_or(0.0) },

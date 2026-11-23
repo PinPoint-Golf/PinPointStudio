@@ -52,6 +52,7 @@
 #include "../LaunchMonitor/lm_gates.h"              // the import's dropped fields → analysis.gates
 #include "../LaunchMonitor/lm_device.h"             // connector vs device: launchMonitor.device
 #include "../Analysis/swing_analysis.h"
+#include "../Metrics/measurement.h"            // lmDerivedKeys: the vocabulary's one list (6.1a)
 #include "../Analysis/uncertainty_json.h"         // σ fields — one spelling, four paths
 #include "../Club/dtl_shaft_json.h"                // dtlStreamName — the DTL club block names its stream
 #include "../Core/club_standards.h"            // lmArcRadiusM — the club's standard length
@@ -235,10 +236,14 @@ QJsonObject lmMetricEntry(const QString &key, const QString &label, const QStrin
 // entries before re-adding so that re-applying a reading replaces rather than duplicates, and it
 // recognises them by the `lm.` prefix. A derived key has no prefix to be caught by, so a second
 // pairing would have appended a second copy — silently, and only on shots a device was re-read for.
+// The list is the measurement vocabulary's (Metrics/measurement.h, refactor 6.1a): stated once, with the provider's claim.
 const QStringList &lmDerivedKeys()
 {
-    static const QStringList keys = { QStringLiteral("compoundMiss"),
-                                      QStringLiteral("lowPointFromAttack") };
+    static const QStringList keys = [] {
+        QStringList k;
+        for (const QString &key : analysis::lmDerivedKeys()) k << key;
+        return k;
+    }();
     return keys;
 }
 

@@ -21,7 +21,8 @@
 // THE CAROUSEL'S PORT ONTO ONE SESSION (refactor step 5.2; R-QML-5, DEC-199). The carousel (ShotListModel: live, review
 // and the report's) is a view: its rows are one Session's Shots, it follows that Session's events, and it keeps no list,
 // reload or folder read of its own. This is all it sees of the Session — its shots in order, each Shot's summary (the
-// Shot's own, kept by the Shot, never a copy), the Shot's commands, the Session's trash, and the events.
+// Shot's own, kept by the Shot, never a copy) and measurements (refactor 6.1a), the Shot's commands, the Session's trash,
+// and the events.
 //
 // A port and not the Session itself because the view is compiled into targets that link no Session (the QML module the
 // QML suites build, and the board's tests): session_shot_source.h implements it over a real Session for the app. It is
@@ -30,6 +31,7 @@
 // Plain callbacks, not signals, so the port needs no moc in the targets that compile the view.
 
 #include "shot_command_door.h"   // ShotSummary, WriteResult, SummaryRead
+#include "../Metrics/measurement.h"   // MeasurementSet (refactor 6.1a)
 #include "../Identity/identity.h"
 
 #include <QString>
@@ -60,6 +62,9 @@ public:
     // holds the shot. Points into the Shot: read it now, never keep it.
     virtual const ShotSummary *summary(const ShotRef &shot, SummaryRead how) = 0;
     virtual QString swingFolder(const ShotRef &shot) const = 0;   // the shot's folder (a property of the Shot)
+    // The Shot's measurements (Shot::measurements: its one source-tagged set; refactor 6.1a). A copy, read now. Empty when
+    // the Session no longer holds the shot — and from a source over no documents (the default).
+    virtual analysis::MeasurementSet measurements(const ShotRef &) { return {}; }
 
     // The Shot's commands (the golfer's review facts: Shot::rate … excludeReading) and the Session's trash (EVT-03).
     virtual WriteResult rate(const ShotRef &shot, int stars) = 0;

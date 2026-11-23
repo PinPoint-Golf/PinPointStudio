@@ -19,6 +19,7 @@
 #pragma once
 
 #include "measure_facets.h"
+#include "measurement_precedence.h"   // measurementLadder: the one precedence rule (refactor 6.1a)
 
 #include <QString>
 #include <QStringList>
@@ -358,16 +359,14 @@ inline QStringList compositePartMeasures(const Measure &m)
     return out;
 }
 
-// Every catalogue key this measure will accept a value from, best first: the preferred instruments
-// and then its own. THE ONE PLACE THE ORDER IS EXPRESSED — reading a value, reporting why there
-// wasn't one, and the reverse metric-to-measure join all walk this, so none of them can disagree
-// about which rungs exist or which comes first.
+// Every catalogue key this measure will accept a value from, best first: the one precedence rule
+// (measurementLadder, measurement_precedence.h; refactor 6.1a, R-INS-3) over the measure's key and its
+// authored ladder (preferKeys: its rungs, then its own key; an empty one: its own key only). Reading a
+// value, reporting why there wasn't one, and the reverse metric-to-measure join all walk this, so none
+// of them can disagree about which rungs exist or which comes first.
 inline QStringList measureKeyLadder(const Measure &m)
 {
-    QStringList keys = m.preferKeys;
-    if (!m.metricKey.isEmpty())
-        keys << m.metricKey;
-    return keys;
+    return measurementLadder(m.metricKey, m.preferKeys);
 }
 
 // ── Signal ──────────────────────────────────────────────────────────────────

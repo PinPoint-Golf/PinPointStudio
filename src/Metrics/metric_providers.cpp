@@ -17,6 +17,7 @@
  */
 
 #include "metric_providers.h"
+#include "measurement.h"   // the instruments' key lists, stated once (refactor 6.1a)
 
 // CLAIM LISTS ONLY. Not one class here answers availability: the seam's default walks the metric's
 // route ladder from the manifest (metric_provider.h `resolveRoutes`), which is the single statement
@@ -39,16 +40,18 @@ std::vector<QString> WristMetricProvider::provides() const
     // same arithmetic over the same fused streams whichever device filled them, and only the key it
     // writes differs. A second provider for the `hm.` keys would say in the architecture that there
     // are two producers, which is the exact thing the identical-maths rule exists to prevent.
-    return { QStringLiteral("leadWristFlexExt"), QStringLiteral("leadWristRadUln"),
-             QStringLiteral("forearmPronation"), QStringLiteral("leadArmFlexion"),
-             // A segment axial rotation from the forearm alone — produced for either vendor, and
-             // for a three-sensor rig BESIDE forearmPronation rather than instead of it.
-             QStringLiteral("forearmRotation"),
-             // The HackMotion rungs. Claimed here so a wG3 swing's metrics resolve Measured rather
-             // than reporting Unavailable while sitting in the document — the failure mode
-             // stanceWidthMm shipped with, and the reason this list is checked at all.
-             QStringLiteral("hm.leadWristFlexExt"), QStringLiteral("hm.leadWristRadUln"),
-             QStringLiteral("hm.forearmRotation") };
+    std::vector<QString> keys{ QStringLiteral("leadWristFlexExt"), QStringLiteral("leadWristRadUln"),
+                               QStringLiteral("forearmPronation"), QStringLiteral("leadArmFlexion"),
+                               // A segment axial rotation from the forearm alone — produced for either vendor, and
+                               // for a three-sensor rig BESIDE forearmPronation rather than instead of it.
+                               QStringLiteral("forearmRotation") };
+    // The HackMotion rungs. Claimed here so a wG3 swing's metrics resolve Measured rather
+    // than reporting Unavailable while sitting in the document — the failure mode
+    // stanceWidthMm shipped with, and the reason this list is checked at all. The list is the
+    // measurement vocabulary's (measurement.h, refactor 6.1a): HackMotion's readings, stated once.
+    for (const QString &k : hackMotionReadingKeys())
+        keys.push_back(k);
+    return keys;
 }
 
 // ------------------------------------------------------------------------- KinematicSeriesProvider
@@ -270,28 +273,9 @@ std::vector<QString> LaunchMonitorProvider::provides() const
     // estimate ourselves are NOT claimed under their bare key. That is the whole
     // point: the bare `clubheadSpeed` stays with the camera producer so the two can
     // be compared on the same shot. Claiming both here would make the resolver pick
-    // one, which is exactly what must not happen.
-    return {
-        // Measured where we also estimate — the validation pairs.
-        QStringLiteral("lm.clubheadSpeed"),  QStringLiteral("lm.ballSpeed"),
-        QStringLiteral("lm.attackAngle"),    QStringLiteral("lm.clubPath"),
-        QStringLiteral("lm.launchAngle"),    QStringLiteral("lm.launchDirection"),
-        QStringLiteral("lm.lowPointAhead"),
-        // Club delivery no camera of ours can resolve.
-        QStringLiteral("lm.faceAngle"),      QStringLiteral("lm.faceToPath"),
-        QStringLiteral("lm.dynamicLoft"),    QStringLiteral("lm.spinLoft"),
-        QStringLiteral("lm.lieAngle"),       QStringLiteral("lm.closureRate"),
-        // Strike.
-        QStringLiteral("lm.smashFactor"),    QStringLiteral("lm.strikeLocation"),
-        QStringLiteral("lm.strikeHeight"),
-        // Spin.
-        QStringLiteral("lm.spinRate"),       QStringLiteral("lm.backSpin"),
-        QStringLiteral("lm.sideSpin"),       QStringLiteral("lm.spinAxis"),
-        // Flight-model outputs.
-        QStringLiteral("lm.carryDistance"),  QStringLiteral("lm.totalDistance"),
-        QStringLiteral("lm.offline"),        QStringLiteral("lm.peakHeight"),
-        QStringLiteral("lm.descentAngle"),   QStringLiteral("lm.distanceToPin"),
-    };
+    // one, which is exactly what must not happen. The list is the measurement
+    // vocabulary's (measurement.h, refactor 6.1a): the instrument's readings, stated once.
+    return launchMonitorReadingKeys();
 }
 
 // ------------------------------------------------------------- LaunchMonitorDerivedProvider
@@ -301,7 +285,7 @@ std::vector<QString> LaunchMonitorDerivedProvider::provides() const
     // Bare keys, on purpose — see the class comment and the manifest block above `compoundMiss`.
     // Produced in swing_doc_writer.cpp (lmMetricEntries) beside the readings rather than in an analysis stage, because a
     // reading is paired to a swing after the stages have run.
-    return { QStringLiteral("compoundMiss"), QStringLiteral("lowPointFromAttack") };
+    return lmDerivedKeys();   // the measurement vocabulary's one list (measurement.h, refactor 6.1a)
 }
 
 } // namespace pinpoint::analysis

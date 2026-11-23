@@ -122,6 +122,7 @@ public:
     WriteResult editReview(const ShotRef &shot, const ReviewEdit &edit) override;
     ShotReview  readReview(const ShotRef &shot) override;
     ShotSummary readSummary(const ShotRef &shot, bool parseIfUnindexed = true) override;
+    analysis::MeasurementSet readMeasurements(const ShotRef &shot) override;
 
     ConversionResult convert(const ShotRef &shot, bool deleteJson) override;
 

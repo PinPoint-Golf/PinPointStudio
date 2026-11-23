@@ -34,6 +34,11 @@
 // And N, a saved corridor edit (audit B-01, Stage 0.4b): the board re-takes the shared norm set at the
 // top of its next grade pass once the save's reset has moved its generation; with no edit, or before
 // the reset, it grades exactly as it did.
+//
+// And T, the board THROUGH THE SHOT (refactor 6.1a fix round; review EDGE-2, EDGE-3): no detail reader, a real
+// Session's Shot over a document on disk (the carousel's port, SessionShotSource), its late readings through the
+// Shot's own command (EVT-22): the board takes the reading from the Shot's set, its low point our own until the
+// monitor reads one, then the monitor's.
 
 #include "launchmonitor/lm_session_model.h"
 #include "../../Export/rule_data_install.h"
@@ -49,11 +54,21 @@
 #include "packs/pack_provider.h"
 #include "packs/characteristic_pack.h"      // measuresForMetricAtPhase (P, refactor 5.7e)
 #include "measures/measure_vocabulary.h"   // measureKeyLadder
+#include "../../App/session_shot_source.h"         // T: the carousel's port over a real Session
+#include "../../DomainModel/athlete.h"
+#include "../../DomainModel/session.h"
+#include "../../DomainModel/shot.h"
+#include "../../Export/athlete_store.h"
+#include "../../Export/session_store.h"
+#include "../../Export/swing_store_repository.h"
+#include "../../LaunchMonitor/launch_monitor_reading.h"
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QSignalSpy>
@@ -62,6 +77,7 @@
 #include <QVariantMap>
 
 #include <cstdio>
+#include <functional>
 #include <initializer_list>
 #include <optional>
 
@@ -197,9 +213,27 @@ static bool has(const LmSessionModel &b)        { return b.graphics().value(QStr
 static bool sessionHas(const LmSessionModel &b) { return b.graphics().value(QStringLiteral("sessionHas")).toBool(); }
 static int headlineId(const LmSessionModel &b)  { return b.graphics().value(QStringLiteral("headlineShotId"), -1).toInt(); }
 
+#ifndef PP_LIVE_SWINGS_DIR
+#  define PP_LIVE_SWINGS_DIR "."
+#endif
+
+// Spin the event loop until `cond` holds (the board's queued rebuild, the Shot's events), at most `ms`.
+static bool settle(const std::function<bool()> &cond, int ms = 5000)
+{
+    QElapsedTimer t;
+    t.start();
+    while (!cond() && t.elapsed() < ms)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    return cond();
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    // T's athlete store reads and writes ppSettings() (IniFormat/UserScope): a scratch folder, never the live INI.
+    QTemporaryDir cfg;
+    if (!cfg.isValid()) return 1;
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, cfg.path());
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     // NO QML engine, on purpose (#173): the board reads each row's slice in C++ (its detail reader)
     // and never touches the engine; reading a detail through QML is what froze the app for minutes
@@ -581,6 +615,84 @@ int main(int argc, char **argv)
               resets >= 1 && !path1.value(QStringLiteral("basisText")).toString().contains(QLatin1String("of corridor")));
         QFile::remove(analysis::userPackPath());
         rules.reload();
+    }
+
+    {
+        std::printf("\nT — the board through the Shot: a real Session's Shot, its document, its late readings\n");
+        using pinpoint::analysis::Instrument;
+        QTemporaryDir dir;
+        pinpoint::SessionStore store;
+        store.setLockWaitForTest(200);
+        store.setOsTrashForTest(false);   // never the OS trash
+        pinpoint::SwingStoreRecordingRepository recordings(store);
+        const QString lib = dir.path() + QStringLiteral("/lib");
+        QDir().mkpath(lib);
+        pinpoint::AthleteStore athletes([lib] { return lib; }, &store);
+        athletes.setOsTrashForTest(false);
+        athletes.setLockWaitForTest(200);
+        athletes.setShotDoors({ &recordings, nullptr });
+        pinpoint::AthleteRecord golfer;
+        golfer.name = QStringLiteral("Board Golfer");
+        pinpoint::Athlete *athlete = athletes.create(golfer).athlete;
+        pinpoint::Session *session =
+            athlete ? athlete->startSession(QStringLiteral("swing"), QStringLiteral("date-name-type")) : nullptr;
+        pinpoint::SwingAllocation a;
+        pinpoint::Shot *shot = session ? session->addShot(pinpoint::recording::ShotKind::Captured, &a) : nullptr;
+        // A camera shot's document (the corpus fixture): our own low point, no reading.
+        const bool staged =
+            shot && QFile::copy(QDir(QLatin1String(PP_LIVE_SWINGS_DIR)).filePath(QStringLiteral("rich_7iron/swing.json")),
+                                QDir(a.swingFolder).filePath(QStringLiteral("swing.json")));
+        check("T0 a session and a camera shot with its document on disk", staged);
+        if (staged) {
+            session->shotDocumentWritten(shot->ref());   // EVT-01: the carousel's row
+            ShotListModel shots;
+            shots.setSource(pinpoint::shotSourceOf(session));
+            LmSessionModel board;                        // NO detail reader: each row's Shot
+            board.setReviewing(true);
+            board.setShotModel(&shots);
+            const int id = shots.idOfShotRef(shot->ref());
+            board.setFocusedShotId(id);
+            const auto lowPoint = [&board] { return board.graphics().value(QStringLiteral("lowPoint")).toMap(); };
+            const auto value = [&board](const char *key) {
+                return board.graphics().value(QStringLiteral("values")).toMap().value(QString::fromLatin1(key)).toMap()
+                    .value(QStringLiteral("value"), -1.0).toDouble();
+            };
+            settle([&] { return shots.rowCount() == 1; });
+            check("T1 the row is the Shot's", shots.rowCount() == 1 && id >= 0);
+            // The session's only shot: the session line, not the shot's (emptyText before shotEmptyText, #57).
+            checkStr("T1 before any reading: the session has none", board.emptyText(),
+                     QStringLiteral("No launch monitor readings in this session"));
+            const pinpoint::analysis::Measurement *own =
+                shot->measurements().find(QStringLiteral("lowPointAhead"), Instrument::Own);
+            check("T1 the Shot's set holds our own low point at impact", own && own->value);
+            const double ownLowPoint = own && own->value ? *own->value : 99.0;
+
+            // A late reading, through the Shot's own command (EVT-22): the board reads it from the Shot's set.
+            pinpoint::lm::LaunchMonitorReading r;
+            r.deviceShotId  = QStringLiteral("t2");
+            r.deviceKind    = QStringLiteral("fsx2020");
+            r.clubheadSpeed = 80.0;
+            r.ballSpeed     = 112.0;
+            r.launchAngle   = 17.0;
+            check("T2 a late reading through the Shot is saved", shot->completeCapture(r).ok());
+            settle([&] { return value("lm.clubheadSpeed") == 80.0; });
+            check(QStringLiteral("T2 …and the board shows it, from the Shot's set (club speed %1)").arg(value("lm.clubheadSpeed")),
+                  value("lm.clubheadSpeed") == 80.0 && value("lm.ballSpeed") == 112.0 && board.shotEmptyText().isEmpty());
+            check(QStringLiteral("T3 no low point from the monitor: the IMPACT card's is ours, badged inferred (%1)")
+                      .arg(lowPoint().value(QStringLiteral("value")).toDouble()),
+                  lowPoint().value(QStringLiteral("has")).toBool()
+                      && lowPoint().value(QStringLiteral("source")).toString() == QStringLiteral("inferred")
+                      && lowPoint().value(QStringLiteral("value")).toDouble() == ownLowPoint);
+
+            // The monitor reads a low point too (the device-wins branch, at board level): the rule takes the monitor's.
+            r.lowPointAhead = 1.5;
+            check("T4 a fuller reading through the Shot is saved", shot->completeCapture(r).ok());
+            settle([&] { return lowPoint().value(QStringLiteral("source")).toString() == QStringLiteral("measured"); });
+            check(QStringLiteral("T4 …and the IMPACT card's low point is the monitor's, badged measured (%1)")
+                      .arg(lowPoint().value(QStringLiteral("value")).toDouble()),
+                  lowPoint().value(QStringLiteral("source")).toString() == QStringLiteral("measured")
+                      && lowPoint().value(QStringLiteral("value")).toDouble() == 1.5);
+        }
     }
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);

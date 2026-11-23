@@ -530,7 +530,7 @@ static void testLmAnnotationsWriteThrough()
 //
 // loadSessionDir seeds rows from the summary and leaves analysisDetail empty, so the board
 // (LmSessionModel), which reads the raw doubles out of it, said "no readings" after End Session
-// over a session full of them. It now reads such a row's slice with readLaunchMonitorDetail().
+// over a session full of them. It now reads such a row's Shot's measurements (refactor 6.1a: readMeasurements).
 // The oracle is agreement with the full read: the board must see the same entries whichever
 // read filled the row.
 
@@ -622,31 +622,51 @@ static void testLmReadingsAfterCheapReload()
     checkStr(QStringLiteral("R5 the shot no device measured has no device"),
              m.data(plainRow, ShotListModel::LmDeviceRole).toString(), QString());
 
-    // The slice against the full read the sessions drawer does.
-    const QVariantMap slice = SwingDocReader::readLaunchMonitorDetail(withLm);
+    // The Shot's measurements (refactor 6.1a: RecordingRepository::readMeasurements, which Shot::measurements answers
+    // from; the board reads them through the carousel) against the full read the sessions drawer does.
+    using analysis::Instrument;
+    using analysis::MeasurementKind;
+    auto setOf = [](const QString &dir) {
+        return pinpoint::testdoc::repo().readMeasurements(pinpoint::testdoc::repo().shotOfFolder(dir));
+    };
+    const analysis::MeasurementSet set = setOf(withLm);
     const pinpoint::PersistedShot full = SwingDocReader::readSwingJson(withLm);
-    const QVariantList sliceLm = lmEntries(slice), fullLm = lmEntries(full.analysisDetail);
-    check(QStringLiteral("R6 the slice holds lm. entries (%1)").arg(sliceLm.size()), !sliceLm.isEmpty());
-    check(QStringLiteral("R7 …exactly the full read's, entry for entry"), sliceLm == fullLm);
-    check(QStringLiteral("R8 ball speed at Impact is the raw double (got %1)")
-              .arg(impactValue(slice, QStringLiteral("lm.ballSpeed"))),
-          impactValue(slice, QStringLiteral("lm.ballSpeed")) == 79.4);
-    check(QStringLiteral("R9 our optical low point rides with it, as the full read has it"),
-          impactValue(slice, QStringLiteral("lowPointAhead")) == 2.5
+    const QVariantList fullLm = lmEntries(full.analysisDetail);
+    const QHash<QString, double> readings = set.values(Instrument::LaunchMonitor, MeasurementKind::Reading);
+    check(QStringLiteral("R6 the set holds the monitor's readings (%1)").arg(readings.size()), !readings.isEmpty());
+    int withValue = 0;
+    bool same = true;
+    for (const QVariant &v : fullLm) {
+        const QString key = v.toMap().value(QStringLiteral("key")).toString();
+        const double iv = impactValue(full.analysisDetail, key);
+        if (std::isnan(iv)) continue;
+        ++withValue;
+        same = same && readings.contains(key) && readings.value(key) == iv;
+    }
+    check(QStringLiteral("R7 …exactly the full read's lm. entries at Impact, entry for entry (%1)").arg(withValue),
+          same && readings.size() == withValue);
+    check(QStringLiteral("R8 ball speed at Impact is the raw double (got %1)").arg(readings.value(QStringLiteral("lm.ballSpeed"))),
+          readings.value(QStringLiteral("lm.ballSpeed")) == 79.4);
+    const analysis::Measurement *optical = set.find(QStringLiteral("lowPointAhead"), Instrument::Own);
+    check(QStringLiteral("R9 our optical low point is in the set, our own and derived, as the full read has it"),
+          optical && optical->value && *optical->value == 2.5 && optical->kind == MeasurementKind::Derived
               && impactValue(full.analysisDetail, QStringLiteral("lowPointAhead")) == 2.5);
-    check(QStringLiteral("R10 our own bare curves are not converted"),
-          std::isnan(impactValue(slice, QStringLiteral("clubheadSpeed")))
-              && impactValue(full.analysisDetail, QStringLiteral("clubheadSpeed")) == 84.0);
-    check(QStringLiteral("R11 the gate records match the full read's (%1)")
-              .arg(slice.value(QStringLiteral("gates")).toList().size()),
-          !slice.value(QStringLiteral("gates")).toList().isEmpty()
-              && slice.value(QStringLiteral("gates")) == full.analysisDetail.value(QStringLiteral("gates"))
-              && slice.value(QStringLiteral("gatesVersion")) == full.analysisDetail.value(QStringLiteral("gatesVersion")));
+    const analysis::Measurement *ours = set.find(QStringLiteral("clubheadSpeed"), Instrument::Own);
+    const analysis::Measurement *theirs = set.find(QStringLiteral("clubheadSpeed"), Instrument::LaunchMonitor);
+    check(QStringLiteral("R10 one metric, two sources, each tagged: our clubhead speed (derived) and the monitor's (a reading)"),
+          ours && ours->value && *ours->value == 84.0 && ours->key == QStringLiteral("clubheadSpeed")
+              && theirs && theirs->value && *theirs->value == 61.2 && theirs->kind == MeasurementKind::Reading
+              && theirs->key == QStringLiteral("lm.clubheadSpeed"));
+    check(QStringLiteral("R11 the gate records match the full read's (%1)").arg(set.gateRecords.size()),
+          !set.gateRecords.isEmpty()
+              && set.gateRecords == full.analysisDetail.value(QStringLiteral("gates")).toList()
+              && set.gatesVersion && QVariant(*set.gatesVersion) == full.analysisDetail.value(QStringLiteral("gatesVersion")));
 
-    check(QStringLiteral("R12 a swing no device measured has no lm. entries"),
-          lmEntries(SwingDocReader::readLaunchMonitorDetail(plain)).isEmpty());
-    check(QStringLiteral("R13 no document: empty"),
-          SwingDocReader::readLaunchMonitorDetail(session + QStringLiteral("/swing_0099")).isEmpty());
+    check(QStringLiteral("R12 a swing no device measured has no monitor readings"),
+          setOf(plain).values(Instrument::LaunchMonitor, MeasurementKind::Reading).isEmpty()
+              && !setOf(plain).isEmpty());
+    check(QStringLiteral("R13 no document: an empty set"),
+          setOf(session + QStringLiteral("/swing_0099")).isEmpty());
 }
 
 // (P — previousAnalysisDetail, test-only, deleted with the method in refactor 3.8-ii: C-15, E-15. Its one documented

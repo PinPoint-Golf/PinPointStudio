@@ -354,31 +354,8 @@ struct MetricSeries {
     bool lineAngle = false;
 };
 
-// Find a series by anatomical key, BEST INSTRUMENT FIRST.
-//
-// ⚠ THE ONE PLACE THE ORDER IS EXPRESSED for the analysis layer, and it exists because four files
-// had each grown their own copy of a bare `m.key == key` loop. A wG3 publishes `hm.leadWristFlexExt`
-// and never the bare key — new keys, never overwritten ones, so which instrument measured a swing
-// stays recoverable — and every one of those loops would therefore have gone quiet on a HackMotion
-// swing: no wrist score, no resemblance, no uncertainty interval, no review trace. Not because the
-// wrist was not measured, but because it was measured by the better instrument.
-//
-// Same shape and same reasoning as Measure::preferKeys one layer up (measure_vocabulary.h), and
-// deliberately NOT the same mechanism: that one is authored per measure in the diagnostics pack
-// because which instrument is better is a per-quantity judgement. This one is a fixed two-rung
-// ladder because the analysis layer has exactly one question — "did anything measure this axis" —
-// and no place to author an answer.
-//
-// ⚠ Pass the BARE key. Passing "hm.x" would look for "hm.hm.x" first and quietly fall through.
-inline const MetricSeries *findSeriesByLadder(const std::vector<MetricSeries> &v, const QString &key)
-{
-    const QString preferred = QStringLiteral("hm.") + key;
-    for (const MetricSeries &m : v)
-        if (m.key == preferred) return &m;
-    for (const MetricSeries &m : v)
-        if (m.key == key) return &m;
-    return nullptr;
-}
+// Finding a series by its metric, best instrument first, is the one precedence rule's (findByPrecedence,
+// Diagnostics/measures/measurement_precedence.h; refactor 6.1a, R-INS-3): this layer's own two-rung copy is gone.
 
 // A metric scored against its reference band.
 struct ScoredMetric {

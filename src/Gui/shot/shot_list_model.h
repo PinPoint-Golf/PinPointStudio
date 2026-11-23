@@ -210,6 +210,10 @@ public:
     Q_INVOKABLE QString shotRefOf(int id) const;
     Q_INVOKABLE int     idOfShot(const QString &shotRef, const QString &swingDir) const;
     int idOfShotRef(const pinpoint::ShotRef &shot) const;
+    // The row's Shot's measurements, the one source-tagged set (Shot::measurements, through the port; refactor 6.1a): the
+    // launch monitor board reads a shot's readings here, never its document. Empty for a card with no document, an
+    // unknown row, or a source over no documents.
+    pinpoint::analysis::MeasurementSet measurementsOf(int row) const;
 
     // The number the carousel SHOWS for this shot.  Deliberately not the id:
     // the id is this view's and the ordinal is the shot's swing number, and the two diverge the moment a shot is

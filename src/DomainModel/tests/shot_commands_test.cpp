@@ -79,6 +79,7 @@
 #include "../../App/app_state.h"
 #include "../../App/session_shot_source.h"
 #include "../../Core/pp_settings.h"
+#include "../../Core/same_folder.h"
 #include "../../Export/athlete_files.h"
 #include "../../Export/athlete_store.h"
 #include "../../Export/rule_data_install.h"
@@ -1002,6 +1003,135 @@ static void lateWriteAfterASwitch()
           rig.athlete->sessionAt(folder) == nullptr && rig.athlete->index().isEmpty());
 }
 
+// ── C18: the Shot's measurements follow its late part and its re-analysis (refactor 6.1a; R-INS-2, EVT-22) ──────
+
+static void measurementsFollowTheShot()
+{
+    std::printf("\nC18: the Shot's one set of measurements: a late reading lands in it, before the event\n");
+    using analysis::Instrument;
+    using analysis::MeasurementKind;
+    Rig rig;
+    Session *s = rig.athlete ? rig.athlete->startSession(kSwing, kPat) : nullptr;
+    Shot *shot = s ? shotWithDocument(s, rig) : nullptr;
+    check(QStringLiteral("C18a a session and a camera shot"), shot != nullptr);
+    if (!shot) return;
+    const ShotRef ref = shot->ref();
+    auto lmSpeed = [shot] {
+        return shot->measurements().values(Instrument::LaunchMonitor, MeasurementKind::Reading)
+                   .value(QStringLiteral("lm.clubheadSpeed"), -1.0);
+    };
+    check(QStringLiteral("C18b before any reading: no launch monitor reading in its set"), lmSpeed() == -1.0);
+
+    WriteResult w = shot->completeCapture(reading("c18"));
+    check(QStringLiteral("C18c a reading lands: the set holds it, tagged the monitor's reading (80 mph)"),
+          w.ok() && lmSpeed() == 80.0);
+    const analysis::Measurement *m = shot->measurements().byKey(QStringLiteral("lm.ballSpeed"));
+    check(QStringLiteral("C18d …each value with its metric, source and kind"),
+          m && m->metric == QStringLiteral("ballSpeed") && m->source.instrument == Instrument::LaunchMonitor
+              && m->kind == MeasurementKind::Reading && m->value && *m->value == 112.0);
+
+    // The set is KEPT now. A fuller reading follows (the late club data): inside the EVT-22 listener the set is the new one.
+    double seenInEvent = -2.0;
+    const auto c = QObject::connect(shot, &Shot::captureCompleted, shot,
+                                    [&](const ShotRef &) { seenInEvent = lmSpeed(); }, Qt::DirectConnection);
+    lm::LaunchMonitorReading fuller = reading("c18");
+    fuller.clubheadSpeed = 85.5;
+    w = shot->completeCapture(fuller);
+    QObject::disconnect(c);
+    check(QStringLiteral("C18e a later reading: the Shot dropped its kept set BEFORE EVT-22 (the listener reads 85.5, got %1)")
+              .arg(seenInEvent),
+          w.changed() && seenInEvent == 85.5);
+
+    // A re-analysis: the set is read again with it, and the carried reading stays in it.
+    bool sameAsDocument = false;
+    const auto c2 = QObject::connect(shot, &Shot::reanalysed, shot, [&](const ShotRef &) {
+        const analysis::MeasurementSet disk = rig.recordings->readMeasurements(ref);
+        const analysis::MeasurementSet &kept = shot->measurements();
+        sameAsDocument = disk.items.size() == kept.items.size();
+        for (size_t i = 0; sameAsDocument && i < disk.items.size(); ++i)
+            sameAsDocument = disk.items[i].key == kept.items[i].key && disk.items[i].value == kept.items[i].value;
+    }, Qt::DirectConnection);
+    analysis::SwingAnalysis fresh;
+    fresh.timeBase      = analysis::TimeBase::Window;
+    fresh.score.overall = 41;
+    AnalysisOutcome outcome;
+    outcome.analysis = &fresh;
+    w = shot->applyAnalysis(outcome);
+    QObject::disconnect(c2);
+    check(QStringLiteral("C18f a re-analysis (EVT-02): the set is the document's again, read before the event"),
+          w.changed() && sameAsDocument);
+    check(QStringLiteral("C18g …and the monitor's reading is still in it (re-analysis carries what it cannot recompute)"),
+          lmSpeed() == 85.5);
+
+    // Not reached: a late reading for a folder no Session holds is refused, and nothing is written.
+    bool replaced = false;
+    const ForwardResult f = rig.app->completeCapture(rig.dir.path() + QStringLiteral("/nobody/2026-01-01_session_01"),
+                                                     ref, reading("c18x"), QJsonObject(), &replaced);
+    check(QStringLiteral("C18h a folder no Session holds: not reached (the controller refuses it: no write of its own)"),
+          !f.reached && lmSpeed() == 85.5);
+}
+
+// ── C19: a reading spelled another way still reaches its Shot (refactor 6.1a fix round; Windows is the primary platform) ──
+//
+// The controller names the swing by the folder the device's shot was filed under (a path string) and translates it at
+// the edge: RecordingRepository::shotOfFolder, then the door's Athlete::sessionAt. A trailing separator, a doubled one,
+// a "." step, and on Windows a backslash or another case (C:\ against c:/) is the SAME folder, and must never refuse
+// a reading (sameFolder: cleaned, and case-insensitive on Windows).
+static void spellingsReachTheShot()
+{
+    std::printf("\nC19: a late reading whose folder is spelled another way still reaches its Shot\n");
+    using analysis::Instrument;
+    using analysis::MeasurementKind;
+    // The rule itself, both platforms' cases, on any machine.
+    check(QStringLiteral("C19a one folder: a trailing slash, a doubled one, a \".\" step"),
+          sameFolder(QStringLiteral("/lib/golfer/s1/"), QStringLiteral("/lib//golfer/./s1"))
+              && !sameFolder(QStringLiteral("/lib/golfer/s1"), QStringLiteral("/lib/golfer/s2")));
+    check(QStringLiteral("C19b Windows' rule: another case (and drive letter) is the same folder"),
+          sameFolder(QStringLiteral("C:/Users/Golfer/Lib/S1"), QStringLiteral("c:/users/golfer/lib/s1/"), Qt::CaseInsensitive));
+#ifdef Q_OS_WIN
+    const Qt::CaseSensitivity platformCase = Qt::CaseInsensitive;
+#else
+    const Qt::CaseSensitivity platformCase = Qt::CaseSensitive;
+#endif
+    check(QStringLiteral("C19c this platform's rule (%1)")
+              .arg(kFolderNameCase == Qt::CaseInsensitive ? QStringLiteral("case-insensitive") : QStringLiteral("case-sensitive")),
+          kFolderNameCase == platformCase);
+
+    Rig rig;
+    Session *s = rig.athlete ? rig.athlete->startSession(kSwing, kPat) : nullptr;
+    Shot *shot = s ? shotWithDocument(s, rig) : nullptr;
+    check(QStringLiteral("C19d a session and a camera shot"), shot != nullptr);
+    if (!shot) return;
+    const ShotRef ref = shot->ref();
+    const QString folder = rig.recordings->swingFolder(ref);
+    QString dotted = folder;
+    dotted.insert(dotted.lastIndexOf(QLatin1Char('/')), QStringLiteral("/."));
+    QString doubled = folder;
+    doubled.insert(doubled.lastIndexOf(QLatin1Char('/')), QLatin1Char('/'));
+    QStringList spellings{ folder + QLatin1Char('/'), dotted, doubled };
+#ifdef Q_OS_WIN
+    // Windows: backslashes, and the library's path in another case (the swing folder's own name is ours, as allocated).
+    const int cut = folder.lastIndexOf(QLatin1Char('/'));
+    const QString above = folder.left(cut), swingName = folder.mid(cut);
+    spellings << QDir::toNativeSeparators(folder) << above.toUpper() + swingName
+              << QDir::toNativeSeparators(above.toLower() + swingName) + QLatin1Char('\\');
+#endif
+    double speed = 80.0;
+    for (const QString &spelt : spellings) {
+        // As LaunchMonitorController::completeCapture does it: the repository's edge, then the door.
+        speed += 1.0;
+        lm::LaunchMonitorReading r = reading("c19");
+        r.clubheadSpeed = speed;
+        const ShotRef found = rig.recordings->shotOfFolder(spelt);
+        bool replaced = false;
+        const ForwardResult f = rig.app->completeCapture(sessionFolderOf(spelt), found, r, QJsonObject(), &replaced);
+        const double got = shot->measurements().values(Instrument::LaunchMonitor, MeasurementKind::Reading)
+                               .value(QStringLiteral("lm.clubheadSpeed"), -1.0);
+        check(QStringLiteral("C19e \"%1\": the same Shot, reached and saved (club speed %2)").arg(spelt).arg(got),
+              found == ref && f.reached && f.result.ok() && got == speed);
+    }
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -1023,6 +1153,8 @@ int main(int argc, char **argv)
     carouselView();
     reanalysisThroughTheShot();
     lateWriteAfterASwitch();
+    measurementsFollowTheShot();
+    spellingsReachTheShot();
     std::printf("\n%s: %d of %d checks failed\n", g_fail ? "FAIL" : "PASS", g_fail, g_run);
     return g_fail ? 1 : 0;
 }

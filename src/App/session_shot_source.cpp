@@ -118,6 +118,13 @@ const ShotSummary *SessionShotSource::summary(const ShotRef &shot, SummaryRead h
     return nullptr;
 }
 
+// The Shot's own set, as it keeps it (refactor 6.1a): the board reads a shot's readings here, never its document.
+analysis::MeasurementSet SessionShotSource::measurements(const ShotRef &shot)
+{
+    Shot *s = shotOf(shot);
+    return s ? s->measurements() : analysis::MeasurementSet{};
+}
+
 QString SessionShotSource::swingFolder(const ShotRef &shot) const
 {
     const Shot *s = shotOf(shot);

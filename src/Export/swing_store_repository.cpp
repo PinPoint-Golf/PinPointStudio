@@ -362,6 +362,19 @@ ShotSummary SwingStoreRecordingRepository::readSummary(const ShotRef &shot, bool
     return out;
 }
 
+// The shot's measurements (refactor 6.1a; OBJ-MEASUREMENT): the set parsed from the analysis block as stored, by the
+// store's analysis read (the root chunk and /analysis/metrics; never the pose blob). What the launch monitor board read
+// for itself before (SwingDocReader::readLaunchMonitorDetail), now the Shot's.
+analysis::MeasurementSet SwingStoreRecordingRepository::readMeasurements(const ShotRef &shot)
+{
+    QString why;
+    const QString swingDir = folderOf(shot, &why);
+    if (swingDir.isEmpty())
+        return {};
+    return analysis::measurementSetFromAnalysis(
+        SwingStore::loadAnalysis(swingDir).value(QStringLiteral("analysis")).toObject());
+}
+
 ConversionResult SwingStoreRecordingRepository::convert(const ShotRef &shot, bool deleteJson)
 {
     QString why;

@@ -113,10 +113,10 @@ bool lmClubBagLess(const QString &a, const QString &b);
 // in degrees, so a standard deviation computed from that map would not be a suppressed
 // statistic, it would be a wrong one printed confidently. The row's launch monitor slice (`series`)
 // carries the raw doubles the writer put there, and it is populated by the same code
-// path for a live shot and a reloaded one, so there is one source here and not two. Since refactor step 5.2 the
-// carousel's rows keep none of a Shot's facts (R-QML-5), so every row a device measured is read from its document with
-// SwingDocReader::readLaunchMonitorDetail (H-07: the whole detail through QML was the 2–2.5 minute freeze of #173):
-// one source, reached by a cheaper read. Cached per swing folder — see m_diskDetail.
+// path for a live shot and a reloaded one, so there is one source here and not two. Since refactor 6.1a every row a
+// device measured is read from its SHOT'S MEASUREMENTS (Shot::measurements, through the carousel: the one source-tagged
+// set, R-INS-1/2), filtered to the launch monitor's readings — never a read of the document of the board's own, and
+// never the whole detail through QML (H-07: the 2–2.5 minute freeze of #173). The Shot keeps its set.
 //
 // AND THE ONE JUDGEMENT IT DOES MAKE: whether the focused shot's reading sits outside its
 // corridor. Every tile and every annotation carries a `grade` — "ideal" | "good" | "watch"
@@ -236,8 +236,8 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     ShotListModel *shotModel() const { return m_shots; }
-    // How a row's launch monitor slice is read (SwingDocReader::readLaunchMonitorDetail by default). The tests hand in
-    // their in-memory documents.
+    // How a row's measurements are read: its Shot's set by default (ShotListModel::measurementsOf; refactor 6.1a). The
+    // tests hand in their in-memory documents (the old slice's shape: `series`, `gates`), parsed as a Shot's would be.
     void setDetailReader(std::function<QVariantMap(const QString &swingDir)> reader) { m_detailReader = std::move(reader); }
     void           setShotModel(ShotListModel *m);
     int            focusedShotId() const { return m_focusedShotId; }
@@ -346,13 +346,9 @@ private:
     };
 
     QPointer<ShotListModel> m_shots;
-    // The launch monitor slice of each cheap-loaded row (readLaunchMonitorDetail), keyed by swing
-    // folder. A reload inserts its rows one at a time and every insert rebuilds, so without this a
-    // session's documents would be read once per row. Holds exactly the rows the last rebuild used,
-    // so a row that left takes its entry with it; emptied on a reset (a reload re-reads the disk)
-    // and per row when its readings change underneath it.
-    QHash<QString, QVariantMap> m_diskDetail;
-    std::function<QVariantMap(const QString &swingDir)> m_detailReader;   // the tests' documents; default: the file's
+    // The tests' documents (setDetailReader); default: each row's Shot's measurements (ShotListModel::measurementsOf;
+    // refactor 6.1a). The board keeps no slice of its own: the Shot keeps its set, so a rebuild reads no document.
+    std::function<QVariantMap(const QString &swingDir)> m_detailReader;
     // Set while undoMismatch() writes several shots: each write emits dataChanged, and one
     // rebuild at the end is the same answer as eight in a row.
     bool                    m_batching = false;

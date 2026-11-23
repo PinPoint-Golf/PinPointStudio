@@ -27,6 +27,7 @@
 #include "../Core/atomic_write.h"
 #include "../Core/folder_lock.h"
 #include "../Core/pp_debug.h"
+#include "../Core/same_folder.h"   // sameFolder: one folder however it is spelled
 
 #include <QCoreApplication>
 #include <QDir>
@@ -254,15 +255,15 @@ SessionStore::Held &SessionStore::hold(const SessionIndexEntry &entry, const QJs
     // or when it is the session this run started and is still running — capture writes into that one.
     // Otherwise the fresh read's folder wins, or the map would hand out the old library's folder while
     // the settings name the new one (and a resume would write there).
-    const bool sameFolder = QDir::cleanPath(it->entry.folder) == QDir::cleanPath(entry.folder);
-    const bool running    = it->createdHere && it->entry.status == SessionStatus::InProgress;
-    if (!sameFolder && running) {
+    const bool same    = sameFolder(it->entry.folder, entry.folder);   // however spelled (on Windows: any case)
+    const bool running = it->createdHere && it->entry.status == SessionStatus::InProgress;
+    if (!same && running) {
         ppWarn() << "[SessionStore] session" << entry.id().toString() << "is also at" << entry.folder
                  << "- the running session keeps" << it->entry.folder;
         return *it;
     }
-    const QString folder = sameFolder ? it->entry.folder : entry.folder;
-    if (!sameFolder) {
+    const QString folder = same ? it->entry.folder : entry.folder;
+    if (!same) {
         ppInfo() << "[SessionStore] session" << entry.id().toString() << "is now read from" << entry.folder
                  << "(was" << it->entry.folder << ")";
         it->createdHere = false;   // not the folder this run's start() made
@@ -419,9 +420,9 @@ ShotRef SessionStore::openSwingFolder(const QString &swingFolder, const AthleteI
     // A session already held at this folder keeps the id it is held under: a folder the athlete's list
     // read (enumerate, with the athlete as owner) names the same session for every later caller, and a
     // second read of its file is saved.
-    const QString clean = QDir::cleanPath(sessionFolder);
+    // However the folder is spelled (sameFolder: cleaned, and on Windows whatever its case).
     for (auto it = m_held.cbegin(); it != m_held.cend(); ++it)
-        if (QDir::cleanPath(it->entry.folder) == clean)
+        if (sameFolder(it->entry.folder, sessionFolder))
             return ShotRef(it.key(), number);
 
     const SessionId id = openFolder(sessionFolder, legacyAthlete);

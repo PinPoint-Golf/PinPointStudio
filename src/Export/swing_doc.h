@@ -479,7 +479,7 @@ struct SwingSummary {
     //
     // analysisDetail is deliberately NOT here — the multi-MB pose track is the thing this read
     // exists to avoid. A reloaded row carries none; its one reader, the launch monitor board, reads
-    // its slice from the document on demand (readLaunchMonitorDetail).
+    // the row's Shot's measurements (Shot::measurements; refactor 6.1a).
     QVariantMap metrics;
     int         rating = 0;         // 0–5 user stars, from the "review" block
     QString     note;               // free-text user note, same block
@@ -516,13 +516,8 @@ class SwingDocReader {
 public:
     static PersistedShot readSwingJson(const QString &swingDir);
 
-    // The launch monitor's slice of readSwingJson()'s analysisDetail, in the same shape: `series`
-    // holding only the `lm.` entries and our own `lowPointAhead`, and `gates`/`gatesVersion` when the
-    // document has them. For the launch monitor board, whose carousel rows carry no analysisDetail at
-    // all (a row reads its Shot's summary) — the summary's readings are display strings ("9401rpm"),
-    // and the board needs the doubles. Read through SwingStore::loadAnalysis(), so it costs the root
-    // chunk and the metrics, never a per-frame track (6–9 ms a swing). Empty on no document.
-    static QVariantMap readLaunchMonitorDetail(const QString &swingDir);
+    // (The launch monitor board's own slice read, readLaunchMonitorDetail, went in refactor 6.1a: the board reads its
+    // rows' Shots' measurements, RecordingRepository::readMeasurements.)
 
     // The `origin` of one `streams[]` element, by alias. Empty when the swing has
     // no such stream, or when that stream carries no origin — which is every

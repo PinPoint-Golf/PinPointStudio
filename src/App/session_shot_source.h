@@ -46,6 +46,7 @@ public:
     QVector<ShotRef> shots() override;
     const ShotSummary *summary(const ShotRef &shot, SummaryRead how) override;
     QString swingFolder(const ShotRef &shot) const override;
+    analysis::MeasurementSet measurements(const ShotRef &shot) override;
 
     WriteResult rate(const ShotRef &shot, int stars) override;
     WriteResult note(const ShotRef &shot, const QString &text) override;

@@ -52,6 +52,7 @@
 #include "../Body/dtl_posture.h" // buildDtlPosture (DtlPostureStage)
 #include "../Body/skeleton3d_body_series.h" // the readings from the 3-D body (Skeleton3dBodyStage)
 #include "../Body/trunk_sensor_series.h" // hip internal rotation, the trunk sensors' bend precedence
+#include "../Diagnostics/measures/measurement_precedence.h" // findByPrecedence: which source wins for a metric (6.1a)
 #include "../Body/shoulder_tilt_vs_bend.h" // the shoulder tilt against the forward bend, after that precedence (W7)
 #include "../Club/club_slot_top.h"       // the club's climb placed in the on-plane window halfway back, after the run (D3)
 #include "../Club/p8_refusal_gate.h"     // why there is no P8, after the run (plane stack D6)
@@ -248,10 +249,10 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
 }
 
 // Instrument ladder: a HackMotion swing publishes `hm.<key>` and never the bare key.
-// See swing_analysis.h's findSeriesByLadder for why this is not four separate loops.
+// The one precedence rule (measurement_precedence.h; refactor 6.1a, R-INS-3).
 const MetricSeries *find(const std::vector<MetricSeries> &v, const QString &key)
 {
-    return findSeriesByLadder(v, key);
+    return findByPrecedence(v, key);
 }
 
 // SwingLab tuning: SegmentationConfig with "seg.*" overrides applied.
@@ -3483,8 +3484,8 @@ struct Skeleton3DStage : AnalysisStage {
         }
         // HackMotion lead wrist.
         auto seriesAt = [&](const QString &key, int64_t t) {
-            const MetricSeries *m = findSeriesByLadder(ctx.detail->series, key);
-            if (!m) m = findSeriesByLadder(ctx.series, key);
+            const MetricSeries *m = findByPrecedence(ctx.detail->series, key);
+            if (!m) m = findByPrecedence(ctx.series, key);
             if (!m || m->t_us.size() < 2) return pinpoint::skeleton3d::kNaN;
             auto it = std::lower_bound(m->t_us.begin(), m->t_us.end(), t);
             if (it == m->t_us.begin() || it == m->t_us.end()) return pinpoint::skeleton3d::kNaN;

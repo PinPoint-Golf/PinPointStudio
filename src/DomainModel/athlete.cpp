@@ -22,6 +22,7 @@
 #include "shot.h"   // the tuning log hears each Shot's EVT-06 (step 3.4b-i)
 
 #include "../Core/pp_debug.h"
+#include "../Core/same_folder.h"   // sameFolder: one folder however it is spelled
 
 #include <QDateTime>
 #include <QDir>
@@ -449,17 +450,18 @@ Session *Athlete::sessionAt(const QString &folder)
     // older than step 2, named for this athlete as its folder's owner.
     // Only a session folder in this athlete's folder is one of its sessions (path text only, nothing read).
     // Unassigned's sessions are also found in its other folders (the no-golfer `unknown/` folder: R-UNASSIGNED-4).
+    // ONE FOLDER HOWEVER IT IS SPELLED (sameFolder: cleaned, and on Windows whatever its case), so a late reading
+    // spelled another way is never refused here (refactor 6.1a fix round).
     const QString parent = QDir::cleanPath(folder + QStringLiteral("/.."));
-    if (parent != QDir::cleanPath(m_folder)
+    if (!sameFolder(parent, m_folder)
         && std::none_of(m_otherFolders.cbegin(), m_otherFolders.cend(),
-                        [&parent](const QString &f) { return QDir::cleanPath(f) == parent; }))
+                        [&parent](const QString &f) { return sameFolder(f, parent); }))
         return nullptr;
     // A SESSION ALREADY HELD IS ANSWERED FROM MEMORY (refactor step 3.4b-ii, review 1: CN-2): the repository's
     // identity map knows its folder, so no session.json is read again. Every row, edit and refresh asks this; only a
     // folder not held yet is read (once).
-    const QString clean = QDir::cleanPath(folder);
     for (Session *s : std::as_const(m_loaded))
-        if (const auto e = m_sessions->open(s->id()); e && QDir::cleanPath(e->folder) == clean)
+        if (const auto e = m_sessions->open(s->id()); e && sameFolder(e->folder, folder))
             return s;
     const SessionId id = m_sessions->openFolder(folder, m_id);
     return id.isNull() ? nullptr : hold(id, /*startedHere=*/false);

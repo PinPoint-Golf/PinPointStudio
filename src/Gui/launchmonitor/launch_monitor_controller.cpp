@@ -593,14 +593,19 @@ pinpoint::WriteResult LaunchMonitorController::completeCapture(const QString &sw
         return pinpoint::WriteResult{};
     pinpoint::PostShotTrace::Scope trace("lm.write");   // [PostShot]: the Shot's command, its lock and its document
     const pinpoint::ShotRef shot = m_repo->shotOfFolder(swingDir);
-    // The Shot's own command (EVT-22), through its Session; today's write only for a shot no Session holds (N1).
+    // The Shot's own command (EVT-22), through its Session, ONLY (refactor 6.1a, 5.1's N-2): the reading lands in the
+    // Shot's measurements, which it reads again on its own event. Since 5.1 every library athlete's folder reaches its
+    // Session (App::sessionAt), so a shot no Session holds (a folder no athlete lists, a shot trashed meanwhile) or no
+    // door is refused with its reason (the caller's saveFailed and the log), and nothing is written behind the Shot.
     if (m_commands) {
         const pinpoint::ForwardResult f =
             m_commands->completeCapture(pinpoint::sessionFolderOf(swingDir), shot, r, captureClub, clubReplaced);
         if (f.reached)
             return f.result;
     }
-    return m_repo->completeCapture(shot, r, captureClub, clubReplaced);
+    return pinpoint::WriteResult{ pinpoint::WriteResult::Status::Failed,
+                                  m_commands ? QStringLiteral("No session holds that swing (%1).").arg(swingDir)
+                                             : QStringLiteral("No shot door to reach the swing's session.") };
 }
 
 QString LaunchMonitorController::summaryOf(const LaunchMonitorReading &r) const

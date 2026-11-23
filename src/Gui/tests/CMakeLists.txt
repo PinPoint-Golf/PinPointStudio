@@ -363,11 +363,20 @@ set(PP_LM_BOARD_SOURCES
 )
 set(PP_LM_BOARD_INCLUDES ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts ${GUI}/trust ${GUI}/variability ${SRC} ${SRC}/Core
     ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics)
+# T (refactor 6.1a fix round): the board THROUGH THE SHOT — an Athlete, its Session and Shot over a temporary library
+# and the carousel's port (migrate_step2_test's domain link line, less what the board's list already has).
 pp_add_test(lm_session_model_test
     SOURCES lm_session_model_test.cpp ${PP_LM_BOARD_SOURCES}
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp ${SRC}/Export/athlete_store.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+            ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
+            ${SRC}/Identity/identity.h   # moc: ShotRef / SessionId are gadgets (the events carry them)
+            ${SRC}/App/shot_source.h ${SRC}/App/session_shot_source.h ${SRC}/App/session_shot_source.cpp
     INCLUDE ${PP_LM_BOARD_INCLUDES}
-    LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC)
+    LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${SRC}/Diagnostics/tests/data/live_swings")
 set_tests_properties(lm_session_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
 

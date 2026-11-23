@@ -196,6 +196,12 @@ public:
         return &m_kept[shot];
     }
     QString swingFolder(const ShotRef &shot) const override { return m_dirs.value(shot); }
+    // As the Shot reads them (RecordingRepository::readMeasurements; refactor 6.1a).
+    analysis::MeasurementSet measurements(const ShotRef &shot) override
+    {
+        const ShotRef door = doorRef(shot);
+        return door.isNull() ? analysis::MeasurementSet{} : repo().readMeasurements(door);
+    }
 
     WriteResult rate(const ShotRef &s, int stars) override { ReviewEdit e; e.rating = stars; return edit(s, e, false); }
     WriteResult note(const ShotRef &s, const QString &text) override { ReviewEdit e; e.note = text; return edit(s, e, false); }

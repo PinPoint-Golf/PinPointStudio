@@ -20,6 +20,7 @@
 
 #include "../Analysis/analysis_tuning.h"
 #include "../Core/pp_tuned_constants.h"
+#include "../Diagnostics/measures/measurement_precedence.h"   // findByPrecedence: the one rule (6.1a)
 
 #include <algorithm>
 #include <cmath>
@@ -36,10 +37,10 @@ namespace {
 namespace tr = pinpoint::tuned::scoring::resemblance;
 
 // Instrument ladder: a HackMotion swing publishes `hm.<key>` and never the bare key.
-// See swing_analysis.h's findSeriesByLadder for why this is not four separate loops.
+// The one precedence rule (measurement_precedence.h; refactor 6.1a, R-INS-3).
 const MetricSeries *findSeries(const std::vector<MetricSeries> &v, const QString &key)
 {
-    return findSeriesByLadder(v, key);
+    return findByPrecedence(v, key);
 }
 
 // FE value at a scored phase: the labelled phaseSample if present, else the last curve sample.

@@ -80,7 +80,19 @@ const ShotSummary &Shot::rereadSummary(bool parseIfUnindexed)
     // still writing it, or gone) is not kept: the next ask reads again.
     m_summary     = m_doors.recordings ? m_doors.recordings->readSummary(m_ref, parseIfUnindexed) : ShotSummary{};
     m_summaryRead = m_summary.ok;
+    m_measurementsRead = false;   // the document is the truth: the measurements are read again with it (6.1a)
     return m_summary;
+}
+
+// ── Its measurements (refactor 6.1a; OBJ-MEASUREMENT, R-INS-2): the one set, through its repository ─────────────────
+
+const analysis::MeasurementSet &Shot::measurements()
+{
+    if (!m_measurementsRead) {
+        m_measurements     = m_doors.recordings ? m_doors.recordings->readMeasurements(m_ref) : analysis::MeasurementSet{};
+        m_measurementsRead = !m_measurements.isEmpty();   // none found (no document yet): asked again next time
+    }
+    return m_measurements;
 }
 
 void Shot::keepInSummary(const ReviewEdit &edit)
@@ -120,8 +132,11 @@ WriteResult Shot::finish(const WriteResult &result, Event event, const char *com
         return result;   // nothing changed: no event
     }
     // A late part or a re-analysis rewrote what the summary block holds: read it again when next asked.
-    if (result.changed() && (event == Event::CaptureCompleted || event == Event::Reanalysed))
-        m_summaryRead = false;
+    // So did its measurements: a late launch monitor reading lands in the set on the next read (6.1a).
+    if (result.changed() && (event == Event::CaptureCompleted || event == Event::Reanalysed)) {
+        m_summaryRead      = false;
+        m_measurementsRead = false;
+    }
     if (result.changed())
         emitEvent(event);
     return result;

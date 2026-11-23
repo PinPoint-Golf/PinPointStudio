@@ -20,6 +20,7 @@
 
 #include "../../Wrist/wrist_analysis_adapter.h"
 #include "../../Wrist/wrist_dof_metadata.h"
+#include "../../Metrics/measurement.h"   // parseStoredKey: a key's source, told one way (refactor 6.1a)
 
 #include <QHash>
 #include <QVariantList>
@@ -58,7 +59,8 @@ QVariant nul() { return QVariant::fromValue(nullptr); }
 // "IMU" for the wrist unit's own reading (hm.*); a lead-wrist DOF read off anything else is the pose's.
 QString sourceOf(const pa::DofMetadata &meta, const QString &key)
 {
-    if (key.startsWith(QLatin1String("hm."))) return QStringLiteral("IMU");
+    if (pinpoint::analysis::parseStoredKey(key).instrument == pinpoint::analysis::Instrument::HackMotion)
+        return QStringLiteral("IMU");
     if (meta.source == QLatin1String("IMU")) return QStringLiteral("pose");
     return meta.source;
 }

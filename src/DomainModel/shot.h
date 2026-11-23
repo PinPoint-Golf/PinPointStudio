@@ -34,6 +34,13 @@
 //                      document is not kept, so a shot whose document capture is still writing is read again
 //   diagnostics()      ShotDiagnostics: a read-only view of its findings and derived data, as its Session's
 //                      SessionDiagnostics keeps them (refactor 4-b); no value before they land ("-", never a zero: DEC-96)
+//   measurements()     its MEASUREMENTS, the one source-tagged set (OBJ-MEASUREMENT, R-INS-1, R-INS-2; refactor 6.1a):
+//                      every reading (the launch monitor's, HackMotion's) and every derived measurement, each with its
+//                      source and kind, read through its repository (RecordingRepository::readMeasurements: the analysis
+//                      without its tracks) when first asked, then kept — scalars only, never the document — and read
+//                      again after a late part or a re-analysis it saved (EVT-22, EVT-02) and with every summary re-read
+//                      (the document is the truth). Readers filter it by source and kind; which source wins for a metric
+//                      is the one precedence rule's (measurement_precedence.h)
 //   recordingSource()  a RecordingSource (recording_source.h): how any thread reads this shot's Recording
 //   folder()           its folder, as a property only (its media; a row's swingDir until step 4)
 //
@@ -144,6 +151,8 @@ public:
     const ShotSummary    &rereadSummary(bool parseIfUnindexed = true);   // RecordingRepository::readSummary's flag
     bool                  summaryKept() const { return m_summaryRead; }   // a read summary is kept (no read needed)
     ShotDiagnostics       diagnostics() const;   // a view over its Session's owner, made on each call (4-b)
+    // Its measurements (above): read once when first asked (a read that finds none is not kept), then kept.
+    const analysis::MeasurementSet &measurements();
     RecordingSource       recordingSource() const { return RecordingSource(m_ref, m_doors.reader); }
     // Its folder, AS A PROPERTY (its media; the swingDir a carousel row still carries until step 4), through its
     // repository (RecordingRepository::swingFolder); "" when its session is not open. Never its key (CLS-SHOT).
@@ -222,6 +231,8 @@ private:
     mutable std::optional<recording::ShotKind> m_kind;
     ShotSummary                                m_summary;
     bool                                       m_summaryRead = false;   // m_summary holds a read (ok) summary
+    analysis::MeasurementSet                   m_measurements;
+    bool                                       m_measurementsRead = false;   // m_measurements holds a read set
     LabelCorrectionNote                        m_lastCorrection;
     quint64                                    m_latestAsk = 0;
 };

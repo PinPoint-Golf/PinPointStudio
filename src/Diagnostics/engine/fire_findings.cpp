@@ -29,9 +29,11 @@
 #include "../../Coaching/club_distances.h"        // classifySwingLength
 #include "../../Coaching/firing_side.h"           // conditionFiringSide (#16)
 #include "../../Coaching/sequence_checks.h"       // the sequence checks, their spread and their gap words
+#include "../measures/measurement_precedence.h"   // pickByPrecedence: THE precedence rule (6.1a)
 #include "../../Core/club_vocabulary.h"           // the baseline's keys are canonical club ids
 
 #include <QCryptographicHash>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -39,6 +41,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <utility>
 
 namespace pinpoint::analysis {
@@ -560,12 +563,19 @@ FiredShot fireFindings(FiringReadings readings, const FiringInputs &inputs)
         }
     }
 
-    // The ranking's last tie-break: the measured clubhead speed where there is one, else ours.
-    for (const char *mid : { "m_lmClubheadSpeed", "m_clubheadSpeedImpact" }) {
-        if (const auto v = src.value(QLatin1String(mid)); v && std::isfinite(v->value)) {
-            rec.clubheadSpeed = v->value;
-            break;
-        }
+    // The ranking's last tie-break: the clubhead speed the one precedence rule ranks first (measurement_precedence.h:
+    // the launch monitor's reading where there is one, else ours). Each measure's value is offered under its stored key.
+    {
+        QHash<QString, std::optional<double>> offered;
+        const auto offer = [&](const QString &key, const char *measureId) {
+            if (const auto v = src.value(QLatin1String(measureId)); v && std::isfinite(v->value))
+                offered.insert(key, v->value);
+        };
+        const QString speed = QStringLiteral("clubheadSpeed");
+        offer(storedKey(speed, Instrument::LaunchMonitor), "m_lmClubheadSpeed");
+        offer(speed, "m_clubheadSpeedImpact");
+        if (const auto picked = pickByPrecedence(speed, offered))
+            rec.clubheadSpeed = picked->value;
     }
 
     // Schema 11: the monitor's readings the per-club distances are reduced from, the backswing, and

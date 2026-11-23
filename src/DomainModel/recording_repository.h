@@ -50,6 +50,9 @@
 //   readSummary       the shot's SUMMARY as recorded (ShotSummary: what a carousel row shows of it), by the
 //                     cheap read (the document's summary block; never the multi-MB analysis): what the Shot
 //                     answers its summary() from (refactor step 3.4b-ii: the carousel's rows over the Shots)
+//   readMeasurements  the shot's MEASUREMENTS (OBJ-MEASUREMENT; refactor 6.1a): the one source-tagged set, parsed from
+//                     its analysis as stored (the root chunk and the metrics, never a per-frame track): what the Shot
+//                     answers its measurements() from. An empty set when there is no document
 //   convert           a JSON-era swing → swing.ppsw, proven before the JSON is deleted
 //   writeSummarySidecar  the JSON-era swing_summary.json cache
 //   writeArchiveStub  the archive's stub (FILE-SHOT-10): the document thinned to what stays in the
@@ -91,6 +94,7 @@
 // reading are passed by reference to their own (inner-ring) types, declared forward here.
 
 #include "../Identity/identity.h"
+#include "../Metrics/measurement.h"   // MeasurementSet (OBJ-MEASUREMENT; refactor 6.1a)
 
 #include <QJsonObject>
 #include <QString>
@@ -355,6 +359,8 @@ public:
     // the carousel's session load has always done; false — it answers ok = false instead, for a GUI-thread path
     // that must never parse a whole document (the row of a shot just captured).
     virtual ShotSummary readSummary(const ShotRef &shot, bool parseIfUnindexed = true) = 0;
+    // The shot's measurements (above). Any thread; the read is SwingStore's analysis read (6–9 ms a swing).
+    virtual analysis::MeasurementSet readMeasurements(const ShotRef &shot) = 0;
 
     virtual ConversionResult convert(const ShotRef &shot, bool deleteJson) = 0;
 

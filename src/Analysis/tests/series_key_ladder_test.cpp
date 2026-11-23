@@ -10,7 +10,10 @@
 // Two header-only functions, nine lines between them, and everything a wG3 swing
 // shows a golfer depends on both:
 //
-//   findSeriesByLadder (swing_analysis.h)     "hm.<key>" if present, else "<key>"
+//   findByPrecedence (measurement_precedence.h)  "hm.<key>" if present, else "<key>" — the one
+//                                                precedence rule's (refactor 6.1a, R-INS-3), which also
+//                                                orders the pack's measures and the board's low point
+//                                                (P-cases below), with the source-tagged set (S-cases)
 //   dofForMetricKey    (wrist_assessment_types.h)  strip "hm." before the DOF join
 //
 // ⚠ THEY ARE PINNED BECAUSE THEIR FAILURE MODE IS SILENCE, NOT A WRONG ANSWER.
@@ -26,7 +29,14 @@
 // series was named `hm.leadWristFlexExt` would be reporting a NAMING decision as
 // missing anatomy.
 
-#include "../swing_analysis.h"             // findSeriesByLadder, MetricSeries
+#include "../swing_analysis.h"             // MetricSeries
+#include "../../Diagnostics/measures/measurement_precedence.h" // findByPrecedence, measurementLadder (6.1a)
+#include "../../Metrics/measurement.h"     // the source-tagged set and the stored keys (6.1a)
+
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include "../../Wrist/wrist_assessment_types.h" // dofForMetricKey, PpJointDof
 
 #include <cstdio>
@@ -53,7 +63,7 @@ MetricSeries series(const char *key, double v)
 
 double firstValue(const MetricSeries *m) { return m && !m->value.empty() ? m->value.front() : -1.0; }
 
-// --- findSeriesByLadder ------------------------------------------------------
+// --- findByPrecedence ------------------------------------------------------
 
 void test_the_measured_rung_wins_when_both_are_present()
 {
@@ -63,7 +73,7 @@ void test_the_measured_rung_wins_when_both_are_present()
     // not discover the answer by experiment.
     const std::vector<MetricSeries> v = { series("leadWristFlexExt", 1.0),
                                           series("hm.leadWristFlexExt", 2.0) };
-    check(firstValue(findSeriesByLadder(v, QStringLiteral("leadWristFlexExt"))) == 2.0,
+    check(firstValue(findByPrecedence(v, QStringLiteral("leadWristFlexExt"))) == 2.0,
           "hm. rung beats the bare key");
 }
 
@@ -77,9 +87,9 @@ void test_order_in_the_vector_does_not_decide_it()
                                                 series("leadWristRadUln", 1.0) };
     const std::vector<MetricSeries> hmLast  = { series("leadWristRadUln", 1.0),
                                                 series("hm.leadWristRadUln", 2.0) };
-    check(firstValue(findSeriesByLadder(hmFirst, QStringLiteral("leadWristRadUln"))) == 2.0,
+    check(firstValue(findByPrecedence(hmFirst, QStringLiteral("leadWristRadUln"))) == 2.0,
           "hm. rung wins when it is first");
-    check(firstValue(findSeriesByLadder(hmLast, QStringLiteral("leadWristRadUln"))) == 2.0,
+    check(firstValue(findByPrecedence(hmLast, QStringLiteral("leadWristRadUln"))) == 2.0,
           "hm. rung wins when it is last");
 }
 
@@ -89,7 +99,7 @@ void test_a_bare_key_always_means_our_own_estimate()
     // here IS our estimate and is the correct answer — not a fallback that should
     // have been something better.
     const std::vector<MetricSeries> v = { series("leadWristFlexExt", 1.0) };
-    check(firstValue(findSeriesByLadder(v, QStringLiteral("leadWristFlexExt"))) == 1.0,
+    check(firstValue(findByPrecedence(v, QStringLiteral("leadWristFlexExt"))) == 1.0,
           "the bare key is found when it is the only rung");
 }
 
@@ -101,20 +111,20 @@ void test_a_wg3_swing_resolves_through_the_anatomical_name()
     const std::vector<MetricSeries> v = { series("hm.leadWristFlexExt", 2.0),
                                           series("hm.leadWristRadUln", 3.0),
                                           series("hm.forearmRotation", 4.0) };
-    check(firstValue(findSeriesByLadder(v, QStringLiteral("leadWristFlexExt"))) == 2.0,
+    check(firstValue(findByPrecedence(v, QStringLiteral("leadWristFlexExt"))) == 2.0,
           "bow/cup resolves on a wG3 swing");
-    check(firstValue(findSeriesByLadder(v, QStringLiteral("leadWristRadUln"))) == 3.0,
+    check(firstValue(findByPrecedence(v, QStringLiteral("leadWristRadUln"))) == 3.0,
           "hinge resolves on a wG3 swing");
-    check(firstValue(findSeriesByLadder(v, QStringLiteral("forearmRotation"))) == 4.0,
+    check(firstValue(findByPrecedence(v, QStringLiteral("forearmRotation"))) == 4.0,
           "forearm rotation resolves on a wG3 swing");
 }
 
 void test_a_missing_key_is_null_not_the_wrong_series()
 {
     const std::vector<MetricSeries> v = { series("hm.leadWristFlexExt", 2.0) };
-    check(findSeriesByLadder(v, QStringLiteral("forearmPronation")) == nullptr,
+    check(findByPrecedence(v, QStringLiteral("forearmPronation")) == nullptr,
           "an unrelated key returns null");
-    check(findSeriesByLadder({}, QStringLiteral("leadWristFlexExt")) == nullptr,
+    check(findByPrecedence({}, QStringLiteral("leadWristFlexExt")) == nullptr,
           "an empty vector returns null");
 }
 
@@ -127,9 +137,9 @@ void test_the_prefix_is_not_matched_loosely()
     // `leadWristFlexExtRate`.
     const std::vector<MetricSeries> v = { series("hm.leadWristFlexExt", 2.0),
                                           series("leadWristFlexExtRate", 9.0) };
-    check(firstValue(findSeriesByLadder(v, QStringLiteral("hm.leadWristFlexExt"))) == 2.0,
+    check(firstValue(findByPrecedence(v, QStringLiteral("hm.leadWristFlexExt"))) == 2.0,
           "an already-prefixed query still finds its literal key");
-    check(findSeriesByLadder(v, QStringLiteral("leadWristFlexE")) == nullptr,
+    check(findByPrecedence(v, QStringLiteral("leadWristFlexE")) == nullptr,
           "a partial key matches nothing — the compare is exact");
 }
 
@@ -196,12 +206,142 @@ void test_the_two_functions_agree_on_the_same_swing()
     // have to strip the prefix or the round trip breaks in the middle, which is
     // exactly how a wG3 swing lost its grid.
     const std::vector<MetricSeries> v = { series("hm.leadWristFlexExt", 2.0) };
-    const MetricSeries *m = findSeriesByLadder(v, QStringLiteral("leadWristFlexExt"));
+    const MetricSeries *m = findByPrecedence(v, QStringLiteral("leadWristFlexExt"));
     check(m != nullptr, "wG3 series located by anatomical name");
     if (!m) return;
     const auto dof = dofForMetricKey(m->key);
     check(dof.has_value() && *dof == PpJointDof::LeadWristFlexExt,
           "and the key it returned still maps to the anatomical DOF");
+}
+
+// --- the one precedence rule (refactor 6.1a; R-INS-3) ------------------------
+
+bool ladderIs(const QStringList &got, const QStringList &want, const char *label)
+{
+    const bool ok = got == want;
+    std::printf("  [%s] %s (%s)\n", ok ? "PASS" : "FAIL", label, qPrintable(got.join(QStringLiteral(", "))));
+    if (!ok) ++g_fail;
+    return ok;
+}
+
+void test_the_default_order_readings_then_derived_then_ours()
+{
+    ladderIs(measurementLadder(QStringLiteral("leadWristFlexExt")),
+             { QStringLiteral("hm.leadWristFlexExt"), QStringLiteral("leadWristFlexExt") },
+             "P1 a HackMotion reading before our own wrist maths");
+    ladderIs(measurementLadder(QStringLiteral("clubheadSpeed")),
+             { QStringLiteral("lm.clubheadSpeed"), QStringLiteral("clubheadSpeed") },
+             "P2 the launch monitor's reading before our estimate");
+    ladderIs(measurementLadder(QStringLiteral("lowPointAhead")),
+             { QStringLiteral("lm.lowPointAhead"), QStringLiteral("lowPointFromAttack"), QStringLiteral("lowPointAhead") },
+             "P3 reading, then what we derive from a reading, then ours");
+    ladderIs(measurementLadder(QStringLiteral("xFactor")), { QStringLiteral("xFactor") },
+             "P4 a quantity no instrument reads has one rung, its own");
+    ladderIs(measurementLadder(QStringLiteral("lm.faceAngle")), { QStringLiteral("lm.faceAngle") },
+             "P5 a key that names its source is asked for as itself");
+    ladderIs(measurementLadder(QStringLiteral("hm.leadWristFlexExt")), { QStringLiteral("hm.leadWristFlexExt") },
+             "P6 …a HackMotion key too (no hm.hm.)");
+    ladderIs(measurementLadder(QString()), {}, "P7 no metric: no rungs");
+}
+
+void test_an_authored_ladder_is_the_measures_statement()
+{
+    ladderIs(measurementLadder(QStringLiteral("clubheadSpeed"), QStringList{}), { QStringLiteral("clubheadSpeed") },
+             "P8 an empty authored ladder reads its own key only (the editor's dropped rung stays dropped)");
+    ladderIs(measurementLadder(QStringLiteral("clubPath"), QStringList{ QStringLiteral("lm.clubPath") }),
+             { QStringLiteral("lm.clubPath"), QStringLiteral("clubPath") }, "P9 the authored rungs, then the measure's key");
+    ladderIs(measurementLadder(QString(), QStringList{ QStringLiteral("lm.ballSpeed") }), { QStringLiteral("lm.ballSpeed") },
+             "P10 a measure with no key of its own: its rungs");
+}
+
+void test_every_shipped_ladder_equals_the_default()
+{
+    // The shipped pack's 27 authored ladders are the default order, so a measure that authors none reads as one that does.
+    QFile f(QStringLiteral(PP_SRC_DIR "/Resources/diagnostics/core.json"));
+    if (!f.open(QIODevice::ReadOnly)) { check(false, "P11 the shipped pack opens"); return; }
+    const QJsonArray measures = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("measures")).toArray();
+    int authored = 0, same = 0;
+    for (const QJsonValue &v : measures) {
+        const QJsonObject m = v.toObject();
+        const QJsonArray pk = m.value(QStringLiteral("preferKeys")).toArray();
+        if (pk.isEmpty()) continue;
+        ++authored;
+        QStringList keys;
+        for (const QJsonValue &k : pk) keys << k.toString();
+        const QString key = m.value(QStringLiteral("metricKey")).toString();
+        if (measurementLadder(key, keys) == measurementLadder(key)) ++same;
+        else std::printf("    differs: %s\n", qPrintable(m.value(QStringLiteral("id")).toString()));
+    }
+    std::printf("    %d authored ladders, %d equal to the default\n", authored, same);
+    check(authored > 0 && same == authored, "P11 every authored ladder in core.json equals the default order");
+}
+
+void test_pick_takes_the_first_rung_that_answers()
+{
+    QHash<QString, std::optional<double>> offered{ { QStringLiteral("lm.lowPointAhead"), std::nullopt },
+                                                   { QStringLiteral("lowPointAhead"), 1.25 } };
+    auto p = pickByPrecedence(QStringLiteral("lowPointAhead"), offered);
+    check(p && p->key == QStringLiteral("lowPointAhead") && p->value == 1.25,
+          "P12 the device omitted its low point: our estimate answers");
+    offered.insert(QStringLiteral("lm.lowPointAhead"), -0.5);
+    p = pickByPrecedence(QStringLiteral("lowPointAhead"), offered);
+    check(p && p->key == QStringLiteral("lm.lowPointAhead") && p->value == -0.5, "P13 the device's reading wins when it answers");
+    check(!pickByPrecedence(QStringLiteral("lowPointAhead"), {}), "P14 nothing offered: nothing picked");
+}
+
+// --- the source-tagged set (OBJ-MEASUREMENT; R-INS-2) ------------------------
+
+void test_a_stored_key_is_told_one_way()
+{
+    StoredKey k = parseStoredKey(QStringLiteral("lm.carryDistance"));
+    check(k.metric == QStringLiteral("carryDistance") && k.instrument == Instrument::LaunchMonitor
+              && k.kind == MeasurementKind::Reading, "S1 lm.: the launch monitor's reading");
+    k = parseStoredKey(QStringLiteral("hm.leadWristRadUln"));
+    check(k.metric == QStringLiteral("leadWristRadUln") && k.instrument == Instrument::HackMotion
+              && k.kind == MeasurementKind::Reading, "S2 hm.: HackMotion's reading");
+    k = parseStoredKey(QStringLiteral("lowPointFromAttack"));
+    check(k.metric == QStringLiteral("lowPointAhead") && k.instrument == Instrument::LaunchMonitor
+              && k.kind == MeasurementKind::Derived, "S3 an LM-derived key: derived from the monitor, a low point");
+    k = parseStoredKey(QStringLiteral("clubheadSpeed"));
+    check(k.metric == QStringLiteral("clubheadSpeed") && k.instrument == Instrument::Own
+              && k.kind == MeasurementKind::Derived, "S4 a bare key: our own measurement rules");
+    check(storedKey(QStringLiteral("leadWristFlexExt"), Instrument::HackMotion) == QStringLiteral("hm.leadWristFlexExt")
+              && storedKey(QStringLiteral("ballSpeed"), Instrument::LaunchMonitor) == QStringLiteral("lm.ballSpeed")
+              && storedKey(QStringLiteral("xFactor"), Instrument::Own) == QStringLiteral("xFactor"),
+          "S5 and spelled back the same way");
+}
+
+QJsonObject entry(const char *key, double impact, const char *route = nullptr)
+{
+    QJsonObject m{ { QStringLiteral("key"), QString::fromLatin1(key) }, { QStringLiteral("unit"), QStringLiteral("mph") },
+                   { QStringLiteral("phaseSamples"), QJsonArray{
+                         QJsonObject{ { QStringLiteral("phase"), int(Phase::Top) }, { QStringLiteral("value"), -99.0 } },
+                         QJsonObject{ { QStringLiteral("phase"), int(Phase::Impact) }, { QStringLiteral("value"), impact } } } } };
+    if (route) m.insert(QStringLiteral("routeId"), QString::fromLatin1(route));
+    return m;
+}
+
+void test_the_set_tags_every_measurement_with_its_source_and_kind()
+{
+    QJsonObject an{ { QStringLiteral("metrics"), QJsonArray{ entry("clubheadSpeed", 84.0, "faceOn"), entry("lm.clubheadSpeed", 86.5),
+                                                             entry("lowPointFromAttack", 1.5), entry("hm.leadWristFlexExt", 12.0) } },
+                    { QStringLiteral("gates"), QJsonArray{ QJsonObject{ { QStringLiteral("gate"), QStringLiteral("lm.noData") } } } },
+                    { QStringLiteral("gatesVersion"), 2 } };
+    const MeasurementSet set = measurementSetFromAnalysis(an);
+    check(set.items.size() == 4, "S6 one measurement per stored row");
+    const Measurement *ours = set.find(QStringLiteral("clubheadSpeed"), Instrument::Own);
+    const Measurement *lm   = set.find(QStringLiteral("clubheadSpeed"), Instrument::LaunchMonitor, MeasurementKind::Reading);
+    check(ours && ours->value && *ours->value == 84.0 && ours->source.route == QStringLiteral("faceOn"),
+          "S7 ours: its Impact sample, never the first sample; its route");
+    check(lm && lm->value && *lm->value == 86.5 && lm->key == QStringLiteral("lm.clubheadSpeed"),
+          "S8 the monitor's: the same metric, its own source, its stored key");
+    const QHash<QString, double> readings = set.values(Instrument::LaunchMonitor, MeasurementKind::Reading);
+    check(readings.size() == 1 && readings.value(QStringLiteral("lm.clubheadSpeed")) == 86.5,
+          "S9 filtered by source and kind: the monitor's readings only (the derived low point is not one)");
+    check(set.find(QStringLiteral("lowPointAhead"), Instrument::LaunchMonitor, MeasurementKind::Derived) != nullptr,
+          "S10 the LM-derived low point is a derived measurement of the monitor's");
+    check(set.gateRecords.size() == 1 && set.gatesVersion && *set.gatesVersion == 2, "S11 the gate records ride with the set");
+    check(measurementSetFromAnalysis({}).isEmpty() && !measurementSetFromAnalysis({}).gatesVersion, "S12 no analysis: an empty set");
 }
 
 } // namespace
@@ -222,6 +362,13 @@ int main()
     test_forearm_rotation_deliberately_maps_to_no_dof();
     test_an_unknown_key_is_nullopt();
     test_the_two_functions_agree_on_the_same_swing();
+
+    test_the_default_order_readings_then_derived_then_ours();
+    test_an_authored_ladder_is_the_measures_statement();
+    test_every_shipped_ladder_equals_the_default();
+    test_pick_takes_the_first_rung_that_answers();
+    test_a_stored_key_is_told_one_way();
+    test_the_set_tags_every_measurement_with_its_source_and_kind();
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;

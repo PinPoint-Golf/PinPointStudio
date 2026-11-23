@@ -23,6 +23,7 @@
 
 #include "wrist_angles.h"
 #include "../Core/pp_profiler.h"
+#include "../Metrics/measurement.h"   // storedKey: the one key translation (refactor 6.1a)
 
 namespace pinpoint::analysis {
 namespace {
@@ -80,7 +81,9 @@ MetricSeries buildSeries(const QString &key, const QString &label, const QString
 // measure states which rung it would rather have.
 QString instrumentKey(const QString &bare, bool hackMotion)
 {
-    return hackMotion ? QStringLiteral("hm.") + bare : bare;
+    // The stored key, by the measurement vocabulary's one translation (measurement.h, refactor 6.1a).
+    return pinpoint::analysis::storedKey(bare, hackMotion ? pinpoint::analysis::Instrument::HackMotion
+                                                          : pinpoint::analysis::Instrument::Own);
 }
 
 } // namespace

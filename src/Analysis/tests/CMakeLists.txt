@@ -255,7 +255,10 @@ pp_add_test(stream_trim_test      SOURCES stream_trim_test.cpp)
 # because it was measured by the better instrument. dofForMetricKey strips the same
 # prefix one layer down so the assessment grid does not report a naming decision as
 # missing anatomy. Both header-only; nine lines between them.
-pp_add_test(series_key_ladder_test SOURCES series_key_ladder_test.cpp)
+# Refactor 6.1a: the same file pins the ONE precedence rule (measurement_precedence.h: the default order, an authored
+# ladder, every shipped ladder equal to the default) and the source-tagged set (measurement.h). PP_SRC_DIR: core.json.
+pp_add_test(series_key_ladder_test SOURCES series_key_ladder_test.cpp
+    DEFINES PP_SRC_DIR="${SRC}")
 
 # --- Segmentation v2/v3 + metric extraction ----------------------------------
 pp_add_test(phase_signals_test
