@@ -20,7 +20,10 @@
 
 #include <QAbstractListModel>
 #include <QStringList>
-#include <QVariantList>
+#include "device_filter_model_types.h"   // the typed chip QML reads (refactor 5.8a, lint A6)
+
+#include <QList>
+#include <QVariantList>   // kept: the models that derive from this one read it through this header
 #include <QVector>
 
 // DeviceFilterModel — the "Recorded with" filter shared by every list of sessions: the carousel's
@@ -42,7 +45,7 @@ class DeviceFilterModel : public QAbstractListModel
     // [{ id, label, count }] — every device a saved session used (plus any token still in the
     // filter, so a chip can always be switched off), in sortDeviceTokens order; count = saved
     // sessions that pass the current filter AND used it — what turning that chip on would leave.
-    Q_PROPERTY(QVariantList availableDevices READ availableDevices NOTIFY availableDevicesChanged)
+    Q_PROPERTY(QList<pinpoint::reviewui::DeviceChip> availableDevices READ availableDevices NOTIFY availableDevicesChanged)
     Q_PROPERTY(int          savedCount       READ savedCount       NOTIFY countsChanged)   // saved sessions in the library
     Q_PROPERTY(int          shownSavedCount  READ shownSavedCount  NOTIFY countsChanged)   // …that pass the filter
 
@@ -51,7 +54,7 @@ public:
 
     QStringList  deviceFilter() const { return m_deviceFilter; }
     void         setDeviceFilter(const QStringList &tokens);
-    QVariantList availableDevices() const;
+    QList<pinpoint::reviewui::DeviceChip> availableDevices() const;
     int          savedCount() const;
     int          shownSavedCount() const;
 

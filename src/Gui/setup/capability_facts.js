@@ -17,7 +17,7 @@
  */
 .pragma library
 
-// WHAT THE KIT CAN RECORD, as facts: the map MetricCatalog.setupSummary() takes
+// WHAT THE KIT CAN RECORD, as facts: what MetricCatalog.setupSummary() takes (through CapRows.summaryOf)
 // ({ faceOn, dtl, imuRoles, hackMotion, launchMonitor }) and the context setup_capability_rows.js
 // words its reasons from ({ armInSession, armCalibrated, upperArmHeld, cameraCount, faceOn, dtl,
 // lmName }). Pure: it reads only what it is given, so the wizard and Home answer from one rule.

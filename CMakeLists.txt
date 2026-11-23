@@ -2994,6 +2994,10 @@ target_sources(PinPointStudio PRIVATE
     # Every Session's own series (refactor 5.5a; its QML door ChartsSeries is in the QML module, charts_work.h).
     src/Gui/charts/session_series.h
     src/Gui/charts/session_series.cpp
+    # The review views' door to a Shot (refactor 5.8a; the module holds only its header, review/shot_data_door.h): it
+    # links the Session, the Shot and the Recording reader, so it is the app's.
+    src/Gui/review/shot_data_door_impl.h
+    src/Gui/review/shot_data_door.cpp
     src/App/app.h
     src/App/app.cpp
     src/App/app_state.h

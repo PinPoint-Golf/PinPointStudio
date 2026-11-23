@@ -69,19 +69,19 @@ BodyPoseAdapter::BodyPoseAdapter(QObject *parent) : QObject(parent)
 
 // ── The trunk (viz_frame.h) ───────────────────────────────────────────────────
 
-QVariantMap BodyPoseAdapter::trunkBones(const QQuaternion &pelvisAnat, const QQuaternion &thoraxAnat) const
+pinpoint::vizui::TrunkBones BodyPoseAdapter::trunkBones(const QQuaternion &pelvisAnat, const QQuaternion &thoraxAnat) const
 {
     const pinpoint::viz::TrunkAvatarBones b = pinpoint::viz::trunkAvatarBones(pelvisAnat, thoraxAnat);
-    return {
-        { QStringLiteral("hips"),       QVariant::fromValue(b.hips) },
-        { QStringLiteral("spine"),      QVariant::fromValue(b.spine) },
-        { QStringLiteral("spine1"),     QVariant::fromValue(b.spine1) },
-        { QStringLiteral("spine2"),     QVariant::fromValue(b.spine2) },
-        { QStringLiteral("leftUpLeg"),  QVariant::fromValue(b.leftUpLeg) },
-        { QStringLiteral("leftLeg"),    QVariant::fromValue(b.leftLeg) },
-        { QStringLiteral("rightUpLeg"), QVariant::fromValue(b.rightUpLeg) },
-        { QStringLiteral("rightLeg"),   QVariant::fromValue(b.rightLeg) },
-    };
+    pinpoint::vizui::TrunkBones out;
+    out.hips       = b.hips;
+    out.spine      = b.spine;
+    out.spine1     = b.spine1;
+    out.spine2     = b.spine2;
+    out.leftUpLeg  = b.leftUpLeg;
+    out.leftLeg    = b.leftLeg;
+    out.rightUpLeg = b.rightUpLeg;
+    out.rightLeg   = b.rightLeg;
+    return out;
 }
 
 QQuaternion BodyPoseAdapter::trunkTurn(double awayDeg, bool rightHanded) const
@@ -272,3 +272,6 @@ void BodyPoseAdapter::onTimerTick()
 
     emit rotationsChanged();
 }
+
+// moc for the typed trunk bones (body_pose_adapter_types.h has no .cpp of its own)
+#include "moc_body_pose_adapter_types.cpp"

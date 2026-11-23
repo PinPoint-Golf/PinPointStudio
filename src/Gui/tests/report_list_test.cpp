@@ -301,9 +301,9 @@ int main(int argc, char **argv)
     check(ranks() == QList<int>({ 0, 1, 2, 3, 4 }) && list.shownCount() == 5, "no filter: every row shown, in order");
     check(list.savedCount() == 5 && list.shownSavedCount() == 5, "five saved sessions");
     {
-        const QVariantList chips = list.availableDevices();
+        const QList<pinpoint::reviewui::DeviceChip> chips = list.availableDevices();
         QStringList ids; QList<int> counts;
-        for (const QVariant &c : chips) { ids << c.toMap().value("id").toString(); counts << c.toMap().value("count").toInt(); }
+        for (const pinpoint::reviewui::DeviceChip &c : chips) { ids << c.id; counts << c.count; }
         check(ids == QStringList({ "faceOn", "dtl", "lm:gcquad" }) && counts == QList<int>({ 4, 2, 1 }),
               "chips: every device a session used, drawer order, with how many sessions each would leave");
     }
@@ -583,11 +583,11 @@ int main(int argc, char **argv)
         sl.setShowArchived(true);
         ok = ok && ac == sl.shownSavedCount() - without;
         sl.setShowArchived(keepArch);
-        for (const QVariant &v : sl.availableDevices()) {
-            const QString id = v.toMap().value(QStringLiteral("id")).toString();
+        for (const pinpoint::reviewui::DeviceChip &v : sl.availableDevices()) {
+            const QString id = v.id;
             if (sl.deviceFilter().contains(id)) continue;
             sl.toggleDevice(id);
-            ok = ok && v.toMap().value(QStringLiteral("count")).toInt() == sl.shownSavedCount();
+            ok = ok && v.count == sl.shownSavedCount();
             sl.toggleDevice(id);
         }
         check(ok, label);

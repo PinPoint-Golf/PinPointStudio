@@ -66,6 +66,24 @@ static_assert(int(sizeof(kPositionTags) / sizeof(kPositionTags[0])) == kPhaseCou
 
 constexpr int kImpactPhase = 5;   // Phase::Impact — the emphasised station
 
+// ── THE TYPED BRIDGE (refactor 5.8a, lint A6) ───────────────────────────────────────────────────
+// The lists QML projected, rebuilt as the maps the map-shaped forms read; each number goes in as a QVariant(double),
+// so their conversions (toLongLong, toInt, toDouble) are the ones they made of a number QML passed before.
+QVariantList variantsOf(const QList<double> &l)
+{
+    QVariantList out;
+    out.reserve(l.size());
+    for (double d : l) out.append(d);
+    return out;
+}
+QVariantList timedMapsOf(const QList<double> &times)
+{
+    QVariantList out;
+    out.reserve(times.size());
+    for (double t : times) out.append(QVariantMap{ { QStringLiteral("t_us"), t } });
+    return out;
+}
+
 } // namespace
 
 QVariantList TimelineLabels::distribute(const QVariantList &centers, const QVariantList &sizes,
@@ -287,6 +305,82 @@ qint64 TimelineLabels::snap(const QVariantList &phases, qint64 us, qint64 tolUs)
     return found ? bestT : us;
 }
 
+QList<pinpoint::timelineui::Station> TimelineLabels::stationLayout(const QList<int> &phaseIds,
+                                                                    const QList<double> &phaseTimes, qint64 startUs,
+                                                                    qint64 endUs, bool horizontal, double mainLength,
+                                                                    double gap, const QString &fontFamily,
+                                                                    double fontPx) const
+{
+    QVariantList phases;
+    const qsizetype n = qMin(phaseIds.size(), phaseTimes.size());
+    phases.reserve(n);
+    for (qsizetype i = 0; i < n; ++i)
+        phases.append(QVariantMap{ { QStringLiteral("phase"), phaseIds.at(i) }, { QStringLiteral("t_us"), phaseTimes.at(i) } });
+    QList<pinpoint::timelineui::Station> out;
+    for (const QVariant &v : stationLayout(phases, startUs, endUs, horizontal, mainLength, gap, fontFamily, fontPx)) {
+        const QVariantMap m = v.toMap();
+        pinpoint::timelineui::Station st;
+        st.phase    = m.value(QStringLiteral("phase")).toInt();
+        st.tUs      = m.value(QStringLiteral("tUs")).toLongLong();
+        st.frac     = m.value(QStringLiteral("frac")).toDouble();
+        st.center   = m.value(QStringLiteral("center")).toDouble();
+        st.label    = m.value(QStringLiteral("label")).toDouble();
+        st.name     = m.value(QStringLiteral("name")).toString();
+        st.isImpact = m.value(QStringLiteral("isImpact")).toBool();
+        st.elbow    = m.value(QStringLiteral("elbow")).toBool();
+        out.append(st);
+    }
+    return out;
+}
+
+QList<pinpoint::timelineui::PositionMark> TimelineLabels::positionLayout(const QList<int> &ps,
+                                                                          const QList<double> &times,
+                                                                          const QList<int> &sources,
+                                                                          const QList<double> &confs, qint64 startUs,
+                                                                          qint64 endUs, bool horizontal,
+                                                                          double mainLength, double gap,
+                                                                          const QString &fontFamily, int fontPx) const
+{
+    QVariantList positions;
+    const qsizetype n = qMin(ps.size(), times.size());
+    positions.reserve(n);
+    for (qsizetype i = 0; i < n; ++i)
+        positions.append(QVariantMap{ { QStringLiteral("p"),      ps.at(i) },
+                                      { QStringLiteral("t_us"),   times.at(i) },
+                                      { QStringLiteral("source"), i < sources.size() ? sources.at(i) : 0 },
+                                      { QStringLiteral("conf"),   i < confs.size() ? confs.at(i) : 0.0 } });
+    QList<pinpoint::timelineui::PositionMark> out;
+    for (const QVariant &v : positionLayout(positions, startUs, endUs, horizontal, mainLength, gap, fontFamily, fontPx)) {
+        const QVariantMap m = v.toMap();
+        pinpoint::timelineui::PositionMark pm;
+        pm.p      = m.value(QStringLiteral("p")).toInt();
+        pm.tUs    = m.value(QStringLiteral("tUs")).toLongLong();
+        pm.frac   = m.value(QStringLiteral("frac")).toDouble();
+        pm.center = m.value(QStringLiteral("center")).toDouble();
+        pm.label  = m.value(QStringLiteral("label")).toString();
+        pm.source = m.value(QStringLiteral("source")).toInt();
+        pm.conf   = m.value(QStringLiteral("conf")).toDouble();
+        pm.elbow  = m.value(QStringLiteral("elbow")).toBool();
+        out.append(pm);
+    }
+    return out;
+}
+
+int TimelineLabels::activeStation(const QList<double> &phaseTimes, qint64 pos) const
+{
+    return activeStation(timedMapsOf(phaseTimes), pos);
+}
+
+double TimelineLabels::valueAtNearest(const QList<double> &tUs, const QList<double> &value, qint64 pos) const
+{
+    return valueAtNearest(variantsOf(tUs), variantsOf(value), pos);
+}
+
+qint64 TimelineLabels::snap(const QList<double> &phaseTimes, qint64 us, qint64 tolUs) const
+{
+    return snap(timedMapsOf(phaseTimes), us, tolUs);
+}
+
 QString TimelineLabels::phaseFullName(int phase) const
 {
     if (phase >= 0 && phase < kPhaseCount) return QString::fromLatin1(kFullNames[phase]);
@@ -312,3 +406,6 @@ QString TimelineLabels::phaseShortTag(int phase) const
     // diagnostic for a value that should not exist, not a label anyone is meant to read.
     return QStringLiteral("P%1").arg(phase);
 }
+
+// moc for the typed layouts' gadgets (timeline_labels_types.h has no .cpp of its own)
+#include "moc_timeline_labels_types.cpp"

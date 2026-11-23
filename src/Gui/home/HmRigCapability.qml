@@ -60,9 +60,9 @@ Column {
     readonly property var rows: {
         const f = root.facts
         const noLm = CapFacts.factsWithoutLm(f)
-        return CapRows.rows(root._catalog.setupSummary(f),
+        return CapRows.rows(CapRows.summaryOf(root._catalog, f),
                             CapFacts.rowContext(root._input, f, "home"),
-                            noLm === null ? null : root._catalog.setupSummary(noLm))
+                            noLm === null ? null : CapRows.summaryOf(root._catalog, noLm))
     }
 
     // ── Title ────────────────────────────────────────────────────────────────

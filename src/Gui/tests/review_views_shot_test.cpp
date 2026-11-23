@@ -27,6 +27,10 @@
 //   MARKUP-SEEN     a truth written by another path (the Shot's own command) is what the markup tool's rows show, with no
 //                   save of its own; its save is the Shot's (read back by Shot::markupTruth)
 //   MARKUP-UNHELD   a swing no Session holds is not read, and its save is refused (N1 gone)
+//   DATA-FOLLOW     the data viewer (refactor 5.8a) reads the Shot through the review views' door and, on a real
+//                   re-analysis (Shot::applyAnalysis), its phases, segments and Properties follow with no reload
+//   DATA-OWNERS     its Properties rows come from their owners: the Athlete's record, the Session's folder, the Shot
+//   DATA-UNHELD     a folder the Session does not hold shows nothing (no file is read)
 //
 //   cmake --build build/tests --target review_views_shot_test -j 3
 //   ctest --test-dir build/tests -R '^review_views_shot_test$' --output-on-failure
@@ -37,11 +41,14 @@
 #include "../shot/disk_replay_source.h"
 #include "../markup/markup_controller.h"
 #include "../markup/markup_truth.h"
+#include "../review/swing_data_source.h"
+#include "../review/shot_data_door_impl.h"
 #include "../../Analysis/swing_analysis.h"
 #include "../../Export/rule_data_install.h"
 #include "../../Export/swing_doc.h"
 
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTemporaryDir>
@@ -273,6 +280,76 @@ static void testMarkup(owner_rig::ViewRig &rig, Session *s)
     check(QStringLiteral("MARKUP-UNHELD  its save is refused"), !mc.save());
 }
 
+static QString propertyRow(const SwingDataSource &src, const QString &group, const QString &key)
+{
+    for (const dataview::PropertyGroup &g : src.metadata()) {
+        if (g.group != group) continue;
+        for (const dataview::PropertyRow &r : g.rows)
+            if (r.k == key) return r.v;
+    }
+    return {};
+}
+
+static qint64 viewerPhaseUs(const SwingDataSource &src, analysis::Phase phase)
+{
+    for (const dataview::Phase &p : src.phases())
+        if (p.phase == int(phase)) return p.t_us;
+    return -1;
+}
+
+static void testDataViewer(owner_rig::ViewRig &rig, Session *s)
+{
+    std::printf("\nDATA — the data viewer is a presenter over the Shot (5.8a)\n");
+    review::installShotDataResolver(review::makeShotDataResolver());
+    Shot *shot = rig.addLive(s, fixture("rich_7iron"));
+    check(QStringLiteral("DATA-FOLLOW  a shot in a live session"), shot != nullptr);
+    if (!shot) return;
+
+    SwingDataSource src;
+    src.setSession(s);
+    src.setSwingDir(shot->folder());
+    check(QStringLiteral("DATA-FOLLOW  the read through the Shot settles"), src.waitForIdle());
+    const qint64 before = viewerPhaseUs(src, analysis::Phase::Impact);
+    check(QStringLiteral("DATA-FOLLOW  the viewer shows the shot (impact %1 µs, %2 lanes)").arg(before).arg(src.regionLaneCounts().value(0)),
+          src.loaded() && before >= 0 && !src.segments().isEmpty());
+
+    std::printf("\nDATA-OWNERS — each Properties row from its owner\n");
+    check(QStringLiteral("DATA-OWNERS  Athlete = the Athlete's record (%1)").arg(propertyRow(src, QStringLiteral("Swing"), QStringLiteral("Athlete"))),
+          propertyRow(src, QStringLiteral("Swing"), QStringLiteral("Athlete")) == s->athlete()->record().name);
+    check(QStringLiteral("DATA-OWNERS  Session = the Session's folder (%1)").arg(propertyRow(src, QStringLiteral("Swing"), QStringLiteral("Session"))),
+          propertyRow(src, QStringLiteral("Swing"), QStringLiteral("Session")) == s->entry()->identity.folderName());
+    check(QStringLiteral("DATA-OWNERS  Swing = the Shot's folder (%1)").arg(propertyRow(src, QStringLiteral("Swing"), QStringLiteral("Swing"))),
+          propertyRow(src, QStringLiteral("Swing"), QStringLiteral("Swing")) == QFileInfo(shot->folder()).fileName());
+    (void)shot->rate(4);
+    src.setSessionType(src.sessionType() + 1);   // re-derives from the cached read: no file read, no re-read
+    src.waitForIdle();
+    check(QStringLiteral("DATA-OWNERS  Rating = the Shot's review (%1)").arg(propertyRow(src, QStringLiteral("Review"), QStringLiteral("Rating"))),
+          propertyRow(src, QStringLiteral("Review"), QStringLiteral("Rating")) == QStringLiteral("4 ★"));
+
+    std::printf("\nDATA-FOLLOW — a real re-analysis of the shot on screen\n");
+    QSignalSpy dirs(&src, &SwingDataSource::swingDirChanged);
+    const int rev = src.revision();
+    const qint64 impact = 1234567;
+    const WriteResult w = reanalyse(shot, impact - 400000, impact, impact + 600000);
+    check(QStringLiteral("DATA-FOLLOW  the Shot re-analysed (EVT-02)"), w.ok() && w.changed());
+    check(QStringLiteral("DATA-FOLLOW  the read through the Shot settles"), src.waitForIdle());
+    check(QStringLiteral("DATA-FOLLOW  the impact follows (%1 → %2 µs)").arg(before).arg(viewerPhaseUs(src, analysis::Phase::Impact)),
+          viewerPhaseUs(src, analysis::Phase::Impact) == impact);
+    check(QStringLiteral("DATA-FOLLOW  …and the score row (%1)").arg(propertyRow(src, QStringLiteral("Analysis"), QStringLiteral("Score"))),
+          propertyRow(src, QStringLiteral("Analysis"), QStringLiteral("Score")) == QStringLiteral("41"));
+    check(QStringLiteral("DATA-FOLLOW  …with no reload: the same folder, one new read (revision %1 → %2)").arg(rev).arg(src.revision()),
+          dirs.isEmpty() && src.revision() == rev + 1 && src.swingDir() == shot->folder());
+
+    std::printf("\nDATA-UNHELD — a folder the Session does not hold\n");
+    QTemporaryDir other;
+    const QString foreign = QDir(other.path()).filePath(QStringLiteral("swing_0001"));
+    (void)QDir().mkpath(foreign);
+    (void)QFile::copy(fixture("rich_7iron"), QDir(foreign).filePath(QStringLiteral("swing.json")));
+    src.setSwingDir(foreign);
+    src.waitForIdle();
+    check(QStringLiteral("DATA-UNHELD  nothing is shown, and nothing read"), !src.loaded() && src.phases().isEmpty());
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -291,6 +368,7 @@ int main(int argc, char **argv)
         if (s) {
             testReplay(rig, s);
             testMarkup(rig, s);
+            testDataViewer(rig, s);
         }
     }
     std::printf("\n%s (%d failed)\n", g_fail ? "FAIL" : "PASS", g_fail);

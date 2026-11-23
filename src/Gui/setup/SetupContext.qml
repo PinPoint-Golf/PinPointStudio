@@ -574,7 +574,7 @@ QtObject {
     readonly property string launchMonitorName:       launchMon.deviceName !== undefined ? launchMon.deviceName : ""
 
     // ── What the session will record (§4.14) ─────────────────────────────────────────────────────
-    // The map MetricCatalog.setupSummary() takes. imuRoles are the roles in the session whose
+    // The facts MetricCatalog.setupSummary() takes (handed over by CapRows.summaryOf). imuRoles are the roles in the session whose
     // group's calibration OUTCOME holds per the draft (an assigned-but-uncalibrated sensor produces
     // nothing — setup_capability.h). DECISION(stage4): `hackMotion` is true only when the wG3 holds
     // the arm AND its outcome holds, because contextForSetup adds LeadForearm + LeadHand for it on
@@ -595,12 +595,12 @@ QtObject {
     // lives. One catalogue per context. Each row { key, label, state, stateText, tone, reason,
     // measured, estimated, unavailable, total, text } — CapRows.rows has the rules.
     property MetricCatalog _catalog: MetricCatalog {}
-    readonly property var capabilitySummary: _catalog.setupSummary(setupFacts)
+    readonly property var capabilitySummary: CapRows.summaryOf(_catalog, setupFacts)
     // The same setup without the launch monitor — only when one is configured — so the rows can
     // tell a family the launch monitor alone measures (CapRows "Whose word it is").
     readonly property var capabilitySummaryWithoutLm: {
         var f = CapFacts.factsWithoutLm(ctx.setupFacts)
-        return f === null ? null : _catalog.setupSummary(f)
+        return f === null ? null : CapRows.summaryOf(_catalog, f)
     }
     readonly property var capability:
         CapRows.rows(ctx.capabilitySummary,

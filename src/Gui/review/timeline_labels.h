@@ -18,6 +18,9 @@
 
 #pragma once
 
+#include "timeline_labels_types.h"   // the typed layouts QML reads (refactor 5.8a, lint A6)
+
+#include <QList>
 #include <QObject>
 #include <QString>
 #include <QVariantList>
@@ -33,6 +36,11 @@
 // labels are nudged ALONG the line (the main axis) only as far as needed to clear their
 // neighbours, with an elbow connector back to the dot. The same solver serves both
 // orientations — horizontal distributes along X, vertical along Y.
+//
+// THE QML BOUNDARY IS TYPED (refactor 5.8a, lint A6): what QML calls takes typed lists — each phase's or position's
+// fields projected by the caller (ChartSamples.field, chart_samples.js), a series' arrays as QList<double> — and
+// the two layouts return Q_GADGETs (timeline_labels_types.h). The map-shaped forms stay for C++ (timeline_labels_test);
+// each typed one rebuilds the list it takes and calls it, so both are one computation. distribute is C++ only.
 class TimelineLabels : public QObject
 {
     Q_OBJECT
@@ -46,8 +54,8 @@ public:
     // [lo, hi] (centre ± size/2). Two passes: left→right push, then right→left clamp —
     // identical to the reference algorithm in the mockup. `centers` and `sizes` are
     // parallel; the result is the same length as `centers`.
-    Q_INVOKABLE QVariantList distribute(const QVariantList &centers, const QVariantList &sizes,
-                                        double gap, double lo, double hi) const;
+    QVariantList distribute(const QVariantList &centers, const QVariantList &sizes,
+                            double gap, double lo, double hi) const;
 
     // Compose the full render model for one orientation in a single call so the QML can
     // stay declarative (it just binds a Repeater to the result). `phases` is
@@ -58,10 +66,16 @@ public:
     // `horizontal` chooses the per-label size used by the solver: measured text width
     // (horizontal) vs a uniform line height (vertical). `mainLength` is the usable line
     // length in px (insets excluded); the caller adds its own inset uniformly.
-    Q_INVOKABLE QVariantList stationLayout(const QVariantList &phases, qint64 startUs,
-                                           qint64 endUs, bool horizontal, double mainLength,
-                                           double gap, const QString &fontFamily,
-                                           double fontPx) const;
+    QVariantList stationLayout(const QVariantList &phases, qint64 startUs,
+                               qint64 endUs, bool horizontal, double mainLength,
+                               double gap, const QString &fontFamily,
+                               double fontPx) const;
+    // QML's: each phase's `phase` and `t_us`, in the list's order.
+    Q_INVOKABLE QList<pinpoint::timelineui::Station> stationLayout(const QList<int> &phaseIds,
+                                                                   const QList<double> &phaseTimes, qint64 startUs,
+                                                                   qint64 endUs, bool horizontal, double mainLength,
+                                                                   double gap, const QString &fontFamily,
+                                                                   double fontPx) const;
 
     // Same idea as stationLayout but for the named coaching P1..P8 positions
     // (shotReplay.analysisDetail.club.positions — the fused TrackSample/MilestoneFit
@@ -78,24 +92,35 @@ public:
     //     of the span of each other, so this is never the raw frac*mainLength), label
     //     ("P1".."P8", "P10"), source (0 TrackSample / 1 MilestoneFit), conf, elbow (true
     //     when the solved position was nudged >1.5px off its raw frac*mainLength spot) }.
-    Q_INVOKABLE QVariantList positionLayout(const QVariantList &positions, qint64 startUs,
-                                            qint64 endUs, bool horizontal, double mainLength,
-                                            double gap, const QString &fontFamily,
-                                            int fontPx) const;
+    QVariantList positionLayout(const QVariantList &positions, qint64 startUs,
+                                qint64 endUs, bool horizontal, double mainLength,
+                                double gap, const QString &fontFamily,
+                                int fontPx) const;
+    // QML's: each position's `p`, `t_us`, `source` and `conf`, in the list's order.
+    Q_INVOKABLE QList<pinpoint::timelineui::PositionMark> positionLayout(const QList<int> &ps,
+                                                                         const QList<double> &times,
+                                                                         const QList<int> &sources,
+                                                                         const QList<double> &confs, qint64 startUs,
+                                                                         qint64 endUs, bool horizontal,
+                                                                         double mainLength, double gap,
+                                                                         const QString &fontFamily, int fontPx) const;
 
     // Greatest station index whose t_us <= pos (the station "bracketing" the playhead),
     // or -1 when pos precedes the first station / the list is empty.
-    Q_INVOKABLE int activeStation(const QVariantList &phases, qint64 pos) const;
+    int activeStation(const QVariantList &phases, qint64 pos) const;
+    Q_INVOKABLE int activeStation(const QList<double> &phaseTimes, qint64 pos) const;   // each phase's `t_us`
 
     // Nearest-sample lookup for the readout chip. `tUs` / `value` are the parallel
     // arrays from analysisDetail.series[i]; returns value at the sample nearest `pos`
     // (0 when empty / mismatched).
-    Q_INVOKABLE double valueAtNearest(const QVariantList &tUs, const QVariantList &value,
-                                      qint64 pos) const;
+    double valueAtNearest(const QVariantList &tUs, const QVariantList &value,
+                          qint64 pos) const;
+    Q_INVOKABLE double valueAtNearest(const QList<double> &tUs, const QList<double> &value, qint64 pos) const;
 
     // Snap-to-phase: if a station t_us lies within `tolUs` of `us`, return that station's
     // t_us (nearest wins); otherwise return `us` unchanged.
-    Q_INVOKABLE qint64 snap(const QVariantList &phases, qint64 us, qint64 tolUs) const;
+    qint64 snap(const QVariantList &phases, qint64 us, qint64 tolUs) const;
+    Q_INVOKABLE qint64 snap(const QList<double> &phaseTimes, qint64 us, qint64 tolUs) const;   // each phase's `t_us`
 
     // Single source of truth for phase names (indices match Analysis Phase enum:
     // 0 Address … 7 Finish, 8 MidBackswing, 9 Delivery, 10 MaxSpeed, 11 FollowThrough,

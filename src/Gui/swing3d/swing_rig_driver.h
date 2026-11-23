@@ -43,7 +43,13 @@
 #include <QQmlEngine>
 #include <QQuaternion>
 #include <QString>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QVariant>
 #include <QVariantList>
+
+#include "../review/shot_data_door.h"
+#include "../trust/trust_types.h"
 #include <QVector3D>
 
 #include <array>
@@ -84,6 +90,9 @@ class SwingRigDriver : public QObject
     QML_ELEMENT
 
     Q_PROPERTY(QString swingDir   READ swingDir   WRITE setSwingDir   NOTIFY swingDirChanged)
+    // The Session the view is given (app.session; refactor 5.8a): the shot shown is its Shot at swingDir, read through
+    // the review views' door (shot_data_door.h) and followed on its events (EVT-02, EVT-22), never read from the file.
+    Q_PROPERTY(QObject *session   READ session    WRITE setSession    NOTIFY sessionChanged)
     Q_PROPERTY(qint64  positionUs READ positionUs WRITE setPositionUs NOTIFY revisionChanged)
     Q_PROPERTY(bool    loading    READ loading    NOTIFY loadedChanged)
     Q_PROPERTY(bool    available  READ available  NOTIFY loadedChanged)
@@ -115,10 +124,13 @@ class SwingRigDriver : public QObject
     // No DTL, or no fused shaft plane: depth is the fit's guess, so the panel shows face-on only.
     Q_PROPERTY(bool    faceOnOnly    READ faceOnOnly    NOTIFY loadedChanged)
     Q_PROPERTY(bool    heldAtEnd     READ heldAtEnd     NOTIFY revisionChanged)   // the playhead is past P8
-    // The swing's gate records (analysis.gates, as the document stores them), read with the skeleton,
-    // so the panel can word a refused skeleton or plane in the gate's own words (TrustWords.gateFor;
-    // trust stage 6 session 2). Empty on a swing analysed before records existed.
-    Q_PROPERTY(QVariantList gates    READ gates         NOTIFY loadedChanged)
+    // The gates behind a missing skeleton or plane, in the gate's own words (trust stage 6 session 2), from the swing's
+    // gate records read with the skeleton (refactor 5.8a: typed here, no longer the records for QML to search).
+    // skeletonGate: the gate on "track.skeleton3d" (trust_readings.h gateFor), every field empty when none.
+    // planeGate: the downswing half of the plane refused for scatter (club3d.planeScatter, evidence "down"), as
+    // { subject, gate, words }, or null. An old swing has no records: both empty.
+    Q_PROPERTY(pinpoint::trust::TrustGateHit skeletonGate READ skeletonGate NOTIFY loadedChanged)
+    Q_PROPERTY(QVariant planeGate READ planeGate NOTIFY loadedChanged)
     // SESSION VIEW (docs/design/swing_3d_session_synthesis_design.md): with sessionScope on, the
     // figure is the session's usual swing with the selected shot's club, retimed to that shot.
     // Nothing is read while panelShown is false; a change waits for the panel to come back.
@@ -135,12 +147,15 @@ public:
 
     QString swingDir() const { return m_swingDir; }
     void    setSwingDir(const QString &dir);
+    QObject *session() const { return m_sessionObject.data(); }
+    void     setSession(QObject *session);
     qint64  positionUs() const { return m_positionUs; }
     void    setPositionUs(qint64 us);
     bool    loading() const { return m_loading; }
     bool    available() const;
     QString reason() const { return m_reason; }
-    QVariantList gates() const { return m_gates; }
+    pinpoint::trust::TrustGateHit skeletonGate() const;
+    QVariant                      planeGate() const;
     bool    twoViews() const;
     int     jointCount() const;
     double  clubLengthM() const;
@@ -219,6 +234,7 @@ public:
 
 signals:
     void swingDirChanged();
+    void sessionChanged();
     void loadedChanged();
     void revisionChanged();
     void sessionScopeChanged();
@@ -236,9 +252,17 @@ private:
                                                              std::shared_ptr<const SessionData> previous);
     void adopt(std::shared_ptr<const Prepared> p, quint64 generation);
     void evaluate();
-    static std::shared_ptr<const Prepared> prepare(const QString &dir, QString *reason, QVariantList *gates = nullptr);
+    // The track from the shot's analysis and its streams' descriptions (alias, encoded size), as the door reads them.
+    static std::shared_ptr<const Prepared> prepare(const QJsonObject &analysis, qint64 originUs, const QJsonArray &streams,
+                                                   QString *reason, QVariantList *gates = nullptr);
+    // The same from a swing folder: the tests' and probes' synchronous seams only (loadNow, loadSessionNow).
+    static std::shared_ptr<const Prepared> prepareFolder(const QString &dir, QString *reason, QVariantList *gates = nullptr);
+    void follow();   // (session, swingDir) → the Shot through the door, its events heard
 
     QString m_swingDir;
+    QPointer<QObject> m_sessionObject;
+    pinpoint::review::ShotDataHandle m_handle;   // the followed shot (shot_data_door.h)
+    QObject *m_follower = nullptr;               // its event connections hang on this
     qint64  m_positionUs = -1;     // < 0 = nothing playing: rest at address
     bool    m_loading = false;
     QString m_reason;

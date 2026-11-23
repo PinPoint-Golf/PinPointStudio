@@ -71,18 +71,35 @@ QJsonObject swingDoc(const QJsonValue &score)
 
 // The value of one row of SwingDataSource::metadata() (the data viewer's Properties panel): groups of
 // { group, rows: [{k, v}] }. A null QString when the group or the row is missing.
-QString metadataRow(const QVariantList &metadata, const QString &group, const QString &key)
+QString metadataRow(const QList<pinpoint::dataview::PropertyGroup> &metadata, const QString &group, const QString &key)
 {
-    for (const QVariant &g : metadata) {
-        const QVariantMap gm = g.toMap();
-        if (gm.value(QStringLiteral("group")).toString() != group) continue;
-        for (const QVariant &r : gm.value(QStringLiteral("rows")).toList()) {
-            const QVariantMap rm = r.toMap();
-            if (rm.value(QStringLiteral("k")).toString() == key)
-                return rm.value(QStringLiteral("v")).toString();
-        }
+    for (const pinpoint::dataview::PropertyGroup &g : metadata) {
+        if (g.group != group) continue;
+        for (const pinpoint::dataview::PropertyRow &r : g.rows)
+            if (r.k == key) return r.v;
     }
     return {};
+}
+
+// The data viewer reads its shot through the review views' door (refactor 5.8a; shot_data_door.h), never the file. The
+// app's door reads the Shot's Recording; this test's stands in for it with the stored analysis block, which is all the
+// Score row reads (the test reads its own fixture).
+void installFixtureDoor()
+{
+    pinpoint::review::installShotDataResolver([](QObject *, const QString &dir, QObject *, std::function<void()>) {
+        pinpoint::review::ShotDataHandle h;
+        h.held = true;
+        h.facts = [] { return pinpoint::review::ShotDataFacts{}; };
+        h.read = [dir] {
+            pinpoint::review::ShotDataRead r;
+            const QJsonObject root = pinpoint::SwingStore::load(dir);
+            r.ok       = !root.isEmpty();
+            r.analysis = root.value(QStringLiteral("analysis")).toObject();
+            r.originUs = pinpoint::analysisReadOriginUs(root);
+            return r;
+        };
+        return h;
+    });
 }
 
 } // namespace
@@ -163,8 +180,11 @@ private slots:
 
             // The data viewer's Properties panel (SwingDataSource::metadata, Analysis → Score) — the one
             // place the stored score is on screen, and it too read a /3 object as 0.
+            installFixtureDoor();
+            QObject session;                             // the door's stand-in is given a Session; any object will do
             pinpoint::SwingDataSource data;
-            data.setSwingDir(dir);                       // the reload is queued, so let it run
+            data.setSession(&session);
+            data.setSwingDir(dir);                       // the read is queued, so let it run
             QTRY_VERIFY_WITH_TIMEOUT(data.loaded(), 5000);
             QCOMPARE(metadataRow(data.metadata(), QStringLiteral("Analysis"), QStringLiteral("Score")),
                      QString::number(overall));

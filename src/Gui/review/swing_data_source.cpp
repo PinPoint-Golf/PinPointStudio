@@ -23,8 +23,8 @@
 #include "swing_series_model.h"
 #include "timeline_labels.h"              // the one phase-tag vocabulary (P1…P10 + mnemonics)
 #include "../Analysis/swing_analysis.h"   // SegmentRole + segmentRoleForSlot/Name
-#include "../../Export/swing_store.h"   // the document, whichever format it is in
 #include "../../Export/swing_doc.h"     // overallScoreFromAnalysis — the stored score, either shape
+#include "../charts/charts_work.h"       // ChartsLane — the one worker idiom (R-CON-5)
 #include "../trust/trust_readings.h"     // gateFor: the gate behind a lane the region lacks
 
 #include <QDir>
@@ -32,11 +32,13 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
-#include <QJsonDocument>
+#include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QRegularExpression>
 #include <QTextStream>
 
 #include <algorithm>
+#include <any>
 #include <array>
 #include <cmath>
 #include <limits>
@@ -188,10 +190,15 @@ SwingDataSource::SwingDataSource(QObject *parent)
 {
 }
 
+SwingDataSource::~SwingDataSource()
+{
+    m_lane.reset();   // a read in flight finds no owner (charts_work.h)
+}
+
 QObject *SwingDataSource::coverage() const { return m_coverage; }
 QObject *SwingDataSource::table() const { return m_table; }
 
-QVariantList SwingDataSource::regionOptions() const
+QStringList SwingDataSource::regionOptions() const
 {
     return { QStringLiteral("Axial"), QStringLiteral("Lower"), QStringLiteral("Upper"),
              QStringLiteral("Delivery"), QStringLiteral("Custom") };
@@ -203,7 +210,15 @@ void SwingDataSource::setSwingDir(const QString &dir)
     if (m_swingDir == dir) return;
     m_swingDir = dir;
     emit swingDirChanged();
-    scheduleReload();
+    scheduleRefollow();
+}
+
+void SwingDataSource::setSession(QObject *session)
+{
+    if (m_session.data() == session) return;
+    m_session = session;
+    emit sessionChanged();
+    scheduleRefollow();
 }
 
 void SwingDataSource::setSessionType(int v)
@@ -214,17 +229,37 @@ void SwingDataSource::setSessionType(int v)
     else emit viewChanged();
 }
 
-void SwingDataSource::setImuPlacement(const QVariantMap &m)
+void SwingDataSource::setImuPlacementPairs(const QStringList &pairs)
 {
-    if (m_imuPlacement == m) return;
-    m_imuPlacement = m;
+    if (m_imuPlacementPairs == pairs) return;
+    m_imuPlacementPairs = pairs;
     if (!m_swingDir.isEmpty()) scheduleReload();   // settings fallback for missing device.role
     else emit viewChanged();
 }
 
-// Collapse the burst of setSwingDir/setSessionType/setImuPlacement that QML fires
-// in one binding pass on a swing switch into a single deferred reload(). Safe
-// against destruction: the queued call is cancelled if `this` dies first.
+// The settings' placement slot for an IMU serial ("" when none): the pairs are serial, slot, serial, slot, …
+QString SwingDataSource::placementSlotOf(const QString &serial) const
+{
+    for (int i = 0; i + 1 < m_imuPlacementPairs.size(); i += 2)
+        if (m_imuPlacementPairs.at(i) == serial) return m_imuPlacementPairs.at(i + 1);
+    return {};
+}
+
+// Collapse the burst of setSwingDir/setSession/setSessionType/setImuPlacementPairs that QML fires in one binding pass
+// on a swing switch into a single deferred refollow() (and reload()). Safe against destruction: the queued call is
+// cancelled if `this` dies first.
+void SwingDataSource::scheduleRefollow()
+{
+    if (m_refollowPending)
+        return;
+    m_refollowPending = true;
+    emit busyChanged();
+    QMetaObject::invokeMethod(this, [this] {
+        m_refollowPending = false;
+        refollow();
+    }, Qt::QueuedConnection);
+}
+
 void SwingDataSource::scheduleReload()
 {
     if (m_reloadPending)
@@ -234,6 +269,69 @@ void SwingDataSource::scheduleReload()
         m_reloadPending = false;
         reload();
     }, Qt::QueuedConnection);
+}
+
+bool SwingDataSource::busy() const
+{
+    return m_refollowPending || (m_lane && !m_lane->idle());
+}
+
+// The Shot the Session holds at swingDir, through the door (shot_data_door.h): its events followed while it is shown.
+// A folder the Session does not hold (or no door, or no Session) shows nothing.
+void SwingDataSource::refollow()
+{
+    delete m_follower;   // its connections to the last Shot's events go with it
+    m_follower = nullptr;
+    m_handle = {};
+    const pinpoint::review::ShotDataResolver &door = pinpoint::review::shotDataResolver();
+    if (door && m_session && !m_swingDir.isEmpty()) {
+        m_follower = new QObject(this);
+        m_handle = door(m_session.data(), m_swingDir, m_follower, [this] { reread(); });
+    }
+    if (!m_handle.held || !m_handle.read) {
+        m_read.reset();
+        reload();
+        emit busyChanged();
+        return;
+    }
+    reread();
+}
+
+// The followed Shot's Recording, read on the charts' lane (a worker); the last read stays shown until it lands, and a
+// read that comes back after the view moved to another shot is dropped (latest wins).
+void SwingDataSource::reread()
+{
+    if (!m_handle.held || !m_handle.read)
+        return;
+    if (!m_lane)
+        m_lane = std::make_unique<pinpoint::charts::ChartsLane>(this, pinpoint::WorkPriority::Normal);
+    const std::function<pinpoint::review::ShotDataRead()> read = m_handle.read;
+    const QPointer<QObject> follower(m_follower);
+    m_lane->ask(
+        [read] { return std::any(std::make_shared<const pinpoint::review::ShotDataRead>(read())); },
+        [this, follower](std::any &&v) {
+            if (!follower || follower.data() != m_follower)
+                return;   // the view moved on
+            m_read = std::any_cast<std::shared_ptr<const pinpoint::review::ShotDataRead>>(std::move(v));
+            reload();
+            emit busyChanged();
+        });
+    emit busyChanged();
+}
+
+bool SwingDataSource::waitForIdle(int msTimeout)
+{
+    QElapsedTimer t;
+    t.start();
+    for (;;) {
+        QCoreApplication::processEvents();
+        if (!m_refollowPending && !m_reloadPending && (!m_lane || m_lane->idle()))
+            return true;
+        if (m_lane && !m_lane->idle() && !m_lane->waitForDone(std::max<int>(1, msTimeout - int(t.elapsed()))))
+            return false;
+        if (t.elapsed() > msTimeout)
+            return false;
+    }
 }
 
 void SwingDataSource::setRegion(const QString &r)
@@ -309,41 +407,37 @@ void SwingDataSource::reload()
     m_phases.clear();
     m_metadata.clear();
     m_gates.clear();
-    m_doc = QJsonObject();
     m_loaded = false;
     m_spanUs = 0;
     m_anyImuRoleKnown = false;
+    ++m_revision;
 
-    if (!m_swingDir.isEmpty()) {
-        m_doc = pinpoint::SwingStore::load(m_swingDir);
-    }
+    // THE SHOT'S LAST READ (the door: its Recording) and what its owners say now. Nothing here reads a file.
+    static const pinpoint::review::ShotDataRead kNone;
+    const pinpoint::review::ShotDataRead &rd = m_read ? *m_read : kNone;
+    const pinpoint::review::ShotDataFacts facts = (m_read && m_handle.facts) ? m_handle.facts()
+                                                                              : pinpoint::review::ShotDataFacts{};
 
-    // The analysis' instants in window time: the one rule (windowTimeUs) against the document's
-    // analysis origin — 0 for a stamped document (read as written), clock.t0_us for one written
-    // before step 1.3a (documentAnalysisOriginUs, the one place that is guessed). The same map the
-    // replay shows is built with it (analysisDetailFor).
-    const QJsonObject clock = m_doc.value(QStringLiteral("clock")).toObject();   // the Properties rows
-    const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(m_doc));
+    // The analysis' instants in window time: the one rule (windowTimeUs) against the Recording's analysis read
+    // origin — 0 for a stamped document (read as written), clock.t0_us for one written before step 1.3a
+    // (documentAnalysisOriginUs, the one place that is guessed). The same map the replay shows is built with it
+    // (analysisDetailFor).
+    const qint64 t0 = rd.originUs;
     const auto toRel = [t0](double raw) -> qint64 {
         return qint64(pinpoint::analysis::windowTimeUs(int64_t(raw), t0));
     };
-    const QJsonObject win = m_doc.value(QStringLiteral("window")).toObject();
-    qint64 spanEnd = qint64(win.value(QStringLiteral("end_us")).toDouble());
+    qint64 spanEnd = rd.windowEndUs;
 
     // ── streams (window-relative t_us) ───────────────────────────────────────
     int imuOrdinal = 0;
     const QString imuColors[] = { QStringLiteral("teal"), QStringLiteral("blue"),
                                   QStringLiteral("purple2"), QStringLiteral("coral") };
-    const QJsonArray streams = m_doc.value(QStringLiteral("streams")).toArray();
-    for (const QJsonValue &sv : streams) {
-        const QJsonObject st = sv.toObject();
-        const QString kind = st.value(QStringLiteral("kind")).toString();
-        if (kind == QLatin1String("imu")) {
+    for (const pinpoint::review::ShotDataStream &st : rd.streams) {
+        if (st.kind == QLatin1String("imu")) {
             SwingSeries s;
             s.kind = SwingSeries::Imu;
-            s.ref  = st.value(QStringLiteral("alias")).toString();
-            if (s.ref.isEmpty()) s.ref = st.value(QStringLiteral("source")).toObject()
-                                            .value(QStringLiteral("serial")).toString();
+            s.ref  = st.alias;
+            if (s.ref.isEmpty()) s.ref = st.source.value(QStringLiteral("serial")).toString();
             s.label = QStringLiteral("Motion sensor · ") + s.ref;
             QString shortName = s.ref; shortName.remove(QStringLiteral(" Sensor"));
             s.header = shortName;
@@ -354,15 +448,12 @@ void SwingDataSource::reload()
             // Anatomical body role: prefer the stream's own device.role (new export),
             // else fall back to the global imu/placement map + session type. A known
             // role drives anatomical labelling + strict-by-role region resolution.
-            const QString serial = st.value(QStringLiteral("source")).toObject()
-                                      .value(QStringLiteral("serial")).toString();
-            const QJsonObject dev = st.value(QStringLiteral("device")).toObject();
+            const QString serial = st.source.value(QStringLiteral("serial")).toString();
             int role = 0;
-            if (dev.contains(QStringLiteral("role")))
-                role = dev.value(QStringLiteral("role")).toInt();
+            if (st.device.contains(QStringLiteral("role")))
+                role = st.device.value(QStringLiteral("role")).toInt();
             else
-                role = int(pinpoint::analysis::segmentRoleForSlot(
-                            m_sessionType, m_imuPlacement.value(serial).toString()));
+                role = int(pinpoint::analysis::segmentRoleForSlot(m_sessionType, placementSlotOf(serial)));
             s.imuRole = role;
             const RolePresentation rp = rolePresentation(role);
             if (!rp.label.isEmpty()) {
@@ -372,34 +463,23 @@ void SwingDataSource::reload()
                 m_anyImuRoleKnown = true;
             }
 
-            const QJsonObject samples = st.value(QStringLiteral("samples")).toObject();
-            QVector<std::array<double, 4>> quats;
-            const QJsonArray dataArr = samples.value(QStringLiteral("data")).toArray();
-            const QJsonArray tArr    = samples.value(QStringLiteral("t_us")).toArray();
-            const int count = std::min(tArr.size(), dataArr.size());
-            s.t.reserve(count); s.value.reserve(count); s.gyroZ.reserve(count); quats.reserve(count);
-            for (int i = 0; i < count; ++i) {
-                const QJsonArray row = dataArr.at(i).toArray();
-                if (row.size() < 10) continue;
-                s.t.push_back(qint64(tArr.at(i).toDouble()));
-                const double gz = row.at(5).toDouble();         // gyro z (deg/s)
-                s.gyroZ.push_back(gz);
-                s.value.push_back(gz);
-                quats.push_back({ row.at(6).toDouble(), row.at(7).toDouble(),
-                                  row.at(8).toDouble(), row.at(9).toDouble() });
-            }
-            if (!s.t.isEmpty()) {
-                fillFusedRate(s, quats);
+            // The lane's samples as the Recording holds them: gyro z and the fused quaternion.
+            const int count = st.t.size();
+            s.t = st.t;
+            s.gyroZ = st.gyroZ;
+            s.value = st.gyroZ;
+            if (count > 0) {
+                fillFusedRate(s, st.quat);
                 computeCadence(s);
                 if (s.t.last() > spanEnd) spanEnd = s.t.last();
                 m_all.push_back(s);
             }
         }
-        // video streams are parsed only for provenance (no default lane).
+        // video streams are read only for provenance (no default lane).
     }
 
     // ── analysis (absolute OR window-relative t_us → window-relative via toRel) ─
-    const QJsonObject analysis = m_doc.value(QStringLiteral("analysis")).toObject();
+    const QJsonObject &analysis = rd.analysis;
     if (analysis.contains(QStringLiteral("gatesVersion")))
         m_gates = analysis.value(QStringLiteral("gates")).toArray().toVariantList();
 
@@ -549,28 +629,19 @@ void SwingDataSource::reload()
                 s.conf.push_back(bo.value(QStringLiteral("conf")).toDouble());
             }
         } else {
-            // Fallback: the raw ball_v2 stream (window-relative t_us; data layout
-            // found,x,y,r,conf) — a skip-analysis capture that still recorded ball frames.
-            for (const QJsonValue &sv : streams) {
-                const QJsonObject st = sv.toObject();
-                if (st.value(QStringLiteral("kind")).toString() != QLatin1String("ball")) continue;
-                const QJsonObject fr = st.value(QStringLiteral("frames")).toObject();
-                const QJsonArray tArr = fr.value(QStringLiteral("t_us")).toArray();
-                const QJsonArray dArr = fr.value(QStringLiteral("data")).toArray();
-                const int count = std::min(tArr.size(), dArr.size());
-                s.t.reserve(count); s.value.reserve(count);
-                s.ballY.reserve(count); s.ballR.reserve(count); s.conf.reserve(count);
-                for (int i = 0; i < count; ++i) {
-                    const QJsonArray row = dArr.at(i).toArray();
-                    if (row.size() < 5) continue;
-                    if (row.at(0).toDouble() == 0.0) continue;               // found=false → hole
-                    s.t.push_back(qint64(tArr.at(i).toDouble()));
-                    s.value.push_back(row.at(1).toDouble());
-                    s.ballY.push_back(row.at(2).toDouble());
-                    s.ballR.push_back(row.at(3).toDouble());
-                    s.conf.push_back(row.at(4).toDouble());
-                }
-                break;   // first ball stream only
+            // Fallback: the recorded ball stream (the Recording's ball inputs: window-relative t_us; found, x, y, r,
+            // conf) — a skip-analysis capture that still recorded ball frames.
+            const pinpoint::review::ShotDataBall &b = rd.ball;
+            const int count = b.t.size();
+            s.t.reserve(count); s.value.reserve(count);
+            s.ballY.reserve(count); s.ballR.reserve(count); s.conf.reserve(count);
+            for (int i = 0; i < count; ++i) {
+                if (!b.found.at(i)) continue;                                // found=false → hole
+                s.t.push_back(b.t.at(i));
+                s.value.push_back(b.x.at(i));
+                s.ballY.push_back(b.y.at(i));
+                s.ballR.push_back(b.r.at(i));
+                s.conf.push_back(b.conf.at(i));
             }
         }
         if (!s.t.isEmpty()) { computeCadence(s); m_all.push_back(s); }
@@ -580,12 +651,12 @@ void SwingDataSource::reload()
     const QJsonArray phases = analysis.value(QStringLiteral("phases")).toArray();
     for (const QJsonValue &pv : phases) {
         const QJsonObject po = pv.toObject();
-        QVariantMap p;
+        pinpoint::dataview::Phase p;
         const int phaseIdx = po.value(QStringLiteral("phase")).toInt();
-        p[QStringLiteral("label")] = phaseLabel(phaseIdx);
-        p[QStringLiteral("phase")] = phaseIdx;   // kept so the chips can tag by index, not by text
-        p[QStringLiteral("t_us")]  = toRel(po.value(QStringLiteral("t_us")).toDouble());
-        p[QStringLiteral("kind")]  = QStringLiteral("phase");
+        p.label = phaseLabel(phaseIdx);
+        p.phase = phaseIdx;   // kept so the chips can tag by index, not by text
+        p.t_us  = toRel(po.value(QStringLiteral("t_us")).toDouble());
+        p.kind  = QStringLiteral("phase");
         m_phases.append(p);
     }
 
@@ -593,15 +664,15 @@ void SwingDataSource::reload()
     m_spanUs = spanEnd;
     m_windowStartUs = 0;
     m_windowEndUs   = spanEnd;
-    m_loaded = !m_doc.isEmpty();
+    m_loaded = rd.ok;
 
     // Phase-bounded segments for vertical table windowing ([0] = Full swing).
     m_segments.clear();
     {
-        QVariantMap full;
-        full[QStringLiteral("label")]   = QStringLiteral("Full");
-        full[QStringLiteral("startUs")] = qint64(0);
-        full[QStringLiteral("endUs")]   = m_spanUs;
+        pinpoint::dataview::Segment full;
+        full.label   = QStringLiteral("Full");
+        full.startUs = 0;
+        full.endUs   = m_spanUs;
         m_segments.append(full);
         // Stateless and const — one on the stack rather than a member, the same way the
         // QML surfaces declare one inline.
@@ -609,19 +680,18 @@ void SwingDataSource::reload()
         // render "→P2", and the two panels must offer the same windows for the same swing.
         const TimelineLabels tags;
         QVector<QPair<qint64, int>> ev;
-        for (const QVariant &pv : m_phases) {
-            const QVariantMap p = pv.toMap();
-            const int ph = p.value(QStringLiteral("phase")).toInt();
+        for (const pinpoint::dataview::Phase &p : m_phases) {
+            const int ph = p.phase;
             if (!tags.hasPositionTag(ph)) continue;
-            ev.append({ p.value(QStringLiteral("t_us")).toLongLong(), ph });
+            ev.append({ p.t_us, ph });
         }
         std::sort(ev.begin(), ev.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
         for (int i = 0; i + 1 < ev.size(); ++i) {
-            QVariantMap seg;
-            seg[QStringLiteral("label")]   = tags.phaseShortTag(ev[i].second) + QStringLiteral("→")
-                                           + tags.phaseShortTag(ev[i + 1].second);
-            seg[QStringLiteral("startUs")] = ev[i].first;
-            seg[QStringLiteral("endUs")]   = ev[i + 1].first;
+            pinpoint::dataview::Segment seg;
+            seg.label   = tags.phaseShortTag(ev[i].second) + QStringLiteral("→")
+                        + tags.phaseShortTag(ev[i + 1].second);
+            seg.startUs = ev[i].first;
+            seg.endUs   = ev[i + 1].first;
             m_segments.append(seg);
         }
     }
@@ -638,7 +708,7 @@ void SwingDataSource::reload()
             const QVector<SwingSeries> r = resolve(specsForRegion(rg));
             int imu = 0;
             for (const SwingSeries &s : r) if (s.kind == SwingSeries::Imu) ++imu;
-            m_regionLaneCounts[rg] = int(r.size());
+            m_regionLaneCounts.append(int(r.size()));
             if (imu > bestImu || (imu == bestImu && int(r.size()) > bestTotal)) {
                 bestImu = imu; bestTotal = int(r.size()); m_bestRegion = rg;
             }
@@ -646,31 +716,32 @@ void SwingDataSource::reload()
     }
 
     // ── provenance metadata (grouped, ordered, defensive) ────────────────────
+    using Rows = QList<pinpoint::dataview::PropertyRow>;
     auto row = [](const QString &k, const QVariant &v) {
-        QVariantMap r; r[QStringLiteral("k")] = k; r[QStringLiteral("v")] = v.toString(); return QVariant(r);
+        pinpoint::dataview::PropertyRow r; r.k = k; r.v = v.toString(); return r;
     };
-    auto pushGroup = [this](const QString &title, const QVariantList &rows) {
+    auto pushGroup = [this](const QString &title, const Rows &rows) {
         if (rows.isEmpty()) return;
-        QVariantMap g; g[QStringLiteral("group")] = title; g[QStringLiteral("rows")] = rows;
+        pinpoint::dataview::PropertyGroup g; g.group = title; g.rows = rows;
         m_metadata.append(g);
     };
 
-    {   // Swing
-        QVariantList r;
-        const QJsonObject sw = m_doc.value(QStringLiteral("swing")).toObject();
-        const QJsonObject at = m_doc.value(QStringLiteral("athlete")).toObject();
-        const QJsonObject se = m_doc.value(QStringLiteral("session")).toObject();
-        if (sw.contains(QStringLiteral("id")))   r << row(QStringLiteral("Swing"), sw.value(QStringLiteral("id")).toString());
-        if (at.contains(QStringLiteral("name"))) r << row(QStringLiteral("Athlete"), at.value(QStringLiteral("name")).toString());
-        if (at.contains(QStringLiteral("handedness"))) r << row(QStringLiteral("Handed"), at.value(QStringLiteral("handedness")).toString());
-        if (se.contains(QStringLiteral("dir")))  r << row(QStringLiteral("Session"), se.value(QStringLiteral("dir")).toString());
-        if (clock.contains(QStringLiteral("wallclock"))) r << row(QStringLiteral("Captured"), clock.value(QStringLiteral("wallclock")).toString());
+    {   // Swing: each row from its owner (the Solution Architect, 23 Nov 2026) — the Shot, the Athlete's record, the
+        // Session's identity, the Shot's Recording (its clock, its window, its schema)
+        Rows r;
+        if (!facts.swingName.isEmpty()) r << row(QStringLiteral("Swing"), facts.swingName);
+        if (facts.hasAthlete) {
+            r << row(QStringLiteral("Athlete"), facts.athleteName);
+            r << row(QStringLiteral("Handed"), facts.handedness);
+        }
+        if (facts.hasSession) r << row(QStringLiteral("Session"), facts.sessionName);
+        if (rd.hasWallclock)  r << row(QStringLiteral("Captured"), rd.wallclock);
         r << row(QStringLiteral("Duration"), QString::number(double(spanEnd) / 1.0e6, 'f', 2) + QStringLiteral(" s"));
-        if (m_doc.contains(QStringLiteral("schema"))) r << row(QStringLiteral("Schema"), m_doc.value(QStringLiteral("schema")).toString());
+        if (rd.hasSchema) r << row(QStringLiteral("Schema"), rd.schema);
         pushGroup(QStringLiteral("Swing"), r);
     }
     {   // Analysis
-        QVariantList r;
+        Rows r;
         // A bare int (/2) or the ScoreBreakdown object (/3+): read through the one rule, never `.toInt()`,
         // which reads every /3 score as 0.
         if (analysis.contains(QStringLiteral("score"))) r << row(QStringLiteral("Score"), QString::number(pinpoint::overallScoreFromAnalysis(analysis)));
@@ -719,7 +790,7 @@ void SwingDataSource::reload()
     {   // Ball track (face-on) — provenance for the analysis.ball lane
         const QJsonObject ball = analysis.value(QStringLiteral("ball")).toObject();
         if (!ball.isEmpty()) {
-            QVariantList r;
+            Rows r;
             if (ball.contains(QStringLiteral("camera")))
                 r << row(QStringLiteral("Camera"), QString::number(ball.value(QStringLiteral("camera")).toInt()));
             const qint64 launch = qint64(ball.value(QStringLiteral("launchTUs")).toDouble());
@@ -732,8 +803,8 @@ void SwingDataSource::reload()
         }
     }
     {   // Capture / host (often absent — render whatever exists)
-        QVariantList r;
-        const QJsonObject cap = m_doc.value(QStringLiteral("capture")).toObject();
+        Rows r;
+        const QJsonObject &cap = rd.capture;   // the Shot's capture block, through its Recording
         const QJsonObject host = cap.value(QStringLiteral("host")).toObject();
         if (host.contains(QStringLiteral("app")))     r << row(QStringLiteral("App"),     host.value(QStringLiteral("app")).toString());
         if (host.contains(QStringLiteral("version"))) r << row(QStringLiteral("Version"), host.value(QStringLiteral("version")).toString());
@@ -744,13 +815,12 @@ void SwingDataSource::reload()
         if (cap.contains(QStringLiteral("swingDetectionSensitivity"))) r << row(QStringLiteral("Detect"), cap.value(QStringLiteral("swingDetectionSensitivity")).toString());
         pushGroup(QStringLiteral("Capture"), r);
     }
-    for (const QJsonValue &sv : streams) {   // per-stream
-        const QJsonObject st = sv.toObject();
-        const QString kind = st.value(QStringLiteral("kind")).toString();
-        const QString alias = st.value(QStringLiteral("alias")).toString();
-        QVariantList r;
+    for (const pinpoint::review::ShotDataStream &st : rd.streams) {   // per-stream: the Recording's streams and devices
+        const QString &kind = st.kind;
+        const QString &alias = st.alias;
+        Rows r;
         r << row(QStringLiteral("Kind"), kind);
-        const QJsonObject src = st.value(QStringLiteral("source")).toObject();
+        const QJsonObject &src = st.source;
         if (src.contains(QStringLiteral("serial")) && !src.value(QStringLiteral("serial")).toString().isEmpty())
             r << row(QStringLiteral("Serial"), src.value(QStringLiteral("serial")).toString());
         if (kind == QLatin1String("video")) {
@@ -759,7 +829,7 @@ void SwingDataSource::reload()
                             .arg(src.value(QStringLiteral("pixelFormat")).toString())
                             .arg(src.value(QStringLiteral("width")).toInt())
                             .arg(src.value(QStringLiteral("height")).toInt()));
-            const QJsonObject capt = st.value(QStringLiteral("capture")).toObject();
+            const QJsonObject &capt = st.capture;
             if (capt.contains(QStringLiteral("fps_num")) && capt.value(QStringLiteral("fps_den")).toInt() != 0)
                 r << row(QStringLiteral("Capture fps"), QString::number(
                             double(capt.value(QStringLiteral("fps_num")).toInt()) /
@@ -778,7 +848,7 @@ void SwingDataSource::reload()
                     v += QStringLiteral(" (auto)");
                 r << row(QStringLiteral("Exposure"), v);
             }
-            const QJsonObject setup = st.value(QStringLiteral("setup")).toObject();
+            const QJsonObject &setup = st.setup;
             if (setup.contains(QStringLiteral("perspectiveName")))
                 r << row(QStringLiteral("Perspective"), setup.value(QStringLiteral("perspectiveName")).toString());
             if (setup.contains(QStringLiteral("fixedInPlace")))
@@ -800,7 +870,7 @@ void SwingDataSource::reload()
                                  .arg(bd.value(QStringLiteral("radiusNorm")).toDouble(), 0, 'f', 3));
             }
         } else if (kind == QLatin1String("imu")) {
-            const QJsonObject dev = st.value(QStringLiteral("device")).toObject();
+            const QJsonObject &dev = st.device;
             if (dev.contains(QStringLiteral("outputRateHz"))) r << row(QStringLiteral("Rate"), QString::number(dev.value(QStringLiteral("outputRateHz")).toInt()) + QStringLiteral(" Hz"));
             if (dev.contains(QStringLiteral("fusionMode")))   r << row(QStringLiteral("Fusion"), dev.value(QStringLiteral("fusionMode")).toString());
             if (dev.contains(QStringLiteral("orientationFilter"))) r << row(QStringLiteral("Filter"), dev.value(QStringLiteral("orientationFilter")).toString());
@@ -812,11 +882,10 @@ void SwingDataSource::reload()
                                pinpoint::analysis::SegmentRole(dev.value(QStringLiteral("role")).toInt()));
             if (roleName.isEmpty())
                 roleName = pinpoint::analysis::segmentRoleName(pinpoint::analysis::segmentRoleForSlot(
-                               m_sessionType, m_imuPlacement.value(src.value(QStringLiteral("serial")).toString()).toString()));
+                               m_sessionType, placementSlotOf(src.value(QStringLiteral("serial")).toString())));
             if (!roleName.isEmpty() && roleName != QLatin1String("Unknown"))
                 r << row(QStringLiteral("Role"), roleName);
-            const QJsonObject sm = st.value(QStringLiteral("samples")).toObject();
-            if (sm.contains(QStringLiteral("count"))) r << row(QStringLiteral("Samples"), QString::number(sm.value(QStringLiteral("count")).toInt()));
+            if (st.hasSampleCount) r << row(QStringLiteral("Samples"), QString::number(st.sampleCount));
         }
         pushGroup(QStringLiteral("Stream · ") + (alias.isEmpty() ? kind : alias), r);
     }
@@ -824,18 +893,20 @@ void SwingDataSource::reload()
         const QJsonArray binds = analysis.value(QStringLiteral("bindings")).toArray();
         for (const QJsonValue &bv : binds) {
             const QJsonObject bo = bv.toObject();
-            QVariantList r;
+            Rows r;
             if (bo.contains(QStringLiteral("serial"))) r << row(QStringLiteral("Serial"), bo.value(QStringLiteral("serial")).toString());
             r << row(QStringLiteral("Calibrated"), bo.value(QStringLiteral("calibrated")).toBool() ? QStringLiteral("yes") : QStringLiteral("no"));
             if (bo.contains(QStringLiteral("mountDeviationDeg"))) r << row(QStringLiteral("Mount dev"), QString::number(bo.value(QStringLiteral("mountDeviationDeg")).toDouble(), 'f', 1) + QStringLiteral("°"));
             pushGroup(QStringLiteral("Binding · role ") + QString::number(bo.value(QStringLiteral("role")).toInt()), r);
         }
     }
-    {   // Review
-        const QJsonObject rev = m_doc.value(QStringLiteral("review")).toObject();
-        QVariantList r;
-        if (rev.contains(QStringLiteral("rating"))) r << row(QStringLiteral("Rating"), QString::number(rev.value(QStringLiteral("rating")).toInt()) + QStringLiteral(" ★"));
-        if (rev.contains(QStringLiteral("note")))   r << row(QStringLiteral("Note"), rev.value(QStringLiteral("note")).toString());
+    {   // Review: the Shot's (OBJ-SHOT-REVIEW, one per shot): its rating (0 = none) and note, whenever a Shot is shown,
+        // as capture writes them. A document from before capture wrote a review block showed neither (NOTES-5.8a).
+        Rows r;
+        if (m_read) {
+            r << row(QStringLiteral("Rating"), QString::number(facts.rating) + QStringLiteral(" ★"));
+            r << row(QStringLiteral("Note"), facts.note);
+        }
         pushGroup(QStringLiteral("Review"), r);
     }
 
@@ -960,12 +1031,12 @@ void SwingDataSource::rebuild()
             const QString subject = g.value(QStringLiteral("subject")).toString();
             if (words.isEmpty() || subject.isEmpty() || seenSubjects.contains(subject)) continue;
             seenSubjects << subject;
-            QVariantMap m;
+            pinpoint::dataview::NotShown m;
             // the reading as the reader names it: the metric a record named, or the track a cascade
             // took the lane down with ("Club track")
-            m[QStringLiteral("label")]   = pinpoint::trust::subjectLabel(subject);
-            m[QStringLiteral("subject")] = subject;
-            m[QStringLiteral("words")]   = words;
+            m.label   = pinpoint::trust::subjectLabel(subject);
+            m.subject = subject;
+            m.words   = words;
             m_notShown.append(m);
         }
     }
@@ -976,17 +1047,17 @@ void SwingDataSource::rebuild()
     emit viewChanged();
 }
 
-QVariantList SwingDataSource::resolvedSources() const
+QList<pinpoint::dataview::SourceChip> SwingDataSource::resolvedSources() const
 {
-    QVariantList out;
+    QList<pinpoint::dataview::SourceChip> out;
     for (const SwingSeries &s : m_resolved) {
-        QVariantMap m;
-        m[QStringLiteral("label")]     = s.label;
-        m[QStringLiteral("colorKey")]  = s.colorKey;
-        m[QStringLiteral("kind")]      = kindToStr(s.kind);
-        m[QStringLiteral("ref")]       = s.ref;
-        m[QStringLiteral("part")]      = s.part;
-        m[QStringLiteral("removable")] = s.removable;
+        pinpoint::dataview::SourceChip m;
+        m.label     = s.label;
+        m.colorKey  = s.colorKey;
+        m.kind      = kindToStr(s.kind);
+        m.ref       = s.ref;
+        m.part      = s.part;
+        m.removable = s.removable;
         out.append(m);
     }
     return out;
@@ -1020,3 +1091,6 @@ void SwingDataSource::addSource(const QString &kind, const QString &ref, const Q
 }
 
 } // namespace pinpoint
+
+// moc for the typed values' gadgets (swing_data_types.h has no .cpp of its own)
+#include "moc_swing_data_types.cpp"

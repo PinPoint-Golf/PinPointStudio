@@ -162,10 +162,8 @@ Item {
         probe.expect("the arm's % of pro",             s.pct.leadArm, "70% ±4")
         probe.expect("the pelvis peak is reported",    s.pct.pelvis, "134% ±15")
         probe.expect("the tile header",                s.header, "SEQUENCE")
-        probe.expect("the pelvis row's sentence",
-                     cm.sequenceRows(probe.risingKs)[2].unplacedText, "still accelerating at impact")
-        probe.expect("…and its method glyph",
-                     cm.sequenceRows(probe.risingKs)[2].glyph, "T")
+        // The rows' sentence and glyph ("still accelerating at impact", "T") are C++ only since refactor 5.8a (no QML
+        // reads sequenceRows): chart_metrics_test asserts them on the same paired-route case.
     }
 
     function stepPlaced() {

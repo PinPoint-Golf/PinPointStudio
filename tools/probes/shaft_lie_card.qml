@@ -32,6 +32,25 @@ Item {
     readonly property int    stepMs:     parseInt(probe._arg("--probe-step-ms", "2500"))
 
     function w(s) { console.warn("LIEPROBE " + s) }
+    // The typed ChartMetrics / TimelineLabels (refactor 5.8a, lint A6) take typed lists: a series' arrays as plain
+    // arrays and one field of each entry of a list of maps — the projections chart_samples.js gives the app.
+    function arr(a) { return a ? Array.prototype.slice.call(a) : [] }
+    function fld(list, key, d) {
+        var out = []
+        for (var i = 0; i < (list ? list.length : 0); ++i) {
+            var v = list[i] ? list[i][key] : undefined
+            out.push(v === undefined || v === null ? d : v)
+        }
+        return out
+    }
+    function lens(list, key) {
+        var out = []
+        for (var i = 0; i < (list ? list.length : 0); ++i) {
+            var a = list[i] ? list[i][key] : undefined
+            out.push(a && a.length !== undefined ? a.length : 0)
+        }
+        return out
+    }
     function safe(name, f) { try { f() } catch (e) { probe.w("⛔ step " + name + " threw: " + e) } }
 
     ChartMetrics { id: cm }
@@ -113,7 +132,8 @@ Item {
     }
     function stepGroup() {
         probe.w("═══ 4. GROUP '" + probe.groupName + "' ═══")
-        var groups = cm.seriesGroups(probe.series), want = null
+        var groups = cm.seriesGroups(probe.fld(probe.series, "key", ""), probe.lens(probe.series, "t_us"),
+                                     probe.lens(probe.series, "phaseSamples")), want = null
         for (var i = 0; i < groups.length; ++i) if (groups[i].group === probe.groupName) want = groups[i]
         if (!want) { probe.w("⛔ group not offered"); return }
         probe.w("group keys = " + want.keys.join(", "))

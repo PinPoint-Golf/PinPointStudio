@@ -277,29 +277,29 @@ int main()
     {
         std::printf("timeTicksMs\n");
         // A 1 s replay window, impact at 0.8 s: 200 ms steps from -800 to +200.
-        const QVariantList t = cm.timeTicksMs(0, 1000000, 800000);
+        const QList<double> t = cm.timeTicksMs(0, 1000000, 800000);
         checkEqI("1 s window: tick count", t.size(), 6);
-        checkEqI("1 s window: first tick", t.isEmpty() ? 0 : t.first().toLongLong(), -800);
-        checkEqI("1 s window: last tick",  t.isEmpty() ? 0 : t.last().toLongLong(),  200);
+        checkEqI("1 s window: first tick", t.isEmpty() ? 0 : qint64(t.first()), -800);
+        checkEqI("1 s window: last tick",  t.isEmpty() ? 0 : qint64(t.last()),  200);
 
         // The cabin's frozen call (13 Oct 2026, host up 28.7 days): the window in the live buffer
         // clock and no impact yet. The int loop counter overflowed and never returned; it must
         // return, and every tick it gives must fall inside the window.
         const qint64 endUs   = 0x241ae0fcfd8LL;          // read off the hung process's registers
         const qint64 startUs = endUs - 2000000;
-        const QVariantList c = cm.timeTicksMs(startUs, endUs, -1);
+        const QList<double> c = cm.timeTicksMs(startUs, endUs, -1);
         checkTrue("buffer clock, no impact: returns, capped", c.size() > 0 && c.size() <= 65);
         bool inside = true;
-        for (const QVariant &v : c) {
-            const qint64 us = -1 + v.toLongLong() * 1000;
+        for (const double v : c) {
+            const qint64 us = -1 + qint64(v) * 1000;
             inside = inside && us >= startUs && us <= endUs;
         }
         checkTrue("buffer clock, no impact: every tick inside the window", inside);
 
         // The same clock with the impact known: labels are small again, -1000 .. +1000.
-        const QVariantList k = cm.timeTicksMs(endUs - 1000000, endUs + 1000000, endUs);
+        const QList<double> k = cm.timeTicksMs(endUs - 1000000, endUs + 1000000, endUs);
         checkEqI("buffer clock, impact known: tick count", k.size(), 11);
-        checkEqI("buffer clock, impact known: first tick", k.isEmpty() ? 0 : k.first().toLongLong(), -1000);
+        checkEqI("buffer clock, impact known: first tick", k.isEmpty() ? 0 : qint64(k.first()), -1000);
     }
 
     // ── An empty / unplottable swing offers no presets at all ─────────────────────
@@ -727,9 +727,9 @@ int main()
         checkEqI("tickDecimals 0.2",  F::tickDecimals(0.2), 1);
         checkEqI("tickDecimals 0.05", F::tickDecimals(0.05), 2);
         checkEqI("tickDecimals 5",    F::tickDecimals(5.0), 0);
-        const QVariantList nt = cm.niceTicks(0, 1, 4);
+        const QList<double> nt = cm.niceTicks(0, 1, 4);
         checkEqI("ChartMetrics::niceTicks is tickValues", qint64(nt.size()), 6);
-        checkExactD("…the same 0.6", nt.size() > 3 ? nt[3].toDouble() : nan, 0.6);
+        checkExactD("…the same 0.6", nt.size() > 3 ? nt[3] : nan, 0.6);
     }
 
     // ── seriesSigma: ONE implementation of "absent means absent" ──────────────────
@@ -1625,6 +1625,41 @@ int main()
                  20);
     }
 
+    // ── The typed QML forms (refactor 5.8a, lint A6) are one computation with the map forms ──────
+    {
+        std::printf("typed forms — what QML reads is what the map forms compute\n");
+        QList<double> t, v;
+        QVariantList tv, vv;
+        for (int i = 0; i < 12; ++i) {
+            t << i * 8000.0;
+            v << std::sin(i * 0.7) * 10.0;
+            tv << t.last();
+            vv << v.last();
+        }
+        const QVariantMap m = cm.summaryMasked(tv, vv, QVariantList{}, 8000, 80000);
+        const pinpoint::chartui::Summary g = cm.summaryMasked(t, v, QList<double>{}, 8000, 80000);
+        checkExactD("typed summaryMasked: the peak", g.peak, m.value(QStringLiteral("peak")).toDouble());
+        checkExactD("typed summaryMasked: the Δ", g.delta, m.value(QStringLiteral("delta")).toDouble());
+        checkTrue("typed summaryMasked: the gates", g.edgeOk == m.value(QStringLiteral("edgeOk")).toBool()
+                                                    && g.rateOk == m.value(QStringLiteral("rateOk")).toBool());
+        const pinpoint::chartui::Domain d = cm.domainFor(QStringLiteral("hipLineTilt"));
+        checkTrue("typed domainFor: the narrowed side",
+                  d.lastNarrowed == cm.domainMap(QStringLiteral("hipLineTilt")).value(QStringLiteral("lastNarrowed")).toBool()
+                  && d.lastNarrowed);
+        checkTrue("typed seriesSigma: NaN (undefined in QML) makes no claim", cm.seriesSigma(std::nan("")) == 0.0);
+        checkTrue("typed seriesSigma: a σ comes through", cm.seriesSigma(2.5) == 2.5);
+        const QList<pinpoint::chartui::Segment> segs =
+            cm.segments(QList<int>{ 0, 2, 5, 7 }, QList<double>{ 100000, 400000, 600000, 900000 }, 1000000);
+        QVariantList phases;
+        const int ids[] = { 0, 2, 5, 7 };
+        const qint64 ts[] = { 100000, 400000, 600000, 900000 };
+        for (int i = 0; i < 4; ++i)
+            phases << QVariantMap{ { QStringLiteral("phase"), ids[i] }, { QStringLiteral("t_us"), ts[i] } };
+        const QVariantList segm = cm.segments(phases, 1000000);
+        checkEqI("typed segments: as many as the map form", segs.size(), segm.size());
+        checkTrue("typed segments: the swing is marked", segs.size() > 1 && segs.at(1).swing && !segs.at(0).swing);
+    }
+
     // ── domainFor: the manifest says where a metric means something ───────────────
     //
     // Reads the REAL catalogue for the same reason seriesGroups' test does: the domain is authored
@@ -1633,7 +1668,7 @@ int main()
     // descriptor would silently un-dim two thirds of a curve, and nothing else would notice.
     {
         std::printf("domainFor — the metric's phase domain\n");
-        const QVariantMap hip = cm.domainFor(QStringLiteral("hipLineTilt"));
+        const QVariantMap hip = cm.domainMap(QStringLiteral("hipLineTilt"));
         // Address(0) → Impact(5): past impact the pelvis has TURNED, so the tilt of the hip line
         // in the image plane is a reading of rotation, not of the frontal-plane geometry the
         // metric is defined as. See design §5.1's table.
@@ -1642,7 +1677,7 @@ int main()
 
         // comOverLeadFoot is the counter-case in the same table — it is READ at the finish, so it
         // must NOT have been swept into the Address→Impact batch.
-        const QVariantMap com = cm.domainFor(QStringLiteral("comOverLeadFoot"));
+        const QVariantMap com = cm.domainMap(QStringLiteral("comOverLeadFoot"));
         checkEqI("com over lead foot last phase",
                  com.value(QStringLiteral("lastPhase")).toInt(), 7);
 
@@ -1652,9 +1687,9 @@ int main()
         // the shaft swinging through the top (+264° on the 07-04 corpus swing), so PEAK and PK
         // RATE are withheld. The domain must reach the chart too, or the tail past impact is
         // reduced as though it were lean.
-        const QVariantMap lean = cm.domainFor(QStringLiteral("impactShaftLean"));
+        const QVariantMap lean = cm.domainMap(QStringLiteral("impactShaftLean"));
         checkEqI("shaft lean last phase", lean.value(QStringLiteral("lastPhase")).toInt(), 5);
-        const QVariantMap leanCard = cm.cardSpecFor(QStringLiteral("impactShaftLean"));
+        const QVariantMap leanCard = cm.cardSpecMap(QStringLiteral("impactShaftLean"));
         const QVariantList leanReads = leanCard.value(QStringLiteral("readAt")).toList();
         checkEqI("shaft lean reads one instant", leanReads.size(), 1);
         checkEqI("…and it is impact",
@@ -1669,12 +1704,12 @@ int main()
         checkEqI("shaft lean is not windowed-mean smoothed",
                  leanCard.value(QStringLiteral("windowedMean")).toBool() ? 1 : 0, 0);
         checkEqI("pelvis sway still is",
-                 cm.cardSpecFor(QStringLiteral("pelvisSway")).value(QStringLiteral("windowedMean")).toBool() ? 1 : 0, 1);
+                 cm.cardSpecMap(QStringLiteral("pelvisSway")).value(QStringLiteral("windowedMean")).toBool() ? 1 : 0, 1);
 
         // The DEFAULT spec — an unannotated metric and an unknown key alike — is the card as it
         // always was: @ IMPACT, PEAK, Δ over the window, PK RATE.
         for (const char *k : { "pelvisSway", "zzzNotAMetric" }) {
-            const QVariantMap c = cm.cardSpecFor(QString::fromLatin1(k));
+            const QVariantMap c = cm.cardSpecMap(QString::fromLatin1(k));
             const QVariantList r = c.value(QStringLiteral("readAt")).toList();
             const bool dflt = r.size() == 1
                 && r.value(0).toMap().value(QStringLiteral("phase")).toInt() == 5
@@ -1686,7 +1721,7 @@ int main()
 
         // An uncatalogued key gets the descriptor DEFAULT — the whole swing, Address(0)→Finish(7).
         // Not knowing a metric is not a licence to hide part of its curve.
-        const QVariantMap unknown = cm.domainFor(QStringLiteral("zzzNotAMetric"));
+        const QVariantMap unknown = cm.domainMap(QStringLiteral("zzzNotAMetric"));
         checkEqI("unknown key first phase", unknown.value(QStringLiteral("firstPhase")).toInt(), 0);
         checkEqI("unknown key last phase",  unknown.value(QStringLiteral("lastPhase")).toInt(),  7);
 
@@ -1701,18 +1736,18 @@ int main()
         // phase rests on, that nothing changes where the design does not fire. Per side, because
         // hipLineTilt narrows only its END and its leading pre-address samples must be untouched.
         checkTrue("headSway not narrowed",
-                  !cm.domainFor(QStringLiteral("headSway")).value(QStringLiteral("narrowed")).toBool());
+                  !cm.domainMap(QStringLiteral("headSway")).value(QStringLiteral("narrowed")).toBool());
         checkTrue("headSway neither side",
-                  !cm.domainFor(QStringLiteral("headSway")).value(QStringLiteral("firstNarrowed")).toBool()
-                  && !cm.domainFor(QStringLiteral("headSway")).value(QStringLiteral("lastNarrowed")).toBool());
+                  !cm.domainMap(QStringLiteral("headSway")).value(QStringLiteral("firstNarrowed")).toBool()
+                  && !cm.domainMap(QStringLiteral("headSway")).value(QStringLiteral("lastNarrowed")).toBool());
         // The same for a club metric and an uncatalogued key — the whole-swing majority.
         checkTrue("handSpeed not narrowed",
-                  !cm.domainFor(QStringLiteral("handSpeed")).value(QStringLiteral("narrowed")).toBool());
+                  !cm.domainMap(QStringLiteral("handSpeed")).value(QStringLiteral("narrowed")).toBool());
         // clubheadSpeed is the club-side exception: Address→Impact, LAST side only, because the
         // quantity steps at contact and no window about Impact may straddle it (manifest note).
         checkTrue("clubheadSpeed narrowed on the last side only",
-                  cm.domainFor(QStringLiteral("clubheadSpeed")).value(QStringLiteral("lastNarrowed")).toBool()
-                  && !cm.domainFor(QStringLiteral("clubheadSpeed")).value(QStringLiteral("firstNarrowed")).toBool());
+                  cm.domainMap(QStringLiteral("clubheadSpeed")).value(QStringLiteral("lastNarrowed")).toBool()
+                  && !cm.domainMap(QStringLiteral("clubheadSpeed")).value(QStringLiteral("firstNarrowed")).toBool());
         checkTrue("unknown key not narrowed",
                   !unknown.value(QStringLiteral("narrowed")).toBool());
 

@@ -76,6 +76,25 @@ Item {
 
     // ── Logging ──────────────────────────────────────────────────────────────────────────
     function w(s)  { console.warn("PBPROBE " + s) }
+    // The typed ChartMetrics / TimelineLabels (refactor 5.8a, lint A6) take typed lists: a series' arrays as plain
+    // arrays and one field of each entry of a list of maps — the projections chart_samples.js gives the app.
+    function arr(a) { return a ? Array.prototype.slice.call(a) : [] }
+    function fld(list, key, d) {
+        var out = []
+        for (var i = 0; i < (list ? list.length : 0); ++i) {
+            var v = list[i] ? list[i][key] : undefined
+            out.push(v === undefined || v === null ? d : v)
+        }
+        return out
+    }
+    function lens(list, key) {
+        var out = []
+        for (var i = 0; i < (list ? list.length : 0); ++i) {
+            var a = list[i] ? list[i][key] : undefined
+            out.push(a && a.length !== undefined ? a.length : 0)
+        }
+        return out
+    }
     function miss(what) { probe.w("MISSING: " + what) }
     function num(v, dp) {
         if (v === undefined || v === null) return "?"
@@ -289,7 +308,8 @@ Item {
         probe.w("═══ 4. SELECT THE PRESET ═══")
         // ChartMetrics.seriesGroups — the combo's own list, from the C++ catalogue.
         var groups = []
-        try { groups = cm.seriesGroups(probe.series) } catch (e) { probe.miss("cm.seriesGroups (" + e + ")") }
+        try { groups = cm.seriesGroups(probe.fld(probe.series, "key", ""), probe.lens(probe.series, "t_us"),
+                                       probe.lens(probe.series, "phaseSamples")) } catch (e) { probe.miss("cm.seriesGroups (" + e + ")") }
         probe.w("ChartMetrics.seriesGroups — " + groups.length + " entr" + (groups.length === 1 ? "y" : "ies")
                 + " (groups first, then cross-cutting presets, then 'Other'):")
         for (var i = 0; i < groups.length; ++i) {
@@ -375,7 +395,7 @@ Item {
             // And the one helper the app now shares — read against the probe's own copy above, so a
             // disagreement about what absence means shows up as a mismatch rather than as agreement
             // by construction.
-            var cppSg = cm.seriesSigma(raw)
+            var cppSg = cm.seriesSigma(raw.sigma)
             probe.w("   cm.seriesSigma      = " + probe.num(cppSg)
                     + (Math.abs(cppSg - sg) < 1e-12 ? "   (agrees with the document)"
                        : "   ⛔ DISAGREES with the document's σ = " + probe.num(sg)))
@@ -521,7 +541,7 @@ Item {
         var mask = p.reduceValid || raw.valid || []
         var ws = chart.viewStartUs, we = chart.viewEndUs
         function sm(a, b) {
-            try { return cm.summaryMasked(t, v, mask, Math.round(a), Math.round(b)) }
+            try { return cm.summaryMasked(probe.arr(t), probe.arr(v), probe.arr(mask), Math.round(a), Math.round(b)) }
             catch (e) { probe.miss("cm.summaryMasked (" + e + ")"); return null }
         }
         // `rate` is SIGNED since Phase 2 and may be ABSENT — printed raw here, sign and all,
@@ -573,7 +593,7 @@ Item {
             var impMeasured = false
             try { impMeasured = chart._measuredAt(p, probe.impactUs) } catch (e) {}
             var impV = 0
-            try { impV = labels.valueAtNearest(t, v, Math.round(probe.impactUs)) } catch (e) {}
+            try { impV = labels.valueAtNearest(probe.arr(t), probe.arr(v), Math.round(probe.impactUs)) } catch (e) {}
             // Its own try: a throw in here must not cost the rest of THIS series' report, and the
             // step-level safe() wrapper is one level too coarse for that.
             try {
@@ -631,7 +651,7 @@ Item {
                 // own units, on a swing Mark has watched.
                 if (pi >= 0) {
                     var wm = null
-                    try { wm = cm.windowedMean(t, v, mask) }
+                    try { wm = cm.windowedMean(probe.arr(t), probe.arr(v), probe.arr(mask)) }
                     catch (e) { probe.miss("cm.windowedMean (" + e + ")") }
                     if (wm && wm.mean && wm.mean.length === t.length) {
                         // The extremum of the DRAWN line over the same clamped window the card
@@ -719,7 +739,7 @@ Item {
         var measured = "?"
         try { measured = chart._measuredAt(p, iu) } catch (e) { probe.miss("chart._measuredAt (" + e + ")") }
         var refMeasured = "?"
-        try { refMeasured = cm.measuredAt(t, mask, Math.round(iu),
+        try { refMeasured = cm.measuredAt(probe.arr(t), probe.arr(mask), Math.round(iu),
                                           Math.round(p.validFromUs), Math.round(p.validToUs)) }
         catch (e) {}
         probe.w("@impact " + probe.ms(iu) + "     measured = " + measured
@@ -728,7 +748,8 @@ Item {
                     try { return chart._valueTextAt(p, iu) } catch (e) { return "?" }
                 })() + "'"
                 + "   band = '" + (function () {
-                    try { return cm.bandAtNearest(raw.phaseSamples || [], Math.round(iu)) }
+                    try { return cm.bandAtNearest(probe.fld(raw.phaseSamples, "t_us", 0), probe.fld(raw.phaseSamples, "band", ""),
+                                                  Math.round(iu)) }
                     catch (e) { return "?" }
                 })() + "'")
 
@@ -808,7 +829,7 @@ Item {
                 for (var q = 0; q < (pl.series ? pl.series.length : 0); ++q) {
                     var ps2 = pl.series[q]
                     if (!ps2 || !ps2.value) continue
-                    var s2 = cm.seriesSigma(ps2)
+                    var s2 = cm.seriesSigma(ps2.sigma)
                     if (s2 > maxSg) maxSg = s2
                     for (var r = 0; r < ps2.value.length; ++r) {
                         if (ps2.t_us[r] < pl.domStartUs || ps2.t_us[r] > pl.domEndUs) continue

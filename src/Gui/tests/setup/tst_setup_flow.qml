@@ -897,7 +897,8 @@ Item {
             var f = ctx().setupFacts
             compare(f.faceOn, true); compare(f.dtl, false); compare(f.hackMotion, true); compare(f.launchMonitor, true)
             var catalog = createTemporaryObject(catalogComp, tc)
-            var groups = catalog.setupSummary(f)
+            var groups = catalog.setupSummary(!!f.faceOn, !!f.dtl, Array.prototype.slice.call(f.imuRoles || []),
+                                              !!f.hackMotion, !!f.launchMonitor)
             verify(groups.length > 0, "setupSummary returned no groups")
             var measured = 0
             for (var i = 0; i < groups.length; ++i) {
@@ -907,7 +908,9 @@ Item {
             verify(measured > 0, "nothing measured with a face-on camera and a calibrated wG3")
             // The same setup with the wG3's link gone measures less.
             imu.disconnectDevice("HM1")
-            var after = catalog.setupSummary(ctx().setupFacts)
+            var af = ctx().setupFacts
+            var after = catalog.setupSummary(!!af.faceOn, !!af.dtl, Array.prototype.slice.call(af.imuRoles || []),
+                                             !!af.hackMotion, !!af.launchMonitor)
             var measured2 = 0
             for (var j = 0; j < after.length; ++j) measured2 += after[j].measured
             verify(measured2 < measured, measured2 + " vs " + measured)

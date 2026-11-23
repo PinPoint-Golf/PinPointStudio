@@ -39,7 +39,7 @@ Item {
     function log(s) { console.warn("PROBE: " + s) }
     MetricCatalog { id: catalog }
 
-    function rowsFor(facts, ctx) { return CapRows.rows(catalog.setupSummary(facts), ctx, null) }
+    function rowsFor(facts, ctx) { return CapRows.rows(CapRows.summaryOf(catalog, facts), ctx, null) }
     readonly property var setups: [
         { title: "Face-on camera + arm sensors", facts: { faceOn: true, dtl: false, imuRoles: ["leadForearm", "leadHand"], hackMotion: false, launchMonitor: false },
           ctx: { armInSession: true, armCalibrated: true, upperArmHeld: false, cameraCount: 1, faceOn: "connected", dtl: "absent", lmName: "" } },

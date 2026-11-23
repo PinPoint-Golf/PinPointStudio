@@ -318,6 +318,16 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
     const QJsonObject captureIn  = root[QStringLiteral("capture")].toObject();
     out.analysisIn       = analysisIn;
     out.analysisOriginUs = analysisReadOriginUs(root);
+    // The Recording's facts about itself, for the views that show them (refactor 5.8a; recording_reader.h).
+    out.documentRead = true;
+    out.hasSchema    = root.contains(QStringLiteral("schema"));
+    out.schema       = root[QStringLiteral("schema")].toString();
+    {
+        const QJsonObject clockIn = root[QStringLiteral("clock")].toObject();
+        out.hasWallclock = clockIn.contains(QStringLiteral("wallclock"));
+        out.wallclock    = clockIn[QStringLiteral("wallclock")].toString();
+    }
+    out.captureIn = captureIn;
 
     rec::Recording &r = out.recording;
     // The shot kind: the recorded `shotKind`, else the one classification of an older document
@@ -346,6 +356,20 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
     for (const QJsonValue& sv : root[QStringLiteral("streams")].toArray()) {
         const QJsonObject s    = sv.toObject();
         const QString     kind = s[QStringLiteral("kind")].toString();
+        {   // its own description, whatever becomes of its samples below (refactor 5.8a)
+            LoadedRecording::StoredStream d;
+            d.kind    = kind;
+            d.alias   = s[QStringLiteral("alias")].toString();
+            d.source  = s[QStringLiteral("source")].toObject();
+            d.device  = s[QStringLiteral("device")].toObject();
+            d.setup   = s[QStringLiteral("setup")].toObject();
+            d.capture = s[QStringLiteral("capture")].toObject();
+            d.encoded = s[QStringLiteral("encoded")].toObject();
+            const QJsonObject sm = s[QStringLiteral("samples")].toObject();
+            d.hasSampleCount = sm.contains(QStringLiteral("count"));
+            d.sampleCount    = sm[QStringLiteral("count")].toInt();
+            out.storedStreams.push_back(std::move(d));
+        }
 
         if (kind == QLatin1String("video")) {
             std::vector<int64_t> tUs =
@@ -607,6 +631,7 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
             tMax = std::max(tMax, tUs.back());
 
             r.sources.imuLanes.push_back(id);
+            out.storedStreams.back().lane = id;
             if (!serial.isEmpty())
                 imuSerialToId.insert(serial, id);
             src->addImu(id, fd, std::move(rows));
@@ -696,6 +721,12 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
                          << r.ball.track.frames.back().t_us << ") — dropping";
             r.ball.track = {};
         }
+    }
+    // The capture window (Integrity), read before the camera check so a device-only shot's view has its span too.
+    const QJsonObject windowIn = root[QStringLiteral("window")].toObject();
+    if (windowIn.contains(QStringLiteral("start_us")) && windowIn.contains(QStringLiteral("end_us"))) {
+        r.integrity.windowStartUs = qint64(windowIn[QStringLiteral("start_us")].toDouble());
+        r.integrity.windowEndUs   = qint64(windowIn[QStringLiteral("end_us")].toDouble());
     }
     if (r.sources.cameras.empty()) {
         out.error = QStringLiteral("no video streams in swing.json");
@@ -801,12 +832,6 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
                      << "recorded UNCALIBRATED (mount dev"
                      << b.mountDeviationDeg << "deg, gravity err"
                      << b.mountGravityErrorDeg << "deg) — results unreliable";
-
-    const QJsonObject windowIn = root[QStringLiteral("window")].toObject();
-    if (windowIn.contains(QStringLiteral("start_us")) && windowIn.contains(QStringLiteral("end_us"))) {
-        r.integrity.windowStartUs = qint64(windowIn[QStringLiteral("start_us")].toDouble());
-        r.integrity.windowEndUs   = qint64(windowIn[QStringLiteral("end_us")].toDouble());
-    }
 
     out.window   = std::make_unique<SwingWindow>(std::move(src), std::move(entries), tMin, tMax);
     r.window     = out.window.get();

@@ -102,6 +102,8 @@ Item {
 
     SwingRigDriver {
         id: drv
+        // the shot is the Session's (refactor 5.8a): read through its owners and followed on its events
+        session: (typeof app !== "undefined" && app) ? app.session : null
         swingDir: root.swingDir
         positionUs: root.positionUs
         sessionScope: root.sessionWanted
@@ -113,20 +115,13 @@ Item {
     }
 
     // THE GATES BEHIND A MISSING SKELETON OR PLANE (trust stage 6 session 2): the swing's records, read
-    // with the skeleton (drv.gates), in the gate's own words; a click opens the reason in the Trust panel
+    // with the skeleton (the driver types them: skeletonGate, planeGate), in the gate’s own words; a click opens the reason in the Trust panel
     // (TrustFocus) or, with the panel off, in place (PpTrustInlineFor). An old swing has no records and
     // keeps today's words.
-    readonly property var skeletonGate: TrustWords.gateFor(drv.gates, "track.skeleton3d")
-    // the downswing half of the plane refused for scatter (the backswing half is not this chip's plane)
-    readonly property var planeGate: {
-        for (const r of (drv.gates || [])) {
-            if (r && r.gate === "club3d.planeScatter" && r.evidence && r.evidence.code === "down") {
-                const w = TrustWords.words(r.gate)
-                return w ? { subject: r.subject, gate: r.gate, words: w } : null
-            }
-        }
-        return null
-    }
+    readonly property var skeletonGate: drv.skeletonGate
+    // the downswing half of the plane refused for scatter (the backswing half is not this chip's plane): the driver's
+    // { subject, gate, words }, or null
+    readonly property var planeGate: drv.planeGate
     property string _trustOpen: ""                 // the reading open in place ("" = none)
     onSwingDirChanged: _trustOpen = ""
     function _why(subject) {

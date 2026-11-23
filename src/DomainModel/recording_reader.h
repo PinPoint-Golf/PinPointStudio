@@ -96,6 +96,30 @@ struct LoadedRecording {
     // Gate records decided while LOADING (trust stage 6): a HackMotion lane that could not be
     // bound (hm_binding_recon.h refusalRecords). The analysis appends them to its own.
     std::vector<pinpoint::analysis::GateRecord> loadGates;
+
+    // ── What the Recording records about itself, for the views that show it (refactor 5.8a) ─────────
+    // Read accessors on the Recording's facts (the Solution Architect, 23 Nov 2026: a view reads each block from its
+    // owner): the document's header facts and each stored stream's own description, as the swing file holds them. The
+    // analysis never reads these. Filled by the one loader from the read it already makes; nothing is read twice.
+    //
+    // documentRead: the document itself was read — true even when `ok` is false because the shot has no camera stream
+    // (a device-only shot), so a view can still show its analysis, its header and its streams' descriptions.
+    struct StoredStream {
+        QString     kind;                 // "video" | "imu" | "ball" | …, as stored
+        QString     alias;
+        QJsonObject source, device, setup, capture, encoded;   // the stream's own blocks, as stored ({} when absent)
+        bool        hasSampleCount = false;            // samples.count is stored
+        int         sampleCount = 0;
+        // The stream's lane in `window` (an IMU lane read into it); kInvalidSourceId otherwise.
+        pinpoint::SourceId lane = pinpoint::kInvalidSourceId;
+    };
+    bool                      documentRead = false;
+    bool                      hasSchema = false;      // the root's `schema`
+    QString                   schema;
+    bool                      hasWallclock = false;   // clock.wallclock: when the shot was captured
+    QString                   wallclock;
+    QJsonObject               captureIn;              // the root's `capture` block (the shot's capture settings and host)
+    std::vector<StoredStream> storedStreams;          // every stored stream, in the document's order
 };
 
 class RecordingReader {

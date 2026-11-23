@@ -12,7 +12,8 @@
 find_package(Qt6 REQUIRED COMPONENTS Multimedia Qml Test)
 pp_add_test(replay_score_test
     SOURCES replay_score_test.cpp
-            ${GUI}/review/swing_data_source.cpp
+            ${GUI}/review/swing_data_source.cpp ${GUI}/review/shot_data_door.h ${GUI}/review/swing_data_types.h
+            ${GUI}/charts/charts_work.h ${GUI}/charts/charts_work.cpp ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
             ${GUI}/review/swing_series_model.cpp
             ${GUI}/review/swing_coverage_model.cpp
             ${GUI}/review/timeline_labels.cpp
@@ -31,6 +32,6 @@ pp_add_test(replay_score_test
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/shot ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Analysis ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/shot ${GUI}/review ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Analysis ${SRC}/Metrics
     LINK    Qt6::Multimedia Qt6::Qml Qt6::Test
     AUTOMOC)

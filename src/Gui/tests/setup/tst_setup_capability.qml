@@ -168,9 +168,9 @@ TestCase {
             var f = {}
             for (var k in s.facts) f[k] = s.facts[k]
             f.launchMonitor = false
-            noLm = catalog.setupSummary(f)
+            noLm = CapRows.summaryOf(catalog, f)
         }
-        return CapRows.rows(catalog.setupSummary(s.facts), s.ctx, noLm)
+        return CapRows.rows(CapRows.summaryOf(catalog, s.facts), s.ctx, noLm)
     }
 
     // ── Families ────────────────────────────────────────────────────────────
@@ -299,7 +299,7 @@ TestCase {
         s.ctx.lmName = ""
         compare(rowsFor(s)[5].text, "Ball and strike — Measured by the launch monitor")
         // No "without" summary (none configured): plain words.
-        compare(CapRows.rows(catalog.setupSummary(s.facts), s.ctx)[5].text, "Ball and strike — Measured")
+        compare(CapRows.rows(CapRows.summaryOf(catalog, s.facts), s.ctx)[5].text, "Ball and strike — Measured")
     }
 
     // ── The forecast: a setup-bound gate (trust_and_gates_design.md §7.4) ─────────────

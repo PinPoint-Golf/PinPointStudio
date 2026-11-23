@@ -22,6 +22,7 @@
 #include <QQmlApplicationEngine>
 
 #ifdef HAVE_PPCP
+#include "review/shot_data_door_impl.h"   // the review views' door (refactor 5.8a)
 #include "../Ppcp/ppcp_import_controller.h"
 #include "../Ppcp/ppcp_offer_controller.h"
 #endif
@@ -990,6 +991,9 @@ int main(int argc, char *argv[])
     ShotReplayController      shotReplay(&appSettings);
     // The replay follows its shot (refactor 5.7c): the edge (DEC-90) from the replayed folder to the Shot its Session
     // holds, so a re-analysis (EVT-02) or a late part (EVT-22) is read again through that Shot with no reload.
+    // THE REVIEW VIEWS' DOOR (refactor 5.8a; review/shot_data_door.h): the data viewer and the 3-D rig read the Shot
+    // their Session holds, from its owners and its Recording, and follow its events; never the swing file.
+    pinpoint::review::installShotDataResolver(pinpoint::review::makeShotDataResolver());
     shotReplay.setShotResolver([&appObject](const QString &swingDir) -> pinpoint::Shot * {
         pinpoint::Session *s = appObject.sessionAt(pinpoint::sessionFolderOf(swingDir));
         return s ? s->shotAtFolder(swingDir) : nullptr;

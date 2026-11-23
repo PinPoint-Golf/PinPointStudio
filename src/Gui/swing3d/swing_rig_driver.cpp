@@ -36,6 +36,8 @@
 #include "../../Skeleton3d/skeleton3d_synthesis.h"
 #include "../../Export/swing_store.h"
 #include "../../Export/swing_paths.h"
+#include "../../Metrics/gate_catalogue.h"   // a gate's short words
+#include "../trust/trust_readings.h"        // gateFor: the gate on a reading
 
 namespace sk = pinpoint::skeleton3d;
 
@@ -446,7 +448,60 @@ void SwingRigDriver::setSwingDir(const QString &dir)
     if (dir == m_swingDir) return;
     m_swingDir = dir;
     emit swingDirChanged();
+    follow();
     startLoad();
+}
+
+void SwingRigDriver::setSession(QObject *session)
+{
+    if (m_sessionObject.data() == session) return;
+    m_sessionObject = session;
+    emit sessionChanged();
+    follow();
+    startLoad();
+}
+
+// The Shot the Session holds at swingDir, through the review views' door (shot_data_door.h; refactor 5.8a): its
+// re-analysis (EVT-02) or completion (EVT-22) reads it again, the session view's synthesis checked again too.
+void SwingRigDriver::follow()
+{
+    delete m_follower;
+    m_follower = nullptr;
+    m_handle = {};
+    const pinpoint::review::ShotDataResolver &door = pinpoint::review::shotDataResolver();
+    if (!door || !m_sessionObject || m_swingDir.isEmpty()) return;
+    m_follower = new QObject(this);
+    m_handle = door(m_sessionObject.data(), m_swingDir, m_follower, [this] {
+        m_sessionCheck = true;   // the shot's document moved: the synthesis' fingerprint is checked again
+        startLoad();
+    });
+}
+
+pinpoint::trust::TrustGateHit SwingRigDriver::skeletonGate() const
+{
+    return pinpoint::trust::TrustGateHit::fromMap(pinpoint::trust::gateFor(m_gates, QStringLiteral("track.skeleton3d")));
+}
+
+// The rule the panel used to apply to the records (SwingViz3DView.qml): the first record of the plane's scatter gate on
+// the downswing half, in the gate's words; null when there is none, or its gate has no words.
+QVariant SwingRigDriver::planeGate() const
+{
+    for (const QVariant &v : m_gates) {
+        const QVariantMap r = v.toMap();
+        const QString gate = r.value(QStringLiteral("gate")).toString();
+        if (gate != QLatin1String("club3d.planeScatter")
+            || r.value(QStringLiteral("evidence")).toMap().value(QStringLiteral("code")).toString() != QLatin1String("down"))
+            continue;
+        const pinpoint::gates::GateEntry *e = pinpoint::gates::gateEntry(gate);
+        const QString words = e ? pinpoint::gates::claimWords(*e) : QString();
+        if (words.isEmpty()) return QVariant::fromValue(nullptr);
+        pinpoint::trust::TrustGateHit h;
+        h.subject = r.value(QStringLiteral("subject")).toString();
+        h.gate    = gate;
+        h.words   = words;
+        return QVariant::fromValue(h);
+    }
+    return QVariant::fromValue(nullptr);
 }
 
 void SwingRigDriver::setPositionUs(qint64 us)
@@ -519,7 +574,7 @@ bool SwingRigDriver::loadNow(const QString &dir)
     ++m_generation;
     QString why;
     QVariantList gates;
-    auto p = prepare(dir, &why, &gates);
+    auto p = prepareFolder(dir, &why, &gates);
     m_reason = why;
     m_gates = gates;
     adopt(p, m_generation);
@@ -583,13 +638,33 @@ void SwingRigDriver::startShotLoad()
     ++m_revision;
     emit revisionChanged();
     if (m_swingDir.isEmpty()) return;
-    // The document is tens of megabytes: parse it off the GUI thread and adopt the result there.
+    // THE SHOT, THROUGH ITS DOOR (refactor 5.8a): its Recording read off the GUI thread (tens of megabytes) and the
+    // result adopted there. With a door installed (the app), a folder its Session does not hold shows nothing; with
+    // none (a tool, a test), the folder is read as before.
     QPointer<SwingRigDriver> self(this);
     const QString dir = m_swingDir;
-    QThreadPool::globalInstance()->start([self, dir, gen]() {
+    const bool door = bool(pinpoint::review::shotDataResolver());
+    const std::function<pinpoint::review::ShotDataRead()> read = m_handle.held ? m_handle.read : nullptr;
+    if (door && !read) {
+        m_loading = false;
+        m_reason = tr("no swing selected");
+        emit loadedChanged();
+        return;
+    }
+    QThreadPool::globalInstance()->start([self, dir, gen, read]() {
         QString why;
         QVariantList gates;
-        auto p = prepare(dir, &why, &gates);
+        std::shared_ptr<const Prepared> p;
+        if (read) {
+            const pinpoint::review::ShotDataRead r = read();
+            QJsonArray streams;
+            for (const pinpoint::review::ShotDataStream &st : r.streams)
+                streams.append(QJsonObject{ { QStringLiteral("alias"), st.alias }, { QStringLiteral("encoded"), st.encoded } });
+            if (!r.ok) why = r.error.isEmpty() ? QObject::tr("no swing document") : r.error;
+            else       p = prepare(r.analysis, r.originUs, streams, &why, &gates);
+        } else {
+            p = prepareFolder(dir, &why, &gates);
+        }
         QMetaObject::invokeMethod(self, [self, p, gen, why, gates]() {
             if (!self) return;
             if (gen != self->m_generation) return;   // a newer swing was asked for meanwhile
@@ -647,7 +722,7 @@ void SwingRigDriver::adoptSession(std::shared_ptr<const SessionData> data, bool 
         if (synchronous) {
             QString why;
             QVariantList gates;
-            auto p = prepare(m_swingDir, &why, &gates);
+            auto p = prepareFolder(m_swingDir, &why, &gates);
             m_reason = why;
             m_gates = gates;
             adopt(p, m_generation);
@@ -801,7 +876,8 @@ void SwingRigDriver::adopt(std::shared_ptr<const Prepared> p, quint64 generation
     evaluate();
 }
 
-std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QString &dir, QString *reason, QVariantList *gates)
+std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepareFolder(const QString &dir, QString *reason,
+                                                                             QVariantList *gates)
 {
     QString err;
     const QJsonObject root = pinpoint::SwingStore::load(dir, &err);
@@ -809,13 +885,22 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
         *reason = err.isEmpty() ? QObject::tr("no swing document") : err;
         return {};
     }
-    const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
+    return prepare(root.value(QStringLiteral("analysis")).toObject(),
+                   qint64(pinpoint::analysis::documentAnalysisOriginUs(root)),
+                   root.value(QStringLiteral("streams")).toArray(), reason, gates);
+}
+
+std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QJsonObject &an, qint64 originUs,
+                                                                       const QJsonArray &streams, QString *reason,
+                                                                       QVariantList *gates)
+{
     // The records ride out whatever the skeleton's fate: a refused one is exactly what they explain.
     if (gates && an.contains(QStringLiteral("gatesVersion")))
         *gates = an.value(QStringLiteral("gates")).toArray().toVariantList();
     // The analysis origin (documentAnalysisOriginUs: 0 for a stamped document) — the skeleton and
     // every instant below go through the one rule, windowTimeUs, against it.
-    const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(root));
+    const qint64 t0 = originUs;
+    const QJsonObject root{ { QStringLiteral("streams"), streams } };   // the streams' alias and encoded size
     const sk::Skeleton3DTrack trk = sk::skeleton3dFromJson(an.value(QStringLiteral("skeleton3d")).toObject(), t0);
     if (!trk.valid) {
         *reason = trk.reason.isEmpty() ? QObject::tr("no 3-D skeleton on this shot") : trk.reason;

@@ -211,6 +211,17 @@ function gateLineFor(notes) {
     return out.join(" · ")
 }
 
+// ── The catalogue's answer for a setup ───────────────────────────────────────────────────────────
+// MetricCatalog.setupSummary takes the setup's five facts, typed (refactor 5.8a, lint A6), not the facts object:
+// this hands them over from a setup-facts object (capability_facts.js facts / factsWithoutLm; a test's literal), a
+// missing fact read as absent — as the map-era call read a missing key. null in, null out.
+function summaryOf(catalog, facts) {
+    if (!facts) return null
+    return catalog.setupSummary(!!facts.faceOn, !!facts.dtl,
+                                facts.imuRoles ? Array.prototype.slice.call(facts.imuRoles) : [],
+                                !!facts.hackMotion, !!facts.launchMonitor)
+}
+
 // ── The rows ─────────────────────────────────────────────────────────────────────────────────────
 //   summary  MetricCatalog.setupSummary(...) — [{ group, measured, estimated, unavailable, derived,
 //            deviceGapIds, … }]

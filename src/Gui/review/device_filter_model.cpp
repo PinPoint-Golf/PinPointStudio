@@ -52,7 +52,7 @@ void DeviceFilterModel::toggleDevice(const QString &token)
     setDeviceFilter(t);
 }
 
-QVariantList DeviceFilterModel::availableDevices() const
+QList<pinpoint::reviewui::DeviceChip> DeviceFilterModel::availableDevices() const
 {
     const QVector<QStringList> saved = savedDeviceSets();
     QStringList tokens = m_deviceFilter;
@@ -62,7 +62,7 @@ QVariantList DeviceFilterModel::availableDevices() const
                 tokens.append(d);
     pinpoint::sortDeviceTokens(tokens);
 
-    QVariantList out;
+    QList<pinpoint::reviewui::DeviceChip> out;
     for (const QString &d : std::as_const(tokens)) {
         // Counted within the CURRENT filter, so each chip says how many sessions adding it would
         // leave (AND) — a fixed library count read as if chips widened the list. For a chip that is
@@ -71,9 +71,11 @@ QVariantList DeviceFilterModel::availableDevices() const
         for (const QStringList &devices : saved)
             if (passesDeviceFilter(devices) && devices.contains(d))
                 ++n;
-        out.append(QVariantMap{ { QStringLiteral("id"),    d },
-                                { QStringLiteral("label"), pinpoint::deviceLabel(d) },
-                                { QStringLiteral("count"), n } });
+        pinpoint::reviewui::DeviceChip chip;
+        chip.id    = d;
+        chip.label = pinpoint::deviceLabel(d);
+        chip.count = n;
+        out.append(chip);
     }
     return out;
 }
@@ -91,3 +93,6 @@ int DeviceFilterModel::shownSavedCount() const
             ++n;
     return n;
 }
+
+// moc for the typed chip (device_filter_model_types.h has no .cpp of its own)
+#include "moc_device_filter_model_types.cpp"

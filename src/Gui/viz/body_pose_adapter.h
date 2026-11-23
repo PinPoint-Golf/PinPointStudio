@@ -24,6 +24,8 @@
 #include <QTimer>
 #include <QVariantMap>
 
+#include "body_pose_adapter_types.h"   // the typed trunk bones QML reads (refactor 5.8a, lint A6)
+
 // BodyPoseAdapter — converts 17 COCO keypoints from a face-on CameraInstance
 // into per-bone parent-local quaternions for BodyVizView's kinematic chain.
 //
@@ -85,8 +87,8 @@ public:
     // The trunk on the avatar (BodyVizView useTrunkOverride; trunk_imu_sequence_grf_design.md §6.7).
     // Both take trunk-world q_anat (imu_frame_contract.md §5); the maths is viz_frame.h's, pinned by
     // viz_frame_test. trunkBones returns the parent-local node rotations by node name: hips, spine,
-    // spine1, spine2, leftUpLeg, leftLeg, rightUpLeg, rightLeg.
-    Q_INVOKABLE QVariantMap trunkBones(const QQuaternion &pelvisAnat, const QQuaternion &thoraxAnat) const;
+    // spine1, spine2, leftUpLeg, leftLeg, rightUpLeg, rightLeg (a TrunkBones gadget, body_pose_adapter_types.h).
+    Q_INVOKABLE pinpoint::vizui::TrunkBones trunkBones(const QQuaternion &pelvisAnat, const QQuaternion &thoraxAnat) const;
     // A golfer-relative turn about the vertical (+ = away from the target) as a trunk-world q_anat.
     Q_INVOKABLE QQuaternion trunkTurn(double awayDeg, bool rightHanded) const;
 

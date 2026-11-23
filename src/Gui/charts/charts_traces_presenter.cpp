@@ -170,13 +170,13 @@ struct ChartsTracesPresenter::Worker {
     const QVariantMap &domainFor(const QString &key)
     {
         auto it = domains.find(key);
-        if (it == domains.end()) it = domains.insert(key, cm->domainFor(key));
+        if (it == domains.end()) it = domains.insert(key, cm->domainMap(key));
         return it.value();
     }
     const QVariantMap &specFor(const QString &key)
     {
         auto it = specs.find(key);
-        if (it == specs.end()) it = specs.insert(key, cm->cardSpecFor(key));
+        if (it == specs.end()) it = specs.insert(key, cm->cardSpecMap(key));
         return it.value();
     }
     bool drawsCurve(const QString &key)
@@ -1038,7 +1038,10 @@ QList<T::Tick> tickTexts(const std::vector<double> &vals, bool signedText = fals
 
 QVariantList niceTicksList(Ctx &c, double lo, double hi)
 {
-    return std::isfinite(lo) && std::isfinite(hi) ? c.w->cm->niceTicks(lo, hi, 4) : QVariantList{};
+    QVariantList out;   // the ticks as numbers, as the map-era call returned them
+    if (std::isfinite(lo) && std::isfinite(hi))
+        for (double v : c.w->cm->niceTicks(lo, hi, 4)) out.append(v);
+    return out;
 }
 
 QList<T::Tick> ticksAsDoubles(const QVariantList &l)
@@ -1835,7 +1838,7 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
     {
         std::vector<double> ms;
         if (c.shot->impactUs >= 0)
-            for (const QVariant &v : c.w->cm->timeTicksMs(c.win.startUs, c.win.endUs, c.shot->impactUs)) ms.push_back(v.toDouble());
+            for (const double v : c.w->cm->timeTicksMs(c.win.startUs, c.win.endUs, c.shot->impactUs)) ms.push_back(v);
         out.msTicks = tickTexts(ms, true);
     }
     // THE WINDOW BRUSH (F14): the P-positions on the whole-recording clock, and the drawn metrics'
@@ -3060,8 +3063,8 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
     // the canonical ms axis (the same step rule as This shot's)
     {
         std::vector<double> ms;
-        for (const QVariant &v : c.w->cm->timeTicksMs(qint64(std::llround(c.t0 * 1000.0)), qint64(std::llround(c.t1 * 1000.0)), 0))
-            ms.push_back(v.toDouble());
+        for (const double v : c.w->cm->timeTicksMs(qint64(std::llround(c.t0 * 1000.0)), qint64(std::llround(c.t1 * 1000.0)), 0))
+            ms.push_back(v);
         out.msTicks = tickTexts(ms, true);
     }
 

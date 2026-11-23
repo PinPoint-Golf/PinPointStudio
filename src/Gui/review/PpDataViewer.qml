@@ -93,7 +93,9 @@ Item {
         // swing the moment its screen becomes visible (one parse, lazily).
         swingDir: root._screenActive ? root.swingDir : ""
         sessionType: root.sessionType
-        imuPlacement: appSettings.imuPlacement   // settings fallback when device.role absent
+        imuPlacementPairs: { var m = appSettings.imuPlacement; return Object.keys(m).reduce(function(a, k) { a.push(k, String(m[k])); return a }, []) }   // settings fallback when device.role absent: serial, slot pairs
+        // the shot is the Session's (refactor 5.8a): read from its owners and followed on its events, never the file
+        session: app.session
         // Persisted explicit choice for this session type, else the content-aware
         // default (a region that actually surfaces this swing's IMUs). Explicit
         // choices persist via the chip handler; the default is not written back, so
@@ -194,10 +196,11 @@ Item {
                         delegate: Item {
                             id: rcItem
                             required property string modelData
+                            required property int index
                             readonly property bool active: modelData === src.region
                             // Dim a region that resolves to nothing for this swing
                             // (Custom has no count → never dimmed).
-                            readonly property bool empty: src.regionLaneCounts[modelData] === 0
+                            readonly property bool empty: src.regionLaneCounts[index] === 0
                             width: rcChip.width; height: Theme.sp(26)
                             opacity: (empty && !active) ? 0.45 : 1.0
                             PpChip {

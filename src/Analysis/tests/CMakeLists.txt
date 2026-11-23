@@ -2032,12 +2032,18 @@ set(_review_views_shot_sources ${_owner_view_test_sources}
     ${SRC}/Gui/shot/disk_replay_source.h ${SRC}/Gui/shot/disk_replay_source.cpp
     ${SRC}/Gui/charts/charts_work.h ${SRC}/Gui/charts/charts_work.cpp
     ${SRC}/Gui/markup/markup_controller.h ${SRC}/Gui/markup/markup_controller.cpp
-    ${SRC}/Gui/markup/markup_image_provider.h ${SRC}/Gui/markup/markup_truth.cpp)
+    ${SRC}/Gui/markup/markup_image_provider.h ${SRC}/Gui/markup/markup_truth.cpp
+    # the data viewer over the Shot (refactor 5.8a): the presenter, its models, the door and the trust readings it words
+    # a refused lane with
+    ${SRC}/Gui/review/swing_data_source.h ${SRC}/Gui/review/swing_data_source.cpp ${SRC}/Gui/review/swing_data_types.h
+    ${SRC}/Gui/review/swing_series_model.cpp ${SRC}/Gui/review/swing_coverage_model.cpp ${SRC}/Gui/review/timeline_labels.cpp
+    ${SRC}/Gui/review/shot_data_door.h ${SRC}/Gui/review/shot_data_door_impl.h ${SRC}/Gui/review/shot_data_door.cpp
+    ${SRC}/Gui/trust/trust_readings.cpp ${SRC}/Gui/charts/session_sequence.cpp ${SRC}/Gui/charts/session_curves.cpp)
 list(REMOVE_DUPLICATES _review_views_shot_sources)
 pp_add_test(review_views_shot_test
     SOURCES ${SRC}/Gui/tests/review_views_shot_test.cpp ${_review_views_shot_sources}
     INCLUDE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${SRC}/Gui/shot ${SRC}/Gui/app
-            ${SRC}/Gui/charts ${OpenCV_INCLUDE_DIRS}
+            ${SRC}/Gui/charts ${SRC}/Gui/review ${OpenCV_INCLUDE_DIRS}
     LINK    Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Multimedia Qt6::Concurrent Qt6::Test ${OpenCV_LIBS}
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"

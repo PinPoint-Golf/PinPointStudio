@@ -137,8 +137,8 @@ Item {
             // about — on an older swing whose producer never marked the out-of-domain run, `valid`
             // alone would let a post-impact hip-line reading set the height of the shape a reader
             // picks their window from. Falls back to `valid` for an undecorated caller.
-            var st = cm.summaryMasked(s.t_us, s.value, s.reduceValid || s.valid || [],
-                                      winA, Math.max(winA, winB))
+            var st = cm.summaryMasked(ChartSamples.nums(s.t_us), ChartSamples.nums(s.value),
+                                      ChartSamples.nums(s.reduceValid || s.valid), winA, Math.max(winA, winB))
             var lo = st.min, hi = st.max
             if (!(hi > lo)) { lo = st.min; hi = st.min + 1 }   // flat or nothing to scale by
 

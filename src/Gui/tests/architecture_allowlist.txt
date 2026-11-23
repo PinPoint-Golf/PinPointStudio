@@ -46,7 +46,7 @@ Gui/trust/PpTrustInlineFor.qml | A2 | 1 | a trust view creates its TrustPresente
 Gui/trust/PpTrustPanel.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's). Each view has its own picked shot, so one presenter per session cannot serve them; making them elsewhere is an ownership change for the Product Owner (5.5b)  # step 5
 Gui/trust/PpTrustSummaryFold.qml | A2 | 1 | a trust view creates its TrustPresenter (5.5a: the series is the session's). Each view has its own picked shot, so one presenter per session cannot serve them; making them elsewhere is an ownership change for the Product Owner (5.5b)  # step 5
 Gui/session/PpLaunchMonitorPanel.qml | A2 | 1 | the LM board creates its own LmSessionModel; step 6 makes the board a presenter over the session's measurements  # step 6
-Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates a SwingDataSource that reads a swing document itself; step 5 makes it a presenter over the shot, like the Charts panel (triage, Mark 14 Nov 2026)  # step 5
+Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates its presenter, SwingDataSource, which is a presenter over the Session's Shot since 5.8a (each block from its owner through the review views' door, the Shot's events followed; no file read), as the Charts panel creates its presenters; making it elsewhere is an ownership change for the Product Owner  # step 5
 
 # ── A4 session/athlete file names outside their owner ──
 
@@ -76,8 +76,8 @@ Gui/report/report_meta.h | A5 | 3 | P11: the report's fingerprint reads each swi
 Gui/report/report_stills.cpp | A5 | 3 | P11: the renderer reads the swing's video and writes the Charts pictures' stills to their own cache; the report's stills are saved through the Session's writer since step 5.6a (FILE-SESS-09)  # step 5
 Gui/report/session_report_list_model.cpp | A5 | 5 | P11: the session list scans the athlete's folders for its rows itself; the report state is read through SessionRepository since step 5.6a (Athlete::readReportAt; DEC-201)  # step 5
 Gui/report/session_report_model.cpp | A5 | 5 | P11: the report reads the session's swing documents itself (their small blocks, and which swings have one); its records, stills and PDF are saved through the Session's report command since step 5.6b (Session::makeReport; DEC-201; FILE-SESS-07, 08, 09, 13), the print host printing outside the library  # step 5
-Gui/review/swing_data_source.cpp | A5 | 5 | P11: a review view reads the swing file through the store itself; step 5 gives the review views typed presenters over the shot (triage, Mark 14 Nov 2026)  # step 5
-Gui/swing3d/swing_rig_driver.cpp | A5 | 3 | P11: a review view reads the swing file through the store itself; step 5 gives the review views typed presenters over the shot (triage, Mark 14 Nov 2026)  # step 5
+Gui/review/swing_data_source.cpp | A5 | 4 | P11: the shot is read through the review views' door since 5.8a; left: the CSV export of the table as configured (a user file in the home folder, view state: 3) and swing_doc.h for the stored score's one rule (overallScoreFromAnalysis, 1), which goes when that rule leaves the store  # step 5
+Gui/swing3d/swing_rig_driver.cpp | A5 | 3 | P11: the shot is read through the review views' door since 5.8a; left: the session view's synthesis, which still lists and reads the session's swings by folder (prepareSession: a Session-level read has no door yet), and the tests' synchronous folder seams (loadNow, loadSessionNow)  # step 5
 Gui/launchmonitor/launch_monitor_controller.cpp | A5 | 4 | P11: the LM board and its controller read and write the shot's readings through the repositories themselves; the writes move onto the Shot's commands in step 3 and step 6 makes the board a presenter over the session's measurements  # step 6
 Gui/launchmonitor/lm_session_model.cpp | A5 | 1 | P11: the LM board and its controller read and write the shot's readings through the repositories themselves; the writes move onto the Shot's commands in step 3 and step 6 makes the board a presenter over the session's measurements  # step 6
 Audio/audio_stream_saver.cpp | A5 | 1 | P11: an audio capture written to the Desktop (EXT-04, a tool's output, not domain); no step 1-8 moves it  # not domain (§8.3)
@@ -156,17 +156,11 @@ Gui/media/llm_controller.h | A6 | 1 | a settings, monitoring or tool object's QM
 Gui/media/transcription_controller.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
 Gui/monitor/profiler_controller.h | A6 | 8 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
 Gui/monitor/resource_monitor_controller.h | A6 | 4 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
-Gui/review/chart_metrics.h | A6 | 21 | a shot/review view's QML API; step 5's typed presenters, one view at a time, widened to the review views (triage, Mark 14 Nov 2026)  # step 5
-Gui/review/device_filter_model.h | A6 | 1 | a shot/review view's QML API; step 5's typed presenters, one view at a time, widened to the review views (triage, Mark 14 Nov 2026)  # step 5
-Gui/review/metric_catalog.h | A6 | 3 | a shot/review view's QML API; step 5's typed presenters, one view at a time, widened to the review views (triage, Mark 14 Nov 2026)  # step 5
-Gui/review/session_review_controller.h | A6 | 1 | a shot/review view's QML API; step 5's typed presenters, one view at a time, widened to the review views (triage, Mark 14 Nov 2026)  # step 5
-Gui/review/swing_data_source.h | A6 | 8 | a shot/review view's QML API; step 5's typed presenters, one view at a time, widened to the review views (triage, Mark 14 Nov 2026)  # step 5
-Gui/review/timeline_labels.h | A6 | 6 | a shot/review view's QML API; step 5's typed presenters, one view at a time, widened to the review views (triage, Mark 14 Nov 2026)  # step 5
+Gui/review/chart_metrics.h | A6 | 1 | sequenceOverlay takes the replay's kinematic-sequence map (analysisDetail.kinematicSequence) as its producer hands it; the rest of the review views' QML API is typed (5.8a). It goes when that producer is typed  # step 5
+Gui/review/session_review_controller.h | A6 | 1 | swingDirsForSession's list: its one reader is the report's bulk export (report/PpSessionReportList.qml, which concat()s it), typed with the report (5.6); the rest of the review views' QML API is typed (5.8a)  # step 5
 Gui/settings/archive_controller.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
 Gui/shot/reanalysis_controller.h | A6 | 1 | re-analysis' QML API; step 1 rewrites re-analysis around the one job builder and reanalyseAndPersist (triage, Mark 14 Nov 2026)  # step 1
 Gui/shot/shot_list_model.h | A6 | 1 | the carousel's shot summary (shotSummary, the action bar's and the edit popover's read): typed with the carousel shot summary, step 4-b (the ids, the folders and the row's detail were typed or deleted in 4-a)  # step 4
-Gui/swing3d/swing_rig_driver.h | A6 | 1 | a shot/review view's QML API; step 5's typed presenters, one view at a time, widened to the review views (triage, Mark 14 Nov 2026)  # step 5
-Gui/viz/body_pose_adapter.h | A6 | 1 | a shot/review view's QML API; step 5's typed presenters, one view at a time, widened to the review views (triage, Mark 14 Nov 2026)  # step 5
 LLM/LlmWorker.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
 Pose/motion_capture_probe.h | A6 | 1 | the motion-capture hardware probe's QML API (a device / execution-provider probe that lives in src/Pose); no step 1-8 types it (the platform refactor (capture); 05 §1)  # unplanned
 Ppcp/ppcp_host_service.h | A6 | 6 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned

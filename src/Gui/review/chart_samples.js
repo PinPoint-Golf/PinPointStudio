@@ -101,3 +101,35 @@ function hasMean(s) {
 function meanOf(s) {
     return hasMean(s) ? s.mean : s.value
 }
+
+// ── THE TYPED BRIDGE'S PROJECTIONS (refactor 5.8a, lint A6) ─────────────────────────────────────────
+// ChartMetrics and TimelineLabels take typed lists (QList<double>, QList<int>, QStringList), never a list of maps:
+// a caller holding analysisDetail's phases, positions or phase samples hands over the one field of each entry the
+// method reads, and a series' arrays as plain arrays. Copies, not rules.
+
+// A series array as a plain array: [] for none (the map-era call read an absent list as empty).
+function nums(a) {
+    return a ? Array.prototype.slice.call(a) : []
+}
+// One field of every entry, in order; `dflt` where an entry has none (undefined or null) — what the map-era C++ read
+// for a missing key: 0 for a number, "" for a word.
+function field(list, key, dflt) {
+    var out = []
+    var n = list ? list.length : 0
+    for (var i = 0; i < n; ++i) {
+        var e = list[i]
+        var v = e ? e[key] : undefined
+        out.push(v === undefined || v === null ? dflt : v)
+    }
+    return out
+}
+// The length of one array field of every entry, in order; 0 where an entry has none.
+function lengths(list, key) {
+    var out = []
+    var n = list ? list.length : 0
+    for (var i = 0; i < n; ++i) {
+        var a = list[i] ? list[i][key] : undefined
+        out.push(a && a.length !== undefined ? a.length : 0)
+    }
+    return out
+}

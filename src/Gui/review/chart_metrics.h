@@ -19,13 +19,19 @@
 #pragma once
 
 #include "../../Metrics/metric_catalogue.h"
+#include "chart_metrics_types.h"   // the typed results QML reads (refactor 5.8a, lint A6)
 
+#include <QList>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
+
+#include <utility>
+#include <vector>
 
 // ChartMetrics — the C++ home for the derivation maths that the "no JavaScript logic
 // in QML" rule keeps out of PpMetricChart, exactly the TimelineLabels shape. Every method is
@@ -40,6 +46,14 @@
 // phaseA/phaseB via TimelineLabels.phaseShortTag, and the crosshair value-at-cursor reuses
 // TimelineLabels.valueAtNearest. This class owns only the segment vocabulary and the
 // per-window summary statistics; short names are the catalogue's, read through shortLabel().
+//
+// THE QML BOUNDARY IS TYPED (refactor 5.8a, lint A6): every method QML calls takes typed lists — a series' parallel
+// arrays as QList<double>, a list of phases or phase samples as the one field of each entry it reads (the caller
+// projects them: ChartSamples.field, chart_samples.js) — and returns a Q_GADGET (chart_metrics_types.h) named as the
+// old map's keys. The map-shaped methods beside them are C++ only (the Charts traces presenter, chart_metrics_test);
+// each typed one converts its lists, calls the map one and reads its map back, so both are one computation.
+// sequenceOverlay alone still takes a map: its input is analysisDetail.kinematicSequence, the producer's nested map,
+// which only typing that producer could type.
 class ChartMetrics : public QObject
 {
     Q_OBJECT
@@ -60,7 +74,10 @@ public:
     // The label is composed in QML from phaseA/phaseB via TimelineLabels.phaseShortTag (no
     // tag strings duplicated here). Mirrors swing_data_source.cpp segment logic so the
     // segment vocabulary is identical. `phases` is analysisDetail.phases ([{phase,t_us,…}]).
-    Q_INVOKABLE QVariantList segments(const QVariantList &phases, qint64 spanUs) const;
+    QVariantList segments(const QVariantList &phases, qint64 spanUs) const;
+    // QML's: `phaseIds` / `phaseTimes` are each phase's `phase` and `t_us`, in the list's order.
+    Q_INVOKABLE QList<pinpoint::chartui::Segment> segments(const QList<int> &phaseIds, const QList<double> &phaseTimes,
+                                                          qint64 spanUs) const;
 
     // THE WINDOW A TRIMMED CHART OPENS ON. Some families are drawn over part of the swing only —
     // the kinematic sequence's four curves run P4 → P8 and nowhere else — and opening those on
@@ -74,8 +91,11 @@ public:
     // window's own edge, named for the P-position that sits on it (−1 when none does). `trimmed` is false — and the caller keeps its
     // window — when nothing would be dropped, when the data are empty, or when the result would
     // be an empty span. Bounded by P-positions so the window has the same vocabulary as the chips.
-    Q_INVOKABLE QVariantMap dataWindow(const QVariantList &phases, qint64 dataStartUs, qint64 dataEndUs,
-                                       qint64 fromUs, qint64 toUs) const;
+    QVariantMap dataWindow(const QVariantList &phases, qint64 dataStartUs, qint64 dataEndUs,
+                           qint64 fromUs, qint64 toUs) const;
+    Q_INVOKABLE pinpoint::chartui::DataWindow dataWindow(const QList<int> &phaseIds, const QList<double> &phaseTimes,
+                                                         qint64 dataStartUs, qint64 dataEndUs,
+                                                         qint64 fromUs, qint64 toUs) const;
     static constexpr qint64 kDataWindowSlackUs = 15000;
 
     // Per-metric summary over [startUs, endUs]:
@@ -117,8 +137,9 @@ public:
     // Delegates to summaryMasked() with an EMPTY mask, which is the "every sample is valid"
     // case — so this overload is exactly the pre-validity behaviour and `partial` is always
     // false. Kept because most callers have no mask to pass and should not have to invent one.
-    Q_INVOKABLE QVariantMap summary(const QVariantList &tUs, const QVariantList &value,
-                                    qint64 startUs, qint64 endUs) const;
+    // C++ only: QML calls summaryMasked.
+    QVariantMap summary(const QVariantList &tUs, const QVariantList &value,
+                        qint64 startUs, qint64 endUs) const;
 
     // The same summary, respecting the series' per-sample validity mask (swing.json
     // `metrics[].valid`, design metric_presentation_honesty.md §5.1). `valid` is an int list
@@ -190,9 +211,12 @@ public:
     // peakSigma is the standard error of the window's mean about a LOCAL STRAIGHT LINE through it
     // (so a clean ramp reports 0 rather than reporting its own slope as uncertainty), rateSigma
     // the standard error of the fitted slope (so an exact fit reports 0).
-    Q_INVOKABLE QVariantMap summaryMasked(const QVariantList &tUs, const QVariantList &value,
-                                          const QVariantList &valid,
-                                          qint64 startUs, qint64 endUs) const;
+    QVariantMap summaryMasked(const QVariantList &tUs, const QVariantList &value,
+                              const QVariantList &valid,
+                              qint64 startUs, qint64 endUs) const;
+    Q_INVOKABLE pinpoint::chartui::Summary summaryMasked(const QList<double> &tUs, const QList<double> &value,
+                                                         const QList<double> &valid,
+                                                         qint64 startUs, qint64 endUs) const;
 
     // ── THE LINE THE CHART DRAWS — and it is the same reduction the PEAK tile reports ──────
     //
@@ -240,11 +264,13 @@ public:
     // A fitted curve read AT an instant (fitted_curve.h): isFittedCurve says which keys, and
     // fittedCurveAt returns { ok, value }, the one reading every surface gives at a P position.
     Q_INVOKABLE bool isFittedCurve(const QString &key) const;
-    Q_INVOKABLE QVariantMap fittedCurveAt(const QVariantList &tUs, const QVariantList &value,
-                                          const QVariantList &valid, qint64 us) const;
+    Q_INVOKABLE pinpoint::chartui::Reading fittedCurveAt(const QList<double> &tUs, const QList<double> &value,
+                                                         const QList<double> &valid, qint64 us) const;
 
-    Q_INVOKABLE QVariantMap windowedMean(const QVariantList &tUs, const QVariantList &value,
-                                         const QVariantList &valid) const;
+    QVariantMap windowedMean(const QVariantList &tUs, const QVariantList &value,
+                             const QVariantList &valid) const;
+    Q_INVOKABLE pinpoint::chartui::WindowedMean windowedMean(const QList<double> &tUs, const QList<double> &value,
+                                                             const QList<double> &valid) const;
 
     // Where a metric's geometry MEANS something:
     //   { firstPhase:int, lastPhase:int, firstNarrowed:bool, lastNarrowed:bool, narrowed:bool }
@@ -270,7 +296,8 @@ public:
     // So: clip a side ONLY when the MANIFEST moved that side. `firstNarrowed` is
     // `domain.first != Phase::Address`, `lastNarrowed` is `domain.last != Phase::Finish`, and
     // `narrowed` is either. hipLineTilt is narrowed on the LAST side only.
-    Q_INVOKABLE QVariantMap domainFor(const QString &key) const;
+    Q_INVOKABLE pinpoint::chartui::Domain domainFor(const QString &key) const;
+    QVariantMap domainMap(const QString &key) const;   // the same, as a map (C++: the Charts traces presenter)
 
     // What the summary CARD shows for this metric — MetricDescriptor::card (metric_descriptor.h
     // says why a card is not the same four tiles for every metric):
@@ -279,7 +306,8 @@ public:
     //     windowedMean:bool, mergeInto:string }
     // Phases are Phase ENUM values, resolved to instants by the caller as domainFor's are. An
     // uncatalogued key gets the default — @ IMPACT, PEAK, Δ SEGMENT, PK RATE — the card as it was.
-    Q_INVOKABLE QVariantMap cardSpecFor(const QString &key) const;
+    Q_INVOKABLE pinpoint::chartui::CardSpec cardSpecFor(const QString &key) const;
+    QVariantMap cardSpecMap(const QString &key) const;   // the same, as a map (C++: the Charts traces presenter)
 
     // Was this series actually MEASURED at `us`? — the reference form of the predicate behind the
     // suppressed phase dots, the suppressed crosshair marker and the "—" in the hover and legend
@@ -301,7 +329,9 @@ public:
     // ⚠ NOT FOR PER-FRAME BINDINGS. Every call marshals the whole series across the QML boundary,
     // so a binding that depends on the cursor or the playhead must answer this in JS off a sample
     // INDEX (ChartSamples.measured / measuredAt in chart_samples.js) rather than call in here.
-    Q_INVOKABLE bool measuredAt(const QVariantList &tUs, const QVariantList &valid,
+    bool measuredAt(const QVariantList &tUs, const QVariantList &valid,
+                    qint64 us, qint64 fromUs, qint64 toUs) const;
+    Q_INVOKABLE bool measuredAt(const QList<double> &tUs, const QList<double> &valid,
                                 qint64 us, qint64 fromUs, qint64 toUs) const;
 
     // Compact display name for a metric key (e.g. "leadWristFlexExt" → "Bow/cup"), or ""
@@ -381,7 +411,9 @@ public:
     // QVariantMap argument marshals the WHOLE series (t_us, value, valid, phaseSamples) across the
     // QML boundary. Every caller resolves it once per card / chip / row / plot, on a binding that
     // changes with the DATA, and passes the resulting number down to the per-frame formatters.
-    Q_INVOKABLE double seriesSigma(const QVariantMap &series) const;
+    double seriesSigma(const QVariantMap &series) const;
+    // QML's: the series' `sigma` itself (undefined reaches here as NaN, null as 0 — both "no claim", as above).
+    Q_INVOKABLE double seriesSigma(double sigma) const;
 
     // What backs the σ chip, and whether the reading carries the gross-error caveat
     // (shaft_uncertainty_propagation_design.md §7, stage U7). → { tip: QString, warn: bool,
@@ -392,7 +424,11 @@ public:
     // the probability the reading rests on the tracker following the wrong structure, reported
     // BESIDE σ and never folded into it. Same marshalling cost as seriesSigma: resolve it once per
     // card, on a binding that changes with the data.
-    Q_INVOKABLE QVariantMap sigmaInfo(const QVariantMap &series) const;
+    QVariantMap sigmaInfo(const QVariantMap &series) const;
+    // QML's: the series' `sigmaKind`, and each phase sample's `grossRisk` (NaN where the sample carries none) and
+    // `phase`, in the list's order.
+    Q_INVOKABLE pinpoint::chartui::SigmaInfo sigmaInfo(int sigmaKind, const QList<double> &grossRisks,
+                                                       const QList<int> &phases) const;
 
     // formatValue = the number and its unit, for a surface with no header to lean on (legend
     // chips, the hover tooltip, the transit bead). Degrees keep the signed-deviation convention
@@ -450,18 +486,19 @@ public:
     // "Nice" Y-axis tick values across [lo, hi] at a 1/2/5×10ⁿ step chosen so there are
     // about `maxTicks` of them (figure_format.h tickValues, the app's one tick rule). Returns the
     // tick values (doubles) the chart labels + grids.
-    Q_INVOKABLE QVariantList niceTicks(double lo, double hi, int maxTicks) const;
+    Q_INVOKABLE QList<double> niceTicks(double lo, double hi, int maxTicks) const;
 
     // X-axis tick offsets in milliseconds relative to impact, for the domain
     // [domStartUs, domEndUs]. Each returned int `ms` marks a gridline at impactUs+ms*1000
     // that falls inside the domain; the step widens with the span. The chart labels them
     // "(+)ms" and positions each via its own xForT(impactUs + ms*1000).
-    Q_INVOKABLE QVariantList timeTicksMs(qint64 domStartUs, qint64 domEndUs,
-                                         qint64 impactUs) const;
+    Q_INVOKABLE QList<double> timeTicksMs(qint64 domStartUs, qint64 domEndUs,
+                                          qint64 impactUs) const;
 
     // Phase enum of the station nearest `us` (or -1 when `phases` is empty). Used to label
     // a free-dragged ("Custom") window with the phases bracketing its edges.
-    Q_INVOKABLE int nearestPhase(const QVariantList &phases, qint64 us) const;
+    int nearestPhase(const QVariantList &phases, qint64 us) const;
+    Q_INVOKABLE int nearestPhase(const QList<int> &phaseIds, const QList<double> &phaseTimes, qint64 us) const;
 
     // Band ("good"/"attention"/"warn") of the phaseSample nearest `us`, used to tint a summary
     // card's @impact value by the swing's state there.
@@ -472,7 +509,9 @@ public:
     // emitted no sample at impact (because the geometry was gated there, which is exactly what
     // design §5.1 makes happen) had its @impact reading tinted GREEN off an empty list, or off
     // the Address sample 900 ms away. The caller must treat "" as "no verdict", not as a pass.
-    Q_INVOKABLE QString bandAtNearest(const QVariantList &phaseSamples, qint64 us) const;
+    QString bandAtNearest(const QVariantList &phaseSamples, qint64 us) const;
+    // QML's: each phase sample's `t_us` and `band`, in the list's order.
+    Q_INVOKABLE QString bandAtNearest(const QList<double> &sampleTimes, const QStringList &bands, qint64 us) const;
 
     // ── Chart metric presets ────────────────────────────────────────────────────
     //
@@ -502,7 +541,11 @@ public:
     // Curve keys the catalogue has never heard of are collected into a trailing "Other" group
     // rather than dropped: a metric added to the pipeline before the manifest should be awkward
     // to find, not invisible.
-    Q_INVOKABLE QVariantList seriesGroups(const QVariantList &seriesList) const;
+    QVariantList seriesGroups(const QVariantList &seriesList) const;
+    // QML's: each series' `key`, the length of its `t_us` and the length of its `phaseSamples`, in the list's order.
+    Q_INVOKABLE QList<pinpoint::chartui::SeriesGroup> seriesGroups(const QStringList &keys,
+                                                                   const QList<int> &curveLengths,
+                                                                   const QList<int> &phaseSampleCounts) const;
     // Every catalogue key a cross-cutting preset (MetricDescriptor::presets) names, in manifest order,
     // whatever a swing measured — the charts presenter's from-address rebase reads it (Posture).
     QStringList presetKeys(const QString &preset) const;
@@ -544,7 +587,8 @@ public:
     //     sequence domain ends. `atImpactRising` is that case as a flag. Nothing went out of
     //     sight; the body had not peaked by the time the club reached the ball, and on the one
     //     golfer measured (pair_span_turn_20260920.md) that is the answer on every swing.
-    Q_INVOKABLE QVariantList sequenceRows(const QVariantMap &ks) const;
+    // C++ only (the Charts traces presenter's tile and chart_metrics_test): no QML reads the rows.
+    QVariantList sequenceRows(const QVariantMap &ks) const;
 
     // sequenceVerdictText — the ONE categorical sentence the normative reference calls robust
     // (golf_swing_normative_reference.md §2.3), and nothing graded:
@@ -564,14 +608,14 @@ public:
     // the body — chest still speeding up at impact"). "placed nodes in order (2 of 4)" is true
     // about such a swing and says nothing about it; this is the reading, and it is the inverse of
     // the professional signature the metric's howToRead sells.
-    Q_INVOKABLE QString sequenceVerdictText(const QVariantMap &ks) const;
+    QString sequenceVerdictText(const QVariantMap &ks) const;   // C++ only
 
     // sequenceRouteText — how the nodes were obtained, for the strip's header suffix:
     //   "measured" (every placed node Direct), "estimated from the camera" (none Direct), or
     //   "mixed: pelvis, chest measured · arm, club estimated" — the per-segment split, because
     //   "mixed" alone tells a reader with one IMU nothing about which chip to trust.
     //   "" when the map carries no nodes.
-    Q_INVOKABLE QString sequenceRouteText(const QVariantMap &ks) const;
+    QString sequenceRouteText(const QVariantMap &ks) const;   // C++ only
 
     // sequenceOverlay — the sequence drawn ON THE PLOT rather than restated under it (2026-09-18):
     // the peaks are points on curves the preset already strokes, so they belong where the reader's
@@ -614,10 +658,13 @@ public:
     // says the order there is uncertain. The same rule as the Charts panel's session_sequence.h.
     // verdictState is NOT narrowed with it: any inversion among the ranked peaks, placed or not,
     // still makes the verdict "Out of sequence" (with "? = uncertain" when an unplaced one is ranked).
-    Q_INVOKABLE QVariantMap sequenceTable(const QVariantMap &ks) const;
+    QVariantMap sequenceTable(const QVariantMap &ks) const;   // C++ only (the Charts traces presenter)
     // The professional peak speed the tile's "% of pro" divides by (Cheetham 2008), °/s; NaN for an unknown segment.
     static double sequenceProDps(const QString &segment);
 
 private:
+    // The presets for the keys a swing can show (seriesGroups' walk), shared by its map and typed forms.
+    std::vector<std::pair<QString, QStringList>> groupsFor(QSet<QString> plotted) const;
+
     pinpoint::analysis::MetricCatalogue m_catalogue;   // built once in the ctor; never mutated
 };

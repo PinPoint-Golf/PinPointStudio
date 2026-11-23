@@ -100,10 +100,15 @@ include(${CMAKE_CURRENT_LIST_DIR}/charts_delivery_tests.cmake OPTIONAL)
 # SwingRigDriver (swing3d/) — the 3-D swing panel's C++ half against a hand-built skeleton3d block
 # written by the production writer: availability and its reason, rest round trip, playhead
 # interpolation, the scene frame, tiers. Header-only rig/JSON; the store reads the document.
+# The rig words its refused skeleton and plane through the trust readings (refactor 5.8a: typed, out of the QML), and
+# names the review views' door (header-only).
+set(_rig_gate_sources ${GUI}/trust/trust_types.h ${GUI}/trust/trust_readings.cpp ${GUI}/charts/session_sequence.cpp
+                      ${GUI}/charts/session_curves.cpp ${GUI}/review/shot_data_door.h)
 pp_add_test(swing_rig_driver_test
     SOURCES swing_rig_driver_test.cpp ${GUI}/swing3d/swing_rig_driver.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the session's swings by SwingPaths, keyed by swing number (step 2.7b)
-    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export
+            ${_rig_gate_sources}
+    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export ${SRC}/Analysis ${SRC}/Metrics
     LINK    Qt6::Qml  AUTOMOC)
 
 # The 3-D swing panel's motion annotations as meshes (swing_annotation_mesh.h) — trace growth and
@@ -113,7 +118,8 @@ pp_add_test(swing_annotation_geometry_test
     SOURCES swing_annotation_geometry_test.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
             ${GUI}/swing3d/swing_rig_driver.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the rig driver's session listing (step 2.7b)
-    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export
+            ${_rig_gate_sources}
+    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export ${SRC}/Analysis ${SRC}/Metrics
     LINK    Qt6::Qml  AUTOMOC)
 
 # SwingSeriesModel — playhead→row mapping (rowForTimeUs) for the table cross-highlight.

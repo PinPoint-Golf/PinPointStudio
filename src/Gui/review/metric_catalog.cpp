@@ -22,19 +22,6 @@
 
 using namespace pinpoint::analysis;
 
-namespace {
-
-QVariantList toVariantList(const QStringList &l)
-{
-    QVariantList out;
-    out.reserve(l.size());
-    for (const QString &s : l)
-        out.append(s);
-    return out;
-}
-
-} // namespace
-
 MetricCatalog::MetricCatalog(QObject *parent)
     : QObject(parent)
     , m_catalogue(makeMetricCatalogue())
@@ -43,62 +30,68 @@ MetricCatalog::MetricCatalog(QObject *parent)
 
 MetricCatalog::~MetricCatalog() = default;
 
-QVariantList MetricCatalog::groups() const
+QStringList MetricCatalog::groups() const
 {
-    QVariantList out;
+    QStringList out;
     for (const MetricDescriptor *d : m_catalogue.all())
         if (!out.contains(d->group))
             out.append(d->group);
     return out;
 }
 
-QVariantList MetricCatalog::types() const
+QStringList MetricCatalog::types() const
 {
     return { metricTypeName(MetricType::Summary), metricTypeName(MetricType::PointInTime),
              metricTypeName(MetricType::TimeSeries), metricTypeName(MetricType::Sequence) };
 }
 
-QVariantList MetricCatalog::setupSummary(const QVariantMap &setup) const
+QList<pinpoint::catalogui::Capability> MetricCatalog::setupSummary(bool faceOn, bool dtl, const QStringList &imuRoles,
+                                                                   bool hackMotion, bool launchMonitor) const
 {
     SetupFacts f;
-    f.faceOnCamera  = setup.value(QStringLiteral("faceOn")).toBool();
-    f.dtlCamera     = setup.value(QStringLiteral("dtl")).toBool();
-    f.hackMotion    = setup.value(QStringLiteral("hackMotion")).toBool();
-    f.launchMonitor = setup.value(QStringLiteral("launchMonitor")).toBool();
-    for (const QVariant &v : setup.value(QStringLiteral("imuRoles")).toList()) {
+    f.faceOnCamera  = faceOn;
+    f.dtlCamera     = dtl;
+    f.hackMotion    = hackMotion;
+    f.launchMonitor = launchMonitor;
+    for (const QString &name : imuRoles) {
         // The persisted spelling ("leadHand"), not segmentRoleName()'s ("LeadHand") — the shared
         // inverse in segment_role.h, so an unknown name is Unknown and dropped, never a guess.
-        const SegmentRole r = segmentRoleForPlacementRole(v.toString());
+        const SegmentRole r = segmentRoleForPlacementRole(name);
         if (r != SegmentRole::Unknown)
             f.imuRoles.push_back(r);
     }
 
-    QVariantList out;
+    QList<pinpoint::catalogui::Capability> out;
     for (const CapabilityGroup &g : summariseSetup(m_catalogue, f)) {
-        QVariantMap m;
-        m.insert(QStringLiteral("group"),              g.group);
-        m.insert(QStringLiteral("measured"),           g.measured);
-        m.insert(QStringLiteral("estimated"),          g.estimated);
-        m.insert(QStringLiteral("unavailable"),        g.unavailable);
-        m.insert(QStringLiteral("planned"),            g.planned);
-        m.insert(QStringLiteral("derived"),            g.derived);
-        m.insert(QStringLiteral("measuredKeys"),       toVariantList(g.measuredKeys));
-        m.insert(QStringLiteral("estimatedKeys"),      toVariantList(g.estimatedKeys));
-        m.insert(QStringLiteral("unavailableKeys"),    toVariantList(g.unavailableKeys));
-        m.insert(QStringLiteral("plannedKeys"),        toVariantList(g.plannedKeys));
-        m.insert(QStringLiteral("derivedKeys"),        toVariantList(g.derivedKeys));
-        m.insert(QStringLiteral("estimatedBecause"),   g.estimatedBecause);
-        m.insert(QStringLiteral("unavailableBecause"), g.unavailableBecause);
-        m.insert(QStringLiteral("upgrade"),            g.upgrade);
-        m.insert(QStringLiteral("deviceGaps"),         toVariantList(g.deviceGaps));
-        m.insert(QStringLiteral("deviceGapIds"),       toVariantList(g.deviceGapIds));
-        QVariantList notes;
-        for (const CapabilityGroup::GateNote &n : g.gateNotes)
-            notes.append(QVariantMap{ { QStringLiteral("gate"), n.gate }, { QStringLiteral("words"), n.words },
-                                      { QStringLiteral("subjects"), toVariantList(n.subjects) },
-                                      { QStringLiteral("subjectWords"), toVariantList(n.subjectWords) } });
-        m.insert(QStringLiteral("gateNotes"),          notes);
-        out.append(m);
+        pinpoint::catalogui::Capability c;
+        c.group              = g.group;
+        c.measured           = g.measured;
+        c.estimated          = g.estimated;
+        c.unavailable        = g.unavailable;
+        c.planned            = g.planned;
+        c.derived            = g.derived;
+        c.measuredKeys       = g.measuredKeys;
+        c.estimatedKeys      = g.estimatedKeys;
+        c.unavailableKeys    = g.unavailableKeys;
+        c.plannedKeys        = g.plannedKeys;
+        c.derivedKeys        = g.derivedKeys;
+        c.estimatedBecause   = g.estimatedBecause;
+        c.unavailableBecause = g.unavailableBecause;
+        c.upgrade            = g.upgrade;
+        c.deviceGaps         = g.deviceGaps;
+        c.deviceGapIds       = g.deviceGapIds;
+        for (const CapabilityGroup::GateNote &n : g.gateNotes) {
+            pinpoint::catalogui::GateNote gn;
+            gn.gate         = n.gate;
+            gn.words        = n.words;
+            gn.subjects     = n.subjects;
+            gn.subjectWords = n.subjectWords;
+            c.gateNotes.append(gn);
+        }
+        out.append(c);
     }
     return out;
 }
+
+// moc for the typed summary's gadgets (metric_catalog_types.h has no .cpp of its own)
+#include "moc_metric_catalog_types.cpp"

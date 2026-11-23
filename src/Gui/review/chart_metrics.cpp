@@ -40,6 +40,29 @@
 namespace {
 
 namespace pa = pinpoint::analysis;
+namespace cu = pinpoint::chartui;
+
+// ── THE TYPED BRIDGE (refactor 5.8a, lint A6) ───────────────────────────────────────────────────
+// QML hands typed lists; the map-shaped methods below take the QVariantLists QML used to marshal. Each element goes in
+// as a QVariant(double), so every conversion those methods make of it (toLongLong, toDouble, toInt) is the one they
+// made of a number QML passed before.
+QVariantList variantsOf(const QList<double> &l)
+{
+    QVariantList out;
+    out.reserve(l.size());
+    for (double d : l) out.append(d);
+    return out;
+}
+// A list of phases (or phase samples) rebuilt from the fields QML projected out of it, in its order: { phase, t_us }.
+QVariantList phaseMapsOf(const QList<int> &ids, const QList<double> &times)
+{
+    QVariantList out;
+    const qsizetype n = qMin(ids.size(), times.size());
+    out.reserve(n);
+    for (qsizetype i = 0; i < n; ++i)
+        out.append(QVariantMap{ { QStringLiteral("phase"), ids.at(i) }, { QStringLiteral("t_us"), times.at(i) } });
+    return out;
+}
 
 // ⚠ THE SHORT-MASK RULE, and it is deliberately the same one measure_sample.cpp's buildPhaseGrid
 // applies: a mask is honoured only when it covers the whole curve (`size >= n`); a SHORTER one is
@@ -300,6 +323,37 @@ QVariantMap ChartMetrics::dataWindow(const QVariantList &phases, qint64 dataStar
     return out;
 }
 
+QList<pinpoint::chartui::Segment> ChartMetrics::segments(const QList<int> &phaseIds, const QList<double> &phaseTimes,
+                                                        qint64 spanUs) const
+{
+    QList<cu::Segment> out;
+    for (const QVariant &v : segments(phaseMapsOf(phaseIds, phaseTimes), spanUs)) {
+        const QVariantMap m = v.toMap();
+        cu::Segment g;
+        g.startUs = m.value(QStringLiteral("startUs")).toLongLong();
+        g.endUs   = m.value(QStringLiteral("endUs")).toLongLong();
+        g.phaseA  = m.value(QStringLiteral("phaseA")).toInt();
+        g.phaseB  = m.value(QStringLiteral("phaseB")).toInt();
+        g.swing   = m.value(QStringLiteral("swing")).toBool();
+        out.append(g);
+    }
+    return out;
+}
+
+pinpoint::chartui::DataWindow ChartMetrics::dataWindow(const QList<int> &phaseIds, const QList<double> &phaseTimes,
+                                                       qint64 dataStartUs, qint64 dataEndUs,
+                                                       qint64 fromUs, qint64 toUs) const
+{
+    const QVariantMap m = dataWindow(phaseMapsOf(phaseIds, phaseTimes), dataStartUs, dataEndUs, fromUs, toUs);
+    cu::DataWindow w;
+    w.startUs = m.value(QStringLiteral("startUs")).toLongLong();
+    w.endUs   = m.value(QStringLiteral("endUs")).toLongLong();
+    w.phaseA  = m.value(QStringLiteral("phaseA")).toInt();
+    w.phaseB  = m.value(QStringLiteral("phaseB")).toInt();
+    w.trimmed = m.value(QStringLiteral("trimmed")).toBool();
+    return w;
+}
+
 QVariantMap ChartMetrics::summary(const QVariantList &tUs, const QVariantList &value,
                                   qint64 startUs, qint64 endUs) const
 {
@@ -497,14 +551,42 @@ QVariantMap ChartMetrics::summaryMasked(const QVariantList &tUs, const QVariantL
     return r;
 }
 
+pinpoint::chartui::Summary ChartMetrics::summaryMasked(const QList<double> &tUs, const QList<double> &value,
+                                                       const QList<double> &valid,
+                                                       qint64 startUs, qint64 endUs) const
+{
+    const QVariantMap m = summaryMasked(variantsOf(tUs), variantsOf(value), variantsOf(valid), startUs, endUs);
+    cu::Summary r;
+    r.start      = m.value(QStringLiteral("start")).toDouble();
+    r.end        = m.value(QStringLiteral("end")).toDouble();
+    r.min        = m.value(QStringLiteral("min")).toDouble();
+    r.max        = m.value(QStringLiteral("max")).toDouble();
+    r.peak       = m.value(QStringLiteral("peak")).toDouble();
+    r.range      = m.value(QStringLiteral("range")).toDouble();
+    r.delta      = m.value(QStringLiteral("delta")).toDouble();
+    r.rate       = m.value(QStringLiteral("rate")).toDouble();
+    r.tPeakUs    = m.value(QStringLiteral("tPeakUs")).toLongLong();
+    r.partial    = m.value(QStringLiteral("partial")).toBool();
+    r.peakSigma  = m.value(QStringLiteral("peakSigma")).toDouble();
+    r.rateSigma  = m.value(QStringLiteral("rateSigma")).toDouble();
+    r.edgeOk     = m.value(QStringLiteral("edgeOk")).toBool();
+    r.extremumOk = m.value(QStringLiteral("extremumOk")).toBool();
+    r.rateOk     = m.value(QStringLiteral("rateOk")).toBool();
+    r.tRateUs    = m.value(QStringLiteral("tRateUs")).toLongLong();
+    return r;
+}
+
 bool ChartMetrics::isFittedCurve(const QString &key) const { return pa::isFittedCurve(key); }
 
-QVariantMap ChartMetrics::fittedCurveAt(const QVariantList &tUs, const QVariantList &value,
-                                        const QVariantList &valid, qint64 us) const
+pinpoint::chartui::Reading ChartMetrics::fittedCurveAt(const QList<double> &tUs, const QList<double> &value,
+                                                       const QList<double> &valid, qint64 us) const
 {
-    const Lifted s = lift(tUs, value, valid);
+    const Lifted s = lift(variantsOf(tUs), variantsOf(value), variantsOf(valid));
     const pa::Reduced r = pa::reduceInstant(chartView(s), us);
-    return { { QStringLiteral("ok"), r.ok }, { QStringLiteral("value"), r.ok ? r.value : 0.0 } };
+    cu::Reading out;
+    out.ok    = r.ok;
+    out.value = r.ok ? r.value : 0.0;
+    return out;
 }
 
 QVariantMap ChartMetrics::windowedMean(const QVariantList &tUs, const QVariantList &value,
@@ -541,7 +623,32 @@ QVariantMap ChartMetrics::windowedMean(const QVariantList &tUs, const QVariantLi
     return r;
 }
 
-QVariantMap ChartMetrics::domainFor(const QString &key) const
+pinpoint::chartui::WindowedMean ChartMetrics::windowedMean(const QList<double> &tUs, const QList<double> &value,
+                                                            const QList<double> &valid) const
+{
+    const QVariantMap m = windowedMean(variantsOf(tUs), variantsOf(value), variantsOf(valid));
+    cu::WindowedMean r;
+    const QVariantList mean = m.value(QStringLiteral("mean")).toList(), sigma = m.value(QStringLiteral("sigma")).toList();
+    r.mean.reserve(mean.size());
+    r.sigma.reserve(sigma.size());
+    for (const QVariant &v : mean)  r.mean.append(v.toDouble());
+    for (const QVariant &v : sigma) r.sigma.append(v.toDouble());
+    return r;
+}
+
+pinpoint::chartui::Domain ChartMetrics::domainFor(const QString &key) const
+{
+    const QVariantMap m = domainMap(key);
+    cu::Domain d;
+    d.firstPhase    = m.value(QStringLiteral("firstPhase")).toInt();
+    d.lastPhase     = m.value(QStringLiteral("lastPhase")).toInt();
+    d.firstNarrowed = m.value(QStringLiteral("firstNarrowed")).toBool();
+    d.lastNarrowed  = m.value(QStringLiteral("lastNarrowed")).toBool();
+    d.narrowed      = m.value(QStringLiteral("narrowed")).toBool();
+    return d;
+}
+
+QVariantMap ChartMetrics::domainMap(const QString &key) const
 {
     // The DEFAULT-CONSTRUCTED domain is the whole swing (Address..Finish), and using it here
     // rather than writing 0 and 7 out means the fallback for an unknown key is authored in
@@ -572,7 +679,33 @@ bool ChartMetrics::drawsCurve(const QString &key) const
     return d ? d->card.drawsCurve() : true;
 }
 
-QVariantMap ChartMetrics::cardSpecFor(const QString &key) const
+pinpoint::chartui::CardSpec ChartMetrics::cardSpecFor(const QString &key) const
+{
+    const QVariantMap m = cardSpecMap(key);
+    cu::CardSpec c;
+    for (const QVariant &v : m.value(QStringLiteral("readAt")).toList()) {
+        const QVariantMap r = v.toMap();
+        cu::CardReading cr;
+        cr.phase = r.value(QStringLiteral("phase")).toInt();
+        cr.label = r.value(QStringLiteral("label")).toString();
+        c.readAt.append(cr);
+    }
+    c.peak         = m.value(QStringLiteral("peak")).toBool();
+    c.peakSpan     = m.value(QStringLiteral("peakSpan")).toBool();
+    c.peakFrom     = m.value(QStringLiteral("peakFrom")).toInt();
+    c.peakTo       = m.value(QStringLiteral("peakTo")).toInt();
+    c.delta        = m.value(QStringLiteral("delta")).toBool();
+    c.deltaSpan    = m.value(QStringLiteral("deltaSpan")).toBool();
+    c.deltaFrom    = m.value(QStringLiteral("deltaFrom")).toInt();
+    c.deltaTo      = m.value(QStringLiteral("deltaTo")).toInt();
+    c.deltaLabel   = m.value(QStringLiteral("deltaLabel")).toString();
+    c.rate         = m.value(QStringLiteral("rate")).toBool();
+    c.windowedMean = m.value(QStringLiteral("windowedMean")).toBool();
+    c.mergeInto    = m.value(QStringLiteral("mergeInto")).toString();
+    return c;
+}
+
+QVariantMap ChartMetrics::cardSpecMap(const QString &key) const
 {
     // Same fallback rule as domainFor: an uncatalogued key gets the DEFAULT spec, authored once in
     // metric_descriptor.h — which is the card this panel always drew.
@@ -633,19 +766,25 @@ bool ChartMetrics::measuredAt(const QVariantList &tUs, const QVariantList &valid
     return best < 0 || valid.at(best).toInt() != 0;
 }
 
-QVariantList ChartMetrics::niceTicks(double lo, double hi, int maxTicks) const
+bool ChartMetrics::measuredAt(const QList<double> &tUs, const QList<double> &valid,
+                              qint64 us, qint64 fromUs, qint64 toUs) const
+{
+    return measuredAt(variantsOf(tUs), variantsOf(valid), us, fromUs, toUs);
+}
+
+QList<double> ChartMetrics::niceTicks(double lo, double hi, int maxTicks) const
 {
     // The app's one tick rule (figure_format.h tickValues: 1-2-5, at most 64), so this chart's grid
     // and the Charts panel's axes step alike.
-    QVariantList out;
+    QList<double> out;
     for (double v : pinpoint::figures::tickValues(lo, hi, maxTicks)) out.append(v);
     return out;
 }
 
-QVariantList ChartMetrics::timeTicksMs(qint64 domStartUs, qint64 domEndUs,
-                                       qint64 impactUs) const
+QList<double> ChartMetrics::timeTicksMs(qint64 domStartUs, qint64 domEndUs,
+                                        qint64 impactUs) const
 {
-    QVariantList out;
+    QList<double> out;
     if (domEndUs <= domStartUs) return out;
 
     const double spanMs = double(domEndUs - domStartUs) / 1000.0;
@@ -659,7 +798,7 @@ QVariantList ChartMetrics::timeTicksMs(qint64 domStartUs, qint64 domEndUs,
     const double startMsFromImpact = double(domStartUs - impactUs) / 1000.0;
     for (qint64 ms = qint64(std::ceil(startMsFromImpact / double(step))) * step;
          impactUs + ms * 1000 <= domEndUs; ms += step) {
-        if (impactUs + qint64(ms) * 1000 >= domStartUs) out.append(ms);
+        if (impactUs + qint64(ms) * 1000 >= domStartUs) out.append(double(ms));   // whole ms, exact in a double
         if (out.size() > 64) break;
     }
     return out;
@@ -703,6 +842,21 @@ QString ChartMetrics::bandAtNearest(const QVariantList &phaseSamples, qint64 us)
     static constexpr qint64 kBandNearUs = 20000;
     if (bestD > kBandNearUs) return QString();
     return best;
+}
+
+int ChartMetrics::nearestPhase(const QList<int> &phaseIds, const QList<double> &phaseTimes, qint64 us) const
+{
+    return nearestPhase(phaseMapsOf(phaseIds, phaseTimes), us);
+}
+
+QString ChartMetrics::bandAtNearest(const QList<double> &sampleTimes, const QStringList &bands, qint64 us) const
+{
+    QVariantList samples;
+    const qsizetype n = qMin(sampleTimes.size(), bands.size());
+    samples.reserve(n);
+    for (qsizetype i = 0; i < n; ++i)
+        samples.append(QVariantMap{ { QStringLiteral("t_us"), sampleTimes.at(i) }, { QStringLiteral("band"), bands.at(i) } });
+    return bandAtNearest(samples, us);
 }
 
 QString ChartMetrics::shortLabel(const QString &key) const
@@ -798,6 +952,34 @@ QVariantMap ChartMetrics::sigmaInfo(const QVariantMap &series) const
     return out;
 }
 
+double ChartMetrics::seriesSigma(double sigma) const
+{
+    // The same rule as the map form: non-finite (undefined reaches here as NaN) or ≤ 0 (null reaches here as 0) is
+    // no claim.
+    if (!std::isfinite(sigma) || sigma <= 0.0) return 0.0;
+    return sigma;
+}
+
+pinpoint::chartui::SigmaInfo ChartMetrics::sigmaInfo(int sigmaKind, const QList<double> &grossRisks,
+                                                     const QList<int> &phases) const
+{
+    // The series the map form reads, rebuilt: a sample with no gross risk (NaN) carries no `grossRisk` key.
+    QVariantList samples;
+    for (qsizetype i = 0; i < grossRisks.size(); ++i) {
+        QVariantMap ps;
+        if (!std::isnan(grossRisks.at(i))) ps.insert(QStringLiteral("grossRisk"), grossRisks.at(i));
+        ps.insert(QStringLiteral("phase"), i < phases.size() ? phases.at(i) : 0);
+        samples.append(ps);
+    }
+    const QVariantMap m = sigmaInfo(QVariantMap{ { QStringLiteral("sigmaKind"), sigmaKind },
+                                                 { QStringLiteral("phaseSamples"), samples } });
+    cu::SigmaInfo out;
+    out.tip     = m.value(QStringLiteral("tip")).toString();
+    out.warn    = m.value(QStringLiteral("warn")).toBool();
+    out.warnTip = m.value(QStringLiteral("warnTip")).toString();
+    return out;
+}
+
 QString ChartMetrics::formatBare(double v, const QString &unit) const
 {
     const QString u = shortUnit(unit.isEmpty() ? QStringLiteral("°") : unit);
@@ -866,6 +1048,38 @@ QVariantList ChartMetrics::seriesGroups(const QVariantList &seriesList) const
             || !m.value(QStringLiteral("phaseSamples")).toList().isEmpty())
             plotted.insert(m.value(QStringLiteral("key")).toString());
     }
+    QVariantList out;
+    for (const auto &g : groupsFor(std::move(plotted)))
+        out.append(QVariantMap{ { QStringLiteral("group"), g.first },
+                                { QStringLiteral("keys"),  g.second } });
+    return out;
+}
+
+QList<pinpoint::chartui::SeriesGroup> ChartMetrics::seriesGroups(const QStringList &keys,
+                                                                 const QList<int> &curveLengths,
+                                                                 const QList<int> &phaseSampleCounts) const
+{
+    // The map form's showable rule, on the lengths QML projected: a curve of two samples or more, or a phase sample.
+    QSet<QString> plotted;
+    for (qsizetype i = 0; i < keys.size(); ++i) {
+        if (pinpoint::analysis::isResearchOnlySeries(keys.at(i)))
+            continue;
+        if ((i < curveLengths.size() && curveLengths.at(i) > 1)
+            || (i < phaseSampleCounts.size() && phaseSampleCounts.at(i) > 0))
+            plotted.insert(keys.at(i));
+    }
+    QList<cu::SeriesGroup> out;
+    for (auto &g : groupsFor(std::move(plotted))) {
+        cu::SeriesGroup sg;
+        sg.group = g.first;
+        sg.keys  = g.second;
+        out.append(sg);
+    }
+    return out;
+}
+
+std::vector<std::pair<QString, QStringList>> ChartMetrics::groupsFor(QSet<QString> plotted) const
+{
     if (plotted.isEmpty())
         return {};
     const QSet<QString> plottable = plotted;   // the group walk below consumes `plotted`
@@ -932,13 +1146,7 @@ QVariantList ChartMetrics::seriesGroups(const QVariantList &seriesList) const
         rest.sort();
         groups.push_back({ QStringLiteral("Other"), std::move(rest) });
     }
-
-    QVariantList out;
-    out.reserve(int(groups.size()));
-    for (const auto &g : groups)
-        out.append(QVariantMap{ { QStringLiteral("group"), g.first },
-                                { QStringLiteral("keys"),  g.second } });
-    return out;
+    return groups;
 }
 
 // ── The kinematic-sequence strip ──────────────────────────────────────────────────────────────
@@ -1439,3 +1647,6 @@ QString ChartMetrics::sequenceRouteText(const QVariantMap &ks) const
     return QStringLiteral("mixed: %1 measured · %2 estimated")
         .arg(measured.join(QStringLiteral(", ")), estimated.join(QStringLiteral(", ")));
 }
+
+// moc for the typed results' gadgets (chart_metrics_types.h has no .cpp of its own)
+#include "moc_chart_metrics_types.cpp"

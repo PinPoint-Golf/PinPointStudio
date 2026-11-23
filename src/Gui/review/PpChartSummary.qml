@@ -283,8 +283,9 @@ ColumnLayout {
                 // same one, so a tile never differs from the line the chart drew. Falls back to
                 // `valid` for a caller that has not composed one.
                 readonly property var    mask: card.modelData.reduceValid || card.modelData.valid || []
-                readonly property var    st:  cm.summaryMasked(card.modelData.t_us, card.modelData.value,
-                                                               card.mask, card.winStartUs, card.winEndUs)
+                readonly property var    st:  cm.summaryMasked(ChartSamples.nums(card.modelData.t_us),
+                                                               ChartSamples.nums(card.modelData.value),
+                                                               ChartSamples.nums(card.mask), card.winStartUs, card.winEndUs)
                 // THE DOMAIN CLAMP EMPTIED THE WINDOW: the selected span lies wholly outside where
                 // this metric means anything, so every window tile prints "-" rather than a Δ of
                 // 0.0 and a rate of 0 read off a single instant. Guarded on a non-empty selection
@@ -308,8 +309,9 @@ ColumnLayout {
                 readonly property real   pkFromUs: card.spec.peakSpan ? root._phaseUs(card.spec.peakFrom) : -1
                 readonly property real   pkToUs:   card.spec.peakSpan ? root._phaseUs(card.spec.peakTo)   : -1
                 readonly property var    stSpan: (card.pkFromUs >= 0 && card.pkToUs > card.pkFromUs)
-                                                 ? cm.summaryMasked(card.modelData.t_us, card.modelData.value,
-                                                                    card.mask, card.pkFromUs, card.pkToUs)
+                                                 ? cm.summaryMasked(ChartSamples.nums(card.modelData.t_us),
+                                                                    ChartSamples.nums(card.modelData.value),
+                                                                    ChartSamples.nums(card.mask), card.pkFromUs, card.pkToUs)
                                                  : ({})
                 readonly property bool   spanPeakOk: card.stSpan.edgeOk !== undefined
                                                      && card.stSpan.edgeOk !== false
@@ -320,10 +322,12 @@ ColumnLayout {
                 readonly property string nm:  cm.shortLabel(card.modelData.key)
                                               || card.modelData.label || card.modelData.key
                 // This series' measurement noise, resolved ONCE: it is what the header chip quotes.
-                readonly property real   sig: cm.seriesSigma(card.modelData)
+                readonly property real   sig: cm.seriesSigma(card.modelData.sigma)
                 // The σ chip's provenance and the gross-error caveat (chart_metrics.h sigmaInfo) —
                 // resolved once per card, like `sig`, because the map marshals the whole series.
-                readonly property var    sinfo: cm.sigmaInfo(card.modelData)
+                readonly property var    sinfo: cm.sigmaInfo(card.modelData.sigmaKind || 0,
+                                                         ChartSamples.field(card.modelData.phaseSamples, "grossRisk", NaN),
+                                                         ChartSamples.field(card.modelData.phaseSamples, "phase", 0))
 
                 // ── A READING AT AN INSTANT ─────────────────────────────────────────────────
                 //
@@ -344,16 +348,18 @@ ColumnLayout {
                                : { ok: false, val: 0, us: -1, raw: "" }
                     }
                     if (cm.isFittedCurve(card.modelData.key)) {
-                        var fit = cm.fittedCurveAt(card.modelData.t_us, card.modelData.value, card.modelData.valid || [], us)
+                        var fit = cm.fittedCurveAt(ChartSamples.nums(card.modelData.t_us), ChartSamples.nums(card.modelData.value),
+                                                   ChartSamples.nums(card.modelData.valid), us)
                         return { ok: fit.ok, val: fit.value, us: us, raw: "" }
                     }
                     var ok = ChartSamples.measuredAt(card.modelData, us)
                     var v  = root._reading(card.modelData,
-                                           labels.valueAtNearest(card.modelData.t_us, ChartSamples.meanOf(card.modelData), us))
+                                           labels.valueAtNearest(ChartSamples.nums(card.modelData.t_us),
+                                                                 ChartSamples.nums(ChartSamples.meanOf(card.modelData)), us))
                     var raw = ChartSamples.hasMean(card.modelData)
                               ? cm.formatBare(root._reading(card.modelData,
-                                                            labels.valueAtNearest(card.modelData.t_us,
-                                                                                  card.modelData.value, us)),
+                                                            labels.valueAtNearest(ChartSamples.nums(card.modelData.t_us),
+                                                                                  ChartSamples.nums(card.modelData.value), us)),
                                               card.modelData.unit)
                               : ""
                     return { ok: ok, val: v, us: us, raw: raw }
@@ -382,7 +388,8 @@ ColumnLayout {
                         // No curve: one tile per phase sample, nothing window-scoped.
                         var pss = card.modelData.phaseSamples || []
                         for (i = 0; i < pss.length; ++i) {
-                            var v0 = Theme.bandVerdict(cm.bandAtNearest(pss, pss[i].t_us))
+                            var v0 = Theme.bandVerdict(cm.bandAtNearest(ChartSamples.field(pss, "t_us", 0),
+                                                                        ChartSamples.field(pss, "band", ""), pss[i].t_us))
                             out.push({ label: card.readLabel({ phase: pss[i].phase }),
                                        text: card.fmt(pss[i].value), ok: true,
                                        verdict: v0, color: Theme.verdictColor(v0, Theme.colorText),
@@ -398,7 +405,9 @@ ColumnLayout {
                     var rs = sp.readAt || []
                     for (i = 0; i < rs.length; ++i) {
                         var r = card.reading(rs[i].phase)
-                        var v = r.ok ? Theme.bandVerdict(cm.bandAtNearest(card.modelData.phaseSamples, r.us)) : ""
+                        var v = r.ok ? Theme.bandVerdict(cm.bandAtNearest(ChartSamples.field(card.modelData.phaseSamples, "t_us", 0),
+                                                                          ChartSamples.field(card.modelData.phaseSamples, "band", ""),
+                                                                          r.us)) : ""
                         out.push({ label: card.readLabel(rs[i]),
                                    text: r.ok ? card.fmt(r.val) : "-",
                                    ok: r.ok, verdict: v,
@@ -472,7 +481,8 @@ ColumnLayout {
                     var us = root._phaseUs(phase)
                     if (us < 0) return { ok: false, val: 0, us: -1 }
                     return { ok: ChartSamples.measuredAt(s, us),
-                             val: root._reading(s, labels.valueAtNearest(s.t_us, ChartSamples.meanOf(s), us)), us: us }
+                             val: root._reading(s, labels.valueAtNearest(ChartSamples.nums(s.t_us),
+                                                                         ChartSamples.nums(ChartSamples.meanOf(s)), us)), us: us }
                 }
                 function companionTiles(s) {
                     var out = [], sp = cm.cardSpecFor(s.key), i
@@ -481,7 +491,9 @@ ColumnLayout {
                     var rs = sp.readAt || []
                     for (i = 0; i < rs.length; ++i) {
                         var r = card.companionReading(s, rs[i].phase)
-                        var v = r.ok ? Theme.bandVerdict(cm.bandAtNearest(s.phaseSamples, r.us)) : ""
+                        var v = r.ok ? Theme.bandVerdict(cm.bandAtNearest(ChartSamples.field(s.phaseSamples, "t_us", 0),
+                                                                          ChartSamples.field(s.phaseSamples, "band", ""),
+                                                                          r.us)) : ""
                         out.push({ label: rs[i].label ? rs[i].label : nm + " " + card.readLabel(rs[i]),
                                    text: r.ok ? cm.formatBare(r.val, s.unit) : "-", ok: r.ok,
                                    verdict: v, color: r.ok ? Theme.verdictColor(v, Theme.colorText) : Theme.colorText3,

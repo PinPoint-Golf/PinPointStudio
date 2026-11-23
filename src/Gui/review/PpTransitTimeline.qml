@@ -36,6 +36,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import PinPointStudio
+import "chart_samples.js" as ChartSamples
 
 Item {
     id: root
@@ -54,7 +55,10 @@ Item {
     readonly property real _span:    Math.max(1, app.state.replay.endUs - app.state.replay.startUs)
     readonly property real _playFrac: Math.max(0, Math.min(1,
                                        (app.state.replay.positionUs - app.state.replay.startUs) / _span))
-    readonly property int  _activeIdx: solver.activeStation(_phases, app.state.replay.positionUs)
+    // The phases as the typed bridge takes them (refactor 5.8a): each one's `phase` and `t_us`, in order.
+    readonly property var  _phaseIds:   ChartSamples.field(_phases, "phase", 0)
+    readonly property var  _phaseTimes: ChartSamples.field(_phases, "t_us", 0)
+    readonly property int  _activeIdx: solver.activeStation(_phaseTimes, app.state.replay.positionUs)
 
     // ── Geometry (cross-axis offsets fixed; main-axis = the line direction) ──────
     // The cross-axis stack, from the rail's top (horizontal) or left (vertical) edge: the readout
@@ -81,7 +85,7 @@ Item {
     // The full render model — recomputed only on layout/orientation/data change (NOT
     // on playhead movement). Each entry: {phase,tUs,frac,center,label,name,isImpact,elbow}.
     readonly property var _stations: app.state.replay.active
-        ? solver.stationLayout(_phases, app.state.replay.startUs, app.state.replay.endUs, _horizontal,
+        ? solver.stationLayout(_phaseIds, _phaseTimes, app.state.replay.startUs, app.state.replay.endUs, _horizontal,
                                _lineLen, Theme.sp(12), Theme.fontData, Theme.fontSzLabel)
         : []
 
@@ -95,7 +99,9 @@ Item {
     // gap arg reserves a PpChip's padding (sp(12)) plus a hair between neighbours, so
     // clustered chips (the P5/P6/P7 downswing group) never touch.
     readonly property var _pTicks: (app.state.replay.active && _positions.length > 0)
-        ? solver.positionLayout(_positions, app.state.replay.startUs, app.state.replay.endUs, _horizontal,
+        ? solver.positionLayout(ChartSamples.field(_positions, "p", 0), ChartSamples.field(_positions, "t_us", 0),
+                                ChartSamples.field(_positions, "source", 0), ChartSamples.field(_positions, "conf", 0),
+                                app.state.replay.startUs, app.state.replay.endUs, _horizontal,
                                 _lineLen, Theme.sp(14), Theme.fontData, Theme.fontSzMicro)
         : []
     readonly property bool _anyFitted:  _pTicks.some(function (t) { return t.source === 1 })
@@ -126,7 +132,7 @@ Item {
     readonly property string _activeName: (_activeIdx >= 0 && _activeIdx < _stations.length)
                                           ? _stations[_activeIdx].name : ""
     readonly property real   _metricVal:  _series0
-                                          ? solver.valueAtNearest(_series0.t_us, _series0.value,
+                                          ? solver.valueAtNearest(ChartSamples.nums(_series0.t_us), ChartSamples.nums(_series0.value),
                                                                   app.state.replay.positionUs) : 0
     readonly property string _metricUnit: (_series0 && _series0.unit) ? _series0.unit : ""
 
@@ -141,7 +147,7 @@ Item {
         var main = root._horizontal ? pt.x : pt.y
         var frac = Math.max(0, Math.min(1, (main - root._insetMain) / root._lineLen))
         if (root.snapToPhases)
-            app.state.replay.seekToUs(solver.snap(root._phases,
+            app.state.replay.seekToUs(solver.snap(root._phaseTimes,
                                             app.state.replay.startUs + frac * root._span,
                                             0.03 * root._span))
         else

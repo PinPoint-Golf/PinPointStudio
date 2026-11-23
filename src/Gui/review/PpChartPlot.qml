@@ -361,7 +361,7 @@ Item {
             // ChartMetrics.seriesSigma, not a local guard: one implementation of "absent means
             // absent" (it was three). Called once per series here, on a binding that changes with
             // the DATA — never per frame; it marshals the whole series.
-            var sg = cm.seriesSigma(s)
+            var sg = cm.seriesSigma(s.sigma)
             if (!(sg > 0)) continue
             var t = [], v = []
             for (var i = 0; i < s.t_us.length; ++i) {
@@ -699,7 +699,7 @@ Item {
                     // and measuredAt marshals the whole series across the QML boundary. This way
                     // it is evaluated once per dot, when the data changes.
                     readonly property bool measured:
-                        cm.measuredAt(dots.modelData.t_us, dots.modelData.valid || [],
+                        cm.measuredAt(ChartSamples.nums(dots.modelData.t_us), ChartSamples.nums(dots.modelData.valid),
                                       dot.modelData.t_us,
                                       ChartSamples.hasDomain(dots.modelData) ? dots.modelData.validFromUs : 0,
                                       ChartSamples.hasDomain(dots.modelData) ? dots.modelData.validToUs   : 0)
@@ -874,8 +874,8 @@ Item {
                 // to say "the curve is here at this instant". The readout beside it prints the same
                 // mean and the raw sample after it (PpMetricChart._valueTextAt / _rawTextAt), so the
                 // marker, the line and the two numbers are one statement.
-                readonly property real cv: labels.valueAtNearest(cmark.modelData.t_us,
-                                                                 ChartSamples.meanOf(cmark.modelData),
+                readonly property real cv: labels.valueAtNearest(ChartSamples.nums(cmark.modelData.t_us),
+                                                                 ChartSamples.nums(ChartSamples.meanOf(cmark.modelData)),
                                                                  root.cursorUs)
                 // The readout beside it prints "-" here (PpMetricChart._valueTextAt), so the
                 // marker has to go too: a dot pinned to the bridged value with a dash beside it

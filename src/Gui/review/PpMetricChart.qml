@@ -217,7 +217,10 @@ Item {
     // to the same vocabulary rather than to everything.
     property string _presetBase: ""
 
-    readonly property var _groups: cm.seriesGroups(root.seriesList)
+    // The typed bridge (refactor 5.8a): each series' key and the lengths the showable rule reads, not the series.
+    readonly property var _groups: cm.seriesGroups(ChartSamples.field(root.seriesList, "key", ""),
+                                                   ChartSamples.lengths(root.seriesList, "t_us"),
+                                                   ChartSamples.lengths(root.seriesList, "phaseSamples"))
     readonly property var _presetOptions: {
         var out = ["All"]
         for (var i = 0; i < root._groups.length; ++i) out.push(root._groups[i].group)
@@ -365,9 +368,10 @@ Item {
                 // `mean` on the entry every consumer falls back to the recorded samples, so the line
                 // and the card still agree — on the persisted number, not a 40 ms blur of it.
                 if (cm.cardSpecFor(s.key).windowedMean !== false) {
-                    var wm = cm.windowedMean(s.t_us, s.value, d.reduceValid)
-                    d.mean      = wm.mean
-                    d.meanSigma = wm.sigma
+                    var wm = cm.windowedMean(ChartSamples.nums(s.t_us), ChartSamples.nums(s.value),
+                                             ChartSamples.nums(d.reduceValid))
+                    d.mean      = ChartSamples.nums(wm.mean)    // plain arrays: indexed per sample by the plot
+                    d.meanSigma = ChartSamples.nums(wm.sigma)
                 }
                 out.push(d)
             }
@@ -719,7 +723,7 @@ Item {
             // widening it would change the look of every chart in the app for a feature nobody can
             // see yet. When the flag is off this costs one boolean test per series.
             if (root.showSigmaBand) {
-                var ss = cm.seriesSigma(s)
+                var ss = cm.seriesSigma(s.sigma)
                 if (ss > sig) sig = ss
             }
         }
@@ -784,9 +788,12 @@ Item {
 
     // ── Segments (chart-local window presets) ──────────────────────────────────────
     // [0]=Full, then adjacent phase pairs. Labels composed here via TimelineLabels.
-    readonly property var _segments:  cm.segments(root.phases, root._axisEnd - root._axisStart)
-    readonly property int _nearStart: cm.nearestPhase(root.phases, root.viewStartUs)
-    readonly property int _nearEnd:   cm.nearestPhase(root.phases, root.viewEndUs)
+    // The phases as the typed bridge takes them (refactor 5.8a): each one's `phase` and `t_us`, in order.
+    readonly property var _phaseIds:   ChartSamples.field(root.phases, "phase", 0)
+    readonly property var _phaseTimes: ChartSamples.field(root.phases, "t_us", 0)
+    readonly property var _segments:  cm.segments(root._phaseIds, root._phaseTimes, root._axisEnd - root._axisStart)
+    readonly property int _nearStart: cm.nearestPhase(root._phaseIds, root._phaseTimes, root.viewStartUs)
+    readonly property int _nearEnd:   cm.nearestPhase(root._phaseIds, root._phaseTimes, root.viewEndUs)
 
     function _segLabel(seg) {
         return seg.phaseA === -1 ? qsTr("Full")
@@ -832,7 +839,7 @@ Item {
             lo = Math.min(lo, t[0]); hi = Math.max(hi, t[t.length - 1])
         }
         if (!(hi > lo)) return null
-        var w = cm.dataWindow(root.phases, lo, hi, root._defaultSeg.startUs, root._defaultSeg.endUs)
+        var w = cm.dataWindow(root._phaseIds, root._phaseTimes, lo, hi, root._defaultSeg.startUs, root._defaultSeg.endUs)
         return w.trimmed ? w : null
     }
     // The chips: ChartMetrics' segments, with the data window slotted in after the swing unless
