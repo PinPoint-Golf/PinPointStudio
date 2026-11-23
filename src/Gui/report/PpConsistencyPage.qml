@@ -263,8 +263,10 @@ Column {
                                         values: rw.typicality
                                         roles: cr
                                     }
+                                    // the row's own width and gap, not `cp`'s: at teardown `cp` is gone first, and unparenting
+                                    // the row flips the badge's visible, so a read of `cp` here threw once per badged row (#220)
                                     Text { id: underText; anchors.verticalCenter: parent.verticalCenter
-                                           width: cp.width - under.x - (rowBadge.visible ? rowBadge.width + cp.g6 : 0); visible: text !== ""
+                                           width: rw.width - under.x - (rowBadge.visible ? rowBadge.width + under.spacing : 0); visible: text !== ""
                                            text: rw.fired + (rw.fired !== "" && rw.caution !== "" ? "  ·  " : "") + rw.caution
                                            font: cp.ro.fMicro; color: cp.ro.ink2; wrapMode: Text.WordWrap }
                                 }
