@@ -296,6 +296,15 @@ ctest --test-dir build/tests -j6 -LE qml_ui  # run tests in parallel (keep the Q
 ctest --test-dir build/tests --rerun-failed --output-on-failure
 ```
 
+### On the studio PC — `tools/studio/studio-build.cmd`
+
+The studio PC's test tree is `build\tests-vs18` (Debug, NMake JOM, the `tests/` umbrella). Two modes of `tools/studio/studio-build.cmd` use it; the script's header has the details and the exit codes.
+
+- **`tests`** builds the tree, then runs both passes (`-LE qml_ui`, then `-L qml_ui`), with the real stores checked around them. `tools/method/cabin_run.sh` runs it.
+- **`build`** does the same steps up to and including the build, then stops: no ctest pass, no settings snapshot. `tools/method/build_times.sh` times it. With nothing changed it takes about 1–2 minutes, e.g. `studio-build.cmd build pull jobs 16`.
+
+Both refuse while PinPoint Studio, Foresight, FSX or GSPro runs, take `patch <file>` and `jobs N` (1 to 24, default 16), and write `tests_cmake.log`, `tests_build.log` and `tests_summary.log` under `C:\PinPointStudio\scratch\studio-build\`.
+
 ### The QML UI suite — the `qml_ui` label
 
 Each `tst_*.qml` in `src/Gui/tests/qml/` is its own ctest test, `qml_ui.tst_<file>`: the one

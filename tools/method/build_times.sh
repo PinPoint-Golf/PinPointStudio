@@ -9,8 +9,9 @@
 # e.g. tools/method/build_times.sh build/wt-37c --repeat
 #
 # What it times, in build\tests-vs18 (Debug, NMake JOM, the tests/ umbrella; no compiler cache there: its CMakeCache
-# has no compiler launcher), each step a run of tools/studio/studio-build.cmd's "tests" mode, at jom -jN (default 16):
-#  1. clean:  "jom clean" in the tree, then the tests mode's build. The cabin keeps two trees and never a third, so this
+# has no compiler launcher), each step a run of tools/studio/studio-build.cmd's "build" mode (the tests mode's cmake and
+# jom, with no ctest pass), at jom -jN (default 16):
+#  1. clean:  "jom clean" in the tree, then the build mode's build. The cabin keeps two trees and never a third, so this
 #             is a clean of the existing tree, not a fresh configure: CMake's cache and autogen's outputs are kept.
 #             --no-clean leaves it out.
 #  2. header: each header in turn has its time stamp touched (copy /b <file> +,,: the content is unchanged, so the
@@ -21,9 +22,7 @@
 # --repeat runs the last header step a second time and prints the drift from the first (the check: within 10%).
 # The time of each row is jom's own, from studio-build.cmd's "jom -jN" and "build exit" %TIME% stamps; the compiles
 # and links are the "Building C/CXX object" and "Linking" lines of that run's tests_build.log. Peak memory is not
-# measured on the cabin ("-"). The tests mode runs both ctest passes after every build, as its header says it does;
-# their result is listed but is not what this tool measures (studio-build.cmd has no build-only mode, and this tool
-# never edits it).
+# measured on the cabin ("-").
 #
 # How it runs:
 #  - Lock: it holds the cabin lock (/mnt/swingdata/scratch/cabin.lock, tools/method/cabin_run.sh's lock and holder
@@ -148,7 +147,7 @@ cd /d \"%REPO%\"
 $pullblock
 for /f %%i in ('git rev-parse --short HEAD') do >> \"%RUN%\\console.log\" echo build_times: HEAD %%i
 $action
-call \"%REPO%\\tools\\studio\\studio-build.cmd\" tests nopull jobs $JOBS >> \"%RUN%\\console.log\" 2>&1
+call \"%REPO%\\tools\\studio\\studio-build.cmd\" build nopull jobs $JOBS >> \"%RUN%\\console.log\" 2>&1
 set RC=%ERRORLEVEL%
 :done
 >> \"%RUN%\\console.log\" echo build_times: wrapper end %DATE% %TIME% - exit %RC%
@@ -330,13 +329,12 @@ for s in $STEPS; do
     comp=$(grep -c -E 'Building (C|CXX) object' "$d/tests_build.log" 2>/dev/null)
     links=$(grep -c -E 'Linking (C|CXX) ' "$d/tests_build.log" 2>/dev/null)
     cln=$(tr -d '\r' < "$con" | awk '/^build_times: clean start/{a=$NF} /^build_times: clean exit/{b=$NF; c=$4} END{if(a&&b){split(a,p,/[:.]/);split(b,q,/[:.]/);d=(q[1]*3600+q[2]*60+q[3])-(p[1]*3600+p[2]*60+p[3]); if(d<0)d+=86400; print d " " c}}')
-    ctl=$(tr -d '\r' < "$con" | grep -E '^tests: ctest pass [12] exit' | awk '{print "pass " $4 " exit " $6}' | paste -sd ',' -)
     rcv=$(tr -d '\r\n ' < "$d/rc.txt")
     if [[ -z ${js[1]} || ${js[2]} != 0 ]]; then
         say "step $i: no successful build (wrapper exit $rcv); logs kept in $d"; FINAL=11
         ROWS+=("$label|-|${comp:--}|${links:--}|build failed, exit $rcv"); break
     fi
-    note="studio-build exit $rcv${ctl:+ ($ctl)}"
+    note="studio-build exit $rcv"
     [[ -n $cln ]] && note="jom clean ${cln%% *} s exit ${cln##* }; $note"
     if [[ $label == *"(repeat)" && -n $firstsecs ]]; then
         note="drift $(awk -v a=$firstsecs -v b=${js[1]} 'BEGIN{printf "%+.1f%%", (b-a)*100/a}') from the first; $note"

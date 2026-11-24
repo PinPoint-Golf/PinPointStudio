@@ -3,7 +3,7 @@ rem studio-build.cmd - the ONE way to build on GOLFSIMPC from the Mac. Lives in 
 rem is never retyped through ssh quoting. ASCII ONLY: a multi-byte character (an em dash on line 2,
 rem 11 Oct) makes cmd misread the lines after it under a UTF-8 console, so the cd into the Release
 rem tree failed and cmake configured in-source in the repo root. Run it by file:
-rem   ssh developer@GOLFSIMPC.local "cmd /c C:\Users\developer\Projects\PinPointStudio\tools\studio\studio-build.cmd [app|tool|both|deploy|migrate|tests] [pull|nopull]"
+rem   ssh developer@GOLFSIMPC.local "cmd /c C:\Users\developer\Projects\PinPointStudio\tools\studio\studio-build.cmd [app|tool|both|deploy|migrate|tests|build] [pull|nopull]"
 rem "migrate" builds only pps_migrate_step2 (refactor step 2.8a, the step-2 migrations) in the same tree, in a mode
 rem of its own, so a failure there can never fail "tool" or "both". Log: migrate_build.log; exit 6 on failure.
 rem "tests" is the Windows test lane (platform refactor B0.2). It REFUSES (exit 10) while PinPointStudio.exe
@@ -19,7 +19,7 @@ rem or stuck file times out alone and every other file is still run and reported
 rem C:\Qt\6.11.0\msvc2022_64\bin on PATH, QT_QPA_PLATFORM=offscreen and QT_QPA_FONTDIR=C:\Windows\Fonts
 rem (or system fonts are invisible). jom -j16 by default (Product Owner, 24 Nov): the 285K has 24 cores, about
 rem 22 GB stay free, and a Debug cl.exe was seen at 40-380 MB, so 16 at once stay far inside memory. Lower it
-rem with "jobs N" (1 to 24), e.g. studio-build.cmd tests pull jobs 8. Pass 2 runs that many QML files at once
+rem with "jobs N" (1 to 24; tests and build only), e.g. studio-build.cmd tests pull jobs 8. Pass 2 runs that many QML files at once
 rem (each one offscreen process of about 0.5 GB); pass 1 stays at -j8, since test timing, not build time, is
 rem what its job count changes. Excluded, as able to reach a real store here (the list is
 rem TEXCL at the ctest call): headless_probe_test (it launches the app, whose HOME/XDG_CONFIG_HOME isolation
@@ -42,6 +42,15 @@ rem mode and would pull underneath itself, then build and deploy the app. So pul
 rem (git pull --ff-only in the checkout), then run: studio-build.cmd tests nopull
 rem Run it only when no session is on and Premier is closed; a full Debug rebuild takes tens of minutes, so
 rem start it detached and poll the logs.
+rem "build" (platform refactor B0.5) is the tests mode's steps up to and including the build, then it stops:
+rem the same idle guard before the pull (exit 10; the APPDATA and TEMP checks are left out, since it takes no
+rem settings snapshot), the same patch handling and restore, then in build\tests-vs18 cmake . (tests_cmake.log
+rem and the test lists) and jom -j16 or "jobs N" (tests_build.log; exit 11 on a configure or build failure),
+rem with the same "tests:" lines in tests_summary.log. It runs no ctest pass and checks no real store, so it
+rem never exits 12 to 15. It is what tools/method/build_times.sh times: about 1 to 2 minutes when nothing
+rem changed, e.g. studio-build.cmd build pull jobs 16
+rem FIRST RUN AFTER THE COMMIT THAT ADDS "build": the cabin's older copy refuses it with exit 8 before it pulls,
+rem so pull by hand first (git pull --ff-only in the checkout), or let build_times.sh's wrapper, which pulls first.
 rem Defaults: both, pull. Pulls origin/main fast-forward (refuses on a dirty tree) and builds in
 rem build\Release-Installer, the studio's one Release tree: the app (cmake . first so the embedded
 rem sha is HEAD's), copied over the installed PinPointStudio.exe so the Start menu runs it, and
@@ -70,10 +79,12 @@ rem patched and the next run refuses as dirty: on the cabin, git checkout -- . a
 rem files listed in C:\PinPointStudio\scratch\studio-build\patch_created.txt.
 rem The app embeds HEAD's sha, so a patched exe reports HEAD: the PATCHED BUILD line ties it to the
 rem patch. Exit codes: 3 dirty, 4 pull, 5 app build, 6 tool build, 7 deploy, 8 patch, 9 restore,
-rem 10 tests refused (studio busy, or APPDATA or TEMP unset), 11 tests build, 12 a test failed, 13 a real store
+rem 10 tests or build refused (studio busy; for tests also APPDATA or TEMP unset), 11 tests or build: the test
+rem tree's configure or build failed, 12 a test failed, 13 a real store
 rem changed, 14 a test hit its timeout, 15 a changed settings file could not be kept (nothing put back).
 rem Ranks in the tests mode: 15 > 13 > 10 > 14 > 12. Any other mode name is refused with exit 8.
-rem "tests" takes a patch too: the suites run on the patched tree and the checkout is restored after.
+rem "tests" takes a patch too: the suites run on the patched tree and the checkout is restored after. So does
+rem "build": the test tree is built from the patched tree, and the checkout is restored after.
 setlocal
 set WHAT=%~1
 if "%WHAT%"=="" set WHAT=both
@@ -82,12 +93,12 @@ if "%PULL%"=="" set PULL=pull
 if "%WHAT%"=="deploy" set PULL=nopull
 set PFILE=
 set TJ=16
-rem After mode and pull|nopull come optional pairs: patch <file>, and (tests only) jobs <n>, in either order.
+rem After mode and pull|nopull come optional pairs: patch <file>, and (tests and build only) jobs <n>, in either order.
 :argloop
 if "%~3"=="" goto argsdone
 if "%~3"=="patch" goto argpatch
 if "%~3"=="jobs" goto argjobs
-echo USAGE: studio-build.cmd [app^|tool^|both^|deploy^|migrate^|tests] [pull^|nopull] [patch C:\...\wip.patch] [jobs N]
+echo USAGE: studio-build.cmd [app^|tool^|both^|deploy^|migrate^|tests^|build] [pull^|nopull] [patch C:\...\wip.patch] [jobs N]
 exit /b 8
 :argpatch
 if "%~4"=="" ( echo PATCH: no patch file given & exit /b 8 )
@@ -97,7 +108,7 @@ shift /3
 shift /3
 goto argloop
 :argjobs
-if not "%WHAT%"=="tests" ( echo JOBS: only the tests mode takes a job count & exit /b 8 )
+if not "%WHAT%"=="tests" if not "%WHAT%"=="build" ( echo JOBS: only the tests and build modes take a job count & exit /b 8 )
 if "%~4"=="" ( echo JOBS: no job count given & exit /b 8 )
 set TJN=
 set /a TJN=%~4 2>nul
@@ -109,8 +120,8 @@ shift /3
 shift /3
 goto argloop
 :argsdone
-for %%m in (app tool both deploy migrate tests) do if "%WHAT%"=="%%m" goto modeok
-echo USAGE: studio-build.cmd [app^|tool^|both^|deploy^|migrate^|tests] - "%WHAT%" is not a mode
+for %%m in (app tool both deploy migrate tests build) do if "%WHAT%"=="%%m" goto modeok
+echo USAGE: studio-build.cmd [app^|tool^|both^|deploy^|migrate^|tests^|build] - "%WHAT%" is not a mode
 exit /b 8
 :modeok
 set EXITRC=0
@@ -123,11 +134,18 @@ set NEWLIST=%LOGS%\patch_created.txt
 if not exist "%LOGS%" mkdir "%LOGS%"
 set TB=%REPO%\build\tests-vs18
 set TSUM=%LOGS%\tests_summary.log
-if not "%WHAT%"=="tests" goto busydone
+if "%WHAT%"=="tests" goto busycheck
+if "%WHAT%"=="build" goto busycheck
+goto busydone
+:busycheck
 if exist "%TSUM%" del /f /q "%TSUM%"
 call :say tests: start %DATE% %TIME%
+rem The build mode takes no settings snapshot, so it needs neither APPDATA nor TEMP.
+if "%WHAT%"=="build" call :say tests: build only - build\tests-vs18 is built, and no ctest pass is run
+if "%WHAT%"=="build" goto busyguard
 if not defined APPDATA ( call :say tests: REFUSED - APPDATA is not set, so the real-store check cannot see & exit /b 10 )
 if not defined TEMP ( call :say tests: REFUSED - TEMP is not set, so the settings cannot be copied first & exit /b 10 )
+:busyguard
 call :busy
 if defined BUSY ( call :say tests: REFUSED - the studio is busy, nothing pulled or built & exit /b 10 )
 :busydone
@@ -174,6 +192,7 @@ if "%WHAT%"=="deploy" goto deploy
 if "%WHAT%"=="tool" goto tool
 if "%WHAT%"=="migrate" goto migrate
 if "%WHAT%"=="tests" goto tests
+if "%WHAT%"=="build" goto tests
 echo app: cmake %TIME%
 cd /d "%RI%"
 C:\Qt\Tools\CMake_64\bin\cmake.exe . > "%LOGS%\app_cmake.log" 2>&1
@@ -215,6 +234,7 @@ echo migrate: %RI%\pps_migrate_step2.exe
 goto done
 :tests
 rem The Windows test lane. ctest's -E and -R patterns stay on lines of their own, outside ( ) blocks.
+rem The build mode runs this section up to and including jom, then goes to builtonly.
 set CRC1=0
 set CRC2=0
 set STORECHANGED=
@@ -240,12 +260,13 @@ for /f "tokens=3" %%n in ('findstr /c:"Total Tests:" "%LOGS%\tests_list_run.log"
 C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" -N -L qml_ui > "%LOGS%\tests_list_qml.log" 2>&1
 set QRUN=unknown
 for /f "tokens=3" %%n in ('findstr /c:"Total Tests:" "%LOGS%\tests_list_qml.log"') do set QRUN=%%n
-call :say tests: pass 1 will run %TRUN% of them, then pass 2 the %QRUN% QML files of the qml_ui label at -j%TJ%
+if not "%WHAT%"=="build" call :say tests: pass 1 will run %TRUN% of them, then pass 2 the %QRUN% QML files of the qml_ui label at -j%TJ%
 call :say tests: %TLIST% tests registered; jom -j%TJ% %TIME%
 jom -j%TJ% > "%LOGS%\tests_build.log" 2>&1
 set RC=%ERRORLEVEL%
 call :say tests: build exit %RC% %TIME%
 if not "%RC%"=="0" ( type "%LOGS%\tests_build.log" | findstr /i /c:": error" /c:": fatal error" & set "EXITRC=11" & goto fail )
+if "%WHAT%"=="build" goto builtonly
 set PATH=C:\Qt\6.11.0\msvc2022_64\bin;%PATH%
 set QT_QPA_PLATFORM=offscreen
 set QT_QPA_FONTDIR=C:\Windows\Fonts
@@ -272,6 +293,9 @@ if defined THUNG if not "%EXITRC%"=="10" set EXITRC=14
 if defined STORECHANGED set EXITRC=13
 if defined KEEPFAIL set EXITRC=15
 call :say tests: end %DATE% %TIME% - exit %EXITRC%
+goto done
+:builtonly
+call :say tests: built only, no ctest pass run and no real store checked - end %DATE% %TIME% - exit %EXITRC%
 goto done
 :done
 cd /d "%REPO%"
