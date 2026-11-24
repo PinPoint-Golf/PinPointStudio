@@ -12,6 +12,13 @@
 - The 3-shot live check at the cabin has not yet run.
 - The platform refactor assessment (revision 2, `5e550639`) carries what moves to the next refactor.
 
+**Appendices.**
+- **A.1** (at the end of Part A): two worked cases on the cost of the next change.
+- **06a** (`06a-judgement-calls.md`): the full decision log, J-1 to J-112.
+- **06b** (`06b-item-ledger.csv`): the item ledger from 23 Nov.
+
+Part B's sources under `build/refactor/` are the refactor's local working archive, which is not in the repository. Each fact still quotes its number or rule, so the report stands alone; the archive can be bundled on request.
+
 **Roles.** Decisions are attributed to roles (`governance/roles.md`): Product Owner, Solution Architect, Design Lead and Coaching Lead, all held by one person. "The coordinator" is the orchestrating agent. Implementers and reviewers are fresh agents per item.
 
 ---
@@ -23,31 +30,43 @@
 
 ## 1. The verdict, in short
 
-**The refactor delivered what it set out to deliver, at a cost that was too high in its first nine days and about right in its last two.** By the end of step 7, the app's data has owners:
+**The refactor delivered most of what it set out to deliver, on a reduced scope, at a cost that was too high in its middle week and reasonable when it was running.** What it set out to do and didn't is stated first, because the rest of this part is easier to judge with it in view (Part B §3, §8.6):
+- **Step 8** (the long-function splits) and **most of step 7's hygiene** were cut to #222 and #224 on 23 Nov, to save time and tokens.
+- **Step 3.0** (deleting the library converter) never started.
+- **The step-5 aim** ("no Gui component keeps its own copy of domain facts") was **not fully met**: the close's survey left 6 copies.
+- **The QML context globals** ended at 18, not the 4 the plan named.
+- **The 3-shot live check** at the cabin has **not run**, so the result is unproven where it matters most.
+
+Within that scope, the app's data now has owners:
 - a Shot owns its measurements, club, flight check and markup truth;
 - a Session owns its diagnosis, report and summary;
 - an Athlete owns its sessions;
 - the views read those owners and follow their events, instead of keeping their own copies.
 
-The audit's worst finding (H-04: golfer input could be lost from `diagnostics.json`) was fixed on day one. The architecture lint's allowed findings fell from 780 to 424, after it was widened at S1-g, and the QML boundary's untyped values from 329 to 143 (Part B §8.4).
+The audit's worst finding (H-04: golfer input could be lost from `diagnostics.json`) was fixed on day one. The architecture lint's allowed findings fell from 780 to 428, after it was widened at S1-g and again at the close to see new store doors. The QML boundary's untyped values fell from 329 to 143 (Part B §8.4).
 
-The cost was 9.6 calendar days for an estimate of 11–16 working days. That's inside the estimate, but the elapsed time hides how uneven it was:
-- **14–22 Nov, about 8 days:** Stage 0 through step 4.
-- **22 Nov 14:00 → 24 Nov, about 1.5 days:** steps 5, 6 and 7, about 55 items, more than in the eight days before.
+**The estimate can't be compared like for like.** It was 11–16 working days for the full scope, step 8 included. The refactor took 9.7 calendar days for a reduced scope.
 
-The difference wasn't the work getting easier: steps 5–6 held some of the riskiest cut-overs. It was the process changing.
+## 2. Where the time went, and what actually changed the pace
 
-## 2. Where the time went, and why it changed
+**The refactor was fast whenever it was running, from the first day.**
+- **14–15 Nov:** Stage 0 and steps G, 1 and 2 committed about 41 items in roughly 30 hours.
+- **22–24 Nov:** steps 5–7 committed about 43 in roughly 37 hours.
+- **16–21 Nov:** about 23 items in five days, all of them step 3.
 
-**Waiting, not working, dominated the first week.** Step 3 took 151 hours, of which about 32 were agent work (Part B §7.1). It spent 92 hours behind a gate on the Product Owner's live sessions, a gate the coordinator designed and recommended, and the gate found no defect. 17–20 Nov were then lost to the plan's usage limit: agent work that could have run behind the gate was not running at all. The coordinator's own retrospective (21 Nov) named the first cause. The second was the Product Owner's, on 23 Nov: tokens, not hours, set the pace.
+So the process changes of 21–23 Nov did **not** make running faster than on day one. What they did was **stop the stopping**. (An earlier draft of this analysis claimed the opposite, that steps 5–7 delivered more items than the eight days before them. Part B §1.1 shows that is wrong: about 71 item commits came before step 5, against about 43 after.)
 
-**Three changes made the difference, and each was cheap:**
-1. **Gates stopped blocking** (21 Nov). The work was pipelined behind the evidence and committed when the evidence came. Nothing was lost by it.
-2. **Reviews became risk-tiered** (23 Nov). An independent review ran only for cut-overs, deletions and writes of golfer data. Moves, reads and typing got a coordinator self-check of the diff, plus the agent's own tests, probes and parity. In steps 4–7, 15 of 21 ledger items were self-checked. *Whether that let defects through is not yet known:* the 3-shot live check at the cabin hasn't run.
-3. **The token sinks were named and cut** (23 Nov):
-   - the information model (425 KB, about 100k tokens) was read whole by every data-touching agent, until an excerpt tool replaced that with roughly 5–15 KB per brief;
-   - the dashboard had grown to 92 KB;
-   - long-lived agents' contexts had passed 700k tokens, and were replaced by fresh agents per item with briefs that name what to read.
+**Waiting, not working, dominated the middle week.** Step 3 took 151 hours, of which about 32 were agent work (Part B §7.1). It spent 92 hours behind a gate on the Product Owner's live sessions, a gate the coordinator designed and recommended, and the gate found no defect. 17–20 Nov were then lost to the plan's usage limit: agent work that could have run behind the gate was not running at all. The coordinator's own retrospective (21 Nov) named the first cause; the Product Owner named the second on 23 Nov.
+
+**What kept it running on 22–24 Nov, cheaply:**
+1. **Gates stopped blocking** (21 Nov): the work was pipelined behind the evidence and committed when the evidence came.
+2. **Risk-tiered review** (23 Nov): an independent review only for cut-overs, deletions and writes of golfer data; moves, reads and typing got a coordinator self-check of the diff, plus the agent's tests, probes and parity. In the ledger from 23 Nov, 17 of 24 items were self-checked. *Whether that let defects through is not yet known:* the 3-shot live check at the cabin hasn't run.
+3. **The token sinks were cut** (23 Nov):
+   - every data-touching agent had read the information model whole (425 KB, about 100k tokens) until an excerpt tool replaced that with roughly 5–15 KB per brief;
+   - the dashboard had reached 92 KB;
+   - long-lived agents' contexts had passed 700k tokens, and were replaced by fresh agents per item.
+   
+   These changes kept the run inside the plan's limit, which is what had stopped it before.
 
 **Parallel work helped less than its reputation.** Two lanes in two worktrees, with one build at a time across them (the machine has 16 GB), roughly doubled throughput. They didn't shorten any item, which still took 40–90 minutes from brief to commit. The real gain from lanes was that a lane waiting on a review, a decision or a build lock didn't idle the machine.
 
@@ -72,15 +91,18 @@ The process documents are the clearest excess. Most were never read again after 
   Several of these existed before the refactor and were *found by it*; finding them is part of its value.
 - **Agreement between surfaces.** The LM card, Club delivery, This shot, Tendencies, Charts and the report now take the same facts from the same owner, through the same rules: one direction, one club, one precedence, one handedness gloss, one low point. Before, a 7 iron at −2.5° read "Pull–fade" on the card and "Straight" in Tendencies. This is the change a golfer would notice most, and it's what the information model exists for.
 - **Responsiveness.** Pack edits, corrections, trashes and re-analyses now show at once, without a relaunch or reload, because views follow events instead of copies.
-- **Structure.** The allowlist (780 → 428 allowed findings since S1-g, after the close widened A5 to see the new store doors) and the local-copies survey measure it. The survey's acceptance test at the close found 51 copies: 16 gone, 29 justified as derived display caches, and 6 left. Of those 6, four belong to #224, one was filed (#234), and one was a real golfer-input loss (below). So the step-5 aim, "no Gui component keeps its own copy of domain facts", was **not fully met**, and the report says so. *The coordinator can't yet show that the next change is cheaper.* That's the claim a refactor ultimately rests on, and the evidence for it is the next feature built on this code, not this report. A cheap test: take the next real request, such as a new metric or view, and count the files it touches and the rules it has to know.
+- **Structure.** The allowlist (780 → 428 allowed findings since S1-g, after the close widened A5 to see the new store doors) and the local-copies survey measure it. The survey's acceptance test at the close found 51 copies: 16 gone, 29 justified as derived display caches, and 6 left. Of those 6, four belong to #224, one was filed (#234), and one was a real golfer-input loss (below). So the step-5 aim, "no Gui component keeps its own copy of domain facts", was **not fully met**, and the report says so. **The cost of the next change**, from two worked cases read from the code before and after (Appendix A.1, a read-only comparison of `37289e33` with main):
+  - *A new launch-monitor reading,* shown on the board, in Charts, in the report and in findings, touches **more** files now (15 against 12), because Charts Delivery gained a typed presenter and a shared numbers struct. The gain is in what a developer must know. Before, precedence, club, left-out shots and handedness were reimplemented on four surfaces, and those copies disagreed. Each is now one rule (three club rules became one, plus the board's named legacy exception), and a test fails if the report has no name for the reading.
+  - *A view that must follow a club correction:* before, it could meet 3 club rules and 9 copies that a club edit never refreshed. After, it reads one owner over the session, leaving short asynchronous lags and the one named exception.
+  - **So the refactor made changes safer and more consistent, not smaller.** Some places are still not one rule: the signed-direction lists, two hand-picked precedences in Delivery, and the board's own short labels.
 
-**So was it worth it?** On correctness and agreement, yes: the defects fixed and the disagreements removed are real, golfer-visible and lasting. On cost, the first nine days paid perhaps twice what the work needed, mostly in waiting and words, not in code. The last day and a half shows roughly what the same work costs when run well.
+**So was it worth it?** On correctness and agreement, yes: the defects fixed and the disagreements removed are real, golfer-visible and lasting. On cost, the middle week (16–21 Nov) paid for days of waiting, and the whole refactor paid for far more words than anyone read; the code itself was not the expensive part. The last day and a half, like the first, shows roughly what the same work costs when nothing stops it.
 
 ## 4. Quality: what the reviews caught, and what got through
 
 - **Reviews earn their cost on writes, deletions and anything left- or right-sensitive.**
   - Step 3: 82 blocking findings, 37 of them implementer defects.
-  - Steps 4–7: 24 blocking findings in 20 reviewed items.
+  - Steps 4–7: 25 blocking findings in 21 reviewed items.
   
   The most telling ones were found by a reviewer *running the app on constructed scratch data*: 6.3b's left-hander sentences, 5.7a's trash-after-correction. Reading the code didn't find them. Tests and probes on the parity set couldn't have, because the parity set has no left-hander and no skied shot.
 - **The coordinator twice overruled a reviewer's "edge case" towards safety** (5.6a's older-build note loss; 6.1a's Windows path). Both involved golfer input on the primary platform. The edge-case rule ("fix only blocking; park the rest") is right for pace, but it needs a standing exception: *anything that can lose golfer input on a supported platform is blocking, however unusual the path.*
@@ -136,8 +158,8 @@ The process documents are the clearest excess. Most were never read again after 
 ## 8. Questions for the reviewers
 
 **(a) On the refactor itself**
-1. Is the risk tier for self-checking right? 15 self-checked items await their first live run. What evidence, short of a review, would you require before trusting them?
-2. The edge-case rule parked 19+ issues. Is "triage them once, in a batch" safe, or should some classes never be parked?
+1. Is the risk tier for self-checking right? 17 self-checked items await their first live run. What evidence, short of a review, would you require before trusting them?
+2. The edge-case rule parked 22 issues. Is "triage them once, in a batch" safe, or should some classes never be parked?
 3. Where is the next change most likely to show whether the structure paid off? What would you measure?
 
 **(b) On governance and method for future refactors**
@@ -145,6 +167,49 @@ The process documents are the clearest excess. Most were never read again after 
 2. How should a project keep a contract like the information model small enough to read and complete enough to trust? Is a principles register separate from the decision log the answer?
 3. What should an unattended agent be allowed to decide alone? The record suggests: anything a stated principle settles. Is that the right line?
 4. 753,000 words of process documents for 47,500 lines of product. What document discipline would you impose, and what would you keep?
+
+## Appendix A.1 · Worked cases: the cost of the next change
+
+
+BEFORE = `37289e33`. AFTER = `origin/main` = `a269b685`. Read with `git show`, `git grep` and `git ls-tree`; nothing built or run. Counts leave out tests and test data.
+
+## Case 1: a new Premier reading on the board, Charts Delivery, the report and the findings
+
+**Method.** Spin axis is already there at both shas, so it is traced here as the pattern a new reading would follow. Raw grep counts did **not** fall: `spinAxis` is in 25 → 28 files, `dynamicLoft` 16 → 18, `closureRate` 10 → 11. The table below counts only the places you **must edit** to add a reading. It leaves out the code that merely uses the value (`lm_inferred_reads.h`, `lm_flight_path.h`, `shot_outcomes.h`). Where that line falls is a judgement call.
+
+| Place to edit | BEFORE | AFTER |
+|---|---|---|
+| Reading, field table, Premier column, catalogue | `launch_monitor_reading.h`, `.cpp` `fieldDefs()`, `premier_session_parser.cpp`, `metric_catalogue_manifest.cpp` | same 4 |
+| LM key list | `metric_providers.cpp` | `measurement.h` `launchMonitorReadingKeys()` (one list; providers and writer read it) |
+| Board | `PpLmGraphicsBody.qml` (tile or table column, with its own words); the stats come free through `fieldDefs()` | same |
+| Charts Delivery | `session_delivery.h` + `.cpp` (2 key lists, `instant()`), `charts_delivery_presenter.cpp`, `PpChDeliveryShotSection.qml` | adds `delivery_grid_numbers.h` (field + read), a copy line in `session_delivery.cpp`, and a `Q_PROPERTY` in `charts_delivery_types.h` |
+| Report | `session_report_model.cpp`: `lmCols` row and `tile(key, label, unit, dp…)` carry their own name, unit and decimals; appendix `kBall`/`kClub` | `report_lm.cpp`: `tile("lm.X")`, `kCols`, `kBall`/`kClub` (name, unit and decimals are derived); plus a row in `report_words.h` `lmGolferLabels()` |
+| Findings | `core.json` measure (rule data) | same |
+| **Files to edit** | **12** | **15** |
+| If the reading is signed (left/right) | +3: `lmDirectionWord`, QML `dirKinds`, the `lmTablesNote` sentence | +3: same (still marked "KEEP IN SYNC") |
+
+| Rule a developer must know | BEFORE | AFTER |
+|---|---|---|
+| Precedence (monitor vs camera) | No stated rule. Each surface writes its own `monA ? lm : ours` (`session_delivery.cpp:672`) | One rule, `pickByPrecedence` (`measurement_precedence.h`, R-INS-3), used by the board, Delivery and the findings ladder. Still picked by hand: loft vs nominal loft (`session_delivery.cpp:625`) and face-to-path (`:718`) |
+| Words | Names in 5 places (`fieldDefs`, catalogue, board QML, report `lmCols`/`tile`, `core.json`). The report contradicted itself: its numbers table headed "Path" (`lmCols`) and its tile said "Club path". Only `fieldDefs` against the catalogue is tested | The report takes every name from one table; `report_lm_test` H1 fails when a field has no name there. The board keeps its own short labels unless it is embedded in the report (`nameOf`) |
+| Club | 3 rules: board `resolveClubs` (correction > evidence relabel > recorded); `swingDocClub` (declared > captured > "DRIVER"); `swingDocDeclaredClub` (declared > captured > ""), used by the findings (`measure_sample.cpp:1000`), Charts and the report tiles | One rule, `effectiveClub` (`club_vocabulary.h`), used by the board reduction, the report, `SessionSeries` and the findings (`swingDocEffectiveClub`). One named exception: J-106, a legacy "DRIVER" stub on the board |
+| Left-out shots | Honoured only by the board and the report appendix. The report's tiles (`lmSeries`), Charts and the findings count left-out shots | Honoured by the board reduction (shared with the report), `seriesAnnotateForBoard` (Charts) and `SessionDiagnostics` (`board_annotations.h`) |
+| Handedness | Written inline on each surface (`session_report_model.cpp:895`, `lm_inferred_reads.h:237` flip). Charts Delivery never set it (`session_delivery.h:169`: "the snapshot carries none today") | One gloss, `handedness_gloss.h` (`glossedSign`, `golferHand`). Still outside it: the raw ternary at `session_delivery.cpp:627` and the `dirKinds`/`lmDirectionWord` pair |
+
+## Case 2: a new session card that must follow a golfer's club edit
+
+There are two edits: the declared club (popover; EVT-21) and the board's correction (EVT-04). Both are covered.
+
+| | BEFORE | AFTER |
+|---|---|---|
+| Owner and one writer | None. `ShotListModel::setClub` / `setLmClubOverride` write `swing.json` and emit `dataChanged` on that one model; neither regrades nor re-reads anything else | The `Shot` (`correctClub`, `setDeclaredClub`) |
+| What the card must read | The board's `ShotListModel` roles, plus its own copy of `resolveClubs` (or its own `LmSessionModel`), plus a `SessionDiagnosticsModel`, plus its own `SessionSeriesModel` fed by hand (`shotProcessed`, `reanalysed`, diagnostics `busy`) | One owner over `app.session`: `SessionSeries.of(session)` (`snapshotChanged`) or `SessionDiagnostics` (`diagnosisApplied`). Both hear EVT-04 and EVT-21 themselves (`session_series.cpp:306`, `session_diagnostics.cpp:428`). Per shot: `ShotListModel` `ClubRole` = `effectiveClub`, through `SessionShotSource` |
+| **Different value**: how many club rules a card could meet | **3** (above); only the board's honours the correction | **1**, + J-106 for legacy stub shots on the board |
+| **Stale value**: copies a correction does not refresh | **9**: 5 view-owned `SessionSeriesModel`s (Charts, Consistency, Trust ×3), 3 `SessionDiagnosticsModel`s (panel, work-ons, report), the other carousel `ShotListModel` | **0 lasting.** Short lags: `SessionSeries` and `SessionDiagnostics` re-read or re-fire on the work pool. Lasting by design: the shot's analysis stays marked stale until it is re-analysed (EVT-04 re-fires the findings, not the analysis), and a report is a snapshot taken when it is made. The phase-grid sidecar's club copy (`measure_sample.cpp:845`) is checked against the document's size and mtime |
+
+## Conclusion
+
+The refactor did not make a new reading cheaper to type. It costs 15 files after against 12 before, because Charts Delivery now has a typed presenter and a shared grid-numbers struct. What changed is what a developer has to know, and what catches a mistake. Before, the club, left-out shots, handedness and precedence were each implemented again per surface, and they disagreed: three club rules, Delivery with no handedness at all, and report tiles that counted shots the board had left out. A new reading or card inherited those disagreements silently. After, each of those is one rule in one header, the report's words are checked by a test, and a new card subscribes to one owner instead of hand-feeding its own copy. That takes the club's stale or different readings from 9 copies and 3 rules down to short lags and one named exception. Against that there is a new fixed cost: `information_model.md` (1,971 lines), `architecture_lint_test` A1–A8 with 138 allowlist lines, and the Solution Architect approval rule. Judgement: neither case is an information-model change under §1.2, because a catalogue metric within an existing family is exempt and a view over existing owners creates no state. So that cost is reading cost here, not approval cost. Not yet one rule: the signed-direction lists (still marked "KEEP IN SYNC"), the two hand-picked precedences in Delivery and the board's own short labels.
 
 ---
 
@@ -1217,6 +1282,8 @@ that may not be devices (`launchMonitor`, `trunkCeremony`, `liveWrist`)". Where 
 | The GPU leak fix's confirmation run | "Optional: the GPU leak confirmation run" | archive "Needs you" |
 | **Left-handed and skied shots** | seen only on a scratch left-hander and a skied shot built by the 6.3b reviewer; "the parity set has no left-hander and no skied shot" | J-98; `DASHBOARD.md` 22:07 |
 | Steps 4–7 in a live studio session | no live run recorded after the 21 Nov combined run | `DASHBOARD.md`; archive log |
+| **J-84's Windows folder-spelling match** (an LM reading's folder matched case-insensitively, separators and a trailing slash normalised) | the case and backslash spellings run only on a Windows build; no Windows test build has run them | `step-6/NOTES-6.1a.md` (fix round); J-84 |
+| **6.2's `.ppsw` legacy-stub path** | proven by `swing_doc_test` alone; the probe covered only old `swing.json` documents | `step-6/NOTES-6.2.md`; J-112 |
 | **Edge-case issues** | **22 labelled `edge case`, 21 open** (#200 closed) | §9 |
 | Other open issues raised since 14 Nov | 48 open of 51 | §9 |
 | Medium findings deliberately left: H-06's command rewrites | open, for the Solution Architect to place | INVENTORY §2; DEC-183 |

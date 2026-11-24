@@ -1,0 +1,25 @@
+item,lane,commit,impl_tokens,review_tokens,fix_tokens,builds,reviewed,blockers,notes
+#220,B,5b54fcee,124593,0,0,1,self-check,0,cause was cp null at teardown; nothing visible
+5.6a,A,76b9e96e,366330,160335,99319,3,review,0,E1 golfer-input fold fixed anyway (coordinator overrode EDGE); J-76
+5.7c+d,B,9d5d2401,374750,0,0,2,self-check,0,J-77
+5.7e,B,c0780dd5,283136,0,0,2,self-check,0,
+5.6b,A,5b166d82,525850,192875,0,2,review,0,stopped at D1 for SA question; 3 SA answers live; #225
+5.6c,A,39261194,373976,0,0,1,self-check,0,J-80
+5.8a,B,4dbf0a5c,507005,0,0,3,self-check,0,stopped at D1 for SA (owner reads); merged tree rebuilt by coordinator; J-81
+5.8a-imu,B,bf09a9a0,186290,0,0,1+1 coordinator,self-check,0,agent build failed on missing include; coordinator built
+5.7a,A,32b43a23,412273,167720,133296,3+1,review,3 (B1 trash-after-correction row returns; B2 coalescing lost; B3 shotChanged = IMC built early),B3 approved live (J-82)
+6.1a,B,2806c4f7,393689,206166,263723,3+1 coordinator,review,1 (two precedence statements left) + 1 raised by coordinator (Windows path; J-84),4 proposals D-1..D-4 (J-83); JSON dumps instead of sheets; one ctest outside the lock
+5.7a-P1,A,9e8fabef,~257000,0,0,2,self-check,0,J-88 (lint A5 gap for Export store doors)
+5.7b,A,6336a797,413851,0,0,2,self-check,0,J-89
+6.1b,B,9e8ea9da,500906,0,0,1+1 coordinator merge build,self-check,0,J-90 (interim owner; graphics map untyped; report names change)
+6.3a,B,ebcba8b7,343411,0,0,1,self-check,0,J-91 (old PDFs read out of date once)
+5.8b,A,048aca1d,408185,0,0,1+1 coordinator merge build,self-check,0,J-92 (18 globals; grep for bare uses clean)
+5.6d,A,6be40833,203103,0,0,1,self-check,0,B6 evidence on a real session; qml_ui 10/555 red after 5.8b -> 5.8c
+5.8c,A,f7197fec,~170000,0,0,1,self-check,0,qml_ui 545->554/555; only 2 of 10 from 5.8b; test_15 left (#issue)
+7.3,A,45419616,318551+~140000,0,0,2+1,self-check,0,J-99/J-100: src/Vocabulary/Analysis (20 files); types-move.sh for lane B
+6.3b,B,cf37d0d3,588371+340916+~121000,366574,,3+1 coord+2+1,review,3 (left-hander B-1..B-3; fixed and seen live),J-98 J-101 J-102 J-103; 44/92 LM cards renamed as predicted
+7.1,A,fb21ff39,350159+154861,0,0,2+1,self-check,0,4 of 6 lines gone; measure_sample to platform (P-3); J-104 hook
+7.2,A,95997058,289759,~150000,0,2,review,0,fingerprint proven in binary; J-107 (J-2 direct call, for SA)
+6.2,B,5946266d,474830+~250000,176747,,3+3,review,1 (3-D synthesis read raw club) + J-106 stub exception,parity 16 predicted; R-CLUB-2 one rule
+6.4,A,3acb50f2,362478,0,0,2,self-check,0,63 shots now show attack-angle low point; D-1 deferred (hm.* derived?)
+5.10,A,94b3b9a1,142772,0,0,2,self-check (golfer-input write; coordinator diff check),0,loss proven by a failing test first
