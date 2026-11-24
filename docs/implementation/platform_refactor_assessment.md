@@ -1,6 +1,6 @@
 # Platform refactor: assessment
 
-**Date:** 2026-11-24 (revision 2, a draft for the close of steps 5–7; the first version is 21 Nov 2026).
+**Date:** 2026-11-24 (revision 3: revision 2, written for the close of steps 5–7, with the domain refactor's lessons, a second outside review and the 24 Nov rulings applied; the first version is 21 Nov 2026).
 **Status:** assessment for the platform refactor, after step 7 of the current refactor (the refactor ends at step 7;
 step 8 left the plan for #222[^po23-plan]). The first version was reviewed (`build/refactor/platform-review/REVIEW.md`,
 21 Nov 2026) and revised; this revision folds in what steps 5–7 routed here and an outside review (§10).
@@ -9,7 +9,7 @@ step 8 left the plan for #222[^po23-plan]). The first version was reviewed (`bui
 **Checked against:** the first version at HEAD `8cd42e44` (main, 21 Nov 2026), with `docs/developer/information_model.md`
 (IM) v1.9.10, and v1.9.12 for DEC-193. This revision's new facts are read at `origin/main` `5946266d` (24 Nov 2026):
 the J-calls (`build/refactor/step-3/JUDGEMENT-CALLS.md`), GitHub #222, #224, #229 and #230, the allowlist, the lint's
-ring table and IM. Its counts are re-measured at the close, at `origin/main` `44ae9230` (24 Nov 2026), with IM v1.9.52[^c-sha]. Also
+ring table and IM. Its counts are re-measured at the close, at `origin/main` `44ae9230` (24 Nov 2026), with IM v1.9.52[^c-sha]; revision 3's corrections are IM v1.9.53. Also
 `docs/implementation/swe-audit/02-findings.md` (02), `04-remediation-plan.md` (04) and 05;
 `docs/implementation/code_quality_review.md` (the June review); `src/Gui/tests/architecture_allowlist.txt` (the
 allowlist); the open GitHub issues.
