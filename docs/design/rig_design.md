@@ -1,6 +1,6 @@
 # The Rig and calibration: a design proposal (platform refactor, Stage C)
 
-**Status: a proposal, for the Solution Architect to rule on. Nothing here is built until it is approved.**[^hard]
+**Status: approved, 24 Nov 2026.** The Solution Architect approved the design and every recommendation in §9 as written, the information-model changes of §8 among them[^sa24-rig]. Stage C builds it, item by item, in §10's order.[^hard]
 It answers Stage C of the platform plan[^plan-c] and the plan's Q2[^q2]. This is the third draft: it takes the
 independent review of 24 Nov 2026 (round 1: 8 blocking findings, 12 notes; round 2: 3 blocking, 7 notes), whose evidence is copied into Appendix A so the
 page stands on committed sources.
@@ -856,3 +856,4 @@ directory.
 [^code-id]: `src/Identity/identity.h`.
 [^code-hm]: The header of `src/Gui/calibration/HackMotionArmRoutine.qml`: "Nothing about the HackMotion calibration is persisted, ever".
 [^code-test]: `src/Gui/tests/setup/support/CalibDriver.qml`; `tst_setup_trunk.qml`, `tst_setup_calib_witmotion.qml`, `tst_setup_calib_hackmotion.qml`.
+[^sa24-rig]: The Solution Architect, 24 Nov 2026: "approve as recommended" (`build/platform/JUDGEMENT-CALLS.md` PR-35). §9's questions 10, 14, 17 and 18 are implementation choices, taken as recommended by the coordinator and logged there too.
