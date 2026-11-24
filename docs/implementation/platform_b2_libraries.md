@@ -1,8 +1,8 @@
 # Platform refactor, Stage B Part 2: the libraries by ring. Fifteen questions, classified
 
-**Status: ruled, 24 Nov 2026** (each row's **Ruled** line). Built by Stage B Part 2's items.
-(P1–P3). Each row has an empty **Ruled** line: the coordinator writes the answer, the role and the date there, and the
-briefs that wait read it.
+**Status: ruled, 24 Nov 2026** (each row's **Ruled** line). One question was the Solution Architect's (L10's rules 3
+and 4), three the Product Owner's (P1–P3), and eleven the coordinator's calls (L1–L9, L11, L12), logged for review.
+The briefs that wait read each row's **Ruled** line. Built by Stage B Part 2's items.
 
 **Why this page exists.** Stage B, Part 2 of the platform plan cuts one static library per ring and has the tests
 link them[^plan]. The plan marks that structure "proposed", and the pilot library left six questions "binding on the
