@@ -359,6 +359,7 @@ ShotSummary SwingStoreRecordingRepository::readSummary(const ShotRef &shot, bool
     out.dataWarningDetail = s.dataWarningDetail;
     out.lmExcluded        = s.excluded;
     out.lmClubOverride    = s.clubOverride;
+    out.legacyClubStub    = s.legacyClubStub;
     return out;
 }
 

@@ -910,8 +910,9 @@ int main()
         // Schema 9 (issue #1) moved the extremes at a masked end (the window's line read at its anchor,
         // clamped): a v8 sidecar's guard still matches, so only the bump retires them.
         // Schema 10 reads the two plane curves at the phase instant (fitted_curve.h).
-        check(kPhaseGridSchemaVersion == 10,
-              "the sidecar schema is 10: closed spans, no zero-width span, no endpoint seed, σ, route, withheld, gate records, masked-end extremes");
+        // Schema 11 (refactor 6.2): `club` is the shot's effective club, the board's correction included.
+        check(kPhaseGridSchemaVersion == 11,
+              "the sidecar schema is 11: the effective club, closed spans, no zero-width span, no endpoint seed, σ, route, withheld, gate records, masked-end extremes");
         for (const int old : { 2, 3, 8 }) {
             QJsonObject prev = doc;
             prev.insert(QStringLiteral("schema"), old);

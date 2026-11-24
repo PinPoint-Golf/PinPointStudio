@@ -133,7 +133,7 @@ static pinpoint::testdoc::MemoryShotSource *sessionOf(ShotListModel &m)
 static QVariantMap detailOf(const QString &dir) { return g_details.value(dir); }
 // One shot of the session lands (its document: EVT-01), with its readings.
 static void land(ShotListModel &m, int ord, const QString &time, const QString &club, const QVariantMap &detail,
-                 bool measured, bool leftOut)
+                 bool measured, bool leftOut, bool legacyStub = false)
 {
     pinpoint::testdoc::MemoryShotSource *src = sessionOf(m);
     const pinpoint::ShotRef ref = src->allocate(ord);
@@ -144,6 +144,7 @@ static void land(ShotListModel &m, int ord, const QString &time, const QString &
     s.club = club;
     s.lmDevice = measured ? QStringLiteral("gcquad") : QString();
     s.lmExcluded = leftOut;
+    s.legacyClubStub = legacyStub;   // as the summary read derives it (swingDocIsLegacyClubStub; J-106)
     src->land(ref, s);
 }
 
@@ -182,10 +183,12 @@ static QVariantMap lmDetailOf(const QVariantMap &values)
 }
 
 // One shot, appended in capture order with the next ordinal.
-static void addShot(ShotListModel &m, const QString &club, const QVariantMap &values, bool leftOut = false)
+static void addShot(ShotListModel &m, const QString &club, const QVariantMap &values, bool leftOut = false,
+                    bool legacyStub = false)
 {
     const int ord = m.rowCount() + 1;
-    land(m, ord, QStringLiteral("11:%1").arg(ord, 2, 10, QLatin1Char('0')), club, lmDetailOf(values), true, leftOut);
+    land(m, ord, QStringLiteral("11:%1").arg(ord, 2, 10, QLatin1Char('0')), club, lmDetailOf(values), true, leftOut,
+         legacyStub);
 }
 
 // A club's statistics in graphics.clubs, by its effective club label.
@@ -711,6 +714,104 @@ int main(int argc, char **argv)
                   lowPoint().value(QStringLiteral("source")).toString() == QStringLiteral("measured")
                       && lowPoint().value(QStringLiteral("value")).toDouble() == 1.5);
         }
+    }
+
+    {
+        // THE ONE CLUB (refactor 6.2; R-CLUB-2, R-CLUB-4; audit G-07): the board has no club rule of its own. A shot the
+        // golfer corrected counts under the correction; a shot whose readings contradict its club is FLAGGED, never
+        // relabelled (the evidence is not one of the shot's club facts); an undeclared shot is undeclared, never a driver.
+        std::printf("\nK — the one club: a corrected shot, evidence that only flags, an undeclared shot\n");
+        ShotListModel shots;
+        const QVariantMap iron{ { QStringLiteral("lm.dynamicLoft"), 35.0 }, { QStringLiteral("lm.smashFactor"), 1.30 },
+                                { QStringLiteral("lm.spinRate"), 7500.0 }, { QStringLiteral("lm.ballSpeed"), 110.0 } };
+        addShot(shots, QStringLiteral("7 IRON"), iron);   // 1
+        addShot(shots, QStringLiteral("7 IRON"), iron);   // 2: corrected on the board below
+        addShot(shots, QStringLiteral("DRIVER"), iron);   // 3: recorded as a driver, reads like the session's iron
+        addShot(shots, QString(), iron);                  // 4: undeclared
+        LmSessionModel board;
+        board.setDetailReader(&detailOf);
+        board.setReviewing(true);
+        board.setShotModel(&shots);
+        shots.setLmClubOverride(idOf(shots, 2), QStringLiteral("8 IRON"));
+        const auto rowOf = [&shots](int ord) {
+            for (int r = 0; r < shots.rowCount(); ++r)
+                if (shots.data(shots.index(r), ShotListModel::OrdinalRole).toInt() == ord) return shots.index(r);
+            return QModelIndex();
+        };
+        const auto shotOf = [&board](int ord) {
+            for (const QVariant &v : board.graphics().value(QStringLiteral("shots")).toList())
+                if (v.toMap().value(QStringLiteral("number")).toInt() == ord) return v.toMap();
+            return QVariantMap();
+        };
+        check("K1 the shot list's club is the one club: the correction; its recorded club the uncorrected one",
+              shots.data(rowOf(2), ShotListModel::ClubRole).toString() == QLatin1String("8 IRON")
+                  && shots.data(rowOf(2), ShotListModel::RecordedClubRole).toString() == QLatin1String("7 IRON")
+                  && shots.shotSummary(idOf(shots, 2)).value(QStringLiteral("club")).toString() == QLatin1String("8 IRON"));
+        const QVariantMap s2 = shotOf(2);
+        check("K1 …and the board counts it under the correction, recorded as the 7 iron",
+              s2.value(QStringLiteral("club")).toString() == QLatin1String("8 IRON")
+                  && s2.value(QStringLiteral("recordedClub")).toString() == QLatin1String("7 IRON")
+                  && s2.value(QStringLiteral("clubSource")).toString() == QLatin1String("user"));
+        const QVariantMap s3 = shotOf(3);
+        const QVariantMap mm = board.graphics().value(QStringLiteral("mismatch")).toMap();
+        check(QStringLiteral("K2 the evidence only flags: shot 3 stays a driver (suggests \"%1\"), the note relabels nothing")
+                  .arg(s3.value(QStringLiteral("evidence")).toMap().value(QStringLiteral("suggest")).toString()),
+              s3.value(QStringLiteral("club")).toString() == QLatin1String("DRIVER")
+                  && s3.value(QStringLiteral("clubSource")).toString() == QLatin1String("recorded")
+                  && s3.value(QStringLiteral("evidence")).toMap().value(QStringLiteral("suggest")).toString() == QLatin1String("7 IRON")
+                  && mm.value(QStringLiteral("count")).toInt() == 1 && !mm.value(QStringLiteral("relabelled")).toBool());
+        check("K3 an undeclared shot is undeclared on the list and the board, never a driver",
+              shots.data(rowOf(4), ShotListModel::ClubRole).toString().isEmpty()
+                  && shotOf(4).value(QStringLiteral("club")).toString().isEmpty() && !shotOf(4).isEmpty());
+        shots.setLmClubOverride(idOf(shots, 2), QString());
+        check("K4 the correction cleared: the recorded club again, on the list and the board",
+              shots.data(rowOf(2), ShotListModel::ClubRole).toString() == QLatin1String("7 IRON")
+                  && shotOf(2).value(QStringLiteral("club")).toString() == QLatin1String("7 IRON"));
+    }
+
+    {
+        // THE LEGACY STUB EXCEPTION (J-106, interim; club_vocabulary.h swingDocIsLegacyClubStub): a stored "DRIVER" stub
+        // keeps the board's pre-6.2 behaviour, counted under the iron its readings point at, with Undo. Beside it, a shot
+        // recorded as a driver (K2) stays a flagged driver and an undeclared shot (K3) stays undeclared.
+        std::printf("\nK5 — a legacy DRIVER stub: the board's old evidence relabel, and its Undo\n");
+        ShotListModel shots;
+        const QVariantMap iron{ { QStringLiteral("lm.dynamicLoft"), 35.0 }, { QStringLiteral("lm.smashFactor"), 1.30 },
+                                { QStringLiteral("lm.spinRate"), 7500.0 }, { QStringLiteral("lm.ballSpeed"), 110.0 } };
+        addShot(shots, QStringLiteral("7 IRON"), iron);                           // 1
+        addShot(shots, QStringLiteral("7 IRON"), iron);                           // 2
+        addShot(shots, QStringLiteral("DRIVER"), iron, false, /*legacyStub*/ true); // 3: the stub, hit with the iron
+        addShot(shots, QString(), iron);                                          // 4: undeclared
+        LmSessionModel board;
+        board.setDetailReader(&detailOf);
+        board.setReviewing(true);
+        board.setShotModel(&shots);
+        const auto shotOf = [&board](int ord) {
+            for (const QVariant &v : board.graphics().value(QStringLiteral("shots")).toList())
+                if (v.toMap().value(QStringLiteral("number")).toInt() == ord) return v.toMap();
+            return QVariantMap();
+        };
+        const QVariantMap s3 = shotOf(3);
+        const QVariantMap mm = board.graphics().value(QStringLiteral("mismatch")).toMap();
+        check(QStringLiteral("K5 the stub counts under the iron its readings suggest (club %1, source %2)")
+                  .arg(s3.value(QStringLiteral("club")).toString(), s3.value(QStringLiteral("clubSource")).toString()),
+              s3.value(QStringLiteral("club")).toString() == QLatin1String("7 IRON")
+                  && s3.value(QStringLiteral("clubSource")).toString() == QLatin1String("evidence")
+                  && s3.value(QStringLiteral("recordedClub")).toString() == QLatin1String("DRIVER"));
+        check("K5 …the note says it relabelled the one shot, so it offers Undo",
+              mm.value(QStringLiteral("relabelled")).toBool() && mm.value(QStringLiteral("count")).toInt() == 1
+                  && mm.value(QStringLiteral("recorded")).toString() == QLatin1String("DRIVER")
+                  && mm.value(QStringLiteral("suggested")).toString() == QLatin1String("7 IRON"));
+        check("K5 …and the undeclared shot beside it stays undeclared",
+              shotOf(4).value(QStringLiteral("club")).toString().isEmpty() && !shotOf(4).isEmpty());
+        board.undoMismatch();
+        const QVariantMap u3 = shotOf(3);
+        check("K5 Undo stores the recorded club as the golfer's: a driver, the evidence declined",
+              [&shots] { for (int r = 0; r < shots.rowCount(); ++r)
+                                    if (shots.data(shots.index(r), ShotListModel::OrdinalRole).toInt() == 3)
+                                        return shots.data(shots.index(r), ShotListModel::LmClubOverrideRole).toString();
+                                return QString(); }() == QLatin1String("DRIVER")
+                  && u3.value(QStringLiteral("club")).toString() == QLatin1String("DRIVER")
+                  && u3.value(QStringLiteral("clubSource")).toString() == QLatin1String("recorded"));
     }
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);

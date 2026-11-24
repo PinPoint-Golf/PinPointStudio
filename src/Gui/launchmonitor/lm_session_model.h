@@ -62,8 +62,9 @@ bool lmIsClubDelivery(const QString &key);
 
 // ── ONE SHOT AS THE BOARD COUNTS IT (audit F-03) ──
 // The board's own facts about a shot, after the golfer's two annotations and the club evidence are applied:
-// its EFFECTIVE club (resolveClubs in the .cpp: the golfer's override, else a specific evidence relabel, else the
-// recorded club), whether the golfer LEFT IT OUT, and its raw readings. Every surface that quotes a launch monitor
+// its EFFECTIVE club (the one rule, club_vocabulary.h effectiveClub: the golfer's override, else the recorded club; the
+// club evidence only flags, refactor 6.2, except on a legacy "DRIVER" stub: J-106), whether the golfer LEFT IT OUT, and
+// its raw readings. Every surface that quotes a launch monitor
 // figure for the session reads these — the board itself and the session report's cover, numbers table, swing grid,
 // reference swing and appendix — so a shot the golfer left out or re-labelled is treated one way everywhere.
 // LmSessionModel::boardShots() publishes them; LmSessionModel's own rows ARE these (it derives from this struct).
@@ -71,9 +72,10 @@ struct LmBoardShot {
     int          id = -1;          // the shot list's shot id
     int          ordinal = 0;      // capture order
     QString      swingDir;         // where its document is ("" for a shot never written)
-    QString      recorded;         // the club it was recorded under (ShotListModel::ClubRole)
+    QString      recorded;         // the club it was recorded under (ShotListModel::RecordedClubRole: the uncorrected club)
     QString      club;             // the EFFECTIVE club — the one every figure groups by
-    QString      source;           // "recorded" | "evidence" | "user"
+    QString      source;           // "recorded" | "user" | "evidence" (a legacy "DRIVER" stub the evidence relabelled:
+                                   // J-106, interim; the evidence only flags every other shot since refactor 6.2)
     bool         excluded = false; // "Leave out" on the board (review.excluded)
     QHash<QString, double> values; // the raw readings, keyed "lm.carryDistance" (LmShotValues)
 
@@ -151,6 +153,7 @@ struct LmBoardInput {
     QString                swingDir;         // "" for a shot never written
     QString                recorded;         // the club it was recorded under (trimmed)
     QString                clubOverride;     // the golfer's choice on the board (review.clubOverride), trimmed, or ""
+    bool                   legacyClubStub = false; // a stored "DRIVER" stub (ShotListModel::LegacyClubStubRole; J-106)
     bool                   excluded = false; // "Leave out" (review.excluded)
     QString                kind;             // the device (lm_device.h key), "" when none measured it
     QHash<QString, double> values;           // the launch monitor's readings, keyed "lm.carryDistance"

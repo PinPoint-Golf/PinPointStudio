@@ -183,14 +183,6 @@ QJsonObject analysisContextJson(const recording::AnalysisContext &context);
 // The block's fields (unknown keys ignored). The schema is checked by readAnalysisContext.
 recording::AnalysisContext analysisContextFromJson(const QJsonObject &block);
 
-// FOLLOW-CLUB'S LATE PART (R-REC-2(a), DEC-82): the context with its captured club replaced by the
-// club the launch monitor named — `capturedClub` in capture.club's shape ({name, lengthMm, shaftType,
-// bandCentersMm, hoselFromButtMm, shaftLengthMm, handsEndMm}, the one record the follow writes into
-// capture.club as well). Its standard length for the recorded club set and height; NO length prior
-// (the recorded one belongs to the club the shot was captured under). Athlete facts and the bag stay.
-recording::AnalysisContext withFollowedClub(const recording::AnalysisContext &context,
-                                            const QJsonObject &capturedClub);
-
 // The context for a document with no block: built from its legacy fields (see the file header).
 recording::AnalysisContext legacyAnalysisContext(const QJsonObject &root);
 
@@ -238,8 +230,9 @@ struct ShotKindRead {
 };
 ShotKindRead readShotKind(const QJsonObject &root);
 
-// The golfer's two club edits on the shot's review block, as stored, for effectiveContext():
-// correction = review.clubOverride (the LM board's), declared = review.club (the popover's).
+// The shot's club facts beyond the captured club, as stored, for effectiveContext(): correction = review.clubOverride
+// (the LM board's), declared = review.club (the popover's), device = capture.deviceClub (follow-club's, R-CLUB-1: its name
+// and geometry, in capture.club's shape; refactor 6.2).
 analysis::ClubReview clubReviewOf(const QJsonObject &root);
 
 } // namespace pinpoint

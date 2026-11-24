@@ -262,8 +262,9 @@ Item {
         const out = [], mm = g ? g.mismatch : null
         if (mm && mm.count > 0) {
             const n = mm.count, sug = String(mm.suggested || ""), generic = mm.relabelled === false || /^an? /i.test(sug)
+            // A flag (refactor 6.2: the evidence relabels nothing) names a specific club as the board names clubs.
             const t = words(n) + (n === 1 ? " shot" : " shots") + " recorded as " + clubName(mm.recorded)
-                    + (generic ? (n === 1 ? " reads" : " read") + " like " + sug
+                    + (generic ? (n === 1 ? " reads" : " read") + " like " + (/^an? /i.test(sug) ? sug : clubName(sug).toLowerCase())
                                : (n === 1 ? " is" : " are") + " treated as " + clubName(sug).toLowerCase())
             const ids = Array.from(mm.shotIds || [])
             out.push({ text: t, actions: generic ? [] : [{ label: "Undo", act: "undoMismatch", ids: ids }],

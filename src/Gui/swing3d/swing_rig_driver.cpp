@@ -36,6 +36,7 @@
 #include "../../Skeleton3d/skeleton3d_synthesis.h"
 #include "../../Export/swing_store.h"
 #include "../../Export/swing_paths.h"
+#include "../../Core/club_vocabulary.h"    // swingDocEffectiveClub: the one club rule (refactor 6.2)
 #include "../../Metrics/gate_catalogue.h"   // a gate's short words
 #include "../trust/trust_readings.h"        // gateFor: the gate on a reading
 
@@ -799,7 +800,7 @@ std::shared_ptr<const SwingRigDriver::SessionData> SwingRigDriver::prepareSessio
     // Only what the synthesis uses: the pose tracks are most of a document.
     static const QStringList kParts {
         QStringLiteral("/analysis/skeleton3d"), QStringLiteral("/analysis/club/positions"),
-        QStringLiteral("/analysis/club3d/planes"), QStringLiteral("/review"),
+        QStringLiteral("/analysis/club3d/planes"), QStringLiteral("/review"), QStringLiteral("/capture"),
         QStringLiteral("/athlete"), QStringLiteral("/clock") };
     std::vector<sk::SynthSwing> swings;
     swings.reserve(size_t(folders.size()));
@@ -812,7 +813,10 @@ std::shared_ptr<const SwingRigDriver::SessionData> SwingRigDriver::prepareSessio
         const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(root));
         sk::SynthSwing s;
         s.id = name;
-        s.club = root.value(QStringLiteral("review")).toObject().value(QStringLiteral("club")).toString();
+        // The shot's ONE club (club_vocabulary.h, R-CLUB-2; refactor 6.2 B-1): the correction, else the popover's, else the
+        // device's, else the captured club. Capture no longer seeds review.club, so the raw review would read "" for every
+        // unedited shot and pool a session's clubs into one usual swing. Canonical, so the spellings compare as one club.
+        s.club = pinpoint::canonicalClubId(pinpoint::swingDocEffectiveClub(root));
         SessionData::Keys keys;
         keys.club = s.club;
         keys.p.fill(-1);

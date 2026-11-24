@@ -95,6 +95,35 @@ QJsonObject deviceHeads(const ppsw::Reader &r, const ppsw::Value &root)
             out.insert(QStringLiteral("launchMonitor"),
                        QJsonObject{ { QStringLiteral("kind"), QString::fromStdString(kind->asString()) } });
 
+    // The club facts the board's legacy-stub exception reads (club_vocabulary.h swingDocIsLegacyClubStub; J-106, interim):
+    // review.club, capture.club.name, capture.deviceClub.name and capture.shotSource, a few strings. Never persisted in the
+    // summary block: derived here, read time only. A block split into its own chunk is followed, as `streams` is.
+    const auto objectAt = [&r](const ppsw::Value *v) -> ppsw::Value {
+        if (!v) return {};
+        return v->kind() == ppsw::Value::Kind::Ref ? r.chunk(v->asRef().name) : *v;
+    };
+    const auto stringAt = [](const ppsw::Value &obj, const char *key) -> QString {
+        if (obj.kind() != ppsw::Value::Kind::Object) return {};
+        const ppsw::Value *v = obj.get(key);
+        return v && v->kind() == ppsw::Value::Kind::String ? QString::fromStdString(v->asString()) : QString();
+    };
+    const ppsw::Value review  = objectAt(root.get("review"));
+    const ppsw::Value capture = objectAt(root.get("capture"));
+    if (const QString club = stringAt(review, "club"); !club.isEmpty())
+        out.insert(QStringLiteral("review"), QJsonObject{ { QStringLiteral("club"), club } });
+    if (capture.kind() == ppsw::Value::Kind::Object) {
+        QJsonObject cap;
+        if (const QString src = stringAt(capture, "shotSource"); !src.isEmpty())
+            cap.insert(QStringLiteral("shotSource"), src);
+        for (const char *key : { "club", "deviceClub" }) {
+            const ppsw::Value club = objectAt(capture.get(key));
+            if (const QString name = stringAt(club, "name"); !name.isEmpty())
+                cap.insert(QLatin1String(key), QJsonObject{ { QStringLiteral("name"), name } });
+        }
+        if (!cap.isEmpty())
+            out.insert(QStringLiteral("capture"), cap);
+    }
+
     // The golfer's hand, for a summary block written before it recorded one (SwingSummary::handedness).
     if (const ppsw::Value *ath = root.get("athlete"); ath && ath->kind() == ppsw::Value::Kind::Object)
         if (const ppsw::Value *hand = ath->get("handedness"); hand && hand->kind() == ppsw::Value::Kind::String)

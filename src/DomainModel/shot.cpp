@@ -101,6 +101,7 @@ void Shot::keepInSummary(const ReviewEdit &edit)
     if (edit.rating)       m_summary.rating         = std::clamp(*edit.rating, 0, 5);
     if (edit.note)         m_summary.note           = *edit.note;
     if (edit.club)         m_summary.club           = *edit.club;
+    if (edit.club)         m_summary.legacyClubStub = false;   // a golfer's pick is a declaration, not the seed (J-106)
     if (edit.excluded)     m_summary.lmExcluded     = *edit.excluded;
     if (edit.clubOverride) m_summary.lmClubOverride = *edit.clubOverride;
 }

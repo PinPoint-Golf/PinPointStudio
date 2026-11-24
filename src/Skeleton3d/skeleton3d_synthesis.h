@@ -55,7 +55,7 @@ inline constexpr int     kSynthMinPlaneAfterImpact = 3;     // fewer: all shots 
 // One shot of the session, as read from its document.
 struct SynthSwing {
     QString id;
-    QString club;                                  // review.club, exactly as stored
+    QString club;                                  // the shot's one club (swingDocEffectiveClub, canonical); "" = undeclared
     Skeleton3DTrack track;
     std::array<int64_t, 7> pUs { -1, -1, -1, -1, -1, -1, -1 };     // P1…P7, window-relative; < 0 = missing
     std::array<int, 7> pSource {};                 // how each was found (club.positions[].source)

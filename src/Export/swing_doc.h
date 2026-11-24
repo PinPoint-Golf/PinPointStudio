@@ -260,15 +260,11 @@ private:
     // summary for the same reason editReview does — this rewrite moves the document's
     // size and mtime, which invalidates the sidecar guards.
     //
-    // `captureClub`, when not empty, REPLACES capture.club in the same write: the club the
-    // swing was recorded under, with its geometry (lengthMm, bandCentersMm, …, name). Used only
-    // when the launch monitor names the club and the user asked PinPoint to follow it
-    // (launchmonitor/premierFollowClub; IM-4). Replaced only when its name differs from the recorded
-    // one, and never over a hand-set review.club: one naming neither the recorded club nor the
-    // device's (the live save seeds review.club with the session's club, so a seeded one moves
-    // with capture.club). The same write replaces the analysisContext block's captured club
-    // (withFollowedClub, recording_header.h; R-REC-2(a), DEC-82) — what re-analysis reads — so the
-    // input stamp marks the analysis stale. *clubReplaced says whether it was, so the caller can re-analyse.
+    // `captureClub`, when not empty, is the club the launch monitor named, which follow-club (launchmonitor/premierFollowClub)
+    // STORES BESIDE the captured club as capture.deviceClub (capture.club's shape: lengthMm, bandCentersMm, …, name; refactor
+    // 6.2, R-CLUB-1, DEC-133). The captured club (capture.club, the analysisContext block) and the review are never touched.
+    // Stored only when it names another club than the captured one. *clubReplaced says whether it changed the shot's one
+    // club (club_vocabulary.h effectiveClub), so the caller can re-analyse; the input stamp then marks the analysis stale.
     static WriteResult updateLaunchMonitor(const QString &swingDir,
                                            const lm::LaunchMonitorReading &reading,
                                            const QJsonObject &captureClub,
@@ -504,6 +500,12 @@ struct SwingSummary {
     // absent: a swing.ppsw block without it derives it from the root chunk it already decoded, and a
     // JSON-era sidecar without it is stale (readSwingSummary).
     QString     handedness;
+    // A legacy "DRIVER" stub (club_vocabulary.h swingDocIsLegacyClubStub; J-106, INTERIM pending the Solution Architect):
+    // the launch monitor board's one exception to the one club rule. NEVER PERSISTED in the summary: derived at read time
+    // from the document (the full read) or from the root chunk the block came out of (the .ppsw fast path), and only when
+    // the summary's club reads DRIVER. A JSON-era swing's sidecar (swing_summary.json, a cache of the document) does carry
+    // it, so the swing is not fat-parsed on every list; an older sidecar naming DRIVER without it is stale once.
+    bool        legacyClubStub = false;
     // Provenance, never persisted: true when this came from the sidecar, false when the
     // full swing.json had to be parsed. Lets the parity test prove it actually exercised
     // the cheap path — a bug that always fell back would otherwise pass silently while

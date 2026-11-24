@@ -59,6 +59,7 @@
 #include "../../Export/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../norms/norm_provider.h"
+#include "../norms/context_tree.h"   // contextIdForClub (refactor 6.2)
 #include "../packs/pack_provider.h"
 #include "../../Club/p8_refusal_gate.h"     // why there is no P8 (plane stack D6)
 #include "../../Metrics/gate_catalogue.h"   // its catalogue entry and sentence
@@ -76,6 +77,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include <iterator>
 #include <memory>
 
@@ -464,6 +466,74 @@ int main(int argc, char **argv)
         const LiveDetection d = detectForSwing(src, pack, norms);
         check(d.contextInferred && d.contextId == kDefaultContextId(),
               "detectForSwing grades it at the default context, marked inferred");
+    }
+
+    // ── THE ONE CLUB reaches the findings (refactor 6.2; R-CLUB-2, R-CLUB-4, J-82) ─────────────
+    //
+    // rich_7iron's document four ways, as the grid reads its club (measure_sample.cpp: swingDocEffectiveClub): a NEW
+    // undeclared shot as capture writes it since 6.2 (no review.club, no captured club: there is no stub any more), a
+    // stored "DRIVER" stub (read as stored, a declared driver: no migration), a shot the golfer corrected on the board,
+    // and a shot whose club follow-club stored beside the captured one.
+    std::printf("\nthe one club reaches the findings (refactor 6.2)\n");
+    {
+        const auto variant = [&](const char *name, const std::function<void(QJsonObject &)> &edit) {
+            const QString dir = QDir(tmp.path()).filePath(QLatin1String("live_swings/") + QLatin1String(name));
+            QFile in(QDir(rich).filePath(QStringLiteral("swing.json")));
+            if (!QDir().mkpath(dir) || !in.open(QIODevice::ReadOnly)) return QString();
+            QJsonObject root = QJsonDocument::fromJson(in.readAll()).object();
+            edit(root);
+            QFile out(QDir(dir).filePath(QStringLiteral("swing.json")));
+            if (!out.open(QIODevice::WriteOnly)) return QString();
+            out.write(QJsonDocument(root).toJson());
+            return dir;
+        };
+        const auto setReview = [](QJsonObject &r, const char *key, const QString &v) {
+            QJsonObject rv = r.value(QStringLiteral("review")).toObject();
+            if (v.isEmpty()) rv.remove(QLatin1String(key)); else rv[QLatin1String(key)] = v;
+            r[QStringLiteral("review")] = rv;
+        };
+        const auto setCapture = [](QJsonObject &r, const char *key, const QJsonObject &club) {
+            QJsonObject cap = r.value(QStringLiteral("capture")).toObject();
+            cap[QLatin1String(key)] = club;
+            r[QStringLiteral("capture")] = cap;
+        };
+        const QJsonObject noName = QJsonObject{ { QStringLiteral("lengthMm"), 940 } };   // a captured club with no name
+
+        const QString fresh = variant("undeclared_new", [&](QJsonObject &r) {
+            setReview(r, "club", QString());
+            setCapture(r, "club", noName);
+        });
+        const LiveMeasureSource u(fresh, pack);
+        check(!fresh.isEmpty() && u.club().isEmpty() && u.contextInferred() && u.contextId() == kDefaultContextId(),
+              "a new undeclared shot: no club (never a stub), the default context, marked assumed");
+        const LiveDetection du = detectForSwing(u, pack, norms);
+        check(du.contextInferred && du.club.isEmpty(), "…and its findings fire as \"club assumed\" (the demotion)");
+
+        const QString stub = variant("driver_stub", [&](QJsonObject &r) {
+            setReview(r, "club", QStringLiteral("DRIVER"));
+            setCapture(r, "club", noName);
+        });
+        const LiveMeasureSource st(stub, pack);
+        check(st.club() == QLatin1String("DRIVER") && !st.contextInferred()
+                  && st.contextId() == contextIdForClub(QStringLiteral("DRIVER")),
+              "a stored DRIVER stub reads as today: a declared driver, graded at the driver's node (J-82)");
+
+        const QString corrected = variant("corrected", [&](QJsonObject &r) {
+            setReview(r, "clubOverride", QStringLiteral("9 IRON"));
+        });
+        const LiveMeasureSource c(corrected, pack);
+        check(c.club() == QLatin1String("9 IRON") && !c.contextInferred()
+                  && c.contextId() == contextIdForClub(QStringLiteral("9 IRON"))
+                  && c.contextId() != contextIdForClub(QStringLiteral("7 IRON")),
+              "a corrected shot: the board's correction is the findings' club and node, not the club it was recorded under");
+
+        const QString followed = variant("device_club", [&](QJsonObject &r) {
+            setReview(r, "club", QString());
+            setCapture(r, "club", QJsonObject{ { QStringLiteral("name"), QStringLiteral("7 IRON") } });
+            setCapture(r, "deviceClub", QJsonObject{ { QStringLiteral("name"), QStringLiteral("PITCHING WEDGE") } });
+        });
+        const LiveMeasureSource f(followed, pack);
+        check(f.club() == QLatin1String("PITCHING WEDGE"), "follow-club: the device club stored beside the captured one is the findings' club");
     }
 
     // ── "Club assumed" (rule.diag.inferredContext, audit B-07) ──────────────

@@ -17,6 +17,8 @@
 #include "../../Club/dtl_shaft_json.h"      // dtlShaftTrackToJson — analysis.clubDtl's builder
 #include "../../Body/address_marks_json.h"  // dtlPhaseMarksPayload — the /1 and /2 readers
 #include "../../Body/dtl_ruler_json.h"      // dtlRulerPayload — analysis.dtlRuler's reader
+#include "../../Core/club_vocabulary.h"     // swingDocEffectiveClub: the one club (refactor 6.2)
+#include "../swing_doc_internal.h"           // summaryFromRoot: the summary's full read (J-106's flag)
 
 
 #include <cmath>
@@ -1451,9 +1453,70 @@ int main()
     }
     QDir(dirJ).removeRecursively();
 
+    std::printf("\n=== the legacy DRIVER stub, as the document can tell (J-106, interim) ===\n");
+    {
+        // club_vocabulary.h swingDocIsLegacyClubStub: a stored "DRIVER" with nothing else declaring the shot. The board's
+        // one exception reads it, so the summary carries it on both paths, and never persists it in the block.
+        using pinpoint::swingDocIsLegacyClubStub;
+        const auto doc = [](const QString &review, const QString &captured, const QString &device, const QString &source) {
+            QJsonObject cap;
+            if (!captured.isEmpty()) cap[QStringLiteral("club")] = QJsonObject{ { QStringLiteral("name"), captured } };
+            if (!device.isEmpty())   cap[QStringLiteral("deviceClub")] = QJsonObject{ { QStringLiteral("name"), device } };
+            if (!source.isEmpty())   cap[QStringLiteral("shotSource")] = source;
+            QJsonObject root{ { QStringLiteral("capture"), cap } };
+            if (!review.isEmpty()) root[QStringLiteral("review")] = QJsonObject{ { QStringLiteral("club"), review } };
+            return root;
+        };
+        check(swingDocIsLegacyClubStub(doc(QStringLiteral("DRIVER"), {}, {}, {})), "a stored DRIVER, nothing else declared: a stub");
+        check(swingDocIsLegacyClubStub(doc(QStringLiteral("Driver"), {}, {}, {})), "…in the picker's old spelling too");
+        check(!swingDocIsLegacyClubStub(doc(QStringLiteral("DRIVER"), QStringLiteral("DRIVER"), {}, {})),
+              "a captured driver is a declared driver, not a stub");
+        check(!swingDocIsLegacyClubStub(doc(QStringLiteral("DRIVER"), {}, QStringLiteral("4 HYBRID"), {})),
+              "a device club declares it");
+        check(!swingDocIsLegacyClubStub(doc(QStringLiteral("DRIVER"), {}, {}, QStringLiteral("launchMonitor"))),
+              "a device-only shot's review.club is the session's club, never a seed");
+        check(!swingDocIsLegacyClubStub(doc({}, {}, {}, {})), "a new undeclared shot is undeclared, never a stub");
+        check(!swingDocIsLegacyClubStub(doc(QStringLiteral("7 IRON"), {}, {}, {})), "a popover iron is not a stub");
+
+        // Both summary paths: a document saved with the stub, and one with a captured driver.
+        const QString ds = QStringLiteral("/tmp/swingdoc_test_legacy_stub");
+        const QString dc = QStringLiteral("/tmp/swingdoc_test_captured_driver");
+        for (const QString &d : { ds, dc }) { QDir(d).removeRecursively(); QDir().mkpath(d); }
+        QString werr;
+        check(pinpoint::testdoc::writeSwingJson(ds, manifest, nullptr, &werr, QStringLiteral("DRIVER")), "write a stub document");
+        QJsonObject mc = manifest;
+        mc[QStringLiteral("capture")] = QJsonObject{
+            { QStringLiteral("club"), QJsonObject{ { QStringLiteral("name"), QStringLiteral("DRIVER") } } } };
+        check(pinpoint::testdoc::writeSwingJson(dc, mc, nullptr, &werr), "write a captured-driver document");
+        const SwingSummary leanS = SwingDocReader::readSwingSummary(ds);
+        const SwingSummary leanC = SwingDocReader::readSwingSummary(dc);
+        const SwingSummary fatS  = swingdoc_detail::summaryFromRoot(SwingStore::load(ds), ds);
+        check(leanS.fromSidecar && leanS.club == QStringLiteral("DRIVER") && leanS.legacyClubStub && fatS.legacyClubStub,
+              "the stub: DRIVER, and a legacy stub on the fast path (from the root chunk) and the full read");
+        check(leanC.fromSidecar && leanC.club == QStringLiteral("DRIVER") && !leanC.legacyClubStub,
+              "a captured driver: DRIVER, not a stub");
+        check(!SwingStore::loadSummaryBlock(ds).contains(QStringLiteral("legacyClubStub")), "the flag is never in the block");
+        // A JSON-era stub: the full read finds it and indexes it, and the sidecar read that follows keeps it.
+        const QString dj = QStringLiteral("/tmp/swingdoc_test_legacy_stub_json");
+        QDir(dj).removeRecursively(); QDir().mkpath(dj);
+        {
+            QJsonObject jd = SwingStore::load(ds);
+            jd.remove(QStringLiteral("summary"));
+            QFile o(dj + QStringLiteral("/swing.json"));
+            check(o.open(QIODevice::WriteOnly) && o.write(SwingStore::toJsonText(jd)) > 0, "a JSON-era stub written");
+        }
+        const SwingSummary j1 = SwingDocReader::readSwingSummary(dj);
+        const SwingSummary j2 = SwingDocReader::readSwingSummary(dj);
+        check(!j1.fromSidecar && j1.legacyClubStub && j2.fromSidecar && j2.legacyClubStub,
+              "a JSON-era stub: a stub on the full read and on the sidecar read after it");
+        QDir(dj).removeRecursively();
+        for (const QString &d : { ds, dc }) QDir(d).removeRecursively();
+    }
+
     std::printf("\n=== summary sidecar: default parity (no review block) ===\n");
     {
-        // A doc that never had a review block: both paths must land on the "DRIVER" stub.
+        // A doc that never had a review block and names no club: both paths read it UNDECLARED (no stub since
+        // refactor 6.2, R-CLUB-4).
         const QString d2 = QStringLiteral("/tmp/swingdoc_test_noreview");
         QDir().mkpath(d2);
         QString werr;
@@ -1461,8 +1524,8 @@ int main()
         const PersistedShot fat  = SwingDocReader::readSwingJson(d2);
         const SwingSummary  lean = SwingDocReader::readSwingSummary(d2);
         check(lean.fromSidecar, "bare doc indexed at write time");
-        check(lean.club == QStringLiteral("DRIVER") && fat.club == lean.club,
-              "no review block → DRIVER on both paths");
+        check(lean.club.isEmpty() && fat.club == lean.club,
+              "no review block, no club → undeclared on both paths, never the DRIVER stub");
         check(lean.score == fat.score, "no analysis block → score parity");
         QDir(d2).removeRecursively();
     }
@@ -1706,9 +1769,9 @@ int main()
         QDir(d3).removeRecursively();
         QDir(d4).removeRecursively();
 
-        // ── Following Premier's club: capture.club replaced in the same write ──────
-        // The live save seeds review.club with the session's club, so a review.club naming the
-        // recorded club moves with it; one naming neither club is the user's and wins.
+        // ── Following Premier's club: the device club stored BESIDE the captured club (refactor 6.2) ──────
+        // DEC-133: the captured club is a source fact, never overwritten; follow-club stores the device's club as its own
+        // (capture.deviceClub) and never touches the review. *replaced says whether the shot's one club changed.
         const QString d5 = QStringLiteral("/tmp/swingdoc_test_lm_followclub");
         const QJsonObject premierClub{ { QStringLiteral("lengthMm"), 1003.0 },
                                        { QStringLiteral("name"), QStringLiteral("4 HYBRID") } };
@@ -1722,43 +1785,51 @@ int main()
                                                        { QStringLiteral("name"), QStringLiteral("7 IRON") } } } };
             check(pinpoint::testdoc::writeSwingJson(d5, m5, &an, &werr, reviewClub), "write a 7-iron swing");
         };
+        struct Clubs { QJsonObject captured, device; QString review; bool hasReviewClub = false; QString one; };
         auto clubs = [&]() {
             const QJsonObject r = SwingStore::load(d5);
-            return std::make_pair(r[QStringLiteral("capture")].toObject()[QStringLiteral("club")].toObject(),
-                                  r[QStringLiteral("review")].toObject()[QStringLiteral("club")].toString());
+            const QJsonObject cap = r[QStringLiteral("capture")].toObject();
+            const QJsonObject rv  = r[QStringLiteral("review")].toObject();
+            return Clubs{ cap[QStringLiteral("club")].toObject(), cap[QStringLiteral("deviceClub")].toObject(),
+                          rv[QStringLiteral("club")].toString(), rv.contains(QStringLiteral("club")),
+                          pinpoint::swingDocEffectiveClub(r) };
         };
         pinpoint::lm::LaunchMonitorReading pr5 = ballOnly;
         bool replaced = false;
 
-        fresh(QStringLiteral("7 IRON"));            // seeded by the live save
+        fresh(QString());                           // as capture writes it since 6.2: no review.club
         check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "reading with Premier's club");
-        check(replaced, "a seeded club is replaced");
-        auto [cap5, rev5] = clubs();
-        check(cap5[QStringLiteral("name")].toString() == QStringLiteral("4 HYBRID")
-                  && cap5[QStringLiteral("lengthMm")].toDouble() == 1003.0,
-              "…capture.club is the 4 hybrid's, geometry and all");
-        check(rev5 == QStringLiteral("4 HYBRID"), "…and the seeded review.club moves with it");
+        check(replaced, "follow-club on: the shot's one club changes");
+        const Clubs c5 = clubs();
+        check(c5.captured[QStringLiteral("name")].toString() == QStringLiteral("7 IRON")
+                  && c5.captured[QStringLiteral("lengthMm")].toDouble() == 940.0,
+              "…the captured club survives, geometry and all");
+        check(c5.device == premierClub, "…the device club stored beside it (capture.deviceClub)");
+        check(!c5.hasReviewClub && c5.one == QStringLiteral("4 HYBRID"), "…the review untouched; the one club is the device's");
         check(SwingStore::load(d5).contains(QStringLiteral("launchMonitor")), "…in the same write as the reading");
 
         check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "the same club again");
         check(!replaced, "…changes nothing the second time");
 
-        fresh(QStringLiteral("4 HYBRID"));          // seeded AFTER the club changed: analysis had the old one
-        check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "review already right");
-        check(replaced && clubs().first[QStringLiteral("name")].toString() == QStringLiteral("4 HYBRID"),
-              "…capture.club still moves, so re-analysis uses the right club");
-
-        fresh(QStringLiteral("DRIVER"));            // the user's own pick
+        fresh(QStringLiteral("DRIVER"));            // the golfer's own pick (or a stored seed: read as stored)
         check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "hand-set club");
-        auto [cap6, rev6] = clubs();
-        check(!replaced && rev6 == QStringLiteral("DRIVER")
-                  && cap6[QStringLiteral("name")].toString() == QStringLiteral("7 IRON"),
-              "…a club the user set is never changed");
+        const Clubs c6 = clubs();
+        check(!replaced && c6.review == QStringLiteral("DRIVER") && c6.one == QStringLiteral("DRIVER")
+                  && c6.captured[QStringLiteral("name")].toString() == QStringLiteral("7 IRON")
+                  && c6.device[QStringLiteral("name")].toString() == QStringLiteral("4 HYBRID"),
+              "…a club the golfer set stands; the captured club survives and the device club is still recorded");
 
-        fresh(QStringLiteral("7 IRON"));
-        check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, QJsonObject(), &replaced), "no club to follow");
-        check(!replaced && clubs().first[QStringLiteral("name")].toString() == QStringLiteral("7 IRON"),
-              "…leaves the club alone");
+        fresh(QString());
+        const QJsonObject sameClub{ { QStringLiteral("name"), QStringLiteral("7 IRON") } };
+        check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, sameClub, &replaced), "the device names the captured club");
+        check(!replaced && clubs().device.isEmpty(), "…nothing to store beside it");
+
+        fresh(QString());
+        check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, QJsonObject(), &replaced), "follow-club off: no club to follow");
+        const Clubs c7 = clubs();
+        check(!replaced && c7.device.isEmpty() && c7.captured[QStringLiteral("name")].toString() == QStringLiteral("7 IRON")
+                  && c7.one == QStringLiteral("7 IRON"),
+              "…leaves the club alone: the captured club is the one club");
         QDir(d5).removeRecursively();
     }
 

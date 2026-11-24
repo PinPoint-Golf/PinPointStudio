@@ -38,10 +38,12 @@ QString folderKey(const QString &folder)
 }
 // The roles a Shot's event can change, and a rewrite of its document (EVT-22, EVT-02): refreshShot's set, as it was.
 const QList<int> kReviewRoles{ ShotListModel::ClubRole, ShotListModel::RatingRole, ShotListModel::NoteRole,
-                               ShotListModel::LmExcludedRole, ShotListModel::LmClubOverrideRole };
+                               ShotListModel::LmExcludedRole, ShotListModel::LmClubOverrideRole,
+                               ShotListModel::RecordedClubRole, ShotListModel::LegacyClubStubRole };
 const QList<int> kRewriteRoles{ ShotListModel::ScoreRole, ShotListModel::MetricsRole, ShotListModel::LmDeviceRole,
                                 ShotListModel::DataWarningRole, ShotListModel::DataWarningDetailRole,
                                 ShotListModel::LmExcludedRole, ShotListModel::LmClubOverrideRole, ShotListModel::ClubRole,
+                                ShotListModel::RecordedClubRole, ShotListModel::LegacyClubStubRole,
                                 ShotListModel::RatingRole, ShotListModel::NoteRole };
 } // namespace
 
@@ -90,7 +92,9 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
         switch (role) {
         case OrdinalRole:           return r.ordinal;
         case TimestampLabelRole:    return c.timestampLabel;
-        case ClubRole:              return c.club;
+        case ClubRole:              return pinpoint::effectiveClub(c.club, r.lmClubOverride);   // the one club (R-CLUB-2)
+        case RecordedClubRole:      return c.club;
+        case LegacyClubStubRole:    return false;   // new captures never write a stub (J-106)
         case HasVideoRole:          return c.hasVideo;
         case ThumbnailSourceRole:   return r.thumbnailSource;
         case ScoreRole:             return c.score;
@@ -112,7 +116,9 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
     switch (role) {
     case OrdinalRole:           return s.ordinal;
     case TimestampLabelRole:    return s.timestampLabel;
-    case ClubRole:              return s.club;
+    case ClubRole:              return pinpoint::effectiveClub(s.club, s.lmClubOverride);   // the one club (R-CLUB-2)
+    case RecordedClubRole:      return s.club;
+    case LegacyClubStubRole:    return s.legacyClubStub;
     case HasVideoRole:          return s.hasVideo;
     case ThumbnailSourceRole:   return !r.thumbnailSource.isEmpty() ? r.thumbnailSource
                                      : s.thumbnailPath.isEmpty()   ? QUrl() : QUrl::fromLocalFile(s.thumbnailPath);
@@ -149,6 +155,7 @@ QHash<int, QByteArray> ShotListModel::roleNames() const
         { DataWarningDetailRole, "dataWarningDetail" },
         { LmExcludedRole,      "lmExcluded"      },
         { LmClubOverrideRole,  "lmClubOverride"  },
+        { RecordedClubRole,    "recordedClub"    },
     };
 }
 
@@ -478,7 +485,7 @@ void ShotListModel::setNote(int id, const QString &text)
 void ShotListModel::setClub(int id, const QString &club)
 {
     const int row = rowForId(id);
-    if (row < 0 || data(index(row), ClubRole).toString() == club)
+    if (row < 0 || data(index(row), RecordedClubRole).toString() == club)   // the popover edits the uncorrected club
         return;
     // ⚠ ONE OF THE CLUBS IN THE BAG, AND NOTHING ELSE. The picker only offers
     // clubOptions(), but this is Q_INVOKABLE and took whatever it was given —
@@ -492,7 +499,7 @@ void ShotListModel::setClub(int id, const QString &club)
     if (forwarded(row, "the declared club", [&club](pinpoint::ShotSource &s, const pinpoint::ShotRef &r) {
             return s.setDeclaredClub(r, club); }) == Edit::Card)
         m_rows[row].captured.club = club;
-    emit dataChanged(index(row), index(row), { ClubRole });
+    emit dataChanged(index(row), index(row), { ClubRole, RecordedClubRole, LegacyClubStubRole });
 }
 
 void ShotListModel::setLmExcluded(int id, bool excluded)
@@ -515,7 +522,7 @@ void ShotListModel::setLmClubOverride(int id, const QString &club)
     // ⚠ THE SAME VOCABULARY RULE AS setClub, plus the shot's OWN recorded club: choosing it is
     // how the golfer declines the evidence's relabel, and an older document may spell it in a
     // form the bag no longer lists ("7-iron") — refusing that would make the decline impossible.
-    const QString recorded = data(index(row), ClubRole).toString();
+    const QString recorded = data(index(row), RecordedClubRole).toString();
     QString stored = c;
     if (!c.isEmpty() && c.compare(recorded.trimmed(), Qt::CaseInsensitive) == 0)
         stored = recorded.trimmed();
@@ -528,7 +535,7 @@ void ShotListModel::setLmClubOverride(int id, const QString &club)
     if (forwarded(row, "the club correction", [&stored](pinpoint::ShotSource &s, const pinpoint::ShotRef &r) {
             return s.correctClub(r, stored); }) == Edit::Card)
         m_rows[row].lmClubOverride = stored;
-    emit dataChanged(index(row), index(row), { LmClubOverrideRole });
+    emit dataChanged(index(row), index(row), { LmClubOverrideRole, ClubRole });
 }
 
 QStringList ShotListModel::clubOptions()

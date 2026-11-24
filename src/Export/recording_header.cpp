@@ -349,17 +349,6 @@ rec::AnalysisContext analysisContextFromJson(const QJsonObject &block)
     return c;
 }
 
-rec::AnalysisContext withFollowedClub(const rec::AnalysisContext &context, const QJsonObject &capturedClub)
-{
-    rec::AnalysisContext c = context;
-    c.club = rec::RecordedClub{};
-    c.club.name     = capturedClub.value(QStringLiteral("name")).toString().trimmed();
-    c.club.geometry = geometryFromJson(capturedClub);
-    c.club.geometry.lengthKnown = c.club.geometry.lengthMm > 0.0;
-    c.club.standardLengthMm = standardLengthOf(c.club.name, c.clubSet, c.heightM);
-    return c;
-}
-
 rec::AnalysisContext legacyAnalysisContext(const QJsonObject &root)
 {
     rec::AnalysisContext c;
@@ -485,6 +474,9 @@ analysis::ClubReview clubReviewOf(const QJsonObject &root)
     analysis::ClubReview r;
     r.correction = review.value(QStringLiteral("clubOverride")).toString();
     r.declared   = review.value(QStringLiteral("club")).toString();
+    const QJsonObject device = root.value(QStringLiteral("capture")).toObject().value(QStringLiteral("deviceClub")).toObject();
+    r.device.name     = device.value(QStringLiteral("name")).toString().trimmed();
+    r.device.geometry = geometryFromJson(device);
     return r;
 }
 

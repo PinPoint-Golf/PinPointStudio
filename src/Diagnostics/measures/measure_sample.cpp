@@ -999,13 +999,10 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, SidecarPolicy policy, cons
         Qt::ISODateWithMs);
     grid.wallclockMs = wc.isValid() ? wc.toMSecsSinceEpoch() : 0;
 
-    // THE shared resolver the summary uses (review.club, else capture.club.name, else the stub),
-    // so a per-club draw-from filter buckets the two paths identically instead of splitting one
-    // club into two.
-    // DECLARED, not resolved: the picker's "DRIVER" stub must never pick a corridor. An
-    // undeclared club leaves this empty and contextIdForClub() answers the default context,
-    // whose rows were written for a swing of unknown club — see swingDocDeclaredClub().
-    grid.club = swingDocDeclaredClub(root);
+    // THE ONE CLUB (club_vocabulary.h; refactor 6.2, R-CLUB-2): the board's correction, else review.club, else the device
+    // club, else the captured club. An undeclared club leaves this EMPTY (never a stub, R-CLUB-4) and contextIdForClub()
+    // answers the default context, its findings fired as "club assumed".
+    grid.club = swingDocEffectiveClub(root);
 
     // The guard written is the size/mtime read at the top of this function. A shared parse can be
     // older than that (another reader paid for it before a rewrite), and a rewrite can land between

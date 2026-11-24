@@ -455,8 +455,11 @@ static void testLmAnnotationsWriteThrough()
                  reloaded.data(reloaded.index(0), ShotListModel::LmClubOverrideRole).toString(),
                  QStringLiteral("7 IRON"));
         checkStr(QStringLiteral("M6 the RECORDED club is untouched by the override"),
-                 reloaded.data(reloaded.index(0), ShotListModel::ClubRole).toString(),
+                 reloaded.data(reloaded.index(0), ShotListModel::RecordedClubRole).toString(),
                  QStringLiteral("DRIVER"));
+        checkStr(QStringLiteral("M6b …and the shot's one club is the override (refactor 6.2, R-CLUB-2)"),
+                 reloaded.data(reloaded.index(0), ShotListModel::ClubRole).toString(),
+                 QStringLiteral("7 IRON"));
     }
     // The full parse: a reviewed session (SessionReviewController) reads this.
     {

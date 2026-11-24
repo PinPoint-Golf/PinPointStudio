@@ -23,6 +23,7 @@
 #include "../../LaunchMonitor/lm_device.h"
 
 #include "../../LaunchMonitor/lm_club_evidence.h"
+#include "../../Core/club_vocabulary.h"                  // effectiveClub: the one club rule (refactor 6.2)
 #include "../../LaunchMonitor/lm_enclosing_ellipse.h"
 #include "../../LaunchMonitor/lm_flight_path.h"
 #include "../../LaunchMonitor/lm_inferred_reads.h"
@@ -277,6 +278,7 @@ QVariantMap pointMap(const LmPoint &p)
 struct LmShotRow : pinpoint::lm::LmBoardShot {
     int                   row = -1;
     QString               clubOverride;   // the golfer's own choice on the panel, or ""
+    bool                  legacyClubStub = false;   // a stored "DRIVER" stub: resolveClubs' one exception (J-106)
     QString               kind;           // the DEVICE (lm_device.h key), "" when no device measured it
     std::optional<double> optical;        // our own low point estimate — see opticalLowPointFor
     // The gate behind each reading the shot lacks (lmGateMap), keyed by metric key: {} on a shot
@@ -320,17 +322,21 @@ std::optional<double> readingOf(const LmShotValues &v, const char *key)
     return *it;
 }
 
-// THE EFFECTIVE CLUB, per shot, in one place.
+// THE CLUB OF EACH SHOT, by THE ONE RULE (club_vocabulary.h effectiveClub; refactor 6.2, R-CLUB-2): the golfer's own
+// choice on the board (clubOverride) wins, else the club the shot was recorded under (the shot list's uncorrected club).
+// The board has no club rule of its own: a correction that IS the recorded club has source "recorded" — that is what it
+// is — and the evidence is marked declined.
 //
-//   1. The golfer's own choice (clubOverride) wins, always. If it IS the recorded club, the
-//      source is "recorded" — that is what it is — and the evidence is marked declined.
-//   2. Else a SPECIFIC evidence suggestion (lm_club_evidence.h) relabels the shot: "evidence".
-//      A generic one ("an iron") never does; it only flags.
-//   3. Else the recorded club.
+// The evidence (lm_club_evidence.h) is computed over the whole session in SHOT ORDER and from the RECORDED clubs only.
+// It FLAGS a shot whose readings contradict its club and names the club they point at; it never relabels one. The
+// evidence's suggestion is not one of the shot's club facts (R-CLUB-1; information_model.md R-CLUB-3: "never a
+// correction"), so until 6.2's board relabelled by it, the board and the shot's findings named two clubs.
 //
-// The evidence is computed over the whole session in SHOT ORDER and from the RECORDED clubs
-// only, so it can never feed on its own relabels, and the same session suggests the same club
-// however its rows happen to be ordered on screen.
+// THE ONE EXCEPTION, beside the rule and named for it (J-106; INTERIM, pending the Solution Architect; information_model.md
+// R-CLUB-4's footnote): a LEGACY "DRIVER" STUB (club_vocabulary.h swingDocIsLegacyClubStub: a stored "DRIVER" capture
+// seeded before 6.2, with nothing else declaring the shot) keeps the board's pre-6.2 behaviour. With no correction, a
+// SPECIFIC suggestion counts it under the club its readings point at (source "evidence"); the note offers Undo, which
+// stores the recorded club as the golfer's correction. Read time only, the board only; nothing is written by it.
 void resolveClubs(std::vector<LmShotRow> &rows)
 {
     std::vector<size_t> order(rows.size());
@@ -352,18 +358,15 @@ void resolveClubs(std::vector<LmShotRow> &rows)
     for (size_t k = 0; k < order.size(); ++k) {
         LmShotRow &r = rows[order[k]];
         r.evidence = ev[k];
-        if (!r.clubOverride.isEmpty()) {
-            const bool isRecorded = sameClub(r.clubOverride, r.recorded);
-            r.club     = r.clubOverride;
-            r.source   = isRecorded ? QStringLiteral("recorded") : QStringLiteral("user");
-            r.declined = isRecorded && r.evidence.mismatch;
-        } else if (r.evidence.mismatch && r.evidence.specific) {
-            r.club   = r.evidence.suggest;
+        if (r.legacyClubStub && r.clubOverride.isEmpty() && r.evidence.mismatch && r.evidence.specific) {
+            r.club   = r.evidence.suggest;                    // J-106: a legacy stub only (above)
             r.source = QStringLiteral("evidence");
-        } else {
-            r.club   = r.recorded;
-            r.source = QStringLiteral("recorded");
+            continue;
         }
+        r.club     = pinpoint::effectiveClub(r.recorded, r.clubOverride);
+        const bool isRecorded = r.clubOverride.isEmpty() || sameClub(r.clubOverride, r.recorded);
+        r.source   = isRecorded ? QStringLiteral("recorded") : QStringLiteral("user");
+        r.declined = !r.clubOverride.isEmpty() && isRecorded && r.evidence.mismatch;
     }
 }
 
@@ -605,17 +608,18 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
     g.insert(QStringLiteral("clubs"), clubs);
 
     // ── mismatch ────────────────────────────────────────────────────────────
-    // The note. The largest group of shots the evidence RELABELLED, by (recorded, suggested);
-    // failing that, the largest group it could only FLAG (a generic suggestion, nothing
-    // relabelled). Every other shot's verdict is still on its own `evidence`; the note names
-    // one group because it is one line.
+    // The note: the largest group of legacy stubs the evidence RELABELLED (J-106, interim), by (recorded, suggested),
+    // which the note offers to undo; failing that, the largest group it FLAGGED, that the golfer has not answered with a
+    // club of their own. The evidence relabels no other shot (refactor 6.2: the one club rule), so a flag has nothing
+    // to undo and a specific suggestion is flagged like a generic one. Every other shot's verdict is still on its own
+    // `evidence`; the note names one group because it is one line.
     struct MisGroup { QString recorded, suggested; QVariantList ids; };
     auto largest = [&byOrdinal](bool relabelled) {
         std::vector<MisGroup> mg;
         for (const LmShotRow *r : byOrdinal) {
             const bool want = relabelled
                 ? r->source == QLatin1String("evidence")
-                : (r->evidence.mismatch && !r->evidence.specific && r->clubOverride.isEmpty());
+                : (r->evidence.mismatch && r->clubOverride.isEmpty() && r->source != QLatin1String("evidence"));
             if (!want) continue;
             auto it = std::find_if(mg.begin(), mg.end(), [r](const MisGroup &m) {
                 return sameClub(m.recorded, r->recorded) && sameClub(m.suggested, r->evidence.suggest);
@@ -630,7 +634,7 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
     };
     QVariantMap mismatch;
     std::optional<MisGroup> mg = largest(true);
-    const bool relabelled = mg.has_value();
+    const bool relabelled = mg.has_value();   // only a legacy stub is ever relabelled (J-106)
     if (!mg) mg = largest(false);
     if (mg) {
         mismatch = QVariantMap{
@@ -983,8 +987,9 @@ std::vector<LmBoardInput> lmBoardInputsOf(const ShotListModel &shots,
         LmBoardInput row;
         row.id           = shots.data(ix, ShotListModel::ShotIdRole).toInt();
         row.ordinal      = shots.data(ix, ShotListModel::OrdinalRole).toInt();
-        row.recorded     = shots.data(ix, ShotListModel::ClubRole).toString().trimmed();
+        row.recorded     = shots.data(ix, ShotListModel::RecordedClubRole).toString().trimmed();   // the uncorrected club
         row.clubOverride = shots.data(ix, ShotListModel::LmClubOverrideRole).toString().trimmed();
+        row.legacyClubStub = shots.data(ix, ShotListModel::LegacyClubStubRole).toBool();   // J-106 (interim)
         row.excluded     = shots.data(ix, ShotListModel::LmExcludedRole).toBool();
         row.kind         = shots.data(ix, ShotListModel::LmDeviceRole).toString();
         row.values       = readingsFor(set);
@@ -1018,6 +1023,7 @@ LmBoard lmBoardOf(const std::vector<LmBoardInput> &in, const LmBoardAsk &ask, co
         row.ordinal      = i.ordinal;
         row.recorded     = i.recorded;
         row.clubOverride = i.clubOverride;
+        row.legacyClubStub = i.legacyClubStub;
         row.excluded     = i.excluded;
         row.kind         = i.kind;
         row.values       = i.values;
@@ -1346,6 +1352,8 @@ void LmSessionModel::connectShotModel()
                 if (roles.isEmpty()
                     || roles.contains(int(ShotListModel::MetricsRole))
                     || roles.contains(int(ShotListModel::ClubRole))
+                    || roles.contains(int(ShotListModel::RecordedClubRole))
+                    || roles.contains(int(ShotListModel::LegacyClubStubRole))
                     || roles.contains(int(ShotListModel::LmDeviceRole))
                     || roles.contains(int(ShotListModel::LmExcludedRole))
                     || roles.contains(int(ShotListModel::LmClubOverrideRole)))
@@ -1481,8 +1489,8 @@ void LmSessionModel::undoMismatch()
     if (!m_shots)
         return;
     const QVariantMap mm = m_board.graphics.value(QStringLiteral("mismatch")).toMap();
-    // Only a note that RELABELLED anything has something to undo; a flag-only note (a generic
-    // "reads like an iron") changed no club.
+    // Only a note that RELABELLED anything has something to undo: since refactor 6.2, legacy "DRIVER" stubs alone
+    // (J-106, interim). A flag-only note changed no club.
     if (!mm.value(QStringLiteral("relabelled")).toBool())
         return;
     const QVariantList ids = mm.value(QStringLiteral("shotIds")).toList();
@@ -1496,7 +1504,7 @@ void LmSessionModel::undoMismatch()
             // The recorded club, EXPLICITLY — the stored decline that keeps the evidence from
             // re-applying on the next load. "" would only restore the default, which is the
             // evidence's relabel again.
-            m_shots->setLmClubOverride(id, m_shots->data(ix, ShotListModel::ClubRole).toString());
+            m_shots->setLmClubOverride(id, m_shots->data(ix, ShotListModel::RecordedClubRole).toString());
             break;
         }
     }

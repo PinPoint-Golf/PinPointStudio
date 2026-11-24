@@ -207,9 +207,9 @@ std::shared_ptr<ShotSeries> extractShot(const QJsonObject &root,
     auto shot = std::make_shared<ShotSeries>();
     shot->swingDir = swingDir;
     shot->shotId   = folderShotId(swingDir);
-    // The club the SWING declares (review.club, else capture.club.name) — and empty when it
-    // declares none, never the DRIVER stub the carousel shows: a facet "by club" must not invent
-    // a driver for every camera swing recorded before capture.club.name existed.
+    // The club the SWING declares, before the board's correction (club_vocabulary.h, the one rule: review.club, else the
+    // device club, else capture.club.name) — and empty when it declares none, never a stub (R-CLUB-4). The board's
+    // correction is applied below (annotateForBoard), so the shot's club is its effective one (refactor 6.2).
     shot->club     = pinpoint::swingDocDeclaredClub(root);
     // The golfer's handedness as the swing records it (the document's `athlete.handedness`, as SwingSummary reads it),
     // so a presenter that names a side glosses it (refactor 6.3b, G-02).

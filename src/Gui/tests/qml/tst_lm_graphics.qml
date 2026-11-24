@@ -325,6 +325,18 @@ Item {
             compare(undoSpy.count, 1, "Undo asks the model")
         }
 
+        // The evidence only flags since refactor 6.2 (the one club rule): a specific suggestion that relabelled nothing reads
+        // "reads like 7 iron" in the board's club words, with no Undo.
+        function test_08b_aFlagOnlyNoteNamesTheClubAndOffersNoUndo() {
+            body.g = Object.assign({}, probe.fixture, {
+                mismatch: { count: 1, recorded: "DRIVER", suggested: "7 IRON", shotIds: [3], relabelled: false } })
+            wait(0)
+            const n = body.noteItems.filter(x => String(x.text).indexOf("recorded as Driver") >= 0)
+            compare(n.length, 1, "one mismatch note")
+            compare(n[0].text, "One shot recorded as Driver reads like 7 iron", "the flag's words")
+            compare(n[0].actions.length, 0, "a flag has nothing to undo")
+        }
+
         function test_09_clubKeyScopes() {
             body.tab = "session"
             wait(50)

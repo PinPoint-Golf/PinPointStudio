@@ -632,12 +632,11 @@ void ShotProcessor::finishGatherAndLaunch()
     // DiskReplaySource on the persisted Finish event, startReplay() below on
     // the analysed one — which is why a swing.json can hold a 4 s clip and
     // still replay 2.7 s of swing.
-    // THE ONE JOB BUILDER, on the Recording and its effective context: the recorded context with the
-    // club capture seeds into review.club as the declared club (no correction exists yet) — exactly
+    // THE ONE JOB BUILDER, on the Recording and its effective context: the recorded context, whose captured club is the
+    // session's (no correction, popover club or device club exists yet, and capture seeds none: refactor 6.2) — exactly
     // what re-analysis reads back, so an uncorrected shot gets the same job either way.
     {
-        pinpoint::analysis::ClubReview review;
-        review.declared = m_capture->athlete.reviewClub;
+        const pinpoint::analysis::ClubReview review{};
         pinpoint::analysis::RunOptions run;
         run.origin = QStringLiteral("live");
         // Worker → UI progress marshalling: queued invoke with `this` as context (auto-cancelled if
@@ -1719,7 +1718,7 @@ void ShotProcessor::maybeJoin()
             in.integrity  = &verdicts;
             in.analysis   = m_analysisResult.detail ? m_analysisResult.detail.get() : nullptr;
             in.windowT0Us = m_swingWindow ? m_swingWindow->startTimestampUs() : 0;
-            in.reviewClub = m_capture ? m_capture->athlete.reviewClub : QString();
+            in.capturedClub = m_capture ? m_capture->athlete.sessionClub : QString();
             in.savePose   = savePose;
             const pinpoint::capture::LiveDocument doc = pinpoint::capture::writeLiveDocument(in);
 
@@ -1797,8 +1796,8 @@ void ShotProcessor::onSwingDocWritten()
         ppError() << "[SwingDoc]" << res.error;
     }
 
-    // The club the document records (its seeded review.club, settled at the freeze), not re-resolved:
-    // the row and the file must name the same club.
+    // The club the document records (its captured club, settled at the freeze; no review.club is seeded since 6.2), not
+    // re-resolved: the row and the file must name the same club.
     const QString shotClub = res.club;
 
     // ⏱ What this handler costs, per phase, one line per shot. `notify` is the emit below and everything

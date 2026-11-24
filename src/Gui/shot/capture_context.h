@@ -88,9 +88,8 @@ struct CaptureAthlete {
     QString     sex, dobIso;     // the club set on the swing's date only — never recorded (IM-7)
     QString     sessionClub;     // the session's active club; "" = none (undeclared)
     QVariantMap bag;             // the athlete's bag: club id → record (AthleteController::clubsFor)
-    // The club capture seeds into review.club: the session's club, else the athlete's preferred one,
-    // else the stub — the DECLARED club both analyses take (effective_context.h).
-    QString     reviewClub;
+    // No club is seeded into review.club (refactor 6.2; R-CLUB-4, DEC-67): the session's club is the CAPTURED club
+    // (above), and a session with none records the shot UNDECLARED — never the athlete's primary club or a "DRIVER" stub.
 };
 CaptureAthlete readCaptureAthlete(const AthleteController *athlete, const SessionController *session);
 
@@ -154,7 +153,7 @@ struct LiveDocumentInput {
     const pinpoint::analysis::IntegrityVerdicts *integrity = nullptr;   // null = none reached
     const pinpoint::analysis::SwingAnalysis     *analysis  = nullptr;   // null = no analysis
     int64_t               windowT0Us = 0;     // the window's start on the ring clock
-    QString               reviewClub;         // the seeded review.club
+    QString               capturedClub;       // the session's club at the shot, for the row ("" = undeclared); no review.club is seeded
     bool                  savePose = true;    // Storage → Save pose keypoints
 };
 struct LiveDocument {

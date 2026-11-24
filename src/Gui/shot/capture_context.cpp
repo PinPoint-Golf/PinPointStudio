@@ -68,15 +68,10 @@ CaptureAthlete readCaptureAthlete(const AthleteController *athlete, const Sessio
         a.dobIso     = athlete->currentDob();
         a.bag        = athlete->clubsFor(a.uuid);
     }
+    // The session's club is the captured club. Nothing is seeded into review.club (refactor 6.2): a session with no club
+    // records the shot undeclared, and its findings fire as "club assumed" (R-CLUB-4).
     if (session)
         a.sessionClub = session->activeClub();
-    // The club seeded into review.club: the session's active club, else the athlete's preferred one,
-    // else the stub. It goes into the document AND onto the carousel row.
-    a.reviewClub = a.sessionClub;
-    if (a.reviewClub.isEmpty() && athlete)
-        a.reviewClub = athlete->effectivePrimaryClub(a.uuid);
-    if (a.reviewClub.isEmpty())
-        a.reviewClub = pinpoint::clubStub();
     return a;
 }
 
@@ -414,7 +409,7 @@ LiveDocument writeLiveDocument(const LiveDocumentInput &in)
 {
     LiveDocument out;
     out.manifest = in.header;
-    out.club     = in.reviewClub;
+    out.club     = in.capturedClub;
 
     // The integrity verdicts the analysis service reached for this Recording, into the header: a
     // verdict that checked nothing (or none reached) writes no block.
@@ -461,7 +456,6 @@ LiveDocument writeLiveDocument(const LiveDocumentInput &in)
             pinpoint::NewRecording doc;
             doc.header     = out.manifest;
             doc.analysis   = in.analysis;
-            doc.reviewClub = in.reviewClub;
             pinpoint::PersistOptions opts;
             opts.savePose = in.savePose;
             const pinpoint::WriteResult w = in.repository->create(in.shot, doc, opts);

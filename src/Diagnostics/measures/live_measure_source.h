@@ -166,8 +166,8 @@ public:
     // ── Identity, for context resolution ────────────────────────────────────
     //
     // Both come from the grid, which read them out of the swing doc (measure_sample.cpp). The club is
-    // the DECLARED one (swingDocDeclaredClub: review.club, else capture.club.name) and never the
-    // picker's "DRIVER" stub, so it is EMPTY for a shot that declared none — which is how this seam
+    // the shot's EFFECTIVE one (swingDocEffectiveClub, the one club rule: the board's correction, else review.club, else
+    // the device club, else capture.club.name; refactor 6.2) and never a stub, so it is EMPTY for a shot that declared none — which is how this seam
     // tells an undeclared club from a declared driver (contextInferred() below).
     QString club() const;
     QString sessionId() const;

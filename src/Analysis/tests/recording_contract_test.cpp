@@ -57,6 +57,8 @@
 #include "../../Core/club_standards.h"
 #include "../../Buffer/swing_window.h"
 #include "../../Export/recording_loader.h"
+#include "../../Export/recording_header.h"   // clubReviewOf: the device club read (refactor 6.2)
+#include "../../Core/club_vocabulary.h"       // the one club rule (refactor 6.2)
 #include "../recording_integrity.h"
 #include "../../Export/swing_doc.h"   // imuIntegrityJson / captureIntegrityJson — the verdicts as stored
 #include "../../Export/capture_export_facts.h"   // the export's Recording inputs from the freeze (Test 9)
@@ -65,6 +67,7 @@
 
 #include <memory>
 
+#include <QJsonArray>
 #include <QTemporaryDir>
 
 #include <algorithm>
@@ -261,18 +264,17 @@ void testLiveEqualsDisk()
 }
 
 // ── Test 1c ───────────────────────────────────────────────────────────────────────────────────
-// H-02's test (step 1.5): THE LIVE JOB == THE RE-ANALYSIS JOB for an uncorrected shot. The live
-// capture builds its job from its Recording with the club it seeds into review.club as the declared
-// club (capture_context.h); re-analysis reads the swing back — the analysisContext block, height
-// included, and that seeded review.club — and builds its job with the same two inputs. Two seeds: the
-// session's own club, and an undeclared session whose seed is the stub (its standard length, as today).
+// H-02's test (step 1.5): THE LIVE JOB == THE RE-ANALYSIS JOB for an uncorrected shot. The live capture builds its job
+// from its Recording alone: since refactor 6.2 it seeds NO review.club (capture_context.h), so the captured club is the
+// session's and an undeclared session records an undeclared shot. Re-analysis reads the swing back — the analysisContext
+// block, height included, and no review — and builds its job with the same inputs.
 void testLiveJobEqualsReanalysisJob()
 {
     std::printf("[Test 1c] the live job == the re-analysis job for an uncorrected shot (H-02)\n");
-    struct Case { const char *name; QString capturedClub; QString seed; };
+    struct Case { const char *name; QString capturedClub; };
     const Case cases[] = {
-        { "the session's club", QStringLiteral("7 IRON"), QStringLiteral("7 IRON") },
-        { "an undeclared session, the stub seeded", QString(), QStringLiteral("DRIVER") },
+        { "the session's club", QStringLiteral("7 IRON") },
+        { "an undeclared session: no club, no stub", QString() },
     };
     for (const Case &c : cases) {
         rec::Recording live = liveRecording(kDiskCam, kDiskImu);
@@ -282,16 +284,15 @@ void testLiveJobEqualsReanalysisJob()
             live.context.club.lengthPrior = {};
             live.context.club.standardLengthMm = 0.0;
         }
-        ClubReview liveReview;
-        liveReview.declared = c.seed;
+        const ClubReview liveReview{};   // capture seeds no declared club (6.2)
 
         QTemporaryDir dir;
         QString err;
-        const QJsonObject review{ { QStringLiteral("review"), QJsonObject{ { QStringLiteral("club"), c.seed } } } };
-        check(dir.isValid() && writeSyntheticSwing(dir.path(), live, review, &err), "the swing is written as capture writes it");
+        check(dir.isValid() && writeSyntheticSwing(dir.path(), live, QJsonObject(), &err), "the swing is written as capture writes it");
         const LoadedRecording lr = loadRecording(dir.path());
-        check(lr.ok && lr.contextRecorded && lr.review.declared == c.seed && lr.review.correction.isEmpty(),
-              "read back: the recorded context and the seeded review club, no correction");
+        check(lr.ok && lr.contextRecorded && lr.review.declared.isEmpty() && lr.review.correction.isEmpty()
+                  && lr.review.device.name.isEmpty(),
+              "read back: the recorded context, no declared club, no correction, no device club");
 
         const ShotAnalysisJob jLive = buildAnalysisJob(live, effectiveContext(live.context, liveReview), options("live"));
         const ShotAnalysisJob jRe   = buildAnalysisJob(lr.recording, effectiveContext(lr.recording.context, lr.review),
@@ -305,9 +306,9 @@ void testLiveJobEqualsReanalysisJob()
         check(jLive.ballTrack.camera == kDiskCam && jRe.ballTrack.camera == kDiskCam,
               "the recorded ball stream is the face-on camera's on both paths");
         if (c.capturedClub.isEmpty())
-            check(!jLive.clubLengthKnown && jLive.standardClubLengthM > 0.0
-                      && jLive.standardClubLengthM == jRe.standardClubLengthM,
-                  "undeclared: no length recorded, the seeded stub's standard length on both");
+            check(jLive.clubName.isEmpty() && jRe.clubName.isEmpty() && !jLive.clubLengthKnown
+                      && jLive.standardClubLengthM == 0.0 && jRe.standardClubLengthM == 0.0,
+                  "undeclared: no club, no length, no standard length on both (never the DRIVER stub, R-CLUB-4)");
     }
 }
 
@@ -538,16 +539,24 @@ void testDeclaredClub()
     const int stdPw = standardClub(QStringLiteral("PITCHING WEDGE"), ClubSet::Men, 1.80).lengthMm;
     const int stdDr = standardClub(QStringLiteral("DRIVER"), ClubSet::Men, 1.80).lengthMm;
 
-    // The popover changed the club: its standard length, the captured club's geometry and prior.
+    // The popover changed the club: since refactor 6.2 (v2, R-CLUB-2; DEC-72's interim closed) it is the one club —
+    // its name, its bag geometry and standard length, no prior. Before, the analysis kept the captured club's name.
     {
         const EffectiveContext e = effectiveContext(r.context, ClubReview{ QString(), QStringLiteral("9 IRON") });
         const ShotAnalysisJob  j = buildAnalysisJob(r, e, options("reanalysis"));
-        check(!e.club.corrected && e.club.name == QStringLiteral("7 IRON"), "popover: not a correction, captured club kept");
+        check(e.club.corrected && e.club.name == QStringLiteral("9 IRON") && e.club.captured == QStringLiteral("7 IRON"),
+              "popover: the declared club is the analysis' club, the captured one kept as provenance");
         check(e.club.standardLengthMm == std9, "popover: the declared club's standard length");
-        check(std::abs(j.standardClubLengthM - std9 / 1000.0) < 1e-12, "job: the declared club's standard length");
-        check(j.clubName == QStringLiteral("7 IRON") && j.bandCentersMm == std::vector<double>{ 300.0, 500.0, 700.0 }
-                  && j.hoselFromButtMm == 880.0, "job: the captured club's name and geometry");
-        check(j.priorClubLenN == 6, "job: the captured club's prior kept");
+        check(j.clubName == QStringLiteral("9 IRON") && j.clubLengthKnown && std::abs(j.clubLengthM - 0.914) < 1e-12
+                  && j.bandCentersMm == std::vector<double>{ 290.0, 490.0 }, "job: the declared club's bag geometry");
+        check(j.priorClubLenN == 0, "job: no length prior (the recorded one is the captured club's)");
+    }
+    // The popover naming the captured club, in another spelling: nothing moved it, v1's answer field for field.
+    {
+        const EffectiveContext e = effectiveContext(r.context, ClubReview{ QString(), QStringLiteral("7 iron") });
+        check(!e.club.corrected && e.club.name == r.context.club.name && e.club.lengthPrior.present()
+                  && e.club.geometry.bandCentersMm == r.context.club.geometry.bandCentersMm && e.club.standardLengthMm == std7,
+              "popover == captured: the recorded club, its geometry and prior, its standard length (v1 unchanged)");
     }
     // The board's override wins over the popover: the override's bag geometry and standard length.
     {
@@ -567,12 +576,11 @@ void testDeclaredClub()
         check(e.club.standardLengthMm == r.context.club.standardLengthMm && std::abs(j.standardClubLengthM - std7 / 1000.0) < 1e-12,
               "neither: the captured club's standard length");
     }
-    // Capture's seed is taken as stored (no stub detection until step 6): a seeded "DRIVER" sets the
-    // driver's standard length, as today's re-analysis does.
+    // A stored stub is read as stored (J-82: no migration): a review.club "DRIVER" is a declared driver, the one club.
     {
         const EffectiveContext e = effectiveContext(r.context, ClubReview{ QString(), QStringLiteral(" DRIVER ") });
-        check(e.club.standardLengthMm == stdDr && e.club.name == QStringLiteral("7 IRON"),
-              "seeded stub: the driver's standard length, as today");
+        check(e.club.standardLengthMm == stdDr && e.club.name == QStringLiteral("DRIVER"),
+              "a stored stub: a declared driver (its standard length and name)");
     }
     // A declared club that names no standard club: no standard length (today's st.valid gate).
     {
@@ -594,6 +602,65 @@ void testUndeclaredStaysUndeclared()
     check(!j.clubLengthKnown && j.clubLengthM == ShotAnalysisJob{}.clubLengthM, "length unknown");
     check(j.standardClubLengthM == 0.0, "no standard length for an undeclared club");
     check(j.bandCentersMm.empty() && j.priorClubLenN == 0, "no geometry, no prior");
+}
+
+// ── Test 4b ───────────────────────────────────────────────────────────────────────────────────
+// THE ONE CLUB (refactor 6.2; club_vocabulary.h, R-CLUB-2, DEC-133): the rule's order, the document's four facts, and the
+// device club follow-club stores beside the captured club.
+void testOneClub()
+{
+    std::printf("[Test 4b] the one club: correction, declared, device, captured (R-CLUB-2, DEC-133)\n");
+    using pinpoint::ClubFacts;
+    const QString c7 = QStringLiteral("7 IRON"), d4 = QStringLiteral("4 HYBRID"), p9 = QStringLiteral("9 IRON"),
+                  o8 = QStringLiteral("8 IRON");
+    check(pinpoint::effectiveClub(ClubFacts{ c7, d4, p9, o8 }) == o8, "the correction wins");
+    check(pinpoint::effectiveClub(ClubFacts{ c7, d4, p9, QString() }) == p9, "else the declared club");
+    check(pinpoint::effectiveClub(ClubFacts{ c7, d4, QString(), QString() }) == d4, "else the device club");
+    check(pinpoint::effectiveClub(ClubFacts{ c7, QString(), QString(), QString() }) == c7, "else the captured club");
+    check(pinpoint::effectiveClub(ClubFacts{}).isEmpty(), "else undeclared: empty, never a stub (R-CLUB-4)");
+    check(pinpoint::uncorrectedClub(ClubFacts{ c7, d4, QString(), o8 }) == d4, "the uncorrected club skips the correction");
+    check(pinpoint::effectiveClub(QStringLiteral(" 7 IRON "), QStringLiteral("  ")) == c7, "trimmed; a blank correction is none");
+
+    const QJsonObject root{
+        { QStringLiteral("capture"), QJsonObject{
+              { QStringLiteral("club"),       QJsonObject{ { QStringLiteral("name"), c7 } } },
+              { QStringLiteral("deviceClub"), QJsonObject{ { QStringLiteral("name"), d4 }, { QStringLiteral("lengthMm"), 1003.0 } } } } },
+        { QStringLiteral("review"), QJsonObject{ { QStringLiteral("clubOverride"), o8 } } } };
+    const ClubFacts f = pinpoint::clubFactsOfDocument(root);
+    check(f.captured == c7 && f.device == d4 && f.declared.isEmpty() && f.correction == o8, "a document's four facts");
+    check(pinpoint::swingDocEffectiveClub(root) == o8 && pinpoint::swingDocDeclaredClub(root) == d4,
+          "a document's effective club (the findings') and its uncorrected club (the summary's)");
+    check(pinpoint::swingDocEffectiveClub(QJsonObject{}).isEmpty(), "a document that declares nothing: empty");
+
+    // The device club in the effective context: chosen when no golfer's word stands above it.
+    const rec::Recording r = liveRecording();
+    const ClubReview dev = clubReviewOf(QJsonObject{ { QStringLiteral("capture"), QJsonObject{
+        { QStringLiteral("deviceClub"), QJsonObject{ { QStringLiteral("name"), d4 }, { QStringLiteral("lengthMm"), 1003.0 },
+                                                     { QStringLiteral("bandCentersMm"), QJsonArray{ 300.0 } } } } } } });
+    check(dev.device.name == d4 && dev.device.geometry.lengthMm == 1003.0, "clubReviewOf reads the device club and its geometry");
+    {
+        const EffectiveContext e = effectiveContext(r.context, dev);
+        const int std4 = standardClub(d4, ClubSet::Men, 1.80).lengthMm;
+        check(e.club.name == d4 && !e.club.corrected && e.club.captured == c7, "follow-club: the device club, the captured one kept");
+        check(e.club.geometry.lengthMm == 1003.0 && e.club.geometry.lengthKnown && e.club.standardLengthMm == std4
+                  && !e.club.lengthPrior.present(),
+              "...its stored geometry, its standard length, no prior (follow-club's old overwrite gave the same)");
+    }
+    {
+        ClubReview withPick = dev;
+        withPick.declared = p9;
+        const EffectiveContext e = effectiveContext(r.context, withPick);
+        check(e.club.name == p9 && e.club.corrected, "a popover club stands above the device club");
+        withPick.correction = o8;
+        check(effectiveContext(r.context, withPick).club.name == o8, "...and the board's correction above both");
+    }
+    {
+        ClubReview same = dev;
+        same.device.name = QStringLiteral("7 iron");
+        const EffectiveContext e = effectiveContext(r.context, same);
+        check(e.club.name == r.context.club.name && e.club.lengthPrior.present() && !e.club.corrected,
+              "a device club naming the captured club: v1's answer, the prior kept");
+    }
 }
 
 // ── Test 5 ────────────────────────────────────────────────────────────────────────────────────
@@ -739,6 +806,7 @@ int main()
     testCorrectedClub();
     testDeclaredClub();
     testUndeclaredStaysUndeclared();
+    testOneClub();
     testBallRule();
     testBaselineBlobReadByLoader();
     testRunOptions();

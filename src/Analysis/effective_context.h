@@ -18,35 +18,35 @@
 
 #pragma once
 
-// THE EFFECTIVE CONTEXT — the recorded analysis context with the golfer's club correction applied:
-// what one analysis run uses (docs/developer/information_model.md §2; IM-3, Mark 14 Nov 2026).
-// DERIVED, never stored; a copy becomes the analysis' input stamp (step 1.6).
+// THE EFFECTIVE CONTEXT — the recorded analysis context with the shot's one club applied: what one analysis run uses
+// (docs/developer/information_model.md §2; IM-3, Mark 14 Nov 2026). DERIVED, never stored; a copy becomes the analysis'
+// input stamp (step 1.6).
 //
-// THE RULE, effectiveContext() v1:
+// THE RULE, effectiveContext() v2 (refactor 6.2; R-CLUB-2, R-REC-6, DEC-133; closes DEC-72's interim):
 //
-//   correction = the LM board's override (review.clubOverride) — until step 6 the only correction.
-//                The board's evidence suggestion is never a correction: the golfer did not say it.
-//   declared   = the swing-edit popover's club (review.club). Not a correction: it changes only the
-//                STANDARD length, exactly as today's re-analysis does (Mark, 14 Nov 2026: the
-//                popover's club keeps setting the standard length, as today).
-//   effective  = the correction if set, else the captured club (context.club.name)
-//   effective != captured (compared as canonical ids) — the club was corrected:
-//                geometry        = the bag snapshot's entry for the effective club, if present
-//                                  (lengthKnown when its lengthMm > 0), else none
-//                standard length = standardClub(effective, the recorded club set, height)
-//                length prior    = none (the recorded one belongs to the captured club)
-//   otherwise:   geometry and length prior are the RECORDED (captured) ones;
-//                standard length = standardClub(declared, club set, height) when declared is set
-//                                  (0 when it names no standard club), else the recorded one
-//   undeclared stays undeclared: an empty club is never the "DRIVER" stub
+//   name   = THE ONE CLUB (club_vocabulary.h effectiveClub): the board's correction (review.clubOverride), else the
+//            popover's club (review.club), else the device club follow-club stored (capture.deviceClub), else the
+//            captured club (context.club.name); empty = undeclared, never a stub. The board's evidence suggestion is
+//            never one of these: the golfer did not say it.
+//   name is the captured club (compared as canonical ids), or undeclared — nothing moved it: EXACTLY v1's answer, so a
+//            shot whose club nobody changed keeps its input stamp: name, geometry and length prior are the RECORDED
+//            (captured) ones; standard length = standardClub(declared, club set, height) when declared is set (0 when
+//            it names no standard club), else the recorded one.
+//   name is the device club (no correction, no declared club):
+//            geometry = the device club's as follow-club stored it (lengthKnown when its lengthMm > 0); standard length
+//            = standardClub(device, the recorded club set, height); length prior = none. The same job as follow-club's
+//            old overwrite of the captured club gave (DEC-133: the same analysis result as DEC-82).
+//   otherwise (the golfer's correction or popover club names another club than the captured one): corrected;
+//            geometry = the bag snapshot's entry for it, if present (lengthKnown when its lengthMm > 0), else none;
+//            standard length = standardClub(name, the recorded club set, height); length prior = none (the recorded
+//            one belongs to the captured club).
 //
-// THE DECLARED CLUB IS TAKEN AS STORED. Capture seeds review.club (the session club, else the
-// athlete's primary, else the "DRIVER" stub); a seed is not told apart from a golfer's pick, so a
-// seeded stub sets the driver's standard length — as today's re-analysis does. That stays until
-// step 6 removes the seed.
+// v1 (until step 6) took only the board's correction as a club; the popover's club set only the standard length, and
+// the device club came in by overwriting the captured club. A stored "DRIVER" stub in review.club is read as stored: a
+// declared driver (J-82: no migration).
 //
-// The caller passes the review facts in (the repository's load returns them beside the Recording):
-// analysis never reads the shot's review block.
+// The caller passes the review facts in (the repository's load returns them beside the Recording): analysis never
+// reads the shot's review block.
 //
 // Rules ring: pure, no I/O.
 
@@ -56,13 +56,13 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kEffectiveContextRuleVersion = 1;
+inline constexpr int kEffectiveContextRuleVersion = 2;   // 2: the one club (refactor 6.2)
 
 struct EffectiveClub {
     QString                          name;        // the club the analysis uses; empty = undeclared
     QString                          captured;    // the club capture recorded (provenance)
     QString                          declared;    // review.club as passed in (provenance)
-    bool                             corrected = false;   // name came from the golfer's correction
+    bool                             corrected = false;   // name is the golfer's club (correction or popover), not the captured one
     pinpoint::recording::ClubGeometry geometry;
     pinpoint::recording::LengthPrior  lengthPrior;
     double                           standardLengthMm = 0.0;   // 0 = none
@@ -75,10 +75,12 @@ struct EffectiveContext {
     EffectiveClub                   club;
 };
 
-// The golfer's two club edits on the shot's review block, as stored. Empty = not set.
+// The shot's club facts beyond the captured club, as stored (R-CLUB-1): the golfer's two club edits on its review block
+// and the device club follow-club stored beside the captured club. Empty = not set.
 struct ClubReview {
     QString correction;   // review.clubOverride (any spelling the club vocabulary reads)
     QString declared;     // review.club, used as today's re-analysis uses it (trimmed, not canonicalised)
+    pinpoint::recording::RecordedClub device;   // capture.deviceClub: name and geometry (no prior, no standard length)
 };
 
 EffectiveContext effectiveContext(const pinpoint::recording::AnalysisContext &recorded,

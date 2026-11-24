@@ -242,8 +242,12 @@ SwingSummary summaryFromRoot(const QJsonObject &root, const QString &swingDir)
         return s;
 
     s.ordinal = root[QStringLiteral("swing")].toObject()[QStringLiteral("index")].toInt();
-    // review.club, else the club selected at capture, else the stub — see swingDocClub().
-    s.club    = swingDocClub(root);
+    // The UNCORRECTED club (club_vocabulary.h, refactor 6.2): review.club, else the device club follow-club stored, else
+    // the club selected at capture; EMPTY when nothing declared it, never the stub (R-CLUB-4). The board's correction is
+    // its own field (clubOverride); the carousel's club is the two through the one rule (ShotListModel::ClubRole). No
+    // schema bump: a summary block written before 6.2 is read as it was saved (J-82), and the next write refreshes it.
+    s.club    = swingDocDeclaredClub(root);
+    s.legacyClubStub = swingDocIsLegacyClubStub(root);   // the board's J-106 exception (interim); never persisted
 
     const QString wc = root[QStringLiteral("clock")].toObject()[QStringLiteral("wallclock")].toString();
     const QDateTime dt = QDateTime::fromString(wc, Qt::ISODateWithMs);
@@ -394,6 +398,9 @@ bool writeSummaryFile(const SwingSummary &s, QString *error)
     }
 
     QJsonObject root = summaryJson(s);
+    // The board's legacy-stub flag (J-106, interim), in the JSON-era sidecar ONLY: a cache of what the document says,
+    // so a swing.json is not fat-parsed on every list to learn it. The .ppsw summary block never carries it.
+    root.insert(QStringLiteral("legacyClubStub"), s.legacyClubStub);
     root.insert(QStringLiteral("source"), QJsonObject{
         { QStringLiteral("size"),     double(src.size()) },
         { QStringLiteral("mtime_ms"), double(src.lastModified().toMSecsSinceEpoch()) } });
@@ -870,6 +877,10 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, SidecarPo
             if (!block.contains(QStringLiteral("handedness")))
                 s.handedness = heads[QStringLiteral("athlete")].toObject()
                                    [QStringLiteral("handedness")].toString();
+            // The board's legacy-stub exception (J-106, interim): never in the block, so read from the same root chunk,
+            // and only for a shot whose club reads DRIVER (every other shot cannot be one).
+            if (canonicalClubId(s.club) == QLatin1String("DRIVER"))
+                s.legacyClubStub = swingDocIsLegacyClubStub(heads);
             return s;
         }
         // Missing or an older schema: derive it from the document (unless CachedOnly). Not written back
@@ -896,6 +907,9 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, SidecarPo
             // A sidecar from before `devices` cannot say what recorded the swing — stale.
             && root.contains(QStringLiteral("devices"))
             && root.contains(QStringLiteral("handedness"))
+            // A sidecar from before the legacy-stub flag cannot say whether a DRIVER is a stub (J-106): stale, once.
+            && (root.contains(QStringLiteral("legacyClubStub"))
+                || canonicalClubId(root[QStringLiteral("club")].toString()) != QLatin1String("DRIVER"))
             // The one stamp rule (SwingStore::sameDocumentStamp): a copy that kept the document's
             // mtime to the whole second is the same document.
             && SwingStore::sameDocumentStamp(qint64(srcObj[QStringLiteral("size")].toDouble()),
@@ -903,6 +917,7 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, SidecarPo
                                              src.size(), src.lastModified().toMSecsSinceEpoch());
         if (fresh) {
             summaryFromJson(root, swingDir, s);
+            s.legacyClubStub = root[QStringLiteral("legacyClubStub")].toBool(false);
             return s;
         }
     }

@@ -48,6 +48,7 @@
 
 #include "diagnostic_ledger.h"
 #include "../Diagnostics/engine/characteristic.h"
+#include "../Core/club_vocabulary.h"   // effectiveClub: the one club rule (refactor 6.2)
 
 #include <QHash>
 #include <QJsonObject>
@@ -75,11 +76,12 @@ struct BoardAnnotation {
 // A reading key the launch monitor gives: an "lm." key (the catalogue's key ladder; the document's metric keys) — the
 // measurement vocabulary's source test (measurement.h, refactor 6.1a: a launch monitor reading, told one way).
 inline bool isLaunchMonitorKey(const QString &key) { return isLaunchMonitorReading(key); }
-// The club a shot is read under: the board's when it set one, else the shot's own.
+// The club a shot is read under: the board's when it set one, else the shot's own — the one club rule
+// (club_vocabulary.h effectiveClub; refactor 6.2, R-CLUB-2). Since 6.2 a fired shot's club is already its effective one
+// (the phase grid's), so this is the identity there; the Charts' shot (the uncorrected club) still takes it here.
 inline QString annotatedClub(const QString &club, const BoardAnnotation &a)
 {
-    const QString board = a.clubOverride.trimmed();
-    return board.isEmpty() ? club : board;
+    return a.clubOverride.trimmed().isEmpty() ? club : pinpoint::effectiveClub(club, a.clubOverride);
 }
 // A swing document's two board facts, from its review block (review.excluded, review.clubOverride: the keys
 // RecordingRepository's review read gives as ShotReview::lmExcluded / lmClubOverride).

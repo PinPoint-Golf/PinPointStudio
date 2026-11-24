@@ -31,17 +31,21 @@ EffectiveContext effectiveContext(const pinpoint::recording::AnalysisContext &re
     out.heightM    = recorded.heightM;
     out.clubSet    = recorded.clubSet;
 
-    const QString captured   = recorded.club.name;
-    const QString correction = pinpoint::canonicalClubId(review.correction);
-    const QString declared   = review.declared.trimmed();
+    const QString captured = recorded.club.name;
+    const QString declared = review.declared.trimmed();
     out.club.captured = captured;
     out.club.declared = declared;
 
-    // No correction, or a correction that names the captured club: the captured club's geometry and
-    // prior. The captured name is passed through as recorded (an undeclared club stays empty). The
-    // standard length follows the declared club when there is one — today's re-analysis rule
-    // (standardClub of review.club, case-insensitive, as stored; invalid → none).
-    if (correction.isEmpty() || correction == pinpoint::canonicalClubId(captured)) {
+    // THE ONE CLUB (club_vocabulary.h; R-CLUB-2): the correction, else the declared club, else the device club, else the
+    // captured club.
+    const pinpoint::ClubFacts facts{ captured, review.device.name, review.declared, review.correction };
+    const QString one = pinpoint::canonicalClubId(pinpoint::effectiveClub(facts));
+
+    // Nothing moved it (the one club is the captured club, or the shot is undeclared): v1's answer, field for field. The
+    // captured name is passed through as recorded (an undeclared club stays empty). The standard length follows the
+    // declared club when there is one — today's re-analysis rule (standardClub of review.club, case-insensitive, as
+    // stored; invalid → none).
+    if (one.isEmpty() || one == pinpoint::canonicalClubId(captured)) {
         out.club.name        = captured;
         out.club.geometry    = recorded.club.geometry;
         out.club.lengthPrior = recorded.club.lengthPrior;
@@ -54,19 +58,28 @@ EffectiveContext effectiveContext(const pinpoint::recording::AnalysisContext &re
         return out;
     }
 
-    // The golfer corrected the club on the board: its geometry from the bag snapshot, its standard
-    // length for the recorded club set and height, and no length prior. The override wins over the
-    // declared club.
-    out.club.name      = correction;
+    out.club.name = one;
+    const pinpoint::ClubStandard st = pinpoint::standardClub(one, recorded.clubSet, recorded.heightM);
+    if (st.valid)
+        out.club.standardLengthMm = st.lengthMm;
+
+    // The device club, when the rule chose it (no correction, no declared club): its geometry as follow-club stored it,
+    // no length prior — the job follow-club's old overwrite of the captured club gave.
+    const bool golferSaid = !review.correction.trimmed().isEmpty() || !declared.isEmpty();
+    if (!golferSaid) {
+        out.club.geometry             = review.device.geometry;
+        out.club.geometry.lengthKnown = out.club.geometry.lengthMm > 0.0;
+        return out;
+    }
+
+    // The golfer named another club (the board's correction, or the popover's club): its geometry from the bag snapshot,
+    // and no length prior.
     out.club.corrected = true;
-    const auto bagIt = recorded.bag.constFind(correction);
+    const auto bagIt = recorded.bag.constFind(one);
     if (bagIt != recorded.bag.constEnd()) {
         out.club.geometry             = bagIt.value();
         out.club.geometry.lengthKnown = out.club.geometry.lengthMm > 0.0;
     }
-    const pinpoint::ClubStandard st = pinpoint::standardClub(correction, recorded.clubSet, recorded.heightM);
-    if (st.valid)
-        out.club.standardLengthMm = st.lengthMm;
     return out;
 }
 

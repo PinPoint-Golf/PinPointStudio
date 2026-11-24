@@ -279,8 +279,8 @@ struct ShotSummary {
     bool        ok = false;          // false: no document yet, or it could not be read
     int         ordinal = 0;         // the swing number the document records
     QString     timestampLabel;      // hh:mm:ss of the capture
-    QString     club;                // the club the row names: the review's declared club, else the captured
-                                     // club, else the stub (club_vocabulary.h)
+    QString     club;                // the uncorrected club (club_vocabulary.h): the popover's, else the device's, else
+                                     // the captured club; "" = undeclared, never the stub (refactor 6.2)
     bool        hasVideo = false;
     QString     thumbnailPath;       // absolute; "" when none
     int         score = 0;
@@ -292,6 +292,7 @@ struct ShotSummary {
     QVariantMap dataWarningDetail;      // the facts behind it
     bool        lmExcluded = false;     // the launch monitor board's exclusion (review.excluded)
     QString     lmClubOverride;         // the board's club correction (review.clubOverride; "" = none)
+    bool        legacyClubStub = false; // a stored "DRIVER" stub (J-106, interim): the board's one exception; never stored
 };
 
 // ── writeTruth, truth (FILE-SHOT-12) ─────────────────────────────────────────────────────────────
@@ -340,9 +341,9 @@ public:
                                const DeviceOnlyMeta &meta) = 0;
 
     // A launch monitor reading folded into the shot (idempotent). `followedClub`, when not empty,
-    // is the capture.club the device named (follow-club, IM-4): it replaces the recorded club only
-    // when it names another, and never over a hand-set review.club; analysisContext.club (what
-    // analysis reads) is rewritten with it (R-REC-2(a), DEC-82). *clubReplaced says whether it did.
+    // is the club the device named (follow-club, in capture.club's shape): stored BESIDE the captured
+    // club as the device club (capture.deviceClub; R-REC-2(a), R-CLUB-1, DEC-133), never over it, and
+    // never touching the review. *clubReplaced says whether it changed the shot's one club (refactor 6.2).
     virtual WriteResult completeCapture(const ShotRef &shot, const lm::LaunchMonitorReading &reading,
                                         const QJsonObject &followedClub = {},
                                         bool *clubReplaced = nullptr) = 0;

@@ -108,7 +108,7 @@ namespace pinpoint::analysis {
 // The schema this build writes. A sidecar declaring a HIGHER version is ignored and rebuilt rather
 // than partially read — it is a pure cache, so discarding it is always safe.
 //
-// 2: `club` now resolves through swingDocClub() (review.club, else capture.club.name, else the
+// 2: `club` now resolves through swingDocClub(), since retired (review.club, else capture.club.name, else the
 //    stub). A v1 sidecar cached the review-or-stub answer and its size+mtime guard still matches,
 //    since the fix rewrote no swing.json — the version bump is what retires it.
 // 3: `spans` min/max are the extremes of the CENTRED-WINDOW MEAN (±extremumWindowUs/2) instead of
@@ -146,7 +146,13 @@ namespace pinpoint::analysis {
 //    in their content stamp for the same reason.
 // 10: the two plane curves' `values` are the curve AT the phase instant, not a ±15 ms median about it
 //    (fitted_curve.h, 8 Nov 2026). Other series are unchanged to the bit.
-inline constexpr int kPhaseGridSchemaVersion = 10;
+// 11: `club` is the shot's EFFECTIVE club, the one rule (club_vocabulary.h swingDocEffectiveClub; refactor 6.2,
+//    R-CLUB-2): the board's correction wins, else review.club, else the device club follow-club stored, else the
+//    captured club; empty when nothing declared it. Before, the board's correction never reached the grid, so a corrected
+//    shot's findings were graded at the club it was recorded under. A v10 sidecar's guard still matches the unchanged
+//    document of a shot corrected before this build, so the bump retires it, and through firingStamp it is the re-judge:
+//    the library's findings fire once more on the new build's first launch (J-82).
+inline constexpr int kPhaseGridSchemaVersion = 11;
 
 // SigmaSource — where a reading's measurement σ came from — lives in sigma_source.h.
 

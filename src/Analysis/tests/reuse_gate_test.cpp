@@ -202,10 +202,12 @@ void testCorrectedClub()
     std::printf("      staleness: %s\n", stale.toUtf8().constData());
     check(stale == QStringLiteral("club 7 IRON → 9 IRON"), "stale on the club");
 
-    // The popover's club alone never changes the club inputs while the length is recorded.
+    // The popover's club is the one club since refactor 6.2 (R-CLUB-2; DEC-72's interim closed): a declared club
+    // other than the captured one changes the club inputs, so the shaft re-runs and the shot reads stale.
     const ShotAnalysisJob declared = jobFor(r, ClubReview{ QString(), QStringLiteral("DRIVER") });
-    check(ReuseGate(factsFor(recordedVersions(before), declared, false)).mayReloadShaft(true),
-          "a declared club with a recorded length: the shaft still reused");
+    check(!ReuseGate(factsFor(recordedVersions(before), declared, false)).mayReloadShaft(true)
+              && analysisInputsStaleness(recordedVersions(before), declared.inputs) == QStringLiteral("club 7 IRON → DRIVER"),
+          "a declared club other than the captured one: the shaft re-runs, stale on the club");
 }
 
 // ── Test 4 ────────────────────────────────────────────────────────────────────────────────────
@@ -404,17 +406,22 @@ void testFollowClub()
     SwingStoreRecordingRepository repo(testdoc::shots());   // a test folder is a shot
     bool replaced = false;
     check(repo.completeCapture(testdoc::ref(dir.path()), reading, followed, &replaced).ok() && replaced,
-          "the launch monitor names a 9 iron: follow-club replaces the captured club");
+          "the launch monitor names a 9 iron: follow-club changes the one club");
 
     const LoadedRecording lr = loadRecording(dir.path());
     check(lr.ok && lr.contextRecorded, "reloaded, the analysisContext block still recorded");
     const rec::RecordedClub &c = lr.recording.context.club;
-    check(c.name == QStringLiteral("9 IRON") && c.geometry.lengthKnown && c.geometry.lengthMm == 914.0
-              && c.geometry.bandCentersMm == std::vector<double>{ 290.0, 490.0 },
-          "analysisContext.club is the followed club, with its geometry");
-    check(!c.lengthPrior.present()
-              && c.standardLengthMm == standardClub(QStringLiteral("9 IRON"), ClubSet::Men, 1.80).lengthMm,
-          "...no length prior (it was the 7 iron's), its standard length for the recorded set");
+    // DEC-133 (refactor 6.2): the captured club survives; the device club is stored beside it.
+    check(c.name == live.context.club.name && c.lengthPrior.present() == live.context.club.lengthPrior.present()
+              && c.geometry.lengthMm == live.context.club.geometry.lengthMm,
+          "analysisContext.club is still the captured club, its geometry and prior untouched");
+    check(lr.review.device.name == QStringLiteral("9 IRON") && lr.review.device.geometry.lengthMm == 914.0
+              && lr.review.device.geometry.bandCentersMm == std::vector<double>{ 290.0, 490.0 },
+          "...the followed club is the device club beside it (capture.deviceClub), with its geometry");
+    const EffectiveContext eff = effectiveContext(lr.recording.context, lr.review);
+    check(eff.club.name == QStringLiteral("9 IRON") && !eff.club.lengthPrior.present()
+              && eff.club.standardLengthMm == standardClub(QStringLiteral("9 IRON"), ClubSet::Men, 1.80).lengthMm,
+          "...the effective club is it: no length prior (the 7 iron's), its standard length for the recorded set");
     check(lr.recording.context.heightM == 1.80 && lr.recording.context.bag.size() == live.context.bag.size(),
           "...the athlete facts and the bag snapshot untouched");
     const ShotAnalysisJob now = buildAnalysisJob(lr.recording, effectiveContext(lr.recording.context, lr.review),

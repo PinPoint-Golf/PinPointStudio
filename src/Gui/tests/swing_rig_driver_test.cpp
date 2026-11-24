@@ -84,7 +84,11 @@ using PKeys = std::array<qint64, 7>;
 
 // One shot: the elbow is linear from 0 at P1 to `perStep`·6 at P7, so a pose read at a P-time says
 // whether the figure is on that shot's clock.
-static void writeSessionShot(const QString &sessionDir, int n, const PKeys &p, const QString &club)
+// Where the shot's club is written: the popover's (review.club, what every shot carried before refactor 6.2), the
+// captured club alone (capture.club.name: a shot captured since 6.2, never edited), or a captured club the board corrected.
+enum class ClubAt { Review, Captured, Corrected };
+static void writeSessionShot(const QString &sessionDir, int n, const PKeys &p, const QString &club,
+                             ClubAt at = ClubAt::Review, const QString &correction = QString())
 {
     const sk::Rig &R = sk::rig();
     const int elbow = dof("lElbow.flex");
@@ -127,7 +131,13 @@ static void writeSessionShot(const QString &sessionDir, int n, const PKeys &p, c
                                        { QStringLiteral("source"), 1 } });
     QJsonObject root;
     root[QStringLiteral("clock")] = QJsonObject { { QStringLiteral("t0_us"), 0 } };
-    root[QStringLiteral("review")] = QJsonObject { { QStringLiteral("club"), club } };
+    if (at == ClubAt::Review) {
+        root[QStringLiteral("review")] = QJsonObject { { QStringLiteral("club"), club } };
+    } else {
+        root[QStringLiteral("capture")] = QJsonObject { { QStringLiteral("club"), QJsonObject { { QStringLiteral("name"), club } } } };
+        if (at == ClubAt::Corrected)
+            root[QStringLiteral("review")] = QJsonObject { { QStringLiteral("clubOverride"), correction } };
+    }
     root[QStringLiteral("athlete")] = QJsonObject { { QStringLiteral("handedness"), QStringLiteral("Right") } };
     root[QStringLiteral("analysis")] = QJsonObject {
         { QStringLiteral("skeleton3d"), sk::skeleton3dToJson(r, 0, 17) },
@@ -200,6 +210,20 @@ static void sessionView(QTemporaryDir &tmp)
     std::printf("      fallback: %s\n", qPrintable(two.sessionFallback()));
     check(two.available() && two.sessionShots() == 0, "below three shots the panel shows the shot");
     check(!two.sessionFallback().isEmpty(), "…and says why");
+
+    // THE ONE CLUB (refactor 6.2, review B-1): a two-club session captured since 6.2 holds its clubs in capture.club, with
+    // no review.club, and one shot the board corrected from the 9 iron to the 7 iron. Each club synthesises its own usual
+    // swing; reading the raw review.club pooled all eight into one.
+    const QString twoClubs = tmp.filePath(QStringLiteral("two-clubs"));
+    for (int n = 1; n <= 4; ++n) writeSessionShot(twoClubs, n, scaled(0.9 + 0.05 * n), QStringLiteral("7 IRON"), ClubAt::Captured);
+    for (int n = 5; n <= 7; ++n) writeSessionShot(twoClubs, n, scaled(0.9 + 0.05 * (n - 4)), QStringLiteral("9 IRON"), ClubAt::Captured);
+    writeSessionShot(twoClubs, 8, scaled(1.0), QStringLiteral("9 IRON"), ClubAt::Corrected, QStringLiteral("7 iron"));
+    SwingRigDriver sevens, nines;
+    sevens.loadSessionNow(twoClubs + QStringLiteral("/swing_0001"));
+    nines.loadSessionNow(twoClubs + QStringLiteral("/swing_0005"));
+    std::printf("      two clubs: %d shots under the 7 iron, %d under the 9 iron\n", sevens.sessionShots(), nines.sessionShots());
+    check(sevens.sessionShots() == 5, "two clubs: the 7 iron's usual swing is its four captured shots and the corrected one");
+    check(nines.sessionShots() == 3, "…and the 9 iron's is its own three, without the shot corrected away from it");
 
     // Nothing is read until the panel is on show.
     const QString later = tmp.filePath(QStringLiteral("later"));

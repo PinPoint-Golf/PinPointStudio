@@ -27,7 +27,7 @@
 // folder. So the report honours what the golfer did on the board, the same way the board does:
 //   - a shot LEFT OUT ("Leave out", review.excluded) is in no median, range, Typical value, carry bar or reference
 //     tie-break; it is still listed in the tables, marked "out", and the cover says which swing it was;
-//   - a shot RE-LABELLED (review.clubOverride, or a specific club-evidence relabel) is counted under its EFFECTIVE club
+//   - a shot RE-LABELLED (review.clubOverride: the one club rule; the club evidence relabels nothing since refactor 6.2) is counted under its EFFECTIVE club
 //     everywhere, marked "*" in the tables;
 //   - the readings are the board's (the analysis' lm.* entries, as the import's gates left them), not the raw block.
 // Which shots count is LmBoardShot::inFigures() — the board's rule, never restated here. Columns and units come from

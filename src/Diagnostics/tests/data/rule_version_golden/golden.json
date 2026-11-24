@@ -33,7 +33,7 @@
     "frozenContent": "72eeb4189aee4810",
     "versions": {
         "diagSchema": 16,
-        "phaseGrid": 10,
+        "phaseGrid": 11,
         "rowGrading": 1,
         "rowWords": 1
     }

@@ -553,8 +553,10 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
     pinpoint::PostShotTrace::Scope trace("lm.ball");   // [PostShot] (3.7-S): the reading into its swing, on this thread
     // Following Premier's club: followDeviceClub() set it as the reading arrived, which is
     // normally before the shot's analysis began (the reading lands ~0.7 s after contact, the
-    // analysis ~1.25 s after detection). When the analysis won that race the swing was recorded
-    // under the old club: correct it in this same write and re-analyse with the right one.
+    // analysis ~1.25 s after detection). When the analysis won that race the swing was captured
+    // under the old club: this same write stores the device's club beside it (capture.deviceClub,
+    // DEC-133; the captured club is kept), and when that changes the shot's one club it is
+    // re-analysed with it.
     const QString club = followedClub(r);
     const QJsonObject captureClub = club.isEmpty() ? QJsonObject() : captureClubFor(club);
     bool clubReplaced = false;
@@ -567,7 +569,7 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
     }
     if (clubReplaced) {
         ppInfo() << "LaunchMonitor: swing" << swingDir << "was analysed before Premier named its club;"
-                 << "recorded as" << club << "and re-analysed";
+                 << "the device's club" << club << "is stored beside the captured one and the swing re-analysed";
         if (m_reanalyse)
             m_reanalyse(swingDir);
     }

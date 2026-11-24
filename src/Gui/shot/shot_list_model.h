@@ -88,6 +88,15 @@ public:
         // LmSessionModel; written through setLmExcluded / setLmClubOverride. Nothing else in the app interprets them.
         LmExcludedRole,         // bool — left out of the board's statistics
         LmClubOverrideRole,     // QString — the club the board treats the shot as; "" = default
+        // THE CLUBS (refactor 6.2; club_vocabulary.h, R-CLUB-2). ClubRole ("club") is the shot's ONE club, the one every
+        // view shows: the board's correction, else the uncorrected club. RecordedClubRole ("recordedClub") is the
+        // uncorrected club (the popover's, else the device's, else the captured club): what a correction is made against
+        // and what the popover edits. Both "" for an undeclared club, never a stub.
+        RecordedClubRole,
+        // bool — a stored "DRIVER" stub (club_vocabulary.h swingDocIsLegacyClubStub; J-106, INTERIM pending the Solution
+        // Architect): read by the launch monitor board alone, its one exception to the one club rule. False for a shot
+        // not yet saved: new captures never write a stub.
+        LegacyClubStubRole,
     };
 
     explicit ShotListModel(QObject *parent = nullptr);   // starts empty, over no session

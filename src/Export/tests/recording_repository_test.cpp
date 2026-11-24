@@ -27,7 +27,7 @@
 //   Test 4  the empty-document guard: nothing to read → NoDocument, and nothing is created
 //   Test 5  editReview merges: a rating never un-excludes; an annotation-only edit that changes
 //           nothing writes nothing; cleared annotations remove their keys (and an empty block)
-//   Test 6  completeCapture: a reading (rows written; follow-club replaces the captured club, never
+//   Test 6  completeCapture: a reading (rows written; follow-club stores the device club beside the captured club, never
 //           over a hand-set one) and a stream arrival (pending element, then the landed file)
 //   Test 7  a launch-monitor-only shot: create, isDeviceOnly, writeAnalysis with no analysis
 //           (rows current → Unchanged; stale → Written, a dry run writes nothing)
@@ -65,6 +65,7 @@
 #include "../recording_header.h"                  // analysisContextJson (Test 12), the header (Test 14)
 #include "../swing_exporter.h"                    // SwingExportJob (Test 14)
 #include "../../Core/club_standards.h"            // standardClub (Test 12)
+#include "../../Core/club_vocabulary.h"           // the one club rule (Test 6, refactor 6.2)
 #include "../../LaunchMonitor/lm_inferred_reads.h" // lmLowPointFromAttack (Test 12)
 #include "../swing_doc.h"
 #include "../swing_paths.h"
@@ -404,31 +405,57 @@ void testCompleteCapture(RecordingRepository &repo)
     const analysis::SwingAnalysis a = poseAnalysis(55);
     NewRecording rec;
     rec.header     = cameraHeader(QStringLiteral("DRIVER"));
-    rec.analysis   = &a;
-    rec.reviewClub = QStringLiteral("DRIVER");   // capture's seed
-    check(repo.create(testdoc::ref(t.path()), rec).ok(), "a captured shot, seeded with the session's club");
+    rec.analysis   = &a;                         // capture seeds no review.club (refactor 6.2)
+    check(repo.create(testdoc::ref(t.path()), rec).ok(), "a captured shot, under the session's club");
+    check(!doc(t.path()).value(QStringLiteral("review")).toObject().contains(QStringLiteral("club")),
+          "...with no seeded review.club");
 
+    // FOLLOW-CLUB ON (R-CLUB-1, DEC-133): the device's club is stored BESIDE the captured club, which survives.
     const QJsonObject premierClub{ { QStringLiteral("name"), QStringLiteral("7 IRON") },
                                    { QStringLiteral("lengthMm"), 940 } };
+    const QJsonObject before = doc(t.path());
     bool replaced = false;
     check(repo.completeCapture(testdoc::ref(t.path()), reading(85.0), premierClub, &replaced).ok() && replaced,
-          "a reading naming another club: follow-club replaces the captured club (IM-4)");
+          "a reading naming another club: follow-club changes the shot's one club");
     const QJsonObject root = doc(t.path());
-    check(root.value(QStringLiteral("capture")).toObject().value(QStringLiteral("club")).toObject()
-                  .value(QStringLiteral("name")).toString() == QLatin1String("7 IRON")
-              && review(t.path()).value(QStringLiteral("club")).toString() == QLatin1String("7 IRON"),
-          "...capture.club and the seeded review.club move together");
+    const QJsonObject cap  = root.value(QStringLiteral("capture")).toObject();
+    check(cap.value(QStringLiteral("club")).toObject() == before.value(QStringLiteral("capture")).toObject().value(QStringLiteral("club")).toObject()
+              && cap.value(QStringLiteral("club")).toObject().value(QStringLiteral("name")).toString() == QLatin1String("DRIVER")
+              && root.value(QStringLiteral("analysisContext")) == before.value(QStringLiteral("analysisContext")),
+          "...the captured club survives: capture.club and the analysis context untouched");
+    check(cap.value(QStringLiteral("deviceClub")).toObject() == premierClub,
+          "...the device club stored beside it, geometry and all (capture.deviceClub)");
+    check(!review(t.path()).contains(QStringLiteral("club")) && swingDocEffectiveClub(root) == QLatin1String("7 IRON")
+              && swingDocDeclaredClub(root) == QLatin1String("7 IRON"),
+          "...the review untouched, and the one club is the device's");
     check(hasMetric(root, QStringLiteral("lm.clubheadSpeed")) && root.contains(QStringLiteral("launchMonitor")),
           "...and the reading's rows and raw block are written");
+    check(repo.completeCapture(testdoc::ref(t.path()), reading(85.0), premierClub, &replaced).ok() && !replaced,
+          "the same device club again changes nothing");
 
     ReviewEdit hand;
     hand.rating = 0;
     hand.note   = QString();
     hand.club   = QStringLiteral("PW");
     check(repo.editReview(testdoc::ref(t.path()), hand).ok(), "the golfer sets the club by hand");
-    const QJsonObject driverClub{ { QStringLiteral("name"), QStringLiteral("DRIVER") } };
-    check(repo.completeCapture(testdoc::ref(t.path()), reading(85.0), driverClub, &replaced).ok() && !replaced,
-          "follow-club never replaces over a hand-set club");
+    const QJsonObject hybridClub{ { QStringLiteral("name"), QStringLiteral("4 HYBRID") } };
+    check(repo.completeCapture(testdoc::ref(t.path()), reading(85.0), hybridClub, &replaced).ok() && !replaced,
+          "follow-club never stands above a hand-set club");
+    const QJsonObject after = doc(t.path());
+    check(after.value(QStringLiteral("capture")).toObject().value(QStringLiteral("deviceClub")).toObject() == hybridClub
+              && review(t.path()).value(QStringLiteral("club")).toString() == QLatin1String("PW")
+              && swingDocEffectiveClub(after) == QLatin1String("PW")
+              && after.value(QStringLiteral("capture")).toObject().value(QStringLiteral("club")).toObject().value(QStringLiteral("name")).toString() == QLatin1String("DRIVER"),
+          "...its device club is still recorded beside the captured one; the hand-set club is the one club");
+
+    // FOLLOW-CLUB OFF: no club handed in, nothing stored.
+    QTemporaryDir off;
+    check(repo.create(testdoc::ref(off.path()), rec).ok()
+              && repo.completeCapture(testdoc::ref(off.path()), reading(85.0), QJsonObject(), &replaced).ok() && !replaced,
+          "follow-club off: a reading with no club to follow");
+    check(!doc(off.path()).value(QStringLiteral("capture")).toObject().contains(QStringLiteral("deviceClub"))
+              && swingDocEffectiveClub(doc(off.path())) == QLatin1String("DRIVER"),
+          "...no device club, the captured club is the one club");
 
     // A stream arrival: pending (no file), then landed.
     StreamArrival pending;

@@ -47,9 +47,9 @@ LoadedSwing jobFromRecording(LoadedRecording lr)
         return out;
     }
 
-    // THE CLUB THE GOLFER HIT (step 1.6): the effective context applies the board's override
-    // (review.clubOverride, the golfer's correction) and the popover's club (review.club, the
-    // declared club: it sets the standard length), effectiveContext() v1. The reuse gate sees the
+    // THE CLUB THE GOLFER HIT (step 1.6; refactor 6.2, R-REC-6): the effective context takes the shot's one club — the
+    // board's override, else the popover's club, else the device club follow-club stored, else the captured club —
+    // effectiveContext() v2. The reuse gate sees the
     // club through the input stamp (reuse_gate.h), so a corrected shot re-runs its shaft track and
     // ladder while its pose and ball are reused.
     const EffectiveContext effective = effectiveContext(lr.recording.context, lr.review);

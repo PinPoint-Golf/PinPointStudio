@@ -249,10 +249,9 @@ const QStringList &lmDerivedKeys()
 
 // The radius the club's head swings through near the bottom, for lmLowPointFromAttack: the standard
 // length of the club the shot was hit with, for the golfer's RECORDED club set, plus the arm term
-// (step 1.6; step 1 brief §4.3). The club is the EFFECTIVE one — effectiveContext() v1 over the
-// document's analysis context (recorded, or the legacy one for an older document) and its review:
-// the board's override when the golfer corrected the club, else the captured club with the popover's
-// club setting the standard length, exactly as the analysis takes it. So a device-only shot follows
+// (step 1.6; step 1 brief §4.3). The club is the EFFECTIVE one — effectiveContext() v2 over the
+// document's analysis context (recorded, or the legacy one for an older document), its review and its
+// device club: the one club (club_vocabulary.h; refactor 6.2), exactly as the analysis takes it. So a device-only shot follows
 // the correction too, and the women's set is reachable. A junior with no recorded height has no
 // junior standard; their club is read from the men's set (the set does not say more), as before.
 // A club the table does not know — or none — takes the mid-iron default.
@@ -428,12 +427,11 @@ WriteResult SwingDocWriter::writeDocument(const QString &swingDir, const QJsonOb
     QJsonObject root = rawManifest;
     root[QStringLiteral("schema")] = QString::fromLatin1(kSwingDocSchema);   // the one schema constant
 
-    // The club the session was on when the shot happened, seeded into the review block the
-    // same way writeDeviceOnlySwing() seeds it. capture.club.name already records it, and
-    // swingDocClub() falls back to that, so this is belt-and-braces rather than the only
-    // copy — but it puts the answer where editReview() will later replace it, so a user
-    // correction and a capture-time pick live at one key instead of two that can disagree.
-    // Empty ⇒ no block at all: an absent review is honest, a review naming no club is not.
+    // A declared club handed in by the caller, written into the review block. LIVE CAPTURE HANDS
+    // NONE since refactor 6.2: the session's club is the captured club (capture.club.name), and a
+    // seed in review.club would stand above the device club follow-club stores (the one club rule,
+    // club_vocabulary.h; DEC-133). Empty ⇒ no block at all: an absent review is honest, a review
+    // naming no club is not.
     //
     // SEEDS, never overwrites. `rawManifest` is a fresh capture manifest on the live path,
     // but the re-analysis path hands back the whole existing document (reanalysis_controller)
@@ -821,35 +819,22 @@ WriteResult SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
     if (!loadForRewrite(swingDir, &root, &refused))
         return refused;
 
-    // The club the device named, replacing the one the swing was recorded under (see the header).
-    // review.club is SEEDED by the live save with the session's club (RecordingRepository::create), so it is the
-    // user's own pick only when it names neither the recorded club nor the device's: then nothing
-    // changes. Otherwise both move to the device's club.
+    // FOLLOW-CLUB (R-REC-2(a), R-CLUB-1, DEC-133; refactor 6.2): the club the device named is stored BESIDE the captured
+    // club, as its own source fact, capture.deviceClub (capture.club's shape). The captured club (capture.club and the
+    // analysis context) and the golfer's review are never touched. Stored only when it names another club than the
+    // captured one, and once per club. *clubReplaced says whether it changed the shot's ONE club (club_vocabulary.h:
+    // no correction and no popover club stand above it), so the caller re-analyses with it.
     if (!captureClub.isEmpty()) {
-        QJsonObject review = root.value(QStringLiteral("review")).toObject();
-        const QString reviewClub = review.value(QStringLiteral("club")).toString().trimmed();
-        QJsonObject cap = root[QStringLiteral("capture")].toObject();
-        const QString recorded = cap.value(QStringLiteral("club")).toObject()
-                                    .value(QStringLiteral("name")).toString().trimmed();
         const QString named = captureClub.value(QStringLiteral("name")).toString().trimmed();
-        const bool handSet = !reviewClub.isEmpty() && reviewClub != recorded && reviewClub != named;
-        if (!handSet && !named.isEmpty() && named != recorded) {
-            cap[QStringLiteral("club")] = captureClub;
+        const ClubFacts before = clubFactsOfDocument(root);
+        if (!named.isEmpty() && canonicalClubId(named) != canonicalClubId(before.captured)
+            && canonicalClubId(named) != canonicalClubId(before.device)) {
+            QJsonObject cap = root[QStringLiteral("capture")].toObject();
+            cap[QStringLiteral("deviceClub")] = captureClub;
             root[QStringLiteral("capture")] = cap;
-            // THE ANALYSIS CONTEXT'S CAPTURED CLUB, which is what analysis reads (R-REC-2(a), DEC-82):
-            // follow-club rewrites analysisContext.club; capture.club above stays its provenance copy
-            // (DEC-24; whether the captured club is a source fact is OPEN, MD-04, so today's write is
-            // kept). A document with no block reads its legacy context from capture.club, so it follows
-            // already. The input stamp then says the analysis is stale (R-ANA-5).
-            const AnalysisContextRead ctx = readAnalysisContext(root);
-            if (ctx.recorded)
-                root[QStringLiteral("analysisContext")] = analysisContextJson(withFollowedClub(ctx.context, captureClub));
-            if (!reviewClub.isEmpty()) {
-                review[QStringLiteral("club")] = named;
-                root[QStringLiteral("review")] = review;
-            }
             if (clubReplaced)
-                *clubReplaced = true;
+                *clubReplaced = canonicalClubId(effectiveClub(clubFactsOfDocument(root)))
+                             != canonicalClubId(effectiveClub(before));
         }
     }
 
