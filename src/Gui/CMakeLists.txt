@@ -199,16 +199,20 @@ else()
     # beside each other rather than beside the compute suites.
     #
     # TIMEOUT: about twice the file's time on the slower platform, the studio PC's Debug build
-    # (3-10x the Mac's), and never under 120 s. Measured 24 Nov 2026, the studio at -j16 / the Mac
-    # at -j3: SessionDiagnostics 1381 s / 432 s (1374 s alone on the studio), SessionReport 292 s /
-    # 64 s, ChartsPanel 268 s / 51 s, ChartPresets 84 s / 20 s, LmGraphics 58 s / 5 s, every other
-    # file at most 25 s on the studio and 6 s on the Mac.
+    # (3-30x the Mac's), and never under 120 s. Measured 24 Nov 2026, the studio at -j16 / the Mac at
+    # -j3: SessionReport 294 s / 64 s, ChartsPanel 259 s / 51 s, ChartPresets 78 s / 20 s, LmGraphics
+    # 54 s / 5 s, and the five SessionDiagnostics files (#254: split from one file that took 1381 s /
+    # 432 s, 400 s of the Mac's in waitForRendering's 5 s timeout): promises 231 s / 9 s, chrome 121 s
+    # / 5 s, detail 66 s / 4 s, states 42 s / 3 s, review 35 s / 3 s. Every other file takes at most
+    # 24 s on the studio and 6 s on the Mac.
     # A file not in the table gets the default. A new file is picked up at the next configure
     # (CONFIGURE_DEPENDS); give it a row here if it runs past a minute on the Mac.
     file(GLOB _pp_qml_tests CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_*.qml")
     set(_pp_qml_timeout_default 120)
     set(_pp_qml_timeouts
-        tst_session_diagnostics 2700
+        tst_session_diagnostics_promises 480
+        tst_session_diagnostics_chrome   240
+        tst_session_diagnostics_detail   150
         tst_session_report       600
         tst_charts_panel         600
         tst_chart_presets        300
@@ -236,13 +240,6 @@ else()
             LABELS qml_ui
             TIMEOUT ${_t})
     endforeach()
-    # ⚠ DISABLED until #254 is fixed (the Product Owner, 24 Nov 2026): tst_session_diagnostics takes 1374 s alone
-    # on Windows Debug, most of it probably waitForRendering's 5 s timeout, not testing. ctest reports it as
-    # "Not Run (Disabled)" so its absence stays visible. While it is disabled, changes to the Session diagnostics
-    # panel (PpSessionDiagnosticsBody/Panel/Window, session_diagnostics_model) are FROZEN. Re-enable here in #254.
-    if(TEST qml_ui.tst_session_diagnostics)
-        set_tests_properties(qml_ui.tst_session_diagnostics PROPERTIES DISABLED TRUE)
-    endif()
 
     # ⚠ OPT-IN, OUT OF THE FULL SUITE AND THE RELEASE GATE (2026-10-17). It passes on an idle
     # machine but crashes in Qt's render path on a loaded one — Windows at the beta5 gate, Linux

@@ -20,7 +20,7 @@
 // A REAL SESSION, as SessionDiagnosticsModel published it: the 4 July Wrist session (15 shots, 7 iron),
 // reviewed at shot 8, captured from the app by the diagnostics render harness on 11 Oct 2026. It is the
 // data the typeset registers were designed and rendered against, so the layout assertions in
-// tst_session_diagnostics.qml (house rules 2 and 12, nothing elided, nothing overhangs) run on the
+// tst_session_diagnostics_*.qml (house rules 2 and 12, nothing elided, nothing overhangs) run on the
 // shapes the model really produces: 78 conditions on the shot, 8 pattern cards with their spreads,
 // 15 watched conditions, bookends, and one condition detail (early extension, two measures).
 //

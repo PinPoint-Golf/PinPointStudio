@@ -318,6 +318,20 @@ what once made this suite flaky. The binary still runs a file directly, for its 
 `build/tests/Gui/qmlui/qml_ui_test -platform offscreen -input src/Gui/tests/qml/tst_pp_chip.qml`
 (add `-v2` for every check, `-o out.xml,junitxml` for per-function times).
 
+**Wait for layout with `waitForPolish`, never `waitForRendering` (#254).** `waitForRendering(item)`
+returns on the next rendered frame or after its timeout (5 s by default). When a change draws
+nothing new, no frame comes, so the call sleeps the whole 5 s. That was 400 s of the old
+`tst_session_diagnostics.qml`'s 427 s on the Mac (80 of its 974 calls). A Row, Column or ListView
+lays out on polish, so a test that is about to read geometry waits for polish on the window. See
+`laidOut()` in `src/Gui/tests/qml/diag/SessionDiagnosticsCase.qml`: `wait(0)`, then
+`waitForPolish(item.Window.window)` while `isPolishScheduled` says one is pending, and `verify` the
+result so that a layout which never settles fails rather than passing late. Wait on the window
+rather than an item, because an item's own flag says nothing about the positioners inside it. The
+session diagnostics tests are five files, `tst_session_diagnostics_<part>.qml`, split along the old
+file's section headers. They share a harness in `src/Gui/tests/qml/diag/`:
+`SessionDiagnosticsProbe.qml` holds the body, fakes, spies and fixtures, and
+`SessionDiagnosticsCase.qml` holds the helpers and the one `init()`.
+
 ---
 
 ## 7. Adding a test to an existing suite
