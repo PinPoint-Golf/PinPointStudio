@@ -659,8 +659,8 @@ struct PoseStage : AnalysisStage {
                 ctx.detail->timings.poseFaceOn = PoseRunner::lastTiming();
                 logPoseTiming("faceOn", ctx.detail->timings.poseFaceOn);
             } else {
-                ctx.detail->pose2d = PoseRunner::loadFromJson(ctx.job.poseTrackPath,
-                                                              ctx.job.cameraSources.front());
+                ctx.detail->pose2d = PoseRunner::fromInjectedJson(ctx.job.poseTrackJson,      // read by its namer (7.2)
+                                                                  ctx.job.cameraSources.front());
             }
         }
         ctx.detail->timings.poseMs = int(poseWall.elapsed());
@@ -769,7 +769,7 @@ struct BallStage : AnalysisStage {
         ctx.ball = !ctx.job.ballPreloaded.frames.empty()
             ? ctx.job.ballPreloaded                                  // version-gated reuse (analysis_versions.h)
             : !ctx.job.ballTrackPath.isEmpty()
-            ? BallRunner::loadFromJson(ctx.job.ballTrackPath, ctx.job.cameraSources.front())
+            ? BallRunner::fromInjectedJson(ctx.job.ballTrackJson, ctx.job.cameraSources.front())   // read by its namer (7.2)
             : (!ctx.job.ballTrack.frames.empty()
                    ? ctx.job.ballTrack
                    : BallRunner::run(*ctx.window, ctx.job.cameraSources.front(), ctx.detail->pose2d,
@@ -2410,8 +2410,8 @@ struct DtlPoseStage : AnalysisStage {
                 ctx.detail->timings.poseDtl = PoseRunner::lastTiming();
                 logPoseTiming("dtl", ctx.detail->timings.poseDtl);
             } else {
-                ctx.detail->poseDtl = PoseRunner::loadFromJson(ctx.job.poseDtlTrackPath,
-                                                               ctx.job.dtlSource);
+                ctx.detail->poseDtl = PoseRunner::fromInjectedJson(ctx.job.poseDtlTrackJson,   // read by its namer (7.2)
+                                                                   ctx.job.dtlSource);
             }
         }
         // Smoothed HERE rather than through PoseSmoothStage: that stage also rewrites the grip

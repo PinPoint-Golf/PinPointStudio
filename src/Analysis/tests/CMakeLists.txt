@@ -989,10 +989,10 @@ pp_add_test(ball_activity_test
     LINK    ${OpenCV_LIBS}
     NO_QT)
 
-# Persisted live-baseline blob loader (ball_baseline_io.h) — happy path + the
-# truncated/missing/wrong-dims rejects that force BallRunner's self-seed fallback.
-# Header-only; Qt (QFile/QTemporaryDir) + OpenCV (CV_32F Mat); HAVE_OPENCV un-guards
-# the header.
+# Live-baseline blob reader over its bytes (ball_baseline_io.h; the stage opens no file since
+# refactor step 7.2) — happy path + the truncated/unread/wrong-dims rejects that force
+# BallRunner's self-seed fallback. Header-only; Qt (QByteArray) + OpenCV (CV_32F Mat);
+# HAVE_OPENCV un-guards the header.
 # The body's outer edges at hip height from a person mask (address_marks.h; the coach lines'
 # input): a drawn mask, holes crossed, gaps respected, the walk capped, the DTL rear side away
 # from the hands. Pure OpenCV, no Qt.

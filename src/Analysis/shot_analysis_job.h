@@ -23,6 +23,7 @@
 // shaft_tracker, dtl_shaft_tracker — include a Rules-ring header instead of the analyzer
 // interface (Application). It is Rules, not Vocabulary, because it carries SkeletonCalib.
 
+#include <QJsonObject>
 #include <QRectF>
 #include <QString>
 #include <QVariantMap>
@@ -147,10 +148,15 @@ struct ShotAnalysisJob {
     // must check before calling.
     std::function<void(float)> progress;
 
-    // SwingLab: when set, the analyzer loads the face-on PoseTrack2D from
+    // SwingLab: when set, the analyzer takes the face-on PoseTrack2D from
     // this JSON file instead of running ViTPose — synthetic-corpus injection
-    // and pose-cache reuse during shaft tuning. Empty in production.
+    // and pose-cache reuse during shaft tuning. Empty in production. The path
+    // marks the injection (the run's source, path.pose "injected"); the file's
+    // content rides beside it, read by whoever named the file (SwingLab), never
+    // by the stage (P11, refactor step 7.2): nullopt = it could not be opened,
+    // which gives an empty track, as before.
     QString poseTrackPath;
+    std::optional<QJsonObject> poseTrackJson;
     // Version-gated re-analysis (analysis_versions.h): a recorded pose / ball
     // track reloaded from the swing's own analysis block when the producer that
     // wrote it is the one that would run now. Non-empty ⇒ the stage reuses it and
@@ -170,10 +176,12 @@ struct ShotAnalysisJob {
     // The DOWN-THE-LINE pose, the same two ways (DtlPoseStage). `poseDtlPreloaded` is a track
     // already in hand; `poseDtlTrackPath` is SwingLab's `--dtl-pose`, which pins the DTL pose so a
     // corpus pass is deterministic (pose inference is not). Precedence: preloaded, then the path,
-    // then run the model. Both empty in live capture.
+    // then run the model. Both empty in live capture. The file's content rides beside the path, as
+    // poseTrackJson does (step 7.2).
     pinpoint::analysis::PoseTrack2D poseDtlPreloaded;
     QString                         poseDtlPreloadedModel;   // its recorded model identity (as above)
     QString                         poseDtlTrackPath;
+    std::optional<QJsonObject>      poseDtlTrackJson;
     // The DTL camera's pose relative to the face-on camera, MEASURED (camera_pose_sticks.h
     // on the two-camera protocol's stick clips) — dtl_continuous_track_design_update.md §4
     // item 1. The shaft fusion and the 3-D synthetic shaft read it instead of assuming a
@@ -202,8 +210,9 @@ struct ShotAnalysisJob {
 
     // SwingLab: when set, the analyzer loads an INJECTED ground-truth BallTrack2D
     // from this JSON file instead of ballTrack/BallRunner — synthetic-fixture
-    // injection, mirrors poseTrackPath. Empty in production.
+    // injection, mirrors poseTrackPath (its content in ballTrackJson, the same way). Empty in production.
     QString ballTrackPath;
+    std::optional<QJsonObject> ballTrackJson;
 
     // Hitting-area ROI (full-frame normalized) captured with the swing. When set,
     // BallRunner searches this box instead of the pose-derived stance corridor,

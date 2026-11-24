@@ -49,6 +49,7 @@
 //
 // Rules ring: pure, no I/O, linkable without ONNX, OpenCV video or Qt Multimedia.
 
+#include <QJsonObject>
 #include <QMap>
 #include <QString>
 #include <QVariantMap>
@@ -68,10 +69,14 @@ struct RunOptions {
     bool    fullWindow = false;             // skip the swing-span bound (explicit re-analysis)
     int     sessionTypeOverride = -1;       // SwingLab; -1 = the recorded session type
     QVariantMap tuningOverrides;            // SwingLab "<area>.<field>" → number; empty in production
-    // Injected tracks (SwingLab / tests): a pose / DTL pose / ball JSON instead of running the model.
+    // Injected tracks (SwingLab / tests): a pose / DTL pose / ball JSON instead of running the model —
+    // the path, and the file's content as its namer read it (nullopt = unreadable; step 7.2).
     QString poseTrackPath;
     QString poseDtlTrackPath;
     QString ballTrackPath;
+    std::optional<QJsonObject> poseTrackJson;
+    std::optional<QJsonObject> poseDtlTrackJson;
+    std::optional<QJsonObject> ballTrackJson;
     std::optional<pinpoint::skeleton3d::SkeletonCalib> skeletonCalib;   // SwingLab --skeleton-calib
     ShotAnalysisJob::DtlCameraCalib dtlCameraCalib;                       // SwingLab --dtl-calib
     std::function<void(float)> progress;    // called from the worker; may be null

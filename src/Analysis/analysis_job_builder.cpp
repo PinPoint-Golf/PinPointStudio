@@ -107,6 +107,9 @@ void applyRunOptions(const RunOptions &o, ShotAnalysisJob &job)
     job.poseTrackPath      = o.poseTrackPath;
     job.poseDtlTrackPath   = o.poseDtlTrackPath;
     job.ballTrackPath      = o.ballTrackPath;
+    job.poseTrackJson      = o.poseTrackJson;
+    job.poseDtlTrackJson   = o.poseDtlTrackJson;
+    job.ballTrackJson      = o.ballTrackJson;
     job.skeletonCalib      = o.skeletonCalib;
     job.dtlCameraCalib     = o.dtlCameraCalib;
     job.progress           = o.progress;

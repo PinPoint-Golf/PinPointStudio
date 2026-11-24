@@ -29,6 +29,7 @@
 #include <QVariantMap>
 #include <cstdint>
 #include <functional>
+#include <optional>
 
 #include "types.h"
 #include "../Vocabulary/Analysis/swing_analysis.h" // PoseFrame2D / PoseTrack2D (canonical output shapes)
@@ -123,7 +124,7 @@ struct ShotAnalysisRunnerOptions {
 
 class PoseRunner {
 public:
-    // SwingLab: load a PoseTrack2D from a JSON file in the swing.json pose2d
+    // SwingLab: a PoseTrack2D from a JSON file in the swing.json pose2d
     // shape ({"frames":[{t_us, kp:[x,y,c]×133, lead, trail, handConf}]} —
     // COCO-WholeBody, indices 0–16 the unchanged body joints; old 51-float
     // files load fine, the tail stays default-initialized). Used to inject
@@ -141,10 +142,14 @@ public:
     // (versions.pose.model). Never the reuse key: Mark's pose rule (14 Nov 2026) reuses
     // a saved pose whatever model file this host has, and re-poses only on a
     // kPoseStageVersion bump (reuse_gate.h); a reused pose keeps the identity it was
-    // recorded with.
+    // recorded with. The file's size is read outside the stage, by the reader a composition root
+    // installed (pose_model_selection.h, installModelFileFingerprint; step 7.2); with none, "<file>@?".
     static QString modelIdentity(const QString &motionCaptureQuality);
-    static pinpoint::analysis::PoseTrack2D loadFromJson(const QString &file,
-                                                        pinpoint::SourceId camera);
+    // An injected pose file's content (SwingLab --pose / --dtl-pose; ShotAnalysisJob::poseTrackJson),
+    // read by whoever named the file, never here (P11, refactor step 7.2): nullopt = it could not be
+    // opened, an empty track then, as before; otherwise fromJsonObject's reading.
+    static pinpoint::analysis::PoseTrack2D fromInjectedJson(const std::optional<QJsonObject> &file,
+                                                            pinpoint::SourceId camera);
 
     // Decode + pose the face-on camera's frames. Returns an empty track when
     // the source has no frames, the format is undecodable, or ViTPose is

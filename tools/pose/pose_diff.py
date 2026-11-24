@@ -9,7 +9,7 @@ put them. This compares two pose tracks of the SAME swing:
   * two swing documents (a swing dir, swing.json or swing.ppsw — read through
     tools/pp_swingdoc.py): analysis.pose2d.frames (face-on) and analysis.poseDtl.frames
     (down-the-line), each frame {t_us, kp:[x,y,c]×133 normalised to the full frame};
-  * or two pinned pose JSONs ({"frames":[{t_us, kp}]}, the PoseRunner::loadFromJson shape).
+  * or two pinned pose JSONs ({"frames":[{t_us, kp}]}, the PoseRunner::fromInjectedJson shape).
     These carry no frame size: pass --size WxH (default 688x1024, the face-on camera).
 
 Frames are paired by t_us (nearest, |Δt| ≤ 1 ms). For each body joint — COCO 0–16 and

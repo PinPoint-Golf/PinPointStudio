@@ -498,8 +498,16 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
                         ppWarn() << "[Reanalysis]" << swingDir
                                  << "ballDetection.baseline blob missing at" << ref.path
                                  << "— ignoring";
-                    else
+                    else {
+                        // The blob's bytes, read here, by the store, so the ball stage opens no file
+                        // (P11, refactor step 7.2). An unreadable or wrong-sized blob still makes a valid
+                        // ref, as before: BallRunner rejects it by size, warns and self-seeds, and the
+                        // recorded ball stream stays withheld (D5).
+                        QFile blob(ref.path);
+                        if (blob.open(QIODevice::ReadOnly))
+                            ref.bytes = blob.readAll();
                         r.ball.baseline = std::move(ref);
+                    }
                 }
             }
 

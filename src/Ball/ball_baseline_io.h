@@ -18,30 +18,28 @@
 
 #pragma once
 
-// Header-only loader for the persisted live ball baseline blob (the row-major
-// float32 empty-mat baseline B a studio session learned, written per swing by
-// the exporter). Header-only + standalone so it is unit-testable without the
-// SwingWindow / BallRunner machinery (project convention: header-only detector
-// math + a tests/ gate, e.g. src/IMU/impact_detector.h). Shape mirrors the parity
-// fixtures' loadF32 (src/Pose/tests/ball_temporal_parity_test.cpp).
+// Header-only reader of the live ball baseline blob (the row-major float32
+// empty-mat baseline B a studio session learned, written per swing by the
+// exporter) from its bytes. Header-only + standalone so it is unit-testable
+// without the SwingWindow / BallRunner machinery (project convention: header-only
+// detector math + a tests/ gate, e.g. src/IMU/impact_detector.h). Shape mirrors
+// the parity fixtures' loadF32 (src/Pose/tests/ball_temporal_parity_test.cpp).
+// The stage opens no file (P11, refactor step 7.2): a recorded swing's blob is read
+// by the Recording loader (src/Export/recording_loader.cpp) into
+// BallBaselineRef::bytes, as the live capture's already is.
 
 #ifdef HAVE_OPENCV
 
 #include <QByteArray>
-#include <QFile>
-#include <QIODevice>
-#include <QString>
 
 #include <cstring>
 #include <opencv2/core.hpp>
 
-// Load a raw row-major float32 blob into a freshly-allocated CV_32F Mat of shape
-// (h, w). The file MUST be exactly w*h*sizeof(float) bytes — any short/long read
-// is a hard reject (BallRunner then falls back to self-seeding). Returns false on
-// degenerate dims, open failure, or a size mismatch; `out` is left untouched on
-// failure.
-// The same blob already in memory (the live capture's baseline, refactor step 1.5): the same size
-// rule, the same copy.
+// Copy a raw row-major float32 blob into a freshly-allocated CV_32F Mat of shape
+// (h, w). The blob MUST be exactly w*h*sizeof(float) bytes — a short or long blob
+// (an unreadable file reads as none) is a hard reject (BallRunner then falls back
+// to self-seeding). Returns false on degenerate dims or a size mismatch; `out` is
+// left untouched on failure.
 inline bool ballBaselineFromBytes(const QByteArray &raw, int w, int h, cv::Mat &out)
 {
     if (w <= 0 || h <= 0)
@@ -52,16 +50,6 @@ inline bool ballBaselineFromBytes(const QByteArray &raw, int w, int h, cv::Mat &
     std::memcpy(m.data, raw.constData(), size_t(raw.size()));
     out = m;                                                  // refcounted handoff
     return true;
-}
-
-inline bool loadBallBaselineBlob(const QString &path, int w, int h, cv::Mat &out)
-{
-    if (w <= 0 || h <= 0)
-        return false;
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return false;
-    return ballBaselineFromBytes(f.readAll(), w, h, out);
 }
 
 #endif // HAVE_OPENCV

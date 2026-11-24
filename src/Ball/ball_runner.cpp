@@ -259,7 +259,8 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
     const double rHat = radiusForWidth(fw);
 
     // ── Pre-seeded baseline (re-analysis, and live since refactor step 1.5 — D5): reconstruct the
-    //    tracker from the live empty-mat baseline (on disk, or in memory live) instead of self-seeding over the
+    //    tracker from the live empty-mat baseline (its bytes: read by the Recording loader for a recorded
+    //    swing, in memory live; the stage opens no file, step 7.2) instead of self-seeding over the
     //    opening frames, where the ball is already placed (which would bake its
     //    own response into B — the bug this path fixes). B is only valid over its
     //    OWN rect, so the baseline's rect wins over searchRoi/corridor. A dims or
@@ -281,11 +282,9 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
             ppWarn() << "[BallRunner] baseline ROI dims" << rw << "x" << rh
                      << "!= persisted" << baseline.w << "x" << baseline.h
                      << "(frame" << fw << "x" << fh << ") — self-seeding instead";
-        } else if (!(baseline.bytes.isEmpty()
-                         ? loadBallBaselineBlob(baseline.path, baseline.w, baseline.h, loaded)
-                         : ballBaselineFromBytes(baseline.bytes, baseline.w, baseline.h, loaded))) {
+        } else if (!ballBaselineFromBytes(baseline.bytes, baseline.w, baseline.h, loaded)) {
             ppWarn() << "[BallRunner] baseline blob missing/truncated at"
-                     << (baseline.bytes.isEmpty() ? baseline.path : QStringLiteral("(live, in memory)"))
+                     << (baseline.path.isEmpty() ? QStringLiteral("(live, in memory)") : baseline.path)
                      << "— self-seeding instead";
         } else {
             roiRect   = cv::Rect(rx, ry, rw, rh);
@@ -677,9 +676,7 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
 #endif // HAVE_OPENCV
 
 
-#include <QFile>
 #include <QJsonArray>
-#include <QJsonDocument>
 #include <QJsonObject>
 
 BallTrack2D BallRunner::fromAnalysisJson(const QJsonObject &ball, pinpoint::SourceId camera, int64_t t0Us)
@@ -690,14 +687,13 @@ BallTrack2D BallRunner::fromAnalysisJson(const QJsonObject &ball, pinpoint::Sour
     return track;
 }
 
-BallTrack2D BallRunner::loadFromJson(const QString &file, pinpoint::SourceId camera)
+BallTrack2D BallRunner::fromInjectedJson(const std::optional<QJsonObject> &file, pinpoint::SourceId camera)
 {
     BallTrack2D track;
     track.camera = camera;
-    QFile f(file);
-    if (!f.open(QIODevice::ReadOnly))
+    if (!file)                     // the file could not be opened: an empty track, as before 7.2
         return track;
-    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    const QJsonObject &root = *file;
     const QJsonArray frames = root[QStringLiteral("frames")].toArray();
     track.frames.reserve(size_t(frames.size()));
     for (const QJsonValue &fv : frames) {

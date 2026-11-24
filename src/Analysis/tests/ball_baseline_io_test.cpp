@@ -16,18 +16,17 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// loadBallBaselineBlob (ball_baseline_io.h) contract: the persisted live-baseline
-// blob loader BallRunner uses to reconstruct the tracker. Happy path (round-trips
-// w*h float32 into a CV_32F Mat byte-exactly) plus every reject that forces the
-// self-seed fallback — truncated file, missing file, wrong dims, degenerate dims.
+// ballBaselineFromBytes (ball_baseline_io.h) contract: the live-baseline blob
+// reader BallRunner uses to reconstruct the tracker. Since refactor step 7.2 the
+// stage opens no file: a recorded swing's blob is read by the Recording loader
+// into BallBaselineRef::bytes (recording_contract_test Test 5b), the live one is
+// in memory, and both reach the stage as bytes. Happy path (w*h float32 into a
+// CV_32F Mat byte-exactly) plus every reject that forces the self-seed fallback:
+// a truncated blob, an unreadable file (no bytes), wrong dims, degenerate dims.
 
 #include "../../Ball/ball_baseline_io.h"
 
 #include <QByteArray>
-#include <QFile>
-#include <QIODevice>
-#include <QString>
-#include <QTemporaryDir>
 
 #include <cstdio>
 #include <cstring>
@@ -42,59 +41,45 @@ static int g_fail = 0;
         if (!checkOk_) ++g_fail;                                              \
     } while (0)
 
-static bool writeFloats(const QString &path, const std::vector<float> &v)
+static QByteArray bytesOf(const std::vector<float> &v)
 {
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly)) return false;
-    const qint64 n = qint64(v.size()) * qint64(sizeof(float));
-    return f.write(reinterpret_cast<const char *>(v.data()), n) == n;
+    return QByteArray(reinterpret_cast<const char *>(v.data()), int(v.size() * sizeof(float)));
 }
 
 int main()
 {
-    std::printf("loadBallBaselineBlob — happy path + rejects:\n");
-
-    QTemporaryDir tmp;
-    if (!tmp.isValid()) { std::printf("  cannot create temp dir\n"); return 1; }
+    std::printf("ballBaselineFromBytes — happy path + rejects:\n");
 
     const int w = 8, h = 6;                        // 48 floats, 192 bytes
     std::vector<float> ref(size_t(w) * h);
     for (int i = 0; i < w * h; ++i) ref[size_t(i)] = float(i) * 0.5f - 3.0f;
-
-    const QString good = tmp.path() + "/good.f32";
-    if (!writeFloats(good, ref)) { std::printf("  cannot write fixture\n"); return 1; }
+    const QByteArray good = bytesOf(ref);
 
     // 1. Happy path — dims, type, and byte-exact values.
     cv::Mat m;
-    const bool ok = loadBallBaselineBlob(good, w, h, m);
+    const bool ok = ballBaselineFromBytes(good, w, h, m);
     CHECK("happy: returns true", ok);
     CHECK("happy: dims + type", m.rows == h && m.cols == w && m.type() == CV_32F);
     bool valuesMatch = ok && m.isContinuous()
                     && std::memcmp(m.data, ref.data(), size_t(w) * h * sizeof(float)) == 0;
     CHECK("happy: values byte-exact", valuesMatch);
 
-    // 2. Truncated file (one float short) — hard reject.
-    const QString trunc = tmp.path() + "/trunc.f32";
-    {
-        QFile f(trunc);
-        f.open(QIODevice::WriteOnly);
-        const QByteArray raw(int((w * h - 1) * sizeof(float)), '\0');
-        f.write(raw);
-    }
+    // 2. Truncated blob (one float short) — hard reject, `out` untouched.
     cv::Mat mt;
-    CHECK("truncated: returns false", !loadBallBaselineBlob(trunc, w, h, mt));
+    CHECK("truncated: returns false", !ballBaselineFromBytes(good.left(good.size() - int(sizeof(float))), w, h, mt));
+    CHECK("truncated: out untouched", mt.empty());
 
-    // 3. Missing file — reject.
+    // 3. No bytes (the loader could not read the file) — reject.
     cv::Mat mm;
-    CHECK("missing: returns false", !loadBallBaselineBlob(tmp.path() + "/nope.f32", w, h, mm));
+    CHECK("unread file (no bytes): returns false", !ballBaselineFromBytes(QByteArray(), w, h, mm));
 
-    // 4. Wrong dims (product differs from the file's) — reject.
+    // 4. Wrong dims (product differs from the blob's) — reject.
     cv::Mat mw;
-    CHECK("wrong dims: returns false", !loadBallBaselineBlob(good, w + 1, h, mw));
+    CHECK("wrong dims: returns false", !ballBaselineFromBytes(good, w + 1, h, mw));
 
-    // 5. Degenerate dims — reject before touching the file.
+    // 5. Degenerate dims — reject.
     cv::Mat md;
-    CHECK("zero dims: returns false", !loadBallBaselineBlob(good, 0, h, md));
+    CHECK("zero dims: returns false", !ballBaselineFromBytes(good, 0, h, md));
 
     std::printf("%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",
                 g_fail, g_fail == 1 ? "" : "s");

@@ -20,8 +20,14 @@
 // Pure QString logic, no ONNX Runtime — locks the rule that ViTPose++-L runs ONLY
 // when the "High" tier is selected AND the (on-demand) L model has been downloaded,
 // and that every other combination falls back to ViTPose-B.
+// And the model file's fingerprint (refactor step 7.2, P11): read by the reader a composition root
+// installs (src/Export/model_file_fingerprint.h), never by the stage; empty while none is installed.
 
 #include "../pose_model_selection.h"
+#include "../../Export/model_file_fingerprint.h"
+
+#include <QFile>
+#include <QTemporaryDir>
 
 #include <cstdio>
 
@@ -63,6 +69,22 @@ int main()
     // Empty / unknown tiers are safe (fall back to B).
     CHECK("empty tier -> B",                  useVitPoseLarge(QString(),                 true)  == false);
     CHECK("unknown tier -> B",                useVitPoseLarge(QStringLiteral("Ultra"),   true)  == false);
+
+    // The model file's fingerprint, through the installed reader (step 7.2).
+    QTemporaryDir tmp;
+    const QString model = tmp.path() + QStringLiteral("/vitpose-test.onnx");
+    {
+        QFile f(model);
+        CHECK("fixture: a 7-byte model file", tmp.isValid() && f.open(QIODevice::WriteOnly) && f.write("1234567", 7) == 7);
+    }
+    using pinpoint::pose::modelFileFingerprint;
+    CHECK("no reader installed -> empty (the stage stamps \"<file>@?\")", modelFileFingerprint(model).isEmpty());
+    pinpoint::pose::installModelFileFingerprint(&pinpoint::readModelFileFingerprint);
+    CHECK("installed: \"<file>@<bytes>\"", modelFileFingerprint(model) == QStringLiteral("vitpose-test.onnx@7"));
+    CHECK("installed, file missing: \"<file>@0\" (as before 7.2)",
+          modelFileFingerprint(tmp.path() + QStringLiteral("/absent.onnx")) == QStringLiteral("absent.onnx@0"));
+    pinpoint::pose::installModelFileFingerprint(nullptr);
+    CHECK("uninstalled again -> empty", modelFileFingerprint(model).isEmpty());
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;

@@ -627,16 +627,18 @@ struct ImpactTrack2D {
 // the exact baseline the studio session learned instead of self-seeding over the
 // swing window's opening frames — where the ball is already placed (which bakes the
 // ball into the baseline it subtracts against). The blob (row-major float32 B,
-// w*h*4 bytes) stays on disk; BallRunner loads it (loadBallBaselineBlob), never the
-// job. `path` is resolved to absolute by the loader; `roi` is full-frame normalized
+// w*h*4 bytes) is read by the Recording loader into `bytes` (refactor step 7.2, P11:
+// the ball stage opens no file); BallRunner takes the bytes (ballBaselineFromBytes).
+// `path` is resolved to absolute by the loader and kept as provenance (where the bytes
+// came from, for the runner's warning); `roi` is full-frame normalized
 // (the box B covers); `fps` is PROVENANCE ONLY — the offline tracker re-measures its
 // own pushed-frame rate (plan risk R2). cv-free by design (Qt-only header).
 // LIVE (refactor step 1.5, D5): the capture's Recording carries the same baseline the live detector
 // learned, IN MEMORY (`bytes`), because the analysis runs before the export writes the blob — so the
 // live path follows the re-analysis ball rule too. The bytes are exactly what the exporter writes.
 struct BallBaselineRef {
-    QString    path;            // absolute path to the .ballbase.f32 blob (a recorded swing)
-    QByteArray bytes;           // the blob itself, w*h*4 bytes (the live capture); wins over `path`
+    QString    path;            // absolute path to the .ballbase.f32 blob (a recorded swing): provenance
+    QByteArray bytes;           // the blob itself, w*h*4 bytes (live, or read by the Recording loader)
     int     w = 0, h = 0;       // ROI px dims B was seeded over
     QRectF  roi;                // full-frame normalized ROI
     double  rHat   = 0.0;       // radiusForWidth at seed time (provenance)

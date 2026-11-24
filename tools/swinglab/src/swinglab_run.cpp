@@ -95,6 +95,8 @@
 #include "../../../src/Analysis/analysis_pipeline.h"   // analysisGraphJson (--dag)
 #include "../../../src/Analysis/swing_reanalyzer.h"
 #include "../../../src/Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
+#include "../../../src/Export/model_file_fingerprint.h"   // the pose model's fingerprint, read here (step 7.2)
+#include "../../../src/Pose/pose_model_selection.h"      // installModelFileFingerprint
 #include "../../../src/Ball/ball_runner.h"
 #include "../../../src/IMU/imu_vision_fuser.h"
 #include "../../../src/Timeline/phase_segmenter.h"
@@ -119,6 +121,16 @@ using namespace pinpoint;
 using namespace pinpoint::analysis;
 
 namespace {
+
+// An injected track file (--pose, --dtl-pose, --ball), read by the tool that names it: the stages take its
+// content (P11, refactor step 7.2). nullopt = it could not be opened, which gives an empty track, as before.
+std::optional<QJsonObject> readInjectedTrack(const QString &path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return std::nullopt;
+    return QJsonDocument::fromJson(f.readAll()).object();
+}
 
 // Flatten {"shaft": {"ridgeKernelPx": 11}} and/or {"shaft.ridgeKernelPx": 11}
 // into the dotted-key map the tuning hooks consume.
@@ -576,6 +588,7 @@ int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
     pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
+    pinpoint::pose::installModelFileFingerprint(&pinpoint::readModelFileFingerprint);   // versions.pose.model (7.2)
 
     // The pipeline explains itself through ppInfo/ppWarn/ppError, and those go to
     // PpMessageLog — which only the GUI drains. Unset, this tool discards every
@@ -1140,16 +1153,20 @@ int main(int argc, char **argv)
     // --full-window on the --out path too: the whole captured window, one pass, every frame
     // posed (no two-pass coarse/dense schedule). The trunk hop analysis needs the dense pose.
     job.fullWindow      = cli.isSet(optFullWindow);
-    if (cli.isSet(optPose))
+    if (cli.isSet(optPose)) {
         job.poseTrackPath = cli.value(optPose);
+        job.poseTrackJson = readInjectedTrack(job.poseTrackPath);
+    }
     // --dtl-pose pins the DOWN-THE-LINE pose for the analyzer too, not only for the --dtl shaft
     // block below. DtlPoseStage (analysis_pipeline.cpp) runs inside analyze() on any swing with a
     // down-the-line stream, and pose inference is not deterministic — so a corpus pass over the
     // paired trunk route is only reproducible if the same cached track goes in every time. Set
     // BEFORE analyze(), and independent of --dtl: pinning the pose for the sequence does not
     // imply running the DTL shaft tracker.
-    if (cli.isSet(optDtlPose))
+    if (cli.isSet(optDtlPose)) {
         job.poseDtlTrackPath = cli.value(optDtlPose);
+        job.poseDtlTrackJson = readInjectedTrack(job.poseDtlTrackPath);
+    }
     if (cli.isSet(optDtlCalib)) {
         QFile cf(cli.value(optDtlCalib));
         if (!cf.open(QIODevice::ReadOnly))
@@ -1167,8 +1184,10 @@ int main(int argc, char **argv)
                      cal.calibrated ? "calibrated" : "NOT calibrated", cal.yawDeg, cal.pitchDeg, cal.rollDeg,
                      cal.offsetM[0], cal.offsetM[1], cal.offsetM[2]);
     }
-    if (cli.isSet(optBall))
+    if (cli.isSet(optBall)) {
         job.ballTrackPath = cli.value(optBall);
+        job.ballTrackJson = readInjectedTrack(job.ballTrackPath);
+    }
     if (cli.isSet(optSession) || job.sessionType < 0)
         job.sessionType = cli.value(optSession).toInt();
     if (cli.isSet(optImpact)) {
@@ -1491,13 +1510,13 @@ int main(int argc, char **argv)
         const PoseTrack2D pose = reuseProd ? result.detail->pose2d
             : job.poseTrackPath.isEmpty()
                 ? PoseRunner::run(window, job.cameraSources.front(), opt)
-                : PoseRunner::loadFromJson(job.poseTrackPath, job.cameraSources.front());
+                : PoseRunner::fromInjectedJson(job.poseTrackJson, job.cameraSources.front());
         // v3.4 (plan §3): same 3-way ball resolution as PipelineAnalyzer::analyze()
         // — explicit --ball injection wins, else whatever the swing.json/job
         // already carries, else replay the production ball detector offline.
         const BallTrack2D ball = reuseProd ? result.detail->ball
             : !job.ballTrackPath.isEmpty()
-            ? BallRunner::loadFromJson(job.ballTrackPath, job.cameraSources.front())
+            ? BallRunner::fromInjectedJson(job.ballTrackJson, job.cameraSources.front())
             : (!job.ballTrack.frames.empty()
                    ? job.ballTrack
                    : BallRunner::run(window, job.cameraSources.front(), pose, opt,
@@ -1797,7 +1816,7 @@ int main(int argc, char **argv)
                 const bool poseFromAnalysis = result.detail && !result.detail->poseDtl.frames.empty();
                 const PoseTrack2D dtlPose =
                     poseFromAnalysis ? result.detail->poseDtl
-                    : poseInjected   ? PoseRunner::loadFromJson(cli.value(optDtlPose), job.dtlSource)
+                    : poseInjected   ? PoseRunner::fromInjectedJson(readInjectedTrack(cli.value(optDtlPose)), job.dtlSource)
                                      : PoseRunner::run(window, job.dtlSource, dopt);
                 const qint64 dtlPoseMs = dwall.elapsed();
                 if (poseInjected)
@@ -1837,7 +1856,7 @@ int main(int argc, char **argv)
                     pf.write(QJsonDocument(QJsonObject{ { "frames", frames } }).toJson());
                 }
                 {
-                    const PoseTrack2D rt = PoseRunner::loadFromJson(posePath, job.dtlSource);
+                    const PoseTrack2D rt = PoseRunner::fromInjectedJson(readInjectedTrack(posePath), job.dtlSource);
                     if (rt.frames.size() != dtlPose.frames.size()) {
                         dtlSkip(QStringLiteral("pose_dtl.json round-trip: %1 frames written, "
                                                "%2 read back")

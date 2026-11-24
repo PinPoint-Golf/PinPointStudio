@@ -139,11 +139,13 @@ QString firstDiff(const ShotAnalysisJob &a, int64_t t0a, const ShotAnalysisJob &
     DIFF(a.swingDir == b.swingDir, "swingDir");
     DIFF(a.motionCaptureQuality == b.motionCaptureQuality, "motionCaptureQuality");
     DIFF(a.poseTrackPath == b.poseTrackPath, "poseTrackPath");
+    DIFF(a.poseTrackJson == b.poseTrackJson, "poseTrackJson");
     DIFF(a.posePreloaded.frames.size() == b.posePreloaded.frames.size(), "posePreloaded");
     DIFF(a.posePreloadedScope == b.posePreloadedScope, "posePreloadedScope");
     DIFF(a.ballPreloaded.frames.size() == b.ballPreloaded.frames.size(), "ballPreloaded");
     DIFF(a.poseDtlPreloaded.frames.size() == b.poseDtlPreloaded.frames.size(), "poseDtlPreloaded");
     DIFF(a.poseDtlTrackPath == b.poseDtlTrackPath, "poseDtlTrackPath");
+    DIFF(a.poseDtlTrackJson == b.poseDtlTrackJson, "poseDtlTrackJson");
     DIFF(a.dtlCameraCalib.calibrated == b.dtlCameraCalib.calibrated, "dtlCameraCalib");
     DIFF(a.shaftPreloaded.samples.size() == b.shaftPreloaded.samples.size(), "shaftPreloaded");
     DIFF(a.ladderPreloaded.has_value() == b.ladderPreloaded.has_value(), "ladderPreloaded");
@@ -158,9 +160,11 @@ QString firstDiff(const ShotAnalysisJob &a, int64_t t0a, const ShotAnalysisJob &
          || a.ballTrack.launchTUs - t0a == b.ballTrack.launchTUs - t0b, "ballTrack.launchTUs");
     DIFF(a.ballTrack.launchCenter == b.ballTrack.launchCenter, "ballTrack.launchCenter");
     DIFF(a.ballTrackPath == b.ballTrackPath, "ballTrackPath");
+    DIFF(a.ballTrackJson == b.ballTrackJson, "ballTrackJson");
     DIFF(a.ballSearchRoi == b.ballSearchRoi, "ballSearchRoi");
     DIFF(a.ballBaseline.path == b.ballBaseline.path && a.ballBaseline.w == b.ballBaseline.w
-         && a.ballBaseline.h == b.ballBaseline.h && a.ballBaseline.roi == b.ballBaseline.roi, "ballBaseline");
+         && a.ballBaseline.h == b.ballBaseline.h && a.ballBaseline.roi == b.ballBaseline.roi
+         && a.ballBaseline.bytes == b.ballBaseline.bytes, "ballBaseline");
     DIFF(a.tuningOverrides == b.tuningOverrides, "tuningOverrides");
     DIFF(a.fullWindow == b.fullWindow, "fullWindow");
     DIFF(a.inputs == b.inputs && a.inputs.stamped(), "inputs (the input stamp, step 1.6)");
@@ -611,6 +615,66 @@ void testBallRule()
     check(k.ballTrack.frames.size() == size_t(kFrames), "no valid baseline: the recorded stream is passed");
 }
 
+// ── Test 5b ───────────────────────────────────────────────────────────────────────────────────
+// The persisted baseline blob is read by the Recording loader, not the ball stage (refactor step 7.2,
+// P11): the loaded ref carries the file's bytes, which the stage takes (ballBaselineFromBytes,
+// ball_baseline_io_test). A wrong-sized blob still makes a valid ref, as before (the stage rejects it by
+// size and self-seeds, and the recorded stream stays withheld: D5); a missing blob makes none.
+void testBaselineBlobReadByLoader()
+{
+    std::printf("[Test 5b] the baseline blob is read by the Recording loader\n");
+    const QByteArray blob(4 * 3 * int(sizeof(float)), char(0x42));
+    auto writeWithBaseline = [](const QString &dir, const QByteArray *bytes) {
+        const rec::Recording live = liveRecording(kDiskCam, kDiskImu);
+        QString err;
+        if (!writeSyntheticSwing(dir, live, {}, &err)) return false;
+        QJsonObject root = SwingStore::load(dir);
+        QJsonArray streams = root[QStringLiteral("streams")].toArray();
+        QJsonObject video = streams.at(0).toObject();
+        QJsonObject setup = video[QStringLiteral("setup")].toObject();
+        QJsonObject bd = setup[QStringLiteral("ballDetection")].toObject();
+        bd[QStringLiteral("baseline")] = QJsonObject{
+            { QStringLiteral("file"), QStringLiteral("FaceOn.ballbase.f32") },
+            { QStringLiteral("w"), 4 }, { QStringLiteral("h"), 3 },
+            { QStringLiteral("roi"), QJsonArray{ 0.3, 0.6, 0.4, 0.3 } },
+            { QStringLiteral("noise0"), 2.0 } };
+        setup[QStringLiteral("ballDetection")] = bd;
+        video[QStringLiteral("setup")] = setup;
+        streams[0] = video;
+        root[QStringLiteral("streams")] = streams;
+        if (!SwingStore::save(dir, root, &err)) return false;
+        if (bytes) {
+            QFile f(dir + QStringLiteral("/FaceOn.ballbase.f32"));
+            if (!f.open(QIODevice::WriteOnly) || f.write(*bytes) != bytes->size()) return false;
+        }
+        return true;
+    };
+
+    QTemporaryDir dir;
+    check(dir.isValid() && writeWithBaseline(dir.path(), &blob), "a swing with a baseline blob is written");
+    const LoadedRecording lr = loadRecording(dir.path());
+    const BallBaselineRef &b = lr.recording.ball.baseline;
+    check(lr.ok && b.isValid() && b.bytes == blob && b.w == 4 && b.h == 3 && b.noise0 == 2.0,
+          "the loaded ref carries the blob's bytes, read by the loader");
+    check(b.path.endsWith(QStringLiteral("/FaceOn.ballbase.f32")), "its path kept as provenance");
+    const ShotAnalysisJob j = buildAnalysisJob(lr.recording, effectiveContext(lr.recording.context, lr.review),
+                                               options("reanalysis"));
+    check(j.ballBaseline.bytes == blob && j.ballTrack.frames.empty(),
+          "the job hands the bytes to the stage; the recorded stream is withheld (D5)");
+
+    QTemporaryDir shortDir;
+    const QByteArray truncated = blob.left(blob.size() - int(sizeof(float)));
+    check(shortDir.isValid() && writeWithBaseline(shortDir.path(), &truncated), "a swing with a short blob");
+    const LoadedRecording ls = loadRecording(shortDir.path());
+    check(ls.ok && ls.recording.ball.baseline.isValid() && ls.recording.ball.baseline.bytes == truncated,
+          "a short blob still makes a valid ref (the stage rejects it by size and self-seeds, as before)");
+
+    QTemporaryDir noBlob;
+    check(noBlob.isValid() && writeWithBaseline(noBlob.path(), nullptr), "a swing whose blob is missing");
+    const LoadedRecording ln = loadRecording(noBlob.path());
+    check(ln.ok && !ln.recording.ball.baseline.isValid(), "a missing blob makes no ref (unchanged)");
+}
+
 // ── Test 6 ────────────────────────────────────────────────────────────────────────────────────
 void testRunOptions()
 {
@@ -622,6 +686,9 @@ void testRunOptions()
     o.sessionTypeOverride = 0;
     o.tuningOverrides.insert(QStringLiteral("shaft.ridgeKernelPx"), 5);
     o.poseTrackPath = QStringLiteral("/scratch/pose.json");
+    o.poseTrackJson = QJsonObject{ { QStringLiteral("frames"), QJsonArray{} } };
+    o.ballTrackPath = QStringLiteral("/scratch/ball.json");
+    o.ballTrackJson = std::nullopt;                // named but unreadable
     o.reuse.insert(QStringLiteral("pose"), QStringLiteral("forced"));
     o.posePreloadedScope = QStringLiteral("span");
     bool called = false;
@@ -630,6 +697,8 @@ void testRunOptions()
     check(j.path.forced && j.fullWindow, "forced and full window");
     check(j.sessionType == 0, "the session-type override wins");
     check(j.tuningOverrides == o.tuningOverrides && j.poseTrackPath == o.poseTrackPath, "SwingLab knobs");
+    check(j.poseTrackJson == o.poseTrackJson && j.ballTrackPath == o.ballTrackPath && !j.ballTrackJson,
+          "an injected file's content rides with its path, as its namer read it (step 7.2)");
     check(j.path.reuse == o.reuse && j.posePreloadedScope == QStringLiteral("span"), "reuse gate's products");
     if (j.progress) j.progress(0.5f);
     check(called, "the progress sink");
@@ -671,6 +740,7 @@ int main()
     testDeclaredClub();
     testUndeclaredStaysUndeclared();
     testBallRule();
+    testBaselineBlobReadByLoader();
     testRunOptions();
     testMappings();
     std::printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "ALL PASSED", g_fail, g_fail == 1 ? "" : "s");

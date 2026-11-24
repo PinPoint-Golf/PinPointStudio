@@ -955,9 +955,6 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 #endif // HAVE_OPENCV && HAVE_VITPOSE && HAVE_ONNXRUNTIME
 
 
-#include <QFile>
-#include <QJsonArray>
-#include <QJsonDocument>
 #include <QJsonObject>
 
 // Provenance only (pose_runner.h): which model THIS host would run. Re-analysis no longer compares it
@@ -971,22 +968,28 @@ QString PoseRunner::modelIdentity(const QString &motionCaptureQuality)
         motionCaptureQuality, PoseEstimatorViTPose::isVariantAvailable(ViTVariant::WholeBodyLarge));
     const QString path = PoseEstimatorViTPose::modelPath(useLarge ? ViTVariant::WholeBodyLarge
                                                                   : ViTVariant::WholeBodyB);
-    const QFileInfo fi(path);
-    return fi.fileName() + QLatin1Char('@') + QString::number(fi.exists() ? fi.size() : 0);
+    // The fingerprint is read outside the stage (P11; step 7.2): the reader a composition root installed.
+    const QString id = pinpoint::pose::modelFileFingerprint(path);
+    if (!id.isEmpty())
+        return id;
+    static std::atomic<bool> warned{ false };
+    if (!warned.exchange(true))
+        ppWarn() << "[PoseRunner] no model-file reader installed (pinpoint::pose::installModelFileFingerprint):"
+                    " versions.pose.model is stamped \"<file>@?\"";
+    return QFileInfo(path).fileName() + QStringLiteral("@?");
 #else
     Q_UNUSED(motionCaptureQuality);
     return QStringLiteral("none");
 #endif
 }
 
-pinpoint::analysis::PoseTrack2D PoseRunner::loadFromJson(const QString &file,
-                                                         pinpoint::SourceId camera)
+pinpoint::analysis::PoseTrack2D PoseRunner::fromInjectedJson(const std::optional<QJsonObject> &file,
+                                                             pinpoint::SourceId camera)
 {
-    QFile f(file);
-    if (!f.open(QIODevice::ReadOnly)) {
+    if (!file) {                   // the file could not be opened: an empty track, as before 7.2
         pinpoint::analysis::PoseTrack2D track; track.camera = camera; return track;
     }
-    return fromJsonObject(QJsonDocument::fromJson(f.readAll()).object(), camera);
+    return fromJsonObject(*file, camera);
 }
 
 pinpoint::analysis::PoseTrack2D PoseRunner::fromJsonObject(const QJsonObject &root,

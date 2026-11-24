@@ -25,12 +25,14 @@
 // captured before the app recorded a live ball stream). Mirrors PoseRunner
 // exactly: run() replays the SAME production temporal-matched-filter core
 // (ball_temporal.h TemporalBallTracker) that BallDetector::detectTemporal()
-// drives live, over decoded frames from the frozen window; loadFromJson()
-// loads an INJECTED ground-truth track for synthetic fixtures.
+// drives live, over decoded frames from the frozen window; fromInjectedJson()
+// reads an INJECTED ground-truth track for synthetic fixtures from the file's
+// content. The stage opens no file (P11, refactor step 7.2).
 
 #include <QRectF>
 #include <QString>
 #include <cstdint>
+#include <optional>
 
 #include "types.h"
 #include "../Vocabulary/Analysis/swing_analysis.h" // BallSample2D / BallTrack2D (canonical output shapes)
@@ -40,20 +42,22 @@ namespace pinpoint { class SwingWindow; }
 
 class BallRunner {
 public:
-    // SwingLab: load an INJECTED ground-truth BallTrack2D from a JSON file in
-    // the swing.json "ball" block shape ({"frames":[{t_us,found,x,y,r,conf}],
+    // SwingLab: an INJECTED ground-truth BallTrack2D from a JSON file in the
+    // swing.json "ball" block shape ({"frames":[{t_us,found,x,y,r,conf}],
     // "launch":{t_us,x,y}}). Used for synthetic fixtures — there is no real
     // ball for the temporal matched filter to lock onto in a synthetic scene,
-    // exactly the reason PoseRunner::loadFromJson() exists for pose. Returns
-    // an empty track on any parse problem.
+    // exactly the reason PoseRunner::fromInjectedJson() exists for pose. The file is
+    // read by whoever named it (SwingLab, ShotAnalysisJob::ballTrackJson), never
+    // here (P11, refactor step 7.2): nullopt = it could not be opened. Returns an
+    // empty track then, or on any parse problem.
     // The swing.json `analysis.ball` block (samples[] + launchTUs + launch{x,y}) —
     // version-gated re-analysis reloads the recorded track instead of replaying.
     // t0Us: the origin of the block's times (analysisReadOriginUs, swing_doc.h); 0 = as written.
     static pinpoint::analysis::BallTrack2D fromAnalysisJson(const QJsonObject &ball,
                                                             pinpoint::SourceId camera,
                                                             int64_t t0Us = 0);
-    static pinpoint::analysis::BallTrack2D loadFromJson(const QString &file,
-                                                         pinpoint::SourceId camera);
+    static pinpoint::analysis::BallTrack2D fromInjectedJson(const std::optional<QJsonObject> &file,
+                                                             pinpoint::SourceId camera);
 
     // Decode + replay ball detection over the face-on camera's frames, using
     // the SAME frame range PoseRunner::run() covered (opt, including the

@@ -51,7 +51,8 @@ pp_add_test(ball_temporal_parity_test
 
 # Tier -> pose-model decision (pose_model_selection.h): High + downloaded L -> ViTPose++-L,
 # every other combination -> ViTPose-B. Pure QString logic; no ONNX Runtime (the suite
-# deliberately excludes ORT — model inference is not exercised here).
+# deliberately excludes ORT — model inference is not exercised here). And the model file's
+# fingerprint seam (refactor step 7.2): the stage's slot, the Export reader it is installed with.
 pp_add_test(pose_model_selection_test
     SOURCES pose_model_selection_test.cpp
     INCLUDE ${POSE})

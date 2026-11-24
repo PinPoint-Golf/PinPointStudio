@@ -197,7 +197,8 @@ Validation evidence (synthetic corpus, no real data touched):
 Production hooks added for the lab (all additive, app behaviour unchanged):
 `ShotAnalysisJob::tuningOverrides` (dotted keys applied onto
 `SegmentationConfig` / `ShaftDetectConfig` / `AssemblyConfig` at analysis
-time), `ShotAnalysisJob::poseTrackPath` (+ `PoseRunner::loadFromJson`),
+time), `ShotAnalysisJob::poseTrackPath` (+ its content, `poseTrackJson`, read by SwingLab
+and parsed by `PoseRunner::fromInjectedJson`, since refactor step 7.2),
 optional trace out-params on `ShaftTracker::track` / assembly, and
 `analysis.bindings` (serial-keyed A/M calibration snapshot) persisted in
 swing.json so recorded swings are re-fusable offline.

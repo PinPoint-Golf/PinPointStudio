@@ -130,8 +130,10 @@ ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, co
         ls.job.tuningOverrides = opts.tuningOverrides;
     if (opts.sessionTypeOverride >= 0)
         ls.job.sessionType = opts.sessionTypeOverride;   // the input stamp names it (the pipeline stamps it)
-    if (!opts.poseTrackPath.isEmpty())
+    if (!opts.poseTrackPath.isEmpty()) {
         ls.job.poseTrackPath = opts.poseTrackPath;
+        ls.job.poseTrackJson = opts.poseTrackJson;     // its content, as its namer read it (step 7.2)
+    }
     ls.job.fullWindow = opts.fullWindow;
     ls.job.path.origin = QStringLiteral("reanalysis");
     ls.job.path.forced = opts.forceRerun;
