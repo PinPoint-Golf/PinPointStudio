@@ -25,7 +25,6 @@
 // The pure wr_unit_sample → ImuSample converter. It owns the m/s² → g conversion
 // from the raw mg counts and passes gyro and the quaternion through verbatim; it
 // is unit-agnostic, so both blocks go through the same call.
-#include "hm_frame.h"
 #include "hm_sample_convert.h"
 #include "hm_unit_id.h"
 // The skew median and the §10.3 half-split stability test — pure, and pure so that

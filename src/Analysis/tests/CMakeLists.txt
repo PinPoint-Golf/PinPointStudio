@@ -1294,10 +1294,10 @@ pp_add_test(anatomy_vocabulary_test
     INCLUDE ${DIAG})
 
 # Vocabulary <-> skeleton-overlay parity. Pins the shared resolver to what
-# video_overlay_pose.cpp draws today (neck/pelvis midpoint formulas, the 0.25
-# admission threshold, min-of-parents confidence, and the bone topology that is
-# hand-duplicated in PpCameraFrame.qml's kBlueprintBones), so re-pointing the
-# overlay at the resolver is provably a no-op and drift on either side fails.
+# PpCameraFrame.qml's skeleton draws (neck/pelvis midpoint formulas, the 0.25
+# admission threshold, min-of-parents confidence, and the bone topology in its
+# kBlueprintBones; the C++ video_overlay_pose these were first transcribed from
+# was deleted as unused, platform B1.1), so drift on either side fails.
 pp_add_test(anatomy_overlay_parity_test
     SOURCES ${DIAG}/tests/anatomy_overlay_parity_test.cpp ${DIAG}/measures/anatomy_vocabulary.cpp
     INCLUDE ${DIAG})

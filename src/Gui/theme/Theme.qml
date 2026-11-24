@@ -411,7 +411,7 @@ QtObject {
     // drawn over live video / replay footage (PpCameraFrame). Unlike every other
     // token here it does NOT reskin per aesthetic: the overlay is an instrument
     // readout, not UI chrome, and must read the same against grass/sky in every
-    // direction. Mirrors the constants in src/Video/video_overlay_pose.cpp.
+    // direction. QML only (PpCameraFrame, PpCameraTiles, PpMarkupPanel, SwingViz3DView, colorScrim); no C++ mirror.
     readonly property color poseBone:        "#74d0e6"   // bones, joint rings, head, dots
     readonly property color poseInk:         "#c8121a23" // ring fill (dark ink, ~200 alpha)
     // The dark backing behind text laid over video (camera tiles, camera frame, markup).

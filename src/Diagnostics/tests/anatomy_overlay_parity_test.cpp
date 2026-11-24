@@ -1,17 +1,18 @@
 // Parity between the anatomy vocabulary and the skeleton overlay.
 //
-// The overlay currently owns its own anatomy maths: src/Video/video_overlay_pose.cpp computes the
-// neck and pelvis midpoints as local expressions inside a render function, and its bone topology is
-// hand-duplicated in src/Gui/cameras/PpCameraFrame.qml (kBlueprintBones) with a source comment
-// instructing that the two be kept in sync manually. Two hand-synced copies of the same anatomy is
-// exactly the arrangement that drifts.
+// The skeleton overlay owns its own anatomy maths: src/Gui/cameras/PpCameraFrame.qml computes the
+// neck and pelvis midpoints as local expressions inside paintBlueprint(), with its own admission
+// threshold and bone table (kBlueprintBones). That QML is the one copy the app draws; a C++ painter
+// that once mirrored it was never created by anything and has been deleted. The overlay's anatomy
+// and the vocabulary's are still two copies of the same anatomy, which is the arrangement that drifts.
 //
 // This test pins the vocabulary to what the overlay draws TODAY, so that re-pointing the overlay at
 // the shared resolver is provably a no-op rather than a visual regression, and so drift on either
 // side fails the build in the meantime. What is drawn must be definitionally what is measured.
 //
-// The expectations below are transcribed from those two files. If a bone table legitimately
-// changes, this test is where the change is acknowledged.
+// The expectations below are transcribed by hand from PpCameraFrame.qml; the test does not read the
+// QML. If the QML's bone table or threshold legitimately changes, this test is where the change is
+// acknowledged.
 //
 //   cmake --build build/analyzer-tests --target anatomy_overlay_parity_test
 //   ctest --test-dir build/analyzer-tests -R anatomy_overlay_parity --output-on-failure
@@ -31,7 +32,7 @@ static void check(bool c, const char *label)
 }
 static bool near(double a, double b, double tol = 1e-9) { return std::fabs(a - b) <= tol; }
 
-// The overlay's own admission threshold (video_overlay_pose.cpp: kMinScore).
+// The overlay's own admission threshold (PpCameraFrame.qml: kMinScore in paintBlueprint()).
 static constexpr float kOverlayMinScore = 0.25f;
 
 struct Frame {
@@ -64,10 +65,10 @@ int main()
     }
 
     // ── Derived midpoint parity ─────────────────────────────────────────────────
-    // video_overlay_pose.cpp:
-    //     neck   = (kpPoint(5)  + kpPoint(6))  * 0.5
-    //     pelvis = (kpPoint(11) + kpPoint(12)) * 0.5
-    //     neckScore = min(kpScore(5), kpScore(6))
+    // PpCameraFrame.qml, paintBlueprint():
+    //     nX, nY    = (gx(5)  + gx(6))  * 0.5, (gy(5)  + gy(6))  * 0.5
+    //     pX, pY    = (gx(11) + gx(12)) * 0.5, (gy(11) + gy(12)) * 0.5
+    //     neckScore = Math.min(gs(5), gs(6))
     // and each is visible only when BOTH parents clear the threshold.
     {
         const QPointF expectNeck   = (f.kp[5] + f.kp[6]) * 0.5;
@@ -102,8 +103,8 @@ int main()
     }
 
     // ── Bone topology parity ────────────────────────────────────────────────────
-    // Transcribed from kBones (video_overlay_pose.cpp) and kBlueprintBones
-    // (PpCameraFrame.qml) — the two are required to agree with each other, and now with this.
+    // Transcribed from kBlueprintBones (PpCameraFrame.qml), the overlay's one bone table, which
+    // must agree with this.
     // Left-handed lead (leadIsLeft = true) maps lead -> COCO left, which is how the tables read.
     {
         struct Expect { AnatomyRole role; int a, b; const char *label; };

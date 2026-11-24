@@ -824,7 +824,6 @@ qt_add_executable(PinPointStudio
     src/Video/video_input.h                src/Video/video_input.cpp
     src/Video/video_input_factory.h        src/Video/video_input_factory.cpp
     src/Video/video_preprocessor_base.h   src/Video/video_preprocessor_base.cpp
-    src/Video/video_overlay_base.h        src/Video/video_overlay_base.cpp
     src/Video/raw_video_frame.h            src/Video/raw_video_frame.cpp
     src/Video/frame_crop.h                 src/Video/frame_crop.cpp
     src/Pose/pose_estimator_base.h        src/Pose/pose_estimator_base.cpp
@@ -2706,8 +2705,6 @@ endif()
 target_sources(PinPointStudio PRIVATE
     src/Video/video_preprocessor_opencv.h
     src/Video/video_preprocessor_opencv.cpp
-    src/Video/video_overlay_pose.h
-    src/Video/video_overlay_pose.cpp
     src/Video/frame_throttle.h
     src/Video/frame_throttle.cpp
     src/Pose/ball_detector.h

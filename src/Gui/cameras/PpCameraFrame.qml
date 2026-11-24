@@ -371,7 +371,7 @@ Item {
     // "Biomech Blueprint" bones whose endpoints are both real keypoints (w =
     // width as a fraction of torso length). The neck bone (neck→nose) and the
     // spine (neck→pelvis) are anchored on derived midpoints and drawn separately
-    // in paintBlueprint(). Mirrors kBones in src/Video/video_overlay_pose.cpp.
+    // in paintBlueprint(). No C++ mirror; _paintElem() repeats the body bones; anatomy_overlay_parity_test pins those.
     readonly property var kBlueprintBones: [
         {a:5,  b:6,  w:0.037}, {a:11, b:12, w:0.037},   // shoulder + hip crossbars
         {a:5,  b:7,  w:0.049}, {a:7,  b:9,  w:0.032},   // left arm
@@ -379,8 +379,8 @@ Item {
         {a:11, b:13, w:0.054}, {a:13, b:15, w:0.037},   // left leg
         {a:12, b:14, w:0.054}, {a:14, b:16, w:0.037},   // right leg
         // Feet (WB2/WB3, wholebody_pose_design.md §2.1): COCO-WholeBody indices
-        // 17-22 — mirrors kBones in src/Video/video_overlay_pose.cpp exactly
-        // (keep the two lists consistent). boneElem() below gives these their
+        // 17-22 (this list is the only copy; no C++ painter mirrors it any
+        // more). boneElem() below gives these their
         // OWN "feet" category (NOT "legs" — see that function's comment for
         // why) so they default ON. Drawn only when maxJoint (passed by the
         // caller) covers them — the live 17-kp array never does, so these are
@@ -389,7 +389,7 @@ Item {
         {a:15, b:19, w:0.026}, {a:19, b:17, w:0.026}, {a:17, b:18, w:0.026},   // left ankle-heel-bigtoe-smalltoe
         {a:16, b:22, w:0.026}, {a:22, b:20, w:0.026}, {a:20, b:21, w:0.026},   // right ankle-heel-bigtoe-smalltoe
         // Hands (WB4, wholebody_pose_design.md §2.2): COCO-WholeBody indices
-        // 91-132 — mirrors kBones in src/Video/video_overlay_pose.cpp exactly.
+        // 91-132 (this list is the only copy).
         // boneElem() below gives these their OWN "hands" category, registered
         // "off" in every ViewLayout preset so hands default OFF (unlike feet).
         // Per hand: wrist-root → {thumb-CMC, index/middle/ring/pinky-MCP} + the
@@ -419,8 +419,8 @@ Item {
     }
 
     // Shared pose-skeleton renderer — used by BOTH the live (skeletonCanvas) and
-    // replay (replayOverlay) canvases so the two never drift. A faithful port of
-    // VideoOverlayPose::drawSkeleton (src/Video/video_overlay_pose.cpp): face
+    // replay (replayOverlay) canvases so the two never drift. Once a port of a
+    // C++ painter (retired unused); with _paintElem() (fan mode) the skeleton painters: face
     // keypoints dropped, derived neck/pelvis midpoints, graduated bone weights
     // scaled from torso length, the fixed cyan Theme.pose* palette. gx(j)/gy(j)
     // return pixel coords for keypoint j; gs(j) its score; alphaScale mutes the
