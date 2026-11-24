@@ -11,10 +11,11 @@
 - A Windows cabin installer of that commit is built and not yet installed.
 - The 3-shot live check at the cabin has not yet run.
 - The platform refactor assessment (revision 2, `5e550639`) carries what moves to the next refactor.
+- **Since this report was written** (24 Nov, morning): every item on the morning list was ruled, each as recommended, and the platform assessment is at revision 3 (`cc6d851d`, `3b010390`), with an independent lessons review and a second outside review applied. The rulings close 06a. Where this report calls an item open for a role, 06a's last entry gives its ruling.
 
 **Appendices.**
 - **A.1** (at the end of Part A): two worked cases on the cost of the next change.
-- **06a** (`06a-judgement-calls.md`): the full decision log, J-1 to J-112.
+- **06a** (`06a-judgement-calls.md`): the full decision log, in two series each numbered from J-1: step 2's S2 J-1 to J-69 with the Product Owner's answers, then steps 3 to 7 and the close, J-1 to J-112, ending with the rulings of 24 Nov.
 - **06b** (`06b-item-ledger.csv`): the item ledger from 23 Nov.
 
 Part B's sources under `build/refactor/` are the refactor's local working archive, which is not in the repository. Each fact still quotes its number or rule, so the report stands alone; the archive can be bundled on request.
@@ -119,13 +120,17 @@ The process documents are the clearest excess. Most were never read again after 
   - It had no rule on where Vocabulary-ring types live (J-99, J-100).
   
   Both were found late, by the Product Owner, during a ruling, not by any check. Size is not completeness: the model records decisions well and principles less well.
-- **The judgement-call log scaled better than live questions.** It reached 108 entries. When the coordinator asked live (four times on 23 Nov, against the unattended rule), the run stalled. When calls were logged with a recommendation and reviewed in a batch, the Product Owner cleared about 15 calls in a few minutes. The log works when each call is short, has a recommendation, and says what happens if the owner disagrees.
-- **Rules broken:**
+- **The judgement-call log scaled better than live questions.** It reached 181 calls in two series: 69 in step 2 and 112 in steps 3 to 7. When the coordinator asked live (four times on 23 Nov, against the unattended rule), the run stalled. When calls were logged with a recommendation and reviewed in a batch, the Product Owner cleared about 15 calls in a few minutes. The log works when each call is short, has a recommendation, and says what happens if the owner disagrees.
+- **Rules broken.** Part B §6.4 records ten breaches. Five broke a rule that was already in force:
+  - **a headless probe ran the app against the live library and rewrote three derived files** (22 Nov). This rule had been in 04 §1 since 14 Nov ("irreversible actions always wait … writes into the live library"), and it was the one breach that touched the golfers' library. The files were derived, not golfer input. What now prevents a repeat is the guarded launcher (`0b555ca7`), not the rule's text;
   - the coordinator used live question prompts during an unattended run (J-79);
   - one information-model change, `Session::shotChanged`, was built before its approval (5.7a, approved afterwards);
-  - an agent ran a debugger, which raised a macOS permission dialog (J-105).
-  
-  None caused harm. All three show that HARD rules need to be in every brief, not just the coordinator's memory.
+  - one `ctest` ran outside the build lock (6.1a);
+  - 6.2 took three builds against a budget of one.
+
+  Five more happened before a rule covered them, and each produced the rule that does now: a blocking question that left the run idle for about 8 hours; a deliverable added after an agent started; an offscreen launch that raised device prompts; scope creep (J-65); and an agent running a debugger (J-105). A further 11 findings in step 3 that broke a HARD-rule class were caught in review before commit; the count of ten leaves those out.
+
+  None lost golfer input. The pattern matters more than the count: a rule written in a document or in the coordinator's memory was broken under time pressure, and a check in code (the guarded launcher, the lint, the build lock) was not. HARD rules need to be in every brief, and where they can be, in a guard.
 
 ## 6. What the coordinator would do differently
 
@@ -244,7 +249,7 @@ Facts only, each with its source. No analysis, opinion or recommendation. Compil
 - "Source" names a file (and line where useful), a commit, an issue or a log line. Paths under `build/refactor/`
   are written from that folder, for example `step-3/RETRO-FACTS.md`.
 - **J-numbers collide between files.** `step-2/JUDGEMENT-CALLS.md` has J-1…J-69, and `step-3/JUDGEMENT-CALLS.md` has
-  J-1…J-110 (it is the log for steps 3–7 and the close). For example, J-55, J-58, J-61 and J-66 mean different things in each.
+  J-1…J-112 (it is the log for steps 3–7 and the close). For example, J-55, J-58, J-61 and J-66 mean different things in each.
   This pack writes **S2 J-n** and **J-n** (the step-3 file) respectively.
 - "Unrecorded" means no source was found. Nothing is estimated silently; "≈" marks an arithmetic result over recorded
   times.
@@ -893,7 +898,7 @@ Reviewer, Advisor; "an agent never holds a human role's approval".
 | Information model version | **1.9.52, 24 Nov 2026**; 78 rows in the §15 change log (at `95997058` the header read 1.9.31; the close found it stale and set it to 1.9.52) | IM header; §15; `CLOSE-NOTES.md` |
 | Open-question ids (Q-nn) in §14 | 29 rows | IM §14 |
 | J-calls, step 2 file | **69** (S2 J-1…J-69); the Product Owner's answers in `step-2/JUDGEMENT-ANSWERS.md` ("You answered all 65 of step 2's judgement calls", archive) | `step-2/JUDGEMENT-CALLS.md` |
-| J-calls, step 3 file (steps 3–7 and the close) | **110 ids** (J-1…J-110; J-102 and J-103 share one entry), plus 5 "DEC (…)" entries recording role decisions | `step-3/JUDGEMENT-CALLS.md` |
+| J-calls, step 3 file (steps 3–7 and the close) | **112 ids** (J-1…J-112; J-102 and J-103 share one entry), plus 5 "DEC (…)" entries recording role decisions and the rulings of 24 Nov | `step-3/JUDGEMENT-CALLS.md` |
 | Implementers' own calls inside NOTES (J1…, J-a3, J-e4, …) | not counted | — |
 | Morning question sets | 12 IM questions (`MORNING-DECISIONS.md`); 53 open items answered 15 Nov (`MORNING-ANSWERS.md`) | archive log 15 Nov 07:37 |
 

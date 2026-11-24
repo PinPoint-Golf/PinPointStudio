@@ -212,7 +212,7 @@ review; confirm"[^review]. The sources do place three parts of #224 here:
 #224 takes the domain code out of `Gui`, renames `Export` and re-cuts `Diagnostics`. It does not split `Core`, `Buffer`,
 `IMU`, `LaunchMonitor` or `Pose`. Those splits are Stage B's own work, or Stage D's for the capture halves.
 
-**#224 in two groups (proposed, for the Product Owner).**
+**#224 in three groups (ruled 24 Nov[^po24]).**
 
 | Group | Items | Stage |
 |---|---|---|
@@ -220,8 +220,7 @@ review; confirm"[^review]. The sources do place three parts of #224 here:
 | **#224-H: hygiene that no platform stage depends on** | one words module, and domain reductions that persist ids and numbers (C-04, B-10); the report's `everyWords` folded into `frequency_words.h`; presentation strings and "no value" conventions out of the rules (A-12, B-19, C-13); coach wording out of Metrics (A-15); the metric catalogue as data (A-06, the A7 line on `metric_catalogue_manifest.cpp`) and metric keys generated from it (A-07); constants referenced from their rule (B-16); one phase to swing-position mapping (B-17); one `CoachingBands` place (C-12); shared maths (π, `wrapPi`); J-83's D-2 and D-3[^j95] | its own plan, or #224's "when a later change has to touch that code" |
 | **#224-U: the step-5 presenter residue** | 26 allowlist lines (113 findings) where a Gui presenter still reads files itself or hands QML untyped shapes: the A2 lines of QML views that create their presenters (the Charts panel, the Consistency view, the three trust views, the data viewer); the A5 reads of the review, replay, report, mailer, charts strip, data viewer and 3-D rig, with the four "re-tag only" copies (item (iv)); the A6 lines of the diagnostics adapter (×29), work-ons (×14), the report model, list, mailer and PDF writer, and two review headers. Also the stale `# step 1` and `# step 4` A6 lines on `reanalysis_controller.h` and `shot_list_model.h` (item (iv))[^g24] | its own plan, scheduled straight after Stage B (ruled, 24 Nov[^po24]). No Stage B library depends on them, and narrowing A6 to P9 (§9 Q5) does not clear the A6 lines, because these are presenters |
 
-**The 34 lines tagged `platform refactor (#224)` at the close, by where they go**[^po24]: The morning review of 24 Nov 2026: the Product Owner, the Solution Architect, the Design Lead and the Coaching Lead, each ruling on the items for their role (J-101 to J-112 in `build/refactor/step-3/JUDGEMENT-CALLS.md`, and this page's second outside review). Every ruling took the recommendation put to it. Issues filed for the rulings that are not platform work: #236 to #240; DL-4 is recorded on #233.
-[^g24]:
+**The 34 lines tagged `platform refactor (#224)` at the close, by where they go**[^g24]:
 
 | Where | Lines | Findings | Which |
 |---|---|---|---|
@@ -291,12 +290,12 @@ after counts, what is left and why, and where it goes next[^j93].
 | J-104 | The norm fallback goes through a hook: the rules declare a factory, and the composition root installs it (`installSharedNormSource`) | done in 7.1 | E: the composition root owns every hook install | none |
 | J-105 | The lint accepts one new tag, `platform refactor (#224)` (and `#222` for long-function lines), and every line leaving the plan is re-tagged with it at the close | the close's call[^j105] | 34 lines and 127 findings at the close (A1 1 line and 1 finding, A2 6 and 11, A5 16 and 52, A6 10 and 62, A7 1 and 1)[^c-allow], split four ways in item (ii): Stage B 4, Stage D 3, #224-H 1, #224-U 26[^g24] | a tooling change, with no line added |
 | J-88, J-95 | Lint A5 counts the Export store doors that 5.7a and 5.7a-P1 added (`session_list_reads`, `session_index_summary`), tagged `platform refactor (#224)` | approved[^j95] | B, Part 1, with `Export`'s rename | approved |
-| J-107 (J-2) | The pose model fingerprint goes through an installed reader hook. The review of 7.2 recommends a direct call, `modelFileFingerprint` beside `modelFilePath` in `Core/pp_model_path.h` (Platform ring, so A5 exempts it), which removes the slot, its three install sites and the `@?` failure mode. The hook stays until ruled | ruled 24 Nov[^po24]: the direct call | B, Part 1 | for the Solution Architect |
+| J-107 (J-2) | The pose model fingerprint goes through an installed reader hook. The review of 7.2 recommends a direct call, `modelFileFingerprint` beside `modelFilePath` in `Core/pp_model_path.h` (Platform ring, so A5 exempts it), which removes the slot, its three install sites and the `@?` failure mode. The hook stays until ruled | ruled 24 Nov[^j107][^po24]: the direct call | B, Part 1 | for the Solution Architect |
 | J-43 (DEC-194) | The pose inference thread is "the first instance of the platform assessment's long-lived-thread helper, private to `PoseRunner` for now" | done[^dec194] | E (threading) | approved |
-| J-108 | 6.4's **D-1:** the HackMotion `hm.*` values written by capture. It was not built, and "would therefore move the producer out of the analysis". A question rides with it: tag the `hm.*` values derived, which would reverse 6.1a's J-2 | dropped 24 Nov[^po24]: the `hm.*` values are re-tagged derived instead (#239), so capture has nothing to write | none | IMC C3 or C4, for the Solution Architect |
+| J-108 | 6.4's **D-1:** the HackMotion `hm.*` values written by capture. It was not built, and "would therefore move the producer out of the analysis". A question rides with it: tag the `hm.*` values derived, which would reverse 6.1a's J-2 | dropped 24 Nov[^j108][^po24]: the `hm.*` values are re-tagged derived instead (#239), so capture has nothing to write | none | IMC C3 or C4, for the Solution Architect |
 | the close (06 §4.5) | **Four local copies left in `src/Gui`, owned "by re-tag only":** the diagnostics adapter's history read (survey row 4d), the work-ons scan and its stamps (9b), the 3-D rig's session view (10c) and markup's overlay read (14b). Their A5 lines are tagged `platform refactor (#224)`, but neither #224's text nor 05 names them[^close-res] | carried by the tag alone | not #224-B: no library depends on them. With #224-U, each named on #224 (proposed, for the Product Owner) | none known; each is answered in its own brief |
-| J-110 | `Export/rule_data_reads.cpp` (7.1's reads) is a store door that lint A5 does not count | ruled 24 Nov[^po24]: A5 counts it | B, Part 1, with J-88's doors | for the Solution Architect (a lint-scope change) |
-| J-101 | **P-6.3b-1:** record handedness in device-only recordings (R-REC-8). Today a left-hander's device-only shots take the athlete's hand | approved 24 Nov[^po24] | D, with D-5's device-only create | IMC C3, for the Solution Architect |
+| J-110 | `Export/rule_data_reads.cpp` (7.1's reads) is a store door that lint A5 does not count | ruled 24 Nov[^j110][^po24]: A5 counts it | B, Part 1, with J-88's doors | for the Solution Architect (a lint-scope change) |
+| J-101 | **P-6.3b-1:** record handedness in device-only recordings (R-REC-8). Today a left-hander's device-only shots take the athlete's hand | approved 24 Nov[^j101][^po24] | D, with D-5's device-only create | IMC C3, for the Solution Architect |
 | the close (06 §4.5) | **#234:** the report list and Archiving take "the live session" from the carousel (`main.cpp`), not from `AppState` | open issue | E, part 1: the composition root rewrites those lines (proposed, for the Product Owner) | none: `AppState` already owns the live folder |
 | the close (06 §4.5, C-4) | **Three stale tags the close left, outside its brief:** `Analysis/swing_reanalyzer.cpp` A1 ×1 (`# step 1`: it includes `recorded_products.h`, which the lint and IM's RING-ADAPTERS place in the Adapters ring although it sits in `src/Analysis`); `Gui/shot/reanalysis_controller.h` A6 ×1 (`# step 1`) and `Gui/shot/shot_list_model.h` A6 ×1 (`# step 4`). The fourth, `library_converter.cpp` (`# step 3.0`), is item 3.0 (below)[^g24] | carried by a stale tag alone | `swing_reanalyzer.cpp`: B, Part 1, cleared before Analysis is cut as a library that links only inward. The two A6 lines: #224-U (item (ii)). All three re-tagged and named on #224 in the stage's first commit (ruled with #224's three groups, 24 Nov[^po24]) | none (removals and re-tags) |
 | 5.10's residue (#235) | (1) A card whose document never lands still loses its edits at End (`forgetCapture`). (2) `handCardEditsToShot` clears the card's copy before it forwards each edit, so a failed write loses that edit | open issue | (2): A, as a bug fix. It loses golfer input, which is always blocking, and the fix is the order (clear after the write succeeds). (1): D, because what a shot with no document is belongs to the capture seam (ruled 24 Nov[^po24]) | none known |
@@ -548,7 +547,7 @@ The project's rule is that a bug needs an observed failure. So each item is eith
 | `source_published_` (`src/Buffer/event_buffer.cpp:232`) | a non-atomic read-modify-write from several producer threads can stall the merger | The read-modify-write is real. The worst case is a missed wake, bounded by `merger_cold_timeout_us = 500` (`event_buffer_config.h:38`, used at `event_buffer.cpp:578`): at most 0.5 ms of latency, not a stall. Suspected, not observed | Make it `fetch_add`: cheap and plainly right | A (after the freeze) |
 | `BleAdapterPool::m_index` (`src/IMU/ble_adapter_pool.cpp:56`) | a data race across per-IMU I/O threads | Not shown. Both callers run on the GUI thread before they hand off to the I/O thread (`src/Gui/imu/imu_instance.cpp:496`, `hm_instance.cpp:867`), and both are Linux-only | Check first; make it atomic only if a second thread is found | A (after the freeze) |
 | `DeviceEnumerator::m_devices` (`src/Core/device_enumerator.cpp`) | mutated and iterated with no mutex | Not shown. BLE results reach it through a queued connection to the GUI thread (`device_enumerator.cpp:370–371`). The threads of the video and PPCP callers are not established | Check first; assert the GUI thread at the entry points | D |
-| `PersonSegmenter` (`src/Pose/person_segmenter.cpp:42`) | runs CPU-only, with no execution-provider cascade | Shown in the code: it sets no execution provider, while the three pose estimators each carry their own cascade. Its session is cached for the process (`PersonSegmenter::acquireShared`), the pattern that leaked GPU memory in ViTPose when called from a new thread each shot (DEC-194)[^dec194]. On the CPU that leak cannot occur; on CUDA it is suspected, not observed | A refactor that changes analysis output: after the freeze, with a stage-version bump and a re-run (Stage A). If GPU segmentation is wanted (§9 Q10), check for the leak first | A (after the freeze) |
+| `PersonSegmenter` (`src/Pose/person_segmenter.cpp:42`) | runs CPU-only, with no execution-provider cascade | Shown in the code: it sets no execution provider, while the three pose estimators each carry their own cascade. Its session is cached for the process (`PersonSegmenter::acquireShared`), the pattern that leaked GPU memory in ViTPose when called from a new thread each shot (DEC-194)[^dec194]. On the CPU that leak cannot occur; on CUDA it is suspected, not observed | A refactor that changes analysis output: after the freeze, with a stage-version bump and a re-run (Stage A). If GPU segmentation is built (#240), check for the leak first | #240, out of this plan (ruled 24 Nov[^po24]) |
 | `ppDebug()` (`src/Core/pp_debug.h:59`) | a dangling-`else` bug | The hazard is real: `if (false) PpLogStream(…)` captures a following `else`. A scan for `if (…) ppDebug() …; else` found no such site. Latent, not observed | Harden the macro | A (after the freeze) |
 | Gemini key in the URL (`src/LLM/GeminiLlmEngine.cpp:66–70`) | key in the query string; default model id broken | The key in the URL is confirmed. No evidence is given that the default model id (`GeminiLlmEngine.h:44`) is broken | Move the key to a request header; check the model id before changing it | E |
 | API keys in plaintext settings (`src/Secrets/SecretsManager.cpp:37–50`, seeding at `:60–84`) | Azure, Gemini and AssemblyAI keys in the settings file | Shown: `secrets/*` through `ppSettings()`, with a compile-time AssemblyAI default and environment overrides | Move the API keys to a keychain-backed store (Stage E) | E |
@@ -659,10 +658,10 @@ so the observed bugs below go first, and the rest follow as refactors (§9, Q4).
 
 | | |
 |---|---|
-| Closes | #184, #105, #183 (its settings half), #53 (its detection half); #235's half (2), the edit cleared before its write ("Mandatory carry-ins" (iv)); June's `source_published_`, `ppDebug()` and segmenter rows |
+| Closes | #184, #105, #183 (its settings half), #53 (its detection half); #235's half (2), the edit cleared before its write ("Mandatory carry-ins" (iv)); June's `source_published_` and `ppDebug()` rows (the segmenter rows go with #240) |
 | Deletes | the three copies of the execution-provider cascade |
 | Test | #105 and #183 on the cabin PC's sensors and cameras; #53 against a swing known to start after impact; the cascade under parity (0 differences); `ctest` for the touched targets |
-| Re-run | the segmenter's GPU path, if built: a stage-version bump, a library re-run on GOLFSIMPC with a dry-run first, and a control run, because pose runs are non-deterministic. #53's coverage rule: the Product Owner decides whether existing swings are re-graded |
+| Re-run | #53's coverage rule: the Product Owner decides whether existing swings are re-graded |
 | Docs | `docs/design/flir_camera_settings.md` and `docs/reference/swing_json_schema.md` (#183) |
 | Tier (proposed, for the Product Owner) | Independent review: #53's rule, #183's fields (a format change), #105's retry and the cascade. Self-check: #184 (wording), the `fetch_add`, the macro |
 | Accept (proposed, for the Product Owner) | Each closed issue has its evidence from the cabin PC attached; the cascade's parity run shows 0 differences; copies of the cascade 3 → 1 |
@@ -741,13 +740,13 @@ After the domain refactor. Its measurements are redone then. It has two parts.
 
 | | |
 |---|---|
-| Closes | the Vocabulary root (the lint's one Vocabulary rule, apart from Buffer's stream types, which close in Stage D); #224-B and the 4 allowlist lines tagged `platform refactor (#224)` that it covers ("Mandatory carry-ins" (ii)); `swing_reanalyzer.cpp`'s A1 line; B-14; 05 §3's tool rows; #187, with #203 beside it (probes that send scratch sessions to the real Trash); #228 first, so that the full `ctest` baseline is clean before the first library is cut; #90's suites (with the Product Owner's say-so) |
+| Closes | the Vocabulary root (the lint's one Vocabulary rule, apart from Buffer's stream types, which close in Stage D); #224-B and the 4 allowlist lines tagged `platform refactor (#224)` that it covers ("Mandatory carry-ins" (ii)); `Export/rule_data_reads.cpp`'s A5 line, counted from this stage (J-110, ruled 24 Nov) and cleared in it, so 5 lines in all; `swing_reanalyzer.cpp`'s A1 line; B-14; 05 §3's tool rows; #187, with #203 beside it (probes that send scratch sessions to the real Trash); #228 first, so that the full `ctest` baseline is clean before the first library is cut; #90's suites (with the Product Owner's say-so) |
 | Deletes | the lint's per-directory Vocabulary entries; the hand-listed source lists in test targets; the header-only workarounds such as `atomic_write.h`'s |
 | Test | a clean build and the full `ctest`, with `qml_ui`, on the Mac and on the cabin PC (Microsoft's compiler, MSVC, links static libraries differently), run from the Windows test lane's script; the three build times against their baseline |
 | Re-run | none to analysis expected; the parity run must show 0 differences |
 | Docs | IM §4.1 (RING-VOCABULARY, RING-PLATFORM, the spanning directories); `docs/developer/testing_developer_guide.md` (the isolation helper) |
 | Tier (proposed, for the Product Owner) | Self-check for the scripted moves, on the evidence of §5 rule 5. Independent review: P-3's accessor, #187's helper, the first library, and every CMake change that alters what a test links |
-| Accept (proposed, for the Product Owner) | The lint's per-file Vocabulary entries: down to Buffer's stream types only. Directories that span rings: 8 → those Stage D owns, named in the brief. Quoted includes that resolve only through the global directories: 425 → the number left in the executable's own files, set in the brief. Allowlist lines tagged `platform refactor (#224)`: 34 → 30, with Stage B's 4 at 0 and the other 30 (Stage D 3, #224-H 1, #224-U 26) each named on #224. `swing_reanalyzer.cpp`'s A1 line: gone. Test targets that hand-list sources: to 0. Build times: no worse on either platform, or accepted by the Product Owner |
+| Accept (proposed, for the Product Owner) | The lint's per-file Vocabulary entries: down to Buffer's stream types only. Directories that span rings: 8 → those Stage D owns, named in the brief. Quoted includes that resolve only through the global directories: 425 → the number left in the executable's own files, set in the brief. Allowlist lines tagged `platform refactor (#224)`: 34 → 30, with Stage B's 4 at 0 and the other 30 (Stage D 3, #224-H 1, #224-U 26) each named on #224. `Export/rule_data_reads.cpp`'s new A5 line: added and cleared in the stage, so Stage B clears 5 lines. `swing_reanalyzer.cpp`'s A1 line: gone. Test targets that hand-list sources: to 0. Build times: no worse on either platform, or accepted by the Product Owner |
 
 **Ownership.** No domain data. Each moved file keeps its ring, except where the move is the point (C9: the new
 directories, and the RING-* rows that name `Core` and the Vocabulary areas). P-3's accessor is answered in its brief
@@ -936,8 +935,8 @@ fallbacks in Stage D, as that file is edited (for the Product Owner).
     helper, "deliberately not that helper", private to `PoseRunner` for now, and says the platform refactor may move it
     to the Platform ring when it generalises the helper. There are two shapes of thread:
     1. **a pure C++ serial executor** (`InferenceThread`'s shape: a FIFO with `submit`/`call`, no Qt, used by the
-       tools): promote it to the Platform ring if a second non-Qt caller needs it, the segmenter's GPU path being the
-       candidate (Stage A);
+       tools): promote it to the Platform ring if a second non-Qt caller needs it, the segmenter's GPU path (#240) being the
+       candidate if it is built;
     2. **a Qt event-loop owner** (the eight owners above): one tested RAII owner of a `QThread`, which starts it,
        drains it and runs the `quit()`/`wait()` teardown that each owner hand-writes today.
 
@@ -967,7 +966,7 @@ fallbacks in Stage D, as that file is edited (for the Product Owner).
 | Re-run | none to analysis |
 | Docs | IM §8.2, §9.1 (if R-CON-5 is amended), §11; the settings and secrets developer notes |
 | Tier (proposed, for the Product Owner) | Independent review: teardown order, every thread-lifetime change, the secrets move, and any settings key that moves. Self-check: an implementation moved out of a header with no other change |
-| Accept (proposed, for the Product Owner) | Manual teardown lines after `exec()`: 6 → 0. Function-local static services: to 0. `AppSettings fallback` declarations: 24 → 0. Hand-written thread teardowns: 8 owners → 0, if the amendment is agreed. The updater's A1 findings: 7 → 0. QML globals: 18 → the number §9 Q17's ruling gives, set before the item starts; the domain refactor's target of 4 became 18 on an unruled reading[^l-aim]. API keys in the settings file: to 0. `archive_controller.cpp`'s A5 findings: 3 → 0, or out of scope by the lint-scope ruling (§9 Q5). Readers of "the live session" from the carousel in `main.cpp`: to 0 (#234) |
+| Accept (proposed, for the Product Owner) | Manual teardown lines after `exec()`: 6 → 0. Function-local static services: to 0. `AppSettings fallback` declarations: 24 → 0. Hand-written thread teardowns: 8 owners → 0, if the amendment is agreed. The updater's A1 findings: 7 → 0. QML globals: 18 → the number §9 Q17's ruling gives, set before the item starts; the domain refactor's target of 4 became 18 on an unruled reading[^l-aim]. API keys in the settings file: to 0. `archive_controller.cpp`'s A5 findings: 3 → 0. Readers of "the live session" from the carousel in `main.cpp`: to 0 (#234) |
 | Guards (proposed, for the Product Owner) | No test or agent run reads or writes the real settings store or the real keychain: #187's helper and the credential store's in-memory test mode are in place first. An item that moves a QML global runs the `tst_*.qml` files that cover it; the domain refactor's 5.8b rewrote 980 QML references without them[^l-qml] |
 | Scratch cases (proposed, for the Product Owner) | A machine with no keychain entry; an upgrade from the settings layout before the split; a quit at each point of start-up |
 | Cabin visit (proposed, for the Product Owner) | The quit tests and the quit during the pose warm-up on the cabin PC, and the signed upgrade on the Mac, are run by the Product Owner from a script in one visit; the settings split is built behind it |
@@ -1093,7 +1092,7 @@ Stage B, Part 2 · build libraries
 
 | Issue | State (each is open on 24 Nov, by `gh issue list`) | Stage |
 |---|---|---|
-| #224 step 7's hygiene items, moved out of the plan | open, low priority; its Vocabulary root comment is mandatory[^sa23-vocab]; its P-3 comment is carried | B, Part 1 (#224-B); #224-H on its own track ("Mandatory carry-ins" (ii)) |
+| #224 step 7's hygiene items, moved out of the plan | open, low priority; its Vocabulary root comment is mandatory[^sa23-vocab]; its P-3 comment is carried | B, Part 1 (#224-B); #224-U a plan of its own straight after Stage B; #224-H on its own track ("Mandatory carry-ins" (ii)) |
 | #222 split the long analysis and coaching functions (was step 8) | open, low priority; moved out of the refactor plan as "code hygiene, not an architectural refactor"[^po23-plan]; its suggested approach is "one function at a time, preferably when a feature change has to touch that function anyway". No source places it in the platform plan; a Product Owner call to keep it out was reported by the review[^review] and confirmed on 24 Nov[^po24] | none: out of the platform plan |
 | #229 the low point from every input (R-INS-5) | open; "After the refactor (freeze)" | none: analysis work |
 | #230 audit every derived metric against R-INS-5 | open; after the refactor; "an inventory first, fixes as separate items" | none: analysis work; before A-06's format (§7) |
@@ -1178,7 +1177,8 @@ Added in the first version:
 Added in this revision:
 15. **The Vocabulary root's residue**: do Buffer's stream types, LaunchMonitor's reading types and `Export/frame_decode`
     move under `src/Vocabulary/` too, so that the lint has one Vocabulary rule, with Buffer's in Stage D? And what are
-    the area names ("Mandatory carry-ins" (i))?
+    the area names ("Mandatory carry-ins" (i))? **The first half is ruled (24 Nov): all three move[^po24].** The area
+    names are still open.
 16. **#224 in three groups** (for the Product Owner): #224-B in Stage B, #224-H and #224-U (the step-5 presenter
     residue, 26 allowlist lines) each on its own track? And is the whole of #224 in the platform refactor, as the
     review reports[^review]? **Ruled 24 Nov:** three groups; #224-H and #224-U are plans of their own, #224-U
@@ -1186,7 +1186,8 @@ Added in this revision:
 17. **The QML globals**: wrap the kept globals into `devices`, `settings` and `logging` objects, or let each leave with
     its stage? Are `launchMonitor`, `trunkCeremony` and `liveWrist` devices ("Mandatory carry-ins" (iii))?
 18. **D-6 and 6.3a's D-1**: D-6 in Stage D; 6.3a's D-1 (persisting the flight verdict) outside the platform stages?
-19. **J-107's J-2**: the model fingerprint as a direct call in `Core/pp_model_path.h`, or the hook kept?
+19. **J-107's J-2**: the model fingerprint as a direct call in `Core/pp_model_path.h`, or the hook kept? **Ruled (24
+    Nov): the direct call[^po24].**
 
 Added with the lessons (24 Nov; each for the Product Owner unless it says otherwise):
 20. **The entry conditions** (§7): is the live check a gate on capture, device, teardown and Windows build changes,
@@ -1197,8 +1198,8 @@ Added with the lessons (24 Nov; each for the Product Owner unless it says otherw
 22. **The Windows test lane** (Stage B): can the cabin PC build the test tree and run `ctest` from a script, and
     when may it be used, given that it is the working studio? No source read for this page answers the first part.
 23. **Stage E's part 1 behind Stage C's design wait** (§7)?
-24. **The new carry-ins** ("Mandatory carry-ins" (iv)): 6.4's D-1 and R-REC-8's handedness in Stage D, #234 in Stage
-    E, the four residues with #224-H? The first two are IMCs, for the Solution Architect.
+24. **The new carry-ins** ("Mandatory carry-ins" (iv)): #234 in Stage E, part 1? The rest is ruled (24 Nov)[^po24]: 6.4's
+    D-1 is dropped (#239), R-REC-8's handedness is approved for Stage D, and the four residues are #224-U's.
 25. **The method's tools** (Stage B): the IM excerpt tool and the build lock moved into `tools/`?
 
 **The stage each question blocks** (proposed, for the Product Owner). A question is ruled, with the stage's
@@ -1207,11 +1208,11 @@ approvals, in one sitting before that stage's first brief ("Approvals this page 
 | Before | Questions |
 |---|---|
 | anything | 20, 22 |
-| Stage A | 4, 10, 21 |
-| Stage B | 11, 15 (the area names; the move itself is mandatory and does not wait), 16, 19, 25 |
+| Stage A | 4, 21 (10 ruled 24 Nov) |
+| Stage B | 11, 15's area names (the move itself is mandatory and does not wait; the rest of 15 is ruled), 25 (16 and 19 ruled 24 Nov) |
 | Stage C | 2, 23 |
-| Stage D | 8, 18, 24 |
-| Stage E | 5, 6, 7, 9, 17 |
+| Stage D | 8, 18 |
+| Stage E | 5, 6, 7, 9, 17, 24's #234 |
 | Stage F | 3 |
 | each stage | 13 (its cabin checks, as §5 rule 2 names them) |
 | after Stage B | 12, 14 |
@@ -1228,7 +1229,7 @@ adopted; each count carries a re-measure mark here.
 |---|---|---|
 | §1.1 Product Owner call: pull #224 into the platform plan | **accepted with change** | No source other than the review records the call: "reported by the review; confirm"[^review]. The sources place only the Vocabulary move, P-3 and the re-tagged lines here. #224 is split into #224-B (Stage B) and #224-H (its own track) ("Mandatory carry-ins" (ii)) |
 | §1.2 Product Owner call: keep #222 out | **accepted** | #222 left the domain plan[^po23-plan], and nothing puts it in the platform plan. The explicit call is reported by the review; confirm[^review]. Its touch points are named (§8) |
-| §1.3 Product Owner call: keep the segmenter's GPU work in Stage A and Q10 | **accepted, as already written** | The first version already had it there. The call is reported by the review; confirm[^review] |
+| §1.3 Product Owner call: keep the segmenter's GPU work in Stage A and Q10 | **superseded (24 Nov)** | The first version had it in Stage A, and the review reported the call[^review]. The Product Owner ruled it out of the platform plan, to #240[^po24] |
 | 2.1a #224 is "the deferred remainder … directory/ring splits" that Stage B depends on | **accepted with change** | Part of #224 (#224-B) is a Stage B dependency, but #224 does not split `Core`, `Buffer`, `IMU`, `LaunchMonitor` or `Pose`, so it does not deliver Stage B's precondition by itself. It also lists A-11, which 7.3 did (#224 comment) (Premise 3) |
 | 2.1b "All eight ring-spanning directories still span rings" | **accepted with change** | True at `aa305dfb`; since 7.3 (`45419616`), `Analysis`'s Vocabulary files are in `src/Vocabulary/Analysis/`. Re-measured at the close (Premise 3) |
 | 2.1c ccache and `pp_qml_cachegen_keep_unchanged` solved most POSIX rebuild pain | **accepted with change** (first "rejected as unneeded"; changed on 24 Nov with the lessons) | Premise 3 argues libraries for A1 enforcement, not for rebuild time, and that stands. But the review's other half matters to the plan: the fix is POSIX-only (`cmake/PinPointQmlModule.cmake`: "on Windows hosts it does nothing"), Windows is the primary platform, and Stage B changes how everything links. Build times are measured on both platforms before and after Stage B (Premise 3; Stage B; proposed, for the Product Owner). 06 gives the figure as about 415 compiles to 4[^l-win] |
@@ -1396,6 +1397,7 @@ for steps 3 and 4 only[^l-record].
 [^l-tools]: `git check-ignore -v build/refactor/one_at_a_time.sh` at `d2c3d41e`: matched by `.gitignore`. The project's `CLAUDE.md` rule on IM ("never read it whole … An agent whose brief quotes these excerpts reads nothing else from it") depends on the excerpts that `im_excerpt.py` cuts.
 [^j108]: J-108 (the refactor coordinator, 24 Nov 2026), logged for the Solution Architect; 06 Part B §3, §8.6 and §10; `build/refactor/step-6/NOTES-6.4.md` §B, as 06 cites it. Not yet ruled.
 [^close-res]: 06 Part B §4.5 and §10, citing `build/refactor/LOCAL-COPIES-CLOSE.md`: "neither #224's text nor `05-deferred-worklist.md` names them".
+[^po24]: The morning review of 24 Nov 2026: the Product Owner, the Solution Architect, the Design Lead and the Coaching Lead, each ruling on the items for their role (J-101 to J-112 in `build/refactor/step-3/JUDGEMENT-CALLS.md`, and this page's second outside review). Every ruling took the recommendation put to it. Issues filed for the rulings that are not platform work: #236 to #240; DL-4 is recorded on #233.
 [^g24]: A second outside review of this page (24 Nov), checked against `src/Gui/tests/architecture_allowlist.txt` (unchanged from `44ae9230` to `94b3b9a1`), `architecture_lint_test.cpp`'s `fileRings()`, the three `Core/` headers, 06 §4.5 (the stale tags, C-4), 06 §6 item 6 and Part A §3 (the process-document count), #235's text and `gh issue list` by the coordinator before any edit. Its reading of re-analysis' A1 line is right: `swing_reanalyzer.cpp` includes `recorded_products.h`, which the lint (`fileRings()`) and IM's RING-ADAPTERS place in the Adapters ring although it sits in `src/Analysis`. The review placed #235 in Stage D whole; its half (2) is a golfer-input loss and goes to Stage A instead. `version.h` was added to the review's two Platform headers by the same reading.
 [^j110]: J-110 (the refactor coordinator, 24 Nov 2026), citing the close's note C-6; logged for the Solution Architect. Not yet ruled.
 [^j101]: J-101 (the refactor coordinator, 23 Nov 2026), logged for the Solution Architect as P-6.3b-1; 06 Part B §10, last row: "Not placed anywhere yet". Not yet ruled.
