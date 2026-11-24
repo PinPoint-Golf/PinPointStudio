@@ -72,7 +72,6 @@ The second rule: **a metric describes itself and does not judge itself.** `Metri
    fire_findings.h         a shot's findings + derived data, pure (§6.0)
    session_reduction.h     a session's diagnosis from its shots' findings, pure (§6.0)
    measure_sample.h        read a measure off a stored swing (phase grid + sidecar)
-   dag_layout.h            the causal graph, laid out in C++
    diagnostics_health.h    assembled-library checks
         │
         ├──────────────► Wrist/reference_bands.h  NormBandProvider
@@ -84,6 +83,8 @@ The second rule: **a metric describes itself and does not judge itself.** `Metri
         ▼
  FAÇADE  (QML_ELEMENT, marshalling only — no rules)
    ModelBrowser        one connected content graph, read AND edited (§10)
+   layout/             dag_layout.h (the causal graph) · corridor_plot.h (the corridor picture):
+                       pixel layout in plain C++, in the UI ring beside the façade
         │
         ▼
  VIEWS   Settings → Diagnostic Model (navIdx 9) · Settings → Metrics · the wrist grid
@@ -1221,12 +1222,11 @@ src/Diagnostics/engine/
   fire_findings.{h,cpp}         fireFindings(), deriveShotData(), FiringInputs, firingStamp()   (the shot)
   session_reduction.{h,cpp}     reduceSession(): the session's diagnosis, pure               (the session)
   pack_io.{h,cpp}               the pack's file shape, validatePack / loadPack
-  dag_layout.{h,cpp}            the causal graph, laid out in C++
   diagnostics_health.{h,cpp}    assembled-library checks
 src/Diagnostics/packs/          characteristic_pack · screen_pack · drill_pack · gate_words_pack · reference_pack ·
                                 layered_set.h · {resource,file,merged,memory}_pack_provider · pack_provider.h
 src/Diagnostics/norms/          norm.h · norm_pack · norm_provider.h · context_tree · metric_corridor.h ·
-                                norm_measure_source.h · {resource,file,merged,memory}_norm_provider · corridor_plot
+                                norm_measure_source.h · {resource,file,merged,memory}_norm_provider
 src/Diagnostics/measures/       measure_sample (builds and reduces the phase grid) · live_measure_source (detectForSwing) ·
                                 measure_facets · anatomy_vocabulary · club_baseline_provider.h
 src/Vocabulary/Analysis/        phase_grid.h (the phase grid's value types) · sigma_source.h (P-3)
@@ -1242,6 +1242,8 @@ src/Gui/diagnostics/            the thin adapters: session_diagnostics_model (it
                                 session_diagnostics_adapter (diagnosticsAdapters), work_ons_controller,
                                 diag_parallel_run (form P, the parity dump's, and the in-memory doors)
 src/Gui/diagnosticmodel/        ModelBrowser + DiagnosticModel.qml + the Model*.qml views
+src/Gui/diagnosticmodel/layout/ dag_layout.{h,cpp} (the causal graph) · corridor_plot.{h,cpp} (the corridor picture):
+                                pixel layout, plain C++, the UI ring (tests in src/Diagnostics/tests)
 src/Resources/diagnostics/      core.json · norms.json · contexts.json · screens.json · drills.json · gate_words.json
 src/Wrist/reference_bands.{h,cpp}      NormBandProvider — Norm -> Band for the wrist grid
 src/Gui/review/metric_catalog.cpp      corridors for the metric + dashboard surfaces

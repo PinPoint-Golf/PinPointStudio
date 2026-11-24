@@ -25,7 +25,7 @@
 
 #include "model_browser.h"
 #include "model_browser_test_support.h"
-#include "../engine/dag_layout.h"   // DagLayoutOptions, for the typed options' defaults
+#include "../../Gui/diagnosticmodel/layout/dag_layout.h"   // DagLayoutOptions, for the typed options' defaults
 #include "../../Export/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
 #include "../../Export/rule_data_install.h"
 #include "../../Export/phase_grid_store.h"                 // the swing on screen's door double reads by folder (P-3)

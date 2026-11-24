@@ -18,7 +18,7 @@
 
 #include "corridor_plot.h"
 
-#include "../engine/diagnostics_health.h" // kMinCorpusForShare, oneBandShareOf() — ONE decision, not two
+#include "../../../Diagnostics/engine/diagnostics_health.h" // kMinCorpusForShare, oneBandShareOf() — ONE decision, not two
 
 #include <QObject>
 

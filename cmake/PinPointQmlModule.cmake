@@ -754,8 +754,8 @@ set(PP_QML_SOURCES
     src/Diagnostics/packs/resource_pack_provider.cpp
     src/Diagnostics/packs/memory_pack_provider.cpp
     src/Diagnostics/norms/memory_norm_provider.cpp
-    src/Diagnostics/norms/corridor_plot.h
-    src/Diagnostics/norms/corridor_plot.cpp
+    src/Gui/diagnosticmodel/layout/corridor_plot.h
+    src/Gui/diagnosticmodel/layout/corridor_plot.cpp
     src/Diagnostics/packs/file_pack_provider.cpp
     src/Diagnostics/packs/merged_pack_provider.cpp
     src/Diagnostics/engine/characteristic_engine.h
@@ -764,8 +764,8 @@ set(PP_QML_SOURCES
     src/Diagnostics/engine/relation_resolver.cpp
     src/Diagnostics/engine/fire_findings.h
     src/Diagnostics/engine/fire_findings.cpp
-    src/Diagnostics/engine/dag_layout.h
-    src/Diagnostics/engine/dag_layout.cpp
+    src/Gui/diagnosticmodel/layout/dag_layout.h
+    src/Gui/diagnosticmodel/layout/dag_layout.cpp
     src/Diagnostics/norms/norm.h
     src/Diagnostics/norms/norm.cpp
     src/Diagnostics/norms/context_tree.h

@@ -166,7 +166,6 @@ Club/shaft_track_assembly.cpp | A7 | 3 | segmentPhases 464, synthesizeLayerC 306
 Coaching/shot_outcomes.h | A7 | 1 | composeShotOutcome 387 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Coaching/tendencies.h | A7 | 1 | reduceTendencies 434 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Diagnostics/engine/characteristic_engine.cpp | A7 | 1 | evaluate 353 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
-Diagnostics/engine/dag_layout.cpp | A7 | 1 | layoutDag 852 lines: pixel layout in the engine; moved to the UI ring with #224 (B-10), split in #222 (it was step 8) (B-18; the lead's call, 14 Nov 2026)  # #222
 Diagnostics/engine/diagnostics_health.cpp | A7 | 1 | diagnosticsHealth 448 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Diagnostics/engine/relation_resolver.cpp | A7 | 1 | explain 374 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Diagnostics/measures/measure_sample.cpp | A7 | 1 | buildPhaseGrid 319 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222

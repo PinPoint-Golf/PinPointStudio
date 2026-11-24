@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../packs/characteristic_pack.h"
+#include "../../../Diagnostics/packs/characteristic_pack.h"
 
 #include <QString>
 #include <QStringList>

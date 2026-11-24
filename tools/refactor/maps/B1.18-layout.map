@@ -1,0 +1,5 @@
+# B1.18: the causal graph's pixel layout and the corridor plot leave the Diagnostics engine for the UI ring
+# (R8 part 2, docs/implementation/platform_b1_placements.md; the Solution Architect, 24 Nov 2026).
+# Rules ring to Adapters. Their tests stay in src/Diagnostics/tests beside model_browser_test.
+src/Diagnostics/engine/dag_layout -> src/Gui/diagnosticmodel/layout/
+src/Diagnostics/norms/corridor_plot -> src/Gui/diagnosticmodel/layout/

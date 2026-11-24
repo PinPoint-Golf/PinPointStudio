@@ -1448,7 +1448,7 @@ pp_add_test(diagnostics_catalogue_integrity_test
             ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
             ${SRC}/Export/swing_paths.cpp   # the model browser's library scans list swings through SwingPaths (step 2.7b)
-            ${DIAG}/engine/dag_layout.cpp ${DIAG}/norms/corridor_plot.cpp
+            ${SRC}/Gui/diagnosticmodel/layout/dag_layout.cpp ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp
             ${DIAG}/packs/memory_pack_provider.cpp ${DIAG}/norms/memory_norm_provider.cpp
             # The model's health list spans the norm set now, and its corpus check reads phase grids.
             ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Export/phase_grid_store.cpp
@@ -1519,7 +1519,7 @@ set_tests_properties(reference_sets_test PROPERTIES
 # that reshuffles between visits, a depth bound that silently drops what it cut, and the empty state
 # — a characteristic connected to nothing, which is every freshly authored one.
 pp_add_test(dag_layout_test
-    SOURCES ${DIAG}/tests/dag_layout_test.cpp ${DIAG}/engine/dag_layout.cpp ${DIAG_PACK}
+    SOURCES ${DIAG}/tests/dag_layout_test.cpp ${SRC}/Gui/diagnosticmodel/layout/dag_layout.cpp ${DIAG_PACK}
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 
 # What a condition reads (condition_reading.h, header-only): every condition in the shipped pack
@@ -2530,8 +2530,8 @@ pp_add_test(model_browser_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
             ${SRC}/Export/swing_paths.cpp   # the library scans list swings through SwingPaths (step 2.7b)
-            ${DIAG}/norms/corridor_plot.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Export/phase_grid_store.cpp
-            ${DIAG}/engine/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
+            ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Export/phase_grid_store.cpp
+            ${SRC}/Gui/diagnosticmodel/layout/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -2565,8 +2565,8 @@ pp_add_test(inspector_refresh_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
             ${SRC}/Export/swing_paths.cpp   # the library scans list swings through SwingPaths (step 2.7b)
-            ${DIAG}/norms/corridor_plot.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Export/phase_grid_store.cpp
-            ${DIAG}/engine/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
+            ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Export/phase_grid_store.cpp
+            ${SRC}/Gui/diagnosticmodel/layout/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -2592,7 +2592,7 @@ set_tests_properties(inspector_refresh_test PROPERTIES
 # readings are counted apart rather than graded.
 pp_add_test(corridor_plot_test
     SOURCES ${DIAG}/tests/corridor_plot_test.cpp
-            ${DIAG}/norms/corridor_plot.cpp ${DIAG}/engine/diagnostics_health.cpp
+            ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp

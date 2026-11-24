@@ -19,8 +19,8 @@
 #include "model_browser.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot and commands (refactor steps 3.2, 3.9)
 
-#include "../../Diagnostics/norms/corridor_plot.h"
-#include "../../Diagnostics/engine/dag_layout.h"
+#include "layout/corridor_plot.h"
+#include "layout/dag_layout.h"
 #include "../../Diagnostics/engine/diagnostics_health.h"
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/measures/measure_sample.h"

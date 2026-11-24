@@ -47,7 +47,7 @@
 
 #include "../packs/pack_provider.h"
 #include "../norms/norm_provider.h"
-#include "../norms/corridor_plot.h"
+#include "../../Gui/diagnosticmodel/layout/corridor_plot.h"
 #include "../packs/drill_pack.h"
 #include "../packs/screen_pack.h"
 #include "../measures/anatomy_vocabulary.h"
