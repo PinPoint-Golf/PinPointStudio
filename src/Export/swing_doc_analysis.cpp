@@ -26,7 +26,7 @@
 //   path                      analysisPathToJson / analysisPathFromJson   Export/analysis_path_json.h
 //   assessment, timings,      writer only (nothing reads them back typed)  Analysis/swing_analysis_json.h
 //   bindings
-//   phases, segmentation,     phasesToJson / phasesFromJson,              Analysis/recorded_products.h
+//   phases, segmentation,     phasesToJson / phasesFromJson,              Vocabulary/Analysis/recorded_products.h
 //   club                      segmentation…, shaftTrack…AnalysisJson
 //   pose2d, poseDtl           poseTrackToAnalysisJson / …FromAnalysisJson Pose/pose_track_json.h
 //   ball                      ballTrackToAnalysisJson / …FromAnalysisJson Ball/ball_track_json.h
@@ -50,7 +50,7 @@
 #include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Analysis/swing_analysis_json.h"       // score, metrics, versions, filter, assessment, timings, bindings
 #include "analysis_path_json.h"                 // path
-#include "../Analysis/recorded_products.h"         // phases, segmentation, club
+#include "../Vocabulary/Analysis/recorded_products.h"         // phases, segmentation, club
 #include "../Vocabulary/Analysis/gate_record.h"               // gates
 #include "../Analysis/manifest_gates.h"            // the integrity blocks → analysis.gates (shot.*)
 #include "../Pose/pose_track_json.h"               // pose2d, poseDtl

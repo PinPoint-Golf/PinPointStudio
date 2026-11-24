@@ -40,7 +40,7 @@
 #include "../../Vocabulary/Analysis/swing_analysis.h"
 #include "../../Analysis/swing_analysis_json.h"
 #include "../analysis_path_json.h"
-#include "../../Analysis/recorded_products.h"
+#include "../../Vocabulary/Analysis/recorded_products.h"
 #include "../../Vocabulary/Analysis/gate_record.h"
 #include "../../Pose/pose_track_json.h"
 #include "../../Ball/ball_track_json.h"

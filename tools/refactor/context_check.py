@@ -62,7 +62,7 @@ FILES = {
     'Core/kf3_smoother': S,                 # generic maths, no golf in it
     'Core/device_enumerator': ACQ,
     'Core/pp_settings': HUB, 'Core/studio_profile': HUB, 'Core/app_info': HUB,
-    'Analysis/mp4_frame_reader': HUB, 'Analysis/recorded_products': HUB,          # "the store's" (lint comment): persistence
+    'Analysis/mp4_frame_reader': HUB,       # "the store's" (lint comment): persistence
     'Pose/motion_capture_probe': HUB,       # the hardware probe behind a setting
     'Audio/audio_output': HUB, 'Audio/audio_output_base': HUB, 'Audio/ting_player': HUB,   # feedback sound, presentation
     # to place: rules that derive measurements from a reading

@@ -2889,7 +2889,7 @@ target_sources(PinPointStudio PRIVATE
     src/Kinematics/segment_rates.cpp
     src/Kinematics/gap_bridge.h
     src/Kinematics/gap_bridge.cpp
-    src/Analysis/recorded_products.h
+    src/Vocabulary/Analysis/recorded_products.h
     src/Club/club_delivery.h
     src/Club/club_delivery.cpp
     src/Ball/ball_position.h

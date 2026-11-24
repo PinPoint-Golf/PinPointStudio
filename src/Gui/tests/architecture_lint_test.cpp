@@ -227,7 +227,7 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Core/app_info"), Adapters },
         { QStringLiteral("Core/pp_settings"), Adapters },
         { QStringLiteral("Core/studio_profile"), Adapters },
-        // Analysis: the per-shot stages' pure rules (their shared vocabulary is Vocabulary/Analysis/); reading a recorded MP4 and rebuilding products from a document are the store's.
+        // Analysis: the per-shot stages' pure rules (their shared vocabulary is Vocabulary/Analysis/); reading a recorded MP4 is the store's (the recorded products' JSON form is Vocabulary/Analysis/, R10).
         { QStringLiteral("Analysis/shot_analysis_job"), Rules },      // the job carries SkeletonCalib (Rules)
         { QStringLiteral("Analysis/effective_context"), Rules },      // the effective-club rule (IM-3)
         { QStringLiteral("Analysis/analysis_job_builder"), Rules },   // the one job builder
@@ -241,7 +241,6 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Analysis/camera_pose_sticks"), Rules },
         { QStringLiteral("Analysis/frame_store"), Rules },
         { QStringLiteral("Analysis/mp4_frame_reader"), Adapters },
-        { QStringLiteral("Analysis/recorded_products"), Adapters },
         // Export: one decode of a recorded frame is part of the Recording contract.
         { QStringLiteral("Export/frame_decode"), Vocabulary },
         // LaunchMonitor: a reading as delivered and what measured it are vocabulary; the inferred
