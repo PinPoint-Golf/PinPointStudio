@@ -393,13 +393,13 @@ static analysis::SessionResults summaryOf(const QString &folderName, qint64 star
     r.workOns.sessionId = folderName;
     r.workOns.startMs = r.workOns.endMs = startMs;
     r.workOns.shotCount = int(carries.size());
-    analysis::WorkOnEntry e;
+    analysis::PriorityEntry e;
     e.id = QStringLiteral("test.cond");
     e.rank = 1;
     e.fired = int(carries.size());
     e.assessable = int(carries.size());
     r.workOns.entries.push_back(e);
-    analysis::WorkOnEvidence ev;
+    analysis::PriorityEvidence ev;
     ev.id = e.id;
     ev.state = analysis::SessionEvidence::Pattern;
     ev.fired = ev.assessable = int(carries.size());
@@ -435,7 +435,7 @@ static void testSummariesOnlyAndLazy()
     QObject::connect(d, &AthleteDiagnostics::changed, [&changed] { ++changed; });
     check(QStringLiteral("LZYa made stale: nothing computed until read"), d && d->stale() && d->counts().recomputes == 0);
     if (!d) return;
-    const std::vector<analysis::WorkOnSummary> list = d->workOns();
+    const std::vector<analysis::PrioritySummary> list = d->workOns();
     check(QStringLiteral("SUMa a read reads the three summaries and NO ledger, club baseline or session input"),
           d->counts().recomputes == 1 && rig.spy->workOnsReads == 3 && rig.spy->diagnosticsReads == 0
               && rig.spy->baselineReads == 0 && rig.spy->inputReads == 0);
@@ -828,7 +828,7 @@ static void testHomeJobs(bool onPool)
               lanesAfter == lanesBefore);
     }
     std::vector<AthleteDiagnostics::ConsistencyRequest> reqs;
-    for (const analysis::WorkOnSummary &w : d->conditions())
+    for (const analysis::PrioritySummary &w : d->conditions())
         reqs.push_back({ w.id, w.hasLatestEvidence ? w.latestEvidence.measureId : (w.hasLatest ? w.latest.measureId : QString()) });
     const bool m1 = land(d->askConsistency(analysis::ClubScope(), reqs), [d] { return !d->consistencyRunning(); });
     check(QStringLiteral("JOBd the marks are graded from the summaries' facts (%1 requests, %2 graded, %3 sessions read)")
@@ -982,7 +982,7 @@ static void testHomeJobs(bool onPool)
             if (variant == 0) {
                 QJsonArray recs = newerScoped.value(QStringLiteral("records")).toArray();
                 QJsonObject r0 = recs.isEmpty() ? QJsonObject() : recs.at(0).toObject();
-                r0[QStringLiteral("ruleVersion")] = analysis::kWorkOnRuleVersion + 1;
+                r0[QStringLiteral("ruleVersion")] = analysis::kPriorityRuleVersion + 1;
                 if (!recs.isEmpty()) recs.replace(0, r0);
                 newerScoped[QStringLiteral("records")] = recs;
             } else {
@@ -1050,8 +1050,8 @@ static void testHomeJobs(bool onPool)
     grown[QStringLiteral("resultsVersion")] = analysis::kSessionResultsVersion;   // s1 back to today's (CNTe made it newer)
     writeJson(SessionFiles::workOnsFile(s1), grown);
     QJsonObject s2New = readJson(SessionFiles::workOnsFile(s2));
-    s2New[QStringLiteral("schemaVersion")] = analysis::kWorkOnSchemaVersion + 1;
-    s2New[QStringLiteral("ruleVersion")]   = analysis::kWorkOnRuleVersion;
+    s2New[QStringLiteral("schemaVersion")] = analysis::kPrioritySchemaVersion + 1;
+    s2New[QStringLiteral("ruleVersion")]   = analysis::kPriorityRuleVersion;
     writeJson(SessionFiles::workOnsFile(s2), s2New);
     const auto fileBytes = [](const QString &path) { QFile f(path); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); };
     const QByteArray s2Bytes = fileBytes(SessionFiles::workOnsFile(s2));
@@ -1108,7 +1108,7 @@ static void testReadAhead(bool onPool)
     AthleteDiagnostics *d = AthleteDiagnostics::of(rig.athlete.get());
     const QByteArray syncRecords = [&] {   // what a synchronous read gives: the reference
         QJsonObject o;
-        const QHash<QString, analysis::SessionWorkOns> recs = d->records();
+        const QHash<QString, analysis::SessionPriorities> recs = d->records();
         for (auto it = recs.constBegin(); it != recs.constEnd(); ++it) o.insert(it.key(), QString::number(it->shotCount));
         return QJsonDocument(o).toJson(QJsonDocument::Compact) + QByteArray::number(int(d->distances().size()));
     }();
@@ -1132,7 +1132,7 @@ static void testReadAhead(bool onPool)
     const bool landed = pump([d] { return !d->summariesReading() && !d->stale(); }, 30000);
     const QByteArray asyncRecords = [&] {
         QJsonObject o;
-        const QHash<QString, analysis::SessionWorkOns> recs = d->records();
+        const QHash<QString, analysis::SessionPriorities> recs = d->records();
         for (auto it = recs.constBegin(); it != recs.constEnd(); ++it) o.insert(it.key(), QString::number(it->shotCount));
         return QJsonDocument(o).toJson(QJsonDocument::Compact) + QByteArray::number(int(d->distances().size()));
     }();

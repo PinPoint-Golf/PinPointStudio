@@ -877,10 +877,10 @@ void FolderSeries::joinLedger(const QHash<int, pinpoint::analysis::BoardAnnotati
                                    : l.tier == Tier::Watching ? QStringLiteral("watching") : QStringLiteral("clean"));
     // The work-on ORDER of every session pattern: the list's own reduction, uncapped (the cap cuts
     // after the sort, so the first five are the list's own five, in its order).
-    pinpoint::analysis::WorkOnOptions wopt;
+    pinpoint::analysis::PriorityOptions wopt;
     wopt.maxPerSession = std::numeric_limits<int>::max();
-    for (const pinpoint::analysis::WorkOnEntry &e :
-         pinpoint::analysis::sessionWorkOnsForPack(pack, shots, ledgers, wopt).entries)
+    for (const pinpoint::analysis::PriorityEntry &e :
+         pinpoint::analysis::sessionPrioritiesForPack(pack, shots, ledgers, wopt).entries)
         m_ledgerWorkOnOrder << e.id;
 }
 

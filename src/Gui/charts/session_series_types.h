@@ -239,7 +239,7 @@ struct SessionSnapshot {
     // ADDED 22 Oct: EVERY session pattern in the work-on list's order — roots before symptoms, still
     // happening before resolving, sharp first, then where in the swing, then the bigger miss — by the
     // ONE reduction Session diagnostics and the report use (Coaching/work_ons_pack.h
-    // sessionWorkOnsForPack, uncapped), over the same ledgers as `tiers`. The Posture section orders its
+    // sessionPrioritiesForPack, uncapped), over the same ledgers as `tiers`. The Posture section orders its
     // head line and its Findings by it. Empty with no ledger, or no pattern.
     QStringList workOnOrder;
     // ADDED 21 Nov (refactor 3.8-ii; DEC-123, J-58): why a shot with wrist readings has no checkpoint profile in its findings

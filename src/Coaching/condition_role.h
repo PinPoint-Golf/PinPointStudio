@@ -35,7 +35,7 @@
 //   layer      the shot outcome composer's link words (shot_outcomes_pack.h).
 //   fact       the session report's kind (session_report.h reportPackOf).
 
-#include "work_ons.h"       // WorkOnClass
+#include "work_ons.h"       // PriorityClass
 
 namespace pinpoint::analysis {
 
@@ -51,7 +51,7 @@ enum class FactKind { Fault, Setup, Delivery, Outcome, Capacity, Other };
 struct ConditionRole {
     // The work-on list's class: Fault and Setup are movements, Delivery fills a short list, the rest is
     // never listed — and a HELD condition is never listed at all (Excluded, whatever its kind).
-    WorkOnClass        workOn    = WorkOnClass::Excluded;
+    PriorityClass        workOn    = PriorityClass::Excluded;
     // Held back (Condition::reportHold): a reading not trusted enough to headline anything.
     bool               held      = false;
     // "What you do well" may name the golfer being clear of it: a Fault or a Setup, not held (Mark,
@@ -62,7 +62,7 @@ struct ConditionRole {
     report::FactKind   fact      = report::FactKind::Other;
 
     // "A fault to work on": the one answer the list and Your swing share.
-    bool isMovementWorkOn() const { return workOn == WorkOnClass::Movement; }
+    bool isMovementPriority() const { return workOn == PriorityClass::Movement; }
     // What the ball did — where an explanation ends.
     bool isOutcome() const { return layer == ShotConditionLayer::Ball; }
 };

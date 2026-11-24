@@ -127,9 +127,9 @@ static void makeSession(const QString &dir, int n, qint64 startMs, const QString
 
 static void writeRecord(const QString &dir, const QString &id, const QString &name, int ruleVersion)
 {
-    pinpoint::analysis::SessionWorkOns rec;
+    pinpoint::analysis::SessionPriorities rec;
     rec.sessionId = QFileInfo(dir).fileName();
-    pinpoint::analysis::WorkOnEntry e;
+    pinpoint::analysis::PriorityEntry e;
     e.id = QStringLiteral("other_one"); e.name = QStringLiteral("Second"); e.rank = 2;
     rec.entries.push_back(e);
     e.id = id; e.name = name; e.rank = 1;
@@ -290,8 +290,8 @@ int main(int argc, char **argv)
     makeSession(b2, 4, at(10, 20, 11, 0), { QStringLiteral("DRIVER"), QStringLiteral("7 IRON") }, { QStringLiteral("faceOn") });
     makeSession(b3, 5, at(10, 20, 14, 0), { QStringLiteral("7 IRON") }, { QStringLiteral("dtl"), QStringLiteral("faceOn") });
     QDir().mkpath(golfer + QStringLiteral("/2026-10-20_G_04"));
-    writeRecord(b1, QStringLiteral("trail_knee_straighten"), QStringLiteral("Trail knee straightens"), pinpoint::analysis::kWorkOnRuleVersion);
-    writeRecord(b2, QStringLiteral("early_extension"), QStringLiteral("Early extension"), pinpoint::analysis::kWorkOnRuleVersion - 1);
+    writeRecord(b1, QStringLiteral("trail_knee_straighten"), QStringLiteral("Trail knee straightens"), pinpoint::analysis::kPriorityRuleVersion);
+    writeRecord(b2, QStringLiteral("early_extension"), QStringLiteral("Early extension"), pinpoint::analysis::kPriorityRuleVersion - 1);
     writeReport(b1, /*current=*/true,  at(10, 22, 9, 30));
     writeReport(b2, /*current=*/false, at(10, 20, 12, 0));
     writeReport(b3, /*current=*/true,  at(10, 20, 15, 0), at(10, 20, 18, 40));
@@ -480,7 +480,7 @@ int main(int argc, char **argv)
     makeSession(h3, 3, at(10, 3, 9, 0), { QStringLiteral("DRIVER") }, { QStringLiteral("faceOn") });
     makeSession(h4, 5, at(10, 4, 9, 0), { QStringLiteral("7 IRON") }, { QStringLiteral("faceOn") });
     makeSession(h5, 3, at(10, 5, 9, 0), { QStringLiteral("7 IRON") }, { QStringLiteral("faceOn") });
-    writeRecord(h3, QStringLiteral("early_extension"), QStringLiteral("Early extension"), pinpoint::analysis::kWorkOnRuleVersion);
+    writeRecord(h3, QStringLiteral("early_extension"), QStringLiteral("Early extension"), pinpoint::analysis::kPriorityRuleVersion);
     writeReport(h1, /*current=*/true,  at(10, 1, 12, 0), at(10, 21, 18, 40), QStringLiteral("smtp"));
     writeReport(h2, /*current=*/false, at(10, 2, 12, 0));
     writeReport(h4, /*current=*/true,  at(10, 4, 12, 0));

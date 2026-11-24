@@ -39,7 +39,7 @@
 // substantive sessions since), so the trend mixes the new evidence with a re-weighting; it is small
 // and it is said in the tooltip.
 //
-// WHAT COUNTS: Movement and Delivery conditions, under sessionWorkOnsForPack's class rule (held back
+// WHAT COUNTS: Movement and Delivery conditions, under sessionPrioritiesForPack's class rule (held back
 // → Excluded). Ball flight is all Outcome, so there its Outcome conditions count instead — and it is
 // shown at all only with LAUNCH-MONITOR evidence: a ball-flight condition every one of whose
 // detecting measures is an `lm.` key, assessed. "Any ball-flight condition assessed" is not that
@@ -109,20 +109,20 @@ struct AreaConditionInfo {
     bool    binary = false;
 };
 
-// The counting rule, isolated so it is testable without a pack. `cls` is workOnClassFor()'s answer
+// The counting rule, isolated so it is testable without a pack. `cls` is priorityClassFor()'s answer
 // (held back is already Excluded there); `held` is passed again because an Outcome is Excluded
 // whether held or not, and a held ball-flight reading must not count either.
-inline bool areaConditionCounts(const QString &group, WorkOnClass cls, bool outcome, bool held,
+inline bool areaConditionCounts(const QString &group, PriorityClass cls, bool outcome, bool held,
                                 const QString &id = QString())
 {
     if (held) return false;
     // A fade or draw is a shape a golfer can play, not a fault, so it is no habit against ball flight.
     if (id == QLatin1String("fade") || id == QLatin1String("draw")) return false;
-    if (cls == WorkOnClass::Movement || cls == WorkOnClass::Delivery) return true;
+    if (cls == PriorityClass::Movement || cls == PriorityClass::Delivery) return true;
     return group == kAreaBallFlight() && outcome;
 }
 
-// Every number injected, like WorkOnOptions.
+// Every number injected, like PriorityOptions.
 inline constexpr double kAreaHabitShare      = 0.5;    // "more than half your swings" (Coaching's presentShare)
 inline constexpr double kAreaOccasionalShare = 0.15;
 inline constexpr double kAreaCleanUpper      = 0.35;   // clean also needs the Wilson UPPER bound under this
@@ -131,7 +131,7 @@ inline constexpr int    kAreaMaxItems        = 5;      // the default; Home list
 struct AreaOptions {
     double habitShare      = kAreaHabitShare;
     double occasionalShare = kAreaOccasionalShare;
-    double cleanUpper      = kAreaCleanUpper;      // weighted counts, z = WorkOnOptions::wilsonZ (kDiagWilsonZ)
+    double cleanUpper      = kAreaCleanUpper;      // weighted counts, z = PriorityOptions::wilsonZ (kDiagWilsonZ)
     int    maxItems        = kAreaMaxItems;
 };
 
@@ -150,14 +150,14 @@ inline QString areaBandToString(AreaBand b)
 
 // The share the bands are cut on: recency-weighted fired over recency-weighted assessable. 0 when
 // nothing was assessed (a caller only bands measured conditions).
-inline double areaShare(const WorkOnSummary &w)
+inline double areaShare(const PrioritySummary &w)
 {
     return w.weightedAssessable > 0.0 ? w.weightedFired / w.weightedAssessable : 0.0;
 }
 
 // The band, its boundaries as written: exactly habitShare is a habit, exactly occasionalShare is
 // occasional, and under it the condition is clean only when the evidence says rare, not "not yet".
-inline AreaBand areaBandOf(const WorkOnSummary &w, const AreaOptions &opt = AreaOptions(),
+inline AreaBand areaBandOf(const PrioritySummary &w, const AreaOptions &opt = AreaOptions(),
                            double wilsonZ = kDiagWilsonZ)
 {
     const double share = areaShare(w);
@@ -235,14 +235,14 @@ struct AreaCounts {
 
 // A counted condition is MEASURED when some swing assessed it. (The every-condition aggregate only
 // holds ids some session assessed, so this is a guard, not a filter.)
-inline bool areaMeasured(const WorkOnSummary &w) { return w.swingsAssessable > 0 && w.weightedAssessable > 0.0; }
+inline bool areaMeasured(const PrioritySummary &w) { return w.swingsAssessable > 0 && w.weightedAssessable > 0.0; }
 
-inline QHash<QString, AreaCounts> areaCountsOf(const std::vector<WorkOnSummary> &conditions,
+inline QHash<QString, AreaCounts> areaCountsOf(const std::vector<PrioritySummary> &conditions,
                                                const QHash<QString, AreaConditionInfo> &info,
                                                const AreaOptions &opt, double wilsonZ)
 {
     QHash<QString, AreaCounts> out;
-    for (const WorkOnSummary &w : conditions) {
+    for (const PrioritySummary &w : conditions) {
         const auto it = info.constFind(w.id);
         if (it == info.constEnd() || !it->counts || !areaMeasured(w)) continue;
         AreaCounts &c = out[it->group];
@@ -266,13 +266,13 @@ inline QHash<QString, AreaCounts> areaCountsOf(const std::vector<WorkOnSummary> 
 // first — most habits, then most occasional, then the worst share, then address to finish — then the
 // unmeasurable ones in address-to-finish order. The eight body areas are always returned; ball flight
 // only when measurable; `golfer` never.
-inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionWorkOns> &sessions,
+inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionPriorities> &sessions,
                                                const QHash<QString, AreaConditionInfo> &info,
                                                const AreaOptions &opt = AreaOptions(),
-                                               const WorkOnOptions &wopt = WorkOnOptions())
+                                               const PriorityOptions &wopt = PriorityOptions())
 {
-    std::vector<SessionWorkOns> sorted = sessions;
-    std::stable_sort(sorted.begin(), sorted.end(), [](const SessionWorkOns &a, const SessionWorkOns &b) {
+    std::vector<SessionPriorities> sorted = sessions;
+    std::stable_sort(sorted.begin(), sorted.end(), [](const SessionPriorities &a, const SessionPriorities &b) {
         if (a.startMs != b.startMs) return a.startMs < b.startMs;
         return a.sessionId < b.sessionId;
     });
@@ -285,17 +285,17 @@ inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionWorkOns>
     // can be handed to the main aggregate afterwards.
     QHash<QString, AreaCounts> before;
     if (trendable) {
-        std::vector<SessionWorkOns> without = sorted;
+        std::vector<SessionPriorities> without = sorted;
         without.erase(without.begin() + newest);
         before = areaCountsOf(aggregateConditions(std::move(without), wopt), info, opt, wopt.wilsonZ);
     }
     // The aggregate re-sorts a sorted copy, which a stable sort leaves alone: history[i] is sorted[i].
-    const std::vector<WorkOnSummary> now = aggregateConditions(sorted, wopt);
+    const std::vector<PrioritySummary> now = aggregateConditions(sorted, wopt);
     const QHash<QString, AreaCounts> counts = areaCountsOf(now, info, opt, wopt.wilsonZ);
 
     // Bucket the counted, measured conditions by area.
-    QHash<QString, std::vector<const WorkOnSummary *>> byGroup;
-    for (const WorkOnSummary &w : now) {
+    QHash<QString, std::vector<const PrioritySummary *>> byGroup;
+    for (const PrioritySummary &w : now) {
         const auto it = info.constFind(w.id);
         if (it == info.constEnd() || !it->counts || !areaMeasured(w)) continue;
         byGroup[it->group].push_back(&w);
@@ -319,7 +319,7 @@ inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionWorkOns>
         a.habitTrend = a.hasTrend ? c.habits - before.value(group).habits : 0;
 
         std::vector<AreaItem> items;
-        for (const WorkOnSummary *w : byGroup.value(group)) {
+        for (const PrioritySummary *w : byGroup.value(group)) {
             const AreaConditionInfo ci = info.value(w->id);
             AreaItem it;
             it.conditionId    = w->id;
@@ -349,9 +349,9 @@ inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionWorkOns>
             }
             if (w->sessionsListed > 0) {
                 switch (w->status) {
-                case WorkOnStatus::Cleared: break;
-                case WorkOnStatus::Easing:  it.workOn = QStringLiteral("easing"); break;
-                case WorkOnStatus::Active: {
+                case PriorityStatus::Cleared: break;
+                case PriorityStatus::Easing:  it.workOn = QStringLiteral("easing"); break;
+                case PriorityStatus::Active: {
                     const bool onlyNewest = w->sessionsListed == 1 && newest >= 0
                                          && newest < int(w->history.size()) && w->history[size_t(newest)].listed;
                     it.workOn = onlyNewest ? QStringLiteral("new") : QStringLiteral("active");

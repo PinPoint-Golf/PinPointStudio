@@ -65,7 +65,7 @@ namespace pinpoint { class Athlete; class AthleteLevel; }
 // and writes diagnostics.json and the record (work_ons.json) — their one writer — so the list here cannot disagree with
 // the panel a golfer opens on the same session, and honours the launch monitor board's annotations as the owner does.
 //
-// The list is aggregateWorkOns() over the records and nothing else. No running totals:
+// The list is aggregatePriorities() over the records and nothing else. No running totals:
 // trashing a session removes its contribution at the next refresh.
 //
 // THREADING. The folder scan (a stat per swing, on what may be a network share) runs on a
@@ -538,7 +538,7 @@ private:
     void applyScan(int generation, std::vector<Scanned> rows);
 
     void publish();
-    const QHash<QString, pinpoint::analysis::SessionWorkOns> &shownRecords() const;
+    const QHash<QString, pinpoint::analysis::SessionPriorities> &shownRecords() const;
     void updateClubScope();
     // `clubMoved`: the club choice moved, not only the filter; the consistency marks read the club choice only.
     void onClubScopeMoved(bool clubMoved = true);
@@ -555,7 +555,7 @@ private:
     QString clubScopeWords() const;
     bool onBallInScope(const QString &tendencyKey) const;
     void publishAreas(const pinpoint::analysis::CharacteristicPack &pack,
-                      const std::vector<pinpoint::analysis::SessionWorkOns> &sessions);
+                      const std::vector<pinpoint::analysis::SessionPriorities> &sessions);
 
     // ── Shot filter ──
     // One filter choice as the screens show it: what the job counted for it, and the words to say it with.
@@ -596,9 +596,9 @@ private:
     // `outcome`, when given, is the choice the records are of: each detail (never an item) carries its
     // outcomeContrast line. `every` and `agg` are the aggregates of `records` (every condition; the work-on list): the
     // owner's for every club; for a scope or a filter, worked out here from the owner's scoped records (DEC-195).
-    DescribedWorkOns describeWorkOns(const QHash<QString, pinpoint::analysis::SessionWorkOns> &records,
-                                     const std::vector<pinpoint::analysis::WorkOnSummary> &every,
-                                     const std::vector<pinpoint::analysis::WorkOnSummary> &agg,
+    DescribedWorkOns describeWorkOns(const QHash<QString, pinpoint::analysis::SessionPriorities> &records,
+                                     const std::vector<pinpoint::analysis::PrioritySummary> &every,
+                                     const std::vector<pinpoint::analysis::PrioritySummary> &agg,
                                      const ShownOutcome *outcome = nullptr);
     // What the three scoped tabs read: details and areas, from the records of the scope they show.
     // `known` is that scope's description when the caller already has it.
@@ -633,7 +633,7 @@ private:
     bool    m_synchronous = false;
 
     // session dir -> its current record. Rebuilt by every scan, added to by every derivation.
-    QHash<QString, pinpoint::analysis::SessionWorkOns> m_records;
+    QHash<QString, pinpoint::analysis::SessionPriorities> m_records;
     QSet<QString>           m_scanned;        // the session dirs the last scan found with swings (none: nothing to sum up)
     QHash<QString, QString> m_summaryStamps;  // session dir -> its work_ons.json's size and mtime at the last scan
     QString                 m_stampsOf;       // the athlete folder m_summaryStamps are of
@@ -691,7 +691,7 @@ private:
     QString      m_togetherScope = pinpoint::analysis::clubScopeAllKey();     // what Matchups shows
     std::vector<pinpoint::analysis::ClubScopeGroupOption> m_scopeOptions;
     QVariantList m_clubScopes;
-    QHash<QString, pinpoint::analysis::SessionWorkOns> m_scopedRecords;       // valid while m_summaryScope is not all
+    QHash<QString, pinpoint::analysis::SessionPriorities> m_scopedRecords;       // valid while m_summaryScope is not all
     bool         m_scopeWorking = false;
 
     // ── Shot filter ──

@@ -165,12 +165,12 @@ bool removeIfThere(const QString &path, int *removed)
 }
 
 // The athlete work-ons (DEC-138) as the dump holds them: ids, status and counts, in the aggregate's order.
-QVariantList athleteWorkOnsDump(const std::vector<pinpoint::analysis::WorkOnSummary> &list)
+QVariantList athleteWorkOnsDump(const std::vector<pinpoint::analysis::PrioritySummary> &list)
 {
     QVariantList out;
-    for (const pinpoint::analysis::WorkOnSummary &w : list)
+    for (const pinpoint::analysis::PrioritySummary &w : list)
         out.append(QVariantMap{ { QStringLiteral("id"), w.id },
-                                { QStringLiteral("status"), pinpoint::analysis::workOnStatusToString(w.status) },
+                                { QStringLiteral("status"), pinpoint::analysis::priorityStatusToString(w.status) },
                                 { QStringLiteral("score"), w.score },
                                 { QStringLiteral("sessionsListed"), w.sessionsListed },
                                 { QStringLiteral("sessionsPattern"), w.sessionsPattern },
@@ -182,16 +182,16 @@ QVariantList athleteWorkOnsDump(const std::vector<pinpoint::analysis::WorkOnSumm
 // The old engine's: the same aggregate over the summaries it wrote, read by today's reader.
 QVariantList athleteWorkOnsFromFiles(const QStringList &sessions)
 {
-    std::vector<pinpoint::analysis::SessionWorkOns> records;
+    std::vector<pinpoint::analysis::SessionPriorities> records;
     for (const QString &s : sessions) {
         const pinpoint::JsonFileRead f = pinpoint::SessionDiagnosticsFiles::readWorkOns(s);
         bool ok = false;
         if (f.exists && f.ok) {
-            pinpoint::analysis::SessionWorkOns r = pinpoint::analysis::sessionWorkOnsFromJson(f.root, &ok);
+            pinpoint::analysis::SessionPriorities r = pinpoint::analysis::sessionPrioritiesFromJson(f.root, &ok);
             if (ok) records.push_back(std::move(r));
         }
     }
-    return athleteWorkOnsDump(pinpoint::analysis::aggregateWorkOns(std::move(records)));
+    return athleteWorkOnsDump(pinpoint::analysis::aggregatePriorities(std::move(records)));
 }
 
 // How many of a session's shots the launch monitor board annotated (Stage 0.5's follow-up has only those to change).

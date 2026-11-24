@@ -49,20 +49,20 @@ static SessionEvidence stateOf(int fired, int assessable)
     if (assessable < 1) return SessionEvidence::NotMeasured;
     if (assessable >= kDiagMinAssessableForPattern && wilsonLowerBound(fired, assessable) >= kDiagPatternWilsonLb)
         return SessionEvidence::Pattern;
-    if (assessable >= kDiagMinAssessableForPattern && wilsonUpperBound(fired, assessable) < kWorkOnQuietWilsonUb)
+    if (assessable >= kDiagMinAssessableForPattern && wilsonUpperBound(fired, assessable) < kPriorityQuietWilsonUb)
         return SessionEvidence::Quiet;
     return SessionEvidence::Inconclusive;
 }
 
 // A session record on day `day`: one evidence row per Ev, and an entry for each `listed` id.
-static SessionWorkOns session(const char *id, int day, const std::vector<Ev> &evs, const QStringList &listed = {})
+static SessionPriorities session(const char *id, int day, const std::vector<Ev> &evs, const QStringList &listed = {})
 {
-    SessionWorkOns s;
+    SessionPriorities s;
     s.sessionId = QString::fromLatin1(id);
     s.startMs   = kT0 + qint64(day) * kDay;
     s.endMs     = s.startMs + 3'600'000LL;
     for (const Ev &e : evs) {
-        WorkOnEvidence w;
+        PriorityEvidence w;
         w.id         = QString::fromLatin1(e.id);
         w.state      = stateOf(e.fired, e.assessable);
         w.fired      = e.fired;
@@ -72,7 +72,7 @@ static SessionWorkOns session(const char *id, int day, const std::vector<Ev> &ev
         s.evidence.push_back(w);
         s.shotCount = std::max(s.shotCount, e.assessable);
         if (listed.contains(w.id)) {
-            WorkOnEntry en;
+            PriorityEntry en;
             en.id         = w.id;
             en.rank       = int(s.entries.size()) + 1;
             en.fired      = e.fired;
@@ -84,9 +84,9 @@ static SessionWorkOns session(const char *id, int day, const std::vector<Ev> &ev
     return s;
 }
 
-static void setTypical(SessionWorkOns &s, const char *id, double value, double lo, double hi)
+static void setTypical(SessionPriorities &s, const char *id, double value, double lo, double hi)
 {
-    for (WorkOnEvidence &e : s.evidence)
+    for (PriorityEvidence &e : s.evidence)
         if (e.id == QLatin1String(id)) {
             e.hasTypical = true;
             e.typicalValue = value;
@@ -189,21 +189,21 @@ int main()
               "unmeasurable areas follow, in address-to-finish order");
 
         // The class rule on its own: Movement and Delivery count; held back never; an Outcome only in ball flight.
-        check(areaConditionCounts("posture", WorkOnClass::Movement, false, false)
-                  && areaConditionCounts("delivery", WorkOnClass::Delivery, false, false),
+        check(areaConditionCounts("posture", PriorityClass::Movement, false, false)
+                  && areaConditionCounts("delivery", PriorityClass::Delivery, false, false),
               "Movement and Delivery count");
-        check(!areaConditionCounts("setup", WorkOnClass::Excluded, false, false)
-                  && !areaConditionCounts("delivery", WorkOnClass::Excluded, true, false),
+        check(!areaConditionCounts("setup", PriorityClass::Excluded, false, false)
+                  && !areaConditionCounts("delivery", PriorityClass::Excluded, true, false),
               "Excluded does not, an Outcome outside ball flight included");
-        check(areaConditionCounts("ballFlight", WorkOnClass::Excluded, true, false),
+        check(areaConditionCounts("ballFlight", PriorityClass::Excluded, true, false),
               "ball flight's Outcome conditions count");
-        check(!areaConditionCounts("ballFlight", WorkOnClass::Excluded, true, true)
-                  && !areaConditionCounts("posture", WorkOnClass::Movement, false, true),
+        check(!areaConditionCounts("ballFlight", PriorityClass::Excluded, true, true)
+                  && !areaConditionCounts("posture", PriorityClass::Movement, false, true),
               "a held-back condition never counts, in ball flight or out of it");
-        check(!areaConditionCounts("ballFlight", WorkOnClass::Excluded, true, false, "fade")
-                  && !areaConditionCounts("ballFlight", WorkOnClass::Excluded, true, false, "draw"),
+        check(!areaConditionCounts("ballFlight", PriorityClass::Excluded, true, false, "fade")
+                  && !areaConditionCounts("ballFlight", PriorityClass::Excluded, true, false, "draw"),
               "a fade or draw is a shape, not a habit against ball flight");
-        check(areaConditionCounts("ballFlight", WorkOnClass::Excluded, true, false, "slice"),
+        check(areaConditionCounts("ballFlight", PriorityClass::Excluded, true, false, "slice"),
               "a slice still counts");
     }
 
@@ -260,7 +260,7 @@ int main()
     {
         const QHash<QString, AreaConditionInfo> info{ { "ee", ci("posture", "Early extension") },
                                                       { "sway", ci("posture", "Sway") } };
-        std::vector<SessionWorkOns> ss{
+        std::vector<SessionPriorities> ss{
             session("s1", 0, { { "ee", 10, 10 }, { "sway", 10, 10 } }),
             session("s2", 1, { { "ee", 10, 10 }, { "sway", 0, 30 } }),     // clears the sway habit
         };
@@ -299,7 +299,7 @@ int main()
         };
         // rotation 2 habits + 1 occasional; posture 2 habits; arms 1 habit at 0.9; lateral and wrists
         // 1 habit at 0.6 each (tied: address to finish decides); delivery clean only; setup and planePath unmeasured.
-        const std::vector<SessionWorkOns> ss{
+        const std::vector<SessionPriorities> ss{
             session("s1", 0, { { "h1", 10, 10 }, { "h2", 8, 10 }, { "o1", 3, 10 }, { "p1", 10, 10 }, { "p2", 9, 10 },
                                { "l1", 6, 10 }, { "a1", 9, 10 }, { "i1", 0, 40 }, { "f1", 6, 10 } }),
         };
@@ -307,7 +307,7 @@ int main()
         const std::vector<AreaSummary> a = summariseAreas(ss, info);
         check(groupsOf(a) == expect,
               "areas: habits, then occasional, then the worst share, then address to finish; unmeasured last");
-        std::vector<SessionWorkOns> rev{ session("x", 0, {}), ss[0] };
+        std::vector<SessionPriorities> rev{ session("x", 0, {}), ss[0] };
         std::reverse(rev.begin(), rev.end());
         check(groupsOf(summariseAreas(rev, info)) == expect, "the input order of the sessions does not matter");
         check(itemIds(areaOf(a, "rotation")) == (QStringList{ "h1", "h2", "o1" }), "items: by band, then share");
@@ -318,7 +318,7 @@ int main()
             { "hc", ci("posture", "Hc") },   { "occ", ci("posture", "Occ") }, { "unc", ci("posture", "Unc") },
             { "cln", ci("posture", "Cln") },
         };
-        const std::vector<SessionWorkOns> ps{
+        const std::vector<SessionPriorities> ps{
             session("p1", 0, { { "top", 10, 10 }, { "hb", 9, 10 }, { "ha", 9, 10 }, { "hc", 9, 10 }, { "occ", 4, 10 },
                                { "unc", 1, 7 }, { "cln", 0, 40 } }, { "hb" }),
         };
@@ -356,7 +356,7 @@ int main()
         };
         AreaOptions all;
         all.maxItems = 10;
-        std::vector<SessionWorkOns> ss{
+        std::vector<SessionPriorities> ss{
             session("s1", 0, { { "never", 10, 10 }, { "again", 10, 10 }, { "fresh", 10, 10 }, { "old", 10, 10 },
                                { "eased", 10, 10 }, { "gone", 10, 10 } }, { "again", "old", "eased", "gone" }),
             session("s2", 1, { { "never", 10, 10 }, { "again", 10, 10 }, { "fresh", 10, 10 }, { "old", 10, 10 },
@@ -387,7 +387,7 @@ int main()
         QHash<QString, AreaConditionInfo> info{ { "ee", ci("posture", "Early extension") },
                                                 { "spine", ci("posture", "Spine") } };
         info["ee"].unitByMeasure.insert(QStringLiteral("ee.m"), QStringLiteral("cm"));
-        std::vector<SessionWorkOns> ss{
+        std::vector<SessionPriorities> ss{
             session("s1", 0, { { "ee", 9, 10 }, { "spine", 9, 10 } }),
             session("s2", 1, { { "ee", 8, 10 }, { "spine", 9, 10 } }),
         };
@@ -414,7 +414,7 @@ int main()
                                                 { "half", ci("rotation", "Arms outrun the chest") },
                                                 { "band", ci("rotation", "Rushed transition") } };
         for (const char *id : { "late", "order", "mostly", "half" }) info[id].binary = true;
-        std::vector<SessionWorkOns> ss{
+        std::vector<SessionPriorities> ss{
             // the older session fired on every swing; the newest is what the grade reads
             session("s1", 0, { { "late", 10, 10 }, { "order", 10, 10 }, { "mostly", 0, 10 }, { "half", 10, 10 },
                                { "band", 10, 10 } }),

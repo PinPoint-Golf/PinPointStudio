@@ -308,15 +308,15 @@ int main(int argc, char **argv)
                                                                         && sn.swings.clubs.isEmpty() && !sn.workOn.known);
 
         // The summary written (as the session reduction writes it): its work-on 1 shows when the row is read again.
-        analysis::SessionWorkOns rec;
-        analysis::WorkOnEntry e;
+        analysis::SessionPriorities rec;
+        analysis::PriorityEntry e;
         e.id = QStringLiteral("second_one"); e.name = QStringLiteral("Second"); e.rank = 2;
         rec.entries.push_back(e);
         e.id = QStringLiteral("lead_one"); e.name = QStringLiteral("Lead"); e.rank = 1;
         rec.entries.push_back(e);
         QJsonObject root = analysis::toJson(rec);
-        root[QStringLiteral("schemaVersion")] = analysis::kWorkOnSchemaVersion;
-        root[QStringLiteral("ruleVersion")]   = analysis::kWorkOnRuleVersion;
+        root[QStringLiteral("schemaVersion")] = analysis::kPrioritySchemaVersion;
+        root[QStringLiteral("ruleVersion")]   = analysis::kPriorityRuleVersion;
         const WriteResult w = r1 ? sessions.writeWorkOns(r1->entry.id(), root) : WriteResult{};
         if (r1) list.reread(r1->entry.id());
         const auto again = rowIn(list, A->id(), a1);

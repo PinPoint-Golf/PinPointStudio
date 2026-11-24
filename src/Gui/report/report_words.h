@@ -717,7 +717,7 @@ inline QString barsNote(int mode)
     return what + QStringLiteral(" Today the order of your swing set the list, so the longest bar is not necessarily first.");
 }
 
-// The timeline's caption. firstIsEarliest from workOnTimeline(); `why` when it is not: 0 links (a cause
+// The timeline's caption. firstIsEarliest from priorityTimeline(); `why` when it is not: 0 links (a cause
 // your swings support), 1 magnitude; sessionLevelNames: habits with no place on the swing.
 inline QString timelineNote(bool any, bool firstIsEarliest, int why, const QStringList &sessionLevelNames)
 {

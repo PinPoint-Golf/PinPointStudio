@@ -21,7 +21,7 @@
 // Home → Your swing read (audit C-06, 14 Nov 2026).
 //
 //   1. PARITY on the shipped pack: for every condition core.json authors, Your swing's "a fault to
-//      work on" (themeConditionInfo().fault) is the work-on list's (workOnClassFor() == Movement),
+//      work on" (themeConditionInfo().fault) is the work-on list's (priorityClassFor() == Movement),
 //      and "what you do well" never praises what the list cannot hold (held); since 14 Nov 2026 it
 //      may praise an unheld set-up (Mark: "yes you can praise setup").
 //   2. The other four projections are unchanged: every kind, held or not, gives the class, layer,
@@ -51,16 +51,16 @@ static void check(bool c, const char *label)
 
 // ── The tables each reader used before the role (copied from the code it replaced) ─────────────
 
-static WorkOnClass legacyWorkOnClass(const Condition &c)           // work_ons_pack.h
+static PriorityClass legacyWorkOnClass(const Condition &c)           // work_ons_pack.h
 {
-    if (!c.reportHold.isEmpty()) return WorkOnClass::Excluded;
+    if (!c.reportHold.isEmpty()) return PriorityClass::Excluded;
     switch (c.kind) {
     case ConditionKind::Fault:
-    case ConditionKind::Setup:    return WorkOnClass::Movement;
-    case ConditionKind::Delivery: return WorkOnClass::Delivery;
+    case ConditionKind::Setup:    return PriorityClass::Movement;
+    case ConditionKind::Delivery: return PriorityClass::Delivery;
     default: break;
     }
-    return WorkOnClass::Excluded;
+    return PriorityClass::Excluded;
 }
 
 static ShotConditionLayer legacyLayer(ConditionKind kind)          // shot_outcomes_pack.h
@@ -104,13 +104,13 @@ int main()
                 c.kind = k;
                 if (h) c.reportHold = QStringLiteral("not measured reliably");
                 const ConditionRole r = conditionRoleFor(c);
-                workOn  = workOn  && r.workOn == legacyWorkOnClass(c) && workOnClassFor(c) == legacyWorkOnClass(c);
+                workOn  = workOn  && r.workOn == legacyWorkOnClass(c) && priorityClassFor(c) == legacyWorkOnClass(c);
                 layer   = layer   && r.layer == legacyLayer(k);
                 fact    = fact    && r.fact == legacyFact(k);
                 held    = held    && r.held == h;
                 outcome = outcome && r.isOutcome() == (k == ConditionKind::Outcome);
                 praise  = praise  && r.praisable == ((k == ConditionKind::Fault || k == ConditionKind::Setup) && !h);
-                themes  = themes  && r.isMovementWorkOn() == (legacyWorkOnClass(c) == WorkOnClass::Movement);
+                themes  = themes  && r.isMovementPriority() == (legacyWorkOnClass(c) == PriorityClass::Movement);
             }
         check(workOn,  "the work-on class (list, areas): as before — Fault/Setup movement, Delivery short list, held excluded");
         check(layer,   "the shot outcome layer: as before — held or not, Setup and the rest are Root");
@@ -139,7 +139,7 @@ int main()
     const ShotOutcomePack                    shotPk    = shotOutcomePackFor(&pack);
     int disagree = 0, praiseBeyondList = 0, readers = 0, held = 0, setupWorkOns = 0;
     for (const Condition &c : pack.conditions) {
-        const bool listed = workOnClassFor(c) == WorkOnClass::Movement;
+        const bool listed = priorityClassFor(c) == PriorityClass::Movement;
         const auto ti = themeInfo.constFind(c.id);
         if (ti == themeInfo.constEnd() || ti->fault != listed) {
             if (++disagree <= 5)
@@ -180,14 +180,14 @@ int main()
         if (heldFault) {
             const ThemeConditionInfo ti = themeInfo.value(heldFault->id);
             std::printf("        held fault: %s\n", qPrintable(heldFault->id));
-            check(workOnClassFor(*heldFault) == WorkOnClass::Excluded && !ti.fault && !ti.praisable,
+            check(priorityClassFor(*heldFault) == PriorityClass::Excluded && !ti.fault && !ti.praisable,
                   "a held fault: not a work-on, and not needs work, a focus or praised in Your swing");
         }
         check(setup != nullptr, "the shipped pack authors a detectable Setup habit");
         if (setup) {
             const ThemeConditionInfo ti = themeInfo.value(setup->id);
             std::printf("        setup habit: %s\n", qPrintable(setup->id));
-            check(workOnClassFor(*setup) == WorkOnClass::Movement && ti.fault && ti.praisable,
+            check(priorityClassFor(*setup) == PriorityClass::Movement && ti.fault && ti.praisable,
                   "an unheld Setup habit: a work-on, so needs work (and a focus) in Your swing, and praisable");
 
             // The same set-up held back, through the pack marshalling Your swing reads.
@@ -196,7 +196,7 @@ int main()
                 if (c.id == setup->id) c.reportHold = QStringLiteral("not measured reliably");
             const Condition *heldSetup = heldPack.condition(setup->id);
             const ThemeConditionInfo hi = themeConditionInfo(heldPack, DrillSet{}).value(setup->id);
-            check(heldSetup && workOnClassFor(*heldSetup) == WorkOnClass::Excluded && !hi.fault && !hi.praisable,
+            check(heldSetup && priorityClassFor(*heldSetup) == PriorityClass::Excluded && !hi.fault && !hi.praisable,
                   "a held Setup: not a work-on, and not needs work, a focus or praised in Your swing");
         }
     }

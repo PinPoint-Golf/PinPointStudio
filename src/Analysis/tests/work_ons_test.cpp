@@ -97,43 +97,43 @@ static LedgerOptions flatOpts()
 
 static std::vector<int> rep(int v, int n) { return std::vector<int>(size_t(n), v); }
 
-static SessionWorkOns reduce(const std::vector<Plan> &plans, const QHash<QString, WorkOnClass> &cls,
-                             const WorkOnCauses &causes = {}, const char *sessionId = "s",
+static SessionPriorities reduce(const std::vector<Plan> &plans, const QHash<QString, PriorityClass> &cls,
+                             const PriorityCauses &causes = {}, const char *sessionId = "s",
                              qint64 t0 = 1'700'000'000'000LL)
 {
     const std::vector<ShotRecord> shots = sessionOf(plans, t0);
-    SessionWorkOns s = reduceSessionWorkOns(shots, conditionLedgers(shots, flatOpts()), cls, causes);
+    SessionPriorities s = reduceSessionPriorities(shots, conditionLedgers(shots, flatOpts()), cls, causes);
     s.sessionId = QString::fromLatin1(sessionId);
     return s;
 }
 
 // The same with each condition's position in the swing (rule v4's swingPosOf).
-static SessionWorkOns reduceAt(const std::vector<Plan> &plans, const QHash<QString, WorkOnClass> &cls,
-                               const WorkOnCauses &causes, const QHash<QString, double> &pos)
+static SessionPriorities reduceAt(const std::vector<Plan> &plans, const QHash<QString, PriorityClass> &cls,
+                               const PriorityCauses &causes, const QHash<QString, double> &pos)
 {
     const std::vector<ShotRecord> shots = sessionOf(plans);
-    SessionWorkOns s = reduceSessionWorkOns(shots, conditionLedgers(shots, flatOpts()), cls, causes, pos);
+    SessionPriorities s = reduceSessionPriorities(shots, conditionLedgers(shots, flatOpts()), cls, causes, pos);
     s.sessionId = QStringLiteral("s");
     return s;
 }
 
-static QStringList idsOf(const SessionWorkOns &s)
+static QStringList idsOf(const SessionPriorities &s)
 {
     QStringList out;
-    for (const WorkOnEntry &e : s.entries) out << e.id;
+    for (const PriorityEntry &e : s.entries) out << e.id;
     return out;
 }
 
-static const WorkOnSummary *find(const std::vector<WorkOnSummary> &v, const char *id)
+static const PrioritySummary *find(const std::vector<PrioritySummary> &v, const char *id)
 {
-    for (const WorkOnSummary &w : v) if (w.id == QLatin1String(id)) return &w;
+    for (const PrioritySummary &w : v) if (w.id == QLatin1String(id)) return &w;
     return nullptr;
 }
 
 int main()
 {
     std::printf("work_ons_test\n");
-    const WorkOnClass M = WorkOnClass::Movement, D = WorkOnClass::Delivery, X = WorkOnClass::Excluded;
+    const PriorityClass M = PriorityClass::Movement, D = PriorityClass::Delivery, X = PriorityClass::Excluded;
 
     // ── The quiet gate ──────────────────────────────────────────────────────────
     {
@@ -156,12 +156,12 @@ int main()
 
     // ── Rule 1: a work-on is a session pattern and nothing less ─────────────────
     {
-        const QHash<QString, WorkOnClass> cls{ { "a", M }, { "b", M }, { "c", M } };
-        const SessionWorkOns three = reduce({ plan("a", rep(1, 3)), plan("b", rep(1, 2)) }, cls);
+        const QHash<QString, PriorityClass> cls{ { "a", M }, { "b", M }, { "c", M } };
+        const SessionPriorities three = reduce({ plan("a", rep(1, 3)), plan("b", rep(1, 2)) }, cls);
         // Flat weights: 3 of 3 has a Wilson lower bound of 0.44 and IS a pattern; 2 of 2 is under the floor.
         check(idsOf(three) == QStringList{ "a" }, "3 of 3 lists, 2 of 2 does not reach the assessable floor");
 
-        const SessionWorkOns watching = reduce({ plan("a", {1,0,0,0,0,0,0,0,0,0}), plan("b", rep(0, 10)) }, cls);
+        const SessionPriorities watching = reduce({ plan("a", {1,0,0,0,0,0,0,0,0,0}), plan("b", rep(0, 10)) }, cls);
         check(watching.entries.empty(), "one firing in ten is Watching and never a work-on");
         check(watching.evidence.size() == 2, "…but the session still records what it saw of both");
         check(reduce({}, cls).entries.empty(), "an empty session has none");
@@ -169,9 +169,9 @@ int main()
 
     // ── Rule 2: only movements, the cap, the order ──────────────────────────────
     {
-        const QHash<QString, WorkOnClass> cls{ { "m1", M }, { "m2", M }, { "m3", M }, { "m4", M }, { "m5", M },
+        const QHash<QString, PriorityClass> cls{ { "m1", M }, { "m2", M }, { "m3", M }, { "m4", M }, { "m5", M },
                                                { "m6", M }, { "out", X }, { "del", D } };
-        const SessionWorkOns s = reduce({ plan("out", rep(1, 10), 9.0), plan("del", rep(1, 10), 8.0),
+        const SessionPriorities s = reduce({ plan("out", rep(1, 10), 9.0), plan("del", rep(1, 10), 8.0),
                                           plan("m1", rep(1, 10), 2.5), plan("m2", rep(1, 10), 6.0),
                                           plan("m3", rep(1, 10), 4.0), plan("m4", rep(1, 10), 3.0),
                                           plan("m5", rep(1, 10), 5.0), plan("m6", rep(1, 10), 7.0) }, cls);
@@ -181,25 +181,25 @@ int main()
         check(s.evidenceFor("out") && s.evidenceFor("out")->state == SessionEvidence::Pattern,
               "the excluded outcome is still in the evidence");
 
-        const SessionWorkOns fill = reduce({ plan("m1", rep(1, 10)), plan("del", rep(1, 10), 8.0),
+        const SessionPriorities fill = reduce({ plan("m1", rep(1, 10)), plan("del", rep(1, 10), 8.0),
                                              plan("out", rep(1, 10), 9.0) }, cls);
         check(idsOf(fill) == (QStringList{ "m1", "del" }), "a delivery number fills a list short of three, behind the movement");
 
-        const SessionWorkOns unknown = reduce({ plan("not_in_pack", rep(1, 10)) }, cls);
+        const SessionPriorities unknown = reduce({ plan("not_in_pack", rep(1, 10)) }, cls);
         check(unknown.entries.empty(), "a condition the pack does not class is excluded");
     }
 
     // ── Roots before symptoms; resolving last ───────────────────────────────────
     {
-        const QHash<QString, WorkOnClass> cls{ { "cause", M }, { "symptom", M }, { "fixed", M }, { "absent", M } };
-        const WorkOnCauses causes{ { "cause", "symptom" }, { "absent", "cause" } };
+        const QHash<QString, PriorityClass> cls{ { "cause", M }, { "symptom", M }, { "fixed", M }, { "absent", M } };
+        const PriorityCauses causes{ { "cause", "symptom" }, { "absent", "cause" } };
         std::vector<int> fixed = rep(1, 8);     // 8 of 13 is a pattern; five clean shots since is resolving
         for (int i = 0; i < 5; ++i) fixed.push_back(0);
         // The cause and its symptom fire on the SAME ten of thirteen shots: the session supports
         // the link (Fisher), so the symptom goes behind its cause.
         std::vector<int> together = rep(1, 10);
         for (int i = 0; i < 3; ++i) together.push_back(0);
-        const SessionWorkOns s = reduce({ plan("symptom", together, 6.0), plan("cause", together, 2.5),
+        const SessionPriorities s = reduce({ plan("symptom", together, 6.0), plan("cause", together, 2.5),
                                           plan("fixed", fixed, 9.0) }, cls, causes);
         check(idsOf(s) == (QStringList{ "cause", "symptom", "fixed" }),
               "the cause leads its louder symptom; a fault fixed inside the session goes last");
@@ -208,7 +208,7 @@ int main()
 
         // Both on EVERY shot: nothing to compare, so the authored link is named but does not
         // demote — the louder fault leads on size. (Early extension behind over the top, 8 Oct.)
-        const SessionWorkOns u = reduce({ plan("symptom", rep(1, 12), 6.0), plan("cause", rep(1, 12), 2.5) },
+        const SessionPriorities u = reduce({ plan("symptom", rep(1, 12), 6.0), plan("cause", rep(1, 12), 2.5) },
                                         cls, causes);
         check(idsOf(u) == (QStringList{ "symptom", "cause" }),
               "an untestable link does not put the louder fault behind its authored cause");
@@ -221,26 +221,26 @@ int main()
 
     // ── The typical reading ─────────────────────────────────────────────────────
     {
-        const QHash<QString, WorkOnClass> cls{ { "a", M } };
-        const SessionWorkOns s = reduce({ plan("a", rep(1, 5), 3.0) }, cls);
+        const QHash<QString, PriorityClass> cls{ { "a", M } };
+        const SessionPriorities s = reduce({ plan("a", rep(1, 5), 3.0) }, cls);
         check(s.entry("a")->hasTypical && near(s.entry("a")->typicalValue, 6.0, 1e-9)
               && near(s.entry("a")->corridorHi, 2.0, 1e-9), "one corridor: the median reading is stated");
 
         std::vector<ShotRecord> shots = sessionOf({ plan("a", rep(1, 5), 3.0) });
         shots[2].rows[0].corridorHi = 4.0;      // another club's corridor
-        const SessionWorkOns mixed = reduceSessionWorkOns(shots, conditionLedgers(shots, flatOpts()), cls, {});
+        const SessionPriorities mixed = reduceSessionPriorities(shots, conditionLedgers(shots, flatOpts()), cls, {});
         check(mixed.entries.size() == 1 && !mixed.entries[0].hasTypical,
               "two corridors: no typical reading is invented across them");
     }
 
     // ── Round trip ──────────────────────────────────────────────────────────────
     {
-        const QHash<QString, WorkOnClass> cls{ { "cause", M }, { "symptom", M } };
-        SessionWorkOns s = reduce({ plan("symptom", rep(1, 8), 6.0), plan("cause", rep(1, 8)),
+        const QHash<QString, PriorityClass> cls{ { "cause", M }, { "symptom", M } };
+        SessionPriorities s = reduce({ plan("symptom", rep(1, 8), 6.0), plan("cause", rep(1, 8)),
                                     plan("quiet", rep(0, 8)) }, cls, { { "cause", "symptom" } }, "2026-09-15_x_01");
         s.entries[0].name = QStringLiteral("The leader");
         bool ok = false;
-        const SessionWorkOns back = sessionWorkOnsFromJson(toJson(s), &ok);
+        const SessionPriorities back = sessionPrioritiesFromJson(toJson(s), &ok);
         check(ok && back.sessionId == s.sessionId && back.startMs == s.startMs && back.shotCount == 8
               && back.clubs == s.clubs, "session meta round-trips");
         // Both fire on every shot, so the link is named (mayFollow) and the symptom stays a root.
@@ -252,29 +252,29 @@ int main()
               "evidence round-trips");
 
         QJsonObject stale = toJson(s);
-        stale[QStringLiteral("ruleVersion")] = kWorkOnRuleVersion + 1;
-        sessionWorkOnsFromJson(stale, &ok);
+        stale[QStringLiteral("ruleVersion")] = kPriorityRuleVersion + 1;
+        sessionPrioritiesFromJson(stale, &ok);
         check(!ok, "a file written under another rule is refused, not aggregated");
 
         // A v3 record (magnitude before swing order) is refused, so the catch-up re-derives it.
         QJsonObject v3 = toJson(s);
         v3[QStringLiteral("ruleVersion")]   = 3;
         v3[QStringLiteral("schemaVersion")] = 1;
-        sessionWorkOnsFromJson(v3, &ok);
-        check(kWorkOnRuleVersion == 6 && !ok, "a rule-3 record is stale under rule 6");
+        sessionPrioritiesFromJson(v3, &ok);
+        check(kPriorityRuleVersion == 6 && !ok, "a rule-3 record is stale under rule 6");
 
         // Reasons and linksTestable round-trip, the 2x2 included.
-        const QHash<QString, WorkOnClass> cls2{ { "cause", M }, { "symptom", M }, { "other", M } };
+        const QHash<QString, PriorityClass> cls2{ { "cause", M }, { "symptom", M }, { "other", M } };
         std::vector<int> together = rep(1, 10);
         for (int i = 0; i < 3; ++i) together.push_back(0);
-        const SessionWorkOns r = reduceAt({ plan("symptom", together, 6.0), plan("cause", together, 2.5),
+        const SessionPriorities r = reduceAt({ plan("symptom", together, 6.0), plan("cause", together, 2.5),
                                             plan("other", rep(1, 13), 1.5) },
                                           cls2, { { "cause", "symptom" }, { "other", "cause" } },
                                           { { "cause", 4.0 }, { "symptom", 7.0 }, { "other", 4.5 } });
-        const SessionWorkOns rb = sessionWorkOnsFromJson(toJson(r), &ok);
+        const SessionPriorities rb = sessionPrioritiesFromJson(toJson(r), &ok);
         bool same = ok && rb.linksTestable == r.linksTestable && rb.entries.size() == r.entries.size();
         for (size_t i = 0; same && i < r.entries.size(); ++i) {
-            const WorkOnReasons &x = r.entries[i].reasons, &y = rb.entries[i].reasons;
+            const PriorityReasons &x = r.entries[i].reasons, &y = rb.entries[i].reasons;
             same = x.resolving == y.resolving && x.behind == y.behind && x.mayFollow == y.mayFollow
                 && near(x.excess, y.excess, 1e-12) && near(x.swingPos, y.swingPos, 1e-12)
                 && x.rootBecause.size() == y.rootBecause.size();
@@ -294,20 +294,20 @@ int main()
 
     // ── Schema 3: the evidence carries its measure and the typical over EVERY assessed reading ──
     {
-        check(kWorkOnSchemaVersion == 3 && kWorkOnRuleVersion == 6,
+        check(kPrioritySchemaVersion == 3 && kPriorityRuleVersion == 6,
               "schema 3 (evidence typical) under rule 6 (flight-checked rows): a schema bump, not a rule bump");
-        const QHash<QString, WorkOnClass> cls{ { "a", M } };
+        const QHash<QString, PriorityClass> cls{ { "a", M } };
         // `a` fires on six of nine (a pattern) reading 6..11, and is clean on three reading 0, 1, 2.
         std::vector<ShotRecord> shots = sessionOf({ plan("a", { 1,1,1,1,1,1,0,0,0 }), plan("quiet", rep(0, 8)),
                                                     plan("mixed", rep(0, 8)) });
         for (size_t i = 0; i < shots.size(); ++i)
             shots[i].rows[0].value = i < 6 ? 6.0 + double(i) : double(i) - 6.0;
         shots[3].rows[2].corridorHi = 4.0;      // `mixed`: another club's corridor on one shot
-        SessionWorkOns s = reduceSessionWorkOns(shots, conditionLedgers(shots, flatOpts()), cls, {});
+        SessionPriorities s = reduceSessionPriorities(shots, conditionLedgers(shots, flatOpts()), cls, {});
         s.sessionId = QStringLiteral("2026-10-27_x_01");
 
-        const WorkOnEntry *a = s.entry("a");
-        const WorkOnEvidence *ea = s.evidenceFor("a"), *eq = s.evidenceFor("quiet"), *em = s.evidenceFor("mixed");
+        const PriorityEntry *a = s.entry("a");
+        const PriorityEvidence *ea = s.evidenceFor("a"), *eq = s.evidenceFor("quiet"), *em = s.evidenceFor("mixed");
         check(a && a->hasTypical && near(a->typicalValue, 8.5, 1e-9),
               "the entry keeps the median of its FIRED readings (6..11 -> 8.5)");
         check(ea && ea->hasTypical && near(ea->typicalValue, 7.0, 1e-9) && ea->measureId == QStringLiteral("a.measure")
@@ -321,8 +321,8 @@ int main()
 
         bool ok = false;
         const QJsonObject json = toJson(s);
-        const SessionWorkOns back = sessionWorkOnsFromJson(json, &ok);
-        const WorkOnEvidence *ba = back.evidenceFor("a"), *bq = back.evidenceFor("quiet"), *bm = back.evidenceFor("mixed");
+        const SessionPriorities back = sessionPrioritiesFromJson(json, &ok);
+        const PriorityEvidence *ba = back.evidenceFor("a"), *bq = back.evidenceFor("quiet"), *bm = back.evidenceFor("mixed");
         check(ok && ba && bq && bm && ba->measureId == ea->measureId && ba->hasTypical
                   && near(ba->typicalValue, ea->typicalValue, 1e-12) && near(ba->corridorLo, ea->corridorLo, 1e-12)
                   && near(ba->corridorHi, ea->corridorHi, 1e-12) && ba->corridorShape == ea->corridorShape
@@ -351,40 +351,40 @@ int main()
             rows.append(o);
         }
         bare[QStringLiteral("evidence")] = rows;
-        const SessionWorkOns nb = sessionWorkOnsFromJson(bare, &ok);
+        const SessionPriorities nb = sessionPrioritiesFromJson(bare, &ok);
         check(ok && nb.evidenceFor("a") && nb.evidenceFor("a")->measureId.isEmpty() && !nb.evidenceFor("a")->hasTypical,
               "absent evidence keys read as not present");
 
         QJsonObject v2 = json;
         v2[QStringLiteral("schemaVersion")] = 2;
-        sessionWorkOnsFromJson(v2, &ok);
+        sessionPrioritiesFromJson(v2, &ok);
         check(!ok, "a schema-2 record is refused, so the catch-up re-reduces it");
     }
 
     // ── Rule v4: swing order when no link can be tested ─────────────────────────
     {
-        check(near(workOnSwingPosOfPhase("P1"), 1.0, 1e-12) && near(workOnSwingPosOfPhase("P4"), 4.0, 1e-12)
-              && near(workOnSwingPosOfPhase("p9"), 9.0, 1e-12) && near(workOnSwingPosOfPhase("finish"), 10.0, 1e-12)
-              && near(workOnSwingPosOfPhase("transition"), 4.5, 1e-12) && near(workOnSwingPosOfPhase("takeaway"), 1.5, 1e-12)
-              && near(workOnSwingPosOfPhase("downswing"), 5.5, 1e-12) && near(workOnSwingPosOfPhase("release"), 7.5, 1e-12)
-              && near(workOnSwingPosOfPhase("max speed"), 6.5, 1e-12),
+        check(near(prioritySwingPosOfPhase("P1"), 1.0, 1e-12) && near(prioritySwingPosOfPhase("P4"), 4.0, 1e-12)
+              && near(prioritySwingPosOfPhase("p9"), 9.0, 1e-12) && near(prioritySwingPosOfPhase("finish"), 10.0, 1e-12)
+              && near(prioritySwingPosOfPhase("transition"), 4.5, 1e-12) && near(prioritySwingPosOfPhase("takeaway"), 1.5, 1e-12)
+              && near(prioritySwingPosOfPhase("downswing"), 5.5, 1e-12) && near(prioritySwingPosOfPhase("release"), 7.5, 1e-12)
+              && near(prioritySwingPosOfPhase("max speed"), 6.5, 1e-12),
               "phase labels map onto the swing's P-scale, the between-positions between them");
-        check(near(workOnSwingPosOfPhase(""), kWorkOnSwingPosSession, 1e-12)
-              && near(workOnSwingPosOfPhase("?"), kWorkOnSwingPosSession, 1e-12)
-              && kWorkOnSwingPosSession > workOnSwingPosOfPhase("finish"),
+        check(near(prioritySwingPosOfPhase(""), kPrioritySwingPosSession, 1e-12)
+              && near(prioritySwingPosOfPhase("?"), kPrioritySwingPosSession, 1e-12)
+              && kPrioritySwingPosSession > prioritySwingPosOfPhase("finish"),
               "no position (a session-level habit, or unknown) sorts after the finish");
 
         // Jess, 20 Oct, in miniature: every habit on every swing, so nothing can be tested. v3 put the
         // follow-through habit first on size; v4 starts at the set-up.
-        const QHash<QString, WorkOnClass> cls{ { "wing", M }, { "stance", M }, { "dip", M }, { "spine", M },
+        const QHash<QString, PriorityClass> cls{ { "wing", M }, { "stance", M }, { "dip", M }, { "spine", M },
                                                { "seq", M }, { "held", X } };
         const QHash<QString, double> pos{ { "wing", 8.0 }, { "stance", 1.0 }, { "dip", 4.0 }, { "spine", 4.0 },
-                                          { "seq", kWorkOnSwingPosSession }, { "held", 1.0 } };
-        const WorkOnCauses causes{ { "stance", "wing" } };          // authored, and untestable here
+                                          { "seq", kPrioritySwingPosSession }, { "held", 1.0 } };
+        const PriorityCauses causes{ { "stance", "wing" } };          // authored, and untestable here
         const std::vector<Plan> jess{ plan("wing", rep(1, 10), 8.0), plan("stance", rep(1, 10), 2.5),
                                       plan("dip", rep(1, 10), 3.0), plan("spine", rep(1, 10), 4.0),
                                       plan("seq", rep(1, 10), 9.0), plan("held", rep(1, 10), 20.0) };
-        const SessionWorkOns v4 = reduceAt(jess, cls, causes, pos);
+        const SessionPriorities v4 = reduceAt(jess, cls, causes, pos);
         check(!v4.linksTestable, "every authored cause on every swing: no link is testable");
         check(idsOf(v4) == (QStringList{ "stance", "spine", "dip", "wing", "seq" }),
               "swing order: set-up, the top (two there, the bigger miss first), follow-through, then the session-level habit");
@@ -393,20 +393,20 @@ int main()
         // SHARP findings lead under v4 too: on Mark's 07-04 and 10-08 sessions swing order alone
         // pushed the out-of-order sequence and the hips peaking after impact off a five-item list.
         {
-            const QHash<QString, WorkOnClass> c6{ { "a", M }, { "b", M }, { "c", M }, { "d", M }, { "e", M },
+            const QHash<QString, PriorityClass> c6{ { "a", M }, { "b", M }, { "c", M }, { "d", M }, { "e", M },
                                                   { "seqOrder", M }, { "hipsLate", M } };
             const QHash<QString, double> p6{ { "a", 1.0 }, { "b", 2.0 }, { "c", 3.0 }, { "d", 4.0 }, { "e", 5.0 },
                                              { "seqOrder", 7.0 }, { "hipsLate", 7.5 } };
-            const SessionWorkOns s6 = reduceAt({ plan("a", rep(1, 10)), plan("b", rep(1, 10)), plan("c", rep(1, 10)),
+            const SessionPriorities s6 = reduceAt({ plan("a", rep(1, 10)), plan("b", rep(1, 10)), plan("c", rep(1, 10)),
                                                  plan("d", rep(1, 10)), plan("e", rep(1, 10)),
                                                  sharpPlan("seqOrder", rep(1, 10)), sharpPlan("hipsLate", rep(1, 10)) },
                                                c6, {}, p6);
             check(!s6.linksTestable && idsOf(s6) == (QStringList{ "seqOrder", "hipsLate", "a", "b", "c" }),
                   "v4: sharp findings first (in swing order between themselves), then the rest in swing order");
         }
-        const WorkOnEntry *wing = v4.entry("wing"), *stance = v4.entry("stance"), *spine = v4.entry("spine");
+        const PriorityEntry *wing = v4.entry("wing"), *stance = v4.entry("stance"), *spine = v4.entry("spine");
         check(wing && stance && spine && near(wing->reasons.swingPos, 8.0, 1e-12) && near(stance->reasons.swingPos, 1.0, 1e-12)
-                  && near(v4.entry("seq")->reasons.swingPos, kWorkOnSwingPosSession, 1e-12),
+                  && near(v4.entry("seq")->reasons.swingPos, kPrioritySwingPosSession, 1e-12),
               "each entry carries the position it was ordered by");
         check(wing && wing->reasons.mayFollow == QStringList{ "stance" } && wing->reasons.behind.isEmpty()
                   && wing->root && stance->reasons.rootBecause.isEmpty(),
@@ -416,13 +416,13 @@ int main()
               "reasons carry the magnitude the page draws, and v4 put the biggest miss fourth");
 
         // The same session with no positions supplied is v3's order: magnitude.
-        const SessionWorkOns v3 = reduce(jess, cls, causes);
+        const SessionPriorities v3 = reduce(jess, cls, causes);
         check(idsOf(v3) == (QStringList{ "seq", "wing", "spine", "dip", "stance" }),
               "a caller passing no positions gets v3's order unchanged");
 
         // Too few swings to pair: a cause that does NOT fire on every swing is still untestable on
         // seven, so the order is the swing's.
-        const SessionWorkOns few = reduceAt({ plan("wing", rep(1, 7), 8.0), plan("stance", { 1, 1, 1, 1, 1, 1, 0 }, 2.5) },
+        const SessionPriorities few = reduceAt({ plan("wing", rep(1, 7), 8.0), plan("stance", { 1, 1, 1, 1, 1, 1, 0 }, 2.5) },
                                             cls, causes, pos);
         check(!few.linksTestable && idsOf(few) == (QStringList{ "stance", "wing" }),
               "seven swings are too few to test a link: swing order");
@@ -430,21 +430,21 @@ int main()
 
     // ── Rule v4: a testable link leaves v3's order alone ────────────────────────
     {
-        const QHash<QString, WorkOnClass> cls{ { "cause", M }, { "symptom", M }, { "early", M }, { "fixed", M } };
+        const QHash<QString, PriorityClass> cls{ { "cause", M }, { "symptom", M }, { "early", M }, { "fixed", M } };
         // Positions that would reverse everything if swing order were consulted.
         const QHash<QString, double> pos{ { "cause", 7.0 }, { "symptom", 1.0 }, { "early", 1.0 }, { "fixed", 1.0 } };
-        const WorkOnCauses causes{ { "cause", "symptom" } };
+        const PriorityCauses causes{ { "cause", "symptom" } };
         std::vector<int> together = rep(1, 10);
         for (int i = 0; i < 3; ++i) together.push_back(0);
         std::vector<int> fixed = rep(1, 8);
         for (int i = 0; i < 5; ++i) fixed.push_back(0);
-        const SessionWorkOns s = reduceAt({ plan("symptom", together, 6.0), plan("cause", together, 2.5),
+        const SessionPriorities s = reduceAt({ plan("symptom", together, 6.0), plan("cause", together, 2.5),
                                             plan("early", rep(1, 13), 2.0), plan("fixed", fixed, 9.0) },
                                           cls, causes, pos);
         check(s.linksTestable, "a cause that is not on every swing, paired on thirteen: testable");
         check(idsOf(s) == (QStringList{ "cause", "early", "symptom", "fixed" }),
               "testable links: roots first, then magnitude — position is not consulted; resolving still last");
-        const WorkOnEntry *cause = s.entry("cause"), *symptom = s.entry("symptom"), *fx = s.entry("fixed");
+        const PriorityEntry *cause = s.entry("cause"), *symptom = s.entry("symptom"), *fx = s.entry("fixed");
         check(cause && cause->reasons.rootBecause.size() == 1 && cause->reasons.rootBecause[0].id == QStringLiteral("symptom")
                   && cause->reasons.rootBecause[0].a == 10 && cause->reasons.rootBecause[0].b == 0
                   && cause->reasons.rootBecause[0].c == 0 && cause->reasons.rootBecause[0].d == 3,
@@ -464,9 +464,9 @@ int main()
             check(lc && lsym && linkSupported(*lc, *lsym) && !linkSupported(*lc, *lsym, LedgerOptions(), true)
                       && !linkTestable(*lc, linkPairs(*lc, *lsym), LedgerOptions(), true),
                   "linkSupported / linkTestable: a shared-evidence pair is never tested, however clean its 2x2");
-            const WorkOnSharedEvidence shared{ workOnEdgeKey(QStringLiteral("cause"), QStringLiteral("symptom")) };
-            const SessionWorkOns sh = reduceSessionWorkOns(shots, ls, cls, causes, pos, WorkOnOptions(), shared);
-            const WorkOnEntry *ssym = sh.entry("symptom");
+            const PrioritySharedEvidence shared{ priorityEdgeKey(QStringLiteral("cause"), QStringLiteral("symptom")) };
+            const SessionPriorities sh = reduceSessionPriorities(shots, ls, cls, causes, pos, PriorityOptions(), shared);
+            const PriorityEntry *ssym = sh.entry("symptom");
             check(ssym && ssym->root && ssym->reasons.behind.isEmpty() && ssym->reasons.mayFollow == QStringList{ "cause" }
                       && !sh.linksTestable,
                   "…and in the list: the effect may follow its cause but is not put behind it, and nothing was testable");
@@ -474,10 +474,10 @@ int main()
 
         // Testable but NOT supported: the cause fires on the first half, the symptom on the second.
         // There is something to compare, the comparison fails — v3's magnitude order, no demotion.
-        const SessionWorkOns apart = reduceAt({ plan("symptom", { 0,0,0,0,0,1,1,1,1,1,1,1 }, 6.0),
+        const SessionPriorities apart = reduceAt({ plan("symptom", { 0,0,0,0,0,1,1,1,1,1,1,1 }, 6.0),
                                                 plan("cause",   { 1,1,1,1,1,1,1,0,0,0,0,1 }, 2.5) },
                                               cls, causes, pos);
-        const WorkOnEntry *sym = apart.entry("symptom");
+        const PriorityEntry *sym = apart.entry("symptom");
         check(apart.linksTestable && sym && sym->root && sym->reasons.mayFollow == QStringList{ "cause" }
                   && idsOf(apart) == (QStringList{ "symptom", "cause" }),
               "a testable link the swings do not support is named, demotes nothing, and keeps magnitude order");
@@ -485,12 +485,12 @@ int main()
 
     // ── Rule 3 and the aggregate ────────────────────────────────────────────────
     {
-        const QHash<QString, WorkOnClass> cls{ { "keeps", M }, { "new", M }, { "old", M }, { "eased", M },
+        const QHash<QString, PriorityClass> cls{ { "keeps", M }, { "new", M }, { "old", M }, { "eased", M },
                                                { "gone", M }, { "dtl", M } };
         const qint64 day = 86'400'000LL, t0 = 1'700'000'000'000LL;
         // Oldest first. `dtl` is only measurable in session 1; `eased` is quiet in the last one;
         // `gone` is quiet in the last two; s3 is three balls that can say nothing.
-        std::vector<SessionWorkOns> all = {
+        std::vector<SessionPriorities> all = {
             reduce({ plan("keeps", rep(1, 10)), plan("old", rep(1, 10)), plan("eased", rep(1, 10)),
                      plan("gone", rep(1, 10)), plan("dtl", rep(1, 10)), plan("new", rep(-1, 10)) }, cls, {}, "s1", t0),
             reduce({ plan("keeps", rep(1, 10)), plan("eased", rep(1, 10)), plan("gone", rep(0, 10)),
@@ -503,14 +503,14 @@ int main()
 
         // Order in must not matter.
         std::swap(all[0], all[3]);
-        const std::vector<WorkOnSummary> agg = aggregateWorkOns(all);
+        const std::vector<PrioritySummary> agg = aggregatePriorities(all);
 
-        const WorkOnSummary *keeps = find(agg, "keeps"), *fresh = find(agg, "new"), *old = find(agg, "old"),
+        const PrioritySummary *keeps = find(agg, "keeps"), *fresh = find(agg, "new"), *old = find(agg, "old"),
                             *eased = find(agg, "eased"), *gone = find(agg, "gone"), *dtl = find(agg, "dtl");
         check(keeps && fresh && old && eased && gone && dtl, "every fault that ever made a list is summarised");
         if (keeps && fresh && old && eased && gone && dtl) {
             check(agg.front().id == QStringLiteral("keeps"), "the fault that keeps coming back leads");
-            check(keeps->status == WorkOnStatus::Active && keeps->sessionsPattern == 3
+            check(keeps->status == PriorityStatus::Active && keeps->sessionsPattern == 3
                   && keeps->sessionsConclusive == 3 && keeps->history.size() == 4,
                   "3 of 3 conclusive sessions; all four sessions have a point");
             check(keeps->history[2].state == SessionEvidence::Inconclusive && keeps->history[0].sessionId == QStringLiteral("s1"),
@@ -531,43 +531,43 @@ int main()
             check(old->score > 0.5, "a fault seen on every swing it could be judged on still ranks high three sessions on");
             check(eased->swingsFired == 20 && eased->swingsAssessable == 33,
                   "swings on which it could be judged are counted whether it fired or not");
-            check(old->status == WorkOnStatus::Active && dtl->status == WorkOnStatus::Active,
+            check(old->status == PriorityStatus::Active && dtl->status == PriorityStatus::Active,
                   "a fault no later session could measure stays ACTIVE — absence is not improvement");
             check(dtl->latestConclusiveIndex == 0 && dtl->history[3].state == SessionEvidence::NotMeasured,
                   "…and says when it was last measured");
-            check(eased->status == WorkOnStatus::Easing, "quiet once after a pattern is easing");
-            check(gone->status == WorkOnStatus::Cleared, "quiet twice running is cleared — the 2-of-2 in between cleared nothing and reset nothing");
+            check(eased->status == PriorityStatus::Easing, "quiet once after a pattern is easing");
+            check(gone->status == PriorityStatus::Cleared, "quiet twice running is cleared — the 2-of-2 in between cleared nothing and reset nothing");
             check(agg.back().id == QStringLiteral("gone"), "cleared sorts last");
             check(keeps->hasLatest && keeps->latestSessionId == QStringLiteral("s4"), "the latest listing is the newest session's");
         }
 
         // A relapse re-activates.
         all.push_back(reduce({ plan("gone", rep(1, 10)), plan("keeps", rep(1, 10)) }, cls, {}, "s5", t0 + 4 * day));
-        const std::vector<WorkOnSummary> again = aggregateWorkOns(all);
-        check(find(again, "gone") && find(again, "gone")->status == WorkOnStatus::Active, "a cleared fault that returns is active again");
+        const std::vector<PrioritySummary> again = aggregatePriorities(all);
+        check(find(again, "gone") && find(again, "gone")->status == PriorityStatus::Active, "a cleared fault that returns is active again");
 
         // Pattern but crowded off a session's list still counts, at half.
-        const QHash<QString, WorkOnClass> six{ { "a", M }, { "b", M }, { "c", M }, { "d", M }, { "e", M }, { "f", M } };
-        const std::vector<SessionWorkOns> crowd = {
+        const QHash<QString, PriorityClass> six{ { "a", M }, { "b", M }, { "c", M }, { "d", M }, { "e", M }, { "f", M } };
+        const std::vector<SessionPriorities> crowd = {
             reduce({ plan("f", rep(1, 10), 9.0) }, six, {}, "c1", t0),
             reduce({ plan("a", rep(1, 10), 8.0), plan("b", rep(1, 10), 7.0), plan("c", rep(1, 10), 6.0),
                      plan("d", rep(1, 10), 5.0), plan("e", rep(1, 10), 4.0), plan("f", rep(1, 10), 3.0) }, six, {}, "c2", t0 + day),
         };
-        const std::vector<WorkOnSummary> c = aggregateWorkOns(crowd);
+        const std::vector<PrioritySummary> c = aggregatePriorities(crowd);
         check(find(c, "f") && near(find(c, "f")->score, wilsonLowerBound(17.5, 17.5), 1e-9) && find(c, "f")->sessionsListed == 1
               && find(c, "f")->sessionsPattern == 2, "swings in a session whose five it missed still count");
 
         // Twenty swings in one session outrank three in each of two.
-        const QHash<QString, WorkOnClass> two{ { "big", M }, { "small", M } };
-        const std::vector<WorkOnSummary> sz = aggregateWorkOns({
+        const QHash<QString, PriorityClass> two{ { "big", M }, { "small", M } };
+        const std::vector<PrioritySummary> sz = aggregatePriorities({
             reduce({ plan("small", rep(1, 3)) }, two, {}, "z1", t0),
             reduce({ plan("small", rep(1, 3)), plan("big", rep(1, 20)) }, two, {}, "z2", t0 + day) });
         check(sz.size() == 2 && sz.front().id == QStringLiteral("big"),
               "a fault on twenty swings of one session leads one on three swings of each of two");
 
         // A fault on half its judged swings ranks under one on all of far fewer.
-        const QHash<QString, WorkOnClass> hv{ { "half", M }, { "all", M } };
-        const std::vector<WorkOnSummary> h = aggregateWorkOns({
+        const QHash<QString, PriorityClass> hv{ { "half", M }, { "all", M } };
+        const std::vector<PrioritySummary> h = aggregatePriorities({
             reduce({ plan("half", {1,0,1,1,1,0,1,0,1,1,1,0,1,0,1,0,1,0,1,0}), plan("all", {1,1,1,1,1,1}) }, hv, {}, "h1", t0) });
         check(h.size() == 2 && h.front().id == QStringLiteral("all") && h.back().swingsFired == 12,
               "six of six outranks twelve of twenty: the rate where it could be judged, not the raw count");
@@ -575,12 +575,12 @@ int main()
         // SHARP FIRST, as in sessions. A sequence fault few swings can assess has a low bound; a
         // posture fault on every swing of two sessions a high one. The sharp ones still lead, in
         // the order of their own bounds.
-        const QHash<QString, WorkOnClass> sq{ { "posture", M }, { "seq", M }, { "order", M } };
-        const std::vector<WorkOnSummary> sh = aggregateWorkOns({
+        const QHash<QString, PriorityClass> sq{ { "posture", M }, { "seq", M }, { "order", M } };
+        const std::vector<PrioritySummary> sh = aggregatePriorities({
             reduce({ plan("posture", rep(1, 20)) }, sq, {}, "q1", t0),
             reduce({ plan("posture", rep(1, 20)), sharpPlan("seq", rep(1, 3)), sharpPlan("order", rep(1, 5)) },
                    sq, {}, "q2", t0 + day) });
-        const WorkOnSummary *posture = find(sh, "posture"), *seq = find(sh, "seq"), *order = find(sh, "order");
+        const PrioritySummary *posture = find(sh, "posture"), *seq = find(sh, "seq"), *order = find(sh, "order");
         check(posture && seq && order && seq->sharp() && order->sharp() && !posture->sharp()
                   && near(seq->latest.excess, kDiagSharpExcess, 1e-9),
               "a sharp firing is sharp on the golfer's list; a corridor fault is not");
@@ -592,34 +592,34 @@ int main()
                   "sharp first, then the bound: the sequence faults lead the posture fault, as in the session");
         }
 
-        check(aggregateWorkOns({}).empty(), "no sessions, no work-ons");
+        check(aggregatePriorities({}).empty(), "no sessions, no work-ons");
     }
 
     // ── Every assessed condition: the areas' aggregate beside the list's ────────
     {
-        const QHash<QString, WorkOnClass> cls{ { "listed", M }, { "quiet", M }, { "out", X } };
+        const QHash<QString, PriorityClass> cls{ { "listed", M }, { "quiet", M }, { "out", X } };
         const qint64 day = 86'400'000LL, t0 = 1'700'000'000'000LL;
-        const std::vector<SessionWorkOns> ss = {
+        const std::vector<SessionPriorities> ss = {
             reduce({ plan("listed", rep(1, 10)), plan("quiet", rep(0, 10)), plan("out", rep(1, 10)) }, cls, {}, "e1", t0),
             reduce({ plan("listed", rep(1, 10)), plan("quiet", { 0,0,0,0,0,0,0,0,1,0 }), plan("out", rep(-1, 10)) },
                    cls, {}, "e2", t0 + day),
         };
-        const std::vector<WorkOnSummary> list  = aggregateWorkOns(ss);
-        const std::vector<WorkOnSummary> every = aggregateConditions(ss);
+        const std::vector<PrioritySummary> list  = aggregatePriorities(ss);
+        const std::vector<PrioritySummary> every = aggregateConditions(ss);
         check(list.size() == 1 && list[0].id == QStringLiteral("listed"),
               "the list's aggregate still holds only what some session listed");
-        const WorkOnSummary *l = find(every, "listed"), *q = find(every, "quiet"), *o = find(every, "out");
+        const PrioritySummary *l = find(every, "listed"), *q = find(every, "quiet"), *o = find(every, "out");
         check(every.size() == 3 && l && q && o,
               "the every-condition aggregate also holds the evidence-only ids, the excluded outcome included");
         if (l && q && o && !list.empty()) {
-            const WorkOnSummary &d = list[0];
+            const PrioritySummary &d = list[0];
             check(near(l->score, d.score, 1e-12) && near(l->weightedFired, d.weightedFired, 1e-12)
                       && near(l->weightedAssessable, d.weightedAssessable, 1e-12) && l->swingsFired == d.swingsFired
                       && l->swingsAssessable == d.swingsAssessable && l->status == d.status
                       && l->sessionsListed == d.sessionsListed && l->hasLatest == d.hasLatest
                       && l->latestSessionId == d.latestSessionId && l->history.size() == d.history.size(),
                   "a listed condition's summary is the same in both");
-            check(o->sessionsListed == 0 && !o->hasLatest && o->status == WorkOnStatus::Active && o->sessionsPattern == 1,
+            check(o->sessionsListed == 0 && !o->hasLatest && o->status == PriorityStatus::Active && o->sessionsPattern == 1,
                   "a never-listed pattern reads Active: sessionsListed, not the status, says it was never a work-on");
             check(o->hasLatestEvidence && o->latestEvidenceSessionId == QStringLiteral("e1")
                       && o->latestEvidence.state == SessionEvidence::Pattern && o->history.size() == 2

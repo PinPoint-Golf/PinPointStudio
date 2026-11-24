@@ -20,8 +20,8 @@
 // step 3.6). 3.3's rule_version_golden_test pins fireFindings(); this pins the session and athlete reductions that
 // read its records — each with the version constant(s) its output answers to:
 //
-//   sessionWorkOns   sessionWorkOnsForPack per session (work_ons_pack.h)          kWorkOnSchemaVersion, kWorkOnRuleVersion
-//   athleteWorkOns   aggregateWorkOns / aggregateConditions (work_ons.h)            kWorkOnSchemaVersion, kWorkOnRuleVersion
+//   sessionWorkOns   sessionPrioritiesForPack per session (work_ons_pack.h)          kPrioritySchemaVersion, kPriorityRuleVersion
+//   athleteWorkOns   aggregatePriorities / aggregateConditions (work_ons.h)            kPrioritySchemaVersion, kPriorityRuleVersion
 //   tendencies       reduceTendencies (tendencies.h)                                kTendencyRuleVersion, kTendencySchemaVersion
 //   outcomeScope     judgedShotFactors + outcomeContrasts (outcome_scope.h)         kOutcomeScopeRuleVersion
 //   distances        reduceClubDistances (club_distances.h; in tendencies.json)    kTendencyRuleVersion, kClubBaselineSchemaVersion
@@ -223,19 +223,19 @@ int main(int argc, char **argv)
     // sessionWorkOns, athleteWorkOns
     {
         QJsonArray perSession;
-        std::vector<SessionWorkOns> records;
+        std::vector<SessionPriorities> records;
         for (const ClubDistanceSession &s : sessions) {
-            SessionWorkOns w = sessionWorkOnsForPack(&pack, s.shots, conditionLedgers(s.shots, ledgerOpt));
+            SessionPriorities w = sessionPrioritiesForPack(&pack, s.shots, conditionLedgers(s.shots, ledgerOpt));
             w.sessionId = s.folder;
             perSession.append(toJson(w));
             records.push_back(std::move(w));
         }
-        const QJsonObject v{ { QStringLiteral("workOnSchema"), kWorkOnSchemaVersion }, { QStringLiteral("workOnRule"), kWorkOnRuleVersion } };
+        const QJsonObject v{ { QStringLiteral("workOnSchema"), kPrioritySchemaVersion }, { QStringLiteral("workOnRule"), kPriorityRuleVersion } };
         out.insert(QStringLiteral("sessionWorkOns"), Entry{ v, canonical(perSession) });
         QJsonArray agg;
-        for (const std::vector<WorkOnSummary> &list : { aggregateWorkOns(records), aggregateConditions(records) })
-            for (const WorkOnSummary &w : list)
-                agg.append(QJsonObject{ { QStringLiteral("id"), w.id }, { QStringLiteral("status"), workOnStatusToString(w.status) },
+        for (const std::vector<PrioritySummary> &list : { aggregatePriorities(records), aggregateConditions(records) })
+            for (const PrioritySummary &w : list)
+                agg.append(QJsonObject{ { QStringLiteral("id"), w.id }, { QStringLiteral("status"), priorityStatusToString(w.status) },
                                         { QStringLiteral("score"), w.score }, { QStringLiteral("listed"), w.sessionsListed },
                                         { QStringLiteral("pattern"), w.sessionsPattern }, { QStringLiteral("fired"), w.swingsFired },
                                         { QStringLiteral("assessable"), w.swingsAssessable } });

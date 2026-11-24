@@ -166,9 +166,9 @@ inline QSet<QString> afterBallKeysForPack(const CharacteristicPack &pack)
 // The areas for a golfer, straight from the pack. A null pack holds no conditions: every body area
 // comes back unmeasurable and ball flight not at all.
 inline std::vector<AreaSummary> summariseAreasForPack(const CharacteristicPack *pack,
-                                                      const std::vector<SessionWorkOns> &sessions,
+                                                      const std::vector<SessionPriorities> &sessions,
                                                       const AreaOptions &opt = AreaOptions(),
-                                                      const WorkOnOptions &wopt = WorkOnOptions())
+                                                      const PriorityOptions &wopt = PriorityOptions())
 {
     const QHash<QString, AreaConditionInfo> info = pack ? areaConditionInfoForPack(*pack)
                                                         : QHash<QString, AreaConditionInfo>();

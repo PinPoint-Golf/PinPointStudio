@@ -63,7 +63,7 @@ same session. A live session's record is written at its End. Until 3.7-e the der
 The aggregate is a pure function of the records. Trash a session and its contribution is gone
 at the next refresh.
 
-## 3. Which faults a session records (`reduceSessionWorkOns`, `src/Analysis/work_ons.h`)
+## 3. Which faults a session records (`reduceSessionPriorities`, `src/Analysis/work_ons.h`)
 
 1. **Only session patterns.** The ledger's own gate (≥ 3 assessable shots, Wilson lower bound
    ≥ 0.30). Selection chooses among them; it never promotes a Watching condition.
@@ -100,7 +100,7 @@ On the library (`2026-…_Mark-Liversedge_Wrist_NN`):
 On 07-04 the rule dropped `lie_steep_at_impact` (a delivery number), `early_extension` (a
 symptom of two listed patterns) and the two mildest roots.
 
-## 4. What the records add up to (`aggregateWorkOns`)
+## 4. What the records add up to (`aggregatePriorities`)
 
 Per session, per condition, one of four statements:
 
@@ -147,7 +147,7 @@ on the library). The swings a fault could not be judged on are said in the opene
 
 Sway and Flying trail elbow are easing; Lead knee drifts in is cleared.
 
-Every number in §3 and §4 is injected through `WorkOnOptions`.
+Every number in §3 and §4 is injected through `PriorityOptions`.
 
 ## 5. The home screen
 

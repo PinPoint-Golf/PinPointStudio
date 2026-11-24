@@ -2204,7 +2204,7 @@ static void checkCatchUpNote(const QString &root)
         }
         standIn().derive(dirs[2]);
         QJsonObject newer = record(golfer, QFileInfo(dirs[2]).fileName());
-        newer[QStringLiteral("schemaVersion")] = kWorkOnSchemaVersion + 1;
+        newer[QStringLiteral("schemaVersion")] = kPrioritySchemaVersion + 1;
         {
             QFile f(WorkOnsController::recordPath(dirs[2]));
             check(f.open(QIODevice::WriteOnly) && f.write(QJsonDocument(newer).toJson(QJsonDocument::Compact)) > 0,
@@ -2675,14 +2675,14 @@ int main(int argc, char **argv)
     QDir().mkpath(golfer + QStringLiteral("/s2/swing_0011"));      // a swing arrived
     {
         QJsonObject r = record(golfer, QStringLiteral("s1"));
-        r[QStringLiteral("ruleVersion")] = kWorkOnRuleVersion - 1;
+        r[QStringLiteral("ruleVersion")] = kPriorityRuleVersion - 1;
         QFile f(WorkOnsController::recordPath(golfer + QStringLiteral("/s1")));
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
             f.write(QJsonDocument(r).toJson());
     }
     const double w3 = writtenAt(golfer, QStringLiteral("s3"));
     c.refresh();
-    check(record(golfer, QStringLiteral("s1")).value(QStringLiteral("ruleVersion")).toInt() == kWorkOnRuleVersion,
+    check(record(golfer, QStringLiteral("s1")).value(QStringLiteral("ruleVersion")).toInt() == kPriorityRuleVersion,
           "a record written under another rule is re-derived");
     check(writtenAt(golfer, QStringLiteral("s2")) != w2 && writtenAt(golfer, QStringLiteral("s3")) == w3,
           "the session that gained a swing is re-derived; the untouched one is not");

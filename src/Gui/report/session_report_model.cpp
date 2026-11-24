@@ -431,7 +431,7 @@ QString SessionReportModel::inputsStamp(const QString &sessionDir, bool atMake) 
 
 QString SessionReportModel::fingerprintOf(const QString &sessionDir, bool atMake) const
 {
-    return M::reportFingerprint(sessionDir, kWorkOnRuleVersion, contentStamp(), inputsStamp(sessionDir, atMake));
+    return M::reportFingerprint(sessionDir, kPriorityRuleVersion, contentStamp(), inputsStamp(sessionDir, atMake));
 }
 
 M::ReportFingerprintFn SessionReportModel::fingerprintFunction() const
@@ -454,7 +454,7 @@ M::ReportFingerprintFn SessionReportModel::fingerprintFunction() const
     }
     return [studio = m_studio ? m_studio->stamp() : QString(), content = contentStamp(), byFolder, leftOut](const QString &dir) {
         const QVariantMap athlete = byFolder.value(athleteFolderKey(QFileInfo(dir).absolutePath()));
-        return M::reportFingerprint(dir, kWorkOnRuleVersion, content, inputsStampOf(studio, athlete, dir) + leftOut.of(dir));
+        return M::reportFingerprint(dir, kPriorityRuleVersion, content, inputsStampOf(studio, athlete, dir) + leftOut.of(dir));
     };
 }
 
@@ -785,7 +785,7 @@ struct Ctx {
     GradePolicy policy;
     const std::vector<ShotRecord> *shots = nullptr;
     const std::vector<ConditionLedger> *ledgers = nullptr;
-    SessionWorkOns workOns;
+    SessionPriorities workOns;
 
     struct Swing { int idx = -1; int shotId = -1; QString dir; QString club; qint64 wallMs = 0; };
     std::vector<Swing> swings;          // in the order hit (folder order)
@@ -863,13 +863,13 @@ struct Ctx {
     {
         const ConditionLedger *l = ledger(id);
         if (l && l->sessionScope) return true;
-        const WorkOnEntry *e = workOns.entry(id);
-        return e && e->reasons.swingPos >= kWorkOnSwingPosSession;
+        const PriorityEntry *e = workOns.entry(id);
+        return e && e->reasons.swingPos >= kPrioritySwingPosSession;
     }
     double swingPos(const QString &id) const
     {
-        const WorkOnEntry *e = workOns.entry(id);
-        return e ? e->reasons.swingPos : kWorkOnSwingPosSession;
+        const PriorityEntry *e = workOns.entry(id);
+        return e ? e->reasons.swingPos : kPrioritySwingPosSession;
     }
     bool listable(const Condition *c) const
     {
@@ -1057,7 +1057,7 @@ QVariant workOnConsistencyOf(const Ctx &x, const Run &r, const QString &id, bool
 // the session's own diagnosis, read through its Session (SessionDiagnostics::diagnosis, diagnosisInput), never the
 // adapter's copy; the selection rules only the report makes (Coaching/session_report.h) stay its own.
 
-struct Sibling { QString dir; SessionWorkOns rec; bool ok = false; bool self = false; int swings = 0; };
+struct Sibling { QString dir; SessionPriorities rec; bool ok = false; bool self = false; int swings = 0; };
 
 struct MapState {
     Ctx                                          x;
@@ -1078,7 +1078,7 @@ struct MapState {
     bool                             isReport = false, isNote = false;
     QVariantMap                      athlete;
     R::PhotoDecision                 photo;
-    std::vector<const WorkOnEntry *> wos;
+    std::vector<const PriorityEntry *> wos;
     QStringList                      perSwingIds, sessionIds;
     std::vector<Run>                 runs;
     std::vector<Sibling>             day;
@@ -1358,7 +1358,7 @@ void headlinePart(MapState &state)
     const bool isReport = state.isReport;
     const QStringList &perSwingIds = state.perSwingIds;
     const QStringList &sessionIds = state.sessionIds;
-    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const std::vector<const PriorityEntry *> &wos = state.wos;
     const R::PhotoDecision &photo = state.photo;
     const QString &first = state.first;
     const QVariantMap &athlete = state.athlete;
@@ -1399,7 +1399,7 @@ void coverPart(MapState &state)
     QVariantMap &map = state.map;
     const bool isNote = state.isNote;
     const QString &kind = state.kind;
-    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const std::vector<const PriorityEntry *> &wos = state.wos;
     // ── the cover's columns ──
     {
         QVariantList strengths;
@@ -1413,7 +1413,7 @@ void coverPart(MapState &state)
         map[QStringLiteral("strengths")] = strengths;
 
         QVariantList found, brief;
-        for (const WorkOnEntry *e : wos) {
+        for (const PriorityEntry *e : wos) {
             found << QVariantMap{ { QStringLiteral("name"), x.label(e->id) }, { QStringLiteral("golfer"), W::cap1(x.golfer(e->id)) },
                                   { QStringLiteral("count"), x.sessionLevel(e->id) ? QStringLiteral("over the session") : W::countOf(e->fired, e->assessable) } };
             const QVariantList dr = drillsOf(x, e->id);
@@ -1446,7 +1446,7 @@ void coverPart(MapState &state)
 void referencePart(MapState &state)
 {
     Ctx &x = state.x;
-    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const std::vector<const PriorityEntry *> &wos = state.wos;
     const std::vector<Run> &runs = state.runs;
     R::ReferenceSwing &ref = state.ref;
     // ── the reference swing (§6) ──
@@ -1466,7 +1466,7 @@ void gridPart(MapState &state)
     const bool isNote = state.isNote;
     const bool isReport = state.isReport;
     const QStringList &perSwingIds = state.perSwingIds;
-    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const std::vector<const PriorityEntry *> &wos = state.wos;
     const R::ReferenceSwing &ref = state.ref;
     QStringList &overCap = state.overCap;
     const bool wantStills = state.wantStills;
@@ -1529,7 +1529,7 @@ void gridPart(MapState &state)
         bool everyOnEvery = !perSwingIds.isEmpty();
         for (const QString &id : perSwingIds) if (const ConditionLedger *l = x.ledger(id)) everyOnEvery = everyOnEvery && l->fired == l->assessable;
         QStringList sessionNotes;
-        for (const WorkOnEntry *e : wos) if (x.sessionLevel(e->id)) sessionNotes << W::sessionLevelGridNote(x.label(e->id), e->rank);
+        for (const PriorityEntry *e : wos) if (x.sessionLevel(e->id)) sessionNotes << W::sessionLevelGridNote(x.label(e->id), e->rank);
 
         QVariantList swingNos;
         for (int k = 0; k < x.N; ++k) swingNos << x.no(k);
@@ -1573,7 +1573,7 @@ void todayPart(MapState &state)
     Ctx &x = state.x;
     QVariantMap &map = state.map;
     const bool isNote = state.isNote;
-    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const std::vector<const PriorityEntry *> &wos = state.wos;
     const std::vector<Sibling> &day = state.day;
     const int notSummedUp = state.notSummedUp, notSummedUpNewer = state.notSummedUpNewer;
     const bool noGolfer = state.noGolfer;
@@ -1590,9 +1590,9 @@ void todayPart(MapState &state)
             if (more > 0) cols.erase(cols.begin(), cols.begin() + more);
             // the rows: today's work-ons, then habits that made an earlier list and not today's
             QStringList ids;
-            for (const WorkOnEntry *e : wos) ids << e->id;
+            for (const PriorityEntry *e : wos) ids << e->id;
             QStringList earlier;
-            for (const Sibling *s : cols) if (!s->self) for (const WorkOnEntry &e : s->rec.entries)
+            for (const Sibling *s : cols) if (!s->self) for (const PriorityEntry &e : s->rec.entries)
                 if (!ids.contains(e.id) && !earlier.contains(e.id) && !x.held(e.id)) earlier << e.id;
             ids << earlier.mid(0, kTodayEarlierRows);
 
@@ -1613,7 +1613,7 @@ void todayPart(MapState &state)
                         const SessionEvidence ev = l ? sessionEvidence(*l) : SessionEvidence::NotMeasured;
                         marks << QVariantMap{ { QStringLiteral("state"), ev == SessionEvidence::NotMeasured ? QStringLiteral("none") : sessionEvidenceToString(ev) },
                                               { QStringLiteral("text"), l ? W::todayCell(ev == SessionEvidence::Pattern, l->fired, l->assessable, scope) : kNA } };
-                    } else if (const WorkOnEvidence *e = s->rec.evidenceFor(id)) {
+                    } else if (const PriorityEvidence *e = s->rec.evidenceFor(id)) {
                         marks << QVariantMap{ { QStringLiteral("state"), sessionEvidenceToString(e->state) },
                                               { QStringLiteral("text"), W::todayCell(e->state == SessionEvidence::Pattern, e->fired, e->assessable, scope) } };
                     } else {
@@ -1628,8 +1628,8 @@ void todayPart(MapState &state)
             for (const Sibling &s : day) if (!s.self && s.ok && s.swings >= kNoteBelowSwings) { firstOfDay = &s; break; }
             if (firstOfDay && !wos.empty()) {
                 int already = 0;
-                for (const WorkOnEntry *e : wos)
-                    if (const WorkOnEvidence *ev = firstOfDay->rec.evidenceFor(e->id)) if (ev->state == SessionEvidence::Pattern) ++already;
+                for (const PriorityEntry *e : wos)
+                    if (const PriorityEvidence *ev = firstOfDay->rec.evidenceFor(e->id)) if (ev->state == SessionEvidence::Pattern) ++already;
                 note << W::todayAlready(already, int(wos.size()));
             }
             for (const QString &id : earlier.mid(0, kTodayEarlierRows)) {
@@ -1653,7 +1653,7 @@ void orderPart(MapState &state)
     Ctx &x = state.x;
     QVariantMap &map = state.map;
     const bool isReport = state.isReport;
-    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const std::vector<const PriorityEntry *> &wos = state.wos;
     QStringList &overCap = state.overCap;
     // ── Why this order (page 3) ──
     if (isReport) {
@@ -1663,7 +1663,7 @@ void orderPart(MapState &state)
         int movementsFirst = 0;
         for (const R::OrderStep &s : ox.steps) if (s.decidedBy == R::OrderRule::MovementsFirst) ++movementsFirst;
         int deliveries = 0;
-        for (const WorkOnEntry *e : wos) if (e->cls == WorkOnClass::Delivery) ++deliveries;
+        for (const PriorityEntry *e : wos) if (e->cls == PriorityClass::Delivery) ++deliveries;
 
         QVariantList rules;
         auto rule = [&](const QString &t, const QString &b, const QString &d) {
@@ -1676,26 +1676,26 @@ void orderPart(MapState &state)
         if (movementsFirst > 0 || deliveries > 0) rule(W::ruleMovementsFirstTitle(), W::ruleMovementsFirstBody(), W::ruleMovementsFirstToday(deliveries));
 
         double maxEx = 1e-9;
-        for (const WorkOnEntry *e : wos) maxEx = std::max(maxEx, e->reasons.excess);
+        for (const PriorityEntry *e : wos) maxEx = std::max(maxEx, e->reasons.excess);
         QVariantList items;
-        for (const WorkOnEntry *e : wos)
+        for (const PriorityEntry *e : wos)
             items << QVariantMap{ { QStringLiteral("rank"), e->rank }, { QStringLiteral("name"), x.label(e->id) }, { QStringLiteral("goal"), x.goal(e->id) },
                                   { QStringLiteral("phase"), W::phaseCode(e->reasons.swingPos) },
                                   { QStringLiteral("share"), std::round(1000.0 * e->reasons.excess / maxEx) / 1000.0 },
                                   { QStringLiteral("count"), x.sessionLevel(e->id) ? QStringLiteral("over the session") : W::countOf(e->fired, e->assessable) } };
 
-        const R::Timeline tl = R::workOnTimeline(x.workOns);
+        const R::Timeline tl = R::priorityTimeline(x.workOns);
         QVariantList timeline;
         for (const R::TimelineMark &mk : tl.marks) timeline << QVariantMap{ { QStringLiteral("rank"), mk.rank }, { QStringLiteral("pos"), mk.stop } };
         QStringList sessionNames;
-        for (const WorkOnEntry *e : wos) if (x.sessionLevel(e->id)) sessionNames << x.label(e->id);
+        for (const PriorityEntry *e : wos) if (x.sessionLevel(e->id)) sessionNames << x.label(e->id);
         const bool firstBehindLink = !wos.empty() && !wos.front()->reasons.rootBecause.isEmpty();
 
         // Linked, not proven: authored edges among the listed habits, at the grade the session earned.
         QVariantList links;
         for (const Edge &ed : x.pack->edges) {
             if (ed.type != EdgeType::Causes || ed.from == ed.to) continue;
-            const WorkOnEntry *from = x.workOns.entry(ed.from), *to = x.workOns.entry(ed.to);
+            const PriorityEntry *from = x.workOns.entry(ed.from), *to = x.workOns.entry(ed.to);
             if (!from || !to) continue;
             const ConditionLedger *lf = x.ledger(ed.from), *lt = x.ledger(ed.to);
             if (!lf || !lt) continue;
@@ -1718,14 +1718,14 @@ void orderPart(MapState &state)
             QString linked; int linkedRank = 0;
             for (const Edge &ed : x.pack->edges)
                 if (ed.type == EdgeType::Causes && ed.to == l.id)
-                    if (const WorkOnEntry *we = x.workOns.entry(ed.from)) if (linkedRank == 0 || we->rank < linkedRank) { linked = x.label(ed.from); linkedRank = we->rank; }
+                    if (const PriorityEntry *we = x.workOns.entry(ed.from)) if (linkedRank == 0 || we->rank < linkedRank) { linked = x.label(ed.from); linkedRank = we->rank; }
             notListed << QVariantMap{ { QStringLiteral("name"), W::notListedName(x.label(l.id), l.fired, l.assessable) },
                                       { QStringLiteral("why"), W::notListedResult(linked, linkedRank) } };
         }
         for (const QString &id : std::as_const(overCap))
             if (const ConditionLedger *l = x.ledger(id))
                 notListed << QVariantMap{ { QStringLiteral("name"), W::notListedName(x.label(id), l->fired, l->assessable) },
-                                          { QStringLiteral("why"), W::notListedOverCap(kWorkOnMaxPerSession) } };
+                                          { QStringLiteral("why"), W::notListedOverCap(kPriorityMaxPerSession) } };
         {
             int shown = 0;
             for (const QVariant &rv : map.value(QStringLiteral("grid")).toMap().value(QStringLiteral("rows")).toList()) {
@@ -1776,7 +1776,7 @@ void workOnPagesPart(MapState &state)
     Ctx &x = state.x;
     QVariantMap &map = state.map;
     const bool isReport = state.isReport;
-    const std::vector<const WorkOnEntry *> &wos = state.wos;
+    const std::vector<const PriorityEntry *> &wos = state.wos;
     const std::vector<Run> &runs = state.runs;
     const bool wantStills = state.wantStills;
     const QString &defaultCamera = state.defaultCamera;
@@ -1795,7 +1795,7 @@ void workOnPagesPart(MapState &state)
         const std::shared_ptr<const INormProvider> norms = isReport ? state.norms : nullptr;
         const QHash<QString, AreaConditionInfo> condInfo = isReport ? areaConditionInfoForPack(*x.pack) : QHash<QString, AreaConditionInfo>();
         for (size_t i = 0; i < wos.size() && isReport; ++i) {
-            const WorkOnEntry &e = *wos[i];
+            const PriorityEntry &e = *wos[i];
             const Condition *c = x.cond(e.id);
             const ConditionLedger *l = x.ledger(e.id);
             const Run &r = runs[i];
@@ -1934,7 +1934,7 @@ void workOnPagesPart(MapState &state)
                 QVariantList rowsC;
                 if (!g.spotted.empty()) {
                     QStringList items;
-                    for (const R::CauseItem &it : g.spotted) items << W::causesSpottedItem(x.causeName(it.id), it.fired, it.judged, it.workOnRank);
+                    for (const R::CauseItem &it : g.spotted) items << W::causesSpottedItem(x.causeName(it.id), it.fired, it.judged, it.priorityRank);
                     rowsC << QVariantMap{ { QStringLiteral("kind"), QStringLiteral("seen") }, { QStringLiteral("title"), W::causesSpottedTitle() },
                                           { QStringLiteral("items"), items }, { QStringLiteral("more"), QString() },
                                           { QStringLiteral("note"), W::causesSpottedNote(g.spottedSupported) } };
@@ -2245,10 +2245,10 @@ void SessionReportModel::build()
     state.clubWords = W::clubsWords(x.clubs);
 
     // The listed work-ons, and which of them are read swing by swing.
-    if (!state.isNote) for (const WorkOnEntry &e : x.workOns.entries) state.wos.push_back(&e);
-    for (const WorkOnEntry *e : state.wos) (x.sessionLevel(e->id) ? state.sessionIds : state.perSwingIds) << e->id;
+    if (!state.isNote) for (const PriorityEntry &e : x.workOns.entries) state.wos.push_back(&e);
+    for (const PriorityEntry *e : state.wos) (x.sessionLevel(e->id) ? state.sessionIds : state.perSwingIds) << e->id;
     // per work-on, in rank order (empty spread for session-level)
-    for (const WorkOnEntry *e : state.wos) state.runs.push_back(x.sessionLevel(e->id) ? Run{} : runOf(x, e->id));
+    for (const PriorityEntry *e : state.wos) state.runs.push_back(x.sessionLevel(e->id) ? Run{} : runOf(x, e->id));
 
     // A session with no golfer (step 5.1 review B1): no athlete level, no siblings.
     state.noGolfer = m_noGolfer && m_noGolfer(job.dir);

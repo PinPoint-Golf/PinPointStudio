@@ -21,10 +21,10 @@
 // WORK-ONS — pure, header-only, no Qt-GUI. Two reductions on top of diagnostic_ledger.h
 // (docs/design/work_ons_design.md):
 //
-//   reduceSessionWorkOns()  one session's ledger -> the 3–5 faults that session says to work
+//   reduceSessionPriorities()  one session's ledger -> the 3–5 faults that session says to work
 //                           on, plus what the session could and could not say about every
 //                           other condition. Written beside the ledger as work_ons.json.
-//   aggregateWorkOns()      every session's record for one golfer -> the WORK ONS list on the
+//   aggregatePriorities()      every session's record for one golfer -> the WORK ONS list on the
 //                           home screen: which faults keep coming back, which are easing, and
 //                           which have gone.
 //   aggregateConditions()   the same arithmetic over EVERY condition any session assessed, listed
@@ -45,8 +45,8 @@
 //      enough assessable shots that the firing rate is evidently under half — never by failing
 //      to measure it, and never by being too short to reach Pattern. The ledger's rule 1 (not
 //      assessable is neither clean nor a zero) one level up.
-//   4. EVERY NUMBER IS INJECTED (WorkOnOptions), and what is persisted per session is stamped
-//      with kWorkOnRuleVersion so a change to the rule re-derives every session rather than
+//   4. EVERY NUMBER IS INJECTED (PriorityOptions), and what is persisted per session is stamped
+//      with kPriorityRuleVersion so a change to the rule re-derives every session rather than
 //      aggregating two rules' answers.
 //
 // The aggregate is a PURE FUNCTION OF THE SESSION RECORDS. Nothing accumulates: deleting a
@@ -76,32 +76,32 @@ namespace pinpoint::analysis {
 // change for different reasons: a new field is a new schema, a new ordering is a new rule.
 // 2: every entry carries `reasons` (which rule placed it) and the record says `linksTestable`.
 // 3: every EVIDENCE row carries its driving measure and, under the one-corridor rule, the median of
-// ALL its assessed readings and the corridor they were graded against (WorkOnEvidence, D9 of
+// ALL its assessed readings and the corridor they were graded against (PriorityEvidence, D9 of
 // ux_refactor_away_from_4_modes.md §5.2) — so an area can quote and grade a condition that never
 // made a list. A schema bump and not a rule bump: the catch-up re-reduces each session from its
 // diagnostics.json, the fingerprint is untouched and the swing themes are not recomputed.
-inline constexpr int kWorkOnSchemaVersion = 3;
+inline constexpr int kPrioritySchemaVersion = 3;
 // 2: a symptom goes behind its cause only when the session's swings SUPPORT the link (see
 // linkSupported); an authored link they cannot test is named (mayFollow) but does not demote.
-// 3: the golfer's list puts SHARP work-ons first (WorkOnSummary::sharp), as every session's does.
+// 3: the golfer's list puts SHARP work-ons first (PrioritySummary::sharp), as every session's does.
 // 4: when the session can test none of its authored links (linksTestable false), SWING ORDER
 // decides before magnitude — setup, backswing, top, transition, downswing, impact, follow-through
-// (docs/design/session_report_design.md §4.3, option A, Mark 20 Oct 2026). See WorkOnReasons.
+// (docs/design/session_report_design.md §4.3, option A, Mark 20 Oct 2026). See PriorityReasons.
 // 6: the rows are checked against the ball flight when the ledger is built (checkStrikesAgainstFlight,
 // strike_from_flight.h, Mark 10 Nov 2026): a measured thin, top or fat the flight contradicts, and a measured
 // sky the flight rule doesn't call Sky, are NotAssessable, so the fired and assessable counts move.
-inline constexpr int kWorkOnRuleVersion   = 6;
+inline constexpr int kPriorityRuleVersion   = 6;
 
 // "The top 3–5". Five is a cap; three is how far Delivery conditions may fill a session that
 // measured fewer movement faults than that. Neither is a quota — a session with two patterns
 // records two.
-inline constexpr int kWorkOnMaxPerSession = 5;
-inline constexpr int kWorkOnMinPerSession = 3;
+inline constexpr int kPriorityMaxPerSession = 5;
+inline constexpr int kPriorityMinPerSession = 3;
 
 // QUIET: the Wilson UPPER bound on the firing rate is under this — the session is evidence the
 // fault fires on fewer than half the shots. The mirror of the pattern gate, and as ordinal: 0 of
 // 4 clears it, 1 of 8 clears it, 0 of 3 does not (three shots cannot say "gone").
-inline constexpr double kWorkOnQuietWilsonUb = 0.50;
+inline constexpr double kPriorityQuietWilsonUb = 0.50;
 
 // THE GOLFER'S RANKING is the ledger's own question asked across sessions: how often does the
 // fault show on the swings where it COULD BE JUDGED, at the cautious end of what the evidence
@@ -113,16 +113,16 @@ inline constexpr double kWorkOnQuietWilsonUb = 0.50;
 // one — it may have been there on every swing. And age shrinks the EVIDENCE, not the rate: 15
 // of 15 four sessions ago is about 6 of 6 today, whose bound is lower, and lower again after
 // every further session that could not look — it may equally have gone.
-inline constexpr double kWorkOnRecencyDecay = 0.75;
+inline constexpr double kPriorityRecencyDecay = 0.75;
 // Quiet in this many consecutive conclusive sessions and the work-on is cleared.
-inline constexpr int kWorkOnClearAfterQuiet = 2;
+inline constexpr int kPriorityClearAfterQuiet = 2;
 
-struct WorkOnOptions {
-    int    maxPerSession  = kWorkOnMaxPerSession;
-    int    minPerSession  = kWorkOnMinPerSession;
-    double quietWilsonUb  = kWorkOnQuietWilsonUb;
-    double recencyDecay   = kWorkOnRecencyDecay;
-    int    clearAfterQuiet= kWorkOnClearAfterQuiet;
+struct PriorityOptions {
+    int    maxPerSession  = kPriorityMaxPerSession;
+    int    minPerSession  = kPriorityMinPerSession;
+    double quietWilsonUb  = kPriorityQuietWilsonUb;
+    double recencyDecay   = kPriorityRecencyDecay;
+    int    clearAfterQuiet= kPriorityClearAfterQuiet;
     int    minAssessable  = kDiagMinAssessableForPattern;
     double wilsonZ        = kDiagWilsonZ;
 };
@@ -144,7 +144,7 @@ inline double wilsonUpperBound(double fired, double assessable, double z = kDiag
 
 // What the pack says a condition IS, as far as this file needs to know — marshalled by the
 // caller from ConditionKind so no pack format reaches the arithmetic.
-enum class WorkOnClass {
+enum class PriorityClass {
     Movement,   // Fault, Setup: what a lesson is about
     Delivery,   // impact geometry: listed only to fill a short list
     Excluded,   // Outcome, Capacity, Intent, Equipment: never a work-on
@@ -178,7 +178,7 @@ inline SessionEvidence sessionEvidenceFromString(const QString &s)
 }
 
 // The gate, isolated like conditionTier() so its boundaries are testable on their own.
-inline SessionEvidence sessionEvidence(const ConditionLedger &l, const WorkOnOptions &opt = WorkOnOptions())
+inline SessionEvidence sessionEvidence(const ConditionLedger &l, const PriorityOptions &opt = PriorityOptions())
 {
     if (l.assessable < 1) return SessionEvidence::NotMeasured;
     if (l.tier == Tier::Pattern) return SessionEvidence::Pattern;
@@ -213,18 +213,18 @@ inline SessionEvidence sessionEvidence(const ConditionLedger &l, const WorkOnOpt
 //   release                       7.5         just after the ball
 //   a session-level habit         11          MeasureScope::Session — read over the session's
 //                                             swings, never at a point in one; after every swing
-//                                             position (kWorkOnSwingPosSession)
+//                                             position (kPrioritySwingPosSession)
 //   unknown / not supplied        11          the same: a caller that passes no positions gets
 //                                             every habit tied, and so v3's order unchanged
 //
 // Two habits read at one position (knee flex lost by the top and reverse spine at the top are both
 // P4) are ordered by magnitude between themselves, as v3 ordered everything.
-inline constexpr double kWorkOnSwingPosSession = 11.0;
+inline constexpr double kPrioritySwingPosSession = 11.0;
 
-inline double workOnSwingPosOfPhase(const QString &label)
+inline double prioritySwingPosOfPhase(const QString &label)
 {
     const QString l = label.trimmed().toLower();
-    if (l.isEmpty()) return kWorkOnSwingPosSession;
+    if (l.isEmpty()) return kPrioritySwingPosSession;
     if (l.startsWith(QLatin1Char('p'))) {
         bool ok = false;
         const int n = l.mid(1).toInt(&ok);
@@ -236,7 +236,7 @@ inline double workOnSwingPosOfPhase(const QString &label)
     if (l == QLatin1String("max speed") || l == QLatin1String("maxspeed")) return 6.5;
     if (l == QLatin1String("release"))    return 7.5;
     if (l == QLatin1String("finish"))     return 10.0;
-    return kWorkOnSwingPosSession;
+    return kPrioritySwingPosSession;
 }
 
 // One supported cause → effect link, as the session's 2×2 over the shots on which both could be
@@ -260,13 +260,13 @@ struct RootBecause {
 //   excess       rule 3 — ConditionLedger::firingExcess, how far out when it goes. The sort's score
 //                adds 0.10 × the Wilson bound and the pack's demotions; this is the quantity the
 //                page draws as bars.
-struct WorkOnReasons {
+struct PriorityReasons {
     bool                  resolving = false;
     QVector<RootBecause>  rootBecause;
     QString               behind;
     QStringList           mayFollow;
     double                excess   = 0.0;
-    double                swingPos = kWorkOnSwingPosSession;
+    double                swingPos = kPrioritySwingPosSession;
 };
 
 // THE TYPICAL READING, one rule for both of its readers, so the work-on card and the area row cannot
@@ -278,14 +278,14 @@ struct WorkOnReasons {
 // rows arrive in cannot bring a median back.
 //
 // Two populations, chosen by the caller (D9, ux_refactor_away_from_4_modes.md §5.2):
-//   WorkOnEntry     the FIRED readings — how far out it goes when it goes. A typical value past the
+//   PriorityEntry     the FIRED readings — how far out it goes when it goes. A typical value past the
 //                   corridor by construction, which is what a work-on card wants to say.
-//   WorkOnEvidence  EVERY ASSESSED reading, fired or clean — where the golfer usually is. A clean
+//   PriorityEvidence  EVERY ASSESSED reading, fired or clean — where the golfer usually is. A clean
 //                   condition then reads inside its corridor and a grade against it means something.
 //
 // Fed one row at a time, so the evidence pass is ONE sweep over the session's rows rather than a
 // linear rowFor() per condition per shot.
-struct WorkOnTypical {
+struct PriorityTypical {
     bool          haveCorridor = false;   // the first usable row's corridor has been taken
     bool          sameCorridor = true;    // false: a later corridor disagreed, or a row was unusable
     double        corridorLo = 0.0;
@@ -320,11 +320,11 @@ struct WorkOnTypical {
 };
 
 // One fault a session says to work on.
-struct WorkOnEntry {
+struct PriorityEntry {
     QString     id;
     QString     name;            // the pack's label when written; a reader re-resolves it
     int         rank = 0;        // 1-based position in the session's list
-    WorkOnClass cls  = WorkOnClass::Movement;
+    PriorityClass cls  = PriorityClass::Movement;
     // Nothing among THIS session's patterns is shown to cause it. Roots are listed first: they
     // are where work starts, and a symptom follows its cause off the list.
     bool        root = true;
@@ -347,17 +347,17 @@ struct WorkOnEntry {
     double  corridorHi   = 0.0;
     CorridorShape corridorShape = CorridorShape::Unknown;
 
-    WorkOnReasons reasons;       // which rule placed it (rule v4; §4.2)
+    PriorityReasons reasons;       // which rule placed it (rule v4; §4.2)
 };
 
-struct WorkOnEvidence {
+struct PriorityEvidence {
     QString         id;
     SessionEvidence state = SessionEvidence::NotMeasured;
     int             fired = 0, assessable = 0;
     double          excess = 0.0;
 
     // Schema 3. The ledger's driving measure, and the typical reading over EVERY ASSESSED shot — fired
-    // and clean alike (D9; WorkOnTypical above) — stated only under the one-corridor, non-composite
+    // and clean alike (D9; PriorityTypical above) — stated only under the one-corridor, non-composite
     // rule. The corridor is the one those readings were graded against, and is set (and written) only
     // with the typical value: without one it would name a band nothing here was read against. An
     // absent key in the file is "not present", never zero.
@@ -370,12 +370,12 @@ struct WorkOnEvidence {
 };
 
 // One session's record — what work_ons.json holds.
-struct SessionWorkOns {
+struct SessionPriorities {
     QString     sessionId;
     qint64      startMs = 0, endMs = 0;
     int         shotCount = 0;
     QStringList clubs;
-    std::vector<WorkOnEntry>    entries;     // in rank order
+    std::vector<PriorityEntry>    entries;     // in rank order
     // COULD THIS SESSION TEST ANY AUTHORED LINK AMONG ITS PATTERNS — rule 2's precondition, and the
     // switch for v4's swing order. True when at least one authored cause → effect edge has both
     // ends a Pattern here, the effect a listable one (Movement or Delivery — the entries rule 2 can
@@ -388,38 +388,38 @@ struct SessionWorkOns {
     bool                        linksTestable = false;
     // Every condition the session assessed at all. The aggregate needs this for rule 3: it has
     // to tell a session that was quiet on a fault from one that never looked.
-    std::vector<WorkOnEvidence> evidence;
+    std::vector<PriorityEvidence> evidence;
 
-    const WorkOnEntry *entry(const QString &id) const
+    const PriorityEntry *entry(const QString &id) const
     {
-        for (const WorkOnEntry &e : entries) if (e.id == id) return &e;
+        for (const PriorityEntry &e : entries) if (e.id == id) return &e;
         return nullptr;
     }
-    const WorkOnEvidence *evidenceFor(const QString &id) const
+    const PriorityEvidence *evidenceFor(const QString &id) const
     {
-        for (const WorkOnEvidence &e : evidence) if (e.id == id) return &e;
+        for (const PriorityEvidence &e : evidence) if (e.id == id) return &e;
         return nullptr;
     }
     // Did this session say anything conclusive about anything? A session that did not is not a
     // step in the golfer's history — it neither ages nor clears a work-on.
     bool substantive() const
     {
-        for (const WorkOnEvidence &e : evidence)
+        for (const PriorityEvidence &e : evidence)
             if (e.state >= SessionEvidence::Quiet) return true;
         return false;
     }
 };
 
 // The authored causal edges among conditions, as (cause, effect).
-using WorkOnCauses = std::vector<std::pair<QString, QString>>;
+using PriorityCauses = std::vector<std::pair<QString, QString>>;
 
 // The authored edges whose two ends are MEASURED FROM THE SAME READINGS (the pack's computed
-// Edge::sharedEvidence, posture_metrics_design.md §6.5), keyed workOnEdgeKey(cause, effect). Two numbers
+// Edge::sharedEvidence, posture_metrics_design.md §6.5), keyed priorityEdgeKey(cause, effect). Two numbers
 // taken from one reading always move together, so their 2×2 measures the arithmetic that relates them,
 // not the swing: such a link is never testable and never supported — the panel's gradeLink cap
 // (Coherent, "measured from the same readings, so the link is not tested") applied to the list.
-using WorkOnSharedEvidence = QSet<QString>;
-inline QString workOnEdgeKey(const QString &cause, const QString &effect)
+using PrioritySharedEvidence = QSet<QString>;
+inline QString priorityEdgeKey(const QString &cause, const QString &effect)
 {
     return cause + QStringLiteral("\u2192") + effect;
 }
@@ -451,7 +451,7 @@ inline RootBecause linkPairs(const ConditionLedger &cause, const ConditionLedger
     return t;
 }
 
-// `sharedEvidence`: the two ends read one measure (WorkOnSharedEvidence above) — never testable.
+// `sharedEvidence`: the two ends read one measure (PrioritySharedEvidence above) — never testable.
 inline bool linkTestable(const ConditionLedger &cause, const RootBecause &pairs,
                          const LedgerOptions &opt = LedgerOptions(), bool sharedEvidence = false)
 {
@@ -472,8 +472,8 @@ inline bool linkSupported(const ConditionLedger &cause, const ConditionLedger &e
 // `ledgers` is conditionLedgers(shots) — passed rather than recomputed so the list and the
 // panel beside it are reductions of the SAME ledger. `classOf` answers for every condition id;
 // an id it does not hold is Excluded (a condition the pack no longer authors is not coached).
-// `swingPosOf` is where each condition is read in the swing (the scale above workOnSwingPosOfPhase);
-// an id it does not hold sorts as kWorkOnSwingPosSession, so a caller passing none gets v3's order.
+// `swingPosOf` is where each condition is read in the swing (the scale above prioritySwingPosOfPhase);
+// an id it does not hold sorts as kPrioritySwingPosSession, so a caller passing none gets v3's order.
 //
 // THE ORDER (rule v4), each key consulted only when every earlier one ties:
 //   1. still happening first — a pattern that stopped inside the session (`resolving`) goes last;
@@ -482,15 +482,15 @@ inline bool linkSupported(const ConditionLedger &cause, const ConditionLedger &e
 //   4. the bigger miss first: firingExcess + 0.10 × the Wilson bound, less the pack's demotions;
 //   5. the id, so the order is total.
 // Movements fill the list to the cap; Delivery numbers only fill it to three, behind them.
-inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
+inline SessionPriorities reduceSessionPriorities(const std::vector<ShotRecord> &shots,
                                            const std::vector<ConditionLedger> &ledgers,
-                                           const QHash<QString, WorkOnClass> &classOf,
-                                           const WorkOnCauses &causes,
+                                           const QHash<QString, PriorityClass> &classOf,
+                                           const PriorityCauses &causes,
                                            const QHash<QString, double> &swingPosOf,
-                                           const WorkOnOptions &opt = WorkOnOptions(),
-                                           const WorkOnSharedEvidence &sharedEvidence = WorkOnSharedEvidence())
+                                           const PriorityOptions &opt = PriorityOptions(),
+                                           const PrioritySharedEvidence &sharedEvidence = PrioritySharedEvidence())
 {
-    SessionWorkOns out;
+    SessionPriorities out;
     out.shotCount = int(shots.size());
     for (const ShotRecord &s : shots) {
         if (s.timestampMs > 0) {
@@ -502,7 +502,7 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
 
     // The evidence's typical reading (D9): every ASSESSED row, in one sweep of the session's rows.
     // rowFor()'s rule holds — a shot's first row for a condition is that shot's row.
-    QHash<QString, WorkOnTypical> assessedTypical;
+    QHash<QString, PriorityTypical> assessedTypical;
     {
         QSet<QString> seenThisShot;
         for (const ShotRecord &s : shots) {
@@ -520,7 +520,7 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
     for (const ConditionLedger &l : ledgers) {
         const SessionEvidence ev = sessionEvidence(l, opt);
         if (ev == SessionEvidence::NotMeasured) continue;
-        WorkOnEvidence e;
+        PriorityEvidence e;
         e.id         = l.id;
         e.state      = ev;
         e.fired      = l.fired;
@@ -539,15 +539,15 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
         if (ev == SessionEvidence::Pattern) patternSet.insert(l.id);
     }
 
-    struct Candidate { WorkOnEntry e; double score = 0.0; };
+    struct Candidate { PriorityEntry e; double score = 0.0; };
     std::vector<Candidate> movement, delivery;
     // Every supported link, cause id -> the effect with its 2×2, for the causes' rootBecause.
     QHash<QString, QVector<RootBecause>> supported;
 
     for (const ConditionLedger &l : ledgers) {
         if (l.tier != Tier::Pattern) continue;
-        const WorkOnClass cls = classOf.value(l.id, WorkOnClass::Excluded);
-        if (cls == WorkOnClass::Excluded) continue;
+        const PriorityClass cls = classOf.value(l.id, PriorityClass::Excluded);
+        if (cls == PriorityClass::Excluded) continue;
 
         Candidate c;
         c.e.id          = l.id;
@@ -566,7 +566,7 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
             const ConditionLedger *from = nullptr;
             for (const ConditionLedger &k : ledgers) if (k.id == edge.first) { from = &k; break; }
             const RootBecause pairs = from ? linkPairs(*from, l) : RootBecause{};
-            const bool shared = sharedEvidence.contains(workOnEdgeKey(edge.first, l.id));
+            const bool shared = sharedEvidence.contains(priorityEdgeKey(edge.first, l.id));
             if (from && linkTestable(*from, pairs, LedgerOptions(), shared)) out.linksTestable = true;
             if (from && linkSupported(*from, l, LedgerOptions(), shared)) {
                 c.e.causedBy.append(edge.first);
@@ -582,13 +582,13 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
         c.e.reasons.behind    = c.e.causedBy.isEmpty() ? QString() : c.e.causedBy.first();
         c.e.reasons.mayFollow = c.e.mayFollow;
         c.e.reasons.excess    = l.firingExcess;
-        c.e.reasons.swingPos  = swingPosOf.value(l.id, kWorkOnSwingPosSession);
+        c.e.reasons.swingPos  = swingPosOf.value(l.id, kPrioritySwingPosSession);
 
-        // The typical reading on the FIRINGS, under the one-corridor rule (WorkOnTypical). The
+        // The typical reading on the FIRINGS, under the one-corridor rule (PriorityTypical). The
         // corridor is kept from the first usable firing even when the median is refused, as it
         // always was; it is written to the file only with the median.
         {
-            WorkOnTypical typ;
+            PriorityTypical typ;
             for (const ShotRecord &s : shots) {
                 const ConditionRow *r = rowFor(s, l.id);
                 if (r && r->state == ShotState::Fired) typ.add(*r);
@@ -613,7 +613,7 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
         if (latest && !latest->material)       c.score -= 0.05;
         if (latest && latest->contextInferred) c.score -= 0.05;
 
-        (cls == WorkOnClass::Movement ? movement : delivery).push_back(std::move(c));
+        (cls == PriorityClass::Movement ? movement : delivery).push_back(std::move(c));
     }
 
     // A fault the golfer already fixed inside the session goes behind the ones still firing, and
@@ -651,9 +651,9 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
     // rootBecause: the LISTED entries each one is a supported cause of, in list order — what the
     // report can point at ("it went away on the swings where X did"), so never an effect that
     // missed the cap.
-    for (WorkOnEntry &cause : out.entries) {
+    for (PriorityEntry &cause : out.entries) {
         const QVector<RootBecause> mine = supported.value(cause.id);
-        for (const WorkOnEntry &effect : out.entries)
+        for (const PriorityEntry &effect : out.entries)
             for (const RootBecause &t : mine)
                 if (t.id == effect.id) cause.reasons.rootBecause.append(t);
     }
@@ -662,36 +662,36 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
 
 // Without positions: every habit ties on rule v4's key, so the order is v3's. The callers that
 // predate swing order (and the tests that pin v3's behaviour) keep this form.
-inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
+inline SessionPriorities reduceSessionPriorities(const std::vector<ShotRecord> &shots,
                                            const std::vector<ConditionLedger> &ledgers,
-                                           const QHash<QString, WorkOnClass> &classOf,
-                                           const WorkOnCauses &causes,
-                                           const WorkOnOptions &opt = WorkOnOptions())
+                                           const QHash<QString, PriorityClass> &classOf,
+                                           const PriorityCauses &causes,
+                                           const PriorityOptions &opt = PriorityOptions())
 {
-    return reduceSessionWorkOns(shots, ledgers, classOf, causes, QHash<QString, double>(), opt);
+    return reduceSessionPriorities(shots, ledgers, classOf, causes, QHash<QString, double>(), opt);
 }
 
 // ── One golfer ──────────────────────────────────────────────────────────────────
 
-enum class WorkOnStatus {
+enum class PriorityStatus {
     Active,    // a pattern in the latest session that could tell
     Easing,    // quiet in the latest such session, a pattern before it
     Cleared,   // quiet in opt.clearAfterQuiet consecutive such sessions — leaves the list
 };
 
-inline QString workOnStatusToString(WorkOnStatus s)
+inline QString priorityStatusToString(PriorityStatus s)
 {
     switch (s) {
-    case WorkOnStatus::Easing:  return QStringLiteral("easing");
-    case WorkOnStatus::Cleared: return QStringLiteral("cleared");
-    case WorkOnStatus::Active:  break;
+    case PriorityStatus::Easing:  return QStringLiteral("easing");
+    case PriorityStatus::Cleared: return QStringLiteral("cleared");
+    case PriorityStatus::Active:  break;
     }
     return QStringLiteral("active");
 }
 
 // One session in one work-on's history. EVERY session gets a point, measured or not — the same
 // reason a not-assessable shot gets a tick: a gap would read as "nothing happened".
-struct WorkOnPoint {
+struct PriorityPoint {
     QString         sessionId;
     qint64          startMs = 0;
     SessionEvidence state = SessionEvidence::NotMeasured;
@@ -701,10 +701,10 @@ struct WorkOnPoint {
     double          excess = 0.0;
 };
 
-struct WorkOnSummary {
+struct PrioritySummary {
     QString      id;
     QString      name;
-    WorkOnStatus status = WorkOnStatus::Active;
+    PriorityStatus status = PriorityStatus::Active;
     double       score  = 0.0;          // the Wilson lower bound on the two weighted counts below
     double       weightedFired = 0.0, weightedAssessable = 0.0;
 
@@ -716,19 +716,19 @@ struct WorkOnSummary {
     int swingsFired      = 0;
     int swingsAssessable = 0;
 
-    std::vector<WorkOnPoint> history;   // oldest first, one per session
+    std::vector<PriorityPoint> history;   // oldest first, one per session
     int latestPatternIndex    = -1;     // into history
     int latestConclusiveIndex = -1;
 
     bool        hasLatest = false;
-    WorkOnEntry latest;                 // from the newest session that listed it
+    PriorityEntry latest;                 // from the newest session that listed it
     QString     latestSessionId;
 
     // The evidence row from the newest session that ASSESSED it, listed or not — so its typical
     // reading and corridor are the newest the record holds, not the newest LISTING's (which can be
     // months older than the counts beside it). Schema 3; what an area item quotes and grades.
     bool           hasLatestEvidence = false;
-    WorkOnEvidence latestEvidence;
+    PriorityEvidence latestEvidence;
     QString        latestEvidenceSessionId;
 
     // The newest listing fired as a SHARP pattern (Condition::sharp). The entry's excess is the
@@ -740,18 +740,18 @@ struct WorkOnSummary {
 
 // WHICH CONDITIONS THE AGGREGATE SUMMARISES. One body, two id sets, so the list and the areas are
 // the same arithmetic and cannot disagree about a condition they both hold.
-enum class WorkOnScope {
-    Listed,          // ids some session LISTED — the work-ons list (aggregateWorkOns)
+enum class PriorityScope {
+    Listed,          // ids some session LISTED — the work-ons list (aggregatePriorities)
     EveryAssessed,   // ...and every id some session's evidence holds, of every class (aggregateConditions)
 };
 
 // Sessions in any order; they are sorted here by start time, then id.
-inline std::vector<WorkOnSummary> aggregateWorkOnsIn(std::vector<SessionWorkOns> sessions,
-                                                     WorkOnScope scope,
-                                                     const WorkOnOptions &opt = WorkOnOptions())
+inline std::vector<PrioritySummary> aggregatePrioritiesIn(std::vector<SessionPriorities> sessions,
+                                                     PriorityScope scope,
+                                                     const PriorityOptions &opt = PriorityOptions())
 {
     std::stable_sort(sessions.begin(), sessions.end(),
-                     [](const SessionWorkOns &a, const SessionWorkOns &b) {
+                     [](const SessionPriorities &a, const SessionPriorities &b) {
                          if (a.startMs != b.startMs) return a.startMs < b.startMs;
                          return a.sessionId < b.sessionId;
                      });
@@ -773,12 +773,12 @@ inline std::vector<WorkOnSummary> aggregateWorkOnsIn(std::vector<SessionWorkOns>
     // the id, so this order decides nothing in the output; it only has to be deterministic.)
     std::vector<QString> order;
     QSet<QString> seen;
-    for (const SessionWorkOns &s : sessions)
-        for (const WorkOnEntry &e : s.entries)
+    for (const SessionPriorities &s : sessions)
+        for (const PriorityEntry &e : s.entries)
             if (!seen.contains(e.id)) { seen.insert(e.id); order.push_back(e.id); }
-    if (scope == WorkOnScope::EveryAssessed)
-        for (const SessionWorkOns &s : sessions)
-            for (const WorkOnEvidence &e : s.evidence)
+    if (scope == PriorityScope::EveryAssessed)
+        for (const SessionPriorities &s : sessions)
+            for (const PriorityEvidence &e : s.evidence)
                 if (!seen.contains(e.id)) { seen.insert(e.id); order.push_back(e.id); }
 
     // id -> evidence row, per session. evidenceFor() is a linear scan, and the every-condition
@@ -786,26 +786,26 @@ inline std::vector<WorkOnSummary> aggregateWorkOnsIn(std::vector<SessionWorkOns>
     // times that on a 100-session library, on the GUI thread.
     std::vector<QHash<QString, int>> evidenceAt(static_cast<size_t>(n));
     for (int i = 0; i < n; ++i) {
-        const std::vector<WorkOnEvidence> &ev = sessions[size_t(i)].evidence;
+        const std::vector<PriorityEvidence> &ev = sessions[size_t(i)].evidence;
         QHash<QString, int> &at = evidenceAt[size_t(i)];
         at.reserve(int(ev.size()));
         for (int k = int(ev.size()) - 1; k >= 0; --k) at.insert(ev[size_t(k)].id, k);   // first row wins, as evidenceFor()
     }
 
-    std::vector<WorkOnSummary> out;
+    std::vector<PrioritySummary> out;
     out.reserve(order.size());
     for (const QString &id : order) {
-        WorkOnSummary w;
+        PrioritySummary w;
         w.id = id;
-        const WorkOnEvidence *newestEvidence = nullptr;
+        const PriorityEvidence *newestEvidence = nullptr;
         for (int i = 0; i < n; ++i) {
-            const SessionWorkOns &s = sessions[size_t(i)];
-            WorkOnPoint p;
+            const SessionPriorities &s = sessions[size_t(i)];
+            PriorityPoint p;
             p.sessionId = s.sessionId;
             p.startMs   = s.startMs;
             const auto at = evidenceAt[size_t(i)].constFind(id);
             if (at != evidenceAt[size_t(i)].constEnd()) {
-                const WorkOnEvidence *ev = &s.evidence[size_t(*at)];
+                const PriorityEvidence *ev = &s.evidence[size_t(*at)];
                 p.state      = ev->state;
                 p.fired      = ev->fired;
                 p.assessable = ev->assessable;
@@ -813,7 +813,7 @@ inline std::vector<WorkOnSummary> aggregateWorkOnsIn(std::vector<SessionWorkOns>
                 newestEvidence = ev;
                 w.latestEvidenceSessionId = s.sessionId;
             }
-            if (const WorkOnEntry *e = s.entry(id)) {
+            if (const PriorityEntry *e = s.entry(id)) {
                 p.listed = true;
                 p.rank   = e->rank;
                 w.hasLatest = true;
@@ -853,16 +853,16 @@ inline std::vector<WorkOnSummary> aggregateWorkOnsIn(std::vector<SessionWorkOns>
             ++quietRun;
         }
         // gate rule: PP_GATE("rule.diag.workOnClear")
-        w.status = quietRun >= opt.clearAfterQuiet ? WorkOnStatus::Cleared
-                 : quietRun >= 1                   ? WorkOnStatus::Easing
-                 :                                   WorkOnStatus::Active;
+        w.status = quietRun >= opt.clearAfterQuiet ? PriorityStatus::Cleared
+                 : quietRun >= 1                   ? PriorityStatus::Easing
+                 :                                   PriorityStatus::Active;
         out.push_back(std::move(w));
     }
 
     // Status, then SHARP FIRST, as in sessions: a sharp fault is serious in itself, and the
     // Wilson bound would otherwise sink the sequence faults, which few swings can assess, under
     // posture faults every swing can. Then the bound, then how far out, then the id.
-    std::stable_sort(out.begin(), out.end(), [](const WorkOnSummary &a, const WorkOnSummary &b) {
+    std::stable_sort(out.begin(), out.end(), [](const PrioritySummary &a, const PrioritySummary &b) {
         if (a.status != b.status) return int(a.status) < int(b.status);
         if (a.sharp() != b.sharp()) return a.sharp();
         if (a.score != b.score)   return a.score > b.score;
@@ -874,10 +874,10 @@ inline std::vector<WorkOnSummary> aggregateWorkOnsIn(std::vector<SessionWorkOns>
 
 // THE WORK-ONS LIST: every condition some session listed. Its output is what the home screen's
 // list and clearedCount are built from, and the every-condition sibling below must never move it.
-inline std::vector<WorkOnSummary> aggregateWorkOns(std::vector<SessionWorkOns> sessions,
-                                                   const WorkOnOptions &opt = WorkOnOptions())
+inline std::vector<PrioritySummary> aggregatePriorities(std::vector<SessionPriorities> sessions,
+                                                   const PriorityOptions &opt = PriorityOptions())
 {
-    return aggregateWorkOnsIn(std::move(sessions), WorkOnScope::Listed, opt);
+    return aggregatePrioritiesIn(std::move(sessions), PriorityScope::Listed, opt);
 }
 
 // EVERY CONDITION ANY SESSION ASSESSED — listed or not, of every class (Outcome, Capacity and the
@@ -887,10 +887,10 @@ inline std::vector<WorkOnSummary> aggregateWorkOns(std::vector<SessionWorkOns> s
 //     something is a work-on is sessionsListed > 0, not the status;
 //   - history, score and the swing counts are present for every id, latestEvidence for every id,
 //     `latest` only for a listed one.
-inline std::vector<WorkOnSummary> aggregateConditions(std::vector<SessionWorkOns> sessions,
-                                                      const WorkOnOptions &opt = WorkOnOptions())
+inline std::vector<PrioritySummary> aggregateConditions(std::vector<SessionPriorities> sessions,
+                                                      const PriorityOptions &opt = PriorityOptions())
 {
-    return aggregateWorkOnsIn(std::move(sessions), WorkOnScope::EveryAssessed, opt);
+    return aggregatePrioritiesIn(std::move(sessions), PriorityScope::EveryAssessed, opt);
 }
 
 // ── Serialisation — work_ons.json ───────────────────────────────────────────────
@@ -899,32 +899,32 @@ inline std::vector<WorkOnSummary> aggregateConditions(std::vector<SessionWorkOns
 // derivation and not the evidence: the rows stay in the ledger, and whoever writes this file
 // records what it was derived from and re-derives when that moves (WorkOnsController).
 
-inline QString workOnClassToString(WorkOnClass c)
+inline QString priorityClassToString(PriorityClass c)
 {
     switch (c) {
-    case WorkOnClass::Delivery: return QStringLiteral("delivery");
-    case WorkOnClass::Excluded: return QStringLiteral("excluded");
-    case WorkOnClass::Movement: break;
+    case PriorityClass::Delivery: return QStringLiteral("delivery");
+    case PriorityClass::Excluded: return QStringLiteral("excluded");
+    case PriorityClass::Movement: break;
     }
     return QStringLiteral("movement");
 }
 
-inline WorkOnClass workOnClassFromString(const QString &s)
+inline PriorityClass priorityClassFromString(const QString &s)
 {
-    if (s == QStringLiteral("delivery")) return WorkOnClass::Delivery;
-    if (s == QStringLiteral("excluded")) return WorkOnClass::Excluded;
-    return WorkOnClass::Movement;
+    if (s == QStringLiteral("delivery")) return PriorityClass::Delivery;
+    if (s == QStringLiteral("excluded")) return PriorityClass::Excluded;
+    return PriorityClass::Movement;
 }
 
-inline QJsonObject toJson(const SessionWorkOns &s)
+inline QJsonObject toJson(const SessionPriorities &s)
 {
     QJsonArray entries;
-    for (const WorkOnEntry &e : s.entries) {
+    for (const PriorityEntry &e : s.entries) {
         QJsonObject o;
         o[QStringLiteral("id")]          = e.id;
         o[QStringLiteral("name")]        = e.name;
         o[QStringLiteral("rank")]        = e.rank;
-        o[QStringLiteral("class")]       = workOnClassToString(e.cls);
+        o[QStringLiteral("class")]       = priorityClassToString(e.cls);
         o[QStringLiteral("root")]        = e.root;
         o[QStringLiteral("causedBy")]    = QJsonArray::fromStringList(e.causedBy);
         o[QStringLiteral("mayFollow")]   = QJsonArray::fromStringList(e.mayFollow);
@@ -958,7 +958,7 @@ inline QJsonObject toJson(const SessionWorkOns &s)
     }
 
     QJsonArray evidence;
-    for (const WorkOnEvidence &e : s.evidence) {
+    for (const PriorityEvidence &e : s.evidence) {
         QJsonObject o;
         o[QStringLiteral("id")]         = e.id;
         o[QStringLiteral("state")]      = sessionEvidenceToString(e.state);
@@ -977,8 +977,8 @@ inline QJsonObject toJson(const SessionWorkOns &s)
     }
 
     QJsonObject root;
-    root[QStringLiteral("schemaVersion")] = kWorkOnSchemaVersion;
-    root[QStringLiteral("ruleVersion")]   = kWorkOnRuleVersion;
+    root[QStringLiteral("schemaVersion")] = kPrioritySchemaVersion;
+    root[QStringLiteral("ruleVersion")]   = kPriorityRuleVersion;
     root[QStringLiteral("sessionId")]     = s.sessionId;
     root[QStringLiteral("startMs")]       = double(s.startMs);
     root[QStringLiteral("endMs")]         = double(s.endMs);
@@ -992,11 +992,11 @@ inline QJsonObject toJson(const SessionWorkOns &s)
 
 // `ok` is false for a file from a newer schema or a different rule: its answer is not this
 // build's answer and must be re-derived, not aggregated.
-inline SessionWorkOns sessionWorkOnsFromJson(const QJsonObject &root, bool *ok = nullptr)
+inline SessionPriorities sessionPrioritiesFromJson(const QJsonObject &root, bool *ok = nullptr)
 {
-    SessionWorkOns s;
-    const bool current = root.value(QStringLiteral("schemaVersion")).toInt() == kWorkOnSchemaVersion
-                      && root.value(QStringLiteral("ruleVersion")).toInt() == kWorkOnRuleVersion;
+    SessionPriorities s;
+    const bool current = root.value(QStringLiteral("schemaVersion")).toInt() == kPrioritySchemaVersion
+                      && root.value(QStringLiteral("ruleVersion")).toInt() == kPriorityRuleVersion;
     if (ok) *ok = current;
     if (!current) return s;
 
@@ -1009,11 +1009,11 @@ inline SessionWorkOns sessionWorkOnsFromJson(const QJsonObject &root, bool *ok =
 
     for (const QJsonValue &v : root.value(QStringLiteral("workOns")).toArray()) {
         const QJsonObject o = v.toObject();
-        WorkOnEntry e;
+        PriorityEntry e;
         e.id          = o.value(QStringLiteral("id")).toString();
         e.name        = o.value(QStringLiteral("name")).toString();
         e.rank        = o.value(QStringLiteral("rank")).toInt();
-        e.cls         = workOnClassFromString(o.value(QStringLiteral("class")).toString());
+        e.cls         = priorityClassFromString(o.value(QStringLiteral("class")).toString());
         e.root        = o.value(QStringLiteral("root")).toBool(true);
         for (const QJsonValue &c : o.value(QStringLiteral("causedBy")).toArray()) e.causedBy.append(c.toString());
         for (const QJsonValue &c : o.value(QStringLiteral("mayFollow")).toArray()) e.mayFollow.append(c.toString());
@@ -1044,13 +1044,13 @@ inline SessionWorkOns sessionWorkOnsFromJson(const QJsonObject &root, bool *ok =
         e.reasons.behind = why.value(QStringLiteral("behind")).toString();
         for (const QJsonValue &c : why.value(QStringLiteral("mayFollow")).toArray()) e.reasons.mayFollow.append(c.toString());
         e.reasons.excess   = why.value(QStringLiteral("excess")).toDouble();
-        e.reasons.swingPos = why.value(QStringLiteral("swingPos")).toDouble(kWorkOnSwingPosSession);
+        e.reasons.swingPos = why.value(QStringLiteral("swingPos")).toDouble(kPrioritySwingPosSession);
         s.entries.push_back(std::move(e));
     }
 
     for (const QJsonValue &v : root.value(QStringLiteral("evidence")).toArray()) {
         const QJsonObject o = v.toObject();
-        WorkOnEvidence e;
+        PriorityEvidence e;
         e.id         = o.value(QStringLiteral("id")).toString();
         e.state      = sessionEvidenceFromString(o.value(QStringLiteral("state")).toString());
         e.fired      = o.value(QStringLiteral("fired")).toInt();

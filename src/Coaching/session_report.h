@@ -31,7 +31,7 @@
 //   cameWith()          the habit's authored effects the session judged (§3, the work-on page)
 //   causeGroups()       spotted / could be behind it / ruled out, and the lead case (§3.3)
 //   worthChecking()     page 3's could-be causes across every work-on (§3.3, last paragraph)
-//   workOnTimeline()    where each work-on sits on the swing (page 3)
+//   priorityTimeline()    where each work-on sits on the swing (page 3)
 //   photoRule()         whether swing photos may go in at all (§7.3)
 //   explainOrder()      which ordering rule decided each place on today's list (§4.2)
 //
@@ -42,7 +42,7 @@
 //
 // INPUTS ARE THE MODEL'S OWN C++ OUTPUTS: SessionDiagnosticsModel::ledgerRows() (and shotRecords()
 // for its size), sessionWorkOns(), and ReportPack — the pack's facts marshalled once by
-// reportPackOf(), as work_ons.h's WorkOnClass/WorkOnCauses are, so no pack format reaches the rules.
+// reportPackOf(), as work_ons.h's PriorityClass/PriorityCauses are, so no pack format reaches the rules.
 // A HabitRun is one habit's per-swing readings against the corridor its chart draws
 // (SessionDiagnosticsModel::spreadCorridorOf); nothing here goes through a QVariantMap.
 //
@@ -95,7 +95,7 @@ inline constexpr double kStrengthWellWithinZ    = 1.0;
 inline constexpr int    kCouldBeCap             = 6;
 inline constexpr int    kRuledOutCap            = 4;
 inline constexpr int    kWorthCheckingPerKind   = 5;
-inline constexpr int    kStillWorkOns           = 3;    // stills on the first three work-ons only
+inline constexpr int    kStillPriorities           = 3;    // stills on the first three work-ons only
 // A pair of stills is shown only when the two swings differ by at least half the target range (§6).
 inline constexpr double kPairMinRangeShare      = 0.5;
 inline constexpr int    kAdultAge               = 18;   // §7.3
@@ -178,9 +178,9 @@ inline ReportPack reportPackOf(const CharacteristicPack &pack)
 // ── Small shared reads ──────────────────────────────────────────────────────────
 
 // The work-on's 1-based rank in the session's list, 0 when it is not listed.
-inline int workOnRank(const SessionWorkOns &w, const QString &id)
+inline int priorityRank(const SessionPriorities &w, const QString &id)
 {
-    const WorkOnEntry *e = w.entry(id);
+    const PriorityEntry *e = w.entry(id);
     return e ? e->rank : 0;
 }
 
@@ -279,7 +279,7 @@ struct StrengthPick {
 // chosen; when either kind runs short the other fills, to three. Returned outcome first, then the
 // movements, each in rank order (the cover's "Going well" column).
 inline std::vector<StrengthPick> pickStrengths(const std::vector<ConditionLedger> &ledgers, int swings,
-                                               const SessionWorkOns &workOns, const ReportPack &pack)
+                                               const SessionPriorities &workOns, const ReportPack &pack)
 {
     const int need = std::max(kJudgedMinSwings, int(std::ceil(kStrengthMeasurableShare * swings - 1e-9)));
 
@@ -308,10 +308,10 @@ inline std::vector<StrengthPick> pickStrengths(const std::vector<ConditionLedger
         p.prominence = c->prominence;
         for (const ReportCause &e : pack.causes) {
             if (e.to == l.id) {
-                const int r = workOnRank(workOns, e.from);
+                const int r = priorityRank(workOns, e.from);
                 if (r > 0 && (p.effectOfRank == 0 || r < p.effectOfRank)) p.effectOfRank = r;
             }
-            if (e.from == l.id && workOnRank(workOns, e.to) > 0) p.causeOfWorkOn = true;
+            if (e.from == l.id && priorityRank(workOns, e.to) > 0) p.causeOfWorkOn = true;
         }
         all.push_back(p);
     }
@@ -432,7 +432,7 @@ struct StillChoice {
 };
 
 // WHICH SWINGS, AT WHICH POSITION (§6), from the pack's picture and the measure the page draws:
-//   · none — no photos (photoRule), not one of the first kStillWorkOns work-ons, kind "none", no
+//   · none — no photos (photoRule), not one of the first kStillPriorities work-ons, kind "none", no
 //     position, or no swing judged;
 //   · change — for a reading taken from address: the typical swing at P1 and at the position, the
 //     line drawn on both (a change "at P1" is just the typical swing);
@@ -445,7 +445,7 @@ inline StillChoice chooseStill(const HabitRun &h, const QString &pictureKind, co
 {
     StillChoice out;
     const StillKind asked = stillKindOf(pictureKind);
-    if (!photos || rank < 1 || rank > kStillWorkOns || asked == StillKind::None || phase.isEmpty())
+    if (!photos || rank < 1 || rank > kStillPriorities || asked == StillKind::None || phase.isEmpty())
         return out;
     const int typ = typicalSwing(h);
     if (typ < 0) return out;
@@ -601,7 +601,7 @@ struct CameWithItem {
 // within each the strongest edge first, then pack order. (The mock counted "half" as ⌊n/2⌋; this is
 // at least half, which differs only on an odd count.)
 inline std::vector<CameWithItem> cameWith(const QString &id, const std::vector<ConditionLedger> &ledgers,
-                                          const SessionWorkOns &workOns, const ReportPack &pack)
+                                          const SessionPriorities &workOns, const ReportPack &pack)
 {
     std::vector<CameWithItem> out;
     QSet<QString> seen;
@@ -611,7 +611,7 @@ inline std::vector<CameWithItem> cameWith(const QString &id, const std::vector<C
         const ReportCondition *c = pack.condition(e.to);
         const ConditionLedger *l = ledgerFor(ledgers, e.to);
         if (!c || c->held || c->retired || !l || l->sessionScope || !isJudged(l)) continue;
-        if (workOnRank(workOns, e.to) > 0) continue;
+        if (priorityRank(workOns, e.to) > 0) continue;
         CameWithItem it;
         it.id = e.to;
         it.fired = l->fired;
@@ -648,7 +648,7 @@ struct CauseItem {
     CouldBeCheck check = CouldBeCheck::None;
     int          strength   = int(Strength::Moderate);
     int          fired = 0, judged = 0;
-    int          workOnRank = 0;        // spotted: its own work-on number, 0 if not listed
+    int          priorityRank = 0;        // spotted: its own work-on number, 0 if not listed
     bool         supported  = false;    // spotted: linkSupported(cause, habit) on these swings
     bool         everySwing = false;    // spotted: fired on every swing it was judged on
 };
@@ -687,7 +687,7 @@ struct CauseGroups {
 //   6. judged on fewer, no live measure    → could be: your coach can look
 // Strongest authored edge first, pack order on a tie. Caps: spotted all, could-be 6, ruled-out 4.
 inline CauseGroups causeGroups(const QString &id, const std::vector<ConditionLedger> &ledgers,
-                               const SessionWorkOns &workOns, const ReportPack &pack)
+                               const SessionPriorities &workOns, const ReportPack &pack)
 {
     CauseGroups g;
     std::vector<ReportCause> edges;
@@ -713,7 +713,7 @@ inline CauseGroups causeGroups(const QString &id, const std::vector<ConditionLed
             it.check = CouldBeCheck::CoachCanLook;
         } else if (l && l->tier == Tier::Pattern) {
             it.group = CauseGroup::Spotted;
-            it.workOnRank = workOnRank(workOns, e.from);
+            it.priorityRank = priorityRank(workOns, e.from);
             it.supported  = effect && linkSupported(*l, *effect, LedgerOptions(), e.sharedEvidence);
             it.everySwing = l->rangeRestricted;
         } else if (isJudged(l)) {
@@ -779,13 +779,13 @@ struct WorthCheckingGroup {
 // empty groups absent — and within a group: more work-ons first, then the strongest edge, then id.
 // Five per group. A cause takes its check from the first work-on that lists it (they agree: the
 // check is a fact about the cause, never about the habit).
-inline std::vector<WorthCheckingGroup> worthChecking(const SessionWorkOns &workOns,
+inline std::vector<WorthCheckingGroup> worthChecking(const SessionPriorities &workOns,
                                                      const std::vector<ConditionLedger> &ledgers,
                                                      const ReportPack &pack)
 {
     QHash<QString, WorthCheck> by;
     QStringList order;
-    for (const WorkOnEntry &w : workOns.entries) {
+    for (const PriorityEntry &w : workOns.entries) {
         const CauseGroups g = causeGroups(w.id, ledgers, workOns, pack);
         for (const CauseItem &it : g.all) {
             if (it.group != CauseGroup::CouldBe) continue;
@@ -848,15 +848,15 @@ struct Timeline {
     bool firstIsEarliest = false;             // work-on 1 is (tied for) the earliest in the swing
 };
 
-// WHERE EACH WORK-ON HAPPENS (page 3), off the position rule v4 ordered by (WorkOnReasons::swingPos),
+// WHERE EACH WORK-ON HAPPENS (page 3), off the position rule v4 ordered by (PriorityReasons::swingPos),
 // so the picture and the order cannot disagree. A session-level habit has no place on a swing and
 // is counted instead. Marks at one stop take lanes in rank order.
-inline Timeline workOnTimeline(const SessionWorkOns &workOns)
+inline Timeline priorityTimeline(const SessionPriorities &workOns)
 {
     Timeline t;
     double earliest = std::numeric_limits<double>::infinity();
-    for (const WorkOnEntry &e : workOns.entries) {
-        if (e.reasons.swingPos >= kWorkOnSwingPosSession) { ++t.sessionLevel; continue; }
+    for (const PriorityEntry &e : workOns.entries) {
+        if (e.reasons.swingPos >= kPrioritySwingPosSession) { ++t.sessionLevel; continue; }
         TimelineMark m;
         m.rank = e.rank;
         m.swingPos = e.reasons.swingPos;
@@ -904,7 +904,7 @@ inline PhotoDecision photoRule(const QDate &dob, const QDate &sessionDate, bool 
 
 // ── Why this order (§4.2) ───────────────────────────────────────────────────────
 
-// The rule that put an entry AFTER the one before it — the first of reduceSessionWorkOns' keys on
+// The rule that put an entry AFTER the one before it — the first of reduceSessionPriorities' keys on
 // which the two differ.
 enum class OrderRule {
     First,            // work-on 1: nothing before it
@@ -943,19 +943,19 @@ struct OrderExplanation {
 
 // WHICH RULE DECIDED EACH PLACE TODAY, from the record's reasons and linksTestable alone — so page 3
 // explains the order that was computed and cannot drift from it. `ledgers` and `pack` are needed
-// only to say WHY no link could be tested: the same pairs reduceSessionWorkOns examined — an
+// only to say WHY no link could be tested: the same pairs reduceSessionPriorities examined — an
 // authored edge with both ends a Pattern here and the effect listable (a fault, setup or delivery,
 // not held).
-inline OrderExplanation explainOrder(const SessionWorkOns &w, const std::vector<ConditionLedger> &ledgers,
+inline OrderExplanation explainOrder(const SessionPriorities &w, const std::vector<ConditionLedger> &ledgers,
                                      const ReportPack &pack)
 {
     OrderExplanation x;
     x.linksTestable = w.linksTestable;
     for (size_t i = 0; i < w.entries.size(); ++i) {
-        const WorkOnEntry &e = w.entries[i];
+        const PriorityEntry &e = w.entries[i];
         OrderStep s{ e.id, e.rank, OrderRule::First };
         if (i > 0) {
-            const WorkOnEntry &p = w.entries[i - 1];
+            const PriorityEntry &p = w.entries[i - 1];
             if (p.cls != e.cls)                             s.decidedBy = OrderRule::MovementsFirst;
             else if (p.reasons.resolving != e.reasons.resolving) s.decidedBy = OrderRule::StillHappening;
             else if (p.root != e.root)                      s.decidedBy = OrderRule::CauseFirst;

@@ -43,5 +43,5 @@ The dumps used on 20 October 2026 (Nick Henn and Jess Ratcliffe, 20 October, ses
 - The swing grid's watch-list and ball rows are capped at 3 to fit a fixed page; the design's cap is 4.
 - Stills come from ffmpeg, with no exposure correction; the build uses the replay's frame source.
 - The studio, the coach and the sample note are placeholders.
-- The work-on order mimics `reduceSessionWorkOns` for the range-restricted case (no link is supported). It does not
+- The work-on order mimics `reduceSessionPriorities` for the range-restricted case (no link is supported). It does not
   run the Fisher test.

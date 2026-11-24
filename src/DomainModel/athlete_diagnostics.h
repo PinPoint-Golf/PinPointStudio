@@ -29,7 +29,7 @@
 // gives its work-ons but no club windows.
 //
 // WHAT IT COMPUTES (each a pure Coaching rule over the summaries):
-//   • the athlete work-ons (GL-70; DEC-138): aggregateWorkOns over the sessions' ranked lists, and every condition
+//   • the athlete work-ons (GL-70; DEC-138): aggregatePriorities over the sessions' ranked lists, and every condition
 //     any session assessed (aggregateConditions) — work_ons.h's arithmetic, the same Home's list is built from;
 //   • the distances ("Your distances", FILE-ATH-02's clubDistances; D7: DEC-172): the club windows each summary
 //     carries, pooled newest first up to the caps (club_distances.h clubDistancesFromPools);
@@ -165,7 +165,7 @@ public:
     struct ScopedResult {
         QString key;                                                // the combined key (club, or club|filter)
         analysis::SwingThemes themes;
-        QHash<QString, analysis::SessionWorkOns> records;           // by session folder name
+        QHash<QString, analysis::SessionPriorities> records;           // by session folder name
         int chosen = 0, sessions = 0, others = 0, measured = 0;     // the filter's (all 0 under a club scope alone)
         QHash<QString, analysis::OutcomeContrast> contrasts;        // fault condition id -> its counts
     };
@@ -217,8 +217,8 @@ public:
     // A session of this athlete by its folder name, from the index (no summary read); null when it lists none.
     virtual SessionId sessionIdOf(const QString &folderName) = 0;
     virtual const std::vector<AthleteSessionSummary> &summaries() = 0;
-    virtual const std::vector<analysis::WorkOnSummary> &workOns() = 0;
-    virtual const std::vector<analysis::WorkOnSummary> &conditions() = 0;
+    virtual const std::vector<analysis::PrioritySummary> &workOns() = 0;
+    virtual const std::vector<analysis::PrioritySummary> &conditions() = 0;
     virtual const std::vector<analysis::ClubDistanceItem> &distances() = 0;
     virtual NotSummedUp notSummedUp() = 0;
     virtual const AthleteSessionSummary *summaryOf(const QString &folderName) = 0;
@@ -272,9 +272,9 @@ public:
 
     // ── Reads: each recomputes first if stale (DEC-60) ─────────────────────────────────────────────────
     const std::vector<AthleteSessionSummary> &summaries() override;     // by place, oldest first (sessionPlaceBefore)
-    QHash<QString, analysis::SessionWorkOns>  records();       // every summary read, by its sessionId (folder name)
-    const std::vector<analysis::WorkOnSummary>     &workOns() override;      // the athlete work-ons (DEC-138)
-    const std::vector<analysis::WorkOnSummary>     &conditions() override;   // every condition any session assessed
+    QHash<QString, analysis::SessionPriorities>  records();       // every summary read, by its sessionId (folder name)
+    const std::vector<analysis::PrioritySummary>     &workOns() override;      // the athlete work-ons (DEC-138)
+    const std::vector<analysis::PrioritySummary>     &conditions() override;   // every condition any session assessed
     const std::vector<analysis::ClubDistanceItem>  &distances() override;    // Your distances (D7)
     // From the summaries' compact per-shot facts (DEC-192 as Mark amended it, 16 Nov "b"). A summary without them (an
     // older file) adds nothing.
@@ -398,7 +398,7 @@ private:
     QHash<SessionId, AthleteSessionSummary> m_prefetched;   // read on the lane, taken by the next ensure()
     QSet<SessionId> m_heard;
     std::vector<AthleteSessionSummary>      m_summaries;
-    std::vector<analysis::WorkOnSummary>    m_workOns, m_conditions;
+    std::vector<analysis::PrioritySummary>    m_workOns, m_conditions;
     std::vector<analysis::ClubDistanceItem> m_distances;
     analysis::TendencySet                   m_tendencies;
     bool                                    m_tendenciesCurrent = false;

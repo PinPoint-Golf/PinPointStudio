@@ -128,7 +128,7 @@ QJsonArray patternSet(const std::vector<ConditionLedger> &ledgers)
     return QJsonArray::fromStringList(ids);
 }
 
-QJsonObject workOnsJson(const SessionWorkOns &w)
+QJsonObject workOnsJson(const SessionPriorities &w)
 {
     QJsonObject o = toJson(w);
     QJsonArray entries;

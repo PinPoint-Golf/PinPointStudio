@@ -402,7 +402,7 @@ void AthleteDiagnostics::ensure()
     });
 
     // The derived results, each a pure rule over what was read.
-    std::vector<analysis::SessionWorkOns> sessions;
+    std::vector<analysis::SessionPriorities> sessions;
     QHash<QString, std::vector<analysis::ClubSessionPool>> pools;
     for (const AthleteSessionSummary &s : m_summaries) {
         if (!s.read)
@@ -433,7 +433,7 @@ void AthleteDiagnostics::ensure()
         if (s.fromNewerBuild) m_notSummedUp.newerFolders << s.place.folder;   // 4-e: the rest are the catch-up's
     }
     m_conditions = analysis::aggregateConditions(sessions);
-    m_workOns    = analysis::aggregateWorkOns(std::move(sessions));
+    m_workOns    = analysis::aggregatePriorities(std::move(sessions));
     m_distances  = analysis::clubDistancesFromPools(pools);
     ++m_counts.recomputes;
 }
@@ -444,22 +444,22 @@ const std::vector<AthleteSessionSummary> &AthleteDiagnostics::summaries()
     return m_summaries;
 }
 
-QHash<QString, analysis::SessionWorkOns> AthleteDiagnostics::records()
+QHash<QString, analysis::SessionPriorities> AthleteDiagnostics::records()
 {
     ensure();
-    QHash<QString, analysis::SessionWorkOns> out;
+    QHash<QString, analysis::SessionPriorities> out;
     for (const AthleteSessionSummary &s : m_summaries)
         if (s.read) out.insert(s.results.workOns.sessionId, s.results.workOns);
     return out;
 }
 
-const std::vector<analysis::WorkOnSummary> &AthleteDiagnostics::workOns()
+const std::vector<analysis::PrioritySummary> &AthleteDiagnostics::workOns()
 {
     ensure();
     return m_workOns;
 }
 
-const std::vector<analysis::WorkOnSummary> &AthleteDiagnostics::conditions()
+const std::vector<analysis::PrioritySummary> &AthleteDiagnostics::conditions()
 {
     ensure();
     return m_conditions;
@@ -1207,13 +1207,13 @@ namespace {
 
 // One session's record under a club scope or a shot filter, from its chosen shots (moved from WorkOnsController with the
 // scoped job). `stored` is the session's whole record: its clock stands in when none of these shots carried one.
-analysis::SessionWorkOns scopedSessionRecord(const QString &name, const std::vector<analysis::ShotRecord> &shots,
+analysis::SessionPriorities scopedSessionRecord(const QString &name, const std::vector<analysis::ShotRecord> &shots,
                                              const analysis::LedgerOptions &opt, const analysis::CharacteristicPack &pack,
-                                             const analysis::SessionWorkOns &stored)
+                                             const analysis::SessionPriorities &stored)
 {
-    analysis::SessionWorkOns rec = analysis::sessionWorkOnsForPack(&pack, shots, analysis::conditionLedgers(shots, opt));
+    analysis::SessionPriorities rec = analysis::sessionPrioritiesForPack(&pack, shots, analysis::conditionLedgers(shots, opt));
     rec.sessionId = name;
-    for (analysis::WorkOnEntry &e : rec.entries) {
+    for (analysis::PriorityEntry &e : rec.entries) {
         const analysis::Condition *c = pack.condition(e.id);
         e.name = c && !c->label.isEmpty() ? c->label : e.id;
     }
@@ -1278,7 +1278,7 @@ struct ScopedSession {
     QString name;
     SessionPlace place;
     std::shared_ptr<const analysis::SessionReductionInput> rows;
-    analysis::SessionWorkOns stored;
+    analysis::SessionPriorities stored;
     analysis::TendencySessionEvidence evidence;
 };
 
@@ -1396,7 +1396,7 @@ AthleteDiagnostics::Ask AthleteDiagnostics::askScoped(const analysis::ClubScope 
             r.themes = analysis::swingThemesFromJson(f.root, &ok);
             for (const QJsonValue &v : f.root.value(QStringLiteral("records")).toArray()) {
                 bool recordOk = false;
-                analysis::SessionWorkOns rec = analysis::sessionWorkOnsFromJson(v.toObject(), &recordOk);
+                analysis::SessionPriorities rec = analysis::sessionPrioritiesFromJson(v.toObject(), &recordOk);
                 ok = ok && recordOk;
                 r.records.insert(rec.sessionId, std::move(rec));
             }
@@ -1669,8 +1669,8 @@ bool AthleteDiagnostics::cacheFromNewerBuild(bool tendencies, const QStringList 
             return true;
         for (const QJsonValue &v : root.value(QStringLiteral("records")).toArray()) {
             const QJsonObject r = v.toObject();
-            if (r.value(QStringLiteral("schemaVersion")).toInt(0) > analysis::kWorkOnSchemaVersion
-                || r.value(QStringLiteral("ruleVersion")).toInt(0) > analysis::kWorkOnRuleVersion)
+            if (r.value(QStringLiteral("schemaVersion")).toInt(0) > analysis::kPrioritySchemaVersion
+                || r.value(QStringLiteral("ruleVersion")).toInt(0) > analysis::kPriorityRuleVersion)
                 return true;
         }
         return root.value(QStringLiteral("outcome")).toObject().value(QStringLiteral("rule")).toInt(0)

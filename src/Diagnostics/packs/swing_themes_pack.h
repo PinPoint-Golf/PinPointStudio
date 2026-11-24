@@ -19,7 +19,7 @@
 #pragma once
 
 // What the swing themes (src/Coaching/swing_themes.h) need from the diagnostics pack, marshalled
-// so that no pack type reaches the arithmetic — the same split work_ons.h keeps with WorkOnClass.
+// so that no pack type reaches the arithmetic — the same split work_ons.h keeps with PriorityClass.
 // Header-only; links nothing beyond what holding a CharacteristicPack already needs. The two functions
 // that name drills take the drill registry as an argument (RuleData's snapshot's, for a caller reading
 // the app's library; refactor step 3.2 retired the process-wide registry they used to default to).
@@ -159,7 +159,7 @@ inline QHash<QString, ThemeConditionInfo> themeConditionInfo(const Characteristi
         ThemeConditionInfo info;
         info.id         = c.id;
         const ConditionRole role = conditionRoleFor(c);
-        info.fault      = role.isMovementWorkOn();     // as the work-on list: Fault or Setup, not held
+        info.fault      = role.isMovementPriority();     // as the work-on list: Fault or Setup, not held
         info.praisable  = role.praisable;              // a Fault or Setup, not held (rule v5)
         info.detection  = c.detection == DetectionMode::All   ? kThemeDetectionAll
                         : c.detection == DetectionMode::First ? kThemeDetectionFirst

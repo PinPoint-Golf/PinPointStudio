@@ -57,7 +57,7 @@ def state_of(cid, i):
 cards = {c["id"]: c for c in d["cards"]}
 spread = lambda cid: d.get("spread." + cid, {})
 
-# ── the work-on list: reduceSessionWorkOns over the model's ledger (class, resolving, root, score) ──
+# ── the work-on list: reduceSessionPriorities over the model's ledger (class, resolving, root, score) ──
 movement = [c for c in d["cards"] if cond[c["id"]]["kind"] in ("fault", "setup")]
 delivery_cards = [c for c in d["cards"] if cond[c["id"]]["kind"] == "delivery"]
 def score(c): return c["sessionExcess"]

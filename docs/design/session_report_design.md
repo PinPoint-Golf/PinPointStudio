@@ -57,8 +57,8 @@ tests them hardest:
 | Existing piece | What the report takes from it |
 |---|---|
 | `SessionDiagnosticsModel` (cards, watching, chains, driver, bookends, `spreadOf`, `historyOf`, `conditionDetail`, `sequenceConsistency`, `notJudged`) | Every habit, count, value, target range, run of values and link grade. |
-| `reduceSessionWorkOns` (`src/Coaching/work_ons.h`) | The list and its order, **derived fresh** from the model, never read from `work_ons.json`. Nick's `work_ons.json` on the share still says 12 measurable swings on a 10-swing session; it was written before two swings were deleted, and is re-derived only at the next catch-up. |
-| `aggregateWorkOns` and the sibling sessions' records | "Earlier today" and "across sessions": Active, Easing, Cleared, and the tick per session. |
+| `reduceSessionPriorities` (`src/Coaching/work_ons.h`) | The list and its order, **derived fresh** from the model, never read from `work_ons.json`. Nick's `work_ons.json` on the share still says 12 measurable swings on a 10-swing session; it was written before two swings were deleted, and is re-derived only at the next catch-up. |
+| `aggregatePriorities` and the sibling sessions' records | "Earlier today" and "across sessions": Active, Easing, Cleared, and the tick per session. |
 | The pack (`core.json`, `drills.json`, `screens.json`) | Golfer phrasing (`golfer`, `golferWell`, `golferWhy`), aliases, consequences, drills, screens, causal edges. |
 | The launch monitor board's one reduction (`lmBoardOf`) over the session's shots | Every ball number, with the golfer's "Leave out" and club overrides applied (§3, "Launch monitor figures: one source"). The diagnostics ledger supplies the "what came with it" facts where a condition reads an LM measure. |
 | `PpDiagPrint` (the analyst's report) | **Kept, and appended as an optional technical appendix** ("For your coach: the full diagnostics"). It is the same register, unchanged, printed after the client pages from a fresh page. The client report is the front of the same document, not a rival to it. |
@@ -367,7 +367,7 @@ which is the most useful sentence the report can give a coach about the next ses
 This is the section the Product Owner asked for, and the report has to explain the **real** rule, not a
 nicer-sounding one.
 
-### 4.1 The rule today (`reduceSessionWorkOns`, rule v3)
+### 4.1 The rule today (`reduceSessionPriorities`, rule v3)
 
 1. **What is still happening comes first.** A habit that stopped during the session
    (`resolving`) goes to the back.
@@ -382,7 +382,7 @@ nicer-sounding one.
 
 ### 4.2 What the report says about it
 
-The rules are part of the report's data, not just its explanation. `WorkOnEntry` gains a
+The rules are part of the report's data, not just its explanation. `PriorityEntry` gains a
 **`reasons`** record saying which rule placed it:
 - `resolving`;
 - `rootBecause` (ids it is upstream of, with the 2×2 table);
@@ -420,7 +420,7 @@ caption then says, when it is true, that work-on 1 is not the earliest in the sw
 the coach may choose to start earlier. The mock already generates both versions of that
 caption.
 
-Either way the explanation is generated from `reasons`. Option A also needs `kWorkOnRuleVersion`
+Either way the explanation is generated from `reasons`. Option A also needs `kPriorityRuleVersion`
 4, a change to `work_ons_test`, and a library catch-up (every `work_ons.json` is re-derived on
 the next launch, which is the existing stale-record path).
 
@@ -1007,7 +1007,7 @@ it is rejected.
 | | New or changed |
 |---|---|
 | `src/Coaching/session_report.h` | **new**, pure and header-only: strengths selection, reference swing, still choice, range words, "came with it" sets, timeline positions, the ordering reasons. Unit-tested like `work_ons.h`. |
-| `src/Coaching/work_ons.h` | `WorkOnEntry::reasons` and `SessionWorkOns::linksTestable`. Rule v4 too, if option A (§4.3). |
+| `src/Coaching/work_ons.h` | `PriorityEntry::reasons` and `SessionPriorities::linksTestable`. Rule v4 too, if option A (§4.3). |
 | `src/Gui/report/session_report_model.{h,cpp}` | **new**: the façade. It owns the private diagnostics model, assembles the `report` map (every string; QML positions and paints), and drives stills and printing. Registered like `WorkOnsController`. |
 | `src/Gui/report/report_stills.{h,cpp}` | **new**: frame at a phase, pose overlay, crop to the golfer. Worker thread. |
 | `src/Gui/report/PpSessionReport.qml` + blocks (`PpReportCover`, `PpSwingGrid`, `PpOrderPage`, `PpWorkOnPage`, `PpDrillCard`, `PpStill`, `PpBallTiles`, `PpNumbersTable`, `PpReportAbout`) | **new**: the register, on `PpPager` and `PpTypeset` print roles, with page starts as `breakBefore` atoms. The cover suppresses the running head. The appendix is the existing `PpDiagPrint`. |

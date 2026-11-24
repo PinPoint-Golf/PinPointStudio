@@ -36,13 +36,13 @@ inline ConditionRole conditionRoleFor(const Condition &c)
     r.held = !c.reportHold.isEmpty();
     switch (c.kind) {
     case ConditionKind::Fault:
-        r.workOn = WorkOnClass::Movement;
+        r.workOn = PriorityClass::Movement;
         r.layer  = ShotConditionLayer::Swing;
         r.fact   = report::FactKind::Fault;
         r.praisable = true;
         break;
     case ConditionKind::Setup:
-        r.workOn = WorkOnClass::Movement;
+        r.workOn = PriorityClass::Movement;
         r.layer  = ShotConditionLayer::Root;
         r.fact   = report::FactKind::Setup;
         // Mark, 14 Nov 2026: "yes you can praise setup" — a set-up the golfer holds in the ideal range
@@ -50,7 +50,7 @@ inline ConditionRole conditionRoleFor(const Condition &c)
         r.praisable = true;
         break;
     case ConditionKind::Delivery:
-        r.workOn = WorkOnClass::Delivery;
+        r.workOn = PriorityClass::Delivery;
         r.layer  = ShotConditionLayer::Club;
         r.fact   = report::FactKind::Delivery;
         break;
@@ -69,7 +69,7 @@ inline ConditionRole conditionRoleFor(const Condition &c)
     // in the report, and "work-on 1" stays one habit everywhere. The row still grades and still shows on
     // the panel; its layer and report kind are unchanged.
     if (r.held) {
-        r.workOn    = WorkOnClass::Excluded;
+        r.workOn    = PriorityClass::Excluded;
         r.praisable = false;
     }
     return r;
@@ -77,7 +77,7 @@ inline ConditionRole conditionRoleFor(const Condition &c)
 
 // WHAT A CONDITION IS, for the list: Fault and Setup are movements, Delivery fills a short list, the
 // rest is never listed, and a held condition never is. The role's workOn, kept as the list's name for it.
-inline WorkOnClass workOnClassFor(const Condition &c)
+inline PriorityClass priorityClassFor(const Condition &c)
 {
     return conditionRoleFor(c).workOn;
 }

@@ -1382,7 +1382,7 @@ static void testDiagnosis()
           d->flush(/*final=*/true));
     const JsonFileRead wo = rig.store.readWorkOns(s->id());
     bool todayOk = false, growthOk = false;
-    const analysis::SessionWorkOns today = analysis::sessionWorkOnsFromJson(wo.root, &todayOk);
+    const analysis::SessionPriorities today = analysis::sessionPrioritiesFromJson(wo.root, &todayOk);
     const analysis::SessionResults back = analysis::sessionResultsFromJson(wo.root, analysis::SessionResultsRead::Strict, &growthOk);
     check(QStringLiteral("DIAGg work_ons.json: today's reader reads it as today (its keys unchanged)"),
           wo.exists && todayOk && today.shotCount == 3 && today.sessionId == folderName);
@@ -1764,7 +1764,7 @@ static void testResultsJson()
     check(QStringLiteral("RJc … read leniently it is read as it stands (\"Earlier today\"), without DEC-192's keys"),
           ok && !lenient.hasGrowth && lenient.workOns.shotCount == 4 && lenient.reasons.empty());
     QJsonObject newer = root;
-    newer.insert(QStringLiteral("schemaVersion"), analysis::kWorkOnSchemaVersion + 1);
+    newer.insert(QStringLiteral("schemaVersion"), analysis::kPrioritySchemaVersion + 1);
     analysis::sessionResultsFromJson(newer, analysis::SessionResultsRead::Lenient, &ok);
     check(QStringLiteral("RJd a newer schema is never read as ours"), !ok);
     // F10: the link grade is stored by position; the positions are pinned (static_assert in session_results.h too).

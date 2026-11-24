@@ -27,8 +27,8 @@
 // three factors — and their JSON, the shape of work_ons.json (FILE-SESS-05). IDS AND NUMBERS ONLY (R-DER-9): every
 // golfer-facing sentence is the words module's (until step 3.7, the thin adapter's), never written here.
 //
-// COMPOSES THE EXISTING TYPES (FIELD-LIST §0; audit C-10): SessionWorkOns, WorkOnEntry, WorkOnReasons, RootBecause,
-// WorkOnEvidence (work_ons.h), TendencySessionEvidence (tendencies.h), ShotMixBar (shot_outcomes.h), ClubFlightUsual
+// COMPOSES THE EXISTING TYPES (FIELD-LIST §0; audit C-10): SessionPriorities, PriorityEntry, PriorityReasons, RootBecause,
+// PriorityEvidence (work_ons.h), TendencySessionEvidence (tendencies.h), ShotMixBar (shot_outcomes.h), ClubFlightUsual
 // (strike_from_flight.h), ClubSessionPool (club_distances.h), ShotOutcome's id and number fields, ShotFactors. New
 // structs only where none exists. The root is NOT called SessionSummary (pinpoint::SessionSummary is the session
 // list's row, src/Gui/review/session_summary.h).
@@ -82,7 +82,7 @@ static_assert(int(LinkGrade::Unanchored) == 0 && int(LinkGrade::PresentTogether)
                   && int(LinkGrade::ConditionallyDependent) == 3 && int(LinkGrade::MovedTogether) == 4,
               "LinkGrade is persisted by position: never reorder it (FIELD-LIST F10)");
 
-// DEC-192's keys' own version (today's keys keep kWorkOnSchemaVersion / kWorkOnRuleVersion).
+// DEC-192's keys' own version (today's keys keep kPrioritySchemaVersion / kPriorityRuleVersion).
 // 1 (16 Nov 2026, refactor 3.5-ii): shots, usuals, carryToday, clubMix, clubWindows, reasons, because, shotMix.
 // 2 (16 Nov 2026, refactor 3.6 round 2): each shot's full judged rows — withdrawn (Mark, 16 Nov, "b": never the rows).
 // 3 (16 Nov 2026, refactor 3.6 round 3; DEC-192 as amended by Mark's "b", build/refactor/step-3/ANSWERS.md "Summary
@@ -200,7 +200,7 @@ struct SummarySwing {
 
 // ── FIELD-LIST §1.1: the root ─────────────────────────────────────────────────────────────────────────────────────
 struct SessionResults {
-    SessionWorkOns          workOns;          // today's keys §1.1–1.5 (sessionId … evidence)
+    SessionPriorities          workOns;          // today's keys §1.1–1.5 (sessionId … evidence)
     TendencySessionEvidence outcomeEvidence;  // §1.6
     SummaryProvenance       derivedFrom;      // §1.8
     // DEC-192's growth (FIELD-LIST §3), so the athlete level reads summaries only (DEC-92, R-DER-3):
@@ -612,8 +612,8 @@ inline QJsonObject sessionResultsToJson(const SessionResults &r)
 inline bool sessionResultsFromNewerBuild(const QJsonObject &root)
 {
     const QJsonObject factsRules = root.value(QStringLiteral("factsRules")).toObject();
-    return root.value(QStringLiteral("schemaVersion")).toInt(0) > kWorkOnSchemaVersion
-        || root.value(QStringLiteral("ruleVersion")).toInt(0) > kWorkOnRuleVersion
+    return root.value(QStringLiteral("schemaVersion")).toInt(0) > kPrioritySchemaVersion
+        || root.value(QStringLiteral("ruleVersion")).toInt(0) > kPriorityRuleVersion
         || root.value(QStringLiteral("resultsVersion")).toInt(0) > kSessionResultsVersion
         || factsRules.value(QStringLiteral("tendency")).toInt(0) > kTendencyRuleVersion
         || factsRules.value(QStringLiteral("theme")).toInt(0) > kThemeRuleVersion
@@ -633,12 +633,12 @@ inline SessionResults sessionResultsFromJson(const QJsonObject &root, SessionRes
     SessionResults r;
     QJsonObject src = root;
     if (mode == SessionResultsRead::Lenient && !src.isEmpty()
-        && src.value(QStringLiteral("schemaVersion")).toInt(0) <= kWorkOnSchemaVersion) {
-        src[QStringLiteral("schemaVersion")] = kWorkOnSchemaVersion;
-        src[QStringLiteral("ruleVersion")]   = kWorkOnRuleVersion;
+        && src.value(QStringLiteral("schemaVersion")).toInt(0) <= kPrioritySchemaVersion) {
+        src[QStringLiteral("schemaVersion")] = kPrioritySchemaVersion;
+        src[QStringLiteral("ruleVersion")]   = kPriorityRuleVersion;
     }
     bool current = false;
-    r.workOns = sessionWorkOnsFromJson(src, &current);
+    r.workOns = sessionPrioritiesFromJson(src, &current);
     if (ok) *ok = current;
     if (!current) return SessionResults{};
     r.outcomeEvidence = tendencyEvidenceFromJson(src.value(QStringLiteral("outcomeEvidence")).toObject());

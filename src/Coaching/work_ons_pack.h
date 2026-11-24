@@ -23,7 +23,7 @@
 // diagnostics' list and the session report (SessionDiagnosticsModel::sessionWorkOns), and the Charts
 // Posture section's head line and Findings (SessionSeriesModel → SessionSnapshot::workOnOrder) —
 // orders by the same rule: roots before symptoms, still happening before resolving, sharp first, then
-// where in the swing, then the bigger miss (reduceSessionWorkOns, rule v4).
+// where in the swing, then the bigger miss (reduceSessionPriorities, rule v4).
 //
 // Moved verbatim out of SessionDiagnosticsModel::sessionWorkOns() (22 Oct 2026); that member now calls
 // this. `opt` is the caller's: the list caps at five, a reader that wants the ORDER of every session
@@ -31,7 +31,7 @@
 // runs before the cut).
 
 #include "work_ons.h"
-#include "condition_role_pack.h"                  // workOnClassFor
+#include "condition_role_pack.h"                  // priorityClassFor
 #include "../Diagnostics/engine/characteristic.h"
 #include "../Diagnostics/engine/condition_reading.h"
 #include "../Diagnostics/measures/measure_facets.h"   // phaseLabel
@@ -40,41 +40,41 @@
 
 namespace pinpoint::analysis {
 
-// WHAT A CONDITION IS, for the list — workOnClassFor(), the role's workOn (condition_role_pack.h):
+// WHAT A CONDITION IS, for the list — priorityClassFor(), the role's workOn (condition_role_pack.h):
 // Fault and Setup are movements, Delivery fills a short list, the rest is never listed, and a HELD
 // condition (Condition::reportHold) is never a work-on. One projection, so the session's list, Home's
 // areas (swing_areas_pack.h) and Home → Your swing (swing_themes_pack.h) classify by the same rule.
 
-inline SessionWorkOns sessionWorkOnsForPack(const CharacteristicPack *pack, const std::vector<ShotRecord> &shots,
+inline SessionPriorities sessionPrioritiesForPack(const CharacteristicPack *pack, const std::vector<ShotRecord> &shots,
                                             const std::vector<ConditionLedger> &ledgers,
-                                            const WorkOnOptions &opt = WorkOnOptions())
+                                            const PriorityOptions &opt = PriorityOptions())
 {
-    QHash<QString, WorkOnClass> classOf;
+    QHash<QString, PriorityClass> classOf;
     QHash<QString, double>      swingPosOf;
-    WorkOnCauses causes;
-    WorkOnSharedEvidence shared;
+    PriorityCauses causes;
+    PrioritySharedEvidence shared;
     if (pack) {
-        for (const Condition &c : pack->conditions) classOf.insert(c.id, workOnClassFor(c));
+        for (const Condition &c : pack->conditions) classOf.insert(c.id, priorityClassFor(c));
         for (const Edge &e : pack->edges)
             if (e.type == EdgeType::Causes) {
                 causes.emplace_back(e.from, e.to);
                 // the panel's cap, carried into the list: measured from the same readings, never tested
-                if (e.sharedEvidence) shared.insert(workOnEdgeKey(e.from, e.to));
+                if (e.sharedEvidence) shared.insert(priorityEdgeKey(e.from, e.to));
             }
 
         // WHERE IN THE SWING each condition is read, for rule v4's swing order (work_ons.h, above
-        // workOnSwingPosOfPhase): where the ledger's driving measure's reduction lands — the same
+        // prioritySwingPosOfPhase): where the ledger's driving measure's reduction lands — the same
         // reading, and so the same P-position, the card's phase chip names (measurePhaseOf). A
         // session-scope condition is read over the session's swings and sorts after all of them.
         for (const ConditionLedger &l : ledgers) {
             const ConditionReading r = conditionReadingFor(*pack, l.id, l.drivingMeasureId);
             const Measure *m = r.found ? pack->measure(r.measureId) : nullptr;
             const bool sessionLevel = l.sessionScope || (m && m->scope == MeasureScope::Session);
-            swingPosOf.insert(l.id, (sessionLevel || !r.found) ? kWorkOnSwingPosSession
-                                                               : workOnSwingPosOfPhase(phaseLabel(Phase(r.phase))));
+            swingPosOf.insert(l.id, (sessionLevel || !r.found) ? kPrioritySwingPosSession
+                                                               : prioritySwingPosOfPhase(phaseLabel(Phase(r.phase))));
         }
     }
-    return reduceSessionWorkOns(shots, ledgers, classOf, causes, swingPosOf, opt, shared);
+    return reduceSessionPriorities(shots, ledgers, classOf, causes, swingPosOf, opt, shared);
 }
 
 } // namespace pinpoint::analysis

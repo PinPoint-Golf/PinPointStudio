@@ -90,11 +90,11 @@ LedgerOptions flatOpts()
 }
 
 // A session: its ledgers and its work-on record, the record reduced from the pack facts the way
-// the session reduction marshals them (sessionWorkOnsForPack, work_ons_pack.h; held → Excluded).
+// the session reduction marshals them (sessionPrioritiesForPack, work_ons_pack.h; held → Excluded).
 struct Session {
     std::vector<ShotRecord>      shots;
     std::vector<ConditionLedger> ledgers;
-    SessionWorkOns               workOns;
+    SessionPriorities               workOns;
 };
 
 Session sessionFrom(const std::vector<Plan> &plans, const ReportPack &pack, const QHash<QString, double> &pos = {})
@@ -102,17 +102,17 @@ Session sessionFrom(const std::vector<Plan> &plans, const ReportPack &pack, cons
     Session s;
     s.shots = sessionOf(plans);
     s.ledgers = conditionLedgers(s.shots, flatOpts());
-    QHash<QString, WorkOnClass> cls;
+    QHash<QString, PriorityClass> cls;
     for (const ReportCondition &c : pack.conditions) {
-        WorkOnClass k = WorkOnClass::Excluded;
-        if (c.kind == FactKind::Fault || c.kind == FactKind::Setup) k = WorkOnClass::Movement;
-        if (c.kind == FactKind::Delivery) k = WorkOnClass::Delivery;
-        if (c.held) k = WorkOnClass::Excluded;
+        PriorityClass k = PriorityClass::Excluded;
+        if (c.kind == FactKind::Fault || c.kind == FactKind::Setup) k = PriorityClass::Movement;
+        if (c.kind == FactKind::Delivery) k = PriorityClass::Delivery;
+        if (c.held) k = PriorityClass::Excluded;
         cls.insert(c.id, k);
     }
-    WorkOnCauses causes;
+    PriorityCauses causes;
     for (const ReportCause &e : pack.causes) causes.emplace_back(e.from, e.to);
-    s.workOns = reduceSessionWorkOns(s.shots, s.ledgers, cls, causes, pos);
+    s.workOns = reduceSessionPriorities(s.shots, s.ledgers, cls, causes, pos);
     return s;
 }
 
@@ -137,7 +137,7 @@ void cause(ReportPack &p, const char *from, const char *to, int strength = 2)
 QStringList idsOf(const std::vector<StrengthPick> &v) { QStringList o; for (const auto &x : v) o << x.id; return o; }
 QStringList idsOf(const std::vector<CauseItem> &v)    { QStringList o; for (const auto &x : v) o << x.id; return o; }
 QStringList idsOf(const std::vector<CameWithItem> &v) { QStringList o; for (const auto &x : v) o << x.id; return o; }
-QStringList idsOf(const SessionWorkOns &w)            { QStringList o; for (const auto &x : w.entries) o << x.id; return o; }
+QStringList idsOf(const SessionPriorities &w)            { QStringList o; for (const auto &x : w.entries) o << x.id; return o; }
 
 // A two-sided corridor, pass lo..hi, fault lines faultLo/faultHi.
 SpreadCorridor twoSided(double lo, double hi, double faultLo, double faultHi)
@@ -603,7 +603,7 @@ int main()
         QStringList eligible;
         for (const ConditionLedger &l : s.ledgers) {
             std::vector<ConditionLedger> one{ l };
-            if (!pickStrengths(one, 10, SessionWorkOns{}, noLinks).empty()) eligible << l.id;
+            if (!pickStrengths(one, 10, SessionPriorities{}, noLinks).empty()) eligible << l.id;
         }
         check(eligible.contains("eight") && !eligible.contains("patchy"),
               "judged on 8 of 10 qualifies (80 %), 7 of 10 does not");
@@ -831,7 +831,7 @@ int main()
         const CauseGroups g = causeGroups("ee", s.ledgers, s.workOns, p);
         check(idsOf(g.all) == (QStringList{ "hipIr", "fine", "ott", "hidden", "plannedJudged", "held", "lumbar", "someTimes" }),
               "every authored cause, strongest edge first then pack order; a retired condition is no longer a claim");
-        check(idsOf(g.spotted) == QStringList{ "ott" } && g.spotted[0].workOnRank > 0 && !g.spotted[0].supported
+        check(idsOf(g.spotted) == QStringList{ "ott" } && g.spotted[0].priorityRank > 0 && !g.spotted[0].supported
                   && g.spotted[0].everySwing && g.spottedEverySwing && !g.spottedSupported,
               "spotted: a session habit, with its work-on number; on every swing, so not supported");
         check(idsOf(g.couldBe) == (QStringList{ "hipIr", "hidden", "held", "lumbar" })
@@ -941,18 +941,18 @@ int main()
               && near(timelineStop(4.0), 2.0, 1e-12) && near(timelineStop(4.5), 2.5, 1e-12) && near(timelineStop(6.0), 3.0, 1e-12)
               && near(timelineStop(7.0), 4.0, 1e-12) && near(timelineStop(8.0), 5.0, 1e-12) && near(timelineStop(10.0), 5.0, 1e-12),
               "P-positions onto the six stops: address, backswing, top, coming down, impact, finish");
-        SessionWorkOns w;
+        SessionPriorities w;
         auto entry = [](const char *id, int rank, double pos) {
-            WorkOnEntry e; e.id = QString::fromLatin1(id); e.rank = rank; e.reasons.swingPos = pos; return e;
+            PriorityEntry e; e.id = QString::fromLatin1(id); e.rank = rank; e.reasons.swingPos = pos; return e;
         };
         w.entries = { entry("stance", 1, 1.0), entry("dip", 2, 4.0), entry("spine", 3, 4.0), entry("wing", 4, 8.0),
-                      entry("seq", 5, kWorkOnSwingPosSession) };
-        const Timeline t = workOnTimeline(w);
+                      entry("seq", 5, kPrioritySwingPosSession) };
+        const Timeline t = priorityTimeline(w);
         check(t.marks.size() == 4 && t.sessionLevel == 1 && t.firstIsEarliest, "a session-level habit has no place; work-on 1 is earliest");
         check(t.marks.size() == 4 && t.marks[1].lane == 0 && t.marks[2].lane == 1 && near(t.marks[3].stop, 5.0, 1e-12),
               "two at the top take two lanes");
         w.entries[0].reasons.swingPos = 7.0;
-        check(!workOnTimeline(w).firstIsEarliest, "work-on 1 at impact is not the earliest (v3's case: 'your coach may start earlier')");
+        check(!priorityTimeline(w).firstIsEarliest, "work-on 1 at impact is not the earliest (v3's case: 'your coach may start earlier')");
     }
 
     // ── The photo rule (§7.3) ───────────────────────────────────────────────────
@@ -1058,16 +1058,16 @@ int main()
         // The model's own tiers (soft tiers included), from its cards.
         for (ConditionLedger &l : s.ledgers)
             l.tier = patterns.contains(l.id) ? Tier::Pattern : l.fired > 0 ? Tier::Watching : Tier::Clean;
-        QHash<QString, WorkOnClass> cls;
+        QHash<QString, PriorityClass> cls;
         for (const ReportCondition &c : p.conditions)
-            cls.insert(c.id, c.kind == FactKind::Fault || c.kind == FactKind::Setup ? WorkOnClass::Movement
-                           : c.kind == FactKind::Delivery ? WorkOnClass::Delivery : WorkOnClass::Excluded);
-        WorkOnCauses causes;
+            cls.insert(c.id, c.kind == FactKind::Fault || c.kind == FactKind::Setup ? PriorityClass::Movement
+                           : c.kind == FactKind::Delivery ? PriorityClass::Delivery : PriorityClass::Excluded);
+        PriorityCauses causes;
         for (const ReportCause &e : p.causes) causes.emplace_back(e.from, e.to);
         QHash<QString, double> pos;
         std::vector<HabitRun> runs;
         for (const NickRun &r : kNickRuns) {
-            pos.insert(QString::fromLatin1(r.id), workOnSwingPosOfPhase(QString::fromLatin1(r.phase)));
+            pos.insert(QString::fromLatin1(r.id), prioritySwingPosOfPhase(QString::fromLatin1(r.phase)));
             SpreadCorridor c;
             c.known = true;
             c.lowOpen = r.lowOpen;
@@ -1080,7 +1080,7 @@ int main()
             c.faultHi = r.faultHi;
             runs.push_back(HabitRun{ QString::fromLatin1(r.id), std::vector<double>(r.values, r.values + 10), c });
         }
-        s.workOns = reduceSessionWorkOns(s.shots, s.ledgers, cls, causes, pos);
+        s.workOns = reduceSessionPriorities(s.shots, s.ledgers, cls, causes, pos);
 
         check(!s.workOns.linksTestable, "Nick: every habit on every swing (or all but one) — no link testable");
         check(idsOf(s.workOns) == (QStringList{ "trail_knee_straighten", "over_the_top", "reverse_spine_p4",
@@ -1096,7 +1096,7 @@ int main()
         check(!heel, "…and 'Nothing off the heel' is not among them (toe strike showed)");
 
         std::vector<HabitRun> workOnRuns;
-        for (const WorkOnEntry &e : s.workOns.entries)
+        for (const PriorityEntry &e : s.workOns.entries)
             for (const HabitRun &h : runs) if (h.id == e.id) workOnRuns.push_back(h);
         const ReferenceSwing ref = referenceSwing(workOnRuns);
         check(ref.index == 2, "Nick's reference swing is swing 3, as the mock printed");
@@ -1109,7 +1109,7 @@ int main()
         check(knee.lead == CauseLead::AllRuledOut && hips.lead == CauseLead::AllRuledOut,
               "Nick's knee and hips: every authored cause checked and fine (the mock's lead)");
         check(ee.lead == CauseLead::Spotted && idsOf(ee.spotted) == QStringList{ "over_the_top" }
-                  && ee.spotted[0].workOnRank == 2 && ee.spottedEverySwing && !ee.spottedSupported,
+                  && ee.spotted[0].priorityRank == 2 && ee.spottedEverySwing && !ee.spottedSupported,
               "Nick's early extension: over the top spotted (now work-on 2), on every swing so not proven");
         check(ott.lead == CauseLead::Unchecked && rs.lead == CauseLead::Unchecked,
               "Nick's over the top and reverse spine: nothing spotted, some causes unchecked");
@@ -1139,7 +1139,7 @@ int main()
         const OrderExplanation why = explainOrder(s.workOns, s.ledgers, p);
         check(why.whyNot == LinksUntestable::CauseOnEverySwing && why.bySwingOrder == 1 && why.byMagnitude == 3,
               "Nick's page 3: links untestable (causes on every swing); swing order set one place, the miss three");
-        const Timeline tl = workOnTimeline(s.workOns);
+        const Timeline tl = priorityTimeline(s.workOns);
         check(tl.firstIsEarliest && tl.marks.size() == 5, "Nick's work-on 1 is now also the earliest in the swing");
     }
 

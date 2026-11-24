@@ -50,10 +50,10 @@ SessionIndexSummary SessionIndexSummaries::read(const QString &sessionFolder)
         // which no work-on rule decides. Absent (a summary written before the block): `has` false, not summarised yet.
         out.gates = analysis::sessionGatesFromJson(f.root.value(QStringLiteral("gates")));
         bool ok = false;
-        const analysis::SessionWorkOns rec = analysis::sessionWorkOnsFromJson(f.root, &ok);
+        const analysis::SessionPriorities rec = analysis::sessionPrioritiesFromJson(f.root, &ok);
         if (ok) {
             out.workOn.known = true;
-            for (const analysis::WorkOnEntry &e : rec.entries) {
+            for (const analysis::PriorityEntry &e : rec.entries) {
                 if (e.rank == 1 || out.workOn.id.isEmpty()) { out.workOn.id = e.id; out.workOn.name = e.name; }
                 if (e.rank == 1) break;
             }

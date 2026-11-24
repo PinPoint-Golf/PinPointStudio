@@ -1,0 +1,45 @@
+# B1.8: the priorities' renames (GL-71; IM v1.10.0). Read by tools/refactor/rename_identifiers.py.
+# Every WorkOn*/workOn* type, enum, alias, struct, constant and function DECLARED in the rules files
+# (src/Coaching: work_ons.h, work_ons_pack.h, condition_role_pack.h, condition_role.h, session_report.h; session_results.h
+# and swing_areas.h declare none, only data members). Left out, never renamed here (build/platform/B1/NOTES-B1.8.md):
+#   data members (ConditionRole::workOn, SessionResults::workOns, AreaItem::workOn, AreaSummary::workOnsActive/workOnsNew,
+#   StrengthPick::causeOfWorkOn): whole-word matching cannot tell them from QML's app.workOns, it.workOn and map keys;
+#   names declared outside the rules (Gui presenters such as WorkOnsController and WorkOnKnownRole, DomainModel's readers,
+#   Export, tools): not this item's; file names (work_ons.h, work_ons.json); every string literal (persisted keys, gate ids).
+old	new	declared	note	reviewed
+kWorkOnSchemaVersion	kPrioritySchemaVersion	src/Coaching/work_ons.h:83	value 3 kept; work_ons.json's schemaVersion	
+kWorkOnRuleVersion	kPriorityRuleVersion	src/Coaching/work_ons.h:93	value 6 kept; work_ons.json's ruleVersion	
+kWorkOnMaxPerSession	kPriorityMaxPerSession	src/Coaching/work_ons.h:98	value 5 kept	
+kWorkOnMinPerSession	kPriorityMinPerSession	src/Coaching/work_ons.h:99	value 3 kept	
+kWorkOnQuietWilsonUb	kPriorityQuietWilsonUb	src/Coaching/work_ons.h:104	value 0.50 kept	
+kWorkOnRecencyDecay	kPriorityRecencyDecay	src/Coaching/work_ons.h:116	value 0.75 kept	
+kWorkOnClearAfterQuiet	kPriorityClearAfterQuiet	src/Coaching/work_ons.h:118	value 2 kept	
+WorkOnOptions	PriorityOptions	src/Coaching/work_ons.h:120	struct	
+WorkOnClass	PriorityClass	src/Coaching/work_ons.h:147	enum class; enumerators and their strings unchanged (GL-71's example)	
+kWorkOnSwingPosSession	kPrioritySwingPosSession	src/Coaching/work_ons.h:222	value 11.0 kept	
+workOnSwingPosOfPhase	prioritySwingPosOfPhase	src/Coaching/work_ons.h:224	free function	
+WorkOnReasons	PriorityReasons	src/Coaching/work_ons.h:263	struct	
+WorkOnTypical	PriorityTypical	src/Coaching/work_ons.h:288	struct	
+WorkOnEntry	PriorityEntry	src/Coaching/work_ons.h:323	struct	
+WorkOnEvidence	PriorityEvidence	src/Coaching/work_ons.h:353	struct	
+SessionWorkOns	SessionPriorities	src/Coaching/work_ons.h:373	struct: one session's record, what work_ons.json holds (GL-69)	
+WorkOnCauses	PriorityCauses	src/Coaching/work_ons.h:414	alias	
+WorkOnSharedEvidence	PrioritySharedEvidence	src/Coaching/work_ons.h:421	alias	
+workOnEdgeKey	priorityEdgeKey	src/Coaching/work_ons.h:422	free function; the key's text is unchanged	
+reduceSessionWorkOns	reduceSessionPriorities	src/Coaching/work_ons.h:485	free function (two overloads)	
+WorkOnStatus	PriorityStatus	src/Coaching/work_ons.h:676	enum class; status strings unchanged	
+workOnStatusToString	priorityStatusToString	src/Coaching/work_ons.h:682	free function; its strings unchanged	
+WorkOnPoint	PriorityPoint	src/Coaching/work_ons.h:694	struct	
+WorkOnSummary	PrioritySummary	src/Coaching/work_ons.h:704	struct: the athlete level's row (GL-70)	
+WorkOnScope	PriorityScope	src/Coaching/work_ons.h:743	enum class	
+aggregateWorkOnsIn	aggregatePrioritiesIn	src/Coaching/work_ons.h:749	free function	
+aggregateWorkOns	aggregatePriorities	src/Coaching/work_ons.h:877	free function	
+workOnClassToString	priorityClassToString	src/Coaching/work_ons.h:902	free function; its strings unchanged	
+workOnClassFromString	priorityClassFromString	src/Coaching/work_ons.h:912	free function; its strings unchanged	
+sessionWorkOnsFromJson	sessionPrioritiesFromJson	src/Coaching/work_ons.h:995	free function; keys unchanged	
+sessionWorkOnsForPack	sessionPrioritiesForPack	src/Coaching/work_ons_pack.h:48	free function	
+workOnClassFor	priorityClassFor	src/Coaching/condition_role_pack.h:80	free function; a rules file beside condition_role.h (not in the brief's list; owner clear: rules)	
+isMovementWorkOn	isMovementPriority	src/Coaching/condition_role.h:65	member function of ConditionRole (its field workOn is kept: see below)	
+kStillWorkOns	kStillPriorities	src/Coaching/session_report.h:98	value 3 kept	
+workOnRank	priorityRank	src/Coaching/session_report.h:181	free function; CauseItem's field of the same name (session_report.h) renames with it: C++ only, no literal, no QML	
+workOnTimeline	priorityTimeline	src/Coaching/session_report.h:854	free function	

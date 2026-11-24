@@ -759,9 +759,9 @@ void WorkOnsController::publish()
         for (const pinpoint::AthleteSessionSummary &sum : src->summaries())
             if (sum.read) m_records.insert(dirOfFolder(sum.place.folder), sum.results.workOns);
     refreshNotSummedUp();
-    const SessionWorkOns *newest = nullptr;
+    const SessionPriorities *newest = nullptr;
     for (auto it = m_records.constBegin(); it != m_records.constEnd(); ++it) {
-        const SessionWorkOns &r = it.value();
+        const SessionPriorities &r = it.value();
         // The newest by when it was played — the aggregate's own order (start, then id).
         if (!newest || r.startMs > newest->startMs || (r.startMs == newest->startMs && r.sessionId > newest->sessionId))
             newest = &r;
@@ -773,7 +773,7 @@ void WorkOnsController::publish()
             { QStringLiteral("shots"), newest->shotCount },
         };
 
-    static const std::vector<WorkOnSummary> kNone;
+    static const std::vector<PrioritySummary> kNone;
     const DescribedWorkOns all = describeWorkOns(m_records, src ? src->conditions() : kNone, src ? src->workOns() : kNone);
     m_items = all.items;
     m_clearedCount = all.cleared;
@@ -785,7 +785,7 @@ void WorkOnsController::publish()
     updateClubScope();
 }
 
-const QHash<QString, SessionWorkOns> &WorkOnsController::shownRecords() const
+const QHash<QString, SessionPriorities> &WorkOnsController::shownRecords() const
 {
     return m_summaryScope == clubScopeAllKey() ? m_records : m_scopedRecords;
 }
@@ -795,7 +795,7 @@ void WorkOnsController::publishScreens(const DescribedWorkOns *known)
     followPackSave();
     const CharacteristicPack &pack = m_packProv->pack();
 
-    const QHash<QString, SessionWorkOns> &records = shownRecords();
+    const QHash<QString, SessionPriorities> &records = shownRecords();
     DescribedWorkOns scoped;
     if (!known) {
         if (&records == &m_records && owner()) {
@@ -803,10 +803,10 @@ void WorkOnsController::publishScreens(const DescribedWorkOns *known)
         } else {
             // A scope's or a filter's records (the owner's scoped result, DEC-195): their aggregates are worked out
             // here from those records, as before.
-            std::vector<SessionWorkOns> sessions;
+            std::vector<SessionPriorities> sessions;
             for (auto it = records.constBegin(); it != records.constEnd(); ++it) sessions.push_back(it.value());
-            const std::vector<WorkOnSummary> every = aggregateConditions(sessions);
-            const std::vector<WorkOnSummary> agg   = aggregateWorkOns(std::move(sessions));
+            const std::vector<PrioritySummary> every = aggregateConditions(sessions);
+            const std::vector<PrioritySummary> agg   = aggregatePriorities(std::move(sessions));
             scoped = describeWorkOns(records, every, agg, &m_shownOutcome);
         }
         known = &scoped;
@@ -818,7 +818,7 @@ void WorkOnsController::publishScreens(const DescribedWorkOns *known)
 
     // One call — the every-condition aggregate, and the same again without the newest substantive session for
     // the trend — per publish, on this thread; the aggregate's per-session evidence index keeps it linear.
-    std::vector<SessionWorkOns> sessions;
+    std::vector<SessionPriorities> sessions;
     sessions.reserve(size_t(records.size()));
     for (auto it = records.constBegin(); it != records.constEnd(); ++it) sessions.push_back(it.value());
     publishAreas(pack, sessions);
@@ -827,27 +827,27 @@ void WorkOnsController::publishScreens(const DescribedWorkOns *known)
     emit areasChanged();
 }
 
-WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHash<QString, SessionWorkOns> &records,
-                                                                      const std::vector<WorkOnSummary> &every,
-                                                                      const std::vector<WorkOnSummary> &agg,
+WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHash<QString, SessionPriorities> &records,
+                                                                      const std::vector<PrioritySummary> &every,
+                                                                      const std::vector<PrioritySummary> &agg,
                                                                       const ShownOutcome *outcome)
 {
     followPackSave();
     const CharacteristicPack &pack = m_packProv->pack();
     const DrillSet &drills = sharedDrillSet();
 
-    std::vector<SessionWorkOns> sessions;
+    std::vector<SessionPriorities> sessions;
     sessions.reserve(size_t(records.size()));
     QHash<QString, QString> dirOf;      // session id -> dir
     QSet<QString> substantive;          // sessions that could say something about something
     for (auto it = records.constBegin(); it != records.constEnd(); ++it) {
-        const SessionWorkOns &r = it.value();
+        const SessionPriorities &r = it.value();
         sessions.push_back(r);
         dirOf.insert(r.sessionId, it.key());
         if (r.substantive()) substantive.insert(r.sessionId);
     }
     int totalSwings = 0;
-    for (const SessionWorkOns &s : sessions) totalSwings += s.shotCount;
+    for (const SessionPriorities &s : sessions) totalSwings += s.shotCount;
     QHash<QString, MarksRequest> markRequests;
 
     // Every condition any session assessed, for the details Home opens in place; then the list (the caller's aggregates:
@@ -859,12 +859,12 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
     };
 
     // One condition's summary in words: a work-on row, or the detail of any condition.
-    const auto describe = [&](const WorkOnSummary &w) {
+    const auto describe = [&](const PrioritySummary &w) {
         const Condition *cond = pack.condition(w.id);
         QVariantMap m;
         m[QStringLiteral("id")]        = w.id;
         m[QStringLiteral("name")]      = nameOf(w.id, w.name);
-        m[QStringLiteral("status")]    = workOnStatusToString(w.status);
+        m[QStringLiteral("status")]    = priorityStatusToString(w.status);
         // The swing area it belongs to: the pack's ConditionGroup token, the same token as an
         // areaItems entry's `group`, so a work-on can be placed in its area ("" when the
         // pack no longer holds the condition).
@@ -898,14 +898,14 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
         // The status in words. An easing fault says what eased it; an active one that no recent
         // session could measure says so rather than passing for freshly confirmed.
         QString statusText;
-        const WorkOnPoint *lastPattern = w.latestPatternIndex >= 0 ? &w.history[size_t(w.latestPatternIndex)] : nullptr;
-        const WorkOnPoint *lastConclusive = w.latestConclusiveIndex >= 0 ? &w.history[size_t(w.latestConclusiveIndex)] : nullptr;
+        const PriorityPoint *lastPattern = w.latestPatternIndex >= 0 ? &w.history[size_t(w.latestPatternIndex)] : nullptr;
+        const PriorityPoint *lastConclusive = w.latestConclusiveIndex >= 0 ? &w.history[size_t(w.latestConclusiveIndex)] : nullptr;
         // A later session that measured OTHER things and not this one. Three balls
         // that measured nothing are not a session this fault went missing from.
         bool unmeasuredSince = false;
         for (int i = w.latestConclusiveIndex + 1; i < int(w.history.size()); ++i)
             if (substantive.contains(w.history[size_t(i)].sessionId)) unmeasuredSince = true;
-        if (w.status == WorkOnStatus::Easing && lastConclusive)
+        if (w.status == PriorityStatus::Easing && lastConclusive)
             statusText = QStringLiteral("Easing — %1 of %2 measurable shots on %3")
                              .arg(lastConclusive->fired).arg(lastConclusive->assessable)
                              .arg(dayLabel(lastConclusive->startMs));
@@ -919,7 +919,7 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
                                     const QString &measureId, double typical, double lo, double hi,
                                     CorridorShape shape) {
             qint64 when = 0;
-            for (const WorkOnPoint &p : w.history) if (p.sessionId == sessionId) when = p.startMs;
+            for (const PriorityPoint &p : w.history) if (p.sessionId == sessionId) when = p.startMs;
             QString text = QStringLiteral("%1 · %2").arg(dayLabel(when), recurrenceText(fired, assessable));
             if (hasTypical) {
                 const Measure *mm = pack.measure(measureId);
@@ -943,7 +943,7 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
         };
         QString latestText;
         if (w.hasLatest) {
-            const WorkOnEntry &e = w.latest;
+            const PriorityEntry &e = w.latest;
             latestText = latestLine(w.latestSessionId, e.fired, e.assessable, e.hasTypical, e.measureId,
                                     e.typicalValue, e.corridorLo, e.corridorHi, e.corridorShape);
             QStringList causes, maybe;
@@ -956,7 +956,7 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
                              .arg(maybe.join(QStringLiteral(", ")));
             m[QStringLiteral("causedByText")] = lines.join(QStringLiteral(" · "));
         } else if (w.hasLatestEvidence) {
-            const WorkOnEvidence &e = w.latestEvidence;
+            const PriorityEvidence &e = w.latestEvidence;
             latestText = latestLine(w.latestEvidenceSessionId, e.fired, e.assessable, e.hasTypical, e.measureId,
                                     e.typicalValue, e.corridorLo, e.corridorHi, e.corridorShape);
         }
@@ -1001,15 +1001,15 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
     QVariantList items;
     int cleared = 0;
     QHash<QString, QVariantMap> details;
-    for (const WorkOnSummary &w : every) {
+    for (const PrioritySummary &w : every) {
         // A status read off evidence alone: a never-listed pattern would say Active. Only the list
         // speaks of work-on status, so a condition that is not on it says nothing in that line.
         QVariantMap m = describe(w);
         if (w.sessionsListed == 0) m[QStringLiteral("statusText")] = QString();
         details.insert(w.id, withContrast(m, w.id));
     }
-    for (const WorkOnSummary &w : agg) {
-        if (w.status == WorkOnStatus::Cleared) { ++cleared; continue; }
+    for (const PrioritySummary &w : agg) {
+        if (w.status == PriorityStatus::Cleared) { ++cleared; continue; }
         const QVariantMap m = describe(w);
         details.insert(w.id, withContrast(m, w.id));     // a listed one's detail is its row, plus the contrast
         items.append(m);
@@ -1238,7 +1238,7 @@ bool WorkOnsController::onBallInScope(const QString &tendencyKey) const
 // The areas of "Your swing" (swing_areas.h), every string final but the grade's colour. Built from
 // the records, not the themes, so it is current whenever the list is. No session with a record: no
 // rows at all — eight areas reading "not measured" would blame a rig for a library with nothing in it.
-void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::vector<SessionWorkOns> &sessions)
+void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::vector<SessionPriorities> &sessions)
 {
     m_areaItems.clear();
     if (sessions.empty()) return;
@@ -1485,7 +1485,7 @@ void WorkOnsController::applyOwnerScoped(bool layerOne)
     if (!owner()) return;
     const pinpoint::AthleteLevel::ScopedResult &r = layerOne ? owner()->scopedLayerOne() : owner()->scopedResult();
     if (r.key != scopeKey()) return;   // a choice since left
-    QHash<QString, SessionWorkOns> records;
+    QHash<QString, SessionPriorities> records;
     for (auto it = r.records.constBegin(); it != r.records.constEnd(); ++it) records.insert(dirOfFolder(it.key()), it.value());
     ShownOutcome shown;
     shown.scope     = m_filter;

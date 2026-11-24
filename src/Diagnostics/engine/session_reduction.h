@@ -156,7 +156,7 @@ inline QString summaryFingerprintOf(const SummaryRules &in, std::vector<SummaryS
     std::sort(swings.begin(), swings.end(), [](const SummarySwing &a, const SummarySwing &b) { return a.folder < b.folder; });
     QCryptographicHash h(QCryptographicHash::Sha1);
     h.addData(QByteArrayLiteral("summary2"));
-    for (const int v : { kWorkOnSchemaVersion, kWorkOnRuleVersion, kSessionResultsVersion, kTendencyRuleVersion,
+    for (const int v : { kPrioritySchemaVersion, kPriorityRuleVersion, kSessionResultsVersion, kTendencyRuleVersion,
                          kThemeRuleVersion, kBoardAnnotationRuleVersion, kSessionReductionVersion, kClubBaselineSchemaVersion }) {
         h.addData(QByteArray::number(v));
         h.addData("|");

@@ -242,16 +242,16 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in)
         if (!it.value().isEmpty()) r.shotIntents.insert(it.key(), it.value());
     r.shotCorrections = in.corrections;
 
-    // ── The work-ons and the evidence (sessionWorkOnsForPack, as SessionDiagnosticsModel::sessionWorkOns) ──
-    r.workOns = sessionWorkOnsForPack(pack, in.shots, out.ledgers);
+    // ── The work-ons and the evidence (sessionPrioritiesForPack, as SessionDiagnosticsModel::sessionWorkOns) ──
+    r.workOns = sessionPrioritiesForPack(pack, in.shots, out.ledgers);
     {   // the order uncapped (5.5a): what the Charts' Wrist sections order by (SessionDiagnosis::workOnOrder)
-        WorkOnOptions uncapped;
+        PriorityOptions uncapped;
         uncapped.maxPerSession = std::numeric_limits<int>::max();
-        for (const WorkOnEntry &e : sessionWorkOnsForPack(pack, in.shots, out.ledgers, uncapped).entries)
+        for (const PriorityEntry &e : sessionPrioritiesForPack(pack, in.shots, out.ledgers, uncapped).entries)
             out.workOnOrder << e.id;
     }
     r.workOns.sessionId = in.sessionId;
-    for (WorkOnEntry &e : r.workOns.entries) {
+    for (PriorityEntry &e : r.workOns.entries) {
         const Condition *c = pack ? pack->condition(e.id) : nullptr;
         e.name = (c && !c->label.isEmpty()) ? c->label : e.id;   // today's key (FIELD-LIST D5), a pack label
     }
