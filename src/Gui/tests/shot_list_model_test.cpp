@@ -33,6 +33,10 @@
 //   V9  a save that fails: said so, and the row shows the saved value; the rating sends no event (DEC-70)
 //   V10 End lets go of the cards and of the live presentation, without a reset
 //   V11 no row struct holds a Shot's facts: QML has no analysisDetail role, and no lmDetail is kept
+//   V12 a card's edit the Shot did not save as its document landed stays on the card and is tried again (the Shot's
+//       next event for that row, or the next document to land); the edits that saved are not re-sent; a later edit
+//       (the row's own, even of the value shown, or another command's) wins over the kept one, a rewrite does not; a
+//       second failure keeps it again (#235)
 
 #include "shot/shot_list_model.h"
 #include "fake_shot_source.h"
@@ -324,6 +328,136 @@ int main(int argc, char **argv)
         rig.model.setRating(id1, 3);
         checkInt ("the rating (no event: DEC-70): the view's own one refresh", changed.count(), 1);
         checkInt ("…showing the Shot's", rig.model.data(rig.model.index(rowOf(rig.model, id1)), ShotListModel::RatingRole).toInt(), 3);
+    }
+
+    std::printf("\n-- V12: a card's edit the Shot did not save stays on the card, and is tried again (#235) --\n");
+    {
+        Rig rig;
+        QSignalSpy failed(&rig.model, &ShotListModel::saveFailed);
+        auto noteOf = [&rig](const ShotRef &s) {
+            return rig.model.data(rig.model.index(rowOf(rig.model, rig.model.idOfShotRef(s))), ShotListModel::NoteRole).toString(); };
+        auto clubOf = [&rig](const ShotRef &s) {
+            return rig.model.data(rig.model.index(rowOf(rig.model, rig.model.idOfShotRef(s))), ShotListModel::RecordedClubRole).toString(); };
+        auto card = [&rig](const ShotRef &s) { ShotListModel::CapturedShot c; c.shot = s; c.club = QStringLiteral("PW");
+                                               return rig.model.landShot(c, false); };
+        // A card with three edits; its note's save fails as the document lands.
+        const ShotRef s5 = rig.src->allocate(5);
+        const int id5 = card(s5);
+        rig.model.setClub(id5, QStringLiteral("6 IRON"));
+        rig.model.setRating(id5, 4);
+        rig.model.setNote(id5, QStringLiteral("keep me"));
+        rig.src->failing = { QStringLiteral("note") };
+        rig.src->land(s5, shot("8 IRON", 0, "14:10", false));
+        checkInt ("the failed note: said so, once", failed.count(), 1);
+        checkStr ("…as the edit", failed.isEmpty() ? QString() : failed.first().at(0).toString(), QStringLiteral("The note"));
+        checkStr ("…the Shot does not hold it", noteOf(s5), QString());
+        checkStr ("the club that saved is the Shot's", clubOf(s5), QStringLiteral("6 IRON"));
+        checkInt ("…and the rating", rig.model.data(rig.model.index(rowOf(rig.model, id5)), ShotListModel::RatingRole).toInt(), 4);
+        // The Shot's next event for that row: the note, kept on the card, is handed over again.
+        rig.src->failing.clear();
+        rig.src->rewrite(s5, [](ShotSummary &) {});
+        checkStr ("the Shot's next event: the kept note is saved", noteOf(s5), QStringLiteral("keep me"));
+        checkInt ("…the note sent twice in all", rig.src->calls.value(QStringLiteral("note")), 2);
+        checkInt ("…the club that saved is not re-sent", rig.src->calls.value(QStringLiteral("setDeclaredClub")), 1);
+        checkInt ("…nor the rating", rig.src->calls.value(QStringLiteral("rate")), 1);
+        checkInt ("…no new failure told", failed.count(), 1);
+        rig.src->rewrite(s5, [](ShotSummary &) {});
+        checkInt ("saved: the card holds it no more (not sent again)", rig.src->calls.value(QStringLiteral("note")), 2);
+
+        // The note sends no event (DEC-70): the next document to land, any shot's, hands it over.
+        rig.src->calls.clear();
+        const ShotRef s6 = rig.src->allocate(6);
+        rig.model.setNote(card(s6), QStringLiteral("six"));
+        rig.src->failing = { QStringLiteral("note") };
+        rig.src->land(s6, shot("8 IRON", 0, "14:12", false));
+        checkStr ("a second card's note fails as it lands", noteOf(s6), QString());
+        rig.src->failing.clear();
+        const ShotRef s7 = rig.src->allocate(7);
+        rig.src->land(s7, shot("8 IRON", 0, "14:14", false));
+        checkStr ("another shot's document lands: the kept note is saved", noteOf(s6), QStringLiteral("six"));
+
+        // A later edit wins: the golfer's own, on the carousel …
+        rig.src->calls.clear();
+        const ShotRef s8 = rig.src->allocate(8);
+        rig.model.setNote(card(s8), QStringLiteral("old"));
+        rig.src->failing = { QStringLiteral("note") };
+        rig.src->land(s8, shot("8 IRON", 0, "14:16", false));
+        rig.src->failing.clear();
+        rig.model.setNote(rig.model.idOfShotRef(s8), QStringLiteral("new"));
+        rig.src->rewrite(s8, [](ShotSummary &) {});
+        checkStr ("a later edit of the row wins over the kept one", noteOf(s8), QStringLiteral("new"));
+        checkInt ("…the kept one is not sent again", rig.src->calls.value(QStringLiteral("note")), 2);
+        // … or one made elsewhere (a panel's club: EVT-21).
+        rig.src->calls.clear();
+        const ShotRef s9 = rig.src->allocate(9);
+        rig.model.setClub(card(s9), QStringLiteral("6 IRON"));
+        rig.src->failing = { QStringLiteral("setDeclaredClub") };
+        rig.src->land(s9, shot("8 IRON", 0, "14:18", false));
+        rig.src->failing.clear();
+        rig.src->setDeclaredClub(s9, QStringLiteral("5 IRON"));
+        checkStr ("a later edit from elsewhere wins over the kept one", clubOf(s9), QStringLiteral("5 IRON"));
+        checkInt ("…the kept one is not sent again", rig.src->calls.value(QStringLiteral("setDeclaredClub")), 2);
+        // A rewrite is not an edit: a late part that moves the club (follow-club) does not beat the golfer's kept club.
+        rig.src->calls.clear();
+        const ShotRef s10 = rig.src->allocate(10);
+        rig.model.setClub(card(s10), QStringLiteral("6 IRON"));
+        rig.src->failing = { QStringLiteral("setDeclaredClub") };
+        rig.src->land(s10, shot("8 IRON", 0, "14:20", false));
+        rig.src->failing.clear();
+        rig.src->rewrite(s10, [](ShotSummary &f) { f.club = QStringLiteral("7 IRON"); });
+        checkStr ("a rewrite that moves the club: the golfer's kept club still wins", clubOf(s10), QStringLiteral("6 IRON"));
+        checkInt ("…sent again once", rig.src->calls.value(QStringLiteral("setDeclaredClub")), 2);
+
+        // Re-picking the value shown is a later edit too: the kept one goes, and the shown value stands.
+        rig.src->calls.clear();
+        const ShotRef s11 = rig.src->allocate(11);
+        rig.model.setClub(card(s11), QStringLiteral("6 IRON"));
+        rig.src->failing = { QStringLiteral("setDeclaredClub") };
+        rig.src->land(s11, shot("8 IRON", 0, "14:22", false));
+        rig.src->failing.clear();
+        rig.model.setClub(rig.model.idOfShotRef(s11), QStringLiteral("8 IRON"));   // the club shown, picked again
+        rig.src->land(rig.src->allocate(12), shot("8 IRON", 0, "14:24", false));
+        checkStr ("re-picking the club shown: it stands", clubOf(s11), QStringLiteral("8 IRON"));
+        checkInt ("…the kept club is not sent again", rig.src->calls.value(QStringLiteral("setDeclaredClub")), 1);
+
+        // Another field's event tries the kept edit (here the club correction), the compare passing.
+        rig.src->calls.clear();
+        const ShotRef s13 = rig.src->allocate(13);
+        rig.model.setLmClubOverride(card(s13), QStringLiteral("7 IRON"));
+        rig.src->failing = { QStringLiteral("correctClub") };
+        rig.src->land(s13, shot("8 IRON", 0, "14:26", false));
+        rig.src->failing.clear();
+        rig.src->excludeReading(s13, true);   // EVT-05, from elsewhere
+        checkStr ("another field's event: the kept correction is saved",
+                  rig.model.data(rig.model.index(rowOf(rig.model, rig.model.idOfShotRef(s13))), ShotListModel::LmClubOverrideRole).toString(),
+                  QStringLiteral("7 IRON"));
+        checkInt ("…sent twice in all", rig.src->calls.value(QStringLiteral("correctClub")), 2);
+
+        // A second failure keeps it again, and says so again; the next try saves it.
+        rig.src->calls.clear();
+        const ShotRef s14 = rig.src->allocate(14);
+        rig.model.setNote(card(s14), QStringLiteral("twice"));
+        rig.src->failing = { QStringLiteral("note") };
+        rig.src->land(s14, shot("8 IRON", 0, "14:28", false));
+        const int toldBefore = failed.count();
+        rig.src->rewrite(s14, [](ShotSummary &) {});
+        checkInt ("a second failure: said so again", failed.count(), toldBefore + 1);
+        rig.src->failing.clear();
+        rig.src->rewrite(s14, [](ShotSummary &) {});
+        checkStr ("…kept, and saved on the next try", noteOf(s14), QStringLiteral("twice"));
+        checkInt ("…three tries in all", rig.src->calls.value(QStringLiteral("note")), 3);
+
+        // A later edit of the row that itself fails still supersedes the kept one (told; not kept: C2).
+        rig.src->calls.clear();
+        const ShotRef s15 = rig.src->allocate(15);
+        rig.model.setNote(card(s15), QStringLiteral("old"));
+        rig.src->failing = { QStringLiteral("note") };
+        rig.src->land(s15, shot("8 IRON", 0, "14:30", false));
+        rig.model.setNote(rig.model.idOfShotRef(s15), QStringLiteral("newer"));
+        rig.src->failing.clear();
+        rig.src->rewrite(s15, [](ShotSummary &) {});
+        checkStr ("a later failed edit: the kept older one is not saved over it", noteOf(s15), QString());
+        checkInt ("…nor sent again", rig.src->calls.value(QStringLiteral("note")), 2);
     }
 
     std::printf("\n-- V10: End lets go of cards and live presentation, no reset --\n");

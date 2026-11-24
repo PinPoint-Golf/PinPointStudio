@@ -36,6 +36,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QMap>
+#include <QStringList>
 
 #include <algorithm>
 #include <functional>
@@ -96,6 +97,8 @@ public:
     // Trashed by someone else (EVT-03).
     void trashElsewhere(const ShotRef &shot) { m_shots.remove(shot.swingNumber()); trashedNow(shot); }
     bool failSaves = false;   // every command's save fails (nothing changes, no event)
+    QStringList failing;      // the commands, by name ("note", "rate", "setDeclaredClub", …), whose saves fail
+    QMap<QString, int> calls; // every review command called, by name (a failed one too)
     int  trashRefusals = 0;   // the next N trashes are refused (a file open)
 
     QString folder() const override { return m_folder; }
@@ -115,15 +118,15 @@ public:
     { return held(shot) ? m_shots.value(shot.swingNumber()).dir : QString(); }
 
     WriteResult rate(const ShotRef &s, int stars) override
-    { return edit(s, [stars](ShotSummary &f) { f.rating = std::clamp(stars, 0, 5); }, false); }
+    { return edit("rate", s, [stars](ShotSummary &f) { f.rating = std::clamp(stars, 0, 5); }, false); }
     WriteResult note(const ShotRef &s, const QString &text) override
-    { return edit(s, [&text](ShotSummary &f) { f.note = text; }, false); }
+    { return edit("note", s, [&text](ShotSummary &f) { f.note = text; }, false); }
     WriteResult setDeclaredClub(const ShotRef &s, const QString &club) override
-    { return edit(s, [&club](ShotSummary &f) { f.club = club; }, true); }
+    { return edit("setDeclaredClub", s, [&club](ShotSummary &f) { f.club = club; }, true); }
     WriteResult correctClub(const ShotRef &s, const QString &club) override
-    { return edit(s, [&club](ShotSummary &f) { f.lmClubOverride = club; }, true); }
+    { return edit("correctClub", s, [&club](ShotSummary &f) { f.lmClubOverride = club; }, true); }
     WriteResult excludeReading(const ShotRef &s, bool excluded) override
-    { return edit(s, [excluded](ShotSummary &f) { f.lmExcluded = excluded; }, true); }
+    { return edit("excludeReading", s, [excluded](ShotSummary &f) { f.lmExcluded = excluded; }, true); }
     WriteResult trash(const ShotRef &s, QString *) override
     {
         if (!held(s)) return { WriteResult::Status::Failed, QStringLiteral("That shot is not in this session.") };
@@ -135,10 +138,11 @@ public:
 private:
     struct Entry { ShotSummary summary; QString dir; };
     bool held(const ShotRef &s) const { return s.session() == m_id && m_shots.contains(s.swingNumber()); }
-    WriteResult edit(const ShotRef &s, const std::function<void(ShotSummary &)> &apply, bool event)
+    WriteResult edit(const char *command, const ShotRef &s, const std::function<void(ShotSummary &)> &apply, bool event)
     {
+        ++calls[QString::fromLatin1(command)];
         if (!held(s)) return { WriteResult::Status::Failed, QStringLiteral("That shot is not in this session.") };
-        if (failSaves) return { WriteResult::Status::Failed, QStringLiteral("the disk is full") };
+        if (failSaves || failing.contains(QString::fromLatin1(command))) return { WriteResult::Status::Failed, QStringLiteral("the disk is full") };
         apply(m_shots[s.swingNumber()].summary);
         if (event) changed(s, false);
         return { WriteResult::Status::Written, {} };

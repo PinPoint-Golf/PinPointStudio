@@ -327,17 +327,22 @@ void ShotListModel::rereadShots()
 
 // EVT-01: a shot's first document has landed. Its row is made — or, when capture had already given it a card with
 // nothing saved (a launch monitor's device-only document filling that shot's folder), that card becomes its Shot's row
-// in place: one row for one swing, never two. The golfer's edits made on the card go to the Shot then (refactor 5.10).
+// in place: one row for one swing, never two. The golfer's edits made on the card go to the Shot then (refactor 5.10);
+// and any card edit a Shot did not save before, on any row, is tried again (#235: the rating and the note send no
+// event of their own, so a document landing is their next chance).
 void ShotListModel::onAdded(const pinpoint::ShotRef &shot)
 {
     const int row = rowForShot(shot);
     if (row < 0) {
         addShotRow(shot, pinpoint::SummaryRead::AgainCheap);   // the summary, never a whole document (J5)
+        handKeptCardEdits({});
         return;
     }
     Row &r = m_rows[row];
-    if (!r.unsaved)
+    if (!r.unsaved) {
+        handKeptCardEdits({});
         return;
+    }
     const pinpoint::ShotSummary *f = m_source->summary(shot, pinpoint::SummaryRead::Again);   // as attaching read it
     if (!f || !f->ok)
         return;
@@ -345,42 +350,108 @@ void ShotListModel::onAdded(const pinpoint::ShotRef &shot)
     r.captured = {};
     r.swingDir = m_source->swingFolder(shot);
     m_nextOrdinal = std::max(m_nextOrdinal, f->ordinal + 1);
-    handCardEditsToShot(row);
-    emit dataChanged(index(row), index(row), {});
+    handCardEditsToShot(row, false);
+    const int at = rowForShot(shot);
+    if (at >= 0)
+        emit dataChanged(index(at), index(at), {});
+    handKeptCardEdits(shot);   // the others' (this card's were just tried)
 }
 
 // THE CARD'S EDITS GO TO THE SHOT (refactor 5.10). What the golfer did on the card while nothing was saved for the shot
 // is handed to its Shot through the Shot's own commands — the ones the popover and the ratings use — so the Shot's
-// writer saves each and says so (its event; a refusal is told, as for any edit). Only an edit the golfer made is handed;
-// the card's copy goes. Where the document already holds a value (the launch monitor's club, say), the golfer's edit is
-// the later one and wins, as any correction does. Each edit writes its own key, so the order (the club before the
-// correction made against it, then the exclusion, the rating, the note) changes nothing saved.
-void ShotListModel::handCardEditsToShot(int row)
+// writer saves each and says so (its event; a failed save or a refusal is told, as for any edit: DEC-126). Only an edit
+// the golfer made is handed. The card's copy of an edit goes only when the Shot's command reports it saved (its
+// WriteResult); one it did not save stays on the card and is tried again, alone, the next time the card hands its edits
+// over — the Shot's next event for that row (onChanged), or the next document to land (onAdded) — so a failed write
+// never loses the golfer's input (#235). Where the document already holds a value (the launch monitor's club, say), the
+// golfer's edit is the later one and wins, as any correction does — a rewrite since (a late part) included; but an
+// edit made since (the row's own, which drops the kept one, or another command's, seen at its event as the Shot's value
+// changed since the failed try) is later still, and wins over the kept one. Each edit writes its own key, so the order (the club before the correction made against
+// it, then the exclusion, the rating, the note) changes nothing saved.
+bool ShotListModel::handCardEditsToShot(int row, bool afterAnEdit)
 {
     Row &r = m_rows[row];
-    const std::optional<QString> club       = std::exchange(r.declaredClub, std::nullopt);
-    const std::optional<QString> correction = std::exchange(r.lmClubOverride, std::nullopt);
-    const std::optional<bool>    excluded   = std::exchange(r.lmExcluded, std::nullopt);
-    const std::optional<int>     rating     = std::exchange(r.rating, std::nullopt);
-    const std::optional<QString> note       = std::exchange(r.note, std::nullopt);
-    if (!club && !correction && !excluded && !rating && !note)
-        return;
-    ppInfo() << "[ShotListModel] the card's edits go to its Shot as its document lands:" << r.shot.toString();
-    if (club)
-        forwarded(row, "the declared club", [&club](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
-            return s.setDeclaredClub(ref, *club); });
-    if (correction)
-        forwarded(row, "the club correction", [&correction](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
-            return s.correctClub(ref, *correction); });
-    if (excluded)
-        forwarded(row, "the reading's exclusion", [&excluded](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
-            return s.excludeReading(ref, *excluded); });
-    if (rating)
-        forwarded(row, "the rating", [&rating](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
-            return s.rate(ref, *rating); });
-    if (note)
-        forwarded(row, "the note", [&note](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
-            return s.note(ref, *note); });
+    const auto holdsEdits = [](const Row &x) {
+        return x.declaredClub || x.lmClubOverride || x.lmExcluded || x.rating || x.note; };
+    const pinpoint::ShotSummary *f = factsOf(r);
+    if (!holdsEdits(r) || !f) {
+        if (!holdsEdits(r))
+            r.keptAgainst.reset();
+        return false;   // nothing to hand over, or no Shot's summary to hand it to yet (kept for the next try)
+    }
+    // A retry on the Shot's edit event: a value the Shot changed since the failed try is another command's, a later
+    // edit, and it wins. A rewrite or a landing (a late part moving the club with follow-club, say) is not an edit:
+    // the golfer's kept edit still wins over it, and the values are taken again after this try.
+    if (afterAnEdit && r.keptAgainst) {
+        const CardReview &was = *r.keptAgainst;
+        if (r.declaredClub && f->club != was.club)              r.declaredClub.reset();
+        if (r.lmClubOverride && f->lmClubOverride != was.correction) r.lmClubOverride.reset();
+        if (r.lmExcluded && f->lmExcluded != was.excluded)      r.lmExcluded.reset();
+        if (r.rating && f->rating != was.rating)                r.rating.reset();
+        if (r.note && f->note != was.note)                      r.note.reset();
+        if (!holdsEdits(r)) {
+            r.keptAgainst.reset();
+            return false;
+        }
+    }
+    // Copies: each command runs the Shot's writer, whose events and notices may change the rows.
+    const pinpoint::ShotRef      shot       = r.shot;
+    const std::optional<QString> club       = r.declaredClub;
+    const std::optional<QString> correction = r.lmClubOverride;
+    const std::optional<bool>    excluded   = r.lmExcluded;
+    const std::optional<int>     rating     = r.rating;
+    const std::optional<QString> note       = r.note;
+    ppInfo() << "[ShotListModel] the card's edits go to its Shot:" << shot.toString();
+    const auto saved = [this, &shot](const char *what,
+        const std::function<pinpoint::WriteResult(pinpoint::ShotSource &, const pinpoint::ShotRef &)> &command) {
+        const int at = rowForShot(shot);
+        return at >= 0 && forwarded(at, what, command) == Edit::Shot;
+    };
+    const bool clubSaved = club && saved("the declared club", [&club](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
+        return s.setDeclaredClub(ref, *club); });
+    const bool correctionSaved = correction && saved("the club correction",
+        [&correction](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) { return s.correctClub(ref, *correction); });
+    const bool excludedSaved = excluded && saved("the reading's exclusion",
+        [&excluded](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) { return s.excludeReading(ref, *excluded); });
+    const bool ratingSaved = rating && saved("the rating", [&rating](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
+        return s.rate(ref, *rating); });
+    const bool noteSaved = note && saved("the note", [&note](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
+        return s.note(ref, *note); });
+    const int at = rowForShot(shot);
+    if (at < 0)
+        return true;
+    Row &now = m_rows[at];
+    if (clubSaved)       now.declaredClub.reset();
+    if (correctionSaved) now.lmClubOverride.reset();
+    if (excludedSaved)   now.lmExcluded.reset();
+    if (ratingSaved)     now.rating.reset();
+    if (noteSaved)       now.note.reset();
+    const pinpoint::ShotSummary *after = factsOf(now);
+    if (holdsEdits(now) && after)
+        now.keptAgainst = CardReview{ after->club, after->lmClubOverride, after->lmExcluded, after->rating, after->note };
+    else
+        now.keptAgainst.reset();
+    if (holdsEdits(now))
+        ppWarn() << "[ShotListModel] a card's edit its Shot did not save is kept, to try again:" << shot.toString();
+    return true;
+}
+
+// A document landed: every Shot's row still holding a card edit its Shot did not save tries it again (#235).
+void ShotListModel::handKeptCardEdits(const pinpoint::ShotRef &except)
+{
+    QVector<pinpoint::ShotRef> holding;
+    for (const Row &r : std::as_const(m_rows))
+        if (!r.unsaved && !r.shot.isNull() && r.shot != except
+            && (r.declaredClub || r.lmClubOverride || r.lmExcluded || r.rating || r.note))
+            holding << r.shot;
+    for (const pinpoint::ShotRef &shot : std::as_const(holding)) {
+        const int row = rowForShot(shot);
+        if (row < 0 || !handCardEditsToShot(row, false))
+            continue;
+        const int at = rowForShot(shot);
+        if (at >= 0)
+            emit dataChanged(index(at), index(at), kReviewRoles);
+    }
 }
 
 // One of the Shot's events. A rewrite of its document (a late part, a re-analysis) reads its summary again; the
@@ -389,7 +460,7 @@ void ShotListModel::onChanged(const pinpoint::ShotRef &shot, bool rewritten)
 {
     if (!m_editing.isNull() && shot == m_editing)
         return;   // the edit in hand says so itself, once
-    const int row = rowForShot(shot);
+    int row = rowForShot(shot);
     if (row < 0 || m_rows.at(row).unsaved)
         return;
     if (rewritten) {
@@ -398,10 +469,16 @@ void ShotListModel::onChanged(const pinpoint::ShotRef &shot, bool rewritten)
             pinpoint::PostShotTrace::Scope t("read");
             m_source->summary(shot, pinpoint::SummaryRead::Again);
         }
+        handCardEditsToShot(row, false);   // a card edit its Shot did not save, tried again (#235)
+        if ((row = rowForShot(shot)) < 0)
+            return;
         pinpoint::PostShotTrace::Scope traceEmit("emit");   // the carousel's delegates (QML)
         emit dataChanged(index(row), index(row), kRewriteRoles);
         return;
     }
+    handCardEditsToShot(row, true);   // a card edit its Shot did not save, tried again, after another's (#235)
+    if ((row = rowForShot(shot)) < 0)
+        return;
     emit dataChanged(index(row), index(row), kReviewRoles);
 }
 
@@ -489,6 +566,7 @@ ShotListModel::Edit ShotListModel::forwarded(int row, const char *what,
     if (!w.ok()) {
         ppWarn() << "[ShotListModel]" << what << "not saved:" << w.error;
         emit saveFailed(words, w.error);
+        return Edit::Failed;
     }
     return Edit::Shot;
 }
@@ -498,6 +576,8 @@ void ShotListModel::setRating(int id, int n)
     const int row = rowForId(id);
     if (row < 0)
         return;
+    if (!m_rows.at(row).unsaved)
+        m_rows[row].rating.reset();   // a later edit than any the card kept (#235): it wins, saved or not, or as shown
     n = std::clamp(n, 0, 5);
     if (data(index(row), RatingRole).toInt() == n)
         return;
@@ -510,7 +590,11 @@ void ShotListModel::setRating(int id, int n)
 void ShotListModel::setNote(int id, const QString &text)
 {
     const int row = rowForId(id);
-    if (row < 0 || data(index(row), NoteRole).toString() == text)
+    if (row < 0)
+        return;
+    if (!m_rows.at(row).unsaved)
+        m_rows[row].note.reset();   // a later edit than any the card kept (#235), even one of the value shown
+    if (data(index(row), NoteRole).toString() == text)
         return;
     if (forwarded(row, "the note", [&text](pinpoint::ShotSource &s, const pinpoint::ShotRef &r) { return s.note(r, text); })
         == Edit::Card)
@@ -521,7 +605,11 @@ void ShotListModel::setNote(int id, const QString &text)
 void ShotListModel::setClub(int id, const QString &club)
 {
     const int row = rowForId(id);
-    if (row < 0 || data(index(row), RecordedClubRole).toString() == club)   // the popover edits the uncorrected club
+    if (row < 0)
+        return;
+    if (!m_rows.at(row).unsaved)
+        m_rows[row].declaredClub.reset();   // a later edit than any the card kept (#235), even one of the club shown
+    if (data(index(row), RecordedClubRole).toString() == club)   // the popover edits the uncorrected club
         return;
     // ⚠ ONE OF THE CLUBS IN THE BAG, AND NOTHING ELSE. The picker only offers
     // clubOptions(), but this is Q_INVOKABLE and took whatever it was given —
@@ -541,7 +629,11 @@ void ShotListModel::setClub(int id, const QString &club)
 void ShotListModel::setLmExcluded(int id, bool excluded)
 {
     const int row = rowForId(id);
-    if (row < 0 || data(index(row), LmExcludedRole).toBool() == excluded)
+    if (row < 0)
+        return;
+    if (!m_rows.at(row).unsaved)
+        m_rows[row].lmExcluded.reset();   // a later edit than any the card kept (#235), even one as shown
+    if (data(index(row), LmExcludedRole).toBool() == excluded)
         return;
     if (forwarded(row, "the reading's exclusion", [excluded](pinpoint::ShotSource &s, const pinpoint::ShotRef &r) {
             return s.excludeReading(r, excluded); }) == Edit::Card)
@@ -554,6 +646,8 @@ void ShotListModel::setLmClubOverride(int id, const QString &club)
     const int row = rowForId(id);
     if (row < 0)
         return;
+    if (!m_rows.at(row).unsaved)
+        m_rows[row].lmClubOverride.reset();   // a later edit than any the card kept (#235), even one as shown
     const QString c = club.trimmed();
     // ⚠ THE SAME VOCABULARY RULE AS setClub, plus the shot's OWN recorded club: choosing it is
     // how the golfer declines the evidence's relabel, and an older document may spell it in a

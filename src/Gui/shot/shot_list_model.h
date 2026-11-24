@@ -245,6 +245,14 @@ signals:
     void saveFailed(const QString &what, const QString &why);
 
 private:
+    // The review a card edits, as the Shot holds it (handCardEditsToShot's "changed since" check).
+    struct CardReview {
+        QString club;
+        QString correction;
+        bool    excluded = false;
+        int     rating   = 0;
+        QString note;
+    };
     // A row: the view's id for it, its Shot's key and folder, and presentation. Facts are read from the Shot.
     struct Row {
         int               id = 0;
@@ -256,15 +264,23 @@ private:
         bool              unsaved = false;
         CapturedShot      captured;
         int               ordinal = 0;       // the card's number (unsaved only)
-        // The golfer's edits made on the card (unsaved only: nothing to save them to yet), each held only once made.
-        // When the document lands (onAdded) each is handed to the Shot by its own command and the card's copy goes.
+        // The golfer's edits made on the card (nothing to save them to yet), each held only once made. When the
+        // document lands (onAdded) each is handed to the Shot by its own command, and the card's copy goes only when
+        // the Shot reports it saved (#235): one it did not save stays here, and is tried again (handCardEditsToShot).
         std::optional<int>     rating;
         std::optional<QString> note;
         std::optional<QString> declaredClub;
         std::optional<bool>    lmExcluded;
         std::optional<QString> lmClubOverride;
+        // The Shot's values a kept edit was meant to replace, as they stood after its hand-over failed: a value the
+        // Shot holds differently at its next edit event was changed since by a command elsewhere, and that later
+        // edit wins.
+        std::optional<CardReview> keptAgainst;
     };
-    void handCardEditsToShot(int row);   // onAdded: the card's edits, through the Shot's commands
+    // onAdded / onChanged: the card's edits, through the Shot's commands; true when one was handed over.
+    // afterAnEdit: called on the Shot's edit event (another command's), whose changed values win over kept ones.
+    bool handCardEditsToShot(int row, bool afterAnEdit);
+    void handKeptCardEdits(const pinpoint::ShotRef &except);   // a document landed: every row's kept edits again
 
     const pinpoint::ShotSummary *factsOf(const Row &row) const;   // the Shot's summary (kept), else null
     int  rowForId(int id) const;
@@ -279,8 +295,9 @@ private:
     void onTrashed(const pinpoint::ShotRef &shot);
     void onGone();
 
-    // A golfer's edit of a row: the Shot's command, a refusal (no Shot: said so), or the card's own (no document).
-    enum class Edit { Shot, Refused, Card };
+    // A golfer's edit of a row: saved by the Shot's command, not saved by it (said so), a refusal (no Shot: said so),
+    // or the card's own (no document).
+    enum class Edit { Shot, Failed, Refused, Card };
     Edit forwarded(int row, const char *what,
                    const std::function<pinpoint::WriteResult(pinpoint::ShotSource &, const pinpoint::ShotRef &)> &command);
 
