@@ -179,14 +179,40 @@ else()
 
     # Offscreen is set on the TEST, not asked of whoever runs it, so headless CI and a developer's
     # desk do the same thing and neither steals focus.
-    add_test(NAME qml_ui COMMAND qml_ui_test)
-    # ⚠ RUN_SERIAL, AND IT IS ABOUT STARVATION RATHER THAN TIDINESS. This is the only suite
-    # that renders: it drives a real scene graph offscreen and presses live components, so
-    # unlike every other target here its results depend on frames actually being produced.
-    # Under `ctest -j` alongside 145 compute-bound tests on a loaded machine the render loop
-    # is starved, a frame lands against half-settled geometry, and what should be a layout
-    # assertion becomes an intermittent process-level crash. Serialised it is deterministic;
-    # it was the only test in the suite that ever varied by how it was scheduled.
+    #
+    # ⚠ ONE CTEST TEST PER tst_*.qml, ALL LABELLED qml_ui (platform refactor B0.2b, #251). Until then
+    # one test, `qml_ui`, ran every file in one process: on the studio PC's Debug build that took
+    # longer than any cap, and a file that stopped hid every file after it. Each file now runs the
+    # same binary with `-input <that file>`, as `qml_ui.tst_<name>`, with its own TIMEOUT, so one
+    # slow or stuck file is reported alone and the rest still run, in parallel. The files are
+    # independent already: every file gets its own engine and its own settings store (#171).
+    #   ctest -L qml_ui -j 3          every QML file (what `ctest -R '^qml_ui$'` ran)
+    #   ctest -LE qml_ui -j 3         everything else (what `ctest -E '^qml_ui$'` ran)
+    #   ctest -R '^qml_ui\.tst_session_report$'   one file
+    # The old name `qml_ui` no longer exists; `-R '^qml_ui$'` finds no test (ctest exits 0 on that,
+    # so a script still using it runs nothing). The label is the name, kept for at least a release.
+    #
+    # Not RUN_SERIAL any more, so the label runs at ctest's -j. The old serial rule was about
+    # starvation: under `ctest -j` beside the compute-bound suites a loaded machine starved the
+    # render loop and a layout assertion became an intermittent crash. Running the label as its
+    # own pass (as tools/studio/studio-build.cmd and the testing guide do) keeps the QML files
+    # beside each other rather than beside the compute suites.
+    #
+    # TIMEOUT: about twice the file's time on the slower platform, the studio PC's Debug build
+    # (3-10x the Mac's), and never under 120 s. Measured 24 Nov 2026, the studio at -j16 / the Mac
+    # at -j3: SessionDiagnostics 1381 s / 432 s (1374 s alone on the studio), SessionReport 292 s /
+    # 64 s, ChartsPanel 268 s / 51 s, ChartPresets 84 s / 20 s, LmGraphics 58 s / 5 s, every other
+    # file at most 25 s on the studio and 6 s on the Mac.
+    # A file not in the table gets the default. A new file is picked up at the next configure
+    # (CONFIGURE_DEPENDS); give it a row here if it runs past a minute on the Mac.
+    file(GLOB _pp_qml_tests CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_*.qml")
+    set(_pp_qml_timeout_default 120)
+    set(_pp_qml_timeouts
+        tst_session_diagnostics 2700
+        tst_session_report       600
+        tst_charts_panel         600
+        tst_chart_presets        300
+        tst_lm_graphics          300)
     # ⚠ THE SHIPPED DIAGNOSTICS CONTENT, THROUGH THE PINPOINT_CORE_* SEAM (2026-10-23). The app embeds
     # src/Resources/diagnostics/*.json as :/diagnostics (root CMakeLists); this binary does not, so
     # without these the presenters run on an EMPTY pack and no norms. The Posture section's "At
@@ -195,9 +221,21 @@ else()
     # Since issue #140 the binary ALSO defaults each unset variable to the same directory
     # (PP_DIAG_RESOURCES_DIR above, QmlUiTestSetup's constructor), so a direct run of qml_ui_test.exe
     # gets the shipped content too; these stay explicit, and an explicit value wins over the default.
-    set_tests_properties(qml_ui PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PINPOINT_CORE_PACK=${_pp_diag}/core.json;PINPOINT_CORE_NORMS=${_pp_diag}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${_pp_diag}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${_pp_diag}/contexts.json;PINPOINT_CORE_SCREENS=${_pp_diag}/screens.json;PINPOINT_CORE_DRILLS=${_pp_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_diag}/references.json"
-        RUN_SERIAL TRUE)
+    set(_pp_qml_env "QT_QPA_PLATFORM=offscreen;PINPOINT_CORE_PACK=${_pp_diag}/core.json;PINPOINT_CORE_NORMS=${_pp_diag}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${_pp_diag}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${_pp_diag}/contexts.json;PINPOINT_CORE_SCREENS=${_pp_diag}/screens.json;PINPOINT_CORE_DRILLS=${_pp_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_diag}/references.json")
+    foreach(_q IN LISTS _pp_qml_tests)
+        get_filename_component(_n "${_q}" NAME_WE)
+        set(_t ${_pp_qml_timeout_default})
+        list(FIND _pp_qml_timeouts ${_n} _i)
+        if(_i GREATER -1)
+            math(EXPR _i "${_i} + 1")
+            list(GET _pp_qml_timeouts ${_i} _t)
+        endif()
+        add_test(NAME qml_ui.${_n} COMMAND qml_ui_test -input "${_q}")
+        set_tests_properties(qml_ui.${_n} PROPERTIES
+            ENVIRONMENT "${_pp_qml_env}"
+            LABELS qml_ui
+            TIMEOUT ${_t})
+    endforeach()
 
     # ⚠ OPT-IN, OUT OF THE FULL SUITE AND THE RELEASE GATE (2026-10-17). It passes on an idle
     # machine but crashes in Qt's render path on a loaded one — Windows at the beta5 gate, Linux

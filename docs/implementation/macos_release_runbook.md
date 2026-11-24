@@ -290,7 +290,8 @@ JOBS="${JOBS:-6}"
 rm -rf build/tests \
   && cmake -S tests -B build/tests -DCMAKE_PREFIX_PATH="$QT" \
   && cmake --build build/tests --parallel "$JOBS" \
-  && ctest --test-dir build/tests --output-on-failure --parallel "$JOBS" \
+  && ctest --test-dir build/tests --output-on-failure --parallel "$JOBS" -LE qml_ui \
+  && ctest --test-dir build/tests --output-on-failure --parallel "$JOBS" -L qml_ui --no-tests=error \
   || echo "❌ RELEASE BLOCKED"
 ```
 The last line must read `100% tests passed, 0 tests failed out of N` — N grows as suites

@@ -136,7 +136,8 @@ One configure produces one CTest registry spanning all suites:
 ```bash
 cmake -S tests -B build/tests
 cmake --build build/tests -j6
-ctest --test-dir build/tests --output-on-failure   # every suite, incl. the offscreen qml_ui
+ctest --test-dir build/tests --output-on-failure -LE qml_ui                    # every suite but the QML files
+ctest --test-dir build/tests --output-on-failure -L qml_ui --no-tests=error   # then the QML files (label qml_ui), in their own pass
 ```
 
 ---
@@ -291,9 +292,31 @@ ctest --preset tests
 
 ```bash
 ctest --test-dir build/tests -R shaft        # only tests whose name matches /shaft/
-ctest --test-dir build/tests -j6             # run tests in parallel
+ctest --test-dir build/tests -j6 -LE qml_ui  # run tests in parallel (keep the QML files in their own pass: -L qml_ui)
 ctest --test-dir build/tests --rerun-failed --output-on-failure
 ```
+
+### The QML UI suite — the `qml_ui` label
+
+Each `tst_*.qml` in `src/Gui/tests/qml/` is its own ctest test, `qml_ui.tst_<file>`: the one
+`qml_ui_test` binary run with `-input <that file>`, offscreen, with its own `TIMEOUT`
+(`src/Gui/CMakeLists.txt`, set from the times measured on the Mac and on the studio PC's Debug build).
+All of them carry the label `qml_ui`. A new file is registered at the next configure.
+
+```bash
+ctest --test-dir build/tests -L qml_ui -j3 --output-on-failure    # every QML file, in parallel
+ctest --test-dir build/tests -LE qml_ui -j3                       # everything except the QML files
+ctest --test-dir build/tests -R '^qml_ui\.tst_session_report$' --output-on-failure   # one file
+```
+
+Until platform refactor B0.2b (#251) the whole suite was one test, `qml_ui`, running every file in one
+process, so one slow or stuck file hid every file after it. The old name maps like this:
+`-R '^qml_ui$'` → `-L qml_ui`, and `-E '^qml_ui$'` → `-LE qml_ui`. The old name no longer exists, and
+ctest exits 0 when `-R` matches nothing, so a script still using it silently runs no QML. Run the label
+as a pass of its own, not mixed into a `-j` run of the compute-bound suites: a starved render loop is
+what once made this suite flaky. The binary still runs a file directly, for its full report:
+`build/tests/Gui/qmlui/qml_ui_test -platform offscreen -input src/Gui/tests/qml/tst_pp_chip.qml`
+(add `-v2` for every check, `-o out.xml,junitxml` for per-function times).
 
 ---
 

@@ -43,7 +43,8 @@ QT=~/Qt/6.11.3/gcc_64
 rm -rf build/tests \
   && cmake -S tests -B build/tests -DCMAKE_PREFIX_PATH="$QT" \
   && cmake --build build/tests -j 4 \
-  && ctest --test-dir build/tests --output-on-failure -j 4 \
+  && ctest --test-dir build/tests --output-on-failure -j 4 -LE qml_ui \
+  && ctest --test-dir build/tests --output-on-failure -j 4 -L qml_ui --no-tests=error \
   || echo "❌ RELEASE BLOCKED"
 ```
 The last line must read `100% tests passed, 0 tests failed out of N` — N grows as suites

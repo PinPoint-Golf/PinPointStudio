@@ -11,14 +11,17 @@ rem runs (a session may be on) or while any process whose image name contains Fo
 rem (Premier shares the cabin's GPU); each match is logged. It checks before the pull and again before each
 rem ctest pass. Then, in build\tests-vs18 (Debug, NMake JOM, the tests/ umbrella; never a third tree):
 rem cmake . (log tests_cmake.log, the Windows test list in tests_list.log), jom -j16 (tests_build.log; exit 11
-rem on a configure or build failure), then ctest -j8 --timeout 900 without qml_ui (tests_ctest.log; 900 s
+rem on a configure or build failure), then ctest -j8 --timeout 900 -LE qml_ui (tests_ctest.log; 900 s
 rem is the per-test cap for any test without its own TIMEOUT, so a hang ends as a Timeout and exit 14), then
-rem qml_ui alone with --timeout 1800 (tests_qml_ui.log). Both passes run, with C:\Qt\6.11.0\msvc2022_64\bin on PATH,
-rem QT_QPA_PLATFORM=offscreen (the -platform offscreen of the qml_ui test) and QT_QPA_FONTDIR=C:\Windows\Fonts
+rem the qml_ui label (tests_qml_ui.log): one ctest test per tst_*.qml, named qml_ui.tst_<file>, each with its
+rem own TIMEOUT from src/Gui/CMakeLists.txt, run at -j of the jobs count (platform refactor B0.2b, #251: a slow
+rem or stuck file times out alone and every other file is still run and reported). Both passes run, with
+rem C:\Qt\6.11.0\msvc2022_64\bin on PATH, QT_QPA_PLATFORM=offscreen and QT_QPA_FONTDIR=C:\Windows\Fonts
 rem (or system fonts are invisible). jom -j16 by default (Product Owner, 24 Nov): the 285K has 24 cores, about
 rem 22 GB stay free, and a Debug cl.exe was seen at 40-380 MB, so 16 at once stay far inside memory. Lower it
-rem with "jobs N" (1 to 24), e.g. studio-build.cmd tests pull jobs 8. ctest stays at -j8, since test timing,
-rem not build time, is what its job count changes. Excluded, as able to reach a real store here (the list is
+rem with "jobs N" (1 to 24), e.g. studio-build.cmd tests pull jobs 8. Pass 2 runs that many QML files at once
+rem (each one offscreen process of about 0.5 GB); pass 1 stays at -j8, since test timing, not build time, is
+rem what its job count changes. Excluded, as able to reach a real store here (the list is
 rem TEXCL at the ctest call): headless_probe_test (it launches the app, whose HOME/XDG_CONFIG_HOME isolation
 rem Windows ignores); model_browser_test and inspector_refresh_test (their XDG_DATA_HOME isolation is
 rem Linux-only, #187: on Windows they write and delete under the real %APPDATA%); and, for "#187: reads the
@@ -226,9 +229,9 @@ if not "%RC%"=="0" ( call :say tests: cmake FAILED, exit %RC%, see tests_cmake.l
 C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" -N > "%LOGS%\tests_list.log" 2>&1
 set TLIST=unknown
 for /f "tokens=3" %%n in ('findstr /c:"Total Tests:" "%LOGS%\tests_list.log"') do set TLIST=%%n
-rem The exclusions. Reaching a real store: qml_ui runs in pass 2; headless_probe_test launches the app;
-rem model_browser_test and inspector_refresh_test write under the real %APPDATA% (#187).
-set "TEXCL=qml_ui|headless_probe_test|model_browser_test|inspector_refresh_test"
+rem The exclusions. The qml_ui label is pass 2's (-LE qml_ui here). Reaching a real store: headless_probe_test
+rem launches the app; model_browser_test and inspector_refresh_test write under the real %APPDATA% (#187).
+set "TEXCL=headless_probe_test|model_browser_test|inspector_refresh_test"
 rem #187: reads the real settings store. These link athlete_store.cpp (the real [athletes] group), RuleData
 rem (its load reads ui/diagnostics* through ppSettings), with no QSettings::setPath. They
 rem come back when #187's isolation helper lands.
@@ -243,10 +246,13 @@ set "TEXCL=%TEXCL%|measure_dump_test|outcome_summary_test|reduction_rule_golden_
 set "TEXCL=%TEXCL%|report_model_test|rule_version_golden_test|seed_conversion_test|session_consistency_test|session_delivery_test"
 set "TEXCL=%TEXCL%|session_diagnostics_test|session_posture_test|swing_themes_golden_test"
 set "TEXCL=%TEXCL%|variability_clubs_test|variability_env_test"
-C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" -N -E "^(%TEXCL%)$" > "%LOGS%\tests_list_run.log" 2>&1
+C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" -N -LE qml_ui -E "^(%TEXCL%)$" > "%LOGS%\tests_list_run.log" 2>&1
 set TRUN=unknown
 for /f "tokens=3" %%n in ('findstr /c:"Total Tests:" "%LOGS%\tests_list_run.log"') do set TRUN=%%n
-call :say tests: pass 1 will run %TRUN% of them, then qml_ui alone
+C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" -N -L qml_ui > "%LOGS%\tests_list_qml.log" 2>&1
+set QRUN=unknown
+for /f "tokens=3" %%n in ('findstr /c:"Total Tests:" "%LOGS%\tests_list_qml.log"') do set QRUN=%%n
+call :say tests: pass 1 will run %TRUN% of them, then pass 2 the %QRUN% QML files of the qml_ui label at -j%TJ%
 call :say tests: %TLIST% tests registered; jom -j%TJ% %TIME%
 jom -j%TJ% > "%LOGS%\tests_build.log" 2>&1
 set RC=%ERRORLEVEL%
@@ -258,15 +264,15 @@ set QT_QPA_FONTDIR=C:\Windows\Fonts
 call :busy
 if defined BUSY ( call :say tests: REFUSED before ctest - the studio became busy & set "EXITRC=10" & goto fail )
 call :stores before
-call :say tests: ctest pass 1, all but qml_ui and the excluded suites %TIME%
-C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" -j8 --timeout 900 --output-on-failure -E "^(%TEXCL%)$" > "%LOGS%\tests_ctest.log" 2>&1
+call :say tests: ctest pass 1, all but the qml_ui label and the excluded suites %TIME%
+C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" -j8 --timeout 900 --output-on-failure -LE qml_ui -E "^(%TEXCL%)$" > "%LOGS%\tests_ctest.log" 2>&1
 set CRC1=%ERRORLEVEL%
 call :say tests: ctest pass 1 exit %CRC1% %TIME%
 call :tally "%LOGS%\tests_ctest.log"
 call :busy
-if defined BUSY ( call :say tests: qml_ui NOT run - the studio became busy & set "EXITRC=10" & goto storesafter )
-call :say tests: ctest pass 2, qml_ui %TIME%
-C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" --timeout 1800 --output-on-failure -R "^qml_ui$" > "%LOGS%\tests_qml_ui.log" 2>&1
+if defined BUSY ( call :say tests: the qml_ui label NOT run - the studio became busy & set "EXITRC=10" & goto storesafter )
+call :say tests: ctest pass 2, the qml_ui label at -j%TJ% %TIME%
+C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" -j%TJ% --timeout 900 --output-on-failure -L qml_ui --no-tests=error > "%LOGS%\tests_qml_ui.log" 2>&1
 set CRC2=%ERRORLEVEL%
 call :say tests: ctest pass 2 exit %CRC2% %TIME%
 call :tally "%LOGS%\tests_qml_ui.log"

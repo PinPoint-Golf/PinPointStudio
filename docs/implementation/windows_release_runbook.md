@@ -112,8 +112,10 @@ cmake -S tests -B build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_PREFIX_
 if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — configure failed'; return }
 cmake --build build/tests -j 6
 if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — build failed'; return }
-ctest --test-dir build/tests --output-on-failure -j 6
-if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — tests failed' } else { 'ALL SUITES PASSED' }
+ctest --test-dir build/tests --output-on-failure -j 6 -LE qml_ui
+if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — tests failed'; return }
+ctest --test-dir build/tests --output-on-failure -j 6 -L qml_ui --no-tests=error
+if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — QML tests failed' } else { 'ALL SUITES PASSED' }
 ```
 The last line must read `100% tests passed, 0 tests failed out of N` — N grows as suites
 and tests are added (121 as of v0.1-alpha11), so treat the *zero failures*, not the count,
