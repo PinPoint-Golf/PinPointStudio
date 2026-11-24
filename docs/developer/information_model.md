@@ -2,8 +2,8 @@
 
 | Document control | Value |
 |---|---|
-| **State** | **v1.9: governance-ready. The Solution Architect's answers of 15 Nov 2026 to the final re-audit's questions (MD-01…MD-12), to Q-17, Q-27 and Q-28, to step 2's brief (DEC-130…DEC-161) and to step 3's brief (DEC-162…DEC-189) are applied, with DEC-190 and DEC-191 (the re-fire design, approved 16 Nov 2026). The questions still open are [§14](#14-open-decisions)'s Q-07, Q-16, Q-18, Q-19 (its approach decided: DEC-173) and Q-20, each with the step whose brief brings it to the Solution Architect.** |
-| **Version** | 1.9.53, 24 Nov 2026 ([§15 Change log](#15-change-log)) |
+| **State** | **v1.10: the four contexts ruled on 24 Nov 2026 (§2, R-CTX-1). v1.9: governance-ready. The Solution Architect's answers of 15 Nov 2026 to the final re-audit's questions (MD-01…MD-12), to Q-17, Q-27 and Q-28, to step 2's brief (DEC-130…DEC-161) and to step 3's brief (DEC-162…DEC-189) are applied, with DEC-190 and DEC-191 (the re-fire design, approved 16 Nov 2026). The questions still open are [§14](#14-open-decisions)'s Q-07, Q-16, Q-18, Q-19 (its approach decided: DEC-173) and Q-20, each with the step whose brief brings it to the Solution Architect.** |
+| **Version** | 1.10.0, 24 Nov 2026 ([§15 Change log](#15-change-log)) |
 | **Status** | **Canonical**[^dec-40]. This page is the information model. `docs/implementation/swe-audit/03-target-architecture.md` is the frozen rationale (why); it is never edited to change the model. Where the two disagree, this page wins and the disagreement is a defect in 03. |
 | **Describes** | The target the refactor (`docs/implementation/swe-audit/04-remediation-plan.md`) moves the code towards. Much of it is not built yet: before relying on an element, check its row in [§11 Where the code is today](#11-where-the-code-is-today). |
 | **Changed by** | The Solution Architect's approval, before it is built, for every information-model change as [§1.2](#12-what-counts-as-an-information-model-change) defines it (§1.2 is the only definition; `CLAUDE.md` points to it)[^dec-76]. Every edit, a §11 update (one of §1.2's exclusions) among them, is recorded in the change log with the ids of what changed[^dec-105]. |
@@ -23,7 +23,7 @@
 ## Contents
 
 1. [Purpose and how to use it](#1-purpose-and-how-to-use-it)
-2. [The three contexts and the Recording contract](#2-the-three-contexts-and-the-recording-contract)
+2. [The four contexts and their contracts](#2-the-four-contexts-and-their-contracts)
 3. [The principles](#3-the-principles)
 4. [The rings and the directory mapping](#4-the-rings-and-the-directory-mapping)
 5. [Domain objects](#5-domain-objects)
@@ -107,7 +107,7 @@ what it was). Cite ids in plans, briefs, reviews, commit messages and lint messa
 | Prefix | What | Where |
 |---|---|---|
 | `P1`…`P9` | Principles | [§3](#3-the-principles) |
-| `R-<AREA>-n` | Rules (`REC` Recording contract, `INS` instruments, `CLUB`, `CMD` commands, `HL` headless, `APP` application state, `DER` derived facts, `ANA` the analysis, `STAMP`, `PERS` persistence, `INPUT` golfer input, `CON` concurrency, `QML`, `UNASSIGNED` the Unassigned owner) | §2–§9 |
+| `R-<AREA>-n` | Rules (`REC` Recording contract, `INS` instruments, `CLUB`, `CMD` commands, `HL` headless, `APP` application state, `DER` derived facts, `ANA` the analysis, `STAMP`, `PERS` persistence, `INPUT` golfer input, `CON` concurrency, `QML`, `UNASSIGNED` the Unassigned owner, `CTX` the contexts) | §2–§9 |
 | `OBJ-<NAME>` | Domain objects, application-state objects and value types | [§5.3](#53-the-objects), [§6](#6-application-state) |
 | `ID-<NAME>` | Identities | [§5.2](#52-identities) |
 | `EVT-nn` | Domain events | [§7.4](#74-events-and-what-they-recompute) |
@@ -125,7 +125,7 @@ what it was). Cite ids in plans, briefs, reviews, commit messages and lint messa
 | `MD-nn` | The final re-audit's questions, all closed in v1.8[^dec-130-140] | [§14](#14-open-decisions) |
 | `TERM-n`, `LIVE-n`, `NAME-n`, `NOTDOM-n` | Rows of §3's two terms, §5.6, §4.1's names and §6.1 | where they stand | marked where they stand |
 | `M-<NAME>` | Named models | [§2.4](#24-the-shots-layers) |
-| `A1`…`A8` | Lint rules (`architecture_lint_test`) | [§1.4](#14-the-lint-rules) |
+| `A1`…`A9` | Lint rules (`architecture_lint_test`; A9 lands with Stage B of the platform refactor) | [§1.4](#14-the-lint-rules) |
 
 ### 1.4 The lint rules
 
@@ -142,35 +142,83 @@ is tagged by the migration step that removes each entry, and adding an entry nee
 | A6 | a `QVariantMap`/`QVariantList` added to a presenter's or a domain type's public API |
 | A7 | a new function over 300 lines in the Vocabulary and Rules rings |
 | A8 | Analysis code reaching past the Recording contract into Acquisition (device classes, the ring buffer, live controllers) or into application state (the athlete controller, settings) |
+| A9 | **Lands with Stage B's folder moves** (the platform refactor); not in the lint yet. An include from one context into a later one (R-CTX-1), by §4.1's Context column; it lands with no allowlist line[^ctx-24] |
 
 A change to a lint rule's scope, or to A4's list, is an information-model change (C4, C9)[^dec-120].
 
 ---
 
-## 2. The three contexts and the Recording contract
+## 2. The four contexts and their contracts
 
-PinPoint is three contexts joined by two contracts. Dependencies run left to right; context flows back from Domain
-to Analysis as typed input.
+PinPoint is four contexts, **Acquisition → Diagnostics → Coaching → Domain + Application**, joined by contracts: the
+Recording (§2.2) and the results (below)[^ctx-24]. Data flows left to right; code dependencies point right to left
+(R-CTX-1). Context flows back from Domain + Application as typed input. Diagnostics is analysis and diagnosis: the
+context this page called Analysis before v1.10.0[^ctx-24].
 
 ```
- ┌──────────────────────┐   Recording    ┌───────────────────────────────┐   results    ┌──────────────────────────────┐
- │ ACQUISITION          │ ─────────────▶ │ ANALYSIS                      │ ───────────▶ │ DOMAIN + APPLICATION         │
- │ transports, devices, │                │ analysis graph: inference ·   │  (shot       │ Athlete · Session · Shot ·   │
- │ ring buffer,         │                │  fusion/synthesis · segmenta- │   analysis,  │ Studio/Rig · persistence ·   │
- │ connectors,          │                │  tion · metric + joint extrac-│   shot       │ AppState · presentation      │
- │ calibration          │                │  tion · shot findings         │   findings)  │                              │
- │ procedures           │                │ cross-shot reductions:        │ ◀─────────── │ owns and stores everything;  │
- │                      │                │  session and athlete diag-    │   context    │ hands Analysis its context   │
- │                      │                │  nostics, diagnosis, coaching │  (baselines, │ (athlete facts, rig state,   │
- └──────────────────────┘                └───────────────────────────────┘   rig, usuals)│  session usuals, norms)      │
-                                                                                         └──────────────────────────────┘
+ ┌──────────────┐ Recording ┌───────────────────┐ results ┌───────────────────┐ plans,  ┌──────────────────────────┐
+ │ ACQUISITION  │ ────────▶ │ DIAGNOSTICS       │ ──────▶ │ COACHING          │ ──────▶ │ DOMAIN + APPLICATION     │
+ │ transports,  │           │ analysis graph,   │ (find-  │ what to work on,  │ evidence│ Athlete · Session · Shot │
+ │ devices,     │           │ firing findings,  │  ings,  │ how, how much to  │         │ · Studio/Rig · the       │
+ │ ring buffer, │           │ cross-shot        │  diag-  │ tell, whether it  │ ◀────── │ coaching objects ·       │
+ │ connectors,  │           │ reductions and    │  nosis) │ stuck: the work-  │ context │ persistence · AppState · │
+ │ calibration  │           │ the derived facts │         │ on lifecycle, the │         │ presentation             │
+ │ procedures   │           │                   │         │ feedback policies │         │ owns and stores          │
+ └──────────────┘           └───────────────────┘         └───────────────────┘         │ everything               │
+                                                                                         └──────────────────────────┘
+        Platform (§4, ring 0) is the base every context uses. It is not a context: it holds nothing domain-shaped.
 ```
 
 | Context | Holds | Owns |
 |---|---|---|
-| **Acquisition** | Transports, devices, the ring buffer, connectors, calibration *procedures*, threading inside capture. Its internals are designed in the platform refactor (capture), which follows this one; only its contract is fixed here. | Nothing persistent: it produces Recordings, which the domain owns and stores |
-| **Analysis** | The analysis graph (per shot), the findings rule over the diagnostic graph, and the session's diagnosis rules (the two graphs' names)[^dec-132] | Nothing persistent: its results are owned and stored by the domain |
-| **Domain + Application** | Athlete, Session, Shot, Studio/Rig, persistence, `AppState`, presentation | Everything that is stored |
+| **Acquisition** | Transports, devices, the ring buffer, connectors, calibration *procedures*, threading inside capture, and the signal-level sensor maths: the IMU's orientation and calibration maths (`imu_calibration.h`, `trunk_angles.h`, `trunk_stand_tall.h`)[^ctx-24]. It produces the Recording. Its internals are designed in the platform refactor (capture), which follows this one; only its contract is fixed here. | Nothing persistent: it produces Recordings, which the domain owns and stores |
+| **Diagnostics** | The analysis graph (per shot), with the golf-specific fusion and kinematics; the findings rule over the diagnostic graph; the derived facts (outcomes, factors, tendencies, priorities); the session's and the athlete's diagnosis rules (the two graphs' names)[^dec-132][^ctx-24] | Nothing persistent: its results are owned and stored by the domain |
+| **Coaching** | What the golfer works on, how, how much they are told, and whether it stuck: the work-on lifecycle and the feedback policies (`docs/design/coaching_layer.md`). It has no rules yet: its objects, files, events and rules are information-model changes made in the coaching track[^ctx-24] | Nothing persistent (below) |
+| **Domain + Application** | Athlete, Session, Shot, Studio/Rig, the coaching objects, persistence, `RuleData`, `AppState`, presentation. It hands the other contexts their context as typed input: athlete facts, rig state, session usuals, norms and baselines | Everything that is stored |
+
+**Coaching owns nothing persistent**, like Acquisition and Diagnostics[^ctx-24]. Its stored objects are domain
+objects, owned at the athlete and session levels and keyed by the owners' ids: the golfer model, the work-on
+lifecycle's state, the playbook and the practice log. Each is an information-model change of its own (C1, C3), made
+in the coaching track. Facts about one shot or one session stay on their one owner, as a part with its own writer, as
+the shot's `review` and `derived` blocks are today.
+
+| Id | Rule | Forbids |
+|---|---|---|
+| R-CTX-1 | **Data flows left to right; code dependencies point right to left**[^ctx-24]. A later context may depend on an earlier context's contracts and rules; an earlier context never depends on a later one. Coaching reads Diagnostics' results and never re-derives them; Diagnostics knows nothing of coaching; Acquisition knows nothing of either. Context flows back only as typed input from Domain + Application. A context that must learn of something later in the chain subscribes to the domain's events ([§7.4](#74-events-and-what-they-recompute)); it never names a later context. A coaching modality (lesson, practice, play, fire-fighting, review) changes only feedback, Coaching's own reductions and what is shown (`coaching_layer.md` T5: analysis is session-agnostic). Checked by lint A9 from Stage B of the platform refactor ([§1.4](#14-the-lint-rules)) | An earlier context including or naming a later one; Coaching re-deriving a Diagnostics result; **acquisition or diagnostics code branching on a coaching modality** |
+
+**The results contract**[^ctx-24]. Diagnostics → Coaching is a contract, as the Recording (§2.2) is for Acquisition →
+Diagnostics. Coaching reads, through the owners:
+- a shot's derived data and findings (OBJ-SHOT-DERIVED, OBJ-SHOT-RESULTS);
+- the session's diagnosis and summary (OBJ-SESSION-DIAG, OBJ-SESSION-SUMMARY);
+- the session's series of measurements (OBJ-SESSION-SERIES);
+- the athlete's diagnosis (OBJ-ATHLETE-DIAG).
+
+It never reads raw streams and never runs an analysis stage.
+
+**Where Coaching starts**[^ctx-24]. The session's declared focus, the declared work-on (OBJ-SESSION-INTENT,
+FILE-SESS-02; R-INPUT-3; GL-68), is Coaching's starting point. The declared miss and the screen answers in the same
+object stay Diagnostics' inputs. `work_ons.json` (FILE-SESS-05) is **not** coaching state, despite its name: it holds
+the session summary (OBJ-SESSION-SUMMARY), a Diagnostics product.
+
+**The packs**[^ctx-24]. One loader, `RuleData` (R-CON-4's immutable snapshots, in Domain + Application), loads the
+packs for every context. Screens (`src/Diagnostics/packs/screen_pack.*`) stay in Diagnostics: a screen answer is an
+input to diagnosis (R-INPUT-3), saying whether a fault is a capacity limit. Drills (`src/Diagnostics/packs/drill_pack.*`)
+are Coaching's intervention library. Today a diagnostics condition names its drill, and the health check
+(`src/Diagnostics/engine/diagnostics_health.*`) checks that the drill exists: a Diagnostics rule naming a Coaching fact,
+which R-CTX-1 forbids. So the link from a condition to its drill moves to Coaching, and the cross-pack health check
+moves to `RuleData`'s level, where both packs are visible. Diagnostics says what is wrong; Coaching says what to do about
+it. The packs' format change needs the Solution Architect's approval, and the pack editor's change the Design Lead's,
+before either is built. The drill pack stays tagged Diagnostics until no Diagnostics file includes it: today the health
+check (`diagnostics_health.*`), the file pack provider (`file_pack_provider.cpp`) and the swing themes pack
+(`swing_themes_pack.h`) do. So lint A9 lands with no allowlist line for it.
+
+**Intent and cold tests at the boundary**[^ctx-24].
+- **Intent.** A golfer's stated intent is a golfer fact, owned by the domain (R-INPUT-1, R-INPUT-2). Diagnostics may
+  summarise it (R-INPUT-4 and R-INPUT-5, the intent-consistency summaries), but it never excuses, suppresses or
+  re-grades a finding because of it. Judging a shot against its stated intent (the play debrief, decision review) is
+  Coaching's.
+- **Cold tests.** A cold retest is a labelled Coaching test over shots that still count in full in every Diagnostics
+  reduction. There are no warm-up shots.
 
 **Contexts and rings are different cuts**[^dec-48]. A context describes how data
 flows; a ring ([§4](#4-the-rings-and-the-directory-mapping)) describes which code may depend on which. So one
@@ -178,12 +226,12 @@ context spans several rings:
 
 | Example | Context | Ring |
 |---|---|---|
-| A reduction *rule* (tendencies, the flight check) | Analysis | Rules |
-| The findings rule, `fireFindings()` | Analysis | Rules |
+| A reduction *rule* (tendencies, the flight check) | Diagnostics | Rules |
+| The findings rule, `fireFindings()` | Diagnostics | Rules |
 | The *owner* that runs them and keeps their results (`SessionDiagnostics`, `AthleteDiagnostics`) | Domain + Application | Domain model |
-| The analysis pipeline that runs the analysis graph | Analysis | Application |
+| The analysis pipeline that runs the analysis graph | Diagnostics | Application |
 
-### 2.1 The shapes of Analysis
+### 2.1 The shapes of Diagnostics
 
 **Firing findings** is the name in the target for a shot checking each of its numbers against its corridor; **diagnosis**
 is reserved for the session's work over its shots' findings[^dec-100]. The code calls the shot's part `detectShot` (a
@@ -193,11 +241,11 @@ member of `SessionDiagnosticsModel`); step 3 makes it a pure function and rename
 |---|---|---|
 | **The analysis graph** (per shot)[^dec-132] | A pure function: Recording + effective context → the shot's analysis (the recorded product). A dependency graph of versioned stages, not a stack (`analysis_dag_design.md`). | The analysis pipeline (an application service). **It never fires findings.**[^dec-19][^dec-100] |
 | **Firing findings** | A pure function, `fireFindings()` (step 3's name) in `src/Diagnostics`: the shot's analysis and the context its `Session` passes down (club baseline, norms, effective club) → the shot's findings[^dec-100], which the `Shot` posts, stamped, to its `Session`, which keeps them[^dec-135]. | Each `Shot` fires its own findings; on a corridor or norm edit the `Session` asks each shot to re-fire, with no re-analysis[^dec-100] |
-| **Cross-shot reductions** | The session's usuals (GL-25)[^dec-130]; the session's diagnosis from its shots' findings (tiers, patterns, links, reasons, per-club mixes, the summary)[^dec-100], athlete diagnosis, coaching ([§7](#7-derived-facts)) (the cross-shot "assessment" of 03 is "diagnosis")[^dec-125]. The shot's outcome, its three factors, its carry and its flight-check overlay are not reductions: they are the shot's derived data, computed for the shot with the session's usuals passed down, which feed the assessment that fires its findings (M-SHOT-LAYERS)[^dec-121]. Incremental and stateful over many shots, recomputed by events. | `SessionDiagnostics`, `AthleteDiagnostics` |
+| **Cross-shot reductions** | The session's usuals (GL-25)[^dec-130]; the session's diagnosis from its shots' findings (tiers, patterns, links, reasons, per-club mixes, the summary)[^dec-100], athlete diagnosis, the derived facts ([§7](#7-derived-facts)) (the cross-shot "assessment" of 03 is "diagnosis")[^dec-125]. The shot's outcome, its three factors, its carry and its flight-check overlay are not reductions: they are the shot's derived data, computed for the shot with the session's usuals passed down, which feed the assessment that fires its findings (M-SHOT-LAYERS)[^dec-121]. Incremental and stateful over many shots, recomputed by events. | `SessionDiagnostics`, `AthleteDiagnostics` |
 
 ### 2.2 The Recording contract
 
-A **Recording** (OBJ-RECORDING) is everything Analysis is allowed to know about a shot, and nothing else[^dec-16].
+A **Recording** (OBJ-RECORDING) is everything Diagnostics is allowed to know about a shot, and nothing else[^dec-16].
 
 | Part | Contents |
 |---|---|
@@ -218,7 +266,7 @@ A **Recording** (OBJ-RECORDING) is everything Analysis is allowed to know about 
 | R-REC-3 | **Until step 3** the later writers are today's callers, all through `RecordingRepository`: `ShotListModel`, `ReanalysisController` and the one write-back `reanalyseAndPersist`, the launch monitor controller, `PpcpClipFiler`, `SessionReviewController` (the summary sidecar), `SessionArchiver` (its stub, through the public `SwingStore::save`, today), `LibraryConverter` and the tools (`lm_repair`, `pps_convert_library`, `swinglab_run`). The `Shot` takes them over in step 3[^dec-86]. | Writing the swing file past the repository |
 | R-REC-4 | **Analysis only ever runs on a Recording**, whether it arrived a second ago or a year ago. Live analysis and re-analysis are the same function: **same Recording + same effective context (the effective club included) → same job.** | Building an analysis job from live objects; Analysis code reaching into device classes, the ring buffer, live controllers, the athlete controller or settings (lint A8) |
 | R-REC-5 | **One builder** makes the analysis job from the Recording and its effective context (the recorded analysis context, with the golfer's club correction applied), for live capture and re-analysis alike. | A second job builder; any context field set on one path only |
-| R-REC-6 | **Re-analysis uses the effective club**[^dec-18]: when the golfer has corrected the club, the builder puts the corrected club, its length and its norms into the effective context, because it is what was really hit. A corrected shot re-analyses with its corrected club. The captured club stays in the Recording for provenance. After a correction the analysis is **stale only**: it is re-analysed when the golfer asks, or by the library sweep[^dec-39]. | Re-analysing a corrected shot with the club it was captured under; Analysis reading the shot's `review` block itself |
+| R-REC-6 | **Re-analysis uses the effective club**[^dec-18]: when the golfer has corrected the club, the builder puts the corrected club, its length and its norms into the effective context, because it is what was really hit. A corrected shot re-analyses with its corrected club. The captured club stays in the Recording for provenance. After a correction the analysis is **stale only**: it is re-analysed when the golfer asks, or by the library sweep[^dec-39]. | Re-analysing a corrected shot with the club it was captured under; Diagnostics reading the shot's `review` block itself |
 | R-REC-7 | **The club rule** is R-CLUB-2; R-CLUB-3, the rule until step 6[^dec-26][^dec-31], is retired[^built-6-2]. | Treating the popover's club, or the board's evidence suggestion, as the correction |
 | R-REC-8 | **A device-only Recording**[^dec-44] has no streams, a launch-monitor reading, the measurement rows derived from it and one Impact phase. The analysis graph has nothing to run on; re-analysing it derives the rows again from the recorded reading (`writeAnalysis` with no analysis). The kind is the `Shot`'s own fact: the one header writer writes it when the shot is created, and a document without it is classified once, in the repository's reader (`isDeviceOnly` today)[^dec-87]. Its key is the top-level `shotKind`, `captured` or `deviceOnly`; old files are not backfilled and are classified by today's content rule[^dec-147]. | Treating a device-only shot as a separate store or a separate model |
 
@@ -264,7 +312,7 @@ graph[^dec-132][^dec-140].
 |---|---|---|---|---|
 | 1 Acquired | What was acquired and collected: the Recording (§2.2) | capture | `Shot` | FILE-SHOT-01, 03, 04, 06 |
 | 2 Processed and analysed | The analysis, the recorded product (§7.2) | the analysis pipeline | `Shot` | FILE-SHOT-01 |
-| 3 Shot derived data | The shot outcome; the shot's tendencies, its three factors (strike · direction · flight); carry against the usual; the flight-check overlay[^dec-122]. Computed for the shot with the session's usuals (GL-25) passed down as a typed input (P6); a change of a club's usuals makes every same-club shot recompute its derived data and re-fire its findings[^dec-130] | the shot rules (Coaching) | computed by the `Shot` (P10; OBJ-SHOT-DERIVED), which posts it, stamped, to its `Session`; kept by the `Session`[^dec-135] | FILE-SESS-03, with the shot's findings[^dec-135] |
+| 3 Shot derived data | The shot outcome; the shot's tendencies, its three factors (strike · direction · flight); carry against the usual; the flight-check overlay[^dec-122]. Computed for the shot with the session's usuals (GL-25) passed down as a typed input (P6); a change of a club's usuals makes every same-club shot recompute its derived data and re-fire its findings[^dec-130] | the shot rules (the derived facts, in Diagnostics; `src/Coaching` today, `src/Diagnostics/derived/` from Stage B of the platform refactor)[^ctx-24] | computed by the `Shot` (P10; OBJ-SHOT-DERIVED), which posts it, stamped, to its `Session`; kept by the `Session`[^dec-135] | FILE-SESS-03, with the shot's findings[^dec-135] |
 | 4 Assessment | The analysis and the derived data checked against the diagnostic graph (the diagnostic engine, pack + norms)[^dec-132][^dec-140], with the club baseline, norms and effective club the `Session` passes down | `fireFindings()`[^dec-100] | `Shot` | n/a: a step, not stored |
 | 5 Findings | The shot's findings, 1:1 with the shot that fired them[^dec-101] | the assessment | fired by the `Shot`, which posts them, stamped, to its `Session`; kept by the `Session` as its collection (OBJ-SHOT-RESULTS)[^dec-135] | FILE-SESS-03[^dec-135] |
 
@@ -319,7 +367,7 @@ Dependencies point **inward only**: a ring may use the rings inside it, never on
  │  │  │  ┌────────────────────────────────────────────────────────────────────┐  │  │  │
  │  │  │  │ RULES (pure)  measurement algorithms (raw device data → measurements,│  │  │  │
  │  │  │  │   incl. the LM's inferred reads) · instrument precedence · findings · │  │  │  │
- │  │  │  │   diagnostics engine + packs/norms · coaching rules                  │  │  │  │
+ │  │  │  │   diagnostics engine + packs/norms · derived facts                   │  │  │  │
  │  │  │  │  ┌──────────────────────────────────────────────────────────────┐  │  │  │  │
  │  │  │  │  │ VOCABULARY  value types (Club, Intent, Measurement, …) · ids  │  │  │  │  │
  │  │  │  │  │   · metric definitions + catalogue · club vocabulary · units  │  │  │  │  │
@@ -342,25 +390,35 @@ this page is canonical[^dec-40]: the types are Vocabulary.
 |---|---|---|
 | **Platform** (ring 0)[^dec-23] | Logging (`ppInfo`/`ppWarn`), profiling, machine queries; from step 3, the one worker pool, a serial lane per session and the post-to-owner helper (R-CON-5)[^dec-169]. Every ring may include it. | Depends on anything outside itself; holds anything domain-shaped |
 | **Vocabulary** | What things are: value types (`Club`, `Intent`, `Measurement`, …), identity types, metric definitions and the catalogue, club vocabulary, units, the Recording contract's types | Depends on anything but Platform |
-| **Rules** | Pure functions: measurement algorithms (pose, club, ball, IMU fusion, kinematics, wrist, 3-D skeleton, the LM's inferred reads); the one instrument-precedence rule; firing findings; coaching (outcomes, factors, flight check, Sky, tendencies, link grading) | File I/O (lint A5); golfer-facing sentences; knowing about sessions or screens |
+| **Rules** | Pure functions: measurement algorithms (pose, club, ball, IMU fusion, kinematics, wrist, 3-D skeleton, the LM's inferred reads); the one instrument-precedence rule; firing findings; derived facts (outcomes, factors, flight check, Sky, tendencies, link grading)[^ctx-24] | File I/O (lint A5); golfer-facing sentences; knowing about sessions or screens |
 | **Domain model** | Entities and aggregates; the owners of derived facts; the repository interfaces (`RecordingRepository`, `SessionRepository`, `AthleteRepository`). Qt objects for signals, no QML | Persistence, device or UI code |
 | **Application** | `AppState`; use cases (the commands that change the domain); services that run work: capture, the analysis pipeline, re-analysis, the athlete catch-up, the archive and the report | Holding domain data of its own; writing a file except through an aggregate |
 | **Adapters** | Devices (a launch monitor is a device like any other; it simply needs no algorithm); persistence (`SwingStore`, the Recording store, implements `RecordingRepository`; the session and athlete stores implement theirs); UI (presenters, the words module, QML) | Being depended on by an inner ring |
 
+**The Coaching folder.** From Stage B, Part 1 of the platform refactor, `src/Coaching` is the Coaching context's
+folder (§2). Its present files, the derived-fact rules (the shot's derived data, M-SHOT-LAYERS layer 3, and the
+cross-shot reductions), move to `src/Diagnostics/derived/` in that stage's scripted move, because the findings rule
+includes them and R-CTX-1 keeps them out of a later context; the priorities' types are renamed with them (GL-71)[^ctx-24].
+Interpreting a result against a golfer's stated intent and goals (the play debrief, decision quality against outcome,
+a work-on's verdict, the range-to-course gap) is Coaching's and lives in `src/Coaching`, never in Diagnostics.
+
 ### 4.1 Directories, mapped
 
 This is the ring table `src/Gui/tests/architecture_lint_test.cpp` enforces: a directory's ring, with named files
-placed elsewhere where a directory spans rings.
+placed elsewhere where a directory spans rings. The **Context** column says which context (§2) each directory serves;
+contexts are tagged, not foldered[^ctx-24]. The lint does not read the column until A9 lands with Stage B's folder
+moves (§1.4). "To place in Stage B" marks a directory whose context is not yet ruled. The Vocabulary areas keep the
+subject names ruled for Stage B; `Vocabulary/Coaching` is added when coaching types arrive[^ctx-24].
 
-| Id | Ring | Directories (and files placed against their directory) |
-|---|---|---|
-| RING-PLATFORM | Platform | the logging, profiling and machine-query files of `Core` (`pp_debug`, `pp_log_stream`, `PpMessageLog`, `PpStatsLog`, `AnalysisProfileLog`, `pp_profiler`, `ort_log`, `cpu_topology`, `pp_gpu_metrics`, `pp_gpu_metrics_mac`, `pp_os_metrics`, `pp_model_path`, and from step 3.7-I `post_shot_trace`, the per-shot timing line); from step 2, `atomic_write` and `folder_lock`[^dec-160]; from step 3, the one worker pool's file (its name, `work_pool`[^proposed]; built under that name in step 3.1, `src/Core/work_pool.*`)[^dec-169] |
-| RING-VOCABULARY | Vocabulary | `src/Vocabulary/`, the ring's one root folder, an area per subfolder[^sa-vocab-root]: its first area, `Vocabulary/Analysis/`, holds the shared types of `Analysis` (the shot's analysis record, its gate record, tuning and versions, the uncertainty keys, the segment roles, the seeded random numbers and the one rebase; from step 7.3 the stages' result types the record holds, and the wrist types and band context the metric definitions use[^built-7-3]); `src/Recording`, the Recording contract's types[^dec-29]; `src/Identity`, the identity types `AthleteId`, `SessionId`, `ShotRef`, made in step 2 (a new directory, C9)[^dec-148]; `Metrics`; the rest of `Core`; the stream types of `Buffer` (`types`, `format_descriptor`, `source_descriptor`, `swing_window`, `swing_payload_source`, `imu_sample`, `pixel_format_names`); the reading types of `LaunchMonitor` (`launch_monitor_reading`, `lm_device`); `Export/frame_decode` |
-| RING-RULES | Rules | `Pose`, `Club`, `Ball`, `Body`, `IMU`, `Kinematics`, `Wrist`, `Skeleton3d`, `Timeline`, `Diagnostics`, `Coaching`; in `Analysis`: `shot_analysis_job`, `effective_context`, `analysis_job_builder`, `reuse_gate`, `route_substitution`, `seg_resolve`, `stream_trim`, `capture_integrity_check`, `recording_integrity`, `manifest_gates`, `camera_pose_sticks`, `frame_store`; the inferred reads of `LaunchMonitor` (`lm_inferred_reads`, `lm_flight_path`, `lm_enclosing_ellipse`, `lm_club_evidence`, `lm_gates`, `lm_session_reductions`, `shot_pairing`, `standalone_gate`); `Core/kf3_smoother`; in `Gui/shot`: `shot_arbiter`, `shot_outcome` |
-| RING-DOMAIN | Domain model | `src/DomainModel`[^dec-10][^dec-29] |
-| RING-APPLICATION | Application | `Analysis` (the pipeline, re-analysis, `reanalyse_and_persist`); `src/App` for `AppState`[^dec-11]; in `Gui/shot`: `shot_processor`, `shot_controller`, `reanalysis_controller`, `shot_source_map` (03 §2: the capture and session services are Application) |
-| RING-ADAPTERS | Adapters | the rest of `Gui` (presenters, QML, the other controllers); `Export` (the Recording store); in `Analysis`: `mp4_frame_reader`, `recorded_products`; `Buffer` (the ring itself); `Video`, `Audio`, `LaunchMonitor` (connectors), `Ppcp`, `LLM`, `STT`, `TTS`, `Secrets`, `Update`; `Core/device_enumerator`, `Core/pp_settings`, `Core/studio_profile`, `Core/app_info`; the device back-ends of `IMU` (`ble_adapter_pool`, `ble_imu_transport`, `imu_base`, `imu_capabilities`, `imu_factory`, `imu_io_worker`, `imu_sample_tap`, `hm_session_worker`, `wt9011dcl`, `wt9011dcl_ble`, `wt9011dcl_base`, `wt901_config_check`); `Pose/motion_capture_probe` |
-| RING-NONE | No ring (not C++) | `Resources` (shipped data: core pack, norms, flight norms, icons, fonts, keys); `Shaders` |
+| Id | Ring | Context | Directories (and files placed against their directory) |
+|---|---|---|---|
+| RING-PLATFORM | Platform | n/a: Platform is the base every context uses, not a context (§2) | the logging, profiling and machine-query files of `Core` (`pp_debug`, `pp_log_stream`, `PpMessageLog`, `PpStatsLog`, `AnalysisProfileLog`, `pp_profiler`, `ort_log`, `cpu_topology`, `pp_gpu_metrics`, `pp_gpu_metrics_mac`, `pp_os_metrics`, `pp_model_path`, and from step 3.7-I `post_shot_trace`, the per-shot timing line); from step 2, `atomic_write` and `folder_lock`[^dec-160]; from step 3, the one worker pool's file (its name, `work_pool`[^proposed]; built under that name in step 3.1, `src/Core/work_pool.*`)[^dec-169] |
+| RING-VOCABULARY | Vocabulary | Acquisition: `Buffer`'s stream types, with `Buffer`. To place in Stage B: the rest (`Vocabulary/Analysis`, `Recording`, `Identity`, `Metrics`, the rest of `Core`, `LaunchMonitor`'s reading types, `Export/frame_decode`) | `src/Vocabulary/`, the ring's one root folder, an area per subfolder[^sa-vocab-root]: its first area, `Vocabulary/Analysis/`, holds the shared types of `Analysis` (the shot's analysis record, its gate record, tuning and versions, the uncertainty keys, the segment roles, the seeded random numbers and the one rebase; from step 7.3 the stages' result types the record holds, and the wrist types and band context the metric definitions use[^built-7-3]); `src/Recording`, the Recording contract's types[^dec-29]; `src/Identity`, the identity types `AthleteId`, `SessionId`, `ShotRef`, made in step 2 (a new directory, C9)[^dec-148]; `Metrics`; the rest of `Core`; the stream types of `Buffer` (`types`, `format_descriptor`, `source_descriptor`, `swing_window`, `swing_payload_source`, `imu_sample`, `pixel_format_names`); the reading types of `LaunchMonitor` (`launch_monitor_reading`, `lm_device`); `Export/frame_decode` |
+| RING-RULES | Rules | Diagnostics: `Pose`, `Club`, `Ball`, `Kinematics`, `Timeline`, `Diagnostics` (its drill pack too, until no Diagnostics file includes it; then Coaching: §2, "The packs"), the named files of `Analysis`, and `IMU` but for its signal-level files; `Coaching`'s present files, the derived facts, until they move to `Diagnostics/derived/` in Stage B, Part 1. Acquisition: `IMU`'s `imu_calibration`, `trunk_angles`, `trunk_stand_tall`. Domain + Application until Stage D: `Gui/shot`'s `shot_arbiter` and `shot_outcome`. To place in Stage B: `Body`, `Wrist`, `Skeleton3d`, `LaunchMonitor`'s inferred reads, `Core/kf3_smoother` | `Pose`, `Club`, `Ball`, `Body`, `IMU`, `Kinematics`, `Wrist`, `Skeleton3d`, `Timeline`, `Diagnostics`, `Coaching`; in `Analysis`: `shot_analysis_job`, `effective_context`, `analysis_job_builder`, `reuse_gate`, `route_substitution`, `seg_resolve`, `stream_trim`, `capture_integrity_check`, `recording_integrity`, `manifest_gates`, `camera_pose_sticks`, `frame_store`; the inferred reads of `LaunchMonitor` (`lm_inferred_reads`, `lm_flight_path`, `lm_enclosing_ellipse`, `lm_club_evidence`, `lm_gates`, `lm_session_reductions`, `shot_pairing`, `standalone_gate`); `Core/kf3_smoother`; in `Gui/shot`: `shot_arbiter`, `shot_outcome` |
+| RING-DOMAIN | Domain model | Domain + Application | `src/DomainModel`[^dec-10][^dec-29] |
+| RING-APPLICATION | Application | Diagnostics: `Analysis` (the pipeline and re-analysis run the analysis graph; the table under §2). Domain + Application: `src/App`; `Gui/shot`'s files until Stage D | `Analysis` (the pipeline, re-analysis, `reanalyse_and_persist`); `src/App` for `AppState`[^dec-11]; in `Gui/shot`: `shot_processor`, `shot_controller`, `reanalysis_controller`, `shot_source_map` (03 §2: the capture and session services are Application) |
+| RING-ADAPTERS | Adapters | Domain + Application: the rest of `Gui` (presentation), with `Gui/cameras` and `Gui/imu` until Stage D splits capture; `Export` (the stores). Acquisition: `Buffer` (the ring), `Video`, `Ppcp`; `LaunchMonitor`'s connectors once its inferred reads leave in Stage B (to place until then). To place in Stage B: `Analysis`'s `mp4_frame_reader` and `recorded_products`; `Audio`, `LLM`, `STT`, `TTS`, `Secrets`, `Update`; `Core`'s `device_enumerator`, `pp_settings`, `studio_profile`, `app_info`; `IMU`'s device back-ends; `Pose/motion_capture_probe` | the rest of `Gui` (presenters, QML, the other controllers); `Export` (the Recording store); in `Analysis`: `mp4_frame_reader`, `recorded_products`; `Buffer` (the ring itself); `Video`, `Audio`, `LaunchMonitor` (connectors), `Ppcp`, `LLM`, `STT`, `TTS`, `Secrets`, `Update`; `Core/device_enumerator`, `Core/pp_settings`, `Core/studio_profile`, `Core/app_info`; the device back-ends of `IMU` (`ble_adapter_pool`, `ble_imu_transport`, `imu_base`, `imu_capabilities`, `imu_factory`, `imu_io_worker`, `imu_sample_tap`, `hm_session_worker`, `wt9011dcl`, `wt9011dcl_ble`, `wt9011dcl_base`, `wt901_config_check`); `Pose/motion_capture_probe` |
+| RING-NONE | No ring (not C++) | n/a: not code | `Resources` (shipped data: core pack, norms, flight norms, icons, fonts, keys); `Shaders` |
 
 Today the lint places six files of `Gui/shot` in Application or Rules (above) and the rest of `Gui` in Adapters;
 domain code leaves `Gui` in step 7, and the capture services' device half in the platform refactor (capture).
@@ -596,7 +654,7 @@ ones the `Session`'s, the athlete's the `Athlete`'s. `applyAnalysis` and `comple
 | CLS-ATHLETE | `Athlete` | Holds the record, the bag, the tuning log and the `SessionIndex`; owns `AthleteDiagnostics`; starts and resumes its sessions[^dec-78][^dec-134], and makes and holds each `Session` it loads, one per `SessionId`, as its child[^dec-190]. Its step-2 form (record, bag, index, `remove()`, `recordChanged` as the interim for EVT-14) is step 2's brief's[^dec-160] | One instance per `AthleteId` (the identity map); its folder is where its `athlete.json` is found, with no `folder` key, kept on rename, never derived from the name[^dec-04][^dec-151]; at most one of its sessions is InProgress, which `startSession` and `resumeSession` enforce[^dec-78][^dec-134]; the record holds source facts only, so today's `lastSessionAt` and `sessionCount` are derived from the `SessionIndex`[^dec-89] | `create`; `editRecord`, `editBag` (EVT-14); `startSession` (EVT-17)[^dec-78]; `resumeSession` (EVT-23)[^dec-77][^dec-134]; `trashSession` (EVT-20)[^dec-71]; `sessionAt(folder)`, by which a view reaches a `Session` until step 4[^dec-164]; `appendTuningLog` on EVT-06[^dec-43]; `delete` (no event: Q-16)[^dec-79] | Read shot findings; change a session's recorded inputs (P1); be re-pointed at another athlete (a switch replaces it, R-APP-1) |
 | CLS-SESSION | `Session` | Holds its collection of shots (adding and trashing them, swing numbers, order), each shot's findings and derived data as the `Shot` posts them[^dec-135], the context they were taken in (identity, type, status, intent run, session intent, club baseline), its derived owners and its session-wide results; hears every change to a shot through the shot's events (P10); asks each shot to re-fire its findings on a corridor or norm edit[^dec-100] | Swing numbers unique, increasing, never reissued[^dec-91]; its status is persisted[^dec-41], so a crash leaves it InProgress until `end` or the athlete's next `startSession`[^dec-73] | `end` (EVT-09; on an empty session it asks `Athlete::trashSession`, EVT-20)[^dec-143]; `addShot` (EVT-01, emitted when capture's document write lands)[^dec-168][^dec-142]; `trashShot` (EVT-03); `setIntentRun` (EVT-08); `setSessionIntent` (EVT-10); `freezeClubBaseline` (EVT-16 on a rewrite); `archive` (EVT-18), `restore` (EVT-19), `saveReport`[^dec-140] (the report command)[^dec-22][^dec-94], which writes the report's derived file (FILE-SESS-07), the PDF (FILE-SESS-08) and the stills (FILE-SESS-09), never its source file, and the commands for the coach's note and a send, which write that source file (FILE-SESS-13)[^dec-201][^proposed-names]. `applyAnalysis` and `completeCapture` are the `Shot`'s[^dec-103]; resuming is the `Athlete`'s `resumeSession`[^dec-134]; `relocate` is removed[^dec-154] | Own, write or command a shot-specific fact (P10), except keeping the findings and derived data its shots post[^dec-135]; read another session's facts except a typed input (its baseline); write an athlete file; fire a shot's findings itself[^dec-100] |
 | CLS-SHOT | `Shot` | Its own object (P10)[^dec-95]: holds its Recording, analysis, measurements and review, and manages them with its own commands; fires its own findings from its analysis and the context its `Session` passes down, and exposes them through `ShotDiagnostics`[^dec-100]; it posts its findings and derived data, stamped, to its `Session`, which keeps them[^dec-135]. It is a QObject, a child of its `Session`, exposed to QML directly and typed (P9), and reads the snapshot it fires against (club baseline, pack, norms) from its parent[^dec-141]. A re-fire on a worker reads that snapshot as an immutable copy and posts its results to the GUI thread (R-CON-2, R-CON-3) as step 3's brief §4.4 sets out: the `Shot` holds its latest ask number, and a result is kept only when its number is exactly that[^dec-191] | Obtainable only from its `Session`; its kind (captured or device-only) never changes; every change is saved through the repository (one writer), evented in command order, and propagated (re-firing findings, the summary)[^dec-95]. The `Shot` saves and emits its own changes; its `Session` hears them and propagates them[^dec-103] | `rate`, `note` (no event)[^dec-70]; `correctClub` (EVT-04); `excludeReading` (EVT-05); `correctLabel` (EVT-06); `setShotIntent` (EVT-07); `setDeclaredClub` (EVT-21)[^dec-94]; `fireFindings`, which its `Session` calls[^dec-100]; `applyAnalysis` (EVT-02) and `completeCapture` (EVT-22)[^dec-103]; the markup truth's command, which emits no event[^dec-187] | Be reached except through its `Session`; be keyed by folder; diagnose its session (that is `SessionDiagnostics`')[^dec-100] |
-| CLS-RECORDING | Recording | The contract (§2.2) | Written once by capture, in stages (closed list R-REC-2), then by its `Shot`[^dec-86]; the analysis context never changes after capture except by an approved one-off migration (R-REC-1); follow-club stores its device club beside the captured club and never overwrites it[^dec-133][^built-6-2] | n/a: capture writes it | Carry anything Analysis may not know (§2.2) |
+| CLS-RECORDING | Recording | The contract (§2.2) | Written once by capture, in stages (closed list R-REC-2), then by its `Shot`[^dec-86]; the analysis context never changes after capture except by an approved one-off migration (R-REC-1); follow-club stores its device club beside the captured club and never overwrites it[^dec-133][^built-6-2] | n/a: capture writes it | Carry anything Diagnostics may not know (§2.2) |
 | CLS-SESSION-DIAG | `SessionDiagnostics` | Diagnoses the session from its shots' findings: tiers, patterns, links, reasons, per-club mixes and the summary[^dec-100], and the session's sequence-consistency reading, worked out once with the diagnosis, in memory only (`SessionDiagnosis::sequence`)[^sa-j82]; computes and holds the session's usuals (GL-25)[^dec-130], in the snapshot below[^dec-174]; keeps, for its `Session`, each shot's findings and derived data as the shots post them, stamped, in FILE-SESS-03[^dec-135]; runs the session reduction; keeps the session summary[^dec-81]; holds, as an immutable snapshot, the pack, the norms and the session's club baseline it passes down to the shots' findings[^dec-110], with the usuals[^dec-174] and the athlete's norm cohort on each shot's date[^dec-171]. A change to a club's usuals recomputes that club's shots' derived data only, never their findings; a shot whose read failed is kept as it was and marked *unread* in FILE-SESS-03, re-asked at the next load[^dec-191]. Its memory cost when every loaded session always runs in a sweep is OPEN (Q-18, step 3) | One per session; always runs[^dec-02]; results stamped (R-STAMP-1) | n/a: driven by events; results posted to it (R-CON-3) | Write a shot's `review` or Recording; fire a shot's findings (the `Shot` does)[^dec-100]; read another session[^dec-110]; build golfer-facing sentences (R-DER-9) |
 | CLS-SHOT-DIAG | `ShotDiagnostics` | A read-only view of one shot's findings and results, reached through the `Shot` | Never outlives its session; before its findings are fired it has no value (shown "-"), never a zero[^dec-96] | n/a: read-only | Own or cache anything |
 | CLS-ATHLETE-DIAG | `AthleteDiagnostics` | Runs the athlete reductions over session summaries: tendencies, athlete work-ons (GL-70)[^dec-138], themes, baselines (including each session's club baseline before the `Session` freezes it)[^dec-46], distances, consistency, intent consistency | Derived on demand: an event marks it stale and it recomputes when next read[^dec-60]. It reads session summaries through `SessionRepository` (the `SessionIndex` holds them), never shots. For the scoped views (a club scope, a shot filter) it reads each session's judged rows through that session's `SessionDiagnostics`[^dec-195] | n/a: driven by events; the athlete catch-up (an application service) asks it to recompute and persist its caches (04 step 3: the catch-up is cut over "via `AthleteDiagnostics`") | Append the tuning log (that is the `Athlete`'s)[^dec-43]; rerun a session's reduction; read shot findings (except the scoped views' judged rows, through the session's `SessionDiagnostics`)[^dec-195] |
@@ -1289,13 +1347,13 @@ implies (`StageState`, `StageProfile`, the Charts `ShotDiagnostics`, `review.exc
 | GL-34 | Sky | the one flight fault: for a driver, fairway wood or hybrid it replaces High when the flight says so (`Coaching/shot_factors.h`) | n/a: no other meaning |
 | GL-35 | Screen answers | the golfer's answers to a session's screens (the screen pack, `screens.json`) | n/a: no other meaning |
 | GL-36 | Intent run | a "from here on" intent, pre-filling each later shot | n/a: no other meaning |
-| GL-37 | Work-on | never used alone: say the declared work-on (GL-68), the session work-ons (GL-69) or the athlete work-ons (GL-70)[^dec-138] | n/a: no other meaning |
+| GL-37 | Work-on | Coaching's (§2): a priority (GL-71) that the golfer or the coach adopts, with its lifecycle (its states are designed in the coaching track; `docs/design/coaching_layer.md` proposes them). The declared work-on (GL-68) is one[^ctx-24]. The golfer keeps the word; until the coaching track builds adoption, the panel that shows a session's priorities says "Priorities", not "Work-ons"[^dl-priorities] | a priority (GL-71), the session's ranked, classed fault, which is Diagnostics' |
 | GL-38 | Held condition | a condition's "held" state, decided by one rule that Your swing and Work-ons share (R-DER-7) | n/a: no other meaning |
 | GL-39 | Session summary | what the athlete level reads from a session (FILE-SESS-05) | `SessionSummary` (a display struct); `swing_summary.json` (a shot cache); the analysis' `summary` block |
 | GL-40 | Club baseline | a session's frozen per-club baselines (OBJ-CLUB-BASELINE) | the parity baseline (a test fixture); the ball's empty-mat baseline |
 | GL-41 | Catch-up | the application service that brings the athlete level's caches up to date | n/a: no other meaning |
 | GL-42 | Words module | the one place golfer-facing sentences are built | n/a: no other meaning |
-| GL-43 | Context | only the three contexts (§2) | the analysis context; `ShotContext`; QML context globals |
+| GL-43 | Context | one of the four contexts (§2): Acquisition, Diagnostics, Coaching, Domain + Application. They are contexts, not layers: "layer" means the shot's layers (§2.4, M-SHOT-LAYERS) or P2's (GL-45)[^ctx-24] | the analysis context (GL-09); `ShotContext`; QML context globals; a layer (GL-45; M-SHOT-LAYERS); a ring (GL-44) |
 | GL-44 | Ring | a dependency ring (§4) | a layer |
 | GL-45 | Layer | one of P2's three: domain, application state, view state | a ring |
 | GL-46 | Stage | an analysis stage (`k*StageVersion`) | Stage 0 (the refactor's first phase, named only); the UI's *stage panel* |
@@ -1318,11 +1376,12 @@ implies (`StageState`, `StageProfile`, the Charts `ShotDiagnostics`, `review.exc
 | GL-63 | Shot derived data | layer 3 of M-SHOT-LAYERS: the shot outcome, the shot's tendencies (its three factors), carry against the usual and the flight-check overlay, computed for the shot with the session's usuals passed down; they feed the assessment and are not findings[^dec-121] | findings (GL-23) |
 | GL-64 | Tendencies | the athlete level's tendencies, from session summaries (FILE-ATH-02) | the shot's tendencies (GL-33) |
 | GL-65 | Assessment | layer 4 of M-SHOT-LAYERS: the shot's analysis and derived data checked against the diagnostic graph (GL-67, the diagnostic engine)[^dec-132][^dec-140], which fires its findings[^dec-121] | the session's diagnosis (GL-62); 03's older cross-shot "assessment", now "diagnosis"[^dec-125] |
-| GL-66 | Analysis graph | the per-shot graph of versioned analysis stages that makes the shot's analysis ([§2.1](#21-the-shapes-of-analysis))[^dec-132] | the diagnostic graph (GL-67); bare "DAG", retired in this page |
+| GL-66 | Analysis graph | the per-shot graph of versioned analysis stages that makes the shot's analysis ([§2.1](#21-the-shapes-of-diagnostics))[^dec-132] | the diagnostic graph (GL-67); bare "DAG", retired in this page |
 | GL-67 | Diagnostic graph | the diagnostic engine's condition graph (pack + norms), which a shot's analysis and derived data are assessed against to fire its findings[^dec-132] | the analysis graph (GL-66); bare "DAG", retired in this page |
-| GL-68 | Declared work-on | the condition the golfer declares they are working on: the declared focus, part of the session intent (OBJ-SESSION-INTENT)[^dec-138] | the session work-ons (GL-69); the athlete work-ons (GL-70) |
-| GL-69 | Session work-ons | the session summary's ranked list of work-ons (OBJ-SESSION-SUMMARY)[^dec-138] | the declared work-on (GL-68); the athlete work-ons (GL-70) |
-| GL-70 | Athlete work-ons | the athlete level's work-ons, kept by `AthleteDiagnostics`[^dec-138] | the declared work-on (GL-68); the session work-ons (GL-69) |
+| GL-68 | Declared work-on | the condition the golfer declares they are working on: the declared focus, part of the session intent (OBJ-SESSION-INTENT)[^dec-138]; a work-on (GL-37), and Coaching's starting point (§2)[^ctx-24] | the session priorities (GL-69); the athlete priorities (GL-70) |
+| GL-69 | Session priorities (the session work-ons before v1.10.0) | the session summary's ranked list of priorities (GL-71; OBJ-SESSION-SUMMARY)[^dec-138][^ctx-24] | the declared work-on (GL-68); the athlete priorities (GL-70); a work-on (GL-37) |
+| GL-70 | Athlete priorities (the athlete work-ons before v1.10.0) | the athlete level's priorities (GL-71), kept by `AthleteDiagnostics`[^dec-138][^ctx-24] | the declared work-on (GL-68); the session priorities (GL-69); a work-on (GL-37) |
+| GL-71 | Priority | Diagnostics' ranked, classed fault: what the session's diagnosis computes today (`session_reduction`), at the session (GL-69) and athlete (GL-70) levels. Its types are renamed at Stage B, Part 1 of the platform refactor (for example `WorkOnClass` → `PriorityClass`) and move to `src/Diagnostics/derived/` with today's `src/Coaching` files; `work_ons.json` (FILE-SESS-05) keeps its name[^ctx-24]. The panel that shows them says "Priorities"[^dl-priorities] | a work-on (GL-37): a priority the golfer or the coach adopts, which is Coaching's |
 
 ---
 
@@ -1869,6 +1928,9 @@ The decisions and judgement calls each sentence follows. A decision's full text 
 [^proposed-6-1b]: Proposed for the Solution Architect in refactor step 6.1b (`build/refactor/step-6/NOTES-6.1b.md`, D-5 and D-6), not built.
 [^local-copies-5-8a]: Built in refactor step 5.8a (`build/refactor/step-5/BRIEF-5.8a.md`), as placed by the step-4 local-copies survey (`build/refactor/step-4/LOCAL-COPIES.md`, row 10). Each block from its owning object, not a whole-document read: the Solution Architect, 23 Nov 2026. The display cache: the Product Owner, 23 Nov 2026.
 
+[^ctx-24]: Solution Architect and Product Owner, 24 Nov 2026 (L1–L8 of the four contexts amendment, `docs/design/four_contexts.md`, merged here in v1.10.0; its full text is in git history): the product is Platform, Acquisition, Diagnostics and Coaching, with Coaching new and last. Facts about one shot or session stay on their one owner; Coaching's own objects are separate objects keyed by the owners' ids.
+[^dl-priorities]: Design Lead, 24 Nov 2026: until the coaching track builds adoption, the panel that shows the session's priorities says "Priorities", not "Work-ons". The heading changes in code with the priorities' type renames, at Stage B, Part 1 of the platform refactor.
+
 ---
 ## 15. Change log
 
@@ -1948,6 +2010,7 @@ The decisions and judgement calls each sentence follows. A decision's full text 
 | 1.9.51 | 24 Nov 2026 | Step 6.4. **Status edits only** (§1.2's §11 exclusion and "make code match this page": R-INS-3 built as written, D-4's interim; no decision registered, no rule changed): §11.1's row "One measurement set, tagged by source and kind; the LM a device; one precedence rule" (the LM board's, Charts Delivery's and the report's low point in the low point measure's ladder; HackMotion's writer deferred); footnotes `[^built-6-4]`, `[^deferred-6-4]` | n/a: status edits (§1.2) |
 | 1.9.52 | 24 Nov 2026 | The close of steps 5, 6 and 7. **Two corrections** (J-82): EVT-12's and EVT-13's names say what publishes each, as the code does: a corridor edit is EVT-12 `NormsChanged` (with the norm sets, SET-06 and SET-15), no longer EVT-13; EVT-13 is the pack, the four content sets and the flight norms[^j82-evt]; R-QML-6, OBJ-SESSION-INDEX's reach and DEC-200 say the Archiving tab stays library-wide, over every library `Athlete`'s `SessionIndex`[^j82-archiving]. **Status edits only** for the rest (§1.2's §11 exclusion; no decision registered, no rule changed): §11's intro; §11.1's rows R-ANA-2 (done), `src/Export` renamed (#224), the rings and P11 allowlist owners, the session summary as the report's data (done), R-REC-1 and the trash (their remainders not placed), `regrade_ledger` (not placed), the `Session` aggregate (done but EVT-14), the `Shot` entity (done), the `ShotCommandDoor` (interim, not placed), `fireFindings()`, the `Session` keeping findings (done), each `Shot` firing (done), `work_ons.json` (done: its status lagged 3.7-e), the tuning log (done), the club baseline (done), the board's annotations (6.2's club; the rest not placed), archive and report as commands (done), packs and norms, cross-session reads, the measurement set (6.2; the rest the platform refactor), the flight check, R-STAMP-1 (done), `NormsChanged`/`PackChanged` (partly: EVT-12 on its three listeners), R-CON-4 and R-CON-5 (not placed), R-QML-1 (18 globals) and R-QML-2, R-QML-4 (partly: the grade words, #219), the Unassigned owner, the carousel, the session list, the report's two files, rules without file I/O (#224); the version in the document control; footnotes `[^close-5-7]`, `[^po-224]`, `[^j82-evt]`, `[^j82-archiving]`, `[^j93-globals]`, `[^j95-d6]`, `[^dl-219]`, `[^j108-hm]` | Product Owner and Solution Architect, 23 Nov 2026 (J-82), for the two corrections; n/a: status edits (§1.2) for the rest |
 | 1.9.53 | 24 Nov 2026 | **Status corrections** (§1.2's §11 exclusion; J-111): §4.1's "Directories that span rings" row for `Analysis` no longer lists shared types, which step 7.3 moved to `src/Vocabulary/Analysis/`, and names `recorded_products` with the MP4 reader as its adapter part; §11's R-QML-1 row gives each phone global its own build flag (`ppcpOffers` with `HAVE_PPCP`, `ppcpHost` with `HAVE_PPCP_TRANSPORT`, `src/Gui/main.cpp`). No rule, id or ownership changes. | Solution Architect, 24 Nov 2026 (the morning review of J-111) |
+| 1.10.0 | 24 Nov 2026 | **The four contexts** (an information-model change, C9 and C11; `docs/design/four_contexts.md`, retired): §2 is the four contexts, Acquisition → Diagnostics → Coaching → Domain + Application, with its diagram and table, Analysis renamed Diagnostics throughout §2 (§2's and §2.1's headings, §2.1's cross-shot row, §2.2's opening, the Contents and GL-66's link), Coaching owning nothing persistent, the new rule **R-CTX-1** (the direction rule, with its no-branching-on-modality clause), the results contract (OBJ-SHOT-DERIVED, OBJ-SHOT-RESULTS, OBJ-SESSION-DIAG, OBJ-SESSION-SUMMARY, OBJ-SESSION-SERIES, OBJ-ATHLETE-DIAG), Coaching's starting point (OBJ-SESSION-INTENT, FILE-SESS-02, FILE-SESS-05) and intent and cold tests at the boundary; §2.4's layer 3 producer; R-REC-6's and CLS-RECORDING's "Analysis" → "Diagnostics"; §4's diagram and Rules row ("coaching" → "derived facts") and the Coaching folder (`src/Coaching` → `src/Diagnostics/derived/` at Stage B, Part 1); §4.1's **Context** column on RING-PLATFORM, RING-VOCABULARY, RING-RULES, RING-DOMAIN, RING-APPLICATION, RING-ADAPTERS, RING-NONE; §1.3's `CTX` area and A1…A9; §1.4's lint **A9** (lands with Stage B's folder moves); §2's "The packs" (L7: drills to Coaching, screens in Diagnostics, the condition-to-drill link to Coaching, the cross-pack health check to `RuleData`'s level); the glossary: GL-37 (work-on, narrowed to Coaching's; its lifecycle states left to the coaching track), GL-43 (context), GL-68, GL-69 and GL-70 (renamed session and athlete priorities, ids kept), **GL-71** (priority, new), with the Design Lead's "Priorities" wording; the State header; footnotes `[^ctx-24]`, `[^dl-priorities]` | Solution Architect and Product Owner, 24 Nov 2026 (L1–L8); the Design Lead, 24 Nov 2026 (the "Priorities" wording) |
 | 1.9.22 | 22 Nov 2026 | Step 4-d (the declared focus reaches its Session; build/refactor/step-4/FOCUS-TRACE.md L1–L3). **Status edits only** (§1.2's §11 exclusion and "make code match this page": OBJ-SESSION-INTENT, R-INPUT-3, FILE-SESS-02 unchanged; no decision registered, no rule changed): §11.1's rows for golfer input out of the cache and for `session_input.json` (the pending pick handed to the first Session opened, through EVT-10; the panels' adoption of the controller's copy deleted) | §11: n/a, status edits (§1.2) |
 | 1.9.5 | 16 Nov 2026 | Step 3.6, round 2. **DEC-192 amended** (the summary grows by each shot's rows as judged, its golfer word and the session's frozen club baseline, so the athlete level's tendencies, themes and consistency read summaries alone — the answer's stated purpose; the lead's reading, for the Solution Architect to confirm): the register's row, OBJ-SESSION-SUMMARY, FILE-SESS-05. **Status edits**: §11.1's `AthleteDiagnostics` row, §11.2's `WorkOnsController` | The Solution Architect's answer (DEC-192), as read by the lead; for the Solution Architect's confirmation |
 | 1.9.4 | 16 Nov 2026 | Step 3.6. **Status edits only** (§1.2's §11 exclusion; no decision registered, no rule changed): §11's "Current at"; §11.1's rows for `AthleteDiagnostics`, `work_ons.json`'s writer, the club baseline freeze, and three new rows (the launch monitor board's annotations, the praise rule, the reductions' rule versions checked); §11.2's `WorkOnsController`; a status note under §7.1's table. The athlete level's tendencies, themes, consistency and intent consistency left with `WorkOnsController` are brought to the Solution Architect (`build/refactor/step-3/3.6/NOTES.md` F1) | §11: n/a, status edits (§1.2) |

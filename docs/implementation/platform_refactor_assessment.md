@@ -99,6 +99,7 @@ says "ruled" where it appears below.
 | **Q11, the studio profile:** `src/App/`, beside `AppState`, in the Application ring where its owner is. It keeps its own file (P11); Stage E gives it its repository | Solution Architect | Stage B, Part 1 |
 | **Q25, the method's tools:** the IM excerpt tool, the build lock and the changelog merge helper move into `tools/`, each with a self-test, at the start of Stage B | Product Owner | Stage B |
 | #224's four-way split of its 34 lines is posted on #224 (§5 rule 10) | Product Owner | done |
+| **The four contexts** (`docs/design/four_contexts.md`, L1–L8; PR-4 in `build/platform/JUDGEMENT-CALLS.md`): Acquisition → Diagnostics → Coaching → Domain + Application, with the direction rule R-CTX-1 and the results contract. Today's `src/Coaching` moves to `src/Diagnostics/derived/` and the folder becomes the Coaching context's; Diagnostics' priorities are split from Coaching's work-ons, and the panel says "Priorities" until the coaching track builds adoption (the Design Lead's wording). Lint A9 checks that no context includes a later one. Stage B's libraries stay by ring (L6). Three guards for Stages C and D. Merged into IM v1.10.0 | Solution Architect and Product Owner (L1–L8); Design Lead (the "Priorities" wording) | IM §2, §4, §4.1 and the glossary (done, v1.10.0); Stage B, Part 1 (the move, the renames, A9); Stage B, Part 2 (L6); Stages C and D (the guards) |
 
 ---
 
@@ -723,8 +724,24 @@ After the domain refactor. Its measurements are redone then. It has two parts.
   `modelFileFingerprint`, replacing the pose stage's fingerprint hook (J-107's J-2, ruled 24 Nov[^po24]).
 - **`LaunchMonitor`'s inferred reads** go to a Rules directory (proposed, for the Solution Architect; IMC C9). The
   connectors, the Buffer stream types, `IMU`'s device back-ends and `Pose`'s motion-capture probe wait for Stage D.
+- **The four contexts' moves** (ruled 24 Nov, PR-4; IM v1.10.0). Today's `src/Coaching` files move to
+  `src/Diagnostics/derived/` in the scripted move, and `src/Coaching` becomes the Coaching context's folder (IM §4).
+  The priorities' types are renamed with them (for example `WorkOnClass` → `PriorityClass`; IM GL-71), and the
+  panel's "Work-ons" heading becomes "Priorities" (the Design Lead's wording); `work_ons.json` keeps its name. Lint
+  A9, no context includes a later one (IM §1.4, R-CTX-1), lands with the folder moves, reading IM §4.1's Context
+  column, with no allowlist line; it places the rows that column marks "to place in Stage B". Before it lands, the
+  includes it would reject today are cleared or ruled (counted on 24 Nov by grep; the review of the information-model
+  merge, `build/platform/D/REVIEW-D1.md`): the pipeline's includes of the domain model (`Analysis/analysis_service.h`,
+  `swing_reanalyzer.h`, `reanalyse_and_persist.h`), whether a Domain-model interface counts as R-CTX-1's typed input
+  being §9 Q26; `measure_sample.cpp`'s store read, which P-3 removes; and the drill pack's Diagnostics includers, which
+  keep it tagged Diagnostics until they move (IM §2, "The packs"). Shared Vocabulary (Recording, Identity, Club,
+  Common), which Acquisition and Diagnostics both include, is tagged at the earliest context that includes it, or marked
+  usable by every context: §9 Q27.
 
 **Part 2: the libraries.**
+- **The libraries stay by ring** (ruled 24 Nov, L6 of the four contexts): a library splits by context only where a
+  clean seam already exists, such as the IMU's signal maths against its golf fusion. Lint A9 enforces the context
+  boundary; the libraries don't have to.
 - **Ring libraries** (proposed, for the Solution Architect): one static library per ring, starting with Platform, then Vocabulary,
   Rules (B-14 is the Diagnostics part of it), Domain model and the stores. Each links only inward; its include
   directories are `PRIVATE`. The quoted includes that rely on the global paths (Premise 3) are rewritten as each
@@ -754,7 +771,7 @@ After the domain refactor. Its measurements are redone then. It has two parts.
 | Deletes | the lint's per-directory Vocabulary entries; the hand-listed source lists in test targets; the header-only workarounds such as `atomic_write.h`'s |
 | Test | a clean build and the full `ctest`, with `qml_ui`, on the Mac and on the cabin PC (Microsoft's compiler, MSVC, links static libraries differently), run from the Windows test lane's script; the three build times against their baseline |
 | Re-run | none to analysis expected; the parity run must show 0 differences |
-| Docs | IM §4.1 (RING-VOCABULARY, RING-PLATFORM, the spanning directories); `docs/developer/testing_developer_guide.md` (the isolation helper) |
+| Docs | IM §4.1 (RING-VOCABULARY, RING-PLATFORM, the spanning directories, and the Context column's "to place" rows); IM §1.4 (A9 built); `docs/developer/testing_developer_guide.md` (the isolation helper) |
 | Tier (proposed, for the Product Owner) | Self-check for the scripted moves, on the evidence of §5 rule 5. Independent review: P-3's accessor, #187's helper, the first library, and every CMake change that alters what a test links |
 | Accept (proposed, for the Product Owner) | The lint's per-file Vocabulary entries: down to Buffer's stream types only. Directories that span rings: 8 → those Stage D owns, named in the brief. Quoted includes that resolve only through the global directories: 425 → the number left in the executable's own files, set in the brief. Allowlist lines tagged `platform refactor (#224)`: 34 → 30, with Stage B's 4 at 0 and the other 30 (Stage D 3, #224-H 1, #224-U 26) each named on #224. `Export/rule_data_reads.cpp`'s new A5 line: added and cleared in the stage, so Stage B clears 5 lines. `swing_reanalyzer.cpp`'s A1 line: gone. Test targets that hand-list sources: to 0. Build times: no worse on either platform, or accepted by the Product Owner |
 
@@ -796,6 +813,10 @@ What to design (all proposed, for the Solution Architect):
   ceremony recorder's file (FILE-SESS-11) and its pool-thread write move with it, and so does the `trunkCeremony`
   QML global, if the globals leave with their stages (§9, Q17). The brief reads `docs/design/system/README.md` and the component pages
   before any QML is touched.
+- **A guard from the four contexts** (ruled 24 Nov, PR-4; a constraint on the design, not new work): **a third
+  kind of Recording.** External video uploads (`coaching_layer.md` ASY-R1) will be a Recording with declared
+  capabilities and no rig, so the shot kind (`shotKind`, today `captured` or `deviceOnly`; R-REC-8) and the rig
+  reference must not assume two values.
 - **#74 is a programme in its own right.** `docs/design/camera_calibration_design.md` stages it, starting with "make
   the focus failure visible". The Rig gives its results a home; the stage does not absorb the programme.
 
@@ -867,6 +888,17 @@ After Stage C, so the capture service writes rig references from the start.
 - **The motion-capture probe** (`Pose/motion_capture_probe.*`): its A1 line (it includes `SessionController`) and its
   A6 line go with the probe's move out of `src/Pose` and an injected "is a session running" question. #86's items
   (it benchmarks a different pose format; opening Settings runs it) are fixed with it.
+- **Guards from the four contexts** (ruled 24 Nov, PR-4; constraints on the design, not new work). The capture seam
+  is Acquisition's boundary with Domain + Application (IM §2).
+  - **A third kind of Recording**, as in Stage C: the shot kind (R-REC-8) must not assume two values.
+  - **Not every capture is a shot.** Rehearsal swings with no ball (`coaching_layer.md` PRA-R8) are an Acquisition
+    event stream, so the capture interfaces must not assume that every trigger is a ball impact.
+  - **A play source is an Acquisition adapter.** The course context that a play source supplies (WMP-R2's
+    `PlaySource`) is one, beside the launch-monitor connectors.
+  - **Live triggering across the boundary.** The capture code in `Gui` (`Gui/cameras`, `Gui/imu`, `Gui/shot`) is
+    tagged Domain + Application until this stage splits it, because it includes Diagnostics headers today: the pose
+    estimator and the ball detector for live triggering, and `Analysis`, `Club` and `Timeline` in the shot processor.
+    This stage decides how live pose and ball triggering sit across the boundary (IM §4.1; the four contexts, AM6).
 - **Video duplication**: the pixel-format name mapping appears in `video_input_factory.cpp`, `VideoInputAravis.cpp`
   and `VideoInputSpinnaker.cpp`; one function.
 
@@ -1219,6 +1251,14 @@ Added with the lessons (24 Nov; each for the Product Owner unless it says otherw
 25. **The method's tools** (Stage B): the IM excerpt tool and the build lock moved into `tools/`? **Ruled (24 Nov):
     yes, with the changelog merge helper[^po24].**
 
+26. **The pipeline and the domain model** (for the Solution Architect; the four contexts' review): the analysis pipeline
+    (Diagnostics) includes Domain-model headers (`analysis_service.h`, `swing_reanalyzer.h`, `reanalyse_and_persist.h`).
+    Is a Domain-model interface R-CTX-1's "typed input from Domain + Application", so A9 allows it, or must the
+    pipeline take plain values?
+27. **Shared Vocabulary and A9** (for the Solution Architect): tag each shared Vocabulary area at the earliest context
+    that includes it (Recording → Acquisition), which A9 passes as it stands, or mark shared areas usable by every
+    context, which gives A9 a new meaning (C9)?
+
 **The stage each question blocks** (proposed, for the Product Owner). A question is ruled, with the stage's
 approvals, in one sitting before that stage's first brief ("Approvals this page needs").
 
@@ -1226,7 +1266,7 @@ approvals, in one sitting before that stage's first brief ("Approvals this page 
 |---|---|
 | anything | none (20 and 22 ruled 24 Nov) |
 | Stage A | none (4, 10 and 21 ruled 24 Nov) |
-| Stage B | none (11, 15, 16, 19 and 25 ruled 24 Nov) |
+| Stage B | 26, 27 (before lint A9 lands; 11, 15, 16, 19 and 25 ruled 24 Nov) |
 | Stage C | 2, 23 |
 | Stage D | 8, 18 |
 | Stage E | 5, 6, 7, 9, 17, 24's #234 |

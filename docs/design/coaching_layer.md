@@ -1,16 +1,16 @@
-# PinPoint Studio — The Coaching Layer
+# PinPoint Studio — The Coaching Context
 
 *Design note · 23 November 2026*
 
-## What the coaching layer is
+## What the Coaching context is
 
-The coaching layer turns a diagnosis into improvement. It decides what the golfer works on, how they work on it, how much they are told while they do, and whether the change has stuck — in the bay, in practice, on the course, and between visits.
+The Coaching context turns a diagnosis into improvement. It decides what the golfer works on, how they work on it, how much they are told while they do, and whether the change has stuck — in the bay, in practice, on the course, and between visits.
 
-PinPoint Studio already has two layers. **Acquisition** captures FLIR video, IMU streams and launch-monitor data. **Analysis and diagnostics** derives metrics, assesses them against the swing-characteristics DAG, and reports what is happening mechanically and why. That answers the question every golfer asks after a bad shot: what happened there?
+PinPoint Studio already has two contexts before this one. **Acquisition** captures FLIR video, IMU streams and launch-monitor data. **Diagnostics** (analysis and diagnosis) derives metrics, assesses them against the swing-characteristics DAG, and reports what is happening mechanically and why. That answers the question every golfer asks after a bad shot: what happened there?
 
 It does not answer the questions a coach answers. Of everything that is wrong, which one thing matters most right now? What drill, constraint or feel will change it? Should I tell you about every swing, or only when you drift? Did last week's work survive a night's sleep, a different club, a scorecard in your pocket? And when the swing falls apart on Saturday morning, what do you do to get round?
 
-The coaching layer answers those questions. It is modelled on what a good coach does across every kind of interaction they have with a golfer — not only the hour-long lesson. Five modalities are in scope:
+The Coaching context answers those questions. It is modelled on what a good coach does across every kind of interaction they have with a golfer — not only the hour-long lesson. Five modalities are in scope:
 
 1. **Structured lesson** — diagnose, prioritise, prescribe, leave the golfer with a plan.
 2. **Supervised practice** — watch the golfer work on the prescription and keep them honest.
@@ -18,7 +18,7 @@ The coaching layer answers those questions. It is modelled on what a good coach 
 4. **Fire-fighting** — a short-horizon fix when the game breaks before an event.
 5. **Asynchronous review** — the golfer sends a session or video; a coach (human or PPS) reviews it remotely.
 
-All five share one golfer model, one work-on lifecycle, one intervention library and one set of feedback policies. Measurement remains the substrate: PPS is still a launch monitor for the golfer, and the coaching layer is an optional layer above it that the golfer — or a human coach — can engage as much or as little as they choose.
+All five share one golfer model, one work-on lifecycle, one intervention library and one set of feedback policies. Measurement remains the substrate: PPS is still a launch monitor for the golfer, and the Coaching context is an optional context after it that the golfer — or a human coach — can engage as much or as little as they choose.
 
 ## The coaching loop
 
@@ -37,7 +37,7 @@ A good coach's value sits in prioritisation, intervention, feedback and follow-u
 | Wrap-up | One or two work-ons, how it should feel, a plan, what to ignore | Lesson card |
 | Revisit | Retests cold, asks how it went on the course, advances or changes tack | Review step; work-on lifecycle gates |
 
-Two rules follow from the motor-learning literature and govern the whole layer. Improvement within a session is performance, not learning: progress is judged on retention (next visit, cold) and transfer (variable practice, play). And more feedback is not better: what the golfer is told, and when, is a designed policy, not a by-product of what the pipeline can compute.
+Two rules follow from the motor-learning literature and govern the whole context. Improvement within a session is performance, not learning: progress is judged on retention (next visit, cold) and transfer (variable practice, play). And more feedback is not better: what the golfer is told, and when, is a designed policy, not a by-product of what the pipeline can compute.
 
 ## Shared foundations
 
@@ -75,7 +75,7 @@ Rethink changes the intervention first and questions the diagnosis second. A fir
 
 The lesson is where change is decided. The golfer arrives with a bad shot and a goal; they leave with one clear work-on, an understanding of why it matters, a feel to chase, and a plan for the weeks ahead. On a return visit the lesson opens by testing last time's work before looking for anything new.
 
-The flow follows the existing lesson model — Scope, Assess, Read, Prescribe, Practice, Re-test, Wrap-up — with the coaching layer driving each step. A human coach may run it with PPS proposing; a golfer may run it alone with PPS acting as coach.
+The flow follows the existing lesson model — Scope, Assess, Read, Prescribe, Practice, Re-test, Wrap-up — with the Coaching context driving each step. A human coach may run it with PPS proposing; a golfer may run it alone with PPS acting as coach.
 
 ### Use cases
 
@@ -300,7 +300,7 @@ Further modalities fit the same core with little new structure: a pre-round warm
 
 ## Governing principles
 
-1. **Measurement is the substrate.** The coaching layer is optional and sits above measurement; every number remains available on demand.
+1. **Measurement is the substrate.** The Coaching context is optional and sits above measurement; every number remains available on demand.
 2. **Learning, not performance.** Progress is judged on retention and transfer, never on improvement within one session.
 3. **Feedback is designed.** What is shown, when and in what words is set by a named policy, not by what the pipeline can compute.
 4. **One thing at a time.** One primary work-on, at most one secondary; everything else is parked with a reason.
@@ -326,19 +326,19 @@ Further modalities fit the same core with little new structure: a pre-round warm
 
 ## Where this meets today's product rules
 
-Several ideas above run into rules the product already holds. None is necessarily wrong, but each one changes a settled decision, so it needs an explicit answer rather than a quiet drift. Each item names the rule, what the coaching layer would change, a possible way through, and who decides.
+Several ideas above run into rules the product already holds. None is necessarily wrong, but each one changes a settled decision, so it needs an explicit answer rather than a quiet drift. Each item names the rule, what the Coaching context would change, a possible way through, and who decides.
 
-| # | Today's rule | What the coaching layer changes | A possible way through | Decides |
+| # | Today's rule | What the Coaching context changes | A possible way through | Decides |
 | --- | --- | --- | --- | --- |
 | T1 | **Show with a warning, never hide.** Every reading is shown with its trust warning; an app that withholds is worthless[^show-never-hide] | Practice and play profiles hide most metrics; PRA-R4 hides the ball outcome in the acquire block | The profile decides what is *in front of* the golfer while they swing; every number stays one tap away, consistent with principle 1 ("every number remains available on demand"). The rule is reworded to separate *withheld* (never) from *not foregrounded* (by design) | Product Owner |
 | T2 | **PPS never models shot intent.** It reports what it saw; intent is a coaching judgement, and no finding is excused by a declared intent[^no-intent] | WMP-03, WMP-R6 and principle 6 capture stated intent and judge the outcome against it | Stated intent is recorded as a *golfer fact* on the play shot, used only for the play debrief and decision review. It never excuses, suppresses or re-grades a diagnostics finding. The rule is reworded rather than silently overridden | Product Owner, with the Coaching Lead |
 | T3 | **There are no warm-up shots.** Golfers warm up before a session; every shot counts in full in every reduction[^no-warm-up] | LES-R3, LES-02, PRA-02 and the warm-up modality speak of swings "before warm-up" | A cold retest is a deliberate, labelled *test* with its own record, not a status of the session's first shots. No shot-position weighting or skipping returns to any reduction. The note's wording should say "cold test", not "before warm-up" | Product Owner |
 | T4 | **Speech is for instructions only.** Spoken output tells the golfer what to do next; never verdicts, readings or statuses[^tts-instructions] | PRA-03, PRA-05 and PRA-12: spoken verdicts and "how was that?" answers during hands-free practice | Either the rule widens for hands-free practice only, with verdicts spoken under a named feedback profile, or verdicts stay visual (one large verdict, as PRA-R14 already says) and speech keeps to prompts | Product Owner |
-| T5 | **Analysis is session-agnostic.** Stages and metric providers gate on the data and devices available, never on the session type[^session-agnostic] | Five modalities, each with its own feedback profile; play shots kept apart from practice statistics (WMP-R1) | Modalities change only feedback, reductions and what is shown. No analysis stage or metric provider may branch on the modality. State this as a principle of the layer | Solution Architect |
+| T5 | **Analysis is session-agnostic.** Stages and metric providers gate on the data and devices available, never on the session type[^session-agnostic] | Five modalities, each with its own feedback profile; play shots kept apart from practice statistics (WMP-R1) | Modalities change only feedback, reductions and what is shown. No analysis stage or metric provider may branch on the modality. State this as a principle of the context. Ruled: R-CTX-1's no-branching-on-modality clause (IM §2, v1.10.0) | Solution Architect |
 
 **Structure, for when the design moves beyond thinking.**
-- **The name.** "Coaching layer" overlaps the existing `src/Coaching` code (a rules directory) and the Coaching Lead role. A different name, or an explicit note on the difference, avoids confusion in code and governance.
-- **Placement in the rings.** The information model's rings are Platform, Vocabulary, Rules, Domain model, Application and Adapters (`docs/developer/information_model.md` §4). Most of this layer is domain and application: the golfer model, the work-on lifecycle, the playbook and practice logs, owned at the athlete and session levels. The intervention library, tests and feedback policies are rule data, governed like the diagnostics packs. A new ring is probably not needed.
+- **The name.** "Coaching layer" overlaps the existing `src/Coaching` code (a rules directory) and the Coaching Lead role. A different name, or an explicit note on the difference, avoids confusion in code and governance. Ruled: it is the Coaching context (IM §2, v1.10.0), not a layer; `src/Coaching` becomes its folder at Stage B, Part 1 of the platform refactor, when today's rules there move to `src/Diagnostics/derived/`.
+- **Placement in the rings.** The information model's rings are Platform, Vocabulary, Rules, Domain model, Application and Adapters (`docs/developer/information_model.md` §4). Most of this context's state is domain and application: the golfer model, the work-on lifecycle, the playbook and practice logs, owned at the athlete and session levels. The intervention library, tests and feedback policies are rule data, governed like the diagnostics packs. A new ring is probably not needed. Ruled: the Coaching context is the information model's fourth context, after Diagnostics (IM §2, v1.10.0, 24 Nov 2026); it owns nothing persistent, and no new ring is needed.
 - **Approval.** Every new object, file and event here (the golfer model, the work-on lifecycle, PlayShot, PracticeLog, the playbook, the review package) is an information-model change, so the Solution Architect approves it before it is built. The existing work-ons, Tendencies and session summaries are the starting point, not a parallel structure.
 - **The refactor freeze.** Nothing here is built until the current refactor is complete.
 
