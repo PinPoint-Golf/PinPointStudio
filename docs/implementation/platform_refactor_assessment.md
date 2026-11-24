@@ -91,6 +91,14 @@ says "ruled" where it appears below.
 | The review's club popover shows "Not declared" for an undeclared shot, built with #233's fix (DL-4) | Design Lead | not platform work (#233) |
 | Side-naming body conditions mirror for a left-hander, worded by the Coaching Lead (E-11): #236 | Coaching Lead | not platform work |
 | The compound miss starts at 4° like pull/push (6.3b's D-1), and fade/draw follow the grade policy (D-3): #237. D-2 (the no-axis fallback) is accepted as intended | Coaching Lead | not platform work |
+| **Q20, the entry condition:** the platform refactor starts now. The cabin visit, with the 3-shot live check, is assumed successful for planning, and runs at the first visit as that visit's first item; the `94b3b9a1` installer stays the baseline, so a fault it finds is traced to the domain refactor. Issues are closed only on evidence, so #105 and #53 are built now and closed at the visit | Product Owner | §7 |
+| **Q4, Stage A's order:** as written: #184, #105 and #53's detection half first, then the refactors, with #235's half (2) in the stage. **#183 is held** until its comparison at the cabin, so that its settings change and its per-stream fields (a format change) are designed once, from evidence | Product Owner | Stage A |
+| **Q21, the review tier:** as proposed. An independent review for capture timing, threads and teardown, settings and secrets, formats, golfer data, deletions and cut-overs; a self-check only for scripted moves. The tier is written in each brief | Product Owner | §5 rule 5 |
+| **Q22, the Windows test lane:** one bounded build of the test tree and a `ctest` run on the cabin PC over ssh now, to show whether it works. After that it runs only when no session is on and never beside Foresight Premier, each run started from one script | Product Owner | Stage B |
+| **Q15, the area names:** whole directories keep their names (`Vocabulary/Metrics`, `Recording`, `Identity`, `LaunchMonitor`, and `Buffer` in Stage D); `frame_decode` goes to `Vocabulary/Recording`; Core's seven vocabulary files go by subject, `club_standards` and `club_vocabulary` to `Vocabulary/Club` and the rest to `Vocabulary/Common` | Solution Architect | Stage B, Part 1 |
+| **Q11, the studio profile:** `src/App/`, beside `AppState`, in the Application ring where its owner is. It keeps its own file (P11); Stage E gives it its repository | Solution Architect | Stage B, Part 1 |
+| **Q25, the method's tools:** the IM excerpt tool, the build lock and the changelog merge helper move into `tools/`, each with a self-test, at the start of Stage B | Product Owner | Stage B |
+| #224's four-way split of its 34 lines is posted on #224 (§5 rule 10) | Product Owner | done |
 
 ---
 
@@ -658,7 +666,7 @@ so the observed bugs below go first, and the rest follow as refactors (§9, Q4).
 
 | | |
 |---|---|
-| Closes | #184, #105, #183 (its settings half), #53 (its detection half); #235's half (2), the edit cleared before its write ("Mandatory carry-ins" (iv)); June's `source_published_` and `ppDebug()` rows (the segmenter rows go with #240) |
+| Closes | #184, #105, #53 (its detection half); #183 (its settings half) once its comparison is in (held, 24 Nov[^po24]); #235's half (2), the edit cleared before its write ("Mandatory carry-ins" (iv)); June's `source_published_` and `ppDebug()` rows (the segmenter rows go with #240) |
 | Deletes | the three copies of the execution-provider cascade |
 | Test | #105 and #183 on the cabin PC's sensors and cameras; #53 against a swing known to start after impact; the cascade under parity (0 differences); `ctest` for the touched targets |
 | Re-run | #53's coverage rule: the Product Owner decides whether existing swings are re-graded |
@@ -694,7 +702,9 @@ After the domain refactor. Its measurements are redone then. It has two parts.
 **Part 1: the splits the libraries need.**
 - **The Vocabulary root move** ("Mandatory carry-ins" (i)): `Metrics/`, `Recording/`, `Identity/` and Core's vocabulary
   files go under `src/Vocabulary/<area>/`; LaunchMonitor's reading types and `Export/frame_decode` go with them, and Buffer's stream
-  types in Stage D (ruled 24 Nov[^po24]). Three `Core/` headers are not vocabulary and stay in Platform, although the lint's
+  types in Stage D (ruled 24 Nov[^po24]). The areas: `Vocabulary/Metrics`, `Recording` (with `frame_decode`), `Identity`,
+  `LaunchMonitor`, `Buffer` (Stage D), `Club` (`club_standards`, `club_vocabulary`) and `Common` (Core's other
+  vocabulary files). Three `Core/` headers are not vocabulary and stay in Platform, although the lint's
   `fileRings()` counts them as Vocabulary today because it was not updated when they were added: `headless_probe.h`
   (the process environment and which devices start, 4-c), `same_folder.h` (path spelling per operating system, 6.1a)
   and `version.h` (the release version and build number). `fileRings()` gains Platform entries for them before the
@@ -708,8 +718,8 @@ After the domain refactor. Its measurements are redone then. It has two parts.
   Nov[^po24]), and the Export store doors, with `rule_data_reads.cpp` now counted by A5 (J-110, ruled 24 Nov).
 - **`Core` holds only the Platform ring** (proposed, for the Solution Architect; IMC C9), in `src/Core/` or a new
   `src/Platform/`. `kf3_smoother.h` moves to a Rules directory (it is already Rules by IM's RING-RULES);
-  `pp_tuned_constants.h` and the other Vocabulary files go to `src/Vocabulary/`. The studio profile's directory is §9
-  Q11; the device enumerator moves with Stage D, because it is capture work. `pp_model_path` gains
+  `pp_tuned_constants.h` and the other Vocabulary files go to `src/Vocabulary/`. The studio profile moves to `src/App/` (§9
+  Q11, ruled 24 Nov); the device enumerator moves with Stage D, because it is capture work. `pp_model_path` gains
   `modelFileFingerprint`, replacing the pose stage's fingerprint hook (J-107's J-2, ruled 24 Nov[^po24]).
 - **`LaunchMonitor`'s inferred reads** go to a Rules directory (proposed, for the Solution Architect; IMC C9). The
   connectors, the Buffer stream types, `IMU`'s device back-ends and `Pose`'s motion-capture probe wait for Stage D.
@@ -732,7 +742,7 @@ After the domain refactor. Its measurements are redone then. It has two parts.
   #231 (ChartsPanel test_15) is its one known red check.
 - **Tools**: `swinglab_run --doc-blocks` exits non-zero when its document write fails; `parity_baseline.py
   --self-test` works with other arguments (05 §3). Both need a build or a tools change, which this stage has. Two
-  tools the method depends on move into `tools/`, with a self-test each (proposed, for the Product Owner): the IM
+  tools the method depends on move into `tools/`, with a self-test each, first in the stage (ruled 24 Nov[^po24]; the changelog merge helper goes too): the IM
   excerpt tool (`build/refactor/im_excerpt.py`), which the "never read IM whole" rule relies on, and the build lock
   (`build/refactor/one_at_a_time.sh`). Both sit under `build/`, which git ignores[^l-tools].
 - **The per-release re-run of the audit tools** (05 §3, 03 §14b) gets an owner: the release runbooks (proposed, for
@@ -1069,6 +1079,9 @@ Stage B, Part 2 · build libraries
   A's and Stage B's approvals and questions. The live check is a gate, and a short one: it is the only evidence of
   how steps 4–7 behave on real devices, and Stage A's wording fix and Stage B's Part 1 are built and reviewed behind
   it. If Stage B's 268-file rewrite landed first, a fault from steps 4–7 would have to be found across it.
+  **Ruled (24 Nov):** the platform refactor starts now, with the cabin visit assumed successful for planning; the live
+  check runs first at the next visit, against the `94b3b9a1` installer as the baseline, and #105 and #53 close on its
+  evidence[^po24].
 - **Lanes** (proposed, for the Product Owner): two at most, on disjoint files, with every build, test run and probe
   through one lock, as from 23 Nov[^l-lanes]. One lane only while a scripted rewrite crosses the tree. `main.cpp`,
   the root `CMakeLists.txt`, `AppSettings` and the allowlist belong to one lane at a time.
@@ -1145,7 +1158,8 @@ Kept from the first draft:
 3. **How active is phone capture over the next six months?** (for the Product Owner) If it is a main path, Stage F
    matters; if it is parked, only the composition root's ownership of the PPCP statics is needed (Stage E).
 4. **Stage A's order** (for the Product Owner): #184 (wording), #105 and #183 (observed on hardware) and #53's
-   detection half first, as soon as the freeze ends, then the refactors?
+   detection half first, as soon as the freeze ends, then the refactors? **Ruled (24 Nov): as written, with #183 held
+   for its comparison[^po24].**
 
 Reframed:
 5. **The lint-scope ruling** (05 "Decisions waiting"): narrow A6 back to P9's wording, a presenter's or domain type's
@@ -1168,7 +1182,7 @@ Added in the first version:
     the Product Owner): move it out of the platform plan to its own issue, as #222 was. It changes analysis output
     and needs a re-run, and 05's rule is "Don't mix groups in one plan".
 11. **The studio profile's directory**: its owner is decided (`StudioProfile`, application level)[^dec193]; which
-    directory does it move to, with Stage B's `Core` split?
+    directory does it move to, with Stage B's `Core` split? **Ruled (24 Nov): `src/App/`[^po24].**
 12. **After Stage B**: keep the lint's A1 limits as 05 rows or retire them; and the pre-commit hook (05 "Decisions
     waiting") and the per-release audit re-run (05 §3)?
 13. **Windows testing**: which cabin-PC tests does each stage need? This page names them per stage; the Product Owner sets the bar.
@@ -1177,8 +1191,8 @@ Added in the first version:
 Added in this revision:
 15. **The Vocabulary root's residue**: do Buffer's stream types, LaunchMonitor's reading types and `Export/frame_decode`
     move under `src/Vocabulary/` too, so that the lint has one Vocabulary rule, with Buffer's in Stage D? And what are
-    the area names ("Mandatory carry-ins" (i))? **The first half is ruled (24 Nov): all three move[^po24].** The area
-    names are still open.
+    the area names ("Mandatory carry-ins" (i))? **The first half is ruled (24 Nov): all three move[^po24].** **The area
+    names are ruled too: source names, with `Vocabulary/Club` and `Vocabulary/Common` for Core's files[^po24].**
 16. **#224 in three groups** (for the Product Owner): #224-B in Stage B, #224-H and #224-U (the step-5 presenter
     residue, 26 allowlist lines) each on its own track? And is the whole of #224 in the platform refactor, as the
     review reports[^review]? **Ruled 24 Nov:** three groups; #224-H and #224-U are plans of their own, #224-U
@@ -1191,25 +1205,28 @@ Added in this revision:
 
 Added with the lessons (24 Nov; each for the Product Owner unless it says otherwise):
 20. **The entry conditions** (§7): is the live check a gate on capture, device, teardown and Windows build changes,
-    with other work built behind it?
+    with other work built behind it? **Ruled (24 Nov): start now; the visit is assumed successful and runs first at
+    the next visit[^po24].**
 21. **The review tier** (§5 rule 5): are those the triggers for an independent review, and is the self-check tier
     limited to scripted moves? 17 self-checked items of the domain refactor await their first live run[^l-live], so
-    the lighter tier is not yet shown to be safe.
+    the lighter tier is not yet shown to be safe. **Ruled (24 Nov): as proposed[^po24].**
 22. **The Windows test lane** (Stage B): can the cabin PC build the test tree and run `ctest` from a script, and
-    when may it be used, given that it is the working studio? No source read for this page answers the first part.
+    when may it be used, given that it is the working studio? No source read for this page answers the first part. **Ruled (24 Nov): try it once
+    now; then off-hours only, never beside Foresight Premier[^po24].**
 23. **Stage E's part 1 behind Stage C's design wait** (§7)?
 24. **The new carry-ins** ("Mandatory carry-ins" (iv)): #234 in Stage E, part 1? The rest is ruled (24 Nov)[^po24]: 6.4's
     D-1 is dropped (#239), R-REC-8's handedness is approved for Stage D, and the four residues are #224-U's.
-25. **The method's tools** (Stage B): the IM excerpt tool and the build lock moved into `tools/`?
+25. **The method's tools** (Stage B): the IM excerpt tool and the build lock moved into `tools/`? **Ruled (24 Nov):
+    yes, with the changelog merge helper[^po24].**
 
 **The stage each question blocks** (proposed, for the Product Owner). A question is ruled, with the stage's
 approvals, in one sitting before that stage's first brief ("Approvals this page needs").
 
 | Before | Questions |
 |---|---|
-| anything | 20, 22 |
-| Stage A | 4, 21 (10 ruled 24 Nov) |
-| Stage B | 11, 15's area names (the move itself is mandatory and does not wait; the rest of 15 is ruled), 25 (16 and 19 ruled 24 Nov) |
+| anything | none (20 and 22 ruled 24 Nov) |
+| Stage A | none (4, 10 and 21 ruled 24 Nov) |
+| Stage B | none (11, 15, 16, 19 and 25 ruled 24 Nov) |
 | Stage C | 2, 23 |
 | Stage D | 8, 18 |
 | Stage E | 5, 6, 7, 9, 17, 24's #234 |
