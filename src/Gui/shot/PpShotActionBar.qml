@@ -169,7 +169,7 @@ Item {
                 visible: !root._outcomeOnly            // state 5: the summary alone, no empty cell a band high
                 spacing: Theme.gap(9)
 
-                // ── LEFT · focused identity  (#N · club · time · ★ · score) ─────────
+                // ── LEFT · focused identity  (#N · club · time · ★) ─────────
                 //    One clickable chip: hover-lifts and reveals an ✎ hint; a click opens
                 //    the swing-edit popover (club / rating / note). The inner stars stay
                 //    non-interactive so the whole chip is a single hit target.
@@ -240,16 +240,8 @@ Item {
                             interactive: false
                             starSize:    Theme.fontSzBody2
                         }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "·"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                            color: Theme.colorText3
-                        }
-                        PpQualityPill {
-                            anchors.verticalCenter: parent.verticalCenter
-                            score: root.summary.score !== undefined ? root.summary.score : 0
-                            mark:  true
-                        }
+                        // No score pill after the stars (#186): the score is retired from view
+                        // until the shot score is built, so the chip ends at the rating.
                         Text {   // edit hint — space reserved (opacity, not visibility) so hover never reflows
                             anchors.verticalCenter: parent.verticalCenter
                             text:           "✎"

@@ -51,7 +51,6 @@ Rectangle {
     required property bool   hasVideo
     required property url    thumbnailSource
     required property var    tracePoints
-    required property int    score
     required property int    rating
     required property string note
     required property var    metrics
@@ -235,13 +234,9 @@ Rectangle {
         }
     }
 
-    // The band's mark leads the number: the card is too small for the band's word, and the
-    // pill's colour alone would be the only thing saying it.
-    PpQualityPill {
-        anchors { right: parent.right; top: parent.top; margins: Theme.gap(6) }
-        score: card.score
-        mark:  true
-    }
+    // No score pill, top-right (#186): the score is retired from view until the shot score is
+    // built. The number it drew is the wrist score, 0 on every shot nothing scored, so the
+    // corner stays empty rather than say a red 0; the score is still computed and stored.
 
     // ── the swing's diagnostic read, always there (BRIEF.md §3.1; 3.7-c) ──
     //
@@ -252,8 +247,8 @@ Rectangle {
     // firedCountFor(), the Connections on surfaceChanged — lives in the component that null
     // does not instantiate.
     //
-    // ABOVE THE STAR SCRIM AND BELOW THE ORDINAL CHIP. The card's overlays occupy three
-    // corners already; the band immediately over the star scrim is the one clear strip across
+    // ABOVE THE STAR SCRIM AND BELOW THE ORDINAL CHIP. The card's overlays hold its corners
+    // (the ordinal top-left, the stars and the ⚠ along the bottom); the band immediately over the star scrim is the one clear strip across
     // the full width, and the row needs the width — nine pips split across Theme.sp(139) is
     // already the least it can be read at.
     Rectangle {

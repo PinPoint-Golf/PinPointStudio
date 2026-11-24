@@ -16,18 +16,18 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Filter popover content — traffic-light quality bands (same colours as the
-// card score pills), an exact star-rating picker (only shots rated exactly N;
-// tap the same star again to clear), and a has-video toggle. Pure bindings to
+// Filter popover content — an exact star-rating picker (only shots rated exactly
+// N; tap the same star again to clear) and a has-video toggle. Pure bindings to
 // the carousel's ShotFilterProxyModel Q_PROPERTYs; the filtering itself lives
-// in C++.
+// in C++. The quality-band option is retired with the score (#186): it filtered
+// on the score, which is retired from view until the shot score is built. The
+// proxy's band (qualityLo/qualityHi) stays in C++, unset and unreachable from here.
 //
 // ...and, below the filters, a SHOT PICKER that appears only when the host's film
 // strip is folded away (showShots). With the cards up they ARE the selector and this
 // menu is just the filter, which is all it has ever been; collapsed, there is no other
 // way to reach a swing, and re-opening the strip to pick one defeats the fold. The
-// picker is a contact sheet of ordinals tinted by the same quality ramp as the card
-// pills — one glance finds the good ones, one click puts a swing on the stage, one
+// picker is a contact sheet of ordinals tinted by the score's quality ramp — one glance finds the good ones, one click puts a swing on the stage, one
 // click on the chip already on the stage takes it off again. It lists the rows of the
 // model the filters drive, so a filtered-out swing is absent here exactly as it is
 // absent from the strip: filtering is honoured by construction, not by a second rule.
@@ -35,8 +35,8 @@
 // whatever the cursor is over (falling back to the swing on the stage).
 //
 // The tint is never the band's only channel: each chip carries the band's mark (a tick in
-// the top band, a target below it) beside its ordinal, and the readout repeats the mark
-// with the score.
+// the top band, a target below it) beside its ordinal. The readout no longer repeats the
+// mark and the score: the score is retired from view until the shot score is built (#186).
 
 import QtQuick
 import PinPointStudio
@@ -104,64 +104,6 @@ Item {
                 opacity:     root.proxy.filterActive ? 1.0 : 0.45
                 pressMargin: Theme.sp(4)
                 onClicked:   root.proxy.clearAll()
-            }
-        }
-
-        Item { width: 1; height: Theme.gap(13) }
-
-        PpMicro { text: Theme.caps(qsTr("Quality")) }
-
-        Item { width: 1; height: Theme.gap(7) }
-
-        Row {   // traffic-light band chips — exact band select, tap again to clear
-            width: parent.width
-            spacing: Theme.gap(6)
-
-            Repeater {
-                model: Theme.qualityBands
-
-                Rectangle {
-                    readonly property bool bandSelected: root.proxy.qualityLo === modelData.lo
-
-                    width:  (parent.width - 3 * Theme.gap(6)) / 4
-                    height: Theme.sp(32)
-                    radius: Theme.radius
-                    color:  bandSelected ? Theme.qualityColor(modelData.lo)
-                          : bandMa.containsMouse
-                                ? Qt.lighter(Theme.qualityColorLight(modelData.lo), 1.08)
-                                : Theme.qualityColorLight(modelData.lo)
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    border.width: 1
-                    border.color: bandSelected ? Theme.colorSurface : Theme.qualityColor(modelData.lo)
-
-                    Rectangle {   // selection ring
-                        anchors.fill: parent
-                        anchors.margins: -Theme.sp(3)
-                        radius:  Theme.radius + Theme.sp(2)
-                        visible: bandSelected
-                        color:   "transparent"
-                        border.width: 1
-                        border.color: Theme.qualityColor(modelData.lo)
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text:           modelData.label
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        // On its own quality colour: the page's dark in a dark theme, its
-                        // surface in a light one.
-                        color:          bandSelected ? Theme.colorOnAccent
-                                                     : Theme.qualityColor(modelData.lo)
-                    }
-
-                    PpPressable {
-                        id: bandMa
-                        // Single atomic call — see ShotFilterProxyModel::setQualityBand.
-                        onClicked: root.proxy.setQualityBand(bandSelected ? -1 : modelData.lo,
-                                                             bandSelected ? -1 : modelData.hi)
-                    }
-                }
             }
         }
 
@@ -307,7 +249,7 @@ Item {
                                     : Theme.qualityColorLight(cell.score)
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
-                        Rectangle {   // selection ring (the quality-band chips' idiom)
+                        Rectangle {   // selection ring (the idiom of the quality-band chips retired by #186)
                             anchors.fill: parent
                             anchors.margins: -Theme.sp(2)
                             radius:  Theme.radius + Theme.sp(2)
@@ -381,12 +323,10 @@ Item {
             readonly property var   _sum:   root.focusedSummary
             readonly property bool  _onStage: !root._hoverChip
                                               && _sum && _sum.valid === true
-            readonly property int   _score: root._hoverChip ? root._hoverChip.score
-                                          : _onStage        ? _sum.score : -1
 
             Text {
-                anchors { left: parent.left; right: scoreText.left
-                          rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
+                anchors { left: parent.left; right: parent.right
+                          verticalCenter: parent.verticalCenter }
                 elide: Text.ElideRight
                 text: {
                     const c = root._hoverChip
@@ -405,25 +345,6 @@ Item {
                 font.pixelSize: Theme.fontSzMicro
                 color:          (root._hoverChip || parent._onStage) ? Theme.colorText2
                                                                      : Theme.colorText3
-            }
-            Row {
-                id: scoreText
-                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                visible: readout._score >= 0
-                spacing: Theme.gap(4)
-                PpBadge {
-                    anchors.verticalCenter: parent.verticalCenter
-                    kind: Theme.qualityMark(readout._score)
-                    tone: Theme.qualityColor(readout._score)
-                    size: Theme.sp(13)
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text:           readout._score
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.qualityColor(readout._score)
-                }
             }
         }
     }

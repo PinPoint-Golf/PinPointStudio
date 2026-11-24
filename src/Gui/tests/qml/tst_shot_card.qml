@@ -54,7 +54,6 @@ Item {
         hasVideo:        true
         thumbnailSource: ""
         tracePoints:     []
-        score:           82
         rating:          3
         note:            ""
         metrics:         ({})

@@ -36,7 +36,7 @@ The shared Qt Quick controls in `src/Gui/components/`. Use these rather than red
 ## Status
 
 - [PpChip](PpChip.md) — A small pill of mono words in a tone ("NEXT", "last seen 4 Jul"), or — given a `trend` — the trend tag "↑ growing" / "↓ easing".
-- [PpQualityPill](PpQualityPill.md) — A shot-quality score pill, its fill graded by quartile (red → rust → amber → green) via `Theme.qualityColor`.
+- [PpQualityPill](PpQualityPill.md) — A shot-quality score pill, its fill graded by quartile (red → rust → amber → green) via `Theme.qualityColor`. Not used while the shot score is retired (#186).
 - [PpStatusPill](PpStatusPill.md) — A status pill: a state said in a word or two ("Connected", "Complete", "✓  Enabled"), in its tone on the tone's wash with a hairline in the tone.
 
 ## Marks

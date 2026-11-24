@@ -65,5 +65,5 @@ shot/PpShotActionBar.qml | D1 | 1 | held (#134): an existing copy — use PpButt
 shot/PpShotCard.qml | D1 | 3 | held (#134): existing copies — use PpButton `style:"scrim"` (round; + warn ink); swapping changes the look, so they wait for Mark's approval. Lines today: 349, 422, 450
 shot/PpShotCard.qml | D4 | 3 | held (#134): an existing copy — use Theme.colorOnScrim; swapping it changes the look, so it waits for Mark's approval. Lines today: 234, 435, 461
 shot/PpShotCarousel.qml | D1 | 3 | held (#134): an existing copy — use PpButton (`chevron`) + a content slot / PpButton (fold glyph tile); swapping it changes the look, so it waits for Mark's approval. Lines today: 427, 492, 612
-shot/PpShotFilter.qml | D1 | 2 | held (#134): an existing copy — use PpChoiceChip (a quality-filled variant); swapping it changes the look, so it waits for Mark's approval. Lines today: 123, 298
+shot/PpShotFilter.qml | D1 | 1 | held (#134): an existing copy — use PpChoiceChip (a quality-filled variant); swapping it changes the look, so it waits for Mark's approval. Lines today: 240 (the quality-band chips went with #186)
 viz/BodyVizView.qml | D4 | 1 | held (#134): the loading overlay's box (line 981) should be Theme.colorScrim with Theme.colorOnScrim words; swapping changes the look
