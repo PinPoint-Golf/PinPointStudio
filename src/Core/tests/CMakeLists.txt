@@ -83,6 +83,15 @@ pp_add_test(post_shot_trace_test
     SOURCES post_shot_trace_test.cpp
     INCLUDE ${CORE}  LINK Qt6::Core Threads::Threads
     GTEST_NO_MAIN)
+# ppDebug() takes no caller's `else` (pp_debug.h; platform refactor A4): one source built at both debug levels —
+# level 1 (compiled away, and the old `if (false)` form shown capturing the else) and level 3 (runs). The real
+# log (pp_log_stream.cpp + PpMessageLog.cpp) so level 3's line really runs. Hand-rolled main, Qt Core only.
+foreach(level 1 3)
+    pp_add_test(pp_debug_else_test_l${level}
+        SOURCES pp_debug_else_test.cpp ${CORE}/pp_log_stream.cpp ${CORE}/PpMessageLog.cpp
+        INCLUDE ${CORE}
+        DEFINES PINPOINT_DEBUG_LEVEL=${level})
+endforeach()
 pp_add_test(pp_profiler_concurrency_test
     SOURCES pp_profiler_concurrency_test.cpp ${PROFILER_CORE}
     INCLUDE ${CORE}  LINK Threads::Threads

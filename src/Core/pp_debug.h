@@ -52,11 +52,16 @@ public:
     PpLogStream &operator<<(T &&v) { *m_dbg << std::forward<T>(v); return *this; }
 };
 
-// ppDebug — per-operation trace, compiled away below level 3
+// ppDebug — per-operation trace, compiled away below level 3.
+// Below level 3 it is a `while (false)` loop, Qt's own form for a compiled-out
+// qDebug(): the `<< …` operands are still type-checked but never evaluated, and
+// there is no hidden `if` for a caller's `else` to bind to. (It used to be
+// `if (false) …`, so `if (c) ppDebug() << x; else y;` ran y when c was TRUE.)
+// pp_debug_else_test proves both levels.
 #if PINPOINT_DEBUG_LEVEL >= 3
 #  define ppDebug() PpLogStream(QtDebugMsg)
 #else
-#  define ppDebug() if (false) PpLogStream(QtDebugMsg)
+#  define ppDebug() while (false) PpLogStream(QtDebugMsg)
 #endif
 
 // ppInfo / ppWarn / ppError — always emitted regardless of level
