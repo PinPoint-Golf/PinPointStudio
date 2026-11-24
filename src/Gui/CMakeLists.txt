@@ -236,6 +236,13 @@ else()
             LABELS qml_ui
             TIMEOUT ${_t})
     endforeach()
+    # ⚠ DISABLED until #254 is fixed (the Product Owner, 24 Nov 2026): tst_session_diagnostics takes 1374 s alone
+    # on Windows Debug, most of it probably waitForRendering's 5 s timeout, not testing. ctest reports it as
+    # "Not Run (Disabled)" so its absence stays visible. While it is disabled, changes to the Session diagnostics
+    # panel (PpSessionDiagnosticsBody/Panel/Window, session_diagnostics_model) are FROZEN. Re-enable here in #254.
+    if(TEST qml_ui.tst_session_diagnostics)
+        set_tests_properties(qml_ui.tst_session_diagnostics PROPERTIES DISABLED TRUE)
+    endif()
 
     # ⚠ OPT-IN, OUT OF THE FULL SUITE AND THE RELEASE GATE (2026-10-17). It passes on an idle
     # machine but crashes in Qt's render path on a loaded one — Windows at the beta5 gate, Linux
