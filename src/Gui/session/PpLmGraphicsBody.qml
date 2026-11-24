@@ -388,11 +388,14 @@ Item {
     readonly property var strike: (g && g.strike) || ({})
     readonly property var flight: (g && g.flight) || ({})
     readonly property string shapeLine: shape.has ? shape.name + " (inferred): " + shape.evidence : ""
-    // low point: the device's reading, else PinPoint's own optical estimate (labelled as the app does, "PPS est.")
+    // low point, in the pack's order (refactor 6.4): the device's reading, else the one derived from the device's attack
+    // angle (the catalogue's label and its ±, as the model words them), else PinPoint's own optical estimate (labelled as
+    // the app does, "PPS est.")
     readonly property var lowPt: (g && g.lowPoint) || ({})
-    readonly property string lowPointLine: lowPt.has === true
-        ? "Low point " + lowPt.text + " " + (lowPt.unit || "in") + (lowPt.source === "inferred" ? " · PPS est." : "") + "."
-        : "Low point: not measured."
+    readonly property string lowPointLine: lowPt.has !== true ? "Low point: not measured."
+        : lowPt.source === "fromAttack"
+            ? (lowPt.label || "Low point") + " " + lowPt.text + (lowPt.sigmaText ? " " + lowPt.sigmaText : "") + " " + (lowPt.unit || "in") + "."
+            : "Low point " + lowPt.text + " " + (lowPt.unit || "in") + (lowPt.source === "inferred" ? " · PPS est." : "") + "."
     // the head drawn under the impact map: the focused shot's club, else (nothing focused: a report) the scoped club's
     readonly property string focusHead: headShot ? headOf(headShot.club) : focusClub ? (focusClub.head || headOf(focusClub.club)) : ""
     readonly property bool focusIron: focusHead === "iron" || focusHead === "wedge"

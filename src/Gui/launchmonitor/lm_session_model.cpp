@@ -30,6 +30,8 @@
 #include "../../LaunchMonitor/lm_session_reductions.h"
 #include "../../Vocabulary/Analysis/swing_analysis.h"
 #include "../../Metrics/measurement.h"                       // the Shot's set: a row's readings (refactor 6.1a)
+#include "../../Metrics/metric_catalogue.h"                 // the low point from the attack angle: its label
+#include "../../Core/figure_format.h"                      // pm: the app's one ± (the low point from the attack angle)
 #include "../../Diagnostics/measures/measurement_precedence.h" // which source wins for a metric (R-INS-3)
 #include "../trust/trust_readings.h"
 
@@ -132,6 +134,47 @@ std::optional<double> opticalLowPointFor(const pinpoint::analysis::MeasurementSe
     using namespace pinpoint::analysis;
     const Measurement *m = set.find(QStringLiteral("lowPointAhead"), Instrument::Own);
     return m ? m->value : std::nullopt;
+}
+
+// The shot's low point candidates that are not readings (refactor 6.4, D-4): our camera's, above, and what PinPoint derives
+// from the monitor's attack angle (`lowPointFromAttack`, an LM-derived measurement: written beside the readings only when
+// the monitor gave an attack angle), with the σ its writer stored. Kept out of the readings map for the same reason.
+pinpoint::lm::LmLowPointOffer lowPointOfferFor(const pinpoint::analysis::MeasurementSet &set)
+{
+    using namespace pinpoint::analysis;
+    pinpoint::lm::LmLowPointOffer o;
+    o.optical = opticalLowPointFor(set);
+    if (const Measurement *m = set.find(QStringLiteral("lowPointAhead"), Instrument::LaunchMonitor, MeasurementKind::Derived)) {
+        o.fromAttack      = m->value;
+        o.fromAttackSigma = m->sigma;
+    }
+    return o;
+}
+
+// The catalogue's descriptor of a stored key, for the words a figure is shown with (the IMPACT card's low point from the
+// attack angle: its label). The manifest only: no provider is asked.
+const pinpoint::analysis::MetricDescriptor *catalogueDescriptor(const QString &key)
+{
+    static const pinpoint::analysis::MetricCatalogue cat = [] {
+        pinpoint::analysis::MetricCatalogue c;
+        pinpoint::analysis::installMetricManifest(c);
+        return c;
+    }();
+    return cat.descriptor(key);
+}
+
+// The pack's statement of which low point wins (the low point measure's ladder, Measure::preferKeys: the Coaching Lead's
+// rule data, which the findings walk too), or none: no pack, or no such measure, takes the one rule's default order (the
+// same order today: every authored ladder in core.json equals it).
+std::optional<QStringList> lowPointLadderOf(const pinpoint::lm::LmBoardRules &rules)
+{
+    if (!rules.pack)
+        return std::nullopt;
+    const pinpoint::analysis::Measure *m = pinpoint::analysis::measureForMetricAtPhase(
+        rules.pack->pack(), QStringLiteral("lowPointAhead"), pinpoint::analysis::Phase::Impact);
+    if (!m)
+        return std::nullopt;
+    return m->preferKeys;
 }
 
 // A test's in-memory "document" (setDetailReader: the old slice's shape, `series` and `gates`) as the set a Shot
@@ -280,7 +323,7 @@ struct LmShotRow : pinpoint::lm::LmBoardShot {
     QString               clubOverride;   // the golfer's own choice on the panel, or ""
     bool                  legacyClubStub = false;   // a stored "DRIVER" stub: resolveClubs' one exception (J-106)
     QString               kind;           // the DEVICE (lm_device.h key), "" when no device measured it
-    std::optional<double> optical;        // our own low point estimate — see opticalLowPointFor
+    pinpoint::lm::LmLowPointOffer lowPoint;   // the low point candidates that are not readings — see lowPointOfferFor
     // The gate behind each reading the shot lacks (lmGateMap), keyed by metric key: {} on a shot
     // analysed before records existed, or one the monitor reported in full.
     QVariantMap           gates;
@@ -799,13 +842,16 @@ QVariantMap clubDeliveryGrade(const QString &club, const QString &key, std::vect
 // inferred reads, their evidence strings, the drawn-metric count. QML positions and
 // paints (analysis pipeline guide §6.2).
 //
-// `opticalLowPoint` is the FOCUSED shot's camera-estimated low point, or empty. It arrives separately from the readings
-// because it is not one — see opticalLowPointFor() for why an estimate must never enter the `lm.` map. `grades` is
+// `lowPointOffer` is the FOCUSED shot's low point candidates that are not readings (the camera's estimate, and the one
+// derived from the monitor's attack angle), or empty. They arrive separately from the readings because they are not
+// readings — see opticalLowPointFor() for why an estimate must never enter the `lm.` map. `lowPointLadder` is the pack's
+// statement of their order (the low point measure's preferKeys), none for the default. `grades` is
 // gradesFor()'s answer, HANDED IN: the schematics and the tiles must colour one reading the same way.
 // `sessionHas`: the tiles board has a band. `headlineHas` (out): the headline shot carries a reading.
 QVariantMap buildGraphics(const std::vector<LmFieldStats> &stats,
                           const QHash<QString, QString> &grades,
-                          const std::optional<double> &opticalLowPoint,
+                          const pinpoint::lm::LmLowPointOffer &lowPointOffer,
+                          const std::optional<QStringList> &lowPointLadder,
                           bool leftHanded, bool sessionHas, bool *headlineHas,
                           const ShotDirectionBounds &direction)
 {
@@ -923,25 +969,46 @@ QVariantMap buildGraphics(const std::vector<LmFieldStats> &stats,
     // a measurement is the failure this whole `lm.` namespace exists to prevent, and the
     // card badges it from this field rather than inferring it from anything else.
     //
-    // WHICH ONE WINS IS THE ONE PRECEDENCE RULE'S (measurement_precedence.h; refactor 6.1a, R-INS-3): the board offers
-    // its two candidates — the device's reading and our own estimate — and the rule orders them. The rule's middle rung
-    // (lowPointFromAttack, derived from the monitor's attack angle) is not offered, as before (6.1a NOTES: a question).
+    // WHICH ONE WINS IS THE ONE PRECEDENCE RULE'S (measurement_precedence.h; refactor 6.1a, R-INS-3), IN THE PACK'S ORDER
+    // (the low point measure's ladder, which the findings walk too; refactor 6.4, D-4): the board offers its three
+    // candidates — the device's reading, the low point derived from the monitor's attack angle, and our camera's
+    // estimate — and the rule orders them. So the card and the findings show the same number.
     using pinpoint::analysis::pickByPrecedence;
-    const QHash<QString, std::optional<double>> offered{ { QStringLiteral("lm.lowPointAhead"), valueOf(stats, "lm.lowPointAhead") },
-                                                         { QStringLiteral("lowPointAhead"), opticalLowPoint } };
-    const auto picked = pickByPrecedence(QStringLiteral("lowPointAhead"), offered);
+    const QHash<QString, std::optional<double>> offered{
+        { QStringLiteral("lm.lowPointAhead"),    valueOf(stats, "lm.lowPointAhead") },
+        { QStringLiteral("lowPointFromAttack"),  lowPointOffer.fromAttack },
+        { QStringLiteral("lowPointAhead"),       lowPointOffer.optical } };
+    const auto picked = pickByPrecedence(QStringLiteral("lowPointAhead"), offered, lowPointLadder);
     const std::optional<double> lowPoint = picked ? std::optional<double>(picked->value) : std::nullopt;
-    const bool measuredLowPoint = picked && pinpoint::analysis::parseStoredKey(picked->key).kind
-                                                == pinpoint::analysis::MeasurementKind::Reading;
-    g.insert(QStringLiteral("lowPoint"), QVariantMap{
+    const pinpoint::analysis::StoredKey pickedKey =
+        picked ? pinpoint::analysis::parseStoredKey(picked->key) : pinpoint::analysis::StoredKey{};
+    const bool measuredLowPoint = picked && pickedKey.kind == pinpoint::analysis::MeasurementKind::Reading;
+    // Derived from a reading (the LM-derived rung): named by the catalogue's own label, with its σ as the app's one ±
+    // (figure_format.h pm, at the figure's precision, never rounding the figure). No ⚠: in this app a ⚠ says a gate
+    // touched a reading, and the findings read this one ungated (no gate is catalogued for it; its σ is the reading's
+    // measSigma). The device's and the camera's keep today's fields exactly.
+    const bool fromAttack = picked && !measuredLowPoint
+                            && pickedKey.instrument == pinpoint::analysis::Instrument::LaunchMonitor;
+    QVariantMap lowPointMap{
         { QStringLiteral("has"),    lowPoint.has_value() },
         { QStringLiteral("value"),  lowPoint.value_or(0.0) },
         { QStringLiteral("text"),   lowPoint ? lmFormat(*lowPoint, lmDecimals(QStringLiteral("in")))
                                              : lmAbsent() },
         { QStringLiteral("unit"),   QStringLiteral("in") },
         { QStringLiteral("source"), measuredLowPoint ? QStringLiteral("measured")
+                                    : fromAttack     ? QStringLiteral("fromAttack")
                                                      : QStringLiteral("inferred") },
-    });
+    };
+    if (fromAttack) {
+        const pinpoint::analysis::MetricDescriptor *d = catalogueDescriptor(picked->key);
+        const std::optional<double> sigma = lowPointOffer.fromAttackSigma;
+        lowPointMap.insert(QStringLiteral("key"),   picked->key);
+        lowPointMap.insert(QStringLiteral("label"), d ? d->label : picked->key);
+        lowPointMap.insert(QStringLiteral("sigma"), sigma.value_or(0.0));
+        lowPointMap.insert(QStringLiteral("sigmaText"),
+                           sigma ? pinpoint::figures::pm(*sigma, lmDecimals(QStringLiteral("in"))) : QString());
+    }
+    g.insert(QStringLiteral("lowPoint"), lowPointMap);
 
     const LmStrikeRead strike = lmStrikeQuality(valueOf(stats, "lm.strikeLocation"),
                                                 valueOf(stats, "lm.strikeHeight"),
@@ -993,7 +1060,7 @@ std::vector<LmBoardInput> lmBoardInputsOf(const ShotListModel &shots,
         row.excluded     = shots.data(ix, ShotListModel::LmExcludedRole).toBool();
         row.kind         = shots.data(ix, ShotListModel::LmDeviceRole).toString();
         row.values       = readingsFor(set);
-        row.optical      = opticalLowPointFor(set);
+        row.lowPoint     = lowPointOfferFor(set);
         // The shot's gate records, as the document holds them (none for a document older than the records).
         row.gates        = set.gatesVersion ? lmGateMap(set.gateRecords) : QVariantMap();
         row.swingDir     = shots.data(ix, ShotListModel::SwingDirRole).toString();
@@ -1027,7 +1094,7 @@ LmBoard lmBoardOf(const std::vector<LmBoardInput> &in, const LmBoardAsk &ask, co
         row.excluded     = i.excluded;
         row.kind         = i.kind;
         row.values       = i.values;
-        row.optical      = i.optical;
+        row.lowPoint     = i.lowPoint;
         row.gates        = i.gates;
         row.swingDir     = i.swingDir;
         // Session-wide, deliberately: it separates "the monitor has given us nothing"
@@ -1075,8 +1142,8 @@ LmBoard lmBoardOf(const std::vector<LmBoardInput> &in, const LmBoardAsk &ask, co
     // Kept in step with `scoped`, index for index, so the focused shot's estimate is
     // found by the same latestIndex the statistics use rather than by a second search
     // that could disagree with it about which shot is on screen.
-    std::vector<std::optional<double>> opticalLowPoint;
-    opticalLowPoint.reserve(rows.size());
+    std::vector<pinpoint::lm::LmLowPointOffer> lowPointOffers;
+    lowPointOffers.reserve(rows.size());
     int latestIndex = -1;
     // `scoped` index → `rows` index, so the headline shot's records are found by the same latestIndex.
     std::vector<int> scopedRow;
@@ -1103,7 +1170,7 @@ LmBoard lmBoardOf(const std::vector<LmBoardInput> &in, const LmBoardAsk &ask, co
         if (int(i) == focusedRow)
             latestIndex = int(scoped.size());
         scoped.push_back(row.values);
-        opticalLowPoint.push_back(row.optical);
+        lowPointOffers.push_back(row.lowPoint);
         scopedRow.push_back(int(i));
     }
     out.shotCount = int(scoped.size());
@@ -1173,9 +1240,10 @@ LmBoard lmBoardOf(const std::vector<LmBoardInput> &in, const LmBoardAsk &ask, co
     }
 
     out.graphics = buildGraphics(stats, grades,
-                                 focusExcluded ? rows[size_t(focusedRow)].optical
-                                 : (latestIndex >= 0 && size_t(latestIndex) < opticalLowPoint.size())
-                                     ? opticalLowPoint[size_t(latestIndex)] : std::nullopt,
+                                 focusExcluded ? rows[size_t(focusedRow)].lowPoint
+                                 : (latestIndex >= 0 && size_t(latestIndex) < lowPointOffers.size())
+                                     ? lowPointOffers[size_t(latestIndex)] : pinpoint::lm::LmLowPointOffer{},
+                                 lowPointLadderOf(rules),
                                  ask.leftHanded, !out.bands.isEmpty(), &out.headlineHasReadings,
                                  // the pack's direction boundaries in this scope's context (the default with no club,
                                  // as a shot with none is fired), at the board's grade policy

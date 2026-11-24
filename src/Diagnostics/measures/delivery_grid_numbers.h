@@ -56,6 +56,9 @@ struct DeliveryGridNumbers {
     double ourPath = kNaN, ourAttack = kNaN;
     double lmPath = kNaN, lmFace = kNaN, lmFaceToPath = kNaN, lmAttack = kNaN, lmLoft = kNaN, lmLie = kNaN, lmLowPoint = kNaN;
     double lmLaunchDir = kNaN, lmSpinAxis = kNaN, lmCarry = kNaN, lmOffline = kNaN;
+    // What PinPoint derives from the monitor's attack angle (lowPointFromAttack, an LM-derived measurement), and its σ:
+    // the low point's middle rung (refactor 6.4). Not a monitor reading, so not in hasMonitor().
+    double lmLowPointFromAttack = kNaN, lmLowPointFromAttackSigma = kNaN;
 
     // Any swing plane position read (DeliveryShotInput::hasPlane's rule).
     bool hasPlane() const
@@ -116,6 +119,11 @@ inline DeliveryGridNumbers deliveryGridNumbersOf(const SwingPhaseGrid &grid)
     n.lmSpinAxis    = deliveryGridInstant(grid, QStringLiteral("lm.spinAxis"), Phase::Impact);
     n.lmCarry       = deliveryGridInstant(grid, QStringLiteral("lm.carryDistance"), Phase::Impact);
     n.lmOffline     = deliveryGridInstant(grid, QStringLiteral("lm.offline"), Phase::Impact);
+    n.lmLowPointFromAttack = deliveryGridInstant(grid, QStringLiteral("lowPointFromAttack"), Phase::Impact);
+    if (const MetricPhaseGrid *g = grid.metric(QStringLiteral("lowPointFromAttack"))) {
+        const PhaseGridValue *v = g->at(Phase::Impact);
+        n.lmLowPointFromAttackSigma = v && std::isfinite(v->sigma) ? v->sigma : g->seriesSigma;
+    }
     return n;
 }
 

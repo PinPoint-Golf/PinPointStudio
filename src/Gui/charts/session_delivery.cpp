@@ -175,7 +175,9 @@ const QStringList &deliveryMetricKeys()
         QStringLiteral("lm.attackAngle"), QStringLiteral("lm.dynamicLoft"), QStringLiteral("lm.lieAngle"),
         QStringLiteral("lm.lowPointAhead"), QStringLiteral("lm.launchDirection"), QStringLiteral("lm.spinAxis"),
         // how far the ball actually curved (decision 10): read for the shot shape, never a curve on show
-        QStringLiteral("lm.carryDistance"), QStringLiteral("lm.offline") };
+        QStringLiteral("lm.carryDistance"), QStringLiteral("lm.offline"),
+        // the low point the monitor's attack angle implies (refactor 6.4): the impact line's middle rung, never a curve
+        QStringLiteral("lowPointFromAttack") };
     return k;
 }
 
@@ -322,6 +324,8 @@ DeliveryShotInput deliveryInputFromGrid(const pa::SwingPhaseGrid &grid)
     in.lmSpinAxis    = n.lmSpinAxis;
     in.lmCarry       = n.lmCarry;
     in.lmOffline     = n.lmOffline;
+    in.lmLowPointFromAttack      = n.lmLowPointFromAttack;
+    in.lmLowPointFromAttackSigma = n.lmLowPointFromAttackSigma;
     return in;
 }
 
@@ -659,18 +663,25 @@ std::vector<DeliveryImpactLine> deliveryImpactLines(const DeliveryShotInput &in)
         out.push_back(l);
     }
     // Attack and low point: whichever source the one precedence rule ranks first (measurement_precedence.h: the
-    // monitor's reading, else ours). The two candidates this section has always shown are offered; the LM-derived low
-    // point is not (as on the launch monitor board, DUTIES-6.1a D-4).
+    // monitor's reading, else what PinPoint derives from it, else ours). The low point offers its three candidates, the
+    // one derived from the monitor's attack angle among them, as the launch monitor board and the findings read it
+    // (refactor 6.4, J-108: D-4's interim).
     {
-        const auto pick = [](const QString &metric, double monitor, double own) {
+        const auto pick = [](const QString &metric, double monitor, double own, double derived = kNaN) {
             QHash<QString, std::optional<double>> offered;
             if (fin(monitor)) offered.insert(pa::storedKey(metric, pa::Instrument::LaunchMonitor), monitor);
+            if (fin(derived))
+                for (const QString &k : pa::lmDerivedKeys())
+                    if (pa::lmDerivedMetric(k) == metric && k != metric) offered.insert(k, derived);
             if (fin(own))     offered.insert(metric, own);
             return pa::pickByPrecedence(metric, offered);
         };
         const auto pickA = pick(QStringLiteral("attackAngle"), in.lmAttack, in.ourAttack);
-        const auto pickL = pick(QStringLiteral("lowPointAhead"), in.lmLowPoint, in.lowPoint);
-        const bool monA = pickA && pa::isLaunchMonitorReading(pickA->key), monL = pickL && pa::isLaunchMonitorReading(pickL->key);
+        const auto pickL = pick(QStringLiteral("lowPointAhead"), in.lmLowPoint, in.lowPoint, in.lmLowPointFromAttack);
+        // the derived low point counts as the monitor's (it is made from the monitor's attack angle), and says so
+        const bool fromAttackL = pickL && pa::isLmDerivedKey(pickL->key);
+        const bool monA = pickA && pa::isLaunchMonitorReading(pickA->key),
+                   monL = pickL && (pa::isLaunchMonitorReading(pickL->key) || fromAttackL);
         const double a = pickA ? pickA->value : kNaN, lp = pickL ? pickL->value : kNaN;
         if (fin(a) || fin(lp)) {
             DeliveryImpactLine l;
@@ -679,7 +690,16 @@ std::vector<DeliveryImpactLine> deliveryImpactLines(const DeliveryShotInput &in)
             QStringList parts;
             if (fin(a)) parts << QStringLiteral("Attack %1 (%2)").arg(monA ? deliveryDeg1(a) : deliveryDeg(a),
                                                                      monA ? QStringLiteral("the monitor's") : QStringLiteral("the camera's"));
-            if (fin(lp)) parts << QStringLiteral("%1 %2 in %3 the ball").arg(parts.isEmpty() ? QStringLiteral("Low point") : QStringLiteral("low point"),
+            if (fin(lp) && fromAttackL) {
+                // the catalogue's own name for it and its σ as the app's one ± (no ⚠: no gate touches it, as the
+                // findings read it): "low point (from attack angle) 2.0 ± 0.5 in ahead of the ball"
+                const QString pm = W::pm(in.lmLowPointFromAttackSigma, 1);
+                parts << QStringLiteral("%1 %2%3 in %4 the ball").arg(parts.isEmpty() ? QStringLiteral("Low point (from attack angle)")
+                                                                                      : QStringLiteral("low point (from attack angle)"),
+                                                                    W::fig(std::fabs(lp), 1),
+                                                                    pm.isEmpty() ? QString() : QLatin1Char(' ') + pm,
+                                                                    lp >= 0 ? QStringLiteral("ahead of") : QStringLiteral("behind"));
+            } else if (fin(lp)) parts << QStringLiteral("%1 %2 in %3 the ball").arg(parts.isEmpty() ? QStringLiteral("Low point") : QStringLiteral("low point"),
                                                                             W::fig(std::fabs(lp), 1),
                                                                             lp >= 0 ? QStringLiteral("ahead of") : QStringLiteral("behind"));
             l.text = parts.join(kDot) + QStringLiteral(".");

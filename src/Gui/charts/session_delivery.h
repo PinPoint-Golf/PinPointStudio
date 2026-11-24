@@ -192,6 +192,8 @@ struct DeliveryShotInput {
     double lmLoft = kNaN, lmLie = kNaN, lmLowPoint = kNaN;
     double lmLaunchDir = kNaN, lmSpinAxis = kNaN;     // the ball's start (+ right) and spin axis (+ curves right)
     double lmCarry = kNaN, lmOffline = kNaN;          // yd: how far it actually curved (decision 10), not a delivery reading
+    double lmLowPointFromAttack = kNaN;               // in: lowPointFromAttack, the low point the monitor's attack angle implies
+    double lmLowPointFromAttackSigma = kNaN;          // its σ (refactor 6.4: the low point's middle rung)
     double nominalLoft = kNaN;
 
     // The curve as drawn (This shot's plot), ms from impact; and where the hands carry it (decision 5).

@@ -62,6 +62,7 @@
 #include "../../Export/session_store.h"
 #include "../../Export/swing_store_repository.h"
 #include "../../LaunchMonitor/launch_monitor_reading.h"
+#include "../../Core/figure_format.h"   // T5: the app's one ±
 
 #include <QCoreApplication>
 #include <QDir>
@@ -705,7 +706,36 @@ int main(int argc, char **argv)
                       && lowPoint().value(QStringLiteral("source")).toString() == QStringLiteral("inferred")
                       && lowPoint().value(QStringLiteral("value")).toDouble() == ownLowPoint);
 
-            // The monitor reads a low point too (the device-wins branch, at board level): the rule takes the monitor's.
+            // The monitor reads an attack angle and no low point (refactor 6.4, D-4): the pack's middle rung, the low point
+            // derived from that angle, wins over our camera's, with the catalogue's label and its σ (no ⚠: no gate touches
+            // it, as the findings read it) — the number the findings read (the low point measure's ladder).
+            r.attackAngle = -3.0;
+            check("T5 a reading with an attack angle and no low point through the Shot is saved", shot->completeCapture(r).ok());
+            settle([&] { return lowPoint().value(QStringLiteral("source")).toString() == QStringLiteral("fromAttack"); });
+            const pinpoint::analysis::Measurement *derived = shot->measurements().byKey(QStringLiteral("lowPointFromAttack"));
+            check("T5 …the Shot's set holds the low point derived from it, with its σ",
+                  derived && derived->value && derived->sigma && *derived->sigma > 0.0);
+            const double derivedValue = derived && derived->value ? *derived->value : 99.0;
+            check(QStringLiteral("T5 …and the IMPACT card's low point is it, not ours (%1 against our %2)")
+                      .arg(lowPoint().value(QStringLiteral("value")).toDouble()).arg(ownLowPoint),
+                  lowPoint().value(QStringLiteral("has")).toBool()
+                      && lowPoint().value(QStringLiteral("source")).toString() == QStringLiteral("fromAttack")
+                      && lowPoint().value(QStringLiteral("value")).toDouble() == derivedValue
+                      && derivedValue != ownLowPoint);
+            checkStr("T5 …named by the catalogue's label", lowPoint().value(QStringLiteral("label")).toString(),
+                     QStringLiteral("Low point (from attack angle)"));
+            check(QStringLiteral("T5 …with its σ as the app's one ± (%1), and no ⚠ (no gate touched it)")
+                      .arg(lowPoint().value(QStringLiteral("sigmaText")).toString()),
+                  derived && derived->sigma && lowPoint().value(QStringLiteral("sigma")).toDouble() == *derived->sigma
+                      && lowPoint().value(QStringLiteral("sigmaText")).toString() == pinpoint::figures::pm(*derived->sigma, 1)
+                      && !lowPoint().contains(QStringLiteral("estimated")));
+            const QVariantMap focused = board.graphics();
+            check("T5 …the device's reading of the attack angle stays a reading, apart from the low point",
+                  focused.value(QStringLiteral("values")).toMap().contains(QStringLiteral("lm.attackAngle"))
+                      && !focused.value(QStringLiteral("values")).toMap().contains(QStringLiteral("lowPointFromAttack")));
+
+            // The monitor reads a low point too (the device-wins branch, at board level): the rule takes the monitor's,
+            // over the one derived from its attack angle.
             r.lowPointAhead = 1.5;
             check("T4 a fuller reading through the Shot is saved", shot->completeCapture(r).ok());
             settle([&] { return lowPoint().value(QStringLiteral("source")).toString() == QStringLiteral("measured"); });

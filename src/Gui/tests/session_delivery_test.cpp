@@ -598,6 +598,19 @@ private slots:
         const DeliveryImpactLine *c = lineOf(lc, QStringLiteral("attack"));
         QCOMPARE(c->text, QStringLiteral("Attack −2° (the camera's) · low point 0.5 in behind the ball."));
         QCOMPARE(c->source, QStringLiteral("both"));
+        // refactor 6.4 (J-108, D-4's interim): the low point's middle rung, derived from the monitor's attack angle, wins
+        // over the camera's when the monitor read no low point, named and with its σ as the board and the findings read it
+        DeliveryShotInput d = s;
+        d.lmLowPoint = N; d.lmLowPointFromAttack = 2.04; d.lmLowPointFromAttackSigma = 0.53;
+        const std::vector<DeliveryImpactLine> ld = deliveryImpactLines(d);
+        const DeliveryImpactLine *e = lineOf(ld, QStringLiteral("attack"));
+        QVERIFY(e);
+        QCOMPARE(e->text, QStringLiteral("Attack −2° (the camera's) · low point (from attack angle) 2.0 ± 0.5 in ahead of the ball."));
+        QCOMPARE(e->source, QStringLiteral("both"));
+        // …and the monitor's own low point still wins over it
+        d.lmLowPoint = -0.5;
+        QCOMPARE(lineOf(deliveryImpactLines(d), QStringLiteral("attack"))->text,
+                 QStringLiteral("Attack −2° (the camera's) · low point 0.5 in behind the ball."));
         // the fits never read the camera: a shot with only our path is not a monitor point
         DeliveryShotInput cam = s;
         cam.lmPath = N; cam.ourPath = -3.0;

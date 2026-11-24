@@ -146,6 +146,16 @@ public:
 // can count no shot the board left out and needs no board of its own. No QObject, no file: the rows carry the Shot's
 // measurements (Shot::measurements, read through the shot list: refactor 6.1a).
 
+// The IMPACT card's low point candidates for one shot that are NOT launch monitor readings (the device's own low point,
+// `lm.lowPointAhead`, is one, in `values`): what PinPoint derives from the monitor's attack angle (`lowPointFromAttack`,
+// with its σ) and our camera's estimate. Kept out of `values` for the reason opticalLowPointFor gives; the one precedence
+// rule orders all three (buildGraphics; refactor 6.4, D-4).
+struct LmLowPointOffer {
+    std::optional<double> fromAttack;        // lowPointFromAttack at impact
+    std::optional<double> fromAttackSigma;   // its 1σ, as the writer stored it
+    std::optional<double> optical;           // our own (camera) lowPointAhead at impact
+};
+
 // One row of the session as the board reads it, in the shot list's order (newest first).
 struct LmBoardInput {
     int                    id = -1;          // the shot list's row id (the panel's actions and its focus use it)
@@ -157,7 +167,7 @@ struct LmBoardInput {
     bool                   excluded = false; // "Leave out" (review.excluded)
     QString                kind;             // the device (lm_device.h key), "" when none measured it
     QHash<QString, double> values;           // the launch monitor's readings, keyed "lm.carryDistance"
-    std::optional<double>  optical;          // our own low point estimate (never in `values`)
+    LmLowPointOffer        lowPoint;         // the low point candidates that are not readings (never in `values`)
     QVariantMap            gates;            // the gate behind each launch monitor reading the shot lacks, by key
 };
 
