@@ -60,7 +60,10 @@
 //       Allowed: src/Export (the stores and file doors), the Platform ring's own helpers (atomic_write,
 //       folder_lock, logging), and, for (b) only, src/DomainModel (the interfaces and the owning
 //       objects). The tools (tools/) and the tests are not scanned. The rules directories keep their
-//       own message; everything else is reported as a P11 finding.
+//       own message; everything else is reported as a P11 finding. Two of src/Export's files are counted
+//       all the same (the close of steps 5–7, J-88, approved J-95): the store doors the one session list
+//       added, session_list_reads (5.7a) and session_index_summary (5.7a-P1), so that their file reads
+//       and the repositories they include show (countedStoreDoor() below).
 //   A6  a Q_INVOKABLE that returns or takes a QVariantMap / QVariantList, or a Q_PROPERTY of that
 //       type, or a public slot / signal that carries one, in any header under src/ (the QML boundary,
 //       03 §9: values become Q_GADGETs).
@@ -89,6 +92,8 @@
 // once from the tree at the start of Step G — one line per file and rule, with the number of findings
 // allowed, WHY, and the refactor step that removes it (`# step 3`, or a sub-step such as `# step 3.0`;
 // `# platform refactor (capture)` or `# platform refactor (settings)` for the refactor after step 8, 05 §1 / §2;
+// `# platform refactor (#224)` for one left when steps 5–7 closed, which the platform refactor and its hygiene issue
+// take; `# #222` for a long function the old step 8 split, now issue #222;
 // `# not domain (§8.3)` for a file the information model classes as not domain, kept allowlisted by Mark's answer;
 // `# unplanned` when nothing places it yet — those go to Mark; `# kept` or `# kept (reason)` for a deliberate one). A file that grows past its count fails; one that
 // drops below it is reported so the count can be lowered. The list can only shrink: adding a NEW
@@ -367,9 +372,17 @@ bool isRulesIoDir(const QString &rel)
 
 // A5 (P11): the files allowed to touch the disk — the stores and file doors of src/Export, and the Platform
 // ring's own helpers (the atomic write, the folder lock, logging).
+// The store doors counted all the same (J-88, approved J-95): each has its allow-list line.
+bool countedStoreDoor(const QString &rel)
+{
+    static const QSet<QString> doors{ QStringLiteral("Export/session_list_reads"),
+                                      QStringLiteral("Export/session_index_summary") };
+    return doors.contains(stemOf(rel));
+}
+
 bool a5Exempt(const QString &rel)
 {
-    return rel.startsWith(QLatin1String("Export/")) || ringOf(rel) == Platform;
+    return (rel.startsWith(QLatin1String("Export/")) && !countedStoreDoor(rel)) || ringOf(rel) == Platform;
 }
 
 // A5 (P11): the repositories — the interfaces the domain model defines (P4) and the stores and file doors in
@@ -913,6 +926,11 @@ void selfTest()
     check(countRule(run("Export/session_store.cpp", QStringLiteral("QFile f(p);\natomicWrite(p, b);\n#include \"../DomainModel/session_repository.h\"\n")), "A5") == 0
               && countRule(run("Core/atomic_write.h", QStringLiteral("QSaveFile f(p);\n")), "A5") == 0,
           QStringLiteral("A5 (P11) allows a store and the Platform ring's own helpers"));
+    check(countRule(run("Export/session_list_reads.cpp", QStringLiteral("auto t = QFileInfo(p).lastModified();\n")), "A5") == 1
+              && countRule(run("Export/session_index_summary.cpp", QStringLiteral("#include \"session_store.h\"\n")), "A5") == 1
+              && countRule(run("Export/session_list_presenter_x.cpp", QStringLiteral("auto t = QFileInfo(p).lastModified();\n")), "A5") == 0,
+          QStringLiteral("A5 counts the two store doors of the one session list (J-88): a file read and a repository include; "
+                         "the rest of src/Export stays allowed"));
     check(countRule(run("DomainModel/athlete.cpp", QStringLiteral("#include \"session_repository.h\"\n#include \"athlete.h\"\n")), "A5") == 0
               && countRule(run("DomainModel/athlete.cpp", QStringLiteral("QFile f(p);\n")), "A5") == 1
               && countRule(run("Gui/x/y.cpp", QStringLiteral("#include \"../../DomainModel/session_repository.h\"\n#include \"../../DomainModel/athlete.h\"\n")), "A5") == 1,
@@ -971,7 +989,7 @@ QMap<QString, Allow> readAllowList(const QString &path, bool *ok, QMap<QString, 
     *ok = f.open(QIODevice::ReadOnly | QIODevice::Text);
     if (!*ok) return out;
     static const QRegularExpression tag(QStringLiteral(
-        R"(#\s*(step\s+[1-8](?:\.\d+)?|platform refactor \((?:capture|settings)\)|not domain \(§8\.3\)|unplanned|kept(?: \([^()]+\))?)\s*$)"));
+        R"(#\s*(step\s+[1-8](?:\.\d+)?|platform refactor \((?:capture|settings|#224)\)|#222|not domain \(§8\.3\)|unplanned|kept(?: \([^()]+\))?)\s*$)"));
     static const QRegularExpression ruleRe(QStringLiteral(R"(^A[1-8]$)"));
     const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
     for (int i = 0; i < lines.size(); ++i) {
@@ -979,13 +997,14 @@ QMap<QString, Allow> readAllowList(const QString &path, bool *ok, QMap<QString, 
         if (l.isEmpty() || l.startsWith(QLatin1Char('#'))) continue;
         const QStringList parts = l.split(QLatin1Char('|'));
         const auto        t     = tag.match(l);
-        const QString     rest  = parts.mid(3).join(QLatin1Char('|'));
-        const QString     why   = rest.left(rest.lastIndexOf(QLatin1Char('#'))).trimmed();
+        // The WHY is everything between the count and the tag; the tag may hold a '#' of its own ("(#224)", "#222").
+        const QString     why   = t.hasMatch() ? l.left(t.capturedStart(0)).split(QLatin1Char('|')).mid(3).join(QLatin1Char('|')).trimmed()
+                                               : QString();
         const bool        okLine = parts.size() >= 4 && ruleRe.match(parts.at(1).trimmed()).hasMatch()
                             && parts.at(2).trimmed().toInt() > 0 && t.hasMatch() && !why.isEmpty();
         if (!okLine) {
-            check(false, QStringLiteral("allow-list line %1 is path | rule | count | WHY # step N (or # step N.n / # platform refactor (capture|settings) / "
-                                 "# not domain (§8.3) / # unplanned / # kept [(reason)]): %2").arg(i + 1).arg(l));
+            check(false, QStringLiteral("allow-list line %1 is path | rule | count | WHY # step N (or # step N.n / # platform refactor (capture|settings|#224) / "
+                                 "# #222 / # not domain (§8.3) / # unplanned / # kept [(reason)]): %2").arg(i + 1).arg(l));
             continue;
         }
         Allow a;
