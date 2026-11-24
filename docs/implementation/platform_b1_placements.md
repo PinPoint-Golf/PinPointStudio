@@ -1,6 +1,6 @@
 # Platform refactor, Stage B Part 1: thirteen placements and names to rule, and two questions on scope
 
-**Status: a proposal. Nothing here is built until it is ruled.**[^hard] R1 to R13 are for the Solution Architect;
+**Status: ruled, 24 Nov 2026** (each row's **Ruled** or **Decided** line). Built by Stage B Part 1's items.[^hard] R1 to R13 are for the Solution Architect;
 P1 and P2 are for the Product Owner. Each row has an empty **Ruled** line: the coordinator writes the ruling, the
 role and the date there, and the briefs that wait read it.
 
@@ -29,7 +29,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
 - **Recommendation: (a).** They hold the process environment, path spelling per operating system and the release
   version: nothing domain-shaped, which is the test for Platform (IM §4). The plan proposes the same[^plan-core].
 - **C9.** Waits: B1.11.
-- **Ruled:**
+- **Ruled:** (a), Platform entries for the three (the Solution Architect, 24 Nov 2026).
 
 ### R2 · The Kalman smoother's Rules directory
 - **Today.** `src/Core/kf3_smoother.h` is Rules by the lint and by RING-RULES, which lists it "to place in Stage B".
@@ -41,7 +41,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   directory; (c) creates a directory for one file. The context-map side
   track tagged it Shared[^cm]; Shared is a Vocabulary tag (Q27), and both users are Diagnostics, so the tag buys nothing.
 - **C9.** Waits: B1.11.
-- **Ruled:**
+- **Ruled:** (a), `src/Kinematics/`, context Diagnostics (the Solution Architect, 24 Nov 2026).
 
 ### R3 · `pp_settings` is Platform
 - **Today.** `src/Core/pp_settings.h` (the `QSettings` handle; it includes only `<QSettings>`) is Adapters. 14
@@ -57,7 +57,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   on the day. **Proposed guard:** A8's name check for `pp_settings` is widened from `src/Analysis` to the
   Vocabulary, Rules and Domain-model rings (a lint-scope change, C4 and C9, with no allowlist line since the count is 0).
 - **C9 (and C4 for the guard).** Waits: B1.11, and through it B1.21.
-- **Ruled:**
+- **Ruled:** (a), Platform, with the guard: lint A8's name check for `pp_settings` widened to the Vocabulary, Rules and Domain-model rings (the Solution Architect, 24 Nov 2026).
 
 ### R4 · `app_info` leaves `Core`; the `Core/` rule becomes Platform; the directory keeps its name
 - **Today.** `src/Core/app_info.{h,cpp}` is a `Q_OBJECT` façade for the About box, Adapters, with one includer
@@ -73,7 +73,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
 - **Consequence to accept.** "`Core` holds only the Platform ring" is not reached in Part 1: one file remains,
   owned by Stage D.
 - **C9.** Waits: B1.11.
-- **Ruled:**
+- **Ruled:** all three parts as proposed: `app_info` to `src/Gui/app/`; the `Core/` rule becomes Platform, `device_enumerator` the one named exception until Stage D; the directory keeps the name `src/Core` (the Solution Architect, 24 Nov 2026).
 
 ### R5 · LaunchMonitor's inferred reads: their directory and their context
 - **Today.** Eight stems are Rules by `fileRings()`, inside an Adapters directory: `lm_inferred_reads`,
@@ -87,7 +87,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   interpret, and Part 2's Rules library takes the sub-folder. (c) mixes the launch monitor's reads with the ball
   tracker's, which rank against each other (R-INS-3).
 - **C9.** Waits: B1.12.
-- **Ruled:**
+- **Ruled:** (a), `src/LaunchMonitor/inferred/`, Rules, context Diagnostics; the connectors Acquisition (the Solution Architect, 24 Nov 2026).
 
 ### R6 · `src/Export`'s new name
 - **Today.** The plan carries "`src/Export` renamed" with no name[^plan-224]. The audit's example, `src/Recording`,
@@ -97,7 +97,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
 - **Recommendation: (a).** "The stores" is the IM's own word for these files (§1.4's A5 row, §4). (c) is a fair
   choice too: the rename buys clarity only, and no library depends on it. If the answer is (c), item B1.16 is dropped.
 - **C9, and C4 (A5's exempt directory is keyed on the name).** Waits: B1.16, B1.17.
-- **Ruled:**
+- **Ruled:** (a), `src/Stores` (the Solution Architect, 24 Nov 2026).
 
 ### R7 · The ten chart rule files' home
 - **Today.** `session_warp`, `session_traces`, `session_relations`, `session_consistency`, `consistency_grades`,
@@ -110,7 +110,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   caller, or left in Gui as words. **The ruling asked for now is the destination and the ring only**; the inventory
   comes back if it finds a file that is a presenter and not a rule.
 - **C9.** Waits: B1.15b.
-- **Ruled:**
+- **Ruled:** `src/Diagnostics/derived/series/`, Rules, Diagnostics, for the list as the inventory grew it (B1.15a): eight of the ten, plus `session_series_types.h` (OBJ-SESSION-SERIES's value types) and `session_curves`, 19 files. `session_posture` and `session_delivery` stay in `src/Gui/charts` until #224-H separates their words from their rules (the Solution Architect, 24 Nov 2026).
 
 ### R8 · Diagnostics re-cut by layer, and the pixel layout to the UI ring
 - **Today.** `src/Diagnostics` has `engine` (21 files), `packs` (18), `norms` (17) and `measures` (13). Bottom-layer
@@ -128,7 +128,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
 - **The file-by-file list** comes with B1.19's dry run for a second look; what is ruled now is the folder names,
   their order and the ring change in part 2.
 - **C9 for part 2. Part 1 changes no ring; it is a change because IM §2 ("The packs") and CLS-PACKS-NORMS name these paths.** Waits: B1.18, B1.19.
-- **Ruled:**
+- **Ruled:** as proposed: the folders `model` → `content` → `engine` → `derived`, each including only itself and those before it, checked by a test; `dag_layout` and `corridor_plot` to `src/Gui/diagnosticmodel/layout/` (the Solution Architect, 24 Nov 2026).
 
 ### R9 · What clears a store door's A5 line
 - **Today.** Lint A5 exempts `src/Export`, but counts two of its files by name as store doors
@@ -144,7 +144,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   IM is that decision. (b) undoes the reason `rule_data_reads` is its own file (the light tools link it without
   the settings file). (c) is right for `session_index_summary`'s cross-store reads in time, and is #224-U's size.
 - **C4 and C9 (a lint rule's scope).** Waits: B1.17.
-- **Ruled:**
+- **Ruled:** (a), each door named in the IM as part of its store; the lint exempts it like the rest of the store, and the counted-door list is deleted (the Solution Architect, 24 Nov 2026).
 
 ### R10 · `recorded_products.h`'s ring
 - **Today.** `src/Analysis/recorded_products.h` is Adapters by `fileRings()` and RING-ADAPTERS ("the recorded
@@ -157,7 +157,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
 - **Recommendation: (a).** By content it is the value types' own JSON form, with no I/O. (b) widens the Recording
   contract (C1, C3) to clear one include.
 - **C9.** Waits: B1.13.
-- **Ruled:**
+- **Ruled:** (a), `src/Vocabulary/Analysis/` (the Solution Architect, 24 Nov 2026).
 
 ### R11 · The corridor scan's forwarder leaves Diagnostics
 - **Today.** The model browser's corridor scan keeps a direct, folder-keyed read of each swing's phase grid, as a
@@ -172,7 +172,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   `model_browser.cpp`'s existing A5 line (×2) takes the finding under a corrected count and reason, or the new
   header is listed as the recorded exception's reader. No line is added in either case without the ruling.
 - **C4 (who reads FILE-SHOT-07 outside its door), and the FILE-SHOT-07 row's text.** Waits: B1.14, and through it B1.21 and P2.
-- **Ruled:**
+- **Ruled:** (a), the forwarder and its exception comment move beside the model browser in `src/Gui/diagnosticmodel/`; `model_browser.cpp`'s existing A5 line takes the finding under a corrected count and reason; no line is added (the Solution Architect, 24 Nov 2026).
 
 ### R12 · One namespace per context: the names
 - **Today.** `namespace pinpoint::analysis` is declared in 345 files outside the test folders (511 with tests), in
@@ -189,7 +189,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   One run per namespace, `pinpoint::diagnostics` first: it is where the 7 Oct collision came from.
 - **Not an IM change by C1 to C11** (no object, file, id, ring or rule), but the names are architecture, so they are asked here.
 - Waits: B1.20. Whether it is in Part 1 at all is P1.
-- **Ruled:**
+- **Ruled:** the names as proposed: `pinpoint::diagnostics`, `pinpoint::metrics`, `pinpoint::analysis` kept for the measurement directories, `pinpoint::coaching` reserved (the Solution Architect, 24 Nov 2026). When it runs is P1.
 
 ### R13 · The contexts still "to place", and the hub's contract headers
 - **Today.** IM §4.1 marks rows "to place in Stage B", and §1.4 says the contract set "is listed when A9 is
@@ -216,7 +216,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   (types moved, ruled by Q27 and its consequences); `Ppcp` ×3 (R3); `Analysis/swing_reanalyzer.cpp:20` (R10);
   `Diagnostics/measures/measure_sample.cpp:28` (R11).
 - **C9.** Waits: B1.21 (lint A9).
-- **Ruled:**
+- **Ruled:** the placements and the five-header contract set as proposed; any other header joins the set by a ruling when a context first needs it (the Solution Architect, 24 Nov 2026).
 
 ## The questions for the Product Owner
 
@@ -230,7 +230,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   cheap half now: a test that fails on two different definitions of one type name in `pinpoint::analysis` (about
   an hour, in Part 1's close). That gives the protection without the rename.
 - **If kept in Part 1:** it runs last, after every folder move, one run per namespace, and R12's names are needed.
-- **Decided:**
+- **Decided:** moved out of Part 1, to straight after Stage B Part 2; a one-hour test that fails on two types of one name in one namespace is added now (the Product Owner, 24 Nov 2026).
 
 ### P2 · The allowlist's accept figure (for the Product Owner)
 - **The plan's figure.** Lines tagged `platform refactor (#224)`: 34 → 30, with Stage B's 4 at 0[^plan-accept].
@@ -248,7 +248,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
 - **If R11 is not ruled as recommended:** Stage B clears 3 lines, the two `measure_sample.cpp` lines are re-tagged
   `# kept` with the ruling as their reason, tagged lines still read 36 → 32 (three cleared, and the A5 line leaves the tag as `# kept`), and lint A9 needs a named exception
   for that include, which IM §1.4's "no allowlist line" does not allow today. That is why R11 is the better route.
-- **Decided:**
+- **Decided:** 36 → 32: Stage B clears its own 5 lines to 0, and each of the 32 left is named on #224 with the stage that takes it (the Product Owner, 24 Nov 2026).
 
 ## What waits on what
 
