@@ -25,6 +25,12 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Qml Concurrent Test)
 
+if(MSVC)
+    # As in the app and the Analysis tests: the charts presenters pass the Debug section limit (C1128,
+    # found by the Windows test lane, platform refactor B0.2). Every target below, the QML UI suite included.
+    add_compile_options(/bigobj)
+endif()
+
 set(GUI ${CMAKE_CURRENT_SOURCE_DIR}/..)   # src/Gui
 set(SRC ${GUI}/..)                         # src
 

@@ -429,6 +429,15 @@ public:
         // The packs and norms, read once through the seams just set (refactor step 3.2): every reader in
         // the module takes RuleData's snapshot, so with none installed they would all read EMPTY — the
         // empty-pack failures the note above describes.
+        //
+        // The settings are redirected FIRST: RuleData's constructor reads its Settings part (SET-06 /
+        // SET-15) through ppSettings(), so installing it before any setPath read the developer's own
+        // ini, and on the studio PC the studio's (platform refactor B0.2, review B1). "file0" is the
+        // set-up's own store; qmlEngineAvailable gives each test file a fresh one after it.
+        if (!m_scratch.isValid())
+            qFatal("qml_ui_test: no scratch directory for the settings (%s) - refusing to read the real "
+                   "settings store.", qPrintable(m_scratch.errorString()));
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_scratch.filePath(QStringLiteral("file0")));
         pinpoint::installProcessRuleData();
     }
 
