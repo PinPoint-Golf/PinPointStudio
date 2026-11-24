@@ -238,15 +238,15 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   1. Two of Stage B's four lines are `measure_sample.cpp`'s (A1 ×1, A5 ×1). The corridor scan's forwarder, kept
      by ruling[^pr21], is what they count. They reach 0 only if R11 is ruled as recommended.
   2. The plan also has three stale-tagged lines re-tagged `#224` "in the stage's first commit"[^plan-stale]. That
-     was not done. When it is, the start is 37, not 34: one more for Stage B (`swing_reanalyzer.cpp`, A1) and two for #224-U.
+     is now done (B1.T, `d37bbfa6`): one more for Stage B (`swing_reanalyzer.cpp`, A1) and two for #224-U. P-3b's ruled re-tag of `measure_sample.cpp`'s A1 line to `# kept`[^pr23] took one off, so **the start on main is 36**, not 34.
 - **Recommendation: count Stage B's own lines, and state the rest as what remains.**
   - Stage B clears **5 lines to 0**: `measure_sample.cpp` A1 and A5 (by R11), `session_list_reads` and
     `session_index_summary` A5 (by R9), `swing_reanalyzer.cpp` A1 (by R10). `rule_data_reads` is counted and ends at
     0 with no line (J-110).
-  - Tagged lines: **37 → 32**. The 32 are Stage D's 3, #224-H's 1 and #224-U's 28, each named on #224.
+  - Tagged lines: **36 → 32** (`measure_sample.cpp`'s A1 line is now tagged `# kept`, so R11 clears it without changing this count). The 32 are Stage D's 3, #224-H's 1 and #224-U's 28, each named on #224.
   - One more line goes that the plan's figure never counted: `dag_layout.cpp`'s A7 line, by R8.
 - **If R11 is not ruled as recommended:** Stage B clears 3 lines, the two `measure_sample.cpp` lines are re-tagged
-  `# kept` with the ruling as their reason, tagged lines still read 37 → 32, and lint A9 needs a named exception
+  `# kept` with the ruling as their reason, tagged lines read 36 → 33, and lint A9 needs a named exception
   for that include, which IM §1.4's "no allowlist line" does not allow today. That is why R11 is the better route.
 - **Decided:**
 
@@ -286,3 +286,4 @@ call, and the chart files' inventory.
 [^po224]: Product Owner, 24 Nov 2026: #224 in three groups, #224-B in Stage B (the plan's "Rulings of 24 Nov").
 [^plan-accept]: The plan's Stage B table, the Accept row.
 [^plan-stale]: The plan's "Mandatory carry-ins" (iv), the row "the close (06 §4.5, C-4)".
+[^pr23]: The Solution Architect, 24 Nov 2026: no `resultsVersion` bump for P-3b, and allowlist line 30's re-tag to `# kept` confirmed (`build/platform/JUDGEMENT-CALLS.md` PR-23).
