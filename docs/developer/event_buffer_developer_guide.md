@@ -1049,6 +1049,10 @@ Without a signal mechanism, the merger would need to poll constantly or sleep on
 timer. Timer-based sleep on macOS has poor granularity (Darwin timer coalescing can
 turn a 500µs sleep into 5–10ms). The solution: every `EventBuffer::publish()` call
 increments an atomic counter `source_published_` and calls `notifyAll()` on it.
+The increment is one `WaitFlag::increment()` (a seq_cst `fetch_add`), because
+producers publish from their own threads at once: a load-then-store would lose a
+count and the merger would sleep out its cold timeout (`merger_cold_timeout_us`,
+0.5 ms) instead of waking.
 The merger's cold path waits on this counter rather than on a timer, so it wakes
 within microseconds of a publish rather than on the next scheduler tick.
 

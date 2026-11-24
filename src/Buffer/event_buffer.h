@@ -98,6 +98,9 @@ public:
     SourceRing::WriteSlot acquireWriteSlot(SourceId id) noexcept;
     SourceRing::WriteSlot getSlotByIndex(SourceId id, size_t slot_idx) noexcept;
     void                  publish(SourceId id, uint64_t sequence) noexcept;
+    // publish() calls since construction or the last resume() (which zeroes it): the
+    // merger's wake signal, read-only here for tests and diagnostics.
+    uint64_t              publishCount() const noexcept;
 
     // DMA registration helpers
     std::vector<std::byte*> getSlotPointers(SourceId id) const;

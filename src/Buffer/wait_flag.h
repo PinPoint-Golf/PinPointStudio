@@ -48,6 +48,11 @@ public:
     void     wait(uint64_t expected) noexcept;
 
     void     store(uint64_t v) noexcept;
+    // One atomic +1 (a fetch_add), for a flag several threads bump at once:
+    // store(load() + 1) from two threads can lose one of the two. seq_cst on
+    // every platform, so never weaker than store() (seq_cst on Apple, where the
+    // no-lost-wakeup argument in notifyAll() needs it; release elsewhere).
+    void     increment()       noexcept;
     uint64_t load()            const noexcept;
     void     notifyAll()       noexcept;
 

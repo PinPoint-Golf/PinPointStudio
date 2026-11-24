@@ -229,8 +229,14 @@ void EventBuffer::publish(SourceId id, uint64_t sequence) noexcept {
     int idx = findSlotIndex(id);
     if (idx < 0) return;
     sources_[idx]->ring->publish(sequence);
-    source_published_.store(source_published_.load() + 1);
+    // One atomic increment: producers publish from their own threads at once,
+    // and a load-then-store could lose a count (a missed merger wake).
+    source_published_.increment();
     source_published_.notifyAll();
+}
+
+uint64_t EventBuffer::publishCount() const noexcept {
+    return source_published_.load();
 }
 
 std::vector<std::byte*> EventBuffer::getSlotPointers(SourceId id) const {

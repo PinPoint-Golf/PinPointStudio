@@ -319,6 +319,7 @@ public:
     // Returns the new value (or 'expected' on timeout).
     uint64_t waitFor(uint64_t expected, std::chrono::microseconds timeout);
     void     store(uint64_t v) noexcept;
+    void     increment()       noexcept;   // one seq_cst fetch_add: safe from several threads
     uint64_t load()            const noexcept;
     void     notifyAll()       noexcept;
 

@@ -549,3 +549,49 @@ TEST(EventBuffer, SourceRegisterDeregisterRegisterCycle) {
     EXPECT_EQ(buf.state(), pinpoint::BufferState::Capturing);
     buf.stop();
 }
+
+// ---------------------------------------------------------------------------
+// publish() counts every call when producers publish at once: N sources, one
+// producer thread each (the rings are SPSC), M publishes per thread, released
+// together; the count ends at N×M. It used to be store(load() + 1), which could
+// lose one and so miss a merger wake. Platform refactor A4.
+// ---------------------------------------------------------------------------
+
+TEST(EventBuffer, ConcurrentPublishCountsEveryCall) {
+    constexpr int kProducers = 4;
+    constexpr int kEach      = 20'000;
+    EventBuffer buf(zeroReorder());
+    std::vector<SourceId> ids;
+    for (int p = 0; p < kProducers; ++p)
+        ids.push_back(buf.registerSource(makeImu(1000)));
+    buf.start();
+    ASSERT_TRUE(buf.isCapturing());
+    const uint64_t before = buf.publishCount();
+
+    std::atomic<bool> go{false};
+    std::atomic<int>  published{0};
+    std::vector<std::thread> producers;
+    for (int p = 0; p < kProducers; ++p)
+        producers.emplace_back([&, id = ids[p], p] {
+            while (!go.load(std::memory_order_acquire)) std::this_thread::yield();
+            int mine = 0;
+            for (int i = 0; i < kEach; ++i) {
+                auto slot = buf.acquireWriteSlot(id);
+                if (!slot.valid) continue;
+                *slot.timestamp_us  = 1'000'000LL + int64_t(i) * 1000 + p;
+                *slot.bytes_written = 4;
+                buf.publish(id, slot.sequence);
+                ++mine;
+            }
+            published.fetch_add(mine, std::memory_order_relaxed);
+        });
+    go.store(true, std::memory_order_release);
+    for (auto &th : producers) th.join();
+
+    // Read before any pause/resume/stop: resume() zeroes the count.
+    const uint64_t count = buf.publishCount() - before;
+    buf.stop();
+
+    EXPECT_EQ(published.load(), kProducers * kEach);   // every slot was granted
+    EXPECT_EQ(count, static_cast<uint64_t>(kProducers) * kEach);
+}

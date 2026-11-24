@@ -177,7 +177,17 @@ void WaitFlag::notifyAll() noexcept {
 
 #endif
 
-// ---- load: same on all platforms -------------------------------------------
+// ---- increment + load: same on all platforms --------------------------------
+
+void WaitFlag::increment() noexcept {
+    // seq_cst: on Apple it must be, for the same reason as store() — the
+    // fast-path notifyAll() must not miss a waiter that is parking as the
+    // value changes. Elsewhere release would do (a waiter's acquire load
+    // synchronises with it), but one ordering everywhere keeps this body
+    // compiled and tested on the Mac; an RMW is a full-barrier instruction on
+    // x86 (LOCK XADD) and LDADDAL on arm64 either way, so it costs nothing.
+    value_.fetch_add(1, std::memory_order_seq_cst);
+}
 
 uint64_t WaitFlag::load() const noexcept {
     return value_.load(std::memory_order_acquire);

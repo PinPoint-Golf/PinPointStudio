@@ -169,3 +169,24 @@ TEST(WaitFlag, WaitNoLostWakeupUnderRace) {
             << "lost wakeup at iteration " << i;
     }
 }
+
+// ---------------------------------------------------------------------------
+// increment() is one atomic +1: N threads × M increments end at exactly N×M
+// (store(load() + 1) from several threads could lose counts). Platform refactor A4.
+// ---------------------------------------------------------------------------
+
+TEST(WaitFlag, IncrementFromManyThreadsLosesNothing) {
+    constexpr int kThreads = 8;
+    constexpr int kEach    = 100'000;
+    WaitFlag f;
+    std::atomic<bool> go{false};
+    std::vector<std::thread> threads;
+    for (int t = 0; t < kThreads; ++t)
+        threads.emplace_back([&] {
+            while (!go.load(std::memory_order_acquire)) std::this_thread::yield();
+            for (int i = 0; i < kEach; ++i) f.increment();
+        });
+    go.store(true, std::memory_order_release);
+    for (auto &th : threads) th.join();
+    EXPECT_EQ(f.load(), static_cast<uint64_t>(kThreads) * kEach);
+}
