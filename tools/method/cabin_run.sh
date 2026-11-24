@@ -141,13 +141,17 @@ pass_report() {
             print line
         }
         for (k = 1; k <= nf; k++) {
-            n = fl[k]; i = at[n]; first = ""; last = ""
+            n = fl[k]; i = at[n]; first = ""; last = ""; weak = ""
             if (i) {
                 for (j = i + 1; j <= NR && !isbound(L[j]); j++) {
                     if (L[j] ~ /^\*\*\*Exception:/ && j == i + 1) continue
                     if (L[j] ~ /[^ \t]/) last = L[j]
-                    if (first == "" && (L[j] ~ /\[FAIL\]/ || L[j] ~ /^FAIL!/ || L[j] ~ /^FAIL[ :]/ || L[j] ~ /^ASSERT/ || L[j] ~ /Assertion failed/)) first = L[j]
+                    if (first == "" && (L[j] ~ /\[FAIL\]/ || L[j] ~ /^FAIL!/ || L[j] ~ /^ASSERT/ || L[j] ~ /Assertion failed/)) first = L[j]
+                    # A bare "FAIL " line is only a fallback: some suites name a section "FAIL (pool) - ..." whose
+                    # checks all pass, so the clear markers above win when the test has one.
+                    if (weak == "" && L[j] ~ /^FAIL[ :]/) weak = L[j]
                 }
+                if (first == "") first = weak
             }
             st = (n in status) ? status[n] : "failed"
             if (first != "") msg = cut(first); else if (last != "") msg = "last output: " cut(last); else msg = "no output"
