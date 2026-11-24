@@ -29,6 +29,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 #include "../../Identity/identity.h"   // ShotRef (a row's key)
 #include "../../App/shot_source.h"     // the port onto one Session (step 5.2)
@@ -50,7 +51,8 @@
 // ONE ROW WITH NO SHOT FACTS: a shot capture saved nothing for (no document) still lands a card — "the shot happened"
 // (landShot). Its values are the capture's, there being no document; the row becomes its Shot's in place when a
 // document lands for it later (a launch monitor's device-only document: EVT-01 for the same ShotRef, one row, never
-// two). End lets it go, as End's reload did.
+// two). The golfer's edits made on the card meanwhile are handed to the Shot then, by its own commands, and the card's
+// copy goes (refactor 5.10). End lets it go, as End's reload did.
 //
 // Trash: trashShots() asks the Session to trash each shot (Session::trashShot — the OS trash, or the library's own on a
 // volume with none) and the row leaves on its EVT-03. There is no in-app undo: recovery is the trash's job.
@@ -156,7 +158,7 @@ public:
     // Set the shot's declared club (from clubOptions): the Shot's command (EVT-21). No-op if unchanged / id unknown.
     Q_INVOKABLE void setClub(int id, const QString &club);
     // The launch monitor board's two annotations (LmSessionModel::setShotExcluded / setShotClub call these): the Shot's
-    // commands (EVT-05, EVT-04). A card with no document keeps them in memory only, like a rating.
+    // commands (EVT-05, EVT-04). A card with no document keeps them, like a rating, until its document lands (onAdded).
     //   setLmExcluded      leave the shot out of the board's statistics, or restore it
     //   setLmClubOverride  "" restores the default; otherwise a club from clubOptions, or the
     //                      shot's own recorded club (which may predate the vocabulary) —
@@ -254,11 +256,15 @@ private:
         bool              unsaved = false;
         CapturedShot      captured;
         int               ordinal = 0;       // the card's number (unsaved only)
-        int               rating = 0;        // the card's own edits (unsaved only: nothing to save them to)
-        QString           note;
-        bool              lmExcluded = false;
-        QString           lmClubOverride;
+        // The golfer's edits made on the card (unsaved only: nothing to save them to yet), each held only once made.
+        // When the document lands (onAdded) each is handed to the Shot by its own command and the card's copy goes.
+        std::optional<int>     rating;
+        std::optional<QString> note;
+        std::optional<QString> declaredClub;
+        std::optional<bool>    lmExcluded;
+        std::optional<QString> lmClubOverride;
     };
+    void handCardEditsToShot(int row);   // onAdded: the card's edits, through the Shot's commands
 
     const pinpoint::ShotSummary *factsOf(const Row &row) const;   // the Shot's summary (kept), else null
     int  rowForId(int id) const;

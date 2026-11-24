@@ -92,20 +92,21 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
         switch (role) {
         case OrdinalRole:           return r.ordinal;
         case TimestampLabelRole:    return c.timestampLabel;
-        case ClubRole:              return pinpoint::effectiveClub(c.club, r.lmClubOverride);   // the one club (R-CLUB-2)
-        case RecordedClubRole:      return c.club;
+        case ClubRole:              return pinpoint::effectiveClub(r.declaredClub.value_or(c.club),
+                                                                   r.lmClubOverride.value_or(QString()));   // R-CLUB-2
+        case RecordedClubRole:      return r.declaredClub.value_or(c.club);
         case LegacyClubStubRole:    return false;   // new captures never write a stub (J-106)
         case HasVideoRole:          return c.hasVideo;
         case ThumbnailSourceRole:   return r.thumbnailSource;
         case ScoreRole:             return c.score;
-        case RatingRole:            return r.rating;
-        case NoteRole:              return r.note;
+        case RatingRole:            return r.rating.value_or(0);
+        case NoteRole:              return r.note.value_or(QString());
         case MetricsRole:           return c.metrics;
         case DataWarningRole:       return c.dataWarning;
         case DataWarningDetailRole: return c.dataWarningDetail;
         case LmDeviceRole:          return QString();
-        case LmExcludedRole:        return r.lmExcluded;
-        case LmClubOverrideRole:    return r.lmClubOverride;
+        case LmExcludedRole:        return r.lmExcluded.value_or(false);
+        case LmClubOverrideRole:    return r.lmClubOverride.value_or(QString());
         default:                    return {};
         }
     }
@@ -326,7 +327,7 @@ void ShotListModel::rereadShots()
 
 // EVT-01: a shot's first document has landed. Its row is made — or, when capture had already given it a card with
 // nothing saved (a launch monitor's device-only document filling that shot's folder), that card becomes its Shot's row
-// in place: one row for one swing, never two.
+// in place: one row for one swing, never two. The golfer's edits made on the card go to the Shot then (refactor 5.10).
 void ShotListModel::onAdded(const pinpoint::ShotRef &shot)
 {
     const int row = rowForShot(shot);
@@ -344,7 +345,42 @@ void ShotListModel::onAdded(const pinpoint::ShotRef &shot)
     r.captured = {};
     r.swingDir = m_source->swingFolder(shot);
     m_nextOrdinal = std::max(m_nextOrdinal, f->ordinal + 1);
+    handCardEditsToShot(row);
     emit dataChanged(index(row), index(row), {});
+}
+
+// THE CARD'S EDITS GO TO THE SHOT (refactor 5.10). What the golfer did on the card while nothing was saved for the shot
+// is handed to its Shot through the Shot's own commands — the ones the popover and the ratings use — so the Shot's
+// writer saves each and says so (its event; a refusal is told, as for any edit). Only an edit the golfer made is handed;
+// the card's copy goes. Where the document already holds a value (the launch monitor's club, say), the golfer's edit is
+// the later one and wins, as any correction does. Each edit writes its own key, so the order (the club before the
+// correction made against it, then the exclusion, the rating, the note) changes nothing saved.
+void ShotListModel::handCardEditsToShot(int row)
+{
+    Row &r = m_rows[row];
+    const std::optional<QString> club       = std::exchange(r.declaredClub, std::nullopt);
+    const std::optional<QString> correction = std::exchange(r.lmClubOverride, std::nullopt);
+    const std::optional<bool>    excluded   = std::exchange(r.lmExcluded, std::nullopt);
+    const std::optional<int>     rating     = std::exchange(r.rating, std::nullopt);
+    const std::optional<QString> note       = std::exchange(r.note, std::nullopt);
+    if (!club && !correction && !excluded && !rating && !note)
+        return;
+    ppInfo() << "[ShotListModel] the card's edits go to its Shot as its document lands:" << r.shot.toString();
+    if (club)
+        forwarded(row, "the declared club", [&club](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
+            return s.setDeclaredClub(ref, *club); });
+    if (correction)
+        forwarded(row, "the club correction", [&correction](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
+            return s.correctClub(ref, *correction); });
+    if (excluded)
+        forwarded(row, "the reading's exclusion", [&excluded](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
+            return s.excludeReading(ref, *excluded); });
+    if (rating)
+        forwarded(row, "the rating", [&rating](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
+            return s.rate(ref, *rating); });
+    if (note)
+        forwarded(row, "the note", [&note](pinpoint::ShotSource &s, const pinpoint::ShotRef &ref) {
+            return s.note(ref, *note); });
 }
 
 // One of the Shot's events. A rewrite of its document (a late part, a re-analysis) reads its summary again; the
@@ -498,7 +534,7 @@ void ShotListModel::setClub(int id, const QString &club)
     }
     if (forwarded(row, "the declared club", [&club](pinpoint::ShotSource &s, const pinpoint::ShotRef &r) {
             return s.setDeclaredClub(r, club); }) == Edit::Card)
-        m_rows[row].captured.club = club;
+        m_rows[row].declaredClub = club;
     emit dataChanged(index(row), index(row), { ClubRole, RecordedClubRole, LegacyClubStubRole });
 }
 

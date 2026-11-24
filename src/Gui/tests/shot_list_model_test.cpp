@@ -291,6 +291,20 @@ int main(int argc, char **argv)
         checkStr ("…now its Shot's", rig.model.data(rig.model.index(rowOf(rig.model, id)), ShotListModel::LmDeviceRole).toString(),
                   QStringLiteral("gcquad"));
         checkBool("…with its folder", !rig.model.data(rig.model.index(rowOf(rig.model, id)), ShotListModel::SwingDirRole).toString().isEmpty(), true);
+        // refactor 5.10: only what the golfer edited on a card is handed to the Shot — the capture's own values are not
+        // (an untouched card leaves the document's club, rating and note as they are).
+        const ShotRef s4 = rig.src->allocate(4);
+        ShotListModel::CapturedShot c4;
+        c4.shot = s4; c4.club = QStringLiteral("PW");
+        const int id4 = rig.model.landShot(c4, false);
+        rig.model.setNote(id4, QStringLiteral("on the card"));
+        ShotSummary dev4 = shot("8 IRON", 0, "14:05", false);
+        dev4.rating = 2;
+        rig.src->land(s4, dev4);
+        const QModelIndex ix4 = rig.model.index(rowOf(rig.model, id4));
+        checkStr ("5.10 the card's note is the Shot's", rig.model.data(ix4, ShotListModel::NoteRole).toString(), QStringLiteral("on the card"));
+        checkStr ("5.10 …the capture's club is not handed over", rig.model.data(ix4, ShotListModel::ClubRole).toString(), QStringLiteral("8 IRON"));
+        checkInt ("5.10 …nor an untouched rating", rig.model.data(ix4, ShotListModel::RatingRole).toInt(), 2);
     }
 
     std::printf("\n-- V9: a failed save; the rating's own refresh --\n");

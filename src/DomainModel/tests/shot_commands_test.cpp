@@ -622,14 +622,54 @@ static void carouselView()
     card.club = QStringLiteral("7 IRON");
     const int cardId = live.landShot(card, /*documentWritten*/ false);
     const int rowsWithCard = live.rowCount();
+    // V8b (refactor 5.10): the golfer edits the card while nothing is saved for it — the rating, the note, the board's
+    // exclusion, the declared club and the board's club correction.
+    live.setRating(cardId, 4);
+    live.setNote(cardId, QStringLiteral("thin, off the toe"));
+    live.setLmExcluded(cardId, true);
+    live.setClub(cardId, QStringLiteral("6 IRON"));
+    live.setLmClubOverride(cardId, QStringLiteral("5 IRON"));
+    const QModelIndex cardIx = live.index(0);
+    check(QStringLiteral("V8b the card shows the golfer's edits while nothing is saved"),
+          live.data(cardIx, ShotListModel::RatingRole).toInt() == 4
+              && live.data(cardIx, ShotListModel::NoteRole).toString() == QStringLiteral("thin, off the toe")
+              && live.data(cardIx, ShotListModel::LmExcludedRole).toBool()
+              && live.data(cardIx, ShotListModel::RecordedClubRole).toString() == QStringLiteral("6 IRON")
+              && live.data(cardIx, ShotListModel::ClubRole).toString() == QStringLiteral("5 IRON"));
+    rig.events.clear();
+    if (rescued) rig.listen(rescued);
     DeviceOnlyMeta meta;
     meta.swingId    = QFileInfo(a.swingFolder).fileName();
     meta.swingIndex = rescued ? rescued->swingNumber() : 0;
+    meta.club       = QStringLiteral("8 IRON");   // the document carries a club of its own: the golfer's later edit wins
     const bool wrote = rescued && rig.recordings->create(rescued->ref(), reading("V8"), meta).ok();
     if (wrote) s->shotDocumentWritten(rescued->ref());
     check(QStringLiteral("V8 the card, then its document: one row, the same id, now its Shot's"),
           wrote && rowsWithCard == 2 && live.rowCount() == 2 && live.idOfShotRef(rescued->ref()) == cardId
               && !live.data(live.index(0), ShotListModel::SwingDirRole).toString().isEmpty());
+    // V8c: the card's edits are handed to the Shot (its own commands) as the document lands — on the Shot, in the saved
+    // document, and on the row, which reads them from the Shot.
+    const ShotSummary rs = rescued ? rescued->summary() : ShotSummary();
+    check(QStringLiteral("V8c the card's edits are the Shot's: rating, note, exclusion, declared club, correction"),
+          rs.rating == 4 && rs.note == QStringLiteral("thin, off the toe") && rs.lmExcluded
+              && rs.club == QStringLiteral("6 IRON") && rs.lmClubOverride == QStringLiteral("5 IRON"));
+    const QJsonObject rv8 = wrote ? reviewOf(rig, rescued->ref()) : QJsonObject();
+    check(QStringLiteral("V8c …saved in the document's review block"),
+          rv8.value(QStringLiteral("rating")).toInt() == 4
+              && rv8.value(QStringLiteral("note")).toString() == QStringLiteral("thin, off the toe")
+              && rv8.value(QStringLiteral("excluded")).toBool()
+              && rv8.value(QStringLiteral("club")).toString() == QStringLiteral("6 IRON")
+              && rv8.value(QStringLiteral("clubOverride")).toString() == QStringLiteral("5 IRON"));
+    check(QStringLiteral("V8c …the row shows them, read from the Shot"),
+          live.data(live.index(0), ShotListModel::RatingRole).toInt() == 4
+              && live.data(live.index(0), ShotListModel::NoteRole).toString() == QStringLiteral("thin, off the toe")
+              && live.data(live.index(0), ShotListModel::LmExcludedRole).toBool()
+              && live.data(live.index(0), ShotListModel::RecordedClubRole).toString() == QStringLiteral("6 IRON")
+              && live.data(live.index(0), ShotListModel::ClubRole).toString() == QStringLiteral("5 IRON"));
+    std::printf("    V8c events: %s\n", qPrintable(rig.events.join(QStringLiteral(", "))));
+    check(QStringLiteral("V8c …each handed edit is the Shot's event (club EVT-21, correction EVT-04, exclusion EVT-05)"),
+          wrote && rig.events.contains(ev("EVT-21", rescued->ref())) && rig.events.contains(ev("EVT-04", rescued->ref()))
+              && rig.events.contains(ev("EVT-05", rescued->ref())));
 
     // V7: the Session trashed by its Athlete (EVT-20): the view empties.
     capture.clear();
