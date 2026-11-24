@@ -113,6 +113,7 @@
 #include <cstdio>
 #include <random>
 #include <vector>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 
@@ -2469,6 +2470,7 @@ static void checkDevAthlete(const QString &root)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("work_ons_controller_test\n");

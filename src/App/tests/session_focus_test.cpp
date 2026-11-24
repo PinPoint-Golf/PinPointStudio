@@ -74,6 +74,7 @@
 
 #include <cstdio>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 #ifndef PP_GUI_SRC_DIR
 #  define PP_GUI_SRC_DIR "."
@@ -416,8 +417,8 @@ static void testQmlWriters()
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
-    QStandardPaths::setTestModeEnabled(true);
     RuleData &rules = installProcessRuleData();
     check(QStringLiteral("the shipped rule data is installed"), rules.snapshot() && rules.snapshot()->pack);
     std::printf("session_focus_test — the declared focus reaches its Session (refactor 4-d)\n");

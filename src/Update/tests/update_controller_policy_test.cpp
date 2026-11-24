@@ -38,6 +38,7 @@
 #include <QStandardPaths>
 #include <QStringList>
 #include <QTemporaryDir>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using State = pp::update::State;
 
@@ -321,10 +322,8 @@ int main(int argc, char **argv)
     // 5 Oct 2026 this suite constructed AppSettings over the developer's own ini. It only
     // read, so nobody noticed — until the constructor gained a one-time migration
     // (imu/placement → imu/roles) and this test ran it against the real file. setPath has to
-    // come BEFORE the first AppSettings; it only affects QSettings made after it.
-    QStandardPaths::setTestModeEnabled(true);
-    QTemporaryDir scratch;
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, scratch.path());
+    // come BEFORE the first AppSettings; it only affects QSettings made after it. IsolatedStores does both (#187).
+    pinpoint::test::IsolatedStores stores;
     QCoreApplication app(argc, argv);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

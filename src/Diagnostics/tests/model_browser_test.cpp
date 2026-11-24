@@ -56,6 +56,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 using model_browser_test::asMap;
@@ -617,6 +618,7 @@ static void reportContentEditing(ModelBrowser &m)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     // THE SWING ON SCREEN'S DOOR (platform refactor P-3): the app resolves the folder to the Shot its Session holds and
@@ -628,8 +630,12 @@ int main(int argc, char **argv)
         };
     });
 
-    // The user pack is written by save(); XDG_DATA_HOME is isolated by the test properties so this
-    // never touches a real profile. Start from nothing so the baseline is knowable.
+    // The user pack is written by save(); `stores` (first line of main) puts every user layer in this run's own
+    // temporary directory, on every platform (#187: XDG_DATA_HOME, which only Linux honours, left it in the real
+    // per-user folder on macOS and Windows). Start from nothing so the baseline is knowable.
+    check(stores.contains(userPackPath()) && stores.contains(userNormPath()) && stores.contains(userScreenSetPath())
+              && stores.contains(userDrillSetPath()) && stores.contains(userGateWordSetPath()),
+          "the user layers this suite writes lie inside its own temporary directory (#187)");
     QFile::remove(userPackPath());
     QFile::remove(userNormPath());
     // Screens and drills became writable in ADDENDUM-02 and have user layers of their own now, so
@@ -1981,6 +1987,7 @@ int main(int argc, char **argv)
         check(okOf(c.save()), "and saved");
         QFile f(userNormPath());
         const QJsonObject root = f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject();
+        f.close();   // before the save below: Windows refuses to replace or remove a file that is still open (B0.4)
         bool row = false, clean = true;
         for (const QJsonValue &v : root.value(QStringLiteral("norms")).toArray()) {
             const QJsonObject o = v.toObject();

@@ -58,6 +58,7 @@
 #include <memory>
 
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 static int g_fail = 0;
 
@@ -108,6 +109,7 @@ const QString kDir2  = QStringLiteral("/lib/a/S1/swing_0002");
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     std::printf("app_state_test — AppState (refactor step 4-a)\n");
 

@@ -61,6 +61,7 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 #ifndef PP_LIVE_SWINGS_DIR
 #  define PP_LIVE_SWINGS_DIR "."
@@ -204,8 +205,8 @@ static QStringList patternsOf(const SessionDiagnosticsModel *m)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
-    QStandardPaths::setTestModeEnabled(true);
     std::printf("diag_footer_test\n");
     RuleData &rules = installProcessRuleData();
     check(QStringLiteral("the shipped pack is read"), rules.snapshot() && rules.snapshot()->pack);

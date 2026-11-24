@@ -61,6 +61,7 @@
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 
@@ -125,6 +126,7 @@ static void checkSilent(const CharacteristicPack &pack, const INormProvider &nor
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     const std::unique_ptr<ICharacteristicPackProvider> packProv = makeCharacteristicPackProvider();
     const std::shared_ptr<const INormProvider>         norms    = sharedNormProvider();

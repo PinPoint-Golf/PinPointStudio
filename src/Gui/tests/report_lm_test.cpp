@@ -58,6 +58,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint;
 
@@ -109,6 +110,7 @@ static QVariantMap tileOf(const QVariant &ball, const QString &club, const QStri
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     QmlPayload::setEngine(nullptr);   // the board reads the C++ map, never the QML role (#173)

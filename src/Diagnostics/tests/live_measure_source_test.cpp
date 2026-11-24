@@ -81,6 +81,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 
@@ -325,6 +326,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("live_measure_source_test\n");

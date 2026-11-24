@@ -81,6 +81,7 @@
 #include <functional>
 #include <initializer_list>
 #include <optional>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint;
 
@@ -233,11 +234,10 @@ static bool settle(const std::function<bool()> &cond, int ms = 5000)
 
 int main(int argc, char **argv)
 {
+    // T's athlete store reads and writes ppSettings() (IniFormat/UserScope): a scratch folder, never the live INI. The
+    // user norm set and pack (N, P) go in this run's own scratch folder too (#187).
+    pinpoint::test::IsolatedStores stores;
     QCoreApplication app(argc, argv);
-    // T's athlete store reads and writes ppSettings() (IniFormat/UserScope): a scratch folder, never the live INI.
-    QTemporaryDir cfg;
-    if (!cfg.isValid()) return 1;
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, cfg.path());
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     // NO QML engine, on purpose (#173): the board reads each row's slice in C++ (its detail reader)
     // and never touches the engine; reading a detail through QML is what froze the app for minutes
@@ -513,19 +513,9 @@ int main(int argc, char **argv)
 
     {
         std::printf("\nN — a saved corridor edit reaches the board's next grade pass (audit B-01)\n");
-        // The user norm set lives under AppDataLocation: a folder of this run's own — test mode, and the
-        // application named after a fresh QTemporaryDir in the test-mode data location, so AppDataLocation
-        // IS that temporary directory — so no real profile and no other run meets it.
-        QStandardPaths::setTestModeEnabled(true);
-        const QString dataBase = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-        QDir().mkpath(dataBase);
-        QTemporaryDir runDir(dataBase + QStringLiteral("/lm_session_model_test-XXXXXX"));
-        QCoreApplication::setOrganizationName(QString());
-        QCoreApplication::setApplicationName(QFileInfo(runDir.path()).fileName());
-        pinpoint::installProcessRuleData().reload();   // the data location just moved (step 3.2)
-        check("N0 the user norm set goes in this run's own temporary directory",
-              runDir.isValid()
-                  && QFileInfo(analysis::userNormPath()).absolutePath().startsWith(QFileInfo(runDir.path()).absoluteFilePath()));
+        // The user norm set lives in the user diagnostics folder: this run's own (`stores`, #187), so no real
+        // profile and no other run meets it. The block removes it at its end.
+        check("N0 the user norm set goes in this run's own temporary directory", stores.contains(analysis::userNormPath()));
         analysis::resetSharedNormProvider();
 
         ShotListModel shots;
@@ -585,18 +575,9 @@ int main(int argc, char **argv)
 
     {
         std::printf("\nP — a saved pack edit (EVT-13) reaches a board made before it, at once (refactor 5.7e)\n");
-        // The user pack lives under AppDataLocation: this run's own temporary directory, as in N.
-        QStandardPaths::setTestModeEnabled(true);
-        const QString dataBase = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-        QDir().mkpath(dataBase);
-        QTemporaryDir runDir(dataBase + QStringLiteral("/lm_session_model_test-XXXXXX"));
-        QCoreApplication::setOrganizationName(QString());
-        QCoreApplication::setApplicationName(QFileInfo(runDir.path()).fileName());
+        // The user pack lives in the user diagnostics folder: this run's own temporary directory, as in N.
         RuleData &rules = pinpoint::installProcessRuleData();
-        rules.reload();   // the data location just moved
-        check("P0 the user pack goes in this run's own temporary directory",
-              runDir.isValid()
-                  && QFileInfo(analysis::userPackPath()).absolutePath().startsWith(QFileInfo(runDir.path()).absoluteFilePath()));
+        check("P0 the user pack goes in this run's own temporary directory", stores.contains(analysis::userPackPath()));
 
         ShotListModel shots;
         for (int i = 0; i < 11; ++i)

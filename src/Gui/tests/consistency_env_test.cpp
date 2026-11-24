@@ -38,6 +38,7 @@
 
 #include <cmath>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 namespace pa = pinpoint::analysis;
 using pinpoint::charts::ConsistencyEnv;
@@ -142,13 +143,13 @@ constexpr int kP1 = 0, kP4 = 2, kP7 = 5;                // Phase ids
 
 class ConsistencyEnvTest : public QObject {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     ConsistencyEnv m_env;
 
 private slots:
     void initTestCase()
     {
-        QStandardPaths::setTestModeEnabled(true);       // the user's own packs stay out of it
         pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         m_env = consistencyEnvFromPacks();
         QVERIFY(m_env.areaOf);

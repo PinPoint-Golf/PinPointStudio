@@ -49,6 +49,7 @@
 #include <chrono>
 #include <cstdio>
 #include <thread>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 
@@ -124,6 +125,7 @@ static ThemeParallelFor threads()
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     std::printf("swing_themes_golden_test\n");
     const QString dir = QStringLiteral(PP_SWING_THEMES_FIXTURE_DIR);
 
@@ -143,7 +145,6 @@ int main()
     check(pack.parsed, "core.json parses");
 
     // The shipped drill registry, beside core.json, through the app's own loader.
-    QStandardPaths::setTestModeEnabled(true);
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     if (qEnvironmentVariableIsEmpty("PINPOINT_CORE_DRILLS"))
         qputenv("PINPOINT_CORE_DRILLS", QFileInfo(QStringLiteral(PP_CORE_PACK_PATH)).dir().filePath(QStringLiteral("drills.json")).toLocal8Bit());

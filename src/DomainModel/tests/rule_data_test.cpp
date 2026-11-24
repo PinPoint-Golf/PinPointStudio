@@ -48,6 +48,7 @@
 #include <QTemporaryDir>
 
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -73,11 +74,11 @@ static bool writeAll(const QString &path, const QByteArray &bytes)
 
 int main(int argc, char **argv)
 {
+    // The settings file (SET-06, SET-15) goes in this run's own directory, never the user's.
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     QTemporaryDir    tmp;
     if (!tmp.isValid()) { std::printf("no temporary directory\nFAILED\n"); return 1; }
-    // The settings file (SET-06, SET-15) goes in this run's own directory, never the user's.
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, tmp.filePath(QStringLiteral("settings")));
     const QString dataDir = tmp.filePath(QStringLiteral("diagnostics"));
     QDir().mkpath(dataDir);
 

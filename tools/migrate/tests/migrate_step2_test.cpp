@@ -66,6 +66,7 @@
 #include <QTimeZone>
 
 #include <cstdio>
+#include "../../../src/Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint;
 using namespace pinpoint::migrate;
@@ -316,6 +317,7 @@ static bool anyFailureSays(const Result &r, const char *what)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     Fixture fx;
     // Nothing in this test may reach the real settings: ppSettings() (AthleteStore's) reads the fixture's.

@@ -62,6 +62,7 @@
 #include <QUuid>
 
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::report;
 
@@ -271,6 +272,7 @@ struct ListRig {
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     qputenv("PINPOINT_MAIL_DRYRUN", "0");
     qputenv("PINPOINT_MAIL_CREDENTIALS", "memory");
     QGuiApplication app(argc, argv);

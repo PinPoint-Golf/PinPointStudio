@@ -30,6 +30,7 @@
 #include <QtTest>
 
 #include <algorithm>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::charts;
 namespace pv = pinpoint::variability;
@@ -187,6 +188,7 @@ void checkTemplate(const QString &t)
 class ChartsConsistencyPresenterTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     std::shared_ptr<SessionSnapshot> m_oct, m_july;
     QJsonObject m_golden;

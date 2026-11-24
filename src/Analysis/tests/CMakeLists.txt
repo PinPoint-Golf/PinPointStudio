@@ -2490,8 +2490,9 @@ set_tests_properties(manifest_migration_test PROPERTIES
 # undo as the inverse of copy-on-write (undoing a first edit to shipped content IS the reset), a
 # bulk-set being ONE command, and legality being decided by the same function the graph drag asks.
 #
-# Writes go to QStandardPaths::AppDataLocation, so XDG_DATA_HOME is isolated: a suite that wrote into
-# the developer's own diagnostics pack would be a test with a side effect on the product.
+# Writes go to the user diagnostics folder, so the suite makes a pinpoint::test::IsolatedStores first (#187): that
+# folder is then this run's own temporary directory on every platform. (XDG_DATA_HOME, its old isolation, is honoured
+# only on Linux: on macOS and Windows the saves landed in the real per-user folder.)
 pp_add_test(model_browser_test
     SOURCES ${DIAG}/tests/model_browser_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
@@ -2519,7 +2520,7 @@ pp_add_test(model_browser_test
 # the assembled library reports every screenRef and drill id as dangling — which would make the
 # validation-strip assertions below pass for entirely the wrong reason.
 set_tests_properties(model_browser_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/model_browser_scratch")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json")
 
 # Does the details pane REDRAW after a write? model_browser_test proves the façade answers correctly;
 # this proves the four-link chain between that answer and the screen — the command's signal, the
@@ -2550,7 +2551,7 @@ pp_add_test(inspector_refresh_test
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
     AUTOMOC)
 set_tests_properties(inspector_refresh_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/inspector_refresh_scratch")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json")
 
 # The corridor picture. Pure geometry over value types, which is the whole reason the layout lives
 # in C++ — a curve computed inside delegate bindings is a curve nothing can assert. The load-bearing

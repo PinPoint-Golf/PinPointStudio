@@ -50,6 +50,7 @@
 #include <QTimeZone>
 
 #include <cmath>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::charts;
 
@@ -188,6 +189,7 @@ QVariantMap layerOf(const QVariantList &ls, const QString &role)
 class ChartsDeliveryPresenterTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
 private slots:
     void initTestCase() { pinpoint::installProcessRuleData(); }   // this process's packs and norms (refactor step 3.2)

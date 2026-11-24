@@ -34,6 +34,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 static int g_fail = 0;
 static int g_run  = 0;
@@ -176,6 +177,7 @@ static void testMigration()
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     std::printf("camera_roi_test — the crop is per role (flir_camera_settings.md §2.1)\n");
     testLookup();

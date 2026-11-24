@@ -57,6 +57,7 @@
 #include <condition_variable>
 #include <cstdio>
 #include <mutex>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint;
 using pinpoint::charts::SessionSeries;
@@ -104,8 +105,8 @@ struct GatedReader final : SeriesReader {
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
-    QStandardPaths::setTestModeEnabled(true);
     std::printf("session_series_test\n");
     RuleData &rules = installProcessRuleData();
     if (!rules.snapshot() || !rules.snapshot()->pack) { check(QStringLiteral("the shipped pack is read"), false); return 1; }

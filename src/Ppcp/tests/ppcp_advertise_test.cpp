@@ -65,6 +65,10 @@
 
 #include "ppcp_discovery.h"
 #include "ppcp_rendezvous.h"
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
+
+// #187: every per-user store points at a scratch folder before gtest_main runs a test.
+static pinpoint::test::IsolatedStores g_stores;
 
 using namespace Ppcp;
 

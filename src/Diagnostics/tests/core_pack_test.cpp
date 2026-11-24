@@ -38,6 +38,7 @@
 #include <iterator>
 #include <map>
 #include <utility>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 
@@ -50,6 +51,7 @@ static void check(bool c, const char *label)
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("core_pack_test\n");
 
@@ -2403,13 +2405,11 @@ int main()
 
     // ── …and a user layer overrides by id, through a save and a reload ───────────
     //
-    // LAST in this file, because it turns QStandardPaths test mode on: the user layer must not land in
-    // the real application data directory, and no block above should read a different one.
+    // LAST in this file: the user layer it saves would be read by any block after it. It lands in the user
+    // diagnostics folder, which `stores` (first line of main) made this run's own temporary directory (#187).
     {
-        QStandardPaths::setTestModeEnabled(true);
-        QCoreApplication::setApplicationName(QStringLiteral("core_pack_test_gate_words"));
         const QString path = userGateWordSetPath();
-        check(!path.isEmpty(), "gate words: there is a user layer path in test mode");
+        check(!path.isEmpty() && stores.contains(path), "gate words: the user layer path is inside this run's scratch folder");
         QFile::remove(path);
         resetSharedGateWordSet();
 

@@ -60,6 +60,7 @@
 #include <QtQml/qqmlregistration.h>
 
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 using model_browser_test::asMap;
@@ -427,6 +428,7 @@ static void typedValuesThroughQml(QQmlEngine &engine)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
 

@@ -41,6 +41,7 @@
 #include <QTemporaryDir>
 
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::imu_roles;
 
@@ -545,6 +546,7 @@ static void testAppSettings()
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     std::printf("imu_role_map_test — role-keyed placement (design §4.13)\n");
     testNames();

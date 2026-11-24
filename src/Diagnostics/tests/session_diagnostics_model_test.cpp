@@ -66,6 +66,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 
@@ -2247,6 +2248,7 @@ static void heldMeasureOnAdapterSuite(const QTemporaryDir &tmp)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("session_diagnostics_model_test\n");

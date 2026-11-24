@@ -23,10 +23,10 @@ rem with "jobs N" (1 to 24), e.g. studio-build.cmd tests pull jobs 8. Pass 2 run
 rem (each one offscreen process of about 0.5 GB); pass 1 stays at -j8, since test timing, not build time, is
 rem what its job count changes. Excluded, as able to reach a real store here (the list is
 rem TEXCL at the ctest call): headless_probe_test (it launches the app, whose HOME/XDG_CONFIG_HOME isolation
-rem Windows ignores); model_browser_test and inspector_refresh_test (their XDG_DATA_HOME isolation is
-rem Linux-only, #187: on Windows they write and delete under the real %APPDATA%); and, for "#187: reads the
-rem real settings store", every suite that reaches ppSettings() through AthleteStore, RuleData or ReportMailer
-rem without QSettings::setPath (45 today). They are still built. Real stores are also checked around the run:
+rem Windows ignores), and athlete_dump_ids_test and regrade_ledger_new_needs_ini_test (each runs a tool through
+rem cmake -P, and the tools read the real settings by design). Every other suite that reaches ppSettings()
+rem makes a pinpoint::test::IsolatedStores (src/Core/tests/isolated_stores.h, #187), which
+rem store_isolation_lint_test checks, so it runs here. They are still built. Real stores are also checked around the run:
 rem %APPDATA%\PinPointStudio\PinPointStudio.ini (settings and pairings: copied to %TEMP% and hashed before,
 rem re-hashed after), the Recycle Bin's item count, the Credential Manager's entry count (cmdkey) and a
 rem listing of %APPDATA%. A changed settings file (it holds the pairing keys) is FIRST copied, as changed,
@@ -229,23 +229,11 @@ if not "%RC%"=="0" ( call :say tests: cmake FAILED, exit %RC%, see tests_cmake.l
 C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" -N > "%LOGS%\tests_list.log" 2>&1
 set TLIST=unknown
 for /f "tokens=3" %%n in ('findstr /c:"Total Tests:" "%LOGS%\tests_list.log"') do set TLIST=%%n
-rem The exclusions. The qml_ui label is pass 2's (-LE qml_ui here). Reaching a real store: headless_probe_test
-rem launches the app; model_browser_test and inspector_refresh_test write under the real %APPDATA% (#187).
-set "TEXCL=headless_probe_test|model_browser_test|inspector_refresh_test"
-rem #187: reads the real settings store. These link athlete_store.cpp (the real [athletes] group), RuleData
-rem (its load reads ui/diagnostics* through ppSettings), with no QSettings::setPath. They
-rem come back when #187's isolation helper lands.
-set "TEXCL=%TEXCL%|app_state_test|athlete_dump_ids_test|diag_footer_test|diag_parallel_live_test|diag_stage_panel_test"
-set "TEXCL=%TEXCL%|golfer_input_test|regrade_ledger_new_needs_ini_test|review_views_shot_test|session_diagnostics_model_test"
-set "TEXCL=%TEXCL%|session_focus_test|session_series_test|shot_number_test|work_ons_controller_test|charts_consistency_presenter_test"
-set "TEXCL=%TEXCL%|charts_delivery_presenter_test|charts_posture_presenter_test|charts_relations_presenter_test"
-set "TEXCL=%TEXCL%|charts_traces_presenter_test|charts_wrist_presenter_test|club_baseline_provider_test|consistency_env_test"
-set "TEXCL=%TEXCL%|core_pack_test|delivery_picture_test|diagnostics_catalogue_integrity_test|diagnostics_health_test"
-set "TEXCL=%TEXCL%|fire_findings_test|folder_series_test|live_measure_source_test|lm_corridor_test|manifest_migration_test"
-set "TEXCL=%TEXCL%|measure_dump_test|outcome_summary_test|reduction_rule_golden_test|reference_sets_test|report_lm_test"
-set "TEXCL=%TEXCL%|report_model_test|rule_version_golden_test|seed_conversion_test|session_consistency_test|session_delivery_test"
-set "TEXCL=%TEXCL%|session_diagnostics_test|session_posture_test|swing_themes_golden_test"
-set "TEXCL=%TEXCL%|variability_clubs_test|variability_env_test"
+rem The exclusions. The qml_ui label is pass 2's (-LE qml_ui here). headless_probe_test launches the app.
+rem athlete_dump_ids_test and regrade_ledger_new_needs_ini_test run athlete_dump and regrade_ledger, which read
+rem ppSettings() (RuleData's ui/diagnostics*, the [athletes] group) with no test main to isolate them (#187).
+rem The 45 suites #187 excluded for reading the real settings came back with IsolatedStores (platform refactor B0.4).
+set "TEXCL=headless_probe_test|athlete_dump_ids_test|regrade_ledger_new_needs_ini_test"
 C:\Qt\Tools\CMake_64\bin\ctest.exe --test-dir "%TB%" -N -LE qml_ui -E "^(%TEXCL%)$" > "%LOGS%\tests_list_run.log" 2>&1
 set TRUN=unknown
 for /f "tokens=3" %%n in ('findstr /c:"Total Tests:" "%LOGS%\tests_list_run.log"') do set TRUN=%%n

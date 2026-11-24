@@ -104,6 +104,7 @@
 #include <mutex>
 #include <algorithm>
 #include <atomic>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 #ifndef PP_LIVE_SWINGS_DIR
 #  define PP_LIVE_SWINGS_DIR "."
@@ -1163,11 +1164,9 @@ static void testReadAhead(bool onPool)
 
 int main(int argc, char **argv)
 {
-    QCoreApplication app(argc, argv);
-    QStandardPaths::setTestModeEnabled(true);
     // This suite's own settings (FRS sets the grade policy, SET-15): never the machine's.
-    QTemporaryDir settingsDir;
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDir.filePath(QStringLiteral("settings")));
+    pinpoint::test::IsolatedStores stores;   // #187
+    QCoreApplication app(argc, argv);
     pinpoint::installProcessRuleData();
     std::printf("athlete_diagnostics_test\n");
     testPraise();

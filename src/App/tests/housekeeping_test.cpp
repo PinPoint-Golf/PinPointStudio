@@ -88,6 +88,7 @@
 #include <chrono>
 #include <memory>
 #include <thread>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint;
 
@@ -244,11 +245,10 @@ struct Library {
 
 int main(int argc, char **argv)
 {
-    QCoreApplication app(argc, argv);
     // ppSettings() (the run's athlete store reads this machine's settings athletes) points at a scratch folder first.
-    QTemporaryDir cfg;
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, cfg.path());
-    if (!QFileInfo(ppSettings().fileName()).absoluteFilePath().startsWith(QFileInfo(cfg.path()).absoluteFilePath())) {
+    pinpoint::test::IsolatedStores stores;   // #187
+    QCoreApplication app(argc, argv);
+    if (!stores.contains(ppSettings().fileName())) {
         std::printf("FAIL: the settings file is not the scratch one: %s\n", qPrintable(ppSettings().fileName()));
         return 1;
     }

@@ -48,6 +48,7 @@
 #include <cmath>
 #include <utility>
 #include <vector>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::charts;
 
@@ -197,6 +198,7 @@ bool anyLine(const QStringList &l, const QString &needle) { for (const QString &
 class ChartsWristPresenterTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     std::shared_ptr<SessionSnapshot> m_snap;
 
@@ -210,7 +212,6 @@ class ChartsWristPresenterTest : public QObject
 private slots:
     void initTestCase()
     {
-        QStandardPaths::setTestModeEnabled(true);
         pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         m_snap = std::make_shared<SessionSnapshot>();
         m_snap->sessionDir = QStringLiteral("/wx/2026-08-18_Mark-Liversedge_Wrist_02");

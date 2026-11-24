@@ -36,3 +36,43 @@ add_subdirectory("${PP_SRC}/Buffer/tests" "${CMAKE_BINARY_DIR}/Buffer")
 foreach(suite Analysis Audio Core Gui IMU LaunchMonitor Pose Ppcp Update)
     add_subdirectory("${PP_SRC}/${suite}/tests" "${CMAKE_BINARY_DIR}/${suite}")
 endforeach()
+
+# --- The store-isolation lint (#187) ------------------------------------------
+# Written after every suite above is declared (and after their late target_sources): each executable target with its
+# sources made absolute, and every test name. store_isolation_lint_test reads it at run time and fails when a suite
+# compiles code that calls ppSettings() and makes no pinpoint::test::IsolatedStores (src/Core/tests/isolated_stores.h).
+# Plain CMake, so it is the same under Ninja (the Mac) and NMake JOM (the studio PC).
+function(pp_store_manifest_walk dir)
+    get_property(_targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(_t IN LISTS _targets)
+        get_target_property(_type ${_t} TYPE)
+        if(NOT _type STREQUAL "EXECUTABLE")
+            continue()
+        endif()
+        get_target_property(_srcs ${_t} SOURCES)
+        get_target_property(_sdir ${_t} SOURCE_DIR)
+        string(APPEND PP_STORE_MANIFEST "T ${_t}\n")
+        foreach(_s IN LISTS _srcs)
+            if(_s MATCHES "\\$<")
+                continue()
+            endif()
+            cmake_path(ABSOLUTE_PATH _s BASE_DIRECTORY "${_sdir}" NORMALIZE OUTPUT_VARIABLE _abs)
+            string(APPEND PP_STORE_MANIFEST "S ${_abs}\n")
+        endforeach()
+    endforeach()
+    get_property(_tests DIRECTORY "${dir}" PROPERTY TESTS)
+    foreach(_x IN LISTS _tests)
+        string(APPEND PP_STORE_MANIFEST "X ${_x}\n")
+    endforeach()
+    get_property(_subs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+    foreach(_d IN LISTS _subs)
+        pp_store_manifest_walk("${_d}")
+    endforeach()
+    set(PP_STORE_MANIFEST "${PP_STORE_MANIFEST}" PARENT_SCOPE)
+endfunction()
+set(PP_STORE_MANIFEST "")
+pp_store_manifest_walk("${CMAKE_CURRENT_SOURCE_DIR}")
+file(WRITE "${CMAKE_BINARY_DIR}/store_isolation_manifest.txt" "${PP_STORE_MANIFEST}")
+pp_add_test(store_isolation_lint_test
+    SOURCES ${PP_SRC}/Core/tests/store_isolation_lint_test.cpp
+    DEFINES PP_STORE_MANIFEST="${CMAKE_BINARY_DIR}/store_isolation_manifest.txt")

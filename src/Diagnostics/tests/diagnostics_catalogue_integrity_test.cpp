@@ -34,6 +34,7 @@
 
 #include <cstdio>
 #include <map>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 using model_browser_test::asMap;
@@ -53,6 +54,7 @@ static const QString kPrefix = QStringLiteral("characteristic:");
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("diagnostics_catalogue_integrity_test\n");
 

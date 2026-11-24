@@ -79,6 +79,7 @@
 
 #include <cstdio>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint;
 
@@ -198,10 +199,9 @@ static bool settle(const SessionListPresenter &p, const AthleteId &a)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
-    QTemporaryDir cfg;
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, cfg.path());
-    if (!QFileInfo(ppSettings().fileName()).absoluteFilePath().startsWith(QFileInfo(cfg.path()).absoluteFilePath())) {
+    if (!stores.contains(ppSettings().fileName())) {
         std::printf("FAIL: the settings file is not the scratch one: %s\n", qPrintable(ppSettings().fileName()));
         return 1;
     }

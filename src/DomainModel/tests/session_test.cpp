@@ -91,6 +91,7 @@
 #include <cstdio>
 #include <memory>
 #include <type_traits>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint;
 
@@ -769,7 +770,6 @@ static void testReportThroughSession()
         // THE REPORT COMMAND (refactor step 5.6b): one make through Session::makeReport — the printed PDF moved in (08),
         // then 13, then 07 — and a make whose PDF cannot be placed changes nothing of the session's report.
         const QString name = QStringLiteral("r2_session-report.pdf");
-        QStandardPaths::setTestModeEnabled(true);   // the print's cache folder: a test location, never the user's cache
         const QString printed = s->reportPrintTarget(name);
         check(QStringLiteral("S11m the print's target is the Session's, outside the library, its folder made"),
               !printed.isEmpty() && !printed.startsWith(QDir::cleanPath(legacyF)) && QFileInfo(QFileInfo(printed).absolutePath()).isDir());
@@ -798,7 +798,6 @@ static void testReportThroughSession()
               !s->makeReport(bad).ok() && rawOf(io::metaFile(legacyF)) == meta1 && rawOf(io::inputFile(legacyF)) == in1
                   && rawOf(io::reportDir(legacyF) + QLatin1Char('/') + name) == QByteArray("%PDF the make"));
         QDir(QFileInfo(printed).absolutePath()).removeRecursively();
-        QStandardPaths::setTestModeEnabled(false);
     }
 
     // A crash between the writes, then held: finished. A newer report file, a fresh session, a newer session file: untouched.
@@ -826,6 +825,7 @@ static void testReportThroughSession()
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store (the print's cache folder) is scratch, first
     QCoreApplication app(argc, argv);   // QTemporaryDir, deleteLater
     std::printf("session_test — the Session, its Shots and the lifecycle (step 3.4a)\n");
     testStartEndsAnother();

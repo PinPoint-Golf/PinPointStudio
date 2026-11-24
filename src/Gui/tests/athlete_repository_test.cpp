@@ -53,6 +53,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUuid>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint;
 
@@ -103,6 +104,7 @@ int athleteFilesUnder(const QString &root)
 class AthleteRepositoryTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     QTemporaryDir m_cfg;
 

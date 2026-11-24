@@ -52,6 +52,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::charts;
 
@@ -150,13 +151,13 @@ bool hasDeparture(const std::vector<PostureDeparture> &d, const char *id)
 class SessionPostureTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     std::shared_ptr<const PostureEnv> m_env;   // the snapshot, held for the suite
 
 private slots:
     void initTestCase()
     {
-        QStandardPaths::setTestModeEnabled(true);
         pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         m_env = postureSharedEnv();
         QVERIFY(m_env->pack);

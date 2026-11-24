@@ -63,6 +63,7 @@
 
 #include <cmath>
 #include <optional>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::charts;
 
@@ -306,6 +307,7 @@ QVariantMap addressRowOf(const QVariantMap &section, const QString &measureId)
 class ChartsPosturePresenterTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     std::shared_ptr<const ShotSeries> m_nick;          // the real swing, graded
     std::shared_ptr<SessionSnapshot> m_five, m_alone;
@@ -320,7 +322,6 @@ class ChartsPosturePresenterTest : public QObject
 private slots:
     void initTestCase()
     {
-        QStandardPaths::setTestModeEnabled(true);
         pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         QVERIFY(postureSharedEnv()->pack);
         const QJsonObject root = readJson("PP_POSTURE_FIXTURE");

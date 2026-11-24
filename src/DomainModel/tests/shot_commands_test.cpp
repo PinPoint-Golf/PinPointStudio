@@ -110,6 +110,7 @@
 
 #include <cstdio>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint;
 
@@ -1174,11 +1175,9 @@ static void spellingsReachTheShot()
 
 int main(int argc, char **argv)
 {
-    QCoreApplication app(argc, argv);
-    QTemporaryDir cfg;
-    if (!cfg.isValid()) return 1;
     // ppSettings() is IniFormat/UserScope: pointed at a scratch folder before the first QSettings (never the live INI).
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, cfg.path());
+    pinpoint::test::IsolatedStores stores;   // #187
+    QCoreApplication app(argc, argv);
     pinpoint::installProcessRuleData();   // the model's packs and norms (refactor step 3.2)
     std::printf("shot_commands_test\n");
     if (qEnvironmentVariableIsEmpty("PINPOINT_CORE_PACK")) {

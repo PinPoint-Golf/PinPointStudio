@@ -40,6 +40,7 @@
 #include <QThread>
 
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::report;
 
@@ -60,8 +61,8 @@ static void touch(const QString &path, const QByteArray &bytes)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: the stills' cache folder is a test location, never the user's cache
     QCoreApplication app(argc, argv);
-    QStandardPaths::setTestModeEnabled(true);   // the stills' cache folder: a test location, never the user's cache
     QTemporaryDir tmp;
     const QString session = tmp.filePath(QStringLiteral("2026-10-20_Nick-Henn_Wrist_03"));
     touch(session + QStringLiteral("/swing_0001/swing.ppsw"), "one");

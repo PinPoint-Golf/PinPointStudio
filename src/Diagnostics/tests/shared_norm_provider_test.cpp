@@ -50,6 +50,7 @@
 #include <cstdio>
 #include <memory>
 #include <vector>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 
@@ -109,25 +110,14 @@ static void runTogether(int n, F body)
 
 int main(int argc, char **argv)
 {
+    // saveUserNormPack() writes in the user diagnostics folder. A FOLDER OF THIS RUN'S OWN (`stores`, #187): away
+    // from a real profile, unique to the run and removed with it. Two runs at once (two agents, ctest -j) never write
+    // each other's user norm set, which a fixed folder allowed (one unexplained failure in review was suspected to be
+    // that).
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
-    // saveUserNormPack() writes under AppDataLocation. A FOLDER OF THIS RUN'S OWN: test mode keeps it
-    // away from a real profile, and the application is named after a fresh QTemporaryDir made in the
-    // test-mode data location, so AppDataLocation IS that temporary directory — unique to the run and
-    // removed with it. Two runs at once (two agents, ctest -j) no longer write each other's user norm
-    // set, which the fixed folder allowed (one unexplained failure in review is suspected to be that).
-    QStandardPaths::setTestModeEnabled(true);
-    const QString dataBase = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-    QDir().mkpath(dataBase);
-    QTemporaryDir runDir(dataBase + QStringLiteral("/shared_norm_provider_test-XXXXXX"));
-    if (!runDir.isValid()) {
-        std::printf("no temporary directory for the user norm set\nFAILURES\n");
-        return 1;
-    }
-    QCoreApplication::setOrganizationName(QString());
-    QCoreApplication::setApplicationName(QFileInfo(runDir.path()).fileName());
-    check(QFileInfo(userNormPath()).absolutePath().startsWith(QFileInfo(runDir.path()).absoluteFilePath()),
-          "the user norm set is written inside this run's own temporary directory");
+    check(stores.contains(userNormPath()), "the user norm set is written inside this run's own temporary directory");
     resetSharedNormProvider();
 
     std::printf("=== save -> reset -> the next take reads the edited band ===\n");

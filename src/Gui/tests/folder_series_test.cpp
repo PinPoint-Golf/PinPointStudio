@@ -55,6 +55,8 @@
 #include <atomic>
 #include <cmath>
 
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
+
 #ifdef Q_OS_MACOS
 #include <malloc/malloc.h>
 #endif
@@ -275,6 +277,7 @@ bool sameSeries(const ShotSeries &a, const ShotSeries &b)
 class ChartsSeriesModelTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
 private:
     QTemporaryDir m_tmp;
@@ -300,7 +303,6 @@ private:
 private slots:
     void initTestCase()
     {
-        QStandardPaths::setTestModeEnabled(true);   // the user's own packs stay out of it
         pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         QVERIFY(m_tmp.isValid());
         m_session = m_tmp.path() + QStringLiteral("/Athlete/2026-10-14_Test_01");

@@ -60,6 +60,7 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::report;
 
@@ -412,6 +413,7 @@ static MailMessage sampleMessage(const QByteArray &attachment)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     qputenv("PINPOINT_MAIL_CREDENTIALS", "memory");
     qputenv("PINPOINT_MAIL_DRYRUN", "0");
     QCoreApplication app(argc, argv);
@@ -420,10 +422,9 @@ int main(int argc, char **argv)
     if (QSslSocket::availableBackends().contains(QStringLiteral("openssl")))
         QSslSocket::setActiveBackend(QStringLiteral("openssl"));
 
-    QTemporaryDir cfgDir, files;
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, cfgDir.path());
+    QTemporaryDir files;
     const QString ini = QFileInfo(ppSettings().fileName()).absoluteFilePath();
-    check(ini.startsWith(QFileInfo(cfgDir.path()).absoluteFilePath()), "settings point at a scratch folder");
+    check(stores.contains(ini), "settings point at a scratch folder");
 
     QByteArray attachment(300 * 1024 + 7, '\0');
     QRandomGenerator rng(20261021);

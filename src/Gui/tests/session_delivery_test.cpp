@@ -46,6 +46,7 @@
 
 #include <cmath>
 #include <vector>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::charts;
 
@@ -130,6 +131,7 @@ const DeliveryImpactLine *lineOf(const std::vector<DeliveryImpactLine> &lines, c
 class SessionDeliveryTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     std::vector<Row> m_rows;
     std::vector<DeliveryShotInput> m_mark, m_jess, m_nick, m_mark7, m_driver;

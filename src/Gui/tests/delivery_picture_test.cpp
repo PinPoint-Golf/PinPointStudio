@@ -54,6 +54,7 @@
 #include <QUrl>
 
 #include <cmath>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::charts;
 namespace pa = pinpoint::analysis;
@@ -145,10 +146,10 @@ std::shared_ptr<ShotSeries> makeShot()
 class DeliveryPictureTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 private slots:
     void initTestCase()
     {
-        QStandardPaths::setTestModeEnabled(true);
         pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         QVERIFY2(!fixture().isEmpty(), "PP_DELIVERY_PICTURE");
     }

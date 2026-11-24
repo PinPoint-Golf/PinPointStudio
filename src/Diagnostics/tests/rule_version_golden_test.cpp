@@ -66,6 +66,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 #ifndef PP_LIVE_SWINGS_DIR
 #  define PP_LIVE_SWINGS_DIR "."
@@ -141,8 +142,8 @@ static QByteArray readFile(const QString &path)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
-    QStandardPaths::setTestModeEnabled(true);   // no user layer reaches the content
     pinpoint::installProcessRuleData();
     std::printf("rule_version_golden_test\n");
 

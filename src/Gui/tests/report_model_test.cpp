@@ -72,6 +72,7 @@
 #include <QTemporaryDir>
 
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::report::words;
 using pinpoint::analysis::SpreadCorridor;
@@ -114,10 +115,10 @@ static void removeUserLayers()
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     // Qt's test data location from the first line, so the gate words read below are never a user layer a
     // studio left in the real one, and the end-to-end block's writes never land there.
-    QStandardPaths::setTestModeEnabled(true);
     QCoreApplication::setApplicationName(QStringLiteral("report_model_test"));
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     removeUserLayers();

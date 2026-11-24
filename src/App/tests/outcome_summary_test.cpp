@@ -71,6 +71,7 @@
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 #ifndef PP_LIVE_SWINGS_DIR
 #  define PP_LIVE_SWINGS_DIR "."
@@ -346,8 +347,8 @@ static void testQml()
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
-    QStandardPaths::setTestModeEnabled(true);
     std::printf("outcome_summary_test\n");
     RuleData &rules = installProcessRuleData();
     check(QStringLiteral("the shipped rule data is installed"), rules.snapshot() && rules.snapshot()->pack);

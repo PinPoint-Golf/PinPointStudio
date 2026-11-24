@@ -32,6 +32,7 @@
 
 #include <cmath>
 #include <memory>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 namespace pa = pinpoint::analysis;
 namespace pv = pinpoint::variability;
@@ -52,6 +53,7 @@ const pa::MetricCatalogue &manifest()
 
 class VariabilityEnvTest : public QObject {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     std::unique_ptr<IVariabilityScaleProvider> m_provider;
     ConsistencyEnv m_env;

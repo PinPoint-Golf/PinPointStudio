@@ -37,6 +37,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::charts;
 
@@ -161,6 +162,7 @@ std::shared_ptr<ShotSeries> ladderShot(int ordinal, double p8Ms, const QString &
 
 class SessionConsistencyTest : public QObject {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 private slots:
     void initTestCase() { pinpoint::installProcessRuleData(); }   // this process's packs and norms (step 3.2)
     // ── the rules ───────────────────────────────────────────────────────────────────────────────

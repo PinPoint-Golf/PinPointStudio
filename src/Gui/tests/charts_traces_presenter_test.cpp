@@ -49,6 +49,7 @@
 #include <cstdio>
 #include <functional>
 #include <map>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::charts;
 
@@ -218,6 +219,7 @@ std::shared_ptr<SessionSnapshot> withForwardBendCurves(const SessionSnapshot &ba
 class ChartsTracesPresenterTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     charts_test::Fixture m_fx;
     std::shared_ptr<SessionSnapshot> m_snap;
@@ -255,7 +257,6 @@ class ChartsTracesPresenterTest : public QObject
 private slots:
     void initTestCase()
     {
-        QStandardPaths::setTestModeEnabled(true);
         pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         m_fx = charts_test::loadFixture(QStringLiteral(CHARTS_MATHS_DATA "/session_0704.json"));
         QVERIFY(m_fx.ok);

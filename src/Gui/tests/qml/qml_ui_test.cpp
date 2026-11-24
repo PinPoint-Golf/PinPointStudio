@@ -73,6 +73,7 @@
 #include <QVariantList>
 #include <algorithm>
 #include <cmath>
+#include "../../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 // ⚠ THE FONTS ARE THE UNITS THIS SUITE MEASURES IN, AND IT USED TO RUN WITHOUT THEM.
 //
@@ -395,6 +396,9 @@ private:
 class QmlUiTestSetup : public QObject
 {
     Q_OBJECT
+    // #187: the first member, so test mode, the settings path and the app's own data folders are scratch before
+    // anything below runs; the constructor and qmlEngineAvailable then give the set-up and each file a store of its own.
+    pinpoint::test::IsolatedStores m_stores;
 
 public:
     // THE SHIPPED DIAGNOSTICS CONTENT, DEFAULTED HERE RATHER THAN LEFT TO CTEST (issue #140). The app

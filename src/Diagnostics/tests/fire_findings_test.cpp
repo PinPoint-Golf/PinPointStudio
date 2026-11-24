@@ -47,6 +47,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 #ifndef PP_LIVE_SWINGS_DIR
 #  define PP_LIVE_SWINGS_DIR "."
@@ -95,10 +96,10 @@ static QByteArray outcomeJson(const ShotOutcome &o)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     // No user layer on this machine can reach the content: the shipped pack (its own layer of the snapshot), the
     // shipped norms (the seams) and the shipped flight table.
-    QStandardPaths::setTestModeEnabled(true);
     pinpoint::installProcessRuleData();
     std::printf("fire_findings_test\n");
 

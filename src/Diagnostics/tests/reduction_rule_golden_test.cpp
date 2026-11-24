@@ -76,6 +76,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 #ifndef PP_LIVE_SWINGS_DIR
 #  define PP_LIVE_SWINGS_DIR "."
@@ -159,8 +160,8 @@ static QByteArray canonical(const QJsonValue &v)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
-    QStandardPaths::setTestModeEnabled(true);
     pinpoint::installProcessRuleData();
     std::printf("reduction_rule_golden_test\n");
 

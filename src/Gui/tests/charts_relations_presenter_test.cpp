@@ -43,6 +43,7 @@
 #include <QFileInfo>
 #include <QSignalSpy>
 #include <QtTest>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::charts;
 
@@ -202,6 +203,7 @@ QVariantMap rowOf(const QVariantMap &thisShot, const QString &id)
 class ChartsRelationsPresenterTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     charts_test::Fixture m_fx;
     std::shared_ptr<SessionSnapshot> m_snap;

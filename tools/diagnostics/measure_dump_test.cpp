@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include "../../src/Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 using namespace pinpoint::analysis;
 
@@ -85,6 +86,7 @@ static QMap<QString, QByteArray> snapshot(const QString &dir)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     // The packs and norms: this process's one RuleData, over the files the PINPOINT_CORE_* seams name
     // (refactor step 3.2). Made here, on the main thread, before anything grades.

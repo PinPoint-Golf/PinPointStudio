@@ -44,10 +44,12 @@
 
 #include <cmath>
 #include <limits>
+#include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 class AthleteSessionGuardTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
     QTemporaryDir m_cfg;
 
