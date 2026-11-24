@@ -1,0 +1,21 @@
+cabin_run: wrapper start 24/11/2026 14:10:00.00
+cabin_run: git pull --ff-only
+Already up to date.
+cabin_run: HEAD 93592de3
+tests: start 24/11/2026 12:55:06.43
+tests: studio idle - 172 processes, none PinPoint Studio, Foresight, FSX or GSPro
+PATCH: applied over 93592de3
+ M src/a.cpp
+tests: cmake 14:10:02.10
+tests: 337 tests registered; jom -j16  9:59:58.00
+tests: build exit 0 10:01:01.50
+tests: ctest pass 1 exit 0 10:04:00.00
+100% tests passed, 0 tests failed out of 288
+tests: ctest pass 2 exit 0 10:27:00.00
+100% tests passed, 0 tests failed out of 39
+tests: stores after - settings sha256 1ab76d2f, Recycle Bin 87 items, Credential Manager 0 entries
+tests: end 24/11/2026 10:27:01.00 - exit 0
+PATCH: restoring checkout
+== status after
+PATCHED BUILD C:\PinPointStudio\scratch\x\wip.patch sha256 aa over 93592de3 - exit 0
+== end

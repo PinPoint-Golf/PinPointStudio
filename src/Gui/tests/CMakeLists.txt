@@ -570,6 +570,15 @@ if(UNIX AND PP_ZSH)
     add_test(NAME one_at_a_time_selftest
              COMMAND ${PP_ZSH} ${SRC}/../tools/method/one_at_a_time.sh --self-test)
     set_tests_properties(one_at_a_time_selftest PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)   # it times a short wait
+    # cabin_run_selftest: tools/method/cabin_run.sh, the Mac's runner for the full suite on the studio PC, proved against a
+    # fake ssh and cabin in a temporary directory (the cabin lock: two runners, a stale lock; BUSY and --wait; the summary
+    # of real cabin log samples). It never reaches the real share, ssh or the studio PC.
+    # It is a Mac tool (BSD sed, base64 -D, stat -f), so it is registered on macOS only.
+    if(APPLE)
+        add_test(NAME cabin_run_selftest
+                 COMMAND ${PP_ZSH} ${SRC}/../tools/method/cabin_run.sh --self-test)
+        set_tests_properties(cabin_run_selftest PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE)   # it times short waits
+    endif()
 endif()
 
 # ── The offscreen QML UI suite ────────────────────────────────────────────────

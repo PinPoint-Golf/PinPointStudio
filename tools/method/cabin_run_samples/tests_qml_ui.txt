@@ -1,0 +1,62 @@
+Test project C:/Users/developer/Projects/PinPointStudio/build/tests-vs18
+      Start 315: qml_ui.tst_session_diagnostics
+ 1/39 Test #315: qml_ui.tst_session_diagnostics .........***Not Run (Disabled)   0.00 sec
+      Start 290: qml_ui.tst_chart_presets
+ 2/39 Test #319: qml_ui.tst_shot_card ...................   Passed    0.97 sec
+      Start 295: qml_ui.tst_graph_measures
+ 3/39 Test #301: qml_ui.tst_inspector_citation ..........   Passed    1.00 sec
+36/39 Test #303: qml_ui.tst_lm_graphics .................   Passed   58.42 sec
+37/39 Test #290: qml_ui.tst_chart_presets ...............   Passed   84.00 sec
+38/39 Test #291: qml_ui.tst_charts_panel ................***Failed  265.82 sec
+********* Start testing of qml_ui *********
+Config: Using QtTest library 6.11.0, Qt 6.11.0 (x86_64-little_endian-llp64 shared (dynamic) debug build; by MSVC 2022), windows 11
+PASS   : qml_ui::ChartsPanel::initTestCase()
+QWARN  : qml_ui::ChartsPanel::test_15_the_open_row_survives_a_rebuild() QPainter::begin: Paint device returned engine == 0, type: 3
+QWARN  : qml_ui::ChartsPanel::test_15_the_open_row_survives_a_rebuild() QPainter::begin: Paint device returned engine == 0, type: 3
+FAIL!  : qml_ui::ChartsPanel::test_15_the_open_row_survives_a_rebuild() Compared values are not the same
+   Actual   (): 
+   Expected (): C:/fx/2026-07-04_Mark-Liversedge_Wrist_01
+C:\Users\developer\Projects\PinPointStudio\src\Gui\tests\qml\tst_charts_panel.qml(470) : failure location
+QWARN  : qml_ui::ChartsPanel::test_15b_a_shorter_shot_shows_its_end_and_the_place_comes_back() QPainter::begin: Paint device returned engine == 0, type: 3
+QWARN  : qml_ui::ChartsPanel::test_15b_a_shorter_shot_shows_its_end_and_the_place_comes_back() QPainter::begin: Paint device returned engine == 0, type: 3
+FAIL!  : qml_ui::ChartsPanel::test_15b_a_shorter_shot_shows_its_end_and_the_place_comes_back() 'scrolled to 567' returned FALSE. ()
+C:\Users\developer\Projects\PinPointStudio\src\Gui\tests\qml\tst_charts_panel.qml(508) : failure location
+PASS   : qml_ui::ChartsPanel::test_39_the_delivery_folds_persist()
+PASS   : qml_ui::ChartsPanel::cleanupTestCase()
+Totals: 39 passed, 2 failed, 0 skipped, 0 blacklisted, 265038ms
+********* Finished testing of qml_ui *********
+
+39/39 Test #316: qml_ui.tst_session_report ..............***Failed  291.27 sec
+********* Start testing of qml_ui *********
+Config: Using QtTest library 6.11.0, Qt 6.11.0 (x86_64-little_endian-llp64 shared (dynamic) debug build; by MSVC 2022), windows 11
+PASS   : qml_ui::SessionReport::initTestCase()
+PASS   : qml_ui::SessionReport::test_01_everyFixtureHoldsTheLayoutContract(nick)
+PASS   : qml_ui::SessionReport::test_01_everyFixtureHoldsTheLayoutContract(jess)
+PASS   : qml_ui::SessionReport::test_01_everyFixtureHoldsTheLayoutContract(clean)
+PASS   : qml_ui::SessionReport::test_01_everyFixtureHoldsTheLayoutContract(one-work-on)
+PASS   : qml_ui::SessionReport::test_01_everyFixtureHoldsTheLayoutContract(five-work-ons-longest-text)
+PASS   : qml_ui::SessionReport::test_01_everyFixtureHoldsTheLayoutContract(causes-at-caps)
+FAIL!  : qml_ui::SessionReport::test_01_everyFixtureHoldsTheLayoutContract(sixty-swings-three-clubs) sixty-swings-three-clubs: page count
+   Actual   (): 15
+PASS   : qml_ui::SessionReport::test_16_theConsistencyPageFlaggedSwings()
+PASS   : qml_ui::SessionReport::test_17_theTendenciesPage()
+PASS   : qml_ui::SessionReport::test_18_theCoverBallShowsAClubWithNoReading()
+PASS   : qml_ui::SessionReport::cleanupTestCase()
+Totals: 35 passed, 4 failed, 0 skipped, 0 blacklisted, 290077ms
+********* Finished testing of qml_ui *********
+
+
+95% tests passed, 2 tests failed out of 38
+
+Label Time Summary:
+qml_ui    = 807.49 sec*proc (39 tests)
+
+Total Test time (real) = 294.55 sec
+
+The following tests did not run:
+	315 - qml_ui.tst_session_diagnostics (Disabled)
+
+The following tests FAILED:
+	291 - qml_ui.tst_charts_panel (Failed)
+	316 - qml_ui.tst_session_report (Failed)
+Errors while running CTest

@@ -1,0 +1,73 @@
+cabin_run: wrapper start 24/11/2026 13:35:45.19
+cabin_run: APPDATA=C:\Users\developer\AppData\Roaming LOCALAPPDATA=C:\Users\developer\AppData\Local TEMP=C:\Users\DEVELO~1\AppData\Local\Temp
+cabin_run: git pull --ff-only
+From https://github.com/PinPoint-Golf/PinPointStudio
+   93592de3..a5089848  main       -> origin/main
+Updating 93592de3..a5089848
+Fast-forward
+ BUILDING.md                                    |  2 +-
+ docs/developer/testing_developer_guide.md      | 27 ++++++++++-
+ docs/implementation/linux_release_runbook.md   |  3 +-
+ docs/implementation/macos_release_runbook.md   |  3 +-
+ docs/implementation/windows_release_runbook.md |  6 ++-
+ src/Gui/CMakeLists.txt                         | 67 +++++++++++++++++++++-----
+ tools/studio/studio-build.cmd                  | 36 ++++++++------
+ 7 files changed, 111 insertions(+), 33 deletions(-)
+cabin_run: HEAD a5089848
+tests: start 24/11/2026 13:35:46.25
+tests: studio idle - 172 processes, none PinPoint Studio, Foresight, FSX or GSPro
+a5089848 Tests: tst_session_diagnostics is disabled until #254 is fixed, and the Session diagnostics panel is frozen meanwhile
+PATCH: C:\PinPointStudio\scratch\cabin-wt-5b-20261124-133544\wip.patch sha256 c6e374f31ec335f50c58e09e89c863312fef127ef1f4ad69c46adb837c57a033
+PATCH: 6 new file(s) listed in C:\PinPointStudio\scratch\studio-build\patch_created.txt
+C:/PinPointStudio/scratch/cabin-wt-5b-20261124-133544/wip.patch:703: trailing whitespace.
+cabin_run: wrapper start 24/11/2026 14:02:11.20
+C:/PinPointStudio/scratch/cabin-wt-5b-20261124-133544/wip.patch:704: trailing whitespace.
+cabin_run: APPDATA=C:\Users\developer\AppData\Roaming LOCALAPPDATA=C:\Users\developer\AppData\Local TEMP=C:\Users\developer\AppData\Local\Temp
+C:/PinPointStudio/scratch/cabin-wt-5b-20261124-133544/wip.patch:705: trailing whitespace.
+cabin_run: git pull --ff-only
+C:/PinPointStudio/scratch/cabin-wt-5b-20261124-133544/wip.patch:706: trailing whitespace.
+Already up to date.
+C:/PinPointStudio/scratch/cabin-wt-5b-20261124-133544/wip.patch:707: trailing whitespace.
+cabin_run: HEAD 93592de3
+warning: squelched 57 whitespace errors
+warning: 62 lines add whitespace errors.
+PATCH: applied over a5089848
+ M src/Gui/tests/CMakeLists.txt
+ M tools/method/README.md
+?? tools/method/cabin_run.sh
+?? tools/method/cabin_run_samples/
+tests: cmake 13:35:47.83
+tests: pass 1 will run 288 of them, then pass 2 the 39 QML files of the qml_ui label at -j16
+tests: 375 tests registered; jom -j16 13:36:34.28
+tests: build exit 0 13:38:23.89
+tests: studio idle - 177 processes, none PinPoint Studio, Foresight, FSX or GSPro
+tests: stores before - settings sha256 1ab76d2fc3981d474d9841e34ff6f80d94118d65a33613867c2755eed131b4fd, Recycle Bin 87 items, Credential Manager 0 entries
+tests: ctest pass 1, all but the qml_ui label and the excluded suites 13:38:24.54
+tests: ctest pass 1 exit 8 13:40:36.34
+96% tests passed, 11 tests failed out of 288
+	 30 - tendencies_test (Failed)
+	 87 - swing_paths_test (Failed)
+	132 - dtl_posture_test (Exit code 0xc0000409
+	163 - shared_norm_provider_test (Failed)
+	168 - shot_commands_test (Failed)
+	169 - migrate_step2_test (Failed)
+	170 - parity_json_test (Failed)
+	171 - athlete_diagnostics_test (Failed)
+	190 - folder_lock_test (Failed)
+	219 - lm_session_model_test (Failed)
+	229 - athlete_repository_test (Failed)
+tests: studio idle - 179 processes, none PinPoint Studio, Foresight, FSX or GSPro
+tests: ctest pass 2, the qml_ui label at -j16 13:40:36.74
+tests: ctest pass 2 exit 8 13:45:31.32
+ 1/39 Test #315: qml_ui.tst_session_diagnostics .........***Not Run (Disabled)   0.00 sec
+95% tests passed, 2 tests failed out of 38
+	315 - qml_ui.tst_session_diagnostics (Disabled)
+	291 - qml_ui.tst_charts_panel (Failed)
+	316 - qml_ui.tst_session_report (Failed)
+tests: stores after - settings sha256 1ab76d2fc3981d474d9841e34ff6f80d94118d65a33613867c2755eed131b4fd, Recycle Bin 87 items, Credential Manager 0 entries
+tests: end 24/11/2026 13:45:31.58 - exit 12
+PATCH: restoring checkout
+== status after
+PATCHED BUILD C:\PinPointStudio\scratch\cabin-wt-5b-20261124-133544\wip.patch sha256 c6e374f31ec335f50c58e09e89c863312fef127ef1f4ad69c46adb837c57a033 over a5089848 - exit 12
+== end
+cabin_run: wrapper end 24/11/2026 13:45:31.72 - exit 12

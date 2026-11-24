@@ -1,0 +1,9 @@
+cabin_run: wrapper start 24/11/2026 14:02:11.20
+cabin_run: APPDATA=C:\Users\developer\AppData\Roaming LOCALAPPDATA=C:\Users\developer\AppData\Local TEMP=C:\Users\developer\AppData\Local\Temp
+cabin_run: git pull --ff-only
+Already up to date.
+cabin_run: HEAD 93592de3
+tests: start 24/11/2026 14:02:12.01
+tests: BUSY - Foresight.Premier.exe is running
+tests: REFUSED - the studio is busy, nothing pulled or built
+cabin_run: wrapper end 24/11/2026 14:02:12.90 - exit 10

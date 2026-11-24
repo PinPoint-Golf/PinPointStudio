@@ -1,0 +1,127 @@
+Test project C:/Users/developer/Projects/PinPointStudio/build/tests-vs18
+        Start 279: ppcp_usbmux_test
+        Start 129: skeleton3d_test
+        Start 109: shaft_decide_test
+        Start 110: dtl_shaft_decide_test
+        Start   5: event_buffer_test
+        Start 235: architecture_lint_test
+        Start 285: ppcp_host_service_test
+        Start 267: ball_detector_contract_test
+  1/288 Test #267: ball_detector_contract_test .......   Passed   20.84 sec
+        Start  56: pose_pipeline_test
+  2/288 Test #285: ppcp_host_service_test ............   Passed   22.34 sec
+        Start 254: gcquad_pairing_test
+        Start 143: club_rate_filter_test
+ 92/288 Test #174: wrist_norm_render_test ............   Passed    0.24 sec
+        Start 184: pp_profiler_test
+ 93/288 Test #219: lm_session_model_test .............***Failed    9.09 sec
+lm_session_model_test — the launch monitor board's empty lines (#57)
+
+N — a saved corridor edit reaches the board's next grade pass (audit B-01)
+  [FAIL] N0 the user norm set goes in this run's own temporary directory
+  [PASS] N1 7 iron path graded against its corridor ("s 0.31� � 0.23 of corridor � n 11")
+  [PASS] K1 �and the board counts it under the correction, recorded as the 7 iron
+  [PASS] K2 the evidence only flags: shot 3 stays a driver (suggests "7 IRON"), the note relabels nothing
+  [PASS] K3 an undeclared shot is undeclared on the list and the board, never a driver
+100/288 Test #132: dtl_posture_test ..................Exit code 0xc0000409
+***Exception:   0.30 sec
+dtl_posture_test
+  [PASS] §1 valid, ball image-right, ruler = the DTL ball
+  [PASS] §9 left-hander facing left: the elbow 8° under it reads −8 (got -8.0000)
+  [PASS] §9 …one reading, at the ladder's Top, route dtl, no curve
+  [PASS] §9 a bent lead arm (wrist 28.3° above the line) still reads the upper arm's 12 (got 12.000)
+  [PASS] §9 σ = the three keypoints' σ through the angle, the trail 
+
+        Start 181: plane_bootstrap_test
+101/288 Test   #9: thread_policy_test ................   Passed    0.30 sec
+276/288 Test #136: shaft_plane_corpus_test ...........***Skipped   0.29 sec
+        Start 169: migrate_step2_test
+277/288 Test  #30: tendencies_test ...................***Failed    0.46 sec
+ASSERT: "size_t(d.size) <= MaxSize" in file C:/Users/qt/work/qt/qtbase/src/corelib/text/qstring.h, line 277
+tendencies_test
+
+which shots count, and the earn rule:
+  [PASS] rule 13: and the bar agrees, Mid 11 · Low 9
+  [FAIL] rule 13: a tie by count goes to the table's order, Low then Mid
+  [PASS] rule 13: a building fault under 25 % (slice 2 of 12): Straight, still building, fault=false, no chain
+FAILURES
+
+        Start 170: parity_json_test
+278/288 Test #170: parity_json_test ..................***Failed    0.07 sec
+PASS  run keys dropped at any depth, the rest kept
+FAIL  run folders tokenised, the longest first, in lists too
+PASS  rewrites[].at is dropped from each rewrite, the rest of it kept
+PASS  an "at" anywhere else is kept (the drop is scoped to rewrites[])
+FAILURES
+
+        Start 171: athlete_diagnostics_test
+279/288 Test #163: shared_norm_provider_test .........***Failed    0.97 sec
+  [FAIL] the user norm set is written inside this run's own temporary directory
+=== save -> reset -> the next take reads the edited band ===
+280/288 Test #169: migrate_step2_test ................***Failed    1.13 sec
+  [PASS] cabin: the dry run ran
+  [PASS] G3 the mirror's old session.json was backed up first
+H symlinks (review 1, finding 3)
+  [FAIL] H1 a library that is a symlink out of scratch: refused
+  [FAIL] H2 an athlete folder that resolves outside the library: its writes refused, nothing written
+migrate_step2_test: 6 FAILED
+
+        Start 229: athlete_repository_test
+281/288 Test #190: folder_lock_test ..................***Failed    1.11 sec
+  [PASS] the lock file is .pinpoint-lock
+  [PASS] a symlink to the session folder
+  [FAIL] held through the symlink
+  [PASS] the folder goes away mid-hold
+FAILED (2 failures)
+
+282/288 Test #229: athlete_repository_test ...........***Failed    0.95 sec
+********* Start testing of AthleteRepositoryTest *********
+Config: Using QtTest library 6.11.0, Qt 6.11.0 (x86_64-little_endian-llp64 shared (dynamic) debug build; by MSVC 2022), windows 11
+PASS   : AthleteRepositoryTest::initTestCase()
+PASS   : AthleteRepositoryTest::createWritesTheFileInAFolderChosenOnce()
+PASS   : AthleteRepositoryTest::newerAndUnreadableFilesAreLeftAlone()
+PASS   : AthleteRepositoryTest::wristReferenceOnTheRecord()
+FAIL!  : AthleteRepositoryTest::tuningLogAppendsUnderTheLock() Compared values are not the same
+   Actual   (readBytes(log))                             : "{\"a\":1}\r\n{\"b\":2}\r\n"
+   Expected (QByteArrayLiteral("{\"a\":1}\n{\"b\":2}\n")): "{\"a\":1}\n{\"b\":2}\n"
+C:\Users\developer\Projects\PinPointStudio\src\Gui\tests\athlete_repository_test.cpp(528) : failure location
+Totals: 16 passed, 1 failed, 0 skipped, 0 blacklisted, 632ms
+********* Finished testing of AthleteRepositoryTest *********
+
+283/288 Test #110: dtl_shaft_decide_test .............   Passed   82.66 sec
+284/288 Test #109: shaft_decide_test .................   Passed   95.80 sec
+285/288 Test #129: skeleton3d_test ...................   Passed  121.40 sec
+286/288 Test #279: ppcp_usbmux_test ..................   Passed  124.80 sec
+287/288 Test #171: athlete_diagnostics_test ..........***Failed   62.63 sec
+BLK b — a write that fails at the release of a session let go of is reported
+  [FAIL] BLKb paused with results kept and unwritten: the failed write at its release is reported (writeBlocked with the folder; the session counted blocked, and interrupted)
+
+288/288 Test #168: shot_commands_test ................***Failed   64.45 sec
+shot_commands_test
+
+  [PASS] C15d an edit's row shows what the Shot holds after its save
+  [FAIL] C15e a failed save: the row keeps the Shot's value (4), the file too
+  [FAIL] C15f a live row: its number and review facts from its Shot
+FAIL: 2 of 124 checks failed
+
+
+97% tests passed, 10 tests failed out of 288
+
+Total Test time (real) = 134.48 sec
+
+The following tests did not run:
+	136 - shaft_plane_corpus_test (Skipped)
+
+The following tests FAILED:
+	 30 - tendencies_test (Failed)
+	132 - dtl_posture_test (Exit code 0xc0000409
+)
+	163 - shared_norm_provider_test (Failed)
+	168 - shot_commands_test (Failed)
+	169 - migrate_step2_test (Failed)
+	170 - parity_json_test (Failed)
+	171 - athlete_diagnostics_test (Failed)
+	190 - folder_lock_test (Failed)
+	219 - lm_session_model_test (Failed)
+	229 - athlete_repository_test (Failed)
+Errors while running CTest
