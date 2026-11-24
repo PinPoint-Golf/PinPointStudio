@@ -24,6 +24,7 @@
 #include "../../Diagnostics/engine/diagnostics_health.h"
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/measures/measure_sample.h"
+#include "shot_grid_door.h"   // the swing on screen, by its Shot (platform refactor P-3)
 #include "../../Diagnostics/packs/reference_pack.h"
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Metrics/gate_catalogue.h"
@@ -8549,9 +8550,9 @@ void ModelBrowser::setCurrentSwingDir(const QString &dir)
         return;
     }
 
-    // OFF THE UI THREAD, with `writeSidecar` TRUE — the two halves of one decision.
+    // OFF THE UI THREAD, with SidecarPolicy::ParseAndWrite — the two halves of one decision.
     //
-    // measure_sample.h offers a GUI-thread-safe call (`writeSidecar = false`) that returns an empty
+    // The reader offers a GUI-thread-safe policy (CachedOnly) that returns an empty
     // grid rather than fat-parsing, and it is the wrong one here. A swing whose sidecar is missing
     // or whose guard is stale — which is EVERY swing that has just been re-analysed, the exact ones
     // an author is looking at — would answer "no readings" indistinguishably from a swing that
@@ -8570,8 +8571,16 @@ void ModelBrowser::setCurrentSwingDir(const QString &dir)
 
     // The pack's millisecond spans (metric_reducer.h windowMs), so a measure reading one shows its value.
     const PhaseGridConfig cfg = withMsWindows({}, msWindowsOf(pack().measures));
-    m_swingWatcher->setFuture(QtConcurrent::run([dirCopy, cfg]() -> SwingPhaseGrid {
-        return readPhaseGrid(dirCopy, /*writeSidecar*/ true, cfg);
+    // BY THE SHOT, NOT THE FOLDER (platform refactor P-3): the Shot a loaded Session holds at this folder, found here on
+    // the GUI thread (shot_grid_door.h), its grid read on the worker through the Recording's reader. No Shot (no door
+    // installed, or no loaded Session holds the folder): no grid, and the column says the swing has no readings.
+    const pinpoint::diagmodel::ShotGridResolver &resolve = pinpoint::diagmodel::shotGridResolver();
+    const pinpoint::diagmodel::ShotGridRead read = resolve ? resolve(dirCopy) : pinpoint::diagmodel::ShotGridRead{};
+    m_swingWatcher->setFuture(QtConcurrent::run([dirCopy, cfg, read]() -> SwingPhaseGrid {
+        SwingPhaseGrid grid = read ? read(cfg).value_or(SwingPhaseGrid{}) : SwingPhaseGrid{};
+        // The request's own folder, which onSwingGridLoaded matches against the one now on screen.
+        if (!grid.swingDir.isEmpty() || !grid.isEmpty()) grid.swingDir = dirCopy;
+        return grid;
     }));
 }
 

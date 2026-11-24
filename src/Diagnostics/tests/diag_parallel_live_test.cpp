@@ -62,6 +62,7 @@
 #include "../../Export/rule_data_install.h"
 #include "../../Export/session_store.h"
 #include "../../Export/swing_store.h"
+#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../../Export/swing_store_repository.h"
 #include "../../Gui/diagnostics/diag_parallel_run.h"
 #include "../../LaunchMonitor/launch_monitor_reading.h"
@@ -168,7 +169,7 @@ static bool writeCaptureDoc(RecordingRepository &door, const Shot *shot, const Q
     const WriteResult w = door.editReview(shot->ref(), club);   // the swing door, as every writer goes
     return w.ok() && SwingStore::info(swingDir).format == SwingStore::Format::Ppsw
         && !QFile::exists(QDir(swingDir).filePath(QStringLiteral("swing.json")))
-        && !QFile::exists(analysis::phaseGridPath(swingDir));
+        && !QFile::exists(pinpoint::PhaseGridStore::sidecarPath(swingDir));
 }
 
 // The fixture's own reading, as a connector hands it over (every field the block holds, through the one field table).
@@ -416,12 +417,12 @@ static void testReader()
     check(QStringLiteral("R1 no sidecar: the parallel reader parses the document (a grid, the club, the monitor)"),
           a.ok && !a.readings.grid.isEmpty() && canonicalClubId(a.readings.grid.club) == canonicalClubId(kClub));
     check(QStringLiteral("R2 ...and writes no sidecar"),
-          !QFile::exists(analysis::phaseGridPath(sw)) && !QFile::exists(sw + QStringLiteral("/swing_summary.json")));
+          !QFile::exists(pinpoint::PhaseGridStore::sidecarPath(sw)) && !QFile::exists(sw + QStringLiteral("/swing_summary.json")));
     const FiringRead b = indexing.read(shot->ref(), pack);
     check(QStringLiteral("R3 the default reader reads the same grid and indexes it"),
           b.ok && QJsonDocument(analysis::savePhaseGrid(b.readings.grid, 0, 0)).toJson()
                       == QJsonDocument(analysis::savePhaseGrid(a.readings.grid, 0, 0)).toJson()
-               && QFile::exists(analysis::phaseGridPath(sw)));
+               && QFile::exists(pinpoint::PhaseGridStore::sidecarPath(sw)));
 
     // A stale sidecar: the document rewritten (the late reading's fold) after the sidecar was written.
     QJsonObject root = readJson(sw + QStringLiteral("/swing.json"));

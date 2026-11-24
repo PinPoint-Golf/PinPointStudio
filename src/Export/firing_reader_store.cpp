@@ -26,6 +26,7 @@
 #include "../DomainModel/recording_repository.h"
 #include "../DomainModel/session_repository.h"
 #include "../Diagnostics/measures/live_measure_source.h"
+#include "phase_grid_store.h"   // the phase grid's file door (FILE-SHOT-07; platform refactor P-3)
 #include "../Coaching/session_day_readings_rules.h"   // sessionCamerasOf: the cameras' one rule (refactor 5.5d)
 
 #include <QFileInfo>
@@ -39,6 +40,8 @@ namespace {
 // next read that misses writes it). Short: a firing job never holds up capture, a review edit or the archive.
 constexpr int kSidecarLockWaitMs = 250;
 
+} // namespace
+
 // THE SIDECARS A FIRING READ REBUILT, WRITTEN ONLY UNDER THE SESSION'S LOCK AND ONLY OUTSIDE THE ARCHIVE WINDOW (refactor
 // 3.8-ii; REVIEW-e R1-m6, J-58). The read itself never writes (ParseNoWrite): a job already on a worker when an archive
 // starts can parse a swing the archive is about to thin, or a stub it has just thinned. The archiver writes its marker
@@ -46,8 +49,9 @@ constexpr int kSidecarLockWaitMs = 250;
 // (session_archiver.cpp), so a write that finds no marker under the lock lands in a swing not yet thinned, and the
 // thinning then removes it with the other caches; with the marker there, nothing is written. Each sidecar keeps its old
 // guard: the document must still be the one parsed (LazyDocument::stillCurrent).
-void writeSidecarsUnderLock(const QString &swingDir, const analysis::SwingPhaseGrid *grid, const SwingSummary *summary,
-                            const SwingStore::LazyDocument &parsed)
+
+void writeShotSidecarsUnderLock(const QString &swingDir, const analysis::SwingPhaseGrid *grid, const SwingSummary *summary,
+                                const SwingStore::LazyDocument &parsed)
 {
     const QString sessionDir = QFileInfo(swingDir).absolutePath();
     FolderLock lock(sessionDir);
@@ -58,15 +62,10 @@ void writeSidecarsUnderLock(const QString &swingDir, const analysis::SwingPhaseG
     if (!parsed.stillCurrent())
         return;   // rewritten since the parse: never index old content under the new document's guard
     if (grid)
-        (void)atomicWrite(analysis::phaseGridPath(swingDir),
-                          QJsonDocument(analysis::savePhaseGrid(*grid, parsed.parsedInfo().size, parsed.parsedInfo().mtimeMs))
-                              .toJson(QJsonDocument::Compact),
-                          AtomicWriteOptions::intoExistingFolder());
+        (void)PhaseGridStore::write(swingDir, *grid, parsed.parsedInfo().size, parsed.parsedInfo().mtimeMs);
     if (summary && summary->ok)
         (void)SwingDocReader::writeSummarySidecar(*summary);
 }
-
-} // namespace
 
 DocumentStamp SwingStoreFiringReader::stamp(const ShotRef &shot) const
 {
@@ -104,16 +103,16 @@ FiringRead SwingStoreFiringReader::read(const ShotRef &shot, const analysis::Cha
     SwingStore::LazyDocument parsed(swingDir);
     // Always parsed on a miss or a stale sidecar (3.7-0, the D22 fix), and NEVER written by the read: ParseAndWrite's
     // sidecars are written below, under the session's lock and outside the archive window (R1-m6).
-    out.readings.grid = analysis::readLivePhaseGrid(swingDir, pack, SidecarPolicy::ParseNoWrite, analysis::PhaseGridConfig{}, &parsed);
+    out.readings.grid = PhaseGridStore::readForMeasures(swingDir, pack.measures, SidecarPolicy::ParseNoWrite, {}, &parsed);
     const bool gridParsed = parsed.loaded();   // the grid came from the document, not from a current sidecar
     // The capture instant the document records, not the file's mtime (the firing read's ⚠); the mtime as the fallback.
     const SwingSummary summary = SwingDocReader::readSwingSummary(swingDir, SidecarPolicy::ParseNoWrite, &parsed);
     out.timestampMs = summary.wallclockMs > 0 ? summary.wallclockMs : SwingStore::info(swingDir).mtimeMs;
     out.captureMs   = summary.wallclockMs > 0 ? summary.wallclockMs : 0;   // the cohort's date: never the mtime
     // The shot's wrist readings for its checkpoint profile (refactor 3.8-ii; DEC-123): only when the grid names a wrist DOF.
-    out.readings.wrist = analysis::readWristInput(swingDir, out.readings.grid, &parsed);
+    out.readings.wrist = PhaseGridStore::readWristInput(swingDir, out.readings.grid, &parsed);
     if (mayWriteSidecar(m_policy) && parsed.loaded())
-        writeSidecarsUnderLock(swingDir, gridParsed ? &out.readings.grid : nullptr, &summary, parsed);
+        writeShotSidecarsUnderLock(swingDir, gridParsed ? &out.readings.grid : nullptr, &summary, parsed);
     parsed.release();
 
     out.readings.handedness    = summary.handedness;
@@ -134,9 +133,9 @@ std::optional<analysis::SwingPhaseGrid> SwingStoreFiringReader::phaseGrid(const 
     if (swingDir.isEmpty() || !SwingStore::info(swingDir).exists())
         return std::nullopt;
     SwingStore::LazyDocument parsed(swingDir);
-    analysis::SwingPhaseGrid grid = analysis::readLivePhaseGrid(swingDir, pack, SidecarPolicy::ParseNoWrite, analysis::PhaseGridConfig{}, &parsed);
+    analysis::SwingPhaseGrid grid = PhaseGridStore::readForMeasures(swingDir, pack.measures, SidecarPolicy::ParseNoWrite, {}, &parsed);
     if (mayWriteSidecar(m_policy) && parsed.loaded())
-        writeSidecarsUnderLock(swingDir, &grid, nullptr, parsed);
+        writeShotSidecarsUnderLock(swingDir, &grid, nullptr, parsed);
     parsed.release();
     return grid;
 }

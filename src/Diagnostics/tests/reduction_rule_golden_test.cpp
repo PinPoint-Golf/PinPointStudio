@@ -55,6 +55,7 @@
 #include "../../DomainModel/rule_data.h"
 #include "../../Export/rule_data_install.h"
 #include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
+#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../engine/pack_io.h"
 #include "../norms/context_tree.h"
 #include "../norms/norm_pack.h"
@@ -184,7 +185,7 @@ int main(int argc, char **argv)
     for (const QString &name : { QStringLiteral("lm_7iron"), QStringLiteral("lm_partial"), QStringLiteral("rich_7iron"),
                                  QStringLiteral("sparse_noclub") }) {
         FiringReadings readings;
-        readings.grid       = readLivePhaseGrid(stageFixture(tmp, name), pack);
+        readings.grid       = pinpoint::PhaseGridStore::readForMeasures(stageFixture(tmp, name), (pack).measures, pinpoint::SidecarPolicy::ParseAndWrite);
         readings.handedness = QStringLiteral("Right");
         const FiredShot f = fireFindings(std::move(readings), inputs);
         check(f.ok && !f.record.rows.empty(), name + QStringLiteral(": fires"));

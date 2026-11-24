@@ -17,6 +17,7 @@
  */
 
 #include "measure_dump_core.h"
+#include "../../src/Export/phase_grid_store.h"   // the phase grid's file door: a tool over bare folders (P-3)
 
 #include "Core/club_vocabulary.h"
 #include "Diagnostics/norms/norm_measure_source.h"
@@ -148,12 +149,12 @@ QStringList selectMeasures(const CharacteristicPack &pack, const Options &opt)
 
 SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut, const PhaseGridConfig &cfg)
 {
-    // THE OWNER'S READ (refactor 5.3): readLivePhaseGrid with SidecarPolicy::ParseNoWrite, as the session owner's firing
+    // THE OWNER'S READ (refactor 5.3): the file door's read (PhaseGridStore; P-3) with SidecarPolicy::ParseNoWrite, as the session owner's firing
     // reader takes it (Export/firing_reader_store.cpp; the parallel run's policy): a current sidecar answers, else the
     // document is parsed, and nothing is written. Until 5.3 this was readPhaseGrid() copied line for line minus its write.
-    // readLivePhaseGrid is readPhaseGrid with the pack's millisecond spans added; here the caller's `cfg` names them.
+    // PhaseGridStore::readForMeasures adds the pack's millisecond spans; here the caller's `cfg` names them.
     pinpoint::SwingStore::LazyDocument parsed(swingDir);
-    SwingPhaseGrid grid = readPhaseGrid(swingDir, pinpoint::SidecarPolicy::ParseNoWrite, cfg, &parsed);
+    SwingPhaseGrid grid = pinpoint::PhaseGridStore::read(swingDir, pinpoint::SidecarPolicy::ParseNoWrite, cfg, &parsed);
     if (grid.swingDir.isEmpty()) grid.swingDir = swingDir;
     if (rootOut) *rootOut = parsed.loaded() ? parsed.root() : QJsonObject();
     return grid;
@@ -203,12 +204,12 @@ std::vector<Row> readSwing(const QString &sessionDir, const QString &swingDir,
 
     // THE SESSION OWNER'S PER-SHOT READ AND CONSTRUCTION (refactor 5.3): its firing reader's
     // (SwingStoreFiringReader::read — one lazy parse shared by the phase grid and the summary, the pack's millisecond
-    // spans added by readLivePhaseGrid) with the parallel run's policy, ParseNoWrite, so nothing is written beside the
+    // spans added by PhaseGridStore::readForMeasures) with the parallel run's policy, ParseNoWrite, so nothing is written beside the
     // swing; then fireFindings' (LiveMeasureSource over that grid, withSigma at the owner's tuned default, and
     // detectForSwing's NormMeasureSource at the grade policy). The one difference: no athlete, so Cohort{} — the
     // unisex norms — where the owner grades with the golfer's cohort.
     pinpoint::SwingStore::LazyDocument parsed(swingDir);
-    SwingPhaseGrid grid = readLivePhaseGrid(swingDir, pack, pinpoint::SidecarPolicy::ParseNoWrite, PhaseGridConfig{}, &parsed);
+    SwingPhaseGrid grid = pinpoint::PhaseGridStore::readForMeasures(swingDir, pack.measures, pinpoint::SidecarPolicy::ParseNoWrite, PhaseGridConfig{}, &parsed);
 
     const LiveMeasureSource values(std::move(grid), pack);   // withSigma: the tuned default, as FiringInputs'
     const QString           contextId = values.contextId();

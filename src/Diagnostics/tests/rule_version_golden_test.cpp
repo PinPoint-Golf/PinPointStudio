@@ -48,6 +48,7 @@
 #include "../../DomainModel/rule_data.h"
 #include "../../Export/rule_data_install.h"
 #include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
+#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../engine/pack_io.h"                 // RuleFile: the frozen pack's bytes
 #include "../norms/context_tree.h"
 #include "../norms/norm_pack.h"
@@ -178,7 +179,7 @@ int main(int argc, char **argv)
     for (const QString &name : fixtures) {
         const QString dir = stageFixture(tmp, name);
         FiringReadings readings;
-        readings.grid       = readLivePhaseGrid(dir, inputs.pack->pack());
+        readings.grid       = pinpoint::PhaseGridStore::readForMeasures(dir, (inputs.pack->pack()).measures, pinpoint::SidecarPolicy::ParseAndWrite);
         readings.handedness = QStringLiteral("Right");
         const FiredShot fired = fireFindings(std::move(readings), inputs);
         int fired_ = 0, na = 0;

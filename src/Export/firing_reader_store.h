@@ -23,7 +23,7 @@
 //
 // THE READ IS THE OLD ENGINE'S PER-SHOT READ, MOVED, NOT REWRITTEN (that engine was deleted in refactor 5.4b; refactor 3.3 left it
 // there): the document's stamp taken BEFORE the read; no document → not read ("no document yet"); one lazy parse
-// shared by the phase grid (readLivePhaseGrid, its sidecar written unless the policy says not) and the summary
+// shared by the phase grid (PhaseGridStore::readForMeasures, its sidecar written unless the policy says not) and the summary
 // (readSwingSummary, likewise); the capture instant from clock.wallclock, else the file's mtime; the document released straight after;
 // the hand and the two integrity facts. Plus the review's shot intent and label corrections, through the swing door
 // (RecordingRepository::readReview, safe from any thread: the document's root alone, never its tracks), so a re-fire
@@ -40,6 +40,17 @@ namespace pinpoint {
 
 class RecordingRepository;
 class SessionRepository;
+struct SwingSummary;
+namespace SwingStore { class LazyDocument; }
+
+// THE SIDECARS A SHOT'S READ REBUILT, WRITTEN ONLY UNDER THE SESSION'S LOCK AND ONLY OUTSIDE THE ARCHIVE WINDOW (refactor
+// 3.8-ii; REVIEW-e R1-m6, J-58): the phase grid (when `grid`) through its file door (PhaseGridStore, FILE-SHOT-07) and the
+// JSON-era summary (when `summary` is ok), each under the guard of the document `parsed` read, and only while that
+// document is still current. Best-effort: a lock not had in a short wait, or an archive marker, writes nothing. The one
+// guarded write of a shot-keyed read: the firing reader's, and the Recording's reader's (SwingStorePhaseGridReader,
+// recording_loader.h; platform refactor P-3).
+void writeShotSidecarsUnderLock(const QString &swingDir, const analysis::SwingPhaseGrid *grid, const SwingSummary *summary,
+                                const SwingStore::LazyDocument &parsed);
 
 class SwingStoreFiringReader final : public FiringReader
 {

@@ -26,7 +26,7 @@
 // through its firing reader (Export/firing_reader_store.cpp, SwingStoreFiringReader::read) and fireFindings
 // (Diagnostics/engine/fire_findings.cpp), which build, per swing:
 //
-//   readLivePhaseGrid(swingDir, pack, policy, {}, &parsed)   one lazy parse, shared with the summary read
+//   PhaseGridStore::readForMeasures(swingDir, pack.measures, policy, {}, &parsed) one lazy parse, shared with the summary read
 //   LiveMeasureSource(grid, pack)  + setWithSigma(FiringInputs' withSigma: the tuned default)
 //   NormMeasureSource(values, norms, values.contextId(), gradePolicyByName(policy), &pack, cohort)
 //                                                            (inside detectForSwing)
@@ -106,7 +106,7 @@ QStringList selectMeasures(const pinpoint::analysis::CharacteristicPack &pack, c
 // The phase grid as the owner's firing reader reads it (readPhaseGrid with SidecarPolicy::ParseNoWrite): never
 // writing the sidecar. `rootOut` receives the full document when it had to be parsed (empty when the sidecar answered).
 // `cfg` carries the millisecond spans to build (measure_sample.h PhaseGridMsWindow): readSwing passes
-// the pack's own (msWindowsOf), as LiveMeasureSource(dir, pack) does, so a `windowMs` measure reads. A
+// the pack's own (msWindowsOf), as PhaseGridStore::readForMeasures does, so a `windowMs` measure reads. A
 // sidecar lacking one of them is not served; the grid is built from the document instead (read-only).
 pinpoint::analysis::SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut = nullptr,
                                                     const pinpoint::analysis::PhaseGridConfig &cfg = {});

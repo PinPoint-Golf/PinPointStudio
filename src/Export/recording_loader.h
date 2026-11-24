@@ -70,14 +70,31 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
 // safe from any thread). The composition root holds one (each tool's main, the app's re-analysis) and
 // hands it to the analysis service. Stateless apart from that reference.
 class SessionRepository;
-class SwingStoreRecordingReader final : public RecordingReader {
+class SwingStoreRecordingReader : public RecordingReader {
 public:
     explicit SwingStoreRecordingReader(SessionRepository &sessions) : m_sessions(&sessions) {}
 
     LoadedRecording load(const ShotRef &shot, const RecordingLoadOptions &options = {}) override;
 
+protected:
+    SessionRepository &sessions() const { return *m_sessions; }
+
 private:
     SessionRepository *m_sessions;
+};
+
+// THE APP'S RECORDING READER, WITH THE SHOT'S PHASE GRID (platform refactor P-3): SwingStoreRecordingReader plus
+// RecordingReader::phaseGrid, through the phase grid's file door (PhaseGridStore, FILE-SHOT-07) and, for ParseAndWrite,
+// the shot-keyed guarded write (writeShotSidecarsUnderLock: the session's lock, the archive marker, the parse still
+// current). A SUBCLASS, defined in recording_phase_grid.cpp, so the frame-reading targets that make the base reader do not
+// link the sampler and the firing reader's store: only a composition root that wants the grid makes this one (the app's
+// main) and the tests of it.
+class SwingStorePhaseGridReader final : public SwingStoreRecordingReader {
+public:
+    using SwingStoreRecordingReader::SwingStoreRecordingReader;
+
+    std::optional<analysis::SwingPhaseGrid> phaseGrid(const ShotRef &shot, const analysis::PhaseGridConfig &config = {},
+                                                      SidecarPolicy policy = SidecarPolicy::ParseAndWrite) override;
 };
 
 } // namespace pinpoint

@@ -14,6 +14,7 @@ set(CHARTS_WRIST_SRC
     # the wrist profile: it reads each cell through the measure engine's own sampler (measure_sample.cpp).
     ${GUI}/charts/session_posture.cpp
     ${SRC}/Diagnostics/measures/measure_sample.cpp
+    ${SRC}/Export/phase_grid_store.cpp   # the sampler's folder-keyed reads go through the file door (P-3)
     ${SRC}/Wrist/wrist_analysis_adapter.cpp
     ${SRC}/Wrist/wrist_assessment_engine.cpp
     ${SRC}/Wrist/assessment_rules.cpp

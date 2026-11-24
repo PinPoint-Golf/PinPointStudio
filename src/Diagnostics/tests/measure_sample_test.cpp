@@ -28,6 +28,7 @@
 
 #include "../measures/measure_sample.h"
 #include "../../Export/swing_store.h"   // LazyDocument: the parse shared with the summary reader
+#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
 
 #include "../../Metrics/series_reduce.h"
 #include "../../Metrics/line_angle.h"
@@ -1105,21 +1106,21 @@ int main()
         const QString j = mkSwing("swing_0001");
         writeJson(j, QJsonDocument(swingDoc).toJson(QJsonDocument::Compact));
         const SwingPhaseGrid ownJ = readPhaseGrid(j);
-        check(!ownJ.isEmpty() && ownJ.ordinal == 4 && QFile::exists(phaseGridPath(j)),
+        check(!ownJ.isEmpty() && ownJ.ordinal == 4 && QFile::exists(pinpoint::PhaseGridStore::sidecarPath(j)),
               "JSON: its own parse builds the grid and indexes it");
-        QFile::remove(phaseGridPath(j));
+        QFile::remove(pinpoint::PhaseGridStore::sidecarPath(j));
         LazyDocument docJ(j);
         check(!docJ.root().isEmpty(), "JSON: the other reader parsed first");
-        check(same(readPhaseGrid(j, true, {}, &docJ), ownJ), "JSON: the shared parse gives the identical grid");
-        check(QFile::exists(phaseGridPath(j)), "...and indexes it exactly as its own parse did");
+        check(same(pinpoint::PhaseGridStore::read(j, pinpoint::SidecarPolicy::ParseAndWrite, {}, &docJ), ownJ), "JSON: the shared parse gives the identical grid");
+        check(QFile::exists(pinpoint::PhaseGridStore::sidecarPath(j)), "...and indexes it exactly as its own parse did");
 
         const QString b = mkSwing("swing_0002");
         check(pinpoint::SwingStore::save(b, swingDoc), ".ppsw: written");
         const SwingPhaseGrid ownB = readPhaseGrid(b);
-        QFile::remove(phaseGridPath(b));
+        QFile::remove(pinpoint::PhaseGridStore::sidecarPath(b));
         LazyDocument docB(b);
         docB.root();
-        check(!ownB.isEmpty() && same(readPhaseGrid(b, true, {}, &docB), ownB) && QFile::exists(phaseGridPath(b)),
+        check(!ownB.isEmpty() && same(pinpoint::PhaseGridStore::read(b, pinpoint::SidecarPolicy::ParseAndWrite, {}, &docB), ownB) && QFile::exists(pinpoint::PhaseGridStore::sidecarPath(b)),
               ".ppsw: the shared parse gives the identical grid, indexed");
 
         // (b) a corrupt document: nothing read, nothing latched, nothing indexed
@@ -1131,10 +1132,10 @@ int main()
             const SwingPhaseGrid own = readPhaseGrid(c);
             LazyDocument doc(c);
             doc.root();
-            const SwingPhaseGrid shared = readPhaseGrid(c, true, {}, &doc);
+            const SwingPhaseGrid shared = pinpoint::PhaseGridStore::read(c, pinpoint::SidecarPolicy::ParseAndWrite, {}, &doc);
             const QByteArray label = QByteArray("corrupt (") + names[i]
                                      + "): empty both ways, nothing latched, no sidecar";
-            check(own.isEmpty() && shared.isEmpty() && !doc.loaded() && !QFile::exists(phaseGridPath(c)),
+            check(own.isEmpty() && shared.isEmpty() && !doc.loaded() && !QFile::exists(pinpoint::PhaseGridStore::sidecarPath(c)),
                   label.constData());
         }
 
@@ -1143,8 +1144,8 @@ int main()
         LazyDocument docR(r);
         check(docR.root().isEmpty() && !docR.loaded(), "first reader: no document yet");
         writeJson(r, QJsonDocument(swingDoc).toJson(QJsonDocument::Compact));
-        const SwingPhaseGrid late = readPhaseGrid(r, true, {}, &docR);
-        check(!late.isEmpty() && late.ordinal == 4 && docR.loaded() && QFile::exists(phaseGridPath(r)),
+        const SwingPhaseGrid late = pinpoint::PhaseGridStore::read(r, pinpoint::SidecarPolicy::ParseAndWrite, {}, &docR);
+        check(!late.isEmpty() && late.ordinal == 4 && docR.loaded() && QFile::exists(pinpoint::PhaseGridStore::sidecarPath(r)),
               "second reader: the document is parsed after all, read and indexed");
 
         // (d) a rewrite after the shared parse
@@ -1156,11 +1157,11 @@ int main()
         next.insert(QStringLiteral("swing"), QJsonObject{ { QStringLiteral("index"), 104 },
                                                           { QStringLiteral("padding"), QStringLiteral("new size") } });
         writeJson(m, QJsonDocument(next).toJson(QJsonDocument::Compact));
-        const SwingPhaseGrid old = readPhaseGrid(m, true, {}, &docM);
+        const SwingPhaseGrid old = pinpoint::PhaseGridStore::read(m, pinpoint::SidecarPolicy::ParseAndWrite, {}, &docM);
         check(!old.isEmpty() && old.ordinal == 4, "a rewrite since the shared parse: that parse is what is returned");
-        check(!QFile::exists(phaseGridPath(m)), "...but it is NOT indexed under the rewritten document's guard");
+        check(!QFile::exists(pinpoint::PhaseGridStore::sidecarPath(m)), "...but it is NOT indexed under the rewritten document's guard");
         const SwingPhaseGrid fresh = readPhaseGrid(m);
-        check(fresh.ordinal == 104 && QFile::exists(phaseGridPath(m)),
+        check(fresh.ordinal == 104 && QFile::exists(pinpoint::PhaseGridStore::sidecarPath(m)),
               "the next read builds from the new document and indexes that");
 
         // (e) a copied or restored swing (issue #174): its document comes back with the mtime to the whole
@@ -1175,13 +1176,13 @@ int main()
         };
         check(setMtime(pinpoint::SwingStore::ppswPath(cp), at)
                   && pinpoint::SwingStore::info(cp).mtimeMs == 1794051638750LL, "copy: the document at …638750");
-        check(!readPhaseGrid(cp).isEmpty() && QFile::exists(phaseGridPath(cp)), "copy: graded and indexed at …638750");
-        const QDateTime gridAt = QFileInfo(phaseGridPath(cp)).lastModified();
+        check(!readPhaseGrid(cp).isEmpty() && QFile::exists(pinpoint::PhaseGridStore::sidecarPath(cp)), "copy: graded and indexed at …638750");
+        const QDateTime gridAt = QFileInfo(pinpoint::PhaseGridStore::sidecarPath(cp)).lastModified();
         check(setMtime(pinpoint::SwingStore::ppswPath(cp), at.addMSecs(-750))
                   && pinpoint::SwingStore::info(cp).mtimeMs == 1794051638000LL, "copy: the document comes back at …638000");
         const SwingPhaseGrid copied = readPhaseGrid(cp, /*writeSidecar=*/false);
         check(!copied.isEmpty() && copied.ordinal == 4, "copy: the grid is served from the sidecar, never fat-parsed");
-        check(QFileInfo(phaseGridPath(cp)).lastModified() == gridAt, "copy: ...and the sidecar is not rewritten");
+        check(QFileInfo(pinpoint::PhaseGridStore::sidecarPath(cp)).lastModified() == gridAt, "copy: ...and the sidecar is not rewritten");
         QJsonObject reanalysed = swingDoc;
         reanalysed.insert(QStringLiteral("swing"), QJsonObject{ { QStringLiteral("index"), 106 },
                                                                 { QStringLiteral("padding"), QStringLiteral("re-analysed") } });
@@ -1195,27 +1196,27 @@ int main()
         using pinpoint::SidecarPolicy;
         const QString pn = mkSwing("swing_0007");
         check(pinpoint::SwingStore::save(pn, swingDoc), "parse-no-write: written, no sidecar");
-        check(readPhaseGrid(pn, SidecarPolicy::CachedOnly).isEmpty(), "parse-no-write: CachedOnly reads nothing for an unindexed swing");
-        const SwingPhaseGrid parsedNoWrite = readPhaseGrid(pn, SidecarPolicy::ParseNoWrite);
+        check(pinpoint::PhaseGridStore::read(pn, pinpoint::SidecarPolicy::CachedOnly).isEmpty(), "parse-no-write: CachedOnly reads nothing for an unindexed swing");
+        const SwingPhaseGrid parsedNoWrite = pinpoint::PhaseGridStore::read(pn, pinpoint::SidecarPolicy::ParseNoWrite);
         check(!parsedNoWrite.isEmpty() && parsedNoWrite.ordinal == 4, "parse-no-write: ParseNoWrite parses the document");
-        check(!QFile::exists(phaseGridPath(pn)), "parse-no-write: ...and writes no sidecar");
-        const SwingPhaseGrid indexed = readPhaseGrid(pn, SidecarPolicy::ParseAndWrite);
-        check(QFile::exists(phaseGridPath(pn))
+        check(!QFile::exists(pinpoint::PhaseGridStore::sidecarPath(pn)), "parse-no-write: ...and writes no sidecar");
+        const SwingPhaseGrid indexed = pinpoint::PhaseGridStore::read(pn, pinpoint::SidecarPolicy::ParseAndWrite);
+        check(QFile::exists(pinpoint::PhaseGridStore::sidecarPath(pn))
                   && QJsonDocument(savePhaseGrid(indexed, 1, 1)).toJson() == QJsonDocument(savePhaseGrid(parsedNoWrite, 1, 1)).toJson(),
               "parse-no-write: the same grid ParseAndWrite builds and indexes");
         const auto sidecarBytes = [&] {
-            QFile f(phaseGridPath(pn));
+            QFile f(pinpoint::PhaseGridStore::sidecarPath(pn));
             return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
         };
         const QByteArray sideBefore = sidecarBytes();
-        const QDateTime  sideAt     = QFileInfo(phaseGridPath(pn)).lastModified();
+        const QDateTime  sideAt     = QFileInfo(pinpoint::PhaseGridStore::sidecarPath(pn)).lastModified();
         QJsonObject rewritten = swingDoc;
         rewritten.insert(QStringLiteral("swing"), QJsonObject{ { QStringLiteral("index"), 107 },
                                                                { QStringLiteral("padding"), QStringLiteral("a late reading folded in") } });
         check(pinpoint::SwingStore::save(pn, rewritten), "parse-no-write: the document rewritten (its sidecar now stale)");
-        check(readPhaseGrid(pn, SidecarPolicy::CachedOnly).isEmpty(), "parse-no-write: CachedOnly reads the stale sidecar as nothing");
-        check(readPhaseGrid(pn, SidecarPolicy::ParseNoWrite).ordinal == 107, "parse-no-write: ParseNoWrite parses the rewritten document");
-        check(sidecarBytes() == sideBefore && QFileInfo(phaseGridPath(pn)).lastModified() == sideAt,
+        check(pinpoint::PhaseGridStore::read(pn, pinpoint::SidecarPolicy::CachedOnly).isEmpty(), "parse-no-write: CachedOnly reads the stale sidecar as nothing");
+        check(pinpoint::PhaseGridStore::read(pn, pinpoint::SidecarPolicy::ParseNoWrite).ordinal == 107, "parse-no-write: ParseNoWrite parses the rewritten document");
+        check(sidecarBytes() == sideBefore && QFileInfo(pinpoint::PhaseGridStore::sidecarPath(pn)).lastModified() == sideAt,
               "parse-no-write: ...and leaves the stale sidecar untouched");
         check(readPhaseGrid(pn, /*writeSidecar=*/false).isEmpty() && readPhaseGrid(pn, /*writeSidecar=*/true).ordinal == 107,
               "parse-no-write: the bool form keeps its old meaning (false = CachedOnly, true = ParseAndWrite)");
@@ -1386,7 +1387,7 @@ int main()
         const PhaseGridConfig cfgB = withMsWindows({}, { { Phase::Impact, 0, 50 } });
         const SwingPhaseGrid ga = readPhaseGrid(dir, true, cfg);
         const SwingPhaseGrid gb = readPhaseGrid(dir, true, cfgB);
-        QFile side(phaseGridPath(dir));
+        QFile side(pinpoint::PhaseGridStore::sidecarPath(dir));
         const QJsonArray stored = side.open(QIODevice::ReadOnly)
             ? QJsonDocument::fromJson(side.readAll()).object().value(QStringLiteral("source")).toObject()
                   .value(QStringLiteral("ms_windows")).toArray()

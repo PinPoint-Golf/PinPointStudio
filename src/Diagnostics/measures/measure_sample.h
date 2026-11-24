@@ -19,7 +19,7 @@
 #pragma once
 
 #include "measure_vocabulary.h"    // Measure
-#include "sigma_source.h"
+#include "../../Vocabulary/Analysis/phase_grid.h"   // the grid's value types (P-3)
 #include "../../Core/pp_tuned_constants.h"
 #include "../../Core/sidecar_policy.h"   // SidecarPolicy: what a miss may cost (3.7-0)
 #include "../../Metrics/metric_reducer.h"
@@ -101,8 +101,6 @@
 // sample. Reading only the curve produced nothing for all of them, and the symptom is
 // indistinguishable from "no swing carries this measure".
 
-namespace pinpoint::SwingStore { class LazyDocument; }   // swing_store.h
-
 namespace pinpoint::analysis {
 
 // The schema this build writes. A sidecar declaring a HIGHER version is ignored and rebuilt rather
@@ -154,178 +152,14 @@ namespace pinpoint::analysis {
 //    the library's findings fire once more on the new build's first launch (J-82).
 inline constexpr int kPhaseGridSchemaVersion = 11;
 
-// SigmaSource — where a reading's measurement σ came from — lives in sigma_source.h.
-
-// A SPAN IN MILLISECONDS AFTER A PHASE that the grid is asked to answer (metric_reducer.h `windowMs`,
-// plane stack D5). A phase-bounded window is exact by aggregation over the adjacent-phase spans; this
-// one is not, so its extremes and its two endpoint medians are computed at build time for each span a
-// caller names. THE PACK NAMES THEM (msWindowsOf), and that is the one way this cache becomes
-// pack-aware — narrowly: the grid stores the windows it was built for, a reader whose windows are a
-// SUBSET of those accepts it, and a reader asking for more rebuilds with the UNION (readPhaseGrid), so
-// two readers with different packs cannot keep overwriting each other's sidecar. A reader that names
-// none (every chart, the gate counts) accepts any grid.
-struct PhaseGridMsWindow {
-    Phase anchor  = Phase::Impact;
-    int   startMs = 0;
-    int   endMs   = 0;
-};
-inline bool operator==(const PhaseGridMsWindow &a, const PhaseGridMsWindow &b)
-{
-    return a.anchor == b.anchor && a.startMs == b.startMs && a.endMs == b.endMs;
-}
-
-struct PhaseGridConfig {
-    // ±15 ms about the phase instant, the WristAngleSampler convention. Producers that stamp a
-    // phase sample equal to what this window grades (shaftdir::assemble in src/Club/shaft_direction.h,
-    // the 3-D body and trunk-sensor assemblies) read the same constant; if this ever becomes
-    // configurable per grid, they must be handed the configured value or graded and stamped drift.
-    int64_t windowHalfUs    = tuned::sampler::kWindowHalfUs;
-    int     minValidSamples = 1;       // fewer in the window => this phase has no value
-
-    // The centred window a span's extreme is the MEAN over. A one-sample outlier cannot be a peak
-    // because a peak has to be there for the whole window; 40 ms is ≈5 samples where the pose grid
-    // is dense and ≈2 where it is sparse (design §5.2, tuned::reduce).
-    int64_t extremumWindowUs = tuned::reduce::kExtremumWindowUs;
-
-    // The millisecond spans to answer (PhaseGridMsWindow). NOT part of sameGridReduction: it adds spans
-    // and moves no number the grid already holds, so it is a subset test, not an equality (loadPhaseGrid).
-    std::vector<PhaseGridMsWindow> msWindows;
-
-    // A millisecond span reads only when its valid samples COVER it: no stretch longer than this unread,
-    // the span's ends included (tuned::reduce::kMsSpanMaxGapUs, D5 round 3). Applied when a span is READ,
-    // from the stored gap, so it is not part of sameGridReduction: a cached grid serves any limit.
-    int64_t msSpanMaxGapUs = tuned::reduce::kMsSpanMaxGapUs;
-};
+// The grid's value types (PhaseGridMsWindow, PhaseGridConfig, PhaseGridValue, PhaseGridSpan, PhaseGridMsSpan,
+// MetricPhaseGrid, SwingPhaseGrid) live in src/Vocabulary/Analysis/phase_grid.h (platform refactor P-3, R-1), so the
+// Recording's reader contract names them without including the sampler.
 
 // Every millisecond span the given measures read, deduplicated, in a stable order (anchor, start, end).
 std::vector<PhaseGridMsWindow> msWindowsOf(const std::vector<Measure> &measures);
 // `cfg` with `extra` merged into its msWindows (deduplicated, the same stable order).
 PhaseGridConfig withMsWindows(PhaseGridConfig cfg, const std::vector<PhaseGridMsWindow> &extra);
-
-// Whether two configurations would grid the same swing to the same numbers.
-//
-// Every field that MOVES A NUMBER is compared — the two windows and the sample floor — because they
-// are what a sidecar's stored numbers were computed AT: a grid built at ±15 ms and served to a run
-// configured for ±8 ms is a wrong answer carrying a matching size+mtime guard, which is the one
-// failure mode a cache must not have. `minValidSamples` is in here rather than left out as "only a
-// gate": raising it makes phases DISAPPEAR from the grid, which changes the spans as well as the
-// values, and a cache holding the permissive answer would quietly re-admit every phase the stricter
-// run had refused.
-inline bool sameGridReduction(const PhaseGridConfig &a, const PhaseGridConfig &b)
-{
-    return a.windowHalfUs     == b.windowHalfUs
-        && a.extremumWindowUs == b.extremumWindowUs
-        && a.minValidSamples  == b.minValidSamples;
-}
-
-// One metric's value at one segmented phase.
-struct PhaseGridValue {
-    Phase   phase = Phase::Address;
-    int64_t tUs   = 0;
-    double  value = 0.0;
-    // Measurement uncertainty of this value (§A8.3): NaN = none stated. grossRisk −1 = not assessed.
-    double      sigma     = std::numeric_limits<double>::quiet_NaN();
-    float       grossRisk = -1.f;
-    SigmaSource sigmaSrc  = SigmaSource::None;
-};
-
-// The extremes of the continuous curve BETWEEN two adjacent segmented phases, CLOSED AT BOTH ENDS
-// ([from, to]).
-//
-// It was half-open at the start until schema 4, to keep an aggregate from counting a sample twice.
-// That reasoning was wrong twice over. Min and max are idempotent, so counting a sample twice
-// changes no answer and half-openness bought nothing; and the review chart's own candidate set over
-// a phase window IS closed, so a sample sitting exactly on the opening instant was a peak candidate
-// for the card and not for the engine. On one corpus swing that alone put the two surfaces 9.4°
-// apart on shaftAngleVsHorizontal P1→P4. The cache exists so that a corridor can be authored by
-// looking at the chart; a boundary convention it does not share is a defect, not a detail.
-//
-// A ZERO-WIDTH SPAN IS NOT STORED. Two phases can share an instant — rich_7iron has Address and
-// Takeaway at the same t_us — and a span from an instant to itself is not a search window, it is one
-// sample wearing a window's clothes. Storing its value puts a nearly-raw reading into an aggregate
-// that is otherwise all windowed means. So `spans` holds at MOST values.size() − 1 entries, and a
-// span whose whole interval is bridged is absent for the same reason.
-//
-// "Extreme" means the extreme of the CENTRED-WINDOW MEAN, not of the raw samples (schema 3): the
-// candidates are the valid samples inside the span, but each one is scored by the mean of its own
-// ±extremumWindowUs/2 neighbourhood. So a single wild sample can no longer be a peak, and a peak
-// that is genuinely there for 40 ms still is.
-struct PhaseGridSpan {
-    Phase  from = Phase::Address;
-    Phase  to   = Phase::Address;
-    double min  = 0.0;
-    double max  = 0.0;
-    // The larger of the series σ and the two endpoint σ (§A8.3) — an extreme inside the span is no
-    // better known than the readings that bound it. NaN = none stated.
-    double      sigma    = std::numeric_limits<double>::quiet_NaN();
-    SigmaSource sigmaSrc = SigmaSource::None;
-};
-
-// One metric over one millisecond span after a phase: [t(anchor) + startMs, t(anchor) + endMs], where
-// t(anchor) is the instant of the metric's own value at that phase. Absent when the metric has no
-// value at the anchor or no curve at all (a phase-sample-only setup metric has nothing to search).
-struct PhaseGridMsSpan {
-    PhaseGridMsWindow window;
-    // The extremes of the CENTRED-WINDOW MEAN over the span, closed at both ends — the same reduction a
-    // phase span stores (reduceExtremum). haveExtremes false = nothing valid in the span.
-    bool   haveExtremes = false;
-    double min = 0.0, max = 0.0;
-    // The ±15 ms windowed medians at the two ends, for a Delta. NaN = no reading there. At startMs 0
-    // the start IS the anchor's own grid value.
-    double atStart = std::numeric_limits<double>::quiet_NaN();
-    double atEnd   = std::numeric_limits<double>::quiet_NaN();
-    // The larger of the series σ and the anchor value's σ — the extreme is no better known than the
-    // reading it is timed from, nor than the series (as a phase span's σ). NaN = none stated.
-    double      sigma    = std::numeric_limits<double>::quiet_NaN();
-    SigmaSource sigmaSrc = SigmaSource::None;
-    // The longest stretch of the span with no valid sample, its two ends included (µs). The span is not
-    // read when this exceeds PhaseGridConfig::msSpanMaxGapUs. A sidecar span with no stored gap reads as
-    // uncovered, never as covered.
-    int64_t maxGapUs = std::numeric_limits<int64_t>::max();
-};
-
-struct MetricPhaseGrid {
-    QString                     key;
-    QString                     unit;
-    std::vector<PhaseGridValue> values;   // ascending by time; one per segmented phase with samples
-    std::vector<PhaseGridSpan>  spans;    // between consecutive `values` entries
-    std::vector<PhaseGridMsSpan> msSpans; // one per configured millisecond span this metric answers
-    // The series' own σ (MetricSeries::sigma) and its source (Series, or Noise when the producer
-    // stated no sigmaKind). NaN = none.
-    double      seriesSigma    = std::numeric_limits<double>::quiet_NaN();
-    SigmaSource seriesSigmaSrc = SigmaSource::None;
-    // The series' producer route (MetricSeries::routeId / routeDirect). Empty + false = the
-    // producer stated none, which is every metric that is not a KS node's.
-    QString     routeId;
-    bool        routeDirect = false;
-    // MetricSeries::withheld: non-empty = drawn but not judged; the engine refuses its signals.
-    QString     withheld;
-
-    const PhaseGridValue *at(Phase p) const;
-    const PhaseGridMsSpan *msSpan(Phase anchor, int startMs, int endMs) const;
-};
-
-// One swing, reduced to everything a measure could need from it.
-struct SwingPhaseGrid {
-    QString swingDir;
-    QString sessionId;        // the session directory name, for the draw-from filter
-    QString club;
-    qint64  wallclockMs = 0;
-    int     ordinal     = 0;
-
-    std::vector<MetricPhaseGrid> metrics;
-
-    // analysis.gates as stored (schema 8); gatesVersion 0 = analysed before records existed.
-    std::vector<GateRecord> gates;
-    int                     gatesVersion = 0;
-
-    // The reduction these numbers were computed under. Carried so a sidecar can be REFUSED when the
-    // run asking for it is configured differently — see sameGridReduction().
-    PhaseGridConfig config;
-
-    const MetricPhaseGrid *metric(const QString &key) const;
-    bool                   isEmpty() const { return metrics.empty(); }
-};
 
 // ── Building ────────────────────────────────────────────────────────────────
 //
@@ -342,6 +176,11 @@ struct SwingPhaseGrid {
 //
 // The grid remembers the `cfg` it was built with, because the sidecar guard compares it.
 SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig &cfg = {});
+
+// The grid of a whole swing document (its root): buildPhaseGrid over its `analysis`, with the swing's identity fields
+// (its ordinal, its capture instant, its effective club) read off the document as the carousel reads them. Pure: the
+// swing folder and session id are the caller's (PhaseGridStore, src/Export/phase_grid_store.h; platform refactor P-3).
+SwingPhaseGrid phaseGridOfDocument(const QJsonObject &root, const PhaseGridConfig &cfg = {});
 
 // ── Reduction ───────────────────────────────────────────────────────────────
 //
@@ -412,8 +251,8 @@ bool msSpanUncovered(const SwingPhaseGrid &grid, const Measure &m);
 // because size and mtime cannot see it: sweep `extremumWindowUs` and every sidecar in the library
 // still matches its swing.json byte-for-byte while holding numbers from the previous window.
 // `loadPhaseGrid` therefore takes the configuration the caller intends to use and refuses a grid
-// that was not built that way.
-QString phaseGridPath(const QString &swingDir);
+// that was not built that way. The sidecar's path, read and write are its file door's (PhaseGridStore,
+// src/Export/phase_grid_store.h; platform refactor P-3).
 
 //
 // The millisecond spans (PhaseGridConfig::msWindows) are a SUBSET test: a sidecar built for spans
@@ -427,25 +266,13 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
                              bool *guardOk = nullptr, const PhaseGridConfig &cfg = {},
                              std::vector<PhaseGridMsWindow> *storedMsWindows = nullptr);
 
-// Read one swing's grid, preferring the sidecar and falling back to a full swing.json parse.
-//
-// `policy` (src/Core/sidecar_policy.h; refactor 3.7-0 split the old one bool) says what a miss or a stale
-// sidecar may cost, as SwingDocReader::readSwingSummary's does: CachedOnly — a GUI-thread caller that must
-// never fat-parse gets an empty grid for an unindexed swing (or the held grid without a missing millisecond
-// span), rather than a one-second stall per swing; ParseNoWrite — the document is parsed and the grid built
-// exactly as ParseAndWrite builds it, but no sidecar is written (the parallel run's firing reader: §4.9, "in
-// memory only"); ParseAndWrite — parsed and indexed (a scan on a worker; every default).
-// The bool form is the old contract, kept for every existing caller: `writeSidecar` true is ParseAndWrite,
-// false is CachedOnly ("never fat-parse"; it never meant only "do not write").
-//
-// `parsed`, when given, is where the fallback parse comes from (SwingStore::LazyDocument, issue #142):
-// a caller that also reads the swing's summary hands both readers the same one, so a swing whose
-// sidecars both miss is parsed once rather than twice. Null parses on its own, as before.
-SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar = true,
-                             const PhaseGridConfig &cfg = {},
-                             SwingStore::LazyDocument *parsed = nullptr);
-SwingPhaseGrid readPhaseGrid(const QString &swingDir, SidecarPolicy policy,
-                             const PhaseGridConfig &cfg = {},
-                             SwingStore::LazyDocument *parsed = nullptr);
+// THE MODEL BROWSER'S LIBRARY SCANS' FOLDER READ (platform refactor P-3): the gate count and the corridor scan walk every
+// swing folder of the library with no Shot to ask, so they read a swing's grid by folder here. Everything else reads a
+// shot's grid by ShotRef (RecordingReader::phaseGrid, src/DomainModel/recording_reader.h) or, inside the store, through
+// the file door itself (PhaseGridStore, src/Export/phase_grid_store.h). A forwarder to that door: the read, the sidecar
+// and its write are PhaseGridStore's. `writeSidecar` true is SidecarPolicy::ParseAndWrite (the scans, on a worker), false
+// is CachedOnly ("never fat-parse"). The architecture allowlist counts its door against this file until the scans read
+// the athlete level's summaries (P-3's proposal).
+SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar = true, const PhaseGridConfig &cfg = {});
 
 } // namespace pinpoint::analysis

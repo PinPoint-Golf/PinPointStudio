@@ -57,6 +57,7 @@
 #include "../measures/live_measure_source.h"
 #include "../../Export/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
 #include "../../Export/rule_data_install.h"
+#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../norms/norm_provider.h"
 #include "../norms/context_tree.h"   // contextIdForClub (refactor 6.2)
@@ -82,6 +83,14 @@
 #include <memory>
 
 using namespace pinpoint::analysis;
+
+// The shot's grid, as the live source is now handed it (platform refactor P-3): a fixture folder through the file door with
+// the pack's spans, as LiveMeasureSource(dir, pack) read it before; a grid passes through.
+static SwingPhaseGrid liveGrid(const QString &dir, const CharacteristicPack &pack)
+{
+    return pinpoint::PhaseGridStore::readForMeasures(dir, pack.measures, pinpoint::SidecarPolicy::ParseAndWrite);
+}
+[[maybe_unused]] static SwingPhaseGrid liveGrid(SwingPhaseGrid grid, const CharacteristicPack &) { return grid; }
 
 static int  g_fail = 0;
 static void check(bool c, const char *label)
@@ -197,7 +206,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
 {
     std::printf("\n── %s ──────────────────────────────────────\n", label);
 
-    const LiveMeasureSource src(dir, pack);
+    const LiveMeasureSource src(liveGrid(dir, pack), pack);
     const LiveDetection     d = detectForSwing(src, pack, norms);
 
     Coverage cov;
@@ -399,7 +408,7 @@ int main(int argc, char **argv)
     // are the arithmetic the code is SUPPOSED to do, not a recording of what it did.
     std::printf("\nrich_7iron: known values\n");
     {
-        const LiveMeasureSource src(rich, pack);
+        const LiveMeasureSource src(liveGrid(rich, pack), pack);
 
         check(src.club() == QLatin1String("7 IRON"), "the club is read off the swing doc");
         check(src.contextId() == QLatin1String("iron_7"), "…and resolves to the iron_7 context node");
@@ -442,7 +451,7 @@ int main(int argc, char **argv)
 
     std::printf("\nlm_7iron: known values\n");
     {
-        const LiveMeasureSource src(lm, pack);
+        const LiveMeasureSource src(liveGrid(lm, pack), pack);
         check(src.hasLaunchMonitor(), "the lm.* metrics are seen as launch-monitor data");
         check(src.contextId() == QLatin1String("iron_7"), "club 7 IRON -> iron_7");
 
@@ -454,7 +463,7 @@ int main(int argc, char **argv)
 
     std::printf("\nsparse_noclub: known values\n");
     {
-        const LiveMeasureSource src(sparse, pack);
+        const LiveMeasureSource src(liveGrid(sparse, pack), pack);
         check(src.grid().metrics.size() == 1, "exactly one metric reached the grid");
         // No review block and no captured club, so NOTHING declared it — and since 2026-09-14 the
         // grid says so rather than borrowing the picker's DRIVER stub: 58 corpus shots that were an
@@ -503,7 +512,7 @@ int main(int argc, char **argv)
             setReview(r, "club", QString());
             setCapture(r, "club", noName);
         });
-        const LiveMeasureSource u(fresh, pack);
+        const LiveMeasureSource u(liveGrid(fresh, pack), pack);
         check(!fresh.isEmpty() && u.club().isEmpty() && u.contextInferred() && u.contextId() == kDefaultContextId(),
               "a new undeclared shot: no club (never a stub), the default context, marked assumed");
         const LiveDetection du = detectForSwing(u, pack, norms);
@@ -513,7 +522,7 @@ int main(int argc, char **argv)
             setReview(r, "club", QStringLiteral("DRIVER"));
             setCapture(r, "club", noName);
         });
-        const LiveMeasureSource st(stub, pack);
+        const LiveMeasureSource st(liveGrid(stub, pack), pack);
         check(st.club() == QLatin1String("DRIVER") && !st.contextInferred()
                   && st.contextId() == contextIdForClub(QStringLiteral("DRIVER")),
               "a stored DRIVER stub reads as today: a declared driver, graded at the driver's node (J-82)");
@@ -521,7 +530,7 @@ int main(int argc, char **argv)
         const QString corrected = variant("corrected", [&](QJsonObject &r) {
             setReview(r, "clubOverride", QStringLiteral("9 IRON"));
         });
-        const LiveMeasureSource c(corrected, pack);
+        const LiveMeasureSource c(liveGrid(corrected, pack), pack);
         check(c.club() == QLatin1String("9 IRON") && !c.contextInferred()
                   && c.contextId() == contextIdForClub(QStringLiteral("9 IRON"))
                   && c.contextId() != contextIdForClub(QStringLiteral("7 IRON")),
@@ -532,7 +541,7 @@ int main(int argc, char **argv)
             setCapture(r, "club", QJsonObject{ { QStringLiteral("name"), QStringLiteral("7 IRON") } });
             setCapture(r, "deviceClub", QJsonObject{ { QStringLiteral("name"), QStringLiteral("PITCHING WEDGE") } });
         });
-        const LiveMeasureSource f(followed, pack);
+        const LiveMeasureSource f(liveGrid(followed, pack), pack);
         check(f.club() == QLatin1String("PITCHING WEDGE"), "follow-club: the device club stored beside the captured one is the findings' club");
     }
 
@@ -545,7 +554,7 @@ int main(int argc, char **argv)
     // lose exactly the engine's 0.7.
     std::printf("\nan undeclared club is graded as an assumed context\n");
     {
-        const LiveMeasureSource declared(rich, pack);
+        const LiveMeasureSource declared(liveGrid(rich, pack), pack);
         const LiveDetection     dDeclared = detectForSwing(declared, pack, norms);
         check(!declared.contextInferred() && !dDeclared.contextInferred,
               "a declared club is not inferred");
@@ -553,7 +562,7 @@ int main(int argc, char **argv)
 
         SwingPhaseGrid g = declared.grid();
         g.club.clear();
-        const LiveMeasureSource undeclared(g, pack);
+        const LiveMeasureSource undeclared(liveGrid(g, pack), pack);
         const LiveDetection     dAssumed  = detectForSwing(undeclared, pack, norms);
         const LiveDetection     dNamed    = detectForSwing(undeclared, pack, norms, {}, {}, kDefaultContextId());
         check(dAssumed.contextInferred && dAssumed.contextId == kDefaultContextId(),
@@ -581,9 +590,9 @@ int main(int argc, char **argv)
     // ── The missing-reason vocabulary ───────────────────────────────────────
     std::printf("\nwhy a measure did not read\n");
     {
-        const LiveMeasureSource rich_(rich, pack);
-        const LiveMeasureSource lm_(lm, pack);
-        const LiveMeasureSource part_(lmPart, pack);
+        const LiveMeasureSource rich_(liveGrid(rich, pack), pack);
+        const LiveMeasureSource lm_(liveGrid(lm, pack), pack);
+        const LiveMeasureSource part_(liveGrid(lmPart, pack), pack);
 
         checkMissing(rich_, "m_notAMeasureAtAll", MissingKind::UnknownMeasure);
 
@@ -916,7 +925,7 @@ int main(int argc, char **argv)
     // everything wrong.
     std::printf("\nknown groups: the verdict against the arithmetic\n");
     {
-        const LiveMeasureSource src(rich, pack);
+        const LiveMeasureSource src(liveGrid(rich, pack), pack);
         const LiveDetection     d = detectForSwing(src, pack, norms);
 
         // m_impactShaftLean = 12.5°, graded at `iron` (inherited by iron_7): mu 8, sigmaLo 4,
@@ -982,7 +991,7 @@ int main(int argc, char **argv)
         // aspiration is Ideal by construction and the deficit signal cannot fire. The arithmetic
         // matters because a floor graded as a target would call this reading a fault for being
         // 0.008 above the mean.
-        const LiveMeasureSource src(lm, pack);
+        const LiveMeasureSource src(liveGrid(lm, pack), pack);
         const LiveDetection     d = detectForSwing(src, pack, norms);
 
         const Finding *smash = d.result.find(QStringLiteral("smash_deficit"));
@@ -1006,7 +1015,7 @@ int main(int argc, char **argv)
         };
         for (MeasureStatus st : { MeasureStatus::Held, MeasureStatus::Planned }) {
             const CharacteristicPack k = withStatus("m_pelvisSwayBack", st);
-            const LiveMeasureSource  src(rich, k);
+            const LiveMeasureSource  src(liveGrid(rich, k), k);
             const LiveDetection      d = detectForSwing(src, k, norms);
             const Finding *sway = d.result.find(QStringLiteral("sway"));
             check(src.value(QStringLiteral("m_pelvisSwayBack")).has_value(),
@@ -1018,7 +1027,7 @@ int main(int argc, char **argv)
                       .append(", `sway` is not assessable: NotLive, naming it, no value graded").constData());
         }
         {
-            const LiveMeasureSource src(rich, pack);
+            const LiveMeasureSource src(liveGrid(rich, pack), pack);
             const LiveDetection d = detectForSwing(src, pack, norms);
             const Finding *sway = d.result.find(QStringLiteral("sway"));
             check(sway && sway->state == FindingState::Fired,
@@ -1030,7 +1039,7 @@ int main(int argc, char **argv)
         // reason — and the launch-monitor measures that ARE live keep grading on the same swing
         // (smash_deficit above). No measure in the pack is `externalDevice`; the monitor's are live.
         {
-            const LiveMeasureSource src(lm, pack);
+            const LiveMeasureSource src(liveGrid(lm, pack), pack);
             const LiveDetection d = detectForSwing(src, pack, norms, {}, {}, QString(),
                                                    { QStringLiteral("sig_ballSpeedDeficit") });
             check(src.value(QStringLiteral("m_ballSpeed")).has_value(),
@@ -1130,7 +1139,7 @@ int main(int argc, char **argv)
             }
         };
         for (const Case &k : cases) {
-            const LiveMeasureSource src(k.dir, pack);
+            const LiveMeasureSource src(liveGrid(k.dir, pack), pack);
             const std::optional<IMeasureValueSource::Value> v =
                 src.value(QStringLiteral("m_clubPathAtImpact"));
             const LiveDetection d   = detectForSwing(src, pack, norms);
@@ -1239,7 +1248,7 @@ int main(int argc, char **argv)
         check(guardOk && rc && rc->routeId == QStringLiteral("faceOn+dtl") && !rc->routeDirect,
               "the sidecar round-trips the route");
 
-        const LiveMeasureSource src(reloaded, rp);
+        const LiveMeasureSource src(liveGrid(reloaded, rp), rp);
         const auto vp = src.value(QStringLiteral("m_pelvis"));
         const auto vc = src.value(QStringLiteral("m_camThorax"));
         const auto vn = src.value(QStringLiteral("m_plain"));
@@ -1249,7 +1258,7 @@ int main(int argc, char **argv)
               "…and an estimated one's");
         check(vn && vn->route.isEmpty() && !vn->direct, "…and none where none was stated");
 
-        LiveMeasureSource noSigma(reloaded, rp);
+        LiveMeasureSource noSigma(liveGrid(reloaded, rp), rp);
         noSigma.setWithSigma(false);
         const auto vs = noSigma.value(QStringLiteral("m_pelvis"));
         check(vs && vs->route == QStringLiteral("pelvisImu") && vs->direct,
@@ -1733,7 +1742,7 @@ int main(int argc, char **argv)
               "m_leadElbowFoldAfterImpact's span is tuned::upperBody::kElbowFoldSpanUs after impact");
 
         // The reading's own path: with no span asked for the grid has nothing, so a reader that does
-        // not name the pack's spans cannot grade it — LiveMeasureSource(dir, pack) names them itself.
+        // not name the pack's spans cannot grade it — readForMeasures names them itself.
         {
             const LiveMeasureSource src(buildPhaseGrid(analysis(15.0, 14.0)), pack);
             check(!src.value(QStringLiteral("m_leadElbowFoldAfterImpact")).has_value(),

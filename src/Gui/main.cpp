@@ -21,6 +21,8 @@
 #include <QIcon>
 #include <QQmlApplicationEngine>
 
+#include "diagnosticmodel/shot_grid_door.h"   // the model browser's swing on screen, by its Shot (P-3)
+
 #ifdef HAVE_PPCP
 #include "review/shot_data_door_impl.h"   // the review views' door (refactor 5.8a)
 #include "../Ppcp/ppcp_import_controller.h"
@@ -108,7 +110,7 @@
 #include "../Export/swing_store_repository.h"
 #include "../Export/session_store.h"        // SessionRepository's adapter (step 2.2)
 #include "../Export/session_index_summary.h"   // the index entry's summary's file work, set on the store (5.7a-P1)
-#include "../Export/recording_loader.h"     // SwingStoreRecordingReader (by ShotRef, step 2.4)
+#include "../Export/recording_loader.h"     // SwingStorePhaseGridReader (by ShotRef, step 2.4; P-3)
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "../App/housekeeping.h"             // the one application service that ends things for good (DEC-80)
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
@@ -119,6 +121,7 @@
 #include "../DomainModel/summary_rules.h"    // summaryCohortFacts (3.7-e round 2)
 #include "../Core/work_pool.h"                // the one pool and its receiver (D15): every session's owner (3.5)
 #include "../DomainModel/session.h"
+#include "../DomainModel/shot.h"   // Shot::ref (the model browser's swing-on-screen door, P-3)
 #include "../DomainModel/session_diagnostics.h"   // diagnosticsWorkTarget (3.5-ii)
 #include "../DomainModel/athlete_diagnostics.h"   // athleteDiagnosticsWorkTarget: the athlete level's lane (3.7-f)
 #include "../Export/athlete_cache_repository.h"   // PINPOINT_WORKONS_DIR's Athlete (3.7-f)
@@ -348,8 +351,8 @@ int main(int argc, char *argv[])
     // phone-clip filer further down never outlives it.
     static pinpoint::SwingStoreRecordingRepository recordingRepository(sessionStore);
     // THE READING DOOR (RecordingReader, step 1.5; by ShotRef since 2.4): what re-analysis reads a
-    // stored shot through.
-    static pinpoint::SwingStoreRecordingReader recordingReader(sessionStore);
+    // stored shot through, and the shot's phase grid (RecordingReader::phaseGrid; platform refactor P-3).
+    static pinpoint::SwingStorePhaseGridReader recordingReader(sessionStore);
     // A session a crash left in progress, ended by the athlete's next Start, gets its last swing's capture
     // end, marked as inferred (J-18: Mark, 15 Nov 2026): read through the swing door, which owns the format.
     sessionStore.setCaptureEndReader(&pinpoint::SwingStoreRecordingRepository::captureEndOf);
@@ -1047,6 +1050,18 @@ int main(int argc, char *argv[])
     // THE REVIEW VIEWS' DOOR (refactor 5.8a; review/shot_data_door.h): the data viewer and the 3-D rig read the Shot
     // their Session holds, from its owners and its Recording, and follow its events; never the swing file.
     pinpoint::review::installShotDataResolver(pinpoint::review::makeShotDataResolver());
+    // THE MODEL BROWSER'S SWING ON SCREEN (platform refactor P-3; diagnosticmodel/shot_grid_door.h): the Shot its Session holds
+    // at the folder (the edge, DEC-90, as the replay's resolver below), its grid read by ShotRef through the Recording's
+    // reader. The panel's two library scans alone still read by folder.
+    pinpoint::diagmodel::installShotGridResolver([&appObject](const QString &swingDir) -> pinpoint::diagmodel::ShotGridRead {
+        pinpoint::Session *s = appObject.sessionAt(pinpoint::sessionFolderOf(swingDir));
+        pinpoint::Shot *shot = s ? s->shotAtFolder(swingDir) : nullptr;
+        if (!shot) return {};
+        const pinpoint::ShotRef ref = shot->ref();
+        return [ref](const pinpoint::analysis::PhaseGridConfig &cfg) {
+            return recordingReader.phaseGrid(ref, cfg, pinpoint::SidecarPolicy::ParseAndWrite);
+        };
+    });
     shotReplay.setShotResolver([&appObject](const QString &swingDir) -> pinpoint::Shot * {
         pinpoint::Session *s = appObject.sessionAt(pinpoint::sessionFolderOf(swingDir));
         return s ? s->shotAtFolder(swingDir) : nullptr;

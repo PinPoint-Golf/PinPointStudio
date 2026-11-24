@@ -4,7 +4,7 @@
 // Two copies of the same two fixtures (live_measure_source_test's lm_7iron and sparse_noclub) are
 // staged as sessions. Session A goes through measure_dump's core; session B through THE SESSION OWNER'S
 // path as the app runs it (refactor 5.3): its firing reader's grid read with the app's policy
-// (readLivePhaseGrid, SidecarPolicy::ParseAndWrite — it writes the phase-grid sidecar on a miss, as the app
+// (PhaseGridStore::readForMeasures, SidecarPolicy::ParseAndWrite — it writes the phase-grid sidecar on a miss, as the app
 // does), fireFindings' LiveMeasureSource over that grid, and NormMeasureSource. Then:
 //
 //   1. every plain measure's value, grade and corridor flag agree, row for row, on both swings;
@@ -19,6 +19,7 @@
 // No ids are pinned: the pack is being authored as this test is written.
 
 #include "measure_dump_core.h"
+#include "../../src/Export/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../../src/Export/rule_data_install.h"
 #include "../../src/DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
@@ -129,7 +130,7 @@ int main(int argc, char **argv)
 
         // The owner's path as the app runs it, on the twin copy.
         const QString swingB = sessB + QLatin1Char('/') + QFileInfo(swingsA.at(s)).fileName();
-        const SwingPhaseGrid gridB = readLivePhaseGrid(swingB, pack, pinpoint::SidecarPolicy::ParseAndWrite);
+        const SwingPhaseGrid gridB = pinpoint::PhaseGridStore::readForMeasures(swingB, pack.measures, pinpoint::SidecarPolicy::ParseAndWrite);
         const LiveMeasureSource values(gridB, pack);
         const NormMeasureSource graded(values, norms, values.contextId(), policy, &pack, Cohort{});
 
@@ -250,7 +251,7 @@ int main(int argc, char **argv)
     }
 
     // 6. A `windowMs` measure reads (plane stack D5): the dump builds the pack's millisecond spans, as
-    //    LiveMeasureSource(dir, pack) does. A face-on lead elbow at 15° to impact (500 ms), then rising
+    //    PhaseGridStore::readForMeasures does. A face-on lead elbow at 15° to impact (500 ms), then rising
     //    14° over 60 ms and held, so m_leadElbowFoldAfterImpact (P7 + 0…100 ms, from P7) is exactly 14.
     std::printf("\n6. a millisecond-window measure reads\n");
     {
@@ -286,7 +287,7 @@ int main(int argc, char **argv)
         std::printf("  dump: %s\n", row ? qPrintable(measure_dump::csvNumber(row->value)) : "(no row)");
         check(row && std::fabs(row->value - 14.0) < 1e-9, "the dump reads the fold after impact (14°)");
         check(snapshot(sessC) == beforeC, "…without writing a sidecar");
-        const LiveMeasureSource values(readLivePhaseGrid(swingC, pack, pinpoint::SidecarPolicy::ParseAndWrite), pack);
+        const LiveMeasureSource values(pinpoint::PhaseGridStore::readForMeasures(swingC, pack.measures, pinpoint::SidecarPolicy::ParseAndWrite), pack);
         const std::optional<IMeasureValueSource::Value> app = values.value(id);
         check(app && row && sameNumber(row->value, app->value), "…and agrees with the owner's reader");
     }

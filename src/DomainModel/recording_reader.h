@@ -45,12 +45,15 @@
 #include <QVariantMap>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "../Identity/identity.h"
 #include "../Recording/recording.h"
 #include "../Analysis/effective_context.h"   // pinpoint::analysis::ClubReview
 #include "../Vocabulary/Analysis/gate_record.h"         // loadGates
+#include "../Core/sidecar_policy.h"                     // SidecarPolicy (phaseGrid)
+#include "../Vocabulary/Analysis/phase_grid.h"          // SwingPhaseGrid, PhaseGridConfig (phaseGrid): value types only
 
 namespace pinpoint {
 
@@ -128,6 +131,22 @@ public:
     // The Recording of the shot and its club review. On failure (no document, a shot whose session is
     // not open) ok=false, error set, no window.
     virtual LoadedRecording load(const ShotRef &shot, const RecordingLoadOptions &options = {}) = 0;
+
+    // THE SHOT'S PHASE GRID (FILE-SHOT-07, OBJ-PHASE-GRID; platform refactor P-3, ruled 24 Nov 2026, J-104): the sampler's
+    // numbers per phase, its cache read and written by the adapter through the swing store's file door (PhaseGridStore,
+    // src/Export/phase_grid_store.h), never by the caller. The grid is built under `config` (its millisecond spans
+    // widened to what the cache already holds); `policy` (src/Core/sidecar_policy.h) says what a miss or a stale cache may
+    // cost: CachedOnly never parses, ParseNoWrite parses and writes nothing, ParseAndWrite parses and indexes the result
+    // under the session's lock and outside the archive window. buildPhaseGrid stays a pure function. Any thread.
+    //
+    // nullopt: this reader has no phase-grid door (a test double, the base store adapter), or the shot's session is not
+    // open; an EMPTY grid: the shot has no document, or nothing readable under `policy` (CachedOnly on a miss).
+    virtual std::optional<analysis::SwingPhaseGrid> phaseGrid(const ShotRef &shot, const analysis::PhaseGridConfig &config = {},
+                                                              SidecarPolicy policy = SidecarPolicy::ParseAndWrite)
+    {
+        Q_UNUSED(shot) Q_UNUSED(config) Q_UNUSED(policy)
+        return std::nullopt;
+    }
 };
 
 } // namespace pinpoint

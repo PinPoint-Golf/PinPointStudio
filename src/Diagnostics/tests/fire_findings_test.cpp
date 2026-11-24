@@ -18,7 +18,7 @@
 
 // fire_findings.h on one swing (refactor step 3.3; R-STAMP-1). The fixture is lm_7iron
 // (src/Diagnostics/tests/data/live_swings: a 7 iron with launch-monitor readings), staged into a temporary
-// library and read as the session model reads it (readLivePhaseGrid). Against the shipped content (the
+// library and read as the session model reads it (PhaseGridStore::readForMeasures). Against the shipped content (the
 // PINPOINT_CORE_* seams), it shows:
 //   • the functions are pure: the same readings and inputs give the same record, and the same stamp;
 //   • EVERY FIELD OF FiringInputs MATTERS: changing it changes the stamp (firingStamp) — and the output where
@@ -33,6 +33,7 @@
 #include "../../DomainModel/rule_data.h"
 #include "../../Export/rule_data_install.h"
 #include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
+#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../../Coaching/shot_outcomes_pack.h"
 
 #include <QCoreApplication>
@@ -111,7 +112,7 @@ int main(int argc, char **argv)
     QTemporaryDir tmp;
     const QString swing = stageFixture(tmp, "lm_7iron");
     check(!swing.isEmpty(), "the fixture is staged");
-    const SwingPhaseGrid grid = readLivePhaseGrid(swing, pack->pack());
+    const SwingPhaseGrid grid = pinpoint::PhaseGridStore::readForMeasures(swing, (pack->pack()).measures, pinpoint::SidecarPolicy::ParseAndWrite);
     check(!grid.isEmpty() && grid.club == QLatin1String("7 IRON"), "its grid is read: a declared 7 iron");
     const QString club = pinpoint::canonicalClubId(grid.club);
 
@@ -382,7 +383,7 @@ int main(int argc, char **argv)
         const QString noClub = stageFixture(tmp, "sparse_noclub");
         const auto readingsAt = [&pack](const QString &dir) {
             FiringReadings r;
-            r.grid       = readLivePhaseGrid(dir, pack->pack());
+            r.grid       = pinpoint::PhaseGridStore::readForMeasures(dir, (pack->pack()).measures, pinpoint::SidecarPolicy::ParseAndWrite);
             r.handedness = QStringLiteral("right");
             return r;
         };

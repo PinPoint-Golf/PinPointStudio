@@ -64,15 +64,19 @@
 #include "../../Diagnostics/measures/live_measure_source.h"
 #include "../../Coaching/session_day_readings_rules.h"   // the day readings' rules (refactor 5.5d)
 #include "../../Export/firing_reader_store.h"
+#include "../../Export/phase_grid_store.h"   // the phase grid's file door (platform refactor P-3)
+#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../../Export/recording_loader.h"
 #include "../../Export/rule_data_install.h"
 #include "../../Export/session_files.h"
 #include "../../Export/session_store.h"
 #include "../../Export/swing_doc.h"
+#include "../../Export/swing_store.h"   // SwingStore::info: the document's stamp (P3)
 #include "../../Export/swing_store_repository.h"
 #include "../../Buffer/swing_window.h"   // a LoadedRecording owns one
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -651,13 +655,13 @@ static void testRealReader()
     const QString folder = shot ? shot->folder() : QString();
     // The read the per-shot firing makes, by hand, against the same snapshot.
     analysis::FiringReadings r;
-    r.grid = analysis::readLivePhaseGrid(folder, d->snapshot()->inputs.pack->pack());
+    r.grid = PhaseGridStore::readForMeasures(folder, d->snapshot()->inputs.pack->pack().measures, SidecarPolicy::ParseAndWrite);
     const SwingSummary sum = SwingDocReader::readSwingSummary(folder);
     r.handedness    = sum.handedness;
     r.dataWarning   = sum.dataWarning;
     r.captureBroken = sum.dataWarningDetail.value(QStringLiteral("capture")).toBool();
     r.imuBroken     = sum.dataWarningDetail.value(QStringLiteral("imu")).toBool();
-    r.wrist         = analysis::readWristInput(folder, r.grid);   // the wrist checkpoint profile's readings (3.8-ii)
+    r.wrist         = PhaseGridStore::readWristInput(folder, r.grid);   // the wrist checkpoint profile's readings (3.8-ii)
     analysis::FiredShot direct = analysis::fireFindings(std::move(r), d->snapshot()->inputs);
     direct.record.shotId      = 1;
     direct.record.timestampMs = k->findings.timestampMs;
@@ -679,7 +683,7 @@ static void testRealReader()
     Shot *shot2 = s->shot(two);
     const QString f2 = shot2 ? shot2->folder() : QString();
     const QString sessionDir = QFileInfo(f2).absolutePath();
-    const QString grid2 = analysis::phaseGridPath(f2), sum2 = f2 + QStringLiteral("/swing_summary.json");
+    const QString grid2 = pinpoint::PhaseGridStore::sidecarPath(f2), sum2 = f2 + QStringLiteral("/swing_summary.json");
     const auto clear = [&] { QFile::remove(grid2); QFile::remove(sum2); };
     const analysis::CharacteristicPack &pk = d->snapshot()->inputs.pack->pack();
     clear();
@@ -1816,8 +1820,8 @@ static void testDayReadings()
     // the expected readings, by the one rule over each shot's own grid
     std::vector<analysis::ShotDeliveryReading> want;
     for (int n = 1; n <= 3; ++n) {
-        const analysis::SwingPhaseGrid g = analysis::readLivePhaseGrid(QDir(folder).filePath(QStringLiteral("swing_%1").arg(n, 4, 10, QLatin1Char('0'))),
-                                                                       g_rules->pack->pack());
+        const analysis::SwingPhaseGrid g = PhaseGridStore::readForMeasures(QDir(folder).filePath(QStringLiteral("swing_%1").arg(n, 4, 10, QLatin1Char('0'))),
+                                                                           g_rules->pack->pack().measures, SidecarPolicy::ParseAndWrite);
         if (auto r = analysis::shotDeliveryReadingOf(analysis::deliveryGridNumbersOf(g), n, g.ordinal)) want.push_back(*r);
     }
     const auto same = [](const analysis::ShotDeliveryReading &a, const analysis::ShotDeliveryReading &b) {
@@ -1864,6 +1868,102 @@ static void testDayReadings()
               && analysis::sessionResultsFromNewerBuild(newer) && !analysis::sessionResultsFromNewerBuild(root));
 }
 
+// ── P3: the Shot's phase grid through the Recording's reader (platform refactor P-3) ──────────────────────────
+// RecordingReader::phaseGrid(shot, config, policy) over the real store: a swing with and without its sidecar, a stale
+// sidecar under each SidecarPolicy, a reader with no door, a session not open, and the archive window.
+static QByteArray gridJson(const analysis::SwingPhaseGrid &g)
+{
+    return QJsonDocument(analysis::savePhaseGrid(g, 0, 0)).toJson(QJsonDocument::Compact);
+}
+static QByteArray fileBytes(const QString &path)
+{
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+static void testRecordingReaderPhaseGrid()
+{
+    std::printf("\nP3 — the Shot's phase grid through the Recording's reader (RecordingReader::phaseGrid)\n");
+    Rig rig(/*synchronous=*/true, 0, /*realReader=*/true);
+    Session *s = rig.session({ Spec{} });   // lm_7iron's document
+    Shot *shot = s ? s->shot(ShotRef(s->id(), 1)) : nullptr;
+    check(QStringLiteral("P3 the shot is there"), shot != nullptr);
+    if (!shot) return;
+    const ShotRef ref = shot->ref();
+    const QString folder  = shot->folder();
+    const QString sidecar = PhaseGridStore::sidecarPath(folder);
+    const analysis::CharacteristicPack &pk = s->diagnostics()->snapshot()->inputs.pack->pack();
+    const analysis::PhaseGridConfig cfg = analysis::withMsWindows({}, analysis::msWindowsOf(pk.measures));
+
+    SwingStorePhaseGridReader reader(rig.store);
+    SwingStoreRecordingReader plain(rig.store);
+    SwingStorePhaseGridReader closed(rig.unpublished);
+    check(QStringLiteral("P3a a reader with no phase-grid door (the base adapter) answers none"), !plain.phaseGrid(ref, cfg).has_value());
+    check(QStringLiteral("P3b a shot whose session is not open answers none"), !closed.phaseGrid(ref, cfg).has_value());
+
+    // The grid the folder door builds from the document, as the reference (nothing written).
+    QFile::remove(sidecar);
+    const analysis::SwingPhaseGrid ref0 = PhaseGridStore::read(folder, SidecarPolicy::ParseNoWrite, cfg);
+    check(QStringLiteral("P3 the reference grid is built and nothing is written"), !ref0.isEmpty() && !QFile::exists(sidecar));
+
+    // Without a sidecar.
+    const auto cached = reader.phaseGrid(ref, cfg, SidecarPolicy::CachedOnly);
+    check(QStringLiteral("P3c no sidecar, CachedOnly: an empty grid (never parsed), nothing written"),
+          cached && cached->isEmpty() && !QFile::exists(sidecar));
+    const auto noWrite = reader.phaseGrid(ref, cfg, SidecarPolicy::ParseNoWrite);
+    check(QStringLiteral("P3d no sidecar, ParseNoWrite: the document's grid, nothing written"),
+          noWrite && gridJson(*noWrite) == gridJson(ref0) && noWrite->swingDir == folder && !QFile::exists(sidecar));
+    const auto written = reader.phaseGrid(ref, cfg);   // ParseAndWrite, the default
+    const SwingStore::DocInfo doc = SwingStore::info(folder);
+    const QByteArray expected = QJsonDocument(analysis::savePhaseGrid(ref0, doc.size, doc.mtimeMs)).toJson(QJsonDocument::Compact);
+    check(QStringLiteral("P3e no sidecar, ParseAndWrite: the same grid, and the sidecar written under the document's stamp"),
+          written && gridJson(*written) == gridJson(ref0) && fileBytes(sidecar) == expected);
+
+    // With a current sidecar: served from it, even where parsing is not allowed (so a grid at all is the sidecar's), and
+    // the same grid the folder door serves from it.
+    const auto warm = reader.phaseGrid(ref, cfg, SidecarPolicy::CachedOnly);
+    check(QStringLiteral("P3f a current sidecar serves CachedOnly: its grid, as the folder door reads it"),
+          warm && !warm->isEmpty() && warm->swingDir == folder
+              && gridJson(*warm) == gridJson(PhaseGridStore::read(folder, SidecarPolicy::CachedOnly, cfg)));
+
+    // A STALE sidecar: the document's mtime moved (a re-analysis), the sidecar still holds the old stamp.
+    {
+        QFile f(doc.path);
+        check(QStringLiteral("P3 the document's time moves"),
+              f.open(QIODevice::ReadWrite) && f.setFileTime(QDateTime::fromMSecsSinceEpoch(doc.mtimeMs + 5000),
+                                                             QFileDevice::FileModificationTime));
+    }
+    const QByteArray stale = fileBytes(sidecar);
+    const auto staleCached = reader.phaseGrid(ref, cfg, SidecarPolicy::CachedOnly);
+    check(QStringLiteral("P3g stale, CachedOnly: an empty grid (never the stale numbers), the sidecar untouched"),
+          staleCached && staleCached->isEmpty() && fileBytes(sidecar) == stale);
+    const auto staleNoWrite = reader.phaseGrid(ref, cfg, SidecarPolicy::ParseNoWrite);
+    check(QStringLiteral("P3h stale, ParseNoWrite: the document's grid, the sidecar untouched"),
+          staleNoWrite && gridJson(*staleNoWrite) == gridJson(ref0) && fileBytes(sidecar) == stale);
+    // The archive window: with the marker there, a ParseAndWrite read writes nothing (and reads the same).
+    const QString sessionDir = QFileInfo(folder).absolutePath();
+    {
+        QFile m(SessionFiles::archiveMarker(sessionDir));
+        m.open(QIODevice::WriteOnly);
+        m.write("{}");
+    }
+    const auto marked = reader.phaseGrid(ref, cfg);
+    check(QStringLiteral("P3i stale, ParseAndWrite with the archive marker there: the same grid, nothing written"),
+          marked && gridJson(*marked) == gridJson(ref0) && fileBytes(sidecar) == stale);
+    QFile::remove(SessionFiles::archiveMarker(sessionDir));
+    const auto rewritten = reader.phaseGrid(ref, cfg);
+    const SwingStore::DocInfo now = SwingStore::info(folder);
+    check(QStringLiteral("P3j stale, ParseAndWrite: the same grid, the sidecar rewritten under the document's new stamp"),
+          rewritten && gridJson(*rewritten) == gridJson(ref0) && fileBytes(sidecar) != stale
+              && fileBytes(sidecar) == QJsonDocument(analysis::savePhaseGrid(ref0, now.size, now.mtimeMs)).toJson(QJsonDocument::Compact));
+
+    // A shot with no document yet: an empty grid, not none (the door is there; there is nothing to read).
+    QFile::remove(sidecar);
+    QFile::rename(doc.path, doc.path + QStringLiteral(".away"));
+    const auto none = reader.phaseGrid(ref, cfg);
+    check(QStringLiteral("P3k no document: an empty grid, nothing written"), none && none->isEmpty() && !QFile::exists(sidecar));
+    QFile::rename(doc.path + QStringLiteral(".away"), doc.path);
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -1875,7 +1975,7 @@ int main(int argc, char **argv)
     const QString swing = stage.path() + QStringLiteral("/live_swings/lm_7iron");
     QDir().mkpath(swing);
     QFile::copy(fixture("lm_7iron"), swing + QStringLiteral("/swing.json"));
-    if (g_rules->pack) g_grid = analysis::readLivePhaseGrid(swing, g_rules->pack->pack());
+    if (g_rules->pack) g_grid = pinpoint::PhaseGridStore::readForMeasures(swing, (g_rules->pack->pack()).measures, pinpoint::SidecarPolicy::ParseAndWrite);
     check(QStringLiteral("the shipped pack and the fixture's grid are read"), g_rules->pack && !g_grid.isEmpty());
     if (g_grid.isEmpty()) return 1;
 
@@ -1887,6 +1987,7 @@ int main(int argc, char **argv)
     testT3();
     testT4();
     testRealReader();
+    testRecordingReaderPhaseGrid();
     testRelease();
     testWordAfterLoad();
     testLegacyGolferInput();

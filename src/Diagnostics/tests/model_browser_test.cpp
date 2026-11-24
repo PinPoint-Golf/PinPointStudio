@@ -28,6 +28,8 @@
 #include "../engine/dag_layout.h"   // DagLayoutOptions, for the typed options' defaults
 #include "../../Export/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
 #include "../../Export/rule_data_install.h"
+#include "../../Export/phase_grid_store.h"                 // the swing on screen's door double reads by folder (P-3)
+#include "../../Gui/diagnosticmodel/shot_grid_door.h"     // the model browser's swing on screen, by its Shot (P-3)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../packs/characteristic_pack.h"
@@ -617,6 +619,14 @@ int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
     pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
+    // THE SWING ON SCREEN'S DOOR (platform refactor P-3): the app resolves the folder to the Shot its Session holds and
+    // reads by ShotRef (main.cpp); this suite has no Session, so its double treats every fixture folder as a held Shot
+    // and reads it through the same file door. The panel's own code path is the app's.
+    pinpoint::diagmodel::installShotGridResolver([](const QString &swingDir) -> pinpoint::diagmodel::ShotGridRead {
+        return [swingDir](const pinpoint::analysis::PhaseGridConfig &cfg) -> std::optional<pinpoint::analysis::SwingPhaseGrid> {
+            return pinpoint::PhaseGridStore::read(swingDir, pinpoint::SidecarPolicy::ParseAndWrite, cfg);
+        };
+    });
 
     // The user pack is written by save(); XDG_DATA_HOME is isolated by the test properties so this
     // never touches a real profile. Start from nothing so the baseline is knowable.

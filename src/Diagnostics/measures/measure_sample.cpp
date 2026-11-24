@@ -16,21 +16,18 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "live_measure_source.h"                 // readWristInput
-#include "../../Vocabulary/Analysis/wrist_assessment_types.h"   // dofForMetricKey (readWristInput)
 #include "measure_sample.h"
 
 #include "../../Metrics/series_reduce.h"
 #include "../../Metrics/fitted_curve.h"    // isFittedCurve — read at the instant, not around it
 #include "../../Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' readings
-#include "../../Core/atomic_write.h"
 #include "../../Core/club_vocabulary.h"
-#include "../../Export/swing_store.h" // no FFmpeg: the store is its own library
+// THE LIBRARY SCANS' DOOR (platform refactor P-3): the sidecar's file work is PhaseGridStore's. This include is what the
+// architecture allowlist still counts here (A1, A5), for the model browser's two library scans' folder read (readPhaseGrid),
+// until they read the athlete level's summaries instead.
+#include "../../Export/phase_grid_store.h"
 
 #include <QDateTime>
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 
@@ -41,21 +38,6 @@
 namespace pinpoint::analysis {
 
 // ── Lookups ─────────────────────────────────────────────────────────────────
-
-const PhaseGridValue *MetricPhaseGrid::at(Phase p) const
-{
-    for (const PhaseGridValue &v : values)
-        if (v.phase == p) return &v;
-    return nullptr;
-}
-
-const PhaseGridMsSpan *MetricPhaseGrid::msSpan(Phase anchor, int startMs, int endMs) const
-{
-    const PhaseGridMsWindow w{ anchor, startMs, endMs };
-    for (const PhaseGridMsSpan &s : msSpans)
-        if (s.window == w) return &s;
-    return nullptr;
-}
 
 namespace {
 bool msWindowLess(const PhaseGridMsWindow &a, const PhaseGridMsWindow &b)
@@ -85,15 +67,6 @@ PhaseGridConfig withMsWindows(PhaseGridConfig cfg, const std::vector<PhaseGridMs
     for (const PhaseGridMsWindow &w : extra) addUnique(cfg.msWindows, w);
     std::sort(cfg.msWindows.begin(), cfg.msWindows.end(), msWindowLess);
     return cfg;
-}
-
-const MetricPhaseGrid *SwingPhaseGrid::metric(const QString &key) const
-{
-    if (key.isEmpty())
-        return nullptr;
-    for (const MetricPhaseGrid &m : metrics)
-        if (m.key == key) return &m;
-    return nullptr;
 }
 
 // ── Building ────────────────────────────────────────────────────────────────
@@ -682,11 +655,6 @@ std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, con
 
 // ── Sidecar ─────────────────────────────────────────────────────────────────
 
-QString phaseGridPath(const QString &swingDir)
-{
-    return QDir(swingDir).filePath(QStringLiteral("swing_phasegrid.json"));
-}
-
 QJsonObject savePhaseGrid(const SwingPhaseGrid &grid, qint64 sourceSize, qint64 sourceMtimeMs)
 {
     QJsonObject root;
@@ -805,10 +773,10 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
     if (root.value(QStringLiteral("schema")).toInt() != kPhaseGridSchemaVersion)
         return grid;
 
-    // THE one stamp rule (SwingStore::sameDocumentStamp): a copy that kept the document's mtime to the
+    // THE one stamp rule (sameDocumentStamp, src/Core/sidecar_policy.h): a copy that kept the document's mtime to the
     // whole second is the same document; anything else that moved is a rewrite.
     const QJsonObject src = root.value(QStringLiteral("source")).toObject();
-    if (!SwingStore::sameDocumentStamp(src.value(QStringLiteral("size")).toVariant().toLongLong(),
+    if (!pinpoint::sameDocumentStamp(src.value(QStringLiteral("size")).toVariant().toLongLong(),
                                        src.value(QStringLiteral("mtime_ms")).toVariant().toLongLong(),
                                        sourceSize, sourceMtimeMs))
         return grid;                                   // stale: rebuild, never trust
@@ -924,67 +892,9 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
     return grid;
 }
 
-SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const PhaseGridConfig &cfg,
-                             SwingStore::LazyDocument *parsed)
+SwingPhaseGrid phaseGridOfDocument(const QJsonObject &root, const PhaseGridConfig &cfg)
 {
-    return readPhaseGrid(swingDir, sidecarPolicyOf(writeSidecar), cfg, parsed);
-}
-
-SwingPhaseGrid readPhaseGrid(const QString &swingDir, SidecarPolicy policy, const PhaseGridConfig &cfg,
-                             SwingStore::LazyDocument *parsed)
-{
-    SwingPhaseGrid grid;
-
-    // The guard keys on whichever document the swing holds (swing.ppsw, or a JSON-era swing.json):
-    // its size and mtime move on every rewrite, including the one that converts a swing.
-    const SwingStore::DocInfo docInfo = SwingStore::info(swingDir);
-    if (!docInfo.exists())
-        return grid;
-
-    const qint64 size    = docInfo.size;
-    const qint64 mtimeMs = docInfo.mtimeMs;
-    PhaseGridConfig buildCfg = cfg;   // widened below to the union of millisecond spans
-
-    // The cheap path.
-    const QString sidePath = phaseGridPath(swingDir);
-    if (QFile::exists(sidePath)) {
-        QFile sf(sidePath);
-        if (sf.open(QIODevice::ReadOnly)) {
-            bool ok = false;
-            std::vector<PhaseGridMsWindow> held;
-            SwingPhaseGrid cached = loadPhaseGrid(QJsonDocument::fromJson(sf.readAll()).object(),
-                                                 size, mtimeMs, &ok, cfg, &held);
-            if (ok) {
-                cached.swingDir = swingDir;
-                return cached;
-            }
-            // Refused for want of a millisecond span (or stale): rebuild with the UNION of what it held
-            // and what this reader asks for, so the other pack's reader is not refused next time. A
-            // caller that may not fat-parse gets the current grid it holds (only the span is missing).
-            if (!mayParse(policy) && !cached.isEmpty()) {
-                cached.swingDir = swingDir;
-                return cached;
-            }
-            buildCfg = withMsWindows(cfg, held);
-        }
-    }
-
-    // The caller asked never to fat-parse (CachedOnly). Report nothing rather than stall — an unindexed
-    // swing renders as "not yet read", which is honest and recoverable, where a one-second freeze per
-    // swing is neither.
-    if (!mayParse(policy))
-        return grid;
-
-    // The shared parse when the caller has one (the summary reader may already have paid for it).
-    SwingStore::LazyDocument own(swingDir);
-    SwingStore::LazyDocument &doc = parsed ? *parsed : own;
-    const QJsonObject &root = doc.root();
-    if (root.isEmpty())
-        return grid;
-
-    grid = buildPhaseGrid(root.value(QStringLiteral("analysis")).toObject(), buildCfg);
-    grid.swingDir  = swingDir;
-    grid.sessionId = QFileInfo(QFileInfo(swingDir).absolutePath()).fileName();
+    SwingPhaseGrid grid = buildPhaseGrid(root.value(QStringLiteral("analysis")).toObject(), cfg);
 
     // Identity fields, spelled exactly as swing_doc_reader.cpp's summaryFromRoot() spells them — that
     // function is the authority and this must not drift from it, or the draw-from filter would
@@ -1003,35 +913,13 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, SidecarPolicy policy, cons
     // club, else the captured club. An undeclared club leaves this EMPTY (never a stub, R-CLUB-4) and contextIdForClub()
     // answers the default context, its findings fired as "club assumed".
     grid.club = swingDocEffectiveClub(root);
-
-    // The guard written is the size/mtime read at the top of this function. A shared parse can be
-    // older than that (another reader paid for it before a rewrite), and a rewrite can land between
-    // any parse and this write: either way the grid is returned but never indexed under that guard.
-    if (!doc.stillCurrent() || doc.parsedInfo().size != size || doc.parsedInfo().mtimeMs != mtimeMs)
-        return grid;
-
-    // ParseNoWrite (refactor 3.7-0): the same grid, never indexed — the caller leaves the session's files to
-    // their one writer (the parallel run's firing reader, §4.9 "in memory only").
-    if (!mayWriteSidecar(policy))
-        return grid;
-
-    // Best-effort: a library on read-only media still browses, it just re-parses each time. Into the
-    // swing folder, which must already be there (a trashed folder is not re-made).
-    pinpoint::atomicWrite(sidePath, QJsonDocument(savePhaseGrid(grid, size, mtimeMs)).toJson(QJsonDocument::Compact),
-                          pinpoint::AtomicWriteOptions::intoExistingFolder());
     return grid;
 }
 
-// readWristInput (live_measure_source.h): here, beside the one other reader of the swing's analysis this module makes.
-WristInput readWristInput(const QString &swingDir, const SwingPhaseGrid &grid, SwingStore::LazyDocument *parsed)
+// The model browser's library scans' folder read (platform refactor P-3): the read and the sidecar are PhaseGridStore's.
+SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const PhaseGridConfig &cfg)
 {
-    bool any = false;
-    for (const MetricPhaseGrid &m : grid.metrics)
-        if (dofForMetricKey(m.key)) { any = true; break; }
-    if (!any) return {};
-    if (parsed && parsed->loaded())
-        return wristInputOf(parsed->root().value(QStringLiteral("analysis")).toObject());
-    return wristInputOf(SwingStore::loadAnalysis(swingDir).value(QStringLiteral("analysis")).toObject());
+    return PhaseGridStore::read(swingDir, sidecarPolicyOf(writeSidecar), cfg);
 }
 
 } // namespace pinpoint::analysis

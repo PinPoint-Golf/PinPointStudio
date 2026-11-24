@@ -21,7 +21,7 @@
 #include "club_baseline_provider.h"
 #include "measure_sample.h"
 #include "../norms/norm_measure_source.h"
-#include "../../Wrist/wrist_profile_assess.h"   // WristInput (readWristInput)
+#include "../../Wrist/wrist_profile_assess.h"   // WristInput
 
 #include <QHash>
 #include <QString>
@@ -96,43 +96,18 @@ enum class MissingKind {
 // these are mechanical statements about the pipeline rather than guesses about the capture.
 QString missingReasonText(MissingKind k);
 
-// THE GRID A LIVE SOURCE READS: the swing's phase grid with the millisecond spans the pack's measures name
-// (msWindowsOf) added to `cfg`, its swingDir set even on the empty grid a missing document gives. The first
-// constructor below reads exactly this; a caller that keeps the grid as a value (the firing job's readings,
-// fire_findings.h) reads it here and hands it to the second. readPhaseGrid()'s contract on `writeSidecar`
-// / `policy` and `parsed` applies: the bool is the old contract (false = CachedOnly, "never fat-parse");
-// SidecarPolicy::ParseNoWrite parses a miss and writes nothing (the parallel run's firing reader, 3.7-0).
-SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPack &pack,
-                                 bool writeSidecar = true, const PhaseGridConfig &cfg = {},
-                                 SwingStore::LazyDocument *parsed = nullptr);
-SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPack &pack,
-                                 SidecarPolicy policy, const PhaseGridConfig &cfg = {},
-                                 SwingStore::LazyDocument *parsed = nullptr);
+// THE GRID A LIVE SOURCE READS is the shot's, handed in (platform refactor P-3): a caller with a Shot reads it by ShotRef
+// through the Recording's reader (RecordingReader::phaseGrid, src/DomainModel/recording_reader.h) with the pack's
+// millisecond spans (msWindowsOf) added to its config; the firing reader, inside the store, reads it through the file door
+// (PhaseGridStore::readForMeasures, src/Export/phase_grid_store.h). The rules read no file.
 
-// THE SHOT'S WRIST READINGS for its wrist checkpoint profile (refactor 3.8-ii; DEC-123: fire_findings.h FiringReadings::
-// wrist). Empty unless `grid` (the shot's phase grid, just read) carries a metric that names a wrist DOF; then the
-// document's analysis metrics and phases — from `parsed` when the grid's read already parsed it, else the analysis
-// alone (SwingStore::loadAnalysis: the root chunk and the chunks on the path to the metrics, never the tracks).
-WristInput readWristInput(const QString &swingDir, const SwingPhaseGrid &grid, SwingStore::LazyDocument *parsed = nullptr);
+// THE SHOT'S WRIST READINGS (refactor 3.8-ii; DEC-123) are read by the file door, PhaseGridStore::readWristInput
+// (src/Export/phase_grid_store.h; platform refactor P-3): reading the document is the store's, not the rules'.
 
-// One recorded swing, presented as measure values.
-//
-// Construction reads the phase grid, which prefers the swing's sidecar and falls back to a full
-// swing.json parse (measure_sample.h). That fallback is a second on a 33 MB document, so a caller
-// batching a session should build grids on a worker and hand them in through the second
-// constructor rather than paying for the parse once per source.
+// One recorded swing, presented as measure values, over the shot's phase grid (read by its caller: above).
 class LiveMeasureSource final : public IMeasureValueSource {
 public:
-    // `writeSidecar` follows readPhaseGrid()'s contract exactly: false means "never fat-parse", and
-    // an unindexed swing then reads as having no analysis rather than stalling a GUI thread.
-    // `parsed` is readPhaseGrid()'s: the one parse a caller also reading the summary shares (#142).
-    // The grid is read with the millisecond spans the PACK's measures name (msWindowsOf) added to
-    // `cfg`, so a `windowMs` measure reads without every caller having to know which spans exist.
-    LiveMeasureSource(const QString &swingDir, const CharacteristicPack &pack,
-                      bool writeSidecar = true, const PhaseGridConfig &cfg = {},
-                      SwingStore::LazyDocument *parsed = nullptr);
-
-    // The batched form: the caller already has the grid (a session scan builds one per swing on a
+    // The caller already has the grid (the shot's, read by ShotRef; a session scan builds one per swing on a
     // worker) and this costs nothing.
     LiveMeasureSource(SwingPhaseGrid grid, const CharacteristicPack &pack);
 

@@ -734,6 +734,7 @@ set(PP_QML_SOURCES
     src/Gui/launchmonitor/lm_club_art.h
     src/Gui/launchmonitor/lm_club_art.cpp
     src/Gui/diagnosticmodel/model_browser.h
+    src/Gui/diagnosticmodel/shot_grid_door.h   # its swing on screen, by its Shot (platform refactor P-3)
     src/Gui/diagnosticmodel/model_browser.cpp
     src/Diagnostics/measures/anatomy_vocabulary.h
     src/Diagnostics/measures/anatomy_vocabulary.cpp
@@ -782,6 +783,8 @@ set(PP_QML_SOURCES
     src/Diagnostics/packs/reference_pack.cpp
     src/Diagnostics/measures/measure_sample.h
     src/Diagnostics/measures/measure_sample.cpp
+    src/Export/phase_grid_store.h      # the phase grid's file door (FILE-SHOT-07; platform refactor P-3)
+    src/Export/phase_grid_store.cpp
     src/Diagnostics/measures/live_measure_source.h
     src/Diagnostics/measures/live_measure_source.cpp
     src/Diagnostics/norms/resource_norm_provider.cpp

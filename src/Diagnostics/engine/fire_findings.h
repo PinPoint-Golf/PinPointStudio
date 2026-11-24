@@ -37,7 +37,7 @@
 //                         composed with the inputs below.
 //
 // NO QObject, no file or settings access, no reader or repository include, no global or singleton read: the
-// caller reads the Recording (readLivePhaseGrid, the document's summary) and hands the values in. Today's
+// caller reads the Recording (the shot's phase grid, the document's summary) and hands the values in. Today's
 // caller is the firing read (SwingStoreFiringReader, then fireFindings) and the factor compositions; refactor 3.5's firing job calls
 // the same functions on a worker with a FiringSnapshot (build/refactor/step-3/BRIEF.md §4.4).
 //
@@ -156,7 +156,7 @@ QString clubBaselineStamp(const std::optional<QHash<QString, ClubBaselineEntry>>
 
 // One shot's readings, as the caller read them off its Recording. Nothing here is read by this module.
 struct FiringReadings {
-    SwingPhaseGrid grid;            // readLivePhaseGrid(swingDir, pack, …): the analysis, as measures
+    SwingPhaseGrid grid;            // the shot's grid with the pack's spans (PhaseGridStore::readForMeasures): the analysis, as measures
     QString        handedness;      // the document's summary, as recorded ("Left", "right", "")
     bool           dataWarning = false;   // the summary's data warning
     bool           captureBroken = false; // …because frames were lost during capture (dataWarningDetail.capture)

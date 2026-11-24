@@ -1222,8 +1222,11 @@ src/Diagnostics/packs/          characteristic_pack · screen_pack · drill_pack
                                 layered_set.h · {resource,file,merged,memory}_pack_provider · pack_provider.h
 src/Diagnostics/norms/          norm.h · norm_pack · norm_provider.h · context_tree · metric_corridor.h ·
                                 norm_measure_source.h · {resource,file,merged,memory}_norm_provider · corridor_plot
-src/Diagnostics/measures/       measure_sample (phase grid, a measure off a swing) · live_measure_source (detectForSwing) ·
-                                measure_facets · anatomy_vocabulary · club_baseline_provider.h · sigma_source.h
+src/Diagnostics/measures/       measure_sample (builds and reduces the phase grid) · live_measure_source (detectForSwing) ·
+                                measure_facets · anatomy_vocabulary · club_baseline_provider.h
+src/Vocabulary/Analysis/        phase_grid.h (the phase grid's value types) · sigma_source.h (P-3)
+src/Export/phase_grid_store.*   swing_phasegrid.json's file door (FILE-SHOT-07); a shot's grid through
+                                RecordingReader::phaseGrid (P-3)
 
 src/DomainModel/                the owners: session · shot · session_diagnostics · athlete · athlete_diagnostics ·
                                 rule_data (+ rule_data_repository.h; the store Export/rule_data_store)

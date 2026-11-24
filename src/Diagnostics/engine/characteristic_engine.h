@@ -21,7 +21,7 @@
 #include "../packs/characteristic_pack.h"
 #include "../norms/context_tree.h"
 #include "../norms/norm.h"
-#include "../measures/sigma_source.h"
+#include "../../Vocabulary/Analysis/sigma_source.h"
 
 #include <QString>
 

@@ -3032,6 +3032,7 @@ target_sources(PinPointStudio PRIVATE
     src/Export/recording_header.h
     src/Export/recording_loader.h
     src/Export/recording_loader.cpp
+    src/Export/recording_phase_grid.cpp   # the app's Recording reader's phase grid (platform refactor P-3)
     src/Analysis/mp4_frame_reader.h
     src/Analysis/mp4_frame_reader.cpp
     src/Metrics/metric_type.h
