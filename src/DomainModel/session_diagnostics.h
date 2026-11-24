@@ -195,8 +195,11 @@ struct KeptShot {
     // ITS DELIVERY READINGS for the summary's day readings (refactor 5.5d; DEC-74), off its phase grid: handed over by its
     // fire (the grid it read), else read once on the lane by the next reduction (a result loaded from the file). In
     // memory only: never in diagnostics.json. `deliveryRead` false: not read yet for `document`; then `delivery` none.
+    // ITS GATE RECORD for the summary's gate counts (platform refactor P-3b), off the same grid read, in the same two
+    // places and under the same flag: `deliveryRead` true means both are known for `document`.
     bool                                       deliveryRead = false;
     std::optional<analysis::ShotDeliveryReading> delivery;   // none: it read neither a swing plane nor the monitor
+    std::optional<analysis::ShotGateRecord>      gates;      // none: its grid did not read (not a swing to the count)
 };
 
 // THE SUMMARY'S DAY READINGS, ASKED WITH A REDUCTION (refactor 5.5d; DEC-74): what the reduction was asked with — each kept
@@ -208,8 +211,9 @@ struct DayReadingsAsk {
         int                                          swing = 0;
         ShotRef                                      ref;
         DocumentStamp                                document;
-        bool                                         read = false;   // `delivery` is known; else read it on the lane
+        bool                                         read = false;   // `delivery` and `gates` are known; else read on the lane
         std::optional<analysis::ShotDeliveryReading> delivery;
+        std::optional<analysis::ShotGateRecord>      gates;     // the gate counts' record (platform refactor P-3b)
     };
     std::vector<Shot>                          shots;     // strike order
     std::vector<analysis::ShotAddressReading>  address;   // strike order
@@ -483,6 +487,7 @@ private:
     // shots' delivery readings and rows, the cameras), applied with its diagnosis; summary() carries them. The cameras
     // are read once per first kept shot and its document (m_camerasKey).
     analysis::SessionDayReadings m_dayReadings;
+    analysis::SessionGates       m_gates;          // the summary's gate counts (platform refactor P-3b), made with them
     analysis::SessionCameras     m_cameras;
     QString                      m_camerasKey;     // "" never read; else the swing and document they were read from
 };

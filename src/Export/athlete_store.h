@@ -64,8 +64,8 @@
 // the delete before step 2, and the folder and the other athlete's sessions stay. A folder whose
 // athlete.json names ANOTHER athlete is refused outright.
 //
-// Not thread-safe (one owner thread, the GUI thread in the app), except readActivity() and the static
-// appendTuningLog(), which keep no state.
+// Not thread-safe (one owner thread, the GUI thread in the app), except readActivity(), readIndexWithSummaries() and the
+// static appendTuningLog(), which keep no state.
 //
 //   cmake --build build/tests --target athlete_repository_test -j 6
 //   ctest --test-dir build/tests -R '^athlete_repository_test$' --output-on-failure
@@ -100,6 +100,12 @@ public:
     AthleteRemoval      trash(const AthleteId &id) override;
     Athlete            *unassigned(bool create, WriteResult *result = nullptr) override;
     AthleteActivity     readActivity(const SessionOwner &owner) const override;
+    // Worker-safe, as readActivity: a session reader of its own, its summaries through its deferredSummary with the
+    // summary reads set below (none set: every entry's summary.read stays false).
+    QList<SessionIndexEntry> readIndexWithSummaries(const SessionOwner &owner) const override;
+    // The index entry's summary's file work (SessionIndexSummaries::read), set by the composition root as on the session
+    // store, so this store's other users link no swing reader. Set once, before any read.
+    void setSummaryReads(std::function<SessionIndexSummary(const QString &sessionDir)> reads) { m_summaryReads = std::move(reads); }
     // The Athlete's own append (refactor step 3.4b-i): appendTuningLog() on its folder's log (FILE-ATH-04).
     WriteResult         appendTuningLine(const Athlete &athlete, const QByteArray &line) override;
     // FILE-ATH-02 / FILE-ATH-03 (every club's), for their one writer AthleteDiagnostics (refactor 3.7-f).
@@ -162,6 +168,7 @@ private:
 
     std::function<QString()>              m_root;
     SessionRepository                    *m_sessions = nullptr;
+    std::function<SessionIndexSummary(const QString &)> m_summaryReads;   // readIndexWithSummaries' (P-3b); read-only after set
     QHash<AthleteId, Athlete *>           m_held;        // the identity map: one Athlete per id (DEC-52)
     std::vector<std::unique_ptr<Athlete>> m_owned;       // every Athlete ever handed out, for the store's life
     QHash<AthleteId, QJsonObject>         m_files;       // each library athlete's athlete.json as last read

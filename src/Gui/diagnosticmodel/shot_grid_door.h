@@ -20,7 +20,8 @@
 
 // THE MODEL BROWSER'S DOOR TO THE SWING ON ITS SCREEN (platform refactor P-3, ruled 24 Nov 2026): the one shot the panel
 // follows is read by its ShotRef through the Recording's reader (RecordingReader::phaseGrid), never by its folder. Only
-// the panel's two library scans still read by folder (measure_sample.h readPhaseGrid).
+// the panel's corridor scan (a recorded exception) and the gate count's fallback for a session not summarised yet still
+// read by folder (measure_sample.h readPhaseGrid); the gate count itself sums the session summaries (gate_counts.h).
 //
 // WHY A DOOR: ModelBrowser is a QML type of the module, which the QML suites compile without the domain model. The module
 // holds only this header; the composition root (main.cpp) installs the app's resolver, which finds the Shot at the

@@ -321,6 +321,18 @@ AthleteActivity AthleteStore::readActivity(const SessionOwner &owner) const
     return Athlete::activityOf(index, reader);
 }
 
+QList<SessionIndexEntry> AthleteStore::readIndexWithSummaries(const SessionOwner &owner) const
+{
+    // A reader of its own, as readActivity's: SessionStore keeps an identity map and belongs to one thread.
+    SessionStore reader;
+    reader.setSummaryReads(m_summaryReads);
+    QList<SessionIndexEntry> index = reader.enumerate(owner);
+    for (SessionIndexEntry &e : index)
+        if (const std::function<SessionIndexSummary()> read = reader.deferredSummary(e.id()))
+            e.summary = read();   // the entry's summary through its one door (P1)
+    return index;
+}
+
 // ── Writing ──────────────────────────────────────────────────────────────────────────────────────
 
 bool AthleteStore::folderTaken(const QString &token) const

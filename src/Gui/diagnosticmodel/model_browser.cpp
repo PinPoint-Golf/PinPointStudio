@@ -25,6 +25,7 @@
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/measures/measure_sample.h"
 #include "shot_grid_door.h"   // the swing on screen, by its Shot (platform refactor P-3)
+#include "gate_count_reads.h"   // the Gates view's count over the session indexes (platform refactor P-3b)
 #include "../../Diagnostics/packs/reference_pack.h"
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Metrics/gate_catalogue.h"
@@ -4236,8 +4237,18 @@ ModelInspection ModelBrowser::inspect(const QString &type, const QString &id) co
                                                        : tr("%1 swings analysed before reasons were recorded")
                                                              .arg(gc.notRecorded),
                                    QString(), QStringLiteral("dim"), false));
+            // Where the count came from (P-3b): a session whose summary has no gate counts yet was read swing by swing.
+            if (gc.indexed && gc.readSwingBySwing > 0)
+                rows.append(hubRow(QString(), QString(),
+                                   gc.readSwingBySwing == 1
+                                       ? tr("1 session not summarised yet: its swings were read one by one")
+                                       : tr("%1 sessions not summarised yet: their swings were read one by one")
+                                             .arg(gc.readSwingBySwing),
+                                   QString(), QStringLiteral("dim"), false));
             if (gc.capped)
-                rows.append(hubRow(QString(), QString(), tr("Stopped after %1 swings").arg(gc.swings),
+                rows.append(hubRow(QString(), QString(),
+                                   gc.indexed ? tr("Stopped reading swings one by one after the cap; %1 swings counted").arg(gc.swings)
+                                              : tr("Stopped after %1 swings").arg(gc.swings),
                                    QString(), QStringLiteral("dim"), false));
             sections.append(section(tr("In this library"), rows));
 
@@ -8419,7 +8430,7 @@ void ModelBrowser::setLibraryRoot(const QString &root)
     emit corridorSamplesChanged();
 
     // The gate count, likewise: whatever is in memory for the new library (nothing, if none), and a
-    // fresh walk if the Gates view has been opened.
+    // fresh count if the Gates view has been opened.
     m_gateCounts = gateCountCache().value(root);
     emit gateCountsChanged();
     if (m_gateScanWanted) scanGates();
@@ -8429,7 +8440,7 @@ void ModelBrowser::scanGates()
 {
     m_gateScanWanted = true;
 
-    // What is already in memory for this library goes up at once; the walk below refreshes it.
+    // What is already in memory for this library goes up at once; the count below refreshes it.
     if (!(m_gateCounts.valid && m_gateCounts.root == m_libraryRoot)) {
         const auto hit = gateCountCache().constFind(m_libraryRoot);
         if (hit != gateCountCache().constEnd()) {
@@ -8445,34 +8456,15 @@ void ModelBrowser::scanGates()
     m_gatesScanning = true;
     emit gateCountsChanged();
 
-    // OFF THE GUI THREAD, through the same sidecar read the corridor scan uses. readPhaseGrid with
-    // `writeSidecar` true re-reads a swing whose sidecar is stale (a re-analysed swing), so the count
-    // is of the records the swing holds NOW; a fresh sidecar costs one small file read.
-    m_gateWatcher->setFuture(QtConcurrent::run([root]() -> ModelGateCounts {
-        constexpr int kMaxSwings = 20000;   // a cap, reported when it bites
-        ModelGateCounts c;
-        c.root = root;
-        // The library's listing is SwingPaths' (refactor step 3.9; THE one swing listing, 2.7b).
-        pinpoint::SwingPaths::visitLibrarySwings(root, [&c](const QString &session, const QString &swingDir) {
-            if (c.swings >= kMaxSwings) {
-                c.capped = true;
-                return false;
-            }
-            const SwingPhaseGrid grid = readPhaseGrid(swingDir, /*writeSidecar*/ true);
-            if (grid.swingDir.isEmpty()) return true;    // no readable analysis: not a swing
-            ++c.swings;
-            if (grid.gatesVersion <= 0) { ++c.notRecorded; return true; }
-            c.byVersion[grid.gatesVersion] += 1;
-            QSet<QString> once;                           // a swing counts once per gate
-            for (const GateRecord &r : grid.gates) once.insert(r.gate);
-            for (const QString &g : once) {
-                c.fired[g] += 1;
-                c.sessions[g][session] += 1;
-            }
-            return true;
-        });
-        c.valid = true;
-        return c;
+    // THE SUM OVER EVERY ATHLETE'S SESSION INDEX (platform refactor P-3b; gate_counts.h), ALL OF IT OFF THE GUI THREAD: the
+    // source only takes the athletes' owners here (no file read); the worker reads every index and summary, sums the
+    // summarised sessions and reads a session not summarised yet swing by swing. No source (a QML suite, a tool) or not the
+    // athletes' library: no index, and the worker walks the library swing by swing, as before.
+    const pinpoint::diagmodel::GateCountSource &source = pinpoint::diagmodel::gateCountSource();
+    const std::optional<pinpoint::diagmodel::GateCountSessionsRead> read = source ? source(root) : std::nullopt;
+    m_gateWatcher->setFuture(QtConcurrent::run([root, read]() -> ModelGateCounts {
+        return read && *read ? pinpoint::diagmodel::gateCountsOfIndex(root, (*read)())
+                             : pinpoint::diagmodel::gateCountsByWalk(root);
     }));
 }
 
@@ -8486,7 +8478,7 @@ void ModelBrowser::onGateScanFinished()
         m_gateWalked = c.root;
     }
     emit gateCountsChanged();
-    // The library moved while the walk ran: walk the one now set.
+    // The library moved while the count ran: count the one now set.
     if (c.root != m_libraryRoot && m_gateScanWanted) scanGates();
 }
 
@@ -8518,7 +8510,9 @@ void ModelBrowser::scanCorridor(const QString &measureId)
             if (out.size() >= kMaxScan) return false;
             // The expensive part is reading the phase grid, which is sidecar-cached and
             // pack-independent — which is exactly why measure_sample caches the grid rather
-            // than measure values.
+            // than measure values. BY FOLDER, A RECORDED EXCEPTION (information_model.md FILE-SHOT-07; platform
+            // refactor P-3b): the measure may not be saved yet, so no summary holds its values; the scan is rare, so it
+            // reads each swing's grid here rather than through every session's Shots.
             // The measure's own millisecond span, if it reads one (metric_reducer.h windowMs).
             const SwingPhaseGrid grid = readPhaseGrid(swingDir, /*writeSidecar*/ true,
                                                       withMsWindows({}, msWindowsOf({ copy })));

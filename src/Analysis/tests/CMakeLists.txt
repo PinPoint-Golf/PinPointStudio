@@ -2277,6 +2277,37 @@ pp_add_test(session_diagnostics_test
 set_tests_properties(session_diagnostics_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
+# THE SESSION SUMMARY'S GATE COUNTS (platform refactor P-3b; src/Coaching/session_gates.h; information_model.md FILE-SESS-05
+# `gates`): the writer (SessionDiagnostics, over the real store, Athletes and firing reader), the reader (the session index's
+# summary: SessionIndexSummaries) and the model browser's count (src/Gui/diagnosticmodel/gate_count_reads.h): the sum over
+# two athletes' indexes equals the library walk. A suite of its own: session_diagnostics_test is #187's (studio-build.cmd
+# TEXCL). Every per-user store is a scratch one (IsolatedStores, main()'s first line; #187).
+set(SESSION_GATES_TEST_SOURCES ${SESSION_DIAGNOSTICS_TEST_SOURCES}
+    ${SRC}/Export/recording_phase_grid.cpp
+    ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
+    ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+    ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+    ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+    ${SRC}/DomainModel/session_diagnostics.h ${SRC}/DomainModel/session_diagnostics.cpp
+    ${SRC}/DomainModel/athlete_diagnostics.h ${SRC}/DomainModel/athlete_diagnostics.cpp
+    ${SRC}/Diagnostics/engine/session_reduction.cpp
+    ${SRC}/Export/firing_reader_store.cpp
+    ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+    ${SRC}/Export/session_index_summary.cpp ${SRC}/Export/session_archiver.cpp   # the entry's summary reads (5.7a-P1)
+    ${SRC}/Export/swing_paths.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Export/phase_grid_store.cpp   # the count's reads
+    ${SRC}/Gui/diagnosticmodel/gate_counts.h ${SRC}/Gui/diagnosticmodel/gate_count_reads.h
+    ${SRC}/Gui/diagnosticmodel/gate_count_index.h ${SRC}/Coaching/session_gates.h ${SRC}/Export/athlete_store.cpp)
+list(REMOVE_DUPLICATES SESSION_GATES_TEST_SOURCES)
+pp_add_test(session_gates_test
+    SOURCES ${SRC}/DomainModel/tests/session_gates_test.cpp ${SESSION_GATES_TEST_SOURCES}
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(session_gates_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
 # THE CAROUSEL'S SHOT SUMMARY (refactor 4-b; src/App/outcome_summary.h): app.state.shotOutcome over the real store, Athlete,
 # Session, Shot and SessionDiagnostics, the real firing reader, headless — the values are the Shot's diagnostics', follow
 # a re-analysis, and which shot it is (selected; else the newest landed), auto-replay on and off. The owner's link line

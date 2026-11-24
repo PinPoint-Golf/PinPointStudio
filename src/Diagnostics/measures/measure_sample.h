@@ -266,13 +266,18 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
                              bool *guardOk = nullptr, const PhaseGridConfig &cfg = {},
                              std::vector<PhaseGridMsWindow> *storedMsWindows = nullptr);
 
-// THE MODEL BROWSER'S LIBRARY SCANS' FOLDER READ (platform refactor P-3): the gate count and the corridor scan walk every
-// swing folder of the library with no Shot to ask, so they read a swing's grid by folder here. Everything else reads a
+// THE MODEL BROWSER'S FOLDER READ OF A SWING'S GRID (platform refactor P-3, P-3b): a forwarder to the grid's file door
+// (PhaseGridStore, src/Export/phase_grid_store.h), which owns the read, the sidecar and its write. Everything else reads a
 // shot's grid by ShotRef (RecordingReader::phaseGrid, src/DomainModel/recording_reader.h) or, inside the store, through
-// the file door itself (PhaseGridStore, src/Export/phase_grid_store.h). A forwarder to that door: the read, the sidecar
-// and its write are PhaseGridStore's. `writeSidecar` true is SidecarPolicy::ParseAndWrite (the scans, on a worker), false
-// is CachedOnly ("never fat-parse"). The architecture allowlist counts its door against this file until the scans read
-// the athlete level's summaries (P-3's proposal).
+// the door itself. Kept for two callers, both on the model browser's worker, with no Shot to ask:
+//   - THE CORRIDOR SCAN, a recorded exception (information_model.md FILE-SHOT-07): the corridor editor reduces a measure
+//     that may not be saved yet over every swing of the library, which needs each swing's grid itself, not a summary.
+//     It is a rare use, so it keeps this read rather than going through every session's Shots; if the use grows, a
+//     faster way is found then.
+//   - THE GATE COUNT'S FALLBACK (gate_count_reads.h): the count is a sum over the session summaries' `gates` blocks, and
+//     only a session not summarised yet has its swings read here, until its summary is written again.
+// `writeSidecar` true is SidecarPolicy::ParseAndWrite (both callers), false is CachedOnly ("never fat-parse"). The
+// architecture allowlist counts its door against this file for these two.
 SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar = true, const PhaseGridConfig &cfg = {});
 
 } // namespace pinpoint::analysis

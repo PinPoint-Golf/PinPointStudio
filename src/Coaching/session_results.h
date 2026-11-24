@@ -52,6 +52,7 @@
 #include "strike_from_flight.h"
 #include "board_annotations.h"   // kBoardAnnotationRuleVersion: a fact's rule (review 2 of 3.6)
 #include "session_day_readings.h"   // version 4's day readings (refactor 5.5d; DEC-74)
+#include "session_gates.h"          // the gate counts (platform refactor P-3b): read by presence, no version of their own
 #include "swing_themes.h"   // ThemeShot (DEC-192 as amended, round 3)
 #include "tendencies.h"
 #include "work_ons.h"
@@ -103,6 +104,12 @@ static_assert(int(LinkGrade::Unanchored) == 0 && int(LinkGrade::PresentTogether)
 //   yet). The bump is in the fingerprint (summaryFingerprintOf), so every summary is written again once by the catch-up;
 //   an older build reads a version 4 file as a newer build's and leaves it alone (R-PERS-3). The rules that make them
 //   (session_day_readings_rules.h) change only with a bump of this version.
+// THE GATE COUNTS (`gates`, session_gates.h; platform refactor P-3b) did NOT bump it: the bump is in the fingerprint, so it
+// would have every summary written again only to add the block, which the block's approval rules out. A summary without
+// the block reads with `gates.has` false (not summarised yet: the model browser reads that session's swings one by one),
+// and the block arrives with the session's next summary write. An older build ignores the key and drops it when it
+// writes; this build then counts that session the slow way again. (The Solution Architect, 24 Nov 2026: PR-21 approved the
+// block, PR-23 ruled no bump; build/platform/JUDGEMENT-CALLS.md.)
 inline constexpr int kSessionResultsVersion = 4;
 
 // ── FIELD-LIST §3.1: one club's carry today against the FROZEN usual ─────────────────────────────────────────────
@@ -216,6 +223,9 @@ struct SessionResults {
     // Version 4 (refactor 5.5d; DEC-74): what another session's Charts and report read of this one. `has` false: an
     // older file, read without them.
     SessionDayReadings                          dayReadings;
+    // The gate counts the model browser's Gates view sums (platform refactor P-3b). `has` false: a summary written before
+    // the block, read without it.
+    SessionGates                                gates;
 };
 
 // ── JSON ──────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -589,6 +599,10 @@ inline QJsonObject sessionResultsToJson(const SessionResults &r)
     // is a session with none).
     if (r.dayReadings.has)
         root.insert(QStringLiteral("dayReadings"), sessionDayReadingsToJson(r.dayReadings));
+    // The gate counts, when they were made (the session's SessionDiagnostics always makes them; zeros are a session with
+    // no swing read).
+    if (r.gates.has)
+        root.insert(QStringLiteral("gates"), sessionGatesToJson(r.gates));
     return root;
 }
 
@@ -757,6 +771,7 @@ inline SessionResults sessionResultsFromJson(const QJsonObject &root, SessionRes
     }
     if (version >= 4)
         r.dayReadings = sessionDayReadingsFromJson(src.value(QStringLiteral("dayReadings")));
+    r.gates = sessionGatesFromJson(src.value(QStringLiteral("gates")));   // by presence (P-3b): absent, `has` false
     return r;
 }
 

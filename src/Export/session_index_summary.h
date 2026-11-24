@@ -26,7 +26,8 @@
 //     fat-parses and never writes), folded by rollUpSwings, and how many swing folders there are;
 //   - the size on disk: every file in the folder (SessionArchiver::folderBytes);
 //   - the lead work-on: work-on 1 of the session's summary (work_ons.json, FILE-SESS-05, through its one reader), under this
-//     build's rule only.
+//     build's rule only;
+//   - the gate counts: that summary's `gates` block (platform refactor P-3b), by presence.
 // Pure apart from the file system: any thread.
 
 #include "../DomainModel/session_roll_up.h"

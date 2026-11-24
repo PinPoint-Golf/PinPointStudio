@@ -21,6 +21,7 @@
 #include "session_archiver.h"
 #include "session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
 #include "swing_doc.h"
+#include "../Coaching/session_gates.h"
 #include "../Coaching/work_ons.h"
 
 #include <QVector>
@@ -45,6 +46,9 @@ SessionIndexSummary SessionIndexSummaries::read(const QString &sessionFolder)
     // again, and its work-on 1 may not be the new rule's (the report list's rule before 5.7a).
     const JsonFileRead f = SessionDiagnosticsFiles::readWorkOns(sessionFolder);
     if (f.exists) {
+        // The gate counts (platform refactor P-3b), by presence and under any work-on rule: they count the swings' records,
+        // which no work-on rule decides. Absent (a summary written before the block): `has` false, not summarised yet.
+        out.gates = analysis::sessionGatesFromJson(f.root.value(QStringLiteral("gates")));
         bool ok = false;
         const analysis::SessionWorkOns rec = analysis::sessionWorkOnsFromJson(f.root, &ok);
         if (ok) {

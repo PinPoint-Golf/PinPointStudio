@@ -530,7 +530,11 @@ The analysis pipeline never fires findings.
   (`Coaching/board_annotations.h`; Stage 0.5's follow-up). The session's status is read from the `Session`, its one writer.
 - *Its files.* It writes what it kept, debounced after a batch, at once on a release, and on quit, through
   `SessionRepository`'s id-keyed diagnostics methods: `diagnostics.json` (each shot's findings, its derived data under
-  `derived`, the unread marks) and the summary `work_ons.json`. A live session's summary waits for its End. A newer
+  `derived`, the unread marks) and the summary `work_ons.json`, which carries the session's gate counts (`gates`,
+  `Coaching/session_gates.h`: the swings counted, those with nothing recorded, per `gatesVersion`, per gate the swings it
+  fired on), made off the same grid read as the day readings; the model browser's Gates view sums them over every
+  athlete's `SessionIndex` (`Gui/diagnosticmodel/gate_counts.h`) and reads only a session not summarised yet swing by
+  swing. A live session's summary waits for its End. A newer
   build's file is read and never written. A failed write is said (`writeFailed`; the composition root posts the notice)[^dec126]. At load it re-asks exactly the shots that have no result, are unread, or whose stamp is stale.
 - *The club baseline* is a recorded input[^dec46]: read if current, else frozen at first need from the athlete level's
   computation over the predecessors' summaries (`AthleteDiagnostics::clubBaselineFor`, D7)[^dec172], through
@@ -1167,6 +1171,7 @@ All in the analyzer suite: `cmake -S src/Analysis/tests -B build/analyzer-tests`
 | `fire_findings_test`, `rule_version_golden_test` | `fireFindings()` over one swing with every input in the stamp; a rule's output that moves without its version bump fails (C-05) |
 | `reduction_rule_golden_test` | the session and athlete reductions (work-ons, tendencies, outcome scope, distances, club baseline, themes, praise, the board) pinned to their versions |
 | `session_diagnostics_test` | the session's owner: the re-fire (a club correction re-fires both clubs; a usual's change re-derives only), superseded and trashed results dropped and settled, a release mid-run (T1–T4), unread marks, the load's re-asks, the writes |
+| `session_gates_test` | the summary's gate counts: the writer's block for a session with a swing analysed before records existed and two `gatesVersion`s, the same block from results loaded from the file, the index summary's read (a summary without the block is not summarised yet), and the Gates view's sum over two athletes' indexes equal to the library walk, with none, one and every session read swing by swing |
 | `athlete_diagnostics_test` | the athlete level: reads summaries only, stale on an event and recomputed when read, the praise rule, the catch-up (oldest first, one at a time, paused and cancelled, write blocks reported) |
 | `session_test`, `shot_commands_test` | the `Session` and `Shot` commands and their events, in command order |
 | `rule_data_test`, `work_pool_test` | one snapshot shared, an edit publishes a new one; a lane keeps order, two lanes do not block each other, the receiver drops what it cannot resolve |

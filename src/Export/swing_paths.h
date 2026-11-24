@@ -73,8 +73,9 @@ public:
     // THE one listing of a session's swing folders: the names of its "swing_*" sub-folders, by name.
     // Read each one's number with swingNumberOf.
     static QStringList swingFolders(const QString& sessionDir);
-    // Every swing folder of a library, for a scan across it (the Diagnostic Model's gate count and corridor
-    // scan; refactor step 3.9 moved their walk here from model_browser.cpp): athlete folder by athlete folder
+    // Every swing folder of a library, for a scan across it (the Diagnostic Model's corridor scan, and its gate
+    // count when it has no session index to sum: platform refactor P-3b; refactor step 3.9 moved their walk here
+    // from model_browser.cpp): athlete folder by athlete folder
     // and session by session, in name order, each session's swings as swingFolders() lists them. `visit`
     // gets the session folder's name and the swing folder's path, and returns false to stop the walk.
     static void visitLibrarySwings(const QString& libraryRoot,

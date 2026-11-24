@@ -22,6 +22,7 @@
 #include <QQmlApplicationEngine>
 
 #include "diagnosticmodel/shot_grid_door.h"   // the model browser's swing on screen, by its Shot (P-3)
+#include "diagnosticmodel/gate_count_index.h"   // the model browser's gate count over the session indexes (P-3b)
 
 #ifdef HAVE_PPCP
 #include "review/shot_data_door_impl.h"   // the review views' door (refactor 5.8a)
@@ -413,6 +414,8 @@ int main(int argc, char *argv[])
     pinpoint::AthleteStore  athleteStore([&appSettings] { return appSettings.athleteLibraryPath(); }, &sessionStore);
     // The doors the Athletes' sessions hand their shots (refactor step 3.4a): the one swing door and the one
     // reading door above, shared, never owned (both are static and outlive every Athlete).
+    // The athlete repository's worker-safe index read fills its summaries through the same file work (P-3b: the gate count).
+    athleteStore.setSummaryReads(&pinpoint::SessionIndexSummaries::read);
     athleteStore.setShotDoors({ &recordingRepository,
                                 std::shared_ptr<pinpoint::RecordingReader>(&recordingReader, [](pinpoint::RecordingReader *) {}) });
     diagLookup = [&athleteStore](const pinpoint::WorkAddress &a) {
@@ -1052,7 +1055,7 @@ int main(int argc, char *argv[])
     pinpoint::review::installShotDataResolver(pinpoint::review::makeShotDataResolver());
     // THE MODEL BROWSER'S SWING ON SCREEN (platform refactor P-3; diagnosticmodel/shot_grid_door.h): the Shot its Session holds
     // at the folder (the edge, DEC-90, as the replay's resolver below), its grid read by ShotRef through the Recording's
-    // reader. The panel's two library scans alone still read by folder.
+    // reader. Only the panel's corridor scan (a recorded exception) and the gate count's fallback still read by folder.
     pinpoint::diagmodel::installShotGridResolver([&appObject](const QString &swingDir) -> pinpoint::diagmodel::ShotGridRead {
         pinpoint::Session *s = appObject.sessionAt(pinpoint::sessionFolderOf(swingDir));
         pinpoint::Shot *shot = s ? s->shotAtFolder(swingDir) : nullptr;
@@ -1061,6 +1064,26 @@ int main(int argc, char *argv[])
         return [ref](const pinpoint::analysis::PhaseGridConfig &cfg) {
             return recordingReader.phaseGrid(ref, cfg, pinpoint::SidecarPolicy::ParseAndWrite);
         };
+    });
+    // THE MODEL BROWSER'S GATE COUNT (platform refactor P-3b; diagnosticmodel/gate_counts.h): a sum over every athlete's
+    // SessionIndex and each session's summary — the library's athletes and the Unassigned owner, as the Archiving tab lists
+    // them. Here, on the GUI thread, only their owners are taken (no session-level file is read; the athlete list reads each
+    // athlete.json, as the Archiving tab's does); each athlete's index, its summaries filled through deferredSummary, is read
+    // on the panel's worker by the athlete repository's worker-safe read (AthleteRepository::readIndexWithSummaries, beside
+    // readActivity). Another library than the athletes' has no index: nullopt, and the panel walks it swing by swing.
+    pinpoint::diagmodel::installGateCountSource([&athleteStore, &appSettings](const QString &root)
+                                                    -> std::optional<pinpoint::diagmodel::GateCountSessionsRead> {
+        if (QDir::cleanPath(root) != QDir::cleanPath(appSettings.athleteLibraryPath())) return std::nullopt;
+        QList<pinpoint::Athlete *> athletes;
+        for (const pinpoint::AthleteId &id : athleteStore.list())
+            if (pinpoint::Athlete *a = athleteStore.load(id)) athletes.append(a);
+        if (pinpoint::Athlete *u = athleteStore.unassigned(/*create=*/false); u && !athletes.contains(u)) athletes.append(u);
+        const QList<pinpoint::SessionOwner> owners = pinpoint::diagmodel::gateCountOwnersOf(athletes);
+        return pinpoint::diagmodel::GateCountSessionsRead([owners, &athleteStore] {
+            QList<pinpoint::SessionIndexEntry> index;
+            for (const pinpoint::SessionOwner &o : owners) index += athleteStore.readIndexWithSummaries(o);   // worker-safe
+            return pinpoint::diagmodel::gateCountSessionsOf(index);
+        });
     });
     shotReplay.setShotResolver([&appObject](const QString &swingDir) -> pinpoint::Shot * {
         pinpoint::Session *s = appObject.sessionAt(pinpoint::sessionFolderOf(swingDir));

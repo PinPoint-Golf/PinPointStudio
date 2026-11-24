@@ -338,8 +338,10 @@ That count is also the developer's view: a gate firing on 100% of a setup's swin
 about that setup or wrong about everything.
 
 *As built (stage 7, 16 Oct 2026):* Settings → Diagnostic Model → Gates. Every catalogue entry (per-swing
-gates and rules), filterable by area, kind and effect. The counts come from the swings' phase-grid sidecars,
-read in the background, and are broken down by session. The page is read-only. A gate firing on every swing
+gates and rules), filterable by area, kind and effect. The counts are broken down by session and read in the
+background. Since platform refactor P-3b they are a sum over every athlete's session index: each session's summary
+(`work_ons.json`'s `gates` block) carries its own counts, and only a session not summarised yet has its swings'
+phase-grid sidecars read one by one (the inspector says how many sessions were read that way). The page is read-only. A gate firing on every swing
 is not coloured (colour means outside the corridor); its count says so.
 
 ## 8. The census of gates in the code today

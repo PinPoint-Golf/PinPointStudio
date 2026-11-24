@@ -24,15 +24,20 @@
 //   - the swing roll-up: the swings' cheap summaries folded (count, first swing time, span, clubs, devices, mean score,
 //     thumbnails, indexed);
 //   - the size on disk: every file in the session's folder;
-//   - the lead work-on: work-on 1 of the session's summary (FILE-SESS-05), under this build's rule only.
+//   - the lead work-on: work-on 1 of the session's summary (FILE-SESS-05), under this build's rule only;
+//   - the gate counts: the summary's `gates` block (FILE-SESS-05; platform refactor P-3b), under any work-on rule (they
+//     do not depend on it); `gates.has` false: the summary is not there or was written before the block (not summarised
+//     yet), and the model browser's gate count reads that session's swings one by one.
 // Raw values only, no labels: "Today", "42 min" and a club's display name are a view's (Gui/review/session_summary.h).
 // A fact not known is said so (a flag, an optional), never a 0.
 //
 // THE ONE FOLD (rollUpSwings) is the one every session list runs, the live row's included: a swing's cheap summary
 // (ShotSummaryInput) in, the roll-up out. Pure and header-only (session_summary_test compiles it standalone).
 //
-// Domain model ring (src/DomainModel): vocabulary below it only (the launch monitor's device names).
+// Domain model ring (src/DomainModel): the vocabulary (the launch monitor's device names) and one rules header (the gate
+// counts' value type), both header-only.
 
+#include "../Coaching/session_gates.h"     // SessionGates (rules: values and JSON only)
 #include "../LaunchMonitor/lm_device.h"   // canonicalDeviceToken (vocabulary)
 
 #include <QString>
@@ -107,6 +112,7 @@ struct SessionIndexSummary {
     qint64             bytes = 0;       // the size on disk: every file in the folder, an archived session's stubs
                                         // included (what the folder takes, not what it held)
     SessionLeadWorkOn  workOn;
+    analysis::SessionGates gates;       // FILE-SESS-05's `gates` (P-3b); `has` false: not summarised yet
 };
 
 // THE ONE FOLD. `swingFolders`: how many swings the session lists (-1: the shots given, as for a live row whose every shot

@@ -21,6 +21,7 @@
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/packs/gate_words_pack.h"
 #include "../../Diagnostics/measures/measure_sample.h"
+#include "gate_counts.h"   // ModelGateCounts and the count's door to the session indexes (platform refactor P-3b)
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/screen_pack.h"
@@ -87,29 +88,8 @@ namespace pinpoint { class RuleData; struct RuleDataSnapshot; }
 // and rows() and renders them; it does not know what a Measure is. A rule written in a delegate is
 // a rule nothing can test.
 
-// HOW OFTEN EACH GATE FIRED ACROSS THE LIBRARY (trust_and_gates_design.md §7.5) — the Gates view's
-// count, gathered off the GUI thread from every swing's phase-grid sidecar (`gatesVersion` and
-// `gates`, measure_sample.cpp) and held in memory. A swing counts ONCE per gate however many records
-// that gate left on it. A swing whose analysis carries no `gatesVersion` was analysed before reasons
-// were recorded: it is counted apart, never as "no gate fired".
-struct ModelGateCounts {
-    QString                            root;          // the library this describes
-    bool                               valid = false; // a scan has completed for `root`
-    bool                               capped = false;
-    int                                swings = 0;     // swing folders looked at
-    int                                notRecorded = 0;// of those, analysed before records existed
-    QMap<int, int>                     byVersion;      // gatesVersion → swings stamped with it
-    QHash<QString, int>                fired;          // gate id → swings it fired on
-    QHash<QString, QMap<QString, int>> sessions;       // gate id → session dir → swings
-    // Swings stamped at `since` or later — the ones a gate introduced at `since` could have fired on.
-    int recordedSince(int since) const
-    {
-        int n = 0;
-        for (auto it = byVersion.constBegin(); it != byVersion.constEnd(); ++it)
-            if (it.key() >= since) n += it.value();
-        return n;
-    }
-};
+// HOW OFTEN EACH GATE FIRED ACROSS THE LIBRARY (trust_and_gates_design.md §7.5): ModelGateCounts, gate_counts.h — the sum
+// over every athlete's session index, each session's summary carrying its own counts (platform refactor P-3b).
 
 // ── The editor's QML API, typed (refactor step 3.9-ii; P9, R-QML-2; DEC-177) ──────────────────────
 //
@@ -1313,7 +1293,7 @@ class ModelBrowser : public QObject
     Q_PROPERTY(bool currentSwingHasValues READ currentSwingHasValues NOTIFY currentSwingChanged)
 
     // ── The Gates view's library count ──────────────────────────────────────
-    // True while the library is being walked for gate records (scanGates()).
+    // True while the library's gate records are being counted (scanGates()).
     Q_PROPERTY(bool gatesScanning READ gatesScanning NOTIFY gateCountsChanged)
 
 public:
@@ -1661,10 +1641,12 @@ public:
     // walks the whole library; the plot renders from whatever has been read so far and says so.
     Q_INVOKABLE void scanCorridor(const QString &measureId);
 
-    // Count, per gate, the swings in the library whose records name it. Asynchronous (the whole
-    // library is walked on a worker); the Gates rows say "counting" until gateCountsChanged. A count
-    // already in memory for this library is shown at once and refreshed by the walk. A walk in
-    // progress is not restarted.
+    // Count, per gate, the swings in the library whose records name it: a sum over every athlete's
+    // session index, each session's summary carrying its own counts, and a session not summarised yet
+    // read swing by swing (gate_counts.h; platform refactor P-3b). With no index (no source installed,
+    // another library), the whole library is walked. Asynchronous (on a worker); the Gates rows say
+    // "counting" until gateCountsChanged. A count already in memory for this library is shown at once
+    // and refreshed by the count. A count in progress is not restarted.
     Q_INVOKABLE void scanGates();
 
     // ── Context bindings — where a characteristic applies ───────────────────
@@ -2076,11 +2058,11 @@ private:
 
     // ── The Gates view's library count ──────────────────────────────────────
     // This panel's copy of the count; the process keeps the last one per library (model_browser.cpp,
-    // gateCountCache) so a reopened panel shows numbers at once while it re-walks.
+    // gateCountCache) so a reopened panel shows numbers at once while it counts again.
     ModelGateCounts                  m_gateCounts;
     bool                             m_gatesScanning = false;
     bool                             m_gateScanWanted = false;  // the view has asked once
-    QString                          m_gateWalked;              // the library this panel has walked
+    QString                          m_gateWalked;              // the library this panel has counted
     QFutureWatcher<ModelGateCounts> *m_gateWatcher = nullptr;
     void onGateScanFinished();
 

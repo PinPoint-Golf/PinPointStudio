@@ -113,6 +113,7 @@ struct FireOutcome {
     ShotReview                   review;
     analysis::Cohort             cohort;
     std::optional<analysis::ShotDeliveryReading> delivery;   // off the grid it read (refactor 5.5d)
+    std::optional<analysis::ShotGateRecord>      gates;      // off the same grid (platform refactor P-3b)
 };
 
 struct DeriveOutcome {
@@ -160,6 +161,8 @@ FireOutcome fireOn(const FiringSnapshot &snap, const ShotRef &shot, const Firing
     // THE SUMMARY'S DELIVERY READINGS off the grid this fire read (refactor 5.5d; DEC-74): taken before the readings move.
     out.delivery = analysis::shotDeliveryReadingOf(analysis::deliveryGridNumbersOf(read.readings.grid), shot.swingNumber(),
                                                    read.readings.grid.ordinal);
+    // THE SUMMARY'S GATE RECORD off the same grid (platform refactor P-3b): the swing's gatesVersion and the gates it names.
+    out.gates = analysis::shotGateRecordOf(read.readings.grid.gatesVersion, read.readings.grid.gates, shot.swingNumber());
     analysis::FiredShot fired = analysis::fireFindings(std::move(read.readings), inputs);
     if (!fired.ok) {
         out.error = QStringLiteral("no pack or norms to fire against");
@@ -180,7 +183,8 @@ FireOutcome fireOn(const FiringSnapshot &snap, const ShotRef &shot, const Firing
 // ── §4.4 step 7: the reduction's job (values in, values out) ────────────────────────────────────────────────────
 struct DayOutcome {
     analysis::SessionDayReadings readings;
-    QHash<int, DayReadingsAsk::Shot>     read;          // swing → the delivery reading read on the lane, with its document
+    analysis::SessionGates       gates;                 // the summary's gate counts (platform refactor P-3b)
+    QHash<int, DayReadingsAsk::Shot>     read;          // swing → the delivery reading and gate record read on the lane
     analysis::SessionCameras     cameras;
     QString                      camerasKey;
 };
@@ -194,19 +198,27 @@ DayOutcome dayReadingsOn(const DayReadingsAsk &ask)
     DayOutcome out;
     out.readings.has = true;
     out.readings.address = ask.address;
+    std::vector<analysis::ShotGateRecord> gates;   // the swings whose grid read (P-3b)
     for (const DayReadingsAsk::Shot &s : ask.shots) {
         std::optional<analysis::ShotDeliveryReading> d = s.delivery;
+        std::optional<analysis::ShotGateRecord>      g = s.gates;
         if (!s.read) {
+            // ONE grid read for both: the delivery reading and the gate record (platform refactor P-3b).
             const std::optional<analysis::SwingPhaseGrid> grid = ask.reader && ask.pack ? ask.reader->phaseGrid(s.ref, ask.pack->pack())
                                                                                       : std::nullopt;
             d = grid ? analysis::shotDeliveryReadingOf(analysis::deliveryGridNumbersOf(*grid), s.swing, grid->ordinal) : std::nullopt;
+            g = grid ? std::optional<analysis::ShotGateRecord>(analysis::shotGateRecordOf(grid->gatesVersion, grid->gates, s.swing))
+                     : std::nullopt;
             DayReadingsAsk::Shot r = s;
             r.read = true;
             r.delivery = d;
+            r.gates = g;
             out.read.insert(s.swing, r);
         }
         if (d) out.readings.delivery.push_back(*d);
+        if (g) gates.push_back(*g);
     }
+    out.gates = analysis::sessionGatesOf(gates);
     if (ask.camerasKnown) {
         out.cameras = ask.cameras;
         out.camerasKey = ask.camerasKey;
@@ -842,6 +854,7 @@ void SessionDiagnostics::deliver(WorkVerdict verdict, WorkResult &&result)
             if (fired->review.ok) k.review = fired->review;
             k.deliveryRead     = true;   // off the grid this fire read (refactor 5.5d)
             k.delivery         = fired->delivery;
+            k.gates            = fired->gates;   // the same grid (platform refactor P-3b)
             m_kept.insert(swing, std::move(k));
             m_unread.remove(swing);
             m_dirty = true;
@@ -1396,6 +1409,7 @@ DayReadingsAsk SessionDiagnostics::dayAsk() const
         s.document = it->document;
         s.read     = it->deliveryRead;
         s.delivery = it->delivery;
+        s.gates    = it->gates;
         ask.shots.push_back(std::move(s));
         if (!absolutes.isEmpty()) {
             const ShotRecord r = checkedOf(*it);   // the shot's flight check as held
@@ -1465,8 +1479,10 @@ void SessionDiagnostics::deliverReduction(WorkVerdict verdict, WorkResult &&resu
             if (auto k = m_kept.find(it.key()); k != m_kept.end() && !k->deliveryRead && k->document == it->document) {
                 k->deliveryRead = true;
                 k->delivery     = it->delivery;
+                k->gates        = it->gates;
             }
         m_dayReadings = std::move(r->day.readings);
+        m_gates       = std::move(r->day.gates);
         m_cameras     = r->day.cameras;
         m_camerasKey  = r->day.camerasKey;
         m_summaryFingerprint = summaryFingerprint();   // its Session's shots as they are now (3.7-e)
@@ -1553,6 +1569,7 @@ analysis::SessionResults SessionDiagnostics::summary() const
         return {};
     analysis::SessionResults r = m_diagnosis->results;
     r.dayReadings = m_dayReadings;   // refactor 5.5d (DEC-74): what another session's Charts and report read of this one
+    r.gates       = m_gates;         // platform refactor P-3b: what the model browser's Gates view counts of this one
     r.derivedFrom.fingerprint  = m_summaryFingerprint;
     r.derivedFrom.contentStamp = m_findingsStamp;
     r.derivedFrom.gradePolicy  = m_snapshot ? m_snapshot->inputs.gradePolicy : QString();

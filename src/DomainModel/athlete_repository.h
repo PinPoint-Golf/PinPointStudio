@@ -91,6 +91,15 @@ public:
 
     // Reads only, keeps no state: safe from a worker thread.
     virtual AthleteActivity readActivity(const SessionOwner &owner) const = 0;
+    // THE INDEX WITH ITS SUMMARIES (platform refactor P-3b; PR-21): every session of `owner`'s SessionIndex, each entry's
+    // summary filled through SessionRepository::deferredSummary, by a session reader of its own (readActivity's rule: the
+    // owner thread's identity map is untouched). Reads only, keeps no state: SAFE FROM A WORKER THREAD. The model
+    // browser's gate count reads every athlete's this way, on its worker. Default: none (summary.read false throughout).
+    virtual QList<SessionIndexEntry> readIndexWithSummaries(const SessionOwner &owner) const
+    {
+        (void)owner;
+        return {};
+    }
 
     // THE TUNING LOG's append (OBJ-TUNING-LOG, FILE-ATH-04: append-only, never rewritten; DEC-43): one line
     // added to `athlete`'s log under its folder's lock, for that one append (refactor step 3.4b-i: the
