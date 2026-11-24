@@ -559,6 +559,12 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME im_changelog_merge_selftest
              COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/method/im_changelog_merge.py --self-test)
     set_tests_properties(im_excerpt_selftest im_changelog_merge_selftest PROPERTIES TIMEOUT 60)
+    # tools/refactor/move_files.py (platform refactor B1.2), the move tool every scripted move rests on: its rules,
+    # refusals and --verify, proved on a fixture git repository it builds in a temporary directory (never this tree).
+    # Exit 77, a skip, where there is no git.
+    add_test(NAME move_files_selftest
+             COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/refactor/move_files.py --self-test)
+    set_tests_properties(move_files_selftest PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
 endif()
 
 # one_at_a_time_selftest: tools/method/one_at_a_time.sh, the machine-wide heavy-work lock, proved on a lock folder in a

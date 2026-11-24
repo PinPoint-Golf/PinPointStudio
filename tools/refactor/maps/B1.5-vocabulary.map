@@ -1,0 +1,17 @@
+# B1.5 · The Vocabulary root move (build/platform/B1/BRIEF-B1.5.md): every ruled Vocabulary area under src/Vocabulary/.
+# Solution Architect, 23 Nov 2026 (one root, J-100); the area names (Q15, 24 Nov); the three extra movers (J-109).
+# Not in the map: Core/headless_probe, same_folder, version (Platform, stay in Core); Buffer's stream types (Stage D);
+# trunk_calib_provenance.h and segment_role.h (B1.7).
+src/Metrics/ -> src/Vocabulary/Metrics/
+src/Recording/ -> src/Vocabulary/Recording/
+src/Identity/ -> src/Vocabulary/Identity/
+src/LaunchMonitor/launch_monitor_reading -> src/Vocabulary/LaunchMonitor/
+src/LaunchMonitor/lm_device -> src/Vocabulary/LaunchMonitor/
+src/Export/frame_decode -> src/Vocabulary/Recording/
+src/Core/club_standards -> src/Vocabulary/Club/
+src/Core/club_vocabulary -> src/Vocabulary/Club/
+src/Core/figure_format -> src/Vocabulary/Common/
+src/Core/height_text -> src/Vocabulary/Common/
+src/Core/pp_physical_constants -> src/Vocabulary/Common/
+src/Core/pp_tuned_constants -> src/Vocabulary/Common/
+src/Core/sidecar_policy -> src/Vocabulary/Common/

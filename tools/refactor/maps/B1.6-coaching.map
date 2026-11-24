@@ -1,0 +1,4 @@
+# B1.6 · Today's src/Coaching (the derived facts) moves to src/Diagnostics/derived/ (build/platform/B1/BRIEF-B1.6.md).
+# Solution Architect and Product Owner, 24 Nov 2026 (L4 of the four contexts, AM5; PR-4). Every file, listed from the
+# tree at run time; file and type names don't change. src/Coaching is then the Coaching context's folder, empty.
+src/Coaching/ -> src/Diagnostics/derived/

@@ -1,0 +1,41 @@
+# tools/refactor — the move tool
+
+`move_files.py` makes every scripted move of the platform refactor (Stage B; the rules are `build/platform/B1/MOVES.md`): files and folders under `src/` move to new homes, and every include, build-file line, lint table key, allowlist key, tool path and doc path that names them follows. A move is a map file, so another lane can replay it over its own work, and a reviewer reads the map and `--verify`'s summary instead of a 300-file diff. Python 3, standard library only. `context_check.py` is the kept copy of the context-map check (below).
+
+## Writing a map
+
+`tools/refactor/maps/<item>.map`, one move per line, paths from the repo root, `#` for comments:
+
+```
+src/Metrics/ -> src/Vocabulary/Metrics/          # a folder: every file under it, tests/ included, listed at run time
+src/Core/club_standards -> src/Vocabulary/Club/  # a stem: its .h, .cpp and .mm, whichever exist
+src/Export/frame_decode.h -> src/Vocabulary/Recording/   # one file
+```
+
+A destination ending in `/` keeps the file name; `→` works as well as `->`. Never write a count into a map: the tool lists folders from the tree when it runs. File and stem lines are expanded before folder lines, so a file moved into a folder another line also moves is not claimed twice. A folder can't move into itself or its parent.
+
+## The four modes
+
+- **`move_files.py <map> --dry-run`** prints the report and changes nothing (the self-test checks every byte): the files to move; each include line to rewrite and how it resolved (`rel` relative to the file, `src` under `src/`, `gui` under `src/Gui/`, `base` only by a unique basename, that is through an include directory); the outward includes inside moved files; the includers of the moved set in `src` and `tools` (the scope of `build/platform/B1/count_includers.py`, so the two figures compare); path mentions by kind (build, lint, allowlist, context, tool, doc, comment); include directories re-pathed; each moved file whose lint ring or `context_check.py` context changes; what it can't place; and the errors. Exit 1 if there are errors.
+- **`move_files.py <map>`** does it: the rewrites, then `git mv`, then removes the emptied folders. It refuses while the report has an error, and refuses a dirty tree (`git status`) unless `--over-work` is given, which is how another lane replays a committed move over its uncommitted work. It is idempotent: a second run moves and rewrites nothing.
+- **`move_files.py <map> --verify <base commit>`** checks the working tree against the commit before the move, on its own reading (it pairs files by the map, not by git's rename detection, and shares only the token grammar with the rewriter): every moved file is at its new path and every other file at its old one; each changed line is an include line whose target in the base, moved by the map, is its target now; or a line where only path words changed, each naming in the new tree the map's image of what it named in the base (in C++ and QML/JS, only inside a comment); or an include directory removed from a build file. Every include that resolved in the base resolves to the image of its target, never through an include directory or `src/Gui/` alone. The allowlist keeps its number of entries, each rule and count, with keys re-keyed. A binary file must be byte-identical and a file's mode unchanged (the mode is not checked on Windows). It ends with the rewriter's own pass over the result: a file still to move, or an include or mention still to rewrite (a stale spelling on a line the diff never touched), fails. Listed, not failed, for the reviewer: a hand edit on a line of the lint's tables or of `context_check.py`'s `DIRS`/`FILES`/`L2_GAP` (an entry deleted because a folder rule now covers it, a ring or tag changed or added, a comment), and a re-key still pending on such a line; a change under `tools/refactor/` (the tool and the maps, committed with the move); a doc named with `--allow-prose <file>` (the IM rows a brief names); and, with `--allow-code-path <file>:<lines>` (for example `src/Vocabulary/Metrics/gate_catalogue_rules.h:38-42`, B1.6's), a path in a C++ string changed to the map's image on exactly those lines of that file. Anything else is printed and the exit is 1.
+- **`move_files.py --self-test`** builds a small git repository in a temporary directory and proves each rule and each refusal: a folder and a stem move; includers in each spelling, an `#import`, an outward include, a bare include that relied on a global or a test's own include directory (`INCLUDE ${SRC}/Metrics`); a CMake list and its variables; a lint table; an allowlist line; `context_check.py`'s tables; an ambiguous basename (refused); a dirty tree (refused); idempotence; and `--verify` passing on the move and failing on each of a retargeted include, a deleted include, a code line changed in a moved file, an added allowlist line, an added include directory, a line-ending change, a table line deleted outside the lint, a path changed in a C++ string, and a file moved that the map doesn't move. ctest: `move_files_selftest` (`src/Gui/tests/CMakeLists.txt`; 77, a skip, without git).
+
+`--root <checkout>` runs on another checkout; `--quiet` prints totals only.
+
+## How it resolves and rewrites
+
+Includes resolve as lint A1 does (`architecture_lint_test.cpp`, `resolve()`): relative to the including file, then under `src/`, then under `src/Gui/`, then by basename when it is unique. The tool's basename table also holds test files, so it is stricter: a name shared with a test header is ambiguous. **An ambiguous basename is an error, never a pick.** A path under `src/` or `src/Gui/` keeps its style; anything relative is recomputed from the file's new home; anything that resolved only through an include directory becomes the relative path. A `<…>` include that names a moved header is an error (rewrite it by hand).
+
+Other mentions are rewritten only when anchored: `src/<old>…`, `${VAR}/…` (a build file's `set()` and `get_filename_component(… ABSOLUTE)` variables are evaluated, `PinPointTests.cmake`'s cached ones included; a path that leaves its variable's folder is respelt with the deepest variable that holds it), `../…` from the file, a build file's path relative to its folder, or `<old folder>/<a real moved file or subfolder>`. A bare old folder name (`Metrics/`, `src/Coaching` read as prose) is rewritten only where every string is a path key: the lint, the allowlist's key column and `context_check.py`. Anywhere else it is listed under "can't place", with mentions of files that no longer exist and paths in C++ string literals. So is a path it can't rewrite because it is split, in `.py`, shell and build files: quoted words joined into an old path (`os.path.join(ROOT, "src", "Metrics", "x.h")`) or a path built in parts (`'Metrics/' + name`). Write such a path as one `"src/…"` string, and a move rewrites it.
+
+## What it never does
+
+- Add an include directory or an allowlist line. An include directory that names a moved folder is re-pathed in place, never added, and listed: after the run no include of a moved file relies on one, so the brief removes it by hand ("remove a global directory once nothing needs it, and say which").
+- Delete a table entry, change a ring or a context. The report lists each moved file whose ring (the lint's `dirRings()`/`fileRings()`) or context (`context_check.py`) changes, or that gets no context tag. Those are the brief's hand edits.
+- Change a C++ string literal outside the lint (a path in code is behaviour), QML or JS strings, a namespace, a type, or any file under `docs/implementation/` (dated snapshots), `build/` or `third_party/`.
+- Guess. What it can't place is listed, and an error stops the real run before anything changes.
+
+## context_check.py
+
+The kept copy of `build/context-map/check_includes.py` (which git ignores, and which reads only the tree it sits in): the R-CTX-1 check of every cross-context include, with `--src <dir>` to read another tree. Its `DIRS`, `FILES` and other tables key on literal paths under `src/`, so `move_files.py` re-keys them with each map; never build a key at run time. A directory under `src/` whose files get no tag is an error (exit 1), not a default. `python3 tools/refactor/context_check.py [--src <dir>] --list c`.

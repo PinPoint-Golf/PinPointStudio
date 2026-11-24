@@ -37,7 +37,7 @@ def real(name):
 
 # Theme.variabilityHysteresis is the QML copy of the grader's kHysteresis (spec §8.9, §10): the two must
 # never disagree, so the token file refuses to generate (and --check fails) when they do.
-_vc = open(os.path.join(ROOT, "src", "Metrics", "variability", "variability_constants.h"), encoding="utf-8").read()
+_vc = open(os.path.join(ROOT, "src/Metrics/variability/variability_constants.h"), encoding="utf-8").read()
 m = re.search(r"constexpr\s+double\s+kHysteresis\s*=\s*([\d.]+)", _vc)
 if not m: raise SystemExit("make_design_system: kHysteresis not found in src/Metrics/variability/variability_constants.h")
 if float(m.group(1)) != float(real("variabilityHysteresis")):
