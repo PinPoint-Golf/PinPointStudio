@@ -133,6 +133,8 @@ bay.
 because that is the thing that is actually stable: the phone on its mount, the FLIR on its tripod,
 the mat, the ball position. Sessions come and go against it.
 
+**The Rig (platform refactor, Stage C).** This design's Bay is the Rig (information model OBJ-RIG), its calibration record is `CalibrationRecord`, and its per-bay store is the Rig's `rig/rig.json` (FILE-APP-07). "Recorded on the swing" is the Recording's `rig` block (FILE-SHOT-01). Stage 2 therefore adds record kinds and their producers, not a store. A violated calibration is still reported and never silently repaired: a verification result is a per-shot fact, not a Rig change.[^sa24-rig]
+
 ### 3.2 Calibration record
 
 One record per `(bay, camera identity, kind)`, shaped on 5.9:
@@ -1602,3 +1604,5 @@ Each stage is independently useful, and nothing later is needed for something ea
 - **Which metrics may be computed at which tier.** Named in §3.3, decided in the analysis model.
 - **Rolling shutter.** `readout_ns` is already declared and `rowInstantNs` already applies it;
   whether calibration should *verify* the declared value is a separate question worth asking.
+
+[^sa24-rig]: The Solution Architect, 24 Nov 2026, "approve as recommended" (build/platform/JUDGEMENT-CALLS.md, PR-35; docs/design/rig_design.md §4.10).
