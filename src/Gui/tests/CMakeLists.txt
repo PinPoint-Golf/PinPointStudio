@@ -497,6 +497,17 @@ pp_add_test(architecture_lint_test
     COMPILE_OPTIONS -DPP_SRC_ROOT="${SRC}"
                     -DPP_ARCH_ALLOWLIST="${CMAKE_CURRENT_SOURCE_DIR}/architecture_allowlist.txt")
 
+# Namespace collision test (platform refactor B1.20a). Reads every C++ source under src/ and fails when one
+# (namespace, name) — a class, struct, enum or using alias at namespace scope — is defined in two files: an ODR
+# violation the linker accepts (7 Oct 2026, pinpoint::analysis::DagEdge). A forward declaration beside its
+# definition passes; anonymous namespaces are per file; a detail repeat fails when a site is a header (PR-42).
+# No allow-list. Shares lint_source_text.h.
+pp_add_test(namespace_collision_test
+    SOURCES namespace_collision_test.cpp
+    INCLUDE ${GUI} ${SRC}
+    LINK    Qt6::Core
+    COMPILE_OPTIONS -DPP_SRC_ROOT="${SRC}")
+
 # THE HEADLESS START (refactor 4-c; testing_developer_guide.md "The headless start for probes"): the APP BINARY launched
 # with PINPOINT_HEADLESS_PROBE=1, offscreen, over a scratch home, settings and library, with the probe
 # probes/headless_start.qml (every screen and Settings panel). Fails on a device part made, a part refused at the device

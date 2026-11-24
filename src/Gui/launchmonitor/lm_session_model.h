@@ -44,11 +44,12 @@
 // pointers, which is why this class now declares a destructor it does not need: a
 // unique_ptr to an incomplete type has to be destroyed where the type is complete. This is
 // the one QML façade that resolves a corridor (through metric_corridor.h).
+// LmShotValues has one home, lm_session_reductions.h; this header names no LmShotValues, so it does not repeat the
+// alias (namespace_collision_test: one definition per name, PR-39).
 namespace pinpoint::analysis {
 struct LmFieldStats;
 class ICharacteristicPackProvider;
 class INormProvider;
-using LmShotValues = QHash<QString, double>;
 }
 
 // ── The variability marks on this panel (docs/design/system/variability.md; decisions.md §2, R4, R4b, R8) ──
