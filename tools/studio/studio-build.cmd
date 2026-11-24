@@ -47,8 +47,8 @@ rem the same idle guard before the pull (exit 10; the APPDATA and TEMP checks ar
 rem settings snapshot), the same patch handling and restore, then in build\tests-vs18 cmake . (tests_cmake.log
 rem and the test lists) and jom -j16 or "jobs N" (tests_build.log; exit 11 on a configure or build failure),
 rem with the same "tests:" lines in tests_summary.log. It runs no ctest pass and checks no real store, so it
-rem never exits 12 to 15. It is what tools/method/build_times.sh times: about 1 to 2 minutes when nothing
-rem changed, e.g. studio-build.cmd build pull jobs 16
+rem never exits 12 to 15. It is what tools/method/build_times.sh times: 45 s when nothing changed
+rem (measured on a7a6b4b2: cmake 34 s, jom 10 s), e.g. studio-build.cmd build pull jobs 16
 rem FIRST RUN AFTER THE COMMIT THAT ADDS "build": the cabin's older copy refuses it with exit 8 before it pulls,
 rem so pull by hand first (git pull --ff-only in the checkout), or let build_times.sh's wrapper, which pulls first.
 rem Defaults: both, pull. Pulls origin/main fast-forward (refuses on a dirty tree) and builds in
