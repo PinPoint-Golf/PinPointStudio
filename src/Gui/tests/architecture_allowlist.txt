@@ -6,7 +6,7 @@
 #        outside the repositories (P11) · A6 QVariantMap/QVariantList on the QML boundary · A7 a function over 300 lines
 #        in rings 1-2 · A8 Analysis past the Recording contract.
 # The tag is the refactor step that removes the entry (04-remediation-plan.md §3): `# step 1` … `# step 8` (or a
-# sub-step, `# step 3.0`); `# platform refactor (capture)` / `# platform refactor (settings)` for one the platform
+# sub-step, `# step 3.0`; since 24 Nov 2026 only item 3.0's library_converter line still carries one); `# platform refactor (capture)` / `# platform refactor (settings)` for one the platform
 # refactor removes (05-deferred-worklist.md §1 / §2); `# platform refactor (#224)` for one left when steps 5–7 closed
 # (24 Nov 2026), which no step removes: the platform refactor and its hygiene issue #224 take it, and the WHY names what
 # it waits on; `# #222` for a long function the old step 8 was to split, now issue #222; `# not domain (§8.3)` for a file the information model classes as
@@ -24,7 +24,7 @@
 # Solution Architect's approval of the widening approved exactly those lines.
 
 # ── A1 includes from an inner ring into an outer one ──
-Analysis/swing_reanalyzer.cpp | A1 | 1 | re-analysis still reaches the store: the Recording loader (moved to src/Export in step 1.2) and the recorded products' readers; step 1's repository and analysis service (1.4, 1.5) hand it a Recording instead  # step 1
+Analysis/swing_reanalyzer.cpp | A1 | 1 | re-analysis still reaches the store: the Recording loader (moved to src/Export in step 1.2) and the recorded products' readers; step 1's repository and analysis service (1.4, 1.5) hand it a Recording instead; now Stage B, Part 1 (B1.13)  # platform refactor (#224)
 Gui/shot/shot_processor.cpp | A1 | 13 | an application service (03 §2) still holding the capture half: step 1.5 moved the analysis-job half out (the store, athlete and session includes went to capture_context.h, the capture-side adapter, which it now includes); per D8 (Mark, 14 Nov 2026) the rest is the capture: the devices and the ring (camera, IMU and HackMotion instances, the event buffer and its payload sources, the device enumerator), the capture settings and capture_context.h → the platform refactor (capture); the carousel (shot_list_model.h) goes with step 3; the session folder still needs the athlete's identity, reached through capture::athleteIdentity() in capture_context.h — that part goes with step 2  # unplanned
 Gui/shot/shot_processor.h | A1 | 4 | an application service (03 §2) still holding the capture half: per D8 (Mark, 14 Nov 2026) the exporter job and HackMotion → the platform refactor (capture), the session folder (swing_paths.h) → step 2, the QML payload (qml_payload.h) with the presenters  # unplanned
 Diagnostics/measures/measure_sample.cpp | A1 | 1 | the sampler's folder-keyed readPhaseGrid forwarder includes the phase grid's file door (Export/phase_grid_store.h) for the model browser's two folder reads, which have no Shot to ask: the corridor scan, a recorded exception (information_model.md FILE-SHOT-07; Solution Architect, 24 Nov 2026, PR-21 part b; retagged kept, PR-23), and the gate count's fallback for a session whose summary has no `gates` block yet (P-3b); P-3 moved the read and the sidecar into the door and built the Shot-level reader (RecordingReader::phaseGrid)  # kept (FILE-SHOT-07's recorded exception: the corridor scan)
@@ -148,8 +148,8 @@ Gui/monitor/resource_monitor_controller.h | A6 | 4 | a settings, monitoring or t
 Gui/review/chart_metrics.h | A6 | 1 | sequenceOverlay takes the replay's kinematic-sequence map (analysisDetail.kinematicSequence) as its producer hands it; the rest of the review views' QML API is typed (5.8a). It goes when that producer is typed  # platform refactor (#224)
 Gui/review/session_review_controller.h | A6 | 1 | swingDirsForSession's list: its one reader is the report's bulk export (report/PpSessionReportList.qml, which concat()s it); the rest of the review views' QML API is typed (5.8a); it goes when the bulk export is typed  # platform refactor (#224)
 Gui/settings/archive_controller.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
-Gui/shot/reanalysis_controller.h | A6 | 1 | re-analysis' QML API; step 1 rewrites re-analysis around the one job builder and reanalyseAndPersist (triage, Mark 14 Nov 2026)  # step 1
-Gui/shot/shot_list_model.h | A6 | 1 | the carousel's shot summary (shotSummary, the action bar's and the edit popover's read): typed with the carousel shot summary, step 4-b (the ids, the folders and the row's detail were typed or deleted in 4-a)  # step 4
+Gui/shot/reanalysis_controller.h | A6 | 1 | re-analysis' QML API; step 1 rewrites re-analysis around the one job builder and reanalyseAndPersist (triage, Mark 14 Nov 2026); now #224-U  # platform refactor (#224)
+Gui/shot/shot_list_model.h | A6 | 1 | the carousel's shot summary (shotSummary, the action bar's and the edit popover's read): typed with the carousel shot summary, step 4-b (the ids, the folders and the row's detail were typed or deleted in 4-a); now #224-U  # platform refactor (#224)
 LLM/LlmWorker.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
 Pose/motion_capture_probe.h | A6 | 1 | the motion-capture hardware probe's QML API (a device / execution-provider probe that lives in src/Pose); no step 1-8 types it (the platform refactor (capture); 05 §1)  # unplanned
 Ppcp/ppcp_host_service.h | A6 | 6 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
