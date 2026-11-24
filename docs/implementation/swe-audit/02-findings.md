@@ -121,7 +121,7 @@ Domain objects missing, or owned by the wrong thing, and what that costs. See `0
 |---|---|---|
 | **C-04** | Golfer-facing English is built inside domain reductions and persisted (tendencies, outcomes, distances, themes); the "no prose here" rule is applied in two files only. | High |
 | **B-05** | A norm's standing ("provisional" / "Mark decided") exists only as prose, parsed by substring. The release dashboard already misreads two norms (`m_takeawayPlane`, `m_clubSlotTop`). | High |
-| F-11 / D-09 / C-08 | About 5,000 lines of domain rules under `Gui/charts` and `Gui/diagnostics`. Coaching and Metrics include them upward, which makes one include cycle (`data/include_graph.md`). | Med |
+| F-11 / D-09 / C-08 | About 5,000 lines of domain rules under `Gui/charts` and `Gui/diagnostics`[^f11-lines]. Coaching and Metrics include them upward, which makes one include cycle (`data/include_graph.md`). | Med |
 | C-07 / B-12 / B-06 | Domain headers do file I/O, and a hidden flight-norm singleton fails silently. Pure functions read process state. Flight norms are a second norm registry. | Med |
 | B-08, B-09, A-11 | Wrong-way dependencies (a Coaching adapter in Diagnostics; Wrist ↔ norms; Analysis ↔ every producer). The engine/packs/norms/measures directories are not layers. | Med |
 | B-10, A-15 | Pixel layout and UI strings in the engine; coach wording in Metrics, part of it contradicting the code. | Med |
@@ -185,3 +185,5 @@ Domain objects missing, or owned by the wrong thing, and what that costs. See `0
 
 The June review did not cover Coaching, Diagnostics or Gui/diagnostics, which are the areas where most of
 this audit's High findings sit.
+
+[^f11-lines]: The "about 5,000" was not measured by a stated method and cannot be reproduced. The ten rule files F-11 names measure 8,529 lines at `44ae9230`, the close of the domain refactor's steps 5 to 7 (`docs/implementation/platform_refactor_assessment.md`, footnote `c-gui`). Corrected on the Solution Architect's ruling of 24 Nov 2026 (J-111).
