@@ -191,3 +191,23 @@ pp_add_test(wt901_config_check_test
     INCLUDE ${IMU}
     NO_QT
     STD 20)
+
+# The driver half (#105): WT9011DCL_Base against a register-model fake behind
+# writeToDevice() — sends the configuration again on a wrong read-back, stops at
+# ConfigCheck::kMaxAttempts, reports every read-back and verdict, and drops a check
+# whose link went away. The real driver's link closure: imu_base.cpp swaps in the
+# ESKF filter (Eigen + vendored imu_ekf), the driver logs through the real
+# pp_log_stream (in-memory PpMessageLog, no file), and its timestamp comes from
+# event_buffer.h (pinpoint_buffer, added above).
+pp_add_test(wt901_config_retry_test
+    SOURCES wt901_config_retry_test.cpp
+            ${IMU}/wt9011dcl_base.cpp
+            ${IMU}/imu_base.cpp
+            ${IMU}/eskf_orientation_filter.cpp
+            ${PP_CORE}/pp_log_stream.cpp
+            ${PP_CORE}/PpMessageLog.cpp
+    INCLUDE ${IMU} ${PP_CORE} ${EIGEN_DIR}
+            ${PP_THIRD}/imu_ekf_compat   # MUST precede imu_ekf (as eskf_gyro_units_test)
+            ${PP_THIRD}/imu_ekf
+    LINK    pinpoint_buffer
+    STD 20  AUTOMOC)
