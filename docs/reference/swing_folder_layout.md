@@ -19,7 +19,7 @@ This document describes the **directory structure** — the athlete, session, an
       …
       diagnostics.json  work_ons.json  club_baseline.json  report/   ← session files
     tendencies.json  swing_themes*.json  …                           ← athlete files
-  .pinpoint-trash/                            ← only on a volume with no system trash (the share)
+  .pinpoint-trash/                            ← only on a volume with no system trash (the share); every walk of the library skips it by name
 ```
 
 Each level is created lazily: the athlete folder on first save for that athlete, the session folder at session start (or on the first save), and a `swing_NNNN/` folder per accepted shot. Source of truth for allocation and naming: `src/Export/swing_paths.{h,cpp}` (`SwingPaths`).

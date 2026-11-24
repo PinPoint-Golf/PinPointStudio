@@ -40,6 +40,7 @@
 //   H5  SET-14 off: the archive leaves the raw frames out (a permanent delete of raw frames, DEC-137)
 //   H6  the library's size: every file, hidden ones included; -1 when aborted part-way
 //   H7  nothing switched on: the pass does nothing (no purge, no athlete listed)
+//   H11 THE TRASH IS NOT WALKED (#242): scanLibrary skips the library's .pinpoint-trash by name, as Windows needs
 //   H9  CANCEL WHILE A GUI STEP RUNS (review 2, A2): the started step is waited for, its session finished and landed, no
 //       Session is left "in use", and nothing after it is archived
 //   H10 BY HAND, THROUGH THE HELD SESSION, KEEPING A CURRENT REPORT CURRENT (refactor step 5.6b; S-D6; the Solution
@@ -417,6 +418,19 @@ int main(int argc, char **argv)
         const Housekeeping::Report r = hk.run(plan, AppRig::walk(), &app.owner);
         check("H7 no purge, no athlete listed, nothing archived", app.purges == 0 && app.lists == 0 && !archivedMark(s)
                   && r.archived == 0 && !plan.anythingOn());
+    }
+
+    std::printf("\n=== H11 the Archiving tab's walk never lists the library's trash (#242) ===\n");
+    {
+        Library lib;
+        const QString s = makeSession(lib.athleteDir, lib.athlete, today.addDays(-60), 1, false, 1);
+        // A swing folder straight under the trash's athlete folder, the shape the walk would take for a session: listed
+        // on Windows, where a dot-named folder is not hidden, unless the walk skips the trash by name.
+        QDir().mkpath(lib.root + "/" + SwingPaths::trashFolderName() + "/x/swing_0001");
+        QStringList dirs;
+        for (const auto &f : SessionArchiveRun::scanLibrary(lib.root, false)) dirs << f.dir;
+        check("H11 the athlete's session is listed, and nothing in the trash",
+              dirs.contains(QDir::cleanPath(s)) && !dirs.join('|').contains(SwingPaths::trashFolderName()));
     }
 
     std::printf("\n=== H8 a folder no Athlete holds: today's path, in the one oldest-first order ===\n");

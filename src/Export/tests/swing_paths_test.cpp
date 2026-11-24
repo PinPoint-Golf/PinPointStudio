@@ -293,7 +293,8 @@ static void testLibraryWalk()
     if (!lib.valid()) { skip(QStringLiteral("W1–W4"), QStringLiteral("no temp dir")); return; }
     const QString root = lib.root();
     // Two athletes, made out of order; sessions with swings out of order, a non-swing folder, a FILE named
-    // like a swing, an empty session, and a hidden folder at the top (the library's trash).
+    // like a swing, an empty session, and the library's trash at the top (a dot-named folder: hidden from this listing
+    // on macOS and Linux, listed on Windows; #242).
     for (const char *d : { "zed/s_02/swing_0001", "ann/s_02/swing_0003", "ann/s_02/swing_0001", "ann/s_02/notes",
                            "ann/s_01/swing_0002", "ann/s_03", ".pinpoint-trash/x/swing_0001" })
         QDir().mkpath(root + QLatin1Char('/') + QLatin1String(d));
@@ -325,6 +326,21 @@ static void testLibraryWalk()
         return true;
     });
     checkEqInt(QStringLiteral("W4 a missing library has no swings"), none, 0);
+
+    // #242: THE TOP LEVEL AS WINDOWS LISTS IT. W2 passed here only because macOS hides a dot-named folder from a QDir
+    // listing; Windows lists it, and the walk visited the trash as an athlete. QDir::Hidden shows this platform what
+    // Windows sees, so the skip rule is proved here too, not only on the cabin.
+    const QDir::Filters windows = QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden;
+    check(QStringLiteral("W5 (setup) listed as Windows lists it, the top level holds the trash"),
+          QDir(root).entryList(windows, QDir::Name).contains(SwingPaths::trashFolderName()));
+    checkEq(QStringLiteral("W6 the library's top level, listed as Windows lists it: its athletes, never the trash"),
+            SwingPaths::libraryFolders(root, windows).join(QLatin1Char(',')), QStringLiteral("ann,zed"));
+    checkEq(QStringLiteral("W7 the default listing: the same athletes"),
+            SwingPaths::libraryFolders(root).join(QLatin1Char(',')), QStringLiteral("ann,zed"));
+    check(QStringLiteral("W8 the trash is known by its one name, the folder trashPath makes"),
+          SwingPaths::trashFolderName() == QStringLiteral(".pinpoint-trash")
+              && SwingPaths::isTrashFolder(SwingPaths::trashFolderName())
+              && !SwingPaths::isTrashFolder(QStringLiteral("ann")) && !SwingPaths::isTrashFolder(QStringLiteral("pinpoint-trash")));
 }
 
 int main(int argc, char **argv)

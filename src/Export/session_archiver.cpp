@@ -689,7 +689,8 @@ QList<SessionArchiveRun::LibrarySession> SessionArchiveRun::scanLibrary(const QS
     QList<LibrarySession> out;
     SessionArchiveRun run;   // this scan's own (a worker thread: never the app's identity map)
     const QDir r(root);
-    for (const QString &athlete : r.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+    // The library's top level through its one listing: never the trash, on any platform (#242).
+    for (const QString &athlete : SwingPaths::libraryFolders(root)) {
         const QDir a(r.filePath(athlete));
         for (const QString &session : a.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
             const QString dir = a.filePath(session);

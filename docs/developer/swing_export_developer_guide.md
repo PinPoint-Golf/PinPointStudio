@@ -801,6 +801,8 @@ under every naming pattern, and D3's name-based `SessionId`).
 | `nextSessionCounter(athleteDir, base)` | one past the highest `_NN` of that base under the athlete folder |
 | `swingFolderName(n)` / `swingNumberOf(name)` | `swing_0007` ↔ 7 (0 for a name that is not a swing folder) |
 | `swingFolders(sessionDir)` | the one `swing_*` listing of a session's swing folders |
+| `libraryFolders(libraryRoot)` | the one listing of a library's top level (athlete folders and any other folder there), by name, never the trash. `visitLibrarySwings`, `SessionArchiveRun::scanLibrary` and `AthleteStore::scan` start from it. The trash is skipped **by name**, not by its dot: macOS and Linux hide a dot-named folder from a `QDir` listing and Windows does not (#242). A test passes `QDir::Hidden` as a second argument to list the top level as Windows does |
+| `trashFolderName()` / `isTrashFolder(name)` | `.pinpoint-trash`, spelled once; the test every top-level walk uses to skip it |
 | `trashPath(path[, where, useOsTrash])` | the OS trash, or the library-local `.pinpoint-trash` on a volume without one; `useOsTrash` false goes straight to the library-local one (the tests' seam, `SessionStore::setOsTrashForTest`) |
 
 ### The session file — `session.json` (FILE-SESS-01; step 2.2)

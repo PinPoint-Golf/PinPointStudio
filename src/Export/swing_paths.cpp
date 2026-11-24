@@ -153,7 +153,7 @@ void SwingPaths::visitLibrarySwings(const QString& libraryRoot,
                                     const std::function<bool(const QString&, const QString&)>& visit)
 {
     const QDir root(libraryRoot);
-    for (const QString& athlete : root.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+    for (const QString& athlete : libraryFolders(libraryRoot)) {
         const QDir aDir(root.filePath(athlete));
         for (const QString& session : aDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
             const QDir sDir(aDir.filePath(session));
@@ -161,6 +161,25 @@ void SwingPaths::visitLibrarySwings(const QString& libraryRoot,
                 if (!visit(session, sDir.filePath(swing))) return;
         }
     }
+}
+
+QStringList SwingPaths::libraryFolders(const QString& libraryRoot, QDir::Filters filters)
+{
+    // ⚠ BY NAME, NEVER BY THE DOT (#242): a dot-named folder is hidden from this listing on macOS and Linux and listed
+    // on Windows, so a walk that counted on the dot visited the trash as an athlete on the primary platform.
+    QStringList names = QDir(libraryRoot).entryList(filters, QDir::Name);
+    names.removeIf(&SwingPaths::isTrashFolder);
+    return names;
+}
+
+QString SwingPaths::trashFolderName()
+{
+    return QStringLiteral(".pinpoint-trash");
+}
+
+bool SwingPaths::isTrashFolder(const QString& folderName)
+{
+    return folderName.compare(trashFolderName(), Qt::CaseInsensitive) == 0;
 }
 
 bool SwingPaths::trashPath(const QString& path, QString* where, bool useOsTrash)
@@ -191,7 +210,7 @@ bool SwingPaths::trashPath(const QString& path, QString* where, bool useOsTrash)
                                          : parent;
     const QString   root       = QDir::cleanPath(athleteDir + QStringLiteral("/.."));
     const QString   athlete    = QFileInfo(athleteDir).fileName();
-    const QString   trashDir   = root + QStringLiteral("/.pinpoint-trash/") + athlete;
+    const QString   trashDir   = root + QLatin1Char('/') + trashFolderName() + QLatin1Char('/') + athlete;
     if (!QDir().mkpath(trashDir)) {
         ppWarn() << "[SwingPaths] no trash on this volume and could not create" << trashDir;
         return false;
@@ -217,7 +236,7 @@ bool SwingPaths::trashPath(const QString& path, QString* where, bool useOsTrash)
 QStringList SwingPaths::trashEntries(const QString& libraryRoot)
 {
     QStringList out;
-    const QDir t(libraryRoot + QStringLiteral("/.pinpoint-trash"));
+    const QDir t(libraryRoot + QLatin1Char('/') + trashFolderName());
     for (const QString& athlete : t.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
         const QDir a(t.filePath(athlete));
         for (const QString& e : a.entryList(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot))

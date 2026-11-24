@@ -89,9 +89,10 @@ QList<AthleteStore::Found> AthleteStore::scan() const
     QList<Found> out;
     QSet<AthleteId> seen;
 
-    // The library's athlete.json files, by folder name.
+    // The library's athlete.json files, by folder name, through the top level's one listing: never the trash, on any
+    // platform (#242).
     const QDir lib(libraryDir());
-    for (const QString &name : lib.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+    for (const QString &name : SwingPaths::libraryFolders(lib.path())) {
         const QString dir = lib.filePath(name);
         // The one reader of the file (AthleteFiles::read; R-PERS-1, J-40).
         const AthleteFiles::Read rd = AthleteFiles::read(dir);
@@ -455,7 +456,7 @@ bool AthleteStore::trashPath(const QString &path, const QString &athleteDir, QSt
     const QString   library  = QDir::cleanPath(dir.absolutePath());
     const QString   token    = dir.fileName();
     const QString   name     = QFileInfo(path).fileName();
-    const QString   trashDir = library + QStringLiteral("/.pinpoint-trash/") + token;
+    const QString   trashDir = library + QLatin1Char('/') + SwingPaths::trashFolderName() + QLatin1Char('/') + token;
     if (!QDir().mkpath(trashDir)) {
         *why = QStringLiteral("No trash on this volume, and %1 could not be made.").arg(trashDir);
         return false;

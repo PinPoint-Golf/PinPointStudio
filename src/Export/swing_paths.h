@@ -20,6 +20,7 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QDir>
 #include <QString>
 #include <QStringList>
 
@@ -78,6 +79,12 @@ public:
     // gets the session folder's name and the swing folder's path, and returns false to stop the walk.
     static void visitLibrarySwings(const QString& libraryRoot,
                                    const std::function<bool(const QString& session, const QString& swingDir)>& visit);
+    // THE listing of a library's top level: its folders (athletes, and any other folder kept there), by name, never
+    // its trash (isTrashFolder). Every walk that starts at the library root lists through this (#242). `filters` is
+    // the listing's own; production keeps the default, and a test adds QDir::Hidden to list the top level as Windows
+    // does.
+    static QStringList libraryFolders(const QString& libraryRoot,
+                                      QDir::Filters filters = QDir::Dirs | QDir::NoDotAndDotDot);
 
     // ⭐ DELETE = TRASH, AND THE VOLUME MAY NOT HAVE ONE (2 Sept 2026).  Every
     // delete in this application is a move to the OS trash, so it is
@@ -87,15 +94,22 @@ public:
     // log line and nothing on screen.  This tries the OS trash and, where the
     // volume refuses, MOVES the folder into a library-local trash on the same
     // volume: `<libraryRoot>/.pinpoint-trash/<athlete>/<stamp>_[<session>_]<name>`,
-    // hidden from every listing (dot-prefixed; the enumerators do not pass
-    // QDir::Hidden) and as recoverable as the OS trash would have been.  `where`
-    // names the destination for the log.
+    // as recoverable as the OS trash would have been.  `where` names the
+    // destination for the log.  It is kept out of every walk of the library BY
+    // NAME (libraryFolders, isTrashFolder), never by its dot: macOS and Linux
+    // hide a dot-named folder from a QDir listing, Windows does not (#242).
     // (Stays with the names; step 2.3 adds the athlete case, §3.6.)
     // A swing that leaves takes its number with it: its session's high-water records it
     // (SessionFiles::raiseSwingHighWater), so the number is never issued again (DEC-91).
     // `useOsTrash` false skips the OS trash and goes straight to the library-local one: a test's seam
     // (SessionStore::setOsTrashForTest), so a suite's trashes stay inside its temporary folder.
     static bool trashPath(const QString& path, QString* where = nullptr, bool useOsTrash = true);
+    // THE NAME OF THE LIBRARY'S OWN TRASH FOLDER, spelled once: ".pinpoint-trash", directly under the library root.
+    // trashPath, trashEntries and AthleteStore's trash build their paths from it.
+    static QString trashFolderName();
+    // Whether a folder of the library's top level is that trash: by name (case aside, as both platforms' file
+    // systems compare it), on every platform.
+    static bool isTrashFolder(const QString& folderName);
 
     // THE LIBRARY'S OWN TRASH, LISTED AND PURGED (refactor step 3.8; FILE-LIB-01). Its entries are
     // `<libraryRoot>/.pinpoint-trash/<athlete>/<entry>`, each a session, a swing (trashPath above) or a whole athlete
