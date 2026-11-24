@@ -99,7 +99,10 @@ says "ruled" where it appears below.
 | **Q11, the studio profile:** `src/App/`, beside `AppState`, in the Application ring where its owner is. It keeps its own file (P11); Stage E gives it its repository | Solution Architect | Stage B, Part 1 |
 | **Q25, the method's tools:** the IM excerpt tool, the build lock and the changelog merge helper move into `tools/`, each with a self-test, at the start of Stage B | Product Owner | Stage B |
 | #224's four-way split of its 34 lines is posted on #224 (§5 rule 10) | Product Owner | done |
-| **The four contexts** (`docs/design/four_contexts.md`, L1–L8; PR-4 in `build/platform/JUDGEMENT-CALLS.md`): Acquisition → Diagnostics → Coaching → Domain + Application, with the direction rule R-CTX-1 and the results contract. Today's `src/Coaching` moves to `src/Diagnostics/derived/` and the folder becomes the Coaching context's; Diagnostics' priorities are split from Coaching's work-ons, and the panel says "Priorities" until the coaching track builds adoption (the Design Lead's wording). Lint A9 checks that no context includes a later one. Stage B's libraries stay by ring (L6). Three guards for Stages C and D. Merged into IM v1.10.0 | Solution Architect and Product Owner (L1–L8); Design Lead (the "Priorities" wording) | IM §2, §4, §4.1 and the glossary (done, v1.10.0); Stage B, Part 1 (the move, the renames, A9); Stage B, Part 2 (L6); Stages C and D (the guards) |
+| **Q26, the pipeline and the domain model:** option 1, contracts, not owners. Every context reaches Domain + Application only through the Domain model's interfaces and value types, never the owner classes or the Application services; A9 checks it with a named set of contract headers (IM v1.10.1, R-CTX-1) | Solution Architect | Stage B |
+| **Q27, shared Vocabulary:** option B. `Vocabulary/Club`, `Vocabulary/Common` and `Identity` are tagged Shared, usable by every context; a type goes there only when two contexts use it; `trunk_calib_provenance.h` moves to `Vocabulary/Common` (IM v1.10.1, §4.1) | Solution Architect | Stage B, Part 1 |
+| **The context map, a side track:** whether R-CTX-1 becomes "only through a named contract or the shared kernel", tested in `build/context-map/`, reviewed by Gemini, then dropped, kept for later or applied. Lint A9 waits on it (PR-7) | Product Owner | none until decided |
+| **The four contexts** (`docs/design/four_contexts.md`, L1–L8; PR-4 in `build/platform/JUDGEMENT-CALLS.md`): Acquisition → Diagnostics → Coaching, with Domain + Application the hub (Q26), with the direction rule R-CTX-1 and the results contract. Today's `src/Coaching` moves to `src/Diagnostics/derived/` and the folder becomes the Coaching context's; Diagnostics' priorities are split from Coaching's work-ons, and the panel says "Priorities" until the coaching track builds adoption (the Design Lead's wording). Lint A9 checks that no context includes a later one. Stage B's libraries stay by ring (L6). Three guards for Stages C and D. Merged into IM v1.10.0 | Solution Architect and Product Owner (L1–L8); Design Lead (the "Priorities" wording) | IM §2, §4, §4.1 and the glossary (done, v1.10.0); Stage B, Part 1 (the move, the renames, A9); Stage B, Part 2 (L6); Stages C and D (the guards) |
 
 ---
 
@@ -732,11 +735,11 @@ After the domain refactor. Its measurements are redone then. It has two parts.
   column, with no allowlist line; it places the rows that column marks "to place in Stage B". Before it lands, the
   includes it would reject today are cleared or ruled (counted on 24 Nov by grep; the review of the information-model
   merge, `build/platform/D/REVIEW-D1.md`): the pipeline's includes of the domain model (`Analysis/analysis_service.h`,
-  `swing_reanalyzer.h`, `reanalyse_and_persist.h`), whether a Domain-model interface counts as R-CTX-1's typed input
-  being §9 Q26; `measure_sample.cpp`'s store read, which P-3 removes; and the drill pack's Diagnostics includers, which
-  keep it tagged Diagnostics until they move (IM §2, "The packs"). Shared Vocabulary (Recording, Identity, Club,
-  Common), which Acquisition and Diagnostics both include, is tagged at the earliest context that includes it, or marked
-  usable by every context: §9 Q27.
+  `swing_reanalyzer.h`, `reanalyse_and_persist.h`), which A9 allows as contracts (§9 Q26, ruled 24 Nov); `measure_sample.cpp`'s
+  store read, which P-3 removes; and the drill pack's Diagnostics includers, which keep it tagged Diagnostics until they
+  move (IM §2, "The packs"). `Vocabulary/Club`, `Vocabulary/Common` and `Identity` are tagged Shared, usable by every
+  context; `Recording` stays Acquisition; `trunk_calib_provenance.h` moves to `Vocabulary/Common` (§9 Q27, ruled 24 Nov; IM
+  v1.10.1 §4.1). **A9 is not built until the context-map side track is decided** (PR-7).
 
 **Part 2: the libraries.**
 - **The libraries stay by ring** (ruled 24 Nov, L6 of the four contexts): a library splits by context only where a
@@ -1254,10 +1257,13 @@ Added with the lessons (24 Nov; each for the Product Owner unless it says otherw
 26. **The pipeline and the domain model** (for the Solution Architect; the four contexts' review): the analysis pipeline
     (Diagnostics) includes Domain-model headers (`analysis_service.h`, `swing_reanalyzer.h`, `reanalyse_and_persist.h`).
     Is a Domain-model interface R-CTX-1's "typed input from Domain + Application", so A9 allows it, or must the
-    pipeline take plain values?
+    pipeline take plain values? **Ruled (24 Nov): option 1, contracts, not owners.** Every context may use the Domain model's
+    interfaces and value types, never its owner classes or the Application services; R-CTX-1 is clarified (IM v1.10.1).
 27. **Shared Vocabulary and A9** (for the Solution Architect): tag each shared Vocabulary area at the earliest context
     that includes it (Recording → Acquisition), which A9 passes as it stands, or mark shared areas usable by every
-    context, which gives A9 a new meaning (C9)?
+    context, which gives A9 a new meaning (C9)? **Ruled (24 Nov): option B.** `Club`, `Common` and `Identity` are tagged
+    Shared; a type goes there only when two contexts use it. `trunk_calib_provenance.h` moves to `Vocabulary/Common` in Part 1
+    (IM v1.10.1, §4.1).
 
 **The stage each question blocks** (proposed, for the Product Owner). A question is ruled, with the stage's
 approvals, in one sitting before that stage's first brief ("Approvals this page needs").
@@ -1266,7 +1272,7 @@ approvals, in one sitting before that stage's first brief ("Approvals this page 
 |---|---|
 | anything | none (20 and 22 ruled 24 Nov) |
 | Stage A | none (4, 10 and 21 ruled 24 Nov) |
-| Stage B | 26, 27 (before lint A9 lands; 11, 15, 16, 19 and 25 ruled 24 Nov) |
+| Stage B | none (26 and 27 ruled 24 Nov; lint A9 waits on the context-map side track, PR-7; 11, 15, 16, 19 and 25 ruled 24 Nov) |
 | Stage C | 2, 23 |
 | Stage D | 8, 18 |
 | Stage E | 5, 6, 7, 9, 17, 24's #234 |
