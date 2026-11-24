@@ -24,6 +24,9 @@
 using pinpoint::wt901::ConfigCheck;
 using V = ConfigCheck::Verdict;
 
+// The try count is three; the checks below count against the constant, so pin its value too.
+static_assert(ConfigCheck::kMaxAttempts == 3, "the Witmotion's settings check tries three times");
+
 static int g_fail = 0;
 
 #define CHECK(label, cond)                                                       \

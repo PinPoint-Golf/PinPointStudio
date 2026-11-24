@@ -49,6 +49,7 @@ public:
     // Returns QBluetoothAddress() (null) when 0 or 1 adapters are present —
     // callers must treat null as "use default", never pass it to the
     // adapter-specific QBluetoothDeviceDiscoveryAgent constructor.
+    // GUI thread only (asserted): the round-robin index is not synchronised.
     QBluetoothAddress nextAdapter();
 
 private:

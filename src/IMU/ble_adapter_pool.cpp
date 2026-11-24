@@ -21,6 +21,7 @@
 #include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE's backstop (refactor 4-c)
 
 #include <QBluetoothLocalDevice>
+#include <QThread>
 
 BleAdapterPool *BleAdapterPool::instance()
 {
@@ -59,6 +60,13 @@ void BleAdapterPool::initialize()
 
 QBluetoothAddress BleAdapterPool::nextAdapter()
 {
+    // GUI thread only: m_index is a plain int on purpose. Both callers
+    // (ImuInstance::start, HmInstance::start; Linux only) pick the adapter on
+    // the GUI thread and only then hand the connect to the IMU I/O thread, so
+    // the round-robin needs no atomic. A caller off the GUI thread breaks that
+    // contract — pick the adapter before the hand-off instead.
+    Q_ASSERT_X(QThread::isMainThread(), "BleAdapterPool::nextAdapter",
+               "must be called on the GUI thread (m_index is unsynchronised)");
     if (m_adapters.size() <= 1)
         return QBluetoothAddress();
     return m_adapters[m_index++ % m_adapters.size()];
