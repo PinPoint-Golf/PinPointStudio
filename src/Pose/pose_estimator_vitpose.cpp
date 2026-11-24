@@ -27,7 +27,6 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
-#include <QLibrary>
 #include <QStandardPaths>
 #include <algorithm>
 #include <cstddef>
@@ -42,11 +41,8 @@
 
 #include <onnxruntime_cxx_api.h>
 #include "ort_log.h"
+#include "pose_ep_ort.h"
 #include <opencv2/imgproc.hpp>
-
-#ifdef WITH_COREML
-#  include <coreml_provider_factory.h>
-#endif
 
 // Model I/O constants.
 static constexpr int kInputH      = 256;
@@ -257,162 +253,70 @@ void PoseEstimatorViTPose::load()
     // its shared copy in the compile cache.
     QString sessionPath = path;
 
-    // Execution provider cascade — identical to PoseEstimatorMoveNet with every
-    // step-3 option off.
-    auto appendProviders = [&](Ort::SessionOptions &opts, bool withTrt) {
-        QString epLabel;
-        Q_UNUSED(withTrt)
+    // The pose estimators' one execution-provider cascade (pose_backend.h), with ViTPose's
+    // MLProgram and TensorRT steps. Their file work (the compile cache, the model copy, the engine
+    // folder) stays here, done before the cascade, exactly where it is needed.
+    const pinpoint::pose::EpPlatform platform = pinpoint::pose::currentEpPlatform();
+    pinpoint::pose::EpModelOptions ep = pinpoint::pose::vitPoseEpOptions();
 
-#ifdef WITH_COREML
-        if (epLabel.isEmpty() && lo.coremlProgram) {
-            // pose.coreml mlprogram. The NeuralNetwork format below gave 43–64 ms a
-            // frame on the M4 — the transformer mostly on the CPU EP. MLProgram is the
-            // format CoreML compiles for the GPU/ANE, fp16-capable. The compiled model
-            // is cached across processes (swinglab_run is one process per swing); the
-            // directory carries the options and the model size because the EP keys its
-            // cache on the model path only and never notices a changed model.
-            const QString cacheDir =
-                QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
-                + QStringLiteral("/PinPointStudio/cache/coreml/")
-                + QFileInfo(path).completeBaseName() + QLatin1Char('-')
-                + QString::number(QFileInfo(path).size()) + QStringLiteral("-b")
-                + QString::number(lo.staticBatch);
-            QDir().mkpath(cacheDir);
-            // Keyed on the path, every app bundle and build tree compiled its own
-            // 1.2 GB copy, orphaned when the bundle was deleted. The session is built
-            // from one copy of the model inside cacheDir instead, so every app shares
-            // one compile. Copied under a temporary name and renamed, so a concurrent
-            // swinglab_run never loads a partial file; on failure the per-path cache.
-            const QString shared = cacheDir + QLatin1Char('/') + QFileInfo(path).fileName();
-            if (QFileInfo(shared).size() != QFileInfo(path).size()) {
-                const QString part = shared + QStringLiteral(".part-")
-                                   + QString::number(QCoreApplication::applicationPid());
-                QFile::remove(part);
-                if (QFile::copy(path, part)) {
-                    QFile::remove(shared);   // a short copy from an interrupted run
-                    if (!QFile::rename(part, shared))
-                        QFile::remove(part);   // another process got there first
-                }
-            }
-            if (QFileInfo(shared).size() == QFileInfo(path).size())
-                sessionPath = shared;
-            else
-                ppWarn() << "[ViTPose] Could not copy the model to" << shared
-                         << "— CoreML compile cached per model path";
-            try {
-                std::unordered_map<std::string, std::string> o{
-                    { "ModelFormat", "MLProgram" },
-                    { "MLComputeUnits", "ALL" },
-                    { "RequireStaticInputShapes", "0" },
-                    { "EnableOnSubgraphs", "0" },
-                    { "ModelCacheDirectory", cacheDir.toStdString() } };
-                opts.AppendExecutionProvider("CoreML", o);
-                epLabel = QStringLiteral("CoreML-MLProgram");
-                ppInfo() << "[ViTPose] CoreML execution provider active (MLProgram, all compute units,"
-                         << "cache" << cacheDir << ")";
-            } catch (const Ort::Exception &e) {
-                ppInfo() << "[ViTPose] CoreML MLProgram unavailable:" << e.what() << "— falling back";
+    if (platform.coreml && lo.coremlProgram) {
+        // pose.coreml mlprogram. The NeuralNetwork format gave 43–64 ms a
+        // frame on the M4 — the transformer mostly on the CPU EP. MLProgram is the
+        // format CoreML compiles for the GPU/ANE, fp16-capable. The compiled model
+        // is cached across processes (swinglab_run is one process per swing); the
+        // directory carries the options and the model size because the EP keys its
+        // cache on the model path only and never notices a changed model.
+        const QString cacheDir =
+            QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+            + QStringLiteral("/PinPointStudio/cache/coreml/")
+            + QFileInfo(path).completeBaseName() + QLatin1Char('-')
+            + QString::number(QFileInfo(path).size()) + QStringLiteral("-b")
+            + QString::number(lo.staticBatch);
+        QDir().mkpath(cacheDir);
+        // Keyed on the path, every app bundle and build tree compiled its own
+        // 1.2 GB copy, orphaned when the bundle was deleted. The session is built
+        // from one copy of the model inside cacheDir instead, so every app shares
+        // one compile. Copied under a temporary name and renamed, so a concurrent
+        // swinglab_run never loads a partial file; on failure the per-path cache.
+        // The session path holds even if the MLProgram append then fails.
+        const QString shared = cacheDir + QLatin1Char('/') + QFileInfo(path).fileName();
+        if (QFileInfo(shared).size() != QFileInfo(path).size()) {
+            const QString part = shared + QStringLiteral(".part-")
+                               + QString::number(QCoreApplication::applicationPid());
+            QFile::remove(part);
+            if (QFile::copy(path, part)) {
+                QFile::remove(shared);   // a short copy from an interrupted run
+                if (!QFile::rename(part, shared))
+                    QFile::remove(part);   // another process got there first
             }
         }
-        if (epLabel.isEmpty()) {
-            try {
-                Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CoreML(
-                    opts, COREML_FLAG_USE_NONE));
-                epLabel = QStringLiteral("CoreML");
-                ppInfo() << "[ViTPose] CoreML execution provider active";
-            } catch (const Ort::Exception &e) {
-                ppInfo() << "[ViTPose] CoreML unavailable:" << e.what() << "— falling back";
-            }
-        }
-#endif
+        if (QFileInfo(shared).size() == QFileInfo(path).size())
+            sessionPath = shared;
+        else
+            ppWarn() << "[ViTPose] Could not copy the model to" << shared
+                     << "— CoreML compile cached per model path";
+        ep.coremlProgram  = true;
+        ep.coremlCacheDir = cacheDir;
+    }
 
-#ifdef WITH_CUDA
-        if (epLabel.isEmpty()) {
-#  ifdef Q_OS_LINUX
-            const bool hasNv = QFile::exists(QStringLiteral("/proc/driver/nvidia/version"));
-#  elif defined(Q_OS_WIN)
-            QLibrary nvcuda(QStringLiteral("nvcuda.dll"));
-            const bool hasNv = nvcuda.load();
-            if (hasNv) nvcuda.unload();
-#  else
-            const bool hasNv = false;
-#  endif
-            // pose.tensorrt — UNTESTED (no nvinfer on the studio). Appended AHEAD of
-            // CUDA: TensorRT takes the subgraphs it can build, CUDA the rest. The
-            // provider library pulls nvinfer in when appended, so a machine without
-            // TensorRT throws here and stays on CUDA; one whose engine build fails at
-            // session creation is retried without it (below). fp16 engines, cached
-            // under app data (a ViT-B engine build is minutes); the batch dim gets one
-            // optimisation profile [1 … batch] so a partial batch needs no rebuild.
-            QString trtLabel;
-            if (hasNv && withTrt) {
-                const OrtApi &api = Ort::GetApi();
-                OrtTensorRTProviderOptionsV2 *trt = nullptr;
-                try {
-                    Ort::ThrowOnError(api.CreateTensorRTProviderOptions(&trt));
-                    const QString cacheDir =
-                        QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
-                        + QStringLiteral("/PinPointStudio/cache/tensorrt");
-                    QDir().mkpath(cacheDir);
-                    auto shape = [](int b) {
-                        return "input_0:" + std::to_string(b) + "x3x" + std::to_string(kInputH)
-                             + "x" + std::to_string(kInputW);
-                    };
-                    const std::string shp    = shape(1);
-                    const std::string shpMax = shape(std::max(1, lo.maxBatch));
-                    const std::string dir = cacheDir.toStdString();
-                    const char *keys[] = { "device_id", "trt_fp16_enable",
-                                           "trt_engine_cache_enable", "trt_engine_cache_path",
-                                           "trt_profile_min_shapes", "trt_profile_opt_shapes",
-                                           "trt_profile_max_shapes" };
-                    const char *vals[] = { "0", "1", "1", dir.c_str(),
-                                           shp.c_str(), shpMax.c_str(), shpMax.c_str() };
-                    Ort::ThrowOnError(api.UpdateTensorRTProviderOptions(trt, keys, vals, 7));
-                    opts.AppendExecutionProvider_TensorRT_V2(*trt);
-                    trtLabel = QStringLiteral("TensorRT+");
-                    ppInfo() << "[ViTPose] TensorRT execution provider appended (fp16, engine cache"
-                             << cacheDir << ")";
-                } catch (const Ort::Exception &e) {
-                    ppWarn() << "[ViTPose] TensorRT unavailable:" << e.what() << "— CUDA only";
-                }
-                if (trt)
-                    api.ReleaseTensorRTProviderOptions(trt);
-            }
-            if (hasNv) {
-                try {
-                    OrtCUDAProviderOptions cuda{};
-                    cuda.device_id = 0;
-                    opts.AppendExecutionProvider_CUDA(cuda);
-                    epLabel = trtLabel + QStringLiteral("CUDA");
-                    ppInfo() << "[ViTPose] CUDA execution provider active";
-                } catch (const Ort::Exception &e) {
-                    ppInfo() << "[ViTPose] CUDA unavailable:" << e.what() << "— falling back";
-                }
-            }
-        }
-#endif
-
-#ifdef WITH_DIRECTML
-        if (epLabel.isEmpty()) {
-            try {
-                opts.AppendExecutionProvider("DML");
-                epLabel = QStringLiteral("DirectML");
-                ppInfo() << "[ViTPose] DirectML execution provider active";
-            } catch (const Ort::Exception &e) {
-                ppInfo() << "[ViTPose] DirectML unavailable:" << e.what() << "— falling back";
-            }
-        }
-#endif
-        return epLabel;
-    };
+    if (platform.cuda && platform.nvidiaDriver && lo.tensorrt) {
+        // pose.tensorrt — UNTESTED (no nvinfer on the studio). The provider library pulls
+        // nvinfer in when appended, so a machine without TensorRT throws there and stays on
+        // CUDA; one whose engine build fails at session creation is retried without it
+        // (below). fp16 engines, cached under app data (a ViT-B engine build is minutes).
+        const QString cacheDir =
+            QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+            + QStringLiteral("/PinPointStudio/cache/tensorrt");
+        QDir().mkpath(cacheDir);
+        ep.tensorrt         = true;
+        ep.tensorrtCacheDir = cacheDir;
+        ep.tensorrtMaxBatch = lo.maxBatch;
+        ep.inputH           = kInputH;
+        ep.inputW           = kInputW;
+    }
 
     configure(m_ort->opts);
-    QString epLabel = appendProviders(m_ort->opts, lo.tensorrt);
-
-    if (epLabel.isEmpty())
-        ppInfo() << "[ViTPose] No GPU EP available — using CPU";
-    else
-        ppInfo() << "[ViTPose] Using" << epLabel << "execution provider";
+    QString epLabel = pinpoint::pose::applyExecutionProviders(m_ort->opts, platform, ep);
 
     auto buildSession = [&]() {
         // The model load + EP init/compile (perf plan F1: paid twice a shot today).
@@ -438,7 +342,10 @@ void PoseEstimatorViTPose::load()
         ppWarn() << "[ViTPose] TensorRT session failed:" << e.what() << "— retrying on CUDA";
         m_ort->opts = Ort::SessionOptions{};
         configure(m_ort->opts);
-        epLabel = appendProviders(m_ort->opts, false);
+        pinpoint::pose::EpModelOptions retry = ep;   // the same cascade without TensorRT, no summary line
+        retry.tensorrt = false;
+        retry.summary  = pinpoint::pose::EpSummary::None;
+        epLabel = pinpoint::pose::applyExecutionProviders(m_ort->opts, platform, retry);
         try {
             buildSession();
         } catch (const Ort::Exception &e2) {

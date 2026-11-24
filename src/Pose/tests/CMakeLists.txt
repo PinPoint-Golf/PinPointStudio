@@ -92,3 +92,14 @@ pp_add_test(ball_detector_contract_test
     LINK    ${OpenCV_LIBS}
     DEFINES HAVE_OPENCV
     AUTOMOC)
+
+# The pose estimators' one execution-provider cascade (pose_backend.h; platform refactor A7): for every
+# estimator x platform x failure, the plan, the provider calls, the label and the ppInfo/ppWarn lines
+# equal the three cascades before A7 (transcribed in the test). The append is a fake: no ONNX Runtime.
+# The real log (pp_log_stream.cpp into PpMessageLog), so QDebug's quoting is the real one.
+pp_add_test(pose_ep_cascade_test
+    SOURCES pose_ep_cascade_test.cpp
+            ${POSE}/pose_backend.cpp
+            ${CORE}/pp_log_stream.cpp
+            ${CORE}/PpMessageLog.cpp
+    INCLUDE ${POSE} ${CORE})

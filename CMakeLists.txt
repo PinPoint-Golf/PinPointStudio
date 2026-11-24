@@ -3520,6 +3520,8 @@ if(PINPOINT_BUILD_TOOLS)
         src/LaunchMonitor/launch_monitor_reading.cpp
         src/Pose/pose_estimator_base.cpp
         src/Pose/pose_estimator_vitpose.cpp
+        # The pose estimators' one execution-provider cascade (platform refactor A7).
+        src/Pose/pose_backend.cpp
         src/Core/pp_debug.cpp
         src/Core/pp_log_stream.cpp
         src/Core/PpMessageLog.cpp

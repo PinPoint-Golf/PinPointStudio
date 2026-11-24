@@ -30,15 +30,11 @@
 #include "pp_gpu_metrics.h"
 #include <QFile>
 #include <QFileInfo>
-#include <QLibrary>
 
 #include <onnxruntime_cxx_api.h>
 #include "ort_log.h"
+#include "pose_ep_ort.h"
 #include <opencv2/imgproc.hpp>
-
-#ifdef WITH_COREML
-#  include <coreml_provider_factory.h>
-#endif
 
 // All ORT state lives here so onnxruntime_cxx_api.h is not pulled in via the header.
 struct PoseEstimatorMoveNet::OrtState {
@@ -124,63 +120,10 @@ void PoseEstimatorMoveNet::load()
     m_ort->opts.SetIntraOpNumThreads(1);
     m_ort->opts.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
 
-    // Execution provider cascade — mirrors KokoroTTSEngine.
-    QString epLabel;
-
-#ifdef WITH_COREML
-    if (epLabel.isEmpty()) {
-        try {
-            Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CoreML(
-                m_ort->opts, COREML_FLAG_USE_NONE));
-            epLabel = QStringLiteral("CoreML");
-            ppInfo() << "[MoveNet] CoreML execution provider active";
-        } catch (const Ort::Exception &e) {
-            ppInfo() << "[MoveNet] CoreML unavailable:" << e.what() << "— falling back";
-        }
-    }
-#endif
-
-#ifdef WITH_CUDA
-    if (epLabel.isEmpty()) {
-#  ifdef Q_OS_LINUX
-        const bool hasNv = QFile::exists(QStringLiteral("/proc/driver/nvidia/version"));
-#  elif defined(Q_OS_WIN)
-        QLibrary nvcuda(QStringLiteral("nvcuda.dll"));
-        const bool hasNv = nvcuda.load();
-        if (hasNv) nvcuda.unload();
-#  else
-        const bool hasNv = false;
-#  endif
-        if (hasNv) {
-            try {
-                OrtCUDAProviderOptions cuda{};
-                cuda.device_id = 0;
-                m_ort->opts.AppendExecutionProvider_CUDA(cuda);
-                epLabel = QStringLiteral("CUDA");
-                ppInfo() << "[MoveNet] CUDA execution provider active";
-            } catch (const Ort::Exception &e) {
-                ppInfo() << "[MoveNet] CUDA unavailable:" << e.what() << "— falling back";
-            }
-        }
-    }
-#endif
-
-#ifdef WITH_DIRECTML
-    if (epLabel.isEmpty()) {
-        try {
-            m_ort->opts.AppendExecutionProvider("DML");
-            epLabel = QStringLiteral("DirectML");
-            ppInfo() << "[MoveNet] DirectML execution provider active";
-        } catch (const Ort::Exception &e) {
-            ppInfo() << "[MoveNet] DirectML unavailable:" << e.what() << "— falling back";
-        }
-    }
-#endif
-
-    if (epLabel.isEmpty())
-        ppInfo() << "[MoveNet] No GPU EP available — using CPU";
-    else
-        ppInfo() << "[MoveNet] Using" << epLabel << "execution provider";
+    // The pose estimators' one execution-provider cascade (pose_backend.h): CoreML -> CUDA ->
+    // DirectML -> CPU, in MoveNet's wording, with its "Using …" line.
+    const QString epLabel =
+        pinpoint::pose::applyExecutionProviders(m_ort->opts, pinpoint::pose::moveNetEpOptions());
 
     // Bracket the session build with a process-VRAM sample so we can attribute the
     // weights+arena (and, for the first GPU model loaded, the one-time CUDA/cuDNN

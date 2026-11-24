@@ -33,11 +33,12 @@ whisper got AMD for free (ggml has a first-class Vulkan backend). ONNX Runtime h
 vendor-agnostic EP wired in, so its workloads are NVIDIA-only. On AMD the one genuinely degraded
 *local* feature is **pose estimation** (60 Hz live; TTS and LLM already have cloud fallbacks).
 
-The engines already contain a runtime EP cascade — `CoreML → CUDA → DirectML → CPU` — each
-branch guarded by its own `#ifdef`, with the label flowing to the UI badge. A new EP is a new
-branch + the CMake to deliver its binary. Files:
-`src/Pose/pose_estimator_movenet.cpp:173-183`, `src/Pose/pose_estimator_vitpose.cpp:184-194`,
-`src/TTS/KokoroTTSEngine.cpp:96-105`, `src/LLM/LocalLlmEngine.cpp`.
+The engines already contain a runtime EP cascade — `CoreML → CUDA → DirectML → CPU` — with
+the label flowing to the UI badge. The three pose estimators share one copy (platform refactor
+A7): the plan in `src/Pose/pose_backend.h` (`planExecutionProviders`, testable without ORT) and
+the append in `src/Pose/pose_ep_ort.h`. For them a new EP is a new `EpProvider`, a step in the
+plan, a case in the append, and the CMake to deliver its binary. The other engines still carry
+their own: `src/TTS/KokoroTTSEngine.cpp:96-105`, `src/LLM/LocalLlmEngine.cpp`.
 
 ---
 
@@ -161,7 +162,8 @@ Goal: a yes/no on "WebGPU EP runs our models on AMD," cheaply, before touching p
 - [ ] Headers + import lib from `onnxruntime-win-x64-1.26.0.zip` (GitHub release) — see §3.
 - [ ] Quick local CMake override (a throwaway `-DWITH_WEBGPU=ON` branch, or just hand-point the
       ORT include/lib/DLLs at the extracted set) — don't merge it yet.
-- [ ] Add a WebGPU branch to the EP cascade in the three engines (place it where DirectML sits):
+- [ ] Add a WebGPU branch to the EP cascade (the pose estimators' one copy in `src/Pose/pose_backend.*` /
+      `pose_ep_ort.h`, and Kokoro's own; place it where DirectML sits). Kokoro's form:
       ```cpp
       #ifdef WITH_WEBGPU
           if (epLabel.isEmpty()) {                 // (m_gpuBackend in Kokoro)

@@ -24,20 +24,17 @@
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QFile>
-#include <QLibrary>
 #include "pp_debug.h"
 
 #include <onnxruntime_cxx_api.h>
 #include "ort_log.h"
+#include "pose_ep_ort.h"
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <numeric>
 
-#ifdef WITH_COREML
-#  include <coreml_provider_factory.h>
-#endif
 
 // ── MediaPipe BlazePose landmark → PoseJoint index mapping ───────────────────
 // MediaPipe uses 33 landmarks; map the 17 that align with MoveNet's PoseJoint.
@@ -137,66 +134,6 @@ static std::vector<std::array<float, 2>> generateAnchors(int inputSize)
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 namespace {
-
-// Applies the same EP cascade as PoseEstimatorMoveNet::load().
-// Returns the label of the chosen EP ("CoreML", "CUDA", "DirectML") or "".
-QString applyEpCascade(Ort::SessionOptions &opts, const char *logPrefix)
-{
-    QString label;
-
-#ifdef WITH_COREML
-    if (label.isEmpty()) {
-        try {
-            Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CoreML(
-                opts, COREML_FLAG_USE_NONE));
-            label = QStringLiteral("CoreML");
-            ppInfo() << logPrefix << "CoreML EP active";
-        } catch (const Ort::Exception &e) {
-            ppInfo() << logPrefix << "CoreML unavailable:" << e.what();
-        }
-    }
-#endif
-
-#ifdef WITH_CUDA
-    if (label.isEmpty()) {
-#  ifdef Q_OS_LINUX
-        const bool hasNv = QFile::exists(QStringLiteral("/proc/driver/nvidia/version"));
-#  elif defined(Q_OS_WIN)
-        QLibrary nvcuda(QStringLiteral("nvcuda.dll"));
-        const bool hasNv = nvcuda.load(); if (hasNv) nvcuda.unload();
-#  else
-        const bool hasNv = false;
-#  endif
-        if (hasNv) {
-            try {
-                OrtCUDAProviderOptions cuda{}; cuda.device_id = 0;
-                opts.AppendExecutionProvider_CUDA(cuda);
-                label = QStringLiteral("CUDA");
-                ppInfo() << logPrefix << "CUDA EP active";
-            } catch (const Ort::Exception &e) {
-                ppInfo() << logPrefix << "CUDA unavailable:" << e.what();
-            }
-        }
-    }
-#endif
-
-#ifdef WITH_DIRECTML
-    if (label.isEmpty()) {
-        try {
-            opts.AppendExecutionProvider("DML");
-            label = QStringLiteral("DirectML");
-            ppInfo() << logPrefix << "DirectML EP active";
-        } catch (const Ort::Exception &e) {
-            ppInfo() << logPrefix << "DirectML unavailable:" << e.what();
-        }
-    }
-#endif
-
-    if (label.isEmpty())
-        ppInfo() << logPrefix << "CPU-only";
-
-    return label;
-}
 
 // Loads a BGR frame region, converts to RGB, normalises to [0,1] float32.
 // Handles out-of-bounds ROIs by padding with black.
@@ -328,10 +265,12 @@ void PoseEstimatorMediaPipe::load()
         opts->SetGraphOptimizationLevel(ORT_ENABLE_ALL);
     }
 
-    // Apply EP cascade to detector; landmark uses the same EP.
-    // We only report the label once (both sessions share the same hardware).
-    const QString epLabel = applyEpCascade(m_ort->detOpts, "[MediaPipe/det]");
-    applyEpCascade(m_ort->lmOpts, "[MediaPipe/lm]");
+    // The pose estimators' one execution-provider cascade (pose_backend.h), on each session, in
+    // MediaPipe's short wording. We only report the detector's label (both sessions share the same
+    // hardware).
+    const QString epLabel = pinpoint::pose::applyExecutionProviders(
+        m_ort->detOpts, pinpoint::pose::mediaPipeEpOptions("[MediaPipe/det]"));
+    pinpoint::pose::applyExecutionProviders(m_ort->lmOpts, pinpoint::pose::mediaPipeEpOptions("[MediaPipe/lm]"));
 
     // ── Load detector session ──────────────────────────────────────────────
     try {
