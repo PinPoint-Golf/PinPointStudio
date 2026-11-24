@@ -546,6 +546,24 @@ find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
     add_test(NAME design_system_tokens_check
              COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/theme/make_design_system.py --check)
+    # The method's tools (tools/method/README.md): each proves itself on fixtures in a temporary directory, never on
+    # the real information model.
+    add_test(NAME im_excerpt_selftest
+             COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/method/im_excerpt.py --self-test)
+    add_test(NAME im_changelog_merge_selftest
+             COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/method/im_changelog_merge.py --self-test)
+    set_tests_properties(im_excerpt_selftest im_changelog_merge_selftest PROPERTIES TIMEOUT 60)
+endif()
+
+# one_at_a_time_selftest: tools/method/one_at_a_time.sh, the machine-wide heavy-work lock, proved on a lock folder in a
+# temporary directory (two holders, the second waits; a stale pid is reclaimed; the exit code passes through). It never
+# takes the real build/.heavy.lock, which the ctest run itself is usually holding. A zsh script, so absent where there
+# is no zsh.
+find_program(PP_ZSH zsh)
+if(UNIX AND PP_ZSH)
+    add_test(NAME one_at_a_time_selftest
+             COMMAND ${PP_ZSH} ${SRC}/../tools/method/one_at_a_time.sh --self-test)
+    set_tests_properties(one_at_a_time_selftest PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)   # it times a short wait
 endif()
 
 # ── The offscreen QML UI suite ────────────────────────────────────────────────
