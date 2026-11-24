@@ -2296,6 +2296,7 @@ set(SESSION_GATES_TEST_SOURCES ${SESSION_DIAGNOSTICS_TEST_SOURCES}
     ${SRC}/Export/session_index_summary.cpp ${SRC}/Export/session_archiver.cpp   # the entry's summary reads (5.7a-P1)
     ${SRC}/Export/swing_paths.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Export/phase_grid_store.cpp   # the count's reads
     ${SRC}/Gui/diagnosticmodel/gate_counts.h ${SRC}/Gui/diagnosticmodel/gate_count_reads.h
+    ${SRC}/Gui/diagnosticmodel/corridor_grid_read.h   # the fallback's folder read; the suite defines it (B1.14)
     ${SRC}/Gui/diagnosticmodel/gate_count_index.h ${SRC}/Coaching/session_gates.h ${SRC}/Export/athlete_store.cpp)
 list(REMOVE_DUPLICATES SESSION_GATES_TEST_SOURCES)
 pp_add_test(session_gates_test

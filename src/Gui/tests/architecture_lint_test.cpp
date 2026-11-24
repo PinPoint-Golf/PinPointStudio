@@ -401,7 +401,7 @@ bool isRepositoryHeader(const QString &target)
         // The packs and norms' door (refactor step 3.2; D5: DEC-170): RuleData includes the interface,
         // the store implements it. A composition root reaches the owner through Export/rule_data_install.h.
         QStringLiteral("DomainModel/rule_data_repository"), QStringLiteral("Export/rule_data_store"),
-        // The phase grid's file door (FILE-SHOT-07; platform refactor P-3): the sampler's folder-keyed forwarders include it.
+        // The phase grid's file door (FILE-SHOT-07; platform refactor P-3): the model browser's folder read includes it (B1.14, R11).
         QStringLiteral("Export/phase_grid_store"),
     };
     return t.contains(stemOf(target));

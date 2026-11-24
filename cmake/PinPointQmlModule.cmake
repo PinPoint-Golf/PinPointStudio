@@ -737,6 +737,7 @@ set(PP_QML_SOURCES
     src/Gui/diagnosticmodel/shot_grid_door.h   # its swing on screen, by its Shot (platform refactor P-3)
     src/Gui/diagnosticmodel/gate_counts.h   # its gate count and the door to the session indexes (platform refactor P-3b)
     src/Gui/diagnosticmodel/gate_count_reads.h   # the count made: the index sum, the fallback, the walk (P-3b)
+    src/Gui/diagnosticmodel/corridor_grid_read.h   # the folder read of a swing's grid, defined in model_browser.cpp (B1.14, R11)
     src/Gui/diagnosticmodel/model_browser.cpp
     src/Diagnostics/measures/anatomy_vocabulary.h
     src/Diagnostics/measures/anatomy_vocabulary.cpp

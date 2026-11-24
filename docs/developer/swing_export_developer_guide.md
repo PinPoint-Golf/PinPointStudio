@@ -701,8 +701,8 @@ Two API details matter:
   false), `ParseAndWrite` (its true) and `ParseNoWrite` — parse a miss or a stale
   guard exactly as `ParseAndWrite` does, write nothing. `ParseNoWrite` is the
   parallel run's firing reader (`pinpoint::parallel::doors`), which must leave
-  every file of a session to its one writer; `readPhaseGrid` /
-  `readLivePhaseGrid` take the same policy. A `.ppsw`'s own summary block is never
+  every file of a session to its one writer; `PhaseGridStore::read`
+  (`src/Export/phase_grid_store.h`) takes the same policy. A `.ppsw`'s own summary block is never
   written back by any policy.
 - Both the cheap and the full path extract through **one** function
   (`summaryFromRoot`), so they cannot disagree about a score shape, a club

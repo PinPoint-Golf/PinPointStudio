@@ -24,13 +24,14 @@
 //                       stands; a session not summarised yet read swing by swing (and counted as read that way);
 //   gateCountsByWalk    no index (no source installed, or a library that is not the athletes'): every swing of the library
 //                       read by folder, the whole count as before P-3b.
-// The swing-by-swing read is the sampler's folder forwarder (measure_sample.h readPhaseGrid), `writeSidecar` true: a stale
+// The swing-by-swing read is the model browser's folder read (corridor_grid_read.h readPhaseGrid), `writeSidecar` true: a stale
 // sidecar (a re-analysed swing) is rebuilt, so a folder read counts the records the swing holds now.
 //
-// Header-only: model_browser.cpp and session_gates_test include it, each linking the sampler, the grid's door and SwingPaths.
+// Header-only: model_browser.cpp and session_gates_test include it, each linking the sampler, the grid's door and SwingPaths;
+// the folder read is defined in model_browser.cpp, and session_gates_test defines its own onto the same door.
 
 #include "gate_counts.h"
-#include "../../Diagnostics/measures/measure_sample.h"   // readPhaseGrid: the folder forwarder (FILE-SHOT-07's recorded exception)
+#include "corridor_grid_read.h"                         // readPhaseGrid: the folder read (FILE-SHOT-07's recorded exception)
 #include "../../Export/swing_paths.h"                    // the one swing listing
 
 #include <QSet>
@@ -42,7 +43,7 @@ inline constexpr int kGateCountMaxFolderSwings = 20000;   // a cap on the swings
 // One swing read by folder, added. False: its analysis does not read (not a swing).
 inline bool addSwingByFolder(ModelGateCounts &c, const QString &session, const QString &swingDir)
 {
-    const analysis::SwingPhaseGrid grid = analysis::readPhaseGrid(swingDir, /*writeSidecar*/ true);
+    const analysis::SwingPhaseGrid grid = readPhaseGrid(swingDir, /*writeSidecar*/ true);
     if (grid.swingDir.isEmpty()) return false;   // no readable analysis: not a swing
     ++c.swings;
     if (grid.gatesVersion <= 0) { ++c.notRecorded; return true; }

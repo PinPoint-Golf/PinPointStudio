@@ -26,6 +26,10 @@
 #include "../../Diagnostics/measures/measure_sample.h"
 #include "shot_grid_door.h"   // the swing on screen, by its Shot (platform refactor P-3)
 #include "gate_count_reads.h"   // the Gates view's count over the session indexes (platform refactor P-3b)
+#include "corridor_grid_read.h"   // the folder read of a swing's grid: the corridor scan's recorded exception (B1.14, R11)
+// THE PHASE GRID'S FILE DOOR (FILE-SHOT-07), for the folder read alone (corridor_grid_read.h, defined below). The
+// architecture allowlist counts this include on model_browser.cpp's A5 line (R11; the Solution Architect, 24 Nov 2026).
+#include "../../Export/phase_grid_store.h"
 #include "../../Diagnostics/packs/reference_pack.h"
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Metrics/gate_catalogue.h"
@@ -44,6 +48,14 @@
 #include <utility>
 
 using namespace pinpoint::analysis;
+
+// The model browser's folder read of a swing's grid (corridor_grid_read.h says why it exists and who calls it): the read
+// and the sidecar are the door's.
+pinpoint::analysis::SwingPhaseGrid pinpoint::diagmodel::readPhaseGrid(const QString &swingDir, bool writeSidecar,
+                                                                     const pinpoint::analysis::PhaseGridConfig &cfg)
+{
+    return pinpoint::PhaseGridStore::read(swingDir, pinpoint::sidecarPolicyOf(writeSidecar), cfg);
+}
 
 namespace {
 
@@ -8511,11 +8523,11 @@ void ModelBrowser::scanCorridor(const QString &measureId)
             // The expensive part is reading the phase grid, which is sidecar-cached and
             // pack-independent — which is exactly why measure_sample caches the grid rather
             // than measure values. BY FOLDER, A RECORDED EXCEPTION (information_model.md FILE-SHOT-07; platform
-            // refactor P-3b): the measure may not be saved yet, so no summary holds its values; the scan is rare, so it
+            // refactor P-3b; its read is corridor_grid_read.h's, B1.14): the measure may not be saved yet, so no summary holds its values; the scan is rare, so it
             // reads each swing's grid here rather than through every session's Shots.
             // The measure's own millisecond span, if it reads one (metric_reducer.h windowMs).
-            const SwingPhaseGrid grid = readPhaseGrid(swingDir, /*writeSidecar*/ true,
-                                                      withMsWindows({}, msWindowsOf({ copy })));
+            const SwingPhaseGrid grid = pinpoint::diagmodel::readPhaseGrid(swingDir, /*writeSidecar*/ true,
+                                                                           withMsWindows({}, msWindowsOf({ copy })));
             const std::optional<double> v = reduceOverGrid(grid, copy);
             if (v) out.append(*v);
             return true;

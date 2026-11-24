@@ -52,6 +52,7 @@
 #include "../../Export/swing_store_repository.h"
 #include "../../Gui/diagnosticmodel/gate_count_index.h"
 #include "../../Gui/diagnosticmodel/gate_count_reads.h"
+#include "../../Export/phase_grid_store.h"   // the folder read's door, for this suite's own definition of it (below)
 
 #include <QCoreApplication>
 #include <QDir>
@@ -68,6 +69,15 @@
 #include <thread>
 
 using namespace pinpoint;
+
+// The gate count's fallback reads a swing by folder through corridor_grid_read.h, which model_browser.cpp defines; this
+// suite compiles gate_count_reads.h without the model browser, so it defines the read itself: the same one line onto the
+// grid's file door (B1.14, R11).
+analysis::SwingPhaseGrid diagmodel::readPhaseGrid(const QString &swingDir, bool writeSidecar,
+                                                 const analysis::PhaseGridConfig &cfg)
+{
+    return PhaseGridStore::read(swingDir, sidecarPolicyOf(writeSidecar), cfg);
+}
 
 static int g_fail = 0;
 static int g_run  = 0;

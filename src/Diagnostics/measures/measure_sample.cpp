@@ -22,10 +22,6 @@
 #include "../../Metrics/fitted_curve.h"    // isFittedCurve — read at the instant, not around it
 #include "../../Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' readings
 #include "../../Core/club_vocabulary.h"
-// THE LIBRARY SCANS' DOOR (platform refactor P-3): the sidecar's file work is PhaseGridStore's. This include is what the
-// architecture allowlist still counts here (A1, A5), for the model browser's two library scans' folder read (readPhaseGrid),
-// until they read the athlete level's summaries instead.
-#include "../../Export/phase_grid_store.h"
 
 #include <QDateTime>
 #include <QJsonArray>
@@ -404,7 +400,7 @@ std::optional<double> reduceOverGrid(const SwingPhaseGrid &grid, const QString &
     // A SPAN IN MILLISECONDS AFTER THE ANCHOR (metric_reducer.h `windowMs`). The anchor must have been
     // read — no anchor value, no span, and the measure is not assessable for the anchor's reason, as a
     // phase window with an unsegmented end is. A span this grid was not built for is absent too:
-    // readPhaseGrid builds the spans the reading pack names (msWindowsOf).
+    // the grid's door (PhaseGridStore::read) builds the spans the reading pack names (msWindowsOf).
     if (r.windowMs.has_value()) {
         if (!r.anchor.has_value()) return std::nullopt;
         const PhaseGridValue *a = mg->at(*r.anchor);
@@ -801,7 +797,7 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
         held.push_back({ static_cast<Phase>(w.at(0).toInt()), w.at(1).toInt(), w.at(2).toInt() });
     }
     // A missing span refuses the guard but NOT the content: every number the sidecar holds is current,
-    // so the grid is still filled, and a caller that may not fat-parse (readPhaseGrid,
+    // so the grid is still filled, and a caller that may not fat-parse (PhaseGridStore::read,
     // SidecarPolicy::CachedOnly) can serve it — the measures reading the missing span are then unavailable, not the swing.
     bool missingSpan = false;
     for (const PhaseGridMsWindow &w : cfg.msWindows)
@@ -914,12 +910,6 @@ SwingPhaseGrid phaseGridOfDocument(const QJsonObject &root, const PhaseGridConfi
     // answers the default context, its findings fired as "club assumed".
     grid.club = swingDocEffectiveClub(root);
     return grid;
-}
-
-// The model browser's library scans' folder read (platform refactor P-3): the read and the sidecar are PhaseGridStore's.
-SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const PhaseGridConfig &cfg)
-{
-    return PhaseGridStore::read(swingDir, sidecarPolicyOf(writeSidecar), cfg);
 }
 
 } // namespace pinpoint::analysis

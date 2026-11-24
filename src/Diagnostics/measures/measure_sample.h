@@ -258,7 +258,7 @@ bool msSpanUncovered(const SwingPhaseGrid &grid, const Measure &m);
 // The millisecond spans (PhaseGridConfig::msWindows) are a SUBSET test: a sidecar built for spans
 // {A, B} serves a reader asking for {A}, or for none; a reader asking for C is refused (guardOk
 // false, though the grid is still filled: its numbers are current, only C is missing), and
-// `storedMsWindows` (when given) reports what the sidecar held, so readPhaseGrid can rebuild with the
+// `storedMsWindows` (when given) reports what the sidecar held, so the door (PhaseGridStore::read) can rebuild with the
 // union — or, when it may not fat-parse, serve the filled grid without C. A sidecar written before the spans existed holds none, so no schema bump was needed: every
 // reader that names none still accepts it, and every reader that names one rebuilds it.
 QJsonObject    savePhaseGrid(const SwingPhaseGrid &grid, qint64 sourceSize, qint64 sourceMtimeMs);
@@ -266,18 +266,8 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
                              bool *guardOk = nullptr, const PhaseGridConfig &cfg = {},
                              std::vector<PhaseGridMsWindow> *storedMsWindows = nullptr);
 
-// THE MODEL BROWSER'S FOLDER READ OF A SWING'S GRID (platform refactor P-3, P-3b): a forwarder to the grid's file door
-// (PhaseGridStore, src/Export/phase_grid_store.h), which owns the read, the sidecar and its write. Everything else reads a
-// shot's grid by ShotRef (RecordingReader::phaseGrid, src/DomainModel/recording_reader.h) or, inside the store, through
-// the door itself. Kept for two callers, both on the model browser's worker, with no Shot to ask:
-//   - THE CORRIDOR SCAN, a recorded exception (information_model.md FILE-SHOT-07): the corridor editor reduces a measure
-//     that may not be saved yet over every swing of the library, which needs each swing's grid itself, not a summary.
-//     It is a rare use, so it keeps this read rather than going through every session's Shots; if the use grows, a
-//     faster way is found then.
-//   - THE GATE COUNT'S FALLBACK (gate_count_reads.h): the count is a sum over the session summaries' `gates` blocks, and
-//     only a session not summarised yet has its swings read here, until its summary is written again.
-// `writeSidecar` true is SidecarPolicy::ParseAndWrite (both callers), false is CachedOnly ("never fat-parse"). The
-// architecture allowlist counts its door against this file for these two.
-SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar = true, const PhaseGridConfig &cfg = {});
+// The model browser's folder read of a swing's grid (the corridor scan, FILE-SHOT-07's recorded exception, and the gate
+// count's fallback) is the model browser's own: src/Gui/diagnosticmodel/corridor_grid_read.h (B1.14, R11). The sampler
+// does no file work and includes no repository.
 
 } // namespace pinpoint::analysis

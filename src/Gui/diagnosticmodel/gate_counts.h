@@ -26,7 +26,7 @@
 // as "no gate fired". THE COUNT IS A SUM OVER EVERY ATHLETE'S SESSION INDEX: each session's summary carries its own counts
 // (its `gates` block, written by its SessionDiagnostics), read as SessionRepository::deferredSummary reads it. A session whose
 // summary has no block yet (written before the block existed, or not written) is NOT SUMMARISED YET: only its swings are
-// read one by one, by folder, as the whole library was before (measure_sample.h readPhaseGrid), and the count says how
+// read one by one, by folder, as the whole library was before (corridor_grid_read.h readPhaseGrid), and the count says how
 // many sessions were read that way.
 //
 // WHY A DOOR: ModelBrowser is a QML type of the module, which the QML suites compile without the domain model. The module

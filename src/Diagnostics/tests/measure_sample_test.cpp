@@ -51,6 +51,14 @@
 
 using namespace pinpoint::analysis;
 
+// THE FOLDER READ OF A SWING'S GRID, as this suite has always called it. The forwarder of that name left the sampler for
+// the model browser (src/Gui/diagnosticmodel/corridor_grid_read.h; B1.14, R11), which this suite does not link: this is
+// the same one line onto the grid's file door, so the cases below read exactly as before.
+static SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar = true, const PhaseGridConfig &cfg = {})
+{
+    return pinpoint::PhaseGridStore::read(swingDir, pinpoint::sidecarPolicyOf(writeSidecar), cfg);
+}
+
 static int  g_fail = 0;
 static void check(bool c, const char *label)
 {

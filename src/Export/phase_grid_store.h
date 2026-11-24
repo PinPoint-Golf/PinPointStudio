@@ -27,10 +27,11 @@
 //
 // Keyed by the swing FOLDER. Its callers by the shot reach it through the Recording's reader
 // (RecordingReader::phaseGrid, src/DomainModel/recording_reader.h; the app's adapter SwingStorePhaseGridReader,
-// recording_loader.h) or the firing reader (firing_reader_store.h). Its one caller by folder is the model browser's two
-// library scans, which have no Shot to ask: they reach this door through the sampler's folder read (measure_sample.h
-// readPhaseGrid), whose include of this header the architecture allowlist still counts against measure_sample.cpp, until
-// the scans move onto the athlete level's summaries (P-3's proposal). Tools and tests over bare folders call it directly.
+// recording_loader.h) or the firing reader (firing_reader_store.h). Its one caller by folder is the model browser, which
+// has no Shot to ask: its corridor scan (FILE-SHOT-07's recorded exception) and its gate count's fallback for a session not
+// summarised yet reach this door through its own folder read (src/Gui/diagnosticmodel/corridor_grid_read.h readPhaseGrid,
+// defined in model_browser.cpp), whose include of this header the architecture allowlist counts on model_browser.cpp's A5
+// line (B1.14, R11). Tools and tests over bare folders call it directly.
 //
 // LIGHT ON PURPOSE: it needs only what the sampler needed before P-3 (the swing store, the atomic write, the club
 // vocabulary, the wrist profile's input), because every target that compiles the sampler compiles this beside it. The
