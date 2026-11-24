@@ -89,6 +89,7 @@ PRESETS = {
             ("UX refactor: one rail,\nno session modes", "2026-10-28", 585, -8),
             ("Foresight Premier\nconnector", "2026-11-02", 462, 0),
             ("Variability, Consistency\n& Tendencies", "2026-11-11", 635, -3),
+            ("Domain model\nrefactor", "2026-11-24", 495, -2),
         ]),
     "goldencheetah": dict(
         title="GoldenCheetah: lines of code over time, with the features as they arrived",
