@@ -246,7 +246,7 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
   - Tagged lines: **36 → 32** (`measure_sample.cpp`'s A1 line is now tagged `# kept`, so R11 clears it without changing this count). The 32 are Stage D's 3, #224-H's 1 and #224-U's 28, each named on #224.
   - One more line goes that the plan's figure never counted: `dag_layout.cpp`'s A7 line, by R8.
 - **If R11 is not ruled as recommended:** Stage B clears 3 lines, the two `measure_sample.cpp` lines are re-tagged
-  `# kept` with the ruling as their reason, tagged lines read 36 → 33, and lint A9 needs a named exception
+  `# kept` with the ruling as their reason, tagged lines still read 36 → 32 (three cleared, and the A5 line leaves the tag as `# kept`), and lint A9 needs a named exception
   for that include, which IM §1.4's "no allowlist line" does not allow today. That is why R11 is the better route.
 - **Decided:**
 
