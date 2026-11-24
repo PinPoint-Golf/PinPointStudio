@@ -101,7 +101,7 @@ says "ruled" where it appears below.
 | #224's four-way split of its 34 lines is posted on #224 (§5 rule 10) | Product Owner | done |
 | **Q26, the pipeline and the domain model:** option 1, contracts, not owners. Every context reaches Domain + Application only through the Domain model's interfaces and value types, never the owner classes or the Application services; A9 checks it with a named set of contract headers (IM v1.10.1, R-CTX-1) | Solution Architect | Stage B |
 | **Q27, shared Vocabulary:** option B. `Vocabulary/Club`, `Vocabulary/Common` and `Identity` are tagged Shared, usable by every context; a type goes there only when two contexts use it; `trunk_calib_provenance.h` moves to `Vocabulary/Common` (IM v1.10.1, §4.1) | Solution Architect | Stage B, Part 1 |
-| **The context map, a side track:** whether R-CTX-1 becomes "only through a named contract or the shared kernel", tested in `build/context-map/`, reviewed by Gemini, then dropped, kept for later or applied. Lint A9 waits on it (PR-7) | Product Owner | none until decided |
+| **The context map: kept for later** (PR-9). Tested in `build/context-map/` (963 cross-context includes: 886 fit, 68 by a carve-out, 9 fit neither, the same 9 under either rule) and reviewed by Gemini. It is applied when the coaching track makes its first information-model change, or when Stage D lifts the capture deferral, because only then does it check what the order can't (Coaching never re-derives and never reads raw streams). Guards for then: no Acquisition → Coaching row (a play source implements a hub or Coaching interface; rehearsal swings reach Coaching as domain events); decide the pack machinery's home (`layered_set`, `pack_io`) and whether pure sensor maths is Shared; and decide whether each context offers `Gui` a named published surface (403 hub → context includes are unbounded today) | Product Owner | the coaching track, or Stage D |
 | **The four contexts** (`docs/design/four_contexts.md`, L1–L8; PR-4 in `build/platform/JUDGEMENT-CALLS.md`): Acquisition → Diagnostics → Coaching, with Domain + Application the hub (Q26), with the direction rule R-CTX-1 and the results contract. Today's `src/Coaching` moves to `src/Diagnostics/derived/` and the folder becomes the Coaching context's; Diagnostics' priorities are split from Coaching's work-ons, and the panel says "Priorities" until the coaching track builds adoption (the Design Lead's wording). Lint A9 checks that no context includes a later one. Stage B's libraries stay by ring (L6). Three guards for Stages C and D. Merged into IM v1.10.0 | Solution Architect and Product Owner (L1–L8); Design Lead (the "Priorities" wording) | IM §2, §4, §4.1 and the glossary (done, v1.10.0); Stage B, Part 1 (the move, the renames, A9); Stage B, Part 2 (L6); Stages C and D (the guards) |
 
 ---
@@ -739,7 +739,23 @@ After the domain refactor. Its measurements are redone then. It has two parts.
   store read, which P-3 removes; and the drill pack's Diagnostics includers, which keep it tagged Diagnostics until they
   move (IM §2, "The packs"). `Vocabulary/Club`, `Vocabulary/Common` and `Identity` are tagged Shared, usable by every
   context; `Recording` stays Acquisition; `trunk_calib_provenance.h` moves to `Vocabulary/Common` (§9 Q27, ruled 24 Nov; IM
-  v1.10.1 §4.1). **A9 is not built until the context-map side track is decided** (PR-7).
+  v1.10.1 §4.1). Four more must be cleared before A9 lands (found by the context-map include check, 24 Nov): **`Recording/recording.h`** includes
+  `Vocabulary/Analysis/swing_analysis.h` for `BallTrack2D`, `BallBaselineRef` and `ImuSegmentBinding`: capture-time facts
+  in the Recording contract, so they move to `Vocabulary/Recording` (Acquisition) when Part 1 splits `swing_analysis.h`, with `BallSample2D`,
+  which `BallTrack2D` holds. `SegmentRole` (`segment_role.h`), which `ImuSegmentBinding` holds and `Gui/imu` also uses,
+  goes to `Vocabulary/Common` (Shared, Q27's rule), and IM §4.1's RING-VOCABULARY text drops "the segment roles" from
+  `Vocabulary/Analysis` with it. `TrunkCalibProvenance` is already going there (Q27); and
+  **`Video/video_overlay_pose.*`** includes the pose estimator. It is compiled into the app (`CMakeLists.txt:2709`) but no
+  code creates one: only comments name it, and `PpCameraFrame.qml` draws the skeleton itself. So it is deleted, with its
+  CMake lines, and `video_overlay_base.*` with it (no other subclass or user), its comments re-pointed to
+  `PpCameraFrame.qml`'s skeleton (a deletion: independent review). Two more follow from the placements A9 makes in Stage B:
+  `IMU/hm_session_worker.cpp:28` includes `hm_frame.h` and uses nothing from it, so the include is deleted; and `Ppcp`'s
+  three includes of `Core/pp_settings.h` (`ppcp_host_inventory.cpp:30`, `ppcp_host_service.cpp:47`,
+  `ppcp_pairing_store.cpp:73`) are cleared by `pp_settings`' placement (Platform, as a `QSettings` handle; proposed, for
+  the Solution Architect, IMC C9) or by injecting the two settings. When A9 is built, note that it checks direct includes
+  only: `recording_reader.h`'s own includes reach every file that includes the contract.
+  **The context map is kept for later** (the Product Owner, 24 Nov; PR-9): A9 is built as R-CTX-1's order, which rejects the
+  same real problems today.
 
 **Part 2: the libraries.**
 - **The libraries stay by ring** (ruled 24 Nov, L6 of the four contexts): a library splits by context only where a
@@ -1272,7 +1288,7 @@ approvals, in one sitting before that stage's first brief ("Approvals this page 
 |---|---|
 | anything | none (20 and 22 ruled 24 Nov) |
 | Stage A | none (4, 10 and 21 ruled 24 Nov) |
-| Stage B | none (26 and 27 ruled 24 Nov; lint A9 waits on the context-map side track, PR-7; 11, 15, 16, 19 and 25 ruled 24 Nov) |
+| Stage B | none (26 and 27 ruled 24 Nov; lint A9 built as R-CTX-1's order, the context map kept for later, PR-9; 11, 15, 16, 19 and 25 ruled 24 Nov) |
 | Stage C | 2, 23 |
 | Stage D | 8, 18 |
 | Stage E | 5, 6, 7, 9, 17, 24's #234 |
