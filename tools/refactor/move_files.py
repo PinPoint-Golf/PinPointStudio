@@ -11,20 +11,25 @@ whichever exist. A path with an extension moves that one file. A destination end
     python3 tools/refactor/move_files.py <map> --over-work     # the same over uncommitted work (another lane's replay)
     python3 tools/refactor/move_files.py <map> --verify <base> # every changed line since <base> is a move's: exit 1 if not
     python3 tools/refactor/move_files.py --self-test           # proves each rule on a fixture tree (ctest: move_files_selftest)
+A map line `keep: <file>:<lines>` (docs only; the map is the only source) leaves those lines exactly as they are (a dated
+record); --verify passes the old spelling there only, and fails if a kept line changed.
 Options: --root <checkout> (default: this file's checkout); --allow-prose <file> (with --verify: prose edits in that
 doc, e.g. the IM rows a brief names, are listed instead of failing); --allow-code-path <file>:<lines> (with --verify:
 on exactly those lines of that file, a path in a C++ string changed to the map's image is listed instead of failing,
 for a hand edit a brief names, e.g. B1.6's gate_catalogue_rules.h:38-42); --configure <scratch dir> (with --verify:
 then cmake -S <root> -B <dir>/app and -S <root>/tests -B <dir>/tests, exit 1 if either fails to configure; run it
-through build/refactor/one_at_a_time.sh); --seed <build dir> (its app/ and tests/ caches give the configure its
-toolchain, fetched sources and downloads; default <root>/build); --cmake-arg <arg> (passed on); --quiet (totals only).
+through build/refactor/one_at_a_time.sh; without it --verify prints NOT CONFIGURED and exits 3, B1.2b);
+--no-configure-ok (the self-test only: --verify without --configure may pass); --seed <build dir> (its app/ and tests/
+caches give the configure its toolchain, fetched sources and downloads; default <root>/build); --cmake-arg <arg>
+(passed on whatever it starts with, -D... included, after the seed's: it wins); --quiet (totals only).
 
 What it rewrites (MOVES.md items 1-9): the moves (git mv); every `#include "…"` / `#import "…"` of a moved file in src,
 tests and tools, by how it resolves (the lint's A1 resolver: relative to the file, then under src/, then under src/Gui/,
 then a unique basename): relative -> the path from the file's new home; under src/ or src/Gui/ -> the same style;
 through an include directory (a bare name, or any spelling that resolved only by basename) -> the relative path; the
 outward includes inside moved files; path mentions in build files (a ${VAR} only where CMake's scopes give it to that
-line: CMakeVars walks the configure; a variable set in a sibling folder, or later in the file, is never used), the lint's
+line: CMakeVars walks the configure, function and macro bodies where they are called; a variable set in a sibling
+folder, or later in the file, is never used; one the walk can't decide is listed as can't place, never guessed), the lint's
 tables, the allowlist, tools/refactor/context_check.py's tables, tools/, packaging/, .github/, docs/developer/,
 docs/design/, BUILDING.md, README.md and C++ comments. A mention is rewritten only when it is anchored: `src/<old>…`,
 `${VAR}/…`, `../…`, or `<old dir>/<a real moved file or folder>`; a bare old folder name (`Metrics/`) is rewritten
@@ -37,8 +42,8 @@ is behaviour); touch docs/implementation/ (dated snapshots), QML, or anything un
 directory that names a moved folder is re-pathed (never added) and reported, so the brief can remove it once nothing
 needs it.
 
-Exit codes: 0 done / report clean; 1 errors (nothing changed) or --verify found other lines; 2 usage; 77 self-test
-skipped (no git).
+Exit codes: 0 done / report clean; 1 errors (nothing changed), --verify found other lines or --configure failed; 2
+usage; 3 --verify passed but nothing was configured (not a pass); 77 self-test skipped (no git).
 """
 import ast
 import bisect
@@ -127,7 +132,7 @@ def parse_map(text):
     entries = []
     for n, raw in enumerate(text.splitlines(), 1):
         line = raw.split('#', 1)[0].strip()
-        if not line:
+        if not line or line.startswith('keep:'):
             continue
         parts = re.split(r'\s*(?:->|→)\s*', line)
         if len(parts) != 2 or not parts[0] or not parts[1]:
@@ -146,12 +151,46 @@ def parse_map(text):
     return entries
 
 
+def parse_lines_spec(arg):
+    """'<file>:<line>[-<line>][,...]' -> (file, {lines})."""
+    f, _, spec = arg.rpartition(':')
+    if not f or not spec:
+        raise Fail('want <file>:<lines>: %s' % arg)
+    lines = set()
+    for part in spec.split(','):
+        lo, _, hi = part.partition('-')
+        lines.update(range(int(lo), int(hi or lo) + 1))
+    return f, lines
+
+
+def parse_keeps(text):
+    """The lines a move leaves exactly as they are: the map's `keep: <file>:<lines>` stanzas, and nothing else, so the
+    committed map is the only place a verify can be told to accept an old spelling (a dated record, e.g. a decision or
+    change-log row that must say what was true then; prose only: keep_errors). {file: {line numbers}} in the tree
+    before the move."""
+    keep = collections.defaultdict(set)
+    for raw in text.splitlines():
+        line = raw.split('#', 1)[0].strip()
+        if line.startswith('keep:'):
+            f, ls = parse_lines_spec(line[len('keep:'):].strip())
+            keep[f] |= ls
+    return dict(keep)
+
+
+def keep_errors(keep):
+    """A keep on anything but a doc is refused (B1.2b's review): a kept build, C++ or tool line would hide a stale path
+    that no later check sees (an include directory, a code string)."""
+    return ['keep: %s is a %s file: keep: is for dated lines in docs only' % (f, file_kind(f))
+            for f in sorted(keep) if file_kind(f) != 'doc']
+
+
 class Plan:
     """The map expanded against a tree. moves: old file -> new file (every move the map makes, done or pending)."""
 
     def __init__(self, entries, files):
         self.entries = entries
         self.files = set(files)
+        self.keep = {}                                             # {file: {lines}} left as they are (--keep, keep:)
         self.moves, self.stems, self.dirs = {}, {}, []
         errors = []
         # file and stem lines first, so a folder line never claims a file another line put in its destination
@@ -411,6 +450,7 @@ def in_scope(path):
 
 # ── CMake variables and include-directory contexts ──────────────────────────────────────────────
 ROOTM = '@ROOT@'
+CANT_PLACE = 'CMake scope: '                                       # the prefix of a reason the CMake model gives (B1.2b)
 CMD_RE = re.compile(r'([A-Za-z_]\w*)[ \t]*\(')
 WORD_RE = re.compile(r'"((?:\\.|[^"\\])*)"|([^\s()"]+)')
 LIST_OUT_LAST = ('GET', 'LENGTH', 'FIND', 'JOIN', 'SUBLIST')
@@ -431,13 +471,13 @@ def _p(d):
 
 def _repo(v):
     """A value that names a place in the checkout -> its repo path ('' for the root); anything else -> None."""
-    if v is None or ';' in v or not (v == ROOTM or v.startswith(ROOTM + '/')):
+    if not isinstance(v, str) or ';' in v or not (v == ROOTM or v.startswith(ROOTM + '/')):
         return None
     return norm(v[len(ROOTM):].lstrip('/'))
 
 
 def _canon(v):
-    if v is not None and (v == ROOTM or v.startswith(ROOTM + '/')) and ';' not in v:
+    if isinstance(v, str) and (v == ROOTM or v.startswith(ROOTM + '/')) and ';' not in v:
         r = _repo(v)
         return None if r is None else _p(r)
     return v
@@ -468,37 +508,80 @@ def cmake_commands(text):
     return out
 
 
-class _Frame:
-    """One reading of one build file: the variables it starts with and each change in its scope, by line."""
-    __slots__ = ('path', 'entry', 'changes', 'line')
+ABSENT = object()                                                  # a variable a scope does not hold
 
-    def __init__(self, path, entry):
-        self.path, self.entry, self.changes, self.line = path, entry, [], 0
+
+class Doubt(collections.namedtuple('Doubt', 'cands why')):
+    """A value the walk can't decide (B1.2b): cands, the values it may have (None for empty or unreadable), and why."""
+    __slots__ = ()
+
+
+def _cands(v):
+    if isinstance(v, Doubt):
+        return set(v.cands)
+    return {v} if isinstance(v, str) else {None}
+
+
+class _Frame:
+    """One reading of one build file, or of one function or macro body in it (span: its first and last line): the
+    variables it starts with and each change in its scope, by line."""
+    __slots__ = ('path', 'entry', 'changes', 'line', 'span')         # changes: (line, name, value, pass)
+
+    def __init__(self, path, entry, span=None):
+        self.path, self.entry, self.changes, self.line, self.span = path, entry, [], 0, span
 
 
 class _State:
-    """One directory scope: its variables, and the frames reading in it (a file and the files it include()s)."""
+    """One variable scope (a directory's, or a function call's): its variables, the scope PARENT_SCOPE writes to,
+    and the frames reading in it (a file and the files it include()s)."""
 
-    def __init__(self, vars_):
-        self.vars, self.frames = vars_, []
+    def __init__(self, vars_, parent=None):
+        self.vars, self.parent, self.frames = vars_, parent, []
+
+
+class _Return(Exception):
+    pass
+
+
+class LineInfo:
+    """What one build-file line knows: known {variable: repo path}; doubts {variable: (repo paths it may name, None
+    for empty or unreadable; why)}; body: None, or 'called' / 'uncalled' for a line in a function or macro body."""
+    __slots__ = ('known', 'doubts', 'body')
+
+    def __init__(self, known, doubts, body):
+        self.known, self.doubts, self.body = known, doubts, body
 
 
 class CMakeVars:
-    """Which variables a build file knows, line by line, as CMake's own scopes give them (B1.2a).
+    """Which variables a build file knows, line by line, as CMake's own scopes give them (B1.2a, B1.2b).
 
     It walks the tree as a configure does, from every CMakeLists that calls project() (the app's root, tests/, each
-    suite that also runs standalone, src/Buffer): in statement order; add_subdirectory() gives the child a copy of the
-    scope at that line, include() reads the file in the includer's scope (a module name through CMAKE_MODULE_PATH),
-    foreach() with literal items is expanded, function()/macro() bodies are skipped (their sets are local), a CACHE
-    set is seen from then on; `if(NOT COMMAND x)` and `if(PROJECT_IS_TOP_LEVEL)` are decided, any other condition
-    reads both branches (a set under one that changes a value makes it unknown). A file reached more than once knows
-    a variable only where every reading agrees on its value. A build file nothing reaches (a `cmake -P` script) knows
-    only its own sets and CMAKE_CURRENT_LIST_DIR; `unreached` lists them."""
+    suite that also runs standalone, src/Buffer), in statement order: add_subdirectory() gives the child a copy of the
+    scope at that line; include() reads the file in the includer's scope (a module name through CMAKE_MODULE_PATH);
+    foreach() with literal items is expanded; a CACHE INTERNAL/FORCE set is seen from then on, a cache default is not.
+    A function() or macro() body is read where it is CALLED, in the caller's scope (a function in a copy of it, with
+    its arguments; a macro in the caller's own scope, so its sets change the caller's variables); a body line knows
+    only what every call agrees on, and a body no call reaches knows nothing. `if(NOT COMMAND x)` and
+    `if(PROJECT_IS_TOP_LEVEL)` are decided; any other condition reads each branch from the state before the if, and
+    after endif() a variable the branches (or the branch not taken) leave different is undecided. unset() unsets;
+    set(X v PARENT_SCOPE) writes the parent's X after the add_subdirectory() or the call; return() ends the file or
+    function, and one that runs only on some paths leaves what follows it undecided for the includer or caller. A
+    file reached more than once knows a variable only where every reading agrees on its value. An undecided value is
+    a Doubt with a reason, so a line that uses it is reported "can't place", never guessed. A build file nothing
+    reaches (a `cmake -P` script) knows only its own sets and CMAKE_CURRENT_LIST_DIR; `unreached` lists them."""
 
     def __init__(self, texts):
         self.texts = texts
         self.cmds = {p: cmake_commands(t) for p, t in texts.items()}
         self.all_funcs = {w[0].lower() for cs in self.cmds.values() for c, w, _, _ in cs if c in ('function', 'macro') and w}
+        self.spans = {}                                            # file -> every function/macro body's (first, last)
+        for p, cs in self.cmds.items():
+            sp = []
+            for k, (c, w, first, _) in enumerate(cs):
+                if c in ('function', 'macro'):
+                    e = self._end(cs, k, ('function', 'macro'), ('endfunction', 'endmacro'))
+                    sp.append((first, cs[min(e, len(cs) - 1)][3]))
+            self.spans[p] = sp
         self.setters = collections.defaultdict(set)
         for p, cs in self.cmds.items():
             for c, w, _, _ in cs:
@@ -512,40 +595,52 @@ class CMakeVars:
             self._root(p, posixpath.dirname(p))
         self.unreached = []
         for p in sorted(texts):
-            if p not in self.runs:
+            if not any(fr.span is None for fr in self.runs.get(p, ())):
                 self.unreached.append(p)
                 self._root(p, None)
 
     # ── the walk
     def _root(self, path, top):
-        self.cache, self.funcs, self.active = {}, set(), []
+        self.cache, self.funcs, self.defs, self.active, self._base, self._rets = {}, set(), {}, [], [], []
+        self._tag = self._ntag = 0                                 # a foreach pass: one line, two passes, two values
         v = {'CMAKE_CURRENT_LIST_DIR': _p(posixpath.dirname(path))}
         if posixpath.basename(path) == 'CMakeLists.txt':          # always read as its own directory
             v['CMAKE_CURRENT_SOURCE_DIR'] = _p(posixpath.dirname(path))
         if top is not None:
             v['CMAKE_SOURCE_DIR'] = _p(top)
-        self._run(path, _State(v), (), 0)
+        self._run(path, self.cmds[path], _State(v), (), 0)
 
     def _get(self, st, name):
         return st.vars[name] if name in st.vars else self.cache.get(name)
 
     def _sub(self, s, st):
+        """A word with its variables read: a string, None (unknown), or a Doubt (it uses an undecided variable)."""
         if '$ENV{' in s or '$<' in s or '${${' in s:
             return None
-        bad = []
+        bad, doubt = [], {}
 
         def one(m):
             v = self._get(st, m.group(1))
+            if isinstance(v, Doubt):
+                doubt.setdefault(m.group(1), v)
+                return ''
             if v is None:
                 bad.append(m.group(1))
                 return ''
             return v
         r = re.sub(r'\$\{(\w+)\}', one, s)
+        if doubt:
+            name, d = next(iter(doubt.items()))
+            cands = {None}
+            if not bad and len(doubt) == 1:
+                cands = set()
+                for c in d.cands:
+                    cands.add(None if c is None else re.sub(r'\$\{(\w+)\}', lambda m: c if m.group(1) == name
+                                                             else self._get(st, m.group(1)), s))
+            return Doubt(frozenset(cands), d.why)
         return None if bad or '${' in r else r
 
-    def _path(self, s, st):
-        """A word as a repo path: a variable's place, or relative to CMAKE_CURRENT_SOURCE_DIR; None if unknown."""
-        r = self._sub(s, st)
+    def _rel(self, r, st):
         if r is None:
             return None
         if r == ROOTM or r.startswith(ROOTM + '/'):
@@ -555,27 +650,93 @@ class CMakeVars:
             return None
         return norm(posixpath.join(base, r))
 
-    def _assign(self, st, name, val, unk, cache=False):
+    def _path(self, s, st):
+        """A word as a repo path: a variable's place, or relative to CMAKE_CURRENT_SOURCE_DIR; None if unknown; a
+        Doubt of repo paths if it uses an undecided variable."""
+        r = self._sub(s, st)
+        if isinstance(r, Doubt):
+            return Doubt(frozenset(self._rel(c, st) for c in r.cands), r.why)
+        return self._rel(r, st)
+
+    def _record(self, frames, name, val):
+        for fr in frames:
+            fr.changes.append((fr.line, name, val, self._tag))
+
+    def _assign(self, st, name, val, cache=False):
         val = _canon(val)
-        prev = self._get(st, name)
-        if unk and prev is not None and prev != val:
-            val = None                                             # changed under a condition the walk can't decide
         st.vars[name] = val
         if cache:
             self.cache[name] = val
-        for fr in (self.active if cache else st.frames):
-            fr.changes.append((fr.line, name, val))
+        self._record(self.active if cache else st.frames, name, val)
 
-    def _run(self, path, st, stack, unk):
-        if path in stack or len(stack) > 60:
+    def _unset(self, st, name, where):
+        st.vars.pop(name, None)
+        c = self.cache.get(name)
+        val = c if c is not None else Doubt(frozenset([None]), 'unset() at %s:%d' % where)
+        if c is None:
+            st.vars[name] = val                                    # read as empty: never a path
+        self._record(st.frames, name, val)
+
+    # an undecided if: each branch from the state before it, merged at endif
+    def _snap(self, st):
+        return dict(st.vars), dict(self.cache)
+
+    def _set_to(self, st, vars_, cache):
+        for name in set(st.vars) | set(vars_):
+            a, b = st.vars.get(name, ABSENT), vars_.get(name, ABSENT)
+            if a != b:
+                if b is ABSENT:
+                    del st.vars[name]
+                else:
+                    st.vars[name] = b
+                v = st.vars.get(name, self.cache.get(name))
+                self._record(st.frames, name, v)
+        for name in set(self.cache) | set(cache):
+            a, b = self.cache.get(name, ABSENT), cache.get(name, ABSENT)
+            if a != b:
+                if b is ABSENT:
+                    del self.cache[name]
+                else:
+                    self.cache[name] = b
+                self._record(self.active, name, st.vars.get(name, self.cache.get(name)))
+
+    @staticmethod
+    def _merged(dicts, why):
+        out = {}
+        for name in set().union(*dicts):
+            vals = [d.get(name, ABSENT) for d in dicts]
+            if all(v == vals[0] for v in vals[1:]):
+                if vals[0] is not ABSENT:
+                    out[name] = vals[0]
+                continue
+            cands = set()
+            for v in vals:
+                cands |= _cands(None if v is ABSENT else v)
+            out[name] = Doubt(frozenset(cands), why)
+        return out
+
+    def _merge(self, st, snaps, why):
+        self._set_to(st, self._merged([s[0] for s in snaps], why), self._merged([s[1] for s in snaps], why))
+
+    def _run(self, path, cmds, st, stack, unk, span=None, key=None):
+        """Read `cmds` (a whole file, or a function body: span) in the scope `st`."""
+        key = key or path
+        if key in stack or len(stack) > 60:
             return
-        fr = _Frame(path, dict(self.cache, **st.vars))
+        fr = _Frame(path, dict(self.cache, **st.vars), span)
         self.runs[path].append(fr)
-        st.frames.append(fr); self.active.append(fr)
+        st.frames.append(fr); self.active.append(fr); self._base.append(unk); self._rets.append([])
         try:
-            self._block(path, self.cmds[path], st, stack + (path,), unk)
+            try:
+                self._block(path, cmds, st, stack + (key,), unk)
+            except _Return:
+                pass
+            rets = self._rets[-1]
+            if rets:
+                self._merge(st, [self._snap(st)] + [s for s, _ in rets],
+                            'return() at %s:%d ends %s on some paths only' % (path, rets[0][1], posixpath.basename(path)))
         finally:
-            st.frames.pop(); self.active.pop()
+            st.frames.pop(); self.active.pop(); self._base.pop(); self._rets.pop()
 
     def _cond(self, w, st):
         neg, ws = False, list(w)
@@ -602,47 +763,93 @@ class CMakeVars:
         return len(cmds)
 
     def _block(self, path, cmds, st, stack, unk):
+        """Read commands in order; True when the rest is never reached (a return() on every path that got here)."""
         fr = st.frames[-1]
-        ifs = []                                                   # [reading this branch, a branch taken: T/F/None]
+        ifs = []                                                   # one dict per open if: see _if_*
         k = 0
         while k < len(cmds):
-            c, w, _, last = cmds[k]
+            c, w, first, last = cmds[k]
             fr.line = last
-            outer_off = any(not x[0] for x in ifs[:-1])
+            off = any(not x['read'] for x in ifs)
+            outer_off = any(not x['read'] for x in ifs[:-1])
             if c in ('function', 'macro'):
-                if not any(not x[0] for x in ifs) and w:
-                    self.funcs.add(w[0].lower())
-                k = self._end(cmds, k, ('function', 'macro'), ('endfunction', 'endmacro')) + 1
+                e = self._end(cmds, k, ('function', 'macro'), ('endfunction', 'endmacro'))
+                if not off and w:
+                    name = w[0].lower()
+                    self.funcs.add(name)
+                    self.defs[name] = (c, path, cmds[k + 1:e], w[1:], (first, cmds[min(e, len(cmds) - 1)][3]))
+                k = e + 1
                 continue
+            dead = False
             if c == 'if':
-                if any(not x[0] for x in ifs):
-                    ifs.append([False, True])
+                if off:
+                    ifs.append(dict(read=False, taken=True, snap=None, ends=[], els=False, fell=False, dead=False))
                 else:
                     v = self._cond(w, st)
-                    ifs.append([v is not False, v])
-            elif c == 'elseif' and ifs:
-                top = ifs[-1]
-                if outer_off or top[1] is True:
-                    top[0] = False
+                    ifs.append(dict(read=v is not False, taken=v, snap=self._snap(st) if v is None else None, ends=[],
+                                    els=False, fell=False, dead=False, line=first))
+            elif c in ('elseif', 'else') and ifs:
+                e = ifs[-1]
+                if not outer_off:
+                    self._if_close(e, st)
+                if c == 'elseif':
+                    if outer_off or e['taken'] is True:
+                        e['read'] = False
+                    else:
+                        v = self._cond(w, st)
+                        if v is None and e['snap'] is None:
+                            e['snap'], e['line'] = self._snap(st), first
+                        e['read'] = v is not False
+                        t = e['taken']
+                        e['taken'] = True if (v is True and t is False) else (None if (v is None or t is None) else False)
                 else:
-                    v = self._cond(w, st)
-                    top[0] = v is not False
-                    top[1] = True if (v is True and top[1] is False) else (None if (v is None or top[1] is None) else False)
-            elif c == 'else' and ifs:
-                ifs[-1][0] = not outer_off and ifs[-1][1] is not True
+                    e['read'] = not outer_off and e['taken'] is not True
+                    e['els'] = e['read']
             elif c == 'endif' and ifs:
-                ifs.pop()
-            elif any(not x[0] for x in ifs):
+                e = ifs.pop()
+                if not any(not x['read'] for x in ifs):
+                    self._if_close(e, st, False)
+                    implicit = not (e['taken'] is True or e['els'])
+                    if e['snap'] is not None:
+                        paths = e['ends'] + ([e['snap']] if implicit else [])
+                        if paths:
+                            self._merge(st, paths, 'set under the undecided if at %s:%d' % (path, e['line']))
+                    dead = not (e['fell'] or implicit)
+            elif off:
                 pass
             else:
-                u = unk + sum(1 for x in ifs if x[1] is None)
+                u = unk + sum(1 for x in ifs if x['taken'] is None)
                 if c == 'foreach' and w:
                     e = self._end(cmds, k, ('foreach',), ('endforeach',))
-                    self._foreach(path, cmds[k + 1:e], w, st, stack, u, cmds[min(e, len(cmds) - 1)][3])
-                    k = e + 1
-                    continue
-                self._command(c, w, st, stack, u)
+                    dead = self._foreach(path, cmds[k + 1:e], w, st, stack, u, cmds[min(e, len(cmds) - 1)][3])
+                    k = e
+                elif c == 'return':
+                    if u == self._base[-1]:
+                        raise _Return()                            # on every path here: the rest is never read
+                    self._rets[-1].append((self._snap(st), first))
+                    dead = True
+                else:
+                    dead = self._command(c, w, st, stack, u, (path, first))
+            if dead:
+                if not ifs:
+                    return True
+                ifs[-1]['dead'], ifs[-1]['read'] = True, False
             k += 1
+        return False
+
+    def _if_close(self, e, st, restore=True):
+        """The end of a branch being read: keep its state for the merge, then go back to the state before the if (at
+        endif the merge sets it instead)."""
+        if e['snap'] is None:
+            e['fell'] = e['fell'] or (e['read'] and not e['dead'])
+            e['dead'] = False
+            return
+        if e['read'] and not e['dead']:
+            e['fell'] = True
+            e['ends'].append(self._snap(st))
+        e['dead'] = False
+        if restore:
+            self._set_to(st, *e['snap'])
 
     def _foreach(self, path, body, w, st, stack, unk, end_line):
         var, items = w[0], None
@@ -654,116 +861,249 @@ class CMakeVars:
             words = w[1:]
         if words is not None:
             subs = [self._sub(x, st) for x in words]
-            items = None if any(x is None for x in subs) else [y for x in subs for y in x.split(';') if y]
-        prev = self._get(st, var)
-        self._assign(st, var, items[0] if items and len(items) == 1 else None, 0)
-        for it in (items if items else [None]):
-            st.vars[var] = it
-            self._block(path, body, st, stack, unk)
-        st.frames[-1].line = end_line
-        self._assign(st, var, prev, 0)
+            items = None if any(not isinstance(x, str) for x in subs) else [y for x in subs for y in x.split(';') if y]
+        prev = st.vars.get(var, ABSENT)
+        self._assign(st, var, items[0] if items and len(items) == 1 else None)
+        dead, tag = False, self._tag
+        try:
+            for it in (items if items else [None]):
+                st.vars[var] = it
+                self._ntag += 1
+                self._tag = self._ntag
+                if self._block(path, body, st, stack, unk):
+                    dead = True
+                    break
+        finally:
+            self._tag = tag
+            st.frames[-1].line = end_line
+            if prev is ABSENT:
+                st.vars.pop(var, None)
+                self._record(st.frames, var, self.cache.get(var))
+            else:
+                self._assign(st, var, prev)
+        return dead
 
-    def _command(self, c, w, st, stack, unk):
+    def _call(self, name, w, st, stack, unk):
+        """A function or macro call: its body read here, in the caller's scope. True if a macro's return() ends the
+        caller on every path."""
+        kind, dpath, body, params, span = self.defs[name]
+        key = ('call', name)
+        if key in stack or len(stack) > 60:
+            return False
+        args = [_canon(self._sub(x, st)) for x in w]
+        joined = lambda xs: ';'.join(xs) if all(isinstance(x, str) for x in xs) else None
+        bind = {'ARGC': str(len(args)), 'ARGV': joined(args), 'ARGN': joined(args[len(params):])}
+        for i, a in enumerate(args):
+            bind['ARGV%d' % i] = a
+        for i, p in enumerate(params):
+            bind[p] = args[i] if i < len(args) else None
+        if kind == 'function':
+            v = dict(st.vars)
+            v.update(bind)
+            v['CMAKE_CURRENT_FUNCTION_LIST_DIR'] = _p(posixpath.dirname(dpath))
+            self._run(dpath, body, _State(v, st), stack, unk, span, key)
+            return False
+        saved = {k: st.vars.get(k, ABSENT) for k in bind}         # a macro's arguments are text, not the caller's
+        st.vars.update(bind)                                       # variables: bound unrecorded, then put back
+        fr = _Frame(dpath, dict(self.cache, **st.vars), span)
+        self.runs[dpath].append(fr)
+        st.frames.append(fr); self.active.append(fr)
+        try:
+            return self._block(dpath, body, st, stack + (key,), unk)
+        finally:
+            st.frames.pop(); self.active.pop()
+            for k, v in saved.items():
+                if v is ABSENT:
+                    st.vars.pop(k, None)
+                else:
+                    st.vars[k] = v
+
+    def _command(self, c, w, st, stack, unk, where):
+        if c in self.defs:
+            return self._call(c, w, st, stack, unk)
         if c == 'set' and w and '$' not in w[0]:
             vals = w[1:]
             if 'PARENT_SCOPE' in vals:
-                return
+                par = st.parent
+                if par is not None:
+                    subs = [self._sub(x, st) for x in vals[:vals.index('PARENT_SCOPE')]]
+                    val = self._joined(subs)
+                    if unk or self._rets[-1]:                      # only on some paths: the parent's value is undecided
+                        why = 'set(%s … PARENT_SCOPE) at %s:%d runs on some paths only' % ((w[0],) + where)
+                        val = Doubt(frozenset(_cands(self._get(par, w[0])) | _cands(val)), why)
+                    if val is None and not vals[:vals.index('PARENT_SCOPE')]:
+                        self._unset(par, w[0], where)
+                    else:
+                        self._assign(par, w[0], val)
+                return False
             cache = 'CACHE' in vals
             if cache:
                 force = 'FORCE' in vals or 'INTERNAL' in vals
                 vals = vals[:vals.index('CACHE')]
                 if w[0] in self.cache and not force:
-                    return
-            subs = [self._sub(x, st) for x in vals]
-            val = None if not vals or any(x is None for x in subs) else ';'.join(subs)
+                    return False
+            if not vals and not cache:
+                self._unset(st, w[0], where)                       # set(X): unsets X
+                return False
+            val = self._joined([self._sub(x, st) for x in vals]) if vals else None
             if cache and not force:
                 val = None                                         # a cache default: a -D on the command line wins
-            self._assign(st, w[0], val, unk, cache)
+            self._assign(st, w[0], val, cache)
+        elif c == 'unset' and w and '$' not in w[0]:
+            flags = [x.upper() for x in w[1:]]
+            if 'CACHE' in flags:
+                self.cache.pop(w[0], None)
+                self._record(self.active, w[0], st.vars.get(w[0]))
+            elif 'PARENT_SCOPE' in flags:
+                if st.parent is not None:
+                    self._unset(st.parent, w[0], where)
+            else:
+                self._unset(st, w[0], where)
         elif c == 'get_filename_component' and len(w) >= 3 and '$' not in w[0]:
             mode = w[2].upper()
             p = self._path(w[1], st) if mode in ('ABSOLUTE', 'REALPATH', 'DIRECTORY', 'PATH') else None
-            if p is not None and mode in ('DIRECTORY', 'PATH'):
-                p = posixpath.dirname(p)
-            self._assign(st, w[0], None if p is None else _p(p), unk, 'CACHE' in w[3:])
+            dirn = mode in ('DIRECTORY', 'PATH')
+            if isinstance(p, Doubt):
+                val = Doubt(frozenset(None if x is None else _p(posixpath.dirname(x) if dirn else x) for x in p.cands), p.why)
+            else:
+                if p is not None and dirn:
+                    p = posixpath.dirname(p)
+                val = None if p is None else _p(p)
+            self._assign(st, w[0], val, 'CACHE' in w[3:])
         elif c == 'list' and len(w) >= 2:
             op = w[0].upper()
             if w[1] == 'CMAKE_MODULE_PATH' and op in ('APPEND', 'PREPEND'):
-                cur = [x for x in (self._get(st, 'CMAKE_MODULE_PATH') or '').split(';') if x]
-                add = [_p(p) if p is not None else '?' for p in (self._path(x, st) for x in w[2:])]
-                self._assign(st, 'CMAKE_MODULE_PATH', ';'.join(cur + add if op == 'APPEND' else add + cur), unk)
+                mp = self._get(st, 'CMAKE_MODULE_PATH')
+                cur = [x for x in mp.split(';') if x] if isinstance(mp, str) else ([] if mp is None else ['?'])
+                add = [_p(p) if isinstance(p, str) else '?' for p in (self._path(x, st) for x in w[2:])]
+                self._assign(st, 'CMAKE_MODULE_PATH', ';'.join(cur + add if op == 'APPEND' else add + cur))
             elif '$' not in w[-1] and '$' not in w[1]:
-                self._assign(st, w[-1] if op in LIST_OUT_LAST else w[1], None, unk)
+                self._assign(st, w[-1] if op in LIST_OUT_LAST else w[1], None)
         elif c == 'project':
             here = self._get(st, 'CMAKE_CURRENT_SOURCE_DIR')      # what project() sets does not hang on a condition
-            self._assign(st, 'PROJECT_SOURCE_DIR', here, 0)
+            self._assign(st, 'PROJECT_SOURCE_DIR', here)
             if w and '$' not in w[0]:
-                self._assign(st, w[0] + '_SOURCE_DIR', here, 0)
+                self._assign(st, w[0] + '_SOURCE_DIR', here)
             top = here is not None and here == self._get(st, 'CMAKE_SOURCE_DIR')
-            self._assign(st, 'PROJECT_IS_TOP_LEVEL', 'ON' if top else 'OFF', 0)
+            self._assign(st, 'PROJECT_IS_TOP_LEVEL', 'ON' if top else 'OFF')
         elif c == 'include' and w:
             t = self._include_target(w[0], st)
             if t is not None:
                 prev = st.vars.get('CMAKE_CURRENT_LIST_DIR')
                 st.vars['CMAKE_CURRENT_LIST_DIR'] = _p(posixpath.dirname(t))
-                self._run(t, st, stack, unk)
+                self._run(t, self.cmds[t], st, stack, unk)
                 st.vars['CMAKE_CURRENT_LIST_DIR'] = prev
         elif c == 'add_subdirectory' and w:
             d = self._path(w[0], st)
+            d = d if isinstance(d, str) else None
             t = None if d is None else posixpath.join(d, 'CMakeLists.txt') if d else 'CMakeLists.txt'
             if t in self.texts:
                 v = dict(st.vars)
                 v['CMAKE_CURRENT_SOURCE_DIR'] = v['CMAKE_CURRENT_LIST_DIR'] = _p(d)
-                self._run(t, _State(v), stack, unk)
+                self._run(t, self.cmds[t], _State(v, st), stack, unk)
+        return False
+
+    @staticmethod
+    def _joined(subs):
+        if not subs:
+            return None
+        ds = [x for x in subs if isinstance(x, Doubt)]
+        if ds:
+            if len(subs) == 1:
+                return ds[0]
+            return Doubt(frozenset([None]), ds[0].why)
+        return None if any(x is None for x in subs) else ';'.join(subs)
 
     def _include_target(self, word, st):
         r = self._sub(word, st)
-        if r is None:
+        if not isinstance(r, str):
             return None
         if '/' in r or r.endswith('.cmake'):
             t = self._path(word, st)
             return t if t in self.texts else None
-        for m in (self._get(st, 'CMAKE_MODULE_PATH') or '').split(';'):
+        mp = self._get(st, 'CMAKE_MODULE_PATH')
+        for m in (mp if isinstance(mp, str) else '').split(';'):
             d = _repo(m)
             if d is not None and posixpath.join(d, r + '.cmake') in self.texts:
                 return posixpath.join(d, r + '.cmake')
         return None
 
     # ── what a line knows
+    def _span(self, path, line):
+        """The innermost function or macro body holding `line`, or None."""
+        best = None
+        for a, b in self.spans.get(path, ()):
+            if a <= line <= b and (best is None or a >= best[0]):
+                best = (a, b)
+        return best
+
     def _prepare(self, path):
-        runs = self.runs.get(path) or [_Frame(path, {'CMAKE_CURRENT_LIST_DIR': _p(posixpath.dirname(path))})]
-        lines = [0] + sorted({ln for fr in runs for ln, _, _ in fr.changes})
-        scopes = []
-        for b in lines:
-            states = []
-            for fr in runs:
-                s, at = dict(fr.entry), {}
-                for ln, name, val in fr.changes:
-                    if ln > b:
+        groups = collections.defaultdict(list)
+        for fr in self.runs.get(path, ()):
+            groups[fr.span].append(fr)
+        if None not in groups:
+            groups[None] = [_Frame(path, {'CMAKE_CURRENT_LIST_DIR': _p(posixpath.dirname(path))})]
+        out = {}
+        for span, frames in groups.items():
+            uniq = {}
+            for fr in frames:                                      # a function called many times the same way: once
+                k = (tuple(sorted(fr.entry.items(), key=lambda x: x[0])), tuple(fr.changes))
+                uniq.setdefault(k, fr)
+            runs = list(uniq.values())
+            what = 'calls' if span else 'routes'
+            lines = [0] + sorted({ln for fr in runs for ln, _, _, _ in fr.changes})
+            scopes = []
+            for b in lines:
+                states = []
+                for fr in runs:
+                    s, at = dict(fr.entry), {}
+                    for ln, name, val, tag in fr.changes:
+                        if ln > b:
+                            continue
+                        if name in at and at[name][0] == ln and at[name][2] != tag and at[name][1] != val:
+                            val = None                             # one line, two passes, two values (a loop body)
+                        at[name] = (ln, val, tag)
+                        s[name] = val
+                    states.append(s)
+                known, doubts = {}, {}
+                for name in set().union(*states):
+                    if name == 'CMAKE_MODULE_PATH':
                         continue
-                    if name in at and at[name][0] == ln and at[name][1] != val:
-                        val = None                                 # one line, two values (a loop body)
-                    at[name] = (ln, val)
-                    s[name] = val
-                states.append(s)
-            known = {}
-            for name, val in states[0].items():
-                if name == 'CMAKE_MODULE_PATH':
-                    continue
-                r = _repo(val)
-                if r is not None and all(x.get(name) == val for x in states[1:]):
-                    known[name] = r
-            scopes.append(known)
-        self._bp[path] = (lines, scopes)
+                    vals = [s.get(name) for s in states]
+                    v0 = vals[0]
+                    if all(v == v0 for v in vals[1:]) and not isinstance(v0, Doubt):
+                        r = _repo(v0)
+                        if r is not None:
+                            known[name] = r
+                        continue
+                    cands, whys = set(), []
+                    for v in vals:
+                        if isinstance(v, Doubt):
+                            whys.append(v.why)
+                        cands |= {_repo(x) for x in _cands(v)}
+                    if whys or any(x is not None for x in cands):
+                        doubts[name] = (frozenset(cands), whys[0] if whys else
+                                        'the %d %s that reach this line give it different values' % (len(states), what))
+                scopes.append((known, doubts))
+            out[span] = (lines, scopes)
+        self._bp[path] = out
+
+    def info(self, path, line=None):
+        """LineInfo for the build file `path` at `line` (its end when None)."""
+        if path not in self._bp:
+            self._prepare(path)
+        groups = self._bp[path]
+        span = self._span(path, line) if line is not None else None
+        if span is not None and span not in groups:
+            return LineInfo({}, {}, 'uncalled')
+        lines, scopes = groups[span]
+        known, doubts = scopes[-1] if line is None else scopes[max(0, bisect.bisect_left(lines, line) - 1)]
+        return LineInfo(known, doubts, None if span is None else 'called')
 
     def scope(self, path, line=None):
         """{variable: repo path} that the build file `path` knows at `line` (its end when None): set on every route
         that reaches it, to one place."""
-        if path not in self._bp:
-            self._prepare(path)
-        lines, scopes = self._bp[path]
-        if line is None:
-            return scopes[-1]
-        return scopes[max(0, bisect.bisect_left(lines, line) - 1)]
+        return self.info(path, line).known
 
     def where_set(self, name):
         return sorted(self.setters.get(name, ()))
@@ -892,6 +1232,7 @@ class Report:
         self.mentions = collections.defaultdict(list)   # kind -> (file, line, old, new)
         self.incdirs = []            # (file, line, old, new)
         self.unplaced = []           # (file, line, text, why)
+        self.kept = []               # (file, line, the line, what the move would have made it)
         self.errors = []
         self.tables = []             # text lines
         self.scope = collections.Counter()
@@ -915,6 +1256,10 @@ class Rewriter:
         self.cvars = CMakeVars({p: t for p, t in texts.items() if file_kind(p) == 'build'})
         self.rep = Report()
         self.moved_names = {posixpath.basename(f) for f in plan.moves}
+        self.moved_tails = set()                                   # every trailing part of a moved path (B1.2b)
+        for m in list(plan.moves) + list(plan.stems) + [o.rstrip('/') for o, _ in plan.dirs]:
+            parts = m.split('/')
+            self.moved_tails.update('/'.join(parts[i:]) for i in range(len(parts)))
 
     # where the file at `path` (current location) ends up
     def final_path(self, path):
@@ -1073,13 +1418,17 @@ class Rewriter:
             new += '/'
         return new + trail
 
-    def rewrite_span(self, seg, path, ln, mode, scope, kind, incdir_mask=None, offset=0):
+    def rewrite_span(self, seg, path, ln, mode, scope, kind, incdir_mask=None, offset=0, info=None):
         out, last = [], 0
         for m in TOKEN_RE.finditer(seg):
             tok = m.group(0)
             r = self.interpret(tok, path, mode, scope)
             if r is None:
-                self.residue(tok, path, ln, kind)
+                why = self.cmake_cant_place(tok, info) if info is not None and mode == 'build' else None
+                if why:
+                    self.rep.unplaced.append((path, ln, tok, why))
+                else:
+                    self.residue(tok, path, ln, kind)
                 continue
             P, style = r
             new = self.respell(tok, P, style, path, scope)
@@ -1088,6 +1437,15 @@ class Rewriter:
                 continue
             if new == tok:
                 continue
+            if info is not None and mode == 'build' and info.body and style[0] in ('rel', 'repo'):
+                base, want = info.known.get('CMAKE_CURRENT_SOURCE_DIR'), cmake_base(path) if style[0] == 'rel' else ''
+                if info.body == 'uncalled' or base != want:
+                    self.rep.unplaced.append((path, ln, tok, CANT_PLACE + 'a path in a function or macro body is read '
+                                              'from the caller\'s folder (%s), not %s' % (
+                                                  'no call reaches it' if info.body == 'uncalled' else
+                                                  'the calls disagree' if base is None else base or 'the root',
+                                                  want or 'the root')))
+                    continue
             check = self.interpret(new, self.final_path(path), mode, scope) if style[0] != 'var' else None
             out.append(seg[last:m.start()]); out.append(new); last = m.end()
             isdir = incdir_mask is not None and any(a <= offset + m.start() < b for a, b in incdir_mask)
@@ -1096,6 +1454,38 @@ class Rewriter:
             self.rep.mentions[kind].append((path, ln, tok, new))
         out.append(seg[last:])
         return ''.join(out)
+
+    def tail_moves(self, tail):
+        t = tail
+        while t.startswith(('../', './')):
+            t = t.split('/', 1)[1]
+        t = t.rstrip('/')
+        return bool(t) and t not in ('.', '..') and t in self.moved_tails
+
+    def cmake_cant_place(self, tok, info):
+        """Why a `${VAR}/…` word the line can't read is listed, not skipped (B1.2b): VAR is undecided here and one of
+        its values makes the word name a moved path, or VAR is unknown and the word's tail names one."""
+        core, _ = split_trailing(tok)
+        m = re.match(r'^\$\{(\w+)\}/(.+)$', core)
+        if not m or m.group(1) in info.known or m.group(1).endswith('_BINARY_DIR'):
+            return None
+        name, tail = m.groups()
+        d = info.doubts.get(name)
+        if d:
+            cands, why = d
+            for c in sorted(x for x in cands if x is not None):
+                P = norm(posixpath.join(c, tail))
+                if P is not None and self.union.exists(P) and self.plan.moved(P):
+                    return CANT_PLACE + '${%s} is undecided here (%s); as %s it names %s, which moves' % (
+                        name, why, c or 'the root', P)
+            if None in cands and self.tail_moves(tail):
+                return CANT_PLACE + '${%s} is undecided here (%s); its tail names a moved path' % (name, why)
+            return None
+        if not self.tail_moves(tail):
+            return None
+        if info.body == 'uncalled':
+            return CANT_PLACE + '${%s} is in a function or macro body no call reaches; its tail names a moved path' % name
+        return CANT_PLACE + '${%s} has no value the tool can read at this line; its tail names a moved path' % name
 
     def residue(self, tok, path, ln, kind):
         """A mention the tool did not place: an old folder or moved file named in a form it does not anchor."""
@@ -1120,6 +1510,53 @@ class Rewriter:
                 return
 
     def rewrite_file(self, path, text):
+        """The file rewritten, except the lines --keep / keep: name, which stay as they are (each listed)."""
+        new = self._rewrite_file(path, text)
+        if file_kind(path) == 'build':
+            new = self.whole_lines(path, text, new)
+        kept = self.plan.keep.get(self.plan.back.get(path, path), set()) | self.plan.keep.get(path, set())
+        if not kept:
+            return new
+        ol, nl = text.splitlines(keepends=True), new.splitlines(keepends=True)
+        r = self.rep
+        drop = lambda xs: [x for x in xs if not (x[0] == path and x[1] in kept)]
+        r.includes, r.incdirs, r.unplaced = drop(r.includes), drop(r.incdirs), drop(r.unplaced)
+        for k in list(r.mentions):
+            r.mentions[k] = drop(r.mentions[k])
+        for ln in sorted(kept):
+            if ln > len(ol):
+                r.errors.append('keep: %s:%d is past the end of the file' % (path, ln))
+                continue
+            a, b = ol[ln - 1].rstrip('\r\n'), nl[ln - 1].rstrip('\r\n')
+            r.kept.append((path, ln, a, b))
+            if a == b:
+                r.errors.append('keep: %s:%d has nothing the map rewrites (a stale line number?)' % (path, ln))
+            nl[ln - 1] = ol[ln - 1]
+        return ''.join(nl)
+
+    def whole_lines(self, path, text, new):
+        """A build line with a CMake-scope can't-place word is left whole (B1.2b's review): no word on it is rewritten,
+        and each word the move would have changed is listed as left with it."""
+        r = self.rep
+        stop = {ln for p, ln, _, why in r.unplaced if p == path and why.startswith(CANT_PLACE)}
+        if not stop:
+            return new
+        ol, nl = text.splitlines(keepends=True), new.splitlines(keepends=True)
+        for kind in list(r.mentions):
+            keep_, left = [], []
+            for x in r.mentions[kind]:
+                (left if x[0] == path and x[1] in stop else keep_).append(x)
+            r.mentions[kind] = keep_
+            for p, ln, a, b in left:
+                r.unplaced.append((p, ln, a, CANT_PLACE + 'left with its line, which holds a word that can\'t be '
+                                   'placed (the move would have made it %s)' % b))
+        r.incdirs = [x for x in r.incdirs if not (x[0] == path and x[1] in stop)]
+        for ln in stop:
+            if 0 < ln <= len(nl):
+                nl[ln - 1] = ol[ln - 1]
+        return ''.join(nl)
+
+    def _rewrite_file(self, path, text):
         kind = file_kind(path)
         lines = text.splitlines(keepends=True)
         scope = {}
@@ -1136,8 +1573,10 @@ class Rewriter:
         for ln, line in enumerate(lines, 1):
             body = line.rstrip('\r\n'); eol = line[len(body):]
             start = pos; pos += len(line)
+            info = None
             if kind == 'build':
-                scope = self.cvars.scope(path, ln)                 # what this line knows (B1.2a)
+                info = self.cvars.info(path, ln)                   # what this line knows (B1.2a, B1.2b)
+                scope = info.known
             if kind in ('py', 'context', 'build', 'text') or path.endswith(('.sh', '.zsh', '.cmd', '.ps1')):
                 self.split_paths(body, path, ln)
             if kind in ('cpp', 'lint') and INC_RE.match(body) or ANGLE_RE.match(body) and kind in ('cpp', 'lint'):
@@ -1180,7 +1619,7 @@ class Rewriter:
                         seg = self.rewrite_span(seg, path, ln, 'anchored', scope, 'tool')
                 elif kind == 'build':
                     seg = self.rewrite_span(seg, path, ln, 'anchored' if c == 'm' else 'build', scope, 'build',
-                                            incdir if c != 'm' else None, start + i)
+                                            incdir if c != 'm' else None, start + i, info)
                 res.append(seg); i = j
             out.append(''.join(res) + eol)
         return ''.join(out)
@@ -1258,9 +1697,16 @@ class Rewriter:
 
 def build_plan(root, map_path):
     with open(map_path, encoding='utf-8') as f:
-        entries = parse_map(f.read())
+        text = f.read()
+    entries = parse_map(text)
     files = list_files(root)
-    return Plan(entries, files), files
+    plan = Plan(entries, files)
+    plan.keep = parse_keeps(text)
+    plan.errors.extend(keep_errors(plan.keep))
+    for k in sorted(plan.keep):
+        if k not in files and plan.moves.get(k) not in files:
+            plan.errors.append('keep: %s is not in the tree' % k)
+    return plan, files
 
 
 def compute(root, plan, files):
@@ -1321,6 +1767,9 @@ def print_report(rw, plan, quiet, dry):
     say('== tables: rings and contexts that change: %d' % len(r.tables))
     for x in r.tables:
         say('  ' + x)
+    say('== lines kept as they are (--keep / keep:; dated records): %d' % len(r.kept))
+    for p, ln, a, b in r.kept:
+        say('  %s:%d  %s' % (p, ln, 'kept; the move would have made it: ' + b.strip() if a != b else 'kept (nothing to rewrite there)'))
     say("== can't place (not rewritten; read each): %d" % len(r.unplaced))
     if not quiet:
         for p, ln, t, why in r.unplaced:
@@ -1374,10 +1823,14 @@ def run_move(root, map_path, dry, over_work, quiet):
 # ── --verify ────────────────────────────────────────────────────────────────────────────────────
 def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
     """Pairs files by the map, then checks each changed line by what it points at (its own reading of the diff); ends
-    with the rewriter's own pass over the result, so nothing the map still asks for passes on an unchanged line."""
+    with the rewriter's own pass over the result, so nothing the map still asks for passes on an unchanged line. A kept
+    line (--keep, keep:) must be byte-identical to the base, and its old spelling passes there only."""
     allow_code = allow_code or {}
     with open(map_path, encoding='utf-8') as f:
-        entries = parse_map(f.read())
+        map_text = f.read()
+    entries = parse_map(map_text)
+    keep = parse_keeps(map_text)
+    bad_keep = keep_errors(keep)
     base_modes = {}
     for rec in git(root, 'ls-tree', '-r', '-z', base).split('\0'):
         if rec:
@@ -1420,6 +1873,33 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
     vars_new = CMakeVars({k: v for k, v in build_new.items() if v is not None})
     ip_old = Interp(plan, old_tree, vars_old)
     ip_new = Interp(plan, new_tree, vars_new)
+    # kept lines (--keep / keep:): each must sit unchanged in an equal block of its file's diff, whatever else changed
+    # around it (an --allow-prose file included); the final pass reads it at its line in the work tree
+    work_keep = collections.defaultdict(set)
+    bad.extend(bad_keep)
+    for bf, ls in sorted(keep.items()):
+        if file_kind(bf) != 'doc':
+            continue
+        wf = plan.moves.get(bf, bf)
+        if bf not in base_files:
+            bad.append('keep: %s is not in the base' % bf); continue
+        if wf not in work:
+            continue
+        ot, nt = base_text(bf), work_text(wf)
+        if ot is None or nt is None:
+            bad.append('keep: %s is not a text file' % bf); continue
+        ol, nl = ot.splitlines(keepends=True), nt.splitlines(keepends=True)
+        eq = [(i1, i2, j1) for op, i1, i2, j1, _ in difflib.SequenceMatcher(None, ol, nl, autojunk=False).get_opcodes()
+              if op == 'equal']
+        for i in sorted(ls):
+            hit = [j1 + (i - 1 - i1) for i1, i2, j1 in eq if i1 <= i - 1 < i2]
+            if i > len(ol):
+                bad.append('keep: %s:%d is past the end of the base file' % (bf, i))
+            elif not hit:
+                bad.append('%s:%d (base): a kept line (--keep / keep:) changed or was removed: %s' % (
+                    bf, i, ol[i - 1].rstrip('\r\n')))
+            else:
+                work_keep[wf].add(hit[0] + 1)
 
     for w, b in sorted(expect.items()):
         if w not in work:
@@ -1514,7 +1994,12 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
     # the rewriter's own pass over the result: a file still to move, or an include or mention still to rewrite, fails
     # (a stale spelling left on a line the diff never touched); a pending re-key on a table line is a listed hand edit
     plan_now = Plan(entries, work)
+    plan_now.keep = dict(work_keep)
     rw, _ = compute(root, plan_now, work)
+    for p, ln, a, c in rw.rep.kept:
+        if a != c:                                                 # a == c: the rewriter's pass errs (stale number)
+            listed.append('%s:%d: kept as it was (--keep / keep:); the map would make it %s: %s' % (
+                p, ln, c.strip(), a.strip()))
     for o, d in sorted(plan_now.pending.items()):
         bad.append('still to move: %s -> %s' % (o, d))
     for p, ln, a, c, how, _ in rw.rep.includes:
@@ -1532,6 +2017,23 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
             bad.append('%s:%d: the map still rewrites %s -> %s' % (p, ln, a, c))
     for e in rw.rep.errors:
         bad.append('the rewriter\'s pass: ' + e)
+    # can't-place lines: the base reading's (as the move saw them) and the result's, each once; the configure decides
+    rw0 = Rewriter(root, plan, {p: t for p, t in build_old.items() if t is not None})
+    seen = set()
+    for label, rr, texts_ in (('base', rw0, build_old), ('now', rw, None)):
+        if texts_ is not None:
+            for p in sorted(texts_):
+                if texts_[p] is not None:
+                    rr.rewrite_file(p, texts_[p])
+        for p, ln, t, why in rr.rep.unplaced:
+            if not why.startswith(CANT_PLACE):
+                continue
+            w = plan.moves.get(p, p) if label == 'base' else p
+            if (w, t) in seen:
+                continue
+            seen.add((w, t))
+            listed.append('%s:%d%s: can\'t place %s: %s (read it; --configure is the proof)' % (
+                p, ln, ' (base)' if label == 'base' else '', t, why[len(CANT_PLACE):]))
     print('move_files.py --verify %s against %s' % (os.path.relpath(map_path, root) if map_path.startswith(root) else map_path, base))
     print('renames checked: %d; files with changed lines: %d' % (ok_renames, len([1 for w, b in expect.items()
                                                                                   if w in work and (b != w or w in changed)])))
@@ -1548,7 +2050,7 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
 # ── --configure: the real proof of a move's build files ──────────────────────────────────────────
 SEED_KEYS = ('CMAKE_PREFIX_PATH', 'CMAKE_MAKE_PROGRAM', 'CMAKE_C_COMPILER_LAUNCHER', 'CMAKE_CXX_COMPILER_LAUNCHER',
              'CMAKE_BUILD_TYPE', 'PP_OPENCV_ROOT', 'PP_EIGEN_DIR', 'PP_LIBPPCP_DIR', 'PP_LIBWRIST_DIR', 'PP_LIBGSPRO_DIR',
-             'PP_LIBPPSWING_DIR')
+             'PP_LIBPPSWING_DIR', 'PINPOINT_BUILD_TOOLS', 'PINPOINT_BUILD_LM_REPAIR')   # --cmake-arg comes last: it wins
 FETCH_PREFIX = 'FETCHCONTENT_SOURCE_DIR_'
 
 
@@ -1607,8 +2109,9 @@ def configure(root, out_dir, seed, extra):
     rc = 0
     for tree, src in (('app', root), ('tests', os.path.join(root, 'tests'))):
         if not os.path.isfile(os.path.join(src, 'CMakeLists.txt')):
-            print('configure %s: no %s/CMakeLists.txt; skipped' % (tree, os.path.relpath(src, root)))
-            continue
+            print('configure %s: FAILED: no %s/CMakeLists.txt (a tree not configured is never a pass)' % (
+                tree, os.path.relpath(src, root)))
+            rc = 1; continue
         b = os.path.join(out_dir, tree)
         if os.path.exists(b) and os.listdir(b):
             print('configure %s: FAILED: %s is not empty (a scratch folder only; never a real build tree)' % (tree, b))
@@ -1711,12 +2214,27 @@ def check_pair(old, new, b, w, kind, ip_old, ip_new, plan, code_ok=False, lines=
             if not (oc[pa] and nc[pc]) and not code_ok:
                 return 'a path changed outside a comment or include (behaviour)'
         if kind == 'build':                                        # a variable the line can't see (B1.18's F1)
-            known = ip_new.cvars.scope(w, lines[1])
+            inf = ip_new.cvars.info(w, lines[1])
+            known = inf.known
             for name in re.findall(r'\$\{(\w+)\}', c):
-                if name not in re.findall(r'\$\{(\w+)\}', a) and name not in known:
+                if name in known:
+                    continue
+                if name in inf.doubts:                             # B1.2b: undecided, never a pass
+                    return '"%s" -> "%s": can\'t place: ${%s} is undecided at this line (%s)' % (
+                        a, c, name, inf.doubts[name][1])
+                if inf.body == 'uncalled':
+                    return '"%s" -> "%s": can\'t place: a function or macro body no call reaches' % (a, c)
+                if name not in re.findall(r'\$\{(\w+)\}', a):
                     where = [x for x in ip_new.cvars.where_set(name) if x != w]
                     return '"%s" -> "%s": ${%s} is not set in this file\'s scope at this line%s' % (
                         a, c, name, ' (set only in %s)' % ', '.join(where[:4]) if where else '')
+            if inf.body and '${' not in c:                          # a body reads a relative path from its caller
+                base, want = known.get('CMAKE_CURRENT_SOURCE_DIR'), '' if c.startswith('src/') else cmake_base(w)
+                if inf.body == 'uncalled' or base != want:
+                    return '"%s" -> "%s": can\'t place: in a function or macro body a path is read from the caller\'s ' \
+                           'folder (%s), not %s' % (a, c, 'no call reaches it' if inf.body == 'uncalled' else
+                                                    'the calls disagree' if base is None else base or 'the root',
+                                                    want or 'the root')
         ma, mc = ip_old.meaning(a, b, kind, lines[0]), ip_new.meaning(c, w, kind, lines[1])
         if ma is None:
             return '"%s" named nothing in the base' % a
@@ -1837,6 +2355,187 @@ def check_allowlist(ot, nt, plan, w):
 
 
 # ── --self-test ─────────────────────────────────────────────────────────────────────────────────
+def constructs_selftest(tmp, sh, tool, put, get, check):
+    """B1.2b's fixture: the CMake constructs whose value the walk decides, or can't (then the line is listed as can't
+    place and left as it was, never guessed). Pure Python: it runs on every platform. Each case names what the old
+    reading (B1.2a: bodies at their definition, a first set under an if kept, unset/return/PARENT_SCOPE ignored) did."""
+    d3 = os.path.join(tmp, 'constructs')
+    os.makedirs(d3)
+    sh(d3, 'init', '-q')
+    H = {
+        'CMakeLists.txt': (
+            'cmake_minimum_required(VERSION 3.16)\n'                                       # 1
+            'project(app NONE)\n'                                                           # 2
+            'set(D2 ${CMAKE_SOURCE_DIR}/src/Diagnostics)\n'                                 # 3
+            'function(two_calls t)\n'                                                       # 4
+            '    add_custom_target(${t} SOURCES ${D2}/engine/e.cpp)\n'                      # 5  calls disagree
+            'endfunction()\n'                                                               # 6
+            'two_calls(f1)\n'                                                               # 7
+            'set(D2 ${CMAKE_SOURCE_DIR}/src/Lab)\n'                                         # 8
+            'two_calls(f2)\n'                                                               # 9
+            'if(WIN32)\n'                                                                   # 10
+            '    set(WD ${CMAKE_SOURCE_DIR}/src/Diagnostics)\n'                             # 11
+            '    add_custom_target(i1 SOURCES ${WD}/engine/e.cpp)\n'                        # 12 known in its branch
+            '    include(${CMAKE_SOURCE_DIR}/cmake/win.cmake)\n'                            # 13
+            'endif()\n'                                                                     # 14
+            'add_custom_target(i2 SOURCES ${WD}/engine/e.cpp ${IV}/engine/e.cpp)\n'         # 15 undecided if
+            'macro(pick d)\n'                                                               # 16
+            '    set(MV ${d})\n'                                                            # 17
+            'endmacro()\n'                                                                  # 18
+            'set(MV ${CMAKE_SOURCE_DIR}/src/Lab)\n'                                         # 19
+            'pick(${CMAKE_SOURCE_DIR}/src/Diagnostics)\n'                                   # 20
+            'add_custom_target(m SOURCES ${MV}/engine/e.cpp)\n'                             # 21 the macro's set
+            'set(UV ${CMAKE_SOURCE_DIR}/src/Diagnostics)\n'                                 # 22
+            'unset(UV)\n'                                                                   # 23
+            'add_custom_target(u SOURCES ${UV}/engine/e.cpp)\n'                             # 24 unset
+            'include(${CMAKE_SOURCE_DIR}/cmake/ret.cmake)\n'                                # 25
+            'add_custom_target(r SOURCES ${RV}/engine/e.cpp)\n'                             # 26 return()
+            'set(PV ${CMAKE_SOURCE_DIR}/src/Lab)\n'                                         # 27
+            'set(PW ${CMAKE_SOURCE_DIR}/src/Diagnostics)\n'                                 # 28
+            'add_subdirectory(src/Sub)\n'                                                   # 29
+            'add_custom_target(p SOURCES ${PW}/engine/e.cpp)\n'                             # 30 PARENT_SCOPE
+            'function(never_called)\n'                                                      # 31
+            '    add_custom_target(nc SOURCES ${D2}/engine/e.cpp)\n'                        # 32 no call
+            'endfunction()\n'                                                               # 33
+            'add_subdirectory(src/Diagnostics)\n'                                           # 34
+            'diag_t(dt2)\n'                                                                 # 35
+            'add_custom_target(w SOURCES ${UV}/engine/e.cpp src/Diagnostics/engine/e.cpp)\n'  # 36 left whole
+            'add_custom_target(rb SOURCES ${RB}/engine/e.cpp)\n'                            # 37 return() on every path
+            'add_custom_target(pv SOURCES ${PV}/engine/e.cpp)\n'),                          # 38 PARENT_SCOPE, every path
+        'cmake/win.cmake': 'set(IV ${CMAKE_SOURCE_DIR}/src/Diagnostics)\n',
+        'cmake/ret.cmake': ('set(RB ${CMAKE_SOURCE_DIR}/src/Diagnostics)\nif(WIN32)\n    return()\nendif()\n'
+                            'set(RV ${CMAKE_SOURCE_DIR}/src/Diagnostics)\nreturn()\nset(RB ${CMAKE_SOURCE_DIR}/src/Lab)\n'),
+        'src/Sub/CMakeLists.txt': ('set(PV ${CMAKE_SOURCE_DIR}/src/Diagnostics PARENT_SCOPE)\nif(WIN32)\n'
+                                   '    set(PW ${CMAKE_SOURCE_DIR}/src/Lab PARENT_SCOPE)\nendif()\n'),
+        'src/Diagnostics/CMakeLists.txt': ('function(diag_t t)\n    add_custom_target(${t} SOURCES engine/e.cpp)\n'
+                                           'endfunction()\ndiag_t(dt1)\n'),
+        'src/Diagnostics/engine/e.cpp': '// e\n',
+        'src/Lab/engine/e.cpp': '// another tree\'s engine/\n',
+        'docs/developer/h.md': ('| 1.0 | (dated) moved to `src/Diagnostics/engine/e.cpp` |\n'
+                                'Today it is `src/Diagnostics/engine/e.cpp`.\nNo path on this line.\n'),
+    }
+    for k, v in H.items():
+        put(d3, k, v)
+    sh(d3, 'add', '-A'); sh(d3, 'commit', '-q', '-m', 'base')
+    base3 = sh(d3, 'rev-parse', 'HEAD').strip()
+    mp3 = os.path.join(tmp, 'c.map')
+    put(tmp, 'c.map', 'src/Diagnostics/engine/ -> src/Diagnostics/model/\nkeep: docs/developer/h.md:1   # a dated row\n')
+    for args in (('--dry-run',), ('--verify', base3, '--no-configure-ok')):
+        rc, out = tool(d3, mp3, *(args + ('--keep', 'docs/developer/h.md:2')))
+        check(rc == 2 and '--keep is gone: a kept line goes in the map' in out,
+              'keep: --keep on the command line is refused (%s): the map is the only source, so a verify can\'t be '
+              'loosened by hand' % args[0])
+    for bad_keep in ('CMakeLists.txt:12', 'src/Diagnostics/engine/e.cpp:1'):
+        put(tmp, 'k.map', 'src/Diagnostics/engine/ -> src/Diagnostics/model/\nkeep: %s\n' % bad_keep)
+        rc, out = tool(d3, os.path.join(tmp, 'k.map'), '--dry-run')
+        rc2, out2 = tool(d3, os.path.join(tmp, 'k.map'), '--verify', base3, '--no-configure-ok')
+        f = bad_keep.split(':')[0]
+        check(rc == 1 and rc2 == 1 and ('keep: %s is a ' % f) in out and ('keep: %s is a ' % f) in out2
+              and 'docs only' in out,
+              'keep: a keep on a %s line is refused, in the dry run and in --verify' % ('build' if f.endswith('.txt') else 'C++'))
+    put(tmp, 'k.map', 'src/Diagnostics/engine/ -> src/Diagnostics/model/\nkeep: docs/developer/h.md:3\n')
+    rc, out = tool(d3, os.path.join(tmp, 'k.map'), '--dry-run')
+    check(rc == 1 and 'keep: docs/developer/h.md:3 has nothing the map rewrites' in out,
+          'keep: a kept line with nothing to rewrite is an error (a stale line number)')
+    rc, out = tool(d3, mp3)
+    print('\n'.join('    | ' + l for l in out.splitlines()))
+    out_move = out
+    check(rc == 0 and 'done: 1 files moved' in out, 'constructs: the move runs')
+    hl = get(d3, 'docs/developer/h.md').splitlines()
+    check(hl == ['| 1.0 | (dated) moved to `src/Diagnostics/engine/e.cpp` |', 'Today it is `src/Diagnostics/model/e.cpp`.',
+                 'No path on this line.']
+          and 'docs/developer/h.md:1  kept; the move would have made it:' in out,
+          'keep: a dated line is left exactly as it is and named in the report; the next line is rewritten')
+    now = get(d3, 'CMakeLists.txt').splitlines()
+
+    def case(ln, line, needle, what):
+        check(now[ln - 1] == line and (needle is None or ('CMakeLists.txt:%d  ' % ln) in out and needle in out), what)
+
+    case(5, '    add_custom_target(${t} SOURCES ${D2}/engine/e.cpp)',
+         '${D2} is undecided here (the 2 calls that reach this line give it different values); as src/Diagnostics',
+         'function body: two calls give ${D2} two places; the line is left and listed as can\'t place (the old '
+         'reading used the definition site\'s src/Diagnostics and wrote ${D2}/model/, wrong for the second call)')
+    case(32, '    add_custom_target(nc SOURCES ${D2}/engine/e.cpp)', 'in a function or macro body no call reaches',
+         'function body: a body no call reaches knows no variable; listed as can\'t place')
+    check(get(d3, 'src/Diagnostics/CMakeLists.txt').splitlines()[1] == '    add_custom_target(${t} SOURCES engine/e.cpp)'
+          and "src/Diagnostics/CMakeLists.txt:2  engine/e.cpp: CMake scope: a path in a function or macro body is read " \
+              "from the caller's folder (the calls disagree)" in out,
+          'function body: a relative path, called from two folders, is left and listed (CMake reads it from each caller)')
+    case(12, '    add_custom_target(i1 SOURCES ${WD}/model/e.cpp)', None,
+         'undecided if: a first set is known inside its own branch (src/Gui\'s PP_ROOT)')
+    case(15, 'add_custom_target(i2 SOURCES ${WD}/engine/e.cpp ${IV}/engine/e.cpp)',
+         '${WD} is undecided here (set under the undecided if at CMakeLists.txt:10)',
+         'undecided if: after endif() a set and an include() under it are can\'t place (the old reading kept both)')
+    check('${IV} is undecided here (set under the undecided if at CMakeLists.txt:10)' in out,
+          'undecided if: the include()d file\'s set is named too')
+    case(21, 'add_custom_target(m SOURCES ${MV}/model/e.cpp)', None,
+         'macro: its set changes the caller\'s ${MV} (the old reading skipped the body and kept src/Lab, a stale line)')
+    case(24, 'add_custom_target(u SOURCES ${UV}/engine/e.cpp)', '${UV} is undecided here (unset() at CMakeLists.txt:23)',
+         'unset(): the variable is gone; listed as can\'t place (the old reading kept it and rewrote the line)')
+    check(now[36] == 'add_custom_target(rb SOURCES ${RB}/model/e.cpp)' and now[37] == 'add_custom_target(pv SOURCES ${PV}/model/e.cpp)',
+          'return() on every path and a PARENT_SCOPE set on every path are modelled: those lines are rewritten')
+    case(26, 'add_custom_target(r SOURCES ${RV}/engine/e.cpp)',
+         '${RV} is undecided here (return() at cmake/ret.cmake:3 ends ret.cmake on some paths only)',
+         'return(): a set after one that runs on some paths is can\'t place; one on every path stops the file, so '
+         '${RB} keeps the value set before it (the old reading took the set after it)')
+    case(30, 'add_custom_target(p SOURCES ${PW}/engine/e.cpp)',
+         '${PW} is undecided here (set(PW … PARENT_SCOPE) at src/Sub/CMakeLists.txt:3 runs on some paths only)',
+         'PARENT_SCOPE: a child\'s set writes the parent\'s ${PV} after add_subdirectory(); one under an undecided if '
+         'leaves ${PW} can\'t place (the old reading ignored both)')
+    rc, out = tool(d3, mp3, '--verify', base3, '--no-configure-ok')
+    check(rc == 0 and 'VERIFY PASSED' in out and "CMakeLists.txt:15 (base): can't place ${WD}/engine/e.cpp" in out,
+          'constructs: --verify passes the move and lists each can\'t-place line for the reviewer')
+    check("CMakeLists.txt:5 (base): can't place ${D2}/engine/e.cpp" in out,
+          'constructs: --verify lists the base reading\'s can\'t-place lines, so the two-calls line (whose values '
+          'name no moved path once moved) does not drop out of the list')
+    check(now[35] == 'add_custom_target(w SOURCES ${UV}/engine/e.cpp src/Diagnostics/engine/e.cpp)'
+          and "CMakeLists.txt:36  src/Diagnostics/engine/e.cpp: CMake scope: left with its line" in out_move
+          and "CMakeLists.txt:36 (base): can't place src/Diagnostics/engine/e.cpp: left with its line" in out,
+          'a can\'t-place line is left WHOLE: its rewritable neighbour is not rewritten, and is listed as left with it')
+
+    def mutate3(what, fn, needle):
+        before = get(d3, 'CMakeLists.txt')
+        put(d3, 'CMakeLists.txt', fn(before))
+        rc, out = tool(d3, mp3, '--verify', base3, '--no-configure-ok')
+        put(d3, 'CMakeLists.txt', before)
+        check(rc == 1 and needle in out, what)
+        if not (rc == 1 and needle in out):
+            print('\n'.join('    | ' + l for l in out.splitlines()))
+
+    rc, out = tool(d3, mp3, '--verify', base3, '--no-configure-ok')
+    check(rc == 0 and 'docs/developer/h.md:1: kept as it was (--keep / keep:)' in out,
+          'keep: --verify accepts the old spelling on the kept line and names it')
+
+    def mutate_doc(what, fn, needle, extra=(), want=1):
+        rel = 'docs/developer/h.md'
+        before = get(d3, rel)
+        put(d3, rel, fn(before))
+        rc, out = tool(d3, mp3, '--verify', base3, '--no-configure-ok', *extra)
+        put(d3, rel, before)
+        check(rc == want and needle in out, what)
+        if not (rc == want and needle in out):
+            print('\n'.join('    | ' + l for l in out.splitlines()))
+
+    mutate_doc('keep: verify fails the old spelling on a line that is not kept',
+               lambda s: s.replace('Today it is `src/Diagnostics/model/', 'Today it is `src/Diagnostics/engine/'),
+               'docs/developer/h.md:2: the map still rewrites')
+    mutate_doc('keep: verify fails when a kept line is changed (even to the new spelling)',
+               lambda s: s.replace('(dated) moved to `src/Diagnostics/engine/', '(dated) moved to `src/Diagnostics/model/'),
+               'docs/developer/h.md:1 (base): a kept line (--keep / keep:) changed')
+    prose = ('--allow-prose', 'docs/developer/h.md')               # the IM's case: its rows are edited by hand too
+    mutate_doc('keep: under --allow-prose, a line added above the kept one: verify finds it at its new line and passes',
+               lambda s: '| 1.1 | a row added by hand |\n' + s, 'docs/developer/h.md:2: kept as it was', prose, 0)
+    mutate_doc('keep: under --allow-prose, a kept line edited still fails',
+               lambda s: s.replace('(dated) moved', '(dated, edited) moved'),
+               'docs/developer/h.md:1 (base): a kept line (--keep / keep:) changed', prose)
+    mutate3("verify fails: the old reading's function-body spelling (${D2}/model/)",
+            lambda s: s.replace('SOURCES ${D2}/engine/e.cpp)\nendfunction()\ntwo_calls', 'SOURCES ${D2}/model/e.cpp)\nendfunction()\ntwo_calls'),
+            "can't place: ${D2} is undecided at this line")
+    mutate3("verify fails: a rewrite through a variable set under an undecided if",
+            lambda s: s.replace('i2 SOURCES ${WD}/engine/', 'i2 SOURCES ${WD}/model/'),
+            "can't place: ${WD} is undecided at this line (set under the undecided if at CMakeLists.txt:10)")
+
+
 def self_test():
     if shutil.which('git') is None:
         print('move_files_selftest: SKIPPED: no git on the PATH')
@@ -2018,13 +2717,16 @@ def self_test():
         check(rc == 0 and snapshot(d) == snap and 'files to move: 0' in out, 'idempotent: a second run changes nothing')
 
         rc, out = tool(d, mp, '--verify', base)
+        check(rc == 3 and 'VERIFY PASSED' in out and 'NOT CONFIGURED: this is not a pass' in out,
+              '--verify without --configure says NOT CONFIGURED and exits 3: never a silent pass (B1.2b)')
+        rc, out = tool(d, mp, '--verify', base, '--no-configure-ok')
         print('\n'.join('    | ' + l for l in out.splitlines()))
-        check(rc == 0 and 'VERIFY PASSED' in out, '--verify passes on the tool\'s own move')
+        check(rc == 0 and 'VERIFY PASSED' in out, '--verify passes on the tool\'s own move (--no-configure-ok)')
 
         def mutate(what, rel, fn, expect_rc=1, needle=None, extra=()):
             before = get(d, rel)
             put(d, rel, fn(before))
-            rc, out = tool(d, mp, '--verify', base, *extra)
+            rc, out = tool(d, mp, '--verify', base, '--no-configure-ok', *extra)
             put(d, rel, before)
             ok = rc == expect_rc and (needle is None or needle in out)
             check(ok, what)
@@ -2061,14 +2763,14 @@ def self_test():
             pb = f.read()
         with open(png, 'ab') as f:
             f.write(b'\0')
-        rc, out = tool(d, mp, '--verify', base)
+        rc, out = tool(d, mp, '--verify', base, '--no-configure-ok')
         with open(png, 'wb') as f:
             f.write(pb)
         check(rc == 1 and 'a binary file changed' in out, 'verify fails: a binary file changed')
         if os.name != 'nt':
             xp = os.path.join(d, 'tools/x.py')
             os.chmod(xp, 0o755)
-            rc, out = tool(d, mp, '--verify', base)
+            rc, out = tool(d, mp, '--verify', base, '--no-configure-ok')
             os.chmod(xp, 0o644)
             check(rc == 1 and 'the file mode changed' in out, 'verify fails: a file mode changed only')
         mutate('verify lists, and passes, a lint table line deleted by hand', LINT,
@@ -2080,10 +2782,10 @@ def self_test():
                lambda s: s.replace('#include "../Vocabulary/Metrics/m.h"\n', '#include "m.h"\n', 1), 1,
                'only through an include directory')
         sh(d, 'mv', 'src/Core/log.h', 'src/Vocabulary/log.h')
-        rc, out = tool(d, mp, '--verify', base)
+        rc, out = tool(d, mp, '--verify', base, '--no-configure-ok')
         sh(d, 'mv', 'src/Vocabulary/log.h', 'src/Core/log.h')
         check(rc == 1 and 'not a move of the map' in out, 'verify fails: a file moved that the map does not move')
-        rc, out = tool(d, mp, '--verify', base)
+        rc, out = tool(d, mp, '--verify', base, '--no-configure-ok')
         check(rc == 0, 'verify passes again once each mutation is undone')
         # ── B1.2a: a variable is used only where CMake's scopes put it (B1.18's F1) ──────────────────────────────
         d2 = os.path.join(tmp, 'scopes')
@@ -2092,7 +2794,9 @@ def self_test():
         G = {
             'CMakeLists.txt': 'cmake_minimum_required(VERSION 3.16)\nproject(app NONE)\n'
                               'add_custom_target(app SOURCES src/Diagnostics/engine/layout.cpp)\n'
-                              'set(X ${CMAKE_SOURCE_DIR}/src/Diagnostics)\nadd_custom_target(app2 SOURCES ${X}/engine/layout.cpp)\n',
+                              'set(X ${CMAKE_SOURCE_DIR}/src/Diagnostics)\nadd_custom_target(app2 SOURCES ${X}/engine/layout.cpp)\n'
+                              'function(app_layout t)\n    add_custom_target(${t} SOURCES ${LAYOUT}/engine/layout.cpp)\n'
+                              'endfunction()\nset(LAYOUT ${CMAKE_SOURCE_DIR}/src/Diagnostics)\napp_layout(app3)\n',
             'tests/CMakeLists.txt': 'cmake_minimum_required(VERSION 3.16)\nproject(umbrella NONE)\n'
                                     'set(PP_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../src)\nforeach(suite Analysis Gui)\n'
                                     '    add_subdirectory(${PP_SRC}/${suite}/tests ${CMAKE_BINARY_DIR}/${suite})\nendforeach()\n',
@@ -2132,13 +2836,20 @@ def self_test():
               and 'add_custom_target(app2 SOURCES ${CMAKE_SOURCE_DIR}/src/Gui/diag/layout.cpp)' in root2,
               'scopes: the root list is re-pathed; a path no variable there holds falls back to ${CMAKE_SOURCE_DIR}, '
               'the repo root on the only route that reaches it')
+        check('add_custom_target(${t} SOURCES ${CMAKE_SOURCE_DIR}/src/Gui/diag/layout.cpp)' in root2,
+              'B1.2b: a function body is read where it is CALLED: ${LAYOUT}, set after the definition and before the '
+              'call, is read there (the definition site does not know it, so the old reading left the line stale)')
         cfg = shutil.which('cmake') is not None and os.name != 'nt'      # cmake: the Mac and Linux only
-        rc, out = tool(d2, mp2, '--verify', base2, *(('--configure', os.path.join(tmp, 'cfg1')) if cfg else ()))
-        print('\n'.join('    | ' + l for l in out.splitlines()))
-        check(rc == 0 and 'VERIFY PASSED' in out and (not cfg or 'CONFIGURE PASSED' in out),
-              '--verify passes on the move' + (' and --configure configures both trees' if cfg else ' (no cmake: --configure not run)'))
+        rc, out = tool(d2, mp2, '--verify', base2, '--no-configure-ok')  # every platform (Windows has no cmake run)
+        check(rc == 0 and 'VERIFY PASSED' in out and 'NOT CONFIGURED (--no-configure-ok' in out,
+              '--verify passes on the move; --no-configure-ok says the configure was not run')
+        if cfg:
+            rc, out = tool(d2, mp2, '--verify', base2, '--configure', os.path.join(tmp, 'cfg1'))
+            print('\n'.join('    | ' + l for l in out.splitlines()))
+            check(rc == 0 and 'VERIFY PASSED' in out and 'CONFIGURE PASSED' in out,
+                  '--verify passes on the move and --configure configures both trees')
 
-        def mutate2(what, rel, fn, needle, extra=()):
+        def mutate2(what, rel, fn, needle, extra=('--no-configure-ok',)):
             before = get(d2, rel)
             put(d2, rel, fn(before))
             rc, out = tool(d2, mp2, '--verify', base2, *extra)
@@ -2160,8 +2871,28 @@ def self_test():
                     'configure tests: FAILED', ('--configure', os.path.join(tmp, 'cfg2')))
             rc, out = tool(d2, mp2, '--verify', base2, '--configure', os.path.join(tmp, 'cfg1'))
             check(rc == 1 and 'is not empty' in out, '--configure refuses a folder that is not empty')
+            mutate2("--configure fails on the old reading's stale function-body line (CMake reads the body at the call)",
+                    'CMakeLists.txt', lambda s: s.replace('${CMAKE_SOURCE_DIR}/src/Gui/diag/layout.cpp)\nendfunction',
+                                                          '${LAYOUT}/engine/layout.cpp)\nendfunction'),
+                    'configure app: FAILED', ('--configure', os.path.join(tmp, 'cfg3')))
+            os.rename(os.path.join(d2, 'tests', 'CMakeLists.txt'), os.path.join(tmp, 'tests.txt'))
+            rc, out = tool(d2, mp2, '--verify', base2, '--configure', os.path.join(tmp, 'cfg4'), '--no-configure-ok')
+            os.rename(os.path.join(tmp, 'tests.txt'), os.path.join(d2, 'tests', 'CMakeLists.txt'))
+            check(rc == 1 and 'configure tests: FAILED: no tests/CMakeLists.txt' in out and 'CONFIGURE FAILED' in out,
+                  '--configure fails a tree it could not configure (no tests/CMakeLists.txt): never "skipped"')
+            seed = os.path.join(tmp, 'seed')                     # a seed whose caches turn the tools OFF
+            for t in ('app', 'tests'):
+                put(seed, t + '/CMakeCache.txt', 'PINPOINT_BUILD_TOOLS:BOOL=OFF\nPINPOINT_BUILD_LM_REPAIR:BOOL=ON\n')
+            rc, out = tool(d2, mp2, '--verify', base2, '--configure', os.path.join(tmp, 'cfg5'), '--seed', seed,
+                           '--cmake-arg', '-DPINPOINT_BUILD_TOOLS=ON')
+            caches = [get(tmp, 'cfg5/%s/CMakeCache.txt' % t) if os.path.isfile(os.path.join(tmp, 'cfg5', t, 'CMakeCache.txt'))
+                      else '' for t in ('app', 'tests')]
+            check(rc == 0 and all('PINPOINT_BUILD_TOOLS:UNINITIALIZED=ON' in c and 'PINPOINT_BUILD_LM_REPAIR:UNINITIALIZED=ON' in c
+                                  for c in caches),
+                  '--cmake-arg passes a -D token through and wins over the seed; the seed carries PINPOINT_BUILD_LM_REPAIR')
         else:
             print('  skip  --configure checks: Windows, or no cmake on the PATH')
+        constructs_selftest(tmp, sh, tool, put, get, check)
     finally:
         shutil.rmtree(tmp, onerror=onerror)
     print('move_files_selftest: %s (%d failures)' % ('FAILED' if fails else 'PASSED', len(fails)))
@@ -2190,14 +2921,14 @@ def main(argv):
             opts.setdefault('cmake_args', []).append(argv[i + 1]); i += 2; continue
         if a == '--allow-prose':
             opts['allow'].add(argv[i + 1]); i += 2; continue
+        if a == '--keep':
+            print('--keep is gone: a kept line goes in the map, as `keep: <file>:<lines>` (docs only), so a verify '
+                  'reads the same keeps as the move'); return 2
         if a == '--allow-code-path':                     # <file>:<line>[-<line>][,...]: a named file's named lines only
-            f, _, spec = argv[i + 1].rpartition(':')
-            lines = set()
-            for part in spec.split(','):
-                lo, _, hi = part.partition('-')
-                lines.update(range(int(lo), int(hi or lo) + 1))
-            opts.setdefault('code', {}).setdefault(f, set()).update(lines); i += 2; continue
-        if a in ('--dry-run', '--over-work', '--quiet'):
+            f, lines = parse_lines_spec(argv[i + 1])
+            opts.setdefault('code', {}).setdefault(f, set()).update(lines)
+            i += 2; continue
+        if a in ('--dry-run', '--over-work', '--quiet', '--no-configure-ok'):
             opts[a] = True; i += 1; continue
         if a.startswith('-'):
             print(__doc__); return 2
@@ -2210,9 +2941,14 @@ def main(argv):
             rc = verify(root, mp, opts['verify'], opts['allow'], opts.get('--quiet'), opts.get('code'))
             if '--configure' in opts:
                 rc = configure(root, opts['--configure'], opts.get('--seed'), opts.get('cmake_args', ())) or rc
+            elif opts.get('--no-configure-ok'):
+                print('NOT CONFIGURED (--no-configure-ok: for the self-test only)')
+            else:                                          # B1.2b: a skipped configure is never a silent pass
+                print('NOT CONFIGURED: this is not a pass (add --configure <scratch dir>; see MOVES.md)')
+                rc = rc or 3
             return rc
-        if '--configure' in opts:
-            print('--configure goes with --verify'); return 2
+        if '--configure' in opts or opts.get('--no-configure-ok'):
+            print('--configure and --no-configure-ok go with --verify'); return 2
         return run_move(root, mp, opts.get('--dry-run', False), opts.get('--over-work', False), opts.get('--quiet'))
     except Fail as e:
         print('move_files.py: %s' % e)
