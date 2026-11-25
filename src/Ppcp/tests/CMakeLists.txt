@@ -689,6 +689,13 @@ pp_add_test(ppcp_host_service_test
     AUTOMOC
     GTEST_NO_MAIN)
 
+# SF-2's pin, "a phone paired before still pairs" (Product Owner's P1, 25 Nov 2026): the StoredPairing.* rows
+# of the suite above, under their own name so a stage that moves the phone link or rewrites settings code can
+# run them alone (`ctest -R ppcp_stored_pairing_pin`). They also run inside ppcp_host_service_test.
+add_test(NAME ppcp_stored_pairing_pin
+         COMMAND ppcp_host_service_test --gtest_filter=StoredPairing.*)
+set_tests_properties(ppcp_stored_pairing_pin PROPERTIES TIMEOUT 120)
+
 
 # ── H-compose (b) — every app-side PPCP translation unit, syntax-only ───────
 #

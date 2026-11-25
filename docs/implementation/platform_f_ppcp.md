@@ -474,7 +474,7 @@ to pair a phone again has lost it. Everything in the three stages that can reach
 
 | What | Where | The risk | The guard |
 |---|---|---|---|
-| The four phone-link statics move to the composition root | Stage E, SE-2a (on every path of Q3) | construction or teardown order changes; a pairing written late at quit could be cut short | P1's pin before SE-2a; Stage E's quit pins |
+| The four phone-link statics move to the composition root | Stage E, SE-2a (on every path of Q3) | construction or teardown order changes; a pairing written late at quit could be cut short | P1's pin before SE-2a (`ctest -R ppcp_stored_pairing_pin`); Stage E's quit pins |
 | The settings code is rewritten | Stage C (the Rig's keys) and Stage E (SE-5c, SE-5f) | a clean-up of "copied rig keys" sweeps a `ppcp/` key | F6: no `ppcp` key is in that list; the pin |
 | The API keys move to a secure store | Stage E, K1 and K5 | the pairing key is moved with them and Windows keeps none | K5 recommends it stays; F4 asks that one ruling settle the Rig design's answer 8 too |
 | The pairing store's lint line | F4, SF-3d | a new layer put in front of the key | F4's option (b) changes no stored thing |

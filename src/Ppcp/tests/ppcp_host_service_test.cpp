@@ -44,6 +44,9 @@
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QFileInfo>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
@@ -80,6 +83,7 @@
 #include "ppcp_rendezvous.h"
 #include "ppcp_transport.h"
 #include "ppcp_wired_link.h"
+#include "pp_settings.h"
 #include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 // #187: every per-user store points at a scratch folder before gtest_main runs a test.
@@ -161,6 +165,8 @@ public:
 
     bool ok() const { return m_ok; }
     const std::string &pairingId() const { return m_code.pairingId; }
+    // What the phone keeps once paired (5.1c): PRK, from which it reconnects. StoredPairing.* reads it.
+    const ppcp_rv_keys &keys() const { return m_keys; }
 
     // 5.3a — a fresh rn2 per connection; the seed keeps two phones distinct.
     bool dial(std::uint16_t port, std::uint8_t seed)
@@ -1874,6 +1880,333 @@ TEST_F(HostServiceClock, ADeclineToAConnectedPhoneIsPaidAtOnce)
     ASSERT_NE(d, nullptr);
     EXPECT_EQ(d->reason, "not_requested") << "the first reason stands";
     EXPECT_FALSE(d->owed);
+}
+
+// ── SF-2: a phone paired before still pairs ─────────────────────────────────
+//
+// A pin on today's code, kept while the phone link's refactor is parked (#272),
+// so that a later stage cannot silently break a pairing a golfer already holds:
+// the phone link's start-up statics moving into the composition root, or either
+// settings rewrite. A golfer who has to pair a phone again has lost it.
+//
+// What a pairing is, on disk, today: ONE key, `ppcp/pairings/<pairing id>` in
+// the settings file that ppSettings() names, holding the 32 bytes of PRK as 64
+// lowercase hex characters (ppcp_pairing_store.cpp). The id is 16 lowercase hex
+// characters (ppcp_rendezvous.cpp, toHex of an 8-byte handle). Nothing is kept
+// in a keychain or the Credential Manager, so there is no secure store to seed.
+//
+// ⚠ THE FILE IS SEEDED AS LITERAL BYTES, NEVER THROUGH THE STORE OR setValue().
+// Seeded through the product's own key string, a rename would move the writer
+// and the reader together and this would stay green. So a renamed key, a moved
+// file, a re-encoded value or a different derivation fails here.
+//
+// What is pinned: the host side, constructed and started as main.cpp does it
+// (construct, start(); port 0, not 7788, so a running app cannot collide), loads
+// the stored pairing, shows it as a remembered phone, and a REAL TLS-PSK link on
+// loopback from a phone holding only that PRK is resolved to it and adopted. The
+// dialler is the same Ppcp::Connector the conformance harness and `Phone` above
+// use; it declares nothing (see `Phone`), so the pin stops at link adoption.
+// Not pinned: main.cpp's statics and their teardown order (not linked into any
+// test), and the per-phone name keys (`ppcp/phoneNames`, `phoneAlias`,
+// `torchDuringCapture`), which are not the pairing.
+//
+// ⛔ Every byte goes to a scratch folder under this run's IsolatedStores
+// (g_stores), never the real settings file.
+
+constexpr char kStoredPairingId[] = "5b2e0c4a9d7f1368";
+constexpr char kStoredPrkHex[]    = "0f1e2d3c4b5a6978" "8796a5b4c3d2e1f0"
+                                    "0112233445566778" "8899aabbccddeeff";
+
+// The settings file as today's build leaves it after one pairing: QSettings'
+// INI spelling of `ppcp/pairings/<id>` is section `[ppcp]`, key `pairings\<id>`.
+QByteArray storedSettingsFile(const QByteArray &key = QByteArray("pairings\\") + kStoredPairingId)
+{
+    return QByteArray("[ppcp]\n") + key + '=' + kStoredPrkHex + '\n';
+}
+
+// "section|key=value" for every entry of an INI file, read as bytes.
+QStringList iniEntries(const QString &path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    QString section;
+    QStringList out;
+    for (const QByteArray &raw : f.readAll().split('\n')) {
+        const QString line = QString::fromUtf8(raw).trimmed();
+        if (line.isEmpty()) continue;
+        if (line.startsWith(QLatin1Char('[')) && line.endsWith(QLatin1Char(']'))) {
+            section = line.mid(1, line.size() - 2);
+            continue;
+        }
+        out << section + QLatin1Char('|') + line;
+    }
+    return out;
+}
+
+// A phone that paired on an earlier run and kept what 5.1c says it keeps: PRK,
+// and nothing else. It derives K_id and K_tls from it, offers a fresh 5.3a
+// identity, and dials.
+class RememberedPhone
+{
+public:
+    // ⚠ In the body, not the initialiser list: `m_keys{}` is declared after
+    // `m_ok` and would zero what an initialiser-list derive wrote.
+    explicit RememberedPhone(const std::uint8_t prk[PPCP_RV_KEY_BYTES])
+    {
+        m_ok = ppcp_rv_derive_from_prk(prk, &m_keys) == PPCP_OK;
+    }
+
+    bool ok() const { return m_ok; }
+    const Ppcp::HandshakeFailure &failure() const { return m_fail; }
+
+    bool dial(std::uint16_t port, std::uint8_t seed)
+    {
+        // 5.3a1 — an identity with a 0x00 octet is truncated by a strlen-ing
+        // TLS stack, so draw until one is usable, as drawPskIdentity() does.
+        Ppcp::PskIdentity id(PPCP_RV_PSK_IDENTITY_BYTES);
+        bool usable = false;
+        for (unsigned attempt = 0; attempt < 64 && !usable; ++attempt) {
+            std::uint8_t rn2[PPCP_RV_RN_BYTES];
+            for (std::size_t i = 0; i < sizeof rn2; ++i)
+                rn2[i] = static_cast<std::uint8_t>(seed + attempt * 17u + i * 31u);
+            if (ppcp_rv_psk_identity(m_keys.k_id, rn2, id.data()) != PPCP_OK) return false;
+            usable = ppcp_rv_psk_identity_usable(id.data());
+        }
+        if (!usable) return false;
+
+        Ppcp::ConnectorConfig c;
+        c.host = "127.0.0.1";
+        c.port = port;
+        std::memcpy(c.kTls.data(), m_keys.k_tls, PPCP_RV_KEY_BYTES);
+        c.identity = id;
+        m_link = Ppcp::Connector::connect(c, &m_fail);
+        return m_link != nullptr;
+    }
+
+private:
+    bool                                  m_ok = false;
+    ppcp_rv_keys                          m_keys{};
+    Ppcp::HandshakeFailure                m_fail;
+    std::unique_ptr<Ppcp::PeerConnection> m_link;
+};
+
+QByteArray storedPrk() { return QByteArray::fromHex(kStoredPrkHex); }
+
+const std::uint8_t *bytes(const QByteArray &b) { return reinterpret_cast<const std::uint8_t *>(b.constData()); }
+
+class StoredPairing : public ::testing::Test
+{
+protected:
+    // ⚠ FIRST MEMBER: the service reads the pairings at construction, so the
+    // scratch settings must be in place before one is ever made.
+    struct Scratch {
+        QTemporaryDir dir{g_stores.path() + QStringLiteral("/stored-pairing-XXXXXX")};
+        Scratch() { QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, dir.path()); }
+        ~Scratch()
+        {
+            // Back to the helper's folder (g_stores owns the process-wide path, #187).
+            QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, g_stores.settingsDir());
+        }
+    } m_scratch;
+    std::unique_ptr<PpcpHostService> m_svc;
+
+    void SetUp() override { ASSERT_TRUE(m_scratch.dir.isValid()); }
+    void TearDown() override { quit(); }
+
+    // Where ppSettings() puts the file: IniFormat, UserScope, organisation and
+    // application both "PinPointStudio".
+    QString settingsFile() const
+    {
+        return m_scratch.dir.path() + QStringLiteral("/PinPointStudio/PinPointStudio.ini");
+    }
+
+    void seed(const QByteArray &fileBytes)
+    {
+        ASSERT_TRUE(QDir().mkpath(QFileInfo(settingsFile()).path()));
+        QFile f(settingsFile());
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        ASSERT_EQ(f.write(fileBytes), fileBytes.size());
+    }
+
+    // The app's start-up, less the wiring to the rest of the app: construct,
+    // then start the listener.
+    void launch()
+    {
+        m_svc = std::make_unique<PpcpHostService>();
+        QString err;
+        ASSERT_TRUE(m_svc->start(0, &err)) << err.toStdString();
+        ASSERT_TRUE(m_svc->listening());
+    }
+
+    void quit()
+    {
+        if (!m_svc) return;
+        m_svc->stop();
+        m_svc.reset();
+    }
+
+    bool waitConnected(int n)
+    {
+        for (int i = 0; i < 300 && m_svc->connectedCount() != n; ++i) spin(10);
+        return m_svc->connectedCount() == n;
+    }
+
+    QVariantMap rowFor(const QString &pairingId) const
+    {
+        for (const QVariant &v : m_svc->phones()) {
+            const QVariantMap row = v.toMap();
+            if (row.value(QStringLiteral("pairingId")).toString() == pairingId) return row;
+        }
+        return {};
+    }
+};
+
+// The pin itself: a pairing stored by an earlier build is a remembered phone at
+// start-up, and that phone, holding only its PRK, connects.
+TEST_F(StoredPairing, APhonePairedBeforeIsRecognisedAndConnects)
+{
+    seed(storedSettingsFile());
+    // The file is the one ppSettings() reads, and it is the scratch one.
+    EXPECT_EQ(QFileInfo(ppSettings().fileName()).canonicalFilePath(),
+              QFileInfo(settingsFile()).canonicalFilePath())
+        << "the settings file moved: " << ppSettings().fileName().toStdString();
+    ASSERT_TRUE(g_stores.contains(ppSettings().fileName()));
+
+    launch();
+    const QString pid = QString::fromLatin1(kStoredPairingId);
+
+    // Recognised before any phone dials: loaded, remembered, offered for
+    // reconnection (3.4d1), and shown as one phone.
+    EXPECT_TRUE(m_svc->rendezvous().isPersisted(kStoredPairingId));
+    const std::vector<std::string> adv = m_svc->rendezvous().advertisablePairings();
+    EXPECT_NE(std::find(adv.begin(), adv.end(), std::string(kStoredPairingId)), adv.end());
+    ASSERT_EQ(m_svc->phones().size(), 1);
+    QVariantMap row = rowFor(pid);
+    ASSERT_FALSE(row.isEmpty()) << "the stored phone is not in the device list";
+    EXPECT_TRUE(row.value(QStringLiteral("persisted")).toBool());
+    EXPECT_FALSE(row.value(QStringLiteral("invalidated")).toBool());
+    EXPECT_NE(row.value(QStringLiteral("status")).toString(), QStringLiteral("connected"));
+    EXPECT_EQ(m_svc->connectedCount(), 0);
+
+    // It connects, with no code published and nothing scanned: the handshake's
+    // PSK lookup (5.3b) finds the stored pairing.
+    const QByteArray prk = storedPrk();
+    RememberedPhone phone(bytes(prk));
+    ASSERT_TRUE(phone.ok());
+    ASSERT_TRUE(phone.dial(m_svc->port(), 0x41))
+        << "the stored phone was refused: " << phone.failure().message
+        << " kind=" << int(phone.failure().kind) << " alert=" << phone.failure().alert
+        << " sent=" << phone.failure().alertWasSent
+        << " resolveCalls=" << m_svc->rendezvous().counters().resolveCalls
+        << " resolved=" << m_svc->rendezvous().counters().resolved
+        << " noPairing=" << m_svc->rendezvous().counters().refusedNoPairing;
+    ASSERT_TRUE(waitConnected(1));
+    EXPECT_GE(m_svc->rendezvous().counters().resolved, 1u);
+
+    row = rowFor(pid);
+    EXPECT_EQ(row.value(QStringLiteral("status")).toString(), QStringLiteral("connected"));
+    EXPECT_EQ(m_svc->phones().size(), 1) << "the stored phone came back as a new pairing";
+
+    // Connecting and quitting leave the stored pairing as it was.
+    quit();
+    EXPECT_TRUE(iniEntries(settingsFile())
+                    .contains(QStringLiteral("ppcp|pairings\\%1=%2")
+                                  .arg(pid, QString::fromLatin1(kStoredPrkHex))));
+}
+
+// The same stored handle with another key is a stranger (7.7c): the key in the
+// file is what is checked, not the presence of a row.
+TEST_F(StoredPairing, TheSameHandleWithAnotherKeyIsRefused)
+{
+    seed(storedSettingsFile());
+    launch();
+    // The pairing IS held, so a refusal below is the key's doing, not an empty store's.
+    ASSERT_TRUE(m_svc->rendezvous().isPersisted(kStoredPairingId));
+    ASSERT_EQ(m_svc->phones().size(), 1);
+    const auto before = m_svc->rendezvous().counters();
+
+    QByteArray other = storedPrk();
+    other[0] = static_cast<char>(other[0] ^ 0x01);
+    RememberedPhone stranger(bytes(other));
+    ASSERT_TRUE(stranger.ok());
+    EXPECT_FALSE(stranger.dial(m_svc->port(), 0x42));
+    spin(200);
+    EXPECT_EQ(m_svc->connectedCount(), 0);
+
+    // The handshake reached the PSK lookup and it matched nothing (5.3c).
+    const auto after = m_svc->rendezvous().counters();
+    EXPECT_GT(after.resolveCalls, before.resolveCalls);
+    EXPECT_GT(after.refusedNoPairing, before.refusedNoPairing);
+    EXPECT_EQ(after.resolved, before.resolved);
+    EXPECT_TRUE(m_svc->rendezvous().isPersisted(kStoredPairingId)) << "a stranger cost the golfer the pairing";
+}
+
+// The control that shows the seed is read by its key name: the same bytes
+// under a key one letter off are no pairing at all. A rename in the product
+// with no migration would look exactly like this to a golfer.
+TEST_F(StoredPairing, AKeyOneLetterOffIsNoPairing)
+{
+    seed(storedSettingsFile(QByteArray("pairing\\") + kStoredPairingId));
+    // The seeded file IS the one read, and its row is there under the wrong
+    // name: so "no pairing" below is the key name's doing, not an unread file.
+    ASSERT_TRUE(ppSettings().contains(QStringLiteral("ppcp/pairing/") + QLatin1String(kStoredPairingId)));
+    launch();
+    EXPECT_FALSE(m_svc->rendezvous().isPersisted(kStoredPairingId));
+    EXPECT_TRUE(m_svc->phones().isEmpty());
+    const auto before = m_svc->rendezvous().counters();
+
+    const QByteArray prk = storedPrk();
+    RememberedPhone phone(bytes(prk));
+    ASSERT_TRUE(phone.ok());
+    EXPECT_FALSE(phone.dial(m_svc->port(), 0x43));
+    spin(200);
+    EXPECT_EQ(m_svc->connectedCount(), 0);
+
+    const auto after = m_svc->rendezvous().counters();
+    EXPECT_GT(after.resolveCalls, before.resolveCalls);
+    EXPECT_GT(after.refusedNoPairing, before.refusedNoPairing);
+    EXPECT_EQ(after.resolved, before.resolved);
+}
+
+// The write direction: a pairing made today through a code is stored in exactly
+// the form the test above seeds, and survives a restart of the host.
+TEST_F(StoredPairing, APairingMadeTodayIsStoredInThatFormAndSurvivesARestart)
+{
+    launch();
+    Phone p(m_svc.get());
+    ASSERT_TRUE(p.ok());
+    ASSERT_TRUE(p.dial(m_svc->port(), 0x51));
+    ASSERT_TRUE(waitConnected(1));
+    const QString pid = QString::fromStdString(p.pairingId());
+    ASSERT_TRUE(m_svc->rendezvous().isPersisted(p.pairingId()));
+
+    EXPECT_TRUE(QRegularExpression(QStringLiteral("^[0-9a-f]{16}$")).match(pid).hasMatch())
+        << "the pairing id's form changed: " << pid.toStdString();
+    const QString prkHex = QString::fromLatin1(
+        QByteArray(reinterpret_cast<const char *>(p.keys().prk), PPCP_RV_KEY_BYTES).toHex());
+    const QStringList entries = iniEntries(settingsFile());
+    EXPECT_TRUE(entries.contains(QStringLiteral("ppcp|pairings\\%1=%2").arg(pid, prkHex)))
+        << "not stored as [ppcp] pairings\\<id>=<64 lowercase hex>:\n"
+        << entries.join(QLatin1Char('\n')).toStdString();
+    EXPECT_EQ(entries.filter(QRegularExpression(QStringLiteral("^ppcp\\|pairings\\\\"))).size(), 1);
+#ifndef Q_OS_WIN
+    // F4: the file is narrowed to its owner on the first pairing write.
+    const QFileDevice::Permissions perms = QFile(settingsFile()).permissions();
+    EXPECT_FALSE(perms & (QFileDevice::ReadGroup | QFileDevice::WriteGroup |
+                          QFileDevice::ReadOther | QFileDevice::WriteOther))
+        << "the settings file holding a pairing key is readable by other accounts";
+#endif
+
+    // The app quits and starts again; the same phone reconnects from its PRK.
+    quit();
+    launch();
+    EXPECT_TRUE(m_svc->rendezvous().isPersisted(p.pairingId()));
+    RememberedPhone again(p.keys().prk);
+    ASSERT_TRUE(again.ok());
+    ASSERT_TRUE(again.dial(m_svc->port(), 0x52))
+        << "the phone paired on the last run was refused: " << again.failure().message;
+    ASSERT_TRUE(waitConnected(1));
+    EXPECT_EQ(rowFor(pid).value(QStringLiteral("status")).toString(), QStringLiteral("connected"));
 }
 
 }  // namespace
