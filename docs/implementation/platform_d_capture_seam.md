@@ -459,3 +459,22 @@ for at least 4 of the 11 pins and for 7 if a camera-less analysis does not succe
 [^q17]: The plan's "Mandatory carry-ins" (iii) and §9 Q17: "Do not wrap for the count's sake" (proposed there for the Solution Architect).
 [^q5]: The plan's Premise 4 and §9 Q5: narrow A6 to P9's wording; and, in the same premise, that the camera, sensor and buffer-controller shapes are worth typing whatever the ruling (both proposed there for the Solution Architect).
 [^guards]: The plan's Stage D, "Guards from the four contexts" (ruled 24 Nov; `build/platform/JUDGEMENT-CALLS.md`, PR-4).
+
+## Added after SD-1c (the inventory of `ShotController`, the arbiter and the source ordinals, 25 Nov 2026)
+
+Evidence for each: `build/platform/DEF/DUTIES-SD-1c.md` and `NOTES-SD-1c.md`. **Only one reader acts on the persisted source number** (`recording_loader.cpp:789`, `== 4` with no `micTravel`), and the share holds only `4`, `"launchMonitor"` or no key, so renumbering the enum is safe if that one reader moves with it.
+
+### S11 · Who owns trigger policy? (HARD: the Solution Architect)
+- **Today.** It sits in `main.cpp` lambdas with no owning object (F1). The device-only shot bypasses the controller (F3), and the rescue overwrites the trigger source (F4).
+- **Recommendation.** One owner, the capture service's trigger policy, in the Application ring: the device-only shot goes through it, and the rescue records its own source beside the trigger's, never over it (proposed, for the Solution Architect).
+- **Ruled:**
+
+### S12 · Does R-INS-3 or R-INS-5 govern the impact instant? (HARD: the Solution Architect)
+- **Today.** Both rules read on it; the code follows neither consistently (F5).
+- **Recommendation.** R-INS-5 (rank the readings; the estimate is derived), the Product Owner's standing rule for estimates (proposed, for the Solution Architect).
+- **Ruled:**
+
+### S13 · Pose has no producer for a capture-time instant, and does the local arbiter survive SD-9c? (HARD: the Solution Architect)
+- **Today.** F2 and F13.
+- **Recommendation.** No pose producer for capture time (pose comes after the shot); the local arbiter folds into the trigger policy of S11 (proposed, for the Solution Architect).
+- **Ruled:**
