@@ -708,6 +708,10 @@ pp_define_swingstore(${CMAKE_CURRENT_SOURCE_DIR})
 # EventBuffer library — lock-free ring-buffer capture store
 add_subdirectory(src/Buffer)
 
+# pp_platform — the Platform ring's compiled files of src/Core (logging, profiling, machine queries, the folder
+# lock, the worker pool), one static library the app and src/Core/tests link (platform refactor B1.4)
+add_subdirectory(src/Core)
+
 qt_add_executable(PinPointStudio
     src/Gui/main.cpp
     $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPointStudio.icns>
@@ -741,8 +745,7 @@ qt_add_executable(PinPointStudio
     # account with the password in the system's secure store (platform halves below).
     src/Core/studio_profile.h                src/Core/studio_profile.cpp
     src/Core/atomic_write.h                  # the one atomic write (header-only; R-PERS-2)
-    src/Core/folder_lock.h                   # the advisory folder lock (R-PERS-6), taken by SessionStore from step 2.2
-    src/Core/folder_lock.cpp
+    # (the advisory folder lock, folder_lock.*, R-PERS-6, is in pp_platform: src/Core/CMakeLists.txt)
     src/Coaching/session_report.h
     src/Gui/report/session_report_model.h    src/Gui/report/session_report_model.cpp
     src/Gui/report/report_stills.h           src/Gui/report/report_stills.cpp
@@ -944,27 +947,18 @@ target_compile_definitions(PinPointStudio PRIVATE
     PINPOINT_PROFILE_BASELINE=$<BOOL:${PINPOINT_PROFILE_BASELINE}>
     PINPOINT_PROFILE=$<BOOL:${PINPOINT_PROFILE}>)
 
+# The Platform ring's compiled files (the log, the profiler, the OS and GPU metrics, the folder lock, the worker
+# pool) are the pp_platform library (src/Core/CMakeLists.txt). pp_debug.cpp stays here: it includes whisper.h,
+# ggml.h and QMediaPlayer, so it cannot go in a library that links only Qt Core and the system.
+target_link_libraries(PinPointStudio PRIVATE pp_platform)
+
 target_sources(PinPointStudio PRIVATE
     src/Core/figure_format.h
     src/Core/height_text.h
-    src/Core/pp_debug.h
     src/Core/pp_debug.cpp
-    src/Core/pp_log_stream.cpp
     src/Core/app_info.h
     src/Core/app_info.cpp
     src/Core/pp_settings.h
-    src/Core/PpMessageLog.h
-    src/Core/PpMessageLog.cpp
-    src/Core/PpStatsLog.h
-    src/Core/PpStatsLog.cpp
-    src/Core/AnalysisProfileLog.h
-    src/Core/AnalysisProfileLog.cpp
-    src/Core/pp_profiler.h
-    src/Core/pp_profiler.cpp
-    src/Core/pp_os_metrics.h
-    src/Core/pp_os_metrics.cpp
-    src/Core/pp_gpu_metrics.h
-    src/Core/pp_gpu_metrics.cpp
 )
 
 # ── Application icon ─────────────────────────────────────────────────────────
@@ -2984,8 +2978,7 @@ target_sources(PinPointStudio PRIVATE
     src/Diagnostics/engine/session_reduction.h
     src/Diagnostics/engine/session_reduction.cpp
     src/Coaching/session_results.h
-    src/Core/work_pool.h
-    src/Core/work_pool.cpp
+    # (the one worker pool, src/Core/work_pool.*, is in pp_platform)
     # The athlete level's derived owner (refactor step 3.6; Domain model: the club baseline a session freezes, the
     # athlete work-ons, the distances, from the summaries) and the catch-up service (Application) — wired to Home at
     # the catch-up's cut-over (3.7-e). The launch monitor board's annotations, read by every reduction (Rules).
@@ -3105,11 +3098,11 @@ if(APPLE)
         src/STT/STTBackendApple.mm
         src/Video/VideoInputApple.h
         src/Video/VideoInputApple.mm
-        src/Core/pp_gpu_metrics_mac.mm
         src/Gui/report/report_mailer_mac.mm
         src/Gui/report/mail_credentials_mac.mm
     )
-    # ARC manages the MTLDevice returned by MTLCreateSystemDefaultDevice().
+    # ARC manages the MTLDevice returned by MTLCreateSystemDefaultDevice(). The app gets this file from pp_platform
+    # (src/Core/CMakeLists.txt sets the same there); this line is for the offline targets below that still list it.
     set_source_files_properties(src/Core/pp_gpu_metrics_mac.mm
         PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     # ARC manages the NSSharingService and the compose items handed to it.
