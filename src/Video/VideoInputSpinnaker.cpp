@@ -26,6 +26,7 @@
 #endif
 
 #include "VideoInputSpinnaker.h"
+#include "genicam_pixel_format.h"
 #include "spinnaker_runtime.h"
 #include "spinnaker_settings.h"
 #include "event_buffer.h"
@@ -486,21 +487,7 @@ CameraCapabilities VideoInputSpinnaker::queryCapabilities() const
                 CEnumEntryPtr e(entry);
                 if (!IsAvailable(e) || !IsReadable(e)) continue;
                 QString key = QString::fromStdString(e->GetSymbolic().c_str());
-                PixelFormat pf;
-                pf.nativeKey = key;
-                if      (key == "BayerRG8")                   { pf.encoding = PixelEncoding::BayerRG8;  pf.bitsPerPixel = 8; }
-                else if (key == "BayerGB8")                   { pf.encoding = PixelEncoding::BayerGB8;  pf.bitsPerPixel = 8; }
-                else if (key == "BayerGR8")                   { pf.encoding = PixelEncoding::BayerGR8;  pf.bitsPerPixel = 8; }
-                else if (key == "BayerBG8")                   { pf.encoding = PixelEncoding::BayerBG8;  pf.bitsPerPixel = 8; }
-                else if (key == "BayerRG16")                  { pf.encoding = PixelEncoding::BayerRG16; pf.bitsPerPixel = 16; }
-                else if (key == "BayerGB16")                  { pf.encoding = PixelEncoding::BayerGB16; pf.bitsPerPixel = 16; }
-                else if (key == "Mono8")                      { pf.encoding = PixelEncoding::Mono8;     pf.bitsPerPixel = 8; }
-                else if (key == "Mono10")                     { pf.encoding = PixelEncoding::Mono10;    pf.bitsPerPixel = 10; }
-                else if (key == "Mono12")                     { pf.encoding = PixelEncoding::Mono12;    pf.bitsPerPixel = 12; }
-                else if (key == "Mono16")                     { pf.encoding = PixelEncoding::Mono16;    pf.bitsPerPixel = 16; }
-                else if (key == "RGB8Packed" || key == "RGB8"){ pf.encoding = PixelEncoding::RGB8;      pf.bitsPerPixel = 24; }
-                else if (key == "BGR8")                       { pf.encoding = PixelEncoding::BGR8;      pf.bitsPerPixel = 24; }
-                else                                          { pf.encoding = PixelEncoding::Unknown; }
+                PixelFormat pf = genicamPixelFormat(key, GenicamDialect::Spinnaker);
 
                 bool isDefault = (e->GetValue() == ptrPixelFormat->GetIntValue());
                 caps.pixelFormat.supported.append(pf);

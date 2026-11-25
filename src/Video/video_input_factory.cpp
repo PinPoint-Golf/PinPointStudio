@@ -19,6 +19,7 @@
 #include "video_input_factory.h"
 #include "video_input.h"
 #include "camera_capabilities.h"
+#include "genicam_pixel_format.h"
 #include <QStringList>
 #include <algorithm>
 #include "../Core/device_enumerator.h"
@@ -225,18 +226,7 @@ void VideoInputFactory::enumerateDevices()
                 caps.pixelFormat.writable = true;
                 const char *curFmt = arv_camera_get_pixel_format_as_string(cam, nullptr);
                 for (guint j = 0; j < nFormats; ++j) {
-                    PixelFormat pf;
-                    pf.nativeKey = QString::fromLocal8Bit(fmts[j]);
-                    if      (pf.nativeKey == "BayerRG8")   { pf.encoding = PixelEncoding::BayerRG8;  pf.bitsPerPixel = 8; }
-                    else if (pf.nativeKey == "BayerGB8")   { pf.encoding = PixelEncoding::BayerGB8;  pf.bitsPerPixel = 8; }
-                    else if (pf.nativeKey == "BayerGR8")   { pf.encoding = PixelEncoding::BayerGR8;  pf.bitsPerPixel = 8; }
-                    else if (pf.nativeKey == "BayerBG8")   { pf.encoding = PixelEncoding::BayerBG8;  pf.bitsPerPixel = 8; }
-                    else if (pf.nativeKey == "Mono8")      { pf.encoding = PixelEncoding::Mono8;     pf.bitsPerPixel = 8; }
-                    else if (pf.nativeKey == "Mono10")     { pf.encoding = PixelEncoding::Mono10;    pf.bitsPerPixel = 10; }
-                    else if (pf.nativeKey == "Mono12")     { pf.encoding = PixelEncoding::Mono12;    pf.bitsPerPixel = 12; }
-                    else if (pf.nativeKey == "RGB8Packed") { pf.encoding = PixelEncoding::RGB8;      pf.bitsPerPixel = 24; }
-                    else if (pf.nativeKey == "BGR8")       { pf.encoding = PixelEncoding::BGR8;      pf.bitsPerPixel = 24; }
-                    else                                   { pf.encoding = PixelEncoding::Unknown; }
+                    PixelFormat pf = genicamPixelFormat(QString::fromLocal8Bit(fmts[j]), GenicamDialect::Aravis);
                     caps.pixelFormat.supported.append(pf);
                     if (curFmt && pf.nativeKey == QString::fromLocal8Bit(curFmt))
                         caps.pixelFormat.defaultFormat = pf;
@@ -306,21 +296,7 @@ void VideoInputFactory::enumerateDevices()
                         CEnumEntryPtr e(entry);
                         if (!IsAvailable(e) || !IsReadable(e)) continue;
                         QString key = QString::fromStdString(e->GetSymbolic().c_str());
-                        PixelFormat pf;
-                        pf.nativeKey = key;
-                        if      (key == "BayerRG8")                    { pf.encoding = PixelEncoding::BayerRG8;  pf.bitsPerPixel = 8; }
-                        else if (key == "BayerGB8")                    { pf.encoding = PixelEncoding::BayerGB8;  pf.bitsPerPixel = 8; }
-                        else if (key == "BayerGR8")                    { pf.encoding = PixelEncoding::BayerGR8;  pf.bitsPerPixel = 8; }
-                        else if (key == "BayerBG8")                    { pf.encoding = PixelEncoding::BayerBG8;  pf.bitsPerPixel = 8; }
-                        else if (key == "BayerRG16")                   { pf.encoding = PixelEncoding::BayerRG16; pf.bitsPerPixel = 16; }
-                        else if (key == "BayerGB16")                   { pf.encoding = PixelEncoding::BayerGB16; pf.bitsPerPixel = 16; }
-                        else if (key == "Mono8")                       { pf.encoding = PixelEncoding::Mono8;     pf.bitsPerPixel = 8; }
-                        else if (key == "Mono10")                      { pf.encoding = PixelEncoding::Mono10;    pf.bitsPerPixel = 10; }
-                        else if (key == "Mono12")                      { pf.encoding = PixelEncoding::Mono12;    pf.bitsPerPixel = 12; }
-                        else if (key == "Mono16")                      { pf.encoding = PixelEncoding::Mono16;    pf.bitsPerPixel = 16; }
-                        else if (key == "RGB8Packed" || key == "RGB8") { pf.encoding = PixelEncoding::RGB8;      pf.bitsPerPixel = 24; }
-                        else if (key == "BGR8")                        { pf.encoding = PixelEncoding::BGR8;      pf.bitsPerPixel = 24; }
-                        else                                           { pf.encoding = PixelEncoding::Unknown; }
+                        PixelFormat pf = genicamPixelFormat(key, GenicamDialect::Spinnaker);
                         bool isDefault = (e->GetValue() == ptrPixelFormat->GetIntValue());
                         caps.pixelFormat.supported.append(pf);
                         if (isDefault) caps.pixelFormat.defaultFormat = pf;

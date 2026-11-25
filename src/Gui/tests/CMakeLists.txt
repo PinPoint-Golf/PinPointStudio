@@ -284,6 +284,14 @@ pp_add_test(device_key_test
     INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU ${SRC}/Video
     LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
 
+# The one GenICam pixel-format mapping (src/Video/genicam_pixel_format.h, platform refactor SD-5): for
+# each of the four sites that carried a copy (the enumeration's Aravis and Spinnaker branches, each
+# backend's queryCapabilities), every name maps exactly as that copy did, odd cases included.
+# Header-only, no camera SDK.
+pp_add_test(genicam_pixel_format_test
+    SOURCES genicam_pixel_format_test.cpp
+    INCLUDE ${SRC}/Video)
+
 # PacedConnectQueue — ImuManager's paced BLE connect (design §4.11, F10): first device at
 # once, each next a gap later, cancel, replace, skip-without-gap. Runs on an 80 ms gap and
 # a real event loop for about a second.

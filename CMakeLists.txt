@@ -820,6 +820,7 @@ qt_add_executable(PinPointStudio
     src/Audio/audio_output.h         src/Audio/audio_output.cpp
     src/Audio/audio_stream_saver.h   src/Audio/audio_stream_saver.cpp
     src/Video/camera_capabilities.h
+    src/Video/genicam_pixel_format.h
     src/Video/video_input_base.h           src/Video/video_input_base.cpp
     src/Video/video_input.h                src/Video/video_input.cpp
     src/Video/video_input_factory.h        src/Video/video_input_factory.cpp

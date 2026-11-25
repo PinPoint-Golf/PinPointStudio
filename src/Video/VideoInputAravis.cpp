@@ -24,6 +24,7 @@
 #endif
 
 #include "VideoInputAravis.h"
+#include "genicam_pixel_format.h"
 #include "event_buffer.h"
 #include "frame_crop.h"
 #include <QVideoFrame>
@@ -486,18 +487,7 @@ CameraCapabilities VideoInputAravis::queryCapabilities() const
             caps.pixelFormat.writable = true;
             const char *curFmt = arv_camera_get_pixel_format_as_string(cam, nullptr);
             for (guint i = 0; i < nFormats; ++i) {
-                PixelFormat pf;
-                pf.nativeKey = QString::fromLocal8Bit(fmts[i]);
-                if      (pf.nativeKey == "BayerRG8")   { pf.encoding = PixelEncoding::BayerRG8;  pf.bitsPerPixel = 8; }
-                else if (pf.nativeKey == "BayerGB8")   { pf.encoding = PixelEncoding::BayerGB8;  pf.bitsPerPixel = 8; }
-                else if (pf.nativeKey == "BayerGR8")   { pf.encoding = PixelEncoding::BayerGR8;  pf.bitsPerPixel = 8; }
-                else if (pf.nativeKey == "BayerBG8")   { pf.encoding = PixelEncoding::BayerBG8;  pf.bitsPerPixel = 8; }
-                else if (pf.nativeKey == "Mono8")      { pf.encoding = PixelEncoding::Mono8;     pf.bitsPerPixel = 8; }
-                else if (pf.nativeKey == "Mono10")     { pf.encoding = PixelEncoding::Mono10;    pf.bitsPerPixel = 10; }
-                else if (pf.nativeKey == "Mono12")     { pf.encoding = PixelEncoding::Mono12;    pf.bitsPerPixel = 12; }
-                else if (pf.nativeKey == "RGB8Packed") { pf.encoding = PixelEncoding::RGB8;      pf.bitsPerPixel = 24; }
-                else if (pf.nativeKey == "BGR8")       { pf.encoding = PixelEncoding::BGR8;      pf.bitsPerPixel = 24; }
-                else                                   { pf.encoding = PixelEncoding::Unknown; }
+                PixelFormat pf = genicamPixelFormat(QString::fromLocal8Bit(fmts[i]), GenicamDialect::Aravis);
                 caps.pixelFormat.supported.append(pf);
                 if (curFmt && pf.nativeKey == QString::fromLocal8Bit(curFmt))
                     caps.pixelFormat.defaultFormat = pf;
