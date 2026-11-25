@@ -103,7 +103,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
 - **If nothing is ruled:** SE-2a is not built, so SE-2b to SE-2d wait, and so does Stage F's ownership of the
   phone link. SE-1a and SE-1b still run.
 - **Waits:** SE-2a, then SE-2b, SE-2c, SE-2d.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ### H2 · The shape of the settings split
 - **Today.** `AppSettings` is 1,958 lines of header and 163 of source, with 123 properties (110 after Stage C) and
@@ -134,7 +134,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   domain-fact key changes its writer. **(b) is not a change**: no file moves ring, no key moves, no writer changes.
 - **If nothing is ruled:** (b) is what gets built, because SE-5c needs no ruling and the group items wait.
 - **Waits:** SE-5d, SE-5e.1, SE-5e.2. Not SE-5a, SE-5b or SE-5c.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ### H3 · Q9: R-CON-5 and the long-lived threads
 - **Today.** R-CON-5 reads "One threading idiom: a single worker pool", with one exception, the pose inference
@@ -182,7 +182,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
 - **If nothing is ruled:** (d). SE-6b to SE-6d are not built; the Accept row's "hand-written teardowns 8 → 0" is
   not met; the audit's F-09 remainder stays open and must be recorded as an agreed deferral[^sched].
 - **Waits:** SE-6b, SE-6c, SE-6d. Not SE-6a, SE-6e or SE-6f.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ### H4 · Q5: lint A6 back to P9's wording
 - **Today.** The same question as the Stage D pack's row V2, which is already before the Solution Architect[^sd0].
@@ -207,7 +207,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
 - **If nothing is ruled:** A6 stays wide. SE-9a is built (3 h), and the 42 findings need three more items, about
   9 hours, which the 83 hours do not hold.
 - **Waits:** SE-9a; the three items that (b) would add; the scope of SE-4.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ### H5 · Q17: no QML global is renamed for the count
 - **Today.** The same question as the Stage D pack's row V1, before the Product Owner[^sd0]. Stage E's globals
@@ -246,7 +246,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
 - **If nothing is ruled:** SE-5h and SE-9b are not built, the studio profile's global stays, and the count
   stays at 18.
 - **Waits:** SE-5h, SE-9b.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ### H6 · Q6: #193, the app's own trash always
 - **Today.** A discard goes to the operating system's trash first, and to the library's own trash only where the
@@ -266,7 +266,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   Windows' own Restore no longer applies[^ds].
 - **If nothing is ruled:** (a). Today's behaviour stays.
 - **Waits:** SE-10.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ## Five more questions the items wait on
 
@@ -315,7 +315,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   done.
 - **Waits:** SE-7a, then SE-7b. The guard for both: no test or agent run touches the real keychain; the in-memory
   mode is in place first.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ### K2 · The API-key field on the settings page
 - **Today.** Settings → General has two key fields, for Azure and Gemini
@@ -341,7 +341,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   picture is not drawn here.
 - **If nothing is ruled:** (a). SE-7b moves the keys and leaves the field's look alone.
 - **Waits:** the QML half of SE-7b only. SE-7a and the copy do not wait.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ### K3 · AssemblyAI: delete it, or move its key
 - **Today.** `STTBackendAssemblyAI` is 296 lines in two files (`wc -l src/STT/*AssemblyAI*`). Nothing uses it:
@@ -355,7 +355,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
 - **Class: Product Owner** (whether a feature kept "for reference" stays). No C1–C11: the key is not in the model.
 - **If nothing is ruled:** (b): one more key in SE-7b. The compile-time default goes in either case (K1).
 - **Waits:** SE-7d.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ### K4 · Q24: #234 in this stage's first part
 - **Today.** The report list and the Archiving tab are told which session is live by `main.cpp`, from the review
@@ -371,7 +371,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   not a change.
 - **If nothing is ruled:** SE-2d is not built and #234 stays open on its issue.
 - **Waits:** SE-2d (and H1, through SE-2a).
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ### K5 · Q7: the phone link's pairing key stays in settings
 - **Today.** The pairing key is in the settings file on purpose. The reasons are written where it is stored
@@ -384,7 +384,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   changes and nothing is built.
 - **If nothing is ruled:** (a).
 - **Waits:** nothing.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ## The two levers, as proposals
 
@@ -415,7 +415,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   question; not taking it leaves H2 for the Solution Architect.
 - **If nothing is ruled:** the same as taking it, for as long as H2 is unruled.
 - **Waits:** SE-5d, SE-5e.1, SE-5e.2; the order of SE-5f and SE-5g.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ### V8 · Threads: name the owners, build no helper yet
 - **Today.** The counts are in H3: eleven long-lived threads, a hand-written teardown in 7 files, 34 lines.
@@ -435,7 +435,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   the Solution Architect's (H3, C11)**: the lever cannot be taken on this row alone.
 - **If nothing is ruled:** the three items wait on H3 in any case.
 - **Waits:** SE-6b, SE-6c, SE-6d.
-- **Ruled:**
+- **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
 
 ## What the design must also answer
 
@@ -515,3 +515,5 @@ chains dropped are the ones that edit the most files for no count that anything 
 [^rig]: `docs/design/rig_design.md`: `AppSettings` loses 13 properties in Stage C, and their copied keys are removed by Stage E's settings work.
 [^ds]: `governance/artefacts/design_system/README.md`, "The non-negotiables": any change to the design system needs the Design Lead's approval before it is built. This page also sends to that role any row that changes what the golfer or coach sees.
 [^sched]: The method's rule: a plan places every audit finding, as a step, an agreed deferral or a rejection. F-09 is `docs/implementation/swe-audit/02-findings.md`: "Five threading idioms".
+
+[^e-ruled-25nov]: Ruled in the platform programme's coordination session, 25 Nov 2026: every open question of this pack as recommended, levers 7 (settings: one class, bodies out of the header, no groups) and 8 (threads: name the owners, build no helper yet) taken. **Condition on lever 8 (Product Owner):** Stage E's first items include quit tests aimed at the lifecycle model's GAP-20 (a quit that waits with no window) and GAP-21 (a quit that touches destroyed objects or kills a thread), quitting while each long-lived thread is busy; a fault they find brings the helper back as its fix, for the owner at fault first. H4 and H5 were ruled with Stage D (Q5, Q17). K2's new behaviour (the key never shown again; Change and Remove) is the Design Lead's approval.
