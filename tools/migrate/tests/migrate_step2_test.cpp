@@ -67,6 +67,7 @@
 
 #include <cstdio>
 #include "../../../src/Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
+#include "../../../src/Core/tests/dir_link.h"          // pinpoint::test::linkDirectory: a real link on every platform (#243)
 
 using namespace pinpoint;
 using namespace pinpoint::migrate;
@@ -676,8 +677,18 @@ int main(int argc, char **argv)
         const QMap<QString, QByteArray> pre = treeHash(outside);
         QDir().mkpath(root + QStringLiteral("/cfg"));
         QFile::copy(fb.settings, root + QStringLiteral("/cfg/PinPointStudio.ini"));
+        // Each link is the platform's real kind (a symlink; a directory junction on Windows, #243): QFile::link makes a
+        // .lnk shortcut there, which no guard has to see through.
+        // H0: the guard's own resolver sees through the link (the cause, apart from H1-H3's end-to-end result).
+        check(pinpoint::test::linkDirectory(fb.lib, root + QStringLiteral("/linklib"))
+                  && QFileInfo::exists(root + QStringLiteral("/linklib/Bo-Ng")),
+              "H0 a link under scratch to the library outside it, its athlete folder reachable through it");
+        check(resolvedPath(root + QStringLiteral("/linklib")).compare(resolvedPath(fb.lib), Qt::CaseInsensitive) == 0,
+              "H0 … the link resolves to the library it points at");
+        check(!isUnder(root + QStringLiteral("/linklib/Bo-Ng"), { root })
+                  && !isUnder(root + QStringLiteral("/linklib/not-there-yet.json"), { root }),
+              "H0 … a path through it (there or not yet) is not under scratch");
         // H1: --library is a symlink under scratch to a library outside it.
-        QFile::link(fb.lib, root + QStringLiteral("/linklib"));
         Options o1 = fb.options({ root });
         o1.library = root + QStringLiteral("/linklib");
         o1.settingsFile = root + QStringLiteral("/cfg/PinPointStudio.ini");
@@ -686,7 +697,7 @@ int main(int argc, char **argv)
         check(r1.refused && r1.refusal.contains(QStringLiteral("i-have-marks-approval")), "H1 a library that is a symlink out of scratch: refused");
         // H2: a real scratch library whose athlete folder is a symlink out of it: every write there refused.
         QDir().mkpath(root + QStringLiteral("/lib2"));
-        QFile::link(fb.athlete, root + QStringLiteral("/lib2/Bo-Ng"));
+        check(pinpoint::test::linkDirectory(fb.athlete, root + QStringLiteral("/lib2/Bo-Ng")), "H2 a link to the athlete folder outside scratch");
         Options o2 = o1;
         o2.library = root + QStringLiteral("/lib2");
         const Result r2 = run(o2);
@@ -700,7 +711,8 @@ int main(int argc, char **argv)
         swing(outside + QStringLiteral("/swingDi"), 1, kDi, QStringLiteral("Di Ra"), QStringLiteral("2026-08-04T10:00:00.000Z"), 1);
         const QMap<QString, QByteArray> preDi = treeHash(outside);
         QDir().mkpath(sess);
-        QFile::link(outside + QStringLiteral("/swingDi/swing_0001"), sess + QStringLiteral("/swing_0001"));
+        check(pinpoint::test::linkDirectory(outside + QStringLiteral("/swingDi/swing_0001"), sess + QStringLiteral("/swing_0001")),
+              "H3 a link to the swing folder outside scratch");
         writeJson(SessionFiles::diagnosticsFile(sess), envelope(QJsonObject{
             { QStringLiteral("intent"), QJsonObject{ { QStringLiteral("focusConditionId"), QString() }, { QStringLiteral("focusFromShot"), -1 },
                                                      { QStringLiteral("declaredMiss"), QStringLiteral("push") } } },
@@ -721,6 +733,10 @@ int main(int argc, char **argv)
         QSettings s(o2.settingsFile, QSettings::IniFormat);
         s.beginGroup(QStringLiteral("athletes"));
         check(s.childGroups().size() == 1, "H2 … and its settings record is kept");
+        // The links go before their temporary folders do (dir_link.h).
+        check(pinpoint::test::unlinkDirectory(root + QStringLiteral("/linklib")) && pinpoint::test::unlinkDirectory(root + QStringLiteral("/lib2/Bo-Ng"))
+                  && pinpoint::test::unlinkDirectory(sess + QStringLiteral("/swing_0001")) && treeHash(outside) == preDi,
+              "H the links removed, the folders they pointed at untouched");
     }
 
     std::printf("I M3 fails safe (review 1, finding 4)\n");

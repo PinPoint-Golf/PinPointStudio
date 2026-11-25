@@ -9,6 +9,8 @@
 # B. A folder holding a session that leaves 0 counted (here: a folder name the store does not derive from the athlete's
 #    name, so its index is empty) → exit non-zero, and it says so.
 # C. Sessions whose files name two athletes → refused with words, before --fresh deletes anything.
+# D. A link under the scratch folder to an athlete folder outside it (a symlink; a directory junction on Windows) →
+#    refused with words, nothing written there (#243: the guard judges the link by where it lands).
 # The PINPOINT_CORE_* seams come from the test's ENVIRONMENT. The tool writes only under a path with a `scratch`
 # component, so WORK's folders sit under one; WORK is deleted at the end.
 if(NOT TOOL OR NOT WORK OR NOT SWING)
@@ -71,4 +73,36 @@ if(NOT EXISTS "${_lib}/Golfer-Two/2026-01-01_Golfer-Two_Wrist_01/work_ons.json")
   message(FATAL_ERROR "FAIL: the refused folder's work_ons.json was deleted (--fresh ran before the refusal)")
 endif()
 message(STATUS "PASS: sessions naming two athletes are refused before anything is deleted (exit ${_rc3})")
+
+# D. A link under scratch to an athlete folder outside it: refused, nothing written through it.
+set(_live "${WORK}/live/Golfer-Four")
+make_session("${_live}/2026-01-01_Golfer-Four_Wrist_01" "8a5b6c7d-4f5a-4b6c-8d7e-9f0a1b2c3d4e"
+             "2d5e6f70-8192-4ca3-9d4e-5f6071829304")
+set(_link "${_lib}/Golfer-Four")
+if(WIN32)
+  file(TO_NATIVE_PATH "${_link}" _nlink)
+  file(TO_NATIVE_PATH "${_live}" _nlive)
+  execute_process(COMMAND cmd /c mklink /J "${_nlink}" "${_nlive}" RESULT_VARIABLE _rcl OUTPUT_QUIET ERROR_QUIET)
+else()
+  file(CREATE_LINK "${_live}" "${_link}" SYMBOLIC RESULT _rcl)
+endif()
+if(NOT _rcl EQUAL 0 OR NOT IS_DIRECTORY "${_link}/2026-01-01_Golfer-Four_Wrist_01")
+  message(FATAL_ERROR "FAIL: the link to the athlete folder outside scratch was not made (${_rcl})")
+endif()
+file(GLOB_RECURSE _before LIST_DIRECTORIES true "${_live}/*")
+execute_process(COMMAND "${TOOL}" --fresh --out "${WORK}/d.json" "${_link}"
+                RESULT_VARIABLE _rc4 OUTPUT_VARIABLE _out4 ERROR_VARIABLE _err4)
+file(GLOB_RECURSE _after LIST_DIRECTORIES true "${_live}/*")
+if(_rc4 EQUAL 0 OR NOT _err4 MATCHES "is not on a scratch copy")
+  message(FATAL_ERROR "FAIL: a link under scratch to an athlete outside it was not refused with words (exit ${_rc4}):\n${_out4}${_err4}")
+endif()
+if(NOT _before STREQUAL _after)
+  message(FATAL_ERROR "FAIL: something was written through the link into the folder outside scratch:\n${_after}")
+endif()
+message(STATUS "PASS: a link under scratch to an athlete outside it is refused, nothing written there (exit ${_rc4})")
+if(WIN32)
+  execute_process(COMMAND cmd /c rmdir "${_nlink}" OUTPUT_QUIET ERROR_QUIET)   # the junction only, never its target
+else()
+  file(REMOVE "${_link}")
+endif()
 file(REMOVE_RECURSE "${WORK}")

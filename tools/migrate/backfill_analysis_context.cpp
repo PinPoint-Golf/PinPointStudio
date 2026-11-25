@@ -70,6 +70,7 @@
 #include "swing_store_repository.h"   // the one door to the swing files
 #include "session_store.h"            // what names each swing's ShotRef (step 2.4)
 #include "recording_header.h"         // legacyAnalysisContext, backfilledAnalysisContext
+#include "real_path.h"                // realPath: links resolved, junctions too on Windows (#243)
 
 #include <QCoreApplication>
 #include <QCommandLineParser>
@@ -187,14 +188,14 @@ bool backUp(const QString &swingDir, const QString &backupRoot, const QString &r
     return true;
 }
 
-// Is `path` (made absolute; it need not exist yet) the folder `root` or inside it? Canonical paths,
-// so a `..` or a symlink cannot hide it.
+// Is `path` (made absolute; it need not exist yet) the folder `root` or inside it? Real paths (realPath),
+// so a `..`, a symlink or a Windows junction cannot hide it.
 bool insideOf(const QString &path, const QString &root)
 {
     const QFileInfo fi(path);
-    QString real = fi.exists() ? fi.canonicalFilePath() : QFileInfo(fi.absolutePath()).canonicalFilePath();
+    QString real = pinpoint::migrate::realPath(fi.exists() ? fi.absoluteFilePath() : fi.absolutePath());
     if (!fi.exists() && !real.isEmpty()) real += QLatin1Char('/') + fi.fileName();
-    const QString r = QFileInfo(root).canonicalFilePath();
+    const QString r = pinpoint::migrate::realPath(root);
     if (real.isEmpty() || r.isEmpty()) return false;
 #ifdef Q_OS_WIN
     const Qt::CaseSensitivity cs = Qt::CaseInsensitive;
@@ -367,7 +368,7 @@ int main(int argc, char *argv[])
         return 2;
     }
     if (write) {
-        const QString bakReal = backup.isEmpty() ? QString() : QFileInfo(backup).canonicalFilePath();
+        const QString bakReal = backup.isEmpty() ? QString() : pinpoint::migrate::realPath(backup);
         if (bakReal.isEmpty() || !QFileInfo(bakReal).isDir()) {
             out() << "refused: --write needs --backup-dir, an existing folder (on the share)\n";
             return 2;

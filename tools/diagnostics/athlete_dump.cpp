@@ -83,6 +83,7 @@
 #include "Core/PpMessageLog.h"
 #include "Export/session_files.h"
 #include "parity_json.h"
+#include "../migrate/real_path.h"   // realPath: links resolved, junctions too on Windows (#243)
 
 #include <QCryptographicHash>
 #include <QSemaphore>
@@ -131,9 +132,11 @@ void printUsage(FILE *to)
         "Needs every PINPOINT_CORE_* (PACK NORMS FLIGHT_NORMS CONTEXTS SCREENS DRILLS GATE_WORDS REFERENCES).\n");
 }
 
+// Is the folder's REAL path on a scratch copy? realPath, so a symlink, or on Windows a directory junction, under a
+// scratch folder that points at a live athlete is judged by where it lands (#243).
 bool onScratch(const QString &dir)
 {
-    const QString real = QFileInfo(dir).canonicalFilePath();
+    const QString real = pinpoint::migrate::realPath(dir);
     return !real.isEmpty() && real.split(QLatin1Char('/'), Qt::SkipEmptyParts).contains(QStringLiteral("scratch"));
 }
 

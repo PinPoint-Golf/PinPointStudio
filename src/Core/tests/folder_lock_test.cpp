@@ -11,6 +11,7 @@
 //   ctest --test-dir build/tests -R '^folder_lock_test$' --output-on-failure
 
 #include "../folder_lock.h"
+#include "dir_link.h"   // pinpoint::test::linkDirectory: a real link on every platform (#243)
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -164,19 +165,32 @@ int main()
         // /mnt is a symlink on the Mac: the hold is taken through a link, the folder goes away mid-hold (a dropped
         // share), the hold ends, the folder comes back. The registry entry must go with the hold: the same thread's
         // next lockOrJoin must take the lock itself, never join a hold that no longer exists.
+        // The link is the platform's real kind (#243): a symlink, or on Windows a directory junction (QFile::link makes
+        // a .lnk shortcut there, a plain file no lock can be taken through). Windows refuses to rename a folder while
+        // a file in it is open without delete sharing (the hold's lock file), so there the LINK goes away and comes
+        // back instead: the hold's spelling stops resolving mid-hold all the same, which is what the key must survive.
         const QString real = tmp.filePath(QStringLiteral("real_session"));
         const QString moved = tmp.filePath(QStringLiteral("real_session_away"));
         const QString link = tmp.filePath(QStringLiteral("linked_session"));
         QDir().mkpath(real);
-        check(QFile::link(real, link), "a symlink to the session folder");
+        check(pinpoint::test::linkDirectory(real, link), "a symlink to the session folder");
         {
             FolderLock held(link);
             check(held.lock(0) == FolderLock::Result::Acquired, "held through the symlink");
+#ifdef Q_OS_WIN
+            Q_UNUSED(moved);
+            check(pinpoint::test::unlinkDirectory(link) && !QFileInfo::exists(link), "the folder goes away mid-hold");
+#else
             check(QDir().rename(real, moved), "the folder goes away mid-hold");
+#endif
             held.unlock();
             check(!held.isHeld(), "the hold ends while the folder is away");
         }
+#ifdef Q_OS_WIN
+        check(pinpoint::test::linkDirectory(real, link), "the folder comes back");
+#else
         check(QDir().rename(moved, real), "the folder comes back");
+#endif
         QFile::remove(QDir(real).filePath(FolderLock::fileName()));   // the hold's own file, which its unlock could not reach
         FolderLock again(link);
         check(again.lockOrJoin(0) == FolderLock::Result::Acquired && !again.joined()
@@ -184,6 +198,7 @@ int main()
               "the same thread's next lockOrJoin takes the lock file itself: no stale entry was joined");
         again.unlock();
         check(!QFileInfo::exists(QDir(real).filePath(FolderLock::fileName())), "and lets it go");
+        check(pinpoint::test::unlinkDirectory(link) && QFileInfo(real).isDir(), "the link removed, the folder it pointed at kept");
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "PASSED", g_fail, g_fail == 1 ? "" : "s");

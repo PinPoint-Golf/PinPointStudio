@@ -19,6 +19,7 @@
 // migrate_step2.cpp — the engine of pps_migrate_step2 (see migrate_step2.h and pps_migrate_step2.cpp).
 
 #include "migrate_step2.h"
+#include "real_path.h"   // realPath: links resolved, junctions too on Windows (#243)
 
 #include "../../src/DomainModel/athlete.h"
 #include "../../src/DomainModel/session_identity.h"
@@ -1572,11 +1573,12 @@ void Writer::writeWrist()
 QString resolvedPath(const QString &path)
 {
     // The real path: every symlink resolved (on macOS /mnt resolves into /System/Volumes/Data, for a path and a root
-    // alike). A path not there yet resolves through its nearest existing folder, the rest appended.
+    // alike), and on Windows every directory junction too (realPath, #243). A path not there yet resolves through its
+    // nearest existing folder, the rest appended.
     QString     p = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
     QStringList rest;
     while (!p.isEmpty()) {
-        const QString canon = QFileInfo(p).canonicalFilePath();
+        const QString canon = realPath(p);
         if (!canon.isEmpty()) {
             QString out = QDir::cleanPath(canon);
             for (auto it = rest.crbegin(); it != rest.crend(); ++it) out += QLatin1Char('/') + *it;
