@@ -65,17 +65,24 @@ see **[BUILDING.md](BUILDING.md)**.
 | `cmake/` | Build modules: Qt discovery, the QML module, fonts, OpenSSL, code signing |
 | `third_party/` | Small vendored sources (the ESKF orientation filter) |
 | `docs/` | Documentation, organised by audience (see below) |
+| `governance/` | The project's rules: policies, controls by stage of work, procedures (including the release runbooks and capture protocols), guidance, and who approves what. Read it before changing anything ([`CONTRIBUTING.md`](CONTRIBUTING.md); agents start at [`AGENTS.md`](AGENTS.md)) |
+| `.github/` | Continuous-integration workflows (release binaries are built locally, not by CI) |
 
-Inside `src/`:
+Inside `src/`. The folders follow the architecture's rings (Platform, Vocabulary, Rules, Domain model, Application, Adapters), whose authority is the information model's §4 ([`docs/developer/information_model.md`](docs/developer/information_model.md)); the platform refactor is still moving files between them.
 
-| Folder | Subsystem |
+| Folder | What's there |
 |---|---|
-| `Gui/` | The Qt Quick / QML interface and its C++ models |
+| `Gui/` | The Qt Quick / QML interface and its C++ presenters |
+| `App/` | The application root: `AppState`, the athlete catch-up, start-up |
+| `DomainModel/` | The domain's entities and owners: `Athlete`, `Session`, `Shot`, their repositories and the diagnostics they own |
+| `Vocabulary/`, `Identity/`, `Recording/` | Shared value types and ids, and the Recording contract every captured swing follows |
 | `Video/`, `Pose/` | Camera backends; pose, ball and person-segmentation models |
-| `Analysis/`, `Metrics/`, `Diagnostics/` | Swing analysis pipeline, metric catalogue, fault diagnostics |
+| `Analysis/`, `Timeline/` | The swing analysis pipeline, and swing positions (P1–P10) over time |
+| `Body/`, `Club/`, `Ball/`, `Wrist/`, `Kinematics/`, `Skeleton3d/` | Measurement rules: posture, the club and shaft, the ball, the wrist, the kinematic sequence, the 3-D skeleton |
+| `Metrics/`, `Diagnostics/`, `Coaching/` | The metric catalogue, fault diagnostics, and the priorities and outcomes built from them |
 | `Buffer/` | The lock-free event buffer that time-aligns every sensor |
-| `IMU/`, `LaunchMonitor/`, `Ppcp/`, `Audio/` | Sensors, launch monitors, phone capture, microphones and shot sound |
-| `Export/` | Swing video and the `swing.json` document |
+| `IMU/`, `LaunchMonitor/`, `Ppcp/`, `Audio/` | Motion sensors, launch monitors, phone capture, microphones and shot sound |
+| `Export/` | Swing video, and the swing and athlete files |
 | `STT/`, `TTS/`, `LLM/`, `Secrets/` | Speech, the AI coach, API-key storage |
 | `Update/`, `Core/`, `Resources/`, `Shaders/` | In-app updates, shared infrastructure, bundled assets, GPU shaders |
 
@@ -86,10 +93,12 @@ Inside `src/`:
 | [BUILDING.md](BUILDING.md) | Dependencies, building on each platform, packaging, running the tests |
 | [`docs/user/`](docs/user) | Using the app: [diagnostics guide](docs/user/pinpoint-diagnostics-guide.md), [wrist calibration](docs/user/wristcalibration.md), [phone capture](docs/user/phone_capture.md), UX design |
 | [`docs/developer/`](docs/developer) | Developer guides: [analysis pipeline](docs/developer/analysis_pipeline_developer_guide.md), [testing](docs/developer/testing_developer_guide.md), [SwingLab](docs/developer/swinglab_developer_guide.md), [feature switches](docs/developer/feature_switches_developer_guide.md), event buffer, diagnostics, metrics |
-| [`docs/design/`](docs/design) | Design records for each subsystem, and the [QML design system](docs/design/pinpoint_qml_design_system.md) |
+| [`docs/design/`](docs/design) | Design records for each subsystem, and the [QML design system](docs/design/system/README.md) |
 | [`docs/reference/`](docs/reference) | File formats ([`swing.json`](docs/reference/swing_json_schema.md), [swing folders](docs/reference/swing_folder_layout.md)), sign conventions, device protocols, normative data |
-| [`docs/validation/`](docs/validation), [`docs/research/`](docs/research) | Validation protocols, corpus results and research notes |
-| `docs/implementation/` | Working plans and release runbooks |
+| [`docs/validation/`](docs/validation), [`docs/research/`](docs/research) | Validation reports, corpus results and research notes (the collection protocols are in [`governance/procedures/`](governance/procedures)) |
+| [`docs/conformance/`](docs/conformance) | The phone link's conformance claim and its test bundles |
+| `docs/implementation/` | Working plans and implementation records (the release runbooks are in [`governance/procedures/`](governance/procedures)) |
+| [`governance/`](governance/README.md) | The project's policies, controls, procedures and guidance, and who approves what |
 
 ## Related projects
 

@@ -60,8 +60,8 @@ A route that needs one is "no route", not "planned": look for the pelvis-sensor 
 *Why:* the catalogue reported a reading as waiting on thigh sensors, implying a dependency that will never be delivered.[^ad-9]
 *Owner:* Product Owner · *Stage:* Build; checked at Review · *Compliance:* a review
 
-**AD-10.** The app must never run two wrist instruments on the arm at once: the arm carries either the HackMotion or the Witmotion sensors.
-Comparing the two is done in offline harnesses outside the app. A HackMotion on the wrist with Witmotion sensors on the trunk is allowed.
+**AD-10.** The HackMotion and the Witmotion sensors must never be worn on the same arm at the same time, and the app must never run two wrist instruments on the arm at once, except as part of a stated test or verification process.[^ad-10x]
+A protocol that co-wears them says that it is such a process, and its verification steps are controls ([AD-47](../kinds-of-work.md) to [AD-49](../kinds-of-work.md)). Otherwise the arm carries either the HackMotion or the Witmotion sensors: normal capture has one wrist instrument per arm, and the corpus mixes sensor combinations across captures. Comparing the two is done in offline harnesses outside the app. A HackMotion on the wrist with Witmotion sensors on the trunk is allowed.
 *Why:* two sensors strapped close together on a wrist and hand interfere physically.[^ad-10]
 *Owner:* Product Owner · *Stage:* Build; checked at Review · *Compliance:* a review
 
@@ -106,6 +106,7 @@ A swing with no recorded timestamp source was stamped on arrival: don't compare 
 [^d8]: Solution Architect, 25 Nov 2026 (#195, decision D8); `docs/design/wholebody_pose_design.md` §2.2, which proposes the hand axis as a shaft prior, is superseded on that point.
 [^ad-9]: Product Owner, 12 Nov 2026.
 [^ad-10]: Product Owner, 18 Aug 2026; scoped to the arm, 4 Oct 2026.
+[^ad-10x]: Product Owner and Coaching Lead, 25 Nov 2026 (#195): the stated test or verification exception; the corpus mixes sensor combinations across captures.
 [^ad-11]: Product Owner, 27 Oct 2026.
 [^ad-12]: Product Owner, 23 Aug 2026.
 [^ad-34]: Product Owner, 29 Aug 2026; kept, without its first half ("more traffic makes it worse", overtaken by the 2 Sep fix), 25 Nov 2026 (#195, decision D14).

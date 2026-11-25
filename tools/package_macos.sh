@@ -769,5 +769,5 @@ cat <<EOF
 Next (S1·P1/P2, maintainer gates): codesign + notarize this .app, generate the
 EdDSA-signed appcast-mac.xml (packaging/make_appcast_mac.sh), and publish both to a
 GitHub Release tagged '${VERSION}' on ${GH_OWNER}/${GH_REPO}
-(docs/implementation/macos_release_runbook.md).
+(governance/procedures/release-macos.md).
 EOF

@@ -81,7 +81,7 @@ lab needs it.
 Measure after taping, to the millimetre, **from the butt end of the grip** to
 the CENTRE of each band. Without this record the tape is only "easier to
 see"; with it, every swing is auto-labelable truth. One file per corpus root
-(e.g. `/mnt/swingdata/corpus/shaftlab/clubs.json`); the `id` must match what
+(e.g. `<SwingData>/corpus/shaftlab/clubs.json`); the `id` matches what
 markup writes in
 `truth.json meta.club`.
 
@@ -106,12 +106,12 @@ markup writes in
 }
 ```
 
-Rules:
+Rules (the record's upkeep is [AD-46](../controls/kinds-of-work.md)):
 - `bands_from_butt_mm` lists ALL band centres in butt→tip order (2+1+3 = 6
   entries for the standard pattern). The consumer derives the group structure
   from the gaps; do not encode it separately (single source of truth).
-- Re-measure and bump `taped_on` whenever tape is replaced (adhesive drift is
-  real); a swing references the record via `meta.club` + capture date.
+- Re-measure and bump `taped_on` whenever tape is replaced ([AD-46](../controls/kinds-of-work.md)); a swing
+  references the record via `meta.club` + capture date.
 - `hosel_from_butt_mm` anchors the head extrapolation; with a `head_patch`
   the patch supersedes it.
 
@@ -129,7 +129,7 @@ coverage, (d) multi-club length-model form selection.
 - **Exposure: hitting-area highlights below clipping** (the bands are bright —
   use them to go SHORTER on exposure, which also narrows blur).
 - **Clubs: ≥3 taped (wedge / mid-iron / driver minimum)**, several swings
-  each; record `meta.club` in markup exactly matching `clubs.json` ids.
+  each; record `meta.club` in markup exactly matching `clubs.json` ids ([AD-46](../controls/kinds-of-work.md)).
 - Record in markup `meta`: `instrumented: true`, `lighting`, backdrop absence.
 - Hand-label a small **untaped** control subset in the same session (the
   appearance bridge: tape changes the shaft's look, and the passive detector

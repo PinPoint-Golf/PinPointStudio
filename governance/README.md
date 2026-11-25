@@ -23,7 +23,7 @@ This governance applies to PinPoint Studio only. Its sibling repositories (the p
 - [`roles.md`](roles.md): the four roles that approve changes, the documents each owns, and the agent roles.
 - [`policies.md`](policies.md): the principles.
 - [`controls/`](controls/), by stage of work, in order: [`decide.md`](controls/decide.md), [`plan.md`](controls/plan.md), [`build.md`](controls/build.md), [`test.md`](controls/test.md), [`review.md`](controls/review.md), [`commit.md`](controls/commit.md), [`release.md`](controls/release.md); then [`kinds-of-work.md`](controls/kinds-of-work.md), the extras for a feature, a bug fix, a refactor, and data and analysis work. [`controls/product/`](controls/product/) holds the controls on what the product must do: [`analysis-and-data.md`](controls/product/analysis-and-data.md), [`diagnostics-and-coaching.md`](controls/product/diagnostics-and-coaching.md) and [`ui-behaviour.md`](controls/product/ui-behaviour.md); the build and review stages point to them.
-- [`procedures/`](procedures/README.md): step-by-step procedures, and pointers to those still in `docs/`.
+- [`procedures/`](procedures/README.md): step-by-step procedures, including the release procedures and the capture and corpus collection protocols.
 - [`guidance/`](guidance/): [`advice.md`](guidance/advice.md) and [`lessons.md`](guidance/lessons.md).
 - [`artefacts/`](artefacts/README.md): the governing documents, which move in at the end of the platform refactor's Stage B Part 1[^po-move].
 - [`AGENTS.md`](AGENTS.md): what applies only to agents. The repository's root `AGENTS.md` and `CONTRIBUTING.md` point here.

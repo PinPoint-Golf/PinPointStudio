@@ -1,7 +1,7 @@
 # The down-the-line club track: why it is sporadic, why it cannot synthesise itself, and what makes it continuous
 
 **Status:** design update, 30 Sept 2026; §3.2a added 1 Oct 2026 after §3.1 shipped. Seeds the two-camera protocol session
-(`docs/validation/two_camera_capture_protocol.md`). Supersedes nothing yet: the DTL tracker's
+(`governance/procedures/two_camera_capture_protocol.md`). Supersedes nothing yet: the DTL tracker's
 "never bridge an end-on gap" rule (`dtl_shaft_tracker_design.md` §5.8–5.9) stays for what the
 tracker *measures*; this note is about what the product *draws and computes* in the gaps, and what
 the clean session must give us for that to be honest.

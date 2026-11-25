@@ -20,7 +20,7 @@
 
 // A camera's pose in the bay from the alignment sticks
 // (docs/design/camera_calibration_design.md §4.4 "the geometry path that needs no
-// printer", §3a.6 the two-camera pass; docs/validation/two_camera_capture_protocol.md
+// printer", §3a.6 the two-camera pass; governance/procedures/two_camera_capture_protocol.md
 // §4 B the stick clips) — and the down-the-line camera RELATIVE to the face-on one in
 // the frame the shaft fusion works in (shaft_fusion.h), which is what
 // dtl_continuous_track_design_update.md §4 item 1 asks the protocol session for:

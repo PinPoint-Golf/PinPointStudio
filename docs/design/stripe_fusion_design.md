@@ -14,7 +14,7 @@ anticipate. E1+E2 as designed; E3's scene-median subtraction as designed.
 
 **Original design, 2026-07-05.** Successor to `stripe_annotate.py` v1 (blob →
 ratio match), which is validated but scoped to the club-up phases. Companion:
-`docs/validation/instrumented_club_protocol.md` (band geometry, session
+`governance/procedures/instrumented_club_protocol.md` (band geometry, session
 plan), `tools/shaftlab/README.md` (exemplar rules), lab
 `tape_20260705/RESULTS.md` (the adjudication record this design rests on).
 

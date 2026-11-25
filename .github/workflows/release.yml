@@ -1,6 +1,6 @@
 # Linux release pipeline — builds the self-updating AppImage and stages it as a
 # DRAFT GitHub release. Signing is done LOCALLY by the maintainer (the release key
-# never touches GitHub) — see docs/implementation/linux_release_runbook.md.
+# never touches GitHub) — see governance/procedures/release-linux.md.
 # Phase P2 of docs/implementation/linux_update_impl.md.
 #
 # The published Release IS the in-app updater's feed: UpdateController polls
@@ -160,8 +160,8 @@ jobs:
   # ── Windows: build the UNSIGNED -core installer (the WinSparkle enclosure) and
   # stage it on the same DRAFT release. The maintainer signs locally with the offline
   # EdDSA key, generates appcast-win.xml (packaging/make_appcast.ps1), uploads both,
-  # and publishes — only then is it live to users (docs/implementation/
-  # windows_release_runbook.md, design docs/design/windows_update.md). No signing
+  # and publishes — only then is it live to users (governance/procedures/
+  # release-windows.md, design docs/design/windows_update.md). No signing
   # secrets here. The hosted runner has no NVIDIA GPU, so it builds the hardware-
   # agnostic -core only; the -cuda runtime is built/managed separately (design §4.4).
   #
@@ -253,7 +253,7 @@ jobs:
   # ── macOS: build the UNSIGNED .dmg (the Sparkle enclosure) and stage it on the same
   # DRAFT release. The maintainer Developer ID-signs + notarizes the EXACT DMG locally,
   # generates appcast-mac.xml (packaging/make_appcast_mac.sh), uploads both, and
-  # publishes — only then is it live to users (docs/implementation/macos_release_runbook.md,
+  # publishes — only then is it live to users (governance/procedures/release-macos.md,
   # design docs/design/macos_update.md). No signing/notarization/EdDSA secrets here.
   #
   # TWO LEGS, one per architecture — they differ only in which runner they land on, so

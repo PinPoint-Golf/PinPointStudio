@@ -3,8 +3,8 @@
 **Document type:** implementation + test plan (staged, corpus-gated). **Owner:** Mark Liversedge.
 **Design:** [`club_tracking_v3_design.md`](../design/club_tracking_v3_design.md). **Research:**
 [`club_detection_from_video.md`](../research/club_detection_from_video.md). **Capture protocols (already
-written):** [`instrumented_club_protocol.md`](../validation/instrumented_club_protocol.md),
-[`shaft_validation_protocol.md`](../validation/shaft_validation_protocol.md).
+written):** [`instrumented_club_protocol.md`](../../governance/procedures/instrumented_club_protocol.md),
+[`shaft_validation_protocol.md`](../../governance/procedures/shaft_validation_protocol.md).
 
 ---
 

@@ -2,7 +2,7 @@
 .SYNOPSIS
     Sign a Windows installer with the offline EdDSA key and emit the WinSparkle
     appcast (appcast-win.xml) for a release. Phase P2 of
-    docs/implementation/windows_update_impl.md — see also windows_release_runbook.md.
+    docs/implementation/windows_update_impl.md — see also release-windows.md.
 
 .DESCRIPTION
     WinSparkle's feed is a Sparkle appcast XML hosted as a release asset (design

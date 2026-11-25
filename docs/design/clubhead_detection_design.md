@@ -219,7 +219,7 @@ including everything measured against swing_0008's 51 labels — are
 model **form selection** and accuracy acceptance require corpus-scale labels
 spanning held-out swings **and held-out clubs** (plane varies with club
 length). The standing protocol lives in
-[../validation/shaft_validation_protocol.md](../validation/shaft_validation_protocol.md)
+[../../governance/procedures/shaft_validation_protocol.md](../../governance/procedures/shaft_validation_protocol.md)
 (capture: ≥3 clubs, uncropped trail-side framing; markup: head points at
 P1–P10) and
 [../validation/pipeline_validation_and_tuning.md](../validation/pipeline_validation_and_tuning.md)

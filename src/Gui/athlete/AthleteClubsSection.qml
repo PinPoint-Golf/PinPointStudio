@@ -27,7 +27,7 @@ import "../typeset/figure_format.js" as Figures
 // (the same id markup writes to truth.json meta.club). Club length feeds the
 // shaft-tracker search radius; the band fields describe retroreflective tape
 // (optional, high value in dark rooms) for the instrumented-club pipeline —
-// docs/validation/instrumented_club_protocol.md. Band positions are the
+// governance/procedures/instrumented_club_protocol.md. Band positions are the
 // CENTRES of each tape band, measured from the butt end of the grip, in mm.
 //
 // Unlike the scalar athlete fields (buffered until Save), club edits commit

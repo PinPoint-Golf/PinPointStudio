@@ -6,7 +6,7 @@
   Alert" box. Cancel writes a permanent BLOCK rule; Allow with the default box
   writes allow rules for Private only, and a studio PC is often classified Public.
   Either way Windows never asks again, block beats allow, and pairing just fails.
-  See docs/implementation/windows_release_runbook.md, ONCE §4.
+  See governance/procedures/release-windows.md, ONCE §4.
 
   The installer is per-user (PrivilegesRequired=lowest, so WinSparkle can update in
   place) and a standard user cannot write a firewall rule. So:

@@ -427,7 +427,7 @@ public:
     //     handsEndMm: int (bottom of the hands from the butt; 0 unknown),
     //     tapedOn: "YYYY-MM-DD", notes: string }
     // Consumers: shaft-tracker search radius (lengthMm) and the
-    // instrumented-club pipeline (docs/validation/instrumented_club_protocol.md).
+    // instrumented-club pipeline (governance/procedures/instrumented_club_protocol.md).
     // ── The session report's details (design §7.3) ──────────────────────────
     //
     // Four more fields on the record, written through updateAthlete like dob and sex:

@@ -3,7 +3,7 @@
 **Status:** Phase 1 implemented behind `shaft.useArmPlausibility` (default OFF, byte-identical when off).
 Phase 2 (blur-line wedge detector) **designed, not built — pick up with a corpus.**
 **Origin:** the 2026-06-30 `swing_0008` investigation (a real face-on swing with 51 hand-labelled shaft
-frames). **Harness:** `/swinglab` + `docs/validation/shaft_validation_protocol.md`. **Tracker:**
+frames). **Harness:** `/swinglab` + `governance/procedures/shaft_validation_protocol.md`. **Tracker:**
 `src/Analysis/shaft_tracker*.{h,cpp}`, `shaft_tracker_math.cpp`.
 
 ---
@@ -113,7 +113,7 @@ candidate = argmax_θ I(θ)  (+ parabolic sub-bin refine; σ from the peak width
   `shaft.useTemporalDiff` (bool) — all default OFF, dotted-key, swept by SwingLab.
 
 **Acceptance / validation (the corpus is the prerequisite).** Validate via
-`docs/validation/shaft_validation_protocol.md`, scored by `score.py`:
+`governance/procedures/shaft_validation_protocol.md`, scored by `score.py`:
 - **Downswing detection rate** (fraction of labelled fast-phase frames with a true-direction candidate) ↑
   materially from the ~42 % baseline, and **correct-selection** ↑.
 - `truth.theta_rms < 3°` / `head_median < 25 px` on the labelled set, coverage ≥ 0.6 on ≥ 90 % clean.
@@ -131,7 +131,7 @@ quality may do more for the downswing than any detector change.
 
 ## 4. Pickup checklist (when a corpus exists)
 
-1. Capture/label per `docs/validation/shaft_validation_protocol.md` (Wrist session, face-on `perspective=2`,
+1. Capture/label per `governance/procedures/shaft_validation_protocol.md` (Wrist session, face-on `perspective=2`,
    **raw subset** for the fast phase, mark shaft line + P7 impact, blinded).
 2. Baseline with **Phase 1 on**: `lab.py run … --params '{"shaft.useArmPlausibility":true}' --id p1base`.
 3. Build the line-integral detector + temporal-diff channel (§3); A/B each lever; regression-gate.

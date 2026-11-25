@@ -131,7 +131,7 @@ Goal: the full prompt-then-install flow against a real (or stub) AppImage feed.
 - ☑ **CI `.github/workflows/release.yml`** (tag push `v*`): builds the **unsigned**
   AppImage + zsync and stages a **draft** release. **No signing secrets** — the
   maintainer signs locally and publishes per the runbook. **Authored, not yet run.**
-- ☑ **Release runbook** `docs/implementation/linux_release_runbook.md` — local-sign
+- ☑ **Release runbook** `governance/procedures/release-linux.md` — local-sign
   flow (Path A: CI draft → download → sign → upload `.sig` → publish; Path B: fully
   local build+sign+create). Covers the byte-match rule, never-publish-unsigned, and
   the post-publish check.
@@ -179,7 +179,7 @@ NEW  src/Update/tests/                                 (pure-logic + controller-
 NEW  src/Resources/keys/pinpoint_release_pubkey.asc    (pinned pubkey — PLACEHOLDER)        P1
 NEW  src/Gui/shell/PpUpdateBanner.qml                  (launch banner)                      P3
 NEW  .github/workflows/release.yml                     (tag-triggered: build unsigned draft) P2
-NEW  docs/implementation/linux_release_runbook.md      (local-signing release runbook)      P2
+NEW  governance/procedures/release-linux.md      (local-signing release runbook)      P2
 EDIT CMakeLists.txt                                    (src/Update sources + :/keys + banner)P1/P3
 EDIT src/Gui/main.cpp                                  (construct + register updateController)P1
 EDIT src/Gui/shell/Main.qml                            (instantiate PpUpdateBanner)         P3

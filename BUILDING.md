@@ -375,7 +375,7 @@ macOS ships as a Developer ID-signed, notarized **`.app` inside a `.dmg`**, kept
 date in place by **Sparkle** (the framework WinSparkle is a port of), gated by a pinned
 **EdDSA (Ed25519)** signature. Design:
 [`docs/design/macos_update.md`](docs/design/macos_update.md) ·
-**release runbook:** [`docs/implementation/macos_release_runbook.md`](docs/implementation/macos_release_runbook.md).
+**release runbook:** [`governance/procedures/release-macos.md`](governance/procedures/release-macos.md).
 
 **Build the DMG:**
 ```bash
@@ -460,7 +460,7 @@ Windows ships as a per-user **Inno Setup installer** kept up to date in place by
 gated by a pinned **EdDSA (Ed25519)** signature. Design:
 [`docs/design/windows_update.md`](docs/design/windows_update.md); build plan:
 [`docs/implementation/windows_update_impl.md`](docs/implementation/windows_update_impl.md);
-**release runbook:** [`docs/implementation/windows_release_runbook.md`](docs/implementation/windows_release_runbook.md).
+**release runbook:** [`governance/procedures/release-windows.md`](governance/procedures/release-windows.md).
 
 ### Prerequisites
 - **Inno Setup 6** (`ISCC.exe`) — `choco install innosetup` or [jrsoftware.org](https://jrsoftware.org/isdl.php).
@@ -498,7 +498,7 @@ bump `version.h` only).
 The full per-release procedure — bump version, build the `-core` installer, sign it
 offline with the EdDSA key, generate `appcast-win.xml` (`packaging\make_appcast.ps1`),
 upload, and publish — is in the
-**[Windows Release Runbook](docs/implementation/windows_release_runbook.md)**. The
+**[Windows Release Runbook](governance/procedures/release-windows.md)**. The
 signing key never leaves your machine (it is not a CI secret); the pinned public half
 lives at `src/Resources/keys/pinpoint_release_win_eddsa.pub` and is compiled into the
 app. WinSparkle points at the stable

@@ -71,7 +71,7 @@ detector (`club_detection_from_video.md:150-155`), and became load-bearing in th
 path along the way. Six 25 mm glass-bead retroreflective bands, grouped 2-1-3 from grip to
 head, at 308, 362, 560, 758, 808, 854 mm from the butt on the lab 7-iron; hosel at 882 mm;
 club length 940 mm (`/mnt/swingdata/corpus/shaftlab/clubs.json`; protocol in
-`docs/validation/instrumented_club_protocol.md`). The tracker learns of them through the
+`governance/procedures/instrumented_club_protocol.md`). The tracker learns of them through the
 athlete's club record → `ShotAnalysisJob::bandCentersMm` (`shot_analyzer.h:48-53`,
 `shot_processor.cpp:1050-1053`). An empty list is the untaped switch: `frameBandMatch`
 returns `ok=false` when fewer than two bands are recorded (`shaft_tracker_math.cpp:290`).

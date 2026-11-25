@@ -156,7 +156,7 @@ no new state machine, and the session guard is honoured.
   uploads both, and publishes. **Authored, not yet run** (heavy FetchContent; validate
   with a test tag). The hosted runner has no GPU, so it builds the hardware-agnostic
   `-core` only; `-cuda` is built/managed separately (design §4.4).
-- ☑ **`windows_release_runbook.md`** — local-signing flow (Path A: CI draft → download →
+- ☑ **`release-windows.md`** — local-signing flow (Path A: CI draft → download →
   `make_appcast.ps1` sign+emit → verify with `winsparkle-tool verify` → upload appcast →
   publish; Path B: fully local). Covers sign-the-bytes-you-publish, the pin-must-already-
   ship bootstrap, never-publish-without-the-appcast, the `latest/download` non-prerelease
@@ -217,7 +217,7 @@ NEW  src/Update/win_sparkle_backend.{h,cpp}            (WinSparkleBackend: Updat
 NEW  src/Update/cuda_runtime_controller.{h,cpp}        (hardware-adaptive GPU-runtime offer)  P3
 NEW  src/Resources/keys/pinpoint_release_win_eddsa.pub (pinned Ed25519 public key)            P2
 NEW  packaging/make_appcast.ps1                         (sign + emit appcast-win.xml)         P2
-NEW  docs/implementation/windows_release_runbook.md     (local-signing release runbook)       P2
+NEW  governance/procedures/release-windows.md     (local-signing release runbook)       P2
 EDIT CMakeLists.txt                                     (FetchContent WinSparkle; link; bundle
                                                          core; sources; version derive; key)  P0/P2/P3
 (UpdateController is NOT edited — the factory + WinSparkleBackend carry the Windows port)

@@ -3,7 +3,7 @@
 **Status:** results, 3 Oct 2026 (unattended session), committed 1 Oct 2026 after the Product Owner read it; A and the
 synthetic line turned on by his decision (§0a, §3.4).
 Implements `docs/design/dtl_continuous_track_design_update.md` §3.2a items A–D in that order. The
-protocol session (`docs/validation/two_camera_capture_protocol.md`) **has not been recorded**: nothing
+protocol session (`governance/procedures/two_camera_capture_protocol.md`) **has not been recorded**: nothing
 below claims a heading; every angle that depends on the DTL camera's yaw is said to.
 
 Every number is reproducible from a run root under `/mnt/swingdata/scratch/dtl-precalib-20261003/`

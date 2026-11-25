@@ -1,13 +1,13 @@
 # Windows Release Runbook
 
 How to cut a Windows release that the in-app updater (WinSparkle) will trust and
-offer to users. Design: [`../design/windows_update.md`](../design/windows_update.md).
+offer to users. Design: [`windows_update.md`](../../docs/design/windows_update.md). The rules these
+steps carry out are the release controls ([`controls/release.md`](../controls/release.md)); a step
+cites the control's id.
 
-**The one rule that matters:** the EdDSA signing key never leaves your machine.
+**The key's custody is [BT-32](../controls/release.md):** the EdDSA signing key never leaves your machine.
 GitHub only ever sees the **public** key (committed) and the per-installer
-**signature** (inside `appcast-win.xml`). If the private key leaks, anyone can ship a
-"trusted" update to every user; if you lose it, you can't ship verifiable updates at
-all. Back it up offline.
+**signature** (inside `appcast-win.xml`).
 
 ---
 
@@ -24,8 +24,10 @@ it). After this, skip straight to the per-release checklist.
 2. **Generate the signing key OFFLINE:**
    ```powershell
    $WS = (Get-ChildItem build -Recurse -Filter winsparkle-tool.exe | Select-Object -First 1).FullName
-   & $WS generate-key --file C:\keys\pinpoint_win.key     # KEEP SECRET. BACK UP OFFLINE.
-   & $WS public-key   --private-key-file C:\keys\pinpoint_win.key   # prints "Public key: <base64>"
+   # $KeyFile: the signing key file, named in the machine's local file. Keep it as BT-32 says.
+   if (-not $KeyFile) { throw 'set $KeyFile from the local file' }
+   & $WS generate-key --file $KeyFile
+   & $WS public-key   --private-key-file $KeyFile   # prints "Public key: <base64>"
    ```
 
 3. **Pin the public key:** paste just the `<base64>` line (no "Public key:" prefix)
@@ -88,86 +90,78 @@ it). After this, skip straight to the per-release checklist.
 Edit these and commit + push:
 - `PINPOINT_VERSION_MAJOR` / `PINPOINT_VERSION_MINOR` / `PINPOINT_VERSION_POSTFIX`
   — the human version (e.g. `-alpha3`, or `""` for a clean release).
-- **`PINPOINT_VERSION_BUILD`** — the monotonic integer the updater compares. **It must
-  be strictly larger than the last release** or WinSparkle won't offer the update.
+- **`PINPOINT_VERSION_BUILD`** — the monotonic integer the updater compares. It is
+  strictly larger than the last release's ([BT-24](../controls/release.md)), or WinSparkle won't offer the update.
   Formula in the file: `MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + prerelease`.
 
 That's the *only* version edit — CMake derives the installer version from it, and the
 app's WinSparkle display/build version comes from it too. Nothing else to bump.
 
 ### 2. Run the full test suite — ALL must pass (MANDATORY GATE)
-**A release MUST NOT be cut while any test is failing or not building.** PinPoint's unit
+This is the gate [BT-17](../controls/release.md) requires, run as [BT-25](../controls/release.md) says. PinPoint's unit
 tests are *not* part of the app build — they are nine standalone CTest suites that the
 `tests/` umbrella configures, builds and runs as a single registry (see
 [`../../BUILDING.md`](../../BUILDING.md) § Testing). Run this from a Developer (vcvars64)
 shell with CMake + Ninja on `PATH`:
 ```powershell
+# Set from the machine's local file first; unset, PowerShell would expand -j $Jobs to a bare -j.
+if (-not $Jobs -or -not $OpenSSLRoot) { throw 'RELEASE BLOCKED — set $Jobs and $OpenSSLRoot from the local file' }
 # The newest Qt kit ACTUALLY INSTALLED — a hardcoded version here goes stale silently and
 # the failure reads like a broken suite rather than a wrong path. (Same rule as build_installer.ps1.)
 $Qt  = (Get-ChildItem C:\Qt -Directory | Where-Object { Test-Path "$($_.FullName)\msvc2022_64\bin\qmake.exe" } |
         Sort-Object Name -Descending | Select-Object -First 1).FullName + '\msvc2022_64'
 $env:PATH = "$Qt/bin;$env:PATH"                         # so test exes resolve Qt DLLs
 if (Test-Path build/tests) { Remove-Item -Recurse -Force build/tests }  # see the warning below
-cmake -S tests -B build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_PREFIX_PATH=$Qt" "-DOPENSSL_ROOT_DIR=C:/pp-vcpkg/vcpkg_installed/x64-windows"
+# $OpenSSLRoot (the vcpkg OpenSSL install) and $Jobs (the build-job limit, BT-1) are named in the
+# machine's local file. Never a bare -j.
+cmake -S tests -B build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_PREFIX_PATH=$Qt" "-DOPENSSL_ROOT_DIR=$OpenSSLRoot"
 if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — configure failed'; return }
-cmake --build build/tests -j 6
+cmake --build build/tests -j $Jobs
 if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — build failed'; return }
-ctest --test-dir build/tests --output-on-failure -j 6 -LE qml_ui
+ctest --test-dir build/tests --output-on-failure -j $Jobs -LE qml_ui
 if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — tests failed'; return }
-ctest --test-dir build/tests --output-on-failure -j 6 -L qml_ui --no-tests=error
+ctest --test-dir build/tests --output-on-failure -j $Jobs -L qml_ui --no-tests=error
 if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — QML tests failed' } else { 'ALL SUITES PASSED' }
 ```
-The last line must read `100% tests passed, 0 tests failed out of N` — N grows as suites
-and tests are added (121 as of v0.1-alpha11), so treat the *zero failures*, not the count,
-as the gate. **If the umbrella fails to configure or build, or any test fails, STOP — fix
-it and re-run before you tag.** Do not proceed to the build/sign steps below.
+The last line must read `100% tests passed, 0 tests failed out of N` (N grows as suites
+and tests are added: 121 as of v0.1-alpha11). If the umbrella fails to configure or build,
+or any test fails, stop ([BT-17](../controls/release.md)): fix it and re-run before you tag. Do not proceed to
+the build/sign steps below.
 
-> **⚠ Delete `build/tests` first, and it is not housekeeping — the gate is unsound without
-> it.** An incremental configure happily reports `100% tests passed` while running binaries
-> built from an older checkout, so the gate certifies code that is not the code being
-> shipped. Observed 2026-08-16: a full umbrella run over a pre-existing `build/tests`
-> reported 134/134, and deleting it and reconfiguring **at the same commit** immediately
-> surfaced a failure. Nothing had changed but the staleness. Deleting costs one rebuild per
-> release; not deleting costs a green gate that means nothing.
+> Deleting `build/tests` first and using the umbrella are [BT-25](../controls/release.md), not housekeeping. The
+> umbrella works because `tests/CMakeLists.txt` enumerates the suites, so one added later is
+> picked up automatically, and it builds the `pinpoint_buffer` library first and then pulls
+> in `src/Buffer/tests`.
 
-> **Use the umbrella, never a per-suite loop.** `tests/CMakeLists.txt` enumerates the
-> suites, so one added later is picked up by this gate automatically. The hand-rolled loop
-> that lived here until v0.1-alpha11 carried a hardcoded list that silently skipped
-> **LaunchMonitor** once it existed — a gate that quietly stops covering new code is worse
-> than no gate. It also pointed at `src/Buffer`, which stopped being the tests' location
-> when they moved to `src/Buffer/tests`; the umbrella builds the `pinpoint_buffer` library
-> first and then pulls those tests in, which the loop never did.
-
-### 3. Build the `-core` installer (the update payload)
-Either let CI do it, or build locally — pick one.
-
-**Option A — CI builds it (recommended).** Push a tag; the `windows` job in
-`.github/workflows/release.yml` builds the unsigned `-core` installer and stages it on
-a **draft** release:
-```bash
-TAG=v0.1-alpha3                              # free-form; any tag GitHub accepts
-git tag "$TAG" && git push origin "$TAG"     # → triggers the build; wait for it to finish
-```
-Then download the *exact* bytes CI built (you must sign these, not a rebuild):
+### 3. Build the Windows build: the `-core` installer and the `-cuda` runtime
+CI is not the release route ([BT-10](../controls/release.md)): both halves of the Windows build are built here,
+locally. The release carries all four builds ([BT-29](../controls/release.md)); this is the Windows one.
 ```powershell
-$TAG = 'v0.1-alpha3'
-New-Item -ItemType Directory -Force C:\tmp\rel | Out-Null
-gh release download $TAG -R PinPoint-Golf/PinPointStudio -p '*-core.exe' -D C:\tmp\rel
-$exe = (Get-ChildItem C:\tmp\rel\PinPointStudioSetup-*-core.exe).FullName
-```
-
-**Option B — build locally** (no CI, or you want to build on your own machine):
-```powershell
+$TAG = '<the release tag>'                   # free-form; the same tag on all four build machines
 powershell -ExecutionPolicy Bypass -File packaging\build_installer.ps1 -Components core
 $exe = (Get-ChildItem build\Release-Installer -Recurse -Filter 'PinPointStudioSetup-*-core.exe' |
         Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName
+powershell -ExecutionPolicy Bypass -File packaging\build_installer.ps1 -Components cuda
+$cuda = (Get-ChildItem build\Release-Installer -Recurse -Filter 'PinPointStudioSetup-*-cuda.exe' |
+         Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName
 ```
+The `-core` installer is the update payload. The `-cuda` runtime goes on every release
+([BT-29](../controls/release.md)): the app's GPU offer opens **`releases/latest`** and expects the user to find a
+`-cuda.exe` there (`src/Update/cuda_runtime_controller.cpp`), even when the CUDA payload
+itself hasn't changed. The install rules are gated on `CUDAToolkit_FOUND` / the cuDNN glob,
+so it needs this machine's CUDA toolkit and cuDNN. It is **unsigned and not in the appcast**
+— it is a separate Inno product with its own `AppId` (design §4.3–4.4), fetched manually by
+the user, never by WinSparkle. Sanity-check its size against the previous release's
+`-cuda.exe` (~1 GB); a few-MB file means CMake didn't find CUDA/cuDNN and the component
+came out empty.
 
 ### 4. Sign it + generate the appcast
 ```powershell
-powershell -ExecutionPolicy Bypass -File packaging\make_appcast.ps1 -PrivateKeyFile C:\keys\pinpoint_win.key -Tag $TAG -Installer $exe
+if (-not $KeyFile) { throw 'set $KeyFile from the local file' }
+powershell -ExecutionPolicy Bypass -File packaging\make_appcast.ps1 -PrivateKeyFile $KeyFile -Tag $TAG -Installer $exe
 ```
-This signs `$exe` with your offline key and writes `appcast-win.xml` next to it (the
+`$KeyFile` is the signing key file, named in the machine's local file. This signs `$exe`
+with your offline key and writes `appcast-win.xml` next to it (the
 feed item: version, enclosure URL, signature, length). Optional: add
 `-NotesUrl https://github.com/PinPoint-Golf/PinPointStudio/releases/download/$TAG/release-notes-win.html`
 to show "what's new" in WinSparkle's window.
@@ -180,36 +174,31 @@ $sig = ([regex]::Match((Get-Content (Join-Path (Split-Path $exe) appcast-win.xml
         'edSignature="([^"]+)"')).Groups[1].Value
 & $WS verify --public-key $pub --signature $sig $exe     # must report a VALID signature
 ```
-If this doesn't verify, **stop** — do not publish. (Most common cause: you signed a
-rebuild instead of the exact CI bytes.)
+If this doesn't verify, stop ([BT-28](../controls/release.md)). (Most common cause: you signed a rebuild
+instead of the exact bytes you are uploading.)
 
-### 6. Upload the assets + publish
+### 6. Upload the Windows build into the release's draft
+The four builds meet on one draft ([BT-29](../controls/release.md)): the first machine to finish creates it, the
+others upload into it, and nothing is published until all four are there.
 ```powershell
 $appcast = Join-Path (Split-Path $exe) 'appcast-win.xml'
-# Option A (CI): the -core .exe is already on the draft — just add the appcast:
-gh release upload $TAG -R PinPoint-Golf/PinPointStudio $appcast
-gh release edit   $TAG -R PinPoint-Golf/PinPointStudio --draft=false --prerelease=false
-
-# Option B (local): create the release with BOTH assets:
-gh release create $TAG -R PinPoint-Golf/PinPointStudio `
-   --title "PinPoint Studio $TAG" --notes "…release notes…" $exe $appcast
-
-# Option C (THE COMMON ONE): the release already exists because the mac side published it.
-# Upload INTO it, --clobber to replace anything stale, and mind the order below.
+gh release view $TAG -R PinPoint-Golf/PinPointStudio *> $null
+if ($LASTEXITCODE) {                          # no draft yet: this machine is the first to finish
+  gh release create $TAG -R PinPoint-Golf/PinPointStudio --draft `
+     --title "PinPoint Studio $TAG" --notes "…release notes…"
+}
+# --clobber replaces anything stale; mind the order (BT-30).
 gh release upload $TAG -R PinPoint-Golf/PinPointStudio --clobber $exe      # 1. the enclosure
+if ($LASTEXITCODE) { throw 'core upload failed: do not upload the appcast (BT-30)' }
 gh release upload $TAG -R PinPoint-Golf/PinPointStudio --clobber $cuda     # 2. the GPU runtime
+if ($LASTEXITCODE) { throw 'cuda upload failed: do not upload the appcast (BT-30)' }
 gh release upload $TAG -R PinPoint-Golf/PinPointStudio --clobber $appcast  # 3. the feed, LAST
 ```
 
-> ### ⛔ UPLOAD THE `.exe` FILES BEFORE THE APPCAST. ALWAYS.
-> The appcast is a *promise* that a specific enclosure exists at a specific URL with a
-> specific byte length. Upload it first and you have advertised an enclosure that 404s to
-> every Windows client that checks in the meantime. Upload it last and there is no window
-> at all. Automate it with a guard rather than care: if the `.exe` upload returns non-zero,
-> **do not upload the appcast** — a release with no feed is recoverable, a feed pointing at
-> nothing is what users actually hit.
+> ### ⛔ UPLOAD THE `.exe` FILES BEFORE THE APPCAST ([BT-30](../controls/release.md)).
+> A release with no feed is recoverable; a feed pointing at nothing is what users actually hit.
 >
-> **This has now cost three releases, which is why it is written here and not remembered:**
+> **This cost three releases, each published before its Windows build was on it:**
 > - **alpha11** — mac published first, the `windows` job skipped, and the release inherited
 >   **alpha10's** `appcast-win.xml`. Because alpha11 was `Latest`, every client compared
 >   `10010 > 10010` → false and saw "no newer version". Silent: the UI looked complete and
@@ -219,10 +208,24 @@ gh release upload $TAG -R PinPoint-Golf/PinPointStudio --clobber $appcast  # 3. 
 >   least fails closed.
 > - **beta3** — the same again (2026-09-22, 404 from 16:33 UTC until recovery).
 >
-> A mac-first publish ALWAYS leaves Windows broken until this step runs. That is not an
-> exception to the process; on current evidence it *is* the process.
+> The release now stays a draft until all four builds are on it ([BT-29](../controls/release.md)).
 
-**Verify the feed is actually live** — the step that would have caught all three:
+### 7. Publish, once all four builds are on the draft
+Only the last machine to finish publishes, after checking the asset list ([BT-29](../controls/release.md)):
+```powershell
+gh release view $TAG -R PinPoint-Golf/PinPointStudio --json assets --jq '.assets[].name'
+# expect all four builds: -core.exe, -cuda.exe, appcast-win.xml (Windows); .AppImage, .AppImage.zsync,
+# .AppImage.sig (Linux); the x86_64 DMG + appcast-mac.xml; the arm64 DMG + appcast-mac-arm64.xml
+gh release edit $TAG -R PinPoint-Golf/PinPointStudio --draft=false --prerelease=false
+```
+**Publish non-draft AND non-prerelease** ([BT-29](../controls/release.md)) — `releases/latest/download/appcast-win.xml`
+(the URL baked into the app) only resolves to a non-prerelease release.
+
+> Publishing creates the `v*` tag, which fires `release.yml`. Its **`guard` job detects the
+> already-published release and skips the build jobs**, so CI won't re-draft your release or
+> overwrite the signed installer — no need to cancel the run by hand.
+
+**Verify the feed is actually live** ([BT-11](../controls/release.md)) — the step that would have caught all three:
 ```powershell
 $r = Invoke-WebRequest 'https://github.com/PinPoint-Golf/PinPointStudio/releases/latest/download/appcast-win.xml' -UseBasicParsing
 # ⚠ -UseBasicParsing hands back .Content as byte[], so DECODE before matching or every regex
@@ -231,34 +234,6 @@ $xml = if ($r.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($r.Content
 $xml    # sparkle:version must be the NEW build number, length must match the signed bytes
 (Invoke-WebRequest ([regex]::Match($xml,'url="([^"]+)"')).Groups[1].Value -Method Head -UseBasicParsing).Headers['Content-Length']
 ```
-**Publish non-draft AND non-prerelease** — `releases/latest/download/appcast-win.xml`
-(the URL baked into the app) only resolves to a non-prerelease release.
-
-> `gh release create` (Option B) creates the `v*` tag, which fires `release.yml`. Its
-> **`guard` job detects the already-published release and skips the build jobs**, so
-> CI won't re-draft your release or overwrite the signed installer — no need to cancel
-> the run by hand.
-
-### 7. Build + upload the `-cuda` runtime (MANDATORY — every release)
-The app's GPU offer opens **`releases/latest`** and expects the user to find a
-`-cuda.exe` there (`src/Update/cuda_runtime_controller.cpp`). So the newest
-non-prerelease release must ALWAYS carry one, even when the CUDA payload itself hasn't
-changed — otherwise every user who accepts "Enable GPU acceleration" lands on a page
-with no GPU installer. (This was missed on v0.1-alpha11 and fixed after the fact.)
-
-**CI cannot build this** — the hosted runner has no CUDA toolkit or cuDNN, and the
-install rules are gated on `CUDAToolkit_FOUND` / the cuDNN glob, so a CI-built `cuda`
-component would be silently EMPTY. Build it on the dev box:
-```powershell
-powershell -ExecutionPolicy Bypass -File packaging\build_installer.ps1 -Components cuda
-$cuda = (Get-ChildItem build\Release-Installer -Recurse -Filter 'PinPointStudioSetup-*-cuda.exe' |
-         Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName
-gh release upload $TAG -R PinPoint-Golf/PinPointStudio $cuda
-```
-It is **unsigned and not in the appcast** — it is a separate Inno product with its own
-`AppId` (design §4.3–4.4), fetched manually by the user, never by WinSparkle. Sanity-check
-the size against the previous release's `-cuda.exe` (~1 GB); a few-MB file means CMake
-didn't find CUDA/cuDNN and the component came out empty.
 
 ### 8. Confirm it's live
 ```bash
@@ -291,64 +266,59 @@ powershell -ExecutionPolicy Bypass -File packaging\local_release.ps1
 #   -InstallHere         also upgrade THIS account's install silently, as a smoke test
 ```
 
-It stages `C:\PinPointStudio\local-release\PinPointStudioSetup-<ver>-core-local-<sha>.exe`
-and writes `LATEST.txt` beside it (commit, time, and whether the tree had uncommitted changes).
+It stages `PinPointStudioSetup-<ver>-core-local-<sha>.exe` in the shared local-release folder
+(the script's `-DropDir`; the machine's path is in its local file) and writes `LATEST.txt` beside
+it (commit, time, and whether the tree had uncommitted changes). Staging or deleting there
+is [BT-18](../controls/release.md): ask the owner first.
 
 Then, **signed in as the production account:** run that file (Next/Next, it upgrades in
 place), or unattended:
 ```powershell
-"C:\PinPointStudio\local-release\<file>.exe" /SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS
+"<the shared local-release folder>\<file>.exe" /SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS
 ```
 
 Notes:
-- **Same version number on purpose.** A local release carries the last official
+- **Same version number on purpose** ([BT-33](../controls/release.md)). A local release carries the last official
   `version.h`, so About reads the same and WinSparkle sees an equal build number and
   offers nothing. The sha in the file name is the only identity — put it in the bug
   report. Bump `BUILD` only for an official release, exactly as above.
 - **The next official release lands over it normally** (its `BUILD` is higher).
-- **Never sign or upload a local build**, and never copy its files into another
-  account's profile by hand — the installer is the contract.
+- **A local build is never signed or uploaded, and reaches another account only through
+  its installer** ([BT-33](../controls/release.md)).
 - Prereqs are the runbook's own (VS, Qt 6.11 MSVC, Inno Setup 6, vcpkg OpenSSL); the
   script picks the newest installed Qt kit, since `build_installer.ps1`'s default names
   one this box may not have.
 
 ## Quick checklist (per release)
 
-- [ ] Bump `PINPOINT_VERSION_BUILD` (+ MAJOR/MINOR/POSTFIX) in `version.h`, commit, push
-- [ ] **Run the `tests/` umbrella — `0 tests failed` across all nine suites (mandatory; stop if any fail)**
-- [ ] Build the `-core` installer (CI tag push, or `build_installer.ps1 -Components core`)
-- [ ] If CI: `gh release download` the exact `-core.exe`
+- [ ] Bump `PINPOINT_VERSION_BUILD` (+ MAJOR/MINOR/POSTFIX) in `version.h`, commit, push (BT-24)
+- [ ] **Run the `tests/` umbrella in a fresh `build/tests` — `0 tests failed` (BT-17, BT-25; stop if any fail)**
+- [ ] Build the `-core` installer and the `-cuda` runtime locally (`build_installer.ps1 -Components core`, then `cuda`; BT-10)
 - [ ] `make_appcast.ps1` → signs + writes `appcast-win.xml`
-- [ ] `winsparkle-tool verify` the signature — stop if it fails
-- [ ] Upload `-core.exe` + `appcast-win.xml`; publish **non-draft, non-prerelease**
-- [ ] **Build + upload `-cuda.exe` (`build_installer.ps1 -Components cuda`) — every
-      release, local build only; `releases/latest` must always have one**
+- [ ] `winsparkle-tool verify` the signature — stop if it fails (BT-28)
+- [ ] Upload `-core.exe`, `-cuda.exe`, then `appcast-win.xml` last, into the release's draft (BT-30, BT-29)
+- [ ] Publish **non-draft, non-prerelease** only once all four builds are on the draft (BT-29)
 - [ ] Confirm assets + test an update from an older build
 - [ ] **Installer still creates the PPCP listener firewall rule — verify on a CLEAN VM**, never
-      on an upgrade (see ONCE §4)
+      on an upgrade (BT-34; see ONCE §4)
 
 ---
 
 ## Gotchas & notes
-- **Sign the bytes you publish.** In Option A, sign the installer you *downloaded from
-  the draft*, never a local rebuild — a rebuild differs byte-for-byte and the signature
-  won't verify, so every client rejects the update.
-- **`BUILD` must always increase.** It's the only thing WinSparkle compares. If you
-  forget to bump it, installed apps see "no newer version".
-- **Never publish without `appcast-win.xml`.** No appcast → no feed item. A missing or
-  mismatched signature → the installer is rejected and never runs.
-- **CUDA is separate (design §4.4), but not optional (step 7).** The `-core` installer
+- **Sign the bytes you publish** ([BT-28](../controls/release.md)): the installer you upload, never a rebuild.
+- **`BUILD` always increases** ([BT-24](../controls/release.md)).
+- **Never publish without `appcast-win.xml`** ([BT-29](../controls/release.md)). A missing or mismatched
+  signature → the installer is rejected and never runs.
+- **CUDA is separate (design §4.4), but not optional (step 3).** The `-core` installer
   is the only thing in the appcast, and the CUDA/GPU runtime is offered by the app
   itself based on the hardware it detects — never put the `-cuda` installer in the
   appcast. "Separate" does NOT mean "skippable": the offer links to `releases/latest`,
   so the newest release still has to carry a `-cuda.exe` or the offer dead-ends.
-- **Mixed-platform releases are fine.** The same GitHub release can also carry the
-  Linux `*.AppImage*` assets; WinSparkle only ever looks at `appcast-win.xml` and the
-  Linux updater only looks at its own assets.
-- **A dropped firewall rule is invisible on your own machines.** Once the rule exists it
-  persists, so an installer that silently stops creating it still works on every box that has
-  ever run a build. It fails only at a customer's studio, as "pairing doesn't work", weeks
-  later. Test it on a clean VM or you are not testing it.
+- **Every release carries all four builds** ([BT-29](../controls/release.md)): Windows, Linux and both
+  macOS architectures share one release. WinSparkle only ever looks at `appcast-win.xml`
+  and the Linux updater only looks at its own assets.
+- **A dropped firewall rule is invisible on your own machines**: test it on a clean VM
+  ([BT-34](../controls/release.md)).
 - **Rollback:** re-draft or delete the release
   (`gh release edit <tag> --draft=true` / `gh release delete <tag>`) and the updater
   stops offering it immediately.

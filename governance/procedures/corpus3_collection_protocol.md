@@ -3,12 +3,13 @@
 **Document type:** Experimental methods / data-collection protocol (collection team).
 **Corpus:** 3 of 3 — *full calibration + multi-golfer; **external validity**, the camera-metric branch,
 and HackMotion verification.*
-**Version:** 1.0 (2026-06-26) · **Status:** later (after Corpus 2 freeze) · **Owner:** Mark Liversedge.
+**Version:** 1.0 (2026-06-26) · **Status:** later (after Corpus 2 freeze) · **Owner:** Product Owner.
 **Reference (the "why"):** `docs/validation/pipeline_validation_and_tuning.md` (§3.5 between-subject N;
 §5.4 camera-metric branch; §8 coach/outcome markup). **Camera calibration method:**
 `docs/design/shot_analyzer_design.md` §0 (ChArUco intrinsics + single-camera ground-plane extrinsic).
 **Reporting standard:** GRRAS + Bland–Altman + **STROBE for the multi-subject observational design**; if a
 launch monitor is used, report the predictive analysis per TRIPOD-style conventions.
+**Controls:** the rules these steps carry out are controls in [`kinds-of-work.md`](../controls/kinds-of-work.md) (data and analysis work); a step cites the control's id.
 
 > **What the collection team must produce:** a multi-golfer dataset in which cameras are **metrically
 > calibrated** (ChArUco intrinsics + ground-plane extrinsic), IMUs are fully characterised, HackMotion
@@ -19,6 +20,11 @@ launch monitor is used, report the predictive analysis per TRIPOD-style conventi
 ---
 
 ## 0. Changes from Corpus 2 (read first)
+
+Normal Corpus 3 capture has one wrist instrument per arm ([AD-10](../controls/product/analysis-and-data.md)); the corpus mixes sensor combinations
+across captures. The HackMotion is co-worn only on the **verification subset** (§7.4), a stated
+verification process under [AD-10](../controls/product/analysis-and-data.md)'s exception, which follows Corpus 2's verification steps
+([AD-47](../controls/kinds-of-work.md) to [AD-49](../controls/kinds-of-work.md)).
 
 Corpus 3 **is Corpus 2's protocol, plus camera calibration, full IMU characterisation, multiple golfers,
 and HackMotion repositioned as verification.** Everything in `corpus1_` and `corpus2_collection_protocol.md`
@@ -73,11 +79,11 @@ markup, reconciliation). The **deltas:**
   the number of golfers, not swings** (reference §3.5).
 - **Clustering / design effect:** repeated swings within a golfer are correlated; the variance inflation is
   `≈ 1 + (m−1)·ρ` (m swings/golfer, ρ intra-golfer correlation). Account for it in the analysis (mixed
-  models / cluster-robust CIs) — **do not treat `golfers × swings` as independent observations.**
+  models / cluster-robust CIs), as [AD-45](../controls/kinds-of-work.md) requires.
 - **Per-golfer load:** ~12–15 full swings spanning conditions → **~100–180 swings total**. Keep each
   golfer's session short enough to maintain calibration discipline.
-- **Blinding:** labeller blinded to analyzer output (as before); **coach blinded** to analyzer output —
-  the coach annotates from video only (§9.3).
+- **Blinding** ([AD-42](../controls/kinds-of-work.md)): labeller and **coach** blinded to analyzer output — the coach annotates
+  from video only (§9.3).
 
 ---
 
@@ -86,9 +92,9 @@ markup, reconciliation). The **deltas:**
 - **Inclusion:** golfers who can complete a full swing; aim for a spread of handicap (e.g. low ≤ 5, mid
   ~10–18, high ≥ 20) and **both handedness** to exercise the mirror path.
 - **Exclusion:** injury precluding full ROM; inability to consent.
-- **Consent & ethics:** informed consent for video + IMU + HackMotion + (if used) launch-monitor capture,
-  and for a **coach to review their swings**; stored under athlete UUID; right to withdraw. Multi-subject
-  capture raises the ethics bar — ensure approvals are in place before recruiting.
+- **Consent & ethics** ([AD-43](../controls/kinds-of-work.md)): informed consent for video + IMU + HackMotion + (if used)
+  launch-monitor capture, and for a **coach to review their swings**; stored under athlete UUID; right to
+  withdraw; approvals in place before recruiting.
 - **Sample-size rationale:** **golfers, not swings** (reference §3.5). 8–12 golfers is the practical floor;
   per-golfer agreement still follows the Corpus-2 LoA logic (≥ 40 paired *instances* per axis pooled), and
   camera-metric agreement needs ≥ ~40 paired camera-vs-reference instances.
@@ -104,7 +110,7 @@ As Corpus 2 (§5), **plus:**
 | ChArUco board | e.g. 7×10 squares; **measure the printed square with calipers** (never trust print scale) | OpenCV ≥ 4.7 unified API |
 | Ground-plane board | one large ChArUco laid flat at the hitting spot | single-frame extrinsic (IPPE) |
 | Calibration wand | known length | QA gate (within 0.5 %) |
-| Camera mounting | rigid, fixed; set `cameraFixedInPlace` | re-calibrate if moved |
+| Camera mounting | rigid, fixed; set `cameraFixedInPlace` | re-calibrate if moved ([AD-35](../controls/kinds-of-work.md)) |
 | Launch monitor *(optional)* | per device | `outcome.json` source |
 | Coach station | video review + annotation | blinded to analyzer output |
 
@@ -120,7 +126,7 @@ As Corpus 2 (§5), **plus:**
    `solvePnP(SOLVEPNP_IPPE)`. The board frame is the world frame; `t` is metric (object points in metres).
    Persist to `cameraExtrinsics`.
 3. **QA:** measure a **wand of known length within ~0.5 %**; record it.
-4. Set **`cameraFixedInPlace`**; if a camera is bumped/moved, **recalibrate** that camera.
+4. Set **`cameraFixedInPlace`**; if a camera is bumped/moved, **recalibrate** that camera ([AD-35](../controls/kinds-of-work.md)).
 5. *(Two cameras)* solve each extrinsic from the **same shared board** (board = world); do **not** use
    `stereoCalibrate` rectification (degenerate at ~90° convergence).
 
@@ -134,7 +140,7 @@ action, static poses). **Per golfer:** full calibration at the start of each gol
 between *people* and *mounts* (X-O4), not just within one person.
 
 ### 6.3 Calibration cadence (multi-golfer)
-Per Corpus 1 §6.2 within each golfer's session, **plus** a full re-calibration at every golfer change
+Per Corpus 1 §6.2 within each golfer's session ([AD-41](../controls/kinds-of-work.md)), **plus** a full re-calibration at every golfer change
 (every new donning is a new mount). Log calibration events per golfer in Table B.
 
 ---
@@ -227,7 +233,7 @@ Inherit Corpus 1 §11 (Tier-0) and Corpus 2 §11 (paired-capture), **plus:**
 - [ ] Camera calibration valid for the setup (reproj RMS < 0.5 px; extrinsic solved; wand QA within 0.5 %).
 - [ ] `cameraFixedInPlace` set; not moved since calibration (else recalibrate).
 - [ ] Golfer demographics + handedness recorded; calibration done at golfer change.
-- [ ] Coach annotation done **blinded** (if this swing is in the coach subset).
+- [ ] Coach annotation done **blinded** (if this swing is in the coach subset; [AD-42](../controls/kinds-of-work.md)).
 
 **SHOULD:**
 - [ ] DTL camera present for camera-metric cross-check swings.
@@ -238,7 +244,7 @@ Inherit Corpus 1 §11 (Tier-0) and Corpus 2 §11 (paired-capture), **plus:**
 ## 12. Statistical analysis (this corpus's contribution)
 
 - **Generalisation (X-O1):** per-golfer agreement vs the Corpus-2 LoA; **between-golfer** LoA / ICC with
-  **mixed-effects models or cluster-robust CIs** (golfer = random effect) — never pooled-as-independent.
+  **mixed-effects models or cluster-robust CIs** (golfer = random effect; [AD-45](../controls/kinds-of-work.md)).
 - **Camera metrics (X-O3):** plausibility + repeatability of sway/lift/tilt; face-on-vs-DTL agreement
   (Bland–Altman) where both present.
 - **IMU calibration (X-O4):** mount-gate pass rate and calibration SEM across re-dons/golfers.
@@ -303,7 +309,7 @@ Inherit Corpus 1 §11 (Tier-0) and Corpus 2 §11 (paired-capture), **plus:**
 ## 14. Deviations & risk log
 
 As Corpus 1/2, plus: camera bumped/recalibrated mid-session, a golfer's session abandoned, a coach
-un-blinded by accident (exclude those annotations), launch-monitor dropouts. Record golfer/swing IDs and
+un-blinded by accident (those annotations are excluded, [AD-42](../controls/kinds-of-work.md)), launch-monitor dropouts. Record golfer/swing IDs and
 dispositions.
 
 ---

@@ -3,7 +3,7 @@
 # make_appcast_mac.sh — sign the notarized DMG with the offline Sparkle EdDSA key and
 # emit the Sparkle appcast (appcast-mac.xml) for a release. macOS sibling of
 # packaging/make_appcast.ps1; Stage 1 / S1·P2 of docs/implementation/macos_update_impl.md.
-# See also docs/implementation/macos_release_runbook.md and design §4.1/§6.
+# See also governance/procedures/release-macos.md and design §4.1/§6.
 #
 # Sparkle's feed is an appcast XML hosted as a release asset. This script:
 #   1. resolves the version (display + monotonic build number) from src/Core/version.h,

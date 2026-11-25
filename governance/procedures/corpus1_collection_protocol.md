@@ -2,11 +2,12 @@
 
 **Document type:** Experimental methods / data-collection protocol (collection team).
 **Corpus:** 1 of 3 — *IMU-only; internal consistency, reliability & known-groups validity.*
-**Version:** 1.0 (2026-06-26) · **Status:** ready for execution · **Owner:** Mark Liversedge.
+**Version:** 1.0 (2026-06-26) · **Status:** ready for execution · **Owner:** Product Owner.
 **Reference (the "why"):** `docs/validation/pipeline_validation_and_tuning.md` (§2 three-corpus
 progression; §3 sample size; §5 per-stage validation). **Operational runbook:**
 `docs/implementation/corpus_v1_validation_plan.md`. **Reporting standard:** GRRAS (Kottner 2011) for the
 reliability/agreement elements; STROBE (von Elm 2007) for the observational design.
+**Controls:** the rules these steps carry out are controls in [`kinds-of-work.md`](../controls/kinds-of-work.md) (data and analysis work); a step cites the control's id.
 
 > **What the collection team must produce:** a *blessed* set of ~50 full, scored Wrist-session swings
 > (plus a partial-swing robustness set and a scripted-fault library) in which **every scored swing carries
@@ -71,7 +72,7 @@ built *after* collection. Record E1–E3 outcomes in §15 (deviations) or a pre-
 
 ## 2. Objectives, hypotheses & pre-registered acceptance
 
-Pre-register these *before* collection; do not move a threshold to make a result pass (reference §7).
+Pre-register these *before* collection ([AD-38](../controls/kinds-of-work.md); reference §7).
 
 | # | Objective | Pre-registered acceptance | Feeds |
 |---|---|---|---|
@@ -98,6 +99,10 @@ rule than its clean control). Record the hypothesis register in `CORPUS.md`.
 
 ### 3.4 HackMotion's role in Corpus 1 = informal pilot only
 
+Normal Corpus 1 capture has one wrist instrument per arm: the PinPoint sensors only ([AD-10](../controls/product/analysis-and-data.md)). The
+pilot below is a stated test, so its co-wear falls under [AD-10](../controls/product/analysis-and-data.md)'s exception, and it follows the
+verification steps of [AD-47](../controls/kinds-of-work.md) to [AD-49](../controls/kinds-of-work.md).
+
 A **single** HackMotion co-capture session is run alongside Corpus 1 **but its data is not part of the
 Corpus-1 dataset**. Its purpose is to *de-risk and size* Corpus 2 (reference §3.2, §6.2):
 
@@ -115,8 +120,8 @@ a pilot estimates variance, it does not test a hypothesis.
 ## 4. Participant: inclusion, consent, sample-size rationale
 
 - **Inclusion:** an able golfer who can repeat a consistent full swing and perform scripted faults on cue.
-- **Consent & ethics:** informed consent for IMU + video capture; store under an **athlete UUID** (never a
-  name); video retained per the project data-management plan. Right to withdraw.
+- **Consent & ethics** ([AD-43](../controls/kinds-of-work.md)): informed consent for IMU + video capture; stored under an athlete
+  UUID; video retained per the project data-management plan; right to withdraw.
 - **Sample-size rationale (from reference §3, restated for the team):**
   - **Reliability (O3):** SEM/MDC precision ≈ `1/√(2(n−1))` → **≥ 25–30 repeated swings** for ±13–14 %.
   - **Track/phase RMSE (O4):** χ² on variance → **10–15 labelled swings** (each ~8–10 P-points = 100–150
@@ -159,7 +164,7 @@ quality — treat it as a measurement, not a formality.
 4. **Confirm Tracking** — move the arm; verify the 3D model follows. If a sensor is mis-mounted the step
    fails and names the sensor → re-seat and recalibrate.
 
-### 6.2 Calibration cadence (mandatory)
+### 6.2 Calibration cadence ([AD-41](../controls/kinds-of-work.md))
 
 | Trigger | Action |
 |---|---|
@@ -169,8 +174,7 @@ quality — treat it as a measurement, not a formality.
 | Any break > 10 min, battery swap | recalibrate |
 | Any Tier-0 calibration-gate failure (§11) | recalibrate and recapture the affected swings |
 
-Log `calibAgeSec` per swing (the app records it). **Keep `calibAgeSec` small** — recalibrate at least
-every 30 min so no scored swing has stale calibration. The hard gate is the composite `calibrated: true`
+Log `calibAgeSec` per swing (the app records it); its ceiling is [AD-41](../controls/kinds-of-work.md). The hard gate is the composite `calibrated: true`
 (anat valid ∧ mount ≤ 15° ∧ gravity ≤ 25°).
 
 ### 6.3 Two repeatability calibration regimes (design-critical)
@@ -255,32 +259,32 @@ labeller** and compute inter-rater agreement (ICC on placed θ; agreement on P-t
 bounds how tight any Tier-3 accuracy claim can legitimately be (you cannot validate the pipeline tighter
 than your own labels are reliable).
 
-### 9.4 Blinding (mandatory)
-The labeller must **not view the analyzer's output** (recovered track, phase events, metrics) for a swing
-before/while labelling it. Label from raw video only. This avoids anchoring the "truth" to the estimate.
+### 9.4 Blinding ([AD-42](../controls/kinds-of-work.md))
+Label from raw video only, without the analyzer's output (recovered track, phase events, metrics) for
+that swing.
 
 ---
 
 ## 10. Data management, naming & provenance
 
 - **One swing = one shot dir** (`Face-On.mp4` + optional `Down-the-Line.mp4` + `swing.json` + `thumb.jpg`;
-  `.raw` sidecars for the raw subset). Never write into a swing dir except `truth.json` (markup) and the
-  lab-owned `pose.json`.
+  `.raw` sidecars for the raw subset). Lab tools write only `truth.json` (markup) and the lab-owned
+  `pose.json` into it ([AD-44](../controls/kinds-of-work.md)).
 - **Corpus root** outside the repo: `<SwingData>/corpus-1/`. Copy swing dirs here; `lab.py ingest` builds
   `corpus.json`.
 - **`CORPUS.md` (required for blessing):** recording dates, golfer UUID + handedness, IMU config & rates,
   calibration provenance, raw-subset list, **the hypothesis register (O1–O6 + thresholds)**, **the
   Tune/Validation/Held-out partition** (reference §7), and a known-deviations list. `ingest` refuses to
   bless without it.
-- **Partitioning:** assign each swing to Tune / Validation / Held-out **at blessing, before any analysis**,
-  and record it. Held-out is touched once, at freeze.
+- **Partitioning** ([AD-39](../controls/kinds-of-work.md)): assign each swing to Tune / Validation / Held-out at blessing and
+  record it.
 
 ---
 
 ## 11. Quality control & acceptance gates (run at the studio, per swing)
 
 Use the proposed `lab.py` pre-flight validator (red/green table) **before** a swing counts. A swing
-failing any **must** gate is **recaptured, not tuned around** — it is a *data failure* (reference §5.2).
+failing any **must** gate is recaptured ([AD-40](../controls/kinds-of-work.md); reference §5.2).
 
 **MUST (hard gates):**
 - [ ] Session type = Wrist (1).

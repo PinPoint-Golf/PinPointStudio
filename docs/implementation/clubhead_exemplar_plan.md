@@ -186,7 +186,7 @@ Work the failure-mode table with the debug dump before touching thresholds:
 > **Corpus-gating (2026-07-03):** the 0008 rows below are *development gates*
 > (relative bars for H1–H3), not validity claims. Length-model form selection
 > and final accuracy acceptance require corpus labels across held-out swings
-> AND clubs — protocol in `docs/validation/shaft_validation_protocol.md` and
+> AND clubs — protocol in `governance/procedures/shaft_validation_protocol.md` and
 > `docs/validation/pipeline_validation_and_tuning.md` §5.5/§3.4/§8.
 
 | metric | target |

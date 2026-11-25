@@ -3,9 +3,11 @@
 The complete, do-this-from-zero guide to cutting a macOS release of PinPoint Studio:
 version bump → build → **code sign** → **notarize** → publish, and (from Stage 2) the
 Sparkle EdDSA appcast that drives in-app updates. Design:
-[`../design/macos_update.md`](../design/macos_update.md). Siblings:
-[`windows_release_runbook.md`](windows_release_runbook.md),
-[`linux_release_runbook.md`](linux_release_runbook.md).
+[`macos_update.md`](../../docs/design/macos_update.md). Siblings:
+[`release-windows.md`](release-windows.md),
+[`release-linux.md`](release-linux.md). Signing in depth:
+[`code-signing-macos.md`](code-signing-macos.md). The rules these steps carry out are the
+release controls ([`controls/release.md`](../controls/release.md)); a step cites the control's id.
 
 > **If this is your first time signing a Mac app, start at Part 0 and do every step in
 > order.** Part 0 is once-ever setup; Part 1 is what you repeat for each release. The
@@ -22,7 +24,7 @@ Clearing Gatekeeper needs **two** things, both done by you, both kept offline:
 
 1. **Developer ID code signature** — you sign the app + DMG with a *Developer ID
    Application* certificate issued by Apple to your account. Proves "this came from
-   Mark Liversedge, team `<TEAMID>`, and hasn't been tampered with."
+   the account holder, team `<TEAMID>`, and hasn't been tampered with."
 2. **Notarization** — you upload the signed DMG to Apple; their service scans it for
    malware and issues a **ticket**; you **staple** the ticket into the DMG so it's
    trusted even offline.
@@ -69,7 +71,7 @@ generated *on your Mac* and never leaves it — Apple only signs the public half
 **Method B — Developer portal + manual CSR (fallback):**
 1. **Keychain Access** → menu **Keychain Access ▸ Certificate Assistant ▸ Request a
    Certificate From a Certificate Authority…**
-   - User Email: your Apple ID email · Common Name: "Mark Liversedge" ·
+   - User Email: your Apple ID email · Common Name: the account holder's name ·
      **Saved to disk** (not "emailed") · check **Let me specify key pair information** →
      **2048 bits, RSA**. Save the `.certSigningRequest` file.
 2. Go to **developer.apple.com/account** → **Certificates, IDs & Profiles** →
@@ -94,7 +96,7 @@ generated *on your Mac* and never leaves it — Apple only signs the public half
 security find-identity -v -p codesigning | grep "Developer ID Application"
 ```
 You should see one line like:
-`1) ABCD…1234 "Developer ID Application: Mark Liversedge (TEAMID9999)"`
+`1) ABCD…1234 "Developer ID Application: <NAME> (TEAMID9999)"`
 
 ### 0.3 BACK UP the certificate + private key — do NOT skip
 
@@ -105,7 +107,7 @@ signed by a *different* cert as a different app. Back it up now:
 2. Right-click **"Developer ID Application: … (TEAMID)"** → **Export…** → save as
    `pinpoint_developer_id.p12`, set a strong password.
 3. Store the `.p12` + its password somewhere offline (password manager / encrypted drive).
-   **Never commit it. It is not a CI secret.**
+   Its custody is [BT-32](../controls/release.md).
 
 #### 0.3a The two signing Macs — one per architecture
 
@@ -114,30 +116,24 @@ is no cross-build, so each DMG is produced where its slice runs:
 
 | Mac | builds & signs | macOS floor it sets |
 |---|---|---|
-| **Intel MacBook Pro** | `x86_64` DMG + `appcast-mac.xml` | whatever macOS the MBP runs (usually older → lower Intel floor, which is good) |
-| **M4 Mac mini** | `arm64` DMG + `appcast-mac-arm64.xml` | the mini's macOS (26.x) |
+| **the Intel Mac** | `x86_64` DMG + `appcast-mac.xml` | whatever macOS it runs (usually older → lower Intel floor, which is good) |
+| **the Apple Silicon Mac** | `arm64` DMG + `appcast-mac-arm64.xml` | that Mac's macOS |
 
 > **Intel is on a clock.** Apple is winding down Intel Mac support, and GitHub's
 > `macos-15-intel` runner is the last Intel image (retiring August 2027). Expect the
-> `x86_64` leg — and this MBP's role — to be dropped in the next couple of years; at that
+> `x86_64` leg — and the Intel Mac's role — to be dropped in the next couple of years; at that
 > point the `appcast-mac.xml` feed goes *frozen*, not broken (existing Intel installs keep
 > polling a feed that simply stops gaining entries). Keep publishing both until then.
 
 Each Mac needs the SAME signing identity and the SAME EdDSA key, but its OWN
 machine-local notarytool profile (see the per-machine list at the end of this section).
-The Intel MBP is almost certainly where the cert was first created, so it likely already
+The Intel Mac is almost certainly where the cert was first created, so it likely already
 has the identity — verify with `security find-identity -v -p codesigning` before importing
 anything.
 
-**When setting up EITHER Mac: import the backed-up `.p12` from 0.3. Do NOT create a new
-certificate.** This is the single most damaging wrong turn in this runbook, because issuing
-a fresh cert appears to work perfectly and breaks things you will not notice for weeks:
-
-- macOS keys **TCC permission grants** (camera, microphone, Bluetooth, speech) to the
-  app's *designated requirement*, which names the signing certificate. A new cert silently
-  resets every one of those grants for existing users.
-- Sparkle treats an update signed by a different Developer ID as a **different app**, so
-  in-place updates for everyone already installed stop working.
+**When setting up EITHER Mac: import the backed-up `.p12` from 0.3** ([BT-31](../controls/release.md)). Issuing a
+fresh cert appears to work perfectly and breaks things you will not notice for weeks; the
+control says what.
 
 > **The `.p12` has the leaf cert only, not the issuing CA.** After import you may see
 > `1 identity imported` yet `security find-identity -v -p codesigning` reports
@@ -151,14 +147,14 @@ a fresh cert appears to work perfectly and breaks things you will not notice for
 > security find-identity -v -p codesigning     # now shows 1 valid
 > ```
 > `setup_release_signing.sh` does this automatically when the intermediate is absent; the
-> manual steps are here for when you are diagnosing by hand. Seen on the M4, 2026-07-29.
+> manual steps are here for when you are diagnosing by hand. Seen on the Apple Silicon Mac, 2026-07-29.
 
 **`tools/setup_release_signing.sh` does all of this** — import, the G2 intermediate,
 partition list, and the notarytool profile — reading both passwords interactively so
 neither is written to disk, passed as `argv` (where `ps` would show it), or echoed:
 
 ```bash
-tools/setup_release_signing.sh --p12 ~/Documents/certs/pinpoint_developer_id.p12
+tools/setup_release_signing.sh --p12 <the Developer ID .p12, named in the machine's local file>
 ```
 
 **Run it from Terminal.app on the Mac** (screen share / VNC is fine). It refuses to run
@@ -171,7 +167,7 @@ cert.
 
 The manual equivalent, if you would rather see each step:
 ```bash
-security import ~/Documents/certs/pinpoint_developer_id.p12 -k ~/Library/Keychains/login.keychain-db \
+security import <the Developer ID .p12> -k ~/Library/Keychains/login.keychain-db \
   -T /usr/bin/codesign -T /usr/bin/security
 # Let codesign use it without an interactive prompt on every signature:
 security set-key-partition-list -S apple-tool:,apple:,codesign: \
@@ -183,8 +179,8 @@ security find-identity -v -p codesigning   # must list "Developer ID Application
 1. **The Developer ID identity + G2 intermediate** — imported from the `.p12`
    (`setup_release_signing.sh` does both). Verify: `security find-identity -v -p codesigning`
    shows `1 valid`.
-2. **Its own notarytool profile** — the stored profile is **machine-bound**; the M4's
-   profile does nothing for the MBP and vice versa. Run 0.5 (or
+2. **Its own notarytool profile** — the stored profile is **machine-bound**; one Mac's
+   profile does nothing for the other. Run 0.5 (or
    `setup_release_signing.sh --skip-cert`) on each Mac. The app-specific password itself is
    **account-bound**, so the same `xxxx-xxxx-xxxx-xxxx` works on both — reuse your saved
    one; you do not need to generate a second. (You can, if you prefer a per-machine one —
@@ -206,18 +202,17 @@ security find-identity -v -p codesigning   # must list "Developer ID Application
 > key is self-consistent, not that it is *the* key the apps pin. The only real check is to
 > derive the public half and compare it against the committed `.pub`:
 > ```bash
-> tools/check_eddsa_pin.py ~/Documents/certs/pinpoint_release_mac_eddsa_PRIVATE.pem
+> tools/check_eddsa_pin.py <the EdDSA key file, named in the machine's local file>
 > # → derived == pinned  ✅ MATCH
 > ```
-> Verified MATCH on 2026-07-29 for the key in `~/Documents/certs`
-> (`XvDSO0q45bIWGY22yqA2ZsdZxFp1teww8vZe3vR23Eg=`).
+> Verified MATCH on 2026-07-29 (the pinned public key is
+> `XvDSO0q45bIWGY22yqA2ZsdZxFp1teww8vZe3vR23Eg=`).
 
-> **Keep the distribution cert in the LOGIN keychain.** The project also has a throwaway
-> self-signed *development* cert living in a dedicated keychain with its password on disk
-> (`tools/setup_dev_signing.sh`) so that dev builds can sign unattended. Do **not** extend
-> that trick to the Developer ID cert: a password sitting next to the key on disk is
-> exactly the posture this runbook keeps the cert offline to avoid. Release signing runs
-> in a desktop session, deliberately.
+> **Keep the distribution cert in the LOGIN keychain** ([BT-32](../controls/release.md)). The project also has a
+> throwaway self-signed *development* cert living in a dedicated keychain with its password
+> on disk (`tools/setup_dev_signing.sh`) so that dev builds can sign unattended; that
+> arrangement is for the development cert only (`code-signing-macos.md` §4a). Release
+> signing runs in a desktop session, deliberately.
 >
 > Note that `codesign` cannot reach the login keychain from an SSH session
 > (`errSecInternalComponent`) — it needs the Aqua session. Signing is therefore a
@@ -241,16 +236,17 @@ Notarization logs in to Apple as you. Don't use your real password — make an
    ```
    Now any `notarytool` call can use `--keychain-profile pinpoint-notary`.
 
-> Run this one yourself (it contains the password). In this session you can prefix it with
-> `! ` so it runs in your terminal and the secret never enters the chat.
+> Run this one yourself (it contains the password), or let `tools/setup_release_signing.sh
+> --skip-cert` do it: it reads the password interactively, so the secret never enters a chat,
+> a script or `argv`.
 
 ### 0.6 [Stage 2] EdDSA signing key + pin the public key — ✅ DONE (kept for reference)
 The release key was generated on 2026-06-18; the public half is committed to
 `src/Resources/keys/pinpoint_release_mac_eddsa.pub` and CMake bakes it into the bundle's
 `Info.plist` (`SUPublicEDKey`). The private half lives in this Mac's **login Keychain**
 (default Sparkle account `ed25519`) — `sign_update` reads it automatically — with an offline
-backup at `~/pinpoint_release_mac_eddsa_PRIVATE.pem` (**move this to encrypted offline
-storage; it is the root of trust and is NOT a CI secret**). `generate_keys` / `sign_update`
+backup in the EdDSA key file (named in the machine's local file); it is the root of trust,
+kept as [BT-32](../controls/release.md) says. `generate_keys` / `sign_update`
 ship in `build/macos-release/_deps/sparkle-src/bin/` once CMake has fetched Sparkle.
 
 > You only ever do this once. To re-derive the steps (e.g. on a new machine, restoring from
@@ -269,12 +265,12 @@ Edit and commit + push:
 - `PINPOINT_VERSION_MAJOR` / `MINOR` / `POSTFIX` — the human version (e.g. `-alpha4`, or
   `""` for a clean release). Becomes `CFBundleShortVersionString` / the DMG filename.
 - **`PINPOINT_VERSION_BUILD`** — the monotonic integer (becomes `CFBundleVersion`, the key
-  Sparkle compares). **Must strictly increase every release.** Formula is in the file.
+  Sparkle compares). It strictly increases every release ([BT-24](../controls/release.md)). Formula is in the file.
 
 CMake derives the bundle version + DMG name from these — nothing else to edit.
 
 ### 1.2 Run the full test suite — ALL must pass (MANDATORY GATE)
-**A release MUST NOT be cut while any test is failing or not building.** PinPoint's unit
+This is the gate [BT-17](../controls/release.md) requires, run as [BT-25](../controls/release.md) says. PinPoint's unit
 tests are *not* part of the app build — they are nine standalone CTest suites that the
 `tests/` umbrella configures, builds and runs as a single registry (see
 [`../../BUILDING.md`](../../BUILDING.md) § Testing). No `OpenCV_DIR` is needed: the first
@@ -282,11 +278,10 @@ configure builds the pinned OpenCV from source (`cmake/PinPointOpenCV.cmake`):
 ```bash
 # Point QT at whichever Qt 6.11.x you actually have installed — `ls ~/Qt` to check.
 # A stale version here fails at the first configure, before any test runs.
-# JOBS=6 for the same reason package_macos.sh caps there: a bare `-j` is UNBOUNDED,
-# and ~30 parallel clang processes exhaust the 16 GB M4 mini and take the machine down
-# mid-release. Never use a bare `-j` here.
+# JOBS is this machine's build-job limit, from its local file (BT-1); a bare `-j` is
+# unbounded and has taken a signing Mac down mid-release.
 QT=$(ls -d ~/Qt/6.11.*/macos | tail -1)
-JOBS="${JOBS:-6}"
+JOBS="${JOBS:?set JOBS to the machine's build-job limit}"
 rm -rf build/tests \
   && cmake -S tests -B build/tests -DCMAKE_PREFIX_PATH="$QT" \
   && cmake --build build/tests --parallel "$JOBS" \
@@ -294,49 +289,38 @@ rm -rf build/tests \
   && ctest --test-dir build/tests --output-on-failure --parallel "$JOBS" -L qml_ui --no-tests=error \
   || echo "❌ RELEASE BLOCKED"
 ```
-The last line must read `100% tests passed, 0 tests failed out of N` — N grows as suites
-and tests are added (121 as of v0.1-alpha11), so treat the *zero failures*, not the count,
-as the gate. **If the umbrella fails to configure or build, or any test fails, STOP — fix
-it and re-run before you tag.** Do not proceed to the build/sign steps below.
+The last line must read `100% tests passed, 0 tests failed out of N` (N grows as suites
+and tests are added: 121 as of v0.1-alpha11). If the umbrella fails to configure or build,
+or any test fails, stop ([BT-17](../controls/release.md)): fix it and re-run before you tag. Do not proceed to
+the build/sign steps below.
 
-> **⚠ `rm -rf build/tests` first, and it is not housekeeping — the gate is unsound without
-> it.** An incremental configure happily reports `100% tests passed` while running binaries
-> built from an older checkout, so the gate certifies code that is not the code being
-> shipped. Observed 2026-08-16: a full umbrella run over a pre-existing `build/tests`
-> reported 134/134, and deleting it and reconfiguring **at the same commit** immediately
-> surfaced a failure. Nothing had changed but the staleness. Deleting costs one rebuild per
-> release; not deleting costs a green gate that means nothing.
-
-> **Use the umbrella, never a per-suite loop.** `tests/CMakeLists.txt` enumerates the
-> suites, so one added later is picked up by this gate automatically. The hand-rolled loop
-> that lived here until v0.1-alpha11 carried a hardcoded seven-suite list, and silently
-> skipped **LaunchMonitor** and **Update** once they existed — a gate that quietly stops
-> covering new code is worse than no gate. It also pointed at `src/Buffer`, which stopped
-> being the tests' location when they moved to `src/Buffer/tests`; the umbrella builds the
-> `pinpoint_buffer` library first and then pulls those tests in, which the loop never did.
+> The `rm -rf build/tests` and the umbrella are [BT-25](../controls/release.md), not housekeeping. The umbrella
+> works because `tests/CMakeLists.txt` enumerates the suites, so one added later is picked
+> up automatically, and it builds the `pinpoint_buffer` library first and then pulls in
+> `src/Buffer/tests`.
 
 ### 1.3 Build the DMGs — **there are TWO, each on its own Mac**
 
 A release needs both an `x86_64` and an `arm64` DMG. Because there is no cross-build, each
-is produced natively on its own machine (0.3a): **the Intel MBP builds `x86_64`, the M4
-builds `arm64`.** Everything from here through 1.7 runs **on each Mac for its own arch**,
+is produced natively on its own machine (0.3a): **the Intel Mac builds `x86_64`, the Apple
+Silicon Mac builds `arm64`.** Everything from here through 1.7 runs **on each Mac for its own arch**,
 and the two sets of assets meet on one draft release in 1.8.
 
 > **Native-per-Mac is the right way to build for release, not a fallback.** Homebrew
 > bottles are built for the packaging host's macOS, so a DMG's real minimum-macOS is the
 > build host's OS (the tooling computes it and stamps `LSMinimumSystemVersion` — it will
-> not let the appcast lie). This is exactly why the Intel MBP matters: it usually runs an
-> **older** macOS than the M4, giving Intel users a **lower floor** than a macOS-26 machine
+> not let the appcast lie). This is exactly why the Intel Mac matters: it usually runs an
+> **older** macOS than the Apple Silicon Mac, giving Intel users a **lower floor** than a macOS-26 machine
 > or even the `macos-15-intel` CI runner would. Build each arch on the oldest healthy Mac
 > you have for it.
 
-**Path B — build locally (the release path here).** With that Mac's identity + notary
+**Build locally (the release route: [BT-10](../controls/release.md)).** With that Mac's identity + notary
 profile + EdDSA key from Part 0 in place, the packaging script does the whole
 build → deploy → relocate → verify → **sign → notarize → staple** → DMG. It builds
 **host-native only** — the DMG is for the Mac you are sitting at:
 ```bash
 brew install ffmpeg@8 aravis pkgconf  # build deps (once); @8, NOT plain ffmpeg (that is 9.x); OpenCV is built from source
-export SIGN_IDENTITY="Developer ID Application: M R LIVERSEDGE (WKLCK77L4U)"  # or omit → auto-detect
+export SIGN_IDENTITY="<the Developer ID identity, named in the machine's local file>"  # or omit → auto-detect
 export NOTARY_PROFILE=pinpoint-notary
 tools/package_macos.sh                # slow the first time
 DMG=$(ls -t dist/PinPointStudio-*-$(uname -m).dmg | head -1)
@@ -346,22 +330,11 @@ its contents, and the script aborts if the Sparkle feed baked into the bundle di
 with that arch (a build tree reused across arches). With `SIGN_IDENTITY`/`NOTARY_PROFILE`
 unset it still builds a valid **unsigned** DMG and says it skipped signing.
 
-Run this on the **Intel MBP** for `x86_64`, and on the **M4** for `arm64`. When Intel is
-eventually dropped (0.3a), you simply stop running the MBP half — the `arm64` release is
+Run this on the **Intel Mac** for `x86_64`, and on the **Apple Silicon Mac** for `arm64`. When
+Intel is eventually dropped (0.3a), you simply stop running the Intel half — the `arm64` release is
 unaffected.
 
-**Path A — CI builds the unsigned DMGs (fallback / validation).** Pushing a tag runs the
-two-leg `macos` matrix (`macos-15-intel` + `macos-15`) and stages both **unsigned** DMGs on
-a draft, with `macos-assets-complete` going red if either is missing. Use it to validate
-the workflow, or to get a DMG for an arch whose Mac you cannot reach — then sign + notarize
-the downloaded bytes exactly as Path B does. It carries the CI runner's (higher) floor, so
-prefer a native Path B build for what you actually ship:
-```bash
-TAG=v0.1-alpha4
-git tag "$TAG" && git push origin "$TAG"      # wait for Actions
-gh release download "$TAG" -R PinPoint-Golf/PinPointStudio -p '*-x86_64.dmg' -D /tmp/rel
-gh release download "$TAG" -R PinPoint-Golf/PinPointStudio -p '*-arm64.dmg'  -D /tmp/rel
-```
+CI is not the release route ([BT-10](../controls/release.md)): every DMG is built natively, as above.
 
 ### 1.4 Smoke-launch the bundle before signing — STOP if it crashes (MANDATORY GATE)
 The test suite (1.2) and the relocatability check (1.3's §5 gate) are both **static** — they
@@ -369,9 +342,9 @@ never actually load the bundled dylib closure. A **load-time** crash slips past 
 stray build-machine `LC_RPATH` left in the binary makes dyld load a *second* copy of OpenMP
 (Homebrew's, ahead of the bundled one), and `libomp` aborts in `__kmp_register_library_startup`
 ("OMP: Error #15") **before `main()` runs**. The app dies instantly on launch. Notarization is
-the slow, irreversible step — never spend it on a bundle you haven't watched open.
+the slow, irreversible step.
 
-So launch the freshly-built bundle once and confirm the window actually appears. Note the
+So launch the freshly-built bundle once and confirm the window actually appears ([BT-26](../controls/release.md)). Note the
 staging path is **arch-qualified** (`build/macos-pkg-$(uname -m)`):
 ```bash
 tools/package_macos.sh --no-sign                     # build + deploy + relocate, no sign/notarize
@@ -401,17 +374,16 @@ re-running:
   `libonnxruntime.dylib` failed. §4a″ of `package_macos.sh` creates that alias; if it is
   missing from `Contents/Frameworks`, that block did not fire. **arm64 only** — Intel forces
   `WITH_ORTGENAI` OFF. This class of failure (a `dlopen`, not a `NEEDED` entry) is invisible
-  to both macdeployqt and the §5 gate, which is precisely why this smoke gate is mandatory.
+  to both macdeployqt and the §5 gate, which is precisely why this smoke gate is [BT-26](../controls/release.md).
 
-Only once it launches cleanly, re-run with your signing env vars (1.5, Path B) to produce the
-signed DMG. (Path A / CI DMG: `hdiutil attach` it and launch the `.app` from the mounted
-volume the same way before you sign the downloaded DMG.)
+Only once it launches cleanly, re-run with your signing env vars (1.3, 1.5) to produce the
+signed DMG.
 
 ### 1.5 What signing + notarizing actually does (so you understand the script)
 `tools/package_macos.sh` runs these for you; here's the manual equivalent, useful for
-learning and for re-signing a CI (Path A) DMG:
+learning and for diagnosing a failed run:
 ```bash
-ID="Developer ID Application: Mark Liversedge (<TEAMID>)"
+ID="Developer ID Application: <NAME> (<TEAMID>)"
 # (a) sign every nested dylib/framework, then the .app last, with Hardened Runtime:
 #     the script signs inside-out using packaging/macos/entitlements.plist.
 # (b) sign the DMG itself:
@@ -430,10 +402,10 @@ spctl -a -t open --context context:primary-signature -vv "$DMG"   # → accepted
 xcrun stapler validate "$DMG"                                      # → The validate action worked
 codesign --verify --deep --strict --verbose=2 "$DMG"              # → valid on disk
 ```
-All three must pass before you publish. The most common first-time failure is a missing
+These are [BT-27](../controls/release.md)'s three checks: stop if any fails. The most common first-time failure is a missing
 or wrong entitlement / an unsigned nested binary — see Troubleshooting.
 
-### 1.7 [Stage 2] EdDSA-sign each DMG + generate BOTH appcasts — REQUIRED every release
+### 1.7 [Stage 2] EdDSA-sign each DMG + generate its appcast — REQUIRED every release
 
 **Run this once per architecture.** `--arch` selects the DMG, decides which feed the
 enclosure is required to point at, and names the output file. Passing the wrong one is
@@ -441,62 +413,54 @@ caught, not silently honoured: the script mounts the DMG and compares `lipo -arc
 the bundle's `SUFeedURL` against what `--arch` claims, and refuses to sign on a mismatch.
 
 ```bash
+TAG=<the release tag>     # free-form; the same tag on all four build machines
 NOTES="https://github.com/PinPoint-Golf/PinPointStudio/releases/tag/$TAG"
+ARCH=$(uname -m)
+# Intel → appcast-mac.xml (the FROZEN feed name — never rename it); Apple Silicon → appcast-mac-arm64.xml
+case "$ARCH" in x86_64) FEED=appcast-mac.xml ;; arm64) FEED=appcast-mac-arm64.xml ;; esac
+packaging/make_appcast_mac.sh --tag "$TAG" --arch "$ARCH" --dmg "$DMG" --notes-url "$NOTES"
 
-# Intel → appcast-mac.xml  (the FROZEN feed name — never rename it)
-packaging/make_appcast_mac.sh --tag "$TAG" --arch x86_64 \
-  --dmg /tmp/rel/PinPointStudio-$TAG-x86_64.dmg --notes-url "$NOTES"
-
-# Apple Silicon → appcast-mac-arm64.xml
-packaging/make_appcast_mac.sh --tag "$TAG" --arch arm64 \
-  --dmg /tmp/rel/PinPointStudio-$TAG-arm64.dmg --notes-url "$NOTES"
-
-# Verify each signature against the published bytes before uploading (must exit 0):
+# Verify the signature against the bytes you will upload (BT-28; must exit 0):
 SU=$(find build -name sign_update -type f | head -1)
-for a in x86_64 arm64; do
-  case "$a" in x86_64) FEED=appcast-mac.xml ;; arm64) FEED=appcast-mac-arm64.xml ;; esac
-  D=/tmp/rel/PinPointStudio-$TAG-$a.dmg
-  SIG=$(sed -n 's/.*edSignature="\([^"]*\)".*/\1/p' "$(dirname "$D")/$FEED")
-  "$SU" --verify "$D" "$SIG"; echo "$a verify exit: $?"
-done
+SIG=$(sed -n 's/.*edSignature="\([^"]*\)".*/\1/p' "$(dirname "$DMG")/$FEED")
+"$SU" --verify "$DMG" "$SIG"; echo "$ARCH verify exit: $?"
 ```
-Sign the **notarized** DMG in each case (its bytes are what users download). If signing
-from the offline `.pem` instead of the Keychain, add
-`--key-file ~/pinpoint_release_mac_eddsa_PRIVATE.pem`.
+Sign the **notarized** DMG in each case (its bytes are what users download: [BT-28](../controls/release.md)). If
+signing from the offline `.pem` instead of the Keychain, add
+`--key-file <the EdDSA key file, named in the machine's local file>`.
 
 `sparkle:minimumSystemVersion` is **not** a constant you set here — it is read from the
 `LSMinimumSystemVersion` the packaging script stamped into the app inside that DMG, which
 is the highest `minos` across everything bundled. If it reads higher than you expect, the
-build host's Homebrew bottles are why; rebuild in CI rather than overriding it. `--min-os`
+build host's Homebrew bottles are why; rebuild on an older Mac (1.3) rather than overriding
+it. `--min-os`
 exists as an escape hatch, but overriding it upward-of-reality is how you ship an update
 that installs over a working app and then will not launch.
 
-### 1.8 Tag (if not already) + publish to GitHub
-**FOUR macOS assets go up: two DMGs and two appcasts.** A release carrying only one
-architecture's pair is worse than no release for the other architecture — its feed
-resolves to a release with no enclosure it can use.
+### 1.8 Upload to the release's draft + publish
+**FOUR macOS assets go up: two DMGs and two appcasts** ([BT-29](../controls/release.md)).
 
-With the two-Mac split, the two DMGs are produced on **different machines**, so uploading is
-a two-step meet-on-a-draft, and **only one machine may create the release** — if both run
-`gh release create` they race and one errors. Create the draft once, each Mac uploads its
-own pair, then publish once all four are present:
+Every release carries all four builds ([BT-29](../controls/release.md)): Windows, Linux, and these two. They are
+produced on **different machines**, so uploading is a meet-on-a-draft, and **only one machine
+may create the release** — if two run `gh release create` they race and one errors. The first
+machine to finish creates the draft, each uploads its own build, and the last one publishes
+once all four are present:
 
 ```bash
-# ── On the FIRST Mac to finish (say the M4 / arm64): create the DRAFT and upload its pair.
-gh release create "$TAG" -R PinPoint-Golf/PinPointStudio \
-   --draft --title "PinPoint Studio $TAG" --notes "…release notes…" \
-   dist/PinPointStudio-$TAG-arm64.dmg  "$(dirname "$DMG")/appcast-mac-arm64.xml"
-
-# ── On the OTHER Mac (Intel / x86_64): the draft already exists — just add its pair.
+# ── On each Mac, for its own arch: create the DRAFT if no machine has yet, then upload its pair.
+gh release view "$TAG" -R PinPoint-Golf/PinPointStudio >/dev/null 2>&1 || \
+  gh release create "$TAG" -R PinPoint-Golf/PinPointStudio \
+     --draft --title "PinPoint Studio $TAG" --notes "…release notes…"
 gh release upload "$TAG" -R PinPoint-Golf/PinPointStudio \
-   dist/PinPointStudio-$TAG-x86_64.dmg  "$(dirname "$DMG")/appcast-mac.xml" --clobber
+   "$DMG" "$(dirname "$DMG")/$FEED" --clobber
 
-# ── From either Mac, once ALL FOUR assets are on the draft: confirm, then publish.
+# ── On the LAST machine to finish (of all four), once every build is on the draft: confirm, then publish.
 gh release view "$TAG" -R PinPoint-Golf/PinPointStudio --json assets --jq '.assets[].name'
-#   expect: both DMGs + appcast-mac.xml + appcast-mac-arm64.xml
+#   expect all four builds: both DMGs + appcast-mac.xml + appcast-mac-arm64.xml (macOS);
+#   -core.exe, -cuda.exe, appcast-win.xml (Windows); .AppImage, .AppImage.zsync, .AppImage.sig (Linux)
 gh release edit "$TAG" -R PinPoint-Golf/PinPointStudio --draft=false --prerelease=false
 
-# Confirm BOTH feeds resolve before you walk away — a 404 here means silent
+# Confirm BOTH feeds resolve before you walk away (BT-11) — a 404 here means silent
 # never-updates-again for every install of that architecture:
 for f in appcast-mac.xml appcast-mac-arm64.xml; do
   printf '%-24s ' "$f"
@@ -504,16 +468,12 @@ for f in appcast-mac.xml appcast-mac-arm64.xml; do
     "https://github.com/PinPoint-Golf/PinPointStudio/releases/latest/download/$f"
 done
 ```
-*(Path A CI variant: the tag push already made a draft holding the two unsigned DMGs —
-replace them with your signed, notarized ones and add both appcasts with a single
-`gh release upload … --clobber`, then publish as above.)*
+*(When Intel is retired, which changes [BT-29](../controls/release.md)'s four builds and needs the Product Owner:
+publish just the arm64 DMG + `appcast-mac-arm64.xml`. Leave the last-ever `appcast-mac.xml` on
+its release so existing Intel installs keep resolving it — frozen, not 404.)*
 
-*(When Intel is retired: publish just the arm64 DMG + `appcast-mac-arm64.xml`. Leave the
-last-ever `appcast-mac.xml` on its release so existing Intel installs keep resolving it —
-frozen, not 404.)*
-
-**Publish non-draft AND non-prerelease** — the `latest/download/…` URLs (Stage 2's
-`SUFeedURL`) only resolve to a non-prerelease release. The `gh release create` tag fires
+**Publish non-draft AND non-prerelease** ([BT-29](../controls/release.md)) — the `latest/download/…` URLs (Stage 2's
+`SUFeedURL`) only resolve to a non-prerelease release. Publishing creates the tag, which fires
 `release.yml`, whose `guard` job sees the published release and **skips** CI so it can't
 clobber your signed DMG.
 
@@ -528,26 +488,27 @@ warning. (Stage 2: an older installed build offers the update via Settings → C
 ---
 
 ## Quick checklist (per release)
-The two arch columns are done **on their own machines** — `x86_64` on the Intel MBP,
-`arm64` on the M4 (0.3a). Do not treat the release as done until both are ticked: a
+The two arch columns are done **on their own machines** — `x86_64` on the Intel Mac,
+`arm64` on the Apple Silicon Mac (0.3a). Do not treat the release as done until both are ticked: a
 half-shipped release leaves one architecture's feed pointing at an enclosure-less release.
 
-- [ ] Bump `PINPOINT_VERSION_BUILD` (+ MAJOR/MINOR/POSTFIX) in `version.h`; commit, push
-- [ ] **Run the `tests/` umbrella — `0 tests failed` across all nine suites (mandatory; stop if any fail)**
+- [ ] Bump `PINPOINT_VERSION_BUILD` (+ MAJOR/MINOR/POSTFIX) in `version.h`; commit, push (BT-24)
+- [ ] **Run the `tests/` umbrella in a fresh `build/tests` — `0 tests failed` (BT-17, BT-25; stop if any fail)**
 
-| step (run on each Mac for its own arch) | `x86_64` — Intel MBP | `arm64` — M4 |
+| step (run on each Mac for its own arch) | `x86_64` — Intel Mac | `arm64` — Apple Silicon Mac |
 |---|---|---|
 | notarytool profile present on this Mac (0.5 / `--skip-cert`) | ☐ | ☐ |
 | `tools/package_macos.sh` → build + sign + notarize + staple | ☐ | ☐ |
-| **Smoke-launch** the bundle — main window appears, no crash | ☐ | ☐ |
-| Verify: `spctl` → Notarized Developer ID, `stapler validate`, `codesign --verify` | ☐ | ☐ |
-| `make_appcast_mac.sh --arch <arch>` → EdDSA signature + the right appcast; `--verify` | ☐ | ☐ |
-| Sanity-check the advertised `minimumSystemVersion` is the floor you intended | ☐ | ☐ |
+| **Smoke-launch** the bundle — main window appears, no crash (BT-26) | ☐ | ☐ |
+| Verify: `spctl` → Notarized Developer ID, `stapler validate`, `codesign --verify` (BT-27) | ☐ | ☐ |
+| `make_appcast_mac.sh --arch <arch>` → EdDSA signature + the right appcast; `--verify` (BT-28) | ☐ | ☐ |
+| Sanity-check the advertised `minimumSystemVersion` is the floor you intended (BT-11) | ☐ | ☐ |
 
-- [ ] One Mac creates the draft; the other uploads its pair — **all four** assets present
-      (2 DMGs + `appcast-mac.xml` + `appcast-mac-arm64.xml`)
-- [ ] Publish **non-draft, non-prerelease**
-- [ ] Confirm **both** feed URLs return 200 at `releases/latest/download/…`
+- [ ] The first machine to finish creates the draft; each uploads its own build — **all four
+      builds** present (2 DMGs + `appcast-mac.xml` + `appcast-mac-arm64.xml`, the Windows and
+      the Linux build) (BT-29)
+- [ ] The last machine publishes **non-draft, non-prerelease** (BT-29)
+- [ ] Confirm **both** feed URLs return 200 at `releases/latest/download/…` (BT-11)
 - [ ] Confirm: browser-download each DMG, open with no Gatekeeper warning
 
 ---
@@ -572,24 +533,23 @@ half-shipped release leaves one architecture's feed pointing at an enclosure-les
 - **App opens but immediately crashes after notarization** → a Hardened-Runtime
   restriction. Check Console.app at launch time; you may need to add an entitlement in
   `packaging/macos/entitlements.plist` (e.g. `allow-unsigned-executable-memory`/`allow-jit`)
-  and re-sign + re-notarize. Add the *minimum* needed.
+  and re-sign + re-notarize. Add the *minimum* needed ([BT-37](../controls/release.md)).
 - **"damaged and can't be opened" on the test machine** → you skipped notarization or
   stapling, or signed with the wrong identity. Re-verify §1.6.
 
 ## Gotchas & key custody
-- **Sign the exact bytes you publish.** Sign + notarize the DMG you upload, then (Stage 2)
-  EdDSA-sign *that* file. A rebuild differs byte-for-byte and breaks the signature.
-- **`PINPOINT_VERSION_BUILD` must always increase** — it's the only thing Sparkle compares.
+- **Sign the exact bytes you publish** ([BT-28](../controls/release.md)). Sign + notarize the DMG you upload, then
+  (Stage 2) EdDSA-sign *that* file.
+- **`PINPOINT_VERSION_BUILD` always increases** ([BT-24](../controls/release.md)).
 - **No CUDA / no component split on macOS** — the DMG is the whole, hardware-agnostic app
   (CoreML/Accelerate/Metal). The ViTPose model is bundled, same as the Windows `-core`
   component.
-- **Both architectures ship** — `x86_64` (Intel MBP) and `arm64` (M4), separate DMGs and
+- **Both architectures ship** — `x86_64` (the Intel Mac) and `arm64` (the Apple Silicon Mac), separate DMGs and
   separate feeds (0.3a). Intel is time-limited: Apple is retiring Intel Mac support, so the
   `x86_64` leg will be dropped in the next couple of years, at which point `appcast-mac.xml`
   freezes rather than breaks.
-- **Custody:** the Developer ID `.p12` (0.3), the app-specific password (0.5), and the
-  [Stage 2] EdDSA private key all stay **offline, never CI secrets** — and each of the two
-  signing Macs holds its own copy of the notary profile + the EdDSA key. Losing the cert key
-  or the EdDSA key is the one thing that breaks future updates — back them up.
+- **Custody** ([BT-32](../controls/release.md)): the Developer ID `.p12` (0.3), the app-specific password (0.5),
+  and the [Stage 2] EdDSA private key; each of the two signing Macs holds its own copy of
+  the notary profile + the EdDSA key.
 - **Rollback:** `gh release edit <tag> --draft=true` (or `--prerelease=true`) immediately
   stops the updater offering it.

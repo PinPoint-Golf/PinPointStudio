@@ -36,7 +36,7 @@ The steps for a cut-over are [`procedures/cut-over.md`](../procedures/cut-over.m
 
 **Extras:** [AG-37](build.md) read the analysis or diagnostics guide first.
 
-Runs over swings: sweeps, re-analysis, the corpus and the library, truth and grading. The steps for a sweep are [`procedures/sweep.md`](../procedures/sweep.md); the measurement controls are in [`analysis-and-data.md`](product/analysis-and-data.md).
+Runs over swings: sweeps, re-analysis, the corpus and the library, truth and grading, and capturing the data. The steps for a sweep are [`procedures/sweep.md`](../procedures/sweep.md), and for a capture session or a corpus the capture and collection protocols listed in [`procedures/README.md`](../procedures/README.md); the measurement controls are in [`analysis-and-data.md`](product/analysis-and-data.md).
 
 **AD-14.** Before more work on a vision estimate, ground truth for it must be obtained, the measure of success agreed up front, and the baseline shown before code changes.
 For the arm, that is a two-camera session with the lead-forearm sensor (one instrument only, AD-10); for the club at impact, the launch monitor.
@@ -118,12 +118,78 @@ Corpus session folder names are never renamed (they are the join key for pinned 
 *Owner:* Product Owner · *Stage:* Data and analysis work · *Compliance:* none yet
 
 **AD-33.** A criterion's known bias must be corrected before grading against it, and the write-up must say so; a bias on the criterion is not a licence to tune our number.
-(The launch monitor's clubhead-speed over-read: `docs/validation/two_camera_capture_protocol.md` §8.)
+(The launch monitor's clubhead-speed over-read: [`two_camera_capture_protocol.md`](../procedures/two_camera_capture_protocol.md) §8.)
 *Why:* most of the camera's apparent shortfall against the launch monitor was the launch monitor's own bias.[^ad-33]
 *Owner:* Coaching Lead · *Stage:* Data and analysis work · *Compliance:* none yet
 
 **DC-7.** For posture work, new readings must be graded against the Coaching Lead's coach-eye labels, which are the truth: read a label's words literally, and claim a contradiction only where a label covers it.
 *Why:* an agent twice over-reached, misreading a label and calling a setup fault wrong where the labels said nothing.[^dc-7]
+*Owner:* Coaching Lead · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-35.** In a capture session, once the rig is placed, no camera, lens ring, tripod or camera setting may be touched until the session's closing checks are done; a camera that is bumped or moved is recalibrated (its pointing clips recorded again) and the swing it happened after is written down.
+On a calibrated rig, a moved camera's calibration is redone before its next swing counts.
+*Why:* a down-the-line camera that moved after the third swing split a session's calibration in two, and every number from it was graded on repeatability alone.[^ad-35]
+*Owner:* Product Owner · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-36.** Each camera of a capture session must be framed so that, with the club held at the top, the wrists sit at least one club length (as the club appears at address) below the top edge, and the clubhead is visible at the top and at the finish in both views.
+Checked with a number, not by eye: setup's Framing step reads the live wrist dots; the clubhead is looked for in the frame.
+*Why:* on 5 Oct 2026 the down-the-line frame lost the club from just after P3 to about P5 on all 31 swings, and on five the tracker drew the lead arm instead; the July framing had the same fault.[^ad-36]
+*Owner:* Product Owner · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-37.** A capture session's record must be complete: the launch-monitor reading attached to every full swing, the club selected in the app the club actually in hand (changed with every change of club), and the rig sheet filled in and photographed into the session folder.
+Classifying corpus swings by club is [AD-17](kinds-of-work.md).
+*Why:* the rig sheet is the only record of lenses, offsets, exposure and gain; the July corpus labelled a taped 7-iron "driver"; the launch monitor is the criterion for club path, attack angle and clubhead speed.[^ad-37]
+*Owner:* Product Owner · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-38.** A corpus's acceptance thresholds must be registered before its collection, and a threshold must never be moved to make a result pass.
+*Why (proposed, for the Product Owner):* a threshold moved after the data is seen no longer tests anything.[^ad-38]
+*Owner:* Product Owner · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-39.** Each corpus swing must be assigned to Tune, Validation or Held-out when the corpus is blessed, before any analysis, and the assignment recorded; Held-out is touched once, at freeze.
+A tuning sweep searches Tune, selects on Validation and touches Held-out once (`--freeze`).
+*Why (proposed, for the Product Owner):* a value selected on the swings it is scored on overstates how well it generalises.[^ad-39]
+*Owner:* Product Owner · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-40.** A swing that fails any of a protocol's must gates must be recaptured, never tuned around: it is a data failure.
+*Why:* tuning around a bad capture fits the analysis to a fault in the data.[^ad-40]
+*Owner:* Coaching Lead · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-41.** Worn sensors must be calibrated at every donning, re-checked (Confirm Tracking) every 15 swings or 20 minutes, whichever comes first, and recalibrated after any re-seat or slip, any break over 10 minutes, a battery swap, any calibration-gate failure, and every change of golfer; no scored swing has calibration older than 30 minutes.
+The swings a failed gate affects are recaptured ([AD-40](kinds-of-work.md)).
+*Why:* calibration discipline is the single biggest determinant of the data's quality.[^ad-41]
+*Owner:* Coaching Lead · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-42.** A labeller or coach marking up a swing must work from its video only and must not see the analyzer's output for it (track, phase events, metrics) before or while marking it; an annotation made unblinded is excluded.
+*Why:* a label made after seeing the estimate anchors the "truth" to the thing it is meant to judge.[^ad-42]
+*Owner:* Coaching Lead · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-43.** A study's golfers must give informed consent for each instrument and use (video, sensors, a third-party device and its export, the launch monitor, a coach's review), keep the right to withdraw, and be stored under an athlete id, never a name; a study of several golfers has its ethics approval before anyone is recruited.
+*Why:* a study's data are about people, and a golfer can withdraw.[^ad-43]
+*Owner:* Coaching Lead · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-44.** Lab tools must not write into a corpus swing folder except its markup (`truth.json`) and the lab's own `pose.json`.
+Which component writes each of a swing's files, and who owns it, is the information model's file table (`docs/developer/information_model.md`, the `FILE-SHOT-*` rows); this control adds nothing to it for the app and covers only the lab tools.
+*Why:* the swing folder is the captured record that every later run is compared against.[^ad-44]
+*Owner:* Solution Architect · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-45.** In a study of several golfers, the golfers, not the swings, are the sample size for any population claim, and swings must never be treated as independent of their golfer: the analysis accounts for the clustering (mixed models or cluster-robust intervals).
+*Why:* repeated swings by one golfer are correlated; pooling them as independent overstates precision by the design effect.[^ad-45]
+*Owner:* Product Owner · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-46.** A taped club's band record must be re-measured, and its taping date updated, whenever its tape is replaced; the club's id in markup must match its record exactly.
+*Why:* adhesive drift is real, and without a matching record the tape is only "easier to see" rather than truth.[^ad-46]
+*Owner:* Product Owner · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-47.** A capture that co-wears the HackMotion and the PinPoint wrist sensors under [AD-10](product/analysis-and-data.md)'s exception must re-run Confirm Tracking once both are donned (PinPoint first, then the HackMotion); if the tracking is worse than before the HackMotion went on, re-seat and recalibrate. A swing captured with a perturbed mount is invalid.
+*Why:* a perturbed mount would attribute a mounting artifact to a disagreement between the devices.[^ad-47]
+*Owner:* Coaching Lead · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-48.** In such a capture, the defined sync action (for example three sharp wrist snaps) must be performed at the start of every capture block, and recorded.
+*Why:* the two devices keep independent clocks (at 45 m/s, 1 ms is 45 mm); the sync action gives both a sharp, shared feature to cross-correlate, more robust than impact on partial swings.[^ad-48]
+*Owner:* Coaching Lead · *Stage:* Data and analysis work · *Compliance:* none yet
+
+**AD-49.** A co-worn swing counts as paired only if both devices recorded the same shot and the export is matched to its swing folder, the sync action is present and the lag resolved, the co-mount check ([AD-47](kinds-of-work.md)) passed, the HackMotion was zeroed this session (and re-zeroed whenever PinPoint was recalibrated or a sensor re-donned), and the reconciliation transform is stable (a sign flip only); otherwise it is recaptured or moved to the robustness set.
+*Why:* a swing where one device dropped out, or whose devices are not reconciled, measures nothing about their agreement.[^ad-49]
 *Owner:* Coaching Lead · *Stage:* Data and analysis work · *Compliance:* none yet
 
 **Guidance, lessons that bite here:** [L-29](../guidance/lessons.md) a score doesn't prove stages ran · [L-30](../guidance/lessons.md) the re-analysis path decides · [L-31](../guidance/lessons.md) trace files come from a second run · [L-32](../guidance/lessons.md) capture holes · [L-33](../guidance/lessons.md) verdicts written once · [L-34](../guidance/lessons.md) heuristics tuned to flicker · [L-36](../guidance/lessons.md) read the truth first · [L-37](../guidance/lessons.md) re-analysis isn't idempotent · [L-39](../guidance/lessons.md) tools outside their build folder · [L-41](../guidance/lessons.md) re-filing a session · [L-58](../guidance/lessons.md) OpenCV decodes differ across hosts · [L-59](../guidance/lessons.md) sensor timing and buffers · [L-60](../guidance/lessons.md) stalled gates and circular calibration.
@@ -151,3 +217,18 @@ Corpus session folder names are never renamed (they are the join key for pinned 
 [^ad-30]: Product Owner, 28 Sep 2026 (inputs in the corpus) and 9 Sep 2026 (names, manifest, the frozen population).
 [^ad-33]: Coaching Lead, 21 Sep 2026.
 [^dc-7]: Coaching Lead, 22 Oct 2026.
+[^ad-35]: Moved from `two_camera_capture_protocol.md` §2 and `corpus3_collection_protocol.md` §5, §6.1 and §11, 25 Nov 2026 (#195), on the Product Owner's instruction that the protocols' mandatory rules are controls. The incident: the 4 Jul 2026 session.
+[^ad-36]: Moved from `two_camera_capture_protocol.md` §2, 25 Nov 2026 (#195). The incident: 5 Oct 2026.
+[^ad-37]: Moved from `two_camera_capture_protocol.md` §3, §5 and §6, 25 Nov 2026 (#195).
+[^ad-38]: Moved from `corpus1_collection_protocol.md` §2 (and the pre-registered tables of the Corpus 2 and Corpus 3 protocols), 25 Nov 2026 (#195).
+[^ad-39]: Moved from `corpus1_collection_protocol.md` §10 and `shaft_validation_protocol.md` §5, 25 Nov 2026 (#195).
+[^ad-40]: Moved from `corpus1_collection_protocol.md` §11 (inherited by the Corpus 2 and Corpus 3 protocols), 25 Nov 2026 (#195). Owner Coaching Lead, confirmed by the Product Owner and the Coaching Lead, 25 Nov 2026.
+[^ad-41]: Moved from `corpus1_collection_protocol.md` §6.2 (marked mandatory) and `corpus3_collection_protocol.md` §6.3, 25 Nov 2026 (#195). Owner Coaching Lead, confirmed by the Product Owner and the Coaching Lead, 25 Nov 2026.
+[^ad-42]: Moved from `corpus1_collection_protocol.md` §9.4 (marked mandatory), `corpus3_collection_protocol.md` §3, §9.3 and §14, and `shaft_validation_protocol.md` §3, 25 Nov 2026 (#195). Owner Coaching Lead, confirmed by the Product Owner and the Coaching Lead, 25 Nov 2026.
+[^ad-43]: Moved from `corpus1_collection_protocol.md` §4, `corpus2_collection_protocol.md` §4 and `corpus3_collection_protocol.md` §4, 25 Nov 2026 (#195). Owner Coaching Lead, confirmed by the Product Owner and the Coaching Lead, 25 Nov 2026.
+[^ad-44]: Moved from `corpus1_collection_protocol.md` §10 and `shaft_validation_protocol.md` §3, 25 Nov 2026 (#195). Owner Solution Architect, confirmed by the Product Owner and the Coaching Lead, 25 Nov 2026.
+[^ad-45]: Moved from `corpus3_collection_protocol.md` §3 and §12, 25 Nov 2026 (#195).
+[^ad-46]: Moved from `instrumented_club_protocol.md` §3, 25 Nov 2026 (#195).
+[^ad-47]: Moved from `corpus2_collection_protocol.md` §6.1, §6.4 and §11, 25 Nov 2026 (#195). Product Owner and Coaching Lead, 25 Nov 2026: Corpus 2's verification steps are controls under AD-10's exception.
+[^ad-48]: Moved from `corpus2_collection_protocol.md` §6.5 and §11, 25 Nov 2026 (#195). Product Owner and Coaching Lead, 25 Nov 2026, as AD-47.
+[^ad-49]: Moved from `corpus2_collection_protocol.md` §6.2, §7.1 and §11, 25 Nov 2026 (#195). Product Owner and Coaching Lead, 25 Nov 2026, as AD-47.

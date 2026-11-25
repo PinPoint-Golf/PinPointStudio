@@ -3,10 +3,11 @@
 **Document type:** Experimental methods / data-collection protocol (collection team).
 **Corpus:** 2 of 3 — *concurrent IMU + HackMotion; criterion (concurrent) validity of the wrist axes.*
 **Version:** 1.0 (2026-06-26) · **Status:** ready once Corpus 1 frozen + HackMotion pilot complete ·
-**Owner:** Mark Liversedge.
+**Owner:** Product Owner.
 **Reference (the "why"):** `docs/validation/pipeline_validation_and_tuning.md` (§3.2 LoA sizing; §6 the
 HackMotion criterion programme). **Reporting standard:** GRRAS (Kottner 2011) + the Bland–Altman
 reporting conventions (Bland & Altman 1999) for the agreement analysis; STROBE for design.
+**Controls:** the rules these steps carry out are controls in [`kinds-of-work.md`](../controls/kinds-of-work.md) (data and analysis work); a step cites the control's id.
 
 > **What the collection team must produce:** ~50 **paired** swings in which the *same shots* are recorded
 > simultaneously by the PinPoint IMUs **and** the HackMotion wearable sensor, reconciled in sign/zero/time,
@@ -16,6 +17,11 @@ reporting conventions (Bland & Altman 1999) for the agreement analysis; STROBE f
 ---
 
 ## 0. Changes from Corpus 1 (read first)
+
+Corpus 2 is a **verification process**: a criterion study of the PinPoint wrist sensors against the
+HackMotion. Its co-wear of the two on one arm is therefore under [AD-10](../controls/product/analysis-and-data.md)'s exception for a stated test or
+verification process, and its verification steps are controls: the co-mount perturbation check
+([AD-47](../controls/kinds-of-work.md)), the sync action ([AD-48](../controls/kinds-of-work.md)) and paired-swing validity ([AD-49](../controls/kinds-of-work.md)).
 
 Corpus 2 **is Corpus 1's protocol, plus a co-mounted criterion device.** Everything in
 `corpus1_collection_protocol.md` still applies (Wrist session, IMU mount/calibration discipline, Tier-0
@@ -81,7 +87,7 @@ Still **single golfer** (within-subject) — population generalisation remains C
 
 ## 4. Participant: inclusion, consent
 
-As Corpus 1, plus: consent explicitly covers wearing a **third-party device (HackMotion)** and exporting
+As Corpus 1 ([AD-43](../controls/kinds-of-work.md)), plus: consent explicitly covers wearing a **third-party device (HackMotion)** and exporting
 its data; HackMotion data is stored under the same athlete UUID and data-management plan.
 
 ---
@@ -109,7 +115,7 @@ As Corpus 1 (§5), **plus:**
 4. **Co-mount perturbation check (§6.4).**
 
 ### 6.2 Calibration cadence
-Inherit Corpus 1 §6.2 for PinPoint. **Additionally:** re-zero HackMotion whenever PinPoint is
+Inherit Corpus 1 §6.2 for PinPoint ([AD-41](../controls/kinds-of-work.md)). **Additionally:** re-zero HackMotion whenever PinPoint is
 recalibrated, and after any sensor re-don. Both devices' calibration state must be current for a paired
 swing to count.
 
@@ -117,13 +123,13 @@ swing to count.
 Inherit Corpus 1 §6.3 (Regime A fixed-calibration; Regime B re-mount). In Regime B, **re-don and
 re-zero both devices** between sets — this also measures HackMotion's own re-mount variance.
 
-### 6.4 Co-mount perturbation check (new, mandatory)
+### 6.4 Co-mount perturbation check ([AD-47](../controls/kinds-of-work.md))
 After donning **both** devices, re-run PinPoint **Confirm Tracking**. If the 3D model now tracks worse
 than before HackMotion was added, the HackMotion sensor has shifted the hand IMU → **re-seat and recalibrate**.
 A paired swing captured with a perturbed mount is invalid (it would attribute a mounting artifact to a
 device disagreement).
 
-### 6.5 Temporal-sync action (new, mandatory)
+### 6.5 Temporal-sync action ([AD-48](../controls/kinds-of-work.md))
 The two devices keep **independent clocks**; at 45 m/s, 1 ms = 45 mm. At the start of **every capture
 block**, perform the defined sync action (e.g. 3 sharp deliberate wrist snaps). This creates a sharp,
 co-observed feature for clock cross-correlation (reference §6.3). The fallback anchor is impact, but the
@@ -142,7 +148,7 @@ independent witness that prevents locking a sign to a possibly mis-zeroed HackMo
 ## 7. Data collection protocol
 
 ### 7.1 Paired swings
-Every Corpus-2 swing is **paired**: PinPoint and HackMotion record the *same shot simultaneously*. A swing
+Every Corpus-2 swing is **paired** ([AD-49](../controls/kinds-of-work.md)): PinPoint and HackMotion record the *same shot simultaneously*. A swing
 where one device dropped out is **not** a paired swing — recapture or relegate it to the Corpus-1-style
 robustness set.
 
@@ -191,7 +197,7 @@ forearm + hand pair. A PS disagreement may be a **genuine construct difference**
 ## 9. Markup & annotation plan
 
 - **`truth.json` (hand labels)** — inherit Corpus 1 §9: sparse P-positions on 10–15 paired swings, dense
-  on 2–3, inter-rater re-label on ~5, **labeller blinded** to analyzer output. (Hand labels remain
+  on 2–3, inter-rater re-label on ~5, **labeller blinded** to analyzer output ([AD-42](../controls/kinds-of-work.md)). (Hand labels remain
   independent of HackMotion — they validate the *vision/track* path, HackMotion validates the *wrist
   angles*; keep them separate streams of evidence.)
 - **`hackmotion.json`** — generated by **export + reconcile (§7.4)**, not hand-marked. The labelling-team
@@ -206,15 +212,15 @@ forearm + hand pair. A PS disagreement may be a **genuine construct difference**
 As Corpus 1 §10, with corpus root `<SwingData>/corpus-2/`. **`CORPUS.md` additionally records:**
 HackMotion firmware + export version, the co-mount order, the sync-action definition, the per-session
 static-pose record, and the **per-axis reconciliation transform** applied. Partition (Tune/Validation/
-Held-out) at blessing as before.
+Held-out) at blessing as before ([AD-39](../controls/kinds-of-work.md)).
 
 ---
 
 ## 11. Quality control & acceptance gates (per paired swing)
 
-Inherit Corpus 1 §11 (Tier-0 MUST gates), **plus the paired-capture gates:**
+Inherit Corpus 1 §11 (Tier-0 MUST gates; a failure is recaptured, [AD-40](../controls/kinds-of-work.md)), **plus the paired-capture gates:**
 
-**MUST (additional):**
+**MUST (additional; [AD-49](../controls/kinds-of-work.md)):**
 - [ ] HackMotion recorded the *same shot* (paired); export matched to the swing dir.
 - [ ] Sync action present and cross-correlation succeeded (lag resolved).
 - [ ] Co-mount perturbation check passed (PinPoint tracking unaffected by the glove sensor).

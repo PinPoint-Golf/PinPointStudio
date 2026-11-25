@@ -235,7 +235,7 @@ secret. Its **public** half lives in the repo, compiled in as the Qt resource
 `linux_appimage_backend.cpp` (`kPinnedKeyFpr`). At release time the maintainer produces a
 detached **`*.AppImage.sig`** with `gpg --detach-sign` (passphrase via the local
 agent) and uploads it; CI only builds the *unsigned* AppImage and stages a **draft**
-release. Step-by-step: [`../implementation/linux_release_runbook.md`](../implementation/linux_release_runbook.md).
+release. Step-by-step: [`../../governance/procedures/release-linux.md`](../../governance/procedures/release-linux.md).
 Rationale: this key is the pinned root of trust for auto-updates to every user, so
 keeping it off GitHub limits the blast radius of a CI/secret compromise.
 

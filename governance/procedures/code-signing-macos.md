@@ -7,8 +7,10 @@
 
 > This guide deliberately contains **no certificate names, Team IDs, or account
 > details**. Wherever a real identity is needed it is shown as a placeholder
-> (`<DEV_ID_APPLICATION>`, `<TEAM_ID>`, `<NOTARY_PROFILE>`). The actual values and
-> first-time account setup live in `docs/implementation/macos_release_runbook.md`.
+> (`<DEV_ID_APPLICATION>`, `<TEAM_ID>`, `<NOTARY_PROFILE>`). The actual values are in each
+> signing machine's local file; first-time account setup is
+> [`release-macos.md`](release-macos.md). The rules these steps carry out are the release
+> controls ([`controls/release.md`](../controls/release.md)); a step cites the control's id.
 
 ---
 
@@ -270,7 +272,7 @@ Release signing is for **other people's Macs**. It is driven end-to-end by
 
 ```sh
 # From Terminal.app on the machine (VNC/screen-share counts) — NOT over SSH.
-tools/setup_release_signing.sh --p12 ~/certs/pinpoint_developer_id.p12
+tools/setup_release_signing.sh --p12 <the Developer ID .p12, named in the machine's local file>
 ```
 
 `setup_release_signing.sh` imports the backed-up `.p12` into the login keychain,
@@ -281,16 +283,13 @@ passwords are read interactively — neither lands on disk or in argv. It **refu
 to run headless**, failing with an explanation rather than letting `codesign` die
 with `errSecInternalComponent` later.
 
-> **Import, never re-issue.** Minting a fresh Developer ID cert looks like it works
-> and quietly breaks two things: every existing user's TCC grants (keyed to a
-> designated requirement that names the signing cert) and Sparkle in-place updates
-> (a differently-signed build is a *different app* to Sparkle). Always import the
-> backed-up `.p12`.
+> **Import, never re-issue** ([BT-31](../controls/release.md)). Minting a fresh Developer ID cert looks like it
+> works and quietly breaks every existing user's TCC grants and Sparkle in-place updates.
 
 Note the asymmetry with the dev path, and that it is intentional: a password
 sitting on disk next to the key is the right trade for a throwaway self-signed
 cert (§4a) and the wrong one for a distribution key. So the release identity stays
-in the login keychain, and release signing runs in a desktop session.
+in the login keychain, and release signing runs in a desktop session ([BT-32](../controls/release.md)).
 
 ### Running the release build
 
@@ -360,7 +359,7 @@ let us drop this later.
 
 `allow-jit`, `allow-unsigned-executable-memory` and
 `allow-dyld-environment-variables` are deliberately **omitted** until a launch
-crash proves one is needed — add the minimum, never the set.
+crash proves one is needed ([BT-37](../controls/release.md)).
 
 > **Keep the file comment-free.** `codesign`'s AMFI parser rejects XML comments,
 > because an XML comment may not contain a double hyphen and any `--flag`
@@ -372,7 +371,7 @@ crash proves one is needed — add the minimum, never the set.
 
 ## 6. The ordering rule: sign last, never touch the bundle after
 
-**Any write into a `.app` after it is signed invalidates the signature.** macOS
+**Any write into a `.app` after it is signed invalidates the signature** ([BT-35](../controls/release.md)). macOS
 then treats the app as tampered — Gatekeeper rejects the release build, and TCC
 rejects the debug build's grants, exactly as if it were unsigned.
 
@@ -380,8 +379,8 @@ This is why both paths sign **last**:
 
 - **Debug**: `PinPointStudio_codesign` depends on `PinPointStudio_force_plist`,
   which force-copies `Info.plist` in as the final bundle mutation. Sign after the
-  plist, never before. If you add a new POST_BUILD step that writes into the
-  bundle, it **must** run before the codesign step or it will break the seal.
+  plist, never before. A new POST_BUILD step that writes into the bundle runs
+  before the codesign step ([BT-35](../controls/release.md)).
 - **Release**: `package_macos.sh` deploys Qt, relocates libraries, and copies the
   plist *before* the signing stage. Resources copied in after signing are the
   classic "notarization succeeded but the app is damaged" cause.
@@ -413,7 +412,7 @@ that's expected and fine; it only needs to satisfy TCC on your own machine.
 
 ## 8. Gotchas
 
-- **Modifying the bundle after signing invalidates the seal.** The single most
+- **Modifying the bundle after signing invalidates the seal** ([BT-35](../controls/release.md)). The single most
   common cause of both "permissions denied despite signed" and "notarized but
   damaged". Sign last. (§6)
 - **`security find-identity -v` hides self-signed certs.** `-v` means "valid
@@ -440,9 +439,7 @@ that's expected and fine; it only needs to satisfy TCC on your own machine.
   and `security find-identity -v` then reports **0 valid identities**, which looks
   like a bad export. Install the Developer ID G2 intermediate too —
   `setup_release_signing.sh` does. (§5)
-- **Never re-issue the Developer ID cert.** It resets every installed user's TCC
-  grants and breaks Sparkle in-place updates, because both key off the signing
-  identity. Import the backup. (§5)
+- **Never re-issue the Developer ID cert** ([BT-31](../controls/release.md)). Import the backup. (§5)
 - **Sparkle's nested code needs signing before the framework is sealed.** The XPC
   services, `Updater.app` and `Autoupdate` are not reached by a
   dylib/framework sweep, and the framework's seal references them — notarization
@@ -459,9 +456,8 @@ that's expected and fine; it only needs to satisfy TCC on your own machine.
 - **Debug and release are distinct TCC identities.** Granting permission to the
   signed release app does not grant it to your dev build, and vice versa — they
   have different designated requirements.
-- **Bundle id must stay constant** (`com.pinpoint-golf.pinpointstudio`). It is the
-  coarse key for the System Settings row and part of the designated requirement;
-  changing it orphans every existing grant.
+- **The bundle id stays constant** ([BT-36](../controls/release.md)). It is also the coarse key for the
+  System Settings row.
 
 ---
 
@@ -500,10 +496,10 @@ that's expected and fine; it only needs to satisfy TCC on your own machine.
 | `tools/package_macos.sh` | Release build → deploy → verify → sign → DMG → notarize → staple, for the host arch |
 | `packaging/macos/entitlements.plist` | Hardened-runtime entitlements (library-validation opt-out). Comment-free by necessity. |
 | `Info.plist.in` | Bundle id + `NS*UsageDescription` strings TCC shows in its prompts |
-| `docs/implementation/macos_release_runbook.md` | First-time account/cert/notary setup, the real identity values, and the per-arch release steps |
+| `governance/procedures/release-macos.md` | First-time account/cert/notary setup and the per-arch release steps (the real identity values are in each signing machine's local file) |
 
 ---
 
-*Related: `docs/implementation/macos_release_runbook.md` (release account setup),
-`docs/design/macos_update.md` (Sparkle auto-update), and the "Critical gotchas"
-section of `CLAUDE.md`.*
+*Related: [`release-macos.md`](release-macos.md) (release account setup),
+[`macos_update.md`](../../docs/design/macos_update.md) (Sparkle auto-update), and
+[`controls/release.md`](../controls/release.md) (the release controls).*

@@ -1,18 +1,20 @@
 # Validation — document index
 
 The pipeline validation, tuning & refinement programme. Read the reference first (the *why*), then the
-protocol for the corpus you are capturing (the *how*).
+protocol for the corpus you are capturing (the *how*). The protocols are procedures, kept in
+[`governance/procedures/`](../../governance/procedures/README.md); their rules are controls in
+[`kinds-of-work.md`](../../governance/controls/kinds-of-work.md).
 
 | Document | Role | Audience |
 |---|---|---|
 | [`release_status.md`](release_status.md) | **Release dashboard (generated)**: every metric's stage (planned, built, verified, validated), whether it is live, and its norm basis, with the release gaps listed. Regenerate with `python3 tools/metrics/gen_release_status.py` after any catalogue, fault-model, norm or evidence change (`--check` fails when stale, when a norm row's typed standing keys — `standing`, `decidedBy`, `decidedOn` — are malformed, or when `m_takeawayPlane` and `m_clubSlotTop` read different standings). Evidence lives in [`metric_evidence.json`](metric_evidence.json). | Product Owner, anyone judging progress to release |
 | [`pipeline_validation_and_tuning.md`](pipeline_validation_and_tuning.md) | **Reference / methodological backbone** — validity hierarchy, reliability≠agreement≠accuracy, per-stage V&V&T along the pipeline, the three-corpus progression, and **sample-size / statistical power** | analysts, reviewers, anyone deciding *what counts as proof* |
 | [`tunable_parameters_reference.md`](tunable_parameters_reference.md) | **Parameter catalog + developer guide** — every tunable knob (`seg./shaft./assembly./score./sampler./rules./bands./filter.*`), what each one moves, the statistic + N that validates it, and **how the injection + sweep machinery works in code** | analysts (Part I) + developers wiring a knob or running a sweep (Part II) |
-| [`corpus1_collection_protocol.md`](corpus1_collection_protocol.md) | **Corpus 1** capture protocol — IMU-only; internal consistency, reliability, known-groups (HackMotion = pilot) | data collection team |
-| [`corpus2_collection_protocol.md`](corpus2_collection_protocol.md) | **Corpus 2** capture protocol — IMU + HackMotion concurrent; criterion validity (locks signs, `A·M`, bands) | data collection team |
-| [`corpus3_collection_protocol.md`](corpus3_collection_protocol.md) | **Corpus 3** capture protocol — calibrated cameras + IMU + HackMotion verification, multi-golfer; external validity + camera metrics + coach/outcome | data collection team |
-| [`two_camera_capture_protocol.md`](two_camera_capture_protocol.md) | **Two-camera** capture protocol — face-on + down-the-line placed and levelled off floor sticks, card / stick / wand calibration clips, launch monitor on every swing, intent blocks that give path, thrust and ball reach a spread to be graded on | the operator (who is also the golfer) |
-| [`shaft_validation_protocol.md`](shaft_validation_protocol.md) | **Shaft tracker** V&V&T — *standalone, IMU-independent* (2D image-plane θ/head/length): capture spec, blinded markup, IMU-less SwingLab run, `shaft.*`/`assembly.*` sweep + K-flag A/B | analysts running the vision-only shaft programme |
+| [`corpus1_collection_protocol.md`](../../governance/procedures/corpus1_collection_protocol.md) | **Corpus 1** capture protocol — IMU-only; internal consistency, reliability, known-groups (HackMotion = pilot) | data collection team |
+| [`corpus2_collection_protocol.md`](../../governance/procedures/corpus2_collection_protocol.md) | **Corpus 2** capture protocol — IMU + HackMotion concurrent; criterion validity (locks signs, `A·M`, bands) | data collection team |
+| [`corpus3_collection_protocol.md`](../../governance/procedures/corpus3_collection_protocol.md) | **Corpus 3** capture protocol — calibrated cameras + IMU + HackMotion verification, multi-golfer; external validity + camera metrics + coach/outcome | data collection team |
+| [`two_camera_capture_protocol.md`](../../governance/procedures/two_camera_capture_protocol.md) | **Two-camera** capture protocol — face-on + down-the-line placed and levelled off floor sticks, card / stick / wand calibration clips, launch monitor on every swing, intent blocks that give path, thrust and ball reach a spread to be graded on | the operator (who is also the golfer) |
+| [`shaft_validation_protocol.md`](../../governance/procedures/shaft_validation_protocol.md) | **Shaft tracker** V&V&T — *standalone, IMU-independent* (2D image-plane θ/head/length): capture spec, blinded markup, IMU-less SwingLab run, `shaft.*`/`assembly.*` sweep + K-flag A/B | analysts running the vision-only shaft programme |
 
 **The three corpora build on each other** (tests are supersets): Corpus 2 runs Corpus 1's suite as a
 regression net and adds criterion agreement; Corpus 3 runs both and adds external validity + the camera

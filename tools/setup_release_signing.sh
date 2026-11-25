@@ -2,7 +2,7 @@
 #
 # setup_release_signing.sh — install the RELEASE credentials (Developer ID cert +
 # notarytool profile) on this Mac.  One-time setup; companion to
-# docs/implementation/macos_release_runbook.md Part 0 (§0.3a, §0.5).
+# governance/procedures/release-macos.md Part 0 (§0.3a, §0.5).
 #
 # ┌─ HOW THIS DIFFERS FROM setup_dev_signing.sh ────────────────────────────────┐
 # │ setup_dev_signing.sh builds a DEDICATED keychain with its password on disk,  │

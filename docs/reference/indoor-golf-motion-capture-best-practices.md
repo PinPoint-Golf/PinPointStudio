@@ -132,7 +132,7 @@ the single highest-leverage *optional* upgrade a studio can make:
   tape is the angle-tolerant fallback, at the cost of dark-arc coverage and
   white-on-white contrast over a bright mat. Visible-band illumination only
   (IR conflicts with launch monitors and IR-blind RGB pipelines).
-- **Materials and pattern** (full protocol: `docs/validation/instrumented_club_protocol.md`):
+- **Materials and pattern** (full protocol: `governance/procedures/instrumented_club_protocol.md`):
   thin glass-bead conformable retro tape, ~25 mm wide bands and gaps (sized to
   survive sensor bloom at typical capture scales), an asymmetric grip/mid/
   hosel layout, and — the step that converts visibility into *measurement* —

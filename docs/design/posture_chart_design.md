@@ -887,7 +887,7 @@ source, because the numbers come from the same producers and gates as the golfer
 **C. Calibrated cameras (the camera calibration thread, designed, not built).** These turn absolutes
 into numbers that travel. Until then:
 
-- The two-camera capture protocol (`docs/validation/two_camera_capture_protocol.md`: DTL camera on the
+- The two-camera capture protocol (`governance/procedures/two_camera_capture_protocol.md`: DTL camera on the
   hands line at hand height, levelled) is the one placement whose absolutes the chart will compare.
 - Setup bands (address bend, knee flex, arm hang) are seeded per club from Kim (5-iron 40.6 ± 2.7°)
   and GOLFTEC (driver shoulder bend 29°), and shown only on such captures.

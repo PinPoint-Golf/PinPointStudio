@@ -175,12 +175,12 @@ can consume — provable before the client exists, against a test key.
     on 6 July 2026. Re-check these dates against `actions/runner-images` before
     relying on them. Heavy FetchContent (whisper/ViTPose/ORT) makes the first run
     slow; validate with a test tag.
-- ☐ **`macos_release_runbook.md`** — the local sign+notarize+EdDSA flow (Path A: CI
+- ☐ **`release-macos.md`** — the local sign+notarize+EdDSA flow (Path A: CI
   draft → download DMG → `codesign`/`notarytool`/`stapler` → `make_appcast_mac.sh`
   sign+emit → verify (`spctl`, `sign_update --verify`) → upload appcast → publish;
   Path B: fully local). Covers sign-the-bytes-you-publish, the pin-must-already-ship
   bootstrap, never-publish-without-the-appcast, the `latest/download` non-prerelease
-  rule, and rollback. The mac sibling of `windows_release_runbook.md`.
+  rule, and rollback. The mac sibling of `release-windows.md`.
 - ☐ **Acceptance:** publish a release per the runbook; `appcast-mac.xml` validates,
   `sign_update --verify` passes against the pinned public key, the DMG is notarized.
   (End-to-end offer→install is exercised in S2·P3.)
@@ -269,7 +269,7 @@ NEW  src/Update/mac_sparkle_update.{h,mm}               (Sparkle shim: config/in
 NEW  src/Update/mac_sparkle_backend.{h,cpp}             (MacSparkleBackend: UpdateBackend over the shim) S2·P3
 NEW  src/Resources/keys/pinpoint_release_mac_eddsa.pub  (pinned Ed25519 public key)            S1·P2
 NEW  packaging/make_appcast_mac.sh                      (sign + emit appcast-mac.xml)          S1·P2
-NEW  docs/implementation/macos_release_runbook.md       (local sign+notarize release runbook)  S1·P2
+NEW  governance/procedures/release-macos.md       (local sign+notarize release runbook)  S1·P2
 EDIT Info.plist.in                                       (version ← version.h; Sparkle keys)    S1·P1/S2·P3
 EDIT CMakeLists.txt                                      (macdeployqt/dmg target; FetchContent
                                                           Sparkle; embed+link+sign; sources;

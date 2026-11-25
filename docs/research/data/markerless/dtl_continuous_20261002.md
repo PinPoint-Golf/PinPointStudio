@@ -3,7 +3,7 @@
 **Status:** results, 1 Oct 2026 (the doc is dated for the 2 Oct filing). Implements
 `docs/design/dtl_continuous_track_design_update.md` §3.1 in full, and builds the calibration and
 projection machinery §3.2 needs, behind flags, ahead of the protocol session
-(`docs/validation/two_camera_capture_protocol.md`), which **has not been recorded**.
+(`governance/procedures/two_camera_capture_protocol.md`), which **has not been recorded**.
 
 Every number below is reproducible from a run root under `/mnt/swingdata/scratch/dtl-continuous-20261002/`
 with the commands in §7 (`build/run-me/dtl-continuous-grade.sh` runs them). The `c_off` tree, proven

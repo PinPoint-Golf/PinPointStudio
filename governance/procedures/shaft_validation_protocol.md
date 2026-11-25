@@ -4,10 +4,11 @@
 **Scope:** the **2D image-plane** club-shaft track — angle θ, clubhead pixel, visible length — produced
 by `ShaftTracker` (`src/Analysis/shaft_*`). **No 3D plane / club-path** here (that needs calibrated
 cameras + new outputs; out of scope).
-**Reference (the "why"):** [`pipeline_validation_and_tuning.md`](pipeline_validation_and_tuning.md) §5.4
+**Reference (the "why"):** [`pipeline_validation_and_tuning.md`](../../docs/validation/pipeline_validation_and_tuning.md) §5.4
 (pose/shaft validation) and §3.4 (sample size). **Parameter catalog:**
-[`tunable_parameters_reference.md`](tunable_parameters_reference.md) §2.2. **Harness:** the `/swinglab`
+[`tunable_parameters_reference.md`](../../docs/validation/tunable_parameters_reference.md) §2.2. **Harness:** the `/swinglab`
 skill + `tools/swinglab` (`lab.py`, `swinglab_run`).
+**Controls:** the rules these steps carry out are controls in [`kinds-of-work.md`](../controls/kinds-of-work.md) (data and analysis work); a step cites the control's id.
 
 > **Why standalone.** In production the IMUs are on the **spine** (Pelvis/Thorax) — there is **no
 > club-mounted or lead-hand IMU**. The shaft tracker must therefore be accurate **from vision alone**, so
@@ -40,7 +41,7 @@ Sub-pixel **θ-RMSE** conclusions are **advisory on MP4** (compression smears th
 θ-RMSE capture a **raw subset** (`saveRawFrames` ON) of ~10–12 swings.
 
 **Stage-2 clubhead / length model rides this same corpus.** The exemplar
-([clubhead_detection_design.md](../design/clubhead_detection_design.md), stage-2 of the markup exemplar)
+([clubhead_detection_design.md](../../docs/design/clubhead_detection_design.md), stage-2 of the markup exemplar)
 consumes the same labels' `head`/`len` fields, scored by `tools/shaftlab/score_truth.py --head` (head px
 error, per-phase length error, conf honesty). Its gates at exemplar freeze: head meas-tier median
 **< 25 px** (same bar as `truth.head_median_px`), and **length-model form selection** — which this corpus
@@ -97,7 +98,7 @@ labelled swing may itself be off-plane and can never adjudicate the model form).
 
 Use the in-app **Markup panel** (`PpMarkupPanel`; session toolbar **View → Markup**) — it already labels
 the shaft line and P-positions; `lab.py label <swing>` is the headless fallback. Both write `truth.json`
-into the swing dir (the **only** file written into a swing dir post-capture; `swing.json` is immutable).
+into the swing dir (the only markup file written into a swing dir post-capture, [AD-44](../controls/kinds-of-work.md); `swing.json` is immutable).
 
 - **Place the club line** (click **grip → clubhead**) per labelled frame. The clubhead click IS the
   stage-2 ground truth (`head` px + `len` = |head−grip| land in truth.json automatically) — place it with
@@ -105,7 +106,7 @@ into the swing dir (the **only** file written into a swing dir post-capture; `sw
 - **Tag P-positions** including **P7 (impact)** — this is what supplies the run's impact instant.
 - **Sparse mode (primary):** label at the P-positions (~10/swing). **Dense mode:** 2–3 swings labelled
   every ~10th frame as a between-point θ(t) reference.
-- **Blinded:** label from raw video only — do **not** view the analyzer's recovered track first.
+- **Blinded** ([AD-42](../controls/kinds-of-work.md)): label from raw video only.
 
 `truth.json` shape (byte-compatible with `score.py`):
 `{"shaft":[{t_us,grip[px],head[px],theta,len}], "events":{p7_s,…,t0_us}, "meta":{…}}`.
@@ -162,10 +163,10 @@ Flip a flag default (in `src/Analysis/shaft_tracker.cpp`) only when its K5 gate 
 
 **Acceptance & freeze.** Keep a sweep value only if **mean ↑ AND `regressions: 0` per swing** AND the
 class bar: coverage ≥ 0.6 on ≥ 90 % of clean face-on swings; **θ-RMSE < 3° / head < 25 px** on the
-labelled set. Partition the search (sweep **Tune**, select **Validation**, touch **Held-out** once with
-`--freeze`). Freeze a locked value by editing the single literal in `src/Core/pp_tuned_constants.h`; the
+labelled set. Partition the search ([AD-39](../controls/kinds-of-work.md): sweep **Tune**, select **Validation**, touch **Held-out** once
+with `--freeze`). Freeze a locked value by editing the single literal in `src/Core/pp_tuned_constants.h`; the
 `tuned_constants_parity_test` proves byte-identity. **Always rebuild `swinglab_run` after any analysis C++
-change; never diff across hosts** (CPU vs CUDA pose differs).
+change; never diff across hosts** (CPU vs CUDA pose differs; [L-58](../guidance/lessons.md)).
 
 ---
 
@@ -186,7 +187,7 @@ change; never diff across hosts** (CPU vs CUDA pose differs).
   `lab.py`/`core.py`; `lab.py synth --no-imu` provides the deterministic camera-only fixture.
 - Markup already labels shaft line + P7 impact.
 - **Detector accuracy work** is tracked separately in
-  [`../implementation/shaft_detection_phase2_plan.md`](../implementation/shaft_detection_phase2_plan.md):
+  [`shaft_detection_phase2_plan.md`](../../docs/implementation/shaft_detection_phase2_plan.md):
   **Phase 1** (lead-arm plausibility sector, `shaft.useArmPlausibility`) is implemented + validated on one
   swing (fixes the address arm-as-club pick; detection 57→63 %); **Phase 2** (blur-line / line-integral
   wedge detector for the fast downswing) is designed and **corpus-gated**.

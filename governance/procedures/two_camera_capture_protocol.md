@@ -1,7 +1,8 @@
 # Two-camera capture protocol — calibrated face-on + down-the-line, with the launch monitor
 
 **Document type:** data-collection protocol (one operator, who is also the golfer).
-**Version:** 1.0 (2026-09-21) · **Owner:** Mark Liversedge.
+**Version:** 1.0 (2026-09-21) · **Owner:** Product Owner.
+**Controls:** the rules these steps carry out are controls in [`kinds-of-work.md`](../controls/kinds-of-work.md) (data and analysis work); a step cites the control's id.
 **Why:** `docs/design/shaft_fusion_design.md` §5 and `docs/design/dtl_posture_design.md` §6 — every
 number those two produced on 2026-09-21 is graded on repeatability alone, from a down-the-line
 camera that was behind the ball, above hand height, turned 4–9° toward the golfer, and moved
@@ -41,12 +42,12 @@ records what it will need so the solve can be done offline, and nothing here wai
 - A chair or a fifth stick in a holder, for §5 D.
 - Golf balls. If the mat is pale, a **darker hitting strip** under the ball for the DTL view (§3).
 
-⛔ **Instruments: never HackMotion and Witmotion together.** Neither is needed for this session.
+⛔ **Instruments: never HackMotion and Witmotion together** ([AD-10](../controls/product/analysis-and-data.md)). Neither is needed for this session.
 If rotation truth is wanted, do it as its own block at the very end (§5 H).
 
 ---
 
-## 2. Rig placement — do this first, then do not touch it
+## 2. Rig placement — do this first, then do not touch it ([AD-35](../controls/kinds-of-work.md))
 
 Lay the geometry on the floor **before** placing cameras; the sticks are what you aim at.
 
@@ -62,9 +63,9 @@ Lay the geometry on the floor **before** placing cameras; the sticks are what yo
    is the second parallel line the 07-04 footage did not have.
 
 **Down-the-line camera**
-- Tripod **over the extension of the hands-line stick**, behind you, as far back as the cabin
+- Tripod **over the extension of the hands-line stick**, behind you, as far back as the bay
   allows (every extra half-metre flattens perspective; write the distance down).
-- **Lens at hand height** — 0.90–1.00 m for you at address. Measure lens centre to mat.
+- **Lens at hand height** — the golfer's hand height at address. Measure lens centre to mat.
 - **Level** it: no roll, no pitch. Use the spirit level on the body. Pitch is the one bias the
   forward-bend number carries; zero it rather than correct it.
 - **Pan until the hands-line stick images VERTICAL and on the frame's CENTRE COLUMN** in the
@@ -77,7 +78,7 @@ Lay the geometry on the floor **before** placing cameras; the sticks are what yo
   (576 × 988) put the hands at the top 44–113 px below the top edge, 5–11 % of the frame, and the
   club was out of the picture from just after P3 to about P5 on every one of 31 swings: the
   tracker had nothing to see there and on five swings it drew the lead arm instead. The July
-  framing had the same fault. The rule: **with the club held at the top, the wrists must sit at
+  framing had the same fault. The rule ([AD-36](../controls/kinds-of-work.md)): **with the club held at the top, the wrists must sit at
   least one club length — as the club appears in the picture at address — below the top edge,
   and the clubhead must be visible at the top and at the finish in BOTH previews.** At today's
   distances a club is about a third of the frame height, so the wrists at the top belong in the
@@ -106,7 +107,7 @@ the clubhead at address, or your feet.
 
 **Then:** tighten everything, **tape the tripod feet positions on the floor**, and from here on
 touch no lens ring, no tripod and no camera setting until §6 is done. If anything is bumped,
-redo §4B and note the swing number it happened after.
+redo §4B and note the swing number it happened after ([AD-35](../controls/kinds-of-work.md)).
 
 ---
 
@@ -181,8 +182,7 @@ whether the camera could ever have seen it.
 ## 5. Swings
 
 Select the **actual club in the session wizard for every block** and change it when you change
-club — the July corpus says "DRIVER" on a taped 7-iron. LM connected and reading for all full
-swings. Keep the fifth stick and the chair out of frame except where used.
+club, with the LM connected and reading for all full swings ([AD-37](../controls/kinds-of-work.md)). Keep the fifth stick and the chair out of frame except where used.
 
 | Block | Club | Swings | Intent | What it grades |
 |---|---|---|---|---|
@@ -214,7 +214,7 @@ Open one swing from each block in the app and check:
 - [ ] the launch monitor reading is attached to the swing
 - [ ] the club label on the swing is the club you were holding
 - [ ] the end-of-session §4B/§4C clips are recorded
-- [ ] the rig sheet is filled in, photographed, and the photo is in the session folder
+- [ ] the rig sheet is filled in, photographed, and the photo is in the session folder ([AD-37](../controls/kinds-of-work.md))
 
 Then leave the floor tape down. If the cameras stay where they are, the next session needs only
 §4B, §4C and §4F.
@@ -261,7 +261,7 @@ Anything bumped, and after which swing: ________________________________________
    across block C. **That is the test that decides whether `clubPath` leaves "planned".**
 3. `tools/swinglab/dtl_posture_grade.py`: block D against its physical zero and its ±5 cm.
 4. `tools/swinglab/sequence_report.py` on block E, pair route on and off.
-5. Clubhead speed against the LM **less about 2 mph** (the GC Quad over-reads at 70–100 mph),
+5. Clubhead speed against the LM **less about 2 mph** (the GC Quad over-reads at 70–100 mph; [AD-33](../controls/kinds-of-work.md)),
    face-on as it is and de-projected through the fused plane, to settle why the uncorrected
    number is already nearly right.
 6. The card and wand clips are kept for the calibration thread's offline solve; nothing reads

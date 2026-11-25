@@ -366,7 +366,7 @@ tools/swinglab/lab.py                          # ingest / run / one / diff / swe
 tools/swinglab/src/swinglab_run.cpp            # offline runner (rebuild after any analysis C++ change; --refuse-orientation)
 docs/validation/pipeline_validation_and_tuning.md   # REFERENCE / backbone (3-corpus, sample size, per-stage V&V&T)
 docs/validation/tunable_parameters_reference.md     # parameter catalog + injection/sweep developer guide
-docs/validation/corpus1_collection_protocol.md      # Corpus-1 capture protocol (E1 re-fusion parity gate, HackMotion pilot)
+governance/procedures/corpus1_collection_protocol.md      # Corpus-1 capture protocol (E1 re-fusion parity gate, HackMotion pilot)
 docs/developer/swinglab_developer_guide.md     # harness reference
 docs/developer/swing_export_developer_guide.md # swing-dir / swing.json schema
 src/Core/pp_tuned_constants.h                  # FROZEN defaults — single freeze edit-point (seed/scoring/sampler/rules/mount)
