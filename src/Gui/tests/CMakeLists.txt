@@ -420,6 +420,19 @@ pp_add_test(notification_center_test
     INCLUDE ${GUI} ${SRC} ${SRC}/Core
     LINK    Qt6::Qml  AUTOMOC)
 
+# The AI Coach's cloud engine (src/LLM, beside the LLM controller in Gui/media): its request carries the
+# Gemini API key in the x-goog-api-key header and never in the address. Builds the request only; no
+# network manager, no network call, a made-up key. The test lives in src/LLM/tests.
+find_package(Qt6 REQUIRED COMPONENTS Network)
+pp_add_test(gemini_request_test
+    SOURCES ${SRC}/LLM/tests/gemini_request_test.cpp
+            ${SRC}/LLM/GeminiLlmEngine.h ${SRC}/LLM/GeminiLlmEngine.cpp
+            ${SRC}/LLM/LlmEngine.h       ${SRC}/LLM/LlmEngine.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${SRC}/LLM ${SRC}/Core
+    LINK    Qt6::Network  AUTOMOC)
+
 # MissedSwingNotice (#281's stopgap) — a launch-monitor reading discarded because its ball was struck while the
 # last shot was still analysing tells the golfer, once per swing; a paired reading never does. The real ShotPairing
 # makes every offer and the real NotificationCenter takes every notice, on a clock the test owns.

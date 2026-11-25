@@ -63,15 +63,7 @@ void GeminiLlmEngine::chat(const QVariantList &history, const QString &systemPro
     m_accumulated.clear();
     m_lineBuf.clear();
 
-    const QUrl url(QString::fromLatin1(kBaseUrl)
-                   + m_model
-                   + QStringLiteral(":streamGenerateContent?key=")
-                   + m_apiKey
-                   + QStringLiteral("&alt=sse"));
-
-    QNetworkRequest req(url);
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-
+    const QNetworkRequest req = buildRequest(m_model, m_apiKey);
     const QByteArray body = buildRequestBody(history, systemPrompt);
 
     m_reply = m_nam->post(req, body);
@@ -156,6 +148,21 @@ void GeminiLlmEngine::processLine(const QByteArray &line)
 
     m_accumulated += text;
     emit tokenReady(text);
+}
+
+QNetworkRequest GeminiLlmEngine::buildRequest(const QString &model, const QString &apiKey)
+{
+    // The key travels in the x-goog-api-key header, never in the address: Qt quotes the
+    // address in a failed reply's errorString(), which onFinished() writes to the app log,
+    // and an inspecting proxy can record it.
+    const QUrl url(QString::fromLatin1(kBaseUrl)
+                   + model
+                   + QStringLiteral(":streamGenerateContent?alt=sse"));
+
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    req.setRawHeader(QByteArrayLiteral("x-goog-api-key"), apiKey.toUtf8());
+    return req;
 }
 
 QByteArray GeminiLlmEngine::buildRequestBody(const QVariantList &history,
