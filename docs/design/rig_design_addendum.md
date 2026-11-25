@@ -26,6 +26,8 @@ Short names used in the evidence, all under `src/Gui/calibration/`: **TR** `Trun
 | 10 | What is a camera key with no `\|`, as the set-up tests write? (F32) | Nothing: the type gets no rule for it. The fixtures are re-keyed, and the copy keeps what it cannot type | C-5a.2, C-5b |
 | 11 | Is `#wide` a spelling of the device key? (PR-52; a call this page thinks was wrong to take without a ruling) | Yes: confirm it as built | none: it is built; C-1a's IM rows wait for their footnote |
 
+**Ruled (25 Nov 2026):** decisions 2, 4 and 9 as recommended[^r1125]. The Solution Architect's framing: the Rig is a collection of devices, as a session is a collection of shots. The other eight are below, unruled.
+
 **The order matters twice.** Decision 3's restore event and decision 7's "still calibrated" both read the Rig's record, so they assume decision 4. Decision 1's second half and decision 5 assume decision 4's "the driver performs, the device object commits". Each section says what changes if the earlier one is ruled otherwise.
 
 **What does not wait.** C-1b, C-2a, C-2b, C-4, C-6a.1, C-7b, C-8a and the three golden traces (C-9a to C-9c) depend on none of these.
@@ -581,3 +583,5 @@ The calls logged in PR-36, PR-45, PR-48, PR-50, PR-51, PR-52 and PR-53 were read
 [^rp7]: The same, §2, RP-7: "A procedure decides; a view shows. Thresholds, maths and step transitions are C++ that takes time and samples as inputs".
 [^ring]: IM §4: rings point inward only; `src/IMU`'s calibration headers are Rules, `src/Gui/imu` is Adapters.
 [^p]: IM §3, P3 (one writer) and P9 (the typed QML boundary); IM §10's "how a view reaches it".
+
+[^r1125]: The Solution Architect, 25 Nov 2026, in the platform refactor's coordination session.
