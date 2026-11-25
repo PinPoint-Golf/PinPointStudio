@@ -31,8 +31,8 @@ import "data/session_report/fixtures.js" as Fx
 //
 // For each fixture the register is laid out on an A4 sheet (794 × 1123 logical) and every page is stepped. It FAILS if:
 //   · any page's atoms reach past its room (they would cross the folio band — the pager clips an oversized atom);
-//   · any Text is truncated or elided, except the cover's fitted lines (§9.1 rule 3: they are marked `fitted`), or any
-//     Text's content is wider than its box or than the text width;
+//   · any Text is truncated or elided (nothing in print is cut with "…": typeset.md rule 3, the cover's lines included),
+//     or any Text's content is wider than its box or than the text width;
 //   · any page other than a section's last is less than a quarter full;
 //   · the cover is more than one page (page 2 must open a new section);
 //   · the page count is not the one recorded for the fixture (a change to it is a layout change: look at the pages);
@@ -47,6 +47,43 @@ Item {
     width: 794; height: 1123
 
     PpSessionReport { id: reg; width: 794; height: 1123 }
+
+    // #279 Q9: a galley whose second section starts part-way down a page (opacity, not `visible`: the pager skips
+    // invisible atoms)
+    PpPager {
+        id: secPager
+        width: 794; height: 1123; opacity: 0
+        roles: PpTypeset { medium: "print" }
+        Repeater {
+            id: secAtoms
+            model: 30
+            delegate: Item {
+                required property int index
+                width: 100; height: 70
+                property bool atom: true
+                property string section: index === 2 ? "Alpha" : index === 17 ? "Beta" : ""
+            }
+        }
+    }
+    // #279 Q9, a fresh page: atom 12 starts a new page (breakBefore) without naming a section, and "Beta" begins lower down it
+    PpPager {
+        id: freshPager
+        width: 794; height: 1123; opacity: 0
+        roles: PpTypeset { medium: "print" }
+        Repeater {
+            id: freshAtoms
+            model: 20
+            delegate: Item {
+                required property int index
+                width: 100; height: 70
+                property bool atom: true
+                property bool breakBefore: index === 12
+                property string section: index === 0 ? "Alpha" : index === 14 ? "Beta" : ""
+            }
+        }
+    }
+    // #279 Q2: the Session diagnostics print register with the app's own aesthetic (printAesthetic "")
+    PpDiagPrint { id: diagPrint; width: 794; height: 1123; opacity: 0 }
 
     TestCase {
         id: tc
@@ -142,7 +179,7 @@ Item {
             for (const t of texts(gal, [], false)) {
                 if (t.text === "") continue
                 const what = name + ": \"" + String(t.text).slice(0, 48) + "\""
-                if (t.fitted !== true) verify(!t.truncated, what + " is truncated outside the cover")
+                verify(!t.truncated, what + " is truncated")
                 if (t.width > 0) verify(t.contentWidth <= t.width + 1.5, what + " is wider than its box (" + Math.round(t.contentWidth) + " > " + Math.round(t.width) + ")")
                 const x = t.mapToItem(gal, 0, 0).x
                 verify(x >= -1.5 && x + Math.max(t.width, t.contentWidth) <= textW + 1.5, what + " leaves the text width")
@@ -772,6 +809,91 @@ Item {
                 for (let i = 0; i < a[k].length; ++i) compare(b[k][i], a[k][i], "delivery page " + (pages[k] + 1) + " item " + i + " changed with the app theme")
             }
         }
+        // #279 Q9 (typeset.md, Print; PpPager.md): a page's running section label names the section the page STARTS in —
+        // the last section begun at or above the page's top, read off the atoms' own positions (before any section: the
+        // first the page begins) — never one that begins lower down the page. The galley opens with front matter and is
+        // built so one page holds such a start (checked, so the test is never vacuous).
+        function test_20_theFolioNamesTheSectionThePageStartsIn() {
+            secPager.repaginate()
+            tryVerify(() => !secPager.paginating && secPager.pageCount > 2, 5000, "the galley paginates")
+            const heads = []
+            for (let i = 0; i < secAtoms.count; ++i) { const it = secAtoms.itemAt(i); if (it.section !== "") heads.push({ top: it.y, name: it.section }) }
+            let crossed = 0
+            for (let p = 0; p < secPager.pages.length; ++p) {
+                const pg = secPager.pages[p]
+                let want = ""
+                for (const h of heads) if (h.top <= pg.from + 0.5) want = h.name
+                if (want === "") { const h = heads.find(h => h.top >= pg.from - 0.5 && h.top < pg.to); if (h) want = h.name }
+                if (heads.some(h => h.top > pg.from + 0.5 && h.top < pg.to)) crossed++
+                compare(pg.section, want, "page " + (p + 1) + " names the section it starts in")
+            }
+            verify(crossed > 0, "some page starts in one section and begins another")
+        }
+
+        // #279 Q9 (typeset.md, Print; review REVIEW-279 option a): a page that starts FRESH (its first atom breaks before it)
+        // with no section of its own is still inside the section it carries: its folio names that section, never "" and
+        // never one that begins lower down the page. The oracle reads the atoms' own breakBefore, section and position: the
+        // last section begun above the page; the galley holds such a page (checked).
+        function test_22_aFreshPageNamesTheSectionItCarries() {
+            freshPager.repaginate()
+            tryVerify(() => !freshPager.paginating && freshPager.pageCount > 1, 5000, "the galley paginates")
+            const atoms = []
+            for (let i = 0; i < freshAtoms.count; ++i) { const it = freshAtoms.itemAt(i); atoms.push({ top: it.y, section: it.section, fresh: it.breakBefore }) }
+            let checked = 0
+            for (let p = 0; p < freshPager.pages.length; ++p) {
+                const pg = freshPager.pages[p]
+                const first = atoms.find(a => Math.abs(a.top - pg.from) < 0.5)
+                verify(!!first, "page " + (p + 1) + " starts on an atom")
+                if (!first.fresh || first.section !== "") continue
+                let carried = ""
+                for (const a of atoms) if (a.section !== "" && a.top < pg.from - 0.5) carried = a.section
+                verify(carried !== "", "the fresh page " + (p + 1) + " is inside a section")
+                compare(pg.section, carried, "the fresh page " + (p + 1) + " names the section it carries")
+                checked++
+            }
+            verify(checked > 0, "some page starts fresh without naming a section")
+        }
+
+        // #279 Q9, the case that made the rule: in the launch monitor appendix each club after the first starts a fresh
+        // page (PpLmAppendix: breakBefore, no section). With two clubs, every page from the section's head to the end of
+        // the client pages is the Launch monitor's, so every one of their folios names it.
+        function test_23_eachLaunchMonitorClubPageNamesItsSection() {
+            const m = JSON.parse(JSON.stringify(Fx.maps["launch-monitor-appendix"]))
+            const f0 = m.lmAppendix.figures[0]
+            m.lmAppendix.figures.push(Object.assign({}, f0, { key: f0.key + " (2)", name: "6 iron" }))
+            loadMap(m, "lm-two-clubs")
+            const info = reg.pageInfo()
+            const first = info.findIndex(p => p.section === "Launch monitor")
+            verify(first >= 0, "the Launch monitor section has a page")
+            let fresh = 0
+            for (let p = first; p < info.length; ++p) {
+                compare(info[p].section, "Launch monitor", "page " + (p + 1) + " of the Launch monitor section names it")
+                if (p > first && info[p].cont === "") fresh++
+            }
+            verify(fresh > 0, "a later club starts a fresh page")
+        }
+
+        // #279 Q2 (typeset.md, house rule 10): print is the light palette on white whatever the app shows. The diagnostics print
+        // with no fixed aesthetic draws in its own aesthetic's LIGHT inks (the theme table's data) in a dark theme, and
+        // keeps that aesthetic's type.
+        function test_21_theDiagnosticsPrintIsLightInADarkTheme() {
+            let pager = null
+            const walk = it => { if (!it || pager) return; if (it.pages !== undefined && it.roles !== undefined) { pager = it; return }; for (const k of it.children || []) walk(k) }
+            walk(diagPrint)
+            verify(!!pager, "the print has its pager")
+            for (const idx of [1, 7, 13]) {
+                Theme.themeIndex = idx
+                wait(20)
+                verify(Theme.dark, "theme " + idx + " is dark")
+                const light = Theme._themes[Theme.aesthetic].light
+                const ro = pager.roles
+                verify(Qt.colorEqual(ro.ink, light.colorText), Theme.aesthetic + " dark: ink is the light palette's (" + ro.ink + " vs " + light.colorText + ")")
+                verify(Qt.colorEqual(ro.ink3, light.colorText3), Theme.aesthetic + " dark: ink3 is the light palette's")
+                verify(Qt.colorEqual(ro.warn, light.colorWarn), Theme.aesthetic + " dark: warn is the light palette's")
+                compare(ro.r.textFamily, Theme.typeset.textFamily, Theme.aesthetic + ": the print keeps the aesthetic's type")
+            }
+        }
+
         // the appendix too: its tables (Folio light from the register) and the launch monitor panel's own figures,
         // embedded with their fixed aesthetic, on every appendix page
         function test_05_theLaunchMonitorAppendixIgnoresTheAppTheme() {

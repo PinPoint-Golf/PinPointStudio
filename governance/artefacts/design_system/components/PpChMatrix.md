@@ -16,6 +16,8 @@ Not for: a table of long rows with a column per field (`PpTableRow` in the app's
 
 Setting `columns` chooses the rectangle. Every word comes from the presenter; the component writes none.
 
+A row's name that does not fit its column wraps, in both forms, and the row grows to it; nothing is cut with "…"[^q1].
+
 ## Props
 | name | type | default | meaning |
 |---|---|---|---|
@@ -71,3 +73,5 @@ PpChMatrix {
 
 ## Used by
 `charts/PpChartsRelationsView.qml` (the family), `diagnostics/PpConsistencyView.qml` and `report/PpConsistencyPage.qml` (the rectangle).
+
+[^q1]: Design Lead, 25 Nov 2026 (#279, Q1 of #195's §15 fold; `typeset.md`, house rule 3). Before, the rectangle's row names were cut with "…".

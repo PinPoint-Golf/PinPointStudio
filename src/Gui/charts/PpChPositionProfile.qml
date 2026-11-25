@@ -74,7 +74,7 @@ Item {
     property real gapU: 12
     property real bandW: 0.68                    // the band's width, of a column
     property bool metricWash: true               // the band in the row's metric colour (else the chart wash)
-    property bool elide: true                    // a head's name and a cell's word elide (else run on)
+    property bool wrapWords: true                // a head's name and a cell's word wrap (else run on, as the wrist's do)
     property bool poleWrap: true                 // the pole word wraps in its gutter
     property string gradeLayer: "technical"      // the consistency badges' layer (ROW.grades): the Charts screens' own
 
@@ -90,11 +90,63 @@ Item {
     readonly property real colW: plotW / 8
     readonly property bool tagNames: ok && colW >= roles.u(78)
     readonly property bool longWords: ok && colW >= roles.u(96)
-    readonly property real headH: ok ? roles.u(tagNames ? 36 : 22) : 22
+    // NOTHING IS CUT WITH "…" (typeset.md rule 3): a head's name, a cell's word and its ⚠ words wrap, and the heads, the
+    // numbers and the second reading take the height their longest text needs, measured from the data in the faces they
+    // are set in (as PpChMatrix measures its words), so every column of the grid keeps one height
+    FontMetrics { id: fmSmall; font: pf.ok ? pf.roles.fSmall : Qt.application.font }
+    FontMetrics { id: fmMicro; font: pf.ok ? pf.roles.fMicro : Qt.application.font }
+    FontMetrics { id: fmFig;   font: pf.ok ? pf.roles.fFigS : Qt.application.font }
+    // the lines `t` wraps to in `w` (Text.Wrap: at a space, else anywhere)
+    function _lines(fm, t, w) {
+        if (!t || !fm.font) return 0
+        const sp = fm.advanceWidth(" ")
+        let n = 1, cur = 0
+        for (const word of String(t).split(" ")) {
+            let ww = fm.advanceWidth(word)
+            if (cur > 0 && cur + sp + ww <= w) { cur += sp + ww; continue }
+            if (cur > 0) { n++; cur = 0 }
+            while (ww > w && w > 0) { n++; ww -= w }
+            cur = ww
+        }
+        return n
+    }
+    readonly property real cellW: colW - (ok ? roles.u(4) : 4)
+    function wordOf(c) { return (longWords || c.wordShort === undefined ? c.word : c.wordShort) || "" }
+    readonly property real _nameH: {
+        if (!ok || !tagNames) return 0
+        let n = 0
+        for (const p of positions || []) n = Math.max(n, wrapWords ? _lines(fmMicro, p.name || "", colW - roles.u(6)) : 1)
+        return n * fmMicro.height
+    }
+    readonly property real headH: ok ? (tagNames ? Math.max(roles.u(36), roles.u(2) + fmSmall.height + _nameH + roles.u(6)) : roles.u(22)) : 22
     readonly property real plotH: ok ? roles.u(plotU) : plotU
-    readonly property real numH: ok ? roles.u(numU) : numU
+    readonly property real numH: {
+        if (!ok) return numU
+        let h = 0
+        for (const r of rowsN) {
+            if (r.numbersOnly) continue
+            for (const c of r.cells || []) {
+                const why = !!c.trust
+                h = Math.max(h, roles.u(5) + _lines(why ? fmSmall : fmFig, why ? (c.text || "") + " ›" : (c.text || "x"), cellW) * (why ? fmSmall : fmFig).height
+                                + (wrapWords ? _lines(fmSmall, wordOf(c), cellW) : wordOf(c) !== "" ? 1 : 0) * fmSmall.height
+                                + (c.warned === true ? _lines(fmSmall, c.warnText || "", cellW) * fmSmall.height : 0))
+            }
+        }
+        return Math.max(roles.u(numU), Math.ceil(h))
+    }
     readonly property real rowGap: ok ? roles.g(gapU) : Theme.gap(gapU)
-    readonly property real altH: ok ? roles.u(40) : 40     // the second reading's line (ROW.hasAlt)
+    // the second reading's line (ROW.hasAlt)
+    readonly property real altH: {
+        if (!ok) return 40
+        let h = 0
+        for (const r of rowsN) {
+            if (!r.hasAlt || r.numbersOnly) continue
+            for (const c of r.cells || [])
+                if (c.alt === true)
+                    h = Math.max(h, _lines(fmSmall, c.altText || "", cellW) * fmSmall.height + _lines(fmMicro, c.altWarnText || "", cellW) * fmMicro.height)
+        }
+        return Math.max(roles.u(40), Math.ceil(h))
+    }
     function cx(i) { return plotX + (i + 0.5) * colW }
     readonly property real aboveH: sideLabel || !ok ? 0 : roles.u(22)
     function rowH(r) { return !ok ? 0 : aboveH + (r.numbersOnly ? roles.u(24) : plotH + numH) + rowGap + (r.hasAlt ? altH : 0) }
@@ -124,8 +176,7 @@ Item {
                 Text { width: parent.width; horizontalAlignment: Text.AlignHCenter
                        text: ch.tag + (ch.on ? "  now" : ""); font: ch.on ? pf.roles.fSmallM : pf.roles.fSmall
                        color: ch.on ? pf.roles.ink : (ch.modelData.available ? pf.roles.ink2 : pf.roles.ink3) }
-                Text { visible: pf.tagNames; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.NoWrap
-                       elide: pf.elide ? Text.ElideRight : Text.ElideNone
+                Text { visible: pf.tagNames; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: pf.wrapWords ? Text.Wrap : Text.NoWrap
                        text: ch.modelData.name || ""; font: pf.roles.fMicro; color: pf.roles.ink3 }
             }
             MouseArea {
@@ -343,12 +394,11 @@ Item {
                                         onClicked: pf.trustClicked(nc.c.trust) }
                             Rectangle { visible: nc.outside; anchors.horizontalCenter: parent.horizontalCenter; y: parent.height - 1; width: parent.contentWidth; height: 1; color: rw.ty.warn }
                         }
-                        Text { visible: text !== ""; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.NoWrap
-                               elide: pf.elide ? Text.ElideRight : Text.ElideNone
-                               text: (pf.longWords || nc.c.wordShort === undefined ? nc.c.word : nc.c.wordShort) || ""
+                        Text { visible: text !== ""; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: pf.wrapWords ? Text.Wrap : Text.NoWrap
+                               text: pf.wordOf(nc.c)
                                font: rw.ty.fSmall; color: nc.outside ? rw.ty.warn : rw.ty.ink3 }
                         Text { objectName: pf.prefix + "Warn"; visible: nc.warned; width: parent.width; horizontalAlignment: Text.AlignHCenter
-                               wrapMode: Text.NoWrap; elide: Text.ElideRight
+                               wrapMode: Text.Wrap
                                text: nc.c.warnText || ""; font: rw.ty.fSmall; color: rw.ty.ink2 }
                     }
                 }
@@ -366,10 +416,10 @@ Item {
                                readonly property string tag: ac.c.tag || ""
                                readonly property string rowKey: rw.key
                                readonly property bool warned: !!ac.c.altWarnText
-                               width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.NoWrap; elide: Text.ElideRight
+                               width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap
                                text: ac.c.altText || ""; font: rw.ty.fSmall; color: ac.c.altAvailable ? rw.ty.ink2 : rw.ty.ink3 }
                         Text { objectName: pf.prefix + "AltWarn"; visible: !!ac.c.altWarnText; width: parent.width; horizontalAlignment: Text.AlignHCenter
-                               wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
+                               wrapMode: Text.Wrap
                                text: ac.c.altWarnText || ""; font: rw.ty.fMicro; color: rw.ty.ink3 }
                     }
                 }

@@ -16,6 +16,7 @@ Not for: screen scrolling (`PpViewFlick`), or a single fixed printed page that n
 - **Atoms:** any item with `atom: true` (a table row, an entry, a figure, a note, a section head); a library block (it has `keyKinds`) with no atoms inside is one atom; plain containers are walked; invisible or zero-height items are skipped.
 - **Keeps:** `keepNext` binds an atom to the next (heads travel with what follows); `keepPrev` binds a footnote to its table; `breakBefore` starts a new page.
 - **Continued:** a page that continues a section repeats its heading as "<section>, continued" (named by a PpSectionHead, or any block with a `section` property).
+- **The folio's section:** each page's `section` (what PpFolio prints before "Page n of N") is the section the page starts in: its first atom's, else the one carried from the page before (a page that starts fresh with no section of its own, such as a launch monitor club after the first, is still inside it), even when a new section starts lower down the page; the first page, when it opens on front matter, names the first section it begins[^q9].
 - **Repeating heads:** a block with a non-empty `printGroup` names a list; its first atom is the list's head and is redrawn at its true height (a live 2× ShaderEffectSource) on a page that opens part-way through the list.
 - **No stranded pages:** when a keep-chain would leave a page less than `minFill` full, it may break inside a list (never between a head and its first item); a list cut carries at least `minWidow` atoms over unless that is already a quarter page; `minTail` (opt-in) keeps a section's last page at least that share full.
 - An atom taller than a page overflows honestly: clipped at the foot, never split.
@@ -58,3 +59,5 @@ PpPager {
 
 ## Used by
 `diagnostics/PpDiagPrint.qml` (Session diagnostics print) and `report/PpSessionReport.qml` (the session report, with `minTail: 0.25`; it paints over the pager's furniture and draws its own).
+
+[^q9]: §15.9's rule, kept by the Design Lead, 25 Nov 2026 (#279, Q9 of #195's §15 fold); before, the folio named the last section starting on the page.

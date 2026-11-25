@@ -325,7 +325,8 @@ Column {
                             width: la.width; height: isSub ? 22 : (hasMark ? cr.u(16) + mark.height + cr.g(3) : 19)
                             Rectangle { visible: !tr.isSub; anchors.fill: parent; color: tr.index % 2 ? "transparent" : Qt.alpha(la.ro.ink, 0.03) }
                             Text { visible: tr.isSub; y: 7; text: tr.modelData.sub || ""; font: la.ro.fLabel; color: la.ro.ink3 }
-                            Text { visible: !tr.isSub; x: 0; y: 3; width: fit.cols[0]; text: tr.modelData.label || ""; font: la.ro.fItem; color: la.ro.ink; elide: Text.ElideRight }
+                            // column 0 is measured to the widest label (measure, above), so a label never needs cutting; never "…"
+                            Text { visible: !tr.isSub; x: 0; y: 3; width: fit.cols[0]; text: tr.modelData.label || ""; font: la.ro.fItem; color: la.ro.ink }
                             Text { visible: !tr.isSub; x: fit.xOf(1); y: 4; width: fit.cols[1]; text: tr.modelData.unit || ""; font: la.ro.fMicro; color: la.ro.ink3 }
                             Repeater {
                                 model: tr.isSub ? [] : (tr.modelData.cells || [])

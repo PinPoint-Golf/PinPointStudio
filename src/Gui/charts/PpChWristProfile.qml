@@ -38,7 +38,7 @@ PpChPositionProfile {
     objectName: "chWristProfile"
     prefix: "chWrist"
     labelU: 200; poleU: 62; plotU: 96; numU: 36; gapU: 14; bandW: 0.64
-    metricWash: false; elide: false; poleWrap: false
+    metricWash: false; wrapWords: false; poleWrap: false
     // ChartsWristPresenter's ROW → the profile's ROW (PpChPositionProfile's header)
     rowOf: function (r, m) {
         const session = m === "session", no = r.numbersOnly === true

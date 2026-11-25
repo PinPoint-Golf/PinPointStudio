@@ -129,7 +129,7 @@ Column {
             width: mx.tableW; height: Math.max(mx.rowH, rn.implicitHeight + mx.roles.u(6))
             Text { visible: mx.family; width: Math.round(1.6 * mx.em); horizontalAlignment: Text.AlignRight; anchors.verticalCenter: parent.verticalCenter; text: String(rw.index + 1); font: mx.roles.fFigLabel; color: mx.roles.ink3 }
             Text { id: rn; x: mx.indent; width: mx.nameW - mx.roles.u(6); anchors.verticalCenter: parent.verticalCenter
-                   wrapMode: mx.family ? Text.WordWrap : Text.NoWrap; elide: mx.family ? Text.ElideNone : Text.ElideRight
+                   wrapMode: Text.Wrap                                     // a long name wraps and its row grows; never "…" (typeset.md rule 3)
                    text: rw.modelData.name; font: mx.roles.fSmall; color: mx.roles.ink }
             Repeater {
                 model: rw.modelData.cells

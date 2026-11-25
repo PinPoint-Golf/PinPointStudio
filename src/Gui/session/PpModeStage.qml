@@ -30,7 +30,7 @@
 // more thing on the card's heading row through `readonly property string cardAside`; a panel
 // also used outside the stage carries `property bool framed` and is told here that it is
 // framed already. In tabs the tab strip IS the card's heading, and the card takes the
-// selected panel's tone.
+// selected panel's tone; the selected tab's rule is ink whatever that tone (typeset.md, "Inside a stage panel").
 
 pragma ComponentBehavior: Bound
 
@@ -450,7 +450,8 @@ Item {
     }
 
     // The tab strip, as a card heading: Micro labels, the selected one in colorText over a 2 px
-    // rule in that panel's tone. The labels are the cards' own titles, so a panel reads the same
+    // rule in ink (colorText), whatever the panel's tone: a warn rule would spend "out" on chrome (Design Lead,
+    // 25 Nov 2026, #279). The labels are the cards' own titles, so a panel reads the same
     // whether it is a tab or a card of its own.
     Component {
         id: tabStrip
@@ -477,7 +478,7 @@ Item {
                         visible: tab.sel
                         anchors.bottom: parent.bottom
                         width: parent.width; height: 2; radius: 1
-                        color: stage._toneFor(tab.modelData.tone)
+                        color: Theme.colorText
                     }
                     // A Micro label is a small target; the hit area reaches past it.
                     MouseArea {

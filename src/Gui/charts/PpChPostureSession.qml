@@ -164,13 +164,14 @@ PpChSection {
                     readonly property string depId: modelData.id || ""
                     readonly property string conditionId: (modelData.conditionIds || [])[0] || ""
                     readonly property bool opens: ss.canOpen && conditionId !== ""
-                    width: ss.width; height: ss.roles.u(26)
+                    // a long name or detail wraps and the row grows; never "…" (typeset.md rule 3)
+                    width: ss.width; height: Math.max(ss.roles.u(26), Math.max(dn.height, dd.height) + ss.roles.u(12))
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: ss.roles.hw; color: ss.roles.hair }
-                    Text { id: dn; y: ss.roles.u(4); width: Math.min(implicitWidth, parent.width * 0.6); elide: Text.ElideRight
+                    Text { id: dn; y: ss.roles.u(4); width: Math.min(implicitWidth, parent.width * 0.6); wrapMode: Text.Wrap
                            text: dr.modelData.name || ""; font: dr.opens ? ss.roles.fSmallL : ss.roles.fSmallM; color: dr.opens ? ss.roles.link : ss.roles.ink
                            MouseArea { anchors.fill: parent; enabled: dr.opens; cursorShape: Qt.PointingHandCursor
                                        onClicked: if (ss.body) ss.body.openCondition(dr.conditionId) } }
-                    Text { x: dn.x + dn.width + ss.roles.u(12); y: ss.roles.u(4); width: parent.width - x; elide: Text.ElideRight
+                    Text { id: dd; x: dn.x + dn.width + ss.roles.u(12); y: ss.roles.u(4); width: parent.width - x; wrapMode: Text.Wrap
                            text: dr.modelData.detail || ""
                            font: ss.ok ? ss.roles.fSmall : Qt.application.font; color: ss.ok ? ss.roles.ink2 : "grey" }
                 }

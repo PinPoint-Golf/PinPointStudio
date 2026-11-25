@@ -154,7 +154,8 @@ Column {
             readonly property bool soft: !!r && r.soft === true
             readonly property string softWord: soft ? (r.softWord || "") : ""
             readonly property bool two: !pt.wideCols || (r && (r.fired || r.caution)) || badged || softWord !== ""
-            readonly property real line1: Math.max(pt.roles.u(24), name.implicitHeight + pt.roles.u(8))
+            // a gated value's words wrap like the name, never "…" (typeset.md rule 3), and the line takes the taller
+            readonly property real line1: Math.max(pt.roles.u(24), name.implicitHeight + pt.roles.u(8), valT.gated ? valT.implicitHeight + pt.roles.u(8) : 0)
             // line 2 holds the facts and the badge: on one line when both fit, else the second under the first
             readonly property real factsH: facts.implicitWidth > 0 ? facts.implicitHeight : 0
             readonly property real badgeH: badged ? vbadge.implicitHeight : 0
@@ -185,7 +186,7 @@ Column {
                        objectName: gated ? "chProfileWhy:" + row.r.trustSubject : ""
                        width: gated ? pt.valW + pt.gap + pt.unitW : pt.valW
                        horizontalAlignment: gated ? Text.AlignLeft : Text.AlignRight; anchors.baseline: name.baseline
-                       elide: gated ? Text.ElideRight : Text.ElideNone
+                       wrapMode: gated ? Text.Wrap : Text.NoWrap
                        text: row.r ? (row.r.valueText + (gated ? " ›" : "")) : "-"; font: gated ? pt.roles.fSmall : pt.roles.fFig
                        color: gated ? pt.roles.link : row.r && row.r.fired ? pt.roles.warn : row.r && row.r.measured ? (row.soft ? pt.roles.ink2 : pt.roles.ink) : pt.roles.ink3 }
                 Text { visible: !valT.gated; width: pt.unitW; text: row.r ? (row.r.unitText || "") : ""; font: pt.roles.fSmall; color: pt.roles.ink3; anchors.baseline: name.baseline }

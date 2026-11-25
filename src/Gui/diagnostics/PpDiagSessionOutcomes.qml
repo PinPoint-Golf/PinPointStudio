@@ -195,14 +195,14 @@ Column {
                         Text {
                             width: so.mixClubW
                             anchors.verticalCenter: parent.verticalCenter
-                            elide: Text.ElideRight
+                            wrapMode: Text.Wrap             // a long club name wraps and the row grows; never "…"
                             text: mixRow.index === 0 ? (clubBlock.modelData.club || "") : ""
                             font: so.roles.fSmall; color: so.roles.ink2
                         }
                         Text {
                             width: so.mixFactorW
                             anchors.verticalCenter: parent.verticalCenter
-                            elide: Text.ElideRight
+                            wrapMode: Text.Wrap
                             text: mixRow.modelData.label
                             font: so.roles.fSmall; color: so.roles.ink3
                         }

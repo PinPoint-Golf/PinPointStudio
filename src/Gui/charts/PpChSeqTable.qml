@@ -143,7 +143,8 @@ Column {
             spacing: st.roles ? st.roles.g(3) : Theme.gap(3)
             Item {
                 width: parent.width
-                height: line.implicitHeight
+                // a gap note too long for the line wraps under itself and the line grows; never "…" (typeset.md rule 3)
+                height: Math.max(line.implicitHeight, gapText.visible ? gapText.y + gapText.height : 0)
                 // The marks' face, unseen, so the marks' row can sit on the line's baseline.
                 Text { id: markProbe; visible: false; text: "✓"; font: st.roles ? st.roles.fFig : Qt.application.font }
                 Row {
@@ -172,7 +173,7 @@ Column {
                         y: line.baselineOffset - baselineOffset
                         visible: text !== ""
                         width: Math.max(0, Math.min(implicitWidth, chk.width - x))
-                        elide: Text.ElideRight
+                        wrapMode: Text.Wrap
                         text: chk.cs ? (chk.cs.gapNote || "") : ""
                         font: st.roles ? st.roles.fSmall : Qt.application.font; color: st.roles ? st.roles.ink3 : "grey"
                     }
@@ -187,7 +188,7 @@ Column {
                     Text { width: st.roles.u(14); horizontalAlignment: Text.AlignHCenter; text: modelData.mark
                            font: st.roles.fFigS; color: chk.ink(modelData.state) }
                     Text { width: chk.labelW; text: modelData.label; font: st.roles.fSmall; color: st.roles.ink }
-                    Text { width: Math.max(0, chk.width - chk.labelW - st.roles.u(14) - 2 * st.roles.g(8)); elide: Text.ElideRight
+                    Text { width: Math.max(0, chk.width - chk.labelW - st.roles.u(14) - 2 * st.roles.g(8)); wrapMode: Text.Wrap
                            text: modelData.detail; font: st.roles.fSmall; color: st.roles.ink3 }
                 }
             }

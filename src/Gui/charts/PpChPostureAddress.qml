@@ -112,10 +112,12 @@ Column {
             readonly property color ink2: pr ? ad.ro.ink2 : ty.ink2
             readonly property color ink3: pr ? ad.ro.ink3 : ty.ink3
             readonly property real laneNameX: ad.plotX + ad.plotW + (pr ? 6 : ty.u(8))
+            // why there is no history wraps, never "…" (typeset.md rule 3): what overhangs its lane moves the figures down
+            readonly property real whyOver: noHist.visible ? Math.max(0, noHist.height - ad.laneH) : 0
             width: ad.width
             // `ad` reads null while a printed report tears the block down: no height then, no TypeError
-            height: !ad ? 0 : pr ? Math.max(labCol.height + 6, topY + plotH + ad.laneGap + figs.height + (warnT.visible ? warnT.height + 1 : 0) + 8)
-                       : Math.max(ad.sideLabel ? labCol.height : 0, topY + plotH + ty.u(4) + figs.height + (warnT.visible ? warnT.height + ty.u(2) : 0) + ty.u(6))
+            height: !ad ? 0 : pr ? Math.max(labCol.height + 6, topY + plotH + whyOver + ad.laneGap + figs.height + (warnT.visible ? warnT.height + 1 : 0) + 8)
+                       : Math.max(ad.sideLabel ? labCol.height : 0, topY + plotH + whyOver + ty.u(4) + figs.height + (warnT.visible ? warnT.height + ty.u(2) : 0) + ty.u(6))
 
             // ── the label: beside at medium and up (and on paper), above below that ──
             Row {
@@ -148,7 +150,7 @@ Column {
                 y: rw.topY; height: rw.plotH
                 color: rw.pr ? Qt.alpha(rw.hue, 0.16) : rw.ty.hueA(rw.hueKey, Math.max(0.10, rw.ty.envAlpha * 1.4))
             }
-            Rectangle { visible: !rw.pr; x: ad.plotX; width: ad.plotW; y: rw.topY + rw.plotH; height: rw.ty.hw; color: rw.ty.hair }
+            Rectangle { visible: !rw.pr; x: ad.plotX; width: ad.plotW; y: rw.topY + rw.plotH + rw.whyOver; height: rw.ty.hw; color: rw.ty.hair }
             PpChBoxCell {
                 objectName: ad.prefix + "SessionBox"
                 x: ad.plotX; width: ad.plotW; y: rw.topY; height: ad.laneH
@@ -174,26 +176,27 @@ Column {
                 box: rw.hasHistory ? rw.r.history : null; values: []; fired: []
                 showPicked: false; muted: true
             }
-            // why there is no history: centred in its lane on screen, wrapped from the lane's top on paper
+            // why there is no history: centred in its lane on screen while it fits one line, else (and on paper) wrapped from the lane's top
             Text {
+                id: noHist
                 objectName: ad.prefix + "NoHistory"
                 visible: !rw.hasHistory && text !== ""
                 x: ad.plotX + (rw.pr ? 4 : rw.ty.u(4)); width: ad.plotW - (rw.pr ? 8 : rw.ty.u(8))
-                elide: rw.pr ? Text.ElideNone : Text.ElideRight; wrapMode: rw.pr ? Text.WordWrap : Text.NoWrap
-                y: rw.topY + ad.laneH + ad.laneGap + (rw.pr ? 0 : (ad.laneH - height) / 2)
+                wrapMode: Text.Wrap
+                y: rw.topY + ad.laneH + ad.laneGap + (rw.pr ? 0 : Math.max(0, (ad.laneH - height) / 2))
                 text: rw.r.historyWhy || ""; font: rw.fNote; color: rw.ink3
             }
             // the lanes' names at the right
-            Text { x: rw.laneNameX; width: ad.laneW - (rw.pr ? 6 : rw.ty.u(8)); y: rw.topY + (rw.pr ? 0 : (ad.laneH - height) / 2); elide: rw.pr ? Text.ElideNone : Text.ElideRight
+            Text { x: rw.laneNameX; width: ad.laneW - (rw.pr ? 6 : rw.ty.u(8)); y: rw.topY + (rw.pr ? 0 : (ad.laneH - height) / 2); wrapMode: Text.Wrap
                    text: "this session"; font: rw.fNote; color: rw.ink3 }
             Text { x: rw.laneNameX; width: ad.laneW - (rw.pr ? 6 : rw.ty.u(8)); y: rw.topY + ad.laneH + ad.laneGap + (rw.pr ? 0 : (ad.laneH - height) / 2)
-                   elide: rw.pr ? Text.ElideNone : Text.ElideRight; text: "earlier sessions"; font: rw.fNote; color: rw.ink3 }
+                   wrapMode: Text.Wrap; text: "earlier sessions"; font: rw.fNote; color: rw.ink3 }
 
             // ── the figures, then the ⚠ and its few words ──
             Text {
                 id: figs
                 objectName: ad.prefix + "Figures"
-                x: ad.plotX; y: rw.topY + rw.plotH + ad.laneGap; width: rw.width - ad.plotX
+                x: ad.plotX; y: rw.topY + rw.plotH + rw.whyOver + ad.laneGap; width: rw.width - ad.plotX
                 wrapMode: Text.WordWrap; textFormat: rw.pr ? Text.AutoText : Text.StyledText
                 // the number first and strong, then the band and both boxes' medians, one line where it fits (paper: the
                 // report's plain line, the parts apart)

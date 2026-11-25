@@ -130,7 +130,7 @@ Popup {
                       + (sheet.sessionRow.swings > 0 ? " · " + qsTr("%1 swings").arg(sheet.sessionRow.swings) : "")
                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzHeading
                 color: Theme.colorText
-                elide: Text.ElideRight
+                wrapMode: Text.Wrap                 // a long line wraps, never "…" (Design Lead, 25 Nov 2026, #279)
             }
         }
 

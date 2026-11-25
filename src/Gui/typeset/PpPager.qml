@@ -102,6 +102,11 @@ Item {
             const from = atoms[i0].top
             const first = atoms[i0]
             const cont = (out.length > 0 && !first.section && !first.breakBefore) ? section : ""
+            // the folio names the section the page STARTS in (typeset.md, Print; PpPager.md): its first atom's, else the one
+            // carried from the page before (a fresh page with no section of its own is still inside it), else (the first
+            // page's front matter) the first one the page begins; `section` itself runs on to the page's last, for the next
+            // page's "continued" and its carry
+            let startSection = first.section || (out.length > 0 ? section : "")
             const hi = first.group ? headOf[first.group] : undefined
             const rep = (hi !== undefined && hi < i0 && !first.head) ? atoms[hi] : null
             const repH = rep ? rep.bottom - rep.top + roles.g(8) : 0
@@ -164,11 +169,12 @@ Item {
             let to = 0, keys = []
             for (let j = i0; j <= best; ++j) {
                 to = Math.max(to, atoms[j].bottom)
+                if (atoms[j].section && !startSection) startSection = atoms[j].section
                 if (atoms[j].section) section = atoms[j].section
                 ;(atoms[j].keys || []).forEach(k => { if (keys.indexOf(k) < 0) keys.push(k) })
             }
             if (rep) (rep.keys || []).forEach(k => { if (keys.indexOf(k) < 0) keys.push(k) })
-            out.push({ from: from, to: to, section: section, cont: cont, keys: keys, rep: rep ? rep.item : null, repH: repH, repSrcH: rep ? rep.bottom - rep.top : 0 })
+            out.push({ from: from, to: to, section: startSection, cont: cont, keys: keys, rep: rep ? rep.item : null, repH: repH, repSrcH: rep ? rep.bottom - rep.top : 0 })
             i0 = best + 1
         }
         pages = out.length ? out : [{ from: 0, to: 0, section: "", cont: "", keys: [], rep: null, repH: 0 }]

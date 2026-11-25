@@ -44,8 +44,9 @@ Item {
     property var body: null
     property string demoState: ""
     property string surface: "panel"
-    // "" prints in the app's theme (as before); the session report's appendix sets "folio" so it prints in Folio light
-    // like the client pages, whatever the app shows (PpTypeset.fixedAesthetic)
+    // Print is always the light palette on white, metric colours included (typeset.md, house rule 10; Design Lead, 25 Nov 2026,
+    // #279): "" prints in the LIGHT palette of the app's own aesthetic, its type unchanged; the session report's appendix
+    // sets "folio" so it prints in Folio light like the client pages, whatever the app shows (PpTypeset.fixedAesthetic)
     property string printAesthetic: ""
     // what the printed shot is to the reader: the session report's appendix prints its reference swing (the one
     // nearest every work-on target, session_report.h referenceSwing) and says so; "" = plain "This shot"
@@ -342,7 +343,7 @@ Item {
     PpQuestions { id: qx; visible: false; roles: ro; brush: null; applyToBrush: false }
 
     // ── the two shared objects, declared last ──
-    PpDiagRoles { id: ro; medium: "print"; fixedAesthetic: root.printAesthetic }
+    PpDiagRoles { id: ro; medium: "print"; fixedAesthetic: root.printAesthetic !== "" ? root.printAesthetic : Theme.aesthetic }
     PpBrush {
         id: br
         cards: root.allCards

@@ -214,7 +214,7 @@ as a headline then b) lists out every shot's LM data across ball and club then c
 summary statistics for the set, including SD"). Drawn whenever the session has launch monitor
 readings, after About and before the technical appendix, as part of the client galley
 (`PpLmAppendix`), so it flows and repeats its table heads. Like the technical appendix it is not on the
-cover's contents line, which shares the folio with the studio's contact and would push it into an ellipsis.
+cover's contents line, which shares the folio with the studio's contact and would push it onto a second line.
 Three parts, each from a fresh page:
 
 1. **The figures.** For each club, in bag order: a heading ("146 yd average carry, 22 yd from
@@ -833,7 +833,7 @@ for any content, and it is tested on content chosen to break it.
 3. **The cover is the one exception, so it is built to fit.** Page 1 must stand alone, so it is
    fitted rather than flowed:
    - every list on it has a hard cap (at most 3 strengths, 5 habits, 5 work-ons, 8 ball figures);
-   - every line is limited to two lines, then ellipsised; the full text is always inside;
+   - every line wraps in full; nothing is cut with an ellipsis[^no-ellipsis];
    - the coach's note is limited to about 80 words, with the count shown in the sheet as the
      coach types;
    - the space between the columns and the ball block takes up whatever is left.
@@ -1116,3 +1116,4 @@ directly, so it does not depend on the fix, but the panel does.
 [^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `governance/artefacts/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.
 [^lm-board-6-1b]: Refactor step 6.1b (`build/refactor/step-6/NOTES-6.1b.md`): the board's statistics are one pure reduction, `lmBoardOf` (`src/Gui/launchmonitor/lm_session_model.h`), which the board and the report each ask; the report's private board (5.6b's C11) is gone. The embedded figures' names follow the Coaching Lead's 14 November decision above.
 [^i123-warned]: Issue #123, 25 Nov 2026 (`build/platform/A/NOTES-123.md`): a swing kept in the assessment with a data warning showed no warning in the report.
+[^no-ellipsis]: Design Lead, 25 Nov 2026 (#279, Q1 of #195's §15 fold): typeset and print content is never cut with "…" (`governance/artefacts/design_system/typeset.md`, house rule 3). It replaces the two-line limit and its ellipsis.

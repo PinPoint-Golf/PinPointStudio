@@ -414,6 +414,21 @@ Item {
     readonly property real tileGap: ts.g(lr.tileGap)
     FontMetrics { id: fmLab; font: root.fTileLabel }
     FontMetrics { id: fmHero; font: root.fHero }
+    // the lines `t` wraps to in `w` in the face `fm` measures (Text.Wrap: at a space, else anywhere): a gate's words are
+    // never cut with "…" (typeset.md rule 3), so a tile or a shot's row takes the height they need, measured from the data
+    function wrapLines(fm, t, w) {
+        if (!t || !fm.font) return 1
+        const sp = fm.advanceWidth(" ")
+        let n = 1, cur = 0
+        for (const word of String(t).split(" ")) {
+            let ww = fm.advanceWidth(word)
+            if (cur > 0 && cur + sp + ww <= w) { cur += sp + ww; continue }
+            if (cur > 0) { n++; cur = 0 }
+            while (ww > w && w > 0) { n++; ww -= w }
+            cur = ww
+        }
+        return n
+    }
     readonly property real labLH: Math.ceil(fmLab.height)
     readonly property real heroLH: Math.ceil(fmHero.height)
     readonly property real footH: Math.ceil(ts.fFigLabel.pixelSize * 1.3 + ts.u(8))
@@ -908,7 +923,8 @@ Item {
         // a reading a gate dropped: its words, quiet, where the figure would be (a click opens the reason)
         readonly property bool gated: !!d.gate && !!d.gate.words
         signal gateClicked(string subject)
-        height: h.tileH + (d.strip ? h.stripRowH : 0)
+        property real extraH: 0                      // the block's: what its longest gate's words need past the figure's room
+        height: h.tileH + extraH + (d.strip ? h.stripRowH : 0)
         Rectangle {
             anchors.fill: parent
             color: tl.h.ts.isPrint ? "#FFFFFF" : Theme.colorSurface
@@ -945,7 +961,8 @@ Item {
             anchors.top: tLab.bottom; anchors.topMargin: tl.h.ts.u(6)
             x: tl.h.ts.u(6); width: parent.width - 2 * x
             horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
+            // the gate's words wrap in the room the figure and its unit leave, and the tile grows past it (TileBlock.gateExtra)
+            wrapMode: Text.Wrap
             textFormat: Text.StyledText
             font: tl.h.ts.fFigLabel; color: tl.h.ts.ink3
             text: !tl.gated ? "" : (tl.h.ts.isPrint || !tl.h.canAct) ? tl.d.gate.words
@@ -992,10 +1009,22 @@ Item {
         readonly property int fit: h.ts.columns(width, h.lr.tileMinEm, h.tileGap)
         readonly property int cols: h.ts.wrapColumns(n, fit)
         readonly property real cw: (width - (cols - 1) * h.tileGap) / cols
+        // a gated tile's words wrap where the figure and its unit would be (heroLH + labLH); the longest's overflow past
+        // that room grows every tile of the block alike, so the strip stays even (words as the tile sets them, " ›" and all)
+        FontMetrics { id: fmGateT; font: tb.h.ts.fFigLabel }
+        readonly property real gateExtra: {
+            let need = 0
+            for (const d of defs)
+                if (d.gate && d.gate.words) {
+                    const t = d.gate.words + ((h.ts.isPrint || !h.canAct) ? "" : " ›")
+                    need = Math.max(need, h.wrapLines(fmGateT, t, cw - 2 * h.ts.u(6)) * fmGateT.height)
+                }
+            return Math.max(0, Math.ceil(need - (h.heroLH + h.labLH)))
+        }
         spacing: h.ts.g(5)
         Item {
             width: parent.width
-            readonly property real rowH: tb.h.tileH + (tb.defs.some(d => !!d.strip) ? tb.h.stripRowH : 0)
+            readonly property real rowH: tb.h.tileH + tb.gateExtra + (tb.defs.some(d => !!d.strip) ? tb.h.stripRowH : 0)
             height: Math.ceil(tb.n / tb.cols) * (rowH + tb.h.tileGap) - tb.h.tileGap
             Repeater {
                 model: tb.defs
@@ -1006,6 +1035,7 @@ Item {
                     x: (index % tb.cols) * (tb.cw + tb.h.tileGap)
                     y: Math.floor(index / tb.cols) * (parent.rowH + tb.h.tileGap)
                     width: tb.cw
+                    extraH: tb.gateExtra
                     d: modelData
                     onGateClicked: (subject) => {
                         if (!TrustFocus.open(subject, tb.h.gateSwingDir))
@@ -1760,6 +1790,15 @@ Item {
         readonly property real numW: h.em * 3
         readonly property real cellW: (width - numW) / h.shotCols.length
         readonly property real rowH: Math.ceil(h.ts.fFigLabel.pixelSize * 1.65)
+        // a gate's words in a cell wrap, never "…" (typeset.md rule 3): a shot's row takes the height its longest needs
+        FontMetrics { id: fmGate; font: st.h.ts.fMicro }
+        function gateLines(t) { return st.h.wrapLines(fmGate, t, st.cellW - st.h.ts.u(4)) }
+        function shotRowH(s) {
+            let n = 1
+            for (const c of st.h.shotCols)
+                if (!isFinite(st.h.shotV(s, c.key)) && s && s.gateWords && s.gateWords[c.key]) n = Math.max(n, gateLines(s.gateWords[c.key]))
+            return n > 1 ? Math.max(st.rowH, Math.ceil(n * fmGate.height + st.h.ts.u(4))) : st.rowH
+        }
         Item {
             width: parent.width; height: st.h.labLH * 2 + st.h.ts.u(4)
             Text { y: 0; text: "Shot"; font: st.h.fTileLabel; color: st.h.ts.ink3 }
@@ -1792,7 +1831,7 @@ Item {
                     delegate: Item {
                         id: trw
                         required property var modelData
-                        width: tg.width; height: st.rowH
+                        width: tg.width; height: st.shotRowH(trw.modelData)
                         Rectangle { anchors.fill: parent; color: trw.modelData.shotId === st.h.focusId ? st.h.ts.pickWash : "transparent" }
                         Text { x: st.h.ts.u(8); anchors.verticalCenter: parent.verticalCenter; text: "#" + trw.modelData.ordinal + (trw.modelData.out ? " out" : trw.modelData.relabelled ? "*" : ""); font: st.h.ts.fFigLabel; color: trw.modelData.out ? st.h.ts.ink3 : st.h.ts.ink2 }
                         Repeater {
@@ -1802,7 +1841,7 @@ Item {
                                 required property int index
                                 x: st.numW + (index + 1) * st.cellW - width; anchors.verticalCenter: parent.verticalCenter
                                 readonly property bool gated: !isFinite(st.h.shotV(trw.modelData, modelData.key)) && !!(trw.modelData.gateWords && trw.modelData.gateWords[modelData.key])
-                                width: gated ? st.cellW - st.h.ts.u(4) : implicitWidth; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight
+                                width: gated ? st.cellW - st.h.ts.u(4) : implicitWidth; horizontalAlignment: Text.AlignRight; wrapMode: gated ? Text.Wrap : Text.NoWrap
                                 text: st.h.cellTxt(trw.modelData, modelData.key); font: gated ? st.h.ts.fMicro : st.h.ts.fFigLabel
                                 color: trw.modelData.out || gated ? st.h.ts.ink3 : st.h.ts.ink
                             }

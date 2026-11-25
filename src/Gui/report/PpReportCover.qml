@@ -23,12 +23,11 @@ import PinPointStudio
 //
 // THE ONE FITTED PAGE (§9.1 rule 3). Everything else in the report flows; the cover must stand alone, so it is
 // fitted, not flowed: every list is hard-capped (3 strengths, 5 habits, 5 work-ons, 8 ball figures; several clubs:
-// 4 clubs × 4 figures), every line stops at two lines and ends in an ellipsis (the full text is always inside:
-// the work-on pages and the grid say it again), the coach's note is capped by the sheet at about 80 words and
-// here at eight lines, and the space between the three columns and the ball block takes up whatever is left.
-// So the cover is ONE atom exactly a page tall, with the ball block at its foot. If even within the caps the cover
-// would overflow (a test proves it does not), the ball block leaves for a page of its own after the cover, rather
-// than the columns being squeezed. Only Texts marked `fitted` may elide: tst_session_report fails any other.
+// 4 clubs × 4 figures), every line wraps in full and is never cut with "…" (typeset.md rule 3), the coach's note is
+// capped by the sheet at about 80 words, and the space between the three columns and the ball block takes up
+// whatever is left. So the cover is ONE atom exactly a page tall, with the ball block at its foot. If within the caps
+// the cover would overflow, the ball block leaves for a page of its own after the cover, rather than the columns being
+// squeezed. tst_session_report fails any Text that is truncated or elided.
 //
 // The masthead itself is furniture (PpSessionReport draws it above the pager's window); the cover leaves room under
 // it (mastheadH) so a two-line studio name pushes the page down instead of colliding.
@@ -115,20 +114,17 @@ Item {
                     objectName: "reportKicker"
                     width: parent.width; text: cv.meta.kicker || ""
                     font: cv.ro.fKicker; color: cv.ro.accent; wrapMode: Text.WordWrap
-                    maximumLineCount: 2; elide: Text.ElideRight; property bool fitted: true
                 }
                 Item { width: 1; height: 8 }
                 Text {
                     width: parent.width; text: cv.meta.golfer || ""
                     font: cv.ro.fName; color: cv.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.02
-                    maximumLineCount: 2; elide: Text.ElideRight; property bool fitted: true
                 }
                 Item { width: 1; height: 12 }
                 Text {
                     objectName: "reportHeadline"
                     width: Math.min(parent.width, 62 * cv.ro.em); text: cv.rep.headline || ""
                     font: cv.ro.fHead; color: cv.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.3
-                    maximumLineCount: 3; elide: Text.ElideRight; property bool fitted: true
                 }
                 // the coach's note: typed at generation, optional, signed
                 Item { width: 1; height: 20; visible: noteRow.visible }
@@ -142,7 +138,7 @@ Item {
                         id: noteCol
                         width: cv.width - 16; spacing: 6
                         Text { width: parent.width; text: cv.rep.coachNote || ""; font: cv.ro.fNote; color: cv.ro.ink
-                               wrapMode: Text.WordWrap; lineHeight: 1.35; maximumLineCount: 8; elide: Text.ElideRight; property bool fitted: true }
+                               wrapMode: Text.WordWrap; lineHeight: 1.35 }
                         Text { visible: !!cv.brand.coach; text: "— " + (cv.brand.coach || ""); font: cv.ro.fSmall; color: cv.ro.ink2 }
                     }
                 }
@@ -199,7 +195,6 @@ Item {
                                             text: it.ranked ? (it.modelData.goal || "") : (it.key === "strengths" ? it.modelData.text : it.modelData.golfer) || ""
                                             font: it.ranked && it.modelData.rank === 1 ? cv.ro.fItemM : cv.ro.fItem
                                             color: cv.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.32
-                                            maximumLineCount: 2; elide: Text.ElideRight; property bool fitted: true
                                         }
                                         // the second line: the count, or (a work-on) its first drill and its page. The page
                                         // reference sits in a column of its own width, so a page number that changes on
@@ -211,7 +206,6 @@ Item {
                                                 width: parent.width - (it.ranked ? refW.width + 6 : 0)
                                                 text: it.ranked ? (it.modelData.drill ? "Drill: " + it.modelData.drill : "") : (it.modelData.count || "")
                                                 font: cv.ro.fMicro; color: cv.ro.ink3; wrapMode: Text.WordWrap
-                                                maximumLineCount: 2; elide: Text.ElideRight; property bool fitted: true
                                             }
                                             TextMetrics { id: refW; font: cv.ro.fMicro; text: "p. 00" }
                                             Text {

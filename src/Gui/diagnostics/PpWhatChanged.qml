@@ -129,19 +129,23 @@ Column {
             id: tbl
             width: wc.tableW
             topPadding: wc.roles ? wc.roles.g(4) : Theme.gap(4)
-            // column heads
+            // column heads: a head too long for its column wraps and the head row grows; never "…" (typeset.md rule 3)
             Item {
                 width: tbl.width
-                height: wc.roles ? wc.roles.u(20) : 20
-                Repeater {
-                    model: wc.roles ? wc.cols : []
-                    delegate: Text {
-                        required property var modelData
-                        required property int index
-                        x: wc.colX(index); width: wc.colW(modelData); elide: Text.ElideRight
-                        horizontalAlignment: modelData.r ? Text.AlignRight : Text.AlignLeft
-                        text: modelData.k === "name" ? "" : modelData.head
-                        font: wc.roles.fLabel; color: wc.roles.ink3
+                height: wc.roles ? Math.max(wc.roles.u(20), heads.childrenRect.height + wc.roles.g(4)) : 20
+                Item {
+                    id: heads
+                    width: parent.width
+                    Repeater {
+                        model: wc.roles ? wc.cols : []
+                        delegate: Text {
+                            required property var modelData
+                            required property int index
+                            x: wc.colX(index); width: wc.colW(modelData); wrapMode: Text.Wrap
+                            horizontalAlignment: modelData.r ? Text.AlignRight : Text.AlignLeft
+                            text: modelData.k === "name" ? "" : modelData.head
+                            font: wc.roles.fLabel; color: wc.roles.ink3
+                        }
                     }
                 }
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: wc.roles ? wc.roles.hw : 1; color: wc.roles ? wc.roles.hair : "grey" }

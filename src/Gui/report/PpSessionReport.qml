@@ -246,10 +246,8 @@ Item {
                 Column {
                     anchors.verticalCenter: parent.verticalCenter; spacing: 1
                     width: mastLeft.width - 50
-                    Text { width: parent.width; text: root.brand.studio || ""; font: rr.fStudio; color: rr.ink; wrapMode: Text.WordWrap
-                           maximumLineCount: 2; elide: Text.ElideRight; property bool fitted: true }
-                    Text { width: parent.width; visible: text !== ""; text: root.brand.coachLine || ""; font: rr.fFurn; color: rr.ink2; wrapMode: Text.WordWrap
-                           maximumLineCount: 2; elide: Text.ElideRight; property bool fitted: true }
+                    Text { width: parent.width; text: root.brand.studio || ""; font: rr.fStudio; color: rr.ink; wrapMode: Text.Wrap }
+                    Text { width: parent.width; visible: text !== ""; text: root.brand.coachLine || ""; font: rr.fFurn; color: rr.ink2; wrapMode: Text.Wrap }
                 }
             }
             Column {
@@ -269,7 +267,7 @@ Item {
                 spacing: 8; anchors.verticalCenter: parent.verticalCenter
                 PpReportCover.Mark { ro: rr; brand: root.brand; d: 18; anchors.verticalCenter: parent.verticalCenter }
                 Text { anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, root.tw - rhRight.implicitWidth - 46)
-                       text: root.brand.studio || ""; font: rr.fFurnM; color: rr.ink; elide: Text.ElideRight; property bool fitted: true }
+                       text: root.brand.studio || ""; font: rr.fFurnM; color: rr.ink; wrapMode: Text.Wrap }
             }
             Text { id: rhRight; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                    text: root.meta.runningHead || ""; font: rr.fFurn; color: rr.ink2 }
@@ -285,7 +283,7 @@ Item {
                 id: folioLeft
                 width: Math.min(implicitWidth, parent.width - folioRight.implicitWidth - 24)
                 text: furniture.cover ? (root.brand.contact || "") : (root.brand.footLine || "")
-                font: rr.fFolio; color: rr.ink3; elide: Text.ElideRight; property bool fitted: true
+                font: rr.fFolio; color: rr.ink3; wrapMode: Text.Wrap
             }
             Text {
                 id: folioRight
@@ -297,7 +295,7 @@ Item {
         }
     }
     // the cover folio's table of contents: fixed section names and their pages (absent sections are left out). The
-    // appendices are not listed: the line shares the folio with the studio's contact, which it would push into an ellipsis
+    // appendices are not listed: the line shares the folio with the studio's contact, which it would push onto a second line
     readonly property string insideLine: {
         const parts = []
         const add = (label, name) => { const n = sectionPage(name); if (n > 1) parts.push(label + " p. " + n) }
@@ -351,7 +349,7 @@ Item {
         Item {
             x: root.mx; y: root.height - 40; width: root.tw; height: 16
             Rectangle { anchors.bottom: parent.top; anchors.bottomMargin: 8; width: parent.width; height: rr.hw; color: rr.hair }
-            Text { width: Math.min(implicitWidth, parent.width - 220); text: root.brand.footLine || ""; font: rr.fFolio; color: rr.ink3; elide: Text.ElideRight }
+            Text { width: Math.min(implicitWidth, parent.width - 220); text: root.brand.footLine || ""; font: rr.fFolio; color: rr.ink3; wrapMode: Text.Wrap }
             Text { anchors.right: parent.right; font: rr.fFolio; color: rr.ink3
                    text: (root.meta.folioDate || "") + "  ·  Technical appendix   " + (root.printPage + 1) + " / " + root.printPageCount }
         }
