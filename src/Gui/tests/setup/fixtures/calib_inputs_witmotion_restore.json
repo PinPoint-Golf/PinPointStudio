@@ -1,0 +1,22 @@
+{
+  "routine": "WitmotionArmRoutine",
+  "set": "restore",
+  "pace": {"captureTransition":800,"hold":2000,"introAnim":3000,"introReady":2000,"introStart":3000,"minHold":2000,"raiseAnim":1500,"raiseReady":2000,"scale":0.05,"tick":100},
+  "timeUnit": "ms at the real pace",
+  "setup": {"rightHanded":true,"guideReady":true,"segments":"ab","deviceIds":{"a":"WT-A","b":"WT-B","c":"WT-C"},"initial":{"sensors":{"a":{"link":true,"q":[1,0,0,0],"anat":[1,0,0,0],"rate":0},"b":{"link":true,"q":[1,0,0,0],"anat":[1,0,0,0]},"c":null},"world":{"a":{"link":true,"calibrated":false,"armDown":[1,0,0,0],"tPose":[1,0,0,0]},"b":{"link":true},"c":null,"guideReady":true}}},
+  "inputs": [
+    {"t":0,"ev":"command","name":"restore","world":{"a":{"link":true,"calibrated":false,"armDown":[1,0,0,0],"tPose":[1,0,0,0]},"b":{"link":true},"c":null,"guideReady":true}},
+    {"t":0,"ev":"legacy","sensor":"a","calibrated":true,"armDown":[0.7372773368101241,0.6755902076156602,0,0],"tPose":[0.5647872069009547,0.5175321243695732,-0.43426101468090306,0.4739127370042372]},
+    {"t":0,"ev":"command","name":"restore","world":{"a":{"link":true,"calibrated":true,"armDown":[0.7372773289680481,0.6755902171134949,0,0],"tPose":[0.5647872090339661,0.5175321102142334,-0.4342610239982605,0.4739127457141876]},"b":{"link":true},"c":null,"guideReady":true}},
+    {"t":0,"ev":"command","name":"begin","world":{"a":{"link":true,"calibrated":true,"armDown":[0.7372773289680481,0.6755902171134949,0,0],"tPose":[0.5647872090339661,0.5175321102142334,-0.4342610239982605,0.4739127457141876]},"b":{"link":true},"c":null,"guideReady":true}},
+    {"t":3000,"ev":"timer","timer":"introStart","dt":3000},
+    {"t":6000,"ev":"guideFinished","dt":3000},
+    {"t":9000,"ev":"guideFinished","dt":3000},
+    {"t":11000,"ev":"timer","timer":"introReady","dt":2000},
+    {"t":13000,"ev":"timer","timer":"phase1MinHold","dt":2000},
+    {"t":13100,"ev":"tick","timer":"phase1Hold","dt":100,"a":{"link":true,"q":[0.7046342099635947,0.7095707365365208,0,0],"anat":[1,0,0,0],"rate":2.1},"b":{"link":true,"q":[0.7433165871706597,0.6658075567417836,0.06463520929304671,-0.0017430840897756175],"anat":[1,0,0,0]},"c":null},
+    {"t":13200,"ev":"tick","timer":"phase1Hold","dt":100,"a":{"link":true,"q":[0.7071043579711956,0.7071043579711955,-0.0018511991095778505,-0.0018511991095778503],"anat":[1,0,0,0],"rate":4.8},"b":{"link":true,"q":[0.7431436936033853,0.6659250300284383,0.06541882563755622,0.0012970317438762444],"anat":[1,0,0,0]},"c":null},
+    {"t":13300,"ev":"tick","timer":"phase1Hold","dt":100,"a":{"link":true,"q":[0.707105704201605,0.7071057042016049,-0.00123413352292393,0.0012341335229239302],"anat":[1,0,0,0],"rate":0.6},"b":{"link":true,"q":[0.7460428855241842,0.662560929688118,0.0665803500405035,0.0002905134249918285],"anat":[1,0,0,0]},"c":null},
+    {"t":13300,"ev":"command","name":"restore","world":{"a":{"link":true,"calibrated":false,"armDown":[1,0,0,0],"tPose":[1,0,0,0]},"b":{"link":true},"c":null,"guideReady":true}}
+  ]
+}

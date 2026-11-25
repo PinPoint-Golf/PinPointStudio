@@ -428,5 +428,15 @@ else()
             LABELS qml_ui
             TIMEOUT 900
             RUN_SERIAL TRUE)
+        # The Witmotion arm routine's file alone (its golden traces, platform refactor C-9b), the same way:
+        # `ctest -L qml_ui -R setup_calib_witmotion`. Its wizard cases run at the real pace, hence the longer
+        # timeout. Opt-in with the suite.
+        add_test(NAME session_setup_ui.tst_setup_calib_witmotion COMMAND session_setup_ui_test
+                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/setup/tst_setup_calib_witmotion.qml")
+        set_tests_properties(session_setup_ui.tst_setup_calib_witmotion PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=${_ssui_qpa};QT_QUICK_BACKEND=rhi;QSG_USE_SIMPLE_ANIMATION_DRIVER=1"
+            LABELS qml_ui
+            TIMEOUT 1800
+            RUN_SERIAL TRUE)
     endif()
 endif()

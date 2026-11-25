@@ -21,10 +21,17 @@
 //
 // The wizard-level cases run against session setup (ScreenSessionSetup) since Stage 5b; the
 // retired wizard and its expected-failure markers were deleted at Stage 5c.
+//
+// Golden traces (platform refactor C-9b): CWT — today's routine frozen before it moves to C++.
+// Each input set (support/calib_trace_witmotion.js drives the fakes from the routine's own ticks)
+// runs twice: the same inputs and projection both times, each equal to its fixture in fixtures/.
 import QtQuick
 import QtTest
 import PinPointStudio
 import "support"
+import "fakes"
+import "support/calib_trace.js" as Trace
+import "support/calib_trace_witmotion.js" as WTrace
 
 // ⚠ The root is a plain Item, not the TestCase: TestCase is `visible: false`, and the
 // calibration routines gate on `flow.visible` (see tst_setup_smoke.qml).
@@ -855,6 +862,231 @@ Item {
             drv.imus.B.mountDeviationDeg = 40
             verify(!drv.imus.B.fullyCalibrated)
             verify(drv.panel.needsCalibration, "a 40° mount deviation does not need calibrating")
+        }
+
+        // ═════ Golden traces (platform refactor C-9b; rig_design.md §4.8 "The equivalence test") ═════
+        // Today's routine, frozen before any of it moves to C++. Each row is one INPUT SET: a scripted
+        // world (support/calib_trace_witmotion.js: the lead's rate and every segment's quaternion tick by
+        // tick, the anatomical quaternions φ is read from, each refine's result, the links, the guide and
+        // the host's commands), fed by the routine's own ticks so a run never depends on the wall clock.
+        // Each set runs TWICE and must give the same inputs and the same projection both times; the
+        // projection must equal its fixture, and the inputs theirs:
+        //   fixtures/calib_inputs_witmotion_<tag>.json   every value the routine read, when, and each
+        //                                                call's result: what a C++ test feeds the
+        //                                                Witmotion arm procedure (C-12a)
+        //   fixtures/calib_trace_witmotion_<tag>.json    the projection: stages, verdicts, reason codes,
+        //                                                the requests made, the guide's calls and the hold
+        //                                                progress (as ArmCalibrationStatus reads it), each
+        //                                                at the routine's own time
+        // Pace: × 0.05 with tick 100, so each hold takes the SAME 20 ticks as at the real pace (asserted
+        // below) and the files' times are real-pace ms. A fixture is recorded only with
+        // PP_CALIB_TRACE_RECORD=1 in the environment; a missing one fails.
+        // ⚠ It freezes what looks like a bug as well: the C++ port is proved against it.
+        Component { id: gtLogComp;   FakeAppLog {} }
+        Component { id: gtGuideComp; FakeGuide {} }
+        Component { id: gtInstComp;  FakeImuInstance {} }
+        readonly property var tracePace: ({ scale: 0.05, tick: 100 })
+        readonly property var again: ["leave", "enter", "begin"]       // Back, then forward into the step
+        readonly property var retryWhenSettled: ["whenSettled", "leadUp", "begin"]
+        // `count` still ticks at `q` turned a little each (WTrace.sway), the rate `rate` (default under 15).
+        function heldAt(q, count, rate, from) {
+            var out = []
+            for (var i = 0; i < count; ++i)
+                out.push({ rate: rate === undefined ? WTrace.stillRate((from || 0) + i) : rate, q: WTrace.sway(q, (from || 0) + i) })
+            return out
+        }
+        // Steps with each segment's anatomical quaternion set on the first.
+        function withAnat(steps, anat) {
+            var out = steps.slice()
+            var first = {}
+            for (var k in out[0]) first[k] = out[0][k]
+            first.anat = anat
+            out[0] = first
+            return out
+        }
+        function test_CWT_goldenTrace_data() {
+            var W = WTrace
+            var down = W.POSE.down.a, tp = W.POSE.tpose.a
+            var away = W.qMul(down, W.qAxis(0, 1, 0, 20))   // held 20° off: samples the window must drop
+            // φ's three ways (_phiFromAbduction): a positive scalar; a negative one (the same rotation);
+            // the far atan2 (170°), whose near twin (−10°) is the one taken. Each well clear of 15° and 25°.
+            var phiAnat = { a: W.anatFor(5), b: W.anatFor(-8, 30, true), c: W.anatFor(170) }
+            return [
+                // W1 (the clears on A, B and C), W2–W17: the pass path with all three segments; φ each way.
+                { tag: "pass", spec: { slots: "abc",
+                    p2: [withAnat(W.defaultP2(), phiAnat)],
+                    mounts: [{ a: { dev: 5, grav: 4 }, b: { dev: 8, grav: 6 }, c: { dev: 10, grav: 8 } }] } },
+                // Lead only, and read when: B and C moving at 40 °/s and every unit's device gyro at 50 °/s through
+                // both holds (never read: F14, PR-48), yet both captures complete on the lead's rate; C drops
+                // mid-hold in phase 1 (no nominal at the capture: the link is read then) and B mid-hold in phase 2
+                // (left out of the gate); the lead's anatQuat turns from φ 12° to 6° on the last tick (φ is read
+                // live at the capture, so the refine gets 6°).
+                { tag: "readsLive", spec: { slots: "abc",
+                    p1: [W.defaultP1().map(function(st, i) {
+                        var o = { rateB: 40, rateC: 40, gyro: 50 }
+                        for (var k in st) o[k] = st[k]
+                        if (i === 10) o.do = "cDown"
+                        return o })],
+                    p2: [W.defaultP2().map(function(st, i) {
+                        var o = { rateB: 40, rateC: 40, gyro: 50 }
+                        for (var k in st) o[k] = st[k]
+                        if (i === 0) o.anat = { a: W.anatFor(12) }
+                        if (i === 10) o.do = "bDown"
+                        if (i === 19) o.anat = { a: W.anatFor(6) }
+                        return o })],
+                    mounts: [{ a: { dev: 6, grav: 4 } }] } },
+                // The left arm's T-pose (tPoseQuat), and φ from an unturned anatQuat (identity: s < 1e-4 → 0).
+                { tag: "leftHanded", spec: { slots: "ab", leftHanded: true } },
+                // The stillness gate and the slerp window, lead only. Phase 1: moving (30 °/s); 19 still at a
+                // pose 20° off (one short of the hold); 15.1 empties it; then 20 still — 15.0 counts as still,
+                // NaN counts as still, a sample with a negative scalar (the slerp's flip), one 10° off (the
+                // sine branch; the rest are within 3.6°, the normalised lerp) — and the capture averages only
+                // those 20. Phase 2: 10 still, 16 °/s empties it (progress back to 0), 19 still, 15.1, 20 still.
+                { tag: "holdWindow", spec: { slots: "a",
+                    p1: [[{ n: 2, rate: 30, q: down }].concat(
+                            heldAt(away, 19, 5),
+                            [{ rate: 15.1, q: away }, { rate: 15.0, q: W.sway(down, 0) }, { rate: NaN, q: W.qNeg(W.sway(down, 1)) }],
+                            heldAt(down, 15, undefined, 2),
+                            [{ rate: 3, q: W.qMul(down, W.qAxis(0, 0, 1, 10)) }],
+                            heldAt(down, 2, undefined, 17))],
+                    p2: [heldAt(tp, 10).concat([{ rate: 16, q: tp }], heldAt(tp, 19, undefined, 10),
+                                               [{ rate: 15.1, q: tp }], heldAt(tp, 20, undefined, 3))] } },
+                // W18 and the retry (Recalibrate = begin, W1 again): the mount gate at each edge and past it —
+                // dev 15.0 / grav 25.0 pass, 15.1 / 25.1 fail, NaN fails — naming each segment; both branches
+                // of refineMountAboutLongAxis as φ either side of 25° (40°: the device keeps nominal, dev = |φ|;
+                // 20°: refined, dev = |φ| > 15); stop after a mount fail (back to idle); then a pass.
+                { tag: "mountGate", spec: { slots: "abc",
+                    p2: [null, null, withAnat(W.defaultP2(), { a: W.anatFor(40), b: W.anatFor(20) }), null],
+                    mounts: [{ a: { dev: 15.0, grav: 25.0 }, b: { dev: 15.1, grav: 4 } },
+                             { a: { dev: 3, grav: 25.1 }, c: { dev: NaN, grav: 4 } },
+                             { a: { dev: 40, grav: 3 }, b: { dev: 20, grav: 4 }, c: { dev: 3, grav: NaN } },
+                             {}],
+                    on: [{ at: "mountFailed/", visit: 1, steps: [{ n: 0, do: "begin" }] },
+                         { at: "mountFailed/", visit: 2, steps: [{ n: 0, do: "begin" }] },
+                         { at: "mountFailed/", visit: 3, steps: [{ n: 0, do: again }] }] } },
+                // W19: the lead lost in phase 1's settle (minHold still fires), mid-hold, between the capture and
+                // the raise (the raise's one-shots and guide still run; the stage stays failed), mid-phase-2;
+                // no retry by itself — each waits until settled, then the lead comes back and Recalibrate.
+                { tag: "leadLost", spec: { slots: "ab",
+                    on: [{ at: "phase1/settle", visit: 1, steps: [{ n: 0, do: ["leadDown"].concat(retryWhenSettled) }] },
+                         { at: "phase1/hold", visit: 1, steps: W.defaultP1().slice(0, 5).concat([{ n: 0, do: ["leadDown"].concat(retryWhenSettled) }]) },
+                         { at: "captured/", visit: 1, steps: [{ n: 0, do: ["leadDown"].concat(retryWhenSettled) }] },
+                         { at: "phase2/", visit: 1, steps: W.defaultP2().slice(0, 5).concat([{ n: 0, do: ["leadDown"].concat(retryWhenSettled) }]) }] } },
+                // What is not watched: the lead lost in the intro (the run completes on B and C, the lead never
+                // set); C down at arm-down then back (refined from a reference with no nominal set) and B lost
+                // in phase 2 (left out of the gate); C handed only after arm-down (a null reference: skipped);
+                // every segment down at the T-pose (the gate fails, naming none).
+                { tag: "linksUnwatched", spec: { slots: "abc",
+                    on: [{ at: "intro/up", visit: 1, steps: [{ n: 0, do: "leadDown" }] },
+                         { at: "done/", visit: 1, steps: [{ n: 0, do: ["leadUp", "begin"] }] },
+                         { at: "phase1/hold", visit: 2, steps: [{ n: 0, do: "cDown" }].concat(W.defaultP1()) },
+                         { at: "phase2/", visit: 2, steps: [{ n: 0, do: ["cUp", "bDown"] }].concat(W.defaultP2()) },
+                         { at: "done/", visit: 2, steps: [{ n: 0, do: ["bUp", "segments:ab", "begin"] }] },
+                         { at: "phase2/", visit: 3, steps: [{ n: 0, do: "segments:abc" }].concat(W.defaultP2()) },
+                         { at: "done/", visit: 3, steps: [{ n: 0, do: "begin" }] },
+                         { at: "intro/up", visit: 4, steps: [{ n: 0, do: ["leadDown", "bDown", "cDown"] }] }] } },
+                // W20 at every step (Back, then forward into it: begin again), stop("back") mid-phase-2, W1 by
+                // reset() mid-hold, stop after done (done kept), W21 restore while done, and a stop with no
+                // run in hand (nothing).
+                { tag: "leaveEverywhere", spec: { slots: "ab",
+                    on: [{ at: "intro/wait", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "intro/up", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "intro/down", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "intro/settle", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "phase1/settle", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "phase1/hold", visit: 1, steps: W.defaultP1().slice(0, 3).concat([{ n: 0, do: again }]) },
+                         { at: "phase1/hold", visit: 2, steps: W.defaultP1().slice(0, 2).concat([{ n: 0, do: ["reset", "begin"] }]) },
+                         { at: "captured/", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "raise/anim", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "raise/settle", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "phase2/", visit: 1, steps: W.defaultP2().slice(0, 3).concat([{ n: 0, do: ["stop", "begin"] }]) },
+                         { at: "done/", visit: 1, steps: [{ n: 0, do: ["leave", "enter", "restore", "stop"] }] }] } },
+                // W3's gate: nothing starts while the guide is not ready (time passes: no timer runs), the intro
+                // waits introStart from the moment it is; a guide.ready that falls and rises once the intro has
+                // started does not replay it.
+                { tag: "guideGate", spec: { slots: "ab", guideReady: false,
+                    on: [{ at: "intro/wait", visit: 1, steps: [{ n: 0, do: ["idle:5000", "guideReady"] }] },
+                         { at: "intro/up", visit: 1, steps: [{ n: 0, do: ["guideNotReady", "guideReady"] }] }] } },
+                // W21: restore with nothing calibrated (done all the same, completed); restore again while done
+                // with the lead's legacy two-pose calibration set (copied; no second completed); then a run,
+                // restored mid-hold.
+                { tag: "restore", spec: { slots: "ab", first: "restore",
+                    on: [{ at: "done/", visit: 1, steps: [{ n: 0, do: ["legacy", "restore", "begin"] }] },
+                         { at: "phase1/hold", visit: 1, steps: W.defaultP1().slice(0, 3).concat([{ n: 0, do: "restore" }]) }] } }
+            ]
+        }
+
+        // One run of a set: fresh fakes and routine, the world driven from calib_trace_witmotion.js.
+        function wtTraceRun(tag, spec) {
+            var lg = gtLogComp.createObject(tcase)
+            var gd = gtGuideComp.createObject(tcase, { ready: spec.guideReady !== false })
+            var all = {}, segs = {}, slots = spec.slots || "ab", made = [lg, gd]
+            ;["a", "b", "c"].forEach(function(k) {
+                all[k] = gtInstComp.createObject(tcase, { deviceId: "WT-" + k.toUpperCase(), imuConnected: true })
+                made.push(all[k])
+                if (slots.indexOf(k) >= 0) segs[k] = all[k]
+            })
+            var init = { guide: gd, segments: segs, rightHanded: spec.leftHanded !== true, active: true, pace: tracePace }
+            var rt = harness.createWithContext("WitmotionArmRoutine", { appLog: lg }, null, init)
+            verify(rt !== null, "WitmotionArmRoutine failed to instantiate")
+            // The pace: each hold the same number of ticks as at the real pace (tick 100 ms), so the files'
+            // real-pace times are the routine's own.
+            compare(Math.ceil(rt._ms("hold") / rt._ms("tick")), Math.ceil(rt.defaultPace.hold / rt.defaultPace.tick),
+                    "the hold takes a different number of ticks than at the real pace")
+            compare(rt._captureHoldMs, rt._ms("hold"))
+            var rig = WTrace.attachWitmotion({ routine: rt, all: all, guide: gd, log: lg, spec: spec })
+            var initial = rig.initial()
+            rig.start(spec.first)
+            var t0 = Date.now()
+            while (!rig.finished && Date.now() - t0 < 60000) { wait(5); rig.poll() }
+            var lines = lg.lines.slice(-40).join("\n")
+            var settled = rig.finished, where = rt.stage + "/" + rt._animStage, fault = rig.orderFault
+            if (!settled || fault !== "") {
+                harness.destroyNow(rt)
+                made.forEach(function(o) { o.destroy() })
+            }
+            verify(settled, tag + ": the run never settled (stage " + where + ")\n" + lines)
+            compare(fault, "", tag + ": " + fault)
+            var pace = {}
+            for (var k in rt._p) pace[k] = rt._p[k]
+            var setup = { rightHanded: rt.rightHanded, guideReady: spec.guideReady !== false, segments: slots,
+                          deviceIds: { a: "WT-A", b: "WT-B", c: "WT-C" }, initial: initial }
+            var out = {
+                inputs: { routine: "WitmotionArmRoutine", set: tag, pace: pace, timeUnit: "ms at the real pace",
+                          setup: setup, inputs: rig.inputs() },
+                trace:  { routine: "WitmotionArmRoutine", set: tag, tickMs: rt._p.tick,
+                          projection: WTrace.project(rig.events, rt._p.tick) } }
+            harness.destroyNow(rt)
+            made.forEach(function(o) { o.destroy() })
+            return out
+        }
+        function wtSameDoc(got, file, what) {
+            var text = harness.readTextFile(Qt.resolvedUrl("fixtures/" + file))
+            verify(text !== "", what + ": fixtures/" + file + " is missing (record it with PP_CALIB_TRACE_RECORD=1)")
+            var want = JSON.parse(text)
+            var g = JSON.parse(JSON.stringify(got))
+            for (var k in want) {
+                if (Array.isArray(want[k]))
+                    compare(Trace.firstDiff(g[k] || [], want[k]), "", what + " " + file + ", " + k + " differs from the fixture")
+                else
+                    compare(JSON.stringify(g[k]), JSON.stringify(want[k]), what + " " + file + ", " + k)
+            }
+            compare(JSON.stringify(Object.keys(g)), JSON.stringify(Object.keys(want)), what + " " + file + ": keys")
+        }
+        function test_CWT_goldenTrace(row) {
+            var a = wtTraceRun(row.tag, row.spec)
+            var b = wtTraceRun(row.tag, row.spec)
+            // Deterministic: the same inputs and the same projection, run to run.
+            compare(Trace.firstDiff(b.inputs.inputs, a.inputs.inputs), "", row.tag + ": the inputs differ between two runs")
+            compare(Trace.firstDiff(b.trace.projection, a.trace.projection), "", row.tag + ": the projection differs between two runs")
+            var fi = "calib_inputs_witmotion_" + row.tag + ".json", ft = "calib_trace_witmotion_" + row.tag + ".json"
+            if (harness.envValue("PP_CALIB_TRACE_RECORD") === "1") {
+                verify(harness.writeTextFile(Qt.resolvedUrl("fixtures/" + fi), Trace.serialize(a.inputs)), "could not write " + fi)
+                verify(harness.writeTextFile(Qt.resolvedUrl("fixtures/" + ft), Trace.serialize(a.trace)), "could not write " + ft)
+                return
+            }
+            wtSameDoc(a.inputs, fi, "the inputs")
+            wtSameDoc(a.trace, ft, "the projection")
         }
     }
 }

@@ -566,7 +566,10 @@ Item {
         if (fakeGuide)  fakeGuide.destroy()
         panel = null; standalone = null; flow = null; panelFlow = null
         routine = null; fakeGuide = null; scale = 1
-        if (fx) for (var k in fx) if (fx[k]) fx[k].destroy()
+        // Only the fakes made here are QObjects: fx.app is a plain object (048aca1d) whose one made fake is
+        // the replay; destroy() on the object itself threw, and fx was never cleared (C-9b).
+        if (fx) for (var k in fx) if (fx[k] && typeof fx[k].destroy === "function") fx[k].destroy()
+        if (fx && fx.app && fx.app.state && fx.app.state.replay) fx.app.state.replay.destroy()
         fx = null
         imus = ({}); hm = null
         events = []; completedBy = ({}); stallStage = ""; _hooked = []; leaveMark = null; holdPace = 0
