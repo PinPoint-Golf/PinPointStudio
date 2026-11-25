@@ -178,21 +178,21 @@ const Row<Strength> kStrengths[] = {
 
 } // namespace
 
-const Measure *CharacteristicPack::measure(const QString &mid) const
+const Measure *CharacteristicPack::measure(const QString &mid) const &
 {
     const auto it = std::find_if(measures.begin(), measures.end(),
                                  [&](const Measure &m) { return m.id == mid; });
     return it == measures.end() ? nullptr : &*it;
 }
 
-const Signal *CharacteristicPack::signal(const QString &sid) const
+const Signal *CharacteristicPack::signal(const QString &sid) const &
 {
     const auto it = std::find_if(signalDefs.begin(), signalDefs.end(),
                                  [&](const Signal &s) { return s.id == sid; });
     return it == signalDefs.end() ? nullptr : &*it;
 }
 
-const Condition *CharacteristicPack::condition(const QString &cid) const
+const Condition *CharacteristicPack::condition(const QString &cid) const &
 {
     const auto it = std::find_if(conditions.begin(), conditions.end(),
                                  [&](const Condition &c) { return c.id == cid; });

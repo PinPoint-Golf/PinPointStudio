@@ -1286,6 +1286,7 @@ std::array<PostureRowView, kPostureRows> rowViews(const PostureGrid &x, const st
     return out;
 }
 
+const PostureExit *largestExit(const std::vector<PostureExit> &&) = delete;   // a temporary would leave the result dangling (#247, #248)
 const PostureExit *largestExit(const std::vector<PostureExit> &exits)
 {
     const PostureExit *best = nullptr;

@@ -30,7 +30,7 @@ namespace pinpoint::analysis {
 // ── NormPack ────────────────────────────────────────────────────────────────
 
 const Norm *NormPack::find(const QString &measureId, const QString &contextId,
-                           const Cohort &cohort) const
+                           const Cohort &cohort) const &
 {
     for (const Norm &n : norms)
         if (n.measureId == measureId && n.contextId == contextId && n.cohort == cohort) return &n;

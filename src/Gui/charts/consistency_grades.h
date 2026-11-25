@@ -82,7 +82,8 @@ struct ConsistencyGrades {
     std::vector<variability::VariabilityResult> readings;   // one per ConsistencyInput::readings, in its order
     std::vector<ConsistencyCellGrade>           cells;      // every applicable cell, consistencyAreas() order then column
 
-    const ConsistencyCellGrade *cellAt(const QString &area, int column) const;
+    const ConsistencyCellGrade *cellAt(const QString &, int) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const ConsistencyCellGrade *cellAt(const QString &area, int column) const &;
 };
 
 // One reading's grade, against `shots` (ConsistencyInput::shots, the reading's rows).

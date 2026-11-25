@@ -153,6 +153,7 @@ QString outcomeCountText(int n, const QString &one, const QString &many)
 }
 
 // One factor's values in a club's tuple; empty when it wasn't read.
+const QStringList &factorTupleValues(const TendencyFactorTuple &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 const QStringList &factorTupleValues(const TendencyFactorTuple &t, const QString &factor)
 {
     return factor == shotFactorStrike() ? t.strike : factor == shotFactorDirection() ? t.direction : t.flight;

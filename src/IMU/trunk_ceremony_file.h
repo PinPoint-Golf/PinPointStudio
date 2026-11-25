@@ -131,6 +131,7 @@ struct Ceremony {
 
 // ── Lookup ─────────────────────────────────────────────────────────────────────────────────────
 
+const Lane *laneBySerial(const Ceremony &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const Lane *laneBySerial(const Ceremony &c, const QString &serial)
 {
     for (const Lane &L : c.lanes)
@@ -138,6 +139,7 @@ inline const Lane *laneBySerial(const Ceremony &c, const QString &serial)
     return nullptr;
 }
 
+const Lane *laneByRole(const Ceremony &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const Lane *laneByRole(const Ceremony &c, const QString &role)
 {
     for (const Lane &L : c.lanes)
@@ -146,6 +148,7 @@ inline const Lane *laneByRole(const Ceremony &c, const QString &role)
 }
 
 // The last step of that name (the one a repeat left in force), or null.
+const Step *lastStep(const Ceremony &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const Step *lastStep(const Ceremony &c, const QString &name)
 {
     for (auto it = c.steps.rbegin(); it != c.steps.rend(); ++it)

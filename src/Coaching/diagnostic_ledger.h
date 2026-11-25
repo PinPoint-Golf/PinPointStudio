@@ -842,6 +842,7 @@ private:
 
 // The row for `conditionId` on this shot, or nullptr. Linear — a shot carries tens of
 // rows, not thousands.
+const ConditionRow *rowFor(const ShotRecord &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const ConditionRow *rowFor(const ShotRecord &shot, const QString &conditionId)
 {
     for (const ConditionRow &r : shot.rows)
@@ -1116,6 +1117,7 @@ inline QString recurrenceText(int fired, int assessable)
 }
 
 // The ledger for `id`, or nullptr.
+const ConditionLedger *ledgerFor(const std::vector<ConditionLedger> &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const ConditionLedger *ledgerFor(const std::vector<ConditionLedger> &ls, const QString &id)
 {
     for (const ConditionLedger &l : ls)
@@ -1645,6 +1647,7 @@ inline LinkEvidence gradeLink(const EdgeSpec &edge,
 }
 
 // The node for `id`, or nullptr.
+const NodeSpec *nodeFor(const std::vector<NodeSpec> &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const NodeSpec *nodeFor(const std::vector<NodeSpec> &nodes, const QString &id)
 {
     for (const NodeSpec &n : nodes)
@@ -1674,6 +1677,7 @@ inline std::vector<LinkEvidence> gradeLinks(const std::vector<NodeSpec> &nodes,
 }
 
 // The graded link from → to, or nullptr.
+const LinkEvidence *linkFor(const std::vector<LinkEvidence> &&, const QString &, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const LinkEvidence *linkFor(const std::vector<LinkEvidence> &links,
                                    const QString &from, const QString &to)
 {

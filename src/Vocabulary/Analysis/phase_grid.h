@@ -214,7 +214,8 @@ struct SwingPhaseGrid {
     // run asking for it is configured differently — see sameGridReduction().
     PhaseGridConfig config;
 
-    const MetricPhaseGrid *metric(const QString &key) const
+    const MetricPhaseGrid *metric(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const MetricPhaseGrid *metric(const QString &key) const &
     {
         if (key.isEmpty())
             return nullptr;

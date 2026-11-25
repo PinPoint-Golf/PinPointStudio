@@ -38,7 +38,7 @@ void MetricCatalogue::addProvider(const IMetricProvider *p)
         m_providers.push_back(p);
 }
 
-const MetricDescriptor *MetricCatalogue::descriptor(const QString &key) const
+const MetricDescriptor *MetricCatalogue::descriptor(const QString &key) const &
 {
     const auto it = m_index.constFind(key);
     if (it == m_index.constEnd())

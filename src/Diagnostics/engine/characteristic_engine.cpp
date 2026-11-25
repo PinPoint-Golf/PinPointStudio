@@ -28,7 +28,7 @@ namespace pinpoint::analysis {
 // what is uncertain is whether the right norm was used to judge it.
 constexpr float kInferredContextConfidence = 0.7f;
 
-const Finding *DetectionResult::find(const QString &conditionId) const
+const Finding *DetectionResult::find(const QString &conditionId) const &
 {
     const auto it = std::find_if(findings.begin(), findings.end(),
                                  [&](const Finding &f) { return f.conditionId == conditionId; });

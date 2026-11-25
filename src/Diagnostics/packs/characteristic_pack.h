@@ -525,11 +525,13 @@ QStringList tailsOfAxis(const CharacteristicPack &pack, const QString &axis);
 // case that proves it: it is the preferred measure at P4 and carries NO norm, so a caller taking only
 // the winner draws no corridor at the top of the swing while the Δ-from-address measure beside it has
 // carried one since v1. Empty when nothing matches.
+std::vector<const Measure *> measuresForMetricAtPhase(const CharacteristicPack &&, const QString &, Phase) = delete;   // a temporary would leave the result dangling (#247, #248)
 std::vector<const Measure *> measuresForMetricAtPhase(const CharacteristicPack &pack,
                                                       const QString            &metricKey,
                                                       Phase                     phase);
 
 // The preferred one — the first of the above. Null when nothing matches.
+const Measure *measureForMetricAtPhase(const CharacteristicPack &&, const QString &, Phase) = delete;   // a temporary would leave the result dangling (#247, #248)
 const Measure *measureForMetricAtPhase(const CharacteristicPack &pack,
                                        const QString            &metricKey,
                                        Phase                     phase);
@@ -585,6 +587,8 @@ bool edgeSharesEvidence(const CharacteristicPack &pack, const Edge &edge);
 // are read at one instant by design (§4.4), so any of them places it (P7, P4, P1). The one rule
 // condition_reading.h (the card phase, charts) and swing_themes_pack.h (themes' `when`) both use.
 const Measure *landingMeasureOf(const CharacteristicPack &pack, const Measure &m);
+const Measure *landingMeasureOf(const CharacteristicPack &&, const Measure &) = delete;   // a temporary would leave the result dangling (#247, #248)
+const Measure *landingMeasureOf(const CharacteristicPack &, const Measure &&) = delete;
 
 // Sets Edge::sharedEvidence on every edge (and clears it where it no longer holds), by the rule above. Run at the end of
 // loadPack() and again on the merged library, whose edges can join conditions from two layers.

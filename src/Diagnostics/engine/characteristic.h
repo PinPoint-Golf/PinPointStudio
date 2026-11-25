@@ -458,9 +458,13 @@ struct CharacteristicPack {
     std::vector<Condition>  conditions;
     std::vector<Edge>       edges;
 
-    const Measure   *measure(const QString &id) const;
-    const Signal    *signal(const QString &id) const;
-    const Condition *condition(const QString &id) const;
+    const Measure   *measure(const QString &id) const &;
+    const Signal    *signal(const QString &id) const &;
+    const Condition *condition(const QString &id) const &;
+    // a temporary would leave the result dangling (#247, #248)
+    const Measure   *measure(const QString &) const && = delete;
+    const Signal    *signal(const QString &) const && = delete;
+    const Condition *condition(const QString &) const && = delete;
 };
 
 // ── Enum <-> string (the JSON spelling) ─────────────────────────────────────

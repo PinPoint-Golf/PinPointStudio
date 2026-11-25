@@ -68,7 +68,8 @@ struct NormPack {
     // an unqualified one at the same (measure, context) are two different rows, and an upsert of
     // one must never replace the other.
     const Norm *find(const QString &measureId, const QString &contextId,
-                     const Cohort &cohort = {}) const;
+                     const Cohort &cohort = {}) const &;
+    const Norm *find(const QString &, const QString &, const Cohort & = {}) const && = delete;   // a temporary would leave the result dangling (#247, #248)
     bool        contains(const QString &measureId, const QString &contextId,
                          const Cohort &cohort = {}) const;
 

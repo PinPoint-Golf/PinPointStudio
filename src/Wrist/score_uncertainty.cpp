@@ -45,6 +45,7 @@ double phaseValue(const MetricSeries &m, Phase p)
     return m.value.empty() ? 0.0 : m.value.back();
 }
 
+const PhaseEvent *eventFor(const std::vector<PhaseEvent> &&, Phase) = delete;   // a temporary would leave the result dangling (#247, #248)
 const PhaseEvent *eventFor(const std::vector<PhaseEvent> &phases, Phase p)
 {
     for (const PhaseEvent &e : phases)

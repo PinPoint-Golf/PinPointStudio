@@ -65,7 +65,8 @@ struct DrillSet {
     bool               readOnly = false;
     std::vector<Drill> drills;
 
-    const Drill *drill(const QString &id) const;
+    const Drill *drill(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const Drill *drill(const QString &id) const &;
 };
 
 // LOAD-TIME ERRORS: parse (not JSON) · schemaTooNew (from a newer build — kDrillSchemaVersion)

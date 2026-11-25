@@ -30,7 +30,7 @@
 
 namespace pinpoint::analysis {
 
-const Drill *DrillSet::drill(const QString &did) const
+const Drill *DrillSet::drill(const QString &did) const &
 {
     const auto it = std::find_if(drills.begin(), drills.end(),
                                  [&](const Drill &d) { return d.id == did; });

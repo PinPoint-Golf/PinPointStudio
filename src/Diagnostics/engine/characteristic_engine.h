@@ -421,7 +421,8 @@ struct Finding {
 struct DetectionResult {
     std::vector<Finding> findings;
 
-    const Finding *find(const QString &conditionId) const;
+    const Finding *find(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const Finding *find(const QString &conditionId) const &;
     QStringList    fired() const;
     QStringList    unavailable() const;
 };

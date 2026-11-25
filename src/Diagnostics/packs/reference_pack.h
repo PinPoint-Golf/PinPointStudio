@@ -165,10 +165,12 @@ struct ReferenceSet {
     bool                   readOnly = false;
     std::vector<Reference> references;
 
-    const Reference *reference(const QString &id) const;
+    const Reference *reference(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const Reference *reference(const QString &id) const &;
 
     // The join the UI actually makes: a Provenance::citation against a DOI, a PMID *or* an ISBN.
-    const Reference *byCitation(const QString &citation) const;
+    const Reference *byCitation(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const Reference *byCitation(const QString &citation) const &;
 };
 
 // ── Validation ──────────────────────────────────────────────────────────────

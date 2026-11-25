@@ -72,7 +72,8 @@ public:
     void addProvider(const IMetricProvider *p);       // non-owning; provider outlives the catalogue
 
     // --- lookup ---
-    const MetricDescriptor *descriptor(const QString &key) const;
+    const MetricDescriptor *descriptor(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const MetricDescriptor *descriptor(const QString &key) const &;
     std::vector<const MetricDescriptor *> all() const;
 
     // The registered providers, in registration order — the mirror of all(). Exists so a test can

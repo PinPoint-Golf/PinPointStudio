@@ -829,7 +829,8 @@ static void sequenceConsistencySuite(const QTemporaryDir &tmp)
     {
         std::vector<ShotRecord> shots = consistencySession(6, 0);
         for (int i = 0; i < 5; ++i) addPeak(shots[size_t(i)], "m_leadArmPeakTime", -10.0 * i, 10.0);
-        const SessionSpreadSegment &arm = sessionSequenceConsistency(shots, hard).spread.segments[2];
+        const SessionSequenceConsistency c = sessionSequenceConsistency(shots, hard);   // named: `arm` points into it
+        const SessionSpreadSegment &arm = c.spread.segments[2];
         check(arm.n == 5 && arm.dof == 4, "spread_absent_time_skipped: a swing with no placed arm peak is not counted");
     }
 

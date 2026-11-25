@@ -56,7 +56,7 @@ ConsistencyGradeScales consistencyGradeScales(const IVariabilityScaleProvider &p
              [p](const QString &key) { return p->variabilityScale(key); } };
 }
 
-const ConsistencyCellGrade *ConsistencyGrades::cellAt(const QString &area, int column) const
+const ConsistencyCellGrade *ConsistencyGrades::cellAt(const QString &area, int column) const &
 {
     for (const ConsistencyCellGrade &c : cells) if (c.area == area && c.column == column) return &c;
     return nullptr;

@@ -390,12 +390,14 @@ struct SessionPriorities {
     // to tell a session that was quiet on a fault from one that never looked.
     std::vector<PriorityEvidence> evidence;
 
-    const PriorityEntry *entry(const QString &id) const
+    const PriorityEntry *entry(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const PriorityEntry *entry(const QString &id) const &
     {
         for (const PriorityEntry &e : entries) if (e.id == id) return &e;
         return nullptr;
     }
-    const PriorityEvidence *evidenceFor(const QString &id) const
+    const PriorityEvidence *evidenceFor(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const PriorityEvidence *evidenceFor(const QString &id) const &
     {
         for (const PriorityEvidence &e : evidence) if (e.id == id) return &e;
         return nullptr;

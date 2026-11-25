@@ -86,6 +86,7 @@ inline void applyCaptureCameraFacts(SwingExportCamera &cam, const CaptureCameraF
     }
 }
 
+const CaptureCameraFacts *captureCameraFactsFor(const std::vector<CaptureCameraFacts> &&, SourceId) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const CaptureCameraFacts *captureCameraFactsFor(const std::vector<CaptureCameraFacts> &facts,
                                                        SourceId source)
 {

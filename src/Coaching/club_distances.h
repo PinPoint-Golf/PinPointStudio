@@ -375,6 +375,7 @@ poolsByClub(const std::vector<const ClubDistanceSession *> &oldestFirst, const F
 
 // ── Statistics ──────────────────────────────────────────────────────────────
 
+const LmFieldStats *clubStat(const std::vector<LmFieldStats> &&, const char *) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const LmFieldStats *clubStat(const std::vector<LmFieldStats> &stats, const char *key)
 {
     for (const LmFieldStats &st : stats)

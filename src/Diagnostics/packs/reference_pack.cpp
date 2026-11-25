@@ -95,14 +95,14 @@ QString Reference::identifierLabel() const
     return QString();
 }
 
-const Reference *ReferenceSet::reference(const QString &rid) const
+const Reference *ReferenceSet::reference(const QString &rid) const &
 {
     const auto it = std::find_if(references.begin(), references.end(),
                                  [&](const Reference &r) { return r.id == rid; });
     return it == references.end() ? nullptr : &*it;
 }
 
-const Reference *ReferenceSet::byCitation(const QString &c) const
+const Reference *ReferenceSet::byCitation(const QString &c) const &
 {
     if (c.isEmpty()) return nullptr;
     const auto it = std::find_if(references.begin(), references.end(), [&](const Reference &r) {

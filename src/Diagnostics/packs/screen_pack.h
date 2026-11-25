@@ -82,7 +82,8 @@ struct ScreenSet {
     bool                readOnly = false;
     std::vector<Screen> screens;
 
-    const Screen *screen(const QString &id) const;
+    const Screen *screen(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const Screen *screen(const QString &id) const &;
 };
 
 // ── Validation ──────────────────────────────────────────────────────────────

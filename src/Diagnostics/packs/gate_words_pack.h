@@ -84,8 +84,10 @@ struct GateWordSet {
     std::vector<GateWord> subjects;
 
     // Null when the id is not in that list.
-    const GateWord *gate(const QString &gateId) const;
-    const GateWord *subject(const QString &subjectId) const;
+    const GateWord *gate(const QString &gateId) const &;
+    const GateWord *subject(const QString &subjectId) const &;
+    const GateWord *gate(const QString &) const && = delete;      // a temporary would leave the result dangling (#247, #248)
+    const GateWord *subject(const QString &) const && = delete;
 };
 
 // The clause for a gate or rule id, or the words for a subject; empty when the set does not name it —

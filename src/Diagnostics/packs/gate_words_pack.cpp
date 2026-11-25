@@ -33,6 +33,7 @@ namespace {
 
 QString userGateWordsPath() { return diagnosticsFilePath(QLatin1String(kGateWordSetFileName)); }
 
+const GateWord *findWord(const std::vector<GateWord> &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 const GateWord *findWord(const std::vector<GateWord> &list, const QString &wid)
 {
     const auto it = std::find_if(list.begin(), list.end(),
@@ -91,8 +92,8 @@ void validateWords(ValidationReport &r, const std::vector<GateWord> &list, const
 
 } // namespace
 
-const GateWord *GateWordSet::gate(const QString &gateId) const { return findWord(gates, gateId); }
-const GateWord *GateWordSet::subject(const QString &subjectId) const { return findWord(subjects, subjectId); }
+const GateWord *GateWordSet::gate(const QString &gateId) const & { return findWord(gates, gateId); }
+const GateWord *GateWordSet::subject(const QString &subjectId) const & { return findWord(subjects, subjectId); }
 
 QString gateWordsFor(const GateWordSet &set, const QString &gateId)
 {

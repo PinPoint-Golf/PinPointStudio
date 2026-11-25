@@ -67,7 +67,8 @@ public:
 
     const std::vector<ContextNode> &nodes() const { return m_nodes; }
     bool                            isEmpty() const { return m_nodes.empty(); }
-    const ContextNode              *node(const QString &id) const;
+    const ContextNode              *node(const QString &id) const &;
+    const ContextNode              *node(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
     bool                            contains(const QString &id) const { return node(id) != nullptr; }
 
     // The resolution chain for `id`, nearest first, INCLUDING `id` itself. A norm lookup tries each
@@ -123,6 +124,7 @@ BindingResolution resolveContextBinding(const Condition &c, const ContextTree &t
 // This is the "is this yours or the parent's?" question the editor's checkboxes rest on, and it is
 // deliberately separate from resolution — they differ exactly where inheritance does.
 const ContextBinding *ownContextBinding(const Condition &c, const QString &contextId);
+const ContextBinding *ownContextBinding(const Condition &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 
 // ── What context a SHOT is in ───────────────────────────────────────────────
 //

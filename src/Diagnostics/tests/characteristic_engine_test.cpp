@@ -98,6 +98,12 @@ private:
 // ── Fixture ─────────────────────────────────────────────────────────────────
 // A chain that exercises the rules: a latent screened cause explains two characteristics, one of
 // which causes a third. Plus an asserted cause and a measure nothing can produce.
+// One finding of a detection, read while the result is alive: a result built in the call (a temporary) is read here,
+// before it dies. A missing finding is dereferenced, as a direct find(...)->state would be.
+static FindingState stateOf(const DetectionResult &r, const QString &id) { return r.find(id)->state; }
+static bool         quantifiedOf(const DetectionResult &r, const QString &id) { return r.find(id)->quantified; }
+static bool         hasFinding(const DetectionResult &r, const QString &id) { return r.find(id) != nullptr; }
+
 static CharacteristicPack fixture()
 {
     CharacteristicPack p;
@@ -451,7 +457,7 @@ int main()
         check(onFull.find(QStringLiteral("sway")) != nullptr
                   && onFull.find(QStringLiteral("sway"))->state == FindingState::Fired,
               "the same condition still fires in a context it does apply to");
-        check(detect(narrowed, src).find(QStringLiteral("sway")) != nullptr,
+        check(hasFinding(detect(narrowed, src), QStringLiteral("sway")),
               "with no context given, nothing is filtered — bindings need a context to mean anything");
     }
 
@@ -730,12 +736,12 @@ int main()
         {
             FakeSource over;
             over.addWithoutCorridor(m.id, 120.0);
-            check(detect(p, over).find("c_fast")->state == FindingState::Fired,
+            check(stateOf(detect(p, over), "c_fast") == FindingState::Fired,
                   "a threshold fires above its number with no corridor in sight");
 
             FakeSource under;
             under.addWithoutCorridor(m.id, 80.0);
-            check(detect(p, under).find("c_fast")->state == FindingState::NotFired,
+            check(stateOf(detect(p, under), "c_fast") == FindingState::NotFired,
                   "…and does not fire below it");
         }
 
@@ -854,7 +860,7 @@ int main()
         check(ro.find("c_order")->state == FindingState::Fired,
               "the subject peaking after the second fires");
         check(ro.find("c_order")->pFire == 1.f, "…pFire 1 unquantified");
-        check(detect(p, times(-25.0, -25.0)).find("c_order")->state == FindingState::Fired,
+        check(stateOf(detect(p, times(-25.0, -25.0)), "c_order") == FindingState::Fired,
               "a tie fires: two events at one instant are not a sequence");
 
         // σ in quadrature: Φ((−40 − (−20)) / √(10² + 10²)) = Φ(−√2).
@@ -874,13 +880,13 @@ int main()
 
         FakeSource half = times(-40.0, -20.0);
         half.setSigma(QStringLiteral("m_pelvisT"), 10.0);
-        check(!detect(p, half).find("c_order")->quantified,
+        check(!quantifiedOf(detect(p, half), "c_order"),
               "one σ alone does not quantify an order");
 
         for (const char *bad : { "m_pelvisT", "m_thoraxT" }) {
             FakeSource src = times(-40.0, -20.0);
             src.addImplausible(QString::fromLatin1(bad), 9999.0, -200.0, 50.0);
-            check(detect(p, src).find("c_order")->state == FindingState::Unavailable,
+            check(stateOf(detect(p, src), "c_order") == FindingState::Unavailable,
                   QByteArray("an implausible ").append(bad)
                       .append(" makes the order Unavailable, whichever time was wrong").constData());
         }
@@ -897,7 +903,7 @@ int main()
         // link to stand in, or as the subject, the signal is refused as Withheld — not Missing.
         FakeSource held = times(-10.0, -30.0);
         held.withhold(QStringLiteral("m_thoraxT"));
-        check(detect(p, held).find("c_order")->state == FindingState::Unavailable,
+        check(stateOf(detect(p, held), "c_order") == FindingState::Unavailable,
               "a withheld second time makes the order Unavailable, though it would have fired");
         check(evaluateSignal(p, QStringLiteral("sigOrder"), held).refusal == SignalRefusal::Withheld,
               "…refused as withheld, not missing");
@@ -1021,7 +1027,7 @@ int main()
                   castFires ? "…casting fires on its own lag angle, not on the club's order"
                             : "…a clean lag angle keeps casting clean beside a club that came first");
         }
-        check(detect(p, peaks(-50.0, -50.0)).find(kClub)->state == FindingState::Fired,
+        check(stateOf(detect(p, peaks(-50.0, -50.0)), kClub) == FindingState::Fired,
               "club_before_arms: a tie fires — two peaks at one instant are not a sequence");
 
         // (2) The lead arm before the club is the order the chain should have: clean.
@@ -1100,28 +1106,28 @@ int main()
         FakeSource slow;
         slow.addWithoutCorridor(QStringLiteral("m_backTime"), 1.5);
         slow.addWithoutCorridor(QStringLiteral("m_downTime"), 0.4);      // 3.75
-        check(detect(p, slow).find("c_slowTransition")->state == FindingState::Fired,
+        check(stateOf(detect(p, slow), "c_slowTransition") == FindingState::Fired,
               "a ratio past its authored number fires, with no corridor on either measure");
 
         FakeSource brisk;
         brisk.addWithoutCorridor(QStringLiteral("m_backTime"), 1.0);
         brisk.addWithoutCorridor(QStringLiteral("m_downTime"), 0.4);     // 2.5
-        check(detect(p, brisk).find("c_slowTransition")->state == FindingState::NotFired,
+        check(stateOf(detect(p, brisk), "c_slowTransition") == FindingState::NotFired,
               "…and a ratio short of it does not");
 
         // The other tail is a different fault and must be authorable as one.
         CharacteristicPack quick = p;
         quick.signalDefs.front().direction = Direction::Low;
-        check(detect(quick, brisk).find("c_slowTransition")->state == FindingState::Fired,
+        check(stateOf(detect(quick, brisk), "c_slowTransition") == FindingState::Fired,
               "the low tail of a ratio fires on the other side of the same number");
-        check(detect(quick, slow).find("c_slowTransition")->state == FindingState::NotFired,
+        check(stateOf(detect(quick, slow), "c_slowTransition") == FindingState::NotFired,
               "…and not on this one");
 
         // A zero denominator is not a very large ratio, it is no ratio at all.
         FakeSource zero;
         zero.addWithoutCorridor(QStringLiteral("m_backTime"), 1.5);
         zero.addWithoutCorridor(QStringLiteral("m_downTime"), 0.0);
-        check(detect(p, zero).find("c_slowTransition")->state == FindingState::Unavailable,
+        check(stateOf(detect(p, zero), "c_slowTransition") == FindingState::Unavailable,
               "a zero denominator is Unavailable, never a very large ratio");
 
         // Either half being unbelievable makes the whole quotient unassessed.
@@ -1143,14 +1149,14 @@ int main()
         FakeSource graded;
         graded.add(QStringLiteral("m_backTime"), 1.5, 1.0, 2.0);        // inside, grades Ideal
         graded.addWithoutCorridor(QStringLiteral("m_downTime"), 0.4);
-        check(detect(p, graded).find("c_slowTransition")->state == FindingState::Fired,
+        check(stateOf(detect(p, graded), "c_slowTransition") == FindingState::Fired,
               "the ratio is graded against its authored number, not the numerator's corridor");
 
         // …and the mirror: a numerator OUTSIDE its corridor whose quotient is fine says nothing.
         FakeSource wide;
         wide.add(QStringLiteral("m_backTime"), 1.0, 0.1, 0.2);          // far above its band
         wide.addWithoutCorridor(QStringLiteral("m_downTime"), 0.5);     // 2.0, short of 3.0
-        check(detect(p, wide).find("c_slowTransition")->state == FindingState::NotFired,
+        check(stateOf(detect(p, wide), "c_slowTransition") == FindingState::NotFired,
               "…and a numerator outside its own corridor does not fire a ratio whose quotient is fine");
 
         // A NEGATIVE denominator flips which side of the number is "above", so the authored
@@ -1158,7 +1164,7 @@ int main()
         FakeSource negative;
         negative.addWithoutCorridor(QStringLiteral("m_backTime"), -1.5);
         negative.addWithoutCorridor(QStringLiteral("m_downTime"), -0.4);   // +3.75, and meaningless
-        check(detect(p, negative).find("c_slowTransition")->state == FindingState::Unavailable,
+        check(stateOf(detect(p, negative), "c_slowTransition") == FindingState::Unavailable,
               "a negative denominator is Unavailable, never a ratio read the wrong way round");
 
         // ── σ by the delta method (§10.7 E1) ─────────────────────────────
@@ -1222,7 +1228,7 @@ int main()
             s.addWithoutCorridor(QStringLiteral("m_downTime"), 0.4);      // 3.75: fires if assessed
             s.setRoute(QStringLiteral("m_backTime"), QString::fromLatin1(ra), da);
             s.setRoute(QStringLiteral("m_downTime"), QString::fromLatin1(rb), db);
-            return detect(p, s).find("c_slowTransition")->state;
+            return stateOf(detect(p, s), "c_slowTransition");
         };
         check(routed("pelvisImu", false, "faceOn+dtl", false) == FindingState::Unavailable,
               "two different estimated routes: Unavailable, the scales do not cancel");
@@ -1732,7 +1738,7 @@ int main()
             MeasureReading r;
             r.value = 3.0;
             sess.set(QStringLiteral("mS"), r);
-            check(detect(p, sess).find("cSess")->state == FindingState::Fired,
+            check(stateOf(detect(p, sess), "cSess") == FindingState::Fired,
                   "a live session measure 3.0 over 2.0 fires");
             const CharacteristicPack k = withStatus("mS", MeasureStatus::Held);
             SessionMeasureSource sessHeld(k);
@@ -1750,7 +1756,7 @@ int main()
             k.measures.erase(std::remove_if(k.measures.begin(), k.measures.end(),
                                             [](const Measure &m) { return m.id == QLatin1String("mA"); }),
                              k.measures.end());
-            check(detect(k, src).find("cA")->state == FindingState::Fired,
+            check(stateOf(detect(k, src), "cA") == FindingState::Fired,
                   "a measure not in the pack is read as the source answers (no status to refuse on)");
         }
     }

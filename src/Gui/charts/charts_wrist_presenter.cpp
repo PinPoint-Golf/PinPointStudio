@@ -768,6 +768,7 @@ std::vector<DofAgg> aggregates(const Ctx &c)
     return out;
 }
 
+const DofAgg *aggOf(const std::vector<DofAgg> &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 const DofAgg *aggOf(const std::vector<DofAgg> &aggs, const QString &id)
 {
     for (const DofAgg &a : aggs) if (a.id == id) return &a;

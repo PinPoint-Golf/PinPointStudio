@@ -364,11 +364,12 @@ struct TendencyItem {
     // the tendency flow (Sankey) pools these over the clubs shown (rule 17; tendency_flow.h).
     std::vector<TendencyFlowCombo> flow;
 
-    const TendencyFactor &factor(const QString &name) const
+    const TendencyFactor &factor(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const TendencyFactor &factor(const QString &name) const &
     {
         return name == shotFactorStrike() ? strike : name == shotFactorDirection() ? direction : flight;
     }
-    TendencyFactor &factor(const QString &name)
+    TendencyFactor &factor(const QString &name) &
     {
         return name == shotFactorStrike() ? strike : name == shotFactorDirection() ? direction : flight;
     }

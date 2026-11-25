@@ -467,6 +467,7 @@ inline QString phaseSubject(analysis::Phase p)
 // refused, bounded or withheld it, the one that says the most — a bound first (out of sight, in a
 // gap, still rising), then the gates that leave nothing, the σ ceiling last; a withheld record only
 // when nothing refused. nullptr when no record acted on the subject (a masked band refuses nothing).
+const analysis::GateRecord *primaryRecord(const std::vector<analysis::GateRecord> &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const analysis::GateRecord *primaryRecord(const std::vector<analysis::GateRecord> &recs, const QString &subject)
 {
     static const QStringList rank{ QStringLiteral("sequence.sightedBand"), QStringLiteral("sequence.validityHole"),

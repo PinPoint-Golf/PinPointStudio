@@ -261,7 +261,8 @@ struct ShotFactors {
 
     bool judged() const { return strike.read || direction.read || flight.read; }
     bool anyFault() const { return !strike.faults.isEmpty() || !direction.faults.isEmpty() || !flight.faults.isEmpty(); }
-    const ShotFactor &factor(const QString &name) const
+    const ShotFactor &factor(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const ShotFactor &factor(const QString &name) const &
     {
         return name == shotFactorStrike() ? strike : name == shotFactorDirection() ? direction : flight;
     }

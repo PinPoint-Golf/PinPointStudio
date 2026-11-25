@@ -1366,6 +1366,7 @@ struct Table {
 // One row per shot, sessions in the order given; one column per measure any row read. A row the
 // capture could not assess contributes nothing; otherwise every reading behind it (rowReadings),
 // the first finite value per measure winning.
+const std::vector<ThemeShot> &themeShotsOf(const ThemeSessionInput &&, std::vector<ThemeShot> &) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const std::vector<ThemeShot> &themeShotsOf(const ThemeSessionInput &s, std::vector<ThemeShot> &scratch);   // below
 
 inline Table buildTable(const std::vector<const ThemeSessionInput *> &sessions)

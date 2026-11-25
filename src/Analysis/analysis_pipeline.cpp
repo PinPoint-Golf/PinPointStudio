@@ -250,6 +250,7 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
 
 // Instrument ladder: a HackMotion swing publishes `hm.<key>` and never the bare key.
 // The one precedence rule (measurement_precedence.h; refactor 6.1a, R-INS-3).
+const MetricSeries *find(const std::vector<MetricSeries> &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 const MetricSeries *find(const std::vector<MetricSeries> &v, const QString &key)
 {
     return findByPrecedence(v, key);

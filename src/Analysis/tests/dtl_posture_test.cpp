@@ -173,6 +173,7 @@ static void setArmAtTop(PoseTrack2D &p, bool mirror, bool leftHanded, double til
         f.conf[size_t(tS)] = trailConf;
     }
 }
+static const MetricSeries *find(const DtlPostureResult &&, const char *) = delete;   // a temporary would leave the result dangling (#247, #248)
 static const MetricSeries *find(const DtlPostureResult &r, const char *key)
 {
     for (const MetricSeries &m : r.series) if (m.key == QLatin1String(key)) return &m;
@@ -183,6 +184,8 @@ static double atPhase(const MetricSeries *m, Phase p)
     if (m) for (const PhaseSample &s : m->phaseSamples) if (s.phase == p) return s.value;
     return std::nan("");
 }
+// The series' value at `p`, read while `r` is alive: a result built in the call (a temporary) is read here, before it dies.
+static double valueAt(const DtlPostureResult &r, const char *key, Phase p) { return atPhase(find(r, key), p); }
 
 int main()
 {
@@ -244,16 +247,16 @@ int main()
     // the feet (so a mirrored golfer reads the same), and an unseen elbow is no reading.
     {
         const PoseTrack2D under = makePose(false);
-        check(near(atPhase(find(buildDtlPosture(inputs(under, false), cfg), "trailForearmAngle"), Phase::Top), 0.0, 0.01),
+        check(near(valueAt(buildDtlPosture(inputs(under, false), cfg), "trailForearmAngle", Phase::Top), 0.0, 0.01),
               "§1c elbow under the hands ⇒ 0°");
         const PoseTrack2D behind = makePose(false, 30.0, 0.9f, 60.0, 100.0);
-        check(near(atPhase(find(buildDtlPosture(inputs(behind, false), cfg), "trailForearmAngle"), Phase::Top), 45.0, 0.01),
+        check(near(valueAt(buildDtlPosture(inputs(behind, false), cfg), "trailForearmAngle", Phase::Top), 45.0, 0.01),
               "§1c elbow 100 px behind, 100 px below ⇒ +45°");
         const PoseTrack2D tucked = makePose(false, 30.0, 0.9f, 60.0, -36.4);
-        check(near(atPhase(find(buildDtlPosture(inputs(tucked, false), cfg), "trailForearmAngle"), Phase::Top),
+        check(near(valueAt(buildDtlPosture(inputs(tucked, false), cfg), "trailForearmAngle", Phase::Top),
                    -std::atan(0.364) * 180.0 / M_PI, 0.01), "§1c elbow toward the ball ⇒ negative");
         const PoseTrack2D mirrored = makePose(true, 30.0, 0.9f, 60.0, 100.0);
-        check(near(atPhase(find(buildDtlPosture(inputs(mirrored, true), cfg), "trailForearmAngle"), Phase::Top), 45.0, 0.01),
+        check(near(valueAt(buildDtlPosture(inputs(mirrored, true), cfg), "trailForearmAngle", Phase::Top), 45.0, 0.01),
               "§1c mirrored golfer ⇒ the same +45°");
         const PoseTrack2D unseen = makePose(false, 30.0, 0.9f, 60.0, 100.0, 0.05f);
         const DtlPostureResult r = buildDtlPosture(inputs(unseen, false), cfg);
@@ -265,10 +268,10 @@ int main()
         const PoseTrack2D in_ = makePose(false, 30.0, 0.9f, -40.0);
         DtlPostureInputs in = inputs(in_, false);
         in.ballBright = false;                              // no ruler at all
-        check(near(atPhase(find(buildDtlPosture(in, cfg), "handPathLoop"), Phase::Top), -10.0, 0.3),
+        check(near(valueAt(buildDtlPosture(in, cfg), "handPathLoop", Phase::Top), -10.0, 0.3),
               "§1b hands down 40 px INSIDE ⇒ loop −10 %, with no ruler");
         const PoseTrack2D m = makePose(true, 30.0, 0.9f, -40.0);
-        check(near(atPhase(find(buildDtlPosture(inputs(m, true), cfg), "handPathLoop"), Phase::Top), -10.0, 0.3),
+        check(near(valueAt(buildDtlPosture(inputs(m, true), cfg), "handPathLoop", Phase::Top), -10.0, 0.3),
               "§1b mirrored: the same −10 %");
     }
 
@@ -324,17 +327,17 @@ int main()
         check(near(atPhase(a, Phase::Address), 8.0, 0.01), "§5 hands 8° toward the ball ⇒ +8° (reaching)");
         PoseTrack2D m = makePose(true);
         setArmHang(m, true, 8.0);
-        check(near(atPhase(find(buildDtlPosture(inputs(m, true), cfg), "armHang"), Phase::Address), 8.0, 0.01),
+        check(near(valueAt(buildDtlPosture(inputs(m, true), cfg), "armHang", Phase::Address), 8.0, 0.01),
               "§5 mirrored golfer ⇒ the same +8°");
         PoseTrack2D t = makePose(false);
         setArmHang(t, false, -5.0);
         DtlPostureInputs noRuler = inputs(t, false);
         noRuler.ballBright = false;                               // and no ruler anywhere
-        check(near(atPhase(find(buildDtlPosture(noRuler, cfg), "armHang"), Phase::Address), -5.0, 0.01),
+        check(near(valueAt(buildDtlPosture(noRuler, cfg), "armHang", Phase::Address), -5.0, 0.01),
               "§5 hands tucked 5° under the body ⇒ −5°, with no ruler");
         PoseTrack2D one = makePose(false);
         setArmHang(one, false, 8.0, 0.05f, 0.9f);                 // the lead wrist hidden
-        check(near(atPhase(find(buildDtlPosture(inputs(one, false), cfg), "armHang"), Phase::Address), 8.0, 0.01),
+        check(near(valueAt(buildDtlPosture(inputs(one, false), cfg), "armHang", Phase::Address), 8.0, 0.01),
               "§5 one wrist hidden ⇒ the other stands for the midpoint");
         PoseTrack2D none = makePose(false);
         setArmHang(none, false, 8.0, 0.05f, 0.05f);               // neither wrist confident at address
@@ -356,15 +359,15 @@ int main()
         check(near(atPhase(h, Phase::Address), 0.0, 0.01), "§6 head square to a 33° trunk ⇒ 0°");
         PoseTrack2D down = makePose(false);
         setHead(down, false, 20.0);
-        check(near(atPhase(find(buildDtlPosture(inputs(down, false), cfg), "headPitch"), Phase::Address), 20.0, 0.01),
+        check(near(valueAt(buildDtlPosture(inputs(down, false), cfg), "headPitch", Phase::Address), 20.0, 0.01),
               "§6 chin 20° down toward the chest ⇒ +20°");
         PoseTrack2D up = makePose(false);
         setHead(up, false, -15.0);
-        check(near(atPhase(find(buildDtlPosture(inputs(up, false), cfg), "headPitch"), Phase::Address), -15.0, 0.01),
+        check(near(valueAt(buildDtlPosture(inputs(up, false), cfg), "headPitch", Phase::Address), -15.0, 0.01),
               "§6 chin 15° up ⇒ −15°");
         PoseTrack2D m = makePose(true);
         setHead(m, true, 20.0);
-        check(near(atPhase(find(buildDtlPosture(inputs(m, true), cfg), "headPitch"), Phase::Address), 20.0, 0.01),
+        check(near(valueAt(buildDtlPosture(inputs(m, true), cfg), "headPitch", Phase::Address), 20.0, 0.01),
               "§6 mirrored golfer ⇒ the same +20°");
         PoseTrack2D blind = makePose(false);
         setHead(blind, false, 20.0);
@@ -395,11 +398,11 @@ int main()
               "§7 ears 20 px higher at the top ⇒ headRise 0 at address, 20 px in cm at the top");
         PoseTrack2D t = makePose(false);
         setEars(t, false, 0.0, 15.0);
-        check(near(atPhase(find(buildDtlPosture(inputs(t, false), cfg), "headRise"), Phase::Top), 0.0, 0.01),
+        check(near(valueAt(buildDtlPosture(inputs(t, false), cfg), "headRise", Phase::Top), 0.0, 0.01),
               "§7 a head TURN that parts the ears 30 px is not a rise: 0 at the top");
         PoseTrack2D m = makePose(true);
         setEars(m, true, 20.0, 0.0);
-        check(near(atPhase(find(buildDtlPosture(inputs(m, true), cfg), "headRise"), Phase::Top), 20.0 * cmpp, 0.05),
+        check(near(valueAt(buildDtlPosture(inputs(m, true), cfg), "headRise", Phase::Top), 20.0 * cmpp, 0.05),
               "§7 mirrored golfer ⇒ the same rise");
         DtlPostureInputs in = inputs(d, false);
         in.ballBright = false; in.foMmPerPx = 0.0;
@@ -415,8 +418,8 @@ int main()
     // away by the ball's own ruler — refused with its reason, as is a swing with no club length.
     {
         const PoseTrack2D d = makePose(false), m = makePose(true);
-        const double a = atPhase(find(buildDtlPosture(inputs(d, false), cfg), "ballReachExcess"), Phase::Address);
-        const double b = atPhase(find(buildDtlPosture(inputs(m, true), cfg), "ballReachExcess"), Phase::Address);
+        const double a = valueAt(buildDtlPosture(inputs(d, false), cfg), "ballReachExcess", Phase::Address);
+        const double b = valueAt(buildDtlPosture(inputs(m, true), cfg), "ballReachExcess", Phase::Address);
         check(a > 0 && near(a, b, 1e-6), "§8 mirrored golfer ⇒ the same distance beyond the club's reach");
         auto refusedBy = [&](const DtlPostureInputs &in, const char *code) {
             const DtlPostureResult r = buildDtlPosture(in, cfg);

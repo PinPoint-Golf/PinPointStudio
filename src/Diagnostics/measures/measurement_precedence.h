@@ -106,6 +106,7 @@ inline std::optional<PickedMeasurement> pickByPrecedence(const QString &metric,
 // The series a list holds for `metric`, best source first: the first rung that EXISTS (a series is there or not; what
 // was swing_analysis.h's findSeriesByLadder, HackMotion before our own wrist maths). Pass the metric; a key that already
 // names its source is asked for as itself.
+const MetricSeries *findByPrecedence(const std::vector<MetricSeries> &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 inline const MetricSeries *findByPrecedence(const std::vector<MetricSeries> &v, const QString &metric)
 {
     for (const QString &k : measurementLadder(metric))

@@ -35,7 +35,7 @@ constexpr int kMaxDepth = 64;
 
 } // namespace
 
-const ContextNode *ContextTree::node(const QString &id) const
+const ContextNode *ContextTree::node(const QString &id) const &
 {
     if (id.isEmpty())
         return nullptr;

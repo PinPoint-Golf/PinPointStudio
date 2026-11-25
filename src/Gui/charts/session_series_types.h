@@ -179,7 +179,8 @@ struct ShotSeries {
     // Wrist chart's payload is built from both, session_wrist.h). Until 3.8-ii this was the view's own graded payload.
     QVariantMap wristResemblance;
 
-    const MetricSeries *metric(const QString &key) const {
+    const MetricSeries *metric(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const MetricSeries *metric(const QString &key) const & {
         auto it = metrics.constFind(key);
         return it == metrics.constEnd() ? nullptr : &it.value();
     }

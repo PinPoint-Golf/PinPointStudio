@@ -124,7 +124,8 @@ void test_a_missing_key_is_null_not_the_wrong_series()
     const std::vector<MetricSeries> v = { series("hm.leadWristFlexExt", 2.0) };
     check(findByPrecedence(v, QStringLiteral("forearmPronation")) == nullptr,
           "an unrelated key returns null");
-    check(findByPrecedence({}, QStringLiteral("leadWristFlexExt")) == nullptr,
+    const std::vector<MetricSeries> none;   // named: findByPrecedence refuses a temporary
+    check(findByPrecedence(none, QStringLiteral("leadWristFlexExt")) == nullptr,
           "an empty vector returns null");
 }
 

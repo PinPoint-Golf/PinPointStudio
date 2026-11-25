@@ -756,6 +756,7 @@ pa::SessionCameras camerasOf(const SessionSnapshot &snap)
     return {};
 }
 
+const pa::SessionCameraView &viewOf(const pa::SessionCameras &&, int) = delete;   // a temporary would leave the result dangling (#247, #248)
 const pa::SessionCameraView &viewOf(const pa::SessionCameras &c, int cam)
 {
     return cam == int(PostureCamera::Dtl) ? c.dtl : c.faceOn;

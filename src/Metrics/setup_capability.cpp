@@ -77,6 +77,7 @@ MetricRequirement missingPart(const MetricRequirement &req, const ShotContext &c
     return m;
 }
 
+const MetricRoute *routeById(const MetricDescriptor &&, const QString &) = delete;   // a temporary would leave the result dangling (#247, #248)
 const MetricRoute *routeById(const MetricDescriptor &d, const QString &id)
 {
     for (const MetricRoute &r : d.routes)

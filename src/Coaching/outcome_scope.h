@@ -77,7 +77,8 @@ struct ShotFilter {
         return QStringLiteral("strike:%1|direction:%2|flight:%3").arg(strike, direction, flight);
     }
 
-    const QString &choice(const QString &factor) const
+    const QString &choice(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const QString &choice(const QString &factor) const &
     {
         return factor == shotFactorStrike() ? strike : factor == shotFactorDirection() ? direction : flight;
     }

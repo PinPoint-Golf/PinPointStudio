@@ -471,9 +471,15 @@ declaring a QML module from a test directory will hit the same wall.
   wall of `left operand of comma operator has no effect` on every call site, because the macro
   expands to nothing and `push(a, b, c)` becomes a comma expression.
 - **A `find()` helper returns a pointer INTO a vector — bind the vector.**
-  `find(buildXSeries(...), "key")` dangles the moment the full expression ends, and the crash is a
-  null deref somewhere later that looks nothing like the cause. `club_delivery_test` was written
-  that way first and segfaulted; every call there now goes through a named `const auto`.
+  The pointer from `find(buildXSeries(...), "key")` dangles the moment the full expression ends, so
+  keeping it for the next line reads freed memory, and the crash is a null deref somewhere later
+  that looks nothing like the cause. `club_delivery_test` was written that way first and segfaulted;
+  every call there now goes through a named `const auto`. The product's lookups of this shape (a
+  pointer or reference into an argument, or into `*this`) refuse a temporary at compile time: a
+  deleted `const T &&` overload beside a free function, a `const &` qualifier with a deleted
+  `const &&` twin on a member. Give a new test helper of the shape the same deleted overload. To
+  read a temporary's value in one call, use a helper that returns the value, not the pointer
+  (`valueAt` in `dtl_posture_test`, `stateOf` in `characteristic_engine_test`).
 - **Make a synthetic swing look like a swing, in TIME as well as geometry.** Producers resolve their
   address reference over a ±250 ms window about the Address event. A fixture compressed into 160 ms
   puts the TOP inside that window and contaminates the very reference the metric is measured

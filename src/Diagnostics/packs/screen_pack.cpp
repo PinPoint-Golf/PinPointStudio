@@ -30,7 +30,7 @@
 
 namespace pinpoint::analysis {
 
-const Screen *ScreenSet::screen(const QString &sid) const
+const Screen *ScreenSet::screen(const QString &sid) const &
 {
     const auto it = std::find_if(screens.begin(), screens.end(),
                                  [&](const Screen &s) { return s.id == sid; });

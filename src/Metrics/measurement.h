@@ -175,14 +175,16 @@ public:
 
     bool isEmpty() const { return items.empty(); }
 
-    const Measurement *byKey(const QString &key) const
+    const Measurement *byKey(const QString &) const && = delete;   // a temporary would leave the result dangling (#247, #248)
+    const Measurement *byKey(const QString &key) const&
     {
         for (const Measurement &m : items) if (m.key == key) return &m;
         return nullptr;
     }
+    const Measurement *find(const QString &, Instrument, std::optional<MeasurementKind> = std::nullopt) const && = delete;
     // `metric` from `instrument`, of `kind` when given.
     const Measurement *find(const QString &metric, Instrument instrument,
-                            std::optional<MeasurementKind> kind = std::nullopt) const
+                            std::optional<MeasurementKind> kind = std::nullopt) const &
     {
         for (const Measurement &m : items)
             if (m.metric == metric && m.source.instrument == instrument && (!kind || m.kind == *kind)) return &m;
