@@ -72,11 +72,23 @@ QByteArray readBytes(const QString &path)
     return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
 }
 
-// The tuning log is a text file in the platform's line ending (#246): Windows ends its lines in CRLF, macOS in LF.
-// Nothing reads it byte for byte (its readers split on LF and trim), so its lines are compared, not its line ends.
-QByteArray readLines(const QString &path)
+// The tuning log's lines read back as its readers read them (shot_commands_test's tuningLines,
+// session_diagnostics_model_test's tuningLinesIn): split on LF, a blank (trimmed) line skipped, each parsed as it is.
+QList<QJsonObject> tuningObjects(const QString &path)
 {
-    return readBytes(path).replace("\r\n", "\n");
+    QList<QJsonObject> out;
+    for (const QByteArray &line : readBytes(path).split('\n'))
+        if (!line.trimmed().isEmpty()) out << QJsonDocument::fromJson(line).object();   // untrimmed, as theirs: a CR is JSON whitespace
+    return out;
+}
+
+// True when no key and no string value of `o` holds a CR.
+bool noCarriageReturn(const QJsonObject &o)
+{
+    for (auto it = o.begin(); it != o.end(); ++it)
+        if (it.key().contains(QLatin1Char('\r')) || (it.value().isString() && it.value().toString().contains(QLatin1Char('\r'))))
+            return false;
+    return true;
 }
 
 bool writeBytes(const QString &path, const QByteArray &bytes)
@@ -525,7 +537,8 @@ private slots:
         QVERIFY(a->record().wristReference.isNull());
     }
 
-    // T1–T3: the tuning log is appended, a line at a time, under the athlete folder's lock (§4.9).
+    // T1–T3: the tuning log is appended, a line at a time, under the athlete folder's lock (§4.9). Its bytes are
+    // compared: every line ends in LF on every platform (PR-60), Windows included.
     void tuningLogAppendsUnderTheLock()
     {
         QTemporaryDir lib;
@@ -534,7 +547,7 @@ private slots:
         const QString log = folder + QStringLiteral("/tuning.jsonl");
         QVERIFY(AthleteStore::appendTuningLog(log, QByteArrayLiteral("{\"a\":1}")).ok());           // T1
         QVERIFY(AthleteStore::appendTuningLog(log, QByteArrayLiteral("{\"b\":2}\n")).ok());
-        QCOMPARE(readLines(log), QByteArrayLiteral("{\"a\":1}\n{\"b\":2}\n"));                       // T2 appended, never rewritten
+        QCOMPARE(readBytes(log), QByteArrayLiteral("{\"a\":1}\n{\"b\":2}\n"));                       // T2 appended, never rewritten
         QVERIFY(!QFileInfo::exists(folder + QLatin1Char('/') + FolderLock::fileName()));             //    the lock let go
 
         FolderLock holder(folder);
@@ -542,7 +555,31 @@ private slots:
         const WriteResult held = AthleteStore::appendTuningLog(log, QByteArrayLiteral("{\"c\":3}"), 100);
         QCOMPARE(held.status, WriteResult::Status::Failed);                                          // T3 held: refused, said so
         QVERIFY(!held.error.isEmpty());
-        QCOMPARE(readLines(log), QByteArrayLiteral("{\"a\":1}\n{\"b\":2}\n"));
+        QCOMPARE(readBytes(log), QByteArrayLiteral("{\"a\":1}\n{\"b\":2}\n"));
+    }
+
+    // T4–T5: a log the studio PC wrote in text mode before PR-60 holds CRLF lines, and one on a shared library can mix
+    // both. An append leaves those lines as they are and adds its own in LF; the whole log reads back as before, with
+    // no CR in any field.
+    void tuningLogReadsAMixedFile()
+    {
+        QTemporaryDir lib;
+        const QString log = lib.path() + QStringLiteral("/Golfer/tuning.jsonl");
+        const QByteArray mixed = QByteArrayLiteral("{\"a\":1,\"why\":\"cabin\"}\r\n"
+                                                   "{\"b\":\"mac\"}\n"
+                                                   "{\"c\":\"cabin\"}\r\n");
+        QVERIFY(writeBytes(log, mixed));
+        QVERIFY(AthleteStore::appendTuningLog(log, QByteArrayLiteral("{\"d\":\"now\"}")).ok());
+        QCOMPARE(readBytes(log), mixed + QByteArrayLiteral("{\"d\":\"now\"}\n"));               // T4 old lines kept; new in LF
+
+        const QList<QJsonObject> lines = tuningObjects(log);                                         // T5 read as before
+        QCOMPARE(lines.size(), 4);
+        QCOMPARE(lines.at(0), (QJsonObject{ { QStringLiteral("a"), 1 }, { QStringLiteral("why"), QStringLiteral("cabin") } }));
+        QCOMPARE(lines.at(1), (QJsonObject{ { QStringLiteral("b"), QStringLiteral("mac") } }));
+        QCOMPARE(lines.at(2), (QJsonObject{ { QStringLiteral("c"), QStringLiteral("cabin") } }));
+        QCOMPARE(lines.at(3), (QJsonObject{ { QStringLiteral("d"), QStringLiteral("now") } }));
+        for (const QJsonObject &o : lines)
+            QVERIFY(noCarriageReturn(o));
     }
 
     // A1–A4: the picker's two figures, derived from the index (DEC-89).

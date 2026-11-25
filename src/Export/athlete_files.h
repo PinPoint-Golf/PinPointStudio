@@ -158,7 +158,10 @@ public:
 
     // THE TUNING LOG's append (FILE-ATH-04: append-only, never rewritten; DEC-43): one line added to
     // `logFile` under its athlete folder's advisory lock, held for this one append (brief §4.9). The
-    // athlete repository's write (AthleteStore::appendTuningLog forwards here).
+    // athlete repository's write (AthleteStore::appendTuningLog forwards here). Opened in binary, not
+    // QIODevice::Text, so every line ends in LF on every platform (PR-60): the Mac and the studio PC share
+    // one library, and text mode would end the studio PC's lines in CRLF in the same file. A log written
+    // before then may still hold CRLF lines; its readers split on LF and trim each line.
     static AtomicWriteResult appendTuningLine(const QString &logFile, const QByteArray &line,
                                               int lockWaitMs = FolderLock::kWaitMs)
     {
@@ -168,7 +171,7 @@ public:
             return { false, lock.errorString().isEmpty() ? QStringLiteral("The athlete folder %1 is locked.").arg(folder)
                                                          : lock.errorString(), lock.holder() };
         QFile f(logFile);
-        if (!f.open(QIODevice::Append | QIODevice::Text))
+        if (!f.open(QIODevice::Append))
             return { false, QStringLiteral("Could not append to %1.").arg(logFile), f.errorString() };
         QByteArray bytes = line;
         if (!bytes.endsWith('\n'))
