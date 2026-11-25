@@ -1,0 +1,42 @@
+b deferral src/Diagnostics/engine/diagnostics_health.cpp -> Coaching: 21 Diagnostics/packs/drill_pack.h
+b deferral src/Diagnostics/engine/diagnostics_health.h -> Coaching: 22 Diagnostics/packs/drill_pack.h
+b deferral src/Diagnostics/packs/file_pack_provider.cpp -> Coaching: 24 Diagnostics/packs/drill_pack.h
+b deferral src/Diagnostics/packs/swing_themes_pack.h -> Coaching: 59 Diagnostics/packs/drill_pack.h
+b deferral src/Gui/cameras/camera_instance.cpp -> Diagnostics: 51 Pose/pose_estimator_movenet.h; 55 Pose/ball_detector.h
+b deferral src/Gui/cameras/camera_instance.cpp -> Domain+Application: 25 Gui/app/app_settings.h; 34 Audio/ting_player.h; 73 Gui/app/macos_permissions.h
+b deferral src/Gui/cameras/camera_instance.h -> Diagnostics: 58 Pose/pose_estimator_base.h; 59 Pose/ball_detector.h
+b deferral src/Gui/cameras/camera_instance.h -> Domain+Application: 41 Audio/ting_player.h
+b deferral src/Gui/cameras/camera_manager.cpp -> Domain+Application: 26 Core/pp_settings.h
+b deferral src/Gui/cameras/camera_manager.h -> Domain+Application: 28 Gui/app/app_settings.h
+b deferral src/Gui/cameras/camera_role_probe.cpp -> Domain+Application: 24 Gui/app/app_settings.h
+b deferral src/Gui/imu/hm_instance.cpp -> Diagnostics: 26 IMU/hm_frame.h
+b deferral src/Gui/imu/imu_instance.h -> Diagnostics: 36 Vocabulary/Analysis/trunk_calib_provenance.h
+b deferral src/Gui/imu/imu_manager.h -> Domain+Application: 29 Gui/app/app_settings.h
+b deferral src/Gui/imu/imu_role_map.h -> Diagnostics: 27 Vocabulary/Analysis/segment_role.h
+b deferral src/Gui/imu/trunk_ceremony_recorder.cpp -> Domain+Application: 22 Export/session_files.h; 25 Gui/athlete/athlete_controller.h
+b deferral src/Gui/shot/capture_context.cpp -> Diagnostics: 38 IMU/hm_frame.h
+b deferral src/Gui/shot/capture_context.cpp -> Domain+Application: 21 Gui/app/app_settings.h; 22 Gui/athlete/athlete_controller.h; 27 Gui/session/session_controller.h; 32 DomainModel/athlete.h; 34 Export/recording_header.h; 35 Export/swing_doc.h; 36 Export/swing_exporter.h; 37 Export/swing_store.h
+b deferral src/Gui/shot/capture_context.h -> Diagnostics: 61 Vocabulary/Analysis/swing_analysis.h; 62 Analysis/recording_integrity.h; 63 Club/club_length_fusion.h
+b deferral src/Gui/shot/capture_context.h -> Domain+Application: 64 Export/capture_export_facts.h; 66 Gui/shot/shot_outcome.h
+b deferral src/Gui/shot/ppcp_clip_filer.cpp -> Domain+Application: 23 Export/swing_doc.h; 24 Export/recording_header.h; 26 App/shot_command_door.h
+b deferral src/Gui/shot/shot_controller.cpp -> Domain+Application: 25 Gui/session/session_controller.h
+b deferral src/Gui/shot/shot_processor.cpp -> Diagnostics: 35 Club/club_length_fusion.h; 36 IMU/imu_vision_fuser.h; 37 Timeline/phase_segmenter.h; 38 Vocabulary/Analysis/swing_analysis.h; 39 Analysis/analysis_job_builder.h
+b deferral src/Gui/shot/shot_processor.cpp -> Domain+Application: 21 Gui/app/app_settings.h; 33 Gui/shot/shot_list_model.h; 34 Gui/shot/shot_outcome.h; 43 DomainModel/athlete.h; 44 DomainModel/session.h; 45 DomainModel/session_diagnostics.h; 46 App/session_focus.h
+b deferral src/Gui/shot/shot_processor.h -> Diagnostics: 42 Club/club_length_fusion.h; 43 Analysis/shot_analyzer.h; 44 Analysis/analysis_service.h
+b deferral src/Gui/shot/shot_processor.h -> Domain+Application: 21 Gui/shot/qml_payload.h; 45 Export/swing_exporter.h; 46 Export/swing_paths.h; 49 Gui/shot/shot_outcome.h
+b rule     src/Body/body_rotation.cpp -> Acquisition: 21 IMU/trunk_angles.h
+b rule     src/Diagnostics/packs/drill_pack.cpp -> Diagnostics: 20 Diagnostics/packs/layered_set.h; 22 Diagnostics/engine/pack_io.h
+b rule     src/Diagnostics/packs/drill_pack.h -> Diagnostics: 21 Diagnostics/packs/characteristic_pack.h; 22 Diagnostics/packs/layered_set.h
+b rule     src/IMU/hm_binding_recon.h -> Acquisition: 29 IMU/hm_unit_id.h
+b rule     src/IMU/imu_refusion_check.h -> Acquisition: 30 IMU/orientation_filter.h
+b rule     src/IMU/imu_vision_fuser.cpp -> Acquisition: 27 IMU/imu_calibration.h; 32 IMU/orientation_filter.h
+b rule     src/IMU/orientation_refuser.h -> Acquisition: 27 IMU/iorientation_filter.h
+c          src/Analysis/swing_reanalyzer.cpp -> Domain+Application: 20 Analysis/recorded_products.h
+c          src/Diagnostics/measures/measure_sample.cpp -> Domain+Application: 28 Export/swing_store.h
+c          src/IMU/hm_session_worker.cpp -> Diagnostics: 28 IMU/hm_frame.h
+c          src/IMU/trunk_stand_tall.h -> Diagnostics: 45 Vocabulary/Analysis/trunk_calib_provenance.h
+c          src/Ppcp/ppcp_host_inventory.cpp -> Domain+Application: 30 Core/pp_settings.h
+c          src/Ppcp/ppcp_host_service.cpp -> Domain+Application: 47 Core/pp_settings.h
+c          src/Ppcp/ppcp_pairing_store.cpp -> Domain+Application: 73 Core/pp_settings.h
+c          src/Recording/recording.h -> Diagnostics: 45 Vocabulary/Analysis/swing_analysis.h
+c          src/Video/video_overlay_pose.h -> Diagnostics: 24 Pose/pose_estimator_base.h
