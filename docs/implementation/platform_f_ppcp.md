@@ -454,7 +454,7 @@ Q3, and then for the row that names it below.
   | A cabled phone connects twice | SF-6c | Open. Nothing read that suppresses the Wi-Fi advert before the cable dials |
   | MP4 timestamps not rebased | SF-6d | Unclear. The filer rebases a clip's frame times on its own first frame (`ppcp_clip_filer.cpp:438`), but #79 names the container's timestamps |
   | A disabled camera still gets a preview | SF-6b | Open, as far as read |
-  | #241: the GUI thread blocks 2.5 to 3 s | SF-6g | Open and not confirmed; its check is in P1 |
+  | #241: the GUI thread blocks 2.5 to 3 s | SF-6g | Confirmed: an inline 250 ms DNS-SD resolve per unresolvable instance on macOS; 10 planted instances turn the test red. Fixed (resolves are asynchronous on a shared connection), with a test[^241] |
 
 - **Proposal.** SF-6a runs first and gives each defect a verdict with evidence: reproduced on the test peer, not
   reproducible without phones, or already answered. A defect with no observed failure is not fixed on a
@@ -572,3 +572,5 @@ row changes anything a pairing is stored as.
 [^q3r]: The Product Owner, 25 Nov 2026, in the platform refactor's coordination session.
 
 [^p1r]: The Product Owner, 25 Nov 2026, in the platform refactor's coordination session.
+
+[^241]: `build/platform/DEF/NOTES-241.md` (25 Nov 2026). The 24 Nov run's own instances were not observed; usbmuxd was cleared (0 ms per watch start).

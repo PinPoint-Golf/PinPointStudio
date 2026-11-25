@@ -3024,9 +3024,10 @@ void PpcpHostService::onTick()
     // until a rotation is actually due, so calling it at 50 Hz costs nothing;
     // when one IS due it is a single TXT update (3.2d), not a re-registration.
     if (m_advert) m_advert->tick(static_cast<std::uint64_t>(QDateTime::currentSecsSinceEpoch()));
-    // The browser's own periodic hook (native Windows engine only — see
-    // RvBrowser::tick()'s header comment; every other backend's default
-    // no-op costs the same integer comparison and nothing else).
+    // The browser's own periodic hook — see RvBrowser::tick()'s header
+    // comment: the native Windows engine re-sends its query from it, and the
+    // macOS browser drops a resolve that has run out of budget (#241).  Avahi's
+    // default no-op costs the call and nothing else.
     if (m_browser) m_browser->tick(static_cast<std::uint64_t>(QDateTime::currentSecsSinceEpoch()));
 
     if (m_codeLive) {

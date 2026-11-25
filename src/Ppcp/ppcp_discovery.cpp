@@ -26,6 +26,7 @@
 #include "ppcp_mdns_native.h"
 #endif
 
+#include <algorithm>
 #include <cctype>
 #include <cerrno>
 #include <cstdlib>
@@ -48,25 +49,32 @@
 #define PP_DNS_SD_AVAILABLE 1
 #endif
 
-// ── Which DNSService* implementation answers a resolve, and how fast ───────
+// ── Which DNSService* implementation answers a resolve, and how ────────────
 // macOS and Windows both talk to Apple's OWN mDNSResponder — natively on
 // macOS, and via the Bonjour SDK's `mDNSResponder.exe` service on Windows,
 // the SAME upstream codebase cross-compiled rather than an independent
-// reimplementation. Both answer a local resolve inline, in well under a
-// millisecond, and are safe to call from inside a browse callback — the
-// behaviour this file has always assumed for `__APPLE__`.
+// reimplementation. Both support a SHARED CONNECTION
+// (`DNSServiceCreateConnection` + `kDNSServiceFlagsShareConnection`): the
+// browse and every resolve are subordinates of one client socket, so the
+// owner's single notifier drives them all and no resolve is ever waited for.
 //
-// Linux's Avahi compat shim is independently implemented and measured
-// otherwise (29 Aug 2026): 650 ms, and it deadlocks if resolved from inside
-// the browse callback. Only Avahi gets the deferred/async epoll path below.
+// Linux's Avahi compat shim has no shared connection, is independently
+// implemented and measured otherwise (29 Aug 2026): 650 ms, and it deadlocks
+// if resolved from inside the browse callback. Avahi gets the epoll path below.
 //
-// ⚠ Windows joining the fast path is REASONED FROM THE SHARED CODEBASE, not
-// yet measured on Windows hardware the way the Linux number was — the
-// Bonjour SDK is not installed on this box. Confirm on first bring-up (a
-// standalone resolve-from-inside-a-browse-callback probe, mirroring the one
-// that caught Avahi's deadlock) before relying on it under load.
+// ⛔ #241: THIS USED TO BE AN INLINE RESOLVE ON APPLE, and it froze the GUI
+// thread.  Each discovered instance was resolved with a `poll()` of up to
+// 250 ms on the thread that watches `fd()`.  A live advert answers in
+// milliseconds, but an instance that browses and never resolves (a cached PTR
+// whose host has gone, seen once per network interface) cost the full 250 ms
+// each: 10 of them stopped the host's 20 ms tick for 2.5 s (measured 25 Nov
+// 2026), which is a missed-heartbeat link loss for a phone that is connected.
+//
+// ⚠ Windows is listed for completeness: it browses with its own engine
+// (`ppcp_mdns_native.h`) and no Windows build defines PP_HAVE_DNS_SD, so this
+// branch is not compiled there today.
 #if defined(__APPLE__) || defined(_WIN32)
-#define PP_DNS_SD_INLINE_RESOLVE 1
+#define PP_DNS_SD_SHARED_CONNECTION 1
 #endif
 
 #if defined(PP_DNS_SD_AVAILABLE)
@@ -93,7 +101,7 @@
 #endif
 #include <dns_sd.h>
 #include <chrono>
-#if !defined(PP_DNS_SD_INLINE_RESOLVE)
+#if !defined(PP_DNS_SD_SHARED_CONNECTION)
 #include <sys/epoll.h>
 #include <unistd.h>
 #endif
@@ -292,11 +300,14 @@ DialDecision decideDial(const RvAdvertisement &ad, int wireMajor, const RidResol
 #if defined(PP_DNS_SD_AVAILABLE)
 namespace {
 
-// ⚠ TWO RESOLVE STRATEGIES, AND THE SPLIT IS MEASURED RATHER THAN STYLISTIC.
+// ⚠ TWO RESOLVE STRATEGIES, BOTH ASYNCHRONOUS, AND THE SPLIT IS THE API'S.
 //
-// macOS: mDNSResponder answers a local resolve in well under a millisecond, so
-// it is done inline with this as a backstop against a responder that will never
-// answer.  That is the behaviour this file has always had.
+// macOS: every resolve is a subordinate of the browse's shared connection, so
+// `fd()` is that one socket and `process()` dispatches whichever reply is
+// ready.  A resolve whose answer has not ARRIVED within kResolveBudgetMs is
+// dropped, the same budget the old inline `poll()` gave it (see #241 above) —
+// but nothing waits for it, and an answer that has arrived is always read
+// before the budget is applied, however busy the thread was (review B1).
 //
 // Linux/Avahi: a resolve takes **650 ms** (measured 29 Aug 2026) and will not
 // complete AT ALL if called from inside a browse callback.  Inline is therefore
@@ -305,9 +316,9 @@ namespace {
 // the resolves are genuinely asynchronous and `fd()` returns an epoll set
 // holding the browse socket and every pending resolve socket.  One fd out, N
 // fds in — which is what lets the `RvBrowser` interface stay exactly as it was.
-constexpr int kResolveBudgetMs = 250;
+constexpr int kResolveBudgetMs = 250;   // shared-connection path only
 
-// How long an asynchronous resolve may stay armed before it is abandoned.
+// How long an epoll-path (Avahi) resolve may stay armed before it is abandoned.
 // Generous against the measured 650 ms because the cost of waiting is nil —
 // nothing blocks on it — while giving up too early loses a real phone.
 constexpr int kResolveGiveUpS = 10;
@@ -326,6 +337,24 @@ public:
         // 5353 — to query on our behalf; this process opens only the local IPC
         // socket returned by DNSServiceRefSockFD.  RV 2's "browsing needs only
         // the querier role" is satisfied by construction rather than by policy.
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+        // The connection first; the browse and, later, every resolve share it.
+        if (DNSServiceCreateConnection(&m_conn) != kDNSServiceErr_NoError) {
+            m_conn = nullptr;
+            return false;   // 3.6a — not an error state, just no discovery
+        }
+        m_browse = m_conn;
+        const DNSServiceErrorType e =
+            DNSServiceBrowse(&m_browse, kDNSServiceFlagsShareConnection,
+                             kDNSServiceInterfaceIndexAny, "_ppcp._tcp", nullptr,
+                             &BonjourBrowser::onBrowse, this);
+        if (e != kDNSServiceErr_NoError) {
+            m_browse = nullptr;
+            DNSServiceRefDeallocate(m_conn);
+            m_conn = nullptr;
+            return false;   // 3.6a
+        }
+#else
         const DNSServiceErrorType e =
             DNSServiceBrowse(&m_browse, 0, kDNSServiceInterfaceIndexAny,
                              "_ppcp._tcp", nullptr, &BonjourBrowser::onBrowse, this);
@@ -333,7 +362,6 @@ public:
             m_browse = nullptr;
             return false;   // 3.6a — not an error state, just no discovery
         }
-#if !defined(PP_DNS_SD_INLINE_RESOLVE)
         m_epoll = ::epoll_create1(0);
         if (m_epoll < 0) {                  // 3.6a again: degrade, never fault
             DNSServiceRefDeallocate(m_browse);
@@ -354,7 +382,16 @@ public:
             if (kv.second) DNSServiceRefDeallocate(kv.second);
         m_resolves.clear();
         m_discovered.clear();
-#if !defined(PP_DNS_SD_INLINE_RESOLVE)
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+        // ⛔ Subordinates before the connection: deallocating the connection
+        // frees them too, and a second deallocation would be a double free.
+        for (Armed &a : m_armed) {
+            DNSServiceRefDeallocate(a.ref);
+            delete a.pending;
+        }
+        m_armed.clear();
+        m_answers.clear();
+#else
         for (auto &kv : m_byFd) {
             if (kv.second.first) DNSServiceRefDeallocate(kv.second.first);
             delete kv.second.second;
@@ -366,12 +403,20 @@ public:
             DNSServiceRefDeallocate(m_browse);
             m_browse = nullptr;
         }
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+        if (m_conn) {
+            DNSServiceRefDeallocate(m_conn);
+            m_conn = nullptr;
+        }
+#endif
     }
 
     int fd() const override
     {
-#if defined(PP_DNS_SD_INLINE_RESOLVE)
-        return m_browse ? DNSServiceRefSockFD(m_browse) : -1;
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+        // The shared connection's socket: the browse and every armed resolve
+        // reply on it, so the owner's one notifier drives them all.
+        return m_conn ? DNSServiceRefSockFD(m_conn) : -1;
 #else
         // The epoll set, not the browse socket: it goes readable when the
         // browse OR any pending resolve has something, which is what makes the
@@ -383,9 +428,30 @@ public:
     bool process() override
     {
         if (!m_browse) return false;
-#if defined(PP_DNS_SD_INLINE_RESOLVE)
-        const bool ok = DNSServiceProcessResult(m_browse) == kDNSServiceErr_NoError;
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+        // ⛔ NOTHING HERE WAITS (#241).  The owner calls this when fd() is
+        // readable, so ProcessResult dispatches the replies already buffered —
+        // the browse's and any armed resolve's — and returns.
+        //
+        // ⛔ READ FIRST, THEN APPLY THE BUDGET (#241 review B1).  The budget is
+        // how long the RESPONDER may take, not how long this thread took to
+        // look: an answer already in the socket is delivered however late the
+        // GUI thread gets round to it, as the old inline poll — which returned
+        // the moment an answer was readable — delivered it.  Sweeping before
+        // the read threw away answers that had arrived during a busy spell
+        // (launch, most of all), and nothing retries a dropped resolve.
+        const bool ok = DNSServiceProcessResult(m_conn) == kDNSServiceErr_NoError;
+        retireAnswered();
+        sweepStaleResolves();
+        // New instances from this pass become armed resolves.  ⛔ AFTER the
+        // reply is handled, so DNSServiceResolve is never called on the
+        // callback stack.
         drainDiscovered();
+        // Answers last, off the callback stack, in the order they arrived.
+        std::vector<Answer> answers;
+        answers.swap(m_answers);
+        for (const Answer &a : answers)
+            if (m_found) m_found(a.ad);
         return ok;
 #else
         // Non-blocking: whatever is ready right now and nothing else.  The
@@ -416,6 +482,39 @@ public:
 #endif
     }
 
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+    // The owner's periodic hook keeps the resolve budget a deadline rather than
+    // "whenever the socket next wakes": an instance that never answers sends
+    // nothing, so without this its resolve would stay armed until other
+    // traffic arrived.
+    //
+    // ⛔ NOT WHILE AN ANSWER IS WAITING (#241 review B1).  After a stall the
+    // tick timer can fire before the notifier; sweeping then would drop a
+    // resolve whose answer is already in the socket.  A zero-timeout poll
+    // never blocks, and process() — which reads before it sweeps — gets the
+    // answer first.
+    void tick(std::uint64_t) override
+    {
+        if (!m_conn) return;
+        const int fd = DNSServiceRefSockFD(m_conn);
+        if (fd >= 0) {
+#if defined(_WIN32)
+            WSAPOLLFD pfd{};
+            pfd.fd = static_cast<SOCKET>(fd);
+            pfd.events = POLLIN;
+            if (::WSAPoll(&pfd, 1, 0) > 0) return;
+#else
+            struct pollfd pfd;
+            pfd.fd = fd;
+            pfd.events = POLLIN;
+            pfd.revents = 0;
+            if (::poll(&pfd, 1, 0) > 0) return;
+#endif
+        }
+        sweepStaleResolves();
+    }
+#endif
+
     // A resolve carries its own socket; the owner polls them through here too.
     // Kept simple deliberately: a handful of instances on a range network is
     // the whole population, and 3.6a means being slow to discover costs
@@ -443,6 +542,12 @@ private:
         auto *self = static_cast<BonjourBrowser *>(ctx);
         if (err != kDNSServiceErr_NoError || !name) return;
         if (!(flags & kDNSServiceFlagsAdd)) {
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+            // A resolve still in flight for this record must not report it
+            // AFTER it has gone: the old inline resolve could not, so neither
+            // may this.
+            self->forgetUnanswered(name, ifIndex);
+#endif
             if (self->m_lost) self->m_lost(name);
             return;
         }
@@ -473,6 +578,7 @@ private:
         // a browse that finds instances and resolves none of them.
         bool            done = false;
         std::chrono::steady_clock::time_point armed{};
+        std::uint32_t   ifIndex = 0;
     };
 
     struct Discovered {
@@ -482,7 +588,71 @@ private:
         std::uint32_t ifIndex;
     };
 
-#if !defined(PP_DNS_SD_INLINE_RESOLVE)
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+    // One armed resolve: its subordinate ref on the shared connection and the
+    // callback context it owns.
+    struct Armed {
+        DNSServiceRef ref;
+        Pending      *pending;
+    };
+
+    // An answer onResolve queued, with the interface its record was seen on.
+    struct Answer {
+        std::uint32_t   ifIndex;
+        RvAdvertisement ad;
+    };
+
+    // The record (name, interface) went away: nothing still pending for it may
+    // be reported afterwards.  Runs inside the browse callback, so it only
+    // marks — the refs are freed by retireAnswered() once ProcessResult returns.
+    void forgetUnanswered(const std::string &name, std::uint32_t ifIndex)
+    {
+        for (Armed &a : m_armed)
+            if (a.pending->name == name && a.pending->ifIndex == ifIndex)
+                a.pending->done = true;
+        auto same = [&](const std::string &n, std::uint32_t i) {
+            return n == name && i == ifIndex;
+        };
+        m_answers.erase(std::remove_if(m_answers.begin(), m_answers.end(),
+                                       [&](const Answer &x) { return same(x.ad.instanceName, x.ifIndex); }),
+                        m_answers.end());
+        m_discovered.erase(std::remove_if(m_discovered.begin(), m_discovered.end(),
+                                          [&](const Discovered &d) { return same(d.name, d.ifIndex); }),
+                           m_discovered.end());
+    }
+
+    // Retire every resolve that has answered.  Called after ProcessResult has
+    // returned, never from inside a callback.
+    void retireAnswered()
+    {
+        for (auto it = m_armed.begin(); it != m_armed.end(); ) {
+            if (it->pending->done) {
+                DNSServiceRefDeallocate(it->ref);
+                delete it->pending;
+                it = m_armed.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    // A resolve that has not answered within kResolveBudgetMs is dropped.
+    // 3.6a: that is not an error, and the instance's next announcement simply
+    // tries again — what the old inline poll did, without the wait.
+    void sweepStaleResolves()
+    {
+        const auto now = std::chrono::steady_clock::now();
+        for (auto it = m_armed.begin(); it != m_armed.end(); ) {
+            if (now - it->pending->armed > std::chrono::milliseconds(kResolveBudgetMs)) {
+                DNSServiceRefDeallocate(it->ref);
+                delete it->pending;
+                it = m_armed.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+#else
     // Close one pending resolve and free everything it owns.
     void retire(std::map<int, std::pair<DNSServiceRef, Pending *>>::iterator it)
     {
@@ -523,6 +693,23 @@ private:
 
     void resolveOne(const Discovered &d)
     {
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+        // ⛔ ARMED, NOT AWAITED (#241).  The resolve is a subordinate of the
+        // browse's shared connection: its reply arrives on fd(), process()
+        // dispatches it, and onResolve queues the answer.  Nothing here or
+        // anywhere on the thread that watches fd() waits for a responder.
+        DNSServiceRef ref = m_conn;
+        auto *pending = new Pending{this, d.name};
+        if (DNSServiceResolve(&ref, kDNSServiceFlagsShareConnection, d.ifIndex,
+                              d.name.c_str(), d.type.c_str(), d.domain.c_str(),
+                              &BonjourBrowser::onResolve, pending) != kDNSServiceErr_NoError) {
+            delete pending;
+            return;
+        }
+        pending->armed = std::chrono::steady_clock::now();
+        pending->ifIndex = d.ifIndex;
+        m_armed.push_back(Armed{ref, pending});
+#else
         DNSServiceRef ref = nullptr;
         auto *pending = new Pending{this, d.name};
         if (DNSServiceResolve(&ref, 0, d.ifIndex, d.name.c_str(), d.type.c_str(),
@@ -531,49 +718,18 @@ private:
             delete pending;
             return;
         }
-        // ⛔ BOUNDED, NOT BLOCKING — AND THE COMMENT THIS REPLACES WAS WRONG.
-        // It read "one blocking read on a local IPC socket, off the main thread
-        // by construction because process() is called from wherever the owner
-        // watches fd()".  ⚠ THE OWNER IS THE GUI THREAD: `startDiscovery()`
-        // watches fd() with a QSocketNotifier on it, so an unbounded read here
-        // freezes the application.
-        //
-        // On macOS mDNSResponder answers a local resolve immediately and this
-        // was never observed.  On Linux, through Avahi's compat shim, it does
-        // NOT return — `ppcp_advertise_test` hung for the full 300 s timeout
-        // with the main thread in `unix_stream_data_wait` (measured 29 Aug
-        // 2026).  Plausibly re-entrancy: this runs INSIDE a browse callback,
-        // and the shim services each DNSServiceRef from its own thread.
-        //
-        // So: poll the resolve's own fd and give up on a deadline.  Losing a
-        // resolve is not an error — 3.4c drops an instance that cannot be
-        // resolved anyway, and 3.6a forbids treating discovery failure as a
-        // fault; the instance is announced again and the next pass retries.
-        // ⚠ A freeze, by contrast, is unrecoverable and blames the wrong
-        // subsystem when someone finally looks.
+        // ⛔ NEVER A BLOCKING READ.  The owner is the GUI thread:
+        // `startDiscovery()` watches fd() with a QSocketNotifier on it, so an
+        // unbounded read here freezes the application.  Through Avahi's compat
+        // shim it does NOT return — `ppcp_advertise_test` hung for the full
+        // 300 s timeout with the main thread in `unix_stream_data_wait`
+        // (measured 29 Aug 2026).  So the resolve's own socket joins the epoll
+        // set and is answered when it is ready.  Losing a resolve is not an
+        // error — 3.4c drops an instance that cannot be resolved anyway, and
+        // 3.6a forbids treating discovery failure as a fault.
         const int rfd = DNSServiceRefSockFD(ref);
-#if defined(PP_DNS_SD_INLINE_RESOLVE)
-        if (rfd >= 0) {
-#if defined(_WIN32)
-            WSAPOLLFD pfd{};
-            pfd.fd = static_cast<SOCKET>(rfd);
-            pfd.events = POLLIN;
-            if (::WSAPoll(&pfd, 1, kResolveBudgetMs) > 0 && (pfd.revents & POLLIN))
-                DNSServiceProcessResult(ref);
-#else
-            struct pollfd pfd;
-            pfd.fd = rfd;
-            pfd.events = POLLIN;
-            pfd.revents = 0;
-            if (::poll(&pfd, 1, kResolveBudgetMs) > 0 && (pfd.revents & POLLIN))
-                DNSServiceProcessResult(ref);
-#endif
-        }
-        DNSServiceRefDeallocate(ref);
-        delete pending;
-#else
-        // ⚠ `pending` deliberately OUTLIVES this function off the inline-resolve
-        // platforms — the resolve is now asynchronous, so onResolve frees it.
+        // ⚠ `pending` deliberately OUTLIVES this function — the resolve is
+        // asynchronous, so retire() frees it.
         if (rfd < 0 || m_epoll < 0) {
             DNSServiceRefDeallocate(ref);
             delete pending;
@@ -600,6 +756,11 @@ private:
     {
         auto *p = static_cast<Pending *>(ctx);
         if (!p) return;
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+        // Already answered, or its record went away (forgetUnanswered): the ref
+        // is retired after this ProcessResult, and one answer is all it gives.
+        if (p->done) return;
+#endif
         p->done = true;            // answered — the ref may now be retired
         if (err != kDNSServiceErr_NoError) return;
 
@@ -608,7 +769,13 @@ private:
         ad.host = hostTarget ? hostTarget : "";
         ad.port = ntohs(port);
         if (txt && txtLen) parseTxtRecord(txt, txtLen, &ad);
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+        // Queued, not delivered: this runs inside ProcessResult on the shared
+        // connection, and process() hands answers over once it has returned.
+        p->self->m_answers.push_back(Answer{p->ifIndex, std::move(ad)});
+#else
         if (p->self->m_found) p->self->m_found(ad);
+#endif
     }
 
     DNSServiceRef m_browse = nullptr;
@@ -616,12 +783,22 @@ private:
     // Instances the browse callback reported, waiting to be resolved off the
     // callback stack — see drainDiscovered().
     std::vector<Discovered> m_discovered;
-#if !defined(PP_DNS_SD_INLINE_RESOLVE)
+#if defined(PP_DNS_SD_SHARED_CONNECTION)
+    // The shared connection: the browse (m_browse) and every armed resolve are
+    // its subordinates, and its socket is the one fd the owner watches.
+    DNSServiceRef m_conn = nullptr;
+    // Resolves in flight, in the order they were armed.  ⚠ BOTH halves are
+    // owned here: `Pending` outlives resolveOne(), and retireAnswered(),
+    // sweepStaleResolves() and stop() are the only things that free it.
+    std::vector<Armed> m_armed;
+    // Answers onResolve queued during the current process(), delivered once
+    // ProcessResult has returned.
+    std::vector<Answer> m_answers;
+#else
     int m_epoll = -1;                          // the one fd the owner watches
     // resolve socket -> {ref, its callback context}.  ⚠ BOTH are owned here:
-    // off the inline-resolve platforms the resolve is asynchronous, so
-    // `Pending` outlives resolveOne() and this map is the only thing that can
-    // free it.
+    // the resolve is asynchronous, so `Pending` outlives resolveOne() and this
+    // map is the only thing that can free it.
     std::map<int, std::pair<DNSServiceRef, Pending *>> m_byFd;
 #endif
     FoundFn m_found;

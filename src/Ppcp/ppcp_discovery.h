@@ -173,6 +173,9 @@ public:
     // UDP 5353 for it except this process's own socket — uses this to
     // re-send its browse query periodically (RFC 6762 §5.2), because
     // `process()` alone only fires when something ELSE is already talking.
+    // The macOS browser uses it to drop a resolve that has not answered within
+    // its budget, for the same reason: an instance that never answers sends
+    // nothing to wake `process()` (#241).  Never blocks.
     virtual void tick(std::uint64_t /*nowS*/) {}
 };
 

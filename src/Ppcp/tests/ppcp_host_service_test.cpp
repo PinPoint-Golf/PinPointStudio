@@ -50,9 +50,14 @@
 
 #include <ppcp/rv.h>
 
+#include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include <ppcp/cbor.h>
 // MSG §12 — the ack the clamp row hands to observe(); see that test for why it
@@ -63,6 +68,13 @@
 
 #include <mutex>
 #include <thread>
+
+#if defined(__APPLE__)
+#include <arpa/inet.h>
+#include <dns_sd.h>
+#include <poll.h>
+#include <unistd.h>
+#endif
 
 #include "ppcp_host_service.h"
 #include "ppcp_rendezvous.h"
@@ -644,6 +656,279 @@ TEST_F(HostServiceClock, DiscoveryIsWiredUpAndSaysWhatItIs)
     // 3.6a — whatever discovery did or did not do, it is not an error and does
     // not reach the user-facing status line.
     EXPECT_FALSE(m_svc.status().contains(QStringLiteral("discovery"), Qt::CaseInsensitive));
+}
+
+// ── #241: the host never stalls while it waits for a phone ─────────────────
+//
+// ⚠ THE FAILURE THIS GUARDS WAS A RED `TheCountdownRunsWhileTheHostIsStill…`.
+// On macOS the browser used to resolve every discovered `_ppcp._tcp` instance
+// INLINE on the GUI thread, waiting up to 250 ms for each one to answer.  An
+// instance that browses but never resolves — a cached advert whose host has
+// gone, seen once per network interface — cost the GUI thread 250 ms apiece,
+// so the 20 ms tick, the countdown and the heartbeats all stopped with it.
+//
+// So this plants exactly that: a bare PTR record for a `_ppcp._tcp` instance
+// with nothing behind it (no SRV, no TXT), registered LOCAL-ONLY so it never
+// leaves this machine and the result cannot depend on the LAN.  The browse
+// finds it; a resolve can never answer.  The assertion is on the GUI thread
+// itself: no single pass of the event loop may take more than 100 ms.
+#if defined(__APPLE__)
+namespace {
+class UnresolvableInstance
+{
+public:
+    UnresolvableInstance()
+    {
+        m_name = "pp241-unresolvable-" + std::to_string(::getpid());
+        if (DNSServiceCreateConnection(&m_conn) != kDNSServiceErr_NoError) {
+            m_conn = nullptr;
+            m_why = "no connection to mDNSResponder";
+            return;
+        }
+        // The PTR's rdata is the instance's full name in DNS wire format.
+        std::vector<std::uint8_t> rdata;
+        for (const std::string &label : {m_name, std::string("_ppcp"),
+                                          std::string("_tcp"), std::string("local")}) {
+            rdata.push_back(static_cast<std::uint8_t>(label.size()));
+            rdata.insert(rdata.end(), label.begin(), label.end());
+        }
+        rdata.push_back(0);
+        const DNSServiceErrorType e = DNSServiceRegisterRecord(
+            m_conn, &m_rec, kDNSServiceFlagsShared, kDNSServiceInterfaceIndexLocalOnly,
+            "_ppcp._tcp.local.", kDNSServiceType_PTR, kDNSServiceClass_IN,
+            static_cast<std::uint16_t>(rdata.size()), rdata.data(), 120,
+            &UnresolvableInstance::onRegistered, this);
+        if (e != kDNSServiceErr_NoError) {
+            m_why = "DNSServiceRegisterRecord refused: " + std::to_string(e);
+            return;
+        }
+        // Wait for the responder's answer here, on the test's own clock and
+        // before the measurement starts.
+        struct pollfd pfd{DNSServiceRefSockFD(m_conn), POLLIN, 0};
+        if (::poll(&pfd, 1, 2000) > 0) DNSServiceProcessResult(m_conn);
+        if (!m_registered) m_why = "the responder never confirmed the record";
+    }
+    ~UnresolvableInstance()
+    {
+        if (m_conn) DNSServiceRefDeallocate(m_conn);   // takes the record with it
+    }
+    UnresolvableInstance(const UnresolvableInstance &) = delete;
+    UnresolvableInstance &operator=(const UnresolvableInstance &) = delete;
+
+    bool ok() const { return m_registered; }
+    const std::string &why() const { return m_why; }
+    const std::string &name() const { return m_name; }
+
+    // Proof that a browse on every interface — the one the host runs — sees
+    // the instance, so a green row cannot mean the plant never landed.
+    bool browseSeesIt() const
+    {
+        struct Seen { const std::string *want; bool hit = false; } seen{&m_name};
+        DNSServiceRef b = nullptr;
+        if (DNSServiceBrowse(&b, 0, kDNSServiceInterfaceIndexAny, "_ppcp._tcp", nullptr,
+                             [](DNSServiceRef, DNSServiceFlags flags, uint32_t,
+                                DNSServiceErrorType err, const char *name, const char *,
+                                const char *, void *ctx) {
+                                 auto *s = static_cast<Seen *>(ctx);
+                                 if (!err && (flags & kDNSServiceFlagsAdd) && name
+                                     && *s->want == name)
+                                     s->hit = true;
+                             },
+                             &seen) != kDNSServiceErr_NoError)
+            return false;
+        QElapsedTimer t;
+        t.start();
+        while (!seen.hit && t.elapsed() < 2000) {
+            struct pollfd pfd{DNSServiceRefSockFD(b), POLLIN, 0};
+            if (::poll(&pfd, 1, 100) > 0) DNSServiceProcessResult(b);
+        }
+        DNSServiceRefDeallocate(b);
+        return seen.hit;
+    }
+
+private:
+    static void DNSSD_API onRegistered(DNSServiceRef, DNSRecordRef, DNSServiceFlags,
+                                       DNSServiceErrorType err, void *ctx)
+    {
+        auto *self = static_cast<UnresolvableInstance *>(ctx);
+        self->m_registered = (err == kDNSServiceErr_NoError);
+        if (err) self->m_why = "the responder refused the record: " + std::to_string(err);
+    }
+
+    DNSServiceRef m_conn = nullptr;
+    DNSRecordRef  m_rec  = nullptr;
+    bool          m_registered = false;
+    std::string   m_name;
+    std::string   m_why;
+};
+}  // namespace
+#endif
+
+TEST_F(HostServiceClock, AnInstanceThatNeverResolvesDoesNotStallTheHostWhileItWaits)
+{
+#if !defined(__APPLE__)
+    // Linux resolves asynchronously already (Avahi's epoll path), and Windows
+    // browses with its own engine (ppcp_mdns_native); macOS is the platform
+    // that resolved inline.
+    GTEST_SKIP() << "plants a record in mDNSResponder; macOS only";
+#else
+    ASSERT_TRUE(m_svc.publishPairingCode());
+    ASSERT_FALSE(m_svc.discoveryDescription().isEmpty());
+
+    UnresolvableInstance ghost;
+    if (!ghost.ok()) GTEST_SKIP() << "could not plant the record: " << ghost.why();
+    // 3.6a: a responder too slow to show the record is not a fault either.
+    if (!ghost.browseSeesIt()) GTEST_SKIP() << ghost.name() << " never reached a browse";
+
+    // The host's browse notifier has not run yet: the first pass of the event
+    // loop below is where its resolve happens.
+    Counter spy(&m_svc);
+    QElapsedTimer t;
+    t.start();
+    qint64 worst = 0;
+    while (t.elapsed() < 1500) {
+        QElapsedTimer one;
+        one.start();
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        worst = std::max(worst, one.elapsed());
+    }
+
+    // 200 ms, not 100: twice the headroom under a loaded parallel run, and the
+    // regression it guards cost 250 ms per instance.
+    EXPECT_LT(worst, 200)
+        << "the GUI thread stalled " << worst << " ms while the host waited for a phone";
+    EXPECT_GE(spy.count(), 1) << "the countdown stopped";
+    EXPECT_FALSE(m_svc.connected());
+    EXPECT_TRUE(m_svc.codeLive());
+#endif
+}
+
+// ── #241 review B1: an answer that has arrived is never thrown away ────────
+//
+// ⚠ THE BUDGET IS THE RESPONDER'S, NOT THE GUI THREAD'S.  The asynchronous
+// resolve keeps the old 250 ms budget, and the first cut measured it against
+// the wrong clock: `process()` and `tick()` dropped a resolve 250 ms after it
+// was ARMED, without first reading the socket.  A phone that answered in 3 ms
+// was then lost whenever the GUI thread was busy for 250 ms after the resolve
+// started — the first passes of the event loop at launch are exactly that —
+// and nothing retries: mDNSResponder does not repeat a browse Add the client
+// already has.  The old inline poll returned the moment an answer was
+// readable, so it could not lose one.
+//
+// So: a real, LOCAL-ONLY `_ppcp._tcp` registration that DOES answer; the
+// browse is started, its first batch is handled (which arms the resolve),
+// then the thread is kept busy for longer than the budget before the browser
+// is looked at again.  Two rows, because the two doors are the tick (the host
+// calls it every 20 ms, and after a stall the timer can fire before the
+// notifier) and process() itself.
+#if defined(__APPLE__)
+namespace {
+class AnsweringInstance
+{
+public:
+    AnsweringInstance()
+    {
+        m_name = "pp241-answers-" + std::to_string(::getpid());
+        static const unsigned char txt[] = "\x09txtvers=1";
+        if (DNSServiceRegister(&m_ref, 0, kDNSServiceInterfaceIndexLocalOnly, m_name.c_str(),
+                               "_ppcp._tcp", nullptr, nullptr, htons(47789),
+                               static_cast<std::uint16_t>(sizeof txt - 1), txt,
+                               &AnsweringInstance::onRegistered, this)
+            != kDNSServiceErr_NoError) {
+            m_ref = nullptr;
+            return;
+        }
+        struct pollfd pfd{DNSServiceRefSockFD(m_ref), POLLIN, 0};
+        if (::poll(&pfd, 1, 2000) > 0) DNSServiceProcessResult(m_ref);
+    }
+    ~AnsweringInstance() { if (m_ref) DNSServiceRefDeallocate(m_ref); }
+    AnsweringInstance(const AnsweringInstance &) = delete;
+    AnsweringInstance &operator=(const AnsweringInstance &) = delete;
+
+    bool ok() const { return m_registered; }
+    // The responder may rename on a collision; this is the name it settled on.
+    const std::string &name() const { return m_name; }
+
+private:
+    static void DNSSD_API onRegistered(DNSServiceRef, DNSServiceFlags, DNSServiceErrorType err,
+                                       const char *name, const char *, const char *, void *ctx)
+    {
+        auto *self = static_cast<AnsweringInstance *>(ctx);
+        self->m_registered = (err == kDNSServiceErr_NoError);
+        if (self->m_registered && name) self->m_name = name;
+    }
+
+    DNSServiceRef m_ref = nullptr;
+    bool          m_registered = false;
+    std::string   m_name;
+};
+
+// Browse until `ours` resolves, at most `ms`, calling process() only when the
+// socket is readable — what the host's notifier does.
+bool pumpUntilFound(Ppcp::RvBrowser &br, const bool &found, int ms)
+{
+    QElapsedTimer t;
+    t.start();
+    while (!found && t.elapsed() < ms) {
+        struct pollfd pfd{br.fd(), POLLIN, 0};
+        if (::poll(&pfd, 1, 20) > 0) br.process();
+        br.tick(0);
+    }
+    return found;
+}
+
+enum class FirstLook { Tick, Process };
+
+void anAnswerThatArrivedWhileTheThreadWasBusyIsDelivered(FirstLook first)
+{
+    AnsweringInstance phone;
+    if (!phone.ok()) GTEST_SKIP() << "the responder refused the registration (3.6a)";
+
+    std::unique_ptr<Ppcp::RvBrowser> br = Ppcp::makePlatformBrowser();
+    ASSERT_TRUE(br);
+    bool found = false;
+    const std::string want = phone.name();
+    if (!br->start([&](const Ppcp::RvAdvertisement &ad) { if (ad.instanceName == want) found = true; },
+                   [](const std::string &) {}))
+        GTEST_SKIP() << "the responder refused the browse (3.6a)";
+
+    // The first batch: the responder reports the registration it already
+    // holds, and process() arms its resolve.
+    struct pollfd pfd{br->fd(), POLLIN, 0};
+    if (::poll(&pfd, 1, 2000) <= 0) GTEST_SKIP() << "the browse reported nothing within 2 s (3.6a)";
+    br->process();
+    ASSERT_FALSE(found) << "resolved inside the batch that armed it — this row tests nothing";
+
+    // The GUI thread is busy for longer than the budget.  The answer arrives
+    // in milliseconds and sits in the socket meanwhile.
+    std::this_thread::sleep_for(std::chrono::milliseconds(400));
+
+    if (first == FirstLook::Tick) br->tick(0);
+    else if (::poll(&pfd, 1, 0) > 0) br->process();
+
+    EXPECT_TRUE(pumpUntilFound(*br, found, 2000))
+        << want << " answered within the budget and was thrown away unread";
+    br->stop();
+}
+}  // namespace
+#endif
+
+TEST(DiscoveryBudget, AnAnswerWaitingWhenTheTickComesIsDeliveredNotDropped)
+{
+#if !defined(__APPLE__)
+    GTEST_SKIP() << "registers with mDNSResponder; macOS only";
+#else
+    anAnswerThatArrivedWhileTheThreadWasBusyIsDelivered(FirstLook::Tick);
+#endif
+}
+
+TEST(DiscoveryBudget, AnAnswerWaitingWhenProcessComesIsReadBeforeTheBudgetIsApplied)
+{
+#if !defined(__APPLE__)
+    GTEST_SKIP() << "registers with mDNSResponder; macOS only";
+#else
+    anAnswerThatArrivedWhileTheThreadWasBusyIsDelivered(FirstLook::Process);
+#endif
 }
 
 // RT-9 — a diagnostic export carries no secret and no payload, and the two
