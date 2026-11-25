@@ -83,7 +83,7 @@ says "ruled" where it appears below.
 | Device-only recordings record handedness (R-REC-8) | Solution Architect | Stage D, with D-5 |
 | The `hm.*` values are re-tagged as derived (R-INS-5), reversing 6.1a's J-2. 6.4's D-1 (capture writes them) is dropped from Stage D. The re-tag is #239, after the refactor | Solution Architect | not platform work |
 | The pose model fingerprint becomes a direct call, `modelFileFingerprint` in `Core/pp_model_path.h`, replacing the hook (J-107's J-2) | Solution Architect | Stage B, Part 1 |
-| Buffer's stream types, LaunchMonitor's reading types and `Export/frame_decode` move under `src/Vocabulary/` too, for one Vocabulary rule (J-109) | Solution Architect | Stage B (LaunchMonitor, `frame_decode`); Stage D (Buffer) |
+| Buffer's stream types, LaunchMonitor's reading types and `Export/frame_decode` move under `src/Vocabulary/` too, for one Vocabulary rule (J-109) | Solution Architect | Stage B (LaunchMonitor, `frame_decode`); Buffer's part withdrawn on 25 Nov: it stays[^lever-25nov] |
 | P-3: a Shot-level reader, `RecordingReader::phaseGrid(shot)`, with the model browser's two library-wide scans moved to the athlete level's `SessionIndex` summaries, as Charts did in 5.5d. No library-level door (J-104) | Solution Architect | Stage B, Part 1 |
 | Lint A5 counts `Export/rule_data_reads.cpp` as a store door, with one allowlist line cleared in Stage B (J-110) | Solution Architect | Stage B, Part 1 |
 | A legacy `"DRIVER"` stub reads as undeclared everywhere (R-CLUB-4): its own domain item, #238 (J-106) | Solution Architect | not platform work |
@@ -847,7 +847,7 @@ What to design (all proposed, for the Solution Architect):
 | Re-run | none unless calibration results start feeding analysis; then a stage-version bump and a re-run |
 | Docs | IM §2.3, §8, §11; `docs/design/camera_calibration_design.md`; `docs/reference/swing_json_schema.md` |
 | Tier (proposed, for the Product Owner) | Independent review for every item: a new owner, a format change and source data. A duties inventory of each calibration QML file before its logic moves |
-| Accept (proposed, for the Product Owner) | Places that hold rig facts (SET-09's rig keys, SET-05, FILE-SESS-11, the assumptions in code): to one owner, counted in the brief. Open-coded device keys: 7 → 0. Perspective types: 2 → 1. Thresholds, maths and step transitions in calibration QML: to 0. `trunk_ceremony_recorder`'s A5 ×7 and A6 ×2: to 0 |
+| Accept (proposed, for the Product Owner) | Places that hold rig facts (SET-09's rig keys, SET-05, FILE-SESS-11, the assumptions in code): to one owner, counted in the brief. Open-coded device keys: 7 → 0. Perspective types: 2 → 1. Thresholds, maths and step transitions in calibration QML: to 0 (deferred to #291: unchanged in Stage C, pinned by the golden traces[^lever-25nov]). `trunk_ceremony_recorder`'s A5 ×7 and A6 ×2: to 0 |
 | Scratch cases (proposed, for the Product Owner) | A swing with no rig reference; a third camera; two Recordings either side of a calibration change; a machine with no rig stored yet |
 | Cabin visit (proposed, for the Product Owner) | The procedures on the real sensors: the Product Owner runs them from a written procedure in one visit; Stage E's part 1 is built behind the visit and behind the Rig's design approval (§7) |
 
@@ -861,7 +861,8 @@ After Stage C, so the capture service writes rig references from the start.
 - **The frozen window stops being a view onto the ring.** `swing_window.h` and `swing_payload_source.h` (Vocabulary
   ring) include `source_ring.h` (Adapters) for `SourceRing::ReadHandle`. A value type for the handle, in the
   Vocabulary ring, closes their two A1 lines (proposed, for the Solution Architect). Buffer's stream types then move
-  under `src/Vocabulary/`, which completes the lint's one Vocabulary rule ("Mandatory carry-ins" (i)).
+  under `src/Vocabulary/`, which completes the lint's one Vocabulary rule ("Mandatory carry-ins" (i)). Both are
+  dropped from Stage D: the handle and the headers stay as they are[^lever-25nov].
 - **Split `ShotProcessor`** (2,156 + 508 lines, 17 A1 at the close[^c-files]).
   Its five jobs today: post-roll and late-source gathering over the event buffer and the device managers; the export
   and the frozen window; session and shot bookkeeping; starting the analysis; live replay. IM puts the capture service
@@ -900,7 +901,8 @@ After Stage C, so the capture service writes rig references from the start.
 - **`CameraInstance`** (2,186 lines at the close, as on 21 Nov, up from 1,721 in June[^c-files])
   gives its pipeline construction and its ball-presence monitor to collaborators, as June proposed; `CameraManager`
   and `ImuManager` (1,060 and 1,050 lines at the close[^c-files])
-  share their device-selection and producer mechanics. The `liveWrist` QML global, a view over the IMU, goes with
+  share their device-selection and producer mechanics. Both dropped from Stage D: they close no lint line and no
+  issue[^lever-25nov]. The `liveWrist` QML global, a view over the IMU, goes with
   them, if the globals leave with their stages (§9, Q17).
 - **The device enumerator** moves out of `Core` into an Adapters capture directory, and its `Device` struct, which
   couples Video, IMU and Bluetooth types, is split (proposed, for the Solution Architect; IMC C9).
@@ -1481,3 +1483,5 @@ for steps 3 and 4 only[^l-record].
 [^j110]: J-110 (the refactor coordinator, 24 Nov 2026), citing the close's note C-6; logged for the Solution Architect. Not yet ruled.
 [^j101]: J-101 (the refactor coordinator, 23 Nov 2026), logged for the Solution Architect as P-6.3b-1; 06 Part B §10, last row: "Not placed anywhere yet". Not yet ruled.
 [^j106]: J-106 (the refactor coordinator, 24 Nov 2026): the board's legacy-stub exception is built as an interim, pending the Solution Architect's ruling; 06 Part B §8.6 and §10.
+
+[^lever-25nov]: The Product Owner and the Solution Architect, 25 Nov 2026: the lever pass on #224-U, Stage C and Stage D (`docs/implementation/platform_d_capture_seam.md`, "The lever pass of 25 Nov"). D-V3: Buffer's stream types stay in `src/Buffer`, J-109's Buffer part withdrawn by the Solution Architect (IM v1.12.4); D-V1: `CameraInstance`'s two collaborators and the managers' shared mechanics dropped; D-V2: `pp_rules_vision` moved to #292; C-V1: the calibration procedures' move to C++ deferred to #291, with #266 and #270 (`docs/design/rig_design.md` §4.8).

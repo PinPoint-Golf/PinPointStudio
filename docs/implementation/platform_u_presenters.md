@@ -1,6 +1,6 @@
 # Platform refactor, #224-U: eleven questions on the presenter residue
 
-**Status: open, 25 Nov 2026.** Nothing here is built. Each row has an empty **Ruled** line: the coordinator writes
+**Status: open, 25 Nov 2026; every question ruled the same day[^u-ruled-25nov], and the lever pass then deferred the three big headers' typing (U-V1)[^u-v1].** Nothing here is built. Each row has an empty **Ruled** line: the coordinator writes
 the ruling, the role and the date there, and the briefs that wait read it. This page is item U-0 of
 `build/platform/U/PLAN-U.md`.
 
@@ -38,7 +38,8 @@ Q5, Q6); the Product Owner 1 (Q10). **Q11 and Q7 free the most:** four items and
    report's). None edits `src`.
 2. **Once Stage B is closed:** U-4, U-5, U-6a, U-7, U-14a and U-15a, in any order.
 3. **After their inventories:** the pins U-P1 and U-P2; then the typing, U-8a to U-8c, U-9a, U-9b, U-10a, U-10b
-   and U-14b.
+   and U-14b. U-P1 and the typing of the three big headers (U-8a to U-8c, U-9a, U-9b, U-10a to U-10c) are deferred
+   by the lever pass; U-P2, U-14b and the new slice U-8q stay[^u-v1].
 
 That is 20 of the 33 items and 49 of the 84 hours. The three coordinator's calls free nothing alone: U-12 and
 U-15c also wait on Q11, and U-6b on Q7.
@@ -84,7 +85,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   the `Session`'s and the shot is the `Session`'s. (a) is about 3 h for no change in who owns what. (b) changes
   what the page says a scoped type is, which is why it is HARD. If (a) is ruled, U-18b grows from 1 h to about 3 h.
 - **C10, C11.** Waits: U-18b.
-- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov]. U-18b then takes 1–1.5 h, not 2.5: it edits the lint's list and deletes four lines, and moves no code[^u-v0].
 
 ### Q3 · Where a condition's history across sessions is read from
 - **Today.** The adapter's `readHistory` lists the golfer's other session folders itself and reads each one's
@@ -237,7 +238,7 @@ Solution Architect.
   typing moves here from Stage D (about 6 h and Stage D's three lines).
 - **Recommendation: (a).** The accept figure then reads: tagged lines 32 → 5, and 4 after U-10c. (b) holds a
   finished plan open for one finding pair; (c) brings Stage D's unruled owner question (D-6) into this plan.
-- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov]. Overtaken by the lever pass: U-10c is deferred with the rest of the report's typing, so #224-U no longer waits for SD-10c, and its close no longer reads "27 of 28"[^u-v1].
 
 [^g24]: `docs/implementation/platform_refactor_assessment.md`, "#224 in three groups"; #224's "U" list; the premises are in `build/platform/U/NOTES-U-plan.md`.
 [^po24]: The Product Owner, 24 Nov 2026 (the assessment's "Rulings of 24 Nov"; §9 Q16).
@@ -256,12 +257,12 @@ Solution Architect.
 ### Q12 · `expectations`: retire it? (HARD: the Design Lead)
 - **Today.** The adapter hands QML `expectations` (h:345), read in 3 files, but it is always empty (h:343–344). `build/platform/U/INVENTORY-U-1i.md`.
 - **Recommendation.** Retire it, since nothing ever fills it, so no golfer sees a change (proposed, for the Design Lead).
-- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov]. Built in U-8q, the one slice of the adapter's typing that #224-U keeps[^u-v1].
 
 ### Q13 · `PpDiagReplayState` builds its own "partial" readout in QML (HARD: the Solution Architect)
 - **Today.** The view assembles a readout object of its own instead of reading one the session owns. That may be a view owning domain state (C10). `build/platform/U/NOTES-U-1i.md`.
 - **Recommendation.** The readout is built by the session's presenter, and the view only reads it; U-8 moves it (proposed, for the Solution Architect).
-- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov]. The readout is built in C++ as a typed value in U-8q, which #224-U keeps; the rest of U-8 is deferred[^u-v1].
 
 
 ### Q14 · FILE-SESS-05's row names `WorkOnsController` as a writer (HARD: the Solution Architect)
@@ -272,8 +273,11 @@ Solution Architect.
 ### Q15 · The report's `make` options are written whole into FILE-SESS-13: is typing them a format change? (HARD: the Solution Architect)
 - **Today.** The report's `make` call takes an untyped options map and writes it whole into FILE-SESS-13 (U-3i, `build/platform/U/NOTES-U-3i.md` F3). Typing the options in U-10 changes what the file can hold, unless the type reproduces every key and value it writes today.
 - **Recommendation.** A typed options struct that writes the same keys and values, byte for byte, pinned by a round-trip test on today's files. Then it isn't a format change (C3), since nothing in the file changes (proposed, for the Solution Architect).
-- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov]. The typing this governs (U-10a) is deferred, so the ruling applies when #289 types the options[^u-v1].
 
 [^q8r]: The Design Lead, 25 Nov 2026, in the platform refactor's coordination session.
 
 [^u-ruled-25nov]: Ruled in the platform programme's coordination session, 25 Nov 2026, by the roles each question names (the Solution Architect: Q1–Q4, Q7, Q9, Q11, Q13–Q15; the Design Lead: Q12; the Product Owner: Q10), all as recommended. **The Product Owner's condition:** before #224-U starts, a lever pass like Stages D and E's ranks its items by value per hour, and the items that only clear a lint line come back to keep, drop, or leave as accepted exceptions with a reason.
+
+[^u-v0]: The Product Owner, 25 Nov 2026 (the lever pass on #224-U, Stage C and Stage D, lever U-V0, as recommended; `build/platform/LEVERS/LEVERS-U-C-D.md` §1.3): Q2's view-local ruling applied to U-18b's estimate; 1–1.5 h dropped.
+[^u-v1]: The Product Owner, 25 Nov 2026 (the lever pass, lever U-V1, as recommended; re-tagging the three allowlist lines is the Solution Architect's): typing the three big headers (the diagnostics adapter, the work-ons and the report model: U-P1, U-8a to U-8c, U-9a, U-9b, U-10a to U-10c, 27 h, less the 2–4 h U-8q slice kept) is **deferred, with a trigger**: each member is typed when a screen that reads it is next changed, or sooner if #284's freezes trace to the maps' copies. 23–25 h. Its home is #289, which names the three allowlist lines it leaves. U-8q (2–4 h) stays in #224-U: Q13's readout built in C++ as a typed value, and Q12's `expectations` retired.

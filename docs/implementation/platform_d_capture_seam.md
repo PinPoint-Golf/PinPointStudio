@@ -1,6 +1,6 @@
 # Platform refactor, Stage D: the capture seam. A test-rig question, ten design questions and two scope levers, classified
 
-**Status: proposed, 24 Nov 2026. Nothing here is ruled.** Each row ends with an empty **Ruled** line: the
+**Status: proposed, 24 Nov 2026; every row ruled as recommended on 25 Nov 2026[^d-ruled-25nov], and the scope then cut by the lever pass ("The lever pass of 25 Nov", below)[^d-lever].** Each row ends with an empty **Ruled** line: the
 coordinator writes the ruling, the role and the date there, and the briefs that wait read it. Until a row is ruled,
 today's behaviour stays and the items that wait on it are not built[^hard]. Every recommendation is **(proposed)**
 for the role its **Class** line names.
@@ -46,7 +46,7 @@ Thirteen product files in seven directories include the device enumerator.
 **What can start with no HARD ruling.** The five duties inventories (SD-1a to SD-1e, as Stage C's cut-overs land;
 SD-1c now), the camera-less rig (SD-2a, under T1), the 4 to 7 of 11 pins it reaches (parts of SD-2b and SD-2c),
 the pixel-format mapping (SD-5), and, if S3 is taken as the coordinator's call, the handle and Buffer's move (SD-3,
-SD-4, after B2.5). Everything else waits for a row below.
+SD-4, after B2.5; both since dropped[^d-v3]). Everything else waits for a row below.
 
 ## The capture test rig (SD-2a), first
 
@@ -175,7 +175,7 @@ SD-4, after B2.5). Everything else waits for a row below.
 - **Class: HARD: the Solution Architect.** Keeping the service in Application matches the page. The new interfaces
   and the collaborator's directory each need a ring (C9).
 - **Waits:** SD-8a to SD-8f, SD-9a, and T2's interface.
-- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov]. Whether the split that builds it (SD-8a to SD-8c, SD-8f) is built is decided with the pins' results[^d-v4].
 
 ### S2 · When the shot is allocated, and when its session is bound
 - **Today.** `Session::addShot` is called in two places (`grep -n 'addShot(' src/Gui/shot/shot_processor.cpp`:
@@ -196,7 +196,7 @@ SD-4, after B2.5). Everything else waits for a row below.
   document never lands: a state of its own, shown with a warning, or an allocation undone? That is #235's half (1).
 - **Class: HARD: the Solution Architect** (C8: who creates the shot and when, and its states).
 - **Waits:** SD-8d, SD-8e, SD-10a.
-- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov]. S2 (SD-8d) is built on today's shot processor straight after the pins, before any split[^d-v4].
 
 ### S3 · The window's handle
 - **Today.** `swing_window.h` and `swing_payload_source.h` are Vocabulary by the lint's per-file entries and include
@@ -214,7 +214,7 @@ SD-4, after B2.5). Everything else waits for a row below.
   which §1.2 excludes; no file is added, moved or re-tagged, and the lint's tables are not edited. **Option (b)
   adds a per-file ring entry (C9) and would be HARD.** IM §4.1 names neither the handle nor `source_ring`. The plan marks this row "for the Solution
   Architect"[^plan], so it is shown in the same sitting; SD-3 cannot start before B2.5 in any case.
-- **Waits:** SD-3, then SD-4 (Buffer's seven headers to `src/Vocabulary/Buffer/`, already ruled[^j109]).
+- **Waits:** SD-3, then SD-4 (Buffer's seven headers to `src/Vocabulary/Buffer/`, already ruled[^j109]). Both are dropped, so the handle stays as it is[^d-v3].
 - **Ruled:** as recommended (the coordinator's call, 24 Nov 2026; `build/platform/JUDGEMENT-CALLS.md` PR-41, for the Product Owner's review).
 
 ### S4 · The shot's source as a persisted type
@@ -320,7 +320,7 @@ Both detectors take an OpenCV frame (`estimatePose(const cv::Mat &)`, `detect(co
   | not this stage's to place | — | `camera_roi`, `imu_role_map` and `trunk_ceremony_recorder` (the Rig's, Stage C); `ppcp_clip_filer` (the phone link, Stage F); `reanalysis_controller` (re-analysis, not capture) |
 - **Class: HARD: the Solution Architect** (C9). Whether the stage's five QML globals leave with these files is
   V1's question, not this row's.
-- **Waits:** SD-13, then SD-14.
+- **Waits:** SD-13, then SD-14 (SD-14 since moved to an issue[^d-v2]).
 - **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S10 · The context map: here, or with the coaching track
@@ -390,15 +390,15 @@ Both detectors take an OpenCV frame (`estimatePose(const cv::Mat &)`, `detect(co
 
 **E-09's capture half** ("`ShotProcessor` mixes capture, job building, serialisation, document write, carousel
 rows, a replay player and session-folder ownership. Untested") is closed by SD-2a to SD-2c (untested) and SD-8a
-to SD-8f (the mix). SD-15c re-takes it.
+to SD-8f (the mix). SD-15c re-takes it. Whether the split (SD-8a to SD-8c, SD-8f) is built is decided after the pins[^d-v4].
 
 **No design-system change.** SD-10c, SD-12c and SD-12d re-point QML with no change of look, and V1 and V2 would
 drop two of the three. If an item finds it needs a new component, variant or state, it stops and asks the Design
 Lead[^hard].
 
-**Already ruled, so not asked here.** Buffer's stream types move under `src/Vocabulary/`[^j109]. A device-only
+**Already ruled, so not asked here.** Buffer's stream types move under `src/Vocabulary/`[^j109] (withdrawn on 25 Nov: they stay[^d-v3]). A device-only
 recording records handedness (R-REC-8). #235's half (1) is Stage D's. `pp_rules_vision` was sent here from Part 2
-of Stage B. The 24 settings fallbacks are deleted in this stage, as the files they are in are rewritten.
+of Stage B (since moved to an issue[^d-v2]). The 24 settings fallbacks are deleted in this stage, as the files they are in are rewritten.
 
 **The walkthrough deck.** If S1, S2 or S5 is ruled as recommended, `docs/developer/information_model_walkthrough.pptx`
 no longer shows the shot's allocation or the board's owner as built. The Product Owner regenerates it when the
@@ -426,18 +426,18 @@ C4 (V2). C3 only under S4's option (b). §11 is updated by SD-15c.
 | T2 | **HARD: the Solution Architect** (the interface); Coordinator (the camera back-end, the lifted values) | the other 4 to 7 pins; one new item; then SD-8a onward |
 | S1 | **HARD: the Solution Architect** | SD-8a to SD-8f, SD-9a |
 | S2 | **HARD: the Solution Architect** | SD-8d, SD-8e, SD-10a |
-| S3 | Coordinator (option a) | SD-3, SD-4 |
+| S3 | Coordinator (option a) | SD-3, SD-4 (both dropped[^d-v3]) |
 | S4 | **HARD: the Solution Architect** | SD-9b, SD-9c |
 | S5 | **HARD: the Solution Architect** | SD-10b, SD-10c |
 | S6 | **HARD: the Solution Architect** | SD-6 |
 | S7 | **HARD: the Solution Architect** | SD-7 |
 | S8 | **HARD: the Solution Architect** | SD-11c |
-| S9 | **HARD: the Solution Architect** | SD-13, SD-14 |
+| S9 | **HARD: the Solution Architect** | SD-13 (SD-14 moved to an issue[^d-v2]) |
 | S10 | Product Owner | nothing, as recommended |
 | V1 | Product Owner | SD-12d |
 | V2 | **HARD: the Solution Architect** | SD-12c; Stage E's SE-9a |
 
-Not waiting on any row: SD-1a to SD-1e (the inventories), SD-5 (the pixel-format mapping), SD-11a and SD-11b, SD-12a and SD-12b, SD-15a to SD-15c. Each still waits for the items the plan
+Not waiting on any row: SD-1a to SD-1e (the inventories), SD-5 (the pixel-format mapping), SD-11a and SD-11b, SD-12a and SD-12b (SD-11a, SD-11b and SD-12a since dropped[^d-v1]), SD-15a to SD-15c. Each still waits for the items the plan
 puts before it.
 
 **Effect on the item plan, if every row is ruled as recommended.** One item added (T2, about 3 h) and SD-2a
@@ -451,7 +451,7 @@ for at least 4 of the 11 pins and for 7 if a camera-less analysis does not succe
 [^imc]: `governance/artefacts/information_model.md` §1.2 (C1–C11), §1.4 (the lint rules; its last line makes a change of a rule's scope an information-model change: DEC-120), P9, R-QML-1, R-CTX-1, RING-APPLICATION, RING-ADAPTERS, LC-SHOT, R-REC-1 and R-REC-2, read as excerpts.
 [^inc]: The method's rule: check the include graph before proposing a dependency rule.
 [^dec142]: The Solution Architect, 15 Nov 2026 (DEC-142): `Session::addShot` allocates, creates through `RecordingRepository::create` and returns the `Shot`; capture then writes.
-[^j109]: The plan's "Rulings of 24 Nov": Buffer's stream types, the launch monitor's reading types and `frame_decode` move under `src/Vocabulary/`, Buffer's in Stage D (J-109; the Solution Architect).
+[^j109]: The plan's "Rulings of 24 Nov": Buffer's stream types, the launch monitor's reading types and `frame_decode` move under `src/Vocabulary/`, Buffer's in Stage D (J-109; the Solution Architect). Buffer's part was re-opened and withdrawn by the Solution Architect on 25 Nov 2026[^d-v3].
 [^l11]: `docs/implementation/platform_b2_libraries.md`, L11: no library for the Application ring in Part 2 (the coordinator's call, 24 Nov 2026).
 [^b1r]: `docs/implementation/platform_b1_placements.md`: the `Core/` rule becomes Platform, with `device_enumerator` the one named exception until Stage D (the Solution Architect, 24 Nov 2026).
 [^rig]: `docs/design/rig_design.md`: "It does not move `Gui/cameras` or `Gui/imu`; Stage D does"; `docs/implementation/platform_b2_libraries.md`, L11 and P3.
@@ -460,6 +460,22 @@ for at least 4 of the 11 pins and for 7 if a camera-less analysis does not succe
 [^q5]: The plan's Premise 4 and §9 Q5: narrow A6 to P9's wording; and, in the same premise, that the camera, sensor and buffer-controller shapes are worth typing whatever the ruling (both proposed there for the Solution Architect).
 [^guards]: The plan's Stage D, "Guards from the four contexts" (ruled 24 Nov; `build/platform/JUDGEMENT-CALLS.md`, PR-4).
 
+## The lever pass of 25 Nov
+
+After every row above was ruled, a lever pass ranked Stage D's remaining items by what each buys per hour (`build/platform/LEVERS/LEVERS-U-C-D.md` §3). Its rulings[^d-lever]:
+
+- **D-V1, taken: the camera and manager tidying is dropped.** SD-11a (`CameraInstance`'s pipeline to a collaborator), SD-11b (its ball-presence monitor to a collaborator) and SD-12a (the managers' shared selection mechanics) leave the plan: 8.5–9 h. They close no lint line and no issue. `CameraInstance` stays at about 2,186 lines and each manager keeps its own copy of the selection code. SD-11c re-bases to follow SD-1d, and SD-12b to follow SD-1e[^d-v1].
+- **D-V2, taken: `pp_rules_vision` (SD-14) moves to an issue**, #292: about 3 h. It re-opens B2's P3, which sent it here[^d-v2].
+- **D-V3, taken: Buffer's seven stream-type headers stay where they are.** SD-3 (the window's handle as a plain value) and SD-4 (the move to `src/Vocabulary/Buffer/`) are dropped: 4–4.5 h. The window types keep their two A1 lines, the seven headers keep their per-file Vocabulary entries, and SD-13's "Buffer no longer spans rings" is re-set. S3's ruled handle is not built[^d-v3].
+- **D-V4, taken as an order.** SD-8d (S2: bind the session at the trigger, allocate at the freeze) and the new teardown item are built on today's shot processor straight after the pins (SD-2b, SD-2c). The split (SD-8a, SD-8b, SD-8c, SD-8f) is kept in the plan, and whether it is built is decided with the pins' results; until then none of its 10–12.5 h leaves the plan[^d-v4].
+- **Three items added (7.5–13 h, guesses):** the teardown that finishes or records a stopped shot (GAP-1's other half, 2–4 h; it rests on GU-3, an accepted shot is never lost without a trace, which is not yet ruled); one owner of the trigger policy (S11 and S13, 2.5–4 h); and landing #281's overlapping-capture patch, with a test of the shot queue on SD-2a's rig and its memory and copy time measured on the cabin (3–5 h)[^d-lever].
+
+[^d-lever]: The Product Owner and the Solution Architect, 25 Nov 2026: the lever pass on #224-U, Stage C and Stage D, ruled as recommended, with D-V3 and D-V4 ruled by the Product Owner after the Solution Architect.
+[^d-v1]: The Product Owner, 25 Nov 2026 (lever D-V1, as recommended): dropped, not deferred; no issue.
+[^d-v2]: The Product Owner, 25 Nov 2026 (lever D-V2, as recommended): moved to an issue, #292.
+[^d-v3]: The Product Owner, 25 Nov 2026 (lever D-V3), after the Solution Architect re-opened and withdrew J-109's Buffer part; the lint keeps per-file entries. Dropped, not deferred; no issue. The information model says so from v1.12.4 (RING-VOCABULARY).
+[^d-v4]: The Product Owner, 25 Nov 2026 (lever D-V4, taken as an order); the Solution Architect agreed that S2 can be built on the unsplit class.
+
 ## Added after SD-1c (the inventory of `ShotController`, the arbiter and the source ordinals, 25 Nov 2026)
 
 Evidence for each: `build/platform/DEF/DUTIES-SD-1c.md` and `NOTES-SD-1c.md`. **Only one reader acts on the persisted source number** (`recording_loader.cpp:789`, `== 4` with no `micTravel`), and the share holds only `4`, `"launchMonitor"` or no key, so renumbering the enum is safe if that one reader moves with it.
@@ -467,7 +483,7 @@ Evidence for each: `build/platform/DEF/DUTIES-SD-1c.md` and `NOTES-SD-1c.md`. **
 ### S11 · Who owns trigger policy? (HARD: the Solution Architect)
 - **Today.** It sits in `main.cpp` lambdas with no owning object (F1). The device-only shot bypasses the controller (F3), and the rescue overwrites the trigger source (F4).
 - **Recommendation.** One owner, the capture service's trigger policy, in the Application ring: the device-only shot goes through it, and the rescue records its own source beside the trigger's, never over it (proposed, for the Solution Architect).
-- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov]. Built by a new item, one owner of the trigger policy (2.5–4 h)[^d-lever].
 
 ### S12 · Does R-INS-3 or R-INS-5 govern the impact instant? (HARD: the Solution Architect)
 - **Today.** Both rules read on it; the code follows neither consistently (F5).

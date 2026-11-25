@@ -196,7 +196,7 @@ coordinator's calls below to be logged.
   split to #224-H, which already separates rules from words there, as a C9 proposal to the Solution Architect when
   that plan is written. Neither blocks Part 2 (L8 covers the library).
 - **Class: Product Owner.** Waits: B2.8; B2.22's spanning-directories row.
-- **Ruled:** as recommended (the Product Owner, 24 Nov 2026).
+- **Ruled:** as recommended (the Product Owner, 24 Nov 2026). Part (1) re-opened on 25 Nov 2026: B2.8 leaves Stage D for an issue of its own, #292[^p3-dv2].
 
 ## What waits on what
 
@@ -230,3 +230,5 @@ clean build is 5,614 compiles, most of them the same 249 sources again, and shou
 [^l6]: The plan's "Rulings of 24 Nov", the four contexts, L6: the libraries stay by ring; a library splits by context only where a clean seam already exists (the Solution Architect and the Product Owner, 24 Nov 2026).
 [^accept]: The plan's Stage B table, the Accept row (proposed, for the Product Owner).
 [^rule9]: The plan's §5 rule 9: an agent may not re-read an acceptance target; it is logged for the role that owns it.
+
+[^p3-dv2]: The Product Owner, 25 Nov 2026 (the lever pass on #224-U, Stage C and Stage D, lever D-V2, as recommended; `docs/implementation/platform_d_capture_seam.md`, "The lever pass of 25 Nov").

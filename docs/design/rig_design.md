@@ -1,6 +1,6 @@
 # The Rig and calibration: a design proposal (platform refactor, Stage C)
 
-**Status: approved, 24 Nov 2026.** The Solution Architect approved the design and every recommendation in §9 as written, the information-model changes of §8 among them[^sa24-rig]. Stage C builds it, item by item, in §10's order.[^hard]
+**Status: approved, 24 Nov 2026.** The Solution Architect approved the design and every recommendation in §9 as written, the information-model changes of §8 among them[^sa24-rig]. Stage C builds it, item by item, in §10's order, except the calibration procedures in C++ (§4.8), which are deferred to #291[^c-v1].[^hard]
 It answers Stage C of the platform plan[^plan-c] and the plan's Q2[^q2]. This is the third draft: it takes the
 independent review of 24 Nov 2026 (round 1: 8 blocking findings, 12 notes; round 2: 3 blocking, 7 notes), whose evidence is copied into Appendix A so the
 page stands on committed sources.
@@ -52,7 +52,7 @@ close, before C-1.
 | RP-4 | **Only what describes the capture set-up is versioned.** Labels, machine-wide preferences and learned state are the Rig's too, but changing them makes no new rig state | this design |
 | RP-5 | **Absence is never an answer, and a Recording never states what was not so.** "No rig block" (an old swing), "no rig" (an upload) and "this rig" are three written states, none derived from the shot kind. The block lists the devices that have a stream in the shot, not the devices the machine has or the session enabled | the guard[^guard]; R-REC-8's rule that an old file is classified, not backfilled[^rrec8] |
 | RP-6 | **A device is named by typed keys, and each persisted map keeps its own spelling.** No setting is migrated or lost | P7[^p] |
-| RP-7 | **A procedure decides; a view shows.** Thresholds, maths and step transitions are C++ that takes time and samples as inputs, so a recorded run replays exactly. QML binds and words | P2, P9[^p] |
+| RP-7 | **A procedure decides; a view shows.** Thresholds, maths and step transitions are C++ that takes time and samples as inputs, so a recorded run replays exactly. QML binds and words. Not met by Stage C: the calibration routines keep their logic in QML until #291[^c-v1] | P2, P9[^p] |
 | RP-8 | **An assumption is written down as an assumption.** "Fixed cameras are square" and the uncalibrated down-the-line yaw σ become stated entries in the rig state, with their method, never silent constants | the camera design's "degrade explicitly"[^ccd]; #178[^i178] |
 | RP-9 | **Stage C changes no analysis input.** The job builder reads what it reads today, so no shot goes stale and nothing is re-run | the plan's "Re-run: none"[^plan-c] |
 | RP-10 | **The `rig` block is switched on only when its contents are complete.** No swing is ever written with a block that lacks a record the Rig will later hold | RP-5; a recorded input is never rewritten[^p] |
@@ -425,6 +425,8 @@ Types: 2 → 1. Test mirrors: 1 → 0. Bare constants: 2 → 0.
 
 (proposed, for the Solution Architect)
 
+**Deferred.** The typed record, the sink and step 1 below are built in Stage C. The procedures themselves (the step machines, their drivers, `app.calibration`, the routines as bindings and the real ceremonies as fixtures) are deferred to one calibration track after the platform programme, built with #266 and #270 (#291). Until then the 3,978 lines of calibration QML keep their thresholds, maths and transitions: a known breach of RP-7, of this section and of the rule that QML holds no rules and only binds, pinned by the three golden traces[^c-v1].
+
 **The typed result.** One record, shaped on the camera design's calibration record[^ccd], for cameras and sensors
 alike:
 
@@ -460,7 +462,7 @@ Stage C produces records of kind `sensorAlignment` and `extrinsics` with method 
    it: `clearCalibration`, `clearFunctionalCalibration`, `zeroOrientation`, and the HackMotion's link loss
    (Appendix A, table A2). The sensors' duties inventory, which comes before C-6a, is the authority for both lists. So the Rig's records are complete and true from the first build that has
    them, whoever runs the procedure.
-2. *When each procedure moves to C++ (C-11 to C-13).* Its driver commits the record the step machine returned, and
+2. *When each procedure moves to C++ (C-11 to C-13; deferred to #291[^c-v1]).* Its driver commits the record the step machine returned, and
    the live sensor is handed its alignment from the new rig state, as typed input. Which of today's duties on
    `ImuInstance` (solve, apply) moves where is settled by the duties inventory, not here.
 
@@ -481,10 +483,10 @@ sentence[^ring]: the machine returns codes and the words stay where they are, ve
 status column). The existing maths in `src/IMU` is called, not rewritten.
 
 The drivers are created by the composition root and reached as `app.calibration`, never created by QML[^p]. The
-`trunkCeremony` global leaves with them[^q17].
+`trunkCeremony` global leaves with them[^q17]. Both wait for #291; until then the global stays[^c-v1].
 
 **The ceremony file (FILE-SESS-11).** The recorder splits. Its taps and its in-memory ceremony stay with the trunk
-driver. Its file write goes behind a repository, so the pool-thread write and the file name spelled in `src/Gui`
+driver (until #291, with the recorder itself; Stage C's C-14 moves only the file write, with #265's fix[^c-v1]). Its file write goes behind a repository, so the pool-thread write and the file name spelled in `src/Gui`
 both go (A5 ×7, A6 ×2 → 0)[^plan-c]. The format, `pinpoint.trunk_ceremony/1`, does not change. Who the one writer is
 is open question 5; the recommendation is the `Session`, because the file lives, moves, archives and is trashed with
 its session.
@@ -528,7 +530,7 @@ C-11 say so. C-14's byte-identity fixture for the ceremony file is synthetic, as
 
 No look or behaviour change is planned, so no design-system approval is planned for. Three kinds of QML edit happen:
 the perspective rename (§4.7), `appSettings.*` reads and writes that become `app.rig.*`, and the three routine files
-losing their logic to bindings. No control is drawn, no component or token is added. Each item that touches QML
+losing their logic to bindings (deferred to #291[^c-v1]). No control is drawn, no component or token is added. Each item that touches QML
 reads `governance/artefacts/design_system/README.md` and the component pages first, and ends with a before/after sheet of each page
 it touched as the evidence that nothing changed. **If an item finds it cannot keep the look, it stops and the change
 goes to the Design Lead before it is built.**[^hard-ds]
@@ -563,9 +565,9 @@ short note saying so when this design is approved.
 | The Rig's store (`rig.json`) and the copies from settings | `src/Export/rig_store.*` | Adapters | Domain + Application |
 | The `rig` block's writer and reader | `src/Export/recording_header.*` (the one header writer) | Adapters | Domain + Application |
 | The ceremony file's door | `src/Export/` (name with open question 5) | Adapters | Domain + Application |
-| The three step machines | `src/IMU/calibration/` | Rules | Acquisition |
-| The three drivers | `src/Gui/imu/` until Stage D splits capture[^ring] | Adapters | Domain + Application until Stage D, then Acquisition |
-| `app.rig`, `app.calibration` | `src/Gui/app/` | Adapters | Domain + Application |
+| The three step machines (deferred, #291[^c-v1]) | `src/IMU/calibration/` | Rules | Acquisition |
+| The three drivers (deferred, #291[^c-v1]) | `src/Gui/imu/` until Stage D splits capture[^ring] | Adapters | Domain + Application until Stage D, then Acquisition |
+| `app.rig`, `app.calibration` (`app.calibration` deferred, #291[^c-v1]) | `src/Gui/app/` | Adapters | Domain + Application |
 | Creating the Rig and the drivers | `src/App/` (the composition root) | Application | Domain + Application |
 
 `Vocabulary/Rig` is tagged Acquisition, not Shared. Diagnostics may read it, because a later context may depend on an
@@ -580,7 +582,7 @@ record holds, both go to `Vocabulary/Common` in Stage B, Part 1[^q27][^plan-b].
 |---|---|---|
 | 1 | `Vocabulary/Rig` includes only Platform, `Identity`, `Vocabulary/Common`, the perspective header and Qt value types. It never includes `recording.h` | `recording.h` includes `Buffer/types.h`, `Vocabulary/Analysis/swing_analysis.h` and `Vocabulary/Club/club_standards.h`, so the enum gets its own header (A5-4) |
 | 2 | `recording.h` includes `Vocabulary/Rig` (for `RigReference`); `Vocabulary/Rig` never includes `recording.h` | no cycle is made. One file under `Vocabulary/` names `Recording/` today (`analysis_versions.h`); the rig types do not include it (A5-5) |
-| 3 | **The step machines (Rules) include nothing of the Domain model: they return a record.** Only the drivers and device objects (Adapters) include `rig_calibration_sink.h`, and none includes `rig.h`. The sink joins lint A9's named contract headers[^q26] | 0 files under `src/IMU`, `src/Buffer`, `src/Video`, `Gui/imu`, `Gui/cameras` or `Gui/calibration` include `DomainModel/` today (A5-6). The check is extended to `src/IMU/calibration` and stays at 0 for `src/IMU` |
+| 3 | **The step machines (Rules) include nothing of the Domain model: they return a record** (when built: #291[^c-v1]). Only the drivers and device objects (Adapters) include `rig_calibration_sink.h`, and none includes `rig.h`. The sink joins lint A9's named contract headers[^q26] | 0 files under `src/IMU`, `src/Buffer`, `src/Video`, `Gui/imu`, `Gui/cameras` or `Gui/calibration` include `DomainModel/` today (A5-6). The check is extended to `src/IMU/calibration` and stays at 0 for `src/IMU` |
 | 4 | `rig.*` includes only `Vocabulary/Rig`, `Identity`, Platform and the pure role rule (`IMU/imu_role_map.h`, Rules) | the Domain model's production files include `Analysis`, `Coaching`, `Core`, `Diagnostics`, `Identity`, `LaunchMonitor`, `Metrics`, `Recording` and `Vocabulary`; none includes `IMU`, `Buffer` or `Gui` (A5-7). `imu_role_map.*` includes only Qt, `segment_role.h` and `hm_unit_id.h` (A5-8), so its role rules can move to `src/IMU` and be the Domain model's first include of that directory |
 | 5 | The Rig never includes `app_settings.h`; the copies from settings are made in the Rig's store, which reads the settings store itself | `app_settings.h` is included by 18 production files and 4 tests under `src/Gui`, and 4 files under `src/Update` (allowlisted, A1), and by no inner ring (A5-9) |
 | 6 | `CameraInstance`'s enum can be deleted without touching an inner ring | `camera_instance.h` is included by 5 files, all in `Gui/cameras` and `Gui/shot` (A5-1) |
@@ -608,7 +610,7 @@ re-runs table A5 on Stage B's closing commit before C-1 is briefed, and the rule
 | SET-05, the club-length prior | learned rig state[^dec153] | `Rig`; application, per machine | `Rig::learnClubLength`, called by the capture service after a live shot's analysis | n/a (learned, not re-derivable) | `rig.json`; `Rig` (today `ShotProcessor` through `AppSettings`) | n/a | not shown |
 | FILE-SESS-11, the raw ceremony | source (a calibration's evidence) | recommended: the `Session`; session (today: Studio/Rig, outside the aggregate) | handed to the session that starts after it; ends with the session | n/a | the session folder, unchanged format; recommended writer: `Session`, through `SessionRepository` | adapter | not shown; tools replay it |
 | A calibration result | source | `Rig`; application | `commitCalibration`; replaced by the next of its subject and kind; ended by `clearCalibration`; a `sensorAlignment` also ends with the run of the app | n/a | in the rig state, and so in each Recording; in `rig.json` but for `sensorAlignment` | vocabulary (`CalibrationRecord`) | `app.rig` |
-| A procedure's running state | application state | its driver; application | the composition root; reset at each run | n/a | not persisted | rules (machine), adapter (driver) | `app.calibration` |
+| A procedure's running state (until #291, in the QML routine[^c-v1]) | application state | its driver; application | the composition root; reset at each run | n/a | not persisted | rules (machine), adapter (driver) | `app.calibration` |
 | `DeviceKey`, `PlacementKey` | identity | n/a: values | built from a device's own facts | n/a | wherever a device is named; each map's spelling unchanged | vocabulary | as text, through a model |
 | `recording::Perspective` (A-13) | vocabulary | n/a | n/a | n/a | codes unchanged in settings and swings | vocabulary | `Perspective.*` in QML |
 
@@ -632,11 +634,11 @@ updated in the commit of each item that changes it.
 | **C7** an event | EVT-15 | Producer Studio/Rig; carries and recomputes "design" | §4.2's table |
 | **C8** a lifecycle | OBJ-RIG's lifecycle row | "design" | Created by the composition root; no states; the commands and the two invariants of §4.1 |
 | **C9** a ring's directories | RING-VOCABULARY, RING-RULES | `imu_role_map.*` in `Gui/imu` (Adapters) | `src/Vocabulary/Rig/` (Vocabulary, Acquisition); `src/IMU/calibration/` and the role rules of `imu_role_map.*` in `src/IMU` (Rules, Acquisition); its two display-label functions stay in Adapters; the perspective header |
-| **C11** rules | R-REC-8; new R-RIG rules | R-REC-8 names two kinds | R-REC-8 gains one sentence: the kinds are an open list, and the rig reference is never derived from the kind. New rules: R-RIG-a "a rig state is never altered; a change makes a new one; an equal state id means the same set-up, and an unequal one need not mean a different set-up for a given shot"; R-RIG-b "a Recording's rig is read from the Recording, never from the current Rig"; R-RIG-c "only the Rig's commands change a rig fact, and every clear of a calibration goes through the Rig"; R-RIG-d "a step machine returns its record; only an adapter calls the sink"; R-RIG-e "a Recording's block lists exactly the rig devices that have a stream or a binding in that shot; no enablement is consulted" |
+| **C11** rules | R-REC-8; new R-RIG rules | R-REC-8 names two kinds | R-REC-8 gains one sentence: the kinds are an open list, and the rig reference is never derived from the kind. New rules: R-RIG-a "a rig state is never altered; a change makes a new one; an equal state id means the same set-up, and an unequal one need not mean a different set-up for a given shot"; R-RIG-b "a Recording's rig is read from the Recording, never from the current Rig"; R-RIG-c "only the Rig's commands change a rig fact, and every clear of a calibration goes through the Rig"; R-RIG-d "a step machine returns its record; only an adapter calls the sink" (its step-machine half applies from #291[^c-v1]); R-RIG-e "a Recording's block lists exactly the rig devices that have a stream or a binding in that shot; no enablement is consulted" |
 
 A-13 closes with C9's perspective header and is not itself an information-model id (it is the audit's
 finding[^a13]). No C10 change: nothing domain-scoped is created by a view, and three QML state machines stop holding
-procedure state. No C6 change: no level reads another differently.
+procedure state (when #291 builds the procedures; until then they keep it[^c-v1]). No C6 change: no level reads another differently.
 
 If the IM walkthrough deck shows the Studio/Rig as "designed later", C-0 says so in its commit and on the
 dashboard's "Needs you", for the Product Owner to regenerate it.
@@ -661,7 +663,7 @@ ruled. Questions 1 and 2 are the plan's Q2[^q2].)
 | 11 | Are "fixed cameras are square" and the down-the-line yaw σ written into the rig state in Stage C? | Yes, as `extrinsics` records with method `assumed`; the analysis keeps its constants | The assumption becomes visible per Recording now, and #74 replaces the record, not a constant. Changing what the analysis reads is a later change with a re-run |
 | 12 | Does a device-only shot carry a rig reference? Does a phone-only document? | Device-only: yes. Phone-only: not in Stage C | The device-only writer goes through the repository at creation. The phone-only writer is the phone link's, which Stage F reworks |
 | 13 | Does `RigChanged` recompute anything? | Nothing | No derived fact reads the current Rig. If one ever does, that is its own change |
-| 14 | Does `trunkCeremony` leave the QML globals in Stage C? | Yes, for `app.calibration` | It is the plan's recommendation for the globals[^q17]: each leaves with the stage that gives it an owner |
+| 14 | Does `trunkCeremony` leave the QML globals in Stage C? | Yes, for `app.calibration` (overtaken: it stays until #291[^c-v1]) | It is the plan's recommendation for the globals[^q17]: each leaves with the stage that gives it an owner |
 | 15 | May Stage C add `assumed` and `deviceHeld` to the calibration methods the camera design took from the phone protocol? | Yes, as internal values that the phone link maps or omits | Without them an assumption and a device-held calibration would be recorded as something they are not |
 | 16 | Does a `rig` block with a newer tag make the document read-only to this build, as a newer `analysisContext` does? | No, **until a reader of the block enters the analysis input**: until then it reads as `Unknown` and is kept verbatim. The change that makes analysis read the block also adds the block's tag to `refusesWrite` | While the block is not an analysis input, re-analysing under an older build cannot produce a wrong result from it, and refusing would stop a downgraded cabin re-analysing its own swings. Once analysis reads it, an older build would overwrite a newer result computed with a calibration it cannot see |
 | 17 | Is the machine-wide "enabled" flag versioned? | No | It is a preference that seeds a session. What matters to a Recording is what the shot was captured with, which the block states (§4.5) |
@@ -697,13 +699,13 @@ commits a record, not what the block holds, so it may follow C-8.
 | C-8 | The `rig` block: writer, reader, `Recording::rig`; the schema reference. No libppswing change (table A4) | C-6b, C-7b | `rig_reference_test`. **Scratch: a swing with no rig reference** reads `Unknown`; `None` and `Known` round-trip; a newer tag reads `Unknown` and is kept. The block's per-camera set-up and per-sensor calibration equal `streams[].setup` and `streams[].device` of the same shot. **The block's entries match the shot's rig-device streams one to one**: a camera the session switched off has no entry, and neither has a camera that is enabled but absent (disconnected, or no frames in the window). **Two Recordings either side of a calibration change** hold two ids and the earlier is byte-identical afterwards. The block passes untouched through `writeDocument` (live and write-back), `editReview`, `updateStreamOrigin`, `updateLaunchMonitor`, `recordBackfilledContext`, `writeArchiveStub` and `writeOutsideLibrary`. The input stamp of a fixture swing is byte-identical with and without the block. libppswing's Python reader reads both kinds (a fixture check) |
 | C-10 | The duties inventories of §4.8 (documents; the coordinator checks them) | none | a scripted count: every function, timer, `readonly property` number, call out, and set or clear path of a calibration that a grep finds in each file has a line in its inventory; every test that covers each file is listed |
 | C-9 | Golden traces of the three routines as they are now, the trunk included, before any QML changes | C-10 | the fixtures; each run twice gives the same projection; every transition and threshold in C-10's inventories is reached; the three existing set-up test files extended (no new QML test file) |
-| C-11a | `TrunkProcedure` in C++ with its record | C-9 | the equivalence test on C-9's trunk trace |
-| C-11b | The trunk driver, the sink call, `TrunkRoutine.qml` as bindings | C-11a, C-6b | `tst_setup_trunk` re-pointed; a before/after sheet |
-| C-12 | `WitmotionArmProcedure` and its driver | C-11b | the equivalence test on C-9's trace; `tst_setup_calib_witmotion` re-pointed; a sheet |
-| C-13 | `HackMotionArmProcedure` and its driver; the driver commits the `deviceHeld` record that C-6b's path committed until now | C-12 | the equivalence test, each abort reason included; `tst_setup_calib_hackmotion` re-pointed; a sheet |
-| C-14 | The ceremony file behind its door; the pool-thread write and the `trunkCeremony` global go | C-11b; open question 5 | `ceremony_store_test`: the same bytes as today for a synthetic fixture ceremony; an earlier ceremony kept aside; the three "dropped" cases; A5 ×7 and A6 ×2 at 0 |
+| C-11a (deferred, #291[^c-v1]) | `TrunkProcedure` in C++ with its record | C-9 | the equivalence test on C-9's trunk trace |
+| C-11b (deferred, #291[^c-v1]) | The trunk driver, the sink call, `TrunkRoutine.qml` as bindings | C-11a, C-6b | `tst_setup_trunk` re-pointed; a before/after sheet |
+| C-12 (deferred, #291[^c-v1]) | `WitmotionArmProcedure` and its driver | C-11b | the equivalence test on C-9's trace; `tst_setup_calib_witmotion` re-pointed; a sheet |
+| C-13 (deferred, #291[^c-v1]) | `HackMotionArmProcedure` and its driver; the driver commits the `deviceHeld` record that C-6b's path committed until now | C-12 | the equivalence test, each abort reason included; `tst_setup_calib_hackmotion` re-pointed; a sheet |
+| C-14 | The ceremony file behind its door; the pool-thread write and the `trunkCeremony` global go (re-scoped: the file write only, with #265's fix; the global stays[^c-v1]) | C-11b; open question 5 (C-11b deferred: C-14 follows C-6b[^c-v1]) | `ceremony_store_test`: the same bytes as today for a synthetic fixture ceremony; an earlier ceremony kept aside; the three "dropped" cases; A5 ×7 and A6 ×2 at 0 |
 | C-16 | The close: the counts of §4.3, §4.6 and §4.7; IM §11; the written procedure for the cabin visit, with its trunk-recording step; an installer | all above | both lints; the full suite on the cabin PC |
-| C-17 | After the visit: the three real ceremonies become fixtures | the cabin visit | the lanes replay through `TrunkProcedure` to the file's step sequence, verdicts and stand-tall A and M |
+| C-17 (deferred, #291[^c-v1]) | After the visit: the three real ceremonies become fixtures | the cabin visit | the lanes replay through `TrunkProcedure` to the file's step sequence, verdicts and stand-tall A and M |
 
 **The scratch cases**[^plan-c], and where each is proved: a swing with no rig reference (C-8); a third camera (C-3,
 and again through the commands in C-5a); two Recordings either side of a calibration change (C-8); a machine with no
@@ -712,7 +714,8 @@ rig stored yet (C-4, and with settings keys in C-5a).
 **The cabin visit.** The three procedures on the real sensors, run by the Product Owner from C-16's written
 procedure in one visit[^plan-c]. One step records three trunk ceremonies on the installer that still has the QML
 trunk routine, so that installer is built before C-11b lands, and kept. Until the visit, C-11 to C-13 are proved by
-their traces and by the existing C++ tests of the solve, and their notes say so.
+their traces and by the existing C++ tests of the solve, and their notes say so. With the procedures deferred, visit 2
+runs installer A only: the three ceremonies, #105's check and #270's two HackMotion attempts stay[^c-v1].
 
 ## 11. What Stage C does not do
 
@@ -857,3 +860,4 @@ directory.
 [^code-hm]: The header of `src/Gui/calibration/HackMotionArmRoutine.qml`: "Nothing about the HackMotion calibration is persisted, ever".
 [^code-test]: `src/Gui/tests/setup/support/CalibDriver.qml`; `tst_setup_trunk.qml`, `tst_setup_calib_witmotion.qml`, `tst_setup_calib_hackmotion.qml`.
 [^sa24-rig]: The Solution Architect, 24 Nov 2026: "approve as recommended" (`build/platform/JUDGEMENT-CALLS.md` PR-35). §9's questions 10, 14, 17 and 18 are implementation choices, taken as recommended by the coordinator and logged there too.
+[^c-v1]: The Product Owner and the Solution Architect, 25 Nov 2026 (the lever pass on #224-U, Stage C and Stage D, lever C-V1, as recommended; the Solution Architect agreed to defer this part of his approved design; the Product Owner confirmed it the same night: the calibration QML is moved all at once or not at all). The procedures' move to C++ (C-11 to C-13, C-15, C-17; 22–23 h) is deferred, with a trigger: one calibration track after the platform programme, built with #266 and #270; home #291. The 3,978 lines of calibration QML are a known breach of RP-7, §4.8 and the rule that QML holds no rules and only binds, pinned by the three golden traces (C-9). C-14 stays, re-scoped to the ceremony file's write behind the Session's door, with #265's fix. The three real ceremonies are still recorded at visit 2.
