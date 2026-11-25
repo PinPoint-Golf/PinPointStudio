@@ -72,6 +72,13 @@ QByteArray readBytes(const QString &path)
     return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
 }
 
+// The tuning log is a text file in the platform's line ending (#246): Windows ends its lines in CRLF, macOS in LF.
+// Nothing reads it byte for byte (its readers split on LF and trim), so its lines are compared, not its line ends.
+QByteArray readLines(const QString &path)
+{
+    return readBytes(path).replace("\r\n", "\n");
+}
+
 bool writeBytes(const QString &path, const QByteArray &bytes)
 {
     QDir().mkpath(QFileInfo(path).absolutePath());
@@ -527,7 +534,7 @@ private slots:
         const QString log = folder + QStringLiteral("/tuning.jsonl");
         QVERIFY(AthleteStore::appendTuningLog(log, QByteArrayLiteral("{\"a\":1}")).ok());           // T1
         QVERIFY(AthleteStore::appendTuningLog(log, QByteArrayLiteral("{\"b\":2}\n")).ok());
-        QCOMPARE(readBytes(log), QByteArrayLiteral("{\"a\":1}\n{\"b\":2}\n"));                       // T2 appended, never rewritten
+        QCOMPARE(readLines(log), QByteArrayLiteral("{\"a\":1}\n{\"b\":2}\n"));                       // T2 appended, never rewritten
         QVERIFY(!QFileInfo::exists(folder + QLatin1Char('/') + FolderLock::fileName()));             //    the lock let go
 
         FolderLock holder(folder);
@@ -535,7 +542,7 @@ private slots:
         const WriteResult held = AthleteStore::appendTuningLog(log, QByteArrayLiteral("{\"c\":3}"), 100);
         QCOMPARE(held.status, WriteResult::Status::Failed);                                          // T3 held: refused, said so
         QVERIFY(!held.error.isEmpty());
-        QCOMPARE(readBytes(log), QByteArrayLiteral("{\"a\":1}\n{\"b\":2}\n"));
+        QCOMPARE(readLines(log), QByteArrayLiteral("{\"a\":1}\n{\"b\":2}\n"));
     }
 
     // A1–A4: the picker's two figures, derived from the index (DEC-89).

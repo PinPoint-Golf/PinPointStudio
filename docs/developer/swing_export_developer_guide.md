@@ -849,7 +849,8 @@ bag as `clubs`, the Wrist ★ as `wristReference`, a `ShotRef` string; never `la
   (housekeeping's layout: one entry). A settings athlete's record is written into its folder first, so
   the trashed folder carries it.
 - **The tuning log** `outcome_corrections.jsonl` is appended a line at a time under the same lock
-  (`AthleteFiles::appendTuningLine`).
+  (`AthleteFiles::appendTuningLine`). It is a text file in the platform's line ending (CRLF on Windows,
+  LF on macOS), so a log on a shared library can hold both; a reader splits on LF and trims each line.
 - **One reader** (step 2.8b; R-PERS-1)[^j40]: `AthleteFiles::read(athleteDir)` parses the file and checks its
   envelope (schema, `athleteId`); `AthleteStore` lists the records through it, and the legacy-owner lookup
   (the swing door's `legacyOwnerOf`, `SessionArchiveRun::openSession`)[^j39] reads the owner's id through it.
