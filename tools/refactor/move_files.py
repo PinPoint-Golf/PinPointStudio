@@ -12,7 +12,8 @@ whichever exist. A path with an extension moves that one file. A destination end
     python3 tools/refactor/move_files.py <map> --verify <base> # every changed line since <base> is a move's: exit 1 if not
     python3 tools/refactor/move_files.py --self-test           # proves each rule on a fixture tree (ctest: move_files_selftest)
 A map line `keep: <file>:<lines>` (docs only; the map is the only source) leaves those lines exactly as they are (a dated
-record); --verify passes the old spelling there only, and fails if a kept line changed.
+record); --verify passes the old spelling there only, and fails if a kept line changed. A keep that matches nothing is an
+error (B1.2c): on a doc the tool does not scan, a stale line number, or a line the map would not rewrite.
 Options: --root <checkout> (default: this file's checkout); --allow-prose <file> (with --verify: prose edits in that
 doc, e.g. the IM rows a brief names, are listed instead of failing); --allow-code-path <file>:<lines> (with --verify:
 on exactly those lines of that file, a path in a C++ string changed to the map's image is listed instead of failing,
@@ -31,7 +32,8 @@ outward includes inside moved files; path mentions in build files (a ${VAR} only
 line: CMakeVars walks the configure, function and macro bodies where they are called; a variable set in a sibling
 folder, or later in the file, is never used; one the walk can't decide is listed as can't place, never guessed), the lint's
 tables, the allowlist, tools/refactor/context_check.py's tables, tools/, packaging/, .github/, docs/developer/,
-docs/design/, BUILDING.md, README.md and C++ comments. A mention is rewritten only when it is anchored: `src/<old>…`,
+docs/design/, governance/ (its .md and .txt: the governed artefacts and procedures; B1.2c), BUILDING.md, README.md and
+C++ comments. A mention is rewritten only when it is anchored: `src/<old>…`,
 `${VAR}/…`, `../…`, or `<old dir>/<a real moved file or folder>`; a bare old folder name (`Metrics/`) is rewritten
 only in the tables (lint, allowlist key, context_check.py), and reported anywhere else.
 
@@ -63,7 +65,8 @@ STEM_EXT = ('.h', '.cpp', '.mm')
 LINT = 'src/Gui/tests/architecture_lint_test.cpp'
 ALLOWLIST = 'src/Gui/tests/architecture_allowlist.txt'
 CONTEXT = 'tools/refactor/context_check.py'
-SCAN_DIRS = ('src/', 'tests/', 'tools/', 'cmake/', 'packaging/', '.github/', 'docs/developer/', 'docs/design/')
+SCAN_DIRS = ('src/', 'tests/', 'tools/', 'cmake/', 'packaging/', '.github/', 'docs/developer/', 'docs/design/',
+             'governance/')
 SCAN_ROOT_FILES = ('CMakeLists.txt', 'BUILDING.md', 'README.md')
 NOT_SCANNED = ('tools/refactor/maps/', 'tools/refactor/move_files.py', 'tools/refactor/README.md')
 SKIP_PARTS = {'build', 'third_party', '.git', 'node_modules'}
@@ -179,9 +182,17 @@ def parse_keeps(text):
 
 def keep_errors(keep):
     """A keep on anything but a doc is refused (B1.2b's review): a kept build, C++ or tool line would hide a stale path
-    that no later check sees (an include directory, a code string)."""
-    return ['keep: %s is a %s file: keep: is for dated lines in docs only' % (f, file_kind(f))
-            for f in sorted(keep) if file_kind(f) != 'doc']
+    that no later check sees (an include directory, a code string). A keep on a doc the tool does not scan matches
+    nothing, so it is refused too (B1.2c): it would leave its line as it is by default and say nothing (B1.5's IM keeps,
+    aimed at governance/ before the tool scanned it)."""
+    errs = []
+    for f in sorted(keep):
+        if file_kind(f) != 'doc':
+            errs.append('keep: %s is a %s file: keep: is for dated lines in docs only' % (f, file_kind(f)))
+        elif not in_scope(f):
+            errs.append('keep: %s matches nothing: the tool does not scan that file (docs: docs/developer/, '
+                        'docs/design/, governance/, BUILDING.md, README.md; never docs/implementation/)' % f)
+    return errs
 
 
 class Plan:
@@ -427,7 +438,7 @@ def file_kind(path):
         return 'script'                                            # QML/JS: comments only
     if path.endswith('.py'):
         return 'py'
-    if path.startswith('docs/') or path.endswith('.md'):
+    if path.startswith(('docs/', 'governance/')) or path.endswith('.md'):
         return 'doc'
     return 'text'
 
@@ -443,7 +454,7 @@ def in_scope(path):
     if path.startswith(('src/', 'tests/')):
         return path.endswith(CPP_EXT) or file_kind(path) in ('build', 'lint', 'allowlist') \
             or b.endswith(('.py', '.sh', '.qml', '.js'))
-    if path.startswith('docs/'):
+    if path.startswith(('docs/', 'governance/')):                  # prose only: tokens.json is generated
         return b.endswith(('.md', '.txt'))
     return b.endswith(TEXT_EXT) or b == 'CMakeLists.txt'
 
@@ -1718,6 +1729,10 @@ def compute(root, plan, files):
                 texts[p] = t
     rw = Rewriter(root, plan, texts)
     rw.rep.errors.extend(plan.errors)
+    read = set(texts) | {plan.back.get(p, p) for p in texts}
+    for k in sorted(plan.keep):                                    # a keep the rewriter never reads matches nothing
+        if k not in read and in_scope(k) and (k in files or plan.moves.get(k) in files):
+            rw.rep.errors.append('keep: %s matches nothing: the tool could not read it as text' % k)
     new_texts = {}
     for p, t in texts.items():
         n = rw.rewrite_file(p, t)
@@ -2413,13 +2428,18 @@ def constructs_selftest(tmp, sh, tool, put, get, check):
         'src/Lab/engine/e.cpp': '// another tree\'s engine/\n',
         'docs/developer/h.md': ('| 1.0 | (dated) moved to `src/Diagnostics/engine/e.cpp` |\n'
                                 'Today it is `src/Diagnostics/engine/e.cpp`.\nNo path on this line.\n'),
+        'governance/artefacts/g.md': ('| DEC-1 | (dated) made `src/Diagnostics/engine/e.cpp` |\n'   # B1.2c: the IM's
+                                      'It lives in `src/Diagnostics/engine/e.cpp`.\n'),               # home today
+        'governance/artefacts/tokens.json': '{"usage": "src/Diagnostics/engine/e.cpp"}\n',    # generated: not prose
+        'docs/implementation/old.md': 'A dated snapshot: `src/Diagnostics/engine/e.cpp`.\n',  # never scanned
     }
     for k, v in H.items():
         put(d3, k, v)
     sh(d3, 'add', '-A'); sh(d3, 'commit', '-q', '-m', 'base')
     base3 = sh(d3, 'rev-parse', 'HEAD').strip()
     mp3 = os.path.join(tmp, 'c.map')
-    put(tmp, 'c.map', 'src/Diagnostics/engine/ -> src/Diagnostics/model/\nkeep: docs/developer/h.md:1   # a dated row\n')
+    put(tmp, 'c.map', 'src/Diagnostics/engine/ -> src/Diagnostics/model/\nkeep: docs/developer/h.md:1   # a dated row\n'
+                      'keep: governance/artefacts/g.md:1   # a dated row in a governed artefact\n')
     for args in (('--dry-run',), ('--verify', base3, '--no-configure-ok')):
         rc, out = tool(d3, mp3, *(args + ('--keep', 'docs/developer/h.md:2')))
         check(rc == 2 and '--keep is gone: a kept line goes in the map' in out,
@@ -2433,6 +2453,25 @@ def constructs_selftest(tmp, sh, tool, put, get, check):
         check(rc == 1 and rc2 == 1 and ('keep: %s is a ' % f) in out and ('keep: %s is a ' % f) in out2
               and 'docs only' in out,
               'keep: a keep on a %s line is refused, in the dry run and in --verify' % ('build' if f.endswith('.txt') else 'C++'))
+    for unscanned in ('docs/implementation/old.md', 'tools/refactor/README.md'):
+        if unscanned not in H:
+            put(d3, unscanned, 'Names `src/Diagnostics/engine/e.cpp`.\n')      # untracked: the tool lists it all the same
+        put(tmp, 'k.map', 'src/Diagnostics/engine/ -> src/Diagnostics/model/\nkeep: %s:1\n' % unscanned)
+        rc, out = tool(d3, os.path.join(tmp, 'k.map'), '--dry-run')
+        rc2, out2 = tool(d3, os.path.join(tmp, 'k.map'), '--verify', base3, '--no-configure-ok')
+        if unscanned not in H:
+            os.remove(os.path.join(d3, unscanned))
+        needle = 'keep: %s matches nothing: the tool does not scan that file' % unscanned
+        check(rc == 1 and rc2 == 1 and needle in out and needle in out2,
+              'keep: a keep on a doc the tool does not scan (%s) matches nothing and is refused, in the dry run and in '
+              '--verify (B1.2c: it was dropped without a word)' % unscanned)
+    with open(os.path.join(d3, 'governance', 'bin.md'), 'wb') as f:      # untracked, and not text
+        f.write(b'`src/Diagnostics/engine/e.cpp`\0\n')
+    put(tmp, 'k.map', 'src/Diagnostics/engine/ -> src/Diagnostics/model/\nkeep: governance/bin.md:1\n')
+    rc, out = tool(d3, os.path.join(tmp, 'k.map'), '--dry-run')
+    os.remove(os.path.join(d3, 'governance', 'bin.md'))
+    check(rc == 1 and 'keep: governance/bin.md matches nothing: the tool could not read it as text' in out,
+          'keep: a keep on a scanned doc the tool can\'t read as text matches nothing and is refused (B1.2c)')
     put(tmp, 'k.map', 'src/Diagnostics/engine/ -> src/Diagnostics/model/\nkeep: docs/developer/h.md:3\n')
     rc, out = tool(d3, os.path.join(tmp, 'k.map'), '--dry-run')
     check(rc == 1 and 'keep: docs/developer/h.md:3 has nothing the map rewrites' in out,
@@ -2446,6 +2485,14 @@ def constructs_selftest(tmp, sh, tool, put, get, check):
                  'No path on this line.']
           and 'docs/developer/h.md:1  kept; the move would have made it:' in out,
           'keep: a dated line is left exactly as it is and named in the report; the next line is rewritten')
+    gl = get(d3, 'governance/artefacts/g.md').splitlines()
+    check(gl == ['| DEC-1 | (dated) made `src/Diagnostics/engine/e.cpp` |', 'It lives in `src/Diagnostics/model/e.cpp`.']
+          and 'governance/artefacts/g.md:1  kept; the move would have made it:' in out
+          and 'governance/artefacts/g.md:2  ' in out,
+          'governance/: a governed artefact\'s path is rewritten as a doc\'s, and its keep holds (B1.2c)')
+    check(get(d3, 'governance/artefacts/tokens.json') == H['governance/artefacts/tokens.json']
+          and get(d3, 'docs/implementation/old.md') == H['docs/implementation/old.md'],
+          'governance/: only its .md/.txt are read (tokens.json is generated); docs/implementation/ is never touched')
     now = get(d3, 'CMakeLists.txt').splitlines()
 
     def case(ln, line, needle, what):
@@ -2503,11 +2550,11 @@ def constructs_selftest(tmp, sh, tool, put, get, check):
             print('\n'.join('    | ' + l for l in out.splitlines()))
 
     rc, out = tool(d3, mp3, '--verify', base3, '--no-configure-ok')
-    check(rc == 0 and 'docs/developer/h.md:1: kept as it was (--keep / keep:)' in out,
-          'keep: --verify accepts the old spelling on the kept line and names it')
+    check(rc == 0 and 'docs/developer/h.md:1: kept as it was (--keep / keep:)' in out
+          and 'governance/artefacts/g.md:1: kept as it was (--keep / keep:)' in out,
+          'keep: --verify accepts the old spelling on the kept line and names it (in docs/ and in governance/)')
 
-    def mutate_doc(what, fn, needle, extra=(), want=1):
-        rel = 'docs/developer/h.md'
+    def mutate_doc(what, fn, needle, extra=(), want=1, rel='docs/developer/h.md'):
         before = get(d3, rel)
         put(d3, rel, fn(before))
         rc, out = tool(d3, mp3, '--verify', base3, '--no-configure-ok', *extra)
@@ -2522,6 +2569,9 @@ def constructs_selftest(tmp, sh, tool, put, get, check):
     mutate_doc('keep: verify fails when a kept line is changed (even to the new spelling)',
                lambda s: s.replace('(dated) moved to `src/Diagnostics/engine/', '(dated) moved to `src/Diagnostics/model/'),
                'docs/developer/h.md:1 (base): a kept line (--keep / keep:) changed')
+    mutate_doc('governance/: verify\'s last pass fails the old spelling left in a governed artefact (B1.2c)',
+               lambda s: s.replace('lives in `src/Diagnostics/model/', 'lives in `src/Diagnostics/engine/'),
+               'governance/artefacts/g.md:2: the map still rewrites', rel='governance/artefacts/g.md')
     prose = ('--allow-prose', 'docs/developer/h.md')               # the IM's case: its rows are edited by hand too
     mutate_doc('keep: under --allow-prose, a line added above the kept one: verify finds it at its new line and passes',
                lambda s: '| 1.1 | a row added by hand |\n' + s, 'docs/developer/h.md:2: kept as it was', prose, 0)
