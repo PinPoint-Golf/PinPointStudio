@@ -65,7 +65,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   once per screen (`PpChartsPanel` in 2 places, `PpConsistencyView` in 2), so one per session and surface serves.
 - **C10** (a session-scoped thing a view creates is removed). Also the Product Owner's, by the lines' own reasons.
   Waits: U-18a.
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 ### Q2 · Who makes the trust views' and the data viewer's presenters
 - **Today.** `TrustPresenter` is created by three views, and those views are created in 22 places in 17 files:
@@ -84,7 +84,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   the `Session`'s and the shot is the `Session`'s. (a) is about 3 h for no change in who owns what. (b) changes
   what the page says a scoped type is, which is why it is HARD. If (a) is ruled, U-18b grows from 1 h to about 3 h.
 - **C10, C11.** Waits: U-18b.
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 ### Q3 · Where a condition's history across sessions is read from
 - **Today.** The adapter's `readHistory` lists the golfer's other session folders itself and reads each one's
@@ -104,7 +104,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   into the rule. The cost of (a): the catch-up rewrites every summary once (a derived file, which the stamp already
   makes stale); U-11's brief takes the dry-run count on a scratch copy of the library before anything is written.
 - **C3** (a new block in a persisted file). Waits: U-11.
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 ### Q7 · File uses that are no object's persistence
 - **Today.** Lint A5 counts every `QFile`, `QDir`, `QFileInfo` and `atomicWrite` outside the stores and the
@@ -125,7 +125,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   from text. The test seams need no ruling: they take a parsed document, as the Charts presenters' seams do
   since step 5.5c.
 - **C11** (what lint A5 and P11 are read to cover). Waits: U-6b, U-16b, U-17.
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 ### Q9 · The review's session load and the bulk export
 - **Today.** `SessionReviewController` includes four repository headers
@@ -143,7 +143,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   file and its repository are the same; who starts it changes, which is why this is HARD. U-P2 pins the load
   first: a JSON-era fixture session must index to the same sidecars, byte for byte.
 - **C8** (a new command on the `Session`), **C4** (who starts a file's write). Waits: U-13.
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 ### Q11 · A shot document's stamp, read through the Shot
 - **Today.** Four presenters ask the store whether a swing document exists, how big it is and when it changed,
@@ -160,7 +160,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   changes when a report or a summary is remade, and that is behaviour for a plan of its own.
 - **C5** (the reasons call this "the document's identity": telling a shot's state by its file's size and time).
   Waits: U-12, U-15b, U-15c, U-16a.
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 ## The question for the Design Lead
 
@@ -201,7 +201,7 @@ Solution Architect.
   catch-up; its own scan and its four includes go. (b) The scan moves as it is into `src/App`.
 - **Call: (a).** (b) only moves the file reads to a ring where A5 still counts them. **Stop:** if U-2i finds a
   fact the scan reads that the athlete level does not hold, other than Q11's stamp. Waits: U-12 (with Q11).
-- **Ruled:** *(withdrawn, 25 Nov 2026: the coordinator's call, PR-55, rested on an incomplete premise. U-2i (`build/platform/U/NOTES-U-2i.md`) shows the athlete level doesn't answer five facts the scan reads, among them `work_ons.json`'s own size and mtime (§8.2 R9) and "this session's baseline is frozen and current" (R6). Reclassed: **HARD, the Solution Architect.**)*
+- **Ruled:** as recommended, (a): the athlete says which sessions are stale (25 Nov 2026)[^u-ruled-25nov].
 
 ### Q5 · How the mailer reaches the made report
 - **Today.** QML hands the mailer a path, and the mailer opens the PDF itself to attach it
@@ -237,7 +237,7 @@ Solution Architect.
   typing moves here from Stage D (about 6 h and Stage D's three lines).
 - **Recommendation: (a).** The accept figure then reads: tagged lines 32 → 5, and 4 after U-10c. (b) holds a
   finished plan open for one finding pair; (c) brings Stage D's unruled owner question (D-6) into this plan.
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 [^g24]: `docs/implementation/platform_refactor_assessment.md`, "#224 in three groups"; #224's "U" list; the premises are in `build/platform/U/NOTES-U-plan.md`.
 [^po24]: The Product Owner, 24 Nov 2026 (the assessment's "Rulings of 24 Nov"; §9 Q16).
@@ -256,22 +256,24 @@ Solution Architect.
 ### Q12 · `expectations`: retire it? (HARD: the Design Lead)
 - **Today.** The adapter hands QML `expectations` (h:345), read in 3 files, but it is always empty (h:343–344). `build/platform/U/INVENTORY-U-1i.md`.
 - **Recommendation.** Retire it, since nothing ever fills it, so no golfer sees a change (proposed, for the Design Lead).
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 ### Q13 · `PpDiagReplayState` builds its own "partial" readout in QML (HARD: the Solution Architect)
 - **Today.** The view assembles a readout object of its own instead of reading one the session owns. That may be a view owning domain state (C10). `build/platform/U/NOTES-U-1i.md`.
 - **Recommendation.** The readout is built by the session's presenter, and the view only reads it; U-8 moves it (proposed, for the Solution Architect).
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 
 ### Q14 · FILE-SESS-05's row names `WorkOnsController` as a writer (HARD: the Solution Architect)
 - **Today.** The IM's FILE-SESS-05 row lists `WorkOnsController` among the summary's writers; the code writes it through the session's one writer. Found by U-2i (F16).
 - **Recommendation.** Correct the row to the one writer the code has, as a status edit, citing U-2i (proposed, for the Solution Architect).
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 ### Q15 · The report's `make` options are written whole into FILE-SESS-13: is typing them a format change? (HARD: the Solution Architect)
 - **Today.** The report's `make` call takes an untyped options map and writes it whole into FILE-SESS-13 (U-3i, `build/platform/U/NOTES-U-3i.md` F3). Typing the options in U-10 changes what the file can hold, unless the type reproduces every key and value it writes today.
 - **Recommendation.** A typed options struct that writes the same keys and values, byte for byte, pinned by a round-trip test on today's files. Then it isn't a format change (C3), since nothing in the file changes (proposed, for the Solution Architect).
-- **Ruled:**
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 [^q8r]: The Design Lead, 25 Nov 2026, in the platform refactor's coordination session.
+
+[^u-ruled-25nov]: Ruled in the platform programme's coordination session, 25 Nov 2026, by the roles each question names (the Solution Architect: Q1–Q4, Q7, Q9, Q11, Q13–Q15; the Design Lead: Q12; the Product Owner: Q10), all as recommended. **The Product Owner's condition:** before #224-U starts, a lever pass like Stages D and E's ranks its items by value per hour, and the items that only clear a lint line come back to keep, drop, or leave as accepted exceptions with a reason.
