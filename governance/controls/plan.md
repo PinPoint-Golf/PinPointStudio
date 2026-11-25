@@ -22,6 +22,11 @@ The definition of done counts an honestly written-up failed gate as complete and
 *Why:* numbers that can't be regenerated are not a result, and without a write-up the negative results go unrecorded.[^ag-11]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
 
+**AD-51.** A plan that adds or changes an object that is persisted or long-lived, and whose state changes what is allowed or what is on disk, must state that object's lifecycle (its states, its transitions and what each guarantees) in the lifecycle model before it is built. Value types, versioned packs (governed by version-gated re-analysis) and views need none.
+A plan for such an object names its lifecycle section; a new state or transition is added there in the same change. Today the rule covers the application, the athlete, the session, the shot and the Rig.
+*Why:* a state nobody wrote down is a guarantee nobody can check: a shot that existed only inside its processor, and a Start that never switched to Capture, were both lost or broken by changes that never saw the lifecycle.[^ad-51]
+*Owner:* Solution Architect · *Stage:* Plan · *Compliance:* a review of the plan
+
 **G3.** Each feature's plan must say what debt it adds, before it is built.
 *Why (proposed, for the Product Owner):* debt named before building can be weighed with the feature; debt found afterwards is already paid for.[^g3]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* a statement in the plan; an automated check is a build item
@@ -67,3 +72,5 @@ A plan that holds data copies in the ownership section, `governance/artefacts/in
 [^ag-19]: Product Owner, 14 Nov 2026.
 [^bt-2b]: Product Owner, 24 Nov 2026.
 [^bt-2]: Product Owner, 28 Oct and 21 Nov 2026.
+
+[^ad-51]: Product Owner and Solution Architect, 25 Nov 2026 (the lifecycle model's scope rule, from the #280, #281 and #283 losses). The lifecycle model is being drafted (build/platform/LIFE/); its home in governance is the Solution Architect's decision.
