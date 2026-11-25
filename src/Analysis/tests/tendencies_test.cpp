@@ -167,6 +167,10 @@ static const TendencyOnBall *ballFor(const TendencySet &s, const char *id)
     for (const TendencyOnBall &b : s.onBall) if (b.conditionId == QLatin1String(id)) return &b;
     return nullptr;
 }
+// Both return a pointer into the set, so a temporary set is refused: it would die at the end of the statement and
+// leave the pointer dangling (#247: Windows' Debug Qt asserted on the freed QString; ASan calls it a use-after-free).
+static const TendencyItem *itemFor(const TendencySet &&, const char *) = delete;
+static const TendencyOnBall *ballFor(const TendencySet &&, const char *) = delete;
 
 // Shots with a club whose `factor` shows `id`, over its tuples.
 static int valueShots(const TendencySet &s, const char *club, const char *factor, const char *id)
@@ -354,7 +358,8 @@ int main()
         std::vector<TendencySessionInput> tie{ session(1, 9, {}), session(2, 9, {}) };
         for (ShotRecord &r : tie[0].session.shots) r.descentAngle = 37.0;
         for (ShotRecord &r : tie[1].session.shots) r.descentAngle = 30.0;
-        const TendencyItem *t = itemFor(reduce(tie, norms), "DRIVER|full");
+        const TendencySet tieSet = reduce(tie, norms);   // named: itemFor points into it
+        const TendencyItem *t = itemFor(tieSet, "DRIVER|full");
         check(t && usual(t->flight, "low", "Low", false) && std::abs(t->flight.share - 0.5) < 1e-9,
               "rule 13: a tie by count goes to the table's order, Low then Mid");
     }
@@ -697,13 +702,15 @@ int main()
     {
         // Two judged sessions: no trend, only whether the fault has been there throughout.
         std::vector<TendencySessionInput> in{ session(1, 9, { "slice" }), session(2, 9, { "slice" }) };
-        const TendencyItem *it = itemFor(reduce(in), "DRIVER|full");
+        const TendencySet set = reduce(in);   // named: itemFor points into it
+        const TendencyItem *it = itemFor(set, "DRIVER|full");
         check(it && it->direction.trend == 0 && it->direction.trendWords == QStringLiteral("→ steady"), "two sessions, present in both: steady");
         check(it && it->strike.trendWords.isEmpty(), "a factor whose usual is no fault has no trend");
     }
     {
         std::vector<TendencySessionInput> in{ session(1, 9, {}), session(2, 9, { "slice" }) };
-        const TendencyItem *it = itemFor(reduce(in), "DRIVER|full");
+        const TendencySet set = reduce(in);   // named: itemFor points into it
+        const TendencyItem *it = itemFor(set, "DRIVER|full");
         check(it && it->direction.trend == 0 && it->direction.trendWords == QStringLiteral("new"), "two sessions, in one only: new");
     }
     {
@@ -711,7 +718,8 @@ int main()
         std::vector<TendencySessionInput> in{ session(1, 9, {}), session(2, 9, {}) };
         for (int i = 3; i < 8; ++i) in[0].session.shots[size_t(i)] = shot(i + 1, { "slice" });
         in[1].session.shots[3] = shot(4, { "slice" });
-        const TendencyItem *it = itemFor(reduce(in), "DRIVER|full");
+        const TendencySet set = reduce(in);   // named: itemFor points into it
+        const TendencyItem *it = itemFor(set, "DRIVER|full");
         check(it && !it->direction.building && it->direction.fault && it->direction.trendWords == QStringLiteral("↓ easing")
                   && it->direction.trend == -1,
               "two sessions, a fault that has left the latest one: easing, not new");
@@ -721,7 +729,8 @@ int main()
         std::vector<TendencySessionInput> in{ session(1, 9, { "slice" }), session(2, 9, {}), session(3, 9, {}) };
         for (int i = 3; i < 6; ++i) in[1].session.shots[size_t(i)] = shot(i + 1, { "slice" });
         for (int i = 3; i < 6; ++i) in[2].session.shots[size_t(i)] = shot(i + 1, { "slice" });
-        const TendencyItem *it = itemFor(reduce(in), "DRIVER|full");
+        const TendencySet set = reduce(in);   // named: itemFor points into it
+        const TendencyItem *it = itemFor(set, "DRIVER|full");
         check(it && it->direction.trend == -1 && it->direction.trendWords == QStringLiteral("↓ easing"), "a slice on one in three, down from all: easing");
     }
 
