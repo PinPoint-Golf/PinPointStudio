@@ -418,5 +418,15 @@ else()
             ENVIRONMENT "QT_QPA_PLATFORM=${_ssui_qpa};QT_QUICK_BACKEND=rhi;QSG_USE_SIMPLE_ANIMATION_DRIVER=1"
             TIMEOUT 3600
             RUN_SERIAL TRUE)
+        # The trunk file alone (its golden traces, platform refactor C-9a), as qml_ui's per-file tests
+        # run theirs: `ctest -L qml_ui -R setup_trunk`. The same binary, file and environment as above;
+        # the whole suite still runs it too. Opt-in with the suite.
+        add_test(NAME session_setup_ui.tst_setup_trunk COMMAND session_setup_ui_test
+                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/setup/tst_setup_trunk.qml")
+        set_tests_properties(session_setup_ui.tst_setup_trunk PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=${_ssui_qpa};QT_QUICK_BACKEND=rhi;QSG_USE_SIMPLE_ANIMATION_DRIVER=1"
+            LABELS qml_ui
+            TIMEOUT 900
+            RUN_SERIAL TRUE)
     endif()
 endif()

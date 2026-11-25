@@ -94,11 +94,15 @@
 //   TP6  Mark's 26 Oct path: stand tall fails (retry), Back to Sensors, Next to Calibrate trunk, the
 //        sensors upright and still → the solve passes and the run completes; then Recalibrate
 //        mid-hold → the same
+//   ── Golden traces (platform refactor C-9a): today's routine frozen, before it moves to C++ ──
+//   TT   each input set (support/calib_trace.js drives the fakes from the routine's own ticks) runs twice:
+//        the same inputs and projection both times, each equal to its fixture in fixtures/
 import QtQuick
 import QtTest
 import PinPointStudio
 import "support"
 import "fakes"
+import "support/calib_trace.js" as Trace
 
 // ⚠ THE ROOT IS A PLAIN Item, NOT THE TestCase (see tst_setup_smoke.qml).
 Item {
@@ -1458,6 +1462,270 @@ Item {
             // Face-on through every turn substage (demo, arming, armed, turning, verdict) and after.
             compare(JSON.stringify(notFaceOn), "[]", "the guide left face-on during the turns")
             verify(faceOn(), "the guide is not face-on at the end: " + cam())
+        }
+
+        // ═════ Golden traces (platform refactor C-9a; rig_design.md §4.8 "The equivalence test") ═════
+        // Today's routine, frozen before any of it moves to C++. Each row is one INPUT SET: a scripted
+        // world (support/calib_trace.js: the sensors' values tick by tick, the requests' results, the
+        // host's commands, the link, the guide and the voice), fed by the routine's own ticks so a run
+        // never depends on the wall clock. Each set runs TWICE and must give the same inputs and the same
+        // projection both times; the projection must equal its fixture, and the inputs theirs:
+        //   fixtures/calib_inputs_trunk_<tag>.json   every value the routine read, when, and each request's
+        //                                            result: what a C++ test feeds TrunkProcedure (C-11a)
+        //   fixtures/calib_trace_trunk_<tag>.json    the projection: stages, verdicts, reason and cue codes,
+        //                                            the requests made, each at the routine's own time
+        // Pace: × 0.05 with tick 100, so every gate takes the SAME number of ticks as at the real pace
+        // (asserted below) and the files' times are real-pace ms. A fixture is recorded only with
+        // PP_CALIB_TRACE_RECORD=1 in the environment; a missing one fails.
+        // ⚠ It freezes what looks like a bug as well: the C++ port is proved against it.
+        readonly property var tracePace: ({ scale: 0.05, tick: 100 })
+        readonly property string startAwayLine: "Start your backswing turn."
+        readonly property string turnBackLine:  "Turn back to address."
+        // A turn out and back in the step's direction, as DEFAULT_TURN (calib_trace.js), with actions on
+        // the step at `at` (an index into these steps).
+        function turnWith(extra) {
+            var steps = [{ n: 3, chest: 0, gyro: 0 }, { n: 2, chest: 15, gyro: 60 }, { n: 2, chest: 45, gyro: 80 },
+                         { n: 2, chest: 75, gyro: 80 }, { n: 3, chest: 90, gyro: 40 }, { n: 2, chest: 60, gyro: 80 },
+                         { n: 2, chest: 30, gyro: 80 }, { n: 2, chest: 8, gyro: 40 }, { n: 1, chest: 3, gyro: 0 }]
+            for (var k in (extra || {})) steps[Number(k)].do = extra[k]
+            return steps
+        }
+        function creep(perTick, ticks, gyro, from) {
+            var out = []
+            for (var i = 1; i <= ticks; ++i) out.push({ n: 1, chest: (from || 0) + perTick * i, gyro: gyro })
+            return out
+        }
+        readonly property var again: ["leave", "enter", "begin"]       // Back, then forward into the step
+
+        function test_TT_goldenTrace_data() {
+            var tooLittle = "Chest turned too little — make a fuller backswing turn, then turn back to address"
+            return [
+                // T1 T3 T4 T6 T7 T9 T11–T14 T16–T18 T19a T20 T22 T23 T25: the pass path.
+                { tag: "pass", spec: {} },
+                // T5 at ready, T8 in the hold: each gate at its edge (35.0° upright, 10.0 °/s still, both
+                // pass), just past it, NaN (counts as not upright / moving), a noisy still stance with a
+                // 10.6 °/s spike, and the wait log's rate.
+                { tag: "readyAndHoldWait", spec: { on: [
+                    { at: "standTall/ready", visit: 1, steps: [
+                        { n: 3, pl: 89, tg: 30 }, { n: 3, pl: 35, tg: 10 }, { n: 2, pl: 35.1 }, { n: 2, pl: 35, tg: 10.1 },
+                        { n: 2, tg: NaN }, { n: 2, tg: 0, tl: NaN }, { n: 1, tl: 0, gyro: 3 }, { n: 1, gyro: 7.5 },
+                        { n: 1, pg: 9.9, tg: 2 }, { n: 1, gyro: 10.6 }, { n: 1, pg: 4.2, tg: 6.1 }, { n: 1, pg: 1.3, tg: 8.8 },
+                        { n: 1, pg: 9.1, tg: 0.4 }, { n: 1, pg: 2.5, tg: 3.3 }, { n: 1, pg: 6.6, tg: 9.7 },
+                        { n: 1, pg: 0.2, tg: 5.5 }, { n: 1, pg: 8.0, tg: 1.0 }, { n: 1, pg: 3.9, tg: 7.2 },
+                        { n: 1, pg: 5.0, tg: 4.4 }, { n: 1, pg: 0.9, tg: 2.2 }, { n: 1, gyro: 0, long: 0 }] },
+                    { at: "standTall/hold", visit: 1, steps: [
+                        { n: 5, gyro: 2 }, { n: 1, tg: 20 }, { n: 3, tg: 0 }, { n: 1, pl: 60 }, { n: 1, pl: 5 },
+                        { n: 1, pl: 0, gyro: 0 }] }] } },
+                // T10 (one sensor, then both, each failure word: the record's, then the stand-in when the
+                // record has none), T26a, and the retry waiting for upright again (sensors lying flat).
+                { tag: "standTallFails", spec: {
+                    solves: { pelvis: [{ valid: false, stillOk: false, failure: "Hip sensor moved during stand tall — hold still and try again" },
+                                       { valid: false, failure: null }],
+                              thorax: [{}, { valid: false, failure: null }] },
+                    on: [{ at: "standTall/ready", visit: 2, steps: [{ n: 4, pl: 89, tl: 91 }, { n: 1, pl: 3, tl: 4 }] }] } },
+                // T24a ×3 (too little: warn; no data with no words: error and the stand-in; no cause at all)
+                // and T26b: each failed turn re-arms by itself, no demo; then both turns pass.
+                { tag: "turnRetries", spec: { checks: [
+                    { valid: false, cause: "range", failure: tooLittle },
+                    { valid: false, cause: "noData", failure: "" },
+                    { valid: false, cause: undefined, failure: "Hips turned too little" }] } },
+                // T24b and T26a: a turn read backwards, then swapped, each back to stand tall.
+                { tag: "reseat", spec: { checks: [
+                    {}, { valid: false, cause: "backwards", failure: "Chest sensor reads the turn backwards — check it sits USB-down, label facing out" },
+                    {}, { valid: false, cause: "swapped", failure: "Hip and chest sensors look swapped" }] } },
+                // T24a with the hand hint, each hand.
+                { tag: "wrongWayRight", spec: { checks: [
+                    { valid: false, cause: "wrongWay", wrongWay: true,
+                      failure: "That was a follow-through turn — make your backswing turn: right shoulder back, away from the target." }] } },
+                { tag: "wrongWayLeft", spec: { leftHanded: true, checks: [{},
+                    { valid: false, cause: "wrongWay", wrongWay: true,
+                      failure: "That was a backswing turn — make your follow-through turn: left shoulder through, toward the target." }] } },
+                // T21: out to 90° and still there: the cue once (not again for the still top), the timeout
+                // at exactly turnTimeout, checked; the re-arm where he stands.
+                { tag: "turnTimeout", spec: {
+                    turns: [[{ n: 3, chest: 0, gyro: 0 }, { n: 2, chest: 50, gyro: 80 }, { n: 1, chest: 90, gyro: 0 }]],
+                    checks: [{ valid: false, cause: "range", failure: tooLittle }] } },
+                // The start (19.9° no, 20.0° yes), T19b (7 still ticks at the top short of the cue: no; a
+                // move resets it; 8: yes), 69.9° no cue; the return (15.1° no, 15.0° yes); and a fast turn
+                // past the cue on its first reading (70.0°: started and cued on one tick).
+                { tag: "turnEdges", spec: { turns: [
+                    [{ n: 3, chest: 0, gyro: 0 }, { n: 2, chest: 19.9, gyro: 60 }, { n: 1, chest: 20, gyro: 60 },
+                     { n: 2, chest: 48, gyro: 40 }, { n: 7, chest: 48, gyro: 0 }, { n: 1, chest: 52, gyro: 15 },
+                     { n: 2, chest: 69.9, gyro: 40 }, { n: 8, chest: 52, gyro: 0 }, { n: 2, chest: 20, gyro: 80 },
+                     { n: 4, chest: 15.1, gyro: 0 }, { n: 1, chest: 15, gyro: 0 }],
+                    [{ n: 3, chest: 0, gyro: 0 }, { n: 1, chest: 70, gyro: 80 }, { n: 2, chest: 40, gyro: 80 },
+                     { n: 1, chest: 3, gyro: 0 }]] } },
+                // T15: arming waits on motion (each sensor, the edge 10.0, NaN) and on no turn reading.
+                { tag: "armingWaits", spec: { on: [{ at: "turnAway/arming", visit: 1, steps: [
+                    { n: 3, tg: 30 }, { n: 2, pg: 12, tg: 0 }, { n: 2, pg: 10, tg: 10 }, { n: 1, gyro: 0, tg: NaN },
+                    { n: 1, tg: 0, th: NaN }, { n: 2, th: NaN }, { n: 1, th: 0 }] }] } },
+                // T17 and the wait while armed: a creep under the follow (0.04°/tick < 0.05), one faster
+                // (0.1°/tick), a sway under the start with the gyro moving (no follow), a lost reading, a
+                // wait long enough for the rate-limited log; then a turn.
+                { tag: "armedWaits", spec: { turns: [
+                    [{ n: 3, chest: 0, gyro: 0 }].concat(creep(0.04, 30, 2), creep(0.1, 20, 2, 1.2),
+                        [{ n: 3, chest: -12, gyro: 15 }, { n: 3, chest: NaN, gyro: 0 }, { n: 12, chest: 1, gyro: 0 },
+                         { n: 2, chest: 30, gyro: 80 }, { n: 2, chest: 80, gyro: 80 }, { n: 2, chest: 30, gyro: 80 },
+                         { n: 1, chest: 4, gyro: 0 }])] } },
+                // T27a (hip, in the hold), T27b (chest, armed), T2d, T2c, T2a, T2b (begin with a sensor
+                // down or absent), a link lost in the intro, then a run that passes.
+                { tag: "links", spec: { on: [
+                    { at: "standTall/hold", visit: 1, steps: [{ n: 3 }, { n: 0, do: "pelvisDown" }] },
+                    { at: "failed/", visit: 1, steps: [{ n: 0, do: ["pelvisUp", "begin"] }] },
+                    { at: "turnAway/armed", visit: 1, steps: [{ n: 2, chest: 0, gyro: 0 }, { n: 0, do: "thoraxDown" }] },
+                    { at: "failed/", visit: 2, steps: [{ n: 0, do: "begin" }] },
+                    { at: "failed/", visit: 3, steps: [{ n: 0, do: ["pelvisDown", "begin"] }] },
+                    { at: "failed/", visit: 4, steps: [{ n: 0, do: ["pelvisUp", "thoraxUp", "noPelvis", "begin"] }] },
+                    { at: "failed/", visit: 5, steps: [{ n: 0, do: ["bothSensors", "noThorax", "begin"] }] },
+                    { at: "failed/", visit: 6, steps: [{ n: 0, do: ["bothSensors", "begin"] }] },
+                    { at: "intro/", visit: 3, steps: [{ n: 0, do: "thoraxDown" }] },
+                    { at: "failed/", visit: 7, steps: [{ n: 0, do: ["thoraxUp", "begin"] }] }] } },
+                // The trunk + wG3 path: the recording already running (no second begin, T3), the guide not
+                // ready at first (the intro waits for it), the setting off with a voice present (V1).
+                { tag: "armFirst", spec: { recording: true, guideReady: false, speak: false, voice: {},
+                    on: [{ at: "intro/", visit: 1, steps: [{ n: 0, do: "guideReady" }] }] } },
+                // No recorder: no bracket, and the turn cannot be checked (the stand-in record), so it re-arms
+                // for ever; the golfer leaves on the second verdict.
+                { tag: "noRecorder", spec: { recorder: false,
+                    on: [{ at: "turnAway/retry", visit: 2, steps: [{ n: 0, do: "leave" }] }] } },
+                // T28 at every step (Back, then forward into it: begin again), T1 by reset() and by a
+                // Recalibrate mid-turn (begin), stop after done (done kept), T29 restore.
+                { tag: "leaveEverywhere", spec: {
+                    checks: [{ valid: false, cause: "range", failure: "Hips turned too little" }],
+                    on: [{ at: "standTall/ready", visit: 1, steps: [{ n: 2 }, { n: 0, do: again }] },
+                         { at: "standTall/settle", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "standTall/hold", visit: 1, steps: [{ n: 3 }, { n: 0, do: again }] },
+                         { at: "standTall/passed", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "turnAway/demo", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "turnAway/arming", visit: 1, steps: [{ n: 2 }, { n: 0, do: again }] },
+                         { at: "turnAway/armed", visit: 1, steps: [{ n: 2, chest: 0, gyro: 0 }, { n: 0, do: again }] },
+                         { at: "turnAway/turning", visit: 1, steps: [{ n: 2, chest: 50, gyro: 80 }, { n: 1, chest: 50, gyro: 0, do: again }] },
+                         { at: "turnAway/retry", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "turnAway/passed", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "turnThrough/demo", visit: 1, steps: [{ n: 0, do: ["reset", "begin"] }] },
+                         { at: "turnThrough/armed", visit: 1, steps: [{ n: 1, chest: 0, gyro: 0 }, { n: 0, do: "begin" }] },
+                         { at: "done/", visit: 1, steps: [{ n: 0, do: ["leave", "enter", "restore"] }] }] } },
+                // T29 with no solves in force: done all the same, "not both" in the log.
+                { tag: "restoreNotBoth", spec: { first: "restore" } },
+                // The voice (F1, V5 V8 V9): the backswing turn's lines prepared, the follow-through's start
+                // not; each latency reported; leave after done stops what was said.
+                { tag: "speechPrepared", spec: { speak: true, voice: { prepared: [startAwayLine, turnBackLine] },
+                    turns: [[{ n: 0, do: "latency:380" }].concat(turnWith({ 4: "latency:12" })),
+                            [{ n: 0, do: "latency:420" }].concat(turnWith({ 4: "latency:9" }))],
+                    on: [{ at: "done/", visit: 1, steps: [{ n: 0, do: "leave" }] }] } },
+                // V4 V5 V6 V7: the voice busy — the start skipped, the turn-back stops it and waits; said when
+                // it goes idle mid-turn; on the follow-through it goes idle only after the turn: dropped.
+                { tag: "speechBusy", spec: { speak: true, voice: { props: { ttsActive: true } },
+                    turns: [turnWith({ 5: "voiceIdle" })],
+                    on: [{ at: "turnThrough/arming", visit: 1, steps: [{ n: 0, do: "voiceBusy" }] },
+                         { at: "done/", visit: 1, steps: [{ n: 0, do: ["voiceIdle", "leave"] }] }] } },
+                // V3: not ready — each cue skipped; leave with nothing said stops nothing (V9).
+                { tag: "speechNotReady", spec: { speak: true, voice: { props: { ttsReady: false } },
+                    on: [{ at: "done/", visit: 1, steps: [{ n: 0, do: "leave" }] }] } },
+                // V2: no voice at all.
+                { tag: "speechNoVoice", spec: { speak: true } },
+                // V9: Recalibrate (begin) mid-turn after both lines were said stops the voice; the new run.
+                { tag: "speechRecalibrate", spec: { speak: true, voice: {},
+                    on: [{ at: "turnAway/turning", visit: 1, steps: [{ n: 3, chest: 45, gyro: 0 }, { n: 0, do: "begin" }] }] } },
+                // Three rules no other set reaches: another routine's step open on the recorder (the arm's,
+                // trunk + wG3) is never closed by this one (a leave in the intro); a reading lost mid-turn is
+                // neither back, nor a still top, nor a cue, while the timeout's clock runs on; and the ±180°
+                // seam (armed at 179.9°, a creep across it followed, a turn started across it).
+                { tag: "seamAndForeignStep", spec: { recording: true, openStep: "armCalibrate",
+                    on: [{ at: "intro/", visit: 1, steps: [{ n: 0, do: again }] },
+                         { at: "turnThrough/arming", visit: 1, steps: [{ n: 1, th: 179.9 }] }],
+                    turns: [[{ n: 3, chest: 0, gyro: 0 }, { n: 2, chest: 50, gyro: 80 }, { n: 4, chest: NaN, gyro: 0 },
+                             { n: 2, chest: NaN, gyro: 80 }, { n: 1, chest: 10, gyro: 0 }],
+                            [{ n: 3, th: 179.9, gyro: 0 }, { n: 3, th: -179.95, gyro: 2 }, { n: 2, th: -160, gyro: 80 },
+                             { n: 2, th: -110, gyro: 80 }, { n: 2, th: -150, gyro: 80 }, { n: 1, th: 178, gyro: 0 }]] } }
+            ]
+        }
+
+        // One run of a set: fresh fakes and routine, the world driven from calib_trace.js, torn down after.
+        function traceRun(tag, spec) {
+            var lg = appLogComp.createObject(tc)
+            var gd = guideComp.createObject(tc, { ready: spec.guideReady !== false })
+            var rc = spec.recorder === false ? null : ceremonyComp.createObject(tc)
+            if (rc && spec.recording) rc.begin()                       // the arm's Calibrate step began it
+            if (rc && spec.openStep) rc.stepStart(spec.openStep)        // …and holds its own step open
+            if (rc && spec.checks) rc.turnScript = spec.checks
+            var p = instComp.createObject(tc, { deviceId: "WT-P", imuConnected: true })
+            var t = instComp.createObject(tc, { deviceId: "WT-T", imuConnected: true })
+            if (spec.solves) { p.trunkScript = spec.solves.pelvis || []; t.trunkScript = spec.solves.thorax || [] }
+            var v = spec.voice ? ttsComp.createObject(tc, spec.voice.props || {}) : null
+            if (v) (spec.voice.prepared || []).forEach(function(x) { v.prepare(x) })
+            var init = { guide: gd, segments: { pelvis: p, thorax: t }, trunkCeremony: rc,
+                         rightHanded: spec.leftHanded !== true, active: true, pace: tracePace }
+            if (spec.speak !== undefined) init.speakInstructions = spec.speak
+            if (v) init.ttsController = v
+            var rt = harness.createWithContext("TrunkRoutine", { appLog: lg }, null, init)
+            verify(rt !== null, "TrunkRoutine failed to instantiate")
+            // The pace: every gate the same number of ticks as at the real pace (tick 100 ms), so the
+            // files' real-pace times are the routine's own.
+            ;["ready", "hold", "arm", "returnStill", "turnTimeout", "waitLog"].forEach(function(k) {
+                compare(Math.ceil(rt._ms(k) / rt._ms("tick")), Math.ceil(rt.defaultPace[k] / rt.defaultPace.tick),
+                        "pace key " + k + " takes a different number of ticks than at the real pace")
+            })
+            fuzzyCompare(rt._armDriftFollowDps * rt._ms("tick") / (1000 * rt._p.scale),
+                         rt._armDriftFollowDps * rt.defaultPace.tick / 1000, 1e-12)
+            var rig = Trace.attachTrunk({ routine: rt, pelvis: p, thorax: t, recorder: rc, guide: gd, log: lg,
+                                          voice: v, spec: spec })
+            rig.start(spec.first)
+            var t0 = Date.now()
+            while (!rig.finished && Date.now() - t0 < 60000) wait(5)
+            var lines = lg.lines.slice(-40).join("\n")
+            var settled = rig.finished, where = rt.stage + "/" + rt.substage, fault = rig.orderFault
+            if (!settled || fault !== "") {
+                harness.destroyNow(rt)
+                ;[lg, gd, rc, p, t, v].forEach(function(o) { if (o) o.destroy() })
+            }
+            verify(settled, tag + ": the run never settled (stage " + where + ")\n" + lines)
+            compare(fault, "", tag + ": " + fault)
+            var pace = {}
+            for (var k in rt._p) pace[k] = rt._p[k]
+            var setup = { rightHanded: rt.rightHanded, speakInstructions: rt.speakInstructions,
+                          voice: v ? { ready: spec.voice.props && spec.voice.props.ttsReady === false ? false : true,
+                                       active: !!(spec.voice.props && spec.voice.props.ttsActive),
+                                       prepared: spec.voice.prepared || [] } : null,
+                          recorder: rc ? { recording: spec.recording === true, step: spec.openStep || "" } : null,
+                          guideReady: spec.guideReady !== false,
+                          sensors: { pelvis: { deviceId: "WT-P", link: true }, thorax: { deviceId: "WT-T", link: true } } }
+            var out = {
+                inputs: { routine: "TrunkRoutine", set: tag, pace: pace, timeUnit: "ms at the real pace", setup: setup,
+                          inputs: rig.inputs() },
+                trace:  { routine: "TrunkRoutine", set: tag, tickMs: rt._p.tick,
+                          projection: Trace.project(rig.events, rt._p.tick) } }
+            harness.destroyNow(rt)
+            ;[lg, gd, rc, p, t, v].forEach(function(o) { if (o) o.destroy() })
+            return out
+        }
+        function sameDoc(got, file, what) {
+            var text = harness.readTextFile(Qt.resolvedUrl("fixtures/" + file))
+            verify(text !== "", what + ": fixtures/" + file + " is missing (record it with PP_CALIB_TRACE_RECORD=1)")
+            var want = JSON.parse(text)
+            var g = JSON.parse(JSON.stringify(got))
+            for (var k in want) {
+                if (Array.isArray(want[k]))
+                    compare(Trace.firstDiff(g[k] || [], want[k]), "", what + " " + file + ", " + k + " differs from the fixture")
+                else
+                    compare(JSON.stringify(g[k]), JSON.stringify(want[k]), what + " " + file + ", " + k)
+            }
+            compare(JSON.stringify(Object.keys(g)), JSON.stringify(Object.keys(want)), what + " " + file + ": keys")
+        }
+        function test_TT_goldenTrace(row) {
+            var a = traceRun(row.tag, row.spec)
+            var b = traceRun(row.tag, row.spec)
+            // Deterministic: the same inputs and the same projection, run to run.
+            compare(Trace.firstDiff(b.inputs.inputs, a.inputs.inputs), "", row.tag + ": the inputs differ between two runs")
+            compare(Trace.firstDiff(b.trace.projection, a.trace.projection), "", row.tag + ": the projection differs between two runs")
+            var fi = "calib_inputs_trunk_" + row.tag + ".json", ft = "calib_trace_trunk_" + row.tag + ".json"
+            if (harness.envValue("PP_CALIB_TRACE_RECORD") === "1") {
+                verify(harness.writeTextFile(Qt.resolvedUrl("fixtures/" + fi), Trace.serialize(a.inputs)), "could not write " + fi)
+                verify(harness.writeTextFile(Qt.resolvedUrl("fixtures/" + ft), Trace.serialize(a.trace)), "could not write " + ft)
+                return
+            }
+            sameDoc(a.inputs, fi, "the inputs")
+            sameDoc(a.trace, ft, "the projection")
         }
     }
 }

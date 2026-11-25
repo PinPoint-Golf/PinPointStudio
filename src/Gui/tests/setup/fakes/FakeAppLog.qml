@@ -9,12 +9,16 @@ QtObject {
     property var entries: []
     // Echo to the test output (console.info) — off by default to keep runs quiet.
     property bool echo: false
+    // Optional shared sink (as FakeImuInstance's): also receives every line as { name: "log", args:
+    // [line] }, so a case can read the log and the other fakes' calls as one ordered timeline. null = off.
+    property var sink: null
 
     function _add(level, tag, text) {
         var line = "[" + tag + "] " + text
         lines.push(line)
         // `t`: wall clock (Date.now()), so a failing case can print the log as a timeline.
         entries.push({ level: level, tag: tag, text: text, line: line, t: Date.now() })
+        if (sink) sink.push({ name: "log", args: [line] })
         if (echo) console.info("appLog " + level + " " + line)
     }
     function info(tag, text) { _add("info", tag, text) }

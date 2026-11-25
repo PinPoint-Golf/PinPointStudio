@@ -40,6 +40,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QRectF>
@@ -417,6 +418,32 @@ public:
         const QImage img = qvariant_cast<QImage>(image);
         return !img.isNull() && QDir().mkpath(QFileInfo(path).absolutePath()) && img.save(path);
     }
+    // ── Golden traces (tst_setup_trunk.qml, platform refactor C-9a) ─────────────────────────────
+    // The trace fixtures are read from the source tree beside the tst_*.qml (a file: URL from
+    // Qt.resolvedUrl, or a path). readTextFile: the file's UTF-8 text, or "" when it is missing.
+    // writeTextFile: only for recording a fixture, which a case does only when envValue() says
+    // so ($PP_CALIB_TRACE_RECORD=1); it never runs in a normal pass.
+    static QString localPath(const QString &urlOrPath)
+    {
+        const QUrl u(urlOrPath);
+        return u.isLocalFile() ? u.toLocalFile() : urlOrPath;
+    }
+    Q_INVOKABLE QString readTextFile(const QString &urlOrPath) const
+    {
+        QFile f(localPath(urlOrPath));
+        if (!f.open(QIODevice::ReadOnly)) return QString();
+        return QString::fromUtf8(f.readAll());
+    }
+    Q_INVOKABLE bool writeTextFile(const QString &urlOrPath, const QString &text) const
+    {
+        const QString path = localPath(urlOrPath);
+        if (!QDir().mkpath(QFileInfo(path).absolutePath())) return false;
+        QFile f(path);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
+        return f.write(text.toUtf8()) >= 0;
+    }
+    Q_INVOKABLE QString envValue(const QString &name) const { return qEnvironmentVariable(qPrintable(name)); }
+
     // The scene node that carries the RuntimeLoader whose source ends with `glbSuffix` (each body
     // segment is a Node with its .glb loader as a child): { found, rotation, sceneRotation } as
     // quaternions. How a render check names "the lead upper arm" and "the lead forearm" from the

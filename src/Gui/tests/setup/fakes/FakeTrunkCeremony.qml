@@ -22,8 +22,14 @@ QtObject {
     property bool beginResult: true
     property var  turnScript: []
     property var  calls: []
+    // Optional shared sink (as FakeImuInstance's): also receives every call as { name: "recorder.<call>",
+    // args }, in one ordered timeline with the other fakes'. null = off.
+    property var  sink: null
 
-    function _rec(name, args) { calls.push({ name: name, args: args, t: Date.now() }) }
+    function _rec(name, args) {
+        calls.push({ name: name, args: args, t: Date.now() })
+        if (sink) sink.push({ name: "recorder." + name, args: args })
+    }
     function order() {
         return calls.map(function(c) {
             if (c.name === "attachResult") return "attachResult:" + c.args[0] + ":" + (c.args[1].role || "")

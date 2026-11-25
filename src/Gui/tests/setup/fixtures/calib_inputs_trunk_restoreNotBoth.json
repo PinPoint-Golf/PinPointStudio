@@ -1,0 +1,10 @@
+{
+  "routine": "TrunkRoutine",
+  "set": "restoreNotBoth",
+  "pace": {"arm":1000,"demoPause":600,"demoTurn":2500,"hold":2200,"introStart":1500,"next":800,"ready":1000,"retry":2500,"returnStill":750,"scale":0.05,"settle":1000,"tick":100,"turnTimeout":20000,"waitLog":1000},
+  "timeUnit": "ms at the real pace",
+  "setup": {"rightHanded":true,"speakInstructions":false,"voice":null,"recorder":{"recording":false,"step":""},"guideReady":true,"sensors":{"pelvis":{"deviceId":"WT-P","link":true},"thorax":{"deviceId":"WT-T","link":true}}},
+  "inputs": [
+    {"t":0,"ev":"command","name":"restore","world":{"pelvis":{"present":true,"link":true,"solved":false},"thorax":{"present":true,"link":true,"solved":false},"recorder":{"recording":false,"step":""},"guideReady":true}}
+  ]
+}

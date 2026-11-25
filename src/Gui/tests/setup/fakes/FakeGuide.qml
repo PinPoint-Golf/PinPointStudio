@@ -31,16 +31,23 @@ QtObject {
     // Every call, oldest first: { name, arm, fore, ms, t }
     property var log: []
     property int cancels: 0
+    // Optional shared sink (as FakeImuInstance's): also receives every call as { name: "guide.<call>",
+    // args: [entry] }, in one ordered timeline with the other fakes'. null = off.
+    property var sink: null
+    function _push(e) {
+        log.push(e)
+        if (sink) sink.push({ name: "guide." + e.name, args: [e] })
+    }
 
     function _q(q) { return q === undefined ? undefined : Qt.quaternion(q.scalar, q.x, q.y, q.z) }
     function pose(armQ, foreQ) {
-        log.push({ name: "pose", arm: _q(armQ), fore: _q(foreQ), t: Date.now() })
+        _push({ name: "pose", arm: _q(armQ), fore: _q(foreQ), t: Date.now() })
         _timer.stop(); inFlight = false; animating = false
         armTarget = armQ
         if (foreQ !== undefined) foreTarget = foreQ
     }
     function animate(armQ, foreQ, ms) {
-        log.push({ name: "animate", arm: _q(armQ), fore: _q(foreQ), ms: ms, t: Date.now() })
+        _push({ name: "animate", arm: _q(armQ), fore: _q(foreQ), ms: ms, t: Date.now() })
         animating = true; inFlight = true
         armTarget = armQ
         if (foreQ !== undefined) foreTarget = foreQ
@@ -48,7 +55,7 @@ QtObject {
         if (!stall) _timer.restart()
     }
     function cancel() {
-        log.push({ name: "cancel", t: Date.now() })
+        _push({ name: "cancel", t: Date.now() })
         cancels += 1
         _timer.stop(); inFlight = false; animating = false
     }
@@ -56,12 +63,12 @@ QtObject {
     property real chestTargetDeg: 0
     property bool armsCrossed:    false
     function trunkPose(hipsDeg, chestDeg, crossed) {
-        log.push({ name: "trunkPose", hips: hipsDeg, chest: chestDeg, crossed: crossed === true, t: Date.now() })
+        _push({ name: "trunkPose", hips: hipsDeg, chest: chestDeg, crossed: crossed === true, t: Date.now() })
         _timer.stop(); inFlight = false; animating = false
         hipsTargetDeg = hipsDeg; chestTargetDeg = chestDeg; armsCrossed = crossed === true
     }
     function trunkAnimate(hipsDeg, chestDeg, crossed, ms) {
-        log.push({ name: "trunkAnimate", hips: hipsDeg, chest: chestDeg, crossed: crossed === true, ms: ms,
+        _push({ name: "trunkAnimate", hips: hipsDeg, chest: chestDeg, crossed: crossed === true, ms: ms,
                    t: Date.now() })
         animating = true; inFlight = true
         hipsTargetDeg = hipsDeg; chestTargetDeg = chestDeg; armsCrossed = crossed === true

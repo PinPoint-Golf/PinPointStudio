@@ -1,0 +1,20 @@
+{
+  "routine": "TrunkRoutine",
+  "set": "restoreNotBoth",
+  "tickMs": 100,
+  "projection": [
+    {"t":0,"own":"P","state":"stage","value":"idle"},
+    {"t":0,"own":"P","wait":[]},
+    {"t":0,"own":"P","message":[]},
+    {"t":0,"own":"P","messageKind":""},
+    {"t":0,"own":"P","hold":0},
+    {"t":0,"own":"P","turnBackDue":false},
+    {"t":0,"own":"P","done":false},
+    {"t":0,"own":"P","failed":false},
+    {"t":0,"own":"guide","guide":"trunkPose","args":[0,0,false]},
+    {"t":0,"own":"entry","entry":"restore","done":true,"solves":"notBoth"},
+    {"t":0,"own":"P","state":"stage","value":"done"},
+    {"t":0,"own":"P","hold":1},
+    {"t":0,"own":"P","done":true}
+  ]
+}
