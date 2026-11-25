@@ -236,10 +236,17 @@ public:
     // ── A session's start and end, one command each (E-12) ──
     // Start: the capture service opens (or, extend, resumes) the session — the Athlete's startSession/resumeSession
     // — and a NEW one takes the wizard's declared focus, from its first shot (refactor 4-d: handOverFocus below;
-    // Extend keeps the session's saved intent, and drops the pick); then the live carousel shows it (empty for a new
-    // one), then the clock (sessionStarted: the preflight
-    // notices, the trunk ceremony, the profiler), then the cameras.
+    // Extend keeps the session's saved intent, and drops the pick); then the app enters Capture, leaving a review and
+    // stopping the replay, so a Start never leaves a past session's Replay on screen (#283); then the live carousel
+    // shows it (empty for a new one), then the clock (sessionStarted: the preflight notices, the trunk ceremony, the
+    // profiler), then the cameras.
     Q_INVOKABLE void startSession(bool extend);
+    // The toolbar's Capture while a session runs (after a Stop): the app enters Capture, leaving a review and stopping
+    // the replay, then the cameras re-arm into the session Start opened (#283). Nothing is opened and the clock runs on.
+    Q_INVOKABLE void rearmCapture();
+    // Home's Start, or a work-on's Practise, while a session runs: the way back to it, in Capture, leaving a review
+    // (#283). False, and nothing changes, when no session runs: the caller opens the session wizard instead.
+    Q_INVOKABLE bool backToSession();
     // End: cameras, then the clock (the queued work-ons unpause), then the capture service ends the Session
     // (Session::end, the empty discard), and only then — with `reloadCarousel` (the toolbar's End, not the close) — the
     // live carousel shows today's remaining session and the devices are released (releaseDevices), last: the release

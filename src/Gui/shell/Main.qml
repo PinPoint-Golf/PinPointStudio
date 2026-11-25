@@ -500,8 +500,8 @@ ApplicationWindow {
     // Start, a work-on's Practise). Carry Home's club pick into the session; start() (fired
     // at wizard completion) preserves an already-set activeClub.
     function _openSessionSetup(request) {
-        // A session is already running: Start is the way back to it, never a second one.
-        if (app.sessionController.running) { app.navController.navigateRail(AppScreen.Session); return }
+        // A session is already running: Start is the way back to it, in Capture, never a second one (#283).
+        if (app.state.backToSession()) { app.navController.navigateRail(AppScreen.Session); return }
         app.sessionController.activeClub = screenHome.selectedClub
         sessionSetup.open(request)
         app.navController.navigate(AppScreen.Wizard)

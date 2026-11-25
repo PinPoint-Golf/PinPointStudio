@@ -292,9 +292,9 @@ Item {
                     if (root.captureLive) {
                         cameraManager.stopCapture()
                     } else if (app.sessionController.running) {
-                        // Session already running (resumed after Stop) — just re-arm
-                        // capture; the folder was chosen when the session started.
-                        cameraManager.startCapture()
+                        // Session already running (resumed after Stop) — re-arm capture
+                        // into the folder chosen at Start, in Capture (AppState, #283).
+                        app.state.rearmCapture()
                     } else if (app.shotProcessor.todaySessionDir(root.sessionType) !== "") {
                         startPrompt.open()        // ask: extend today's session, or new
                     } else {

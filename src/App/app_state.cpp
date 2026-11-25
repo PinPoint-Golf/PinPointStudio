@@ -195,6 +195,10 @@ void AppState::startSession(bool extend)
         call(m_doors.dropPendingFocus);
     call(m_doors.openCaptureSession, extend);
     handOverFocus();
+    // A session starts in Capture (#283): from Replay or Analyse, and out of a reviewed session, which would otherwise
+    // stay on screen ahead of the capture target (refreshSessionOnScreen). After the open, so the session on screen
+    // goes from the reviewed one straight to the new one.
+    enterCapture();
     // The live carousel shows the session capture opened (the capture target), empty for a new one; it stays its live
     // folder when capture lets go of it (a D7 restart, End), so the carousel never passes through no session.
     m_liveFolder = captureTargetFolder();
@@ -202,6 +206,24 @@ void AppState::startSession(bool extend)
     announceLive();
     call(m_doors.startClock);
     call(m_doors.startCameras);
+}
+
+// A re-arm lands in Capture like a Start (#283): the golfer may have gone into Replay, Analyse or a past session's
+// review since the Stop. Capture first, so the cameras re-arm with the running session on screen.
+void AppState::rearmCapture()
+{
+    enterCapture();
+    call(m_doors.startCameras);
+}
+
+// The way back to a running session lands in Capture like a Start (#283), so Home's Start never leaves a past
+// session's review, or a replay, on screen.
+bool AppState::backToSession()
+{
+    if (!(m_doors.sessionRunning && m_doors.sessionRunning()))
+        return false;
+    enterCapture();
+    return true;
 }
 
 // THE ONE HAND-OVER (refactor 4-d; J-64): the Session owns its declared focus (OBJ-SESSION-INTENT), so the pick waits

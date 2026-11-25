@@ -26,9 +26,12 @@
 //       on a figure's pick; the post-shot replay returns to Capture at its end, a picked one does not
 //   S3  SCOPED TO THE SESSION ON SCREEN (R-APP-3, E-05, E-08): the reviewed session, else the capture target, else the
 //       live carousel's; a different session clears the selection (and the replay of it), the same one does not
-//   S4  START AND END ARE ONE COMMAND EACH (E-12): Start opens the capture session, then shows it (empty when new, the
-//       resumed folder on extend), then the clock, then the cameras; End stops the cameras, the clock, ends the session
-//       (its empty discard) and only then reloads the carousel — and not at all for the close
+//   S4  START AND END ARE ONE COMMAND EACH (E-12): Start opens the capture session, enters Capture (#283; S4b), then
+//       shows it (empty when new, the resumed folder on extend), then the clock, then the cameras; End stops the
+//       cameras, the clock, ends the session (its empty discard) and only then reloads the carousel — and not at all
+//       for the close
+//   S4c EVERY WAY INTO A RUNNING SESSION LANDS IN CAPTURE (#283): the toolbar's re-arm after a Stop (then the cameras,
+//       nothing opened), and Home's Start while a session runs (with none running it changes nothing)
 //   S5  NO ATHLETE SWITCH WHILE A SESSION RUNS (R-APP-1, the rule that replaced Stage 0.8g's check)
 //   S7  BY SessionId, OVER REAL SESSIONS: another spelling of the same session folder keeps the selection, another
 //       session clears it, and so does an athlete switch (the folder is not the new athlete's)
@@ -205,14 +208,14 @@ int main(int argc, char **argv)
         QObject::connect(&r.state, &pinpoint::AppState::liveSessionChanged, [&] { live << r.state.liveSessionFolder(); });
         r.state.startSession(false);
         check("S4 Start: the session, the clock, the cameras",
-              r.calls == QStringList{ "open new", "clock", "cameras" });
+              r.calls == QStringList{ "open new", "stop", "clock", "cameras" });
         check("S4 …the live carousel shows the new session (the capture target), nothing before it",
               live == QStringList{ "/lib/a/S2" } && r.state.liveFolder() == QStringLiteral("/lib/a/S2"));
         r.calls.clear();
         live.clear();
         r.state.startSession(true);
         check("S4 Start (extend): the carousel shows the resumed session",
-              r.calls == QStringList{ "open extend", "clock", "cameras" } && r.state.liveFolder() == QStringLiteral("/lib/a/S2"));
+              r.calls == QStringList{ "open extend", "stop", "clock", "cameras" } && r.state.liveFolder() == QStringLiteral("/lib/a/S2"));
         r.calls.clear();
         r.state.endSession(true);
         check("S4 End: cameras, clock, the session's end — and only then today's session, then the devices' release",
@@ -226,6 +229,99 @@ int main(int argc, char **argv)
         check("S4 the close ends the same way, keeping the ended session on the carousel",
               r.calls == QStringList{ "cameras off", "clock off", "close" } && live.isEmpty()
                   && r.state.liveSessionFolder() == QStringLiteral("/lib/a/S2"));
+    }
+
+    // #283 (cabin visit 1): Start from an old session in Replay left the app on that session's Replay.
+    std::printf("\nS4b a session starts in Capture\n");
+    for (const bool extend : { false, true }) {
+        const QString how = extend ? QStringLiteral(" (extend)") : QString();
+        {
+            Rig r;
+            r.review = QStringLiteral("/lib/a/S0");   // an old session, opened from Home
+            r.state.enterLoadedSession();
+            r.state.enterReplay(QString(), QStringLiteral("/lib/a/S0/swing_0001"));
+            r.calls.clear();
+            r.state.startSession(extend);
+            check("S4b Start from a reviewed session in Replay: Capture" + how, r.state.mode() == pinpoint::AppState::Capture);
+            check("S4b …the review is left and its replay stopped" + how,
+                  r.calls.contains("resumeLive") && r.calls.contains("stop") && r.loaded.isEmpty());
+            check("S4b …the session on screen is the new one, nothing of the old selected" + how,
+                  r.state.sessionOnScreenFolder() == r.capture && !r.state.selection()->valid());
+        }
+        {
+            Rig r;
+            r.state.setLiveFolder(QStringLiteral("/lib/a/S1"));   // the latest session, on the live carousel
+            r.state.enterAnalyse();
+            r.state.startSession(extend);
+            check("S4b Start from Analyse with no review: Capture" + how, r.state.mode() == pinpoint::AppState::Capture
+                  && !r.calls.contains("resumeLive"));
+        }
+    }
+
+    // #283, the coordinator's ruling (25 Nov 2026): the two ways back into a running session land in Capture too.
+    std::printf("\nS4c every way into a running session lands in Capture\n");
+    {
+        Rig r;
+        r.state.startSession(false);   // the command's whole contract: from a review too (an old session, in Replay)
+        r.review = QStringLiteral("/lib/a/S0");
+        r.state.refreshSessionOnScreen();   // the composition root, as the review opens
+        r.state.enterLoadedSession();
+        r.state.enterReplay(QString(), QStringLiteral("/lib/a/S0/swing_0001"));
+        r.calls.clear();
+        r.state.rearmCapture();
+        check("S4c the toolbar's re-arm from a reviewed session in Replay: Capture", r.state.mode() == pinpoint::AppState::Capture);
+        check("S4c …the review is left and its replay stopped, then the cameras, and nothing opened",
+              r.calls == QStringList{ "stop", "resumeLive", "cameras" } && r.loaded.isEmpty());
+        r.state.refreshSessionOnScreen();   // the composition root, as the review is left (reviewActiveChanged)
+        check("S4c …the session on screen is the running one, nothing of the old selected",
+              r.state.sessionOnScreenFolder() == r.capture && !r.state.selection()->valid());
+    }
+    {
+        Rig r;
+        r.state.startSession(false);   // a session runs; after a Stop, a shot of it picked in Replay (no review: the
+        r.state.enterReplay(QString(), QStringLiteral("/lib/a/S2/swing_0001"));   // toolbar hides Capture in a review)
+        r.calls.clear();
+        r.state.rearmCapture();
+        check("S4c the toolbar's re-arm from the running session's Replay: Capture, the replay stopped, then the cameras",
+              r.state.mode() == pinpoint::AppState::Capture && r.calls == QStringList{ "stop", "cameras" }
+                  && r.loaded.isEmpty() && r.state.sessionOnScreenFolder() == r.capture);
+    }
+    {
+        Rig r;
+        r.state.startSession(false);
+        r.state.enterAnalyse();        // Analyse on the running session, no review
+        r.calls.clear();
+        r.state.rearmCapture();
+        check("S4c the toolbar's re-arm from Analyse: Capture, then the cameras",
+              r.state.mode() == pinpoint::AppState::Capture && r.calls == QStringList{ "stop", "cameras" });
+    }
+    {
+        Rig r;
+        r.state.startSession(false);
+        r.review = QStringLiteral("/lib/a/S0");
+        r.state.refreshSessionOnScreen();   // the composition root, as the review opens
+        r.state.enterLoadedSession();
+        r.state.enterReplay(QString(), QStringLiteral("/lib/a/S0/swing_0001"));
+        r.calls.clear();
+        const bool back = r.state.backToSession();
+        check("S4c Home's Start while a session runs, from a reviewed session in Replay: back to it, in Capture",
+              back && r.state.mode() == pinpoint::AppState::Capture);
+        check("S4c …the review is left and its replay stopped; nothing opened, no clock, no cameras",
+              r.calls == QStringList{ "stop", "resumeLive" } && r.loaded.isEmpty());
+        r.state.refreshSessionOnScreen();   // the composition root, as the review is left (reviewActiveChanged)
+        check("S4c …the session on screen is the running one, nothing of the old selected",
+              r.state.sessionOnScreenFolder() == r.capture && !r.state.selection()->valid());
+    }
+    {
+        Rig r;
+        r.review = QStringLiteral("/lib/a/S0");   // no session runs: Home's Start opens the wizard
+        r.state.refreshSessionOnScreen();
+        r.state.enterLoadedSession();
+        r.state.enterReplay(QString(), QStringLiteral("/lib/a/S0/swing_0001"));
+        r.calls.clear();
+        check("S4c Home's Start with no session running: false, and nothing changes",
+              !r.state.backToSession() && r.state.mode() == pinpoint::AppState::Replay && r.calls.isEmpty()
+                  && r.state.sessionOnScreenFolder() == QStringLiteral("/lib/a/S0"));
     }
 
     std::printf("\nS5 no athlete switch while a session runs\n");
