@@ -31,7 +31,7 @@
 // window with any unmeasured part in it wears a PARTIAL chip.
 //
 // Since Phase 2 (§5.2) PEAK is a 40 ms windowed-mean extremum and PK RATE a ≥50 ms least-squares
-// slope, both from src/Metrics/series_reduce.h — the same reducers the diagnostics engine grades
+// slope, both from src/Vocabulary/Metrics/series_reduce.h — the same reducers the diagnostics engine grades
 // with, so a card and a corridor cannot disagree about the same window. PK RATE therefore also has
 // an ABSENT state (`rateOk` false: no window long enough, or too few valid samples in it), and it
 // prints "-" with its unit hidden rather than a fitted-from-nothing 0. The same for PEAK and Δ on a
@@ -134,7 +134,7 @@ ColumnLayout {
     // reduction would window the curve twice and no tile would mean what its definition says.
     // AN ANGLE OF A LINE (series.lineAngle — shaft lean, issue #116): one reading of it is folded into
     // (−180°, 180°], though its curve runs on continuously through the top of the swing. The JS twin
-    // of wrapLeanDeg (src/Metrics/line_angle.h), which the charts' C++ cards use.
+    // of wrapLeanDeg (src/Vocabulary/Metrics/line_angle.h), which the charts' C++ cards use.
     function _reading(s, v) {
         if (!(s && s.lineAngle) || !isFinite(v)) return v
         var r = v - 360 * Math.round(v / 360)

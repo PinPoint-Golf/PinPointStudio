@@ -28,7 +28,7 @@
 #include "variability_clubs.h"                              // perClubInputs: one window per club (R2b)
 
 #include "../variability/variability_facade.h"              // VariabilityResultView: the `variabilityResult` QML reads
-#include "../../Metrics/variability/variability_grader.h"
+#include "../../Vocabulary/Metrics/variability/variability_grader.h"
 
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/characteristic.h"

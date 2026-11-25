@@ -19,7 +19,7 @@
 #pragma once
 
 #include "wrist_assessment_result.h"
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 
 #include <optional>
 

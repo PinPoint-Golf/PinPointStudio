@@ -21,7 +21,7 @@
 // The device keys: what names one physical device, and one thing that can hold a role
 // (information_model.md §5.2, ID-DEVICE-KEY, ID-PLACEMENT-KEY; docs/design/rig_design.md §4.6).
 // Vocabulary ring, context Acquisition. Header-only, Qt value types only: nothing of src/IMU,
-// src/Recording or src/Gui (the design's §6 rule 1).
+// src/Vocabulary/Recording or src/Gui (the design's §6 rule 1).
 //
 // ⚠ EVERY SPELLING HERE IS A PERSISTED MAP KEY, AND EACH MAP KEEPS ITS OWN, BYTE FOR BYTE. A key
 // spelled one byte differently is not an error anyone sees: it silently loses a camera's perspective,

@@ -160,6 +160,6 @@ Two residuals worth knowing, because neither is a defect in the limit:
 ## Related
 
 - `src/Analysis/pose_wrist_angle_source.h` — the σ note and the projection caveat
-- `src/Core/pp_tuned_constants.h` `pose::wristAngles` — `kFeLimitDeg`, `kFcHz`, and the note that
+- `src/Vocabulary/Common/pp_tuned_constants.h` `pose::wristAngles` — `kFeLimitDeg`, `kFcHz`, and the note that
   `kConfMin` does not filter the hand
 - `governance/artefacts/sign_conventions.md` — the +cup / +bow sign split between the two hands

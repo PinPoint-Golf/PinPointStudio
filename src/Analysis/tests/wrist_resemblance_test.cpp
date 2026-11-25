@@ -9,7 +9,7 @@
 
 #include "../../Wrist/wrist_resemblance.h"
 #include "../../Wrist/score_uncertainty.h"
-#include "../../Core/pp_tuned_constants.h"
+#include "../../Vocabulary/Common/pp_tuned_constants.h"
 
 #include <cstdio>
 

@@ -20,7 +20,7 @@
 
 #include "../charts/charts_words.h"
 #include "../charts/session_sequence.h"
-#include "../../Metrics/gate_catalogue.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"
 #include "../../Analysis/route_substitution.h"   // substitutedGapGate (substitutedGapFor)
 
 #include <QHash>
@@ -219,7 +219,7 @@ QVariantList trustReadings(const charts::ShotSeries &shot)
                     if (rv.toMap().value(QStringLiteral("gate")).toString() == gate) { primary = rv.toMap(); break; }
             } else if (p.present) {
                 const charts::UnplacedWhy why = charts::unplacedWhy(p);
-                figure = W::withUnit(why.figure, why.unit);   // the one figure-and-unit rule (Core/figure_format.h)
+                figure = W::withUnit(why.figure, why.unit);   // the one figure-and-unit rule (Vocabulary/Common/figure_format.h)
                 shortText = why.shortText;
                 level = p.refusal.value(QStringLiteral("effect")).toString() == QLatin1String("bounded") ? Bounded : NotSeen;
             }

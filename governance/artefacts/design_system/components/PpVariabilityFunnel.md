@@ -26,7 +26,7 @@ Wide, golfer and technical layers, on real sessions (Mark's 7-iron; ρ from the 
 ## Consumer supplies
 From the C++ grader, per measure and context:
 - `sessions`: `[{ rho, grade, breakBefore }, …]`, oldest first, the current session last. `rho` is the session's `variabilityResult.rho` (ρ, or a trace's max(ρₐ, ρₜ)); `grade` its grade. Each session is graded on its own, as a frozen assessment (plain bands, no hysteresis), within one club and one intent. `breakBefore` true when the context, basis or scale changed since the previous session (another club's corridor, a different scale).
-- `trend`: from `variabilityTrend(points)` (`src/Metrics/variability/variability_trend.h`), one `TrendPoint { rho, n, contextKey, basisKind, scaleKey }` per session, oldest first; it finds the breaks itself from those keys, so set `breakBefore` from the same keys. Its `TrendResult` direction goes to the funnel as a token, `"tightening"`, `"loosening"`, `"holding"` or `"insufficient"`. No C++ helper spells the token yet: the presenter writes it exactly so. The trend reads the latest unbroken run, at most the latest 12 sessions, so it describes what the funnel draws.
+- `trend`: from `variabilityTrend(points)` (`src/Vocabulary/Metrics/variability/variability_trend.h`), one `TrendPoint { rho, n, contextKey, basisKind, scaleKey }` per session, oldest first; it finds the breaks itself from those keys, so set `breakBefore` from the same keys. Its `TrendResult` direction goes to the funnel as a token, `"tightening"`, `"loosening"`, `"holding"` or `"insufficient"`. No C++ helper spells the token yet: the presenter writes it exactly so. The trend reads the latest unbroken run, at most the latest 12 sessions, so it describes what the funnel draws.
 - `basisText` (technical layer): `TrendResult::basisString()`, "ρ 0.62 → 0.38 over 6 sessions".
 - `measureName`: the measure's name, for the accessible name.
 - `measurementLimited`: the **current** session's `variabilityResult.measurementLimited` (the last session drawn). On the golfer layer the funnel then says "Checking", as the badge does.
@@ -134,7 +134,7 @@ PpVariabilityFunnel {
 - Don't format ρ or decide the trend in QML.
 
 ## Not repeated here
-The funnel's geometry is spec §6.1 as built in `src/Gui/variability/variability_geometry.cpp` (`DataVariabilityGeometry::funnel`); the trend rule is spec §8.8 in `src/Metrics/variability/variability_trend.h`. Where the build fills a gap (break placement, dash pattern, the label layout), `docs/design/variability-mark/decisions.md` says so.
+The funnel's geometry is spec §6.1 as built in `src/Gui/variability/variability_geometry.cpp` (`DataVariabilityGeometry::funnel`); the trend rule is spec §8.8 in `src/Vocabulary/Metrics/variability/variability_trend.h`. Where the build fills a gap (break placement, dash pattern, the label layout), `docs/design/variability-mark/decisions.md` says so.
 
 ## Used by
 - `src/Gui/diagnostics/PpFigureRow.qml` — Session diagnostics, the Across-sessions figure, one funnel per club, in Analyse (`PpDiagAnalyse`) and the printed appendix (`PpDiagPrint`) · wide, Dispersion · technical (Session 5, 7 Nov 2026).

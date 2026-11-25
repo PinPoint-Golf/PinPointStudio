@@ -20,17 +20,17 @@
 
 // THE VARIABILITY FAÇADE (docs/design/variability-mark/spec.md §4.1, §5, §7.5, §8): what QML may know
 // about a variability grade, and nothing it could grade with. QML never grades, never computes ρ and
-// never builds a basis string; a presenter grades in C++ (src/Metrics/variability/) and hands QML a
+// never builds a basis string; a presenter grades in C++ (src/Vocabulary/Metrics/variability/) and hands QML a
 // `variabilityResult` built here. PpVariabilityMark and PpVariabilityBadge take its `grade`; their words
 // come from the vocabulary singletons in QML (§7.1 – §7.4), not from this file.
 //
 // Large payloads (a session of results, a funnel's per-swing series) go to QML through QmlPayload
 // (src/Gui/shot/qml_payload.h), not as a QVariantMap property: this value type is for ONE result.
 
-#include "../../Metrics/variability/variability_grader.h"       // CellGrade
-#include "../../Metrics/variability/variability_result.h"
-#include "../../Metrics/variability/variability_trend.h"        // TrendDirection
-#include "../../Metrics/variability/variability_typicality.h"   // TypicalityBand, the session windows
+#include "../../Vocabulary/Metrics/variability/variability_grader.h"       // CellGrade
+#include "../../Vocabulary/Metrics/variability/variability_result.h"
+#include "../../Vocabulary/Metrics/variability/variability_trend.h"        // TrendDirection
+#include "../../Vocabulary/Metrics/variability/variability_typicality.h"   // TypicalityBand, the session windows
 
 #include <QObject>
 #include <QString>

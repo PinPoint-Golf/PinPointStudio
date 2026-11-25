@@ -23,7 +23,7 @@
 // every pixel format the runner cuts into rows, with the ROI at the frame's edges too.
 
 #include "../ball_temporal.h"
-#include "../../Export/frame_decode.h"
+#include "../../Vocabulary/Recording/frame_decode.h"
 
 #include <cstdio>
 #include <cstring>

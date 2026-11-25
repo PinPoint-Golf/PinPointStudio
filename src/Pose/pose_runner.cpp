@@ -45,7 +45,7 @@ using pinpoint::analysis::PoseTrack2D;
 
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
 #include <opencv2/core.hpp>
-#include "../Export/frame_decode.h"
+#include "../Vocabulary/Recording/frame_decode.h"
 #include "pose_estimator_vitpose.h"
 #include "pose_model_selection.h"           // useVitPoseLarge (tier -> model)
 #include "pose_crop.h"             // PoseAccuracyConfig / computePoseCropRect (WB1)
@@ -54,7 +54,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include "../Club/shaft_track_assembly.h" // estimateSwingSpanUs / ShaftV3Config (Stage B span estimate)
 #include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply — pose.intraOpThreads resolution
 #include "pose_pipeline.h"          // InstanceCache (session cache) + runOrderedPipeline (producer pool)
-#include "../Core/pp_tuned_constants.h"   // pose::kSessionCache / kProducerThreads / kQueueDepth
+#include "../Vocabulary/Common/pp_tuned_constants.h"   // pose::kSessionCache / kProducerThreads / kQueueDepth
 #include "../Core/cpu_topology.h"   // physicalCoreCount() — pose.producerThreads auto
 #include "../Analysis/frame_store.h" // decode.frameStore — the analysis' one decode of this camera
 #include <cstddef>

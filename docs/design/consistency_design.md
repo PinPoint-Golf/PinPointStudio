@@ -260,7 +260,7 @@ old-words table in `governance/artefacts/design_system/variability.md` maps them
 
 The sampling and stand-out constants live in `src/Gui/charts/session_consistency.h`; the table's shape in
 `src/Coaching/consistency_home.h`; the grades in `src/Gui/charts/consistency_grades.{h,cpp}` over the grader's constants
-(`src/Metrics/variability/variability_constants.h`: `kNMin` 8, `kCellLoosestPercentile` 0.67, the scalar bands). All are
+(`src/Vocabulary/Metrics/variability/variability_constants.h`: `kNMin` 8, `kCellLoosestPercentile` 0.67, the scalar bands). All are
 first guesses.
 
 ### 4.1 A reading

@@ -42,7 +42,7 @@
 #include "shot/shot_list_model.h"
 #include "shot/qml_payload.h"
 #include "Vocabulary/Analysis/swing_analysis.h"
-#include "LaunchMonitor/launch_monitor_reading.h"
+#include "Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "fake_shot_source.h"   // the report's carousel is a view of the session (step 5.2)
 
 #include <QDir>

@@ -48,7 +48,7 @@
 
 #include "rule_data_repository.h"
 
-#include "../Metrics/metric_catalogue.h"
+#include "../Vocabulary/Metrics/metric_catalogue.h"
 
 #include <QMutex>
 #include <QObject>

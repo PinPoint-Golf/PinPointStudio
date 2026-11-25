@@ -226,7 +226,7 @@ inline void appendRules(std::vector<GateEntry> &c)
         .tuning = { tune("charts.warp.minConf", 0.35, ""), tune("charts.warp.maxSegmentRatio", 2.0, ""),
                     tune("charts.warp.minSegmentShots", 3, "shots") };
     // The Consistency tab's rules (src/Gui/charts/session_consistency.h; the grades, and the first three gates, are src/Gui/charts/consistency_grades.h
-    // over src/Metrics/variability/, whose constants — kNMin, kCellLoosestPercentile — they quote). A reading the grader
+    // over src/Vocabulary/Metrics/variability/, whose constants — kNMin, kCellLoosestPercentile — they quote). A reading the grader
     // cannot grade is one of two cases, told apart: too few shots (grade 0, consistencyVerdict) or nothing to set the
     // spread against (no mark, consistencyNoScale).
     rule(c, "rule.charts.consistencyVerdict", charts, "Spread not judged", "too few shots",

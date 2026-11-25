@@ -1,5 +1,5 @@
 // Byte-identity guard for the consolidated frozen-constants header
-// (src/Core/pp_tuned_constants.h). Asserts the named constants EQUAL the historical
+// (src/Vocabulary/Common/pp_tuned_constants.h). Asserts the named constants EQUAL the historical
 // literals they replaced (hard-coded here, NOT re-derived from the header) and that the
 // default-constructed config structs / filter still match their pre-refactor defaults.
 // A typo'd freeze edit or a wrong member-initialiser indirection fails this test.
@@ -8,7 +8,7 @@
 //   cmake --build build/analyzer-tests --target tuned_constants_parity_test && \
 //   ctest --test-dir build/analyzer-tests -R tuned_constants_parity_test --output-on-failure
 
-#include "../../Core/pp_tuned_constants.h"
+#include "../../Vocabulary/Common/pp_tuned_constants.h"
 #include "../../IMU/orientation_filter.h"     // MadgwickFilter default beta
 #include "../../IMU/imu_calibration.h"        // nominalArmMount / nominalHandMount
 #include "../../Wrist/wrist_angle_sampler.h"  // PpWristSamplingConfig defaults

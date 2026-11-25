@@ -48,7 +48,7 @@
 
 #include <optional>
 
-#include "../Recording/recording.h"
+#include "../Vocabulary/Recording/recording.h"
 #include "../IMU/imu_refusion_check.h"   // ImuRefusionVerdict, checkImuRefusion
 #include "capture_integrity_check.h"     // CaptureIntegrityVerdict, checkCaptureIntegrity
 

@@ -56,7 +56,7 @@ pp_add_test(update_controller_policy_test
             ${SRC}/Export/athlete_store.cpp
             ${SRC}/Export/session_store.cpp
             ${SRC}/DomainModel/session_identity.cpp
-            ${SRC}/Identity/identity.h
+            ${SRC}/Vocabulary/Identity/identity.h
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/Core/folder_lock.cpp
             ${SRC}/Core/pp_log_stream.cpp
@@ -85,6 +85,6 @@ pp_add_test(update_controller_policy_test
     # Diagnostics -> Metrics -> Analysis, all three: metric_reducer.h includes swing_analysis.h
     # non-relatively. Same reason as NORM_INC in src/Analysis/tests/CMakeLists.txt.
     INCLUDE ${UPDATE} ${SRC}/Core ${SRC}/Gui/app ${SRC}/Gui/session ${SRC}/Gui/athlete
-            ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis
+            ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
     LINK    Qt6::Qml Qt6::Test
     GTEST_NO_MAIN  AUTOMOC)

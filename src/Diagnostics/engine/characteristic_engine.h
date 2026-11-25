@@ -353,7 +353,7 @@ enum class SignalRefusal {
 };
 
 // THE RULE BEHIND A REFUSAL (trust stage 6 session 2). Seven refusals are decisions the engine makes on
-// every read — no gate record stands behind them, so each is catalogued as a RULE (Metrics/
+// every read — no gate record stands behind them, so each is catalogued as a RULE (Vocabulary/Metrics/
 // gate_catalogue_rules.h, `rule.diag.*`) and a surface names it by this id. Null for the rest: a missing
 // or withheld measure speaks through the swing's gate records instead, and a malformed or unknown signal
 // is a pack bug, not a reading the golfer is owed words for.

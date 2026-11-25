@@ -1,6 +1,6 @@
 # Variability marks: calibration report (Session 1)
 
-**7 Nov 2026.** Independently reviewed: the review's corrections are made, and every figure was recomputed from the CSV. This is the grader (`src/Metrics/variability/`) run over every logged session, with the spec §8.10 constants as they stand. Proposals are listed at the end, and **none has been applied.** Every constant still carries `TODO(calibrate)`.
+**7 Nov 2026.** Independently reviewed: the review's corrections are made, and every figure was recomputed from the CSV. This is the grader (`src/Vocabulary/Metrics/variability/`) run over every logged session, with the spec §8.10 constants as they stand. Proposals are listed at the end, and **none has been applied.** Every constant still carries `TODO(calibrate)`.
 
 ## What was run
 

@@ -15,7 +15,7 @@
 //   ctest --test-dir build/analyzer-tests -R context_tree_test --output-on-failure
 
 #include "../norms/context_tree.h"
-#include "../../Core/club_vocabulary.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
 
 #include <QFile>
 

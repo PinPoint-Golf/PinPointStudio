@@ -18,7 +18,7 @@
 #include "gspro_monitor.h"
 
 #include "gspro_reading.h"
-#include "lm_device.h"
+#include "../Vocabulary/LaunchMonitor/lm_device.h"
 
 #include "pp_debug.h"
 

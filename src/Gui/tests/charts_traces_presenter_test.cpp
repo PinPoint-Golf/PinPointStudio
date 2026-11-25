@@ -31,10 +31,10 @@
 #include "folder_series.h"   // the old loader, a test double (5.5a)
 #include "charts/session_warp.h"
 #include "charts/variability_env.h"
-#include "Metrics/metric_catalogue.h"
+#include "Vocabulary/Metrics/metric_catalogue.h"
 #include "variability/variability_facade.h"
-#include "Metrics/variability/variability_constants.h"
-#include "Metrics/variability/variability_grader.h"
+#include "Vocabulary/Metrics/variability/variability_constants.h"
+#include "Vocabulary/Metrics/variability/variability_grader.h"
 
 #include <QElapsedTimer>
 #include <QFile>
@@ -1464,7 +1464,7 @@ private slots:
         }
     }
 
-    // AN INSTANT WITHIN 2 ms OF IMPACT IS "AT IMPACT" (Core/figure_format.h impactTime), the same window the
+    // AN INSTANT WITHIN 2 ms OF IMPACT IS "AT IMPACT" (Vocabulary/Common/figure_format.h impactTime), the same window the
     // report and every other surface use: the club / pelvis standfirst, the chest's probable peak (its ± kept)
     // and a curve's peak in the head. A peak at +1 ms is not counted "after impact" either.
     void atImpactWording()

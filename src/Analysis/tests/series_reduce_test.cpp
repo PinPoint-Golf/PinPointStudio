@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Standalone test for the shared robust reducers (src/Metrics/series_reduce.h).
+// Standalone test for the shared robust reducers (src/Vocabulary/Metrics/series_reduce.h).
 // Synthetic series only — no pose, no fixture, no video. Mirrors
 // lower_body_metrics_test.cpp in structure and style (own main, hand-rolled CHECK).
 //
@@ -49,7 +49,7 @@
 // run. If one of these fails, read the derivation before changing the number: the
 // window arithmetic is the thing under test.
 
-#include "../../Metrics/series_reduce_metric.h" // series_reduce.h + viewOf(MetricSeries)
+#include "../../Vocabulary/Metrics/series_reduce_metric.h" // series_reduce.h + viewOf(MetricSeries)
 
 #include <cmath>
 #include <cstdint>

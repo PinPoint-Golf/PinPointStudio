@@ -644,7 +644,7 @@ set(PP_QML_SOURCES
     src/Gui/charts/consistency_env.h
     src/Gui/charts/consistency_env.cpp
     # Clubs and the variability grade (R2a pooled within-club, R2b per club): the grader's inputs from
-    # per-swing (club, value) readings. Needs session_consistency.cpp (above) and src/Metrics/variability/.
+    # per-swing (club, value) readings. Needs session_consistency.cpp (above) and src/Vocabulary/Metrics/variability/.
     src/Gui/charts/variability_clubs.h
     src/Gui/charts/variability_clubs.cpp
     # The variability scale provider (spec §8.2 step 4): what a reading is graded against, from the norms and the
@@ -710,7 +710,7 @@ set(PP_QML_SOURCES
     src/Gui/trust/trust_types.h      # the Trust presenter's typed values (refactor 5.5b)
     # The variability façade (docs/design/variability-mark/spec.md §4.1, §8): the `variabilityResult` value
     # type and the `Variability` constants singleton. RESULTS only; the grader it reads is
-    # src/Metrics/variability/, which every consumer must compile (the app's Metrics list, and the
+    # src/Vocabulary/Metrics/variability/, which every consumer must compile (the app's Metrics list, and the
     # link closures of qml_ui_test and session_setup_ui_test in src/Gui/CMakeLists.txt).
     src/Gui/variability/variability_facade.h
     src/Gui/variability/variability_facade.cpp
@@ -726,8 +726,8 @@ set(PP_QML_SOURCES
     src/Gui/review/metric_catalog.cpp
     # metric_catalog.cpp's setupSummary() — listed here, not beside the other Metrics sources, so
     # every consumer of this module (the app and both QML suites) gets it with one line.
-    src/Metrics/setup_capability.h
-    src/Metrics/setup_capability.cpp
+    src/Vocabulary/Metrics/setup_capability.h
+    src/Vocabulary/Metrics/setup_capability.cpp
     src/Gui/launchmonitor/lm_session_model.h
     src/Gui/launchmonitor/lm_session_model.cpp
     # The panel's vendored art (qrc:/lm/…, src/Gui/resources/lm/) — a C++ QML singleton.

@@ -18,7 +18,7 @@
 
 #include "variability_geometry.h"
 
-#include "../../Metrics/variability/variability_constants.h"   // kTrendMinSessions, kFunnelMaxSessions, kTraceGridPoints
+#include "../../Vocabulary/Metrics/variability/variability_constants.h"   // kTrendMinSessions, kFunnelMaxSessions, kTraceGridPoints
 
 #include <QByteArray>
 #include <QJSEngine>

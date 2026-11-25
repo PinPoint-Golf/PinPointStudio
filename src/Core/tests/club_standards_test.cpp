@@ -20,8 +20,8 @@
 // neighbours resolves for men and women, lengths fall and lies rise down the bag, a women's club is
 // an inch shorter, and a junior's length follows their height.
 
-#include "club_standards.h"
-#include "club_vocabulary.h"
+#include "../../Vocabulary/Club/club_standards.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
 
 #include <gtest/gtest.h>
 

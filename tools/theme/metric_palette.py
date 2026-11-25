@@ -82,7 +82,7 @@ def build(t, mode):
 PAL = {t: {m: build(t, m) for m in ("dark", "light")} for t in THEMES}
 
 def manifest():
-    src = (ROOT / "src/Metrics/metric_catalogue_manifest.cpp").read_text()
+    src = (ROOT / "src/Vocabulary/Metrics/metric_catalogue_manifest.cpp").read_text()
     rows, presets, key = [], collections.defaultdict(list), None
     cur = {}
     for line in src.split("\n"):

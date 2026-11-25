@@ -26,8 +26,8 @@
 // video stream backed by a raw sidecar, the IMU samples, the recorded ball stream, and
 // analysis.bindings. Loading that folder (recording_loader.h) is the disk half of the round trip.
 
-#include "../../Recording/recording.h"
-#include "../../Core/club_standards.h"
+#include "../../Vocabulary/Recording/recording.h"
+#include "../../Vocabulary/Club/club_standards.h"
 #include "../../Analysis/swing_analysis_json.h"   // bindingsToJson — the writer's own spelling
 #include "../../Export/recording_header.h"
 #include "../../Export/swing_doc.h"

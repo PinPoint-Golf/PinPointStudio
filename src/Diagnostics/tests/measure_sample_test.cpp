@@ -30,8 +30,8 @@
 #include "../../Export/swing_store.h"   // LazyDocument: the parse shared with the summary reader
 #include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
 
-#include "../../Metrics/series_reduce.h"
-#include "../../Metrics/line_angle.h"
+#include "../../Vocabulary/Metrics/series_reduce.h"
+#include "../../Vocabulary/Metrics/line_angle.h"
 
 #include <QDateTime>
 #include <QDir>

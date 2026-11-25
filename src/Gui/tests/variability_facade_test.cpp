@@ -23,8 +23,8 @@
 
 #include "variability/variability_facade.h"
 
-#include "../../Metrics/variability/variability_constants.h"
-#include "../../Metrics/variability/variability_result.h"
+#include "../../Vocabulary/Metrics/variability/variability_constants.h"
+#include "../../Vocabulary/Metrics/variability/variability_result.h"
 
 #include <QMetaProperty>
 #include <QtTest>

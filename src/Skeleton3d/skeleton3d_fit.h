@@ -37,7 +37,7 @@
 #include <vector>
 
 #include "skeleton3d_rig.h"
-#include "../Core/pp_tuned_constants.h"      // tuned::skeleton3d::
+#include "../Vocabulary/Common/pp_tuned_constants.h"      // tuned::skeleton3d::
 #include "../Vocabulary/Analysis/skeleton3d_types.h"    // kNaN, Cameras, ClubPlane, FitResult (vocabulary since refactor 7.3)
 
 namespace pinpoint::skeleton3d {

@@ -11,7 +11,7 @@ diagnostics panels, and the Setup page.
   is the *whether, and why not* question). The two censuses are separate tables over the same
   metrics and are meant to be read together;
 - `kinematic_sequence_design.md` §12: the sighted band and the bounds a refused node keeps;
-- the Setup page's capability summary (`src/Metrics/setup_capability*`,
+- the Setup page's capability summary (`src/Vocabulary/Metrics/setup_capability*`,
   `src/Gui/setup/setup_capability_rows.js`): measured / estimated / unavailable / derived, the
   *before-capture* answer to the same question.
 

@@ -25,18 +25,18 @@ pp_add_test(charts_traces_presenter_test
             ${GUI}/charts/variability_clubs.cpp
             ${GUI}/charts/variability_env.cpp
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Metrics/variability/variability_grader.cpp
-            ${SRC}/Metrics/variability/variability_result.cpp
-            ${SRC}/Metrics/variability/variability_typicality.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
             ${SRC}/Kinematics/gap_bridge.cpp
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/trust/trust_types.h      # thisShot.trust is a list of its readings (refactor 5.5c): moc'd here
             ${GUI}/review/chart_metrics.cpp
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Metrics/metric_catalogue.cpp
-            ${SRC}/Metrics/metric_resolver.cpp
-            ${SRC}/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Metrics/metric_providers.cpp
+            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
+            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
+            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
+            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
             ${SRC}/Diagnostics/norms/norm.cpp
             ${SRC}/Diagnostics/norms/norm_pack.cpp
@@ -56,7 +56,7 @@ pp_add_test(charts_traces_presenter_test
             ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${GUI}/variability ${SRC} ${SRC}/Core ${SRC}/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
+    INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${GUI}/variability ${SRC} ${SRC}/Core ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)

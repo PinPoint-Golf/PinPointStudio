@@ -35,7 +35,7 @@
 // passed / assessable stay on the struct for the ranking and the tests; they are not published.
 
 #include "diagnostic_ledger.h"
-#include "../Metrics/gate_catalogue.h"   // the words of the gate or rule behind a "—" (claimWords)
+#include "../Vocabulary/Metrics/gate_catalogue.h"   // the words of the gate or rule behind a "—" (claimWords)
 
 #include <QString>
 #include <QStringList>

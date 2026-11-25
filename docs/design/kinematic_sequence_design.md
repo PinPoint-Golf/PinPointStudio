@@ -568,7 +568,7 @@ In the order the dependencies run; each step is buildable and testable on its ow
    (new): Stage 0 of §9. `tuned::sequence::*` constants in `pp_tuned_constants.h`, SwingLab-sweepable
    as `sequence.*`.
 4. **`src/Analysis/wrist_analyzer.cpp`** — `KinematicSequenceStage`, appended after `ShaftPlaneStage`.
-5. **`src/Metrics/metric_catalogue_manifest.cpp`** — four descriptors with presets and ladders;
+5. **`src/Vocabulary/Metrics/metric_catalogue_manifest.cpp`** — four descriptors with presets and ladders;
    `kinematicSequence` rungs rewritten; header comment counts updated (PRODUCED +5, PLANNED −1).
    `metric_catalogue_test.cpp` extended. **`metric_providers.{h,cpp}`** — `KinematicSequenceProvider`.
 6. **Payload**: swing exporter + `QmlPayload` for `analysis.kinematicSequence`;

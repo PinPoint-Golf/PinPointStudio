@@ -51,7 +51,7 @@
 // PersistOptions and ShotSummary: the Shot's command vocabulary). No repository is named here: the door reaches the objects, never a repository (P11).
 #include "../DomainModel/shot_command_values.h"    // LabelCorrectionNote, SaveLater, SessionIntentEdit
 #include "../DomainModel/recording_source.h"       // RecordingSource (the readers: refactor step 3.4b-ii)
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QDir>
 #include <QJsonObject>

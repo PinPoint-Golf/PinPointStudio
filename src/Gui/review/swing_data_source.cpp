@@ -17,7 +17,7 @@
  */
 
 #include "swing_data_source.h"
-#include "../../Metrics/gate_catalogue.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"
 
 #include "swing_coverage_model.h"
 #include "swing_series_model.h"

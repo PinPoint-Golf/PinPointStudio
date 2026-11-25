@@ -32,7 +32,7 @@
 #include "../../Export/phase_grid_store.h"
 #include "../../Diagnostics/packs/reference_pack.h"
 #include "../../Diagnostics/packs/screen_pack.h"
-#include "../../Metrics/gate_catalogue.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"
 #include "../../Export/swing_paths.h"
 
 #include <QDateTime>
@@ -75,7 +75,7 @@ const QString kReferences      = QStringLiteral("references");
 const QString kCorridors       = QStringLiteral("corridors");
 const QString kMetrics         = QStringLiteral("metrics");
 const QString kHealth          = QStringLiteral("health");
-// The gate catalogue (Metrics/gate_catalogue.h), READ-ONLY: a gate is part of the analysis and
+// The gate catalogue (Vocabulary/Metrics/gate_catalogue.h), READ-ONLY: a gate is part of the analysis and
 // changes only with it. Listed so its explanation, thresholds and lifts — and how often it fired on
 // this library — can be read in one place (trust_and_gates_design.md §7.5, "the Gates page").
 const QString kGates           = QStringLiteral("gates");
@@ -671,7 +671,7 @@ QString typeLabelFor(const QString &type)
 // ── Gates ───────────────────────────────────────────────────────────────────
 //
 // Words for the gate catalogue's fields. The entry's own words (title, explain, evidence template,
-// liftText) come from Metrics/gate_catalogue.h unchanged; what is said here is only how a catalogue
+// liftText) come from Vocabulary/Metrics/gate_catalogue.h unchanged; what is said here is only how a catalogue
 // page lists them.
 
 QString gateEffectWord(pinpoint::analysis::GateEffect e)
@@ -702,7 +702,7 @@ QString gateTuningValue(const pinpoint::gates::GateTuning &t)
 {
     if (t.unit == QLatin1String("switch"))
         return t.value != 0.0 ? QObject::tr("on") : QObject::tr("off");
-    return pinpoint::gates::tuningValue(t);           // the gate catalogue's own rule (Core/figure_format.h withUnit)
+    return pinpoint::gates::tuningValue(t);           // the gate catalogue's own rule (Vocabulary/Common/figure_format.h withUnit)
 }
 
 // The table's threshold cell: the numbers compared against, switches left to the inspector (a row of

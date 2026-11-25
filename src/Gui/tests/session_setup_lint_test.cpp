@@ -46,7 +46,7 @@
 //   W8  No `applies` / `gate` in setup/SetupSteps.qml mentions `sessionType` or `preset`: hardware
 //       decides which steps run (§4.12).
 //   W11 TrunkRoutine.qml's mirrored gates (its still / upright / turn properties and the turn
-//       durations in `defaultPace`) equal their constants in Core/pp_tuned_constants.h
+//       durations in `defaultPace`) equal their constants in Vocabulary/Common/pp_tuned_constants.h
 //       (tuned::trunkRoutine, tuned::calib), and WitmotionArmRoutine.qml's mount-gate literals
 //       equal ImuInstance::kMountDeviationMaxDeg / kMountGravityErrorMaxDeg (imu/imu_instance.h)
 //       — the QML cannot read the headers, so this is the guard.
@@ -73,7 +73,7 @@
 #include <cmath>
 #include <cstdio>
 
-#include "Core/pp_tuned_constants.h"
+#include "Vocabulary/Common/pp_tuned_constants.h"
 
 namespace {
 

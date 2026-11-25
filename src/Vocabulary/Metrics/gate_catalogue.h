@@ -39,10 +39,10 @@
 // dropped whole when any key inside it is missing. Evidence never carries prose, so a record read
 // with revised words still says the right thing.
 
-#include "../Core/figure_format.h"      // every evidence figure and threshold: the app's one formatter
-#include "../Core/pp_tuned_constants.h"
-#include "../Vocabulary/Analysis/gate_record.h"
-#include "../Vocabulary/Analysis/swing_analysis.h"   // Phase (phaseSubject)
+#include "../Common/figure_format.h"      // every evidence figure and threshold: the app's one formatter
+#include "../Common/pp_tuned_constants.h"
+#include "../Analysis/gate_record.h"
+#include "../Analysis/swing_analysis.h"   // Phase (phaseSubject)
 
 #include <QChar>
 #include <QHash>
@@ -499,7 +499,7 @@ inline QString notJudgedClause(const QString &subject, const QString &gateId);
 
 namespace detail {
 
-// A figure as every surface sets it (Core/figure_format.h): the true minus, "+" only where asked, never "−0".
+// A figure as every surface sets it (Vocabulary/Common/figure_format.h): the true minus, "+" only where asked, never "−0".
 inline QString minusSigned(double v, int dec, bool plus)
 {
     return plus ? pinpoint::figures::figSigned(v, dec) : pinpoint::figures::fig(v, dec);
@@ -540,7 +540,7 @@ inline QString formatValue(const QVariant &v, const QString &fmt, const GateEntr
     if (v.typeId() == QMetaType::QString) return v.toString();
     if (v.typeId() == QMetaType::Bool) return v.toBool() ? QStringLiteral("on") : QStringLiteral("off");
     const double d = v.toDouble();
-    // each figure joined to its unit by the app's one rule (Core/figure_format.h withUnit)
+    // each figure joined to its unit by the app's one rule (Vocabulary/Common/figure_format.h withUnit)
     using pinpoint::figures::withUnit;
     if (fmt == QLatin1String("t"))   return withUnit(minusSigned(d, 0, true), QStringLiteral("ms"));
     if (fmt == QLatin1String("ms"))  return withUnit(minusSigned(d, 0, false), QStringLiteral("ms"));
@@ -559,7 +559,7 @@ inline QString formatValue(const QVariant &v, const QString &fmt, const GateEntr
 } // namespace detail
 
 // One tuned threshold as the reader sees it: "20°", "47 ms", "0.3" (a ratio); whole values whole, else two
-// decimals; the unit by the one rule (Core/figure_format.h withUnit). A "switch" is the caller's to word.
+// decimals; the unit by the one rule (Vocabulary/Common/figure_format.h withUnit). A "switch" is the caller's to word.
 inline QString tuningValue(const GateTuning &t)
 {
     const bool whole = std::fabs(t.value - std::round(t.value)) < 1e-9;

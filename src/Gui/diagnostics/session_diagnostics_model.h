@@ -856,7 +856,7 @@ private:
     // ── The variability marks on the strip and the history (governance/artefacts/design_system/variability.md) ──
     //
     // TECHNICAL LAYER, PAIRED: the box and the per-session boxes stay exactly as drawn; beside them, a
-    // consistency grade (src/Metrics/variability/) per club, never across clubs (Mark's ruling R2b).
+    // consistency grade (src/Vocabulary/Metrics/variability/) per club, never across clubs (Mark's ruling R2b).
     //   spread.clubBadges   [{ club, n, result }]   one per club with a reading, perClubInputs' order
     //                                               (readings descending); `result` a variabilityResult
     //   history.funnels     [{ club, n, sessions[{ rho, grade, breakBefore }], trend, basisText,

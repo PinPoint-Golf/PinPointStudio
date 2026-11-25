@@ -1150,7 +1150,7 @@ the world back, and it tipped a face-on-only fit's world from 9° to 15°.
   (keypoints interpolated, no borrowed shaft or head sample). There the head lifted one ball radius
   is the ball's point (1.5 cm, quadratic).
 - **Length.** A recorded length is held on face-on-only fits too (5 mm). With no record, the swing's
-  DECLARED club takes its standard length (`src/Core/club_standards.h`; men / women / junior by
+  DECLARED club takes its standard length (`src/Vocabulary/Club/club_standards.h`; men / women / junior by
   height), held to 1 cm on both tiers. Only the skeleton reads it: the shaft tracker and the speeds
   keep the driver default they were graded on.
 - **The grounded club also applies to face-on-only fits.** With the ball giving the head depth, it

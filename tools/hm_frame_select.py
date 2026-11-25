@@ -754,7 +754,7 @@ def main() -> int:
         idx = [n for n, _, _ in CANDIDATES].index(name)
         print(f"✅ {name} is the only candidate consistent with the directions performed.")
         print(f"   {basis}")
-        print(f"\n   Set in src/Core/pp_tuned_constants.h:")
+        print(f"\n   Set in src/Vocabulary/Common/pp_tuned_constants.h:")
         print(f"       inline constexpr int kCandidate = {idx};   // {name}")
         if args.mounting:
             print(f"   Record the mounting alongside it: {args.mounting}")

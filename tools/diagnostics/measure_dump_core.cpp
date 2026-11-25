@@ -19,7 +19,7 @@
 #include "measure_dump_core.h"
 #include "../../src/Export/phase_grid_store.h"   // the phase grid's file door: a tool over bare folders (P-3)
 
-#include "Core/club_vocabulary.h"
+#include "Vocabulary/Club/club_vocabulary.h"
 #include "Diagnostics/norms/norm_measure_source.h"
 #include "Export/swing_doc.h"
 #include "Export/swing_store.h"

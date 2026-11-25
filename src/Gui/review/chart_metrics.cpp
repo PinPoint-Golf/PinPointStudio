@@ -18,13 +18,13 @@
 
 #include "chart_metrics.h"
 
-#include "../../Metrics/fitted_curve.h"
-#include "../../Metrics/series_reduce.h"    // C8 — reduceAt / reduceExtremum / reduceRate
+#include "../../Vocabulary/Metrics/fitted_curve.h"
+#include "../../Vocabulary/Metrics/series_reduce.h"    // C8 — reduceAt / reduceExtremum / reduceRate
 #include "timeline_labels.h"                    // the one phase-tag vocabulary (hasPositionTag)
 #include "../../Vocabulary/Analysis/swing_analysis.h"      // SigmaKind (sigmaInfo)
 #include "../../Kinematics/kinematic_sequence.h" // seqSegmentFromKey (the tile's tie-break)
-#include "../../Core/pp_tuned_constants.h"     // tuned::uncertainty::kGrossWarn
-#include "../../Core/figure_format.h"           // the app's one figure formatter, unit rule and tick rule
+#include "../../Vocabulary/Common/pp_tuned_constants.h"     // tuned::uncertainty::kGrossWarn
+#include "../../Vocabulary/Common/figure_format.h"           // the app's one figure formatter, unit rule and tick rule
 
 #include <QHash>
 #include <QSet>

@@ -15,3 +15,7 @@ src/Core/height_text -> src/Vocabulary/Common/
 src/Core/pp_physical_constants -> src/Vocabulary/Common/
 src/Core/pp_tuned_constants -> src/Vocabulary/Common/
 src/Core/sidecar_policy -> src/Vocabulary/Common/
+# The IM's dated rows, kept as written (BRIEF-B1.5 additions; line numbers on origin/main 29eec727, before the move).
+# Needs the tool to scan governance/ (NOTES-B1.5-prep.md item 1): on main's tool these keeps are errors.
+# 1464 DEC-29, 1472 DEC-37, 1583 DEC-148 (decisions register); 2008 change log 1.8; 2040 change log 1.9.24.
+keep: governance/artefacts/information_model.md:1464,1472,1583,2008,2040

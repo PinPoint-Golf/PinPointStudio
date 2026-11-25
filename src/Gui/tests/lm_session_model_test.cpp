@@ -61,8 +61,8 @@
 #include "../../Export/athlete_store.h"
 #include "../../Export/session_store.h"
 #include "../../Export/swing_store_repository.h"
-#include "../../LaunchMonitor/launch_monitor_reading.h"
-#include "../../Core/figure_format.h"   // T5: the app's one ±
+#include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
+#include "../../Vocabulary/Common/figure_format.h"   // T5: the app's one ±
 
 #include <QCoreApplication>
 #include <QDir>

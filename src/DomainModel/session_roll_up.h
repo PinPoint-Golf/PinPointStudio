@@ -38,7 +38,7 @@
 // counts' value type), both header-only.
 
 #include "../Coaching/session_gates.h"     // SessionGates (rules: values and JSON only)
-#include "../LaunchMonitor/lm_device.h"   // canonicalDeviceToken (vocabulary)
+#include "../Vocabulary/LaunchMonitor/lm_device.h"   // canonicalDeviceToken (vocabulary)
 
 #include <QString>
 #include <QStringList>

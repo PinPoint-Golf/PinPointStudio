@@ -96,7 +96,7 @@
 #include "session_identity.h"
 #include "session_input.h"          // SessionInput (FILE-SESS-02)
 #include "session_roll_up.h"        // SessionIndexSummary: the entry's summary (refactor step 5.7a-P1)
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QDateTime>
 #include <QJsonObject>

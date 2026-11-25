@@ -43,9 +43,9 @@
 
 #include "../Diagnostics/measures/measure_vocabulary.h"         // Measure, measureKeyLadder
 #include "../Diagnostics/norms/norm_provider.h"                 // INormProvider
-#include "../Metrics/metric_catalogue.h"
-#include "../Metrics/variability/variability_outcome.h"         // isOutcomeMetric
-#include "../Metrics/variability/variability_scale_type.h"
+#include "../Vocabulary/Metrics/metric_catalogue.h"
+#include "../Vocabulary/Metrics/variability/variability_outcome.h"         // isOutcomeMetric
+#include "../Vocabulary/Metrics/variability/variability_scale_type.h"
 
 #include <QString>
 

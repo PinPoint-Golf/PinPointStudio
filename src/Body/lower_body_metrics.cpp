@@ -18,7 +18,7 @@
 
 #include "lower_body_metrics.h"
 
-#include "../Metrics/metric_channel.h" // channelValidityMask + the shared interp / phase / nearest helpers
+#include "../Vocabulary/Metrics/metric_channel.h" // channelValidityMask + the shared interp / phase / nearest helpers
 
 #include <algorithm>
 #include <cmath>

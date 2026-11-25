@@ -37,9 +37,9 @@ def real(name):
 
 # Theme.variabilityHysteresis is the QML copy of the grader's kHysteresis (spec §8.9, §10): the two must
 # never disagree, so the token file refuses to generate (and --check fails) when they do.
-_vc = open(os.path.join(ROOT, "src/Metrics/variability/variability_constants.h"), encoding="utf-8").read()
+_vc = open(os.path.join(ROOT, "src/Vocabulary/Metrics/variability/variability_constants.h"), encoding="utf-8").read()
 m = re.search(r"constexpr\s+double\s+kHysteresis\s*=\s*([\d.]+)", _vc)
-if not m: raise SystemExit("make_design_system: kHysteresis not found in src/Metrics/variability/variability_constants.h")
+if not m: raise SystemExit("make_design_system: kHysteresis not found in src/Vocabulary/Metrics/variability/variability_constants.h")
 if float(m.group(1)) != float(real("variabilityHysteresis")):
     raise SystemExit("make_design_system: Theme.variabilityHysteresis (%s) != kHysteresis (%s) in variability_constants.h"
                      % (real("variabilityHysteresis"), m.group(1)))
@@ -343,7 +343,7 @@ tokens = {
     ]},
     "behaviour": {"note": "Not a look: numbers that decide WHEN a look changes (the grader in C++ applies the hysteresis; Theme mirrors it for QML). Not theme keys.", "tokens": [
         {"name": "variabilityHysteresis", "value": real("variabilityHysteresis"),
-         "usage": "Live-session grade hysteresis (variability spec §8.9): a grade changes only when ρ (or s′, or ρm) crosses a band edge by this much. The C++ grader applies it (hysteresisGrade); no component reads it, and a mark draws whatever grade it is given. Equals kHysteresis in src/Metrics/variability/variability_constants.h (the generator checks); frozen session assessments use the plain bands."},
+         "usage": "Live-session grade hysteresis (variability spec §8.9): a grade changes only when ρ (or s′, or ρm) crosses a band edge by this much. The C++ grader applies it (hysteresisGrade); no component reads it, and a mark draws whatever grade it is given. Equals kHysteresis in src/Vocabulary/Metrics/variability/variability_constants.h (the generator checks); frozen session assessments use the plain bands."},
     ]},
     "meta": {"source": "src/Gui/theme/Theme.qml", "generator": "tools/theme/make_design_system.py",
              "aesthetics": AES, "note": "Generated — edit Theme.qml and rerun, never this file."},

@@ -47,7 +47,7 @@
 
 #include "../DomainModel/athlete.h"
 #include "../DomainModel/session.h"
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QObject>
 #include <QPointer>

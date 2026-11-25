@@ -89,8 +89,8 @@
 #include "recording_repository.h"   // WriteResult, StreamArrival, TruthView, LabelCorrection
 #include "shot_command_values.h"    // LabelCorrectionNote, SaveLater
 #include "recording_source.h"   // RecordingSource (its own header: the analysis services take it alone)
-#include "../Identity/identity.h"
-#include "../Recording/recording.h"   // recording::ShotKind
+#include "../Vocabulary/Identity/identity.h"
+#include "../Vocabulary/Recording/recording.h"   // recording::ShotKind
 
 #include <QJsonObject>
 #include <QObject>

@@ -19,8 +19,8 @@
 #include "recording_header.h"
 
 #include "swing_exporter.h"
-#include "../Core/club_standards.h"
-#include "../Core/club_vocabulary.h"
+#include "../Vocabulary/Club/club_standards.h"
+#include "../Vocabulary/Club/club_vocabulary.h"
 
 namespace pinpoint {
 
@@ -40,7 +40,7 @@ int schemaVersionOf(const QJsonValue &tag, QLatin1String kind)
     return ok && v > 0 ? v : 0;
 }
 
-// handednessName / clubSetName / clubSetFromName: the one spelling, in src/Recording/analysis_context.h
+// handednessName / clubSetName / clubSetFromName: the one spelling, in src/Vocabulary/Recording/analysis_context.h
 // (shared with the analysis' input stamp, step 1.6).
 using rec::handednessName;
 using rec::clubSetName;

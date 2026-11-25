@@ -34,7 +34,7 @@
 #if defined(HAVE_OPENCV)
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
-#include "../Export/frame_decode.h"
+#include "../Vocabulary/Recording/frame_decode.h"
 #endif
 
 using pinpoint::analysis::ImpactSample2D;

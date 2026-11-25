@@ -457,7 +457,7 @@ Q1 decided: the trail shoulder (§8.1).
    `ctx.detail->poseDtl` (handedness-aware: the right shoulder for a right-handed golfer) as the median over the
    address hold (before P1 − 100 ms, the ball finder's window), with the DTL ball; publish `shoulderPlane` as one
    phase sample at Address. Log it on the swing plane curve's line.
-3. `Metrics/metric_catalogue_manifest.cpp`: descriptor `shoulderPlane` (PointInTime, Club delivery, chart only,
+3. `Vocabulary/Metrics/metric_catalogue_manifest.cpp`: descriptor `shoulderPlane` (PointInTime, Club delivery, chart only,
    `usedBy chart:review`); `metric_providers.cpp`, `Club/shaft_track_assembly.cpp` (covers); counts in
    `metric_catalogue_test.cpp`.
 4. `Analysis/analysis_versions.h`: fusion stage 8 → 9.

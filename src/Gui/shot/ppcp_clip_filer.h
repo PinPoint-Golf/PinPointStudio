@@ -26,7 +26,7 @@
 #include "../../Video/VideoInputPpcp.h"
 
 namespace Ppcp { class PpcpImportLedger; }
-#include "../../Identity/identity.h"   // ShotRef
+#include "../../Vocabulary/Identity/identity.h"   // ShotRef
 
 namespace pinpoint { class ShotCommandDoor; }
 

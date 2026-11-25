@@ -46,7 +46,7 @@
 
 #include "../Vocabulary/Analysis/swing_analysis.h" // PoseTrack2D, PoseFrame2D, MetricSeries, PhaseEvent, kFaceFirstKp
 #include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply
-#include "../Core/pp_tuned_constants.h"   // tuned::head::
+#include "../Vocabulary/Common/pp_tuned_constants.h"   // tuned::head::
 
 namespace pinpoint::analysis {
 

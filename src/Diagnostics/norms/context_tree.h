@@ -129,7 +129,7 @@ const ContextBinding *ownContextBinding(const Condition &&, const QString &) = d
 // ── What context a SHOT is in ───────────────────────────────────────────────
 //
 // The club a swing was hit with, as a node in this tree. A swing.json records the club (the token
-// vocabulary in Core/club_vocabulary.h) and no context id at all, so something has to bridge the
+// vocabulary in Vocabulary/Club/club_vocabulary.h) and no context id at all, so something has to bridge the
 // two — and it is here, once, rather than at each surface that grades a swing. Ball position is the
 // case that makes it matter: the shipped pack authors five corridors for it (any, driver,
 // fairway_wood, iron, wedge), and reading a driver against the full-swing row throws all five away.

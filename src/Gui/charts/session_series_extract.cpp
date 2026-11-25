@@ -26,7 +26,7 @@
 #include "../../Vocabulary/Analysis/swing_analysis.h"              // Phase::Impact
 #include "../../Vocabulary/Analysis/uncertainty_json.h"            // copyPhaseSampleSigma
 #include "../../Coaching/sequence_checks.h"             // the KS checks off the ledger's signal rows
-#include "../../Core/club_vocabulary.h"                 // swingDocDeclaredClub
+#include "../../Vocabulary/Club/club_vocabulary.h"                 // swingDocDeclaredClub
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/condition_reading.h" // condition → { metricKey, phase }
 #include "../../Diagnostics/packs/pack_provider.h"      // condition names and groups

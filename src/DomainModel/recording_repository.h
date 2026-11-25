@@ -93,8 +93,8 @@
 // Domain model ring (src/DomainModel): names no store type. The analysis and the launch monitor
 // reading are passed by reference to their own (inner-ring) types, declared forward here.
 
-#include "../Identity/identity.h"
-#include "../Metrics/measurement.h"   // MeasurementSet (OBJ-MEASUREMENT; refactor 6.1a)
+#include "../Vocabulary/Identity/identity.h"
+#include "../Vocabulary/Metrics/measurement.h"   // MeasurementSet (OBJ-MEASUREMENT; refactor 6.1a)
 
 #include <QJsonObject>
 #include <QString>

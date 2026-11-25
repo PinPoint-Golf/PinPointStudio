@@ -17,7 +17,7 @@
  */
 .pragma library
 
-// HOW EVERY FIGURE QML SETS IS SET — the QML twin of Core/figure_format.h, function for function, so a figure QML
+// HOW EVERY FIGURE QML SETS IS SET — the QML twin of Vocabulary/Common/figure_format.h, function for function, so a figure QML
 // sets reads exactly as the C++ sets it (gui-catalogue C15–C17). PpTypeset's figure helpers are these (a typeset
 // block calls roles.figure(…)); a file with no PpTypeset to hand imports this directly (HmAreaRow). C++ fig() is
 // figure() here: PpDiagRoles.fig() is something else (the figure OF a reading the model published).

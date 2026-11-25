@@ -109,7 +109,7 @@
 #include "../Diagnostics/engine/fire_findings.h"
 #include "../Diagnostics/engine/session_reduction.h"
 #include "../Coaching/session_day_readings.h"   // the summary's day readings (refactor 5.5d)
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QDate>
 #include <QHash>

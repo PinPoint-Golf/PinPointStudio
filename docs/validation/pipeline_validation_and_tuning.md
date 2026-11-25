@@ -198,7 +198,7 @@ next layer on top. Every change, at every corpus, also obeys the universal gate:
 > their *provisional* values from repeatability + plausibility; Corpus 3 only confirms they generalise.
 
 > **The freeze edit-point is one header.** Every parameter that is *tuned during validation and then
-> frozen* draws its compiled-in default from **`src/Core/pp_tuned_constants.h`** (`pinpoint::tuned::*`):
+> frozen* draws its compiled-in default from **`src/Vocabulary/Common/pp_tuned_constants.h`** (`pinpoint::tuned::*`):
 > Madgwick `kBeta`, the seed tolerances, the mount quats + axis-angle bounds, the `kWristBands` numerics +
 > deadbands, the sampler defaults, and the `RuleTuning` defaults. During tuning, SwingLab injects
 > candidate values at run time via the dotted keys (the header is not consulted on the override path);
@@ -971,7 +971,7 @@ src/IMU/orientation_filter.h          # Madgwick m_beta / ESKF
 
 The dotted-key tunability infrastructure is **built, unit-tested, and committed** (every analysis
 parameter is now injectable and diff-gated; the frozen defaults live in
-`src/Core/pp_tuned_constants.h`; see [`tunable_parameters_reference.md`](tunable_parameters_reference.md)
+`src/Vocabulary/Common/pp_tuned_constants.h`; see [`tunable_parameters_reference.md`](tunable_parameters_reference.md)
 for the catalog + developer guide). What remains is the validation *campaign* plus a few code gaps. This
 appendix is the honest punch-list, ordered within each bucket by leverage.
 

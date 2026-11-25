@@ -75,11 +75,11 @@ Inside `src/`. The folders follow the architecture's rings (Platform, Vocabulary
 | `Gui/` | The Qt Quick / QML interface and its C++ presenters |
 | `App/` | The application root: `AppState`, the athlete catch-up, start-up |
 | `DomainModel/` | The domain's entities and owners: `Athlete`, `Session`, `Shot`, their repositories and the diagnostics they own |
-| `Vocabulary/`, `Identity/`, `Recording/` | Shared value types and ids, and the Recording contract every captured swing follows |
+| `Vocabulary/` | Shared value types and ids, one area per folder (`Analysis/`, `Club/`, `Common/`, `Identity/`, `LaunchMonitor/`, `Metrics/`, `Recording/`, `Rig/`): among them the metric catalogue and the Recording contract every captured swing follows |
 | `Video/`, `Pose/` | Camera backends; pose, ball and person-segmentation models |
 | `Analysis/`, `Timeline/` | The swing analysis pipeline, and swing positions (P1–P10) over time |
 | `Body/`, `Club/`, `Ball/`, `Wrist/`, `Kinematics/`, `Skeleton3d/` | Measurement rules: posture, the club and shaft, the ball, the wrist, the kinematic sequence, the 3-D skeleton |
-| `Metrics/`, `Diagnostics/`, `Coaching/` | The metric catalogue, fault diagnostics, and the priorities and outcomes built from them |
+| `Diagnostics/`, `Coaching/` | Fault diagnostics, and the priorities and outcomes built from them |
 | `Buffer/` | The lock-free event buffer that time-aligns every sensor |
 | `IMU/`, `LaunchMonitor/`, `Ppcp/`, `Audio/` | Motion sensors, launch monitors, phone capture, microphones and shot sound |
 | `Export/` | Swing video, and the swing and athlete files |

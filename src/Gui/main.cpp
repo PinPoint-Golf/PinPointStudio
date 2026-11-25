@@ -102,7 +102,7 @@
 #include "../Export/rule_data_install.h" // the process's one RuleData, over its store
 #include "../Export/model_file_fingerprint.h"   // the pose model's fingerprint, read here, not by the stage (7.2)
 #include "../Pose/pose_model_selection.h"       // installModelFileFingerprint
-#include "../Metrics/metric_catalogue.h"
+#include "../Vocabulary/Metrics/metric_catalogue.h"
 #include "shot_controller.h"
 #include "shot_list_model.h"
 #include "../Export/swing_doc.h"

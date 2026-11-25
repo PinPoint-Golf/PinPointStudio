@@ -43,7 +43,7 @@
 // Domain model ring. No file I/O: a caller passes what it read (the session file's facts, or a
 // folder's path and the best start time it has).
 
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QDate>
 #include <QDateTime>

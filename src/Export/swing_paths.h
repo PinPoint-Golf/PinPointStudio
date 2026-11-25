@@ -40,7 +40,7 @@ namespace pinpoint {
 //         swing_0001/                    one folder per swing
 //
 // A folder's name is a property and provenance, never an identity: a session is a SessionId, a shot a
-// ShotRef (src/Identity/identity.h).
+// ShotRef (src/Vocabulary/Identity/identity.h).
 //
 // ONE HALF ONLY (refactor step 2.2). The session allocator that lived here — allocateSwingDir,
 // findTodaySessionDir, beginSession, endSession and their per-run session cache — is gone: a session's

@@ -261,7 +261,7 @@ int main()
 
     // ── Left-handed: the gloss mirrors, the reading does not ────────────────────
     //
-    // The rule from src/Metrics/metric_descriptor.h. A ball that started left and
+    // The rule from src/Vocabulary/Metrics/metric_descriptor.h. A ball that started left and
     // curved right is a pull-fade for a right-hander and a push-draw for a left-hander:
     // same ball, same numbers, different words. The EVIDENCE keeps saying "left",
     // because that is still where it went.

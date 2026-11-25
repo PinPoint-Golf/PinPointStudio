@@ -26,7 +26,7 @@
 //   ctest --test-dir build/tests -R '^shaft_direction_test$' --output-on-failure
 
 #include "../../Club/shaft_direction_series.h"
-#include "../../Metrics/series_reduce.h"
+#include "../../Vocabulary/Metrics/series_reduce.h"
 
 #include <cmath>
 #include <cstdio>

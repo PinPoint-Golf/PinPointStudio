@@ -52,7 +52,7 @@
 #include "analysis_job_builder.h"      // RunOptions, buildAnalysisJob
 #include "effective_context.h"
 #include "recording_integrity.h"       // IntegrityVerdicts, integrityFor
-#include "../Recording/recording.h"
+#include "../Vocabulary/Recording/recording.h"
 #include "../DomainModel/recording_source.h"   // RecordingSource: how a stored shot is read (refactor step 3.4b-ii)
 
 namespace pinpoint::analysis {

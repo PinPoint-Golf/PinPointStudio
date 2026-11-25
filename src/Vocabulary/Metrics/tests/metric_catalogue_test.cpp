@@ -11,8 +11,8 @@
 // NOT corridors. The catalogue no longer judges a metric — a corridor resolves through the norm set
 // (Diagnostics/norms/metric_corridor.h) and is gated by manifest_migration_test.
 
-#include "metric_catalogue.h"
-#include "launch_monitor_reading.h"
+#include "../metric_catalogue.h"
+#include "../../LaunchMonitor/launch_monitor_reading.h"
 
 #include <QSet>
 

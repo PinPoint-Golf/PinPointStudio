@@ -35,7 +35,7 @@
 //         5 Adapters     devices, the Recording store and other persistence, UI (all of src/Gui)
 //       A file may include its own ring or any ring inside it, never one outside. Also (step 2, S1-g;
 //       Mark, 15 Nov 2026, DEC-146): an Adapters-ring file outside src/Gui (Export, Buffer, Video, the
-//       connectors, the device back-ends, …) or a src/Recording file never includes a src/Gui header —
+//       connectors, the device back-ends, …) or a src/Vocabulary/Recording file never includes a src/Gui header —
 //       an include inside the Adapters ring that the ring check alone does not see.
 //   A2  QML creating a C++ type that is session- or athlete-scoped (scopedTypeRe() below — from
 //       data/seam_inventory.md). Its owner is the domain/application (03 §9), never a view.
@@ -84,7 +84,7 @@
 // (Buffer, IMU, Pose); and 03 §2 puts the capture and session services in src/Gui/shot in
 // Application (ShotProcessor, ShotController, ReanalysisController). Files are named by their path under src/ without the extension, so the .h and
 // the .cpp share one entry. A NEW file defaults to its directory's ring; a file in a directory that is
-// in neither table fails the test, so a new directory (src/Recording, say) has to be
+// in neither table fails the test, so a new directory (src/Vocabulary/Recording, say) has to be
 // placed on purpose. Platform (ring 0) is a decision of this test, not of 03: logging and profiling
 // are used by every ring and no step removes them, so they sit inside Vocabulary.
 //
@@ -163,9 +163,6 @@ const QVector<QPair<QString, int>> &dirRings()
         // The Vocabulary ring's one root folder, an area per subfolder; Analysis's shared types are its first area
         // (Solution Architect, 23 Nov 2026). The other areas below move under it in the platform refactor.
         { QStringLiteral("Vocabulary/"), Vocabulary },
-        { QStringLiteral("Metrics/"), Vocabulary },
-        { QStringLiteral("Recording/"), Vocabulary },     // the Recording contract's types (step 1, IM-6)
-        { QStringLiteral("Identity/"), Vocabulary },      // AthleteId, SessionId, ShotRef (step 2.1; D1, DEC-148)
         { QStringLiteral("Core/"), Vocabulary },          // device / logging files below
         { QStringLiteral("Pose/"), Rules },
         { QStringLiteral("Club/"), Rules },
@@ -243,12 +240,8 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Analysis/camera_pose_sticks"), Rules },
         { QStringLiteral("Analysis/frame_store"), Rules },
         { QStringLiteral("Analysis/mp4_frame_reader"), Adapters },
-        // Export: one decode of a recorded frame is part of the Recording contract.
-        { QStringLiteral("Export/frame_decode"), Vocabulary },
-        // LaunchMonitor: a reading as delivered and what measured it are vocabulary; the inferred
-        // reads, gates, pairing and reductions are rules; the connectors stay adapters.
-        { QStringLiteral("LaunchMonitor/launch_monitor_reading"), Vocabulary },
-        { QStringLiteral("LaunchMonitor/lm_device"), Vocabulary },
+        // LaunchMonitor: the inferred reads, gates, pairing and reductions are rules; the connectors stay
+        // adapters (a reading as delivered and what measured it are in Vocabulary/LaunchMonitor/).
         { QStringLiteral("LaunchMonitor/lm_inferred_reads"), Rules },
         { QStringLiteral("LaunchMonitor/lm_flight_path"), Rules },
         { QStringLiteral("LaunchMonitor/lm_enclosing_ellipse"), Rules },
@@ -568,7 +561,7 @@ QVector<Finding> scan(const Source &s, const Tree &tree)
                 out.append({ QStringLiteral("A1"), li + 1,
                              QStringLiteral("%1 → %2: includes %3").arg(QLatin1String(ringName(ring)),
                                                                          QLatin1String(ringName(tr)), target) });
-            else if ((ring == Adapters || rel.startsWith(QLatin1String("Recording/")))
+            else if ((ring == Adapters || rel.startsWith(QLatin1String("Vocabulary/Recording/")))
                      && !rel.startsWith(QLatin1String("Gui/")) && target.startsWith(QLatin1String("Gui/")))
                 out.append({ QStringLiteral("A1"), li + 1,
                              QStringLiteral("an adapter outside Gui reaches the UI (DEC-146): includes %1").arg(target) });
@@ -737,7 +730,7 @@ void selfTest()
     std::printf("=== the rules still catch what they are for ===\n");
     Tree t;
     for (const char *f : { "Gui/shot/shot_processor.h", "Gui/athlete/athlete_controller.h", "Coaching/shot_factors.h",
-                           "Metrics/metric_catalogue.h", "Buffer/source_ring.h", "Buffer/types.h", "Core/pp_debug.h",
+                           "Vocabulary/Metrics/metric_catalogue.h", "Buffer/source_ring.h", "Buffer/types.h", "Core/pp_debug.h",
                            "Vocabulary/Analysis/swing_analysis.h", "Analysis/analysis_pipeline.h", "Export/session_store.h",
                            "Export/swing_paths.h", "DomainModel/session_repository.h", "DomainModel/athlete.h" }) {
         t.files.insert(QString::fromLatin1(f));
@@ -747,9 +740,9 @@ void selfTest()
 
     check(countRule(run("Coaching/x.cpp", QStringLiteral("#include \"../Gui/shot/shot_processor.h\"\n")), "A1") == 1,
           QStringLiteral("A1 catches a rule including a Gui header"));
-    check(countRule(run("Metrics/x.h", QStringLiteral("#include \"shot_factors.h\"\n")), "A1") == 1,
+    check(countRule(run("Vocabulary/Metrics/x.h", QStringLiteral("#include \"shot_factors.h\"\n")), "A1") == 1,
           QStringLiteral("A1 resolves a bare include by its unique basename (Vocabulary → Rules)"));
-    check(countRule(run("Coaching/x.cpp", QStringLiteral("#include \"../Metrics/metric_catalogue.h\"\n#include \"pp_debug.h\"\n"
+    check(countRule(run("Coaching/x.cpp", QStringLiteral("#include \"../Vocabulary/Metrics/metric_catalogue.h\"\n#include \"pp_debug.h\"\n"
                                                          "#include \"../Buffer/types.h\"\n#include <QFile>\n")), "A1") == 0,
           QStringLiteral("A1 passes inward includes, Platform logging, the Recording's types and system headers"));
     check(countRule(run("Coaching/x.cpp", QStringLiteral("// #include \"../Gui/shot/shot_processor.h\"\n")), "A1") == 0,

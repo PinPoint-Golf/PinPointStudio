@@ -1,7 +1,7 @@
 # Brief — Diagnostics: population norms, corridor editing, and the navigable DAG
 
 **For:** Claude Code (Opus 5), working in `~/Projects/PinPoint`
-**Read first:** `CLAUDE.md`, `src/Diagnostics/characteristic.h`, `src/Diagnostics/characteristic_engine.h`, `src/Diagnostics/pack_provider.h`, `src/Gui/characteristics/characteristic_editor_model.h`, `src/Gui/characteristics/characteristic_library_model.h`, `src/Gui/characteristics/CharacteristicLibrary.qml`, `src/Analysis/reference_bands.h`, `src/Metrics/metric_descriptor.h`
+**Read first:** `CLAUDE.md`, `src/Diagnostics/characteristic.h`, `src/Diagnostics/characteristic_engine.h`, `src/Diagnostics/pack_provider.h`, `src/Gui/characteristics/characteristic_editor_model.h`, `src/Gui/characteristics/characteristic_library_model.h`, `src/Gui/characteristics/CharacteristicLibrary.qml`, `src/Analysis/reference_bands.h`, `src/Vocabulary/Metrics/metric_descriptor.h`
 
 **This work is additive.** The Diagnostics module, the pack stack, copy-on-write, the measure picker, the roadmap and the health view all exist and work. Do not restructure them. Almost everything below either fills a hole (`hasCorridor` is never true) or extends an existing seam.
 
@@ -160,7 +160,7 @@ Every hardcoded value survives as content. The inventory is exactly:
 |---|---|---|
 | `kRadUln`, `kFlexExt`, `kForearm`, `kTrailWrist`, `kElbow` | 39 valid green corridors (5 DOFs × 8 positions, less TrailWrist P8) | 39 norm rows, context `full_swing` |
 | the five `margin` fields (5.0, 5.0, 5.0, 6.0, 4.0°) | amber half-widths | explicit `monitorLo`/`monitorHi` on those rows |
-| `kArchetypeFaceOffsetDeg = 10.0` (`Core/pp_tuned_constants.h`) | bowed / cupped face shift | two context nodes with norm rows overriding `full_swing` for `LeadWristFlexExt` |
+| `kArchetypeFaceOffsetDeg = 10.0` (`Vocabulary/Common/pp_tuned_constants.h`) | bowed / cupped face shift | two context nodes with norm rows overriding `full_swing` for `LeadWristFlexExt` |
 
 Each (DOF, position) pair is a distinct `measureId`, so expect 39 rows.
 

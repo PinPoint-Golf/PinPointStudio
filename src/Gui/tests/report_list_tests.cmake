@@ -28,9 +28,9 @@ pp_add_test(report_list_test
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Export/session_archiver.cpp
             ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
-            ${SRC}/Core/folder_lock.cpp ${SRC}/Identity/identity.h   # the archiver's door (step 2.4)
+            ${SRC}/Core/folder_lock.cpp ${SRC}/Vocabulary/Identity/identity.h   # the archiver's door (step 2.4)
             ${SRC}/Export/swing_paths.cpp
-            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/report ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor

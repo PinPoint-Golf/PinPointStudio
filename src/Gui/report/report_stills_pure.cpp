@@ -24,7 +24,7 @@
 
 #include "report_stills_pure.h"
 
-#include "../../Core/pp_tuned_constants.h"     // the per-keypoint pose gate
+#include "../../Vocabulary/Common/pp_tuned_constants.h"     // the per-keypoint pose gate
 #include "../markup/markup_truth.h"            // faceOnStreamIndex / streamLooksDownTheLine
 
 #include <QJsonArray>

@@ -23,7 +23,7 @@
 // foot_metrics_test.cpp's structure/style.
 
 #include "../../Ball/ball_position.h"
-#include "../../Core/pp_physical_constants.h"
+#include "../../Vocabulary/Common/pp_physical_constants.h"
 
 #include <cmath>
 #include <cstdio>

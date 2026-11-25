@@ -136,7 +136,7 @@
 #include "../Analysis/route_substitution.h"
 #include "../Vocabulary/Analysis/gate_record.h"
 #include "../Vocabulary/Analysis/swing_analysis.h"
-#include "../Metrics/series_reduce.h"
+#include "../Vocabulary/Metrics/series_reduce.h"
 #include "grader_sample.h"   // grader::graderReadingAt — the top end of leadElbowBendChange3d, as graded (D6)
 
 #include <QString>

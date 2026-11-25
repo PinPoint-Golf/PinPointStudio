@@ -21,7 +21,7 @@
 #include <cmath>
 
 #include "iorientation_filter.h"
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 
 // Madgwick 6-axis (IMU: gyroscope + accelerometer) orientation filter.
 //

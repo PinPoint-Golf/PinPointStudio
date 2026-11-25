@@ -43,7 +43,7 @@
 #include "../../Diagnostics/packs/swing_themes_pack.h"
 #include "../../Diagnostics/norms/context_tree.h"
 #include "../../Diagnostics/norms/norm_provider.h"
-#include "../../Metrics/variability/variability_grader.h"
+#include "../../Vocabulary/Metrics/variability/variability_grader.h"
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"
 #include "../../Export/session_diagnostics_files.h"   // the session's files, and the golfer's input (step 2.5)

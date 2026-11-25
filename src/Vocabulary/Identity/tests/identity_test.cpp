@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-// identity_test — the identity types (src/Identity/identity.h; refactor step 2.1, brief §4.1):
+// identity_test — the identity types (src/Vocabulary/Identity/identity.h; refactor step 2.1, brief §4.1):
 // AthleteId, SessionId, ShotRef.
 //
 // The contract under test, from the header and information_model.md §5.2: each is a value type
@@ -25,7 +25,7 @@
 // distinct types; a ShotRef is a session and a swing number >= 1. Expectations come from that
 // contract (and from QUuid's own spelling), never from running the code and writing down what came out.
 
-#include "identity.h"
+#include "../identity.h"
 
 #include <QCoreApplication>
 #include <QHash>

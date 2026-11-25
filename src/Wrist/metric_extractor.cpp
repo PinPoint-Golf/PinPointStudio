@@ -23,7 +23,7 @@
 
 #include "wrist_angles.h"
 #include "../Core/pp_profiler.h"
-#include "../Metrics/measurement.h"   // storedKey: the one key translation (refactor 6.1a)
+#include "../Vocabulary/Metrics/measurement.h"   // storedKey: the one key translation (refactor 6.1a)
 
 namespace pinpoint::analysis {
 namespace {

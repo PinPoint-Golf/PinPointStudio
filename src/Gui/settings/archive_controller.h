@@ -42,7 +42,7 @@
 // Every file operation runs on a worker thread, one at a time.
 
 #include "../../App/housekeeping.h"
-#include "../../Identity/identity.h"
+#include "../../Vocabulary/Identity/identity.h"
 
 #include <QFutureWatcher>
 #include <QObject>

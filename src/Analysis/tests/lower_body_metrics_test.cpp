@@ -27,7 +27,7 @@
 // whole reason the channel is a difference rather than a position.
 
 #include "../../Body/lower_body_metrics.h"
-#include "../../Metrics/metric_channel.h" // channelValidityMask / nearestIndex — §6d and §6e test them directly
+#include "../../Vocabulary/Metrics/metric_channel.h" // channelValidityMask / nearestIndex — §6d and §6e test them directly
 
 #include <algorithm>
 #include <cmath>

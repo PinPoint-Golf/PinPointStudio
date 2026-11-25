@@ -16,7 +16,7 @@ pp_add_test(session_posture_test
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(session_posture_test PROPERTIES
@@ -37,9 +37,9 @@ set(POSTURE_VARIABILITY_SRC
     ${GUI}/charts/session_warp.cpp
     ${GUI}/charts/session_traces.cpp
     ${GUI}/variability/variability_facade.cpp
-    ${SRC}/Metrics/variability/variability_grader.cpp
-    ${SRC}/Metrics/variability/variability_result.cpp
-    ${SRC}/Metrics/variability/variability_typicality.cpp)
+    ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
+    ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
+    ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp)
 pp_add_test(charts_posture_presenter_test
     SOURCES charts_posture_presenter_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
@@ -57,7 +57,7 @@ pp_add_test(charts_posture_presenter_test
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_posture_presenter_test PROPERTIES

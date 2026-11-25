@@ -58,7 +58,7 @@
 
 #include "shot_analysis_job.h"
 #include "effective_context.h"
-#include "../Recording/recording.h"
+#include "../Vocabulary/Recording/recording.h"
 
 namespace pinpoint::analysis {
 

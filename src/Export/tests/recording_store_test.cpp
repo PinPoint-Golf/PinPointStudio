@@ -52,9 +52,9 @@
 #include "../../Analysis/effective_context.h"
 #include "../../Analysis/tests/recording_fixture.h"
 #include "../../Buffer/swing_window.h"
-#include "../../Core/club_standards.h"
-#include "../../Core/club_vocabulary.h"
-#include "../../LaunchMonitor/launch_monitor_reading.h"
+#include "../../Vocabulary/Club/club_standards.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
+#include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "../../LaunchMonitor/gcquad_csv_parser.h"
 
 #include <QDir>

@@ -129,7 +129,7 @@ In the Consistency table only, grade 0 is "Too few" (`ConsistencyVocabulary.shor
 ### Phrasing
 
 - Golfer layer: the word, and its line as the tooltip. No figures: no σ, ρ, CV or counts. No causal claims.
-- Technical layer: the word, then " · " and the basis string in the data face (`fontSzDataSm`, `colorText2`). Every basis string is built in C++ from computed values (`src/Metrics/variability/`), never hand-written, and shows only what was computed. An empty one shows nothing.
+- Technical layer: the word, then " · " and the basis string in the data face (`fontSzDataSm`, `colorText2`). Every basis string is built in C++ from computed values (`src/Vocabulary/Metrics/variability/`), never hand-written, and shows only what was computed. An empty one shows nothing.
 - Keep existing headings. "Consistency" stays a heading; the grade words and lines under it are what change. A heading that is a grade word ("Repeatable?") becomes "Consistency".
 - A spread with no grade is named by its statistic only: "middle half", "SD", "range", "narrowest", "widest". Outside the four vocabularies nothing spells a variability word (a grade, trend or typicality word), nor a judgement word that echoes one: steady, loose, tight, repeatable, consistent.
 - Words that sound like the vocabularies but aren't about spread change too, so the two never meet: a level trend is "no change", never "steady"; the median is "median" or "the session median", never "your usual".
@@ -180,4 +180,4 @@ The words the app used before the vocabularies, and what replaces them. Don't br
 
 ## Not repeated here
 
-The geometry tables (spec §4 and §6: coordinates, per-grade arrays, alphas) live in `docs/design/variability-mark/spec.md` and are built in `src/Gui/variability/variability_geometry.cpp`. The grade basis and its provisional constants (spec §8) are in `src/Metrics/variability/`. Decisions, gaps the build filled and open items: `docs/design/variability-mark/decisions.md`.
+The geometry tables (spec §4 and §6: coordinates, per-grade arrays, alphas) live in `docs/design/variability-mark/spec.md` and are built in `src/Gui/variability/variability_geometry.cpp`. The grade basis and its provisional constants (spec §8) are in `src/Vocabulary/Metrics/variability/`. Decisions, gaps the build filled and open items: `docs/design/variability-mark/decisions.md`.

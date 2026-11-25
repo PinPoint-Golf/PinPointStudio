@@ -71,7 +71,7 @@
 #include "../../Export/swing_paths.h"
 #include "../../Export/swing_store_repository.h"
 #include "../../Buffer/swing_window.h"   // a LoadedRecording owns one
-#include "../../LaunchMonitor/launch_monitor_reading.h"
+#include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 
 #include <QStandardPaths>
 #include <QCoreApplication>

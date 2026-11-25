@@ -48,7 +48,7 @@
 // chart draws as not-measured; a reading is only ever taken off a frame whose `valid` is 1.
 
 #include "../Vocabulary/Analysis/dtl_shaft_track.h"
-#include "../Core/pp_tuned_constants.h"   // tuned::uncertainty (σ budget)
+#include "../Vocabulary/Common/pp_tuned_constants.h"   // tuned::uncertainty (σ budget)
 #include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Vocabulary/Analysis/gate_record.h"     // GateRecord (trust stage 6)
 

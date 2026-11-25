@@ -107,7 +107,7 @@ PpExpandRow {
     }
 
     // ── Item figures ────────────────────────────────────────────────────────
-    // at one decimal, by the house rules (typeset/figure_format.js, Core/figure_format.h's twin): "-" when missing,
+    // at one decimal, by the house rules (typeset/figure_format.js, Vocabulary/Common/figure_format.h's twin): "-" when missing,
     // the true minus, never "−0.0"; the unit by the one joining rule ("6.9 cm" with a no-break space, "7.0°", "°/s"
     // and "% stance width" closed up)
     function figure(v) { return Figures.figure(v, 1) }

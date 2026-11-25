@@ -31,7 +31,7 @@
 #include "capture_integrity_check.h"
 #include "../Vocabulary/Analysis/gate_record.h"   // LoadedSwing::loadGates
 #include "effective_context.h"   // ClubReview
-#include "../Recording/recording.h"
+#include "../Vocabulary/Recording/recording.h"
 #include "../DomainModel/recording_source.h"   // RecordingSource: how a stored shot is read (refactor step 3.4b-ii)
 
 // SwingReanalyzer — re-run the production analyzer OFFLINE on a recorded shot, the same

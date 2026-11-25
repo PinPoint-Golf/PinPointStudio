@@ -16,7 +16,7 @@
  */
 
 #include "launch_monitor_factory.h"
-#include "lm_device.h"
+#include "../Vocabulary/LaunchMonitor/lm_device.h"
 
 #include "gcquad_monitor.h"
 #include "gspro_monitor.h"

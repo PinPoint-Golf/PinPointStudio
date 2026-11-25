@@ -30,7 +30,7 @@
 #include "session_wrist.h"
 #include "variability_clubs.h"                    // perClubInputs: one window per club (R2b)
 #include "../variability/variability_facade.h"    // VariabilityResultView: the `variabilityResult` QML reads
-#include "../../Metrics/variability/variability_grader.h"
+#include "../../Vocabulary/Metrics/variability/variability_grader.h"
 
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/condition_reading.h"
@@ -41,7 +41,7 @@
 #include "../../Vocabulary/Analysis/wrist_assessment_types.h"   // dofForMetricKey
 #include "../../Wrist/reference_bands.h"          // NormBandProvider::cellMeasureId, BandContext
 #include "../review/timeline_labels.h"
-#include "../../Metrics/gate_catalogue.h"   // the gate behind an empty wrist value (its words)
+#include "../../Vocabulary/Metrics/gate_catalogue.h"   // the gate behind an empty wrist value (its words)
 
 #include <QCoreApplication>
 #include <QDate>

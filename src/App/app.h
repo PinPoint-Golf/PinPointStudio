@@ -46,7 +46,7 @@
 
 #include "../DomainModel/athlete.h"   // Athlete, AthleteRecord, WriteResult
 #include "../DomainModel/session.h"   // Session (sessionAt's type, whole for moc)
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 #include "app_state.h"
 #include "shot_command_door.h"
 

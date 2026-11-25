@@ -68,7 +68,7 @@
 
 #include "../Vocabulary/Analysis/swing_analysis.h" // PoseFrame2D, PoseKpAux, PoseTier (Qt-only)
 #include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply (header-only, Qt types only)
-#include "../Core/pp_tuned_constants.h"   // tuned::pose::smoother::
+#include "../Vocabulary/Common/pp_tuned_constants.h"   // tuned::pose::smoother::
 
 #include <QByteArray>
 #include <QString>

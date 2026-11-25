@@ -64,7 +64,7 @@ Three design principles drive everything:
    - `filter.*` (orientation re-fusion gain/schedule) — via the `--refuse-orientation`
      re-fuser; feeds the main wrist metric only once re-fusion-into-analysis is enabled.
 
-   Frozen defaults all live in `src/Core/pp_tuned_constants.h` (`pinpoint::tuned::*`) —
+   Frozen defaults all live in `src/Vocabulary/Common/pp_tuned_constants.h` (`pinpoint::tuned::*`) —
    the single edit-point when validation locks a value (the override path does not consult
    it). Unknown keys are logged and ignored, so a typo silently no-ops — check `runner.log`.
 
@@ -640,7 +640,7 @@ src/Analysis/swing_reanalyzer.h # SwingDiskLoader — the SHARED disk → SwingW
 src/Analysis/shot_analyzer.h    # ShotAnalysisJob (tuningOverrides, poseTrackPath,
                                 #   ballTrackPath)
 src/Vocabulary/Analysis/analysis_tuning.h  # tuning::apply — dotted key → config struct field
-src/Core/pp_tuned_constants.h   # pinpoint::tuned::* — the frozen defaults
+src/Vocabulary/Common/pp_tuned_constants.h   # pinpoint::tuned::* — the frozen defaults
 src/Vocabulary/Analysis/swing_analysis.h   # ImuSegmentBinding / BindingRecord (calibration status)
 src/Export/swing_doc.{h,cpp}    # result.json writer (shared with the app)
 

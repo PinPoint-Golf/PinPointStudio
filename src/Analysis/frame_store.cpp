@@ -24,8 +24,8 @@
 
 #include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "swing_window.h"
-#include "../Core/pp_tuned_constants.h"
-#include "../Export/frame_decode.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
+#include "../Vocabulary/Recording/frame_decode.h"
 
 #if defined(_WIN32)
 #  ifndef NOMINMAX

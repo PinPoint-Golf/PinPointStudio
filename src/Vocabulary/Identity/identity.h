@@ -19,7 +19,7 @@
 #pragma once
 
 // The identity types: what names an athlete, a session and a shot (information_model.md §5.2,
-// ID-ATHLETE, ID-SESSION, ID-SHOT; refactor step 2.1). Vocabulary ring, in src/Identity (Mark,
+// ID-ATHLETE, ID-SESSION, ID-SHOT; refactor step 2.1). Vocabulary ring, in src/Vocabulary/Identity (Mark,
 // 15 Nov 2026; DEC-148), so a rule (Coaching, Diagnostics) can carry one without an outward include.
 //
 // ⚠ AN IDENTITY IS NEVER A FOLDER. None of these has a constructor from a path or a folder name, and

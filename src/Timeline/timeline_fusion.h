@@ -122,7 +122,7 @@
 #include "../Vocabulary/Analysis/swing_analysis.h"    // Segmentation, PhaseEvent, ShaftPosition,
                                            // TimingClass, FusionDecision, FusionReason
 #include "../Vocabulary/Analysis/analysis_tuning.h"   // tuning::apply
-#include "../Core/pp_tuned_constants.h"    // tuned::refine::
+#include "../Vocabulary/Common/pp_tuned_constants.h"    // tuned::refine::
 
 namespace pinpoint::analysis {
 

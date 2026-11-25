@@ -22,12 +22,12 @@
 // band AND over the σ ceiling, a chest bounded by the band, a camera club drawn but not judged.
 
 #include "../trust/trust_readings.h"
-#include "../../Core/figure_format.h"   // the figure-and-unit rule, as the sentences set it (#123)
+#include "../../Vocabulary/Common/figure_format.h"   // the figure-and-unit rule, as the sentences set it (#123)
 
-// "1.0 s" (1036 ms, in seconds as the card says it) with the app's figure-to-unit space (Core/figure_format.h withUnit)
+// "1.0 s" (1036 ms, in seconds as the card says it) with the app's figure-to-unit space (Vocabulary/Common/figure_format.h withUnit)
 static QString ms1036() { return pinpoint::figures::withUnit(QStringLiteral("1.0"), QStringLiteral("s")); }
 #include "../charts/session_series_types.h"
-#include "../../Metrics/gate_catalogue.h"   // gateEntry, claimWords (the substituted gap)
+#include "../../Vocabulary/Metrics/gate_catalogue.h"   // gateEntry, claimWords (the substituted gap)
 
 #include <QHashSeed>
 #include <QJsonArray>

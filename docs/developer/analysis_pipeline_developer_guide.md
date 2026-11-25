@@ -449,7 +449,7 @@ Stage rules, non-negotiable:
 Every new stage ships **dark** (off by default, byte-identical when off) and
 becomes tunable without a rebuild:
 
-1. Add the default to `src/Core/pp_tuned_constants.h` (the frozen-constants
+1. Add the default to `src/Vocabulary/Common/pp_tuned_constants.h` (the frozen-constants
    header — e.g. `pinpoint::tuned::kneeflex::kEnabled = false`).
 2. Map dotted override keys onto the config in `fromOverrides` using
    `pinpoint::analysis::tuning::apply(ov, "kneeflex.enabled", c.enabled)`
@@ -951,7 +951,7 @@ src/Analysis/
                                   analysis_stage_test, tuning_overrides_test,
                                   event_refine_test, per-module tests
 
-src/Core/pp_tuned_constants.h   Frozen defaults for every dark flag / tunable
+src/Vocabulary/Common/pp_tuned_constants.h   Frozen defaults for every dark flag / tunable
 src/Core/cpu_topology.h         physicalCoreCount() — the pose.intraOpThreads=-1
                                   topology-auto source
 tools/swinglab/parity_diff.py   Corpus result differ (timings-stripped byte compare)

@@ -20,7 +20,7 @@
 // compared with the golfer's usual. The ONE home for them. Never a grade, and never praise or
 // fault: an unusual swing may be the best one; whether it was good is the corridor's job.
 //
-// A band is the C++ TypicalityBand (src/Metrics/variability/variability_typicality.h), spelled
+// A band is the C++ TypicalityBand (src/Vocabulary/Metrics/variability/variability_typicality.h), spelled
 //   "usual" (|z| ≤ 1) | "aLittleOff" (1 < |z| ≤ 2) | "unusual" (|z| > 2)
 // "" (no band yet) is "" quietly; anything else is "" with a console warning.
 //

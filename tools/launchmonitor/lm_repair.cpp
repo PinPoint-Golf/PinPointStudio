@@ -64,7 +64,7 @@
 #include "swing_store.h"
 #include "swing_store_repository.h"   // the one door to the swing files
 #include "session_store.h"            // what names each swing's ShotRef (step 2.4)
-#include "launch_monitor_reading.h"
+#include "../../src/Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "pp_debug.h"
 
 #include <QCoreApplication>

@@ -26,7 +26,7 @@
 #include "../Coaching/club_distances.h"        // clubBaselineFromJson
 #include "../Coaching/strike_from_flight.h"    // sessionFlightUsuals, checkShotAgainstFlight
 #include "../Coaching/session_day_readings_rules.h"   // the summary's day readings' rules (refactor 5.5d)
-#include "../Core/club_vocabulary.h"
+#include "../Vocabulary/Club/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 #include "../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 

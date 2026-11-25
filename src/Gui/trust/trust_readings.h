@@ -26,7 +26,7 @@
 // One READING per subject a record names (a sequence node today; metrics, routes and findings as their
 // producers start recording): its label, its TRUST LEVEL (§4.3, derived from the records, never
 // authored), the short figure the claim shows ("after −129 ms"), and every gate behind it in the
-// catalogue's words (Metrics/gate_catalogue.h).
+// catalogue's words (Vocabulary/Metrics/gate_catalogue.h).
 //
 //  READING = { subject ("ks.pelvis"), sequenceNode (the subject is a sequence node's, "ks.…"; a route's reading shares
 //              the area but is not one), area ("Kinematic sequence"), label ("Pelvis peak"), key (the series key,
@@ -73,7 +73,7 @@ QVariantMap trustSession(const charts::SessionSnapshot &session);
 // findings carry it (ShotRecord::dataWarning) warns, and its records of the card's gates (DataWarningFormat.qml
 // reasons(): frames missing, video incomplete, sensor recording inconsistent, club track refused other than for
 // coverage, the down-the-line top out of view) say why. A line a warning gate already has gets "⚠ " and, in its words, why
-// (the gate's evidence sentence, Metrics/gate_catalogue*.h); a warning no line speaks for — a swing still assessed
+// (the gate's evidence sentence, Vocabulary/Metrics/gate_catalogue*.h); a warning no line speaks for — a swing still assessed
 // whose video starts late or stops early, the top out of the picture — gets its own "gated" line first: on a shot
 // "⚠ Video incomplete: the video starts 1.0 s late, so address and the takeaway may be missing; the swing is still
 // assessed.", on a session the same with "on shot 3". The tail leads with "⚠ <what>". A shot whose findings carry

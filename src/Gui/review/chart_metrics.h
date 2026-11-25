@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../Metrics/metric_catalogue.h"
+#include "../../Vocabulary/Metrics/metric_catalogue.h"
 #include "chart_metrics_types.h"   // the typed results QML reads (refactor 5.8a, lint A6)
 
 #include <QList>
@@ -127,7 +127,7 @@ public:
     // the window is too narrow for the curve in it. A caller that wants them consistent should
     // widen the window, not launder the number.
     //
-    // ⚠ EVERY ONE OF THOSE REDUCTIONS IS src/Metrics/series_reduce.h's, NOT THIS CLASS'S — the
+    // ⚠ EVERY ONE OF THOSE REDUCTIONS IS src/Vocabulary/Metrics/series_reduce.h's, NOT THIS CLASS'S — the
     // diagnostics engine's buildPhaseGrid calls the same four functions with the same tuned
     // windows, which is what makes design §7 item 5 ("the chart and the engine agree to display
     // precision on every authored measure") a property of the code rather than a hope. The only

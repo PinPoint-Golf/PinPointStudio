@@ -18,7 +18,7 @@
 
 #include "shot_list_model.h"
 
-#include "../Core/club_vocabulary.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 

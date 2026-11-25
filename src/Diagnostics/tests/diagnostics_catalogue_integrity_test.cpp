@@ -22,7 +22,7 @@
 
 #include "model_browser.h"
 #include "model_browser_test_support.h"
-#include "metric_catalogue.h"
+#include "../../Vocabulary/Metrics/metric_catalogue.h"
 
 #include <QDir>
 #include <QFileInfo>

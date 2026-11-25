@@ -555,7 +555,7 @@ short note saying so when this design is approved.
 |---|---|---|---|
 | `DeviceKey`, `PlacementKey` | `src/Vocabulary/Rig/device_key.h` | Vocabulary | Acquisition (part of its contract) |
 | `RigState`, `CameraSetup`, `SensorSetup`, `CalibrationRecord`, `RigReference` | `src/Vocabulary/Rig/` | Vocabulary | Acquisition (part of its contract) |
-| `RigId`, `RigStateId`, `RigRef` | `src/Identity/identity.h`, with the other identity types[^im52] | Vocabulary | Shared |
+| `RigId`, `RigStateId`, `RigRef` | `src/Vocabulary/Identity/identity.h`, with the other identity types[^im52] | Vocabulary | Shared |
 | `recording::Perspective` | its own header (§4.7) | Vocabulary | Acquisition |
 | The role rules of `imu_role_map.*` (moved) | `src/IMU/` | Rules | Acquisition |
 | `sensorDisplayName`, `stripDeviceIds` (the display labels; they stay) | `src/Gui/imu/`, behind `app.rig` | Adapters | Domain + Application |
@@ -578,7 +578,7 @@ record holds, both go to `Vocabulary/Common` in Stage B, Part 1[^q27][^plan-b].
 
 | # | Rule | What the include graph says at `a5089848` |
 |---|---|---|
-| 1 | `Vocabulary/Rig` includes only Platform, `Identity`, `Vocabulary/Common`, the perspective header and Qt value types. It never includes `recording.h` | `recording.h` includes `Buffer/types.h`, `Vocabulary/Analysis/swing_analysis.h` and `Core/club_standards.h`, so the enum gets its own header (A5-4) |
+| 1 | `Vocabulary/Rig` includes only Platform, `Identity`, `Vocabulary/Common`, the perspective header and Qt value types. It never includes `recording.h` | `recording.h` includes `Buffer/types.h`, `Vocabulary/Analysis/swing_analysis.h` and `Vocabulary/Club/club_standards.h`, so the enum gets its own header (A5-4) |
 | 2 | `recording.h` includes `Vocabulary/Rig` (for `RigReference`); `Vocabulary/Rig` never includes `recording.h` | no cycle is made. One file under `Vocabulary/` names `Recording/` today (`analysis_versions.h`); the rig types do not include it (A5-5) |
 | 3 | **The step machines (Rules) include nothing of the Domain model: they return a record.** Only the drivers and device objects (Adapters) include `rig_calibration_sink.h`, and none includes `rig.h`. The sink joins lint A9's named contract headers[^q26] | 0 files under `src/IMU`, `src/Buffer`, `src/Video`, `Gui/imu`, `Gui/cameras` or `Gui/calibration` include `DomainModel/` today (A5-6). The check is extended to `src/IMU/calibration` and stays at 0 for `src/IMU` |
 | 4 | `rig.*` includes only `Vocabulary/Rig`, `Identity`, Platform and the pure role rule (`IMU/imu_role_map.h`, Rules) | the Domain model's production files include `Analysis`, `Coaching`, `Core`, `Diagnostics`, `Identity`, `LaunchMonitor`, `Metrics`, `Recording` and `Vocabulary`; none includes `IMU`, `Buffer` or `Gui` (A5-7). `imu_role_map.*` includes only Qt, `segment_role.h` and `hm_unit_id.h` (A5-8), so its role rules can move to `src/IMU` and be the Domain model's first include of that directory |
@@ -746,7 +746,7 @@ otherwise; tests are counted apart.
 | Places that know a key's shape | the same grep for `'\|'`, and a read of each | `camera_manager.cpp:85` (replaces `\|` for a seeded alias); `imu_manager.cpp:183` (the same, for a sensor); `imu_role_map.h:110` (matches a `"\|<id>"` tail); `camera_roi.h:47` (`cameraKey + "#impact"`); `capture_context.cpp:348` (SET-05's key); `tst_setup_sensors.qml:313`: 6 |
 | Perspective types and constants | `grep -rn 'Perspective\b\|kImpact\b\|kImpactPerspective'` | `recording.h:56`; `camera_instance.h:145` (`Q_ENUM`); `setup_enum_standins.h` (a test mirror); `app_settings.cpp:36`; `camera_roi.h`, tied by a `static_assert` at `camera_instance.cpp:22` |
 | QML naming the enum | `grep -rn 'CameraInstance\.\(FaceOn\|DownTheLine\|Impact\|Other\|None\)\b' --include='*.qml'` | about 120 uses in 19 files |
-| Qt meta-object macros in the Vocabulary ring | `grep -rln 'Q_NAMESPACE\|Q_ENUM_NS\|Q_GADGET' src/Vocabulary src/Recording src/Identity` | `src/Identity/identity.h` (`Q_GADGET` ×3) only |
+| Qt meta-object macros in the Vocabulary ring | `grep -rln 'Q_NAMESPACE\|Q_ENUM_NS\|Q_GADGET' src/Vocabulary src/Vocabulary/Recording src/Vocabulary/Identity` | `src/Vocabulary/Identity/identity.h` (`Q_GADGET` ×3) only |
 
 **A2. What each key means, from the code that reads it** (the review's Part 1, table 3).
 
@@ -797,8 +797,8 @@ directory.
 | A5-1 | Who includes `camera_instance.h` | 5: `Gui/cameras` 3, `Gui/shot` 2 |
 | A5-2 | Who uses `recording::Perspective` or `perspectiveFromCode` | `Analysis/tests` 3, `Export` 1, `Gui/shot` 1, `Recording` 1 |
 | A5-3 | Who includes `imu_role_map.h` | `Gui/app` 1, `Gui/imu` 3, `Gui/tests` 1 |
-| A5-4 | What `src/Recording` includes | `Buffer/types.h`, `Vocabulary/Analysis/swing_analysis.h`, `Core/club_standards.h` |
-| A5-5 | What under `src/Vocabulary` names `Recording/` | 1: `Vocabulary/Analysis/analysis_versions.h` → `Recording/analysis_context.h` |
+| A5-4 | What `src/Vocabulary/Recording` includes | `Buffer/types.h`, `Vocabulary/Analysis/swing_analysis.h`, `Vocabulary/Club/club_standards.h` |
+| A5-5 | What under `src/Vocabulary` names `Recording/` | 1: `Vocabulary/Analysis/analysis_versions.h` → `Vocabulary/Recording/analysis_context.h` |
 | A5-6 | `DomainModel/` included from `src/IMU`, `src/Buffer`, `src/Video`, `Gui/imu`, `Gui/cameras`, `Gui/calibration` | 0 in each |
 | A5-7 | What the Domain model's production files include (`src/DomainModel/*.h`, `*.cpp`) | `Analysis` 1, `Coaching` 24, `Core` 13, `Diagnostics` 15, `Identity` 13, `LaunchMonitor` 1, `Metrics` 4, `Recording` 2, `Vocabulary` 2; no `IMU`, `Buffer` or `Gui` |
 | A5-8 | What `imu_role_map.h` and `.cpp` include | Qt core types, `<functional>`, `Vocabulary/Analysis/segment_role.h`, `IMU/hm_unit_id.h` |
@@ -827,7 +827,7 @@ directory.
 [^im23]: IM §2.3, "Studio/Rig" (v1.10.1); DEC-17 (Solution Architect, 14 Nov 2026).
 [^im22]: IM §2.2, "The Recording contract": the Rig row, the analysis-context rows and "`capture.club` stays, written from the same value, as provenance".
 [^im2]: IM §2, the contexts table.
-[^im52]: IM §5.2: the identity types live in `src/Identity`, in the Vocabulary ring (DEC-148).
+[^im52]: IM §5.2: the identity types live in `src/Vocabulary/Identity`, in the Vocabulary ring (DEC-148).
 [^rctx]: IM §2, R-CTX-1 (Solution Architect and Product Owner, 24 Nov 2026; Q26's wording).
 [^rrec]: IM §2.2, R-REC-1, R-REC-2 and R-REC-4.
 [^rrec8]: IM §2.2, R-REC-8 (DEC-44, DEC-87, DEC-147).
@@ -848,12 +848,12 @@ directory.
 [^a13]: `docs/implementation/swe-audit/02-findings.md`, A-13; `05-deferred-worklist.md` §1.
 [^c-key]: The plan's footnote `[^c-key]`, which also notes `camera_manager.h:216`.
 [^c-calib]: The plan's footnote `[^c-calib]`: the production `.qml` files under `src/Gui/calibration`.
-[^code-rec]: `src/Recording/recording.h`, `CameraStream`.
+[^code-rec]: `src/Vocabulary/Recording/recording.h`, `CameraStream`.
 [^code-set]: `src/Gui/app/app_settings.h`, the `Q_PROPERTY` list; `app_settings.cpp` for `imu/rolesMigrated`.
 [^code-cer]: `src/Gui/imu/trunk_ceremony_recorder.h` (its header comment) and `.cpp` (`QThreadPool::globalInstance()->start`); `src/Gui/tests/architecture_allowlist.txt`.
 [^code-cam]: `src/Gui/cameras/camera_instance.h`, the comment on `Perspective`; `CameraManager::assignPerspective` (`camera_manager.cpp`): "Impact is exclusive".
 [^code-key]: `src/Gui/cameras/camera_instance.cpp` (`cameraKey()`); `src/Gui/imu/imu_role_map.h` (`aliasKey()`).
-[^code-id]: `src/Identity/identity.h`.
+[^code-id]: `src/Vocabulary/Identity/identity.h`.
 [^code-hm]: The header of `src/Gui/calibration/HackMotionArmRoutine.qml`: "Nothing about the HackMotion calibration is persisted, ever".
 [^code-test]: `src/Gui/tests/setup/support/CalibDriver.qml`; `tst_setup_trunk.qml`, `tst_setup_calib_witmotion.qml`, `tst_setup_calib_hackmotion.qml`.
 [^sa24-rig]: The Solution Architect, 24 Nov 2026: "approve as recommended" (`build/platform/JUDGEMENT-CALLS.md` PR-35). §9's questions 10, 14, 17 and 18 are implementation choices, taken as recommended by the coordinator and logged there too.

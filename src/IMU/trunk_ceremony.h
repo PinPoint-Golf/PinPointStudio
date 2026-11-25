@@ -25,7 +25,7 @@
 #include <cmath>
 #include <vector>
 
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 #include "imu_calibration.h"
 #include "trunk_angles.h"
 

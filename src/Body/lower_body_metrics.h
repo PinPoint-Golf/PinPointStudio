@@ -154,7 +154,7 @@
 #include "../Vocabulary/Analysis/swing_analysis.h" // PoseTrack2D, PoseFrame2D, MetricSeries, PhaseEvent
 #include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply
 #include "../Vocabulary/Analysis/gate_record.h"   // GateRecord (trust stage 6)
-#include "../Core/pp_tuned_constants.h"   // tuned::lowerBody::
+#include "../Vocabulary/Common/pp_tuned_constants.h"   // tuned::lowerBody::
 
 namespace pinpoint::analysis {
 

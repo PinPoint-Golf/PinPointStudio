@@ -179,7 +179,7 @@ SIGNED_SUFFIX = "Signed"
 
 def family_root(key):
     """A metricKey's FAMILY ROOT: the key with a trailing "Signed" removed. The metric catalogue
-    (src/Metrics/metric_catalogue_manifest.cpp) says pelvisRotationSigned is "the same physical
+    (src/Vocabulary/Metrics/metric_catalogue_manifest.cpp) says pelvisRotationSigned is "the same physical
     quantity as Pelvis rotation", carrying only the sign the magnitude throws away — so a fault
     read on one and praise read on the other ("your hips keep turning through impact" beside
     "your hips haven't turned enough by impact") are about one thing, and must share a family."""

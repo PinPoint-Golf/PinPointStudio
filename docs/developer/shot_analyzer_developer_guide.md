@@ -819,7 +819,7 @@ src/Analysis/
 ├── analysis_tuning.h           SwingLab override plumbing onto the config structs
 └── tests/                      80+ targets; per-stage tests + the goldens
 
-src/Recording/                  The Recording contract's types (Vocabulary ring;
+src/Vocabulary/Recording/                  The Recording contract's types (Vocabulary ring;
 ├── recording.h                   information_model.md §2): Recording, its sources,
 │                                 capture facts, ball and integrity inputs
 └── analysis_context.h          AnalysisContext — the athlete facts recorded at capture

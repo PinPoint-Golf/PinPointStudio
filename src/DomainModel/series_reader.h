@@ -34,7 +34,7 @@
 // Domain model ring (src/DomainModel): names no store type.
 
 #include "firing_reader.h"   // DocumentStamp
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QJsonObject>
 #include <QString>

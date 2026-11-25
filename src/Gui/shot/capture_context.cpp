@@ -27,7 +27,7 @@
 #include "session_controller.h"
 #include "../../Buffer/swing_window.h"
 #include "../../Buffer/format_descriptor.h"
-#include "../../Core/club_vocabulary.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../Core/pp_debug.h"
 #include "../../DomainModel/athlete.h"   // isUnassigned: a capture into Unassigned records no golfer (J-67)
 #include "../../DomainModel/recording_repository.h"

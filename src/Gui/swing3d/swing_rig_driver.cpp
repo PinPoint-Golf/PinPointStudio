@@ -36,8 +36,8 @@
 #include "../../Skeleton3d/skeleton3d_synthesis.h"
 #include "../../Export/swing_store.h"
 #include "../../Export/swing_paths.h"
-#include "../../Core/club_vocabulary.h"    // swingDocEffectiveClub: the one club rule (refactor 6.2)
-#include "../../Metrics/gate_catalogue.h"   // a gate's short words
+#include "../../Vocabulary/Club/club_vocabulary.h"    // swingDocEffectiveClub: the one club rule (refactor 6.2)
+#include "../../Vocabulary/Metrics/gate_catalogue.h"   // a gate's short words
 #include "../trust/trust_readings.h"        // gateFor: the gate on a reading
 
 namespace sk = pinpoint::skeleton3d;

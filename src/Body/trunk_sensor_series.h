@@ -52,8 +52,8 @@
 #include "../Vocabulary/Analysis/gate_record.h"
 #include "../Analysis/route_substitution.h"
 #include "../Vocabulary/Analysis/swing_analysis.h"
-#include "../Core/pp_tuned_constants.h"
-#include "../Metrics/series_reduce.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
+#include "../Vocabulary/Metrics/series_reduce.h"
 
 #include <QQuaternion>
 #include <QString>

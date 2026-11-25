@@ -45,7 +45,7 @@
 #include "../Core/atomic_write.h"   // AtomicWriteResult
 #include "../Core/folder_lock.h"
 
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QByteArray>
 #include <QFile>

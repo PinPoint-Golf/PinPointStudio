@@ -87,7 +87,7 @@
 #include "../IMU/imu_vision_fuser.h" // FusedStreams, SegmentStream
 #include "kinematic_sequence.h"      // KsNode, KinematicSequence
 #include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply
-#include "../Core/pp_tuned_constants.h"   // tuned::sequence::
+#include "../Vocabulary/Common/pp_tuned_constants.h"   // tuned::sequence::
 
 namespace pinpoint::analysis {
 

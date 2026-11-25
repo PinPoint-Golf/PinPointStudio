@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// The gate catalogue (Metrics/gate_catalogue.h) and the record format (Vocabulary/Analysis/gate_record.h) —
+// The gate catalogue (Vocabulary/Metrics/gate_catalogue.h) and the record format (Vocabulary/Analysis/gate_record.h) —
 // docs/design/trust_and_gates_design.md §5, §6, §10 item 6.
 //
 // BOTH WAYS. Every id a producer fires — spelled PP_GATE("…") at the firing site — is in the
@@ -24,7 +24,7 @@
 // read from PP_SRC_ROOT, so a gate added without its entry (or an entry left behind when its gate is
 // removed) fails here rather than reaching the reader as a bare id.
 
-#include "../../Metrics/gate_catalogue.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"
 #include "../../Vocabulary/Analysis/gate_record.h"
 
 #include <QFile>
@@ -173,7 +173,7 @@ int main()
         for (const gates::GateTuning &t : band->tuning)
             if (t.key == QLatin1String("sequence.sightedTurnDeg") && t.value == tuned::sequence::kSightedTurnDeg) tuned = true;
         check(tuned, "tuning carries the compiled threshold (20° today)");
-        // a threshold as the reader sees it, by the app's one figure-and-unit rule (Core/figure_format.h)
+        // a threshold as the reader sees it, by the app's one figure-and-unit rule (Vocabulary/Common/figure_format.h)
         check(gates::tuningValue({ QStringLiteral("k"), 20.0, QStringLiteral("°") }) == QStringLiteral("20°")
                   && gates::tuningValue({ QStringLiteral("k"), 47.0, QStringLiteral("ms") }) == QStringLiteral("47") + nb + QStringLiteral("ms")
                   && gates::tuningValue({ QStringLiteral("k"), 900.0, QStringLiteral("°/s") }) == QStringLiteral("900°/s")

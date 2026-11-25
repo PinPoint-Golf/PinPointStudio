@@ -802,7 +802,7 @@ qt_add_executable(PinPointStudio
     src/IMU/imu_io_worker.h   src/IMU/imu_io_worker.cpp
     src/IMU/hm_session_types.h
     src/IMU/hm_session_worker.h  src/IMU/hm_session_worker.cpp
-    src/LaunchMonitor/launch_monitor_reading.h   src/LaunchMonitor/launch_monitor_reading.cpp
+    src/Vocabulary/LaunchMonitor/launch_monitor_reading.h   src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     src/LaunchMonitor/launch_monitor_base.h      src/LaunchMonitor/launch_monitor_base.cpp
     src/LaunchMonitor/launch_monitor_factory.h   src/LaunchMonitor/launch_monitor_factory.cpp
     src/LaunchMonitor/shot_pairing.h
@@ -860,7 +860,7 @@ target_include_directories(PinPointStudio PRIVATE
     src/Gui/characteristics src/Gui/diagnosticmodel src/Gui/launchmonitor src/Gui/print
     src/IMU src/LaunchMonitor src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
     src/Analysis src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d
-    src/Coaching src/Metrics
+    src/Coaching
     src/Diagnostics/engine src/Diagnostics/packs src/Diagnostics/norms src/Diagnostics/measures
     src/Update
     "${CMAKE_BINARY_DIR}/generated")
@@ -953,8 +953,8 @@ target_compile_definitions(PinPointStudio PRIVATE
 target_link_libraries(PinPointStudio PRIVATE pp_platform)
 
 target_sources(PinPointStudio PRIVATE
-    src/Core/figure_format.h
-    src/Core/height_text.h
+    src/Vocabulary/Common/figure_format.h
+    src/Vocabulary/Common/height_text.h
     src/Core/pp_debug.cpp
     src/Core/app_info.h
     src/Core/app_info.cpp
@@ -2793,8 +2793,8 @@ target_sources(PinPointStudio PRIVATE
     src/Export/athlete_store.h
     src/Export/athlete_store.cpp
     src/Export/athlete_files.h
-    src/Export/frame_decode.h
-    src/Export/frame_decode.cpp
+    src/Vocabulary/Recording/frame_decode.h
+    src/Vocabulary/Recording/frame_decode.cpp
     src/Export/swing_exporter.h
     src/Export/swing_exporter.cpp
     src/Export/swing_zip_exporter.h
@@ -2868,10 +2868,10 @@ target_sources(PinPointStudio PRIVATE
     src/Body/foot_metrics.h
     src/Body/foot_metrics.cpp
     src/Body/lower_body_metrics.cpp
-    src/Metrics/metric_channel.h
-    src/Metrics/series_reduce.h
-    src/Metrics/series_reduce_metric.h
-    src/Metrics/fitted_curve.h
+    src/Vocabulary/Metrics/metric_channel.h
+    src/Vocabulary/Metrics/series_reduce.h
+    src/Vocabulary/Metrics/series_reduce_metric.h
+    src/Vocabulary/Metrics/fitted_curve.h
     src/Body/upper_body_metrics.h
     src/Body/upper_body_metrics.cpp
     src/Body/body_rotation.h
@@ -2946,11 +2946,11 @@ target_sources(PinPointStudio PRIVATE
     src/Vocabulary/Analysis/swing_analysis_rebase.h
     # The Recording contract (refactor step 1): the types, the effective club, the one job
     # builder, and the store side — the one header writer and the Recording loader (1.2).
-    src/Recording/recording.h
-    src/Recording/analysis_context.h
+    src/Vocabulary/Recording/recording.h
+    src/Vocabulary/Recording/analysis_context.h
     # The identity types (refactor step 2.1; Vocabulary, DEC-148) and the session's identity
     # (Domain model): AthleteId, SessionId, ShotRef; SessionIdentity (D3's legacy id, n-of-day).
-    src/Identity/identity.h
+    src/Vocabulary/Identity/identity.h
     src/DomainModel/session_identity.h
     src/DomainModel/session_identity.cpp
     src/DomainModel/session_repository.h
@@ -3026,30 +3026,30 @@ target_sources(PinPointStudio PRIVATE
     src/Export/recording_phase_grid.cpp   # the app's Recording reader's phase grid (platform refactor P-3)
     src/Analysis/mp4_frame_reader.h
     src/Analysis/mp4_frame_reader.cpp
-    src/Metrics/metric_type.h
-    src/Metrics/metric_descriptor.h
-    src/Metrics/variability/variability_scale_type.h
+    src/Vocabulary/Metrics/metric_type.h
+    src/Vocabulary/Metrics/metric_descriptor.h
+    src/Vocabulary/Metrics/variability/variability_scale_type.h
     # The variability grader (docs/design/variability-mark/spec.md §8): scalar, trace, ordinal and
     # measurement grades, typicality, trend, and the §7.5 basis strings. QML sees only its results,
     # through src/Gui/variability/variability_facade.h.
-    src/Metrics/variability/variability_constants.h
-    src/Metrics/variability/variability_result.h
-    src/Metrics/variability/variability_result.cpp
-    src/Metrics/variability/variability_grader.h
-    src/Metrics/variability/variability_grader.cpp
-    src/Metrics/variability/variability_typicality.h
-    src/Metrics/variability/variability_outcome.h
-    src/Metrics/variability/variability_typicality.cpp
-    src/Metrics/variability/variability_trend.h
-    src/Metrics/variability/variability_trend.cpp
-    src/Metrics/metric_provider.h
-    src/Metrics/metric_catalogue.h
-    src/Metrics/metric_catalogue.cpp
-    src/Metrics/metric_resolver.h
-    src/Metrics/metric_resolver.cpp
-    src/Metrics/metric_catalogue_manifest.cpp
-    src/Metrics/metric_providers.h
-    src/Metrics/metric_providers.cpp
+    src/Vocabulary/Metrics/variability/variability_constants.h
+    src/Vocabulary/Metrics/variability/variability_result.h
+    src/Vocabulary/Metrics/variability/variability_result.cpp
+    src/Vocabulary/Metrics/variability/variability_grader.h
+    src/Vocabulary/Metrics/variability/variability_grader.cpp
+    src/Vocabulary/Metrics/variability/variability_typicality.h
+    src/Vocabulary/Metrics/variability/variability_outcome.h
+    src/Vocabulary/Metrics/variability/variability_typicality.cpp
+    src/Vocabulary/Metrics/variability/variability_trend.h
+    src/Vocabulary/Metrics/variability/variability_trend.cpp
+    src/Vocabulary/Metrics/metric_provider.h
+    src/Vocabulary/Metrics/metric_catalogue.h
+    src/Vocabulary/Metrics/metric_catalogue.cpp
+    src/Vocabulary/Metrics/metric_resolver.h
+    src/Vocabulary/Metrics/metric_resolver.cpp
+    src/Vocabulary/Metrics/metric_catalogue_manifest.cpp
+    src/Vocabulary/Metrics/metric_providers.h
+    src/Vocabulary/Metrics/metric_providers.cpp
 )
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -3294,7 +3294,7 @@ if(PINPOINT_BUILD_LM_REPAIR)
     add_executable(lm_repair
         tools/launchmonitor/lm_repair.cpp
         src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
-        src/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
+        src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
@@ -3302,7 +3302,7 @@ if(PINPOINT_BUILD_LM_REPAIR)
         # SwingDocReader's session-directory helpers call SwingPaths::sanitise. The tool
         # never walks a library that way, but they are in the same translation unit.
         src/Export/swing_paths.cpp
-        src/LaunchMonitor/launch_monitor_reading.cpp
+        src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         # NOT src/Core/pp_debug.cpp — it includes whisper.h and would pull ggml and FFmpeg
         # into a tool that rewrites one JSON file. lm_repair.cpp provides PpLogStream itself
         # and routes it to stderr; see the note there.
@@ -3322,13 +3322,13 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(pps_convert_library
         tools/storage/pps_convert_library.cpp
         src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
-        src/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
+        src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
         src/Export/recording_header.cpp src/Analysis/effective_context.cpp
         src/Export/swing_paths.cpp
-        src/LaunchMonitor/launch_monitor_reading.cpp
+        src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         # The real log: swing_paths reports through ppWarn, and a line a conversion says on the
         # way past must reach whoever runs it. Standalone now — no whisper, no ggml.
         src/Core/pp_log_stream.cpp
@@ -3346,13 +3346,13 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(backfill_analysis_context
         tools/migrate/backfill_analysis_context.cpp
         src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
-        src/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
+        src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
         src/Export/recording_header.cpp src/Analysis/effective_context.cpp
         src/Export/swing_paths.cpp
-        src/LaunchMonitor/launch_monitor_reading.cpp
+        src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         src/Core/pp_log_stream.cpp
         src/Core/PpMessageLog.cpp
     )
@@ -3371,13 +3371,13 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/DomainModel/athlete.h src/DomainModel/athlete.cpp src/Export/athlete_store.cpp   # AthleteRecord
         src/DomainModel/session.h src/DomainModel/session.cpp src/DomainModel/shot.h src/DomainModel/shot.cpp   # the Athlete's sessions (3.4a)
         src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
-        src/Identity/identity.h
+        src/Vocabulary/Identity/identity.h
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
         src/Export/recording_header.cpp src/Analysis/effective_context.cpp
         src/Export/swing_paths.cpp
-        src/LaunchMonitor/launch_monitor_reading.cpp
+        src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         src/Core/pp_log_stream.cpp
         src/Core/PpMessageLog.cpp
     )
@@ -3494,11 +3494,11 @@ if(PINPOINT_BUILD_TOOLS)
         src/Ball/ball_position.cpp
         src/Timeline/tempo_metrics.cpp
         src/Wrist/pose_wrist_angle_source.cpp
-        src/Metrics/metric_catalogue.cpp
-        src/Metrics/metric_resolver.cpp
-        src/Metrics/metric_catalogue_manifest.cpp
-        src/Metrics/metric_providers.cpp
-        src/Export/frame_decode.cpp
+        src/Vocabulary/Metrics/metric_catalogue.cpp
+        src/Vocabulary/Metrics/metric_resolver.cpp
+        src/Vocabulary/Metrics/metric_catalogue_manifest.cpp
+        src/Vocabulary/Metrics/metric_providers.cpp
+        src/Vocabulary/Recording/frame_decode.cpp
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
@@ -3508,7 +3508,7 @@ if(PINPOINT_BUILD_TOOLS)
         # so the offline tools need the table itself, not just its header. The
         # PARSER and the monitor stay out: an offline tool replays a recorded
         # swing.json, it never reads a LastShot.CSV or talks to a device.
-        src/LaunchMonitor/launch_monitor_reading.cpp
+        src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         src/Pose/pose_estimator_base.cpp
         src/Pose/pose_estimator_vitpose.cpp
         # The pose estimators' one execution-provider cascade (platform refactor A7).
@@ -3525,7 +3525,7 @@ if(PINPOINT_BUILD_TOOLS)
     # Common include/define/link wiring for an offline tool target.
     function(pinpoint_configure_offline_target tgt)
         target_include_directories(${tgt} PRIVATE
-            src/Buffer src/Analysis src/Metrics src/Export src/Pose src/Core src/IMU
+            src/Buffer src/Analysis src/Export src/Pose src/Core src/IMU
             src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d src/Coaching
             # src/Export/swing_doc.h includes launch_monitor_reading.h, so every
             # consumer of it needs this — the app target got it when the reading

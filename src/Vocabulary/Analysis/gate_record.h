@@ -23,7 +23,7 @@
 //
 // A RECORD IS EVIDENCE, NOT A SENTENCE. `evidence` holds the numbers the gate compared, keyed with
 // their unit in the name (`sightLostMs`, `corr`); the words come from the gate catalogue
-// (Metrics/gate_catalogue.h) filled from it, so a record written today reads correctly with words
+// (Vocabulary/Metrics/gate_catalogue.h) filled from it, so a record written today reads correctly with words
 // revised later. No producer formats words.
 //
 // TIMES IN EVIDENCE ARE RELATIVE TO IMPACT, in ms, + after the ball (the Charts' shot clock), never

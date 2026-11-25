@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "launch_monitor_reading.h"
+#include "../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 
 #include <QObject>
 #include <QString>

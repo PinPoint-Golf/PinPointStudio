@@ -23,7 +23,7 @@
 #include "../../Diagnostics/norms/context_tree.h"   // contextIdForClub
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/pack_provider.h"
-#include "../../Metrics/metric_catalogue.h"
+#include "../../Vocabulary/Metrics/metric_catalogue.h"
 #include "../../Core/pp_debug.h"                    // ppError
 #include "../typeset/box_stats.h"                   // quantile7
 

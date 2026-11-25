@@ -68,7 +68,7 @@ pp_add_test(timeline_labels_test
 # shipped resources are not needed and the env is left unset.
 #
 # NO ENTRY FOR series_reduce (C8, Phase 2), and that is not an omission: summaryMasked delegates
-# every reduction to src/Metrics/series_reduce.h, which is HEADER-ONLY — the reductions run on
+# every reduction to src/Vocabulary/Metrics/series_reduce.h, which is HEADER-ONLY — the reductions run on
 # borrowed C arrays and only viewOf() touches MetricSeries, so there is nothing to compile or link
 # here or in any other consumer target. Its own suite is series_reduce_test in src/Analysis/tests.
 pp_add_test(chart_metrics_test
@@ -77,10 +77,10 @@ pp_add_test(chart_metrics_test
             # segments()/nearestPhase() ask TimelineLabels which phases are P-positions, so
             # the chips can never be labelled "→P2" from an untagged endpoint.
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Metrics/metric_catalogue.cpp
-            ${SRC}/Metrics/metric_resolver.cpp
-            ${SRC}/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Metrics/metric_providers.cpp
+            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
+            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
+            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
+            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
             ${SRC}/Diagnostics/norms/norm.cpp
             ${SRC}/Diagnostics/norms/norm_pack.cpp ${SRC}/Diagnostics/norms/context_tree.cpp
@@ -91,7 +91,7 @@ pp_add_test(chart_metrics_test
             ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
             ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
-    INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
+    INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     LINK    Qt6::Qml  AUTOMOC)
 
 # The Charts panel's session half (src/Gui/charts/): the session series model and the session maths.
@@ -114,7 +114,7 @@ pp_add_test(swing_rig_driver_test
     SOURCES swing_rig_driver_test.cpp ${GUI}/swing3d/swing_rig_driver.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the session's swings by SwingPaths, keyed by swing number (step 2.7b)
             ${_rig_gate_sources}
-    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export ${SRC}/Analysis ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Qml  AUTOMOC)
 
 # The 3-D swing panel's motion annotations as meshes (swing_annotation_mesh.h) — trace growth and
@@ -125,7 +125,7 @@ pp_add_test(swing_annotation_geometry_test
             ${GUI}/swing3d/swing_rig_driver.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the rig driver's session listing (step 2.7b)
             ${_rig_gate_sources}
-    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export ${SRC}/Analysis ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Qml  AUTOMOC)
 
 # SwingSeriesModel — playhead→row mapping (rowForTimeUs) for the table cross-highlight.
@@ -157,7 +157,7 @@ pp_add_test(shot_list_model_test
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Export/swing_paths.cpp
-            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Export/tests
@@ -210,9 +210,9 @@ pp_add_test(navigation_controller_test
 pp_add_test(variability_facade_test
     SOURCES variability_facade_test.cpp
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Metrics/variability/variability_result.cpp
-            ${SRC}/Metrics/variability/variability_grader.cpp
-            ${SRC}/Metrics/variability/variability_typicality.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
     INCLUDE ${GUI} ${GUI}/variability ${SRC}
     LINK    Qt6::Qml Qt6::Test  AUTOMOC)
 
@@ -323,9 +323,9 @@ pp_add_test(shot_ledger_test
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/Export/session_store.cpp            # the one swing allocator (step 2.2)
             ${SRC}/DomainModel/session_identity.cpp
-            ${SRC}/Identity/identity.h
+            ${SRC}/Vocabulary/Identity/identity.h
             ${SRC}/Core/folder_lock.cpp
-            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
@@ -351,7 +351,7 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Export/swing_paths.cpp
-            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/launch_monitor_base.cpp
             ${SRC}/LaunchMonitor/launch_monitor_factory.cpp
             ${SRC}/LaunchMonitor/gcquad_monitor.cpp
@@ -381,17 +381,17 @@ set(PP_LM_BOARD_SOURCES
             # the variability marks (R4b per-club grades, R8 typicality) and each reading's scaleType,
             # from the manifest: the catalogue chain chart_metrics_test links
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Metrics/variability/variability_result.cpp
-            ${SRC}/Metrics/variability/variability_grader.cpp
-            ${SRC}/Metrics/variability/variability_typicality.cpp
-            ${SRC}/Metrics/metric_catalogue.cpp
-            ${SRC}/Metrics/metric_resolver.cpp
-            ${SRC}/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Metrics/metric_providers.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
+            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
+            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
+            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
+            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
 )
 set(PP_LM_BOARD_INCLUDES ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts ${GUI}/trust ${GUI}/variability ${SRC} ${SRC}/Core
-    ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics)
+    ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics)
 # T (refactor 6.1a fix round): the board THROUGH THE SHOT — an Athlete, its Session and Shot over a temporary library
 # and the carousel's port (migrate_step2_test's domain link line, less what the board's list already has).
 pp_add_test(lm_session_model_test
@@ -401,7 +401,7 @@ pp_add_test(lm_session_model_test
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
             ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
-            ${SRC}/Identity/identity.h   # moc: ShotRef / SessionId are gadgets (the events carry them)
+            ${SRC}/Vocabulary/Identity/identity.h   # moc: ShotRef / SessionId are gadgets (the events carry them)
             ${SRC}/App/shot_source.h ${SRC}/App/session_shot_source.h ${SRC}/App/session_shot_source.cpp
     INCLUDE ${PP_LM_BOARD_INCLUDES}
     LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC

@@ -19,7 +19,7 @@
 #include "markup_controller.h"
 #include "markup_image_provider.h"
 
-#include "../../Core/club_vocabulary.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../App/shot_command_door.h"   // the Shot's markup truth (step 3.4b-i)
 
 #include <QDir>

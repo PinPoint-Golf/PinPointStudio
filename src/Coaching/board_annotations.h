@@ -48,7 +48,7 @@
 
 #include "diagnostic_ledger.h"
 #include "../Diagnostics/engine/characteristic.h"
-#include "../Core/club_vocabulary.h"   // effectiveClub: the one club rule (refactor 6.2)
+#include "../Vocabulary/Club/club_vocabulary.h"   // effectiveClub: the one club rule (refactor 6.2)
 
 #include <QHash>
 #include <QJsonObject>

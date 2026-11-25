@@ -19,7 +19,7 @@
 
 #include "launch_monitor_base.h"
 #include "shot_pairing.h"
-#include "../../Identity/identity.h"   // ShotRef: the standalone shot the capture service adds
+#include "../../Vocabulary/Identity/identity.h"   // ShotRef: the standalone shot the capture service adds
 
 #include <QHash>
 #include <QJsonObject>

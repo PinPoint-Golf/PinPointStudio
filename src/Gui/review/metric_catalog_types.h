@@ -19,7 +19,7 @@
 #pragma once
 
 // METRIC CATALOG'S TYPED RESULT (refactor 5.8a, lint A6): what MetricCatalog::setupSummary hands QML, one Q_GADGET
-// per catalogue group, named as the old map's keys (pinpoint::analysis::CapabilityGroup, Metrics/setup_capability.h,
+// per catalogue group, named as the old map's keys (pinpoint::analysis::CapabilityGroup, Vocabulary/Metrics/setup_capability.h,
 // field for field). Every map carried every key, so a gadget reads the same. moc reaches this header through
 // metric_catalog.cpp's #include of its moc file.
 

@@ -46,7 +46,7 @@
 //
 // Rules ring (src/Diagnostics): pure.
 
-#include "../../Metrics/measurement.h"
+#include "../../Vocabulary/Metrics/measurement.h"
 #include "../../Vocabulary/Analysis/swing_analysis.h"   // MetricSeries
 
 #include <QHash>

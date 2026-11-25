@@ -13,7 +13,7 @@ new parameter or running a sweep.
 > **One-line model.** A parameter is *injected* at run time via a dotted key
 > (`<area>.<field>` → number) into `ShotAnalysisJob::tuningOverrides`; each stage applies the keys it
 > owns onto its config struct, so a sweep iterates at binary speed with no rebuild. Its frozen default
-> lives in `src/Core/pp_tuned_constants.h`. It is *optimised* by `lab.py sweep` against a scorecard
+> lives in `src/Vocabulary/Common/pp_tuned_constants.h`. It is *optimised* by `lab.py sweep` against a scorecard
 > objective, under a per-swing regression gate and a Tune/Validation/Held-out partition. When validation
 > locks a value, you edit the one literal in the header.
 
@@ -288,7 +288,7 @@ result does). Confidence widens σ, never moves the value. Keys: `enabled` (true
 Produces two independent things: the `ballPosition` metric (ball along the lead-heel→trail-heel line
 as a % of stance width — a ratio of two same-plane distances, so scale-free and comparable across
 captures) and the **ball-diameter px→mm ruler** that puts `stanceWidth` into real millimetres
-(`kGolfBallDiameterMm / (2·radiusPx)`, `src/Core/pp_physical_constants.h`). The ruler resolves
+(`kGolfBallDiameterMm / (2·radiusPx)`, `src/Vocabulary/Common/pp_physical_constants.h`). The ruler resolves
 independently of the heel geometry, and vice versa.
 
 Robustness comes from a component-wise median over the address window plus a cluster gate — the same
@@ -305,7 +305,7 @@ rests on a ~9.5 px radius measurement: ±1 px of radius is ~10 % of scale. No co
 
 ### 2.15 `upperBody.*` / `bodyRotation.*` / `clubDelivery.*` — the face-on producer batch (2026-08-02)
 
-Three new namespaces, all in `src/Core/pp_tuned_constants.h`, all swept without a rebuild.
+Three new namespaces, all in `src/Vocabulary/Common/pp_tuned_constants.h`, all swept without a rebuild.
 
 **`upperBody.*`** (`UpperBodyConfig`, `upper_body_metrics.h`). Nine frontal-plane chest / shoulder /
 arm channels. Keys: `confMin` (0.30) / `addrMinFrames` (5) / `addrWindowUs` (250000) /
@@ -1042,7 +1042,7 @@ swing the rule does not fire on.
 
 ## 3. The frozen-defaults header — the single freeze edit-point
 
-`src/Core/pp_tuned_constants.h` (`namespace pinpoint::tuned`) is the **single source of truth** for every
+`src/Vocabulary/Common/pp_tuned_constants.h` (`namespace pinpoint::tuned`) is the **single source of truth** for every
 parameter that is tuned during validation and then frozen. `src/Core/` is the lowest common layer (both
 `src/IMU/` live code and `src/Analysis/` offline code already include from it), and the header is
 **pure numeric literals** (quaternions as `{w,x,y,z}` float arrays) so even the deliberately Qt-free

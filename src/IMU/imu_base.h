@@ -26,7 +26,7 @@
 #include <memory>
 
 #include "iorientation_filter.h"
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 
 struct ImuCapabilities;
 

@@ -319,14 +319,15 @@ TEST(PpcpAnnotations, NothingInAnalysisReadsAnAnnotation)
     // producers live in the topic folders beside it. Every one of them is scanned.
     static const char *const kAnalysisDirs[] = {
         "Analysis", "Club", "Wrist", "Body", "Timeline", "Ball", "Kinematics", "Skeleton3d",
-        "Coaching", "Pose", "IMU", "LaunchMonitor", "Metrics",
+        "Coaching", "Pose", "IMU", "LaunchMonitor", "Vocabulary/LaunchMonitor", "Vocabulary/Metrics",
     };
 
     std::vector<std::string> offenders;
     int scanned = 0;
     for (const char *dir : kAnalysisDirs) {
         const fs::path analysis = fs::path(PP_PPCP_SRC_DIR) / ".." / dir;
-        ASSERT_TRUE(fs::exists(analysis)) << analysis.string();
+        // A folder that is gone fails here, so a move can never drop one from the scan silently.
+        ASSERT_TRUE(fs::is_directory(analysis)) << "a listed analysis folder is missing: " << analysis.string();
         std::error_code ec;
         for (fs::recursive_directory_iterator it(analysis, ec), end; it != end; it.increment(ec)) {
             if (ec) break;

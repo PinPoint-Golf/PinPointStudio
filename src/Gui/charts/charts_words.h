@@ -32,7 +32,7 @@
 // A SENTENCE is published to QML as plain text plus runs, so the panel can set the figures in the
 // figure face without parsing: { text, runs: [ { text, fig } ], clause }. Sentence::toVariant() makes that.
 
-#include "../../Core/figure_format.h"
+#include "../../Vocabulary/Common/figure_format.h"
 
 #include <QString>
 #include <QStringList>

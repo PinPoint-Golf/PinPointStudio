@@ -41,7 +41,7 @@
 #include "charts/session_series_types.h"
 #include "charts/session_wrist.h"
 #include "../../Vocabulary/Analysis/gate_record.h"                // a substitute record, written as swing.json writes it
-#include "gate_catalogue.h"             // its replaced record's claim words
+#include "../../Vocabulary/Metrics/gate_catalogue.h"             // its replaced record's claim words
 
 #include <QFile>
 #include <QJsonDocument>

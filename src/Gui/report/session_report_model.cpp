@@ -47,7 +47,7 @@
 #include "../diagnostics/session_diagnostics_model.h"
 #include "../diagnostics/spread_readout.h"   // the habit runs over the Session's diagnosis (refactor 5.6c, B5)
 #include "../launchmonitor/lm_session_model.h"
-#include "../../LaunchMonitor/lm_device.h"         // the device of a launchMonitor block
+#include "../../Vocabulary/LaunchMonitor/lm_device.h"         // the device of a launchMonitor block
 #include "../shot/shot_list_model.h"
 #include "../variability/variability_facade.h"
 #include "../variability/variability_ledger.h"         // ledgerConsistencyGrade (R10, R14)
@@ -72,7 +72,7 @@
 #include "../../DomainModel/session_diagnostics.h"   // its own diagnosis, read through it (5.6b)
 #include "../../DomainModel/shot.h"                  // a kept shot's folder (5.6b)
 #include "../../Export/session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
-#include "../../LaunchMonitor/launch_monitor_reading.h"
+#include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
 
 #include <QCryptographicHash>

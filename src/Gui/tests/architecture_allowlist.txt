@@ -152,9 +152,9 @@ Pose/motion_capture_probe.h | A6 | 1 | the motion-capture hardware probe's QML A
 Ppcp/ppcp_host_service.h | A6 | 6 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 
 # ── A7 functions over 300 lines in rings 1-2 ──
-Metrics/gate_catalogue_body.h | A7 | 1 | the body gate catalogue is a table written as code (one entry per gate), not logic; kept as code, confirmed by Mark 14 Nov  # kept
-Metrics/gate_catalogue_club.h | A7 | 1 | the club gate catalogue is a table written as code (one entry per gate), not logic; kept as code, confirmed by Mark 14 Nov  # kept
-Metrics/metric_catalogue_manifest.cpp | A7 | 1 | the metric manifest (installMetricManifest) is a table written as code (one entry per metric); it goes when the metric catalogue is data (A-06; triage, Product Owner, 14 Nov 2026)  # platform refactor (#224)
+Vocabulary/Metrics/gate_catalogue_body.h | A7 | 1 | the body gate catalogue is a table written as code (one entry per gate), not logic; kept as code, confirmed by Mark 14 Nov  # kept
+Vocabulary/Metrics/gate_catalogue_club.h | A7 | 1 | the club gate catalogue is a table written as code (one entry per gate), not logic; kept as code, confirmed by Mark 14 Nov  # kept
+Vocabulary/Metrics/metric_catalogue_manifest.cpp | A7 | 1 | the metric manifest (installMetricManifest) is a table written as code (one entry per metric); it goes when the metric catalogue is data (A-06; triage, Product Owner, 14 Nov 2026)  # platform refactor (#224)
 Ball/ball_runner.cpp | A7 | 1 | BallRunner::run 435 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Ball/impact_runner.cpp | A7 | 1 | ImpactRunner::run 574 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Body/dtl_posture.h | A7 | 1 | buildDtlPosture 439 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222

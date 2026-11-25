@@ -96,7 +96,7 @@ Units are never capitalised: a label that carries a unit is set in `fLabelUnit` 
 
 ## Text and figure helpers
 - **Case and escaping:** `cap1`, `lower1`, `sentence`, `esc`, `hex`.
-- **Figures** — the QML twin of `Core/figure_format.h`, implemented once in `typeset/figure_format.js` (imported as `Figures`): `decimalsFor(unit)`, `figure(v, dec, trimZeros)`, `figureSigned(v, dec)`, `withUnit(f, unit)`, `figureUnit(v, unit)`, `shortUnit(unit)`, `num(v)` (one decimal, zeros trimmed), `list(xs)` ("a, b and c"). Missing is "-", never 0; the minus is U+2212; never "−0". A file with no PpTypeset to hand imports `figure_format.js` directly.
+- **Figures** — the QML twin of `Vocabulary/Common/figure_format.h`, implemented once in `typeset/figure_format.js` (imported as `Figures`): `decimalsFor(unit)`, `figure(v, dec, trimZeros)`, `figureSigned(v, dec)`, `withUnit(f, unit)`, `figureUnit(v, unit)`, `shortUnit(unit)`, `num(v)` (one decimal, zeros trimmed), `list(xs)` ("a, b and c"). Missing is "-", never 0; the minus is U+2212; never "−0". A file with no PpTypeset to hand imports `figure_format.js` directly.
 - **Words:** `word(n)` (zero to twenty in words), `countWord(n)` (zero is "none").
 - **Lookups:** `byId`, `byKey`, `listAt`, `fin(v)` (a drawable number), `withHLines(lo, hi, ls)`.
 - **Inline HTML:** `figHtml(s, c)` (the figure face inside a sentence), `strongHtml(s)`, `toneHtml(s, c)`.

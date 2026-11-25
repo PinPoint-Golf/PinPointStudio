@@ -13,7 +13,7 @@ docs/developer/metric_catalogue_developer_guide.md and leaves the rest of the fi
 import re, collections, pathlib, sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-SRC  = ROOT / "src/Metrics/metric_catalogue_manifest.cpp"
+SRC  = ROOT / "src/Vocabulary/Metrics/metric_catalogue_manifest.cpp"
 DOC  = ROOT / "docs/developer/metric_catalogue_developer_guide.md"
 BEGIN = "<!-- BEGIN GENERATED SIGN TABLE -->"
 END   = "<!-- END GENERATED SIGN TABLE -->"

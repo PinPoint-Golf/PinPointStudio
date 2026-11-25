@@ -44,7 +44,7 @@
 // the time axis moves, and nothing is differentiated in warped time.
 //
 // ── THE CURVE ────────────────────────────────────────────────────────────────────────────────
-// `v` is the ENGINE'S windowed mean (src/Metrics/series_reduce.h windowedMeans, the default
+// `v` is the ENGINE'S windowed mean (src/Vocabulary/Metrics/series_reduce.h windowedMeans, the default
 // ReduceConfig — the very call ChartMetrics::windowedMean makes, so a session curve is the line the
 // single-shot chart draws, bit for bit). It is called directly rather than through ChartMetrics
 // because the reduction is already a free, header-only function; ChartMetrics only marshals

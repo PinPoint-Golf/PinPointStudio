@@ -36,8 +36,8 @@
 // to a Witmotion rig, which is exactly what the separate axis exists to prevent —
 // so the "roles alone are not enough" case is pinned explicitly below.
 
-#include "metric_catalogue.h"
-#include "launch_monitor_reading.h"
+#include "../../Vocabulary/Metrics/metric_catalogue.h"
+#include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 
 #include <cstdio>
 #include <vector>

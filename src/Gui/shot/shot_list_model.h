@@ -31,7 +31,7 @@
 #include <memory>
 #include <optional>
 
-#include "../../Identity/identity.h"   // ShotRef (a row's key)
+#include "../../Vocabulary/Identity/identity.h"   // ShotRef (a row's key)
 #include "../../App/shot_source.h"     // the port onto one Session (step 5.2)
 
 // ShotListModel — the carousel: a VIEW of one Session's shots (refactor step 5.2; R-QML-5, DEC-199). Three instances:

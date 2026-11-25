@@ -18,7 +18,7 @@
 
 #include "session_curves.h"
 
-#include "../../Metrics/series_reduce.h"   // windowedMeans — the one windowed mean (header-only)
+#include "../../Vocabulary/Metrics/series_reduce.h"   // windowedMeans — the one windowed mean (header-only)
 
 #include <algorithm>
 #include <cmath>

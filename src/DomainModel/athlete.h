@@ -81,8 +81,8 @@
 
 #include "session_repository.h"   // SessionIndexEntry, SessionOwner, WriteResult
 #include "shot_command_values.h"   // TuningFlagNote
-#include "../Core/club_standards.h"
-#include "../Identity/identity.h"
+#include "../Vocabulary/Club/club_standards.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QDate>
 #include <QHash>

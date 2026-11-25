@@ -19,7 +19,7 @@
 #pragma once
 
 #include "characteristic_engine.h"
-#include "../../Core/pp_tuned_constants.h" // tuned::diagUncertainty (§A8.6)
+#include "../../Vocabulary/Common/pp_tuned_constants.h" // tuned::diagUncertainty (§A8.6)
 
 namespace pinpoint::analysis {
 

@@ -56,8 +56,8 @@
 #include <QVariantMap>
 #include <vector>
 
-#include "../../Identity/identity.h"           // ShotRef: the live join's write is keyed by it (step 2.4)
-#include "../../Recording/recording.h"
+#include "../../Vocabulary/Identity/identity.h"           // ShotRef: the live join's write is keyed by it (step 2.4)
+#include "../../Vocabulary/Recording/recording.h"
 #include "../../Vocabulary/Analysis/swing_analysis.h"        // BallTrack2D, SwingAnalysis
 #include "../../Analysis/recording_integrity.h"   // IntegrityVerdicts
 #include "../../Club/club_length_fusion.h"        // LengthPriorState

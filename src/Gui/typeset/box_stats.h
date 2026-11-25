@@ -18,7 +18,7 @@
 
 #pragma once
 
-// The box statistics moved to the Vocabulary ring (refactor step 3.8): src/Metrics/box_stats.h, unchanged. This header
+// The box statistics moved to the Vocabulary ring (refactor step 3.8): src/Vocabulary/Metrics/box_stats.h, unchanged. This header
 // forwards, so the Charts and diagnostics code that draws a box keeps its include.
 
-#include "../../Metrics/box_stats.h"
+#include "../../Vocabulary/Metrics/box_stats.h"

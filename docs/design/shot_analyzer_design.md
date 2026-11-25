@@ -378,7 +378,7 @@ This section specifies the biomechanical metric catalog produced by `MetricExtra
 > `source` column states the ideal sensing for each metric and several entries have since been
 > produced by a weaker but honest route, which is the standing rule at work — *produce the
 > measurement from whatever is available, refine when a better sensor arrives*. What actually ships
-> is `src/Metrics/metric_catalogue_manifest.cpp`; 70 descriptors, 54 produced, 16 planned.
+> is `src/Vocabulary/Metrics/metric_catalogue_manifest.cpp`; 70 descriptors, 54 produced, 16 planned.
 >
 > Three rows are now wrong on the merits and are worth correcting here rather than only in the code:
 >

@@ -27,7 +27,7 @@
 
 #include "../Analysis/swing_reanalyzer.h"   // pinpoint::analysis::ReanalyzeResult
 #include "../Analysis/reanalyse_and_persist.h"   // pinpoint::analysis::AnalysisWrite
-#include "../Identity/identity.h"   // ShotRef
+#include "../../Vocabulary/Identity/identity.h"   // ShotRef
 
 namespace pinpoint { class ShotCommandDoor; }
 

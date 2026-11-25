@@ -12,7 +12,7 @@
 #include "../frame_store.h"
 #include "../../Buffer/swing_window.h"
 #include "../../Buffer/swing_payload_source.h"
-#include "../../Export/frame_decode.h"
+#include "../../Vocabulary/Recording/frame_decode.h"
 
 #include <opencv2/imgproc.hpp>
 

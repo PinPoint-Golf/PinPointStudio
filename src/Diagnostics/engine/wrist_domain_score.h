@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../Core/pp_tuned_constants.h"   // rules::kScoreScale, kSeverityWeight* — the engine's own
+#include "../../Vocabulary/Common/pp_tuned_constants.h"   // rules::kScoreScale, kSeverityWeight* — the engine's own
 
 #include <QString>
 

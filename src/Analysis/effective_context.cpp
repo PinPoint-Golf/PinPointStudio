@@ -18,8 +18,8 @@
 
 #include "effective_context.h"
 
-#include "../Core/club_standards.h"
-#include "../Core/club_vocabulary.h"
+#include "../Vocabulary/Club/club_standards.h"
+#include "../Vocabulary/Club/club_vocabulary.h"
 
 namespace pinpoint::analysis {
 

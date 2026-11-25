@@ -19,8 +19,8 @@
 #pragma once
 
 #include "metric_descriptor.h"  // MetricDescriptor, MetricRoute, MetricRequirement
-#include "../Vocabulary/Analysis/reference_band_context.h" // BandContext
-#include "../Vocabulary/Analysis/swing_analysis.h"     // SegmentRole, ReconstructionTier
+#include "../Analysis/reference_band_context.h" // BandContext
+#include "../Analysis/swing_analysis.h"     // SegmentRole, ReconstructionTier
 
 #include <QString>
 #include <QStringList>

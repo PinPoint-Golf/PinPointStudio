@@ -40,7 +40,7 @@
 #include "../packs/drill_pack.h"
 #include "../packs/gate_words_pack.h"
 #include "../packs/screen_pack.h"
-#include "../../Metrics/gate_catalogue.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"
 
 #include <QCoreApplication>
 #include <QDir>

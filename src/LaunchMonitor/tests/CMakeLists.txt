@@ -38,7 +38,7 @@ find_package(Qt6 REQUIRED COMPONENTS Test Network)
 pp_add_test(gcquad_csv_parser_test
     SOURCES gcquad_csv_parser_test.cpp
             ${LM}/gcquad_csv_parser.cpp
-            ${LM}/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${LM}
     GTEST)
 
@@ -62,7 +62,7 @@ pp_add_test(gcquad_pairing_test
             ${LM}/gcquad_monitor.cpp
             ${LM}/launch_monitor_base.cpp
             ${LM}/gcquad_csv_parser.cpp
-            ${LM}/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
             ${LM}/gcquad_monitor.h
@@ -107,7 +107,7 @@ pp_add_test(lm_device_test
 pp_add_test(gspro_reading_test
     SOURCES gspro_reading_test.cpp
             ${LM}/gspro_reading.cpp
-            ${LM}/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${LM}
     LINK    gspro
     GTEST)
@@ -122,7 +122,7 @@ pp_add_test(gspro_monitor_test
             ${LM}/gspro_monitor.cpp
             ${LM}/gspro_reading.cpp
             ${LM}/launch_monitor_base.cpp
-            ${LM}/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
             ${LM}/gspro_monitor.h
@@ -142,7 +142,7 @@ set(PREMIER_FIXTURES ${CMAKE_CURRENT_SOURCE_DIR}/data/premier)
 pp_add_test(premier_session_parser_test
     SOURCES premier_session_parser_test.cpp
             ${LM}/premier_session_parser.cpp
-            ${LM}/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${LM}
     DEFINES PP_PREMIER_FIXTURES="${PREMIER_FIXTURES}"
     GTEST)
@@ -155,7 +155,7 @@ pp_add_test(premier_monitor_test
             ${LM}/premier_monitor.cpp
             ${LM}/premier_session_parser.cpp
             ${LM}/launch_monitor_base.cpp
-            ${LM}/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
             ${LM}/premier_monitor.h

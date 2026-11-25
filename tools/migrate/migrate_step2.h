@@ -33,7 +33,7 @@
 // its backups, and re-reads every write. The same code decides both, so the dry-run report is what the
 // write does.
 
-#include "../../src/Identity/identity.h"
+#include "../../src/Vocabulary/Identity/identity.h"
 
 #include <QDateTime>
 #include <QJsonObject>

@@ -20,8 +20,8 @@
 
 #include "anatomy_vocabulary.h"
 
-#include "../../Metrics/metric_descriptor.h" // PhaseDomain — a reducer is checked against it
-#include "../../Metrics/metric_reducer.h"
+#include "../../Vocabulary/Metrics/metric_descriptor.h" // PhaseDomain — a reducer is checked against it
+#include "../../Vocabulary/Metrics/metric_reducer.h"
 
 #include <QString>
 

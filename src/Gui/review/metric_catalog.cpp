@@ -18,7 +18,7 @@
 
 #include "metric_catalog.h"
 
-#include "../../Metrics/setup_capability.h"
+#include "../../Vocabulary/Metrics/setup_capability.h"
 
 using namespace pinpoint::analysis;
 

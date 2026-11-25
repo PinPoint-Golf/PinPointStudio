@@ -1,4 +1,4 @@
-// Standalone test for the shared frame decode (src/Export/frame_decode) — the
+// Standalone test for the shared frame decode (src/Vocabulary/Recording/frame_decode) — the
 // ONE payload→cv::Mat path used by both SwingExporter and the shot analyzer.
 // Synthetic NV12 / YUV420P / BGRA32 / Bayer8 payloads with known pixel values;
 // golden-pixel checks, geometry/stride handling, false-on-short/unsupported.
@@ -7,7 +7,7 @@
 //   cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.1/gcc_64
 //   cmake --build build/analyzer-tests && ctest --test-dir build/analyzer-tests --output-on-failure
 
-#include "../../Export/frame_decode.h"
+#include "../../Vocabulary/Recording/frame_decode.h"
 
 #include <opencv2/imgproc.hpp>
 

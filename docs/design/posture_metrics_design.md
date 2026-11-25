@@ -780,7 +780,7 @@ anything is committed.
 2. **Producers**
    - `src/Body/upper_body_metrics.{h,cpp}`: `trunkRise`
    - `src/Body/dtl_posture.h`: `armHang`, `headPitch`
-   - `src/Metrics/metric_catalogue_manifest.cpp`: three descriptors and the Posture preset
+   - `src/Vocabulary/Metrics/metric_catalogue_manifest.cpp`: three descriptors and the Posture preset
    - `governance/artefacts/sign_conventions.md`: three signs
    - unit tests in `src/Analysis/tests/`
 3. **Measurement:** V1–V3 → `docs/research/data/posture/`, ρ and norms into `norms.json`.

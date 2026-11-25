@@ -103,7 +103,7 @@ Awaiting the Design Lead:
 
 - **Pages:** `components/PpVariabilityMark.md`, `PpVariabilityBadge.md`, `PpVariabilityFunnel.md`; the index under Marks; the four vocabularies beside `ClubFormat` in the index's note on helpers; "Variability words" under Content and "Variability marks" under Cards and marks in the README. Static previews in `previews/`, cut from the windowed Instrument Light renders.
 - **Token usage notes corrected** in `tools/theme/make_design_system.py` (tokens.json regenerated; Theme.qml unchanged): `variabilityFunnelH` is the graphic's height in both forms, not only the compact one; `variabilityCellW` is read by no component (a Cell is drawn `size` × 80/24); a bare Cell mark needs `size` set to `variabilityCellH`; `variabilityPrintAlphaScale` applies to every translucent fill (dots, ellipse, wedges, inner zone, ghosts, envelope, funnel band), never with `roles.tintK`; the hysteresis also applies to s′ and ρm and is read by no component. Theme.qml's own comment on `variabilityPrintAlphaScale` still lists only the dots, ellipse and wedges.
-- **Not synced, by design:** the §4 and §6 geometry tables and the §8 grade basis are not repeated in the docs. They live in `spec.md` and `src/Gui/variability/variability_geometry.cpp` / `src/Metrics/variability/`, and the pages point there.
+- **Not synced, by design:** the §4 and §6 geometry tables and the §8 grade basis are not repeated in the docs. They live in `spec.md` and `src/Gui/variability/variability_geometry.cpp` / `src/Vocabulary/Metrics/variability/`, and the pages point there.
 - **Sync step (plan session 4, tasks 1 and 7): skipped (Design Lead, 7 Nov).** The design system is the repo folder; there is no claude.ai artifact to sync.
 
 Found while documenting, for the Design Lead:
@@ -223,7 +223,7 @@ What the retrofit left alone, what has no surface yet, the measurement surfaces 
 
 **Gaps the build filled, and interpretations worth keeping.**
 - **Data-warning shots are graded.** Home and the report used to skip every shot carrying a data warning (4 July: 15 of 15; 5 Oct: 29 of 31), which left Home with no readings. The ledger's NotAssessable decides instead (work-on rule version 2).
-- **One outcome rule, by measure** (`src/Metrics/variability/variability_outcome.h`): ball flight and smash are ungraded everywhere (Home, the report's work-on, the diagnostics Spread box and funnel, the launch monitor). Club delivery is any launch-monitor key that is not an outcome, so spin loft and closure rate are eligible too.
+- **One outcome rule, by measure** (`src/Vocabulary/Metrics/variability/variability_outcome.h`): ball flight and smash are ungraded everywhere (Home, the report's work-on, the diagnostics Spread box and funnel, the launch monitor). Club delivery is any launch-monitor key that is not an outcome, so spin loft and closure rate are eligible too.
 - **Posture and Wrist badges** sit in a line per club under each row ("P4 [badge]"), not under each column: a badge, its word and basis don't fit a P column. Gate-warned and joints-only ⚠ readings are left out (the guarded rule).
 - **Wrist grades** use the dominant style's band, on screen too, although the screen shades the picked shot's band. The ranking reads "ranked from P3 on".
 - **Launch-monitor badges** sit in a named list under the tiles: too wide for a tile.

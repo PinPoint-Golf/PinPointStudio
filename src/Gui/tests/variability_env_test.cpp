@@ -26,7 +26,7 @@
 #include "charts/session_warp.h"                // phase ids
 #include "charts/variability_env.h"
 
-#include "Metrics/metric_catalogue.h"
+#include "Vocabulary/Metrics/metric_catalogue.h"
 
 #include <QtTest>
 

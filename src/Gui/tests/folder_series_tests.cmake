@@ -35,7 +35,7 @@ pp_add_test(folder_series_test
             ${SRC}/Diagnostics/norms/context_tree.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(folder_series_test PROPERTIES

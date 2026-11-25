@@ -40,7 +40,7 @@
 #include "temp_library.h"
 #include "swing_store.h"
 #include "Vocabulary/Analysis/swing_analysis.h"
-#include "launch_monitor_reading.h"
+#include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 
 #include <QCoreApplication>
 #include <QDateTime>

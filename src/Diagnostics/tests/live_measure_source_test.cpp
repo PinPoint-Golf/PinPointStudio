@@ -63,7 +63,7 @@
 #include "../norms/context_tree.h"   // contextIdForClub (refactor 6.2)
 #include "../packs/pack_provider.h"
 #include "../../Club/p8_refusal_gate.h"     // why there is no P8 (plane stack D6)
-#include "../../Metrics/gate_catalogue.h"   // its catalogue entry and sentence
+#include "../../Vocabulary/Metrics/gate_catalogue.h"   // its catalogue entry and sentence
 
 #include <QCoreApplication>
 #include <QDir>

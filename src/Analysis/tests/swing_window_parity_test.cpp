@@ -76,7 +76,7 @@
 #include "source_descriptor.h"
 #include "swing_window.h"
 
-#include "frame_decode.h"
+#include "../../Vocabulary/Recording/frame_decode.h"
 #include "swing_doc.h"
 #include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "swing_exporter.h"

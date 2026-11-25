@@ -360,7 +360,7 @@ inline LmShapeClass lmShapeClass(const std::optional<double> &startDeg,
 // Classify the shot's shape.
 //
 // HANDEDNESS MIRRORS THE GLOSS, NEVER THE SIGN — the rule already stated for the whole
-// metric catalogue in src/Metrics/metric_descriptor.h. The device records device-frame
+// metric catalogue in src/Vocabulary/Metrics/metric_descriptor.h. The device records device-frame
 // geometry (gcquad_csv_parser.cpp: spin axis "positive tilting right for a right-handed
 // golfer"), and a ball that finished physically right finished physically right for
 // either golfer. What changes is what that is CALLED: for a left-hander, right of target

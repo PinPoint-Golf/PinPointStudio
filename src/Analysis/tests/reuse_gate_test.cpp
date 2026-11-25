@@ -47,7 +47,7 @@
 #include "../../Export/recording_loader.h"
 #include "../../Export/swing_store_repository.h"   // follow-club through the repository (Test 9)
 #include "../../Export/tests/swing_doc_test_writes.h"   // testdoc::ref — the test folder's ShotRef
-#include "../../LaunchMonitor/launch_monitor_reading.h"
+#include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "recording_fixture.h"
 
 #include <QTemporaryDir>

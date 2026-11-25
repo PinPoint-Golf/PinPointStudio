@@ -54,7 +54,7 @@
 #include "../../Coaching/diagnostic_ledger.h"   // ShotRecord, the rows
 #include "../../Coaching/shot_factors.h"        // ShotFactors (and, through it, ShotOutcome, composeShotOutcome)
 #include "../../Coaching/strike_from_flight.h"  // FlightNorms, ClubFlightUsual
-#include "../../Core/pp_tuned_constants.h"
+#include "../../Vocabulary/Common/pp_tuned_constants.h"
 #include "../../Wrist/wrist_profile_assess.h"   // WristInput, the wrist checkpoint profile (DEC-123)
 
 #include <QHash>

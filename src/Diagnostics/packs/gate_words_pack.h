@@ -52,7 +52,7 @@
 // returns empty, and the report then leaves that line out rather than printing the analyst's words — an
 // internal phrase on a client document is worse than a gap the technical appendix fills.
 //
-// THE CATALOGUE IS NOT CONSULTED HERE. Which gate ids exist is the gate catalogue's (Metrics/
+// THE CATALOGUE IS NOT CONSULTED HERE. Which gate ids exist is the gate catalogue's (Vocabulary/Metrics/
 // gate_catalogue.h), and this layer does not link it, for the same reason characteristic_pack.h never
 // looks a metric up. core_pack_test holds the SHIPPED file to the catalogue in both directions — every
 // catalogued id has a clause, every clause is a catalogued id — which is the only place that question is

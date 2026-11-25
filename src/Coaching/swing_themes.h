@@ -284,7 +284,7 @@ struct ThemeMeasureInfo {
 //   when        the EARLIEST swing position (1..10) any of those first measures is read at
 //               (ThemeMeasureInfo::when; 0s ignored), 0 = none placed
 // A metricKey's FAMILY ROOT: the key with a trailing "Signed" removed. The metric catalogue
-// (src/Metrics/metric_catalogue_manifest.cpp) describes pelvisRotationSigned as "the same physical
+// (src/Vocabulary/Metrics/metric_catalogue_manifest.cpp) describes pelvisRotationSigned as "the same physical
 // quantity as Pelvis rotation", carrying only the sign the magnitude throws away — so a fault read
 // on one and praise read on the other ("your hips keep turning through impact" beside "your hips
 // haven't turned enough by impact") are about one thing. Every family here goes through this:

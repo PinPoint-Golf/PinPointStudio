@@ -51,7 +51,7 @@
 // The QML façade is LmSessionModel (src/Gui/launchmonitor/lm_session_model.h).
 // Unit-tested standalone in src/Analysis/tests/lm_session_reductions_test.cpp.
 
-#include "launch_monitor_reading.h"
+#include "../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 
 #include <QHash>
 #include <QString>

@@ -20,8 +20,8 @@
 
 #include "session_consistency.h"                            // ConsistencyEnv, ConsistencyReading
 
-#include "../../Metrics/variability/variability_result.h"     // ScaleSource
-#include "../../Metrics/variability/variability_scale_type.h" // ScaleType
+#include "../../Vocabulary/Metrics/variability/variability_result.h"     // ScaleSource
+#include "../../Vocabulary/Metrics/variability/variability_scale_type.h" // ScaleType
 #include "../../Diagnostics/norms/norm.h"                     // NormSource
 
 #include <QString>

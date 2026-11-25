@@ -28,7 +28,7 @@
 //   · an empty rig records nothing.
 // The per-group table for each setup is printed (qInfo) so the real numbers can be read.
 
-#include "setup_capability.h"
+#include "../setup_capability.h"
 
 #include <QDebug>
 #include <QHash>

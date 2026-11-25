@@ -20,8 +20,8 @@
 
 #include "session_curves.h"   // quantile7
 #include "charts_words.h"
-#include "../../Core/pp_tuned_constants.h"   // sequence::kMaxPlaceSigmaMs
-#include "../../Metrics/gate_catalogue.h"     // the gates' words (trust_and_gates_design.md §5)
+#include "../../Vocabulary/Common/pp_tuned_constants.h"   // sequence::kMaxPlaceSigmaMs
+#include "../../Vocabulary/Metrics/gate_catalogue.h"     // the gates' words (trust_and_gates_design.md §5)
 
 #include <QHash>
 #include <QVariantList>
@@ -311,7 +311,7 @@ void summariseSequence(SessionSequence &out)
             SegmentSummary &sm = out.segments[size_t(i)];
             if (p.placed) ++sm.placed;
             if (p.probable) ++sm.probable;
-            if (words::isAfterImpact(p.timeMs())) ++sm.afterImpact;   // past the 2 ms "at impact" window (Core/figure_format.h)
+            if (words::isAfterImpact(p.timeMs())) ++sm.afterImpact;   // past the 2 ms "at impact" window (Vocabulary/Common/figure_format.h)
             if (p.late) ++sm.late;
         }
         const QString key = q.order.join(QLatin1Char(','));

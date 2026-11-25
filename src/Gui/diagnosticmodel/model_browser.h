@@ -25,7 +25,7 @@
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/screen_pack.h"
-#include "../../Metrics/metric_catalogue.h"
+#include "../../Vocabulary/Metrics/metric_catalogue.h"
 
 #include <QFutureWatcher>
 #include <QHash>

@@ -41,10 +41,10 @@
 
 #include "swing_paths.h"
 #include "swing_store.h"
-#include "../LaunchMonitor/lm_device.h"             // connector vs device: launchMonitor.device
+#include "../Vocabulary/LaunchMonitor/lm_device.h"             // connector vs device: launchMonitor.device
 #include "../Vocabulary/Analysis/swing_analysis.h"          // windowTimeUs — the one time rule
 #include "../Core/atomic_write.h"
-#include "../Core/club_vocabulary.h"
+#include "../Vocabulary/Club/club_vocabulary.h"
 #include "../Kinematics/kinematic_sequence_json.h" // retimeKinematicSequence — the strip's instants
 #include "../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
 #include "../Body/dtl_ruler_json.h"                // dtlRulerPayload — the DTL ruler

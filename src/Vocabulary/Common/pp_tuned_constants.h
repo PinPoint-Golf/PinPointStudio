@@ -885,7 +885,7 @@ inline constexpr int          kAddrMinFrames = 5;       // fallback address ref 
 inline constexpr std::int64_t kAddrWindowUs  = 250000;  // ±window about the Address event for the robust ref
 } // namespace foot
 
-// --- Sparse-channel resample (src/Metrics/metric_channel.h) ------------------
+// --- Sparse-channel resample (src/Vocabulary/Metrics/metric_channel.h) ------------------
 // Every face-on producer resamples its sparse channel onto the full frame grid,
 // holding at the ends and bridging gaps so the curve is continuous and never NaN.
 // kMaxBridgeUs is where a bridge stops being a measurement: a grid sample farther
@@ -917,7 +917,7 @@ inline constexpr std::int64_t kMaxBridgeUs        = 60000;   // channel.maxBridg
 inline constexpr double       kBridgeSpacingFactor = 1.5;    // channel.bridgeSpacingFactor
 } // namespace channel
 
-// --- Robust series reducers (src/Metrics/series_reduce.h) ---------------------
+// --- Robust series reducers (src/Vocabulary/Metrics/series_reduce.h) ---------------------
 // The windows the CHART SUMMARY and the DIAGNOSTICS PHASE GRID both reduce with, so the card and
 // the corridors cannot disagree about the same word. Design
 // docs/design/metric_presentation_honesty.md §5.2; the At window is sampler::kWindowHalfUs above,

@@ -1,7 +1,7 @@
 # Pinpoint Feature Switches — Developer Guide
 
 **Audience**: Developers changing analysis behaviour, running SwingLab gates, or wondering why a feature "does nothing"
-**Location**: `src/Core/pp_tuned_constants.h` (frozen defaults), per-module `*Config` structs in `src/Analysis` / `src/Pose` (their `fromOverrides`), `src/Vocabulary/Analysis/analysis_tuning.h` (the override mechanism), `src/Gui/app/app_settings.h`, `CMakeLists.txt`
+**Location**: `src/Vocabulary/Common/pp_tuned_constants.h` (frozen defaults), per-module `*Config` structs in `src/Analysis` / `src/Pose` (their `fromOverrides`), `src/Vocabulary/Analysis/analysis_tuning.h` (the override mechanism), `src/Gui/app/app_settings.h`, `CMakeLists.txt`
 **Status**: Snapshot at `a7380850` (2026-10-01). Every default below was read at that commit; history comes from `git log -S` plus the commit bodies and gate documents cited. When a switch flips, update its row here in the same commit.
 
 **Vocabulary**: **LIVE** = on by default, runs in production. **DARK** = built, off by default, OFF path byte-identical to "not built". **mode** = a numeric/enum constant where a sentinel (usually `0`) disables the feature. **oracle** = a switch that exists only to reproduce an older or reference behaviour for A/B; it is never meant to flip.
@@ -95,7 +95,7 @@ This is the list to read first. Each row is off in production today.
 
 ## 3. Analysis switches by area
 
-Line numbers are at `a7380850`. "PTC" means `src/Core/pp_tuned_constants.h`.
+Line numbers are at `a7380850`. "PTC" means `src/Vocabulary/Common/pp_tuned_constants.h`.
 
 ### 3.1 IMU orientation filter
 

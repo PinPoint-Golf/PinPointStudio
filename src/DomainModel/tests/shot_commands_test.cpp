@@ -93,7 +93,7 @@
 #include "../../Gui/shot/shot_list_model.h"
 #include "../../Vocabulary/Analysis/swing_analysis.h"
 #include "../../Analysis/capture_integrity_check.h"
-#include "../../LaunchMonitor/launch_monitor_reading.h"
+#include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 
 #include <QCoreApplication>
 #include <QDateTime>

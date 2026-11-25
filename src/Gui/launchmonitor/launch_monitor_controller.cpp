@@ -32,7 +32,7 @@
 #include "../../App/shot_command_door.h"   // the Shot's late part (step 3.4b-i)
 
 #include "gspro_monitor.h"
-#include "lm_device.h"
+#include "../../Vocabulary/LaunchMonitor/lm_device.h"
 #include "premier_club.h"
 #include "premier_monitor.h"
 

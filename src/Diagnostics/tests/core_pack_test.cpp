@@ -18,7 +18,7 @@
 #include "../packs/pack_provider.h"
 #include "../packs/reference_pack.h"
 // Header-only: the gate words are held to the catalogue's ids here, and only here.
-#include "../../Metrics/gate_catalogue.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"
 
 #include <QCoreApplication>
 #include <QDir>

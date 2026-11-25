@@ -30,7 +30,7 @@
 #include "swing_analysis.h"                 // Phase
 #include "gate_record.h"                    // GateRecord — why a reading is absent (schema 8)
 #include "sigma_source.h"                   // SigmaSource
-#include "../../Core/pp_tuned_constants.h"  // tuned::sampler, tuned::reduce
+#include "../Common/pp_tuned_constants.h"  // tuned::sampler, tuned::reduce
 
 #include <QString>
 #include <QtGlobal>

@@ -66,7 +66,7 @@
 #include <functional>
 
 #include "../review/device_filter_model.h"
-#include "../../Identity/identity.h"
+#include "../../Vocabulary/Identity/identity.h"
 
 class SessionReportModel;
 namespace pinpoint { class SessionListPresenter; struct SessionListRow; }

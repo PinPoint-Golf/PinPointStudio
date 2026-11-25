@@ -91,7 +91,7 @@
 //                     (triReference: the median of the headings within addrWindowUs of Address, the
 //                     nearest no further than triAddrMaxGapUs; σ = √(σ_t² + σ_ref² + (frac·Δ)²)).
 
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 #include "../Skeleton3d/skeleton3d_fit.h"
 
 #include <algorithm>

@@ -47,7 +47,7 @@
 #include "../../Coaching/consistency_home.h"    // the table's shape: columns and areas
 #include "session_series_types.h"
 #include "session_warp.h"
-#include "../../Metrics/variability/variability_pooling.h"   // the within-club residuals (moved down in step 3.8)
+#include "../../Vocabulary/Metrics/variability/variability_pooling.h"   // the within-club residuals (moved down in step 3.8)
 
 #include <QString>
 #include <QStringList>

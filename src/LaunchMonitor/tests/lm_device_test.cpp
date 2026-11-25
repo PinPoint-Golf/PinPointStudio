@@ -17,7 +17,7 @@
 
 // lm_device.h — the connector a reading arrived by, kept apart from the device that measured it.
 
-#include "lm_device.h"
+#include "../../Vocabulary/LaunchMonitor/lm_device.h"
 
 #include <gtest/gtest.h>
 

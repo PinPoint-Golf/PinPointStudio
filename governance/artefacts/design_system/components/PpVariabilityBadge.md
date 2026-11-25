@@ -192,7 +192,7 @@ PpVariabilityBadge {
 - Don't replace a technical-layer box plot: pair it. A golfer-layer box plot that shows position against the corridor stays as it is for now.
 
 ## Not repeated here
-The geometry tables (spec §4, §6; `src/Gui/variability/variability_geometry.cpp`) and the grade basis (spec §8; `src/Metrics/variability/`). The words, lines and basis strings, and the family rules, are in [variability.md](../variability.md).
+The geometry tables (spec §4, §6; `src/Gui/variability/variability_geometry.cpp`) and the grade basis (spec §8; `src/Vocabulary/Metrics/variability/`). The words, lines and basis strings, and the family rules, are in [variability.md](../variability.md).
 
 ## Used by
 Session 5's retrofit (7 Nov 2026; `docs/design/variability-mark/decisions.md`, "Session 5: applied"). One line per host: surface · variant and form · layer.

@@ -25,7 +25,7 @@
 #include "../../Coaching/diagnostic_ledger.h"
 #include "../../Coaching/work_ons_pack.h"           // the work-on order (SessionSnapshot::workOnOrder)
 #include "../../Coaching/sequence_checks.h"         // the KS checks off the ledger's signal rows           // the ledger's one deserialiser
-#include "../../Core/club_vocabulary.h"                 // swingDocDeclaredClub
+#include "../../Vocabulary/Club/club_vocabulary.h"                 // swingDocDeclaredClub
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/condition_reading.h" // condition → { metricKey, phase }
 #include "../../Diagnostics/packs/pack_provider.h"      // condition names and groups

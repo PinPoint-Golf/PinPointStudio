@@ -37,7 +37,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include "format_descriptor.h"
-#include "frame_decode.h"
+#include "../Vocabulary/Recording/frame_decode.h"
 #include "imu_sample.h"
 #include "pixel_format_names.h"   // canonical pixelFormatName (shared with the reanalyzer)
 #include "recording_header.h"   // the one header writer

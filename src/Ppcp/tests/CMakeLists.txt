@@ -226,7 +226,7 @@ pp_add_test(ppcp_clip_filer_test
             ${PP_SRC}/Export/swing_doc_analysis.cpp
             ${PP_SRC}/Export/recording_header.cpp ${PP_SRC}/Analysis/effective_context.cpp
             ${PP_SRC}/Export/swing_paths.cpp    # swing_doc reaches SwingPaths::sanitise
-            ${PP_SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${PP_SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${PP_SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${PPCP}/ppcp_import_ledger.cpp
             ${PPCP}/ppcp_import_sink.cpp

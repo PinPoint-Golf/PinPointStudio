@@ -30,7 +30,7 @@
 #include "club_distances.h"
 #include "diagnostic_ledger.h"
 #include "tendencies.h"
-#include "../Core/club_vocabulary.h"
+#include "../Vocabulary/Club/club_vocabulary.h"
 
 #include <QSet>
 #include <QString>

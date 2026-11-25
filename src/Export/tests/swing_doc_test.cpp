@@ -17,7 +17,7 @@
 #include "../../Club/dtl_shaft_json.h"      // dtlShaftTrackToJson — analysis.clubDtl's builder
 #include "../../Body/address_marks_json.h"  // dtlPhaseMarksPayload — the /1 and /2 readers
 #include "../../Body/dtl_ruler_json.h"      // dtlRulerPayload — analysis.dtlRuler's reader
-#include "../../Core/club_vocabulary.h"     // swingDocEffectiveClub: the one club (refactor 6.2)
+#include "../../Vocabulary/Club/club_vocabulary.h"     // swingDocEffectiveClub: the one club (refactor 6.2)
 #include "../swing_doc_internal.h"           // summaryFromRoot: the summary's full read (J-106's flag)
 
 
@@ -2391,12 +2391,15 @@ int main()
         // src/Analysis holds the pipeline; its producers live in the topic folders beside it.
         static const char *const kAnalysisDirs[] = {
             "Analysis", "Club", "Wrist", "Body", "Timeline", "Ball", "Kinematics", "Skeleton3d",
-            "Coaching", "Pose", "IMU", "LaunchMonitor", "Metrics",
+            "Coaching", "Pose", "IMU", "LaunchMonitor", "Vocabulary/LaunchMonitor", "Vocabulary/Metrics",
         };
-        QStringList offenders;
+        QStringList offenders, missing;
         int scanned = 0;
         for (const char *dir : kAnalysisDirs) {
             const QString analysisDir = QStringLiteral(PP_SRC_DIR) + QLatin1Char('/') + QLatin1String(dir);
+            // A folder that is gone fails the check below, so a move can never drop one from the scan silently.
+            if (!QDir(analysisDir).exists())
+                missing << analysisDir;
             QDirIterator it(analysisDir, QStringList{ QStringLiteral("*.cpp"), QStringLiteral("*.h") },
                             QDir::Files, QDirIterator::Subdirectories);
             while (it.hasNext()) {
@@ -2413,6 +2416,9 @@ int main()
                 }
             }
         }
+        if (!missing.isEmpty())
+            std::printf("      missing folders:\n        %s\n", qPrintable(missing.join(QStringLiteral("\n        "))));
+        check(missing.isEmpty(), "every listed analysis folder exists");
         check(scanned > 0, "the analysis tree was actually scanned");
         if (!offenders.isEmpty())
             std::printf("      offenders:\n        %s\n",

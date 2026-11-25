@@ -36,7 +36,7 @@
 #include "../Buffer/swing_window.h"
 #include "../Buffer/types.h"
 #include "../Core/pp_debug.h"
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 #include "../IMU/hm_binding_recon.h"   // rebuilding a wG3 binding from what the recording holds
 #include "../IMU/hm_unit_id.h"         // "<deviceId>#lowerArm" / "#palm" -> which segment
 #include "../Vocabulary/Analysis/trunk_calib_provenance.h"

@@ -13,7 +13,7 @@ Companion process doc: [`analysis_pipeline_developer_guide.md`](analysis_pipelin
 ## 1. The layer at a glance
 
 ```
-src/Metrics/                          (pure, Qt-only value types — no Qt-GUI)
+src/Vocabulary/Metrics/                          (pure, Qt-only value types — no Qt-GUI)
   metric_type.h                   MetricType { Summary, PointInTime, TimeSeries, Sequence }
   metric_descriptor.h             MetricDescriptor, MetricRoute, MetricRequirement, CaptureDevice
                                   (NO normative values — Step D)
@@ -38,7 +38,7 @@ src/Gui/review/
   MetricLibrary/Detail/Row.qml    the directory + detail screens
 ```
 
-**The catalogue lives in `src/Metrics/`, not `src/Analysis/`** — it moved, and paths through this
+**The catalogue lives in `src/Vocabulary/Metrics/`, not `src/Analysis/`** — it moved, and paths through this
 guide follow. `src/Analysis/` keeps the producers, which is the split the layer is built on:
 identity here, production there, and a descriptor that never names a producer.
 
@@ -573,7 +573,7 @@ scalars), `TimeSeries` (a curve), `Sequence` (ordered peak events — no v1 prod
 
 ### Step B — declare the descriptor in the manifest
 Add one `cat.addDescriptor({...})` block to `installMetricManifest()` in
-`src/Metrics/metric_catalogue_manifest.cpp`. Fill every field; source `description`/`howToRead` from
+`src/Vocabulary/Metrics/metric_catalogue_manifest.cpp`. Fill every field; source `description`/`howToRead` from
 `docs/` (the wrist/foot/speed prose lives in `docs/design/shot_analyzer_design.md`,
 `docs/reference/wristmetrics.md`, `docs/reference/swing_json_schema.md`) — the manifest is where that
 scattered prose becomes structured. `usedBy` is static, hand-authored (e.g.
@@ -686,7 +686,7 @@ now is, is a card panel with an empty plot. `metric_catalogue_test` ledgers the 
 between P1 and P2 is watched); `chart_metrics_test` pins the rule's edges.
 
 ### Step C — claim the key
-**One line.** Add the key to a provider's `provides()` in `src/Metrics/metric_providers.{h,cpp}`, or
+**One line.** Add the key to a provider's `provides()` in `src/Vocabulary/Metrics/metric_providers.{h,cpp}`, or
 add a new provider class if none fits. That is the whole step: every provider we ship is a claim list
 and nothing more, because the seam's default `availability()` walks the metric's ladder
 (`resolveRoutes()` in `metric_provider.h`).
@@ -798,7 +798,7 @@ Manifest/provider edits need no CMake change. New `.cpp` files reach three targe
 sources are already wired.
 
 ### Step F — extend the unit test
-Add cases to `src/Metrics/tests/metric_catalogue_test.cpp` (the source lives beside the catalogue;
+Add cases to `src/Vocabulary/Metrics/tests/metric_catalogue_test.cpp` (the source lives beside the catalogue;
 the `pp_add_test` that registers it is in `src/Analysis/tests/CMakeLists.txt`):
 - **completeness**: your key resolves via `descriptor()`; bump the expected count and the per-type
   counts.
@@ -1463,7 +1463,7 @@ d = json.load(open('src/Resources/diagnostics/core.json'))
 M = {m['id']: m for m in d['measures']}; S = {s['id']: s for s in d['signals']}
 reached = {M[mid]['metricKey'] for c in d['conditions'] for s in c.get('detectedBy', [])
            for mid in S[s]['measures'] if mid in M}
-src = open('src/Metrics/metric_catalogue_manifest.cpp').read()
+src = open('src/Vocabulary/Metrics/metric_catalogue_manifest.cpp').read()
 for b in re.split(r'cat\.addDescriptor\(\{', src)[1:]:
     key = re.search(r'\.key = QStringLiteral\(\"([^\"]+)\"\)', b).group(1)
     r = b[b.find('.routes'):]

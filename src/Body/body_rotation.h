@@ -93,9 +93,9 @@
 
 #include "../Vocabulary/Analysis/swing_analysis.h" // PoseTrack2D, MetricSeries, PhaseEvent, SegmentRole
 #include "../IMU/imu_vision_fuser.h" // FusedStreams, SegmentStream
-#include "../Metrics/metric_channel.h" // MetricChannel, buildChannelSeries
+#include "../Vocabulary/Metrics/metric_channel.h" // MetricChannel, buildChannelSeries
 #include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply
-#include "../Core/pp_tuned_constants.h"   // tuned::bodyRotation::
+#include "../Vocabulary/Common/pp_tuned_constants.h"   // tuned::bodyRotation::
 #include "../Vocabulary/Analysis/gate_record.h"      // GateRecord (trust stage 6)
 
 namespace pinpoint::analysis {

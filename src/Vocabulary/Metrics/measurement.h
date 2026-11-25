@@ -37,7 +37,7 @@
 // KINDS (DEC-54): a reading is what an instrument delivered (the launch monitor, HackMotion) — source; a derived
 // measurement is what the measurement rules made of the Recording's streams (and of a reading: the LM-derived keys).
 //
-// Vocabulary ring (src/Metrics): pure, no I/O; parses the analysis block a reader hands it.
+// Vocabulary ring (src/Vocabulary/Metrics): pure, no I/O; parses the analysis block a reader hands it.
 
 #include <QHash>
 #include <QJsonArray>

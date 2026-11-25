@@ -847,7 +847,7 @@ QtObject {
     // never reach it, and paper never reads it (its fill takes variabilityPrintAlphaScale).
     readonly property real variabilityBandFillMax: _v("variabilityBandFillMax", 0.32)
     // Live-session grade hysteresis (§8.9): a grade changes only when ρ (or s′) crosses a band edge by
-    // this much. NOT a theme key: it MUST equal kHysteresis in src/Metrics/variability/variability_constants.h,
+    // this much. NOT a theme key: it MUST equal kHysteresis in src/Vocabulary/Metrics/variability/variability_constants.h,
     // the value the grader uses, and a theme that changed it would make the two disagree. TODO(calibrate)
     readonly property real variabilityHysteresis: 0.05
 

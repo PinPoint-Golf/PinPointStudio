@@ -249,7 +249,7 @@ While the buffer is `Paused` the producers are stopped, so the bytes are stable 
 this is the same guarantee the replay path relies on.
 
 The demosaic table used to live inside `SwingExporter`. It is now
-**`src/Export/frame_decode.h`** — pure functions, no Qt, no logging — because the
+**`src/Vocabulary/Recording/frame_decode.h`** — pure functions, no Qt, no logging — because the
 shot analyzer decodes the same frozen payloads and the two must not be able to
 diverge. It exposes:
 
@@ -697,7 +697,7 @@ Two API details matter:
   `ok=false` for an un-indexed swing and renders it without detail, rather than
   stalling. The bool is two meanings at once ("may parse" and "may write the
   sidecar"); since refactor step 3.7-0 an overload takes a `SidecarPolicy`
-  (`src/Core/sidecar_policy.h`) that names them apart: `CachedOnly` (the bool's
+  (`src/Vocabulary/Common/sidecar_policy.h`) that names them apart: `CachedOnly` (the bool's
   false), `ParseAndWrite` (its true) and `ParseNoWrite` — parse a miss or a stale
   guard exactly as `ParseAndWrite` does, write nothing. `ParseNoWrite` is the
   parallel run's firing reader (`pinpoint::parallel::doors`), which must leave
@@ -787,7 +787,7 @@ through `SwingPaths::swingFolders`.
 ```
 
 A folder's name is a property and provenance, never an identity: a session is a `SessionId`, a shot
-a `ShotRef` (`src/Identity/identity.h`; information_model.md §5.2). Only two classes read a folder's
+a `ShotRef` (`src/Vocabulary/Identity/identity.h`; information_model.md §5.2). Only two classes read a folder's
 name (P7, lint A3): `SwingPaths` (composing names, a swing folder's number) and `SessionIdentity`
 (`src/DomainModel/session_identity.*`: a session without a session file — its date, type and `_NN`
 under every naming pattern, and D3's name-based `SessionId`).

@@ -60,7 +60,7 @@
 
 #include "charts_work.h"
 #include "../../DomainModel/series_reader.h"
-#include "../../Identity/identity.h"
+#include "../../Vocabulary/Identity/identity.h"
 
 #include <QHash>
 #include <QObject>

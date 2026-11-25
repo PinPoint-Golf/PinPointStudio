@@ -21,7 +21,7 @@
 // lists reads, the value the form shows back reads as itself, the other unit converts, and text that
 // is not a height is 0 (unknown), as it was.
 
-#include "height_text.h"
+#include "../../Vocabulary/Common/height_text.h"
 
 #include <gtest/gtest.h>
 

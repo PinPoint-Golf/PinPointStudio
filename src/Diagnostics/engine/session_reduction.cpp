@@ -25,7 +25,7 @@
 #include "../../Coaching/strike_from_flight.h"
 #include "../../Coaching/tendencies.h"
 #include "../../Coaching/work_ons_pack.h"
-#include "../../Core/club_vocabulary.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
 
 #include <algorithm>

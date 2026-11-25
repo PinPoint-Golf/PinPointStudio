@@ -27,7 +27,7 @@
 // Domain model ring (src/DomainModel): names the reading interface it wraps, never a store.
 
 #include "recording_reader.h"   // RecordingReader, LoadedRecording, RecordingLoadOptions
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QString>
 

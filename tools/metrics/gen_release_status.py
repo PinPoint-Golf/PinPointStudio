@@ -3,7 +3,7 @@
 metrics, measures and norms.
 
 It reads, and never edits:
-  src/Metrics/metric_catalogue_manifest.cpp   every metric and its routes (a route marked PLANNED has no producer)
+  src/Vocabulary/Metrics/metric_catalogue_manifest.cpp   every metric and its routes (a route marked PLANNED has no producer)
   src/Resources/diagnostics/core.json         measures (status), signals, conditions (draft / active / held from the report)
   src/Resources/diagnostics/norms.json        norm rows, their source (heuristic / literature / measured) and their
                                               STANDING: the typed keys `standing` (provisional | decided),
@@ -19,7 +19,7 @@ read differently.
 import json, re, sys, collections, datetime, os
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-MANIFEST = os.path.join(ROOT, 'src/Metrics/metric_catalogue_manifest.cpp')
+MANIFEST = os.path.join(ROOT, 'src/Vocabulary/Metrics/metric_catalogue_manifest.cpp')
 CORE = os.path.join(ROOT, 'src/Resources/diagnostics/core.json')
 NORMS = os.path.join(ROOT, 'src/Resources/diagnostics/norms.json')
 EVID = os.path.join(ROOT, 'docs/validation/metric_evidence.json')

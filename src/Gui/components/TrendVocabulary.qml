@@ -20,7 +20,7 @@
 // consistent session by session? The ONE home for them. The trend word always FOLLOWS the grade
 // word on a surface, never replaces it.
 //
-// A direction is the C++ TrendDirection (src/Metrics/variability/variability_trend.h), spelled
+// A direction is the C++ TrendDirection (src/Vocabulary/Metrics/variability/variability_trend.h), spelled
 //   "tightening" | "loosening" | "holding"
 // and "insufficient" (too few sessions, or an ordinal series): no trend to show, so every function
 // returns "" for it, quietly, as it does for "". Anything else is "" with a console warning.

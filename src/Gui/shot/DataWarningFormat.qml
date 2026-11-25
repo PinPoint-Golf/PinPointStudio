@@ -28,7 +28,7 @@ import QtQuick
 
 QtObject {
     // THE READINGS BEHIND THE ⚠ (trust stage 6 session 2): each fact the warning names is a gate the
-    // analysis records (Metrics/gate_catalogue_shot.h, _club.h), by the subject the Trust panel opens it
+    // analysis records (Vocabulary/Metrics/gate_catalogue_shot.h, _club.h), by the subject the Trust panel opens it
     // on. In the warning's own order; the first is the one a click on the ⚠ opens.
     //   [{ subject, gate }]
     function reasons(detail) {

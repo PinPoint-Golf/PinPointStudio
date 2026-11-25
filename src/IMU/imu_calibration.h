@@ -24,7 +24,7 @@
 #include <algorithm>
 #include <cmath>
 
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 
 // Anatomical calibration solve for an IMU strapped to a limb segment.
 //

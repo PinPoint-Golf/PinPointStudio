@@ -42,8 +42,8 @@ pp_add_test(report_model_test
             ${SRC}/Diagnostics/packs/gate_words_pack.cpp
             # The report's variability marks (report/report_variability.h, R2a R4b R10): the grader, its result, and
             # the within-club pooling over the Consistency maths' centring (variability_clubs.cpp needs those four).
-            ${SRC}/Metrics/variability/variability_grader.cpp
-            ${SRC}/Metrics/variability/variability_result.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
             ${GUI}/charts/variability_clubs.cpp
             ${GUI}/charts/session_consistency.cpp
             ${GUI}/charts/session_curves.cpp
@@ -51,7 +51,7 @@ pp_add_test(report_model_test
             ${GUI}/trust/trust_readings.cpp      # the session's data warnings into "What we could not check" (#123)
             ${GUI}/charts/session_warp.cpp
             ${GUI}/charts/session_traces.cpp
-    INCLUDE ${GUI} ${SRC} ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis
+    INCLUDE ${GUI} ${SRC} ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
     AUTOMOC)
 set_tests_properties(report_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${_pp_report_diag}/core.json;PINPOINT_CORE_DRILLS=${_pp_report_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_report_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_report_diag}/references.json")

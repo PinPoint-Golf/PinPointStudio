@@ -23,7 +23,7 @@
 #include <limits>
 
 #include "../Pose/hand_axis.h"         // kHand*Mcp / kLeftHandFirstKp / kRightHandFirstKp
-#include "../Metrics/metric_channel.h" // MetricChannel / buildChannelSeries (trail-wrist series)
+#include "../Vocabulary/Metrics/metric_channel.h" // MetricChannel / buildChannelSeries (trail-wrist series)
 #include "../Timeline/phase_signals.h" // lowpassZeroPhase — the σ estimate's band split
 #include "wrist_analysis_adapter.h"    // wristCheckpoints() — shared checkpoint→Phase map
 

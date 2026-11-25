@@ -33,7 +33,7 @@
 
 #include "types.h"
 #include "../Vocabulary/Analysis/trunk_calib_provenance.h"   // TrunkCalibProvenance
-#include "../Recording/analysis_context.h"   // the analysis context recorded with the swing (IM-1)
+#include "../Vocabulary/Recording/analysis_context.h"   // the analysis context recorded with the swing (IM-1)
 // DeviceClockStats — the camera clock → host clock mapping recorded on every stream
 // (event_buffer_design.md §9).
 #include "device_clock_mapper.h"

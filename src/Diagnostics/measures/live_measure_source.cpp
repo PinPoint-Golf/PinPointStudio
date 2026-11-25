@@ -17,8 +17,8 @@
  */
 
 #include "live_measure_source.h"
-#include "../../Core/club_vocabulary.h"     // baseline keys are canonical club ids
-#include "../../Metrics/gate_catalogue.h"   // the gate behind an absent measure (gateCause)
+#include "../../Vocabulary/Club/club_vocabulary.h"     // baseline keys are canonical club ids
+#include "../../Vocabulary/Metrics/gate_catalogue.h"   // the gate behind an absent measure (gateCause)
 #include "../../Analysis/route_substitution.h"   // substitutedGapGate (gateCause's fallback)
 
 #include "../norms/context_tree.h"

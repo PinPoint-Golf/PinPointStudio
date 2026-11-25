@@ -109,7 +109,7 @@
 // arithmetic is still written exactly once, which is the C16 guarantee; only the error bar is
 // computed where it is asked for.
 
-#include "../Core/pp_tuned_constants.h"    // tuned::sampler:: / tuned::reduce::
+#include "../Common/pp_tuned_constants.h"    // tuned::sampler:: / tuned::reduce::
 
 #include <algorithm>
 #include <cmath>

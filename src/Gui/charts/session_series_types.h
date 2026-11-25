@@ -36,7 +36,7 @@
 // A shot is IMMUTABLE once published: the model swaps in a new shared_ptr when a shot is
 // re-analysed, so a reader holding a SessionSnapshot never sees a shot change under it.
 
-#include "../../Metrics/series_reduce.h"   // reduceInstantOver
+#include "../../Vocabulary/Metrics/series_reduce.h"   // reduceInstantOver
 #include "../../Wrist/wrist_profile.h"      // ChartShotFindings::wrist (DEC-123)
 
 #include <QHash>
@@ -196,7 +196,7 @@ struct ConditionInfo {
     QString metricKey;
     int     phase = -1;
     // ADDED (additive): how the reading is reduced to one number, ReducerKind's value
-    // (src/Metrics/metric_reducer.h): 0 At — the value AT `phase`; 1 Delta — the change over a window
+    // (src/Vocabulary/Metrics/metric_reducer.h): 0 At — the value AT `phase`; 1 Delta — the change over a window
     // ENDING at `phase`; 2 Rate — that change per second; 3 Extremum — the max/min over a window
     // ending at `phase` ("peak before P7": the peak is somewhere inside, not at `phase`).
     // -1 when there is no reading (a latent condition, or one the pack no longer holds).

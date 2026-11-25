@@ -33,7 +33,7 @@ pp_add_test(ball_temporal_test
 # ball.roiDecode parity (analysis_dag_design.md step C): BallRunner's row-band decode +
 # crop-only grey/float gives the full-frame path's R and W3 crop byte for byte.
 pp_add_test(ball_roi_decode_test
-    SOURCES ball_roi_decode_test.cpp ${POSE}/../Export/frame_decode.cpp
+    SOURCES ball_roi_decode_test.cpp ${PP_SRC}/Vocabulary/Recording/frame_decode.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS} ${POSE}/../Buffer ${POSE}/../Export
     LINK    ${OpenCV_LIBS}
     NO_QT)

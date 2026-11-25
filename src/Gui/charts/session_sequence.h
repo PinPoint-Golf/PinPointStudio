@@ -120,7 +120,7 @@ struct UnplacedWhy {
 };
 UnplacedWhy unplacedWhy(const SegmentPeak &p);
 
-// THE SHOT'S PEAK TIMES IN WORDS, each against impact by the one rule (Core/figure_format.h impactTime: "at
+// THE SHOT'S PEAK TIMES IN WORDS, each against impact by the one rule (Vocabulary/Common/figure_format.h impactTime: "at
 // impact" within 2 ms): "The club peaked 49 ms before impact, the pelvis 20 ms after impact." — the pelvis' OWN
 // time, never the club→pelvis gap; "The club peaked at impact." Empty when neither is placed; figures are runs.
 words::Sentence peakTimesSentence(const SegmentPeak &club, const SegmentPeak &pelvis);

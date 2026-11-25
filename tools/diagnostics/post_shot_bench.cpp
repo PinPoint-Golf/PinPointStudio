@@ -76,7 +76,7 @@
 #include "../../src/Gui/diagnostics/session_diagnostics_model.h"
 #include "../../src/Gui/shot/qml_payload.h"
 #include "../../src/Gui/shot/shot_list_model.h"
-#include "../../src/LaunchMonitor/launch_monitor_reading.h"
+#include "../../src/Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>

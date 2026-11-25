@@ -21,7 +21,7 @@
 #include "../../Analysis/mp4_frame_reader.h"   // Mp4FrameDecoder — the re-analysis reader, OpenCV BGR
 #include "../../Core/atomic_write.h"             // the one atomic write
 #include "../../Core/pp_debug.h"               // ppInfo / ppWarn — the app log
-#include "../../Core/pp_tuned_constants.h"     // the per-keypoint pose gate
+#include "../../Vocabulary/Common/pp_tuned_constants.h"     // the per-keypoint pose gate
 #include "../../Export/swing_store.h"          // the swing document, whichever format it is in
 #include "../markup/markup_truth.h"            // faceOnStreamIndex / streamLooksDownTheLine / frameIndexForUs
 

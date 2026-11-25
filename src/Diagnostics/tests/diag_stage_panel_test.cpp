@@ -86,7 +86,7 @@
 #include "../../DomainModel/session_diagnostics.h"
 #include "../../DomainModel/shot.h"
 #include "../../Coaching/board_annotations.h"
-#include "../../Core/club_vocabulary.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../Core/work_pool.h"
 #include "../../Export/firing_reader_store.h"
 #include "../../Export/recording_loader.h"
@@ -106,7 +106,7 @@
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
 #include "../../Gui/diagnostics/spread_readout.h"   // REPORTi: the habit runs the report reads (5.6c)
 #include "../../Coaching/sequence_checks.h"         // REPORTj: the session's sequence reading (5.6c)
-#include "../../LaunchMonitor/launch_monitor_reading.h"
+#include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "../measures/measure_sample.h"
 #include "../norms/norm_provider.h"   // EVT13n: the norm set a corridor edit saves
 

@@ -24,7 +24,7 @@
 #include "../../Export/firing_reader_store.h"
 #include "../../Coaching/session_results.h"
 #include "../../Coaching/strike_from_flight.h"
-#include "../../Core/club_vocabulary.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../Core/pp_debug.h"
 
 #include <QDir>

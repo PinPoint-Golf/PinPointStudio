@@ -44,7 +44,7 @@
 #include "../DomainModel/session.h"                // the Session capture writes into (step 3.4a-ii)
 #include "../DomainModel/session_diagnostics.h"  // D7's carry: the owner's last diagnosis input (refactor 4-d)
 #include "../App/session_focus.h"                // the declared focus at a start, and D7's carry (refactor 4-d)
-#include "../Recording/recording.h"               // recording::ShotKind (Session::addShot)
+#include "../../Vocabulary/Recording/recording.h"               // recording::ShotKind (Session::addShot)
 #include "pp_version.h"
 
 #include <QSysInfo>

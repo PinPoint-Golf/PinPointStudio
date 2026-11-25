@@ -20,8 +20,8 @@
 
 #include "diagnostic_ledger.h"
 #include "../Diagnostics/norms/norm.h"
-#include "../Metrics/box_stats.h"
-#include "../Core/figure_format.h"
+#include "../Vocabulary/Metrics/box_stats.h"
+#include "../Vocabulary/Common/figure_format.h"
 
 #include <algorithm>
 #include <cmath>
@@ -389,7 +389,7 @@ inline std::vector<double> trailingMedians(const std::vector<double> &values, in
 //
 // ONE FORMATTER for every number these surfaces quote, so the strip's fault label, the hover
 // readout, the card's corridor sentence and the work-ons line cannot print the same edge two
-// ways — and it is the app's one formatter (Core/figure_format.h), so they cannot differ from
+// ways — and it is the app's one formatter (Vocabulary/Common/figure_format.h), so they cannot differ from
 // the Charts panel or the report either. The true minus; a value that rounds to zero printed as
 // 0, never "−0"; "-" where there is no number. Decimals come from the CALLER — an axis's span, or
 // a corridor's — and never from σ. Kept under these names for Coaching/session_report.h.

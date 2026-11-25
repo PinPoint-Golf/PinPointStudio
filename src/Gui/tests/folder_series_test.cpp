@@ -36,7 +36,7 @@
 #include "../../Coaching/board_annotations.h"
 #include "../../Coaching/diagnostic_ledger.h"
 #include "../../DomainModel/rule_data.h"   // makeCharacteristicPackProvider
-#include "../../Metrics/metric_reducer.h"
+#include "../../Vocabulary/Metrics/metric_reducer.h"
 #include "../../Export/swing_store.h"
 
 #include <QDateTime>

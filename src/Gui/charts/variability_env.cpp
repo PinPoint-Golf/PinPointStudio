@@ -22,7 +22,7 @@
 #include "../../Diagnostics/norms/context_tree.h"   // contextIdForClub
 #include "../../Diagnostics/norms/norm_provider.h"  // sharedNormProvider
 #include "../variability/variability_measures.h"       // variabilityManifest: the one manifest every lookup reads
-#include "../../Metrics/metric_catalogue.h"
+#include "../../Vocabulary/Metrics/metric_catalogue.h"
 
 #include <cmath>
 #include <utility>

@@ -16,18 +16,18 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// THE VARIABILITY GRADER (src/Metrics/variability/, docs/design/variability-mark/spec.md §8). Every
+// THE VARIABILITY GRADER (src/Vocabulary/Metrics/variability/, docs/design/variability-mark/spec.md §8). Every
 // case is a synthetic window whose spread is set exactly, so each assertion is a number the spec
 // fixes: the band edges on both sides, bias invariance, the circular seam, the n and scale gates,
 // the two halves of a trace grade, the chance-corrected ordinal share, noise subtraction, the trend
 // and its run rule, live hysteresis, and the §7.5 basis strings.
 
-#include "variability_constants.h"
-#include "variability_grader.h"
-#include "variability_outcome.h"
-#include "variability_result.h"
-#include "variability_trend.h"
-#include "variability_typicality.h"
+#include "../variability/variability_constants.h"
+#include "../variability/variability_grader.h"
+#include "../variability/variability_outcome.h"
+#include "../variability/variability_result.h"
+#include "../variability/variability_trend.h"
+#include "../variability/variability_typicality.h"
 
 #include <QtTest>
 

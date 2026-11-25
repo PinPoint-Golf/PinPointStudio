@@ -19,10 +19,10 @@
 #pragma once
 
 #include "metric_type.h"
-#include "../Vocabulary/Analysis/swing_analysis.h"          // Phase, SegmentRole, ReconstructionTier
+#include "../Analysis/swing_analysis.h"          // Phase, SegmentRole, ReconstructionTier
 // wrist_assessment_types.h is no longer needed HERE (PpJointDof left with MetricNormative at stage 9)
 // but several includers of this header have always got PpJointDof / PpSwingPosition through it.
-#include "../Vocabulary/Analysis/wrist_assessment_types.h"
+#include "../Analysis/wrist_assessment_types.h"
 #include "variability/variability_scale_type.h"   // ScaleType — the variability grade basis
 
 #include <QString>
@@ -584,7 +584,7 @@ struct MetricDescriptor {
     // What kind of number this is, which decides how its spread is taken (§8.2 step 3: circular SD
     // for Circular; the CV rung of §8.2 step 4 is retired, R26), and whether it
     // is graded on an SD at all (Ordinal / Categorical go to modal share, §8.4). See
-    // Metrics/variability/variability_scale_type.h. Interval unless the quantity clearly is
+    // Vocabulary/Metrics/variability/variability_scale_type.h. Interval unless the quantity clearly is
     // something else — the manifest sets it only where the spec's definition plainly applies.
     pinpoint::variability::ScaleType scaleType = pinpoint::variability::ScaleType::Interval;
 

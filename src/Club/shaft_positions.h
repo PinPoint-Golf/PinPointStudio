@@ -23,7 +23,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "../Core/pp_tuned_constants.h"   // tuned::positions:: (P1 club-quiet σ; Qt/OpenCV-free)
+#include "../Vocabulary/Common/pp_tuned_constants.h"   // tuned::positions:: (P1 club-quiet σ; Qt/OpenCV-free)
 
 // Position-first shaft measurement — Layer B "B-time location"
 // (docs/design/shaft_position_first_design.md §2 Layer B). Header-only, standalone

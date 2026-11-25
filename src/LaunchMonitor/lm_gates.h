@@ -33,7 +33,7 @@
 //
 // Header-only: swing_doc_writer.cpp and the tests include it with no source-list edits.
 
-#include "launch_monitor_reading.h"
+#include "../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "../Vocabulary/Analysis/gate_record.h"
 
 #include <QJsonArray>

@@ -31,7 +31,7 @@
 #include <cmath>
 #include <optional>
 
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 #include "../Vocabulary/Analysis/analysis_tuning.h"
 
 namespace pinpoint::analysis {

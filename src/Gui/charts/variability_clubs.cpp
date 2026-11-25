@@ -44,7 +44,7 @@ bool wholeCurve(const std::vector<double> &curve)
     return onGrid(curve) && std::all_of(curve.begin(), curve.end(), finite);
 }
 
-// The within-club residuals under the scale type: the pooling's (Metrics/variability/variability_pooling.h, moved down
+// The within-club residuals under the scale type: the pooling's (Vocabulary/Metrics/variability/variability_pooling.h, moved down
 // unchanged in refactor step 3.8), circular centring first.
 std::vector<double> residualsOf(std::vector<double> values, int samples, const QStringList &clubs, pv::ScaleType type)
 {

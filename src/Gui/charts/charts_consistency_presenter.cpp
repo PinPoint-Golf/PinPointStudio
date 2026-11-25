@@ -28,8 +28,8 @@
 #include "variability_env.h"
 
 #include "../variability/variability_facade.h"           // VariabilityResultView, typicalityPayload
-#include "../../Metrics/variability/variability_outcome.h"       // isOutcomeMetric (R4)
-#include "../../Metrics/variability/variability_typicality.h"
+#include "../../Vocabulary/Metrics/variability/variability_outcome.h"       // isOutcomeMetric (R4)
+#include "../../Vocabulary/Metrics/variability/variability_typicality.h"
 
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/norms/norm.h"           // the grade policy

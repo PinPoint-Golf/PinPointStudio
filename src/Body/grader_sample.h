@@ -35,10 +35,10 @@
 // carries none (Noise). No σ anywhere: None (not characterised, never zero).
 
 #include "../Vocabulary/Analysis/swing_analysis.h"
-#include "../Core/pp_tuned_constants.h"
-#include "../Metrics/fitted_curve.h"
-#include "../Metrics/line_angle.h"
-#include "../Metrics/series_reduce.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
+#include "../Vocabulary/Metrics/fitted_curve.h"
+#include "../Vocabulary/Metrics/line_angle.h"
+#include "../Vocabulary/Metrics/series_reduce.h"
 
 #include <algorithm>
 #include <cmath>

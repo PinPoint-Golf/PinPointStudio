@@ -55,7 +55,7 @@
 #include "../../DomainModel/session.h"
 #include "../../DomainModel/session_diagnostics.h"
 #include "../../DomainModel/shot.h"
-#include "../../Core/club_vocabulary.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../Core/work_pool.h"
 #include "../../Export/firing_reader_store.h"
 #include "../../Export/recording_loader.h"
@@ -65,7 +65,7 @@
 #include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../../Export/swing_store_repository.h"
 #include "../../Gui/diagnostics/diag_parallel_run.h"
-#include "../../LaunchMonitor/launch_monitor_reading.h"
+#include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "../measures/measure_sample.h"
 
 #include <QCoreApplication>

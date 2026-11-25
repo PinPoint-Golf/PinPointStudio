@@ -312,7 +312,7 @@ struct BallTrajectoryResult { bool ok=false; QString error; std::vector<BallPoin
 - Walk frames: `entriesFor(sourceId)` → `payloadOf(entry)` (zero-copy `ReadHandle{data,bytes}`) →
   decode to BGR (`swing_window.h:57,64,66`).
 - **Refactor first:** extract the exporter's `demosaicPlanFor` + decode (`swing_exporter.cpp:67-83,
-  336-356`) into a shared header (`src/Buffer/frame_decode.h` or `src/Export/frame_decode.h`) so the
+  336-356`) into a shared header (`src/Buffer/frame_decode.h` or `src/Vocabulary/Recording/frame_decode.h`) so the
   exporter and this worker share one decoder. (Today it's private to the exporter.)
 - Run the **heavier** model with multi-frame/motion cues; because the whole window is in hand, apply a
   **forward-backward (RTS) Kalman smoother** — strictly better than the online filter.

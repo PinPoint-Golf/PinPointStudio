@@ -47,7 +47,7 @@
 #include "../Analysis/frame_store.h" // decode.frameStore: the analysis' one decode of this camera
 #include "swing_window.h"
 #include "types.h"
-#include "../Export/frame_decode.h"
+#include "../Vocabulary/Recording/frame_decode.h"
 
 namespace pinpoint::analysis {
 

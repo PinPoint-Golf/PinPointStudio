@@ -38,11 +38,11 @@
 #include "../../Coaching/condition_in_hand.h"   // a condition worded for the golfer's hand (refactor 6.3b fix round, B-2)
 #include "../../Coaching/shot_outcomes_pack.h"
 #include "../../Coaching/work_ons_pack.h"
-#include "../../Metrics/gate_catalogue.h"
-#include "../../Core/club_vocabulary.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../Core/pp_debug.h"
-#include "../../Metrics/variability/variability_grader.h"
-#include "../../Metrics/variability/variability_trend.h"
+#include "../../Vocabulary/Metrics/variability/variability_grader.h"
+#include "../../Vocabulary/Metrics/variability/variability_trend.h"
 #include "../charts/variability_clubs.h"            // perClubInputs (R2b)
 #include "../variability/variability_facade.h"      // VariabilityResultView: the `variabilityResult` QML reads
 #include "../variability/variability_measures.h"    // isOutcomeMeasure, measureScaleType, normCorridorHalfWidth
@@ -80,7 +80,7 @@ namespace {
 // What the launch monitor saw often enough to seed the session's graph as an observed miss (§4.5).
 constexpr int kDiagObservedMissMin = 3;
 
-// Every figure through the app's one formatter (Core/figure_format.h): the true minus, "-" for none,
+// Every figure through the app's one formatter (Vocabulary/Common/figure_format.h): the true minus, "-" for none,
 // −0 as 0. Brief §6: the value slot and the corridor slot must agree, and a hyphen-minus beside a
 // typographic one in the same cell is the kind of thing a golfer reads as a bug in the numbers.
 namespace F = pinpoint::figures;
@@ -2399,7 +2399,7 @@ void publishCorridor(QVariantMap &out, const SpreadCorridor &c, const SpreadAxis
 //
 // TECHNICAL LAYER, PAIRED. The strip's box and the history's per-session boxes stay exactly as drawn (every
 // shot, all clubs); a consistency grade goes beside them per club, because spread across clubs is expected
-// and is never graded (R2b). The grade is the variability grader's (src/Metrics/variability/): nothing here
+// and is never graded (R2b). The grade is the variability grader's (src/Vocabulary/Metrics/variability/): nothing here
 // computes a ρ, a band or a word.
 
 namespace {

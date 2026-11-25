@@ -27,7 +27,7 @@
 // that only holds for a right-hander filmed from one side is not a convention.
 
 #include "../../Body/upper_body_metrics.h"
-#include "../../Metrics/gate_catalogue.h"   // the record's sentence and primaryRecord (§15)
+#include "../../Vocabulary/Metrics/gate_catalogue.h"   // the record's sentence and primaryRecord (§15)
 
 #include <algorithm>
 #include <cmath>

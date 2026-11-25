@@ -71,7 +71,7 @@
 
 #include "../Vocabulary/Analysis/swing_analysis.h" // BallTrack2D, BallSample2D
 #include "../Vocabulary/Analysis/analysis_tuning.h" // tuning::apply
-#include "../Core/pp_tuned_constants.h"   // tuned::ballpos::
+#include "../Vocabulary/Common/pp_tuned_constants.h"   // tuned::ballpos::
 #include "../Vocabulary/Analysis/gate_record.h"      // GateRecord (trust stage 6)
 
 #include <vector>

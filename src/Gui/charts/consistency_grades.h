@@ -47,7 +47,7 @@
 
 #include "session_consistency.h"
 
-#include "../../Metrics/variability/variability_grader.h"   // CellGrade, VariabilityResult, ScaleType
+#include "../../Vocabulary/Metrics/variability/variability_grader.h"   // CellGrade, VariabilityResult, ScaleType
 
 #include <QString>
 

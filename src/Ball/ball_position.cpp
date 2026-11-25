@@ -18,7 +18,7 @@
 
 #include "ball_position.h"
 
-#include "../Core/pp_physical_constants.h"
+#include "../Vocabulary/Common/pp_physical_constants.h"
 
 #include <algorithm>
 #include <cmath>

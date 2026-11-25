@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../LaunchMonitor/lm_device.h"
+#include "../../Vocabulary/LaunchMonitor/lm_device.h"
 #include "../../DomainModel/session_roll_up.h"   // ShotSummaryInput, the one fold, the device order (5.7a-P1)
 
 #include <QDate>

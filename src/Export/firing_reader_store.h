@@ -34,7 +34,7 @@
 // Safe from any thread; holds references to the two repositories, which outlive every job (the composition root's).
 
 #include "../DomainModel/firing_reader.h"
-#include "../Core/sidecar_policy.h"
+#include "../Vocabulary/Common/sidecar_policy.h"
 
 namespace pinpoint {
 
@@ -58,7 +58,7 @@ public:
     // `writeSidecars`: ONLY whether the read may write the phase-grid and summary sidecars it rebuilds (the firing read's
     // behaviour, a known interim against R-CON-3: CARRY C5). The read ALWAYS parses the document when no current
     // sidecar serves it — a firing job runs on a worker, never a GUI thread — so true is SidecarPolicy::ParseAndWrite
-    // and false is ParseNoWrite (src/Core/sidecar_policy.h). FALSE for the parallel run (refactor 3.5-ii; §4.9 "in
+    // and false is ParseNoWrite (src/Vocabulary/Common/sidecar_policy.h). FALSE for the parallel run (refactor 3.5-ii; §4.9 "in
     // memory only"; pinpoint::parallel::doors, used by the tools and tests since 3.10 deleted the app's switch), so the
     // old model, where one runs beside, stays the only writer of every file of the session. Until 3.7-0 false also
     // meant "never parse" (the readers' old one bool), so the parallel run fired every live shot on an empty grid

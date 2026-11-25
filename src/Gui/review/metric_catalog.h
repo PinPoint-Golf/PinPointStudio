@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../Metrics/metric_catalogue.h"
+#include "../../Vocabulary/Metrics/metric_catalogue.h"
 #include "metric_catalog_types.h"   // the typed summary QML reads (refactor 5.8a, lint A6)
 
 #include <QList>
@@ -50,7 +50,7 @@ public:
 
     // What a session set up like this WILL record, per metric group, before any swing — the closing
     // page of session setup (session_wizard_refactor_design.md §4.14; summariseSetup in
-    // Metrics/setup_capability.h). The setup is its five facts (the setup facts' faceOn, dtl, imuRoles, hackMotion
+    // Vocabulary/Metrics/setup_capability.h). The setup is its five facts (the setup facts' faceOn, dtl, imuRoles, hackMotion
     // and launchMonitor: CapRows.summaryOf, setup_capability_rows.js, passes them from the facts object), where a role
     // name is the PERSISTED spelling ("pelvis", "thorax", "leadForearm", "leadHand", "leadUpperArm") and the caller
     // passes only roles that are assigned, enabled and calibrated. One Capability per group, manifest order:

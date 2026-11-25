@@ -20,9 +20,9 @@
 
 #include "measure_vocabulary.h"    // Measure
 #include "../../Vocabulary/Analysis/phase_grid.h"   // the grid's value types (P-3)
-#include "../../Core/pp_tuned_constants.h"
-#include "../../Core/sidecar_policy.h"   // SidecarPolicy: what a miss may cost (3.7-0)
-#include "../../Metrics/metric_reducer.h"
+#include "../../Vocabulary/Common/pp_tuned_constants.h"
+#include "../../Vocabulary/Common/sidecar_policy.h"   // SidecarPolicy: what a miss may cost (3.7-0)
+#include "../../Vocabulary/Metrics/metric_reducer.h"
 #include "../../Vocabulary/Analysis/gate_record.h"   // GateRecord — why a reading is absent (schema 8)
 
 #include <QByteArray>
@@ -89,7 +89,7 @@
 // the two surfaces disagree about what the golfer did.
 //
 // The arithmetic itself is not written here any more: both the phase values and the span extremes
-// come from `src/Metrics/series_reduce.h`, the one implementation the REVIEW CHART also reduces
+// come from `src/Vocabulary/Metrics/series_reduce.h`, the one implementation the REVIEW CHART also reduces
 // through (design §5.2). That is not tidiness — a corridor is authored by looking at the chart, so a
 // card and an engine that reduced the same curve with two hand-rolled loops would eventually
 // disagree about the number the corridor was drawn around, and nothing on screen would say so.

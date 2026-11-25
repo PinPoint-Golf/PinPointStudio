@@ -80,7 +80,7 @@
 #include "../Vocabulary/Analysis/gate_record.h"
 #include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Body/grader_sample.h"   // grader::graderReadingAt — the grader's `at` sampling
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 
 #include <QString>
 #include <QStringList>

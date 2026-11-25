@@ -28,7 +28,7 @@ vice versa, coverage within ±1σ / ±2σ of the non-gross residuals per phase g
 
 Outputs (--out-dir, default docs/research/data/uncertainty/):
   sigma_table.csv, bias_table.csv, rho.csv, dtl_sigma.csv, coverage_U1.md
-and with --emit-cpp the CALIBRATION_TABLE block of src/Core/pp_tuned_constants.h is rewritten.
+and with --emit-cpp the CALIBRATION_TABLE block of src/Vocabulary/Common/pp_tuned_constants.h is rewritten.
 """
 import argparse, bisect, collections, hashlib, json, math, os, re, statistics as st, sys
 

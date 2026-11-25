@@ -37,12 +37,12 @@ using pinpoint::analysis::PoseTrack2D;
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
 #include "../Core/pp_profiler.h"
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 
 #if defined(HAVE_OPENCV)
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
-#include "../Export/frame_decode.h"
+#include "../Vocabulary/Recording/frame_decode.h"
 #include "../Pose/ball_temporal.h"
 #include "../Analysis/frame_store.h"
 #include "ball_activity.h"

@@ -25,7 +25,7 @@
 // Input: MetricCatalog.setupSummary(setupFacts) — one entry per catalogue group with its
 // measured / estimated / unavailable / planned / derived counts and `deviceGapIds` (the kit this
 // setup lacks for the group's estimated and unavailable metrics; captureDeviceId() spellings,
-// Metrics/metric_descriptor.h). Nothing here decides availability: the catalogue's resolver did.
+// Vocabulary/Metrics/metric_descriptor.h). Nothing here decides availability: the catalogue's resolver did.
 //
 // ⚠ DESCRIBE, NEVER INSTRUCT. Cameras are fixed and sensors are optional (memory note
 // feedback_camera_fallback_best_effort_honest): a reason says what is missing ("no down-the-line
@@ -33,7 +33,7 @@
 // word — no role names ("LeadForearm"), no "IMU", no slot letters, no route summaries.
 
 // ── The families ─────────────────────────────────────────────────────────────────────────────────
-// Row label ← catalogue groups (MetricDescriptor::group, src/Metrics/metric_catalogue_manifest.cpp).
+// Row label ← catalogue groups (MetricDescriptor::group, src/Vocabulary/Metrics/metric_catalogue_manifest.cpp).
 // Every catalogue group must land in exactly one family; the unit case asserts it against the live
 // catalogue, so a new group cannot vanish from the page unnoticed.
 // `derivedCounts`: the group's `derived` metrics need no capture of their OWN (tempo off the phase

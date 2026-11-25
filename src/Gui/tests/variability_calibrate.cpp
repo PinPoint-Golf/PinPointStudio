@@ -61,12 +61,12 @@
 #include "charts_maths_fixture.h"
 #include "variability/variability_facade.h"       // the shared token spellings
 
-#include "Metrics/metric_catalogue.h"
-#include "Metrics/variability/variability_constants.h"
-#include "Metrics/variability/variability_grader.h"
-#include "Metrics/variability/variability_result.h"
-#include "Metrics/variability/variability_trend.h"
-#include "Metrics/variability/variability_typicality.h"
+#include "Vocabulary/Metrics/metric_catalogue.h"
+#include "Vocabulary/Metrics/variability/variability_constants.h"
+#include "Vocabulary/Metrics/variability/variability_grader.h"
+#include "Vocabulary/Metrics/variability/variability_result.h"
+#include "Vocabulary/Metrics/variability/variability_trend.h"
+#include "Vocabulary/Metrics/variability/variability_typicality.h"
 
 #include <QCoreApplication>
 #include <QDir>

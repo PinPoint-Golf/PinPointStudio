@@ -31,13 +31,13 @@
 #include "../review/timeline_labels.h"
 #include "../trust/trust_readings.h"     // the gate behind a reading a shot has no value for (gateFor)
 #include "../../Core/pp_debug.h"
-#include "../../Metrics/gate_catalogue.h"   // a masked reading's gate words (cautionOfPicked)
-#include "../../Metrics/metric_catalogue.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"   // a masked reading's gate words (cautionOfPicked)
+#include "../../Vocabulary/Metrics/metric_catalogue.h"
 #include "../../Diagnostics/norms/norm.h"   // the grade policy: where a fired reading is past its fault line
 #include "../../Diagnostics/norms/norm_provider.h"   // the Readings rows' corridor: the norm the reading grades against
 #include "../../Coaching/session_spread.h"           // …turned into bands exactly as Session diagnostics draws them
 #include "../variability/variability_facade.h"       // R8 typicality: the session window and the badge's `values`
-#include "../../Metrics/variability/variability_outcome.h"   // isOutcomeMetric: ball flight has no typicality (R4)
+#include "../../Vocabulary/Metrics/variability/variability_outcome.h"   // isOutcomeMetric: ball flight has no typicality (R4)
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>

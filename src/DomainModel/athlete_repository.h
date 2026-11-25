@@ -50,7 +50,7 @@
 
 #include "athlete.h"
 #include "session_repository.h"   // JsonFileRead
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QByteArray>
 #include <QList>

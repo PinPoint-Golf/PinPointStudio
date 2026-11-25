@@ -52,7 +52,7 @@
 
 #include <QString>
 
-#include "../Recording/analysis_context.h"
+#include "../Vocabulary/Recording/analysis_context.h"
 
 namespace pinpoint::analysis {
 

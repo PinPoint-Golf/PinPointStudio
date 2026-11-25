@@ -26,7 +26,7 @@
 
 #include "Coaching/swing_areas_pack.h"
 #include "Diagnostics/packs/pack_provider.h"
-#include "Metrics/metric_catalogue.h"
+#include "Vocabulary/Metrics/metric_catalogue.h"
 
 #include <QFile>
 #include <QHash>

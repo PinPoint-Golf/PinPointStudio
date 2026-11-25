@@ -164,7 +164,7 @@ Flip a flag default (in `src/Analysis/shaft_tracker.cpp`) only when its K5 gate 
 **Acceptance & freeze.** Keep a sweep value only if **mean ↑ AND `regressions: 0` per swing** AND the
 class bar: coverage ≥ 0.6 on ≥ 90 % of clean face-on swings; **θ-RMSE < 3° / head < 25 px** on the
 labelled set. Partition the search ([AD-39](../controls/kinds-of-work.md): sweep **Tune**, select **Validation**, touch **Held-out** once
-with `--freeze`). Freeze a locked value by editing the single literal in `src/Core/pp_tuned_constants.h`; the
+with `--freeze`). Freeze a locked value by editing the single literal in `src/Vocabulary/Common/pp_tuned_constants.h`; the
 `tuned_constants_parity_test` proves byte-identity. **Always rebuild `swinglab_run` after any analysis C++
 change; never diff across hosts** (CPU vs CUDA pose differs; [L-58](../guidance/lessons.md)).
 

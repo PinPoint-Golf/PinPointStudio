@@ -20,7 +20,7 @@
 
 #include "../../Wrist/wrist_analysis_adapter.h"
 #include "../../Wrist/wrist_dof_metadata.h"
-#include "../../Metrics/measurement.h"   // parseStoredKey: a key's source, told one way (refactor 6.1a)
+#include "../../Vocabulary/Metrics/measurement.h"   // parseStoredKey: a key's source, told one way (refactor 6.1a)
 
 #include <QHash>
 #include <QVariantList>

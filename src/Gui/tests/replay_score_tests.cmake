@@ -28,10 +28,10 @@ pp_add_test(replay_score_test
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Export/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
-            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/shot ${GUI}/review ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Analysis ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/shot ${GUI}/review ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Multimedia Qt6::Qml Qt6::Test
     AUTOMOC)

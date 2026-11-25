@@ -35,7 +35,7 @@
 // club is rarely changed, because nothing in it depends on the club. Premier's must be right for
 // its own simulation.
 
-#include "../Core/club_vocabulary.h"
+#include "../Vocabulary/Club/club_vocabulary.h"
 
 #include <QRegularExpression>
 #include <QString>

@@ -75,7 +75,7 @@
 #include <vector>
 
 #include "shaft_fusion.h"
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 #include "../Skeleton3d/skeleton3d_fit.h"   // Tier: the skeleton's shaftTier values (pinned below)
 
 namespace pinpoint::analysis::shaftdir {

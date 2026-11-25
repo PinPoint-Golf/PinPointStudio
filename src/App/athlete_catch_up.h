@@ -59,7 +59,7 @@
 
 #include "app.h"   // AthleteCallables
 
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QList>
 #include <QObject>

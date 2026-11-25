@@ -14,9 +14,9 @@ pp_add_test(charts_relations_presenter_test
             ${GUI}/charts/charts_relations_presenter.cpp
             # R8 typicality (Apart, Readings, the key figures, Replay's "now"): the session window and the façade's payload
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Metrics/variability/variability_grader.cpp
-            ${SRC}/Metrics/variability/variability_result.cpp
-            ${SRC}/Metrics/variability/variability_typicality.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
             ${GUI}/charts/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
             ${GUI}/charts/session_curves.cpp
@@ -28,10 +28,10 @@ pp_add_test(charts_relations_presenter_test
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Metrics/metric_catalogue.cpp
-            ${SRC}/Metrics/metric_resolver.cpp
-            ${SRC}/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Metrics/metric_providers.cpp
+            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
+            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
+            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
+            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp
@@ -51,7 +51,7 @@ pp_add_test(charts_relations_presenter_test
             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
@@ -71,9 +71,9 @@ pp_add_test(charts_consistency_presenter_test
             ${GUI}/charts/variability_clubs.cpp
             ${GUI}/charts/variability_env.cpp
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Metrics/variability/variability_grader.cpp
-            ${SRC}/Metrics/variability/variability_result.cpp
-            ${SRC}/Metrics/variability/variability_typicality.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
             ${GUI}/charts/charts_relations_presenter.cpp
             ${GUI}/charts/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
@@ -86,10 +86,10 @@ pp_add_test(charts_consistency_presenter_test
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Metrics/metric_catalogue.cpp
-            ${SRC}/Metrics/metric_resolver.cpp
-            ${SRC}/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Metrics/metric_providers.cpp
+            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
+            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
+            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
+            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp
@@ -109,7 +109,7 @@ pp_add_test(charts_consistency_presenter_test
             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)

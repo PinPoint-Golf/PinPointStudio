@@ -72,7 +72,7 @@ Read-only dry run over the library, existing norms, fired / assessable (284 swin
 ## What a position reads
 
 A position is an instant. The two plane curves are already fits (`planecurve::fitCurve`), so every surface reads them at the
-position's instant, through no window: `reduceInstant`, keyed by `isFittedCurve` (`src/Metrics/fitted_curve.h`). That covers
+position's instant, through no window: `reduceInstant`, keyed by `isFittedCurve` (`src/Vocabulary/Metrics/fitted_curve.h`). That covers
 the phase grid (so the conditions and the Club delivery section), the Charts card tiles, the headline tiles and the Readings
 tab. The plot draws the curve itself, and its peak is on that line. An instant inside a bridged stretch has no reading and
 shows "-".

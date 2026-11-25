@@ -34,9 +34,9 @@
 #include "folder_series.h"   // the old loader, a test double (5.5a)
 #include "charts/session_warp.h"
 #include "charts_maths_fixture.h"
-#include "Metrics/metric_catalogue.h"
-#include "Metrics/variability/variability_outcome.h"
-#include "Metrics/variability/variability_typicality.h"
+#include "Vocabulary/Metrics/metric_catalogue.h"
+#include "Vocabulary/Metrics/variability/variability_outcome.h"
+#include "Vocabulary/Metrics/variability/variability_typicality.h"
 
 #include <QDir>
 #include <QElapsedTimer>

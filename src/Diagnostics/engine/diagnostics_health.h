@@ -23,7 +23,7 @@
 #include "../norms/norm_provider.h"
 #include "../packs/reference_pack.h" // ReferenceSet, for referenceHealth()
 #include "../packs/screen_pack.h"    // ScreenSet, for the unknownScreenRef / screenNo* checks
-#include "../../Metrics/metric_catalogue.h"
+#include "../../Vocabulary/Metrics/metric_catalogue.h"
 
 #include <optional>
 #include <vector>

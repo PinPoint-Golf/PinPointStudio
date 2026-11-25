@@ -42,7 +42,7 @@
 #include "charts/session_wrist.h"
 #include "report/report_posture.h"
 #include "variability/variability_facade.h"
-#include "Metrics/variability/variability_grader.h"
+#include "Vocabulary/Metrics/variability/variability_grader.h"
 #include "Diagnostics/measures/measure_sample.h"
 #include "Diagnostics/norms/norm_provider.h"
 #include "Coaching/session_day_readings_rules.h"   // the owner's rules: an earlier session's summary (refactor 5.5d)

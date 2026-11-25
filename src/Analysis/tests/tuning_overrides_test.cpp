@@ -12,7 +12,7 @@
 #include "../../Timeline/event_refine.h"
 #include "../../Kinematics/kinematic_series.h"
 #include "../../Timeline/tempo_metrics.h"
-#include "../../Core/pp_tuned_constants.h"
+#include "../../Vocabulary/Common/pp_tuned_constants.h"
 #include "../../Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 
 #include <QVariantMap>

@@ -21,7 +21,7 @@
 #include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Vocabulary/Analysis/uncertainty_config.h"
 #include "../Vocabulary/Analysis/analysis_tuning.h"
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 #include "../Vocabulary/Analysis/gate_record.h"   // GateRecord (trust stage 6)
 
 #include <QVariantMap>

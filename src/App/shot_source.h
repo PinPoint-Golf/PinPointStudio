@@ -31,8 +31,8 @@
 // Plain callbacks, not signals, so the port needs no moc in the targets that compile the view.
 
 #include "shot_command_door.h"   // ShotSummary, WriteResult, SummaryRead
-#include "../Metrics/measurement.h"   // MeasurementSet (refactor 6.1a)
-#include "../Identity/identity.h"
+#include "../Vocabulary/Metrics/measurement.h"   // MeasurementSet (refactor 6.1a)
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QString>
 #include <QVector>

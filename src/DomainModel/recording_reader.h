@@ -38,7 +38,7 @@
 // and safe from worker threads.
 //
 // Domain model ring (src/DomainModel): names no store type. The values it returns are the
-// Recording contract's (src/Recording) and the effective-club rule's input (ClubReview).
+// Recording contract's (src/Vocabulary/Recording) and the effective-club rule's input (ClubReview).
 
 #include <QJsonObject>
 #include <QString>
@@ -48,11 +48,11 @@
 #include <optional>
 #include <vector>
 
-#include "../Identity/identity.h"
-#include "../Recording/recording.h"
+#include "../Vocabulary/Identity/identity.h"
+#include "../Vocabulary/Recording/recording.h"
 #include "../Analysis/effective_context.h"   // pinpoint::analysis::ClubReview
 #include "../Vocabulary/Analysis/gate_record.h"         // loadGates
-#include "../Core/sidecar_policy.h"                     // SidecarPolicy (phaseGrid)
+#include "../Vocabulary/Common/sidecar_policy.h"                     // SidecarPolicy (phaseGrid)
 #include "../Vocabulary/Analysis/phase_grid.h"          // SwingPhaseGrid, PhaseGridConfig (phaseGrid): value types only
 
 namespace pinpoint {
@@ -135,7 +135,7 @@ public:
     // THE SHOT'S PHASE GRID (FILE-SHOT-07, OBJ-PHASE-GRID; platform refactor P-3, ruled 24 Nov 2026, J-104): the sampler's
     // numbers per phase, its cache read and written by the adapter through the swing store's file door (PhaseGridStore,
     // src/Export/phase_grid_store.h), never by the caller. The grid is built under `config` (its millisecond spans
-    // widened to what the cache already holds); `policy` (src/Core/sidecar_policy.h) says what a miss or a stale cache may
+    // widened to what the cache already holds); `policy` (src/Vocabulary/Common/sidecar_policy.h) says what a miss or a stale cache may
     // cost: CachedOnly never parses, ParseNoWrite parses and writes nothing, ParseAndWrite parses and indexes the result
     // under the session's lock and outside the archive window. buildPhaseGrid stays a pure function. Any thread.
     //

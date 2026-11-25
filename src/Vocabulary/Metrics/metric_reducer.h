@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../Vocabulary/Analysis/swing_analysis.h"   // Phase
+#include "../Analysis/swing_analysis.h"   // Phase
 
 #include <QString>
 

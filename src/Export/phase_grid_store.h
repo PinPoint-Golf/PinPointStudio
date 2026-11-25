@@ -40,7 +40,7 @@
 // Adapters ring (src/Export). Safe from any thread; it holds no state.
 
 #include "../Diagnostics/measures/measure_sample.h"   // SwingPhaseGrid, PhaseGridConfig, savePhaseGrid, loadPhaseGrid
-#include "../Core/sidecar_policy.h"
+#include "../Vocabulary/Common/sidecar_policy.h"
 #include "../Wrist/wrist_profile_assess.h"            // WristInput
 
 #include <QString>
@@ -54,7 +54,7 @@ namespace pinpoint::PhaseGridStore {
 QString sidecarPath(const QString &swingDir);
 
 // One swing's grid, preferring the sidecar and falling back to a parse of the swing's document. `policy` says what a
-// miss or a stale sidecar may cost (src/Core/sidecar_policy.h): CachedOnly never parses (an unindexed swing reads as an
+// miss or a stale sidecar may cost (src/Vocabulary/Common/sidecar_policy.h): CachedOnly never parses (an unindexed swing reads as an
 // empty grid, or the held grid without a missing millisecond span); ParseNoWrite parses and writes nothing;
 // ParseAndWrite parses and indexes (best-effort, unlocked: the folder-keyed readers' write, as before P-3).
 // `parsed`, when given, is the one parse a caller also reading the summary shares (issue #142); null parses on its own.

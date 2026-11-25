@@ -23,7 +23,7 @@
 #include "charts/variability_clubs.h"
 #include "../../Export/rule_data_install.h"
 
-#include "../../Metrics/variability/variability_grader.h"
+#include "../../Vocabulary/Metrics/variability/variability_grader.h"
 
 #include <QtTest>
 

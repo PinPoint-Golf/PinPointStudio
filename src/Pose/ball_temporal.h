@@ -53,7 +53,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "../Core/pp_physical_constants.h"
+#include "../Vocabulary/Common/pp_physical_constants.h"
 
 namespace pinpoint::balltemporal {
 
@@ -64,7 +64,7 @@ namespace pinpoint::balltemporal {
 // and by ball_position.h (the stance-width mm ruler).
 // (Moved here from ball_model.h as part of the v1→v2 migration; ball_model.h is
 // slated for deletion in V3. The VALUE now lives one layer lower still, in
-// src/Core/pp_physical_constants.h, so the Qt-only analysis modules can reach it
+// src/Vocabulary/Common/pp_physical_constants.h, so the Qt-only analysis modules can reach it
 // without pulling in OpenCV; this stays as the established name for the existing
 // callers and is the same constant.)
 inline constexpr double kBallDiameterMm = pinpoint::physical::kGolfBallDiameterMm;

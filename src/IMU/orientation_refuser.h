@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "iorientation_filter.h"
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 
 // Offline orientation RE-FUSION + parity — the load-bearing capability for
 // post-hoc tuning of the orientation filter (phase-adaptive gain + impact

@@ -18,10 +18,10 @@
 
 #include "measure_sample.h"
 
-#include "../../Metrics/series_reduce.h"
-#include "../../Metrics/fitted_curve.h"    // isFittedCurve — read at the instant, not around it
-#include "../../Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' readings
-#include "../../Core/club_vocabulary.h"
+#include "../../Vocabulary/Metrics/series_reduce.h"
+#include "../../Vocabulary/Metrics/fitted_curve.h"    // isFittedCurve — read at the instant, not around it
+#include "../../Vocabulary/Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' readings
+#include "../../Vocabulary/Club/club_vocabulary.h"
 
 #include <QDateTime>
 #include <QJsonArray>
@@ -769,7 +769,7 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
     if (root.value(QStringLiteral("schema")).toInt() != kPhaseGridSchemaVersion)
         return grid;
 
-    // THE one stamp rule (sameDocumentStamp, src/Core/sidecar_policy.h): a copy that kept the document's mtime to the
+    // THE one stamp rule (sameDocumentStamp, src/Vocabulary/Common/sidecar_policy.h): a copy that kept the document's mtime to the
     // whole second is the same document; anything else that moved is a rewrite.
     const QJsonObject src = root.value(QStringLiteral("source")).toObject();
     if (!pinpoint::sameDocumentStamp(src.value(QStringLiteral("size")).toVariant().toLongLong(),

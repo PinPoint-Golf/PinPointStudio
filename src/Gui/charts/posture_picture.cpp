@@ -17,7 +17,7 @@
  */
 
 #include "posture_picture.h"
-#include "../../Core/figure_format.h"
+#include "../../Vocabulary/Common/figure_format.h"
 
 #include "../../Body/address_marks.h"       // buttShiftCm — the butt line's travel, pelvisThrust's sign
 #include "../../Body/head_track.h"          // trackHead — the inter-ear ruler headLift is measured with

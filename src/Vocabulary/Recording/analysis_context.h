@@ -37,7 +37,7 @@
 #include <QString>
 #include <vector>
 
-#include "../Core/club_standards.h"   // pinpoint::ClubSet (men / women / junior)
+#include "../Club/club_standards.h"   // pinpoint::ClubSet (men / women / junior)
 
 namespace pinpoint::recording {
 

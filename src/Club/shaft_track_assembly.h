@@ -26,7 +26,7 @@
 
 #include <opencv2/core.hpp>
 
-#include "../Core/pp_tuned_constants.h"  // tuned::shaft:: (Stage-A no-return veto + Takeaway defaults)
+#include "../Vocabulary/Common/pp_tuned_constants.h"  // tuned::shaft:: (Stage-A no-return veto + Takeaway defaults)
 #include "shaft_tracker_math.h"    // RidgeConfig, BandMatchConfig, BandMatch
 #include "../Vocabulary/Analysis/swing_analysis.h" // ShaftTrack2D / ShaftSample2D / ClubLengthEstimate / flags
 #include "clubhead_track.h"        // ClubheadConfig (Stage-2 head measurement)

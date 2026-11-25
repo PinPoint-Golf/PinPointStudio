@@ -44,8 +44,8 @@
 
 #include "../../Body/skeleton3d_body_series.h"
 #include "../../Body/trunk_sensor_series.h"   // applyTrunkSensorPrecedence: the 3-D shoulder plane as the fallback
-#include "../../Metrics/series_reduce.h"
-#include "../../Metrics/gate_catalogue.h"   // primaryRecord, notJudgedClause: what a reader says for a gap
+#include "../../Vocabulary/Metrics/series_reduce.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"   // primaryRecord, notJudgedClause: what a reader says for a gap
 
 #include <cmath>
 #include <cstdio>

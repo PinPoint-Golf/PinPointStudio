@@ -40,7 +40,7 @@
 
 #include "../../Body/shoulder_tilt_vs_bend.h"
 #include "../../Diagnostics/measures/measure_sample.h"
-#include "../../Metrics/gate_catalogue.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"
 #include "../../Diagnostics/measures/live_measure_source.h"
 #include "../../Export/swing_doc.h"
 #include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)

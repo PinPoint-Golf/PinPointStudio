@@ -36,8 +36,9 @@ ORDER = {ACQ: 0, DIA: 1, COA: 2}
 
 # ---- tags: IM 4.1's Context column. Longest directory prefix wins; a file stem overrides its directory. --------
 DIRS = {
-    'Vocabulary/Analysis/': DIA, 'Vocabulary/Rig/': ACQ, 'Metrics/': DIA,   # Rig: the device keys (rig_design.md §5)
-    'Recording/': ACQ, 'Identity/': S, 'Core/': S,
+    'Vocabulary/Analysis/': DIA, 'Vocabulary/Rig/': ACQ, 'Vocabulary/Metrics/': DIA,   # Rig: the device keys (rig_design.md §5)
+    'Vocabulary/Recording/': ACQ, 'Vocabulary/Identity/': S, 'Core/': S,
+    'Vocabulary/Club/': S, 'Vocabulary/Common/': S, 'Vocabulary/LaunchMonitor/': ACQ,
     'Pose/': DIA, 'Club/': DIA, 'Ball/': DIA, 'Kinematics/': DIA, 'Timeline/': DIA, 'Diagnostics/': DIA,
     'Coaching/': DIA,                       # today's files: the derived facts (move to Diagnostics/derived/ in Stage B)
     'IMU/': DIA,                            # golf fusion; signal-level files and device back-ends below
@@ -56,7 +57,7 @@ FILES = {
     'Core/AnalysisProfileLog': P, 'Core/pp_profiler': P, 'Core/ort_log': P, 'Core/cpu_topology': P,
     'Core/pp_gpu_metrics': P, 'Core/pp_gpu_metrics_mac': P, 'Core/pp_os_metrics': P, 'Core/pp_model_path': P,
     'Core/atomic_write': P, 'Core/folder_lock': P, 'Core/post_shot_trace': P, 'Core/work_pool': P,
-    'Export/frame_decode': ACQ,                                                   # ruled: part of the Recording contract
+    'Vocabulary/Recording/frame_decode': ACQ,                                                   # ruled: part of the Recording contract
     'IMU/imu_calibration': ACQ, 'IMU/trunk_angles': ACQ, 'IMU/trunk_stand_tall': ACQ,   # ruled (L2)
     # to place (this script's placements):
     'Core/kf3_smoother': S,                 # generic maths, no golf in it
@@ -94,10 +95,10 @@ TRUE_FILES = {'Gui/shot/shot_processor': ACQ, 'Gui/shot/capture_context': ACQ, '
 # ---- the named contracts ----------------------------------------------------------------------------------------
 # The Recording contract (Acquisition -> Diagnostics; IM 2.2, OBJ-RECORDING, CLS-RECORDING, R-REC-4, lint A8):
 # exactly the Vocabulary-ring files 4.1 tags Acquisition.
-REC_DIRS = ('Recording/',)
+REC_DIRS = ('Vocabulary/Recording/',)
 REC_FILES = {'Buffer/types', 'Buffer/format_descriptor', 'Buffer/source_descriptor', 'Buffer/swing_window',
              'Buffer/swing_payload_source', 'Buffer/imu_sample', 'Buffer/pixel_format_names',
-             'LaunchMonitor/launch_monitor_reading', 'LaunchMonitor/lm_device', 'Export/frame_decode'}
+             'Vocabulary/LaunchMonitor/launch_monitor_reading', 'Vocabulary/LaunchMonitor/lm_device', 'Vocabulary/Recording/frame_decode'}
 # Acquisition's pure signal rules (L2). NOT part of 2.2's Recording, so the map as stated rejects an include of them.
 ACQ_RULES = {'IMU/imu_calibration', 'IMU/trunk_angles', 'IMU/trunk_stand_tall'}
 # The hub's contracts (any context -> Domain + Application; R-CTX-1, Q26): interfaces and value types of DomainModel.
@@ -111,7 +112,7 @@ HUB_CONTRACT = {
     'DomainModel/golfer_input_rules', 'DomainModel/summary_rules'}
 # The results contract (Diagnostics -> Coaching): IM names objects (OBJ-SHOT-DERIVED ...), not headers. This script's
 # stand-in: the result value types, i.e. Diagnostics' vocabulary and the derived facts' headers.
-RESULT_DIRS = ('Vocabulary/Analysis/', 'Metrics/', 'Coaching/')
+RESULT_DIRS = ('Vocabulary/Analysis/', 'Vocabulary/Metrics/', 'Coaching/')
 
 LITERAL_L2 = '--literal-l2' in sys.argv
 

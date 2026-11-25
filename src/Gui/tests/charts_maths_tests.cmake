@@ -45,10 +45,10 @@ include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)      # CHARTS_NORM
 set(CONSISTENCY_ENV_SOURCES
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${GUI}/charts/consistency_env.cpp
-    ${SRC}/Metrics/metric_catalogue.cpp
-    ${SRC}/Metrics/metric_resolver.cpp
-    ${SRC}/Metrics/metric_catalogue_manifest.cpp
-    ${SRC}/Metrics/metric_providers.cpp
+    ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
+    ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
+    ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
+    ${SRC}/Vocabulary/Metrics/metric_providers.cpp
     ${SRC}/Wrist/reference_bands.cpp
     ${SRC}/Diagnostics/norms/norm.cpp
     ${SRC}/Diagnostics/norms/norm_pack.cpp
@@ -68,7 +68,7 @@ set(CONSISTENCY_ENV_SOURCES
     ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
     ${SRC}/Core/pp_log_stream.cpp
     ${SRC}/Core/PpMessageLog.cpp)
-set(CONSISTENCY_ENV_INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics)
+set(CONSISTENCY_ENV_INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics)
 set(CONSISTENCY_ENV_ENV "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
 pp_add_test(consistency_env_test
     SOURCES consistency_env_test.cpp ${CONSISTENCY_ENV_SOURCES}
@@ -113,13 +113,13 @@ set_tests_properties(session_consistency_test PROPERTIES ENVIRONMENT "${CONSISTE
 pp_add_test(variability_clubs_test
     SOURCES variability_clubs_test.cpp ${GUI}/charts/variability_clubs.cpp ${CONSISTENCY_MATHS_SOURCES}
             ${CONSISTENCY_ENV_SOURCES}
-            ${SRC}/Metrics/variability/variability_grader.cpp ${SRC}/Metrics/variability/variability_result.cpp
+            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
 
 
-# variability_calibrate <fixtures-root> <ks-root> <out-dir>: the variability grader (src/Metrics/variability/, spec
+# variability_calibrate <fixtures-root> <ks-root> <out-dir>: the variability grader (src/Vocabulary/Metrics/variability/, spec
 # §8) over a read-only extract of every athlete's sessions, for calibrating the §8.10 constants: the calibration and
 # trend CSVs and the mark gallery's fixture. A tool, not a test: no ctest entry. Reads <fixtures-root>/<athlete>/*.json
 # and the app's stored kinematic-sequence orders <ks-root>/<athlete>/<session>.json, and writes only into <out-dir>.
@@ -127,8 +127,8 @@ pp_add_test(variability_clubs_test
 add_executable(variability_calibrate variability_calibrate.cpp ${GUI}/charts/variability_env.cpp
     ${GUI}/variability/variability_facade.cpp
     ${GUI}/charts/session_sequence.cpp
-    ${SRC}/Metrics/variability/variability_grader.cpp ${SRC}/Metrics/variability/variability_result.cpp
-    ${SRC}/Metrics/variability/variability_typicality.cpp ${SRC}/Metrics/variability/variability_trend.cpp
+    ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
+    ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp ${SRC}/Vocabulary/Metrics/variability/variability_trend.cpp
     ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES})
 target_include_directories(variability_calibrate PRIVATE ${PP_BUFFER} ${CONSISTENCY_ENV_INCLUDE})
 target_compile_definitions(variability_calibrate PRIVATE PP_DIAGNOSTICS_DIR="${SRC}/Resources/diagnostics")

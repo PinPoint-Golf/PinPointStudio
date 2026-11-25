@@ -19,7 +19,7 @@
 #include "trust_words.h"
 #include "trust_readings.h"
 
-#include "../../Metrics/gate_catalogue.h"
+#include "../../Vocabulary/Metrics/gate_catalogue.h"
 
 namespace pinpoint::trust {
 

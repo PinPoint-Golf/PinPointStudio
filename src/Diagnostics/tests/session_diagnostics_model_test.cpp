@@ -1312,7 +1312,7 @@ static void compositePresentationSuite(const QTemporaryDir &tmp)
 // ── The variability marks on the strip and the history (governance/artefacts/design_system/variability.md) ───────
 //
 // Technical layer, PAIRED: the box and the per-session boxes stay; beside them a consistency grade per
-// club (R2b), graded by src/Metrics/variability/ against the norm corridor of the club's context. What is
+// club (R2b), graded by src/Vocabulary/Metrics/variability/ against the norm corridor of the club's context. What is
 // asserted: one badge per club, in perClubInputs' order; none at all for a measure graded only against a
 // threshold, or for an outcome; the funnel per club of THIS session with ≥ N_MIN swings, its sessions that
 // club's only, oldest first and ending at this session, a break where the context changes; and the level

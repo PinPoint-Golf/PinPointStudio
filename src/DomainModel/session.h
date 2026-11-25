@@ -99,7 +99,7 @@
 #include "athlete.h"   // ShotDoors
 #include "session_repository.h"
 #include "shot_command_values.h"   // SessionIntentEdit
-#include "../Identity/identity.h"
+#include "../Vocabulary/Identity/identity.h"
 
 #include <QList>
 #include <QMap>
@@ -114,7 +114,7 @@ namespace pinpoint {
 
 class SessionDiagnostics;
 class Shot;
-namespace recording { enum class ShotKind : int; }   // src/Recording/recording.h
+namespace recording { enum class ShotKind : int; }   // src/Vocabulary/Recording/recording.h
 
 class Session : public QObject
 {

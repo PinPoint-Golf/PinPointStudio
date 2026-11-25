@@ -1,6 +1,6 @@
 // Stage 5b — the closing page's "What this session will record" wording, as a unit:
 // src/Gui/setup/setup_capability_rows.js over the REAL catalogue (MetricCatalog.setupSummary), for
-// the seven setups of src/Metrics/tests/setup_capability_test.cpp (design §4.14).
+// the seven setups of src/Vocabulary/Metrics/tests/setup_capability_test.cpp (design §4.14).
 //
 // What is pinned here:
 //   - every catalogue group lands in exactly one family, and every family names only groups the

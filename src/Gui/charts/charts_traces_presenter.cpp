@@ -21,7 +21,7 @@
 #include "charts_words.h"
 #include "session_curves.h"
 #include "session_relations.h"   // the facets (conditionFacets, halfFacet, clubFacet, shapeFacet)
-#include "../../Metrics/gate_catalogue.h"   // the gates' words (the out-of-sight bars)
+#include "../../Vocabulary/Metrics/gate_catalogue.h"   // the gates' words (the out-of-sight bars)
 #include "../trust/trust_readings.h"         // the readings a gate touched (the marks open them)
 #include "session_sequence.h"
 #include "session_bridge.h"     // the chest's probable peak (Session only)
@@ -32,12 +32,12 @@
 #include "consistency_env.h"        // consistencyEnvGeneration: a norm or pack save makes the scales again (5.5a)
 #include "../../Diagnostics/norms/norm_provider.h"   // sharedNormProviderGeneration: re-make the scales after a save
 #include "../variability/variability_facade.h"                 // variabilityResult, typicalityTracePayload
-#include "../../Metrics/variability/variability_grader.h"      // the trace and ordinal graders
-#include "../../Metrics/variability/variability_typicality.h"  // traceTypicalityWindow (R8)
+#include "../../Vocabulary/Metrics/variability/variability_grader.h"      // the trace and ordinal graders
+#include "../../Vocabulary/Metrics/variability/variability_typicality.h"  // traceTypicalityWindow (R8)
 #include "../../Core/pp_debug.h"
-#include "../../Core/pp_tuned_constants.h"   // the ±15 ms an instant's reading may reach
-#include "../../Metrics/fitted_curve.h"    // isFittedCurve — read at the instant, not around it
-#include "../../Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' reading tiles
+#include "../../Vocabulary/Common/pp_tuned_constants.h"   // the ±15 ms an instant's reading may reach
+#include "../../Vocabulary/Metrics/fitted_curve.h"    // isFittedCurve — read at the instant, not around it
+#include "../../Vocabulary/Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' reading tiles
 
 #include "../review/chart_metrics.h"
 #include "../review/timeline_labels.h"
@@ -2391,7 +2391,7 @@ bool sessionDrawable(const Ctx &c)
 
 // ── THE VARIABILITY MARKS (governance/artefacts/design_system/variability.md; Mark's rulings R2b, R8, 7 Nov) ───────────────
 // The grader's inputs are built here, from what the views already line up; the grading is the grader's
-// (src/Metrics/variability/) and the words are QML's vocabularies. Display only: no analysis stage changes.
+// (src/Vocabulary/Metrics/variability/) and the words are QML's vocabularies. Display only: no analysis stage changes.
 //
 // ONE SWING'S TRACE READING (spec §8.3 step 1): the curve from TOP to IMPACT, time-normalised between the
 // session's P-positions — the presenter's own P-alignment (pAlignment, whichever way Session lines the shots

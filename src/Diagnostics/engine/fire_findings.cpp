@@ -30,7 +30,7 @@
 #include "../../Coaching/firing_side.h"           // conditionFiringSide (#16)
 #include "../../Coaching/sequence_checks.h"       // the sequence checks, their spread and their gap words
 #include "../measures/measurement_precedence.h"   // pickByPrecedence: THE precedence rule (6.1a)
-#include "../../Core/club_vocabulary.h"           // the baseline's keys are canonical club ids
+#include "../../Vocabulary/Club/club_vocabulary.h"           // the baseline's keys are canonical club ids
 
 #include <QCryptographicHash>
 #include <QHash>

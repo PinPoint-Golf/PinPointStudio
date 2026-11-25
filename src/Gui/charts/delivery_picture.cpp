@@ -17,7 +17,7 @@
  */
 
 #include "delivery_picture.h"
-#include "../../Core/figure_format.h"
+#include "../../Vocabulary/Common/figure_format.h"
 
 #include "posture_picture.h"                // the DTL frames, crop, ball and address grip: the Posture picture's reading
 #include "../report/report_stills_pure.h"   // which frame: the report stills' own rule

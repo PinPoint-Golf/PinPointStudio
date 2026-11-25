@@ -319,7 +319,7 @@ QtObject {
     function sentence(s) { s = String(s || "").trim(); if (!s) return ""; s = cap1(s); return /[.!?]$/.test(s) ? s : s + "." }
     function esc(s) { return String(s === undefined || s === null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") }
     function hex(c) { return String(c) }
-    // ── FIGURES: the QML twin of Core/figure_format.h (figure_format.js, the one implementation), so a figure QML
+    // ── FIGURES: the QML twin of Vocabulary/Common/figure_format.h (figure_format.js, the one implementation), so a figure QML
     // sets reads exactly as the C++ sets it (gui-catalogue C15–C17): missing "-", the true minus, never "−0", ties
     // away from zero, a figure and its unit by withUnit's one rule. C++ fig() is figure() here: PpDiagRoles.fig() is
     // something else (the figure OF a reading the model published).

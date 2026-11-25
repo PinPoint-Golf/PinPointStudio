@@ -26,7 +26,7 @@
 #include "../../Diagnostics/norms/context_tree.h"        // contextIdForClub
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/pack_provider.h"
-#include "../../Metrics/gate_catalogue.h"                // a gate's words for a refused reading
+#include "../../Vocabulary/Metrics/gate_catalogue.h"                // a gate's words for a refused reading
 #include "../../Analysis/route_substitution.h"           // substitutedGapGate: a gap in a substituted reading
 #include "../../Coaching/diagnostic_ledger.h"            // conditionTier, wilsonLowerBound: the session's pattern gate
 #include "../../Coaching/session_day_readings_rules.h"   // isAddressAbsolute: the address block's measures (refactor 5.5d)

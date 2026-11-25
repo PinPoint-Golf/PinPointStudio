@@ -78,7 +78,7 @@
 #include "grader_sample.h"   // grader::graderReadingAt — the grader's `at` reading, shared with club_slot_top.h
 #include "../Vocabulary/Analysis/gate_record.h"
 #include "../Vocabulary/Analysis/swing_analysis.h"
-#include "../Core/pp_tuned_constants.h"
+#include "../Vocabulary/Common/pp_tuned_constants.h"
 
 #include <QString>
 #include <QStringList>

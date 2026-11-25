@@ -22,7 +22,7 @@
 #include <QString>
 #include <cmath>
 
-#include "../../Recording/analysis_context.h"   // the input stamp's Handedness and ClubSet
+#include "../Recording/analysis_context.h"   // the input stamp's Handedness and ClubSet
 
 // Producer versions stamped into swing.json `analysis.versions` (2026-09-09,
 // Mark: re-analysis re-ran ViTPose, the ball detector and the shaft tracker

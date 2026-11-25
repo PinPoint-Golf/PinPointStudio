@@ -38,7 +38,7 @@
 #include "Wrist/wrist_profile_assess.h"
 #include "report/report_wrist.h"
 #include "variability/variability_facade.h"
-#include "Metrics/variability/variability_grader.h"
+#include "Vocabulary/Metrics/variability/variability_grader.h"
 
 #include <QRegularExpression>
 

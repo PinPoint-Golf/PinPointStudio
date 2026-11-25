@@ -32,7 +32,7 @@
 #include "../Diagnostics/engine/session_reduction.h"   // SessionReductionInput: a session's judged rows (DEC-195)
 #include "../Coaching/work_ons_pack.h"
 #include "../Diagnostics/packs/swing_themes_pack.h"
-#include "../Metrics/variability/variability_constants.h"   // kNWindow
+#include "../Vocabulary/Metrics/variability/variability_constants.h"   // kNWindow
 #include "../Core/pp_debug.h"
 
 #include <QCryptographicHash>

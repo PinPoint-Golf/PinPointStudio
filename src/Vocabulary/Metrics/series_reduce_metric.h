@@ -32,7 +32,7 @@
 // reduction) and to put the SHORT-MASK RULE in one place for them.
 
 #include "series_reduce.h"
-#include "../Vocabulary/Analysis/swing_analysis.h" // MetricSeries
+#include "../Analysis/swing_analysis.h" // MetricSeries
 
 #include <algorithm>
 

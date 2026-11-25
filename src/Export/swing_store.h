@@ -33,7 +33,7 @@
 // into dozens of test binaries; the ppsw headers stay inside swing_store.cpp and ppsw_qt.cpp,
 // the two files of the pinpoint_swingstore library every one of those targets links.
 
-#include "../Core/sidecar_policy.h"   // sameDocumentStamp: the one stamp rule
+#include "../Vocabulary/Common/sidecar_policy.h"   // sameDocumentStamp: the one stamp rule
 
 #include <QJsonObject>
 #include <QString>
@@ -62,7 +62,7 @@ DocInfo info(const QString &swingDir);
 bool    hasDocument(const QString &swingDir);
 
 // IS THIS STILL THE DOCUMENT A SIDECAR WAS STAMPED FROM? The one stamp rule every reader of a sidecar's stamp asks
-// (issue #174). It lives in src/Core/sidecar_policy.h, so the phase-grid sampler's pure loader asks it without
+// (issue #174). It lives in src/Vocabulary/Common/sidecar_policy.h, so the phase-grid sampler's pure loader asks it without
 // including this store (platform refactor P-3); this is that function.
 using pinpoint::sameDocumentStamp;
 

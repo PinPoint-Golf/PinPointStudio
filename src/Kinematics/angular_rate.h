@@ -42,7 +42,7 @@
 // checks that it COVERS the realised timing error across noisy draws rather than merely being
 // computed, because a σ that does not cover is a lie with decimals.
 
-#include "../Metrics/series_reduce.h" // SeriesView, Reduced, reduceExtremum, ReduceConfig
+#include "../Vocabulary/Metrics/series_reduce.h" // SeriesView, Reduced, reduceExtremum, ReduceConfig
 
 #include <algorithm>
 #include <cmath>

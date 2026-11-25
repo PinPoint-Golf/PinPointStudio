@@ -86,8 +86,8 @@
 #include <cstdint>
 #include <optional>
 
-#include "../Recording/analysis_context.h"
-#include "../Recording/recording.h"      // recording::ShotKind
+#include "../Vocabulary/Recording/analysis_context.h"
+#include "../Vocabulary/Recording/recording.h"      // recording::ShotKind
 #include "../Analysis/effective_context.h"   // pinpoint::analysis::ClubReview
 
 namespace pinpoint {

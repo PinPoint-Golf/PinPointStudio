@@ -20,18 +20,18 @@
 
 #include "../../LaunchMonitor/launch_monitor_base.h"
 #include "../../LaunchMonitor/launch_monitor_factory.h"
-#include "../../LaunchMonitor/lm_device.h"
+#include "../../Vocabulary/LaunchMonitor/lm_device.h"
 
 #include "../../LaunchMonitor/lm_club_evidence.h"
-#include "../../Core/club_vocabulary.h"                  // effectiveClub: the one club rule (refactor 6.2)
+#include "../../Vocabulary/Club/club_vocabulary.h"                  // effectiveClub: the one club rule (refactor 6.2)
 #include "../../LaunchMonitor/lm_enclosing_ellipse.h"
 #include "../../LaunchMonitor/lm_flight_path.h"
 #include "../../LaunchMonitor/lm_inferred_reads.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
 #include "../../Vocabulary/Analysis/swing_analysis.h"
-#include "../../Metrics/measurement.h"                       // the Shot's set: a row's readings (refactor 6.1a)
-#include "../../Metrics/metric_catalogue.h"                 // the low point from the attack angle: its label
-#include "../../Core/figure_format.h"                      // pm: the app's one ± (the low point from the attack angle)
+#include "../../Vocabulary/Metrics/measurement.h"                       // the Shot's set: a row's readings (refactor 6.1a)
+#include "../../Vocabulary/Metrics/metric_catalogue.h"                 // the low point from the attack angle: its label
+#include "../../Vocabulary/Common/figure_format.h"                      // pm: the app's one ± (the low point from the attack angle)
 #include "../../Diagnostics/measures/measurement_precedence.h" // which source wins for a metric (R-INS-3)
 #include "../trust/trust_readings.h"
 
@@ -41,8 +41,8 @@
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 
-#include "../../Metrics/variability/variability_grader.h"
-#include "../../Metrics/variability/variability_typicality.h"
+#include "../../Vocabulary/Metrics/variability/variability_grader.h"
+#include "../../Vocabulary/Metrics/variability/variability_typicality.h"
 #include "../variability/variability_facade.h"
 #include "../variability/variability_measures.h"   // metricScaleType, corridorHalfWidthOf, isOutcomeMetric
 

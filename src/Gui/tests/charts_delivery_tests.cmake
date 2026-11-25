@@ -15,7 +15,7 @@ pp_add_test(session_delivery_test
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(session_delivery_test PROPERTIES
@@ -48,7 +48,7 @@ pp_add_test(charts_delivery_presenter_test
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_delivery_presenter_test PROPERTIES
@@ -74,7 +74,7 @@ pp_add_test(delivery_picture_test
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics
+    INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(delivery_picture_test PROPERTIES
@@ -96,7 +96,7 @@ add_executable(day_readings_dump
     ${GUI}/tests/folder_series.cpp
     ${CHARTS_WRIST_SRC})
 target_include_directories(day_readings_dump PRIVATE ${PP_BUFFER} ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis
-                                                     ${SRC}/Diagnostics ${SRC}/Metrics)
+                                                     ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics)
 pp_require_swingstore()
 target_link_libraries(day_readings_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
 set_target_properties(day_readings_dump PROPERTIES AUTOMOC ON)
