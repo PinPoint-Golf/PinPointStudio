@@ -16,6 +16,12 @@
 - **Evidence labels.** *Observed* (visit 1, §n) · *seam, in a worktree* (a test, not yet on `main`) · *reading* (read in the code, not run). A `GAP-n` is the starting audit's.
 - **Ids.** States `APP-S`, `ATH-S`, `SES-S`, `SHOT-S`, `RIG-S`; transitions `APP-T`, `ATH-T`, `SES-T`, `SHOT-T`, `RIG-T`; devices `DEV-`; guarantees `GU-`.
 
+**The diagrams.** Each object has a state diagram drawn from its tables. The application, a session and a shot also have an activity diagram: the steps in order, with their branches (§1.4, §2.4, §3.4). One legend serves them all:
+- **A solid box** is what the code on `main` does today.
+- **A dashed box** falls short today. Its text names the gap (`⚠ GAP-n`), so the words carry the meaning, not the line.
+- **"pending"** means built but not yet committed. A pending fix's box stays dashed, with its gap id, until it is committed, because `main` still falls short.
+- **"designed"**, for the Rig, means designed and not built.
+
 **For the Product Owner, first.**
 1. §3's "The spine": until its analysis ends, a shot exists nowhere on disk.
 2. The audit's observed gaps.
@@ -64,17 +70,23 @@ The application has no lifecycle object. Its states below are what `main()` (`sr
 
 ```mermaid
 stateDiagram-v2
+    state "Starting (APP-S1)" as Starting
+    state "Close held (APP-S4)" as CloseHeld
+    state "Quitting (APP-S5)" as Quitting
     [*] --> Starting: launch (APP-T1)
     Starting --> Ready: exec() (APP-T2)
-    state Ready {
+    state "Ready (APP-S2)" as Ready {
+        state "Warm-up building (APP-S2a)" as WarmUp
         [*] --> Idle
         Idle --> WarmUp: +1.5 s (APP-T3)
         WarmUp --> Idle: model built
         --
+        state "Catching up (APP-S2b)" as CatchingUp
         [*] --> Quiet
         Quiet --> CatchingUp: stale sessions found (APP-T4)
         CatchingUp --> Quiet: done
         --
+        state "Update staged (APP-S3)" as UpdateStaged
         [*] --> NoUpdate
         NoUpdate --> UpdateStaged: update ready, session running (APP-T12)
     }
@@ -83,9 +95,49 @@ stateDiagram-v2
     CloseHeld --> Ready: Cancel (APP-T7)
     CloseHeld --> Quitting: End session & close (APP-T8)
     Ready --> Quitting: close, no session / Cmd+Q / updater (APP-T9, APP-T12)
-    Quitting --> [*]: destructors, pool wait (APP-T10, APP-T11)
+    Quitting --> [*]: aboutToQuit, destructors, pool wait (APP-T10, APP-T11)
     Ready --> [*]: crash (APP-T13)
 ```
+
+`[*]` is Not running (APP-S0). Idle, Quiet and NoUpdate are Ready itself, drawn once in each of its three regions. A crash (APP-T13) can end any state; it is drawn from Ready only.
+
+### 1.4 Activity: the application, from launch to exit
+
+```mermaid
+flowchart TD
+    classDef gap stroke-dasharray:5 5
+    launch(["Launch, by the golfer or an updater's relaunch (APP-T1)"])
+    starting["Starting: the composition root, then the QML load (APP-S1)"]
+    ready["Ready: the window is up (APP-S2, APP-T2) ⚠ GAP-24: a 3.96 s stall at the first launch after the install"]:::gap
+    warm["Alongside Ready, from +1.5 s: the warm-up builds the pose model (APP-T3)"]
+    catchup["Alongside Ready: the catch-up re-judges stale sessions, paused while a session is live (APP-T4)"]
+    staged["Alongside Ready: an update staged while a session runs (APP-S3, APP-T12) ⚠ GAP-22: on the Mac it can fire inside End. GAP-23: it guards only a running session"]:::gap
+    closeq{"Window closed. A session running? (APP-T6)"}
+    prompt["The close prompt: Session in progress (APP-S4)"]
+    wait["End session and close: waits while a shot saves, or Close anyway drops it (pending, AD-50) ⚠ GAP-13: today a shot still analysing is lost, and its session if that was its only shot (APP-T8)"]:::gap
+    cmdq["Cmd+Q or the app menu's Quit, which may skip the prompt (APP-T9) ⚠ GAP-17: a running session is not ended"]:::gap
+    quitting["Quitting: aboutToQuit, then each owner's destructor (APP-S5, APP-T10) ⚠ GAP-20: waits with no window and no time limit. GAP-21: can touch destroyed objects"]:::gap
+    exit(["Exit (APP-T11)"])
+    launch --> starting
+    starting -->|"exec()"| ready
+    ready --> warm
+    warm -->|"model built"| ready
+    ready --> catchup
+    catchup -->|"done"| ready
+    ready --> staged
+    staged -->|"the session ends"| quitting
+    ready --> closeq
+    closeq -->|"no (APP-T9)"| quitting
+    closeq -->|"yes"| prompt
+    prompt -->|"Cancel or Esc (APP-T7)"| ready
+    prompt -->|"End session and close"| wait
+    wait --> quitting
+    ready --> cmdq
+    cmdq --> quitting
+    quitting --> exit
+```
+
+It shows the application from launch to exit: the warm-up, the catch-up and a staged update run alongside Ready rather than before it, and every way out passes through Quitting, with the close prompt only on the window's close.
 
 ---
 
@@ -144,10 +196,21 @@ The ruled lifecycle, moved verbatim from the information model's §5.4[^sa25-lif
 
 ```mermaid
 stateDiagram-v2
+    state "None (SES-S0)" as None
+    state "Setting up (SES-S1)" as SettingUp
+    state "Live (SES-S2)" as Live
+    state "Live, capture stopped (SES-S2a)" as CaptureStopped
+    state "Ended (SES-S4)" as Ended
+    state "Reopened for review, a view (SES-S4a)" as Reopened
+    state "Left in progress (SES-S5)" as LeftInProgress
+    state "Archive out (SES-S6)" as ArchiveOut
+    state "Archived (SES-S7)" as Archived
+    state "Trashed (SES-S8)" as Trashed
+    state "Purged (SES-S9)" as Purged
     [*] --> None
     None --> SettingUp: set-up (SES-T1)
-    None --> Live: Start / on demand (SES-T2, SES-T4)
-    SettingUp --> Live: Start (SES-T2)
+    None --> Live: Start / continue today's / on demand (SES-T2, SES-T3, SES-T4)
+    SettingUp --> Live: Start / continue today's (SES-T2, SES-T3)
     Ended --> Live: continue today's (SES-T3)
     Live --> CaptureStopped: Stop / review (SES-T5)
     Live --> Live: library re-pointed, a new session (SES-T6)
@@ -168,6 +231,36 @@ stateDiagram-v2
     Trashed --> Ended: put back from the OS trash (SES-T17)
     Purged --> [*]
 ```
+
+Ending (SES-S3) is not drawn: it is no state today.
+
+### 2.4 Activity: a session, from set-up to ended
+
+```mermaid
+flowchart TD
+    classDef gap stroke-dasharray:5 5
+    setup["Set-up: the set-up screen, or the toolbar's Capture before Start (SES-T1)"]
+    start["Start (SES-T2): enters Capture (pending, #283) ⚠ GAP-15: today the app stays in Replay if it was there"]:::gap
+    live["Live: InProgress, the clock runs, capture on (SES-S2)"]
+    stopped["Live, capture stopped: Stop, or a review open (SES-S2a)"]
+    sessionend["End (SES-T7): waits while a shot saves, or End anyway drops it (pending, AD-50) ⚠ GAP-6: today a shot still being captured or analysed is dropped"]:::gap
+    empty{"Any swing folder?"}
+    closed(["Ended (SES-S4)"])
+    discarded["Discarded as empty, to the trash (SES-T8) ⚠ GAP-12: only swing folders count, and the golfer is not told. GAP-13: a shot still analysing has no folder yet"]:::gap
+    crash["Left in progress after a crash or a kill (SES-T9, SES-S5) ⚠ GAP-14: it cannot be ended, trashed, archived or moved until its athlete's next Start"]:::gap
+    setup --> start
+    start --> live
+    live -->|"Stop, or a review opened (SES-T5)"| stopped
+    stopped -->|"Capture, or back to live (SES-T5)"| live
+    live --> sessionend
+    sessionend --> empty
+    empty -->|"yes"| closed
+    empty -->|"no"| discarded
+    live -->|"crash"| crash
+    crash -->|"the athlete's next Start (SES-T10)"| closed
+```
+
+It shows a session from set-up to its end: Start, live and capture stopped in turn, then End, which keeps the session or discards it as empty, and the crash that leaves it in progress.
 
 ---
 
@@ -231,6 +324,20 @@ The ruled lifecycle, moved verbatim from the information model's §5.4[^sa25-lif
 
 ```mermaid
 stateDiagram-v2
+    state "Candidate (SHOT-S0)" as Candidate
+    state "Post-roll (SHOT-S1)" as PostRoll
+    state "Gathering (SHOT-S2)" as Gathering
+    state "Analysing (SHOT-S3)" as Analysing
+    state "Saving (SHOT-S4)" as Saving
+    state "Saved (SHOT-S5)" as Saved
+    state "Saved, late parts pending (SHOT-S5a)" as LatePending
+    state "Re-analysing (SHOT-S6)" as Reanalysing
+    state "Archived stub (SHOT-S9)" as ArchivedStub
+    state "Trashed (SHOT-S10)" as Trashed
+    state "Purged (SHOT-S11)" as Purged
+    state "Dropped (SHOT-S12)" as Dropped
+    state "Media with no document, or not announced (SHOT-S13)" as MediaNoDocument
+    state "Not recorded (SHOT-S14)" as NotRecorded
     [*] --> Candidate: swing, armed (SHOT-T1)
     [*] --> NotRecorded: swing, disarmed (SHOT-T2)
     Candidate --> PostRoll: commit (SHOT-T3)
@@ -238,23 +345,82 @@ stateDiagram-v2
     Gathering --> Analysing: workers start (SHOT-T5)
     Analysing --> Saving: addShot - first moment it exists (SHOT-T6)
     Saving --> Saved: document written, EVT-01 (SHOT-T7)
-    Saved --> Saved: late part (SHOT-T8), edit (SHOT-T10), exclude (SHOT-T11)
+    Saved --> LatePending: a late part due (SHOT-T8)
+    LatePending --> Saved: completeCapture, EVT-22
+    Saved --> Saved: edit (SHOT-T10), exclude (SHOT-T11)
     Saved --> Reanalysing: re-analyse (SHOT-T9)
     Reanalysing --> Saved: write-back, EVT-02
     Saved --> ArchivedStub: session archived (SHOT-T13)
     ArchivedStub --> Saved: restored
     Saved --> Trashed: delete, EVT-03 (SHOT-T12)
     Trashed --> Purged: housekeeping / OS (SHOT-T14)
-    PostRoll --> Dropped: End / quit / deselect (SHOT-T15..17)
-    Gathering --> Dropped: End / quit / deselect
-    Analysing --> Dropped: End / quit / deselect
-    Saving --> MediaNoDocument: End / quit / deselect (SHOT-T15..17)
+    PostRoll --> Dropped: End / quit / deselect (SHOT-T15, SHOT-T16, SHOT-T17)
+    Gathering --> Dropped: End / quit / deselect (SHOT-T15, SHOT-T16, SHOT-T17)
+    Analysing --> Dropped: End / quit / deselect (SHOT-T15, SHOT-T16, SHOT-T17)
+    Saving --> MediaNoDocument: End / quit / deselect (SHOT-T15, SHOT-T16, SHOT-T17)
     [*] --> Saved: device-only reading (SHOT-T18)
     MediaNoDocument --> [*]
     NotRecorded --> [*]
     Dropped --> [*]
     Purged --> [*]
 ```
+
+Reviewed or edited (SHOT-S7) and a reading excluded (SHOT-S8) are not states today: they are drawn as Saved returning to Saved.
+
+### 3.4 Activity: a shot, from impact to saved
+
+```mermaid
+flowchart TD
+    classDef gap stroke-dasharray:5 5
+    swing(["A swing"])
+    armed{"Trigger armed?"}
+    notrec["Not recorded (SHOT-T2) ⚠ GAP-2: dropped, and nothing on screen says so"]:::gap
+    detect["Detect: an acoustic, IMU, ball or phone candidate, or the button (SHOT-T1) ⚠ GAP-5: noise becomes a candidate too"]:::gap
+    corrob{"Corroborated within the 200 ms hold: two detectors agree, or one is sure (DUTIES-SD-1c K3)?"}
+    notshot(["Not committed: no chime, nothing kept"])
+    postroll["Post-roll: the chime, then 0.5 to 1.25 s more (SHOT-T3) ⚠ GAP-18: a quit now forfeits the shot"]:::gap
+    gather["Gather: the window frozen, the deferred sources read (SHOT-T4) ⚠ GAP-2, GAP-3: the buffer is paused until the shot finishes"]:::gap
+    analyse["Analyse (SHOT-T5) ⚠ GAP-1: no Shot and nothing on disk yet. GAP-2: trigger off"]:::gap
+    save["Save: addShot makes the number and the folder, then the media, then the document (SHOT-T6) ⚠ GAP-19: stopped now, it leaves media with no document"]:::gap
+    saved(["Saved: the document is on disk, EVT-01 (SHOT-T7)"])
+    late{"Late launch-monitor or phone data due?"}
+    lm["Late launch-monitor data held in memory until the pipeline is idle, the last carry until End (SHOT-T8) ⚠ GAP-8: carry was not shown live"]:::gap
+    phone["A late phone clip filed (SHOT-T8)"]
+    complete(["Complete: completeCapture, EVT-22"])
+    interrupt{"Cut short before the document is written, by"}
+    waitend["End: waits while the shot saves (pending, AD-50) ⚠ GAP-6: today End drops the shot"]:::gap
+    closewait["Close prompt: waits while the shot saves (pending, AD-50) ⚠ GAP-13: today the shot is lost, and its session if it was the only one"]:::gap
+    cmdq["Cmd+Q or the app menu's Quit, which may skip the prompt, or an updater's quit (SHOT-T16) ⚠ GAP-17, GAP-18: the shot is dropped"]:::gap
+    deselect["Mid-shot, a camera selected or deselected, a sensor deselected, or Disconnect (SHOT-T17) ⚠ GAP-7: the shot is dropped"]:::gap
+    chosen(["Dropped by the golfer's choice: End anyway or Close anyway (pending, AD-50)"])
+    swing --> armed
+    armed -->|"no"| notrec
+    armed -->|"yes"| detect
+    detect --> corrob
+    corrob -->|"no"| notshot
+    corrob -->|"yes: committed"| postroll
+    postroll --> gather
+    gather --> analyse
+    analyse --> save
+    save --> saved
+    saved --> late
+    late -->|"no"| complete
+    late -->|"launch monitor"| lm
+    late -->|"phone"| phone
+    lm --> complete
+    phone --> complete
+    postroll & gather & analyse & save --> interrupt
+    interrupt -->|"End (SHOT-T15)"| waitend
+    interrupt -->|"window closed (SHOT-T16)"| closewait
+    interrupt -->|"Cmd+Q or an updater"| cmdq
+    interrupt -->|"a device change"| deselect
+    waitend -->|"saved"| saved
+    waitend -->|"End anyway"| chosen
+    closewait -->|"saved"| saved
+    closewait -->|"Close anyway"| chosen
+```
+
+It shows one shot from the impact to saved, its late launch-monitor and phone data, and each way it can be cut short on the way.
 
 ---
 
@@ -319,16 +485,28 @@ The row's "today" sentence is out of date: delete now moves the whole folder (th
 
 ```mermaid
 stateDiagram-v2
+    state "Created, set up (ATH-S1)" as Created
+    state "Created, settings only (ATH-S1a)" as SettingsOnly
+    state "Current, a view (ATH-S2a)" as Current
+    state "Recording (ATH-S3)" as Recording
+    state "Read-only (ATH-S5)" as ReadOnly
+    state "Trashed (ATH-S7)" as Trashed
+    state "Purged (ATH-S8)" as Purged
+    state "The Unassigned owner (ATH-S9)" as Unassigned
     [*] --> Created: create (ATH-T1)
     [*] --> Unassigned: first write, no golfer (ATH-T12)
     SettingsOnly --> Created: migration M1 (ATH-T13)
     Created --> Created: set up, edit, rename (ATH-T2, ATH-T3)
     Created --> Active: loaded (ATH-T5)
-    Active --> Created: released
+    Active --> Created: released (ATH-T5)
+    Created --> Current: chosen as current (ATH-T4)
+    Active --> Current: chosen as current (ATH-T4)
     Active --> Recording: a session starts (ATH-T6)
-    Recording --> Active: the session ends
+    Recording --> Active: the session ends (ATH-T6)
     Active --> Active: session moved in or out (ATH-T7), tuning line (ATH-T9)
-    state Active {
+    state "Active, held (ATH-S2)" as Active {
+        state "Stale (ATH-S4)" as Stale
+        state "Caught up (ATH-S4)" as CaughtUp
         [*] --> Stale
         Stale --> CaughtUp: catch-up (ATH-T8)
         CaughtUp --> Stale: an athlete-level event
@@ -338,6 +516,8 @@ stateDiagram-v2
     Trashed --> Purged: housekeeping / OS (ATH-T11)
     Purged --> [*]
 ```
+
+`[*]` is Not created (ATH-S0). Read-only (ATH-S5) has no transition: a record is read-only when a newer build saved it. Archived (ATH-S6) is not drawn: it is no state today.
 
 ---
 
@@ -395,6 +575,11 @@ The ruled lifecycle, moved verbatim from the information model's §5.4[^sa25-lif
 ```mermaid
 stateDiagram-v2
     state "A device" as Device {
+        state "Not present (RIG-S0)" as NotPresent
+        state "Present, not enabled here (RIG-S1)" as Disabled
+        state "Present, enabled, not in use (RIG-S2)" as Enabled
+        state "In use (RIG-S3)" as InUse
+        state "Link lost (RIG-S4)" as LinkLost
         [*] --> NotPresent
         NotPresent --> Disabled: found, on the excluded list (RIG-T1)
         NotPresent --> Enabled: found (RIG-T1)
@@ -407,6 +592,11 @@ stateDiagram-v2
         LinkLost --> InUse: connected again (RIG-T6)
     }
     state "A calibration (per subject and kind)" as Calib {
+        state "None (RIG-S5)" as None
+        state "In force (RIG-S6)" as InForce
+        state "Superseded (RIG-S7)" as Superseded
+        state "Cleared (RIG-S8)" as Cleared
+        state "Ended with the run (RIG-S9)" as EndedWithRun
         [*] --> None
         None --> InForce: calibrated (RIG-T7)
         InForce --> Superseded: calibrated again (RIG-T8)
@@ -415,6 +605,8 @@ stateDiagram-v2
         InForce --> EndedWithRun: quit / deselect (RIG-T11)
     }
 ```
+
+The Rig's own creation at launch (RIG-T12) and each shot's copy of its set-up (RIG-T13) are not drawn: neither changes a device's or a calibration's state.
 
 ### 5.4 Devices today, by kind
 
@@ -487,6 +679,7 @@ Every row is a proposal, in plain words. Each names the role it is proposed to: 
 | Version | Date | Change | Approved |
 |---|---|---|---|
 | 1.0 | 25 Nov 2026 | Created as its own artefact (DEC-204): the owner's front matter and the scope rule; LC-ATHLETE, LC-SESSION, LC-SHOT and LC-RIG moved word for word from the information model's §5.4 (§2.0–§5.0); today's tables for the application, a session, a shot, an athlete and the Rig; LC-APP and the guarantees, proposed; the starting audit linked | Solution Architect, 25 Nov 2026[^sa25-life] |
+| 1.1 (proposed) | 25 Nov 2026 | Activity diagrams added for the application, a session and a shot (§1.4, §2.4, §3.4), with one legend for every diagram; the five state diagrams checked against their state and transition tables, each state labelled with its id, and the missing states and transition ids added (SHOT-S5a, ATH-S2a, ATH-S5, ATH-T4; SES-T3 on every edge it covers; SHOT-T16 and SHOT-T17 spelled out), with a line under each saying what is not drawn and why | Proposed, for the Solution Architect |
 
 [^283]: The coordinator's account of #283 (25 Nov 2026): before refactor step 4-a, Start never switched the app to Capture either. It did not matter, because Start could not be reached while a saved session was on screen (the toolbar's review strip replaced the capture cluster). The set-up screen and the one start command made Start reachable from Replay, and the missing switch showed.
 [^ad50]: The Product Owner ruled on 25 Nov 2026 that losing a shot by quitting mid-session is the golfer's choice, if the prompt says so. The Solution Architect's simpler design and the Design Lead's warn tone followed the same day: End and quit wait for a shot being saved, and "End anyway" and "Close anyway" drop it by choice. Product control AD-50 records this, built and pending commit (NOTES-280 §9, §11).
