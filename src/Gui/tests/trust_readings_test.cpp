@@ -22,6 +22,10 @@
 // band AND over the σ ceiling, a chest bounded by the band, a camera club drawn but not judged.
 
 #include "../trust/trust_readings.h"
+#include "../../Core/figure_format.h"   // the figure-and-unit rule, as the sentences set it (#123)
+
+// "1.0 s" (1036 ms, in seconds as the card says it) with the app's figure-to-unit space (Core/figure_format.h withUnit)
+static QString ms1036() { return pinpoint::figures::withUnit(QStringLiteral("1.0"), QStringLiteral("s")); }
 #include "../charts/session_series_types.h"
 #include "../../Metrics/gate_catalogue.h"   // gateEntry, claimWords (the substituted gap)
 
@@ -361,6 +365,179 @@ int main()
         check(trust::substitutedGapFor(recs, QStringLiteral("headRise")).isEmpty()
                   && trust::substitutedGapFor(recs, QStringLiteral("spineSideBend")).isEmpty(),
               "…and a key with no substitute gets nothing from it");
+    }
+
+    // ── #123: a swing kept in the assessment with a data warning carries its ⚠ and why to the summary every
+    //    Session diagnostics register reads (Analyse, Replay, Print), the Trust panel's head and the report ──
+    {
+        // swing 3 of 5 Oct 2026 (Mark-Liversedge Wrist_01): its video starts about a second late, downgraded, still assessed
+        charts::ShotSeries late = sh;
+        late.swingDir = QStringLiteral("/lib/Golfer/2026-10-05_Golfer_Wrist_01/swing_0003");
+        late.shotId = 3;
+        late.diagnostics.dataWarning = true;     // the findings' flag (ShotRecord::dataWarning), as diagnostics.json keeps it
+        late.gates << json(R"([{"gate":"shot.captureShort","subject":"shot","effect":"downgraded",
+             "evidence":{"code":"lateStart","edgeToleranceMs":50,"missingStartMs":1036.34,"framesBeforeImpact":412}}])")[0];
+        const QString want = QStringLiteral("⚠ Video incomplete: the video starts ") + ms1036() + QStringLiteral(" late, so address and the takeaway may be "
+                                            "missing; the swing is still assessed.");
+        const QVariantMap sum = trust::trustSummary(late);
+        const QVariantList lines = sum.value(QStringLiteral("lines")).toList();
+        for (const QVariant &l : lines) std::printf("    | %s\n", qPrintable(l.toMap().value(QStringLiteral("text")).toString()));
+        const QVariantMap l0 = lines.value(0).toMap();
+        check(l0.value(QStringLiteral("text")).toString() == want, "shot: a late start, still assessed, leads the summary with ⚠ and what may be missing");
+        check(l0.value(QStringLiteral("kind")).toString() == QStringLiteral("gated") && l0.value(QStringLiteral("subject")).toString() == QStringLiteral("shot")
+                  && l0.value(QStringLiteral("swingDir")).toString() == late.swingDir,
+              "…a gated line whose Why opens the shot's reading, as a click on the card's ⚠ does");
+        std::printf("    tail | %s\n", qPrintable(sum.value(QStringLiteral("tail")).toString()));
+        check(sum.value(QStringLiteral("tail")).toString().startsWith(QStringLiteral("⚠ video incomplete")), "…and the closed fold's words lead with it");
+        check(trust::trustShot(late).value(QStringLiteral("head")).toString().startsWith(want), "…the Trust panel's head says it too");
+        // CONTROL: the same shot without the warning says nothing of one, and keeps its lines
+        const QVariantMap plain = trust::trustSummary(sh);
+        bool anyWarn = false;
+        for (const QVariant &l : plain.value(QStringLiteral("lines")).toList()) anyWarn = anyWarn || l.toMap().value(QStringLiteral("text")).toString().contains(QStringLiteral("⚠"));
+        check(!anyWarn && !plain.value(QStringLiteral("tail")).toString().contains(QStringLiteral("⚠"))
+                  && plain.value(QStringLiteral("lines")).toList().size() + 1 == lines.size(),
+              "control: an unwarned shot carries no ⚠, and the warning adds exactly one line");
+
+        // a refused club track already has its gated line: that line carries the ⚠ and why, no second line
+        charts::ShotSeries club = sh;
+        club.swingDir = QStringLiteral("/lib/Golfer/2026-10-05_Golfer_Wrist_01/swing_0007");
+        club.diagnostics.dataWarning = true;
+        club.gates << json(R"([{"gate":"club.trackRefused","subject":"track.club","effect":"refused",
+             "evidence":{"code":"phases"},"covers":["clubheadSpeed"]}])")[0];
+        int clubLines = 0; QString clubLine;
+        for (const QVariant &l : trust::trustSummary(club).value(QStringLiteral("lines")).toList()) {
+            const QString t = l.toMap().value(QStringLiteral("text")).toString();
+            if (t.contains(QStringLiteral("Club track refused"))) { ++clubLines; clubLine = t; }
+        }
+        std::printf("    | %s\n", qPrintable(clubLine));
+        check(clubLines == 1 && clubLine.startsWith(QStringLiteral("⚠ Club track refused, taking"))
+                  && clubLine.endsWith(QStringLiteral("The backswing could not be found in the club's motion, so the club's readings "
+                                                      "show \"-\"; body and wrist readings are unaffected.")),
+              "shot: a refused club track's own line carries the ⚠ and the reason, said once");
+
+        // a warned shot whose analysis records no reason still shows its ⚠
+        charts::ShotSeries bare = sh;
+        bare.diagnostics.dataWarning = true;
+        check(trust::trustSummary(bare).value(QStringLiteral("lines")).toList().value(0).toMap().value(QStringLiteral("text")).toString().startsWith(QStringLiteral("⚠ This swing carries a data warning")),
+              "shot: the findings' ⚠ with no record behind it is still said");
+
+        // the session: Print's fold, and Analyse's and Replay's Session tab
+        charts::SessionSnapshot s;
+        s.shots.push_back(std::make_shared<charts::ShotSeries>(late));
+        s.shots.push_back(std::make_shared<charts::ShotSeries>(sh));
+        const QVariantMap ss = trust::trustSummary(s);
+        const QString s0 = ss.value(QStringLiteral("lines")).toList().value(0).toMap().value(QStringLiteral("text")).toString();
+        std::printf("    | %s\n    tail | %s\n", qPrintable(s0), qPrintable(ss.value(QStringLiteral("tail")).toString()));
+        check(s0 == QStringLiteral("⚠ Video incomplete on shot 3: the video starts ") + ms1036() + QStringLiteral(" late, so address and the takeaway may be missing; "
+                                   "the swing is still assessed."),
+              "session: the warned shot is named by its number, with what may be missing");
+        check(ss.value(QStringLiteral("tail")).toString().startsWith(QStringLiteral("⚠ video incomplete on shot 3")), "…and the closed fold says which shot");
+
+        // the report's sentences: the same, numbered as the report numbers its swings
+        const QStringList rep = trust::dataWarningLines(s, QStringLiteral("swing"));
+        check(rep == QStringList{ QStringLiteral("⚠ Video incomplete on swing 3: the video starts ") + ms1036() + QStringLiteral(" late, so address and the takeaway "
+                                                 "may be missing; the swing is still assessed.") },
+              "report: one sentence per warning, by swing number");
+        charts::SessionSnapshot none;
+        none.shots.push_back(std::make_shared<charts::ShotSeries>(sh));
+        check(trust::dataWarningLines(none, QStringLiteral("swing")).isEmpty(), "report control: no warned swing, no sentence");
+
+        // several swings with one warning: a range, and a sentence shared only when it is the same
+        charts::SessionSnapshot many;
+        for (int n : { 1, 2, 3, 5 }) {
+            charts::ShotSeries c = club;
+            c.swingDir = QStringLiteral("/lib/Golfer/2026-10-05_Golfer_Wrist_01/swing_000%1").arg(n);
+            c.shotId = n;
+            many.shots.push_back(std::make_shared<charts::ShotSeries>(c));
+        }
+        const QStringList m = trust::dataWarningLines(many, QStringLiteral("swing"));
+        std::printf("    | %s\n", qPrintable(m.value(0)));
+        check(m == QStringList{ QStringLiteral("⚠ Club track refused on swings 1–3 and 5: the backswing could not be found in the club's motion, so the "
+                                                "club's readings show \"-\"; body and wrist readings are unaffected.") },
+              "report: swings sharing one reason read as a range, said once");
+        // reasons that differ: each in brackets after its swing
+        charts::ShotSeries c2 = club, c23 = club;
+        c2.shotId = 2; c23.shotId = 23;
+        c2.gates.last() = json(R"([{"gate":"club.trackRefused","subject":"track.club","effect":"refused",
+             "evidence":{"code":"p1Ball","p1BallDeg":31,"maxP1BallDeg":25}}])")[0];
+        c23.gates.last() = json(R"([{"gate":"club.trackRefused","subject":"track.club","effect":"refused",
+             "evidence":{"code":"p1Ball","p1BallDeg":40,"maxP1BallDeg":25}}])")[0];
+        charts::SessionSnapshot two;
+        two.shots.push_back(std::make_shared<charts::ShotSeries>(c2));
+        two.shots.push_back(std::make_shared<charts::ShotSeries>(c23));
+        const QStringList t2 = trust::dataWarningLines(two, QStringLiteral("swing"));
+        std::printf("    | %s\n", qPrintable(t2.value(0)));
+        check(t2.size() == 1 && t2[0].startsWith(QStringLiteral("⚠ Club track refused on swing 2 (at address the club pointed "))
+                  && t2[0].contains(QStringLiteral(") and swing 23 (at address the club pointed ")) && t2[0].endsWith(QStringLiteral(" are unaffected).")),
+              "report: reasons that differ are each said, in brackets after their swing");
+
+        // THE CARD'S SET, NOT EVERY RECORD: a shot the findings do not flag shows no ⚠ for these gates…
+        charts::ShotSeries unflagged = late;
+        unflagged.diagnostics.dataWarning = false;
+        bool warnHere = false;
+        for (const QVariant &l : trust::trustSummary(unflagged).value(QStringLiteral("lines")).toList())
+            warnHere = warnHere || l.toMap().value(QStringLiteral("text")).toString().contains(QStringLiteral("⚠"));
+        check(!warnHere, "a gate record on a shot the card does not warn about carries no ⚠");
+        // …and a club track refused only for coverage is not a card warning, even on a flagged shot
+        charts::ShotSeries cov = late;
+        cov.gates << json(R"([{"gate":"club.trackRefused","subject":"track.club","effect":"refused",
+             "evidence":{"code":"coverage","coverage":0.07,"minCoverage":0.6}}])")[0];
+        charts::SessionSnapshot covS;
+        covS.shots.push_back(std::make_shared<charts::ShotSeries>(cov));
+        const QStringList cl = trust::dataWarningLines(covS, QStringLiteral("swing"));
+        check(cl.size() == 1 && cl[0].startsWith(QStringLiteral("⚠ Video incomplete")), "a coverage-only club refusal is not a warning");
+        // the down-the-line top out of the picture: what is unmeasured, in plain words, the same on every swing
+        charts::ShotSeries top = sh;
+        top.diagnostics.dataWarning = true;
+        top.shotId = 4;
+        top.gates << json(R"([{"gate":"clubDtl.topOutOfView","subject":"track.clubDtl","effect":"masked",
+             "evidence":{"frames":9,"handsFromTopPx":120,"clubPx":310,"measuredFrames":3}}])")[0];
+        const QString tl = trust::trustSummary(top).value(QStringLiteral("lines")).toList().value(0).toMap().value(QStringLiteral("text")).toString();
+        std::printf("    | %s\n", qPrintable(tl));
+        check(tl == QStringLiteral("⚠ Top out of the picture: the down-the-line camera could not see the top of the swing, so the club is "
+                                   "not measured from mid-backswing to delivery in that view."),
+              "shot: the top out of the picture says what is unmeasured, no pixels");
+
+        // A VIDEO THAT STOPS EARLY, still assessed: what may be missing, and nothing about frames (that stays in the
+        // Trust panel's evidence sentence, which keeps "; N frames before impact")
+        charts::ShotSeries early = sh;
+        early.diagnostics.dataWarning = true;
+        early.shotId = 9;
+        early.gates << json(R"([{"gate":"shot.captureShort","subject":"shot","effect":"downgraded",
+             "evidence":{"code":"earlyEnd","edgeToleranceMs":50,"missingEndMs":412,"framesBeforeImpact":300}}])")[0];
+        const QString el = trust::trustSummary(early).value(QStringLiteral("lines")).toList().value(0).toMap().value(QStringLiteral("text")).toString();
+        std::printf("    | %s\n", qPrintable(el));
+        check(el == QStringLiteral("⚠ Video incomplete: the video stops ") + figures::withUnit(QStringLiteral("0.4"), QStringLiteral("s"))
+                        + QStringLiteral(" early, so the end of the follow-through may be missing; the swing is still assessed."),
+              "shot: a video that stops early says the end of the follow-through may be missing, still assessed");
+        const gates::GateEntry *cs = gates::gateEntry(QStringLiteral("shot.captureShort"));
+        const QString panel = cs ? gates::evidenceText(*cs, early.gates.last().toMap().value(QStringLiteral("evidence")).toMap()) : QString();
+        std::printf("    panel | %s\n", qPrintable(panel));
+        check(panel.endsWith(QStringLiteral("; 300 frames before impact.")) && panel.startsWith(QStringLiteral("The video stops ")),
+              "…while the Trust panel's sentence keeps the frames before impact");
+
+        // A WITHHELD SWING (frames lost in capture): its ⚠ says why and that it is left out, on the shot and in the report
+        charts::ShotSeries held = sh;
+        held.diagnostics.dataWarning = true;
+        held.shotId = 7;
+        held.gates << json(R"([{"gate":"shot.captureHoles","subject":"shot","effect":"withheld",
+             "evidence":{"framesLost":12,"holes":2,"worstHoleMs":40,"preImpact":true,"postImpact":false,"code":"pre"}}])")[0];
+        QStringList heldLines;
+        for (const QVariant &l : trust::trustSummary(held).value(QStringLiteral("lines")).toList())
+            if (l.toMap().value(QStringLiteral("text")).toString().contains(QStringLiteral("left out")))
+                heldLines << l.toMap().value(QStringLiteral("text")).toString();
+        std::printf("    | %s\n", qPrintable(heldLines.value(0)));
+        check(heldLines.size() == 1 && heldLines[0].startsWith(QStringLiteral("⚠ "))
+                  && heldLines[0].contains(QStringLiteral("12 frames missing in 2 gap(s)"))
+                  && heldLines[0].endsWith(QStringLiteral("the swing is left out of the session's assessment.")),
+              "shot: a withheld swing's line carries the ⚠, the frames lost and that it is left out, once");
+        charts::SessionSnapshot heldS;
+        heldS.shots.push_back(std::make_shared<charts::ShotSeries>(held));
+        const QStringList hr = trust::dataWarningLines(heldS, QStringLiteral("swing"));
+        std::printf("    | %s\n", qPrintable(hr.value(0)));
+        check(hr.size() == 1 && hr[0].startsWith(QStringLiteral("⚠ Frames missing on swing 7: 12 frames missing in 2 gap(s)"))
+                  && hr[0].endsWith(QStringLiteral("; the swing is left out of the session's assessment.")),
+              "report: a withheld swing is said, by number, as left out");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

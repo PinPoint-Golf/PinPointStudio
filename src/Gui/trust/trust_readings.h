@@ -67,8 +67,26 @@ QVariantMap trustSession(const charts::SessionSnapshot &session);
 //               lines: [{ text, kind ("routes" | "passed" | "gated" | "old"), subject, swingDir }] }
 //
 // `subject` / `swingDir` on a gated line name the reading its "Why" opens (TrustFocus).
+//
+// A SHOT'S DATA WARNING (#123) is said here too, so every surface that reads the summary — the fold in Session
+// diagnostics' Analyse, Replay and Print, the Trust panel's head — shows the ⚠ the shot card shows: only a shot whose
+// findings carry it (ShotRecord::dataWarning) warns, and its records of the card's gates (DataWarningFormat.qml
+// reasons(): frames missing, video incomplete, sensor recording inconsistent, club track refused other than for
+// coverage, the down-the-line top out of view) say why. A line a warning gate already has gets "⚠ " and, in its words, why
+// (the gate's evidence sentence, Metrics/gate_catalogue*.h); a warning no line speaks for — a swing still assessed
+// whose video starts late or stops early, the top out of the picture — gets its own "gated" line first: on a shot
+// "⚠ Video incomplete: the video starts 1.0 s late, so address and the takeaway may be missing; the swing is still
+// assessed.", on a session the same with "on shot 3". The tail leads with "⚠ <what>". A shot whose findings carry
+// the warning (ShotRecord::dataWarning) with no record to say why (analysed before records existed) says so.
 QVariantMap trustSummary(const charts::ShotSeries &shot);
 QVariantMap trustSummary(const charts::SessionSnapshot &session);
+
+// THE SESSION'S DATA WARNINGS AS SENTENCES (#123), one per warning gate, every warned shot numbered by its swing number
+// and named by `noun` ("shot" on a screen, "swing" in the session report): "⚠ Video incomplete on swing 3: the video
+// starts 1.0 s late, so address and the takeaway may be missing; the swing is still assessed." Several shots share a
+// sentence only when theirs is the same. Empty when no shot warns. The session report's "What we could not check"
+// leads with these.
+QStringList dataWarningLines(const charts::SessionSnapshot &session, const QString &noun);
 
 // THE GATE BEHIND ONE READING (stage 6 session 2): of a shot's records (analysis.gates, as a variant
 // list), the one a claim about `key` shows — a record naming the key, or a cascade covering it, the one

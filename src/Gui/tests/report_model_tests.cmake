@@ -47,6 +47,8 @@ pp_add_test(report_model_test
             ${GUI}/charts/variability_clubs.cpp
             ${GUI}/charts/session_consistency.cpp
             ${GUI}/charts/session_curves.cpp
+            ${GUI}/charts/session_sequence.cpp   # trust/trust_readings.cpp's
+            ${GUI}/trust/trust_readings.cpp      # the session's data warnings into "What we could not check" (#123)
             ${GUI}/charts/session_warp.cpp
             ${GUI}/charts/session_traces.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis

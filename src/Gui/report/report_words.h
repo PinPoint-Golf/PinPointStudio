@@ -1197,10 +1197,14 @@ inline QString aboutRanges(bool ruledOutShown)
 // at its peak: our cameras could see it, but not well enough to judge (10 of 10 swings)." touchesWorkOn: a
 // gated reading sits under one of the work-ons, whose page says so; otherwise nothing in the report
 // depends on them.
-inline QString aboutNotChecked(const QStringList &items, bool touchesWorkOn)
+// `warnings`: the swings kept with a data warning (trust::dataWarningLines, #123), each a whole sentence that says
+// whether the swing is still assessed. They lead, and are never cut by the cap on `items`.
+inline QString aboutNotChecked(const QStringList &items, bool touchesWorkOn, const QStringList &warnings = {})
 {
-    if (items.isEmpty()) return QString();
-    return QStringLiteral("Some things could not be checked on every swing. ") + items.join(QStringLiteral(". ")) + QLatin1Char('.')
+    const QString warned = warnings.join(QLatin1Char(' '));
+    if (items.isEmpty()) return warned;
+    return (warned.isEmpty() ? QString() : warned + QLatin1Char(' '))
+         + QStringLiteral("Some things could not be checked on every swing. ") + items.join(QStringLiteral(". ")) + QLatin1Char('.')
          + (touchesWorkOn ? QStringLiteral(" Where that touches one of your work-ons, its page says so.")
                           : QStringLiteral(" Nothing in this report depends on them."));
 }

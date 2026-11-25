@@ -544,6 +544,8 @@ inline QString formatValue(const QVariant &v, const QString &fmt, const GateEntr
     using pinpoint::figures::withUnit;
     if (fmt == QLatin1String("t"))   return withUnit(minusSigned(d, 0, true), QStringLiteral("ms"));
     if (fmt == QLatin1String("ms"))  return withUnit(minusSigned(d, 0, false), QStringLiteral("ms"));
+    // ms shown in seconds to one decimal, as the shot card says a clip's missing stretch ("1.0 s late"; #123)
+    if (fmt == QLatin1String("s"))   return withUnit(minusSigned(d / 1000.0, 1, false), QStringLiteral("s"));
     if (fmt == QLatin1String("deg")) return withUnit(minusSigned(d, 0, false), QStringLiteral("°"));
     if (fmt == QLatin1String("mph")) return withUnit(minusSigned(d, 0, false), QStringLiteral("mph"));
     if (fmt == QLatin1String("px"))  return withUnit(minusSigned(d, 0, false), QStringLiteral("px"));

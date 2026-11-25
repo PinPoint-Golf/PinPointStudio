@@ -203,7 +203,10 @@ Not on the cover's contents line. The same worker read builds the snapshot once 
 
 **Page 9. About this report.** How we measured. What a target range is (coaching judgement
 versus data; not fitted to you). What we could not check today, from `notJudged`, in golfer
-words, ending with "Nothing in this report depends on them" only when that is true. A short
+words, ending with "Nothing in this report depends on them" only when that is true. It leads with each swing
+kept with a data warning, in the words the session diagnostics' trust note uses, by swing number ("⚠ Video
+incomplete on swing 3: the video starts 1.0 s late, so address and the takeaway may be missing; the swing is still
+assessed."), never cut by the list's cap[^i123-warned]. A short
 glossary. Then the studio sign-off box.
 
 **Launch monitor appendix** (added 21 October, Product Owner: "an appendix which a) reproduces the figures
@@ -1112,3 +1115,4 @@ directly, so it does not depend on the fix, but the panel does.
 [^report-reads-5-6d]: Refactor step 5.6d, 23 Nov 2026 (`build/refactor/step-5/NOTES-5.6c.md`, its "5.6d" section); the Solution Architect, 23 Nov 2026 (J-80, J-82).
 [^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `governance/artefacts/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.
 [^lm-board-6-1b]: Refactor step 6.1b (`build/refactor/step-6/NOTES-6.1b.md`): the board's statistics are one pure reduction, `lmBoardOf` (`src/Gui/launchmonitor/lm_session_model.h`), which the board and the report each ask; the report's private board (5.6b's C11) is gone. The embedded figures' names follow the Coaching Lead's 14 November decision above.
+[^i123-warned]: Issue #123, 25 Nov 2026 (`build/platform/A/NOTES-123.md`): a swing kept in the assessment with a data warning showed no warning in the report.

@@ -48,6 +48,11 @@
 // and reads them back through exactly those three calls and the back page's own sentence.
 
 #include "report/report_words.h"
+#include "trust/trust_readings.h"   // the session's data warnings (#123)
+#include "../../Core/figure_format.h"   // the figure-and-unit rule, as the sentences set it (#123)
+
+// "1.0 s" (1036 ms, in seconds as the card says it) with the app's figure-to-unit space (Core/figure_format.h withUnit)
+static QString ms1036() { return pinpoint::figures::withUnit(QStringLiteral("1.0"), QStringLiteral("s")); }
 #include "../../Export/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "report/report_posture.h"
@@ -439,6 +444,37 @@ int main(int argc, char **argv)
               .endsWith(QLatin1String("When your hips turned fastest: the reading jumped (10 of 10 swings). Nothing in this report depends on them.")),
           "what we could not check, nothing depends on it");
     check(aboutNotChecked({ QStringLiteral("X") }, true).endsWith(QLatin1String("its page says so.")), "a gated reading under a work-on");
+    // #123: A SWING KEPT WITH A DATA WARNING reaches the report's content — the session's own series (the snapshot the
+    // report reads its charts pages from), through trust::dataWarningLines, into "What we could not check"
+    {
+        pinpoint::charts::ShotSeries late;
+        late.ordinal = 3; late.shotId = 3; late.gatesVersion = 2;
+        late.diagnostics.dataWarning = true;
+        late.gates = QVariantList{ QVariantMap{ { QStringLiteral("gate"), QStringLiteral("shot.captureShort") },
+                                                { QStringLiteral("subject"), QStringLiteral("shot") },
+                                                { QStringLiteral("effect"), QStringLiteral("downgraded") },
+                                                { QStringLiteral("evidence"), QVariantMap{ { QStringLiteral("code"), QStringLiteral("lateStart") },
+                                                                                           { QStringLiteral("missingStartMs"), 1036.34 } } } } };
+        pinpoint::charts::ShotSeries clean;
+        clean.ordinal = 4; clean.shotId = 4; clean.gatesVersion = 2;
+        pinpoint::charts::SessionSnapshot snap;
+        snap.shots.push_back(std::make_shared<pinpoint::charts::ShotSeries>(late));
+        snap.shots.push_back(std::make_shared<pinpoint::charts::ShotSeries>(clean));
+        const QStringList warned = pinpoint::trust::dataWarningLines(snap, QStringLiteral("swing"));
+        const QString want = QStringLiteral("⚠ Video incomplete on swing 3: the video starts ") + ms1036() + QStringLiteral(" late, so address and the takeaway may be "
+                                            "missing; the swing is still assessed.");
+        eq(aboutNotChecked({}, false, warned), want, "a warned swing, nothing gated: the warning alone, never 'left out'");
+        QStringList many;
+        for (int i = 0; i < 4; ++i) many << QStringLiteral("Item %1").arg(i);
+        many << notCheckedMore(18);
+        const QString both = aboutNotChecked(many, false, warned);
+        check(both.startsWith(want + QLatin1String(" Some things could not be checked on every swing.")) && both.contains(QLatin1String("Eighteen more")),
+              "…it leads the gated readings, outside their cap");
+        pinpoint::charts::SessionSnapshot plain;
+        plain.shots.push_back(std::make_shared<pinpoint::charts::ShotSeries>(clean));
+        eq(aboutNotChecked({}, false, pinpoint::trust::dataWarningLines(plain, QStringLiteral("swing"))), QString(),
+           "control: no warned swing, nothing added");
+    }
     eq(notCheckedMore(1), QStringLiteral("One more is listed in the technical appendix"), "one more");
     eq(notCheckedMore(5), QStringLiteral("Five more are listed in the technical appendix"), "several more");
     check(aboutFootnote(true).contains(QLatin1String("Swing images")) && !aboutFootnote(false).contains(QLatin1String("image")),

@@ -40,6 +40,7 @@
 #include "../charts/charts_wrist_presenter.h"
 #include "../charts/consistency_env.h"
 #include "../charts/session_series.h"   // the session's own series (refactor 5.5a)
+#include "../trust/trust_readings.h"     // the session's data warnings, said as the trust note says them (#123)
 #include <QPointer>
 #include <functional>
 #include "../charts/session_wrist.h"
@@ -138,6 +139,7 @@ struct ChartsPages {
     pinpoint::charts::DeliverySessionReport      delivery;
     pinpoint::charts::ConsistencySessionReport   consistency;
     QVariant                                     tendencies;
+    QStringList                                  dataWarnings;   // trust::dataWarningLines over the same snapshot (#123)
 };
 
 // THE CHARTS PAGES' READING (posture_chart_design.md §5.7; the Wrist page; club_delivery_chart_design.md §4.8): the
@@ -173,6 +175,9 @@ ChartsPages readChartsPages(const std::shared_ptr<const pinpoint::charts::Sessio
     out.wrist = pinpoint::charts::wristSessionReport(*snap, -1, QStringLiteral("swings"));
     out.delivery = pinpoint::charts::deliverySessionReport(*snap, QStringLiteral("swings"), neighbours);
     out.consistency = pinpoint::charts::consistencySessionReport(snap, env, gradePolicy, norms, QStringLiteral("swings"));
+    // A SWING KEPT WITH A DATA WARNING (#123): its ⚠ in the words the session diagnostics' trust note uses, numbered as
+    // the report numbers its swings (the swing number), for "What we could not check".
+    out.dataWarnings = pinpoint::trust::dataWarningLines(*snap, QStringLiteral("swing"));
     out.tendencies = tendencies ? QVariant([&] {
                          QVariantMap t = pinpoint::report::tendenciesReportBlock(*tendencies, &outcomePack);
                          // J-51 (round 0c): the sessions up to this one the athlete level could not use, said after the standfirst.
@@ -325,6 +330,7 @@ struct SessionReportModel::Job {
     bool        modelReady = false;
     bool        docsReady = false;
     bool        chartsReady = false;
+    QStringList dataWarnings;   // the session's data warnings, as sentences (readChartsPages; #123)
     bool        built = false;
     QFutureWatcher<QVector<DocFacts>> docsWatcher;
     QVector<DocFacts> docs;
@@ -720,6 +726,7 @@ void SessionReportModel::onChartsRead()
     m_job->delivery = pages.value(QStringLiteral("delivery")).toMap();
     m_job->consistency = pages.value(QStringLiteral("consistency")).toMap();
     m_job->tendencies = pages.value(QStringLiteral("tendencies")).toMap();
+    m_job->dataWarnings = m_job->chartsWatcher.result().dataWarnings;
     m_job->chartsReady = true;
     QTimer::singleShot(0, this, [this] { maybeBuild(); });
 }
@@ -1071,6 +1078,7 @@ struct MapState {
     QVariantMap options;
     bool        stills = true;
     QVariantMap posture, wrist, delivery, consistency, tendencies;
+    QStringList dataWarnings;   // #123
     // What the parts share.
     QVariantMap                      map;
     QVariantMap                      lmGraphics;
@@ -2161,7 +2169,7 @@ void aboutPart(MapState &state)
                 { QStringLiteral("dates"), W::aboutDates(x.sessionDate, x.preparedDate) },
                 { QStringLiteral("measured"), W::aboutMeasured(x.N, clubWords, x.cameraAliases, x.lmDevice, x.lmSwings) },
                 { QStringLiteral("ranges"), W::aboutRanges(anyRuledOut) },
-                { QStringLiteral("notChecked"), W::aboutNotChecked(lines, touches) },
+                { QStringLiteral("notChecked"), W::aboutNotChecked(lines, touches, state.dataWarnings) },
                 { QStringLiteral("words"), glossary },
                 { QStringLiteral("footnote"), W::aboutFootnote(photo.included) } };
         }
@@ -2217,6 +2225,7 @@ void SessionReportModel::build()
     state.delivery = job.delivery;
     state.consistency = job.consistency;
     state.tendencies = job.tendencies;
+    state.dataWarnings = job.dataWarnings;
 
     const bool anyLmBlock = gatherSwings(state, job.docs, folderShots(*session, state.input->shots));
     if (x.N == 0) { fail(QStringLiteral("The session has no swings the diagnostics could read.")); return; }

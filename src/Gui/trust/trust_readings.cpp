@@ -426,14 +426,167 @@ QString sharedNounList(const QStringList &names)
     return W::list(heads) + QLatin1Char(' ') + last;
 }
 
-QString tailOf(const QList<QPair<QString, QStringList>> &groups, bool anyPassed)
+// ── A SHOT'S DATA WARNING (#123) ────────────────────────────────────────────────────────────────────
+// The gates behind the shot card's ⚠, in its order (DataWarningFormat.qml reasons(): capture holes, a video that
+// does not cover the window, the sensor recording, the refused club track, the down-the-line top out of view).
+const QStringList &warningGates()
 {
+    static const QStringList k{ QStringLiteral("shot.captureHoles"), QStringLiteral("shot.captureShort"),
+                                QStringLiteral("shot.refusionParity"), QStringLiteral("club.trackRefused"),
+                                QStringLiteral("clubDtl.topOutOfView") };
+    return k;
+}
+
+// One warning on one shot: its gate, the reading it names, and why, in the gate's evidence sentence (no full stop).
+struct Warning { QString gate, subject, sentence; };
+
+// "Video incomplete" → "video incomplete"; a P-position or an acronym keeps its capital.
+QString lower1(const QString &s)
+{
+    if (s.size() > 1 && (s.at(1).isUpper() || s.at(1).isDigit())) return s;
+    return s.isEmpty() ? s : s.left(1).toLower() + s.mid(1);
+}
+
+// THE CARD'S WARNING, NOT EVERY RECORD OF THESE GATES: the ⚠ is the findings' flag (ShotRecord::dataWarning, from the
+// shot's dataWarningDetail), so only a flagged shot warns, and its gate records say why. A club track refused only for
+// coverage is not a card warning (dataWarningDetail.clubRefused names the four other reasons), so it is not one here.
+// The words: the record's evidence sentence, except where that is a measurement and not what is missing — the
+// refused club track says what the card says it costs, the down-the-line top says what is unmeasured (the card's
+// words, DataWarningFormat.qml: E1 in build/platform/A/NOTES-123.md).
+QList<Warning> warningsOf(const charts::ShotSeries &shot)
+{
+    QList<Warning> out;
+    if (!shot.diagnostics.dataWarning) return out;
+    for (const QString &g : warningGates())
+        for (const QVariant &rv : shot.gates) {
+            const QVariantMap r = rv.toMap();
+            if (r.value(QStringLiteral("gate")).toString() != g) continue;
+            const QVariantMap ev = r.value(QStringLiteral("evidence")).toMap();
+            if (g == QLatin1String("club.trackRefused") && ev.value(QStringLiteral("code")).toString() == QLatin1String("coverage")) continue;
+            const gates::GateEntry *e = gates::gateEntry(g);
+            QString s;
+            if (g == QLatin1String("clubDtl.topOutOfView")) {
+                s = QStringLiteral("the down-the-line camera could not see the top of the swing, so the club is not measured "
+                                   "from mid-backswing to delivery in that view");
+            } else if (e && ev.contains(QStringLiteral("code")) && e->evidenceText.startsWith(QLatin1String("{code:code}"))) {
+                // a sentence that IS its code's phrase: the phrase alone (what may be missing); the Trust panel's full
+                // evidence sentence keeps its analyst detail ("; 412 frames before impact")
+                gates::GateEntry phraseOnly = *e;
+                phraseOnly.evidenceText = QStringLiteral("{code:code}");
+                s = gates::evidenceText(phraseOnly, ev).trimmed();
+            } else if (e) {
+                s = gates::evidenceText(*e, ev).trimmed();
+            }
+            while (s.endsWith(QLatin1Char('.'))) s.chop(1);
+            if (g == QLatin1String("club.trackRefused"))
+                s += QStringLiteral(", so the club's readings show \"-\"; body and wrist readings are unaffected");
+            // a whole-shot exclusion says so, as the card does ("not included in the session assessment")
+            if (r.value(QStringLiteral("subject")).toString() == QLatin1String("shot")
+                && r.value(QStringLiteral("effect")).toString() == QLatin1String("withheld"))
+                s += (s.isEmpty() ? QString() : QStringLiteral("; ")) + QStringLiteral("the swing is left out of the session's assessment");
+            out << Warning{ g, r.value(QStringLiteral("subject")).toString(), s };
+            break;   // one line per gate on a shot
+        }
+    return out;
+}
+
+// The findings carry the warning but no record says why (analysed before the records existed).
+bool warnedUnexplained(const charts::ShotSeries &shot, const QList<Warning> &ws)
+{
+    return shot.diagnostics.dataWarning && ws.isEmpty();
+}
+const QString &unexplainedText()
+{
+    static const QString k = QStringLiteral("⚠ This swing carries a data warning; its analysis does not record why. "
+                                            "The shot card says what it is.");
+    return k;
+}
+
+QString gateTitle(const QString &gate)
+{
+    const gates::GateEntry *e = gates::gateEntry(gate);
+    return e ? e->title : gate;
+}
+
+// The shot's number as its card and the report name it: its swing number (a published shot's id IS it:
+// ID-SWING-NUMBER, session_series.cpp), else its rank (a fixture with no id).
+int shotNumber(const charts::ShotSeries &s) { return s.shotId > 0 ? s.shotId : s.ordinal; }
+
+// "3", "3 and 7", "1–9, 11 and 12": a run of three or more as a range.
+QString numberList(QList<int> ns)
+{
+    std::sort(ns.begin(), ns.end());
+    ns.erase(std::unique(ns.begin(), ns.end()), ns.end());
     QStringList parts;
+    for (qsizetype i = 0; i < ns.size();) {
+        qsizetype j = i;
+        while (j + 1 < ns.size() && ns[j + 1] == ns[j] + 1) ++j;
+        if (j - i >= 2) parts << QString::number(ns[i]) + QChar(0x2013) + QString::number(ns[j]);
+        else for (qsizetype k = i; k <= j; ++k) parts << QString::number(ns[k]);
+        i = j + 1;
+    }
+    return W::list(parts);
+}
+
+// "shot 3" / "shots 1–9, 11 and 12"
+QString numbered(const QString &noun, const QList<int> &ns)
+{
+    return noun + (ns.size() == 1 ? QString() : QStringLiteral("s")) + QLatin1Char(' ') + numberList(ns);
+}
+
+// One warning gate across a session's shots: the shot numbers and each one's sentence.
+struct WarnedShots { QString gate; QList<int> numbers; QStringList sentences; QString subject, swingDir; };
+
+QList<WarnedShots> sessionWarnings(const charts::SessionSnapshot &session, QList<int> *unexplained = nullptr)
+{
+    QList<WarnedShots> out;
+    for (const auto &sh : session.shots) {
+        if (!sh) continue;
+        const QList<Warning> ws = warningsOf(*sh);
+        if (unexplained && warnedUnexplained(*sh, ws)) *unexplained << shotNumber(*sh);
+        for (const Warning &w : ws) {
+            auto it = std::find_if(out.begin(), out.end(), [&](const WarnedShots &x) { return x.gate == w.gate; });
+            if (it == out.end()) { out.append(WarnedShots{ w.gate, {}, {}, w.subject, sh->swingDir }); it = out.end() - 1; }
+            it->numbers << shotNumber(*sh);
+            it->sentences << w.sentence;
+        }
+    }
+    // in the card's order of gates, as each shot lists them
+    std::stable_sort(out.begin(), out.end(), [](const WarnedShots &a, const WarnedShots &b) {
+        return warningGates().indexOf(a.gate) < warningGates().indexOf(b.gate); });
+    return out;
+}
+
+// "shots 1–9: why" when every shot says the same, else "shot 3 (why) and shot 7 (why)" (up to five), else the shots alone.
+QString whereAndWhy(const WarnedShots &w, const QString &noun)
+{
+    QStringList distinct;
+    for (const QString &s : w.sentences) if (!distinct.contains(s)) distinct << s;
+    if (distinct.size() == 1 && !distinct.first().isEmpty())
+        return numbered(noun, w.numbers) + QStringLiteral(": ") + lower1(distinct.first());
+    if (w.numbers.size() <= 5) {
+        // "shots 2 and 3: on 2, the club was seen on 7% …; on 3, …" read as one list once the reasons carry their own
+        // semicolons, so each reason sits in brackets after its number: "swing 2 (…), swing 3 (…)"
+        QStringList each;
+        for (qsizetype i = 0; i < w.numbers.size(); ++i)
+            each << noun + QLatin1Char(' ') + QString::number(w.numbers[i])
+                        + (w.sentences[i].isEmpty() ? QString() : QStringLiteral(" (") + lower1(w.sentences[i]) + QLatin1Char(')'));
+        return W::list(each);
+    }
+    return numbered(noun, w.numbers);
+}
+
+// The closed fold's few words: each gated group, a warning's marked "⚠", led by the warnings no group speaks for.
+QString tailOf(const QList<QPair<QString, QStringList>> &groups, bool anyPassed, const QStringList &warned = {},
+               const QStringList &lead = {})
+{
+    QStringList parts = lead;
     for (const auto &g : groups) {
         const gates::GateEntry *e = gates::gateEntry(g.first);
         QStringList names;
         for (const QString &s : g.second) names << shortName(s);
-        parts << sharedNounList(names) + QLatin1Char(' ') + (e ? gates::claimWords(*e) : QStringLiteral("not timed"));
+        parts << (warned.contains(g.first) ? QStringLiteral("⚠ ") : QString())
+                 + sharedNounList(names) + QLatin1Char(' ') + (e ? gates::claimWords(*e) : QStringLiteral("not timed"));
     }
     if (parts.isEmpty()) return anyPassed ? QStringLiteral("every reading timed") : QString();
     return parts.join(QStringLiteral(" · "));
@@ -443,11 +596,21 @@ QString tailOf(const QList<QPair<QString, QStringList>> &groups, bool anyPassed)
 
 QVariantMap trustSummary(const charts::ShotSeries &shot)
 {
-    if (shot.gatesVersion <= 0)
-        return { { QStringLiteral("recorded"), false }, { QStringLiteral("tail"), QStringLiteral("reasons not recorded") },
-                 { QStringLiteral("lines"), QVariantList{ line(QStringLiteral("This shot was analysed before the reasons were recorded. "
-                                                                              "Re-analyse it to see which gates fired."), QStringLiteral("old")) } } };
+    if (shot.gatesVersion <= 0) {
+        QVariantList old{ line(QStringLiteral("This shot was analysed before the reasons were recorded. "
+                                              "Re-analyse it to see which gates fired."), QStringLiteral("old")) };
+        // the findings' ⚠ (#123) is said even when no record says why
+        if (shot.diagnostics.dataWarning) old.prepend(line(unexplainedText(), QStringLiteral("gated"), QStringLiteral("shot"), shot.swingDir));
+        return { { QStringLiteral("recorded"), false },
+                 { QStringLiteral("tail"), shot.diagnostics.dataWarning ? QStringLiteral("⚠ data warning · reasons not recorded")
+                                                                        : QStringLiteral("reasons not recorded") },
+                 { QStringLiteral("lines"), old } };
+    }
     QVariantList lines;
+    // THE SHOT'S DATA WARNING FIRST (#123): a warning no gated line below speaks for gets its own line here
+    const QList<Warning> warns = warningsOf(shot);
+    QStringList warnedGates, lead;
+    for (const Warning &w : warns) warnedGates << w.gate;
     const auto routes = routesOf(shot);
     if (!routes.isEmpty()) {
         QStringList w;
@@ -475,16 +638,31 @@ QVariantMap trustSummary(const charts::ShotSeries &shot)
             for (const QString &t : st.tried) if (!tried.contains(t)) tried << t;
             for (const QString &c : st.covers) if (!covers.contains(c)) covers << c;
         }
-        lines << line(gatedLine(gates::gateEntry(g.first), g.second, {}, QString(), blocks, true, tried, covers),
-                      QStringLiteral("gated"), g.second.first(), shot.swingDir);
+        QString t = gatedLine(gates::gateEntry(g.first), g.second, {}, QString(), blocks, true, tried, covers);
+        // a warning gate's line carries the ⚠ and why (#123)
+        for (const Warning &w : warns)
+            if (w.gate == g.first) t = QStringLiteral("⚠ ") + t + (w.sentence.isEmpty() ? QString() : QLatin1Char(' ') + W::cap1(w.sentence) + QLatin1Char('.'));
+        lines << line(t, QStringLiteral("gated"), g.second.first(), shot.swingDir);
     }
     // A MASK IS NOT A REFUSAL: a reading with stretches a gate did not trust still stands, so it gets one
     // quiet line at the end and stays out of the closed fold's words (several fire on nearly every swing)
     if (!partly.isEmpty())
         lines << line(QStringLiteral("Partly drawn, with stretches left out: ") + W::list(partly) + QLatin1Char('.'),
                       QStringLiteral("masked"));
-    return { { QStringLiteral("recorded"), true }, { QStringLiteral("tail"), tailOf(groups, !passed.isEmpty()) },
-             { QStringLiteral("lines"), lines } };
+    // the warnings no gated line spoke for, first: the swing is still assessed, so nothing above says it (#123)
+    QVariantList first;
+    for (const Warning &w : warns) {
+        if (std::any_of(groups.cbegin(), groups.cend(), [&](const auto &g) { return g.first == w.gate; })) continue;
+        first << line(QStringLiteral("⚠ ") + gateTitle(w.gate) + (w.sentence.isEmpty() ? QString() : QStringLiteral(": ") + lower1(w.sentence))
+                          + QLatin1Char('.'), QStringLiteral("gated"), w.subject, shot.swingDir);
+        lead << QStringLiteral("⚠ ") + lower1(gateTitle(w.gate));
+    }
+    if (warnedUnexplained(shot, warns)) {
+        first << line(unexplainedText(), QStringLiteral("gated"), QStringLiteral("shot"), shot.swingDir);
+        lead << QStringLiteral("⚠ data warning");
+    }
+    return { { QStringLiteral("recorded"), true }, { QStringLiteral("tail"), tailOf(groups, !passed.isEmpty(), warnedGates, lead) },
+             { QStringLiteral("lines"), first + lines } };
 }
 
 QVariantMap trustSummary(const charts::SessionSnapshot &session)
@@ -534,12 +712,28 @@ QVariantMap trustSummary(const charts::SessionSnapshot &session)
         }
     }
     QVariantList lines;
+    // THE SESSION'S DATA WARNINGS (#123): by gate, each warned shot by its number
+    QList<int> unexplained;
+    const QList<WarnedShots> warns = sessionWarnings(session, &unexplained);
+    QVariantList first;
+    QStringList warnedGates, lead;
+    for (const WarnedShots &w : warns) warnedGates << w.gate;
+    if (!unexplained.isEmpty()) {
+        first << line(QStringLiteral("⚠ ") + W::cap1(numbered(QStringLiteral("shot"), unexplained))
+                          + (unexplained.size() == 1 ? QStringLiteral(" carries a data warning its analysis does not record a reason for; "
+                                                                       "its card says what it is.")
+                                                     : QStringLiteral(" carry a data warning their analysis does not record a reason for; "
+                                                                       "their cards say what it is.")), QStringLiteral("old"));
+        lead << QStringLiteral("⚠ data warning on ") + numbered(QStringLiteral("shot"), unexplained);
+    }
     if (recorded == 0) {
         if (session.count() > 0)
             lines << line(QStringLiteral("No shot in this session carries recorded reasons yet; re-analyse it to see which gates fired."),
                           QStringLiteral("old"));
-        return { { QStringLiteral("recorded"), false }, { QStringLiteral("tail"), session.count() > 0 ? QStringLiteral("reasons not recorded") : QString() },
-                 { QStringLiteral("lines"), lines } };
+        QStringList tail = lead;
+        if (session.count() > 0) tail << QStringLiteral("reasons not recorded");
+        return { { QStringLiteral("recorded"), false }, { QStringLiteral("tail"), tail.join(QStringLiteral(" · ")) },
+                 { QStringLiteral("lines"), first + lines } };
     }
     const QString of = QStringLiteral(" of ") + QString::number(recorded);
     if (!routeOrder.isEmpty()) {
@@ -577,10 +771,24 @@ QVariantMap trustSummary(const charts::SessionSnapshot &session)
             for (const QString &s : g.subjects) perSubject << QStringLiteral(" (") + QString::number(g.bySubject.value(s)) + of + QLatin1Char(')');
         const QString on = same ? QStringLiteral(" on ") + QString::number(g.bySubject.value(g.subjects.first())) + of + QStringLiteral(" shots")
                                 : QString();
-        lines << line(gatedLine(gates::gateEntry(g.gate), g.subjects, perSubject, on, g.blocks, g.shots == recorded, g.tried, g.covers),
-                      QStringLiteral("gated"), g.subjects.first(), g.swingDir);
+        QString t = gatedLine(gates::gateEntry(g.gate), g.subjects, perSubject, on, g.blocks, g.shots == recorded, g.tried, g.covers);
+        // a warning gate's line carries the ⚠, which shots and why (#123)
+        for (const WarnedShots &w : warns)
+            if (w.gate == g.gate) t = QStringLiteral("⚠ ") + t + QLatin1Char(' ') + W::cap1(whereAndWhy(w, QStringLiteral("shot"))) + QLatin1Char('.');
+        lines << line(t, QStringLiteral("gated"), g.subjects.first(), g.swingDir);
         tailGroups.append({ g.gate, g.subjects });
     }
+    // the warnings no gated line speaks for, first (#123): a shot still assessed whose video starts late, …
+    QVariantList warnFirst;
+    QStringList warnLead;
+    for (const WarnedShots &w : warns) {
+        if (std::any_of(groups.cbegin(), groups.cend(), [&](const Group &g) { return g.gate == w.gate; })) continue;
+        warnFirst << line(QStringLiteral("⚠ ") + gateTitle(w.gate) + QStringLiteral(" on ") + whereAndWhy(w, QStringLiteral("shot")) + QLatin1Char('.'),
+                          QStringLiteral("gated"), w.subject, w.swingDir);
+        warnLead << QStringLiteral("⚠ ") + lower1(gateTitle(w.gate)) + QStringLiteral(" on ") + numbered(QStringLiteral("shot"), w.numbers);
+    }
+    first = warnFirst + first;
+    lead = warnLead + lead;
     if (!partlyOrder.isEmpty()) {
         QStringList w;
         for (const QString &sj : partlyOrder)
@@ -594,8 +802,21 @@ QVariantMap trustSummary(const charts::SessionSnapshot &session)
                           + (old == 1 ? QStringLiteral(" and is") : QStringLiteral(" and are"))
                           + QStringLiteral(" not counted; re-analyse to include ")
                           + (old == 1 ? QStringLiteral("it.") : QStringLiteral("them.")), QStringLiteral("old"));
-    return { { QStringLiteral("recorded"), true }, { QStringLiteral("tail"), tailOf(tailGroups, !pw.isEmpty()) },
-             { QStringLiteral("lines"), lines } };
+    return { { QStringLiteral("recorded"), true }, { QStringLiteral("tail"), tailOf(tailGroups, !pw.isEmpty(), warnedGates, lead) },
+             { QStringLiteral("lines"), first + lines } };
+}
+
+QStringList dataWarningLines(const charts::SessionSnapshot &session, const QString &noun)
+{
+    QStringList out;
+    QList<int> unexplained;
+    for (const WarnedShots &w : sessionWarnings(session, &unexplained))
+        out << QStringLiteral("⚠ ") + gateTitle(w.gate) + QStringLiteral(" on ") + whereAndWhy(w, noun) + QLatin1Char('.');
+    if (!unexplained.isEmpty())
+        out << QStringLiteral("⚠ ") + W::cap1(numbered(noun, unexplained))
+               + (unexplained.size() == 1 ? QStringLiteral(" carries a data warning its analysis does not record a reason for.")
+                                          : QStringLiteral(" carry a data warning their analysis does not record a reason for."));
+    return out;
 }
 
 QVariantMap trustShot(const charts::ShotSeries &shot)

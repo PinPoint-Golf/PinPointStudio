@@ -317,6 +317,19 @@ Setup can then add a line per family: "with this setup, pelvis timing is usually
   node's route quality); per gate, the readings it acted on in its own words, what it kept from being judged
   (named when three or fewer, else counted), and its lift. Session lines carry "on n of m shots" over the
   shots that carry records; older shots are named and not counted.
+- *A shot's data warning.* The summary also says the ⚠ the shot card shows, so a swing kept in the session's
+  assessment with a warning is never read without it in Analyse, Replay or Print, nor in the Trust panel's head[^i123].
+  Only a shot whose findings carry the card's flag (`ShotRecord::dataWarning`) warns; its records of the card's gates
+  (`DataWarningFormat.qml` `reasons()`: frames missing, video incomplete, sensor recording inconsistent, club track
+  refused other than for coverage, the down-the-line top out of view) say why. A gated line for one of them starts
+  "⚠ " and ends with the reason (the record's evidence sentence; for the club track what it costs, for the
+  down-the-line top what is unmeasured, in the card's words); a warning no gated line speaks for (a video that starts late or stops early
+  but still has the swing on it, a top out of the picture) gets its own "gated" line first: "⚠ Video incomplete: the
+  video starts 1.0 s late, so address and the takeaway may be missing; the swing is still assessed." On the session
+  the warned shots are named by number ("on shot 3"; "on shots 1–9, 11 and 12", with the reason when it is the same for
+  all). The closed fold's words lead with "⚠ video incomplete". A shot whose findings carry the warning
+  (`ShotRecord::dataWarning`) with no record to say why says so and points to its card. The session report's "What we could not
+  check" leads with the same sentences, by swing number (`dataWarningLines`).
 - *Vocabulary.* "Unavailable" is the resolver's word for "no route on this setup" and reads "Not recorded"
   on the Setup page. A gated reading is not unavailable (a route ran and a gate refused it), so it takes the
   gate's words, never "not recorded".
@@ -461,3 +474,5 @@ bridged detector gaps (a hold, not a refusal).
    estimated, out of sight") greyed. The 16 October discussion argued against it for the sequence:
    on that shot the guess is very likely wrong and reads as "pelvis late".
 *(4, record retention: taken, see above.)*
+
+[^i123]: Issue #123, 25 Nov 2026: a warned-but-assessed swing showed no warning in Session diagnostics or the report.

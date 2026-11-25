@@ -59,13 +59,20 @@ inline void appendShotGates(std::vector<GateEntry> &c)
                            "judged, and it is left out of the session's assessment. When it only starts late or "
                            "stops early, address or the end of the follow-through may be missing, so the swing "
                            "carries a warning but is still assessed.").arg(50),
-            "{code:code}[; the video starts {missingStartMs:ms} late][; it stops {missingEndMs:ms} early][; {framesBeforeImpact} frames before impact].",
+            "{code:code}[; {framesBeforeImpact} frames before impact].",
             { GateEffect::Withheld, GateEffect::Downgraded }, "src/Analysis/manifest_gates.h", "docs/design/trust_stage6_plan.md");
         e.tuning = { tune("capture.edgeToleranceMs", 50.0, "ms") };
+        // Each phrase says what may be missing, in the shot card's words (DataWarningFormat.qml), because the
+        // session diagnostics' trust note and the session report say a warned swing's warning in these (#123): they
+        // read the phrase alone; the Trust panel's evidence sentence adds the frames before impact after it.
         e.codes = { { QStringLiteral("afterImpact"), QStringLiteral("The video starts after impact, so the swing is not on it") },
-                    { QStringLiteral("lateStart"),   QStringLiteral("The video starts late; the swing is still assessed") },
-                    { QStringLiteral("earlyEnd"),    QStringLiteral("The video stops early; the swing is still assessed") },
-                    { QStringLiteral("both"),        QStringLiteral("The video starts late and stops early; the swing is still assessed") } };
+                    { QStringLiteral("lateStart"),   QStringLiteral("The video starts {missingStartMs:s} late, so address and the takeaway may be "
+                                                                    "missing; the swing is still assessed") },
+                    { QStringLiteral("earlyEnd"),    QStringLiteral("The video stops {missingEndMs:s} early, so the end of the follow-through may "
+                                                                    "be missing; the swing is still assessed") },
+                    { QStringLiteral("both"),        QStringLiteral("The video starts {missingStartMs:s} late and stops {missingEndMs:s} early, "
+                                                                    "so address, the takeaway and the end of the follow-through may be missing; "
+                                                                    "the swing is still assessed") } };
     }
     {
         GateEntry &e = add(c, "shot.refusionParity", shot,
