@@ -450,7 +450,7 @@ Full settings screen with panels for General, Cameras, IMUs, Audio, Appearance,
 Displays, and Storage.
 
 **Other:**  
-Audio pipeline, STT (Whisper/AssemblyAI/Azure), TTS (Kokoro/Azure), video capture
+Audio pipeline, STT (Whisper/Azure), TTS (Kokoro/Azure), video capture
 with pose estimation (MediaPipe/MoveNet), ball detection.
 
 ---

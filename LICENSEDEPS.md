@@ -94,9 +94,9 @@ conflict** below.
 
 ### Cloud services
 
-The Azure (TTS/STT) and AssemblyAI (STT) backends are REST clients. They link no
-third-party code; their use is governed by the respective providers' service
-terms, not by a copyright licence.
+The Azure (TTS/STT) backends are REST clients. They link no third-party code;
+their use is governed by the provider's service terms, not by a copyright
+licence.
 
 ## Known conflict — Teledyne FLIR Spinnaker SDK
 

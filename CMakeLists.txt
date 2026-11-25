@@ -1218,8 +1218,6 @@ target_sources(PinPointStudio PRIVATE
     src/STT/STTBackendFactory.cpp
     src/STT/STTBackendWhisperCpp.h
     src/STT/STTBackendWhisperCpp.cpp
-    src/STT/STTBackendAssemblyAI.h
-    src/STT/STTBackendAssemblyAI.cpp
     src/STT/STTBackendAzure.h
     src/STT/STTBackendAzure.cpp
     src/STT/STTWorker.h
@@ -1356,20 +1354,6 @@ endif()
 # AZURE_STT_API_KEY is not set.  Set either env var before the first launch and
 # the value is saved to QSettings so the env var is not required on future runs.
 message(STATUS "Azure STT: key supplied via AZURE_STT_API_KEY env var or shared AZURE_TTS_API_KEY")
-
-# ── AssemblyAI cloud STT (kept for reference, not used as fallback) ───────────
-# Pass -DASSEMBLYAI_API_KEY=<key> at cmake configure time to seed the key into
-# QSettings on first run. The key can also be supplied via the
-# ASSEMBLYAI_API_KEY environment variable (takes priority over QSettings).
-set(ASSEMBLYAI_API_KEY "" CACHE STRING
-    "AssemblyAI API key — written to QSettings on first run, not needed after that")
-if(ASSEMBLYAI_API_KEY)
-    target_compile_definitions(PinPointStudio PRIVATE
-        ASSEMBLYAI_API_KEY_DEFAULT="${ASSEMBLYAI_API_KEY}")
-    message(STATUS "AssemblyAI: API key provided (will be seeded to QSettings on first run)")
-else()
-    message(STATUS "AssemblyAI: no API key configured")
-endif()
 
 target_link_libraries(PinPointStudio PRIVATE whisper samplerate wrist gspro)
 # libppcp, when it resolved (H0 above). Linked with nothing calling it yet: the

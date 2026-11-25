@@ -758,7 +758,6 @@ ORT on Linux with Intel integrated graphics runs on CPU — see the note above o
 | `-DWITH_ORTGENAI=ON/OFF` | ON | ONNX Runtime GenAI local LLM engine (auto-off on Intel macOS — falls back to Gemini cloud) |
 | `-DPINPOINT_BUILD_TOOLS=ON/OFF` | OFF | Build the SwingLab offline analysis tools (`swinglab_run`) — see below |
 | `-DPINPOINT_DEBUG_LEVEL=<n>` | 1 | Log verbosity (2 = startup info + warnings/errors) |
-| `-DASSEMBLYAI_API_KEY=<key>` | — | Seed AssemblyAI API key into settings at build time |
 | `-DOpenCV_DIR=<path>` | — | Path to OpenCV CMake config, with `-DPP_OPENCV_NO_PIN=ON` |
 | `-DPP_OPENCV_NO_PIN=ON` | OFF | Skip the pinned OpenCV build and use `OpenCV_DIR` instead |
 | `-DFFMPEG_DIR=<path>` | — | FFmpeg root for swing export (Windows, non-standard location; must contain `lib/pkgconfig`) |
