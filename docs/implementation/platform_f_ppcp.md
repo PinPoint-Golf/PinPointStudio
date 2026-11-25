@@ -133,7 +133,7 @@ Q3, and then for the row that names it below.
 - **If nothing is ruled:** nothing of Stage F is built except SF-2's pins. Stage F is last and no other stage
   builds on it, so the answer is not needed before Stage E's SE-2a lands.
 - **Waits:** every item but SF-2, and P1's three kept things.
-- **Ruled:**
+- **Ruled:** (c), parked: important, but not urgent, so a follow-up[^q3r]. Stage D's SD-9c is parked with it. Everything this page lists waits on issue #272.
 
 ### V6 · The forecast's lever 6: Stage F parked, or files only
 - **Today.** The forecast gives lever 6 as 50 h saved and lever 6b as 28 h saved, each with "value lost: 1" (an
@@ -568,3 +568,5 @@ row changes anything a pairing is stored as.
 [^rule10]: The plan's §5 rule 10: work that moves is listed where it lands, not carried by a tag alone.
 [^evid]: The project's rule that a bug needs an observed failure, as `PLAN-F.md`'s note N4 applies it.
 [^ds]: `docs/design/system/README.md`, "The non-negotiables": any change to the design system needs the Design Lead's approval before it is built. This page also sends to that role any row that changes what the golfer or coach sees.
+
+[^q3r]: The Product Owner, 25 Nov 2026, in the platform refactor's coordination session.
