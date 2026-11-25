@@ -1,0 +1,1 @@
+Agents working here: read [`governance/AGENTS.md`](governance/AGENTS.md) before any change; it is the entry point to the project's rules (Claude Code reads `CLAUDE.md`, not this file, so a collaborator adds the line `@governance/AGENTS.md` to their own, gitignored `CLAUDE.md`).

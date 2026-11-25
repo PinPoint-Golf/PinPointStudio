@@ -1,0 +1,3 @@
+# Contributing
+
+The project's policies, controls and procedures, and who approves what, are in [`governance/`](governance/README.md). Before your first change, read [`governance/policies.md`](governance/policies.md), then the controls for the stage you are at ([`governance/controls/`](governance/controls/)), from deciding what needs approval to committing, and the extras for your kind of work. A change that needs a role's approval (the information model, the design system, a norm, scope) is proposed and approved before it is built. Agents start from [`governance/AGENTS.md`](governance/AGENTS.md).
