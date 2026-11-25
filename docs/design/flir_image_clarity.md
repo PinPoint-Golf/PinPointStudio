@@ -102,7 +102,7 @@ beside every edge, and the shaft tracker, ball detector and pose model would all
 - **In an export zip:** a raw-Bayer clip goes in as a curved copy, re-encoded through the same 256-entry
   table (`src/Export/export_tone.h`). `thumb.jpg` in the zip is curved likewise (proposed, for the Product Owner).
 - **Not curved:** the stored MP4s and raw sidecars, `thumb.jpg` on disk, Settings → Cameras' sensor preview and
-  the Markup Lab[^scope].
+  the Markup Lab (proposed, for the Product Owner)[^scope].
 - **Not curved in this change:** the report stills, which have their own exposure curve. Whether they should
   take this curve too is open (proposed, for the Product Owner)[^stills].
 - **Not yet curved:** the shot carousel's thumbnails. Choosing their curve at display needs the thumbnail
@@ -285,7 +285,8 @@ Not yet run.
 [^l8]: Design Lead, 25 Nov 2026 (#183: γ 0.80 from the step-0 sheets, and exported videos get it too); Product
     Owner, 25 Nov 2026 (#183: the curve on everything the golfer sees, never on the analysis without evidence).
 [^freeze]: The feature freeze during a refactor plan ([AG-31](../../governance/controls/kinds-of-work.md)).
-[^scope]: Product Owner, 25 Nov 2026 (#183's build: the sensor preview and the Markup Lab keep the camera's linear
-    picture: #183's plan, §3).
+[^scope]: #183's display plan, §3, and its question P4: the sensor preview (set-up's exposure check) and the Markup Lab
+    (a tool view) keep the camera's linear picture. Not yet ruled: the Product Owner's ruling covers everything the
+    golfer sees, exports included (#183, 25 Nov 2026).
 [^stills]: The Product Owner's ruling covers everything the golfer sees, exports included (#183, 25 Nov 2026); #183's
     plan, §2.1 and its question P3, proposed leaving the stills as they are; no answer is recorded.
