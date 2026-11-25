@@ -34,7 +34,7 @@ Each gap is a place where today's behaviour falls short of a guarantee a golfer 
 - The refusal logs at debug level only, which the default log level leaves out of every build (`src/Gui/shot/shot_controller.cpp:247-250`). The code calls the real fix "deliberately not attempted" (`:553-557`).
 - *Observed* (visit 1 §4, swing 2); *seam, in a worktree* (`capture_overlap_test`, NOTES-281 §2; not on `main`).
 - Issue #281 (part A).
-- Pending commit: a stopgap that tells the golfer (NOTES-281-stopgap). Overlapping capture is parked for Stage D.
+- Still pending: the stopgap that tells the golfer (NOTES-281-stopgap) is built and held for a Design Lead ruling; it is not on `main`. Overlapping capture is parked for Stage D.
 - Breaks GU-1.
 
 **GAP-3 · The next swing's clip can lose its start.**
@@ -61,12 +61,12 @@ Each gap is a place where today's behaviour falls short of a guarantee a golfer 
 - The toolbar's End releases the devices. That reaches `finishNowBlocking`, which clears the handlers' flags (`src/Gui/session/PpSessionToolbar.qml:419-431`; `src/App/app_state.cpp:220-239`; `src/Gui/shot/shot_processor.cpp:2117-2155`).
 - *Observed* (visit 1 §4, swing 3); *seam, in a worktree* (`app_state_test` S10, NOTES-280 §10; S10 is not in `main`'s test).
 - Issues #281 (part B) and #188.
-- **Fixed, pending commit** (NOTES-280 §9, §11; product control AD-50, pending).
+- **Closed, 25 Nov 2026, by a878282f** (NOTES-280 §9, §11; product control AD-50): End waits for a shot being saved, or "End anyway" drops it by the golfer's choice.
 - Breaks GU-2, GU-5.
 
 **GAP-7 · Changing the camera selection, or deselecting a sensor, drops a shot in flight.**
 - `CameraManager::setSelected` calls `finishNowBlocking` on any change of selection, selecting a camera included (`src/Gui/cameras/camera_manager.cpp:370`). `ImuManager::setSelected` calls it only when deselecting (`src/Gui/imu/imu_manager.cpp:467-468`). Both act whatever is in flight. Nothing shows that a link loss reaches either.
-- The pending End fix covers End only.
+- The End and quit fix (a878282f, 25 Nov 2026) covers End and the close prompt only.
 - *Reading*.
 - A finding (AG-24), for the role that rules on it; not a bug to file.
 - Breaks GU-2.
@@ -112,7 +112,7 @@ Each gap is a place where today's behaviour falls short of a guarantee a golfer 
 - *Observed* (visit 1 §6, attempt 3: no folder found).
 - The cause is *by reading* and **unconfirmed**. The app log cannot confirm it: it is kept in memory and went with that instance. Two ways remain. The Product Owner can look in the trash of the account that ran the app for a session folder from about 13:01 (NOTES-280 §1). Or a seam test can end a session whose only shot is analysing and check for the discard (NOTES-280 §9's S10 shows it, in a worktree).
 - Issue #280. The Product Owner ruled the loss the golfer's choice.
-- Pending commit: the prompt waits for the shot and offers "Close anyway" (NOTES-280 §9).
+- **Closed, 25 Nov 2026, by a878282f** (NOTES-280 §9; product control AD-50): the close prompt waits for a shot being saved, or "Close anyway" drops it by the golfer's choice.
 - Breaks GU-6, GU-7.
 
 **GAP-14 · A session left in progress is stuck until its athlete's next Start.**
@@ -126,7 +126,7 @@ Each gap is a place where today's behaviour falls short of a guarantee a golfer 
 - `AppState::startSession` sets no mode (`src/App/app_state.cpp:189-205`).
 - It never did. Before refactor step 4-a, Start could not be reached while a saved session was on screen, so the missing switch was hidden. The set-up screen and the one start command made Start reachable from Replay (the coordinator's account, 25 Nov 2026). This guarantee held only because a path was unreachable (the lifecycle model's §6, the rule above the table).
 - *Observed* (visit 1 §8).
-- Issue #283: fixed, pending commit.
+- Issue #283. **Closed, 25 Nov 2026, by 8f33e190** (#283 closed): every start path lands in Capture.
 - Breaks GU-12.
 
 **GAP-16 · Capture and the guards ask different questions.**
@@ -250,7 +250,7 @@ Each gap is a place where today's behaviour falls short of a guarantee a golfer 
 | LC-SHOT | `Session::addShot` allocates, creates and returns the `Shot`, which capture then writes into: allocate → create → capture writes → late parts | The code follows that order (`src/DomainModel/session.cpp:157-161`). The row does not say when `addShot` runs relative to the trigger; the code runs it after the analysis. The row does not name the outcomes "dropped", "media with no document" or "not recorded". | GAP-1, GAP-19 |
 | LC-SESSION | A session left InProgress by a crash stays so "until `end` or the athlete's next `startSession`" | No golfer command ends it: only the next Start does (the search under GAP-14) | GAP-14 |
 | LC-SESSION | The empty discard is a rule of the lifecycle (DEC-93) | "Empty" means no swing folder, not "nothing recorded" | GAP-12 |
-| LC-SESSION | `end` | Pending commit: the views wait for `shotSaving` before calling End (a new line in the information model's §6, ruled not an information-model change) | GAP-6 |
+| LC-SESSION | `end` | Committed, 25 Nov 2026 (a878282f): the views wait for `shotSaving` before calling End (a new line in the information model's §6, ruled not an information-model change) | GAP-6 (closed) |
 | LC-ATHLETE | "active → trashed → purged". Its "today" note says `deleteAthlete` removes only the settings group, leaving the folder and its sessions behind | That note is stale: delete now moves the whole folder (`src/Export/athlete_store.cpp:490-596`). The code also has states the row does not name: settings-only, read-only, recording and the Unassigned owner (§4.1) | GAP-27, GAP-28 |
 | LC-RIG | "no states"; created at launch; commands change it; EVT-15 | Not built on `main`: no class, no producer (Stage C). The lifecycles that run today are a device's and a calibration record's (the model's §5) | GAP-29, GAP-30 |
 | none | — | The application has no lifecycle row. §1 is offered as one: **LC-APP (proposed, for the Solution Architect)** | — |
