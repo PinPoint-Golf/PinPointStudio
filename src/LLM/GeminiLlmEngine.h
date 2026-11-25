@@ -38,8 +38,9 @@ class QNetworkReply;
 // Secrets: SecretsManager key "geminiApiKey" / env GEMINI_API_KEY. The caller hands the
 // key in; it is sent in the x-goog-api-key request header, never in the request's address,
 // so it cannot reach the app log or a proxy's log (a failed reply's error text quotes the
-// address). buildRequest() is the one place a request is made, and gemini_request_test
-// checks it.
+// address). A request carrying the key follows a redirect only to the same site, so a
+// redirect cannot hand the key to another host. buildRequest() is the one place a request
+// is made, and gemini_request_test checks it.
 
 class GeminiLlmEngine : public LlmEngine
 {
@@ -56,7 +57,8 @@ public:
     QString gpuBackend() const override { return QStringLiteral("Cloud"); }
 
     // The streaming request for one chat() call: the model in the path, the key in the
-    // x-goog-api-key header. No network access; chat() posts what this returns.
+    // x-goog-api-key header, redirects followed only to the same site. No network access;
+    // chat() posts what this returns.
     static QNetworkRequest buildRequest(const QString &model, const QString &apiKey);
 
 private slots:

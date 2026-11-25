@@ -43,7 +43,8 @@ bool GeminiLlmEngine::loadModel(const QString &)
 {
     // No local files; create the network manager here so thread affinity is right.
     m_nam = new QNetworkAccessManager(this);
-    m_nam->setRedirectPolicy(QNetworkRequest::NoLessSafeRedirectPolicy);
+    // The same policy as buildRequest() sets on each request (which takes precedence).
+    m_nam->setRedirectPolicy(QNetworkRequest::SameOriginRedirectPolicy);
     m_ready = true;
     emit modelLoaded();
     return true;
@@ -162,6 +163,11 @@ QNetworkRequest GeminiLlmEngine::buildRequest(const QString &model, const QStrin
     QNetworkRequest req(url);
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     req.setRawHeader(QByteArrayLiteral("x-goog-api-key"), apiKey.toUtf8());
+    // A redirect re-sends the request's headers, key included, to wherever it points. Only a
+    // redirect to the same scheme, host and port is followed; one to another site fails the
+    // request with an error, which onFinished() reports. Google's API does not redirect these.
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                     QNetworkRequest::SameOriginRedirectPolicy);
     return req;
 }
 

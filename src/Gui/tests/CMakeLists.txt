@@ -421,8 +421,9 @@ pp_add_test(notification_center_test
     LINK    Qt6::Qml  AUTOMOC)
 
 # The AI Coach's cloud engine (src/LLM, beside the LLM controller in Gui/media): its request carries the
-# Gemini API key in the x-goog-api-key header and never in the address. Builds the request only; no
-# network manager, no network call, a made-up key. The test lives in src/LLM/tests.
+# Gemini API key in the x-goog-api-key header and never in the address, and follows a redirect only to the
+# same site. A made-up key; the redirect is checked against two local servers, and no call leaves the
+# machine. The test lives in src/LLM/tests.
 find_package(Qt6 REQUIRED COMPONENTS Network)
 pp_add_test(gemini_request_test
     SOURCES ${SRC}/LLM/tests/gemini_request_test.cpp
