@@ -168,6 +168,9 @@ public:
     std::atomic<int> deferredReads{ 0 };   // summary reads handed to another thread (readAhead, J-57)
     QSet<Qt::HANDLE> deferredThreads;      // the threads they ran on (GUI thread only writes it after the job)
     std::mutex       threadsLock;
+    // A session folder that refuses every write (BLKb, #244): each write into it fails, as the store's would on a full
+    // disk or a folder the OS will not write to. A folder's permissions cannot do it on Windows, which ignores them.
+    QString refuseWritesIn;
 
     SessionStartResult start(const SessionOwner &o, const QString &t, const QString &p) override { return m.start(o, t, p); }
     SessionId todaysSession(const SessionOwner &o, const QString &t) override { return m.todaysSession(o, t); }
@@ -188,13 +191,18 @@ public:
     WriteResult trashShot(const ShotRef &s, QString *w) override { return m.trashShot(s, w); }
     DiagnosticsRead readDiagnostics(const SessionId &id) override { ++diagnosticsReads; return m.readDiagnostics(id); }
     WriteResult writeDiagnostics(const SessionId &id, const QJsonObject &s, const QJsonObject &l, const QJsonObject &f,
-                                 DiagnosticsRead::State *st) override { return m.writeDiagnostics(id, s, l, f, st); }
-    WriteResult backupDiagnostics(const SessionId &id, const QString &t, QString *p) override { return m.backupDiagnostics(id, t, p); }
-    WriteResult setAsideDiagnostics(const SessionId &id, QString *p) override { return m.setAsideDiagnostics(id, p); }
+                                 DiagnosticsRead::State *st) override
+    { return refuses(id) ? refusal(id) : m.writeDiagnostics(id, s, l, f, st); }
+    WriteResult backupDiagnostics(const SessionId &id, const QString &t, QString *p) override
+    { return refuses(id) ? refusal(id) : m.backupDiagnostics(id, t, p); }
+    WriteResult setAsideDiagnostics(const SessionId &id, QString *p) override
+    { return refuses(id) ? refusal(id) : m.setAsideDiagnostics(id, p); }
     SessionInputRead readSessionInput(const SessionId &id) override { ++inputReads; return m.readSessionInput(id); }
-    WriteResult writeSessionInput(const SessionId &id, const SessionInput &in) override { return m.writeSessionInput(id, in); }
+    WriteResult writeSessionInput(const SessionId &id, const SessionInput &in) override
+    { return refuses(id) ? refusal(id) : m.writeSessionInput(id, in); }
     JsonFileRead readClubBaseline(const SessionId &id) override { ++baselineReads; return m.readClubBaseline(id); }
-    WriteResult writeClubBaseline(const SessionId &id, const QJsonObject &r) override { return m.writeClubBaseline(id, r); }
+    WriteResult writeClubBaseline(const SessionId &id, const QJsonObject &r) override
+    { return refuses(id) ? refusal(id) : m.writeClubBaseline(id, r); }
     JsonFileRead readWorkOns(const SessionId &id) override { ++workOnsReads; return m.readWorkOns(id); }
     std::function<JsonFileRead()> deferredReadWorkOns(const SessionId &id) override
     {
@@ -205,9 +213,24 @@ public:
             return read();
         };
     }
-    WriteResult writeWorkOns(const SessionId &id, const QJsonObject &r) override { return m.writeWorkOns(id, r); }
+    WriteResult writeWorkOns(const SessionId &id, const QJsonObject &r) override
+    { return refuses(id) ? refusal(id) : m.writeWorkOns(id, r); }
 
 private:
+    bool refuses(const SessionId &id) const
+    {
+        if (refuseWritesIn.isEmpty()) return false;
+        const std::optional<SessionIndexEntry> e = m.open(id);
+        return e && QDir::cleanPath(e->folder) == QDir::cleanPath(refuseWritesIn);
+    }
+    WriteResult refusal(const SessionId &id) const
+    {
+        WriteResult w;
+        w.status = WriteResult::Status::Failed;
+        w.error  = QStringLiteral("%1 refuses every write (the test's)").arg(m.open(id) ? m.open(id)->folder : id.toString());
+        return w;
+    }
+
     SessionStore &m;
 };
 
@@ -741,7 +764,7 @@ static void testBlockAtRelease()
     Rig rig(/*diagnostics=*/true, /*async=*/true);
     const QString s1 = rig.legacySession(1, 6);
     writeJson(SessionFiles::clubBaselineFile(s1), analysis::clubBaselineToJson(analysis::ClubBaselineSnapshot{}));   // frozen: nothing written at load
-    QFile::setPermissions(s1, QFileDevice::ReadOwner | QFileDevice::ExeOwner);   // the folder refuses every write
+    rig.spy->refuseWritesIn = s1;   // the folder refuses every write (through the session door: #244, Windows ignores a folder's permissions)
     AthleteCatchUp catchUp(rig.callables());
     QStringList where;
     QObject::connect(&catchUp, &AthleteCatchUp::writeBlocked,
@@ -750,11 +773,13 @@ static void testBlockAtRelease()
     SessionDiagnostics *d = rig.athlete->loadedSessions().isEmpty() ? nullptr : rig.athlete->loadedSessions().first()->diagnostics();
     const bool midway = d && pump([d] { return d->counts().kept >= 1 && d->outstanding() > 0; }, 30000);
     catchUp.setPaused(true);   // let go now: its release writes what it kept, into a folder that refuses it
+    std::printf("        midway %d, interrupted %d, blocked %d, where [%s]\n", int(midway), catchUp.report().interrupted,
+                catchUp.report().blocked, qPrintable(where.join(QStringLiteral(", "))));
     check(QStringLiteral("BLKb paused with results kept and unwritten: the failed write at its release is reported "
                          "(writeBlocked with the folder; the session counted blocked, and interrupted)"),
           midway && catchUp.report().interrupted == 1 && catchUp.report().blocked == 1 && !where.isEmpty()
               && QDir::cleanPath(where.first()) == QDir::cleanPath(s1));
-    QFile::setPermissions(s1, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    rig.spy->refuseWritesIn.clear();
     catchUp.cancel();
 }
 

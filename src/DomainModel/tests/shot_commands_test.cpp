@@ -111,6 +111,7 @@
 #include <cstdio>
 #include <memory>
 #include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
+#include "../../Core/tests/refused_file.h"      // pinpoint::test::RefusedFile: a save made to fail on every platform (#244)
 
 using namespace pinpoint;
 
@@ -815,16 +816,18 @@ static void rowsOverShots()
               && roleOf(1, ShotListModel::ClubRole).toString() == QStringLiteral("7 IRON")
               && roleOf(1, ShotListModel::LmExcludedRole).toBool() && one->summary().lmExcluded);
 
-    // A save that fails (the swing folder made unwritable): the row shows the shot as it still is.
+    // A save that fails (the swing document made unreplaceable: its folder read-only on POSIX, the document held open
+    // with no delete share on Windows, which ignores a folder's permissions; #244): the row shows the shot as it still is.
     {
-        const QString swing = one->folder();
-        const QFileDevice::Permissions was = QFile::permissions(swing);
-        QFile::setPermissions(swing, QFileDevice::ReadOwner | QFileDevice::ExeOwner);
+        test::RefusedFile refused(SwingStore::ppswPath(one->folder()), test::RefusedFile::Refuse::Replace);
         model.setRating(idOne, 1);
-        QFile::setPermissions(swing, was);
+        const bool wasRefused = refused.refused();
+        refused.release();
+        const int row = roleOf(1, ShotListModel::RatingRole).toInt(), held = one->summary().rating,
+                  onFile = reviewOf(rig, one->ref()).value(QStringLiteral("rating")).toInt();
+        std::printf("        refused %d, row %d, Shot %d, file %d\n", int(wasRefused), row, held, onFile);
         check(QStringLiteral("C15e a failed save: the row keeps the Shot's value (4), the file too"),
-              roleOf(1, ShotListModel::RatingRole).toInt() == 4 && one->summary().rating == 4
-                  && reviewOf(rig, one->ref()).value(QStringLiteral("rating")).toInt() == 4);
+              wasRefused && row == 4 && held == 4 && onFile == 4);
     }
 
     // A live view: capture's call finds the Shot's row, whose facts are its Shot's.
@@ -869,12 +872,13 @@ static void rowsOverShots()
     // C15k: a held session is answered from memory (round 2: no session.json read per row, edit or refresh).
     {
         const QString file = SessionFiles::sessionFile(dir);
-        const QFileDevice::Permissions was = QFile::permissions(file);
-        QFile::setPermissions(file, QFileDevice::Permissions());   // unreadable
+        // Unreadable: its permissions cleared on POSIX, held open by this test on Windows (#244).
+        test::RefusedFile unopenable(file, test::RefusedFile::Refuse::Open);
+        const bool wasRefused = unopenable.refused();
         Session *again = rig.athlete->sessionAt(dir);
-        QFile::setPermissions(file, was);
+        unopenable.release();
         check(QStringLiteral("C15k a held session: Athlete::sessionAt answers it without reading its session file"),
-              QFile::exists(file) && again == s);
+              wasRefused && QFile::exists(file) && again == s);
     }
 }
 

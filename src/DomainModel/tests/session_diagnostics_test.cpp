@@ -95,11 +95,14 @@
 #include <cstdio>
 #include <functional>
 #include <map>
+#include <QPointer>
+
 #include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <thread>
 #include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
+#include "../../Core/tests/refused_file.h"      // pinpoint::test::RefusedFile: a file made to refuse on every platform (#244)
 
 #ifndef PP_LIVE_SWINGS_DIR
 #  define PP_LIVE_SWINGS_DIR "."
@@ -1478,21 +1481,33 @@ static void testUnreadableFile()
         if (id.isNull()) { check(QStringLiteral("UNR-b setup"), false); return; }
         const QString path = SessionFiles::diagnosticsFile(folder);
         const QByteArray before = bytesOf(path);
-        const QFileDevice::Permissions perms = QFile::permissions(path);
-        check(QStringLiteral("UNR-b1 the file made unopenable (scratch)"), QFile::setPermissions(path, QFileDevice::Permissions()));
+        // Its permissions cleared on POSIX; on Windows, which cannot make a file unreadable, held open by this test
+        // shared for delete only (#244). Either way it can still be renamed or replaced, so a write would show.
+        test::RefusedFile unopenable(path, test::RefusedFile::Refuse::Open);
+        check(QStringLiteral("UNR-b1 the file made unopenable (scratch)"), unopenable.refused());
         Session *again = rig.athlete->session(id);
         SessionDiagnostics *d = again ? again->diagnostics() : nullptr;
         Rig::settled(d);
+        std::printf("        read-only %d, set aside %lld\n", int(d && d->readOnly()), (long long)asidesIn(folder).size());
         check(QStringLiteral("UNR-b2 read-only: nothing is written this load, the file is not set aside"),
               d && d->readOnly() && asidesIn(folder).isEmpty());
+        // The product's own avoidance, not only the test's refusal (review 244): no write is made or tried across the
+        // fire, the flush and the release (its write at `releasing` runs before the deferred delete).
+        const QPointer<SessionDiagnostics> owner(d);
+        const quint64 writes0 = d ? d->counts().writes : 0, failures0 = d ? d->counts().writeFailures : 0;
         if (d && again && !again->shots().isEmpty()) d->fire(again->shots().first()->ref());
         Rig::settled(d);
         if (d) d->flush();
         rig.athlete->releaseSession(id);
+        const bool noWriteTried = owner && owner->counts().writes == writes0 && owner->counts().writeFailures == failures0;
+        std::printf("        writes %lld -> %lld, write failures %lld -> %lld\n", (long long)writes0,
+                    (long long)(owner ? owner->counts().writes : 0), (long long)failures0,
+                    (long long)(owner ? owner->counts().writeFailures : 0));
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
-        QFile::setPermissions(path, perms);
-        check(QStringLiteral("UNR-b3 after a fire, a flush and the release the file is byte for byte as it was"),
-              bytesOf(path) == before && !before.isEmpty());
+        unopenable.release();
+        check(QStringLiteral("UNR-b3 after a fire, a flush and the release the file is byte for byte as it was, and no write "
+                             "was made or tried"),
+              bytesOf(path) == before && !before.isEmpty() && noWriteTried);
     }
     {   // c: does not parse and cannot be set aside → read-only
         Rig rig(/*synchronous=*/true, 0);
@@ -1501,9 +1516,11 @@ static void testUnreadableFile()
         if (id.isNull()) { check(QStringLiteral("UNR-c setup"), false); return; }
         const QString path = SessionFiles::diagnosticsFile(folder);
         writeBytes(path, "{ not json");
-        const QFileDevice::Permissions dirPerms = QFile::permissions(folder);
-        check(QStringLiteral("UNR-c1 the session folder made read-only, so no rename can land (scratch)"),
-              QFile::setPermissions(folder, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+        // The session folder made read-only on POSIX; on Windows, which ignores a folder's permissions, the file held
+        // open by this test with no delete share (#244). Either way it still reads, but no rename of it can land.
+        test::RefusedFile unrenamable(path, test::RefusedFile::Refuse::Replace);
+        check(QStringLiteral("UNR-c1 the file made unrenamable (its folder read-only, or held open), so no rename can land (scratch)"),
+              unrenamable.refused());
         Session *again = rig.athlete->session(id);
         SessionDiagnostics *d = again ? again->diagnostics() : nullptr;
         Rig::settled(d);
@@ -1511,7 +1528,9 @@ static void testUnreadableFile()
         if (d) d->flush();
         rig.athlete->releaseSession(id);
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
-        QFile::setPermissions(folder, dirPerms);
+        unrenamable.release();
+        std::printf("        read-only %d, file as it was %d, set aside %lld\n", int(readOnly), int(bytesOf(path) == "{ not json"),
+                    (long long)asidesIn(folder).size());
         check(QStringLiteral("UNR-c2 the rename failed: read-only, the file left as it was and nothing set aside"),
               readOnly && bytesOf(path) == "{ not json" && asidesIn(folder).isEmpty());
     }
