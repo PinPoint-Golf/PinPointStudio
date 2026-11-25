@@ -16,20 +16,22 @@ The consumer supplies `title`, `body`, the two button words and the `tone`, and 
 | `body` | string | `""` | body2 (12 px) at body weight, `colorText2`, line height 1.5 |
 | `confirmText` | string | "Continue" | the consequential answer |
 | `cancelText` | string | "Cancel" | |
-| `tone` | string | `"attention"` | `attention`: a call to act, nothing is lost · `error`: this destroys saved work |
+| `tone` | string | `"attention"` | `attention`: a call to act, nothing is lost · `warn`: going on drops something not yet saved (the close prompt's "Close anyway" while a shot is being saved)[^warn] · `error`: this destroys saved work |
 | `dialogWidth` | real | 440 px | clamped to window − 48 px (the close prompt is 420) |
 | `buttonHoverScale` | real | 1.0 | hover growth on both buttons |
 | signals | | | `confirmed()`, `cancelled()` (Esc, Cancel or a programmatic close) |
 
 ## Geometry
 
-Background PpPopoverCard `plain`: `colorSurface`, radius `Theme.radiusLg`, 1 px border in `colorAttention` / `colorError`. Padding 20 px; 12 px between title, body and a 4 px spacer; buttons 8 px apart, right-aligned.
+Background PpPopoverCard `plain`: `colorSurface`, radius `Theme.radiusLg`, 1 px border in `colorAttention` / `colorWarn` / `colorError`. Padding 20 px; 12 px between title, body and a 4 px spacer; buttons 8 px apart, right-aligned.
 
 - Confirm: PpButton `style: "tone"`, compact, 32 px tall, 24 px horizontal padding — **outlined, not filled**: transparent (hover: the tone's wash), border and label in the tone.
 - Cancel: PpButton `subtle` — `colorBg2` (hover `colorBg3`), `colorBorderMid` border, `colorText2` label.
 
 ## Do / don't
 
-- Two different events must not read alike: attention for interrupting something live, error for discarding saved work.
+- Different events must not read alike: attention for interrupting something live, warn for dropping something not yet saved, error for discarding saved work.
 - Don't fill the primary — a filled button would read as the recommended answer.
 - Don't close on a click outside: a click beside a prompt about saved work is not an answer. Esc = cancel.
+
+[^warn]: Design Lead, 25 Nov 2026 (#280, #281: the close prompt while a shot is being saved).

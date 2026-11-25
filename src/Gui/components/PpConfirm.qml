@@ -41,7 +41,8 @@ Popup {
     property string body:        ""
     property string confirmText: qsTr("Continue")
     property string cancelText:  qsTr("Cancel")
-    // "attention" — a call to act, nothing is lost. "error" — this destroys saved work.
+    // "attention" — a call to act, nothing is lost. "warn" — going on drops something not yet saved (the close
+    // prompt's "Close anyway" while a shot is being saved: Design Lead, 25 Nov 2026). "error" — this destroys saved work.
     property string tone:        "attention"
     // The prompt's width before the window clamps it. The close prompt in Main.qml has always been
     // sp(20) narrower than the others and keeps its look.
@@ -53,7 +54,9 @@ Popup {
     signal confirmed()
     signal cancelled()
 
-    readonly property color _strong: tone === "error" ? Theme.colorError : Theme.colorAttention
+    readonly property color _strong: tone === "error" ? Theme.colorError
+                                   : tone === "warn"  ? Theme.colorWarn
+                                                      : Theme.colorAttention
 
     parent: Overlay.overlay
     anchors.centerIn: parent
@@ -107,7 +110,7 @@ Popup {
             // The primary, outlined in the tone rather than filled: it is the consequential answer,
             // and a filled button here would read as the recommended one.
             PpButton {
-                style: "tone"; tone: root.tone === "error" ? "error" : "attention"; size: "compact"
+                style: "tone"; tone: (root.tone === "error" || root.tone === "warn") ? root.tone : "attention"; size: "compact"
                 implicitHeight: Theme.sp(32)
                 horizontalPadding: Theme.sp(24)
                 hoverScale: root.buttonHoverScale

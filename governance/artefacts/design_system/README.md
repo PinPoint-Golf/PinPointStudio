@@ -95,6 +95,10 @@ PinPoint Studio is a desktop instrument for golf swing analysis: quiet chrome, f
 - Band bar (`PpBandBar`), strength mark (`PpStrengthMark`: CLEAR, LIKELY, POSSIBLE), quality pill (`PpQualityPill`), swing timeline (`PpSwingTimeline`: ADDRESS, BACK, TOP, DOWN, IMPACT, FINISH).
 - Variability marks (`PpVariabilityMark`, `PpVariabilityBadge`, `PpVariabilityFunnel`): how much something varies, or how far a reading can be trusted, as a grade in shape and word — Dispersion and Overlay for consistency, the Needle for measurement, the funnel for the trend, two ungraded typicality variants. When one is allowed, how to classify a display, and the rules: [variability.md](variability.md).
 
+## Patterns
+
+- **Wait, or … anyway.** When going on now would lose or skip something the app is still doing (a check not passed, a shot still being saved), the prompt says what it is waiting for in plain words ("Saving the last shot…"), goes on by itself the moment it is done, and offers the golfer's way to go on regardless, worded "… anyway" ("Start anyway", "End anyway", "Close anyway") in the warning tone (`colorWarn`; on PpConfirm, `tone: "warn"`). Cancel or Esc only closes the prompt; nothing was registered. Uses: session setup's Start (`ScreenSessionSetup.qml`), the toolbar's End card (`PpSessionToolbar.qml`), the close prompt (`Main.qml`)[^wait-anyway].
+
 ## Motion
 
 - Screens cross-fade only (`Theme.durationNormal`); hover eases opacity or alpha (`durationFast`); colour changes animate over `durationSlow`. All are 0 under `Theme.reduceMotion`.
@@ -108,3 +112,4 @@ PinPoint Studio is a desktop instrument for golf swing analysis: quiet chrome, f
 
 [^ds-approval]: Design Lead, 1 Nov 2026; narrowed to this list by the lighter route, Design Lead, 25 Nov 2026 (a changed look or behaviour of an existing component stays before approval: review round 2, M9).
 [^ui-20]: Design Lead, 25 Nov 2026 (the lighter design route, [UI-20](../../controls/decide.md); the sheet is UI-17, [`review.md`](../../controls/review.md)).
+[^wait-anyway]: Design Lead, 25 Nov 2026 (#280, #281: End and quit while a shot is being saved; PpConfirm's warn tone).

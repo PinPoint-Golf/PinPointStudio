@@ -168,9 +168,20 @@ ApplicationWindow {
     // via PpHeader.closeRequested — Qt.quit() would bypass onClosing). Known
     // gap: macOS Cmd+Q / app-menu Quit doesn't pass through onClosing.
     property bool _quitConfirmed: false
+    function _endAndClose() {
+        // Session-level teardown, the End's one command (app_state.h: it discards a session that captured nothing, to
+        // the OS trash), with no carousel reload; the deeper shutdown (swing-save wait, capture-thread barriers, merger
+        // stop) runs in the controller destructors and the aboutToQuit hook.
+        app.state.endSession(false)
+        root._quitConfirmed = true
+        root.close()
+    }
     onClosing: (close) => {
         if (app.sessionController.running && !root._quitConfirmed) {
             close.accepted = false
+            if (closeConfirm.opened)
+                return
+            closeConfirm.saving = app.state.shotSaving
             closeConfirm.open()
         }
     }
@@ -178,23 +189,40 @@ ApplicationWindow {
     // The close prompt is the house confirmation (components/PpConfirm.qml) in its attention tone: it
     // interrupts a live session but destroys nothing. Esc or Cancel leaves the session running — the
     // close was already rejected above.
+    // A SHOT STILL BEING SAVED (#280; Product Owner, Design Lead and Solution Architect, 25 Nov 2026): the prompt says
+    // "Saving the last shot…" in the warning tone, watches app.state.shotSaving, and ends the session and closes the app
+    // itself when it falls; "Close anyway" does it now and drops the shot. Cancel just closes the prompt.
     PpConfirm {
         id: closeConfirm
         objectName: "closeConfirm"
+        property bool saving: false   // view state: waiting for the shot being saved, then End and close
         dialogWidth: Theme.sp(420)
         buttonHoverScale: 1.02
-        tone: "attention"
+        tone: saving ? "warn" : "attention"
         title: qsTr("Session in progress")
-        body: qsTr("You're still mid-session — closing now will end your session and stop capture. Close PinPoint Studio?")
-        confirmText: qsTr("End session & close")
-        onConfirmed: {
-            // Session-level teardown, the End's one command (app_state.h: it discards a session that captured
-            // nothing, to the OS trash), with no carousel reload; the deeper shutdown (swing-save wait,
-            // capture-thread barriers, merger stop) runs in the controller destructors and the aboutToQuit hook.
-            app.state.endSession(false)
-            root._quitConfirmed = true
-            root.close()
+        body: saving ? qsTr("Saving the last shot… PinPoint Studio closes as soon as it's saved.")
+                     : qsTr("You're still mid-session — closing now will end your session and stop capture. Close PinPoint Studio?")
+        confirmText: saving ? qsTr("Close anyway") : qsTr("End session & close")
+        Connections {
+            target: app.state
+            // Announced queued by app.state, so End may run from here.
+            function onShotSavingChanged() {
+                if (!closeConfirm.saving || app.state.shotSaving || !closeConfirm.opened)
+                    return
+                closeConfirm.saving = false
+                closeConfirm.close()
+                Qt.callLater(root._endAndClose)
+            }
         }
+        onConfirmed: {
+            if (!saving && app.state.shotSaving) {   // a shot came in behind the prompt: wait for it as well
+                saving = true
+                open()
+                return
+            }
+            root._endAndClose()   // End session & close, or Close anyway (dropping the shot being saved)
+        }
+        onCancelled: saving = false
     }
 
     // About PinPoint Studio — icon, version/build stats, bundled library versions,

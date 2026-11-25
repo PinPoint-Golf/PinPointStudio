@@ -1120,6 +1120,15 @@ int main(int argc, char *argv[])
         d.todaysFolder        = [&shotProcessor, &sessionController] {
             return shotProcessor.todaySessionDir(sessionController.defaultType());
         };
+        // A shot is saving (app.state.shotSaving; #281 B, #188, #280): from its impact until its document has landed,
+        // i.e. busy and not yet replaying (the replay comes after the write; ShotProcessor takes one shot at a time). The
+        // toolbar's End releases the devices, as the toolbar did, inside End and after it: deselecting a camera or sensor
+        // joins the shot workers and drops a shot still being saved.
+        d.shotInFlight        = [&shotProcessor] { return shotProcessor.busy() && !shotProcessor.isReplaying(); };
+        d.releaseDevices      = [&cameraManager, &imuManager] {
+            cameraManager.disconnectAll();
+            imuManager.disconnectAll();
+        };
         // The declared focus waiting for a Session (refactor 4-d): the controller holds the pick until a Session takes it.
         d.pendingFocus        = [&sessionController] { return sessionController.focusConditionId(); };
         d.dropPendingFocus    = [&sessionController] { sessionController.setFocusConditionId(QString()); };
@@ -1133,6 +1142,7 @@ int main(int argc, char *argv[])
         QObject::connect(&sessionReviewController, &SessionReviewController::liveSessionDirChanged, &state, onScreen);
         QObject::connect(&shotProcessor, &ShotProcessor::activeSessionDirChanged, &state,
                          [&state] { state.refreshCaptureTarget(); });
+        QObject::connect(&shotProcessor, &ShotProcessor::stateChanged, &state, &pinpoint::AppState::refreshShotSaving);
         // THE LIVE CAROUSEL, a view of the session app.state names live (step 5.2): the capture target, else the live
         // folder. The session it already shows is no change (End, re-entering a screen: no reset). Capture letting go
         // (End) drops the cards of shots that saved nothing and the live presentation, as End's reload did.

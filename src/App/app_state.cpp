@@ -217,6 +217,20 @@ void AppState::handOverFocus()
         call(m_doors.dropPendingFocus);
 }
 
+void AppState::refreshShotSaving()
+{
+    // Queued: this is heard inside the capture service's own state change (ShotProcessor::setState, from its join,
+    // which goes on to use the shot's window), and a view hearing the fall calls End, whose device release joins and
+    // tears that window down. Announced once per change, read live.
+    QMetaObject::invokeMethod(this, [this] {
+        const bool now = shotSaving();
+        if (now == m_announcedShotSaving)
+            return;
+        m_announcedShotSaving = now;
+        emit shotSavingChanged();
+    }, Qt::QueuedConnection);
+}
+
 void AppState::endSession(bool reloadCarousel)
 {
     // The session on screen and the live carousel are settled once, after capture has let go: never through the
@@ -236,6 +250,10 @@ void AppState::endSession(bool reloadCarousel)
         m_liveFolder = ended;
     refreshSessionOnScreen();
     announceLive();
+    // The toolbar's End releases the devices, last: after the session's end (a view calls End only once no shot is
+    // saving, unless End anyway chose to drop it). The close leaves them to the destructors, as before.
+    if (reloadCarousel)
+        call(m_doors.releaseDevices);
 }
 
 void AppState::refreshCaptureTarget()

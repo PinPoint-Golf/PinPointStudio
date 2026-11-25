@@ -139,6 +139,12 @@ struct AppStateDoors {
     std::function<void()>                           stopClock;            // SessionController::endSession
     std::function<void()>                           closeCaptureSession;  // ShotProcessor::endSessionFolder
     std::function<QString()>                        todaysFolder;         // ShotProcessor::todaySessionDir(defaultType)
+    // A shot is saving (#281 B, #188, #280): true from a shot's impact until its document write has landed
+    // (ShotProcessor busy and not replaying: PostRoll, Gathering, Processing). Unset (the tests' default): never. And the
+    // toolbar End's device release, run after its End: cameras deselected, sensors disconnected (CameraManager /
+    // ImuManager::disconnectAll, whose deselect joins and drops a shot still being saved).
+    std::function<bool()>                           shotInFlight;
+    std::function<void()>                           releaseDevices;
     // The declared focus waiting for a Session (refactor 4-d; J-64: "until Start hands it to the Session"): the pick
     // ("" for none), dropping it, and its declaration on the capture service's open session (session_focus.h:
     // Session::setSessionIntent, EVT-10), true only when a session took it. The Session owns it from then on.
@@ -171,6 +177,7 @@ class AppState : public QObject
     Q_PROPERTY(pinpoint::ShotSelection *outcome READ outcome CONSTANT)
     Q_PROPERTY(QObject *replay READ replay CONSTANT)
     Q_PROPERTY(pinpoint::ShotOutcomeSummary shotOutcome READ shotOutcome NOTIFY shotOutcomeChanged)
+    Q_PROPERTY(bool shotSaving READ shotSaving NOTIFY shotSavingChanged)
 public:
     enum Mode { Capture = 0, Replay = 1, Analyse = 2 };
 
@@ -234,9 +241,20 @@ public:
     // notices, the trunk ceremony, the profiler), then the cameras.
     Q_INVOKABLE void startSession(bool extend);
     // End: cameras, then the clock (the queued work-ons unpause), then the capture service ends the Session
-    // (Session::end, the empty discard), and only then — with `reloadCarousel` (the toolbar's End, not the close) —
-    // the live carousel shows today's remaining session.
+    // (Session::end, the empty discard), and only then — with `reloadCarousel` (the toolbar's End, not the close) — the
+    // live carousel shows today's remaining session and the devices are released (releaseDevices), last: the release
+    // joins and drops a shot still being saved, so it comes after the End and never before it. End is at once; a view
+    // that must not drop a saving shot waits for `shotSaving` to fall first (below). Called while a shot is saving, it
+    // drops it ("End anyway", "Close anyway": the golfer's choice; a session whose only shot it was is then empty and
+    // discarded).
     Q_INVOKABLE void endSession(bool reloadCarousel);
+    // A SHOT IS SAVING (#281 B, #188, #280; Solution Architect, 25 Nov 2026; product control AD-50): read-only, the capture service's own fact —
+    // a shot between its impact and its saved file (its document write landed), queued shots included. The End card and
+    // the close prompt watch it: they say "Saving the last shot…", and call End themselves when it falls. Its change is
+    // announced queued, never inside the capture service's own state change, so a view may call End from it.
+    bool shotSaving() const { return m_doors.shotInFlight && m_doors.shotInFlight(); }
+    // The composition root calls it when the capture service's state moves (ShotProcessor::stateChanged).
+    void refreshShotSaving();
 
     // The composition root calls these when what they read changes.
     void refreshSessionOnScreen();
@@ -257,6 +275,7 @@ signals:
     void sessionOnScreenChanged();
     void liveSessionChanged();  // liveSessionFolder() moved: the live carousel is pointed at it (main.cpp)
     void shotOutcomeChanged();  // the outcome, the selection, the session on screen, or what its owners hold moved
+    void shotSavingChanged();   // queued (refreshShotSaving)
 
 private:
     void setMode(Mode m);
@@ -268,6 +287,7 @@ private:
     void              announceLive();   // liveSessionChanged, when liveSessionFolder() moved
     QString           m_liveFolder;
     bool              m_ending = false;   // inside endSession: capture letting go settles nothing yet
+    bool              m_announcedShotSaving = false;   // the value shotSavingChanged last announced
     QString           m_announcedLive;
 
     AppStateDoors     m_doors;

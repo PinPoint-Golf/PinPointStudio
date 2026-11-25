@@ -393,43 +393,70 @@ Item {
             onClicked: endPopup.opened ? endPopup.close() : endPopup.open()
 
             // On a warn card: ending cannot be undone (the clock can't resume).
+            // A SHOT STILL BEING SAVED (#281, #188; Product Owner, Design Lead and Solution Architect, 25 Nov 2026): End
+            // would drop it, so this card says "Saving the last shot…", watches app.state.shotSaving, and calls End itself
+            // when it falls; "End anyway" ends now and drops the shot — the golfer's choice, worded like session setup's
+            // "Start anyway", in the warning tone. Cancel or Esc just closes the card: nothing was registered.
             Popup {
                 id: endPopup
                 objectName: "endPopup"
+                // View state: End was pressed while a shot was saving, and this card waits for it.
+                property bool saving: false
+                function endNow() {
+                    // app.state's one command: capture and the clock stop, the session folder is discarded if it
+                    // captured no new swings (to the OS trash — recoverable), the carousel shows today's remaining
+                    // most-recent session, or empties, and then the devices are released (cameras stop + deselect, IMUs
+                    // disconnect: BLE battery; the next session's wizard reconnects what it needs).
+                    endPopup.saving = false
+                    endPopup.close()
+                    app.state.endSession(true)
+                }
                 y: endBtn.height + Theme.sp(10)
                 x: 0
                 padding: Theme.gap(14)
                 topPadding: Theme.gap(17)
                 margins: Theme.gap(8)
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+                onClosed: saving = false
                 background: PpPopoverCard { tone: Theme.colorWarn }
+                Connections {
+                    target: app.state
+                    // Announced queued by app.state, so End may run from here.
+                    function onShotSavingChanged() { if (endPopup.saving && !app.state.shotSaving) endPopup.endNow() }
+                }
                 contentItem: Column {
                     spacing: Theme.gap(10)
                     Text {
-                        text: qsTr("End session?")
+                        text: endPopup.saving ? qsTr("Saving the last shot…") : qsTr("End session?")
                         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
                         color: Theme.colorText
+                    }
+                    Text {
+                        visible: endPopup.saving
+                        text: qsTr("The session ends as soon as it's saved.")
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                        color: Theme.colorText2
                     }
                     Row {
                         spacing: Theme.gap(8)
                         PpButton {
+                            visible: !endPopup.saving
                             style: "tone"; tone: "error"; size: "compact"
                             implicitHeight: Theme.sp(30)
                             label: qsTr("End")
                             onClicked: {
-                                endPopup.close()
-                                // app.state's one command: capture and the clock stop, the session
-                                // folder is discarded if it captured no new swings (to the OS trash —
-                                // recoverable), then the carousel shows today's remaining most-recent
-                                // session, or empties.
-                                app.state.endSession(true)
-                                // Ending the session releases the devices:
-                                // cameras stop + deselect, IMUs disconnect
-                                // (BLE battery). The next session's wizard
-                                // reconnects what it needs.
-                                cameraManager.disconnectAll()
-                                imuManager.disconnectAll()
+                                if (app.state.shotSaving)
+                                    endPopup.saving = true   // wait for it here; End follows when it is saved
+                                else
+                                    endPopup.endNow()
                             }
+                        }
+                        PpButton {
+                            visible: endPopup.saving
+                            style: "tone"; tone: "warn"; size: "compact"
+                            implicitHeight: Theme.sp(30)
+                            label: qsTr("End anyway")
+                            onClicked: endPopup.endNow()   // now: the shot being saved is dropped
                         }
                         PpButton {
                             style: "subtle"; size: "compact"

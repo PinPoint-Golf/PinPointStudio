@@ -37,6 +37,13 @@
 //   S9  A RELOAD OF THE SAME SESSION KEEPS THE SELECTION AND THE REPLAY (review B3): the live folder passing through
 //       empty (a carousel reload) is not another session; End of a session with shots leaves the same one on screen;
 //       an athlete switch with nothing on screen still clears it
+//   S10 A SHOT IS SAVING (#281 B, #188, #280; cabin visit 1; Solution Architect, 25 Nov 2026): app.state.shotSaving is
+//       the capture service's fact, its change announced queued (never inside the capture service's own state change)
+//       and once. End is one immediate command; the views wait for shotSaving to fall, then call it (emulated here as
+//       the End card and the close prompt do). The toolbar's End releases the devices last, the close does not.
+//       Over real Sessions: waiting, the shot lands in the session that was running, which End keeps; End anyway drops
+//       it and the empty session is discarded (the golfer's choice); Cancel leaves the session running and nothing
+//       ends when the shot lands
 //   S6  THE QML BOUNDARY (R-QML-2): app.state's members, its commands from JavaScript, and the typed values QML now
 //       reads — a gadget's fields and a list of gadgets used as an array, a QList<int> as an array
 
@@ -50,6 +57,8 @@
 #include "../../Gui/shot/replay_source.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QPointer>
 #include <QQmlEngine>
 #include <QJSValue>
 #include <QStringList>
@@ -76,6 +85,7 @@ struct Rig {
     QString review, capture;           // two of the folders sessionOnScreen chooses between (the third: setLiveFolder)
     QString loaded;                    // the replay's folder
     bool autoSelect = false, running = false;
+    bool inFlight = false;             // a shot between its impact and its document write (S10)
 
     Rig()
     {
@@ -98,6 +108,8 @@ struct Rig {
         d.stopClock           = [this] { calls << "clock off"; running = false; };
         d.closeCaptureSession = [this] { calls << "close"; capture.clear(); };
         d.todaysFolder        = [this] { calls << "today"; return QStringLiteral("/lib/a/S1"); };
+        d.shotInFlight        = [this] { return inFlight; };
+        d.releaseDevices      = [this] { calls << "release"; };
         state.setDoors(d);
     }
 };
@@ -203,8 +215,8 @@ int main(int argc, char **argv)
               r.calls == QStringList{ "open extend", "clock", "cameras" } && r.state.liveFolder() == QStringLiteral("/lib/a/S2"));
         r.calls.clear();
         r.state.endSession(true);
-        check("S4 End: cameras, clock, the session's end — and only then today's session",
-              r.calls == QStringList{ "cameras off", "clock off", "close", "today" }
+        check("S4 End: cameras, clock, the session's end — and only then today's session, then the devices' release",
+              r.calls == QStringList{ "cameras off", "clock off", "close", "today", "release" }
                   && r.state.liveSessionFolder() == QStringLiteral("/lib/a/S1") && live == QStringList{ "/lib/a/S1" });
         r.calls.clear();
         r.capture = QStringLiteral("/lib/a/S2");
@@ -353,6 +365,168 @@ int main(int argc, char **argv)
         r.state.refreshAthlete();
         check("S9 an athlete switch clears it even with nothing on screen",
               !r.state.selection()->valid() && r.calls.contains("stop"));
+    }
+
+    std::printf("\nS10 a shot is saving: the views wait, End is at once\n");
+    {
+        const QStringList kEnd   { "cameras off", "clock off", "close", "today", "release" };
+        const QStringList kClose { "cameras off", "clock off", "close" };
+        Rig r;
+        int announced = 0;
+        // The End card / close prompt: waiting for the shot, then End (reload: the toolbar's; not: the close's).
+        bool waiting = false, waitingReload = false;
+        QObject::connect(&r.state, &pinpoint::AppState::shotSavingChanged, [&] {
+            ++announced;
+            if (waiting && !r.state.shotSaving()) { waiting = false; r.state.endSession(waitingReload); }
+        });
+        const auto pressEnd = [&](bool reload) {   // End / End session & close: wait while a shot is saving
+            if (r.state.shotSaving()) { waiting = true; waitingReload = reload; }
+            else r.state.endSession(reload);
+        };
+        const auto shotStarts = [&] { r.inFlight = true; r.state.refreshShotSaving(); QCoreApplication::processEvents(); };
+        const auto shotLands  = [&] { r.inFlight = false; r.state.refreshShotSaving(); };
+
+        r.state.startSession(false);
+        r.calls.clear();
+        pressEnd(true);
+        check("S10 no shot saving: End at once — cameras, clock, the session's end, today's session, the devices",
+              r.calls == kEnd && !r.state.shotSaving());
+
+        r.state.startSession(false);
+        r.calls.clear();
+        announced = 0;
+        shotStarts();
+        check("S10 shotSaving reads the capture service's fact, and its rise is announced once", r.state.shotSaving() && announced == 1);
+        pressEnd(true);
+        check("S10 End while a shot is saving: the card waits, nothing stops or ends", r.calls.isEmpty() && r.running);
+        shotLands();
+        check("S10 the shot lands: the fall is announced queued, not inside the capture service's state change",
+              r.calls.isEmpty() && announced == 1);
+        QCoreApplication::processEvents();
+        check("S10 …then the card calls End: End's order, the devices released last", r.calls == kEnd && !r.running && announced == 2);
+        r.calls.clear();
+        r.state.refreshShotSaving();
+        QCoreApplication::processEvents();
+        check("S10 …announced once per change", announced == 2 && r.calls.isEmpty());
+
+        r.state.startSession(false);
+        r.calls.clear();
+        shotStarts();
+        r.state.endSession(true);   // End anyway
+        check("S10 End anyway: at once, the devices released (which drops the shot being saved)", r.calls == kEnd);
+        r.calls.clear();
+        shotLands();
+        QCoreApplication::processEvents();
+        check("S10 …and nothing more when the shot would have landed", r.calls.isEmpty());
+
+        r.state.startSession(false);
+        r.calls.clear();
+        shotStarts();
+        pressEnd(false);
+        check("S10 the close while a shot is saving: the prompt waits", r.calls.isEmpty() && r.running);
+        shotLands();
+        QCoreApplication::processEvents();
+        check("S10 …and ends once the shot has landed, with no release (then the app closes)", r.calls == kClose && !r.running);
+
+        r.state.startSession(false);
+        r.calls.clear();
+        shotStarts();
+        r.state.endSession(false);   // Close anyway
+        check("S10 Close anyway: at once, no release", r.calls == kClose);
+        shotLands();
+        QCoreApplication::processEvents();
+
+        r.state.startSession(false);
+        r.calls.clear();
+        shotStarts();
+        pressEnd(false);
+        waiting = false;             // Cancel: the prompt just closes, nothing was registered
+        shotLands();
+        QCoreApplication::processEvents();
+        check("S10 Cancel: the session runs on, and nothing ends when the shot lands", r.calls.isEmpty() && r.running);
+    }
+    {
+        // Over real Sessions on a scratch library, with a fake capture service that allocates a shot as ShotProcessor
+        // does: Session::addShot only once its analysis has landed (buildSwingExportJob), into the session still open,
+        // else into one started on demand (captureSession outside a session: #188's stray folder); and the toolbar End's
+        // device release joins and drops a shot still being saved (setSelected → finishNowBlocking: #281 B at the cabin).
+        using namespace pinpoint;
+        const auto scenario = [](bool anyway, const char *label) {
+            QTemporaryDir dir;
+            SessionStore store;
+            store.setLockWaitForTest(200);
+            store.setOsTrashForTest(false);
+            SwingStoreRecordingRepository recordings(store);
+            auto reader = std::make_shared<SwingStoreRecordingReader>(store);
+            const AthleteId gid = AthleteId::fromString(QStringLiteral("7c3e1a2b-4d5f-4a6b-8c7d-9e0f1a2b3c4d"));
+            Athlete golfer(nullptr, &store, gid);
+            AthleteRecord rec;
+            rec.name = QStringLiteral("Test Golfer");
+            golfer.setStored(rec, dir.path() + QStringLiteral("/Test-Golfer"), SessionOwner{ gid, rec.name, dir.path() },
+                             Athlete::Source::Library, false);
+            golfer.setShotDoors({ &recordings, reader });
+
+            QPointer<Session> open;
+            bool inFlight = false, dropped = false, waiting = false;
+            SessionId landedIn;
+            AppState st;
+            const auto land = [&] {   // the shot's analysis lands: its allocation, its document, the processor idle
+                if (!inFlight) return;
+                Session *into = open.data();
+                if (!into)
+                    into = golfer.startSession(QStringLiteral("wrist"), QStringLiteral("date-name-type"), nullptr,
+                                               SessionStart::OnDemand);
+                if (into && into->addShot())
+                    landedIn = into->id();
+                inFlight = false;
+                st.refreshShotSaving();
+            };
+            AppStateDoors d;
+            d.captureFolder       = [&] {
+                if (!open) return QString();
+                const auto e = store.open(open->id());
+                return e ? e->folder : QString();
+            };
+            d.stopCameras         = [] {};
+            d.stopClock           = [] {};
+            d.closeCaptureSession = [&] { if (Session *s = open.data()) { open = nullptr; s->end(); } };
+            d.shotInFlight        = [&] { return inFlight; };
+            d.releaseDevices      = [&] { if (inFlight) { inFlight = false; dropped = true; } };
+            st.setDoors(d);
+            QObject::connect(&st, &AppState::shotSavingChanged, [&] {   // the End card
+                if (waiting && !st.shotSaving()) { waiting = false; st.endSession(true); }
+            });
+
+            open = golfer.startSession(QStringLiteral("wrist"), QStringLiteral("date-name-type"));
+            const SessionId running = open ? open->id() : SessionId();
+            const auto entry = store.open(running);
+            const QString folder = entry ? entry->folder : QString();
+            check(QString::fromLatin1(label) + " a session started on a scratch library, its folder made at Start",
+                  dir.isValid() && !running.isNull() && QDir(folder).exists());
+
+            inFlight = true;                 // its only shot is still analysing…
+            st.refreshShotSaving();
+            QCoreApplication::processEvents();
+            if (anyway) st.endSession(true); // …End anyway
+            else if (st.shotSaving()) waiting = true;   // …End pressed: the card waits while a shot is saving,
+            else        st.endSession(true);             // …and ends at once when none is (as the card does)
+            land();                          // the analysis lands
+            QCoreApplication::processEvents();
+            const auto after = store.open(running);
+            if (!anyway) {
+                check("S10 the shot saving at End is not dropped", !dropped && !landedIn.isNull());
+                check("S10 …it lands in the session that was running (not a stray one)", landedIn == running);
+                check("S10 the session's folder is kept: not discarded as empty", QDir(folder).exists() && after.has_value());
+                check("S10 …and it is ended, holding the shot as swing 1",
+                      after && after->status == SessionStatus::Ended && store.shots(running).size() == 1
+                          && store.shots(running).value(0).swingNumber() == 1);
+            } else {
+                check("S10 End anyway drops the shot being saved (the golfer's choice)", dropped && landedIn.isNull());
+                check("S10 …and the session, empty, is discarded (DEC-93), into no stray session", !QDir(folder).exists());
+            }
+        };
+        scenario(false, "S10 [End waits]");
+        scenario(true,  "S10 [End anyway]");
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES", g_fail, g_fail == 1 ? "" : "s");
