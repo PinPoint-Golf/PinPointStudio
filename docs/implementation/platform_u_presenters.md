@@ -183,7 +183,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   changes nothing else on the screen.
 - **A changed look** (`docs/design/system/README.md`: any changed look needs the Design Lead's approval before it
   is built). No information-model change: the score is still computed and stored. Waits: U-17.
-- **Ruled:**
+- **Ruled:** (a), the row goes[^q8r].
 
 ## The coordinator's calls
 
@@ -273,3 +273,5 @@ Solution Architect.
 - **Today.** The report's `make` call takes an untyped options map and writes it whole into FILE-SESS-13 (U-3i, `build/platform/U/NOTES-U-3i.md` F3). Typing the options in U-10 changes what the file can hold, unless the type reproduces every key and value it writes today.
 - **Recommendation.** A typed options struct that writes the same keys and values, byte for byte, pinned by a round-trip test on today's files. Then it isn't a format change (C3), since nothing in the file changes (proposed, for the Solution Architect).
 - **Ruled:**
+
+[^q8r]: The Design Lead, 25 Nov 2026, in the platform refactor's coordination session.
