@@ -83,7 +83,7 @@ says "ruled" where it appears below.
 | Device-only recordings record handedness (R-REC-8) | Solution Architect | Stage D, with D-5 |
 | The `hm.*` values are re-tagged as derived (R-INS-5), reversing 6.1a's J-2. 6.4's D-1 (capture writes them) is dropped from Stage D. The re-tag is #239, after the refactor | Solution Architect | not platform work |
 | The pose model fingerprint becomes a direct call, `modelFileFingerprint` in `Core/pp_model_path.h`, replacing the hook (J-107's J-2) | Solution Architect | Stage B, Part 1 |
-| Buffer's stream types, LaunchMonitor's reading types and `Export/frame_decode` move under `src/Vocabulary/` too, for one Vocabulary rule (J-109) | Solution Architect | Stage B (LaunchMonitor, `frame_decode`); Buffer's part withdrawn on 25 Nov: it stays[^lever-25nov] |
+| Buffer's stream types, LaunchMonitor's reading types and `Export/frame_decode` move under `src/Vocabulary/` too, for one Vocabulary rule (J-109) | Solution Architect | Stage B (LaunchMonitor, `frame_decode`); Stage D (Buffer)[^buffer-back] |
 | P-3: a Shot-level reader, `RecordingReader::phaseGrid(shot)`, with the model browser's two library-wide scans moved to the athlete level's `SessionIndex` summaries, as Charts did in 5.5d. No library-level door (J-104) | Solution Architect | Stage B, Part 1 |
 | Lint A5 counts `Export/rule_data_reads.cpp` as a store door, with one allowlist line cleared in Stage B (J-110) | Solution Architect | Stage B, Part 1 |
 | A legacy `"DRIVER"` stub reads as undeclared everywhere (R-CLUB-4): its own domain item, #238 (J-106) | Solution Architect | not platform work |
@@ -861,8 +861,7 @@ After Stage C, so the capture service writes rig references from the start.
 - **The frozen window stops being a view onto the ring.** `swing_window.h` and `swing_payload_source.h` (Vocabulary
   ring) include `source_ring.h` (Adapters) for `SourceRing::ReadHandle`. A value type for the handle, in the
   Vocabulary ring, closes their two A1 lines (proposed, for the Solution Architect). Buffer's stream types then move
-  under `src/Vocabulary/`, which completes the lint's one Vocabulary rule ("Mandatory carry-ins" (i)). Both are
-  dropped from Stage D: the handle and the headers stay as they are[^lever-25nov].
+  under `src/Vocabulary/`, which completes the lint's one Vocabulary rule ("Mandatory carry-ins" (i))[^buffer-back].
 - **Split `ShotProcessor`** (2,156 + 508 lines, 17 A1 at the close[^c-files]).
   Its five jobs today: post-roll and late-source gathering over the event buffer and the device managers; the export
   and the frozen window; session and shot bookkeeping; starting the analysis; live replay. IM puts the capture service
@@ -1484,4 +1483,6 @@ for steps 3 and 4 only[^l-record].
 [^j101]: J-101 (the refactor coordinator, 23 Nov 2026), logged for the Solution Architect as P-6.3b-1; 06 Part B §10, last row: "Not placed anywhere yet". Not yet ruled.
 [^j106]: J-106 (the refactor coordinator, 24 Nov 2026): the board's legacy-stub exception is built as an interim, pending the Solution Architect's ruling; 06 Part B §8.6 and §10.
 
-[^lever-25nov]: The Product Owner and the Solution Architect, 25 Nov 2026: the lever pass on #224-U, Stage C and Stage D (`docs/implementation/platform_d_capture_seam.md`, "The lever pass of 25 Nov"). D-V3: Buffer's stream types stay in `src/Buffer`, J-109's Buffer part withdrawn by the Solution Architect (IM v1.12.4); D-V1: `CameraInstance`'s two collaborators and the managers' shared mechanics dropped; D-V2: `pp_rules_vision` moved to #292; C-V1: the calibration procedures' move to C++ deferred to #291, with #266 and #270 (`docs/design/rig_design.md` §4.8).
+[^buffer-back]: The Product Owner and the Solution Architect, 25 Nov 2026: the lever pass's D-V3 (Buffer's stream types to stay in `src/Buffer`) was reversed the same night. Buffer's stream types and the window's handle are built in Stage D as J-109 and S3 ruled, keeping the Solution Architect's mandate of 23 Nov 2026 that the lint ends with one Vocabulary rule. The information model's v1.12.4 amendment is undone in its next version.
+
+[^lever-25nov]: The Product Owner and the Solution Architect, 25 Nov 2026: the lever pass on #224-U, Stage C and Stage D (`docs/implementation/platform_d_capture_seam.md`, "The lever pass of 25 Nov"). D-V1: `CameraInstance`'s two collaborators and the managers' shared mechanics dropped; D-V2: `pp_rules_vision` moved to #292; C-V1: the calibration procedures' move to C++ deferred to #291, with #266 and #270 (`docs/design/rig_design.md` §4.8).

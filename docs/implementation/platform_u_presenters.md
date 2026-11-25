@@ -1,6 +1,6 @@
 # Platform refactor, #224-U: eleven questions on the presenter residue
 
-**Status: open, 25 Nov 2026; every question ruled the same day[^u-ruled-25nov], and the lever pass then deferred the three big headers' typing (U-V1)[^u-v1].** Nothing here is built. Each row has an empty **Ruled** line: the coordinator writes
+**Status: open, 25 Nov 2026; every question ruled the same day[^u-ruled-25nov], and the lever pass then deferred the three big headers' typing (U-V1)[^u-v1]. The history read and the stale-session scan are built here (U-V2 withdrawn)[^u-v2].** Nothing here is built. Each row has an empty **Ruled** line: the coordinator writes
 the ruling, the role and the date there, and the briefs that wait read it. This page is item U-0 of
 `build/platform/U/PLAN-U.md`.
 
@@ -20,7 +20,7 @@ stays, the allowlist line stays with its count, and the item is not started.
 | Q1 | Who makes the Charts and Consistency presenters | **HARD: the Solution Architect** | C10 | (a) a C++ door by session and surface | U-18a |
 | Q2 | Who makes the trust views' and the data viewer's presenters | **HARD: the Solution Architect** | C10, C11 | (b) ruled view-local | U-18b |
 | Q3 | Where a condition's history across sessions is read from | **HARD: the Solution Architect** | C3 | (a) a block in the session summary | U-11 |
-| Q4 | Where the work-ons' stale-session scan lives | Coordinator's call | none | (a) the athlete level answers; the scan goes | U-12 |
+| Q4 | Where the work-ons' stale-session scan lives | Coordinator's call; re-ruled by the Solution Architect | C6 | (a) the athlete level answers; the scan goes. Re-ruled: (c), the scan as it is in the athlete's repository, as an interim | U-12 |
 | Q5 | How the mailer reaches the made report | Coordinator's call | none | (a) a read on the Session | U-6b |
 | Q6 | How the 3-D view reads a whole session | Coordinator's call | none | (a) the Session's shots, each through its own source | U-15c |
 | Q7 | File uses that are no object's persistence | **HARD: the Solution Architect** | C11 (lint A5's scope) | (a) two named Platform helpers | U-6b, U-16b, U-17 |
@@ -105,7 +105,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   into the rule. The cost of (a): the catch-up rewrites every summary once (a derived file, which the stamp already
   makes stale); U-11's brief takes the dry-run count on a scratch copy of the library before anything is written.
 - **C3** (a new block in a persisted file). Waits: U-11.
-- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
+- **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov]. It stands: U-11 builds (a) in #224-U, and takes the dry-run count on a scratch copy of the library before the library's summaries are rewritten[^u-v2].
 
 ### Q7 · File uses that are no object's persistence
 - **Today.** Lint A5 counts every `QFile`, `QDir`, `QFileInfo` and `atomicWrite` outside the stores and the
@@ -199,10 +199,17 @@ Solution Architect.
   reads). The catch-up itself is already in `src/App` (`athlete_catch_up.h`), and the athlete level already has
   a freshness check over the same stamps. The line's reason says the scan "belongs to the catch-up"[^j59].
 - **Options.** (a) The controller asks the athlete level which sessions are stale and hands that list to the
-  catch-up; its own scan and its four includes go. (b) The scan moves as it is into `src/App`.
+  catch-up; its own scan and its four includes go. (b) The scan moves as it is into `src/App`. (c), added on
+  25 Nov: the scan, reading exactly what it reads today and returning the same rows, moves into the athlete's
+  repository (`src/Export`) as a read the worker may call, beside `readActivity` and `readIndexWithSummaries`. The
+  composition root hands it to the controller through the catch-up's door, as P-3b's gate counts are handed over.
+  The controller keeps `applyScan` and every duty U-2i lists; it stops reading files, and its three path helpers'
+  callers are re-pointed, so all seven findings go (`build/platform/LEVERS/FOCUSED-U-V2-C-V1.md` §2).
 - **Call: (a).** (b) only moves the file reads to a ring where A5 still counts them. **Stop:** if U-2i finds a
   fact the scan reads that the athlete level does not hold, other than Q11's stamp. Waits: U-12 (with Q11).
 - **Ruled:** as recommended, (a): the athlete says which sessions are stale (25 Nov 2026)[^u-ruled-25nov].
+  **Re-ruled the same night: (c), as an interim**, with (a) kept as the end state[^u-q4c]. Each fact the scan reads
+  is still read through its owner's file door, and every one is a fact the athlete level may read today.
 
 ### Q5 · How the mailer reaches the made report
 - **Today.** QML hands the mailer a path, and the mailer opens the PDF itself to attach it
@@ -280,4 +287,6 @@ Solution Architect.
 [^u-ruled-25nov]: Ruled in the platform programme's coordination session, 25 Nov 2026, by the roles each question names (the Solution Architect: Q1–Q4, Q7, Q9, Q11, Q13–Q15; the Design Lead: Q12; the Product Owner: Q10), all as recommended. **The Product Owner's condition:** before #224-U starts, a lever pass like Stages D and E's ranks its items by value per hour, and the items that only clear a lint line come back to keep, drop, or leave as accepted exceptions with a reason.
 
 [^u-v0]: The Product Owner, 25 Nov 2026 (the lever pass on #224-U, Stage C and Stage D, lever U-V0, as recommended; `build/platform/LEVERS/LEVERS-U-C-D.md` §1.3): Q2's view-local ruling applied to U-18b's estimate; 1–1.5 h dropped.
+[^u-v2]: The Product Owner and the Solution Architect, 25 Nov 2026: lever U-V2 (deferring U-11 and U-12) withdrawn, so both reads are built in #224-U: U-11 as Q3 (a) ruled (3.5–4.5 h), U-12 as Q4's interim (c) (3–4.5 h). Moving U-11's read into a store as it is was rejected: the athlete level would then read other sessions' judged rows from a store, which DEC-195 and R-DER-3 forbid. #224-U then closes every line against P11; the three lines U-V1 leaves remain (#289). #290 was closed as not planned.
+[^u-q4c]: The Solution Architect, 25 Nov 2026 (`build/platform/LEVERS/FOCUSED-U-V2-C-V1.md` §2; option (c) as an interim, an information-model change C6, approved as PR-21's `readIndexWithSummaries` was): the athlete's repository reads the session- and shot-level facts the scan needs, for the work-ons view. The IM's FILE-SESS-04 and FILE-SESS-05 reader columns, and the lifecycle model's APP-T4 and ATH-T8, are corrected in U-12's commit. (a), one freshness rule held by the athlete level, stays the end state; it is built the next time the athlete level's freshness check changes, and until then today's two staleness tests both stay.
 [^u-v1]: The Product Owner, 25 Nov 2026 (the lever pass, lever U-V1, as recommended; re-tagging the three allowlist lines is the Solution Architect's): typing the three big headers (the diagnostics adapter, the work-ons and the report model: U-P1, U-8a to U-8c, U-9a, U-9b, U-10a to U-10c, 27 h, less the 2–4 h U-8q slice kept) is **deferred, with a trigger**: each member is typed when a screen that reads it is next changed, or sooner if #284's freezes trace to the maps' copies. 23–25 h. Its home is #289, which names the three allowlist lines it leaves. U-8q (2–4 h) stays in #224-U: Q13's readout built in C++ as a typed value, and Q12's `expectations` retired.
