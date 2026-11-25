@@ -779,6 +779,17 @@ pp_add_test(mp4_frame_reader_test
     LINK    ${OpenCV_LIBS}
     NO_QT)
 
+# The display tone curve (#183; src/Video/display_tone.h, src/Export/export_tone.h): the 256-entry table at
+# γ 0.80 against hand-worked values and the shader's formula, one exponent for the shader and the export, the
+# stream rule (Bayer curves; webcam and phone formats don't), which of a swing's files an export zip curves, a
+# synthetic clip re-toned frame by frame (every pixel the curve of the stored one; the stored file and the
+# frames the analysis decodes unchanged), thumb.jpg, and a scan that only the display and export files include it.
+pp_add_test(display_tone_test
+    SOURCES ${SRC}/Export/tests/display_tone_test.cpp ${SRC}/Export/export_tone.cpp ${ANALYSIS}/mp4_frame_reader.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    DEFINES PP_SRC_DIR="${SRC}")
+
 # --- The Recording contract (information_model.md §2; refactor step 1) -------------------------
 # The store side's link line: the Recording loader (swing folder → disk-backed window + Recording,
 # the MP4 reader behind it), the one header writer + the analysisContext block, the swing-document

@@ -47,9 +47,20 @@ Item {
 
     // Display stretch on the picture (impact_camera_design.md §10.3): a plain
     // multiply, clipped at white, so a 70 µs impact frame can be aimed on the
-    // tile. 1 = off (no effect item is even rendered). Never touches the
+    // tile. 1 = off (the display pass then runs only for the tone curve, below). Never touches the
     // recorded pixels; the level readout below reads the raw frame, not this.
     property real viewGain: 1.0
+    // The display tone curve (#183, src/Video/display_tone.h): the exponent the C++ rule gives THIS
+    // stream, from what the camera delivers (live) or what the stream was recorded from (replay):
+    // below 1 for a raw-Bayer studio camera's linear picture, exactly 1 for a phone or a webcam, whose
+    // video is already tone-mapped. Applied after viewGain by the same display pass; display only.
+    readonly property real _tone: {
+        var t = _isReplay
+            ? (app.state.replay.streams[replayStreamIndex] !== undefined
+               ? app.state.replay.streams[replayStreamIndex].displayTone : 1.0)
+            : (instance ? instance.displayTone : 1.0)
+        return t > 0 ? t : 1.0   // a source without the value shows the picture as it is
+    }
     // Pixel-level readout on the stats pill (impact camera only): what the
     // raw frame's median, 99.9th percentile and clipped fraction are.
     property bool showLevels: true
@@ -817,14 +828,15 @@ Item {
             visible: root.instance !== null && root.instance.needsDebayer
         }
 
-        // ── View gain (impact tile) ───────────────────────────────────────
-        // Renders whichever of the two video items is live through a multiply
-        // shader; the source is hidden while the effect stands in for it, and
-        // nothing here exists at gain 1. Same item geometry, so every overlay
-        // that maps through contentRect is unaffected.
+        // ── Display pass: view gain (impact tile) and tone curve (#183) ──────
+        // Renders whichever of the two video items is live through
+        // viewgain.frag: the multiply, then the tone curve. The source is
+        // hidden while the effect stands in for it, and nothing here exists
+        // at gain 1 on an already tone-mapped stream. Same item geometry, so
+        // every overlay that maps through contentRect is unaffected.
         ShaderEffectSource {
             id: gainSource
-            readonly property bool wanted: root.viewGain > 1.001
+            readonly property bool wanted: root.viewGain > 1.001 || root._tone < 0.999
             sourceItem: !wanted ? null : (root._useBayer ? bayerView : videoOut)
             hideSource: wanted
             live: true
@@ -836,6 +848,7 @@ Item {
             anchors.margins: root.videoInset
             property variant source: gainSource
             property real gain: root.viewGain
+            property real toneExponent: root._tone
             vertexShader:   "qrc:/shaders/src/Shaders/viewgain.vert.qsb"
             fragmentShader: "qrc:/shaders/src/Shaders/viewgain.frag.qsb"
         }

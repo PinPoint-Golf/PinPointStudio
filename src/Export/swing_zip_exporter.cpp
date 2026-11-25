@@ -19,7 +19,10 @@
 #include "swing_zip_exporter.h"
 
 #include "../Core/pp_debug.h"
+#include "../Video/display_tone.h"   // displayToneLut — the display tone curve (#183)
+#include "export_tone.h"             // the curved copies a golfer takes away (#183)
 #include "swing_store.h"
+#include "video_encoder.h"
 
 #include <QDir>
 #include <QFile>
@@ -29,10 +32,12 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QSet>
+#include <QTemporaryDir>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <private/qzipwriter_p.h>
 
+#include <memory>
 #include <utility>
 
 #include "../Core/pp_profiler.h"
@@ -70,6 +75,38 @@ bool includeMember(const QString &name, const QSet<QString> &selectedVideos, boo
     if (isImuSidecar(name))
         return includeJson;
     return selectedVideos.contains(name);
+}
+
+// A curved copy of one stored raw-Bayer clip (#183, export_tone.h), written into tmp. Returns its path, or
+// empty when it could not be made (no encoder in this build, or the clip would not decode or encode): the
+// caller then ships the stored clip as it is, and says so in the log.
+QString curvedClip(const QString &storedPath, const ExportToneMembers::Clip &clip, const QTemporaryDir &tmp)
+{
+    if (!tmp.isValid()) {
+        ppWarn() << "[SwingZipExporter] no temporary folder for the curved copy of" << storedPath;
+        return {};
+    }
+    const std::unique_ptr<IVideoEncoder> enc = makeVideoEncoder(kExportToneCodec);
+    if (!enc) {
+        ppWarn() << "[SwingZipExporter] no video encoder in this build: exporting" << storedPath
+                 << "as stored, without the display tone curve";
+        return {};
+    }
+    const QString out = tmp.filePath(QFileInfo(storedPath).fileName());
+    VideoEncoderConfig cfg;
+    cfg.out_fps = clip.playbackFps;
+    cfg.crf     = clip.impact ? kExportToneImpactCrf : kExportToneCrf;
+    cfg.preset  = kExportTonePreset;
+    cfg.path    = out.toStdString();
+    const RetoneResult r = retoneClip(storedPath.toStdString(), *enc, cfg, displayToneLut());
+    if (!r.ok) {
+        ppWarn() << "[SwingZipExporter] could not curve" << storedPath << "(" << QString::fromStdString(r.error)
+                 << "): exporting it as stored, without the display tone curve";
+        QFile::remove(out);
+        return {};
+    }
+    ppInfo() << "[SwingZipExporter] curved" << r.frames << "frames of" << storedPath;
+    return out;
 }
 
 } // namespace
@@ -223,11 +260,17 @@ SwingZipExporter::ZipResult SwingZipExporter::runZip(const ZipJob &job)
     const QSet<QString> selected(job.selectedVideoFiles.cbegin(),
                                  job.selectedVideoFiles.cend());
     int filesAdded = 0;
+    // The curved copies are made one at a time in here, each removed once it is in the zip (#183).
+    const QTemporaryDir tmp(QDir::tempPath() + QStringLiteral("/pps-export-XXXXXX"));
 
     for (const QString &dir : job.swingDirs) {
         const QString swingId = QFileInfo(dir).fileName();      // e.g. swing_0001
         const QString base    = root + swingId + QLatin1Char('/');
         writer.addDirectory(base);
+        // What a golfer takes away is shown as on screen (#183): which of this swing's files get the display
+        // tone curve, from its streams' source formats. The stored files are only read.
+        const ExportToneMembers tone =
+            exportToneMembers(SwingStore::loadParts(dir, { QStringLiteral("/streams") }));
 
         const QFileInfoList entries =
             QDir(dir).entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
@@ -235,6 +278,33 @@ SwingZipExporter::ZipResult SwingZipExporter::runZip(const ZipJob &job)
             const QString name = fi.fileName();
             if (!includeMember(name, selected, job.includeJson))
                 continue;
+            if (tone.thumbnail && name.compare(QStringLiteral("thumb.jpg"), Qt::CaseInsensitive) == 0) {
+                const QByteArray curved = retoneJpeg(fi.absoluteFilePath(), displayToneLut());
+                if (!curved.isEmpty()) {
+                    writer.addFile(base + name, curved);
+                    ++filesAdded;
+                    continue;
+                }
+                ppWarn() << "[SwingZipExporter] could not curve" << fi.absoluteFilePath()
+                         << ": exporting it as stored, without the display tone curve";
+            }
+            if (const auto clip = tone.clips.constFind(name); clip != tone.clips.constEnd()) {
+                const QString curvedPath = curvedClip(fi.absoluteFilePath(), clip.value(), tmp);
+                if (!curvedPath.isEmpty()) {
+                    QFile curvedIn(curvedPath);
+                    if (curvedIn.open(QIODevice::ReadOnly)) {
+                        PP_PROFILE_MEM_SCOPE("Export.Staging", int64_t(curvedIn.size()));
+                        writer.addFile(base + name, &curvedIn);
+                        curvedIn.close();
+                        QFile::remove(curvedPath);
+                        ++filesAdded;
+                        continue;
+                    }
+                    ppWarn() << "[SwingZipExporter] could not read back the curved copy of" << fi.absoluteFilePath()
+                             << ": exporting it as stored, without the display tone curve";
+                    QFile::remove(curvedPath);
+                }
+            }
             QFile in(fi.absoluteFilePath());
             if (!in.open(QIODevice::ReadOnly)) {
                 ppWarn() << "[SwingZipExporter] skipping unreadable" << fi.absoluteFilePath();

@@ -36,11 +36,23 @@ namespace pinpoint {
 // JSON toggle is on — swing.json plus any IMU sidecars.  Raw frame sidecars are
 // never included.
 //
+// What the golfer takes away looks as it does on screen (#183): a clip recorded
+// from a raw-Bayer camera, which is stored linear and plays dark elsewhere, goes
+// in as a curved copy (export_tone.h: decoded frame by frame, mapped through the
+// display tone table, encoded again as H.264), and thumb.jpg likewise when it came
+// from such a stream. Every other file is copied byte for byte, and the stored
+// files are never written. If a copy can't be made (no encoder in the build, a
+// clip that won't decode) the stored file goes in as it is, with a warning in the
+// log. ⚠ The zip's swing.json still names the stream's Bayer source format, so a
+// tool that read the zip as a recording would curve its clips twice; none does.
+//
 // Memory: the archive is streamed straight to the on-disk file via QZipWriter's
 // filename constructor — the whole zip is never held in memory (a session may be
 // multiple GB).  Peak RAM is one member at a time (QZipWriter buffers a single
 // file while compressing it), bounded here by one swing's MP4 since `*.raw` is
-// excluded.  The build runs on a worker thread (QtConcurrent), mirroring the
+// excluded.  A curved copy is made one decoded frame at a time into a file in a
+// temporary folder (one clip on disk at once, removed once it is in the zip), so
+// it adds one frame and the encoder's own buffers to that peak.  The build runs on a worker thread (QtConcurrent), mirroring the
 // SwingExporter discipline: a self-contained value job, a stateless static
 // worker, the result delivered back on the UI thread via QFutureWatcher.
 class SwingZipExporter : public QObject

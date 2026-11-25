@@ -37,6 +37,7 @@ static_assert(pp_camroi::kImpactPerspective == CameraInstance::Impact,
 #include "video_preprocessor_base.h"
 #include "bayer_video_item.h"
 #include "frame_crop.h"
+#include "display_tone.h"   // the display tone curve (#183): displayTone()
 #ifdef HAVE_PPCP_TRANSPORT
 #include "VideoInputPpcp.h"
 #include "../../Ppcp/ppcp_host_peer.h"
@@ -509,6 +510,7 @@ void CameraInstance::setupPipeline()
                     }
                     updateBufferDescriptor();
                     emit needsDebayerChanged();
+                    emit displayToneChanged();
 
                     // queryCapabilities() must run on the capture thread where
                     // m_videoInput (and its camera handle) lives.  Post it there,
@@ -905,6 +907,17 @@ void CameraInstance::setConnecting(bool on)
 }
 bool   CameraInstance::isSpinnaker()    const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Spinnaker; }
 bool   CameraInstance::needsDebayer()   const { return isSpinnaker() && m_videoInput->emitsRawBayer(); }
+
+double CameraInstance::displayTone() const
+{
+    // The format stamped into the buffer is the one the recorder writes as the stream's
+    // source.pixelFormat, so a live tile and the replay of its shot get the same curve. Before the first
+    // frame stamps it (or for an instance with no buffer), the raw-Bayer path's own flag says the same.
+    if (m_bufferDescriptorStamped)
+        if (const auto *cf = std::get_if<pinpoint::CameraFormat>(&m_stampedDescriptor.format))
+            return pinpoint::displayToneFor(cf->pixel_format);
+    return needsDebayer() ? pinpoint::kDisplayToneExponent : 1.0;
+}
 double  CameraInstance::preprocessAvgMs()        const { return m_preprocessAvgMs; }
 double  CameraInstance::cameraFps()              const { return m_cameraFps; }
 int     CameraInstance::frameWidth()             const { return m_frameWidth; }
@@ -1483,6 +1496,7 @@ void CameraInstance::startRecording()
                     emit isAravisChanged();
                     emit isSpinnakerChanged();
                     emit needsDebayerChanged();
+                    emit displayToneChanged();
                     // No setCropRegion needed: the QtMultimedia fallback has
                     // no hardware ROI and the software crop engages via the
                     // !supportsHardwareCrop() check in connectVideoInput().
@@ -1995,6 +2009,7 @@ void CameraInstance::updateBufferDescriptor()
     m_stampedDescriptor = fd;                     // basis for refreshExposure()
     m_eventBuffer->updateSourceFormat(m_sourceId, fd);
     m_bufferDescriptorStamped = true;
+    emit displayToneChanged();
 
     ppInfo() << "[CameraInstance] buffer descriptor stamped from frame:"
              << m_deviceDescription << w << "x" << h << "@" << fps << "fps"
@@ -2053,6 +2068,7 @@ void CameraInstance::stampBufferDescriptorFromRaw(const RawVideoFrame &raw)
     m_stampedDescriptor = fd;                     // basis for refreshExposure()
     m_eventBuffer->updateSourceFormat(m_sourceId, fd);
     m_bufferDescriptorStamped = true;   // suppress the QVideoFrame-path stamp
+    emit displayToneChanged();
     m_stampedRawWidth   = raw.width;
     m_stampedRawHeight  = raw.height;
     m_stampedRawPattern = raw.pattern;

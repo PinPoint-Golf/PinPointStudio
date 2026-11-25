@@ -35,6 +35,7 @@
 #include "../Core/pp_debug.h"
 #include "../../Export/swing_doc.h"   // takeJustWritten; analysisDetailForDocument — the one projection
 #include "../../Vocabulary/Analysis/swing_analysis.h"            // Phase — the trim's Address / Finish, the impact
+#include "../../Video/display_tone.h"           // displayToneFor — the display tone curve (#183)
 #include "../markup/markup_truth.h"                   // streamLooksDownTheLine — the setup-less DTL rule
 
 namespace {
@@ -113,7 +114,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     qint64 spanEnd   = std::numeric_limits<qint64>::min();
     struct PendingStream {
         QString file; double fps; std::vector<int64_t> tUs;
-        int perspective; double aspect; double viewGain = 1.0;
+        int perspective; double aspect; double viewGain = 1.0; double displayTone = 1.0;
     };
     std::vector<PendingStream> pending;
 
@@ -164,6 +165,10 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         ps.viewGain = s[QStringLiteral("capture")].toObject()
                        .value(QStringLiteral("viewGain")).toDouble(1.0);
         if (!(ps.viewGain >= 1.0)) ps.viewGain = 1.0;
+        // The display tone curve, by the format the stream was recorded from (#183): raw Bayer is linear and
+        // gets the curve; a phone clip (no source format) or a webcam stream is already tone-mapped.
+        ps.displayTone = pinpoint::displayToneFor(
+            src.value(QStringLiteral("pixelFormat")).toString().toStdString());
 
         pending.push_back(std::move(ps));
     }
@@ -244,7 +249,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         const bool faceOn = pending[i].perspective == kPerspectiveFaceOn;
         m_streamInfo.append(ReplayStreamInfo{
             int(i), pending[i].perspective, pending[i].aspect,
-            faceOn && m_hasAnalysis, pending[i].viewGain });
+            faceOn && m_hasAnalysis, pending[i].viewGain, pending[i].displayTone });
 
         if (i >= m_streams.size())
             m_streams.push_back(Stream{});

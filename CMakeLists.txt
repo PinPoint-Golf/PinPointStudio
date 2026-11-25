@@ -825,6 +825,7 @@ qt_add_executable(PinPointStudio
     src/Audio/audio_stream_saver.h   src/Audio/audio_stream_saver.cpp
     src/Video/camera_capabilities.h
     src/Video/genicam_pixel_format.h
+    src/Video/display_tone.h
     src/Video/video_input_base.h           src/Video/video_input_base.cpp
     src/Video/video_input.h                src/Video/video_input.cpp
     src/Video/video_input_factory.h        src/Video/video_input_factory.cpp
@@ -2800,6 +2801,8 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_exporter.cpp
     src/Export/swing_zip_exporter.h
     src/Export/swing_zip_exporter.cpp
+    src/Export/export_tone.h
+    src/Export/export_tone.cpp
     src/Export/swing_doc.h
     src/Export/swing_doc_internal.h
     src/Export/dtl_overlay_payload.h

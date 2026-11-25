@@ -38,6 +38,7 @@ struct ReplayStreamInfo {
     Q_PROPERTY(double aspect      MEMBER aspect)
     Q_PROPERTY(bool   hasAnalysis MEMBER hasAnalysis)
     Q_PROPERTY(double viewGain    MEMBER viewGain)
+    Q_PROPERTY(double displayTone MEMBER displayTone)
 public:
     int    index       = 0;        // stream index (== setVideoSink index)
     int    perspective = -1;       // swing.json setup.perspective (0..4); 2 = FaceOn, 4 = Impact
@@ -47,6 +48,10 @@ public:
     // was recorded (capture.viewGain, impact_camera_design.md §10.3); 1 = none.
     // Replay applies the same stretch so the clip looks as it did live.
     double viewGain    = 1.0;
+    // The display tone curve's exponent (#183, Video/display_tone.h displayToneFor): from the stream's
+    // recorded source.pixelFormat, kDisplayToneExponent for raw Bayer, 1 for a phone clip or a webcam
+    // (already tone-mapped). Applied after viewGain by the tile's display pass; never by the analysis.
+    double displayTone = 1.0;
 };
 
 // Abstract replay source — the thing ShotReplayController drives. Same abstract-

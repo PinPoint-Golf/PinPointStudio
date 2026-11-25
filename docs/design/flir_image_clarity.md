@@ -50,9 +50,9 @@ sharpening has no grain to amplify, and the encoder spends its bits on real deta
 | Demosaic, saved clip | OpenCV edge-aware (`COLOR_BayerRG2BGR_EA`) | `frame_decode.cpp:28` |
 | Denoise | none | — |
 | Sharpen | none (the camera's `Sharpness` node does nothing to Bayer output) | — |
-| Gamma | camera default on face-on and DTL | — |
+| Gamma | none in the file: raw Bayer has no in-camera gamma, and the recorder writes the sensor's linear values. On screen and in an export zip, the display tone curve (L8) | `camera_instance.h` (no in-camera gamma); #183, the 25 Nov 2026 comparison with Swing Catalyst |
 | Encode | x264 CRF 28 ("low", the default 23 Sept – 17 Oct), `medium`, yuv420p: ≈ **0.026 bits per pixel**. **Now CRF 23** ("Standard") by default, ≈ 0.07 — Swing Catalyst's budget; CRF 28 stays selectable as the analysis floor | 676 kbit/s at 848 × 1024, 30 fps container |
-| Display | the live tile and replay scale to the tile; no sharpening | — |
+| Display | the live tile and replay scale to the tile; the tone curve `in^0.80` on studio-camera video (L8); no sharpening | `display_tone.h`, `viewgain.frag` |
 
 ⚠ **Both the exposure and the gain are at their ceilings.** Auto exposure has used all of the frame
 period and auto gain all of its range, so the camera is asking for more light than the bay gives it.
@@ -85,13 +85,35 @@ is only needed for the capture levers.
 | L5 | Demosaic method (bilinear / EA / VNG) | processing | yes, if used for the saved clip |
 | L6 | Denoise (spatial or temporal) | processing | yes, if applied before encode |
 | L7 | Unsharp mask | processing | **never**: display only (below) |
-| L8 | Gamma | processing | display only |
+| L8 | Gamma: the display tone curve | processing | **never**: display and export only; built (below) |
 | L9 | Encode quality (CRF 28 / 23 / 18) | processing | yes, on every re-analysis |
 | L10 | Live tile: KB-30 fix (nearest sampler, `texelFetch`) | display | no |
 
 ⛔ **Sharpening and gamma go on the display path only**, like the impact tile's VIEW gain
 (`viewgain.frag`), and are never applied to frames that analysis reads. An unsharp mask draws halos
 beside every edge, and the shaft tracker, ball detector and pose model would all read them as structure.
+
+**L8 is built as a fixed display tone curve**[^l8]: `out = in^0.80` on each of R, G and B, defined once in
+`src/Video/display_tone.h`.
+- **On screen:** `viewgain.frag` applies it after the view gain, on every `PpCameraFrame` tile showing a
+  raw-Bayer stream: live, Capture's auto-replay, Replay, Analyse, the set-up pages and the impact
+  picture-in-picture. The rule follows the pixel format, so a phone's or a webcam's video (already
+  tone-mapped) is shown as it is.
+- **In an export zip:** a raw-Bayer clip goes in as a curved copy, re-encoded through the same 256-entry
+  table (`src/Export/export_tone.h`). `thumb.jpg` in the zip is curved likewise (proposed, for the Product Owner).
+- **Not curved:** the stored MP4s and raw sidecars, `thumb.jpg` on disk, Settings → Cameras' sensor preview and
+  the Markup Lab[^scope].
+- **Not curved in this change:** the report stills, which have their own exposure curve. Whether they should
+  take this curve too is open (proposed, for the Product Owner)[^stills].
+- **Not yet curved:** the shot carousel's thumbnails. Choosing their curve at display needs the thumbnail
+  stream's format on the Shot's summary, a domain field (proposed, for the Solution Architect).
+- **No setting:** the strength is fixed while the refactor freeze holds[^freeze]. Rolling back is the one
+  constant set to 1.0.
+
+⚠ **The double-curve trap.** The curve is chosen by the stream's source format, so it assumes a raw-Bayer
+stream's file is linear. A change that bakes a curve into the recording must mark it in the stream's
+`processing` block and make `displayToneFor` read the mark, or the screen curves the picture twice. Whether
+the analysis should read curved video is a separate corpus test (#183's second half).
 
 ⚠ **Denoise before encode is a real option, but it changes re-analysis inputs.** Re-analysis of a
 default swing already runs on the mp4, not the raw frames (`swing_storage_impl.md` stage 4). Any L5,
@@ -225,8 +247,8 @@ Then the display arms, each on P0 and P6:
   mp4s and the raw. It writes MTF50, noise σ, shaft blur and bits per pixel to one CSV
   (`docs/research/data/clarity/clarity_arms.csv`), and writes the comparison sheets.
 - **Display arms:** the unsharp mask and gamma as a shader after the demosaic, shared by the live
-  tile and replay, with its strength as a setting. D1–D3 are renders of that shader on recorded
-  frames, so the sheet shows exactly what the tile would.
+  tile and replay. The gamma is built with a fixed strength (§4, L8)[^freeze]. D1–D3 are renders of
+  that shader on recorded frames, so the sheet shows exactly what the tile would.
 
 ### 7.2 Live tile (L10)
 
@@ -251,10 +273,19 @@ Any arm that changes the saved clip (P1–P6) is re-analysed against the raw run
 - **App:**
   - before the session: exposure and gain on every camera role, with a Full frame lock (§6.4);
   - KB-30 fixed;
-  - the display sharpen/gamma shader on the live tile and replay, with its setting;
+  - the display gamma on the live tile, replay and exported clips, fixed at 0.80 (built, §4 L8); the
+    display sharpen is not built;
   - any change of default (encode, denoise, exposure) that the results and §7.3 support. The Product Owner
     judges these from the sheets before anything is committed.
 
 ## 9. Results
 
 Not yet run.
+
+[^l8]: Design Lead, 25 Nov 2026 (#183: γ 0.80 from the step-0 sheets, and exported videos get it too); Product
+    Owner, 25 Nov 2026 (#183: the curve on everything the golfer sees, never on the analysis without evidence).
+[^freeze]: The feature freeze during a refactor plan ([AG-31](../../governance/controls/kinds-of-work.md)).
+[^scope]: Product Owner, 25 Nov 2026 (#183's build: the sensor preview and the Markup Lab keep the camera's linear
+    picture: #183's plan, §3).
+[^stills]: The Product Owner's ruling covers everything the golfer sees, exports included (#183, 25 Nov 2026); #183's
+    plan, §2.1 and its question P3, proposed leaving the stills as they are; no answer is recorded.

@@ -75,7 +75,7 @@ class ShotReplayController : public QObject
     Q_PROPERTY(QString      swingDir       READ swingDir       NOTIFY activeChanged)
     Q_PROPERTY(int          streamCount    READ streamCount    NOTIFY activeChanged)
     // Per-stream metadata for the Review camera tiles, from the swing's own
-    // swing.json (replay_source.h ReplayStreamInfo: index, perspective, aspect, hasAnalysis, viewGain).
+    // swing.json (replay_source.h ReplayStreamInfo: index, perspective, aspect, hasAnalysis, viewGain, displayTone).
     Q_PROPERTY(QList<ReplayStreamInfo> streams READ streams NOTIFY activeChanged)
     Q_PROPERTY(double       speed          READ speed          NOTIFY speedChanged)
     Q_PROPERTY(qint64       positionUs     READ positionUs     NOTIFY positionChanged)

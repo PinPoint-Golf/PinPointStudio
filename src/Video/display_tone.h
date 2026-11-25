@@ -25,8 +25,13 @@
 // each of R, G and B (in and out from 0 to 1): black and white stay put, shadows and mid-tones rise.
 // displayToneLut() is the curve as a 256-entry table on 8-bit values: lut[v] == round(255 * (v / 255)^exponent).
 //
-// It is meant for where a golfer looks, never for where the analysis reads: the stored MP4s, the raw sidecars,
-// thumb.jpg and everything the analysis decodes stay linear.
+// It is applied only where a golfer looks, never where the analysis reads:
+//   - on screen, by the GPU: viewgain.frag in PpCameraFrame's pass, with the exponent handed to QML as
+//     CameraInstance::displayTone (live) and ReplayStreamInfo::displayTone (Replay, Analyse);
+//   - in a clip or thumbnail the golfer takes away in an export zip (Export/export_tone.h), through
+//     displayToneLut(). The table IS the curve the shader draws, from the same constant (display_tone_test).
+// The stored MP4s, the raw sidecars, thumb.jpg and everything the analysis decodes stay linear; display_tone_test
+// scans which files include this one.
 //
 // ONE TEST-ONLY EXCEPTION: the recording loader (Export/recording_loader.cpp) builds its table from
 // displayToneLutFor() when a tool's run sets the decode.toneExponent tuning key (swinglab_run --tone-curve,
@@ -35,7 +40,8 @@
 // Analysis/, Pose/, Club/, Ball/ or the loader may include this file.
 //
 // WHICH STREAMS: those whose pixel format is raw Bayer (displayToneFor), as streams[].source.pixelFormat
-// records it. A phone's or a webcam's video (NV12, YUYV, BGRA, a phone clip with no source format) is already
+// records it (live: the format the camera instance stamped into the buffer, from which the recorder writes it).
+// A phone's or a webcam's video (NV12, YUYV, BGRA, a phone clip with no source format) is already
 // tone-mapped by the device and would wash out, so it gets 1.0. Mono8 gets 1.0 too: no rig has a mono
 // camera, and the curve was fitted on colour cameras only.
 //

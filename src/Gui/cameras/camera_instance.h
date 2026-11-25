@@ -81,6 +81,10 @@ class CameraInstance : public QObject
     Q_PROPERTY(bool isAravis READ isAravis NOTIFY isAravisChanged)
     Q_PROPERTY(bool isSpinnaker READ isSpinnaker NOTIFY isSpinnakerChanged)
     Q_PROPERTY(bool needsDebayer READ needsDebayer NOTIFY needsDebayerChanged)
+    // The display tone curve's exponent for this camera's picture (#183, Video/display_tone.h):
+    // kDisplayToneExponent when the camera delivers raw Bayer, 1 otherwise. PpCameraFrame hands it to
+    // the tile's display pass (viewgain.frag); nothing recorded or analysed ever sees it.
+    Q_PROPERTY(double displayTone READ displayTone NOTIFY displayToneChanged)
     Q_PROPERTY(double preprocessAvgMs READ preprocessAvgMs NOTIFY preprocessAvgMsChanged)
     Q_PROPERTY(double cameraFps READ cameraFps NOTIFY cameraFpsChanged)
     Q_PROPERTY(double poseAvgMs READ poseAvgMs NOTIFY poseAvgMsChanged)
@@ -161,7 +165,8 @@ public:
     // smallest lift that kept clipping under 0.02 % on both, at a cost of ~10
     // of 255 levels (spinnaker_settings_probe --lift-sweep, 2026-10-08). The
     // view gain is a display stretch only. There is no in-camera gamma: a
-    // Chameleon3 has none in raw Bayer, and the control was dropped.
+    // Chameleon3 has none in raw Bayer, and the control was dropped; the
+    // picture is lifted for the eye on screen only (displayTone, #183).
     static constexpr double kImpactDefaultGainDb       = 18.0;
     static constexpr double kImpactBlackLevelLiftPct   = 4.0;
     static constexpr double kImpactDefaultViewGain     = 1.0;
@@ -179,6 +184,7 @@ public:
     bool   isAravis() const;
     bool   isSpinnaker() const;
     bool   needsDebayer() const;
+    double displayTone() const;
     double  preprocessAvgMs() const;
     double  cameraFps() const;
     double  poseAvgMs() const;
@@ -335,6 +341,7 @@ signals:
     void isAravisChanged();
     void isSpinnakerChanged();
     void needsDebayerChanged();
+    void displayToneChanged();
     void preprocessAvgMsChanged();
     void cameraFpsChanged();
     void poseAvgMsChanged();
