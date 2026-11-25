@@ -268,3 +268,8 @@ Solution Architect.
 - **Today.** The IM's FILE-SESS-05 row lists `WorkOnsController` among the summary's writers; the code writes it through the session's one writer. Found by U-2i (F16).
 - **Recommendation.** Correct the row to the one writer the code has, as a status edit, citing U-2i (proposed, for the Solution Architect).
 - **Ruled:**
+
+### Q15 · The report's `make` options are written whole into FILE-SESS-13: is typing them a format change? (HARD: the Solution Architect)
+- **Today.** The report's `make` call takes an untyped options map and writes it whole into FILE-SESS-13 (U-3i, `build/platform/U/NOTES-U-3i.md` F3). Typing the options in U-10 changes what the file can hold, unless the type reproduces every key and value it writes today.
+- **Recommendation.** A typed options struct that writes the same keys and values, byte for byte, pinned by a round-trip test on today's files. Then it isn't a format change (C3), since nothing in the file changes (proposed, for the Solution Architect).
+- **Ruled:**
