@@ -26,7 +26,7 @@ Short names used in the evidence, all under `src/Gui/calibration/`: **TR** `Trun
 | 10 | What is a camera key with no `\|`, as the set-up tests write? (F32) | Nothing: the type gets no rule for it. The fixtures are re-keyed, and the copy keeps what it cannot type | C-5a.2, C-5b |
 | 11 | Is `#wide` a spelling of the device key? (PR-52; a call this page thinks was wrong to take without a ruling) | Yes: confirm it as built | none: it is built; C-1a's IM rows wait for their footnote |
 
-**Ruled (25 Nov 2026):** decisions 2, 4 and 9 as recommended[^r1125]. The Solution Architect's framing: the Rig is a collection of devices, as a session is a collection of shots. The other eight are below, unruled.
+**Ruled (25 Nov 2026):** all eleven decisions as recommended[^r1125]. The Solution Architect's framing: the Rig is a collection of devices, as a session is a collection of shots.
 
 **The order matters twice.** Decision 3's restore event and decision 7's "still calibrated" both read the Rig's record, so they assume decision 4. Decision 1's second half and decision 5 assume decision 4's "the driver performs, the device object commits". Each section says what changes if the earlier one is ruled otherwise.
 
