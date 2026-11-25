@@ -99,6 +99,11 @@ it is downloaded on demand at runtime, only when the user opts in, after a size 
 *Why:* a 1.2 GB model nobody asked for slows every build and every installer.[^om-13]
 *Owner:* Product Owner · *Stage:* Build · *Compliance:* none yet
 
+**AD-52.** A rule must be built in C++, never in QML: a threshold, a tolerance, maths on a reading, or a pass/fail decision on a measured value ([R-QML-4](../artefacts/information_model.md), "QML contains no domain rules"). QML binds, lays out and sequences what C++ decides. A new routine or flow puts its rules in C++ from its first commit.
+In a review, a QML change that adds a rule is a blocking finding ([AG-22](review.md): a breach of a HARD rule). The calibration routines' QML is the one accepted exception, recorded on #291; it may shrink and must not grow.
+*Why:* 3,978 lines of calibration logic built up in QML because nothing checked for it; moving it now is a 22-hour rework of proven routines.[^ad-52]
+*Owner:* Solution Architect · *Stage:* Build and Review · *Compliance:* a review today; a lint ratchet (planned: the calibration files' counts frozen, every other QML file allowed none)
+
 **AG-37.** Before analysis or metrics work, the analysis pipeline guide (`docs/developer/analysis_pipeline_developer_guide.md`) must be read and its new-stage checklist followed; before diagnostics work, the diagnostics guide (`docs/developer/diagnostics_developer_guide.md`).
 *Why:* each guide's checklist holds the steps a new stage or condition needs.[^om-13]
 *Owner:* Product Owner · *Stage:* Build · *Compliance:* none yet
@@ -129,3 +134,4 @@ it is downloaded on demand at runtime, only when the user opts in, after a size 
 [^ag-29]: Design Lead, 7 Nov 2026 (the variability marks).
 [^bt-15]: Product Owner, 23 Nov 2026.
 [^om-10]: Product Owner, 25 Nov 2026 (#195, OM-10).
+[^ad-52]: Product Owner and Solution Architect, 25 Nov 2026: the calibration QML stays as technical debt (lever C-V1, #291), "so long as we don't repeat the same mistake in the future".
