@@ -2,7 +2,9 @@
 //   1. keys sorted at every depth, whatever order they were inserted in (a QVariantHash too);
 //   2. numbers at full precision ("%.17g"), integers as integers, NaN and infinities as null;
 //   3. the run taken out: run keys (writtenAtMs, frozenAt, fingerprint …) dropped at any depth, and a
-//      string holding a run folder gets its token, the longest folder first;
+//      string holding a run folder gets its token, the longest folder first; the folders are spelt as the tool
+//      spells them on this host (on Windows "/scratch" is "C:/scratch", #249), and a folder given with native
+//      separators (as it would be, were the Mac half run on Windows) still tokenises Qt's forward-slash strings;
 //   4. arrays keep the producer's order (a reordering is a difference worth seeing);
 //   5. the same value written twice is byte-identical, and a JSON file read back writes the same bytes;
 //   6. numbers are the C locale's whatever the process's is (a comma locale wrote "0,1…"), and match
@@ -12,6 +14,8 @@
 #include "parity_json.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QTemporaryDir>
 
 #include <clocale>
@@ -55,26 +59,42 @@ int main(int argc, char **argv)
     check(out.contains("\"a\": [\n    3,\n    1,\n    2\n  ]"), "an array in the producer's order");
     check(out.contains("\"text\": \"a \\\"quote\\\"\\n\""), "a string escaped");
 
-    // 3
+    // 3. The run folders spelt as addPathToken stores them (QFileInfo's absolute form): on Windows a driveless
+    // "/scratch/..." gains the current drive ("C:/scratch/..."), so a literal "/scratch/..." in the data would never
+    // match there (#249). On macOS this is the literal itself.
+    const QString jess = QFileInfo(QStringLiteral("/scratch/run/Jess")).absoluteFilePath();
+    const QString sess = jess + QStringLiteral("/2026-10-20_s1");
     parity::PathTokens tokens;
-    parity::addPathToken(tokens, QStringLiteral("/scratch/run/Jess"), QStringLiteral("<athlete>"));
-    parity::addPathToken(tokens, QStringLiteral("/scratch/run/Jess/2026-10-20_s1"), QStringLiteral("<session>"));
+    parity::addPathToken(tokens, jess, QStringLiteral("<athlete>"));
+    parity::addPathToken(tokens, sess, QStringLiteral("<session>"));
     const QVariantMap run{
         { QStringLiteral("derivedFrom"), QVariantMap{ { QStringLiteral("writtenAtMs"), 1.7e12 },
                                                       { QStringLiteral("fingerprint"), QStringLiteral("abc") },
                                                       { QStringLiteral("contentStamp"), QStringLiteral("cs") } } },
         { QStringLiteral("frozenAt"), QStringLiteral("2026-11-14T10:00:00Z") },
-        { QStringLiteral("dir"),      QStringLiteral("/scratch/run/Jess/2026-10-20_s1/swing_0001") },
-        { QStringLiteral("up"),       QStringLiteral("/scratch/run/Jess/tendencies.json") },
-        { QStringLiteral("list"),     QStringList{ QStringLiteral("/scratch/run/Jess/x") } },
+        { QStringLiteral("dir"),      sess + QStringLiteral("/swing_0001") },
+        { QStringLiteral("up"),       jess + QStringLiteral("/tendencies.json") },
+        { QStringLiteral("list"),     QStringList{ jess + QStringLiteral("/x") } },
     };
     const QByteArray scrubbed = parity::toCanonicalJson(parity::scrub(run, tokens));
     check(!scrubbed.contains("writtenAtMs") && !scrubbed.contains("fingerprint") && !scrubbed.contains("frozenAt")
               && scrubbed.contains("\"contentStamp\": \"cs\""),
           "run keys dropped at any depth, the rest kept");
-    check(scrubbed.contains("\"<session>/swing_0001\"") && scrubbed.contains("\"<athlete>/tendencies.json\"")
-              && scrubbed.contains("\"<athlete>/x\"") && !scrubbed.contains("/scratch/"),
-          "run folders tokenised, the longest first, in lists too");
+    const bool tokenised = scrubbed.contains("\"<session>/swing_0001\"") && scrubbed.contains("\"<athlete>/tendencies.json\"")
+                           && scrubbed.contains("\"<athlete>/x\"") && !scrubbed.contains("/scratch/");
+    check(tokenised, "run folders tokenised, the longest first, in lists too");
+    if (!tokenised) {   // the cause on the failing host, not a bare FAIL (#249)
+        for (const auto &p : std::as_const(tokens))
+            std::printf("  token %s -> %s\n", qPrintable(p.first), qPrintable(p.second));
+        std::printf("%s", scrubbed.constData());
+    }
+    // 3a. The studio's input shape: parity_baseline.py joins its folders with os.path.join, so on Windows they arrive
+    // with backslashes; the token is still Qt's forward-slash form, the one the app writes. A no-op on macOS.
+    parity::PathTokens nativeTokens;
+    parity::addPathToken(nativeTokens, QDir::toNativeSeparators(jess), QStringLiteral("<athlete>"));
+    parity::addPathToken(nativeTokens, QDir::toNativeSeparators(sess), QStringLiteral("<session>"));
+    check(parity::toCanonicalJson(parity::scrub(run, nativeTokens)) == scrubbed,
+          "a run folder given with native separators tokenises the same");
     // 3b: a run key that is one only inside one array's elements (club_baseline.json's rewrites[].at; refactor 3.10)
     const QVariantMap baseline{
         { QStringLiteral("rewrites"), QVariantList{ QVariantMap{ { QStringLiteral("at"), QStringLiteral("2026-11-16T13:22:00Z") },

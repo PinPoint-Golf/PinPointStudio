@@ -46,7 +46,9 @@ inline const QStringList &kRunKeys()
     return k;
 }
 
-// The run's absolute folders, longest first, each with the token that stands for it.
+// The run's absolute folders, longest first, each with the token that stands for it. A folder is stored in Qt's
+// absolute form (QFileInfo::absoluteFilePath, and its canonical path too): forward slashes, and on Windows a drive
+// ("C:\\x" and "/x" both become "C:/x"), the spelling the app writes into its files.
 using PathTokens = QVector<QPair<QString, QString>>;
 
 inline void addPathToken(PathTokens &t, const QString &dir, const QString &token)
