@@ -36,6 +36,7 @@
 #include "../Buffer/swing_window.h"
 #include "../Buffer/types.h"
 #include "../Core/pp_debug.h"
+#include "../Video/display_tone.h"   // the tone curve's one table (decode.toneExponent: a tool's A/B only)
 #include "../Vocabulary/Common/pp_tuned_constants.h"
 #include "../IMU/hm_binding_recon.h"   // rebuilding a wG3 binding from what the recording holds
 #include "../IMU/hm_unit_id.h"         // "<deviceId>#lowerArm" / "#palm" -> which segment
@@ -55,6 +56,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -196,15 +198,46 @@ Mp4FrameDecoder::Config mp4DecodeConfig(const QVariantMap& ov)
     return c;
 }
 
+// decode.toneExponent (#183's analysis A/B; swinglab_run --tone-curve): a tool's run asks for the display tone
+// curve (Video/display_tone.h) on every decoded MP4 frame of a raw-Bayer stream, before any stage sees it. No
+// app code sets the key. Absent, or 1.0, is "off": the reader is exactly as before. A value that can't be read,
+// or lies outside [0.3, 3.0], fails the load: a run that quietly went uncurved would read as "neutral".
+struct ToneRequest {
+    double  exponent = 1.0;
+    QString error;
+    bool on() const { return exponent != 1.0; }
+};
+ToneRequest mp4ToneRequest(const QVariantMap& ov)
+{
+    ToneRequest t;
+    const auto it = ov.constFind(QStringLiteral("decode.toneExponent"));
+    if (it == ov.cend())
+        return t;
+    bool ok = false;
+    const double e = it->toDouble(&ok);
+    if (!ok || !std::isfinite(e) || e < 0.3 || e > 3.0) {
+        t.error = QStringLiteral("decode.toneExponent %1 is not a number in [0.3, 3.0]").arg(it->toString());
+        return t;
+    }
+    t.exponent = e;
+    return t;
+}
+
 // MP4 fallback (no raw sidecar): decode to BGR24, frame-accurate whatever the
 // container's keyframe layout — lossy, slower, used only when raw is absent. The
 // decoding itself is Mp4FrameDecoder (mp4_frame_reader.h); this adapts it to the
 // payload contract and logs its numbers once, when the swing is let go.
 class Mp4FrameReader final : public CameraReader {
 public:
-    Mp4FrameReader(const QString& path, Mp4FrameDecoder::Config cfg)
+    // toneExponent != 1.0: every decoded frame goes through the tone curve's table into toned_ (decode.toneExponent).
+    Mp4FrameReader(const QString& path, Mp4FrameDecoder::Config cfg, double toneExponent = 1.0)
         : name_(QFileInfo(path).fileName()), dec_(path.toStdString(), cfg)
     {
+        if (toneExponent != 1.0) {
+            const std::array<std::uint8_t, 256> t = displayToneLutFor(toneExponent);
+            lut_ = cv::Mat(1, 256, CV_8U);
+            std::memcpy(lut_.data, t.data(), t.size());
+        }
     }
     ~Mp4FrameReader() override
     {
@@ -232,6 +265,13 @@ public:
                          << "decode.hwAccel any: no hardware decoder — decoding in software";
             if (!ok || bgr.empty())
                 return {};
+            // The tone curve (decode.toneExponent), into a buffer this reader owns, never the decoder's own frame:
+            // a repeated read of one index decodes afresh, so no frame is ever curved twice. Valid until the next
+            // read(), the same contract as below.
+            if (!lut_.empty()) {
+                cv::LUT(bgr, lut_, toned_);
+                bgr = toned_;
+            }
             // The handle points into the decoder's own frame buffer, valid until the
             // next read() — the SwingPayloadSource contract, without the 2 MB copy a
             // frame the old reader made into a second buffer.
@@ -247,6 +287,8 @@ public:
 private:
     QString                 name_;
     mutable Mp4FrameDecoder dec_;
+    cv::Mat                 lut_;     // empty: no tone curve (the default)
+    mutable cv::Mat         toned_;   // the curved frame the handle points at
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -352,6 +394,12 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
 
     // One decode configuration for every MP4 camera of this swing (decode.* keys).
     const Mp4FrameDecoder::Config mp4Cfg = mp4DecodeConfig(opts.tuningOverrides);
+    // decode.toneExponent: a tool's A/B only (above). Refused, not ignored, where it can't apply.
+    const ToneRequest tone = mp4ToneRequest(opts.tuningOverrides);
+    if (!tone.error.isEmpty()) {
+        out.error = tone.error;
+        return out;
+    }
 
     for (const QJsonValue& sv : root[QStringLiteral("streams")].toArray()) {
         const QJsonObject s    = sv.toObject();
@@ -414,6 +462,13 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
                 }
             }
             anyRaw |= useRaw;
+            // The tone curve applies to the MP4's frames only: a stream that would read its raw sidecar would
+            // quietly run uncurved, so the load fails instead (copy the swing without its .raw files).
+            if (tone.on() && useRaw) {
+                out.error = QStringLiteral("decode.toneExponent: the tone curve applies to MP4 frames only, and stream "
+                                           "%1 would read its raw sidecar %2").arg(alias, rawPath);
+                return out;
+            }
 
             FormatDescriptor fd;
             fd.device        = DeviceKind::Camera_UVC;
@@ -440,8 +495,13 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
                 cf.height            = uint32_t(encH);
                 cf.max_payload_bytes = uint32_t(encW * encH * 3);
                 cf.plane_strides[0]  = uint32_t(encW * 3);
+                // Only a raw-Bayer source is curved (the display curve's rule): a phone's or webcam's clip is
+                // already tone-mapped.
+                const bool bayer = isRawBayerFormat(pixelFormatFromName(
+                    s[QStringLiteral("source")].toObject()[QStringLiteral("pixelFormat")].toString().toStdString()));
                 reader = std::make_unique<Mp4FrameReader>(
-                    swingDir + QLatin1Char('/') + s[QStringLiteral("file")].toString(), mp4Cfg);
+                    swingDir + QLatin1Char('/') + s[QStringLiteral("file")].toString(), mp4Cfg,
+                    tone.on() && bayer ? tone.exponent : 1.0);
             }
             fd.format  = cf;
             reader->fd = fd;

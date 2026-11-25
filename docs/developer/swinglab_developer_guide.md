@@ -202,6 +202,7 @@ swinglab_run <swing_dir> --out <run_dir> [--params p.json] [--trace]
              [--session-type N] [--face-on Str] [--impact-us N]
              [--pose f.json] [--ball f.json]
              [--refuse-orientation] [--refuse-beta X]
+             [--tone-curve <exponent>]
 ```
 
 ### Stage 1–2 — reconstruct, via `SwingDiskLoader`
@@ -257,6 +258,27 @@ a stream-level calibration block, the runner does not synthesize identity A/M �
 re-fusing without the session calibration would be fiction. No impact instant at
 all is a hard error (`--impact-us` is the manual rescue).
 
+`--tone-curve <exponent>` is a test switch for #183's analysis A/B
+(issue #183): does the analysis do better or
+worse on frames with the display tone curve? It is off by default.
+- **What it does:** it puts `decode.toneExponent` into the tuning map. The MP4
+  reader (`Mp4FrameReader::read`, `src/Export/recording_loader.cpp`) then maps every
+  decoded frame through the curve's 256-entry table, `displayToneLutFor(exponent)`
+  in `src/Video/display_tone.h`, into a buffer of its own. That happens before any
+  stage sees the frame, so pose, the shaft trackers, the ball tracker and the
+  frame store all read curved frames. The Design Lead's exponent is 0.80
+  (`kDisplayToneExponent`). The range is 0.3–3.0, and 1.0 is off.
+- **Which streams:** only MP4 frames of a stream whose `source.pixelFormat` is raw
+  Bayer. A phone's or webcam's clip is left as it is.
+- **Refusals:**
+  - a stream that would read its `.raw` sidecar fails the load, since it would
+    otherwise run uncurved (copy the swing without its `.raw` files);
+  - an exponent outside the range fails, whether it comes from the flag or from
+    `--params`;
+  - `--write-back` with `--tone-curve`, or with `--params` carrying the key, is
+    refused, so a curved analysis never reaches a swing document.
+- **The app:** no app code sets the key. Without it the reader is unchanged.
+
 `--refuse-orientation` re-fuses the recorded raw IMU through the orientation
 filter before analysis (with `--refuse-beta` setting the gain), which is how the
 `filter.*` namespace is exercised.
@@ -278,7 +300,19 @@ phases is recorded.
   params echo, impact, binding count, host + platform, `sessionType`, a
   verbatim echo of the swing's `capture` block, and `calibrated`
   (`true`/`false`/`null` — null means the recording predates calibration
-  provenance).
+  provenance). Every run also writes a `tone` block:
+  - `exponent`: 1.0 when `--tone-curve` is off;
+  - per camera: `alias`, `serial`, `pixelFormat`, `frames` (`mp4`/`raw`) and `toned`;
+  - `injected`: the tracks the run loaded instead of computing (`pose` for `--pose`,
+    `dtlPose`, `ball`). They were made from uncurved frames, so a pinned run curves
+    only the stages that still decode, such as the shaft trackers;
+  - `firstFrameHist`: the byte histogram (B, G and R together) of the camera's
+    first window frame, read back through the window as the stages read it.
+
+  In a curved run that histogram is the uncurved run's, mapped through the table.
+  That is the check that the curve was applied, and applied once. A curved run's
+  `result.json` also carries `source.toneExponent`. Without the flag, `result.json`
+  is unchanged.
 - **`trace.jsonl`** (with `--trace`) — the shaft stages re-run with trace
   sinks: one line per frame (grip anchor, `qHandValid`, every candidate with
   θ/σ/L/score/wedge/head, the association choice) and a final line with the

@@ -63,6 +63,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -89,6 +90,8 @@
 #include "../../Export/swing_folder_reanalysis.h"   // a folder re-analysed by its path (refactor step 3.4b-ii)
 #include "../../Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 #include "analysis_pipeline.h"
+#include "mp4_frame_reader.h"                 // the direct decode: the tone case's reference
+#include "../../Video/display_tone.h"          // the tone curve's one table (Test 9)
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -518,6 +521,140 @@ void testMp4Fallback(const RamSwing& ram, const SwingWindow& mp4)
         }
     }
     std::fprintf(stderr, "  mp4 entries=%zu (ram=%zu)\n", ed.size(), er.size());
+}
+
+// ── Test 9: the tone curve for #183's analysis A/B (decode.toneExponent) ────
+//
+// The oracle for every frame is the clip decoded directly (Mp4FrameDecoder, a fresh decoder per read), and for
+// the table it is values worked by hand from out = 255·(in/255)^0.8, rounded: 0→0, 60→80, 128→147, 235→239,
+// 255→255 (#183: the mat at 60 goes to 80, the ball at 235 to 239).
+
+LoadedSwing loadWithTone(const QString &dir, const QVariant &exponent)
+{
+    SwingLoadOptions o;
+    if (exponent.isValid())
+        o.tuningOverrides.insert(QStringLiteral("decode.toneExponent"), exponent);
+    return loadSwingFolder(dir, o);
+}
+
+// The frame at `seq` decoded straight from the clip, as BGR bytes.
+std::vector<uint8_t> directFrame(const QString &mp4Path, int64_t seq)
+{
+    Mp4FrameDecoder dec(mp4Path.toStdString(), Mp4FrameDecoder::Config{});
+    cv::Mat bgr;
+    if (!dec.read(seq, bgr) || bgr.empty() || !bgr.isContinuous())
+        return {};
+    return std::vector<uint8_t>(bgr.data, bgr.data + bgr.total() * bgr.elemSize());
+}
+
+std::vector<uint8_t> payloadBytes(const SwingWindow &w, const IndexEntry &e)
+{
+    const SourceRing::ReadHandle h = w.payloadOf(e);
+    if (!h.data) return {};
+    const auto *b = reinterpret_cast<const uint8_t *>(h.data);
+    return std::vector<uint8_t>(b, b + h.bytes);
+}
+
+void testToneCurve(const RamSwing &ram, const QString &mp4Dir, const QString &rawDir)
+{
+    std::fprintf(stderr, "[Test 9] the tone curve (decode.toneExponent, #183's A/B)\n");
+
+    // The table, against values worked by hand.
+    CHECK(kDisplayToneExponent == 0.80);
+    const std::array<uint8_t, 256> &lut = displayToneLut();
+    CHECK(lut[0] == 0 && lut[60] == 80 && lut[128] == 147 && lut[235] == 239 && lut[255] == 255);
+    CHECK(displayToneLutFor(0.80) == lut);
+    bool identity = true, monotone = true, neverDarker = true;
+    const std::array<uint8_t, 256> one = displayToneLutFor(1.0);
+    for (int v = 0; v < 256; ++v) {
+        identity    &= one[size_t(v)] == v;
+        neverDarker &= lut[size_t(v)] >= v;
+        if (v > 0) monotone &= lut[size_t(v)] >= lut[size_t(v - 1)];
+    }
+    CHECK(identity && monotone && neverDarker);
+
+    const QString mp4Path = mp4Dir + QStringLiteral("/FaceCam.mp4");
+    LoadedSwing off  = loadWithTone(mp4Dir, QVariant());
+    LoadedSwing unit = loadWithTone(mp4Dir, 1.0);
+    LoadedSwing on   = loadWithTone(mp4Dir, 0.8);
+    CHECK(off.ok && unit.ok && on.ok);
+    if (!off.ok || !unit.ok || !on.ok) {
+        std::fprintf(stderr, "  load failed: %s | %s | %s\n", off.error.toUtf8().constData(),
+                     unit.error.toUtf8().constData(), on.error.toUtf8().constData());
+        return;
+    }
+    const SourceId cOff = matchBySerial(*off.window, ram.camSerial);
+    const SourceId cUnit = matchBySerial(*unit.window, ram.camSerial);
+    const SourceId cOn  = matchBySerial(*on.window, ram.camSerial);
+    const std::vector<IndexEntry> eOff = off.window->entriesFor(cOff);
+    const std::vector<IndexEntry> eUnit = unit.window->entriesFor(cUnit);
+    const std::vector<IndexEntry> eOn  = on.window->entriesFor(cOn);
+    CHECK(!eOff.empty() && eOff.size() == eOn.size() && eOff.size() == eUnit.size());
+
+    int curvedFrames = 0, changedFrames = 0;
+    for (size_t i = 0; i < std::min(eOff.size(), eOn.size()) && i < eUnit.size(); ++i) {
+        const std::vector<uint8_t> ref = directFrame(mp4Path, int64_t(eOff[i].source_sequence));
+        CHECK(!ref.empty());
+        // Off (key absent, or 1.0): the bytes are the clip's own, as today.
+        CHECK(payloadBytes(*off.window, eOff[i]) == ref);
+        CHECK(payloadBytes(*unit.window, eUnit[i]) == ref);
+        // On: every byte is the table of the clip's byte, so the stages see a changed frame.
+        std::vector<uint8_t> want(ref.size());
+        for (size_t k = 0; k < ref.size(); ++k) want[k] = lut[ref[k]];
+        const std::vector<uint8_t> got = payloadBytes(*on.window, eOn[i]);
+        if (got == want) ++curvedFrames;
+        if (got != ref) ++changedFrames;
+    }
+    CHECK(curvedFrames == int(eOn.size()));
+    CHECK(changedFrames == int(eOn.size()));
+    // The same index read twice, and after another frame: curved once, never twice.
+    if (eOn.size() >= 2) {
+        const std::vector<uint8_t> a = payloadBytes(*on.window, eOn[1]);
+        const std::vector<uint8_t> b = payloadBytes(*on.window, eOn[1]);
+        (void)payloadBytes(*on.window, eOn[0]);
+        const std::vector<uint8_t> c = payloadBytes(*on.window, eOn[1]);
+        CHECK(!a.empty() && a == b && a == c);
+    }
+    std::fprintf(stderr, "  %d/%zu frames curved = table(clip) and changed\n", curvedFrames, eOn.size());
+
+    // A raw sidecar with the key set: the load fails and says why (it would otherwise run uncurved).
+    {
+        const LoadedSwing r = loadWithTone(rawDir, 0.8);
+        CHECK(!r.ok && r.error.contains(QStringLiteral("MP4 frames only")));
+        CHECK(loadWithTone(rawDir, QVariant()).ok);   // and without it, as before
+    }
+    // A value it can't use fails the load, never a quiet uncurved run.
+    CHECK(!loadWithTone(mp4Dir, 0.1).ok);
+    CHECK(!loadWithTone(mp4Dir, QStringLiteral("bright")).ok);
+
+    // A stream whose source is not raw Bayer (a phone's or webcam's clip) is left uncurved.
+    QTemporaryDir nb;
+    const SwingExportResult res = SwingExporter::run(*ram.window, baseExportJob(ram, nb.path(), /*saveRaw=*/false));
+    CHECK(res.ok);
+    if (res.ok) {
+        QJsonObject m = res.manifest;
+        QJsonArray streams = m[QStringLiteral("streams")].toArray();
+        for (int i = 0; i < streams.size(); ++i) {
+            QJsonObject st = streams[i].toObject();
+            if (st[QStringLiteral("kind")].toString() != QLatin1String("video")) continue;
+            QJsonObject src = st[QStringLiteral("source")].toObject();
+            CHECK(src[QStringLiteral("pixelFormat")].toString() == QLatin1String("BayerRG8"));
+            src[QStringLiteral("pixelFormat")] = QStringLiteral("NV12");
+            st[QStringLiteral("source")] = src;
+            streams[i] = st;
+        }
+        m[QStringLiteral("streams")] = streams;
+        CHECK(pinpoint::testdoc::writeSwingJson(nb.path(), m, nullptr));
+        LoadedSwing n = loadWithTone(nb.path(), 0.8);
+        CHECK(n.ok);
+        if (n.ok) {
+            const std::vector<IndexEntry> en = n.window->entriesFor(matchBySerial(*n.window, ram.camSerial));
+            CHECK(!en.empty());
+            if (!en.empty())
+                CHECK(payloadBytes(*n.window, en[0])
+                      == directFrame(nb.path() + QStringLiteral("/FaceCam.mp4"), int64_t(en[0].source_sequence)));
+        }
+    }
 }
 
 // ── Test 4: double-run analyzer determinism ─────────────────────────────────
@@ -972,6 +1109,7 @@ int main(int argc, char** argv)
         CHECK(!diskMp4.usedRaw);
         if (diskMp4.ok && diskMp4.window)
             testMp4Fallback(ram, *diskMp4.window);
+        testToneCurve(ram, mp4Dir.path(), rawDir.path());   // Test 9: over the same two exports
     } else {
         std::fprintf(stderr, "FATAL: mp4 export failed\n");
         ++g_failures;

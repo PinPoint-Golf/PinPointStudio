@@ -31,12 +31,15 @@
 //                [--trunk-calib-from <standTallSwingDir | trunk_ceremony.json>] [--dtl [--dtl-pose p.json]]
 //                [--bands <csv mm>] [--club-length-mm N] [--hosel-mm N]
 //                [--shaft-length-mm N] [--hands-end-mm N] [--height-m N]
+//                [--tone-curve <exponent>]   (#183's A/B: the display tone curve on every decoded frame)
 //   swinglab_run <swing_dir> --write-back [--save-pose on|off] [--allow-in-progress]
 //                  (a session whose session.json says it is in progress is refused: D11, DEC-158)
 //
 // Outputs in <run_dir>:
 //   result.json    swing.json-shaped document with the re-run analysis block
-//   runmeta.json   provenance: source kind, wall times, params echo
+//   runmeta.json   provenance: source kind, wall times, params echo, and the `tone` block (every run: the
+//                  exponent, 1.0 when off; per camera its frames, whether they were curved, and the byte
+//                  histogram of its first window frame as the stages saw it)
 //   (--doc-blocks) result.json also carries `summary`, `imuIntegrity`, `captureIntegrity` as a
 //                  write-back of this analysis would store them (see the option's help)
 //   trace.jsonl    (--trace) one line per emitted frame with the decide internals
@@ -73,6 +76,7 @@
 #include <QSet>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -116,6 +120,7 @@
 #include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)
 #include "../../../src/IMU/orientation_refuser.h"    // refuseOrientation / refuseOrientationAdaptive / parity
 #include "../../../src/Vocabulary/Analysis/analysis_tuning.h"   // tuning::apply (filter.* keys)
+#include "../../../src/Video/display_tone.h"                    // --tone-curve: which streams are raw Bayer
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -719,6 +724,15 @@ int main(int argc, char **argv)
         "Pool mode: build a skeleton3d session pool from <dir>/*/result.json (see --pool-prefix, --pool-out).", "dir");
     QCommandLineOption optPoolPrefix("pool-prefix", "Pool mode: only the result directories whose name starts with this.", "str");
     QCommandLineOption optPoolOut("pool-out", "Pool mode: where to write the pool JSON.", "file");
+    // #183's analysis A/B: a TEST switch, never product behaviour.
+    QCommandLineOption optTone("tone-curve",
+        "--out only: apply the display tone curve out = in^<exponent> (Video/display_tone.h; the Design Lead's "
+        "0.80) to every decoded MP4 frame of a raw-Bayer camera before any stage sees it, so pose, the shaft "
+        "trackers and the ball tracker all read curved frames. Exponent in [0.3, 3.0]; 1.0 is off. Off by default. "
+        "Passed to the MP4 readers as the decode.toneExponent key. A stream that would read its raw sidecar fails "
+        "the load (copy the swing without its .raw), and --write-back with it, or with --params carrying the key, "
+        "is refused: a curved analysis never reaches a swing document. Recorded in runmeta.json's `tone` block and "
+        "as result.json's source.toneExponent.", "exponent");
     QCommandLineOption optDocBlocks("doc-blocks",
         "--out only: also put into result.json the `summary` block and this pass's `imuIntegrity` / "
         "`captureIntegrity` verdicts, as a write-back of this analysis would store them. The verdicts "
@@ -730,7 +744,7 @@ int main(int argc, char **argv)
                      optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optIgnoreRole, optTrunkCalib,
                      optDtl, optDtlPose, optDtlCalib,
                      optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight,
-                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag, optDocBlocks, optSavePose, optLive });
+                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag, optDocBlocks, optSavePose, optLive, optTone });
     cli.process(app);
 
     // ── Pool mode ────────────────────────────────────────────────────────────
@@ -792,6 +806,10 @@ int main(int argc, char **argv)
     // Pose is kept unless --save-pose off (PersistOptions::savePose; the app's "Save pose keypoints").
     if (cli.isSet(optWriteBack)) {
         using namespace pinpoint::analysis;
+        // A CURVED ANALYSIS NEVER REACHES A SWING DOCUMENT (#183): the tone curve is the A/B's test input only.
+        if (cli.isSet(optTone))
+            return fail(QStringLiteral("--tone-curve with --write-back is refused: a curved analysis is never written "
+                                       "into a swing document (use --out)"));
         // A SESSION IN PROGRESS IS NOT WRITTEN BY A TOOL (D11: DEC-158; H-14). --out never writes the source.
         if (!cli.isSet(optLive)
             && pinpoint::SessionStore::fileSaysInProgress(pinpoint::SessionStore::sessionFolderOfSwing(swingDir)))
@@ -818,6 +836,9 @@ int main(int argc, char **argv)
             if (!pf.open(QIODevice::ReadOnly))
                 return fail("cannot open params file");
             ropts.tuningOverrides = flattenParams(QJsonDocument::fromJson(pf.readAll()).object());
+            if (ropts.tuningOverrides.contains(QStringLiteral("decode.toneExponent")))
+                return fail(QStringLiteral("--params carrying decode.toneExponent with --write-back is refused: a curved "
+                                           "analysis is never written into a swing document (use --out)"));
             std::fprintf(stderr, "[swinglab] write-back with %d tuning override(s) — NOT the production defaults\n",
                          int(ropts.tuningOverrides.size()));
         }
@@ -878,6 +899,24 @@ int main(int argc, char **argv)
             return fail("cannot open params file");
         tuning = flattenParams(QJsonDocument::fromJson(pf.readAll()).object());
     }
+    // --tone-curve: the decode.toneExponent key the MP4 readers read (recording_loader.cpp). It wins over the
+    // same key in --params. The loader refuses a value it can't use; this refuses one early, with the flag's name.
+    if (cli.isSet(optTone)) {
+        bool ok = false;
+        const double e = cli.value(optTone).toDouble(&ok);
+        if (!ok || !std::isfinite(e) || e < 0.3 || e > 3.0)
+            return fail(QStringLiteral("--tone-curve %1: give an exponent in [0.3, 3.0] (1.0 is off)").arg(cli.value(optTone)));
+        tuning.insert(QStringLiteral("decode.toneExponent"), e);
+    }
+    double toneExponent = 1.0;
+    if (const auto it = tuning.constFind(QStringLiteral("decode.toneExponent")); it != tuning.cend())
+        toneExponent = it->toDouble();   // an unusable value: the loader refuses it below, before any stage runs
+    if (toneExponent != 1.0 && (cli.isSet(optPose) || cli.isSet(optDtlPose) || cli.isSet(optBall)))
+        std::fprintf(stderr, "[swinglab] tone curve with injected tracks: --pose / --dtl-pose / --ball were made from "
+                             "UNCURVED frames, so only the stages that still decode see the curve (runmeta tone.injected)\n");
+    if (toneExponent != 1.0)
+        std::fprintf(stderr, "[swinglab] TONE CURVE ON: every decoded MP4 frame of a raw-Bayer camera is curved "
+                             "out = in^%.4g before analysis (#183's A/B; not the production input)\n", toneExponent);
 
     // ── Reconstruct (streaming) + resolve the job from swing.json ─────────────
     // The composition root of this run: the Recording is read through the domain's RecordingReader
@@ -1299,6 +1338,11 @@ int main(int argc, char **argv)
     manifest["schema"]  = "pinpoint.swinglab/1";
     manifest["source"]  = QJsonObject{ { "swingDir", swingDir },
                                        { "frames", ls.usedRaw ? "raw" : "mp4" } };
+    if (toneExponent != 1.0) {   // only when on: a run without --tone-curve writes the result it always did
+        QJsonObject src = manifest["source"].toObject();
+        src["toneExponent"] = toneExponent;
+        manifest["source"] = src;
+    }
     QString werr;
 
     // --doc-blocks: the summary and the two data-integrity verdicts AS A WRITE-BACK WOULD STORE
@@ -1432,6 +1476,61 @@ int main(int argc, char **argv)
     meta["capture"]    = captureIn;
     meta["calibrated"] = calibKnown == 0 ? QJsonValue(QJsonValue::Null)
                                          : QJsonValue(calibTrue == calibKnown);
+    // The tone curve (--tone-curve, #183's A/B), in every run so a run says whether it was curved: the exponent
+    // (1.0 = off) and, per camera, whether its frames came from the MP4 or the raw sidecar (the loader's rule: the
+    // sidecar when its file exists), whether they were curved (the loader's rule: MP4 frames of a raw-Bayer
+    // source), and the byte histogram (B, G and R together) of its first window frame, read back through the
+    // window as every stage reads it. Curved, that histogram is the uncurved run's mapped through the table: the
+    // proof it was applied, and applied once. Read after the analysis, so the analysis stages' decode order is
+    // untouched (--trace and --dtl run after it: the decoder is frame-accurate, so their frames are the same).
+    // `injected` names the tracks this run loaded instead of computing (--pose, --dtl-pose, --ball): made from
+    // uncurved frames, they are not curved by this run.
+    {
+        QJsonObject tone;
+        tone["exponent"] = toneExponent;
+        QJsonArray injected;
+        if (cli.isSet(optPose))    injected.append("pose");
+        if (cli.isSet(optDtlPose)) injected.append("dtlPose");
+        if (cli.isSet(optBall))    injected.append("ball");
+        tone["injected"] = injected;
+        QJsonArray cams;
+        for (const QJsonValue &sv : root["streams"].toArray()) {
+            const QJsonObject s = sv.toObject();
+            if (s["kind"].toString() != QLatin1String("video"))
+                continue;
+            const QString serial = s["source"].toObject()["serial"].toString();
+            const QString pf     = s["source"].toObject()["pixelFormat"].toString();
+            const bool    raw    = s.contains("raw")
+                && QFile::exists(swingDir + QLatin1Char('/') + s["raw"].toObject()["file"].toString());
+            QJsonObject c;
+            c["alias"]       = s["alias"].toString();
+            c["serial"]      = serial;
+            c["pixelFormat"] = pf;
+            c["frames"]      = raw ? "raw" : "mp4";
+            c["toned"]       = toneExponent != 1.0 && !raw
+                            && pinpoint::isRawBayerFormat(pinpoint::pixelFormatFromName(pf.toStdString()));
+            for (const IndexEntry &e : window.entries()) {
+                const FormatDescriptor &fd = window.formatOf(e.source_id);
+                if (!std::holds_alternative<CameraFormat>(fd.format) || fd.device_serial != serial.toStdString())
+                    continue;
+                const SourceRing::ReadHandle h = window.payloadOf(e);
+                if (h.data && h.bytes > 0) {
+                    std::array<qint64, 256> hist{};
+                    const auto *b = reinterpret_cast<const std::uint8_t *>(h.data);
+                    for (size_t i = 0; i < h.bytes; ++i) ++hist[b[i]];
+                    QJsonArray ha;
+                    for (qint64 n : hist) ha.append(n);
+                    c["firstFrameUs"]    = qint64(e.timestamp_us);
+                    c["firstFrameBytes"] = qint64(h.bytes);
+                    c["firstFrameHist"]  = ha;
+                }
+                break;
+            }
+            cams.append(c);
+        }
+        tone["cameras"] = cams;
+        meta["tone"] = tone;
+    }
     // Only when something was injected — a run without the club flags writes the
     // same runmeta.json it always did.
     if (!clubOverride.isEmpty())
