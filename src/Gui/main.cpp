@@ -2132,7 +2132,12 @@ int main(int argc, char *argv[])
     // A HEADLESS PROBE (refactor 4-c) loads no pose model at launch: the warm-up is the launch's one heavy load (a cold
     // CoreML compile is ~97 s and gigabytes), and a probe's scratch home has no compiled cache. A re-analysis the probe
     // asks for still loads it on first use.
-    if (pinpoint::headlessProbe())
+    // PINPOINT_PROBE_WARMUP=1 (SE-1b's quit pins, src/Gui/tests/quit_pins/): a headless probe runs the warm-up after
+    // all, exactly as a launch does, so a quit during it and after it can be pinned. Read only under the headless switch.
+    const bool probeWarmUp = pinpoint::headlessProbe() && qgetenv("PINPOINT_PROBE_WARMUP") == QByteArrayLiteral("1");
+    if (probeWarmUp)
+        ppInfo() << "[Probe] PINPOINT_PROBE_WARMUP=1: the pose model's launch warm-up runs under the headless switch";
+    if (pinpoint::headlessProbe() && !probeWarmUp)
         ppInfo() << "[HeadlessProbe] not started: the pose model's launch warm-up";
     else
         QTimer::singleShot(1500, &app, [&appSettings]() {
