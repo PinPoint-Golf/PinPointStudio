@@ -68,6 +68,7 @@
 #include <cstdio>
 #include "../../../src/Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 #include "../../../src/Core/tests/dir_link.h"          // pinpoint::test::linkDirectory: a real link on every platform (#243)
+#include "../../../src/Core/tests/refused_file.h"      // pinpoint::test::RefusedFile: a save made to fail on every platform (#244)
 
 using namespace pinpoint;
 using namespace pinpoint::migrate;
@@ -743,19 +744,33 @@ int main(int argc, char **argv)
     {
         const QString kCy = QStringLiteral("c0c0c0c0-7777-4777-8777-c0c0c0c0c0c0");
         const QString name = QStringLiteral("2026-08-03_Cy-Do_Wrist_01");
-        // I1: the review cannot be written (a read-only swing folder): diagnostics.json and its keys come through as they were.
+        // I1: the review cannot be written (the swing document unreplaceable): diagnostics.json and its keys come through as
+        // they were. POSIX makes the swing folder read-only. Windows ignores a folder's permissions, and a JSON-era
+        // document's rewrite makes a NEW swing.ppsw that no hold can stop. So the document is first converted by the
+        // product's own verified conversion, and the swing.ppsw is held open with no delete share, so its replace fails
+        // (#244). The same on POSIX, so both platforms run the one case.
         {
             QTemporaryDir t;
             OneAthlete fc(QDir::cleanPath(t.path()), QStringLiteral("Cy Do"), QStringLiteral("Cy-Do"), kCy, name, true);
             const QString diag = SessionFiles::diagnosticsFile(fc.session);
             const QByteArray was = bytesOf(diag);
             const QString swingDir = fc.session + QStringLiteral("/swing_0001");
-            QFile::setPermissions(swingDir + QStringLiteral("/swing.json"), QFileDevice::ReadOwner | QFileDevice::ReadUser);
-            QFile::setPermissions(swingDir, QFileDevice::ReadOwner | QFileDevice::ExeOwner | QFileDevice::ReadUser | QFileDevice::ExeUser);
+            bool converted = false;
+            {
+                SessionStore st;
+                SwingStoreRecordingRepository door(st);
+                converted = door.convert(door.shotOfFolder(swingDir), /*deleteJson=*/true).outcome == ConversionResult::Outcome::Converted
+                            && !QFileInfo::exists(SwingStore::jsonPath(swingDir));
+            }
+            const QByteArray docWas = bytesOf(SwingStore::ppswPath(swingDir));
+            pinpoint::test::RefusedFile unreplaceable(SwingStore::ppswPath(swingDir), pinpoint::test::RefusedFile::Refuse::Replace);
+            check(converted && unreplaceable.refused(), "I1 setup: the swing document converted to swing.ppsw and made unreplaceable");
             const Result r = run(fc.options({ fc.root }));
-            QFile::setPermissions(swingDir, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
-            QFile::setPermissions(swingDir + QStringLiteral("/swing.json"), QFileDevice::ReadOwner | QFileDevice::WriteOwner);
-            check(anyFailureSays(r, "review not written"), "I1 the failed review write is reported");
+            unreplaceable.release();
+            for (const QString &f : r.log.failures)
+                if (f.contains(QStringLiteral("review not written"))) std::printf("    %s\n", qPrintable(f));
+            check(anyFailureSays(r, "review not written") && bytesOf(SwingStore::ppswPath(swingDir)) == docWas,
+                  "I1 the failed review write is reported (the swing document as it was)");
             check(bytesOf(diag) == was && jsonOf(diag).contains(QStringLiteral("intent")) && jsonOf(diag).contains(QStringLiteral("shotIntent")),
                   "I1 diagnostics.json byte-identical, its older keys kept");
         }
