@@ -119,9 +119,8 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
     // Read the saved alias from the shared AppSettings instance owned by main().
     // When no pointer is supplied (tests/tools) the alias is simply left empty.
     if (appSettings) {
-        const QString key = device.description + QStringLiteral("|") +
-            (device.capabilities.serialNumber.isEmpty() ? device.id
-                                                         : device.capabilities.serialNumber);
+        const pinpoint::rig::DeviceKey camKey = pp_camroi::cameraDeviceKey(device);
+        const QString key = camKey.persistedCameraKey();
         m_deviceAlias = appSettings->cameraAlias().value(key).toString();
 
         // Persisted crop must be known BEFORE the EventBuffer registration
@@ -133,7 +132,7 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
         // every other role.
         {
             const int role = appSettings->cameraPerspective().value(key).toInt();
-            const QRectF roi = pp_camroi::cropFor(appSettings->cameraRoi(), key, role,
+            const QRectF roi = pp_camroi::cropFor(appSettings->cameraRoi(), camKey, role,
                                                   &device.capabilities);
             if (pp_crop::cropIsActive(roi))
                 m_cropRoi = roi.intersected(QRectF(0.0, 0.0, 1.0, 1.0));
@@ -158,7 +157,7 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
             // Every other role: camera auto unless the operator locked the
             // exposure or the gain for this role (absent = auto). The rate
             // stays at the crop's maximum.
-            const QString tk = pp_camroi::tuningKey(key, appSettings->cameraPerspective().value(key).toInt());
+            const QString tk = pp_camroi::tuningKey(camKey, appSettings->cameraPerspective().value(key).toInt());
             m_captureExposureUs = appSettings->cameraExposureUs().value(tk, 0.0).toDouble();
             m_captureGainDb = appSettings->cameraTuning().value(tk).toMap()
                                   .value(QStringLiteral("gainDb"), -1.0).toDouble();
@@ -920,10 +919,10 @@ QString CameraInstance::deviceDescription()      const { return m_deviceDescript
 QString CameraInstance::deviceSerialNumber()     const { return m_deviceSerialNumber; }
 QString CameraInstance::cameraKey()              const
 {
-    // Must mirror CameraManager::cameraKey(): "Model|Serial", falling back to
-    // "Model|DeviceId" when the camera reports no serial.
-    return m_deviceDescription + QStringLiteral("|")
-         + (m_deviceSerialNumber.isEmpty() ? m_deviceId : m_deviceSerialNumber);
+    // The same spelling as CameraManager::cameraKey(): "Model|Serial", falling back
+    // to "Model|DeviceId" when the camera reports no serial (DeviceKey's).
+    return pinpoint::rig::DeviceKey::camera(m_deviceDescription, m_deviceSerialNumber, m_deviceId)
+        .persistedCameraKey();
 }
 QString CameraInstance::deviceAlias()            const { return m_deviceAlias; }
 

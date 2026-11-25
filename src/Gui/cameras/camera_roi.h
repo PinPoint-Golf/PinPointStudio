@@ -27,8 +27,14 @@
 // 2026-10-08). Every reader goes through cropFor(); QML, which needs a binding
 // on appSettings.cameraRoi, spells the same key inline (CamerasPanel.qml,
 // PpCameraTiles.qml).
+//
+// The spellings are DeviceKey's (src/Vocabulary/Rig/device_key.h; rig_design.md
+// §4.6): this header names the entry, the type spells it. Each map is keyed by
+// the pair (camera, entry), never the camera alone, or "k", "k#impact" and
+// "k#wide" collapse into one (the header's warning).
 
 #include "../../Video/camera_capabilities.h"
+#include "../../Vocabulary/Rig/device_key.h"
 
 #include <QRectF>
 #include <QString>
@@ -42,9 +48,29 @@ namespace pp_camroi {
 // stays free of the instance's).
 inline constexpr int kImpactPerspective = 4;
 
-inline QString key(const QString &cameraKey, int perspective)
+// A camera's DeviceKey from what the enumerator reports: a Device, or anything
+// with its fields (description, capabilities.serialNumber, id). One builder, so
+// no site can pass the parts in the wrong order; its spelling is the camera key
+// every camera/* map uses (persistedCameraKey()).
+template <class DeviceLike>
+inline pinpoint::rig::DeviceKey cameraDeviceKey(const DeviceLike &device)
 {
-    return perspective == kImpactPerspective ? cameraKey + QStringLiteral("#impact") : cameraKey;
+    return pinpoint::rig::DeviceKey::camera(device.description, device.capabilities.serialNumber, device.id);
+}
+
+// camera/alias: the name a newly seen camera is given, its key's parts with
+// EVERY '|' a space (a '|' inside the description too), as CameraManager has
+// always seeded it (REVIEW-C-1a C6). Here, beside the builder, so a test calls it.
+inline QString seededAlias(const pinpoint::rig::DeviceKey &camera)
+{
+    return QString(camera.description() + QLatin1Char(' ') + camera.id()).replace(QLatin1Char('|'), QLatin1Char(' '));
+}
+
+// camera/roi: the impact strip for Impact, the shared crop for every other role.
+inline QString key(const pinpoint::rig::DeviceKey &camera, int perspective)
+{
+    using CropEntry = pinpoint::rig::DeviceKey::CropEntry;
+    return camera.persistedRoiKey(perspective == kImpactPerspective ? CropEntry::ImpactStrip : CropEntry::Shared);
 }
 
 inline QRectF rectFrom(const QVariantMap &r)
@@ -73,10 +99,10 @@ inline QRectF recommendedImpactCrop(const CameraCapabilities &caps)
 // The crop this role uses: the stored one, or — for Impact with none stored —
 // the recommended impact crop (so the impact role never runs full frame at the
 // full-frame rate). Empty = full sensor.
-inline QRectF cropFor(const QVariantMap &roiMap, const QString &cameraKey, int perspective,
+inline QRectF cropFor(const QVariantMap &roiMap, const pinpoint::rig::DeviceKey &camera, int perspective,
                       const CameraCapabilities *caps = nullptr)
 {
-    const QString k = key(cameraKey, perspective);
+    const QString k = key(camera, perspective);
     if (roiMap.contains(k)) {
         const QRectF r = rectFrom(roiMap.value(k).toMap());
         if (r.width() > 0 && r.height() > 0)
@@ -93,9 +119,11 @@ inline QRectF cropFor(const QVariantMap &roiMap, const QString &cameraKey, int p
 // They must never share: a camera that was the impact camera still holds its
 // ~100 us there, and a down-the-line camera reading it would come back black
 // (the October 2026 dark DTL, flir_camera_settings.md §6).
-inline QString tuningKey(const QString &cameraKey, int perspective)
+inline QString tuningKey(const pinpoint::rig::DeviceKey &camera, int perspective)
 {
-    return perspective == kImpactPerspective ? cameraKey : cameraKey + QStringLiteral("#wide");
+    using TuningEntry = pinpoint::rig::DeviceKey::TuningEntry;
+    return camera.persistedTuningKey(perspective == kImpactPerspective ? TuningEntry::ImpactRole
+                                                                       : TuningEntry::OtherRoles);
 }
 
 } // namespace pp_camroi

@@ -60,7 +60,18 @@ static QVariantMap roi(double x, double y, double w, double h)
     return { { "x", x }, { "y", y }, { "w", w }, { "h", h } };
 }
 
-static const QString kCam = QStringLiteral("Chameleon3 CM3-U3-13Y3C|18277032");
+// The camera keys are DeviceKey's (src/Vocabulary/Rig/device_key.h); the literals each is pinned to
+// are in K0, K1 and T2 (and every spelling against today's code in device_key_test).
+using pinpoint::rig::DeviceKey;
+static DeviceKey camera(const char *description, const char *serial)
+{
+    return DeviceKey::camera(QString::fromUtf8(description), QString::fromUtf8(serial), QStringLiteral("Spinnaker:0"));
+}
+static QString stripOf(const DeviceKey &k) { return k.persistedRoiKey(DeviceKey::CropEntry::ImpactStrip); }
+
+static const DeviceKey kCamera = camera("Chameleon3 CM3-U3-13Y3C", "18277032");
+static const QString   kCam    = kCamera.persistedCameraKey();
+static const QString   kStrip  = stripOf(kCamera);
 constexpr int kDtl = 1, kFaceOn = 2, kImpact = pp_camroi::kImpactPerspective;
 
 // A Chameleon3 as enumeration describes it: 1280x1024, impact modes probed.
@@ -79,38 +90,40 @@ static CameraCapabilities chameleon3()
 
 static void testLookup()
 {
-    check("K1 the impact role has its own key", pp_camroi::key(kCam, kImpact) == kCam + "#impact");
+    check("K0 the camera key is description|serial", kCam == QStringLiteral("Chameleon3 CM3-U3-13Y3C|18277032"));
+    check("K1 the impact role has its own key",
+          pp_camroi::key(kCamera, kImpact) == QStringLiteral("Chameleon3 CM3-U3-13Y3C|18277032#impact"));
     check("K2 every other role shares the plain key",
-          pp_camroi::key(kCam, kDtl) == kCam && pp_camroi::key(kCam, kFaceOn) == kCam
-          && pp_camroi::key(kCam, 0) == kCam);
+          pp_camroi::key(kCamera, kDtl) == kCam && pp_camroi::key(kCamera, kFaceOn) == kCam
+          && pp_camroi::key(kCamera, 0) == kCam);
 
     const CameraCapabilities caps = chameleon3();
     const QVariantMap both{ { kCam, roi(0.2, 0.0, 0.54, 1.0) },
-                            { kCam + "#impact", roi(0.25, 0.4, 0.5, 0.234375) } };
+                            { kStrip, roi(0.25, 0.4, 0.5, 0.234375) } };
     check("L1 DTL reads its own crop, not the strip",
-          same(pp_camroi::cropFor(both, kCam, kDtl, &caps), QRectF(0.2, 0.0, 0.54, 1.0)));
+          same(pp_camroi::cropFor(both, kCamera, kDtl, &caps), QRectF(0.2, 0.0, 0.54, 1.0)));
     check("L2 Impact reads the strip, not the DTL crop",
-          same(pp_camroi::cropFor(both, kCam, kImpact, &caps), QRectF(0.25, 0.4, 0.5, 0.234375)));
+          same(pp_camroi::cropFor(both, kCamera, kImpact, &caps), QRectF(0.25, 0.4, 0.5, 0.234375)));
 
     // The October failure the other way round: a strip stored, no DTL crop.
-    const QVariantMap stripOnly{ { kCam + "#impact", roi(0.25, 0.4, 0.5, 0.234375) } };
+    const QVariantMap stripOnly{ { kStrip, roi(0.25, 0.4, 0.5, 0.234375) } };
     check("L3 a DTL camera with only a strip stored runs full frame",
-          pp_camroi::cropFor(stripOnly, kCam, kDtl, &caps).isEmpty());
+          pp_camroi::cropFor(stripOnly, kCamera, kDtl, &caps).isEmpty());
 
     // An Impact camera with nothing of its own: the recommended mode, centred.
     const QVariantMap dtlOnly{ { kCam, roi(0.2, 0.0, 0.54, 1.0) } };
-    const QRectF fallback = pp_camroi::cropFor(dtlOnly, kCam, kImpact, &caps);
+    const QRectF fallback = pp_camroi::cropFor(dtlOnly, kCamera, kImpact, &caps);
     check("L4 Impact without a strip gets the recommended mode centred (640x240 of 1280x1024)",
           same(fallback, QRectF(0.25, (1.0 - 240.0 / 1024.0) / 2.0, 0.5, 240.0 / 1024.0)));
     check("L5 without capabilities there is no fallback (full frame, as before)",
-          pp_camroi::cropFor(dtlOnly, kCam, kImpact, nullptr).isEmpty());
+          pp_camroi::cropFor(dtlOnly, kCamera, kImpact, nullptr).isEmpty());
     CameraCapabilities noModes = caps;
     noModes.extensions.remove(QStringLiteral("impact.modes"));
     check("L6 a camera that published no impact modes has no fallback",
-          pp_camroi::cropFor(dtlOnly, kCam, kImpact, &noModes).isEmpty());
-    const QVariantMap degenerate{ { kCam + "#impact", roi(0.1, 0.1, 0.0, 0.2) } };
+          pp_camroi::cropFor(dtlOnly, kCamera, kImpact, &noModes).isEmpty());
+    const QVariantMap degenerate{ { kStrip, roi(0.1, 0.1, 0.0, 0.2) } };
     check("L7 a zero-size stored strip is ignored for the fallback",
-          same(pp_camroi::cropFor(degenerate, kCam, kImpact, &caps), fallback));
+          same(pp_camroi::cropFor(degenerate, kCamera, kImpact, &caps), fallback));
 }
 
 // ── 2. Exposure and gain locks are per role too ────────────────────────────
@@ -118,14 +131,15 @@ static void testLookup()
 static void testTuningKey()
 {
     check("T1 the impact role keeps the plain key it always had",
-          pp_camroi::tuningKey(kCam, kImpact) == kCam);
+          pp_camroi::tuningKey(kCamera, kImpact) == kCam);
+    const QString wide = QStringLiteral("Chameleon3 CM3-U3-13Y3C|18277032#wide");
     check("T2 every other role has its own \"#wide\" key",
-          pp_camroi::tuningKey(kCam, kDtl) == kCam + "#wide" && pp_camroi::tuningKey(kCam, kFaceOn) == kCam + "#wide"
-          && pp_camroi::tuningKey(kCam, 0) == kCam + "#wide");
+          pp_camroi::tuningKey(kCamera, kDtl) == wide && pp_camroi::tuningKey(kCamera, kFaceOn) == wide
+          && pp_camroi::tuningKey(kCamera, 0) == wide);
     // The dark DTL of October 2026: an ex-impact camera still holds its ~100 us.
     const QVariantMap exposure{ { kCam, 100.0 } };
     check("T3 a DTL camera never reads the impact camera's locked exposure (camera auto)",
-          !exposure.contains(pp_camroi::tuningKey(kCam, kDtl)));
+          !exposure.contains(pp_camroi::tuningKey(kCamera, kDtl)));
 }
 
 // ── 3. AppSettings: the one-time migration ─────────────────────────────────
@@ -137,25 +151,27 @@ static void testMigration()
     // writes) the settings file, and the default path is the user's real one.
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, scratch.path());
 
-    const QString dtlCam = QStringLiteral("Chameleon3 CM3-U3-13Y3C|17453937");
-    const QString both   = QStringLiteral("Blackfly S BFS-U3-16S2C|99");
+    const DeviceKey dtlCamera = camera("Chameleon3 CM3-U3-13Y3C", "17453937");
+    const DeviceKey bothCamera = camera("Blackfly S BFS-U3-16S2C", "99");
+    const QString dtlCam = dtlCamera.persistedCameraKey();
+    const QString both   = bothCamera.persistedCameraKey();
     ppSettings().setValue(QStringLiteral("camera/perspective"),
                           QVariantMap{ { kCam, kImpact }, { dtlCam, kDtl }, { both, kImpact } });
     ppSettings().setValue(QStringLiteral("camera/roi"),
                           QVariantMap{ { kCam, roi(0.25, 0.4, 0.5, 0.234375) },        // the strip
                                        { dtlCam, roi(0.2, 0.0, 0.6, 1.0) },            // a DTL crop
                                        { both, roi(0.0, 0.0, 1.0, 1.0) },
-                                       { both + "#impact", roi(0.3, 0.3, 0.4, 0.2) } });
+                                       { stripOf(bothCamera), roi(0.3, 0.3, 0.4, 0.2) } });
     {
         AppSettings s;
         const QVariantMap r = s.cameraRoi();
         check("M1 the impact camera's strip moves to its own entry",
-              r.contains(kCam + "#impact") && !r.contains(kCam)
-              && same(pp_camroi::rectFrom(r.value(kCam + "#impact").toMap()), QRectF(0.25, 0.4, 0.5, 0.234375)));
+              r.contains(kStrip) && !r.contains(kCam)
+              && same(pp_camroi::rectFrom(r.value(kStrip).toMap()), QRectF(0.25, 0.4, 0.5, 0.234375)));
         check("M2 a non-impact camera's crop is untouched",
-              r.contains(dtlCam) && !r.contains(dtlCam + "#impact"));
+              r.contains(dtlCam) && !r.contains(stripOf(dtlCamera)));
         check("M3 a camera that already has its own strip is left alone",
-              same(pp_camroi::rectFrom(r.value(both + "#impact").toMap()), QRectF(0.3, 0.3, 0.4, 0.2))
+              same(pp_camroi::rectFrom(r.value(stripOf(bothCamera)).toMap()), QRectF(0.3, 0.3, 0.4, 0.2))
               && r.contains(both));
         check("M4 the migration is on disk",
               ppSettings().value(QStringLiteral("camera/roi")).toMap() == r);
@@ -171,7 +187,7 @@ static void testMigration()
     {
         AppSettings s;
         check("M6 a later load does not migrate again (the plain entry stays)",
-              s.cameraRoi().contains(kCam) && s.cameraRoi().contains(kCam + "#impact"));
+              s.cameraRoi().contains(kCam) && s.cameraRoi().contains(kStrip));
     }
 }
 

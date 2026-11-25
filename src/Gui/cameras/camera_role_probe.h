@@ -34,6 +34,8 @@
 // state are snapshotted first and restored after. Writes a text report, logs
 // one line per check, and quits the app.
 
+#include "../../Vocabulary/Rig/device_key.h"
+
 #include <QObject>
 #include <QPointer>
 #include <QStringList>
@@ -68,6 +70,9 @@ private:
     struct Target {
         int         index = -1;
         QString     key, serial, description;
+        // The camera, parsed once from `key` (the camera list carries no device
+        // id to build it from); camera_roi.h spells the role's entries from it.
+        pinpoint::rig::DeviceKey camera;
         double      maxW = 0, maxH = 0, gainMaxDb = -1;
         QVariantList impactModes;
         int         originalRole = 0;

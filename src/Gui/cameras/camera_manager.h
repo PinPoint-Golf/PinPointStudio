@@ -26,6 +26,8 @@
 
 #include "device_enumerator.h"
 #include "app_settings.h"
+#include "camera_roi.h"                         // pp_camroi::cameraDeviceKey
+#include "../../Vocabulary/Rig/device_key.h"   // pinpoint::rig::DeviceKey
 #include "../Buffer/types.h"
 #include "../Video/camera_capabilities.h"
 
@@ -204,16 +206,20 @@ private:
         QString triggerMode = QStringLiteral("freerun");
     };
 
-    // Stable per-device key for settings storage.
-    // Format: "ModelName|SerialNumber" so keys are human-readable in QSettings and
-    // immune to cross-manufacturer serial-number collisions.
-    // Falls back to "ModelName|DeviceId" when no serial is available.
+    // The camera's DeviceKey (src/Vocabulary/Rig/device_key.h): its description
+    // and its serial, or its device id when it reports none.
+    static pinpoint::rig::DeviceKey deviceKey(const CameraEntry &cam)
+    {
+        return pp_camroi::cameraDeviceKey(cam.device);
+    }
+
+    // Stable per-device key for settings storage, the camera spelling every
+    // camera/* map uses: "ModelName|SerialNumber", human-readable in QSettings and
+    // immune to cross-manufacturer serial-number collisions; "ModelName|DeviceId"
+    // when no serial is available (DeviceKey::persistedCameraKey()).
     static QString cameraKey(const CameraEntry &cam)
     {
-        const QString model = cam.device.description;
-        const QString sn    = cam.device.capabilities.serialNumber;
-        const QString id    = sn.isEmpty() ? cam.device.id : sn;
-        return model + QStringLiteral("|") + id;
+        return deviceKey(cam).persistedCameraKey();
     }
 
     static QString interfaceString(CameraCapabilities::Interface iface)

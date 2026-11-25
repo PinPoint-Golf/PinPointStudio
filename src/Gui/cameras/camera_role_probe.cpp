@@ -120,6 +120,7 @@ void CameraRoleProbe::findCameras(int attempt)
         Target t;
         t.index       = e.value(QStringLiteral("index")).toInt();
         t.key         = e.value(QStringLiteral("cameraKey")).toString();
+        t.camera      = pinpoint::rig::DeviceKey::fromPersistedCameraKey(t.key);
         t.serial      = e.value(QStringLiteral("serialNumber")).toString();
         t.description = e.value(QStringLiteral("description")).toString();
         t.maxW        = e.value(QStringLiteral("maxWidth")).toDouble();
@@ -127,7 +128,8 @@ void CameraRoleProbe::findCameras(int attempt)
         t.gainMaxDb   = e.value(QStringLiteral("gainMaxDb")).toDouble();
         t.impactModes = e.value(QStringLiteral("impactModes")).toList();
         t.wasSelected = e.value(QStringLiteral("selected")).toBool();
-        if (t.key.isEmpty() || (!m_serial.isEmpty() && t.serial != m_serial))
+        // A key that is not a camera spelling has no crop entries to probe; skipped as an empty one is.
+        if (t.key.isEmpty() || t.camera.isNull() || (!m_serial.isEmpty() && t.serial != m_serial))
             continue;
         targets.push_back(t);
     }
@@ -173,7 +175,7 @@ void CameraRoleProbe::seedImpactLikeTheViewCombo(const Target &t)
         m[t.key] = CameraInstance::kImpactDefaultExposureUs;
         m_settings->setCameraExposureUs(m);
     }
-    const QString stripKey = pp_camroi::key(t.key, CameraInstance::Impact);
+    const QString stripKey = pp_camroi::key(t.camera, CameraInstance::Impact);
     const double storedFps = m_settings->cameraTargetFps().value(t.key).toDouble();
     const bool stripUnset  = !m_settings->cameraRoi().contains(stripKey);
     if ((storedFps >= 420.0 && !stripUnset) || t.impactModes.isEmpty() || !(t.maxW > 0) || !(t.maxH > 0))
@@ -235,7 +237,7 @@ void CameraRoleProbe::planCamera(const Target &t)
 
 void CameraRoleProbe::expectedSize(const Target &t, const QVariantMap &roiMap, int role, int *w, int *h)
 {
-    const QRectF r = pp_camroi::cropFor(roiMap, t.key, role);
+    const QRectF r = pp_camroi::cropFor(roiMap, t.camera, role);
     *w = (r.width()  > 0) ? int(std::lround(r.width()  * t.maxW)) : int(t.maxW);
     *h = (r.height() > 0) ? int(std::lround(r.height() * t.maxH)) : int(t.maxH);
 }

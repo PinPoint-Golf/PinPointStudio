@@ -193,8 +193,8 @@ void ResourceMonitorController::refresh()
             }
 
             const QString sn = camDev.capabilities.serialNumber;
-            const QString camKey = camDev.description + QStringLiteral("|") +
-                                   (sn.isEmpty() ? camDev.id : sn);
+            const pinpoint::rig::DeviceKey camDevKey = pp_camroi::cameraDeviceKey(camDev);
+            const QString camKey = camDevKey.persistedCameraKey();
             // `camKey` deliberately still carries the serial: it is the key a
             // saved alias was stored under, and changing it would orphan every
             // rename the user has already made.  Only the DEFAULT changes.
@@ -284,7 +284,7 @@ void ResourceMonitorController::refresh()
                             + QString::number(fh);
                 } else {
                     const QVariantMap roiMap = appSettings.cameraRoi();
-                    const QString roiKey = pp_camroi::key(camKey, appSettings.cameraPerspective().value(camKey).toInt());
+                    const QString roiKey = pp_camroi::key(camDevKey, appSettings.cameraPerspective().value(camKey).toInt());
                     if (roiMap.contains(roiKey)) {
                         const QVariantMap r = roiMap.value(roiKey).toMap();
                         double w = r.value(QStringLiteral("w")).toDouble();
@@ -339,7 +339,10 @@ void ResourceMonitorController::refresh()
             const QString imuId = imuDev.imuCapabilities.serialNumber.isEmpty()
                 ? imuDev.id
                 : imuDev.imuCapabilities.serialNumber;
-            const QString imuKey   = imuDev.description + QStringLiteral("|") + imuDev.id;
+            // imu/alias is keyed by the description AND the device id (never by DeviceKey
+            // equality, REVIEW-C-1a C1), and by the device id, not the serial-or-id above.
+            const QString imuKey   = pinpoint::rig::DeviceKey::sensor(imuDev.description, imuDev.id)
+                                         .persistedWithDescription();
             const QString imuAlias = imuAliasMap.value(imuKey,
                 imuId.isEmpty() ? imuDev.description
                                 : imuDev.description + QStringLiteral(" (") + imuId + QStringLiteral(")")).toString();

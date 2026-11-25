@@ -76,13 +76,14 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, AppSettings *appSett
     bool        aliasDirty = false;
 
     for (auto &cam : m_cameras) {
-        const QString key = cameraKey(cam);
+        const pinpoint::rig::DeviceKey camKey = deviceKey(cam);
+        const QString key = camKey.persistedCameraKey();
         if (!key.isEmpty()) {
             if (excluded.contains(key))    cam.excluded    = true;
             if (targetFps.contains(key))   cam.targetFps   = targetFps.value(key).toDouble();
             if (triggerMode.contains(key)) cam.triggerMode = triggerMode.value(key).toString();
             if (!aliasMap.contains(key)) {
-                aliasMap[key] = QString(key).replace(QLatin1Char('|'), QLatin1Char(' '));
+                aliasMap[key] = pp_camroi::seededAlias(camKey);   // every '|' a space (C6)
                 aliasDirty = true;
             }
         }
@@ -158,7 +159,8 @@ QVariantList CameraManager::cameraList() const
     for (int i = 0; i < m_cameras.size(); ++i) {
         const CameraEntry &cam = m_cameras[i];
         const CameraCapabilities &cap = cam.device.capabilities;
-        const QString key = cameraKey(cam);
+        const pinpoint::rig::DeviceKey camKey = deviceKey(cam);
+        const QString key = camKey.persistedCameraKey();
         QVariantMap entry;
         entry[QStringLiteral("index")]       = i;
         entry[QStringLiteral("description")] = cam.device.description;
@@ -197,7 +199,7 @@ QVariantList CameraManager::cameraList() const
         int initW = sensorW, initH = sensorH;
         if (sensorW > 0 && sensorH > 0) {
             // The ROLE's crop (camera_roi.h), as the instance will apply it.
-            const QRectF roi = pp_camroi::cropFor(roiMap, key, perspMap.value(key, 0).toInt(), &cap);
+            const QRectF roi = pp_camroi::cropFor(roiMap, camKey, perspMap.value(key, 0).toInt(), &cap);
             if (pp_crop::cropIsActive(roi)) {
                 const QRect c = pp_crop::snapCropRect(
                     roi.intersected(QRectF(0.0, 0.0, 1.0, 1.0)), sensorW, sensorH);
@@ -903,14 +905,15 @@ QObject *CameraManager::createPreviewInstance(int index)
     ctrl->setPpcpHostService(m_ppcpHostService);
 #endif
 
-    const QString key = cameraKey(m_cameras[index]);
+    const pinpoint::rig::DeviceKey camKey = deviceKey(m_cameras[index]);
+    const QString key = camKey.persistedCameraKey();
     AppSettings  rfallback;
     AppSettings *rs = m_appSettings ? m_appSettings : &rfallback;
 
     // The crop of the camera's role (camera_roi.h) — the crop editor edits
     // the role the camera is in.
     {
-        const QRectF roi = pp_camroi::cropFor(rs->cameraRoi(), key, rs->cameraPerspective().value(key).toInt(),
+        const QRectF roi = pp_camroi::cropFor(rs->cameraRoi(), camKey, rs->cameraPerspective().value(key).toInt(),
                                               &m_cameras[index].device.capabilities);
         if (roi.width() > 0 && roi.height() > 0)
             ctrl->setCropRoi(roi);
@@ -966,17 +969,15 @@ CameraInstance *CameraManager::createController(const Device &device)
     ctrl->setBallCueEnabled(m_ballCueEnabled);
 
     // Restore persisted ROI and perspective for this device.
-    const QString key = device.description + QStringLiteral("|")
-                        + (device.capabilities.serialNumber.isEmpty()
-                               ? device.id
-                               : device.capabilities.serialNumber);
+    const pinpoint::rig::DeviceKey camKey = pp_camroi::cameraDeviceKey(device);
+    const QString key = camKey.persistedCameraKey();
 
     AppSettings  cfallback;
     AppSettings *cs = m_appSettings ? m_appSettings : &cfallback;
 
     // The crop of the camera's role (camera_roi.h).
     {
-        const QRectF roi = pp_camroi::cropFor(cs->cameraRoi(), key, cs->cameraPerspective().value(key).toInt(),
+        const QRectF roi = pp_camroi::cropFor(cs->cameraRoi(), camKey, cs->cameraPerspective().value(key).toInt(),
                                               &device.capabilities);
         if (roi.width() > 0 && roi.height() > 0)
             ctrl->setCropRoi(roi);
