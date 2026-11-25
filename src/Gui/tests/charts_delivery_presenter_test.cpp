@@ -400,7 +400,12 @@ private slots:
 
     void golfersDay()
     {
-        const QString golfer = QStringLiteral("/fixture/Golfer");
+        // An absolute folder on every platform (#260): the presenter places a neighbour's swing folder beside this one through
+        // QFileInfo::absolutePath, which on Windows gives a drive-less "/fixture/..." its drive. Path text only: nothing is
+        // written under it.
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        const QString golfer = QDir::cleanPath(root.path() + QStringLiteral("/Golfer"));
         const QString cur = golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_01");
         const QDate day(2026, 10, 20);
         // the sibling: shots 7..14 of the fit's line, as swings 1..8; another day's eight never pooled
