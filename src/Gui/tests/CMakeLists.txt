@@ -269,6 +269,21 @@ pp_add_test(camera_roi_test
     INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU ${SRC}/Video
     LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
 
+# The device keys (src/Vocabulary/Rig/device_key.h; rig_design.md §4.6; IM §5.2 ID-DEVICE-KEY,
+# ID-PLACEMENT-KEY): DeviceKey and PlacementKey spell every persisted key as today's code does, byte
+# for byte; parse then spell is the identity; the lanes equal hm_unit_id.h's. The fixture (two cameras,
+# one with no serial, a Witmotion, a HackMotion) is written by the REAL AppSettings, with keys spelled
+# by today's code, into a scratch store (IsolatedStores), and read back through the typed keys.
+pp_add_test(device_key_test
+    SOURCES device_key_test.cpp
+            ${SRC}/Vocabulary/Rig/device_key.h
+            ${GUI}/imu/imu_role_map.cpp
+            ${GUI}/app/app_settings.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU ${SRC}/Video
+    LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
+
 # PacedConnectQueue — ImuManager's paced BLE connect (design §4.11, F10): first device at
 # once, each next a gap later, cancel, replace, skip-without-gap. Runs on an 80 ms gap and
 # a real event loop for about a second.

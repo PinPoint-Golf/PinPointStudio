@@ -36,7 +36,7 @@ ORDER = {ACQ: 0, DIA: 1, COA: 2}
 
 # ---- tags: IM 4.1's Context column. Longest directory prefix wins; a file stem overrides its directory. --------
 DIRS = {
-    'Vocabulary/Analysis/': DIA, 'Metrics/': DIA,
+    'Vocabulary/Analysis/': DIA, 'Vocabulary/Rig/': ACQ, 'Metrics/': DIA,   # Rig: the device keys (rig_design.md §5)
     'Recording/': ACQ, 'Identity/': S, 'Core/': S,
     'Pose/': DIA, 'Club/': DIA, 'Ball/': DIA, 'Kinematics/': DIA, 'Timeline/': DIA, 'Diagnostics/': DIA,
     'Coaching/': DIA,                       # today's files: the derived facts (move to Diagnostics/derived/ in Stage B)
