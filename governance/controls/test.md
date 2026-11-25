@@ -81,6 +81,10 @@ Rules agreed but not yet checked by a test say "none yet" in their compliance; t
 
 Coverage: every control in this folder appears in at least one stage or kind (a retired control excepted), and every id links to the file that states it; as a repo doc check it joins #195's step 5 (proposed, for the Product Owner).
 
+**BT-43.** A visit to the studio must hold only the steps that need a real shot, a person's hands or real devices at the bay; every other step runs beforehand (headless on a development machine, or unattended on the studio PC) and the visit gets only its result. The visit procedure says which steps were moved out and where they ran.
+*Why:* after visit 1, many of its steps needed no golf shot and could have been done at a desk, which cost the owner's time at the bay.[^bt-43]
+*Owner:* Product Owner · *Stage:* Test · *Compliance:* a review of each visit procedure
+
 **Also at this stage (written elsewhere):** [AG-26](build.md) a watchdog on every long command (agents) · [AD-20](kinds-of-work.md) measure the pose noise floor · [AD-22](kinds-of-work.md) one swing for a hypothesis.
 
 **Guidance for this stage:** [BT-23](../guidance/advice.md) the suite in under 3 minutes.
@@ -101,3 +105,4 @@ Coverage: every control in this folder appears in at least one stage or kind (a 
 [^ag-25]: Incidents Aug 2026, 2 Oct and 6 Nov 2026. Owning role (proposed): Product Owner.
 [^ag-16]: Product Owner, 26 Oct 2026 (windowed renders); incidents 11 Oct and 6 Nov 2026.
 [^po-g]: Product Owner, 25 Nov 2026 (#195).
+[^bt-43]: Product Owner, 25 Nov 2026 (after visit 1).

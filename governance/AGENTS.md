@@ -9,6 +9,7 @@ A brief carries the rules for what it touches, so the agent that reads it doesn'
 - touching data or C++ structure: the information-model approval rule (`governance/artefacts/information_model.md` §1.2), and the excerpt the work needs ([AG-32](controls/build.md));
 - touching QML: the design-system approval rule and the lighter route ([UI-20](controls/decide.md)), with a pointer to `governance/artefacts/design_system/README.md`[^ds-hard]; and no rule in QML ([AD-52](controls/build.md));
 - running the app: [AG-15](controls/build.md), the headless launcher only;
+- committing: a commit title or body written into a brief follows [GIT-9](controls/commit.md) like any other (plain words, no programme ids), and the agent re-reads it against [GIT-13](controls/commit.md);
 - changing code: [GIT-6](controls/commit.md), tests and docs in the same commit, and the exact test files it may run ([BT-4](controls/test.md));
 - editing a document: [AG-14](controls/build.md);
 - a review: tag each finding blocking or edge ([AG-22](controls/review.md));
