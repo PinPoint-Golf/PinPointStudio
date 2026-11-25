@@ -27,10 +27,10 @@ stays, the allowlist line stays with its count, and the item is not started.
 | Q8 | The data viewer's Score row | **HARD: the Design Lead** | none (a changed look) | (a) the row goes, as in #186 | U-17 |
 | Q9 | The review's session load and the bulk export | **HARD: the Solution Architect** | C8, C4 | (a) a Session command that indexes its shots | U-13 |
 | Q10 | Closing #224-U one line short until Stage D | Product Owner | none | (a) close at 27 of 28 | U-10c, U-19 |
-| Q11 | A shot document's stamp, read through the Shot | **HARD: the Solution Architect** | C5 | (a) one read on the Shot | U-12, U-15b, U-15c, U-16a |
+| Q11 | A shot document's stamp, read through the Shot | **HARD: the Solution Architect** | C5 | (a) one read on the Shot | U-15b, U-15c, U-16a[^u12-q11] |
 
 **By class:** the Solution Architect 6 (Q1, Q2, Q3, Q7, Q9, Q11); the Design Lead 1 (Q8); the coordinator 3 (Q4,
-Q5, Q6); the Product Owner 1 (Q10). **Q11 and Q7 free the most:** four items and three.
+Q5, Q6); the Product Owner 1 (Q10). **Q11 and Q7 free the most:** three items each.
 
 ## Items that can start with no ruling
 
@@ -41,8 +41,8 @@ Q5, Q6); the Product Owner 1 (Q10). **Q11 and Q7 free the most:** four items and
    and U-14b. U-P1 and the typing of the three big headers (U-8a to U-8c, U-9a, U-9b, U-10a to U-10c) are deferred
    by the lever pass; U-P2, U-14b and the new slice U-8q stay[^u-v1].
 
-That is 20 of the 33 items and 49 of the 84 hours. The three coordinator's calls free nothing alone: U-12 and
-U-15c also wait on Q11, and U-6b on Q7.
+That is 20 of the 33 items and 49 of the 84 hours. Of the three coordinator's calls, only Q4, re-ruled, frees an
+item alone (U-12)[^u12-q11]; U-15c also waits on Q11, and U-6b on Q7.
 
 ## The questions for the Solution Architect
 
@@ -160,7 +160,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   fingerprint byte for byte, which is what lets four items be checked by comparison. (b) is right by P5, but it
   changes when a report or a summary is remade, and that is behaviour for a plan of its own.
 - **C5** (the reasons call this "the document's identity": telling a shot's state by its file's size and time).
-  Waits: U-12, U-15b, U-15c, U-16a.
+  Waits: U-15b, U-15c, U-16a[^u12-q11].
 - **Ruled:** as recommended (25 Nov 2026)[^u-ruled-25nov].
 
 ## The question for the Design Lead
@@ -206,7 +206,7 @@ Solution Architect.
   The controller keeps `applyScan` and every duty U-2i lists; it stops reading files, and its three path helpers'
   callers are re-pointed, so all seven findings go (`build/platform/LEVERS/FOCUSED-U-V2-C-V1.md` §2).
 - **Call: (a).** (b) only moves the file reads to a ring where A5 still counts them. **Stop:** if U-2i finds a
-  fact the scan reads that the athlete level does not hold, other than Q11's stamp. Waits: U-12 (with Q11).
+  fact the scan reads that the athlete level does not hold, other than Q11's stamp. Waits: U-12[^u12-q11].
 - **Ruled:** as recommended, (a): the athlete says which sessions are stale (25 Nov 2026)[^u-ruled-25nov].
   **Re-ruled the same night: (c), as an interim**, with (a) kept as the end state[^u-q4c]. Each fact the scan reads
   is still read through its owner's file door, and every one is a fact the athlete level may read today.
@@ -288,5 +288,6 @@ Solution Architect.
 
 [^u-v0]: The Product Owner, 25 Nov 2026 (the lever pass on #224-U, Stage C and Stage D, lever U-V0, as recommended; `build/platform/LEVERS/LEVERS-U-C-D.md` §1.3): Q2's view-local ruling applied to U-18b's estimate; 1–1.5 h dropped.
 [^u-v2]: The Product Owner and the Solution Architect, 25 Nov 2026: lever U-V2 (deferring U-11 and U-12) withdrawn, so both reads are built in #224-U: U-11 as Q3 (a) ruled (3.5–4.5 h), U-12 as Q4's interim (c) (3–4.5 h). Moving U-11's read into a store as it is was rejected: the athlete level would then read other sessions' judged rows from a store, which DEC-195 and R-DER-3 forbid. #224-U then closes every line against P11; the three lines U-V1 leaves remain (#289). #290 was closed as not planned.
-[^u-q4c]: The Solution Architect, 25 Nov 2026 (`build/platform/LEVERS/FOCUSED-U-V2-C-V1.md` §2; option (c) as an interim, an information-model change C6, approved as PR-21's `readIndexWithSummaries` was): the athlete's repository reads the session- and shot-level facts the scan needs, for the work-ons view. The IM's FILE-SESS-04 and FILE-SESS-05 reader columns, and the lifecycle model's APP-T4 and ATH-T8, are corrected in U-12's commit. (a), one freshness rule held by the athlete level, stays the end state; it is built the next time the athlete level's freshness check changes, and until then today's two staleness tests both stay.
+[^u-q4c]: The Solution Architect, 25 Nov 2026 (`build/platform/LEVERS/FOCUSED-U-V2-C-V1.md` §2; option (c) as an interim, an information-model change C6, approved as PR-21's `readIndexWithSummaries` was): the athlete's repository reads the session- and shot-level facts the scan needs, for the work-ons view. The IM's FILE-SESS-04 and FILE-SESS-05 reader columns, and the lifecycle model's APP-T4 and ATH-T8, are corrected in U-12's commit. (a), one freshness rule held by the athlete level, stays the end state; it is built the next time the athlete level's freshness check changes (#293), and until then today's two staleness tests both stay.
+[^u12-q11]: The coordinator's call, 25 Nov 2026, logged for the Product Owner's review: U-12 builds Q4's interim (c), which reads each swing document's stamp through the store exactly as today, so it does not need Q11's read on the Shot. Undo: put Q11 back in U-12's waits (`build/platform/U/PLAN-U.md`, the lever pass's "Kept, U-V2 withdrawn"; `build/platform/LEVERS/NOTES-compliance.md`, "Still open after 78f09b93").
 [^u-v1]: The Product Owner, 25 Nov 2026 (the lever pass, lever U-V1, as recommended; re-tagging the three allowlist lines is the Solution Architect's): typing the three big headers (the diagnostics adapter, the work-ons and the report model: U-P1, U-8a to U-8c, U-9a, U-9b, U-10a to U-10c, 27 h, less the 2–4 h U-8q slice kept) is **deferred, with a trigger**: each member is typed when a screen that reads it is next changed, or sooner if #284's freezes trace to the maps' copies. 23–25 h. Its home is #289, which names the three allowlist lines it leaves. U-8q (2–4 h) stays in #224-U: Q13's readout built in C++ as a typed value, and Q12's `expectations` retired.
