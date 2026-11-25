@@ -201,7 +201,7 @@ Solution Architect.
   catch-up; its own scan and its four includes go. (b) The scan moves as it is into `src/App`.
 - **Call: (a).** (b) only moves the file reads to a ring where A5 still counts them. **Stop:** if U-2i finds a
   fact the scan reads that the athlete level does not hold, other than Q11's stamp. Waits: U-12 (with Q11).
-- **Ruled:** as recommended (the coordinator's call, 25 Nov 2026; `build/platform/JUDGEMENT-CALLS.md` PR-55, for the Product Owner's review).
+- **Ruled:** *(withdrawn, 25 Nov 2026: the coordinator's call, PR-55, rested on an incomplete premise. U-2i (`build/platform/U/NOTES-U-2i.md`) shows the athlete level doesn't answer five facts the scan reads, among them `work_ons.json`'s own size and mtime (§8.2 R9) and "this session's baseline is frozen and current" (R6). Reclassed: **HARD, the Solution Architect.**)*
 
 ### Q5 · How the mailer reaches the made report
 - **Today.** QML hands the mailer a path, and the mailer opens the PDF itself to attach it
@@ -261,4 +261,10 @@ Solution Architect.
 ### Q13 · `PpDiagReplayState` builds its own "partial" readout in QML (HARD: the Solution Architect)
 - **Today.** The view assembles a readout object of its own instead of reading one the session owns. That may be a view owning domain state (C10). `build/platform/U/NOTES-U-1i.md`.
 - **Recommendation.** The readout is built by the session's presenter, and the view only reads it; U-8 moves it (proposed, for the Solution Architect).
+- **Ruled:**
+
+
+### Q14 · FILE-SESS-05's row names `WorkOnsController` as a writer (HARD: the Solution Architect)
+- **Today.** The IM's FILE-SESS-05 row lists `WorkOnsController` among the summary's writers; the code writes it through the session's one writer. Found by U-2i (F16).
+- **Recommendation.** Correct the row to the one writer the code has, as a status edit, citing U-2i (proposed, for the Solution Architect).
 - **Ruled:**
