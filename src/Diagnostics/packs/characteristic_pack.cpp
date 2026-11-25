@@ -1074,6 +1074,18 @@ std::vector<const Measure *> measuresForMetricAtPhase(const CharacteristicPack &
         }
     }
 
+    // WITHIN each group, a measure whose OWN key is `metricKey` before one that only lists it on its ladder (#190).
+    // `m_lmClubPath` reads `lm.clubPath`; `m_clubPathAtImpact` reads our `clubPath` and prefers the device's reading,
+    // so both match `lm.clubPath` at P7 and pack order put the estimate's first: the board graded the launch
+    // monitor's path against the estimate's row, and an edit to its own row never reached it. A rung still matches,
+    // after: a reading with no measure of its own (`lm.lowPointAhead`), or whose own measure has no norm
+    // (`lm.clubheadSpeed`), keeps the corridor of the measure it is a rung of. Pack order decides the rest.
+    const auto ownFirst = [&metricKey](std::vector<const Measure *> &v) {
+        std::stable_partition(v.begin(), v.end(), [&metricKey](const Measure *m) { return m->metricKey == metricKey; });
+    };
+    ownFirst(absolute);
+    ownFirst(changes);
+
     absolute.insert(absolute.end(), changes.begin(), changes.end());
     return absolute;
 }

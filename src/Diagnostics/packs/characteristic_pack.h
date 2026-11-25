@@ -515,8 +515,11 @@ QStringList tailsOfAxis(const CharacteristicPack &pack, const QString &axis);
 //
 // Ambiguity is possible and is resolved by preferring `at` over `delta`: both m_leadWristAtTop
 // (at P4) and a Δ-from-address measure name P4 on the same metric, and the absolute reading is the
-// one a corridor keyed on a phase means. Beyond that PACK ORDER wins — deterministic, but arbitrary,
-// and a tie there means two measures describe one number. The validator warns about exactly that
+// one a corridor keyed on a phase means. Within each, a measure whose own key is the one asked for
+// comes before one that only has it on its ladder (#190: `lm.clubPath` is m_lmClubPath's key and a
+// rung of m_clubPathAtImpact's, and the launch monitor's board grades against its own row). Beyond
+// that PACK ORDER wins — deterministic, but arbitrary, and a tie there means two measures describe
+// one number. The validator warns about exactly that
 // case (`duplicateMeasure`), because no downstream check can: both answers look correct.
 
 // EVERY measure that reads `metricKey` at `phase`, in that preference order.

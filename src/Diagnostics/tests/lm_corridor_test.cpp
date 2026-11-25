@@ -189,7 +189,9 @@ int main()
     // speed rows were set by rule (Ideal from 5% under mu, Action from 10% under), so the board now
     // colours a slow measured clubhead the way the charts already coloured a slow estimated one. One
     // quantity, one corridor. Ball speed did NOT join: m_ballSpeed prefers `lm.ballSpeed` too, but
-    // it has no norm in any context, so the tile stays uncoloured. If clubhead speed should stay
+    // it has no norm in any context, so the tile stays uncoloured. Since #190 the join lists
+    // m_lmClubheadSpeed (the reading's own measure) first; it has no norm, so the walk goes on to
+    // m_clubheadSpeedImpact's floor rows, and the board grades as before. If clubhead speed should stay
     // silent on this board, the fix is in the panel (skip capability readings), not in the ladder.
     check(gradable == want,
           "exactly the eleven authored readings resolve a corridor; the rest stay silent");
@@ -259,6 +261,37 @@ int main()
         check(lm.found() && opt.found()
               && lm.grade(4.5, Shape::Target, pol) == opt.grade(4.5, Shape::Target, pol),
               "…so one shot cannot grade two ways depending on the instrument");
+    }
+
+    // ── each reading's corridor comes from its OWN measure (#190) ───────────
+    //
+    // The rows above agree, so the band a golfer sees cannot tell which one the board read. The
+    // corridor editor can: an edit to the launch monitor's own measure has to move the board's band,
+    // and before #190 an estimate's measure that merely listed the reading on its ladder
+    // (m_clubPathAtImpact prefers `lm.clubPath`) answered first, by pack order. The ids are written
+    // out here, not read back from the join, because the join is what is under test. A reading whose
+    // own measure carries no norm still falls through to the estimate's row: clubhead speed is the case.
+    std::printf("\n-- each lm.* reading's corridor comes from its own measure --\n");
+    {
+        const QString ctx = contextIdForClub(QStringLiteral("7-iron"));
+        const auto from = [&](const char *key, const char *want, const char *why) {
+            const std::optional<MetricCorridor> c =
+                corridorForMetricAtPhase(pack, *norms, QString::fromLatin1(key), Phase::Impact, ctx);
+            const QString got = c ? c->measureId : QStringLiteral("(none)");
+            const bool    ok  = got == QLatin1String(want);
+            std::printf("  [%s] %-18s -> %-22s want %-22s  %s\n", ok ? "PASS" : "FAIL", key,
+                        got.toUtf8().constData(), want, why);
+            if (!ok) ++g_fail;
+        };
+        from("lm.clubPath",       "m_lmClubPath",         "the board's own path row, not m_clubPathAtImpact's");
+        from("lm.launchAngle",    "m_lmLaunchAngle",      "the row sig_launchLow/High fire on");
+        from("lm.launchDirection","m_lmLaunchDirection",  "the row sig_pull/push fire on");
+        from("clubPath",          "m_clubPathAtImpact",   "our own path still reads the estimate's row");
+        from("lm.clubheadSpeed",  "m_clubheadSpeedImpact","m_lmClubheadSpeed has no norm, so the floor rows answer");
+        const std::vector<const Measure *> path = measuresForMetricAtPhase(pack, QStringLiteral("lm.clubPath"), Phase::Impact);
+        check(path.size() == 2 && path[0]->id == QLatin1String("m_lmClubPath")
+                  && path[1]->id == QLatin1String("m_clubPathAtImpact"),
+              "the join lists the reading's own measure first, then the measure it is a rung of");
     }
 
     std::printf("\n-- face to path: the fault line is +/-3 degrees --\n");

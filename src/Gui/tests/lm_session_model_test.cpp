@@ -533,28 +533,29 @@ int main(int argc, char **argv)
         check("N2 with no edit, the next grade pass grades the same",
               varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath") == path0);
 
-        // The corridor three times as wide, written as ModelBrowser::save() writes it — on the measure the
-        // board's corridor resolves through (corridorForMetricAtPhase, the board's own join).
+        // The corridor three times as wide, written as ModelBrowser::save() writes it — on the board's OWN measure,
+        // m_lmClubPath, named here rather than asked of the join (#190: the join answered m_clubPathAtImpact, the
+        // estimate's measure that lists lm.clubPath on its ladder, so an edit to this row never reached the board).
         const std::shared_ptr<const analysis::INormProvider> shipped = analysis::sharedNormProvider();
-        const QString ctx      = analysis::contextIdForClub(QStringLiteral("7 IRON"));
-        const auto    packProv = analysis::makeCharacteristicPackProvider();
-        const std::optional<analysis::MetricCorridor> corridor =
-            analysis::corridorForMetricAtPhase(packProv->pack(), *shipped, QStringLiteral("lm.clubPath"),
-                                               analysis::Phase::Impact, ctx);
-        const analysis::NormResolution res =
-            corridor ? shipped->resolve(corridor->measureId, ctx) : analysis::NormResolution{};
-        check(QStringLiteral("N3 the path corridor resolves to a shipped row (%1)").arg(corridor ? corridor->measureId : QString()),
-              res.found() && !res.overridden);
-        if (res.found()) {
+        const QString ctx = analysis::contextIdForClub(QStringLiteral("7 IRON"));
+        const auto widened = [&](const char *measureId) {
+            const analysis::NormResolution r = shipped->resolve(QString::fromLatin1(measureId), ctx);
             analysis::NormPack pack;
             pack.id      = QStringLiteral("user");
             pack.version = QStringLiteral("1");
-            analysis::Norm wider = *res.norm;
-            wider.sigmaLo *= 3.0;
-            wider.sigmaHi *= 3.0;
-            pack.norms.push_back(wider);
+            if (r.found()) {
+                analysis::Norm wider = *r.norm;
+                wider.sigmaLo *= 3.0;
+                wider.sigmaHi *= 3.0;
+                pack.norms.push_back(wider);
+            }
+            return pack;
+        };
+        const analysis::NormResolution res = shipped->resolve(QStringLiteral("m_lmClubPath"), ctx);
+        check("N3 the launch monitor's path row (m_lmClubPath) resolves to a shipped row", res.found() && !res.overridden);
+        if (res.found()) {
             QString why;
-            check("N3 a user norm set widening it is written", analysis::saveUserNormPack(pack, &why));
+            check("N3 a user norm set widening it is written", analysis::saveUserNormPack(widened("m_lmClubPath"), &why));
             // The save is RuleData's command (refactor step 3.2): it publishes the new norms and resets the
             // shared slot itself, so the old "N4: before the reset the board grades as it did" state is gone.
             // The reset below is what ModelBrowser::save() still calls; it re-asks the same snapshot.
@@ -568,6 +569,18 @@ int main(int argc, char **argv)
             board.setFocusedShotId(idOf(shots, 6));
             check("N6 and with no further edit, the pass after grades the same again",
                   varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath") == path1);
+
+            // The other half of #190: the estimate's own path row widened instead, the board's left as shipped.
+            // The board's band does not move.
+            check("N7 a user norm set widening only m_clubPathAtImpact is written",
+                  !widened("m_clubPathAtImpact").norms.empty()
+                      && analysis::saveUserNormPack(widened("m_clubPathAtImpact"), &why));
+            analysis::resetSharedNormProvider();
+            board.setFocusedShotId(idOf(shots, 7));
+            const QVariantMap path2 = varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath");
+            check(QStringLiteral("N8 …and the board grades as it did before any edit (\"%1\", want \"%2\")")
+                      .arg(path2.value(QStringLiteral("basisText")).toString(), path0.value(QStringLiteral("basisText")).toString()),
+                  path2 == path0);
         }
         QFile::remove(analysis::userNormPath());
         analysis::resetSharedNormProvider();

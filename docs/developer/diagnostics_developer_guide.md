@@ -402,6 +402,10 @@ A measure matches a phase **through its reducer**, because that is where the pha
 
 Preference order is **absolute before change**, because a corridor keyed on a phase means the absolute reading there. Both `m_leadWristAtTop` (at P4) and the Δ cell name P4 on one metric; the absolute one wins.
 
+A measure matches a key on **any rung of its ladder** (`measureKeyLadder`: `preferKeys`, then `metricKey`), and within each of the two groups a measure whose **own** key is the one asked for comes first; pack order decides the rest. `lm.clubPath` is `m_lmClubPath`'s own key and a rung of `m_clubPathAtImpact`'s, so the launch monitor's board resolves its path corridor on `m_lmClubPath` and an edit to that row moves the board's band; `lm.launchAngle` and `lm.launchDirection` likewise. A rung still answers when the reading's own measure has no norm: `lm.clubheadSpeed` grades against `m_clubheadSpeedImpact`'s floor rows, because `m_lmClubheadSpeed` carries none.[^own-key-first]
+
+[^own-key-first]: GitHub #190.
+
 The list form exists because the winner can carry no norm. `m_leadWristAtTop` is preferred at P4 and has no norm at all — a caller taking only the winner draws nothing at the top of the swing while the Δ measure beside it has had a corridor since v1.
 
 ### Measure → norm (`norm_provider.h`)
