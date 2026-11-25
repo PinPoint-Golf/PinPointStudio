@@ -24,6 +24,7 @@ The definition of done counts an honestly written-up failed gate as complete and
 
 **AD-51.** A plan that adds or changes an object that is persisted or long-lived, and whose state changes what is allowed or what is on disk, must state that object's lifecycle (its states, its transitions and what each guarantees) in the lifecycle model before it is built. Value types, versioned packs (governed by version-gated re-analysis) and views need none.
 A plan for such an object names its lifecycle section; a new state or transition is added there in the same change. Today the rule covers the application, the athlete, the session, the shot and the Rig.
+The lifecycle model is [`governance/artefacts/lifecycle_model.md`](../artefacts/lifecycle_model.md) (owner: the Solution Architect). The information model's change process requires the same of a C1 or C3 change ([§1.2](../artefacts/information_model.md#12-what-counts-as-an-information-model-change)).
 *Why:* a state nobody wrote down is a guarantee nobody can check: a shot that existed only inside its processor, and a Start that never switched to Capture, were both lost or broken by changes that never saw the lifecycle.[^ad-51]
 *Owner:* Solution Architect · *Stage:* Plan · *Compliance:* a review of the plan
 
@@ -73,4 +74,4 @@ A plan that holds data copies in the ownership section, `governance/artefacts/in
 [^bt-2b]: Product Owner, 24 Nov 2026.
 [^bt-2]: Product Owner, 28 Oct and 21 Nov 2026.
 
-[^ad-51]: Product Owner and Solution Architect, 25 Nov 2026 (the lifecycle model's scope rule, from the #280, #281 and #283 losses). The lifecycle model is being drafted (build/platform/LIFE/); its home in governance is the Solution Architect's decision.
+[^ad-51]: Product Owner and Solution Architect, 25 Nov 2026 (the lifecycle model's scope rule, from the #280, #281 and #283 losses). The lifecycle model is its own artefact, `governance/artefacts/lifecycle_model.md`, owned by the Solution Architect (option (a); DEC-204).

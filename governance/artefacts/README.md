@@ -9,5 +9,6 @@ The governing specifications: the documents a change is checked against. Each ha
 | [`sign_conventions.md`](sign_conventions.md) | Solution Architect | The sign of every measured angle and direction |
 | [`normative_reference.md`](normative_reference.md) | Coaching Lead | The swing norms the diagnostics grade against |
 | [`imu_frame_contract.md`](imu_frame_contract.md) | Solution Architect | The orientation frames every motion-sensor consumer depends on |
+| [`lifecycle_model.md`](lifecycle_model.md) | Solution Architect | The lifecycles of the application, the athlete, the session, the shot and the Rig: their states, their transitions and what each guarantees |
 
 `artefact_paths_check` (ctest) fails if a tracked file cites an artefact by a path it no longer has.
