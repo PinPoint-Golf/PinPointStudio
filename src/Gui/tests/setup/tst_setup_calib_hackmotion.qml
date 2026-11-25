@@ -19,10 +19,17 @@
 // FakeHmDevice is in autoScript mode unless a case says otherwise. CH3/CH4/CH5/CH11 drive it
 // by hand ("manual") and assert today's exact strings, quoted from ImuCalibrationFlow.qml
 // with their line numbers.
+//
+// Golden traces (platform refactor C-9c): CHT — today's routine frozen before it moves to C++.
+// Each input set (support/calib_trace_hackmotion.js plays the library over a manual FakeHmDevice)
+// runs twice: the same inputs and projection both times, each equal to its fixture in fixtures/.
 import QtQuick
 import QtTest
 import PinPointStudio
 import "support"
+import "fakes"
+import "support/calib_trace.js" as Trace
+import "support/calib_trace_hackmotion.js" as HTrace
 
 Item {
     id: root
@@ -739,6 +746,266 @@ Item {
             // Applied but the presence check never passed: not calibrated.
             dev.calibrationState = dev.sUnknown
             verify(drv.panel.needsCalibration, "a wG3 at WR_CAL_UNKNOWN does not need calibrating")
+        }
+
+        // ═════ Golden traces (platform refactor C-9c; rig_design.md §4.8 "The equivalence test") ═════
+        // Today's routine, frozen before any of it moves to C++. Each row is one INPUT SET: a scripted world
+        // (support/calib_trace_hackmotion.js: a FakeHmDevice in manual mode, the file playing the library as
+        // autoScript would unless the set scripts another answer — a refusal, an abort by code, a presence
+        // outcome, a link loss — plus the forearm's travel, the guide and the host's commands), fed in the
+        // routine's own order so a run never depends on the wall clock. Each set runs TWICE and must give the
+        // same inputs and the same projection both times; the projection must equal its fixture, and the
+        // inputs theirs:
+        //   fixtures/calib_inputs_hackmotion_<tag>.json   every value the routine read, when, and each call's
+        //                                                 answer: what a C++ test feeds the HackMotion arm
+        //                                                 procedure (C-13a)
+        //   fixtures/calib_trace_hackmotion_<tag>.json    the projection: stages, verdicts, reason codes, the
+        //                                                 device calls, the guide's calls and what the status
+        //                                                 column reads (the step bar, the travel and its tint),
+        //                                                 each at the routine's own time
+        // Pace: × 0.05; the files' times are real-pace ms (each one-shot's and animation's nominal interval).
+        // A fixture is recorded only with PP_CALIB_TRACE_RECORD=1 in the environment; a missing one fails.
+        // ⚠ It freezes what looks like a bug as well: the C++ port is proved against it. One arm instrument
+        // per wearing: no set has a Witmotion on the arm.
+        Component { id: hmtLogComp;   FakeAppLog {} }
+        Component { id: hmtGuideComp; FakeGuide {} }
+        Component { id: hmtDevComp;   FakeHmDevice {} }
+        readonly property var hmTracePace: ({ scale: 0.05 })
+        readonly property int hmTraceTickMs: 100
+        // Recalibrate once all is still (the previous attempt's last device answer has landed).
+        readonly property var hmRetry: ["whenSettled", "begin"]
+        function test_CHT_goldenTrace_data() {
+            return [
+                // H2–H8, H10–H14, H16–H18, H20: the whole routine, the forearm raised 30°.
+                { tag: "pass", spec: {} },
+                // H15 / H16, the travel gate: 14.9° aborts before `a2 01` (and the message rounds it to 15°,
+                // the gate's own figure); our abort's ABORTED/CALLER answer keeps the message (H9); Recalibrate;
+                // 15.1° confirms; again, raised to 30° but back at 8° when the settle ends — the travel is read
+                // then, not when the guide finishes; again at 5°, and the abort itself is refused (−2): the
+                // refusal rewords the stop, where the CALLER echo did not.
+                { tag: "travelGate", spec: {
+                    raises: [14.9, 15.1, 30, 30],
+                    answers: { abortCalibration: [undefined, undefined, { refuse: -2 }] },
+                    on: [{ at: "hmStopped/", run: 1, do: hmRetry },
+                         { at: "hm5/", run: 2, do: hmRetry },
+                         { at: "hm2/settle", run: 3, do: ["arm:8"] },
+                         { at: "hmStopped/", run: 3, do: hmRetry },
+                         { at: "hm2/settle", run: 4, do: ["arm:5"] }] } },
+                // The travel that cannot be measured confirms anyway (H16): no start sample (the unit still
+                // reads identity), stop at APPLYING ("before the sensor applied anything"); identity at the
+                // confirm, reset() mid-run (it aborts, and its stop's words are then cleared); a NaN quaternion
+                // (NaN travel, the muted tint), Back and forward; no lower-arm unit, the guide taken away at the
+                // settle (H6 and H7 with no guide: the reference settle armed at once) and done; with no guide
+                // nothing starts (time passes), then the guide back, and the travel gate with no guide (the
+                // "about 30°" fallback).
+                { tag: "travelUnmeasured", spec: {
+                    raises: [{ start: false, to: 30 }, { to: "identity" }, { to: "nan" }, 30, 30],
+                    on: [{ at: "hm3/", run: 1, do: ["stop"].concat(hmRetry) },
+                         { at: "hm3/", run: 2, do: ["reset"].concat(hmRetry) },
+                         { at: "hm3/", run: 3, do: ["leave", "whenSettled", "enter", "segments:noUnit", "begin"] },
+                         { at: "hm2/settle", run: 4, do: ["guideNull"] },
+                         { at: "hm5/", run: 4, do: ["whenSettled", "segments:full", "begin"] },
+                         { at: "hm0/", run: 5, do: ["idle:3000", "guideBack"] },
+                         { at: "hm2/settle", run: 5, do: ["guideNull", "arm:5"] }] } },
+                // §2b, every refusal by status (H31): beginCalibration refused −14, −18, −12, −2 and −7, each then
+                // Recalibrate; confirmHorizontal refused BUSY (warn) with the device's routine still live, so the
+                // next Recalibrate aborts it and the abort's CALLER answer, landing on the fresh run at step 0, stops
+                // it as "Calibration cancelled."; again; confirmRaise refused NO_STREAM, then Back: the stop aborts
+                // the still-live device routine and rewords the refusal.
+                { tag: "refusals", spec: {
+                    answers: { beginCalibration: [{ refuse: -14 }, { refuse: -18 }, { refuse: -12 }, { refuse: -2 }, { refuse: -7 }],
+                               confirmHorizontal: [{ refuse: -18 }], confirmRaise: [{ refuse: -14 }] },
+                    on: [{ at: "hmStopped/", run: 1, do: hmRetry }, { at: "hmStopped/", run: 2, do: hmRetry },
+                         { at: "hmStopped/", run: 3, do: hmRetry }, { at: "hmStopped/", run: 4, do: hmRetry },
+                         { at: "hmStopped/", run: 5, do: hmRetry }, { at: "hmStopped/", run: 6, do: hmRetry },
+                         { at: "hmStopped/", run: 7, do: hmRetry }, { at: "hmStopped/", run: 8, do: ["stop"] }] } },
+                // §2a, every abort reason by its code (H9): 2 RAISE_TOO_SLOW while the raise animates (warn), 3 at
+                // the horizontal settle, 4 at the raise settle, 5 at APPLYING, 1 CALLER while still running (the
+                // return animating), 0 while awaiting the presence, an unknown 7 at the horizontal settle (the
+                // default words); COMPLETE carrying CALLER (H23, warn); COMPLETE at APPLYING (H22), then a RAISE_TOO_SLOW
+                // after that stop of ours: unlike the CALLER echo, it rewords it.
+                { tag: "aborts", spec: {
+                    presence: ["silent", "silent"],
+                    on: [{ at: "hm2/anim", run: 1, do: ["abort:2"] }, { at: "hmStopped/", run: 1, do: hmRetry },
+                         { at: "hm1/settle", run: 2, do: ["abort:3"] }, { at: "hmStopped/", run: 2, do: hmRetry },
+                         { at: "hm2/settle", run: 3, do: ["abort:4"] }, { at: "hmStopped/", run: 3, do: hmRetry },
+                         { at: "hm3/", run: 4, do: ["abort:5"] }, { at: "hmStopped/", run: 4, do: hmRetry },
+                         { at: "hm4/anim", run: 5, do: ["abort:1"] }, { at: "hmStopped/", run: 5, do: hmRetry },
+                         { at: "hm4/presence", run: 6, do: ["abort:0"] }, { at: "hmStopped/", run: 6, do: hmRetry },
+                         { at: "hm1/settle", run: 7, do: ["abort:7"] }, { at: "hmStopped/", run: 7, do: hmRetry },
+                         { at: "hm4/presence", run: 8, do: ["completeCaller"] }, { at: "hmStopped/", run: 8, do: hmRetry },
+                         { at: "hm3/", run: 9, do: ["complete"] },
+                         { at: "hmStopped/", run: 9, do: ["abort:2"] }] } },
+                // The verdict (H19–H27): presence not measured (H24); measured, not calibrated (H25); nothing comes
+                // back, the presence wait ends it (H27); COMPLETE before the measurement, then nothing (H26 → H27);
+                // COMPLETE first, then a measurement that did not confirm (H26 → H25); COMPLETE first, then
+                // CALIBRATED (H26 → H20).
+                { tag: "presence", spec: {
+                    presence: ["notMeasured", "uncalibrated", "silent", "pending", "pending:uncalibrated", "pending:calibrated"],
+                    on: [{ at: "hmStopped/", run: 1, do: hmRetry }, { at: "hmStopped/", run: 2, do: hmRetry },
+                         { at: "hmStopped/", run: 3, do: hmRetry }, { at: "hmStopped/", run: 4, do: hmRetry },
+                         { at: "hmStopped/", run: 5, do: hmRetry }] } },
+                // CALIBRATED before the reference pose: at APPLYING (step 3: ignored, then VERIFYING's own state event
+                // completes the run, with no confirmReferencePose); again, the library reporting the new attempt
+                // uncalibrated at begin, and CALIBRATED while the return animates (step 4: done at once). The
+                // reference settle still fires after done, and does nothing.
+                { tag: "earlyVerdict", spec: {
+                    on: [{ at: "hm3/", run: 1, do: ["state:2"] },
+                         { at: "hm5/", run: 1, do: hmRetry },
+                         { at: "hm1/begun", run: 2, do: ["state:1"] },
+                         { at: "hm4/anim", run: 2, do: ["state:2"] }] } },
+                // H19's guard (CH07): the previous attempt's COMPLETE (uncalibrated, CALLER, 64 samples) lingers at
+                // begin and a state event arrives at step 1 — ignored; the run passes. Recalibrate: the CALIBRATED
+                // state it left (the library keeps it across a begin, as the fake models it) completes the new run
+                // at VERIFYING.
+                { tag: "staleAtBegin", spec: {
+                    device: { phase: 7, state: 1, abort: 1, samples: 64 },
+                    on: [{ at: "hm1/begun", run: 1, do: ["stateEvent"] },
+                         { at: "hm5/", run: 1, do: hmRetry },
+                         { at: "hm1/begun", run: 2, do: ["stateEvent"] }] } },
+                // §2c, a link loss in each phase: at step 0 (H29's guard: noticed only at begin, H12a); at the
+                // horizontal settle (H29 then H28: two stops); the device's invalidation alone at the raise settle
+                // (H28, a stream restart); at APPLYING; while the return animates; confirmReferencePose refused
+                // LINK_DOWN, then the link drops (a loss after a stop rewords it); while awaiting the presence;
+                // after done, the transport alone (H29 → H30), then the device's invalidation.
+                { tag: "linkLoss", spec: {
+                    answers: { confirmReferencePose: [{ refuse: -12 }] },
+                    on: [{ at: "hm0/", run: 1, do: ["linkDown"] }, { at: "hmStopped/", run: 1, do: ["linkUp", "begin"] },
+                         { at: "hm1/settle", run: 2, do: ["linkDown"] }, { at: "hmStopped/", run: 2, do: ["linkUp", "begin"] },
+                         { at: "hm2/settle", run: 3, do: ["invalidate"] }, { at: "hmStopped/", run: 3, do: hmRetry },
+                         { at: "hm3/", run: 4, do: ["linkDown"] }, { at: "hmStopped/", run: 4, do: ["linkUp", "begin"] },
+                         { at: "hm4/anim", run: 5, do: ["linkDown"] }, { at: "hmStopped/", run: 5, do: ["linkUp", "begin"] },
+                         { at: "hmStopped/", run: 6, do: ["linkDown", "linkUp", "begin"] },
+                         { at: "hm4/presence", run: 7, do: ["linkDown"] }, { at: "hmStopped/", run: 7, do: ["linkUp", "begin"] },
+                         { at: "hm5/", run: 8, do: ["transportDown"] },
+                         { at: "hmStopped/", run: 8, do: ["linkDown"] }] } },
+                // H32 / H33, Back (stop) or leave (active false) at every step, each then forward: a stop with no
+                // run (nothing); step 0 (no abort); the horizontal settle; MARKING_POSE0; the raise animating; the
+                // raise settle; APPLYING; VERIFYING animating ("declined"); its settle; awaiting the presence; after
+                // a failure (the message stays, failed clears); after beginCalibration is sent but before the
+                // device reports active (no abort: the device's routine is left live, and the next Recalibrate
+                // aborts it, whose CALLER answer stops the fresh run); after done (done kept), then a leave.
+                { tag: "leaveEverywhere", spec: {
+                    first: ["stop", "begin"],
+                    presence: ["silent"],
+                    on: [{ at: "hm0/", run: 1, do: ["stop"].concat(hmRetry) },
+                         { at: "hm1/settle", run: 2, do: ["leave", "whenSettled", "enter", "begin"] },
+                         { at: "hm1/marking", run: 3, do: ["stop"].concat(hmRetry) },
+                         { at: "hm2/anim", run: 4, do: ["stop"].concat(hmRetry) },
+                         { at: "hm2/settle", run: 5, do: ["leave", "whenSettled", "enter", "begin"] },
+                         { at: "hm3/", run: 6, do: ["stop"].concat(hmRetry) },
+                         { at: "hm4/anim", run: 7, do: ["stop"].concat(hmRetry) },
+                         { at: "hm4/settle", run: 8, do: ["stop"].concat(hmRetry) },
+                         { at: "hm4/presence", run: 9, do: ["stop"].concat(hmRetry) },
+                         { at: "hm1/settle", run: 10, do: ["abort:3"] },
+                         { at: "hmStopped/", run: 10, do: ["stop"].concat(hmRetry) },
+                         { at: "hm1/begun", run: 11, do: ["stop"].concat(hmRetry) },
+                         { at: "hmStopped/", run: 12, do: hmRetry },
+                         { at: "hm5/", run: 13, do: ["stop", "leave"] }] } },
+                // H34, restore(): with nothing calibrated (step 0, not done); the device calibrated by itself while
+                // no run is in hand (not heard); restore (done, completed); again (no second completed); a
+                // re-emitted state; the link drops (H30 on a restored done: one stop, the stage stays idle with
+                // failed set — the second signal is not heard); then a run, restored mid-raise (no abort: the
+                // device's routine and the guide's animation carry on).
+                { tag: "restore", spec: {
+                    first: ["restore", "state:2", "restore", "restore", "stateEvent", "linkDown", "linkUp", "begin"],
+                    on: [{ at: "hm2/anim", run: 1, do: ["restore"] }] } },
+                // H11's gate: nothing starts while the guide is not ready (time passes); beginCalibration 1.5 s after
+                // it is; a guide that is not ready mid-run changes nothing. Recalibrate, and the guide taken away
+                // before OBSERVING_RAISE: no animation, so the chain never advances (6 s pass), until the library's
+                // RAISE_TOO_SLOW (the guide-less stop).
+                { tag: "guideGate", spec: {
+                    guideReady: false,
+                    first: ["begin", "idle:5000", "guideReady"],
+                    on: [{ at: "hm1/settle", run: 1, do: ["guideNotReady", "guideReady"] },
+                         { at: "hm5/", run: 1, do: hmRetry },
+                         { at: "hm1/settle", run: 2, do: ["guideNull"] },
+                         { at: "hm2/wait", run: 2, do: ["idle:6000", "abort:2"] }] } },
+                // H12: connected but not streaming (H12b); no device at all (H12a, and the clear's own no-device
+                // guard); the device taken away at the raise settle (the phase and the confirm timer meet no
+                // device: the chain stops without a word), the device back and Recalibrate (it aborts the live
+                // device routine; the CALLER answer stops the fresh run), again; the device taken away while
+                // awaiting the presence: the measurement is not heard, the presence wait ends it.
+                { tag: "notReady", spec: {
+                    device: { streaming: false },
+                    on: [{ at: "hmStopped/", run: 1, do: ["streamOn", "segments:none", "begin"] },
+                         { at: "hmStopped/", run: 2, do: ["segments:full", "begin"] },
+                         { at: "hm2/settle", run: 3, do: ["segments:none", "whenSettled", "segments:full", "begin"] },
+                         { at: "hmStopped/", run: 4, do: hmRetry },
+                         { at: "hm4/presence", run: 5, do: ["segments:none"] }] } },
+                // Recalibrate (begin) mid-run: during the raise it aborts the device's routine, and the ABORTED/CALLER
+                // answer stops the fresh run at step 0 ("Calibration cancelled."); again; during VERIFYING the answer
+                // is COMPLETE/CALLER, which step 0 ignores, so the fresh run goes on to done.
+                { tag: "recalibrateMidRun", spec: {
+                    on: [{ at: "hm2/anim", run: 1, do: ["begin"] },
+                         { at: "hmStopped/", run: 2, do: hmRetry },
+                         { at: "hm4/anim", run: 3, do: ["begin"] }] } }
+            ]
+        }
+
+        // One run of a set: fresh fakes and routine, the library played by calib_trace_hackmotion.js.
+        function hmTraceRun(tag, spec) {
+            var lg = hmtLogComp.createObject(tcase)
+            var gd = hmtGuideComp.createObject(tcase, { ready: spec.guideReady !== false })
+            var dev = hmtDevComp.createObject(tcase, { deviceId: "HM-1", mode: "manual", imuConnected: true, streaming: true })
+            var made = [lg, gd, dev]
+            HTrace.prepareDevice(dev, spec.device)
+            var init = { guide: gd, segments: HTrace.segmentsFor(dev, spec.segments), active: true, pace: hmTracePace }
+            var rt = harness.createWithContext("HackMotionArmRoutine", { appLog: lg }, null, init)
+            verify(rt !== null, "HackMotionArmRoutine failed to instantiate")
+            var rig = HTrace.attachHackMotion({ routine: rt, device: dev, guide: gd, log: lg, spec: spec })
+            var initial = rig.initial()
+            rig.start(spec.first)
+            var t0 = Date.now()
+            while (!rig.finished && Date.now() - t0 < 60000) { wait(5); rig.poll() }
+            var lines = lg.lines.slice(-40).join("\n")
+            var settled = rig.finished, where = rt.stage + "/" + rt._animStage, fault = rig.orderFault
+            if (!settled || fault !== "") {
+                harness.destroyNow(rt)
+                made.forEach(function(o) { o.destroy() })
+            }
+            verify(settled, tag + ": the run never settled (stage " + where + ")\n" + lines)
+            compare(fault, "", tag + ": " + fault)
+            var pace = {}
+            for (var k in rt._p) pace[k] = rt._p[k]
+            var setup = { segments: spec.segments || "full", guideReady: spec.guideReady !== false, deviceId: "HM-1",
+                          initial: initial }
+            var out = {
+                inputs: { routine: "HackMotionArmRoutine", set: tag, pace: pace, timeUnit: "ms at the real pace",
+                          setup: setup, inputs: rig.inputs() },
+                trace:  { routine: "HackMotionArmRoutine", set: tag, tickMs: hmTraceTickMs,
+                          projection: HTrace.project(rig.events, hmTraceTickMs) } }
+            harness.destroyNow(rt)
+            made.forEach(function(o) { o.destroy() })
+            return out
+        }
+        function hmSameDoc(got, file, what) {
+            var text = harness.readTextFile(Qt.resolvedUrl("fixtures/" + file))
+            verify(text !== "", what + ": fixtures/" + file + " is missing (record it with PP_CALIB_TRACE_RECORD=1)")
+            var want = JSON.parse(text)
+            var g = JSON.parse(JSON.stringify(got))
+            for (var k in want) {
+                if (Array.isArray(want[k]))
+                    compare(Trace.firstDiff(g[k] || [], want[k]), "", what + " " + file + ", " + k + " differs from the fixture")
+                else
+                    compare(JSON.stringify(g[k]), JSON.stringify(want[k]), what + " " + file + ", " + k)
+            }
+            compare(JSON.stringify(Object.keys(g)), JSON.stringify(Object.keys(want)), what + " " + file + ": keys")
+        }
+        function test_CHT_goldenTrace(row) {
+            var a = hmTraceRun(row.tag, row.spec)
+            var b = hmTraceRun(row.tag, row.spec)
+            // Deterministic: the same inputs and the same projection, run to run.
+            compare(Trace.firstDiff(b.inputs.inputs, a.inputs.inputs), "", row.tag + ": the inputs differ between two runs")
+            compare(Trace.firstDiff(b.trace.projection, a.trace.projection), "", row.tag + ": the projection differs between two runs")
+            var fi = "calib_inputs_hackmotion_" + row.tag + ".json", ft = "calib_trace_hackmotion_" + row.tag + ".json"
+            if (harness.envValue("PP_CALIB_TRACE_RECORD") === "1") {
+                verify(harness.writeTextFile(Qt.resolvedUrl("fixtures/" + fi), Trace.serialize(a.inputs)), "could not write " + fi)
+                verify(harness.writeTextFile(Qt.resolvedUrl("fixtures/" + ft), Trace.serialize(a.trace)), "could not write " + ft)
+                return
+            }
+            hmSameDoc(a.inputs, fi, "the inputs")
+            hmSameDoc(a.trace, ft, "the projection")
         }
     }
 }

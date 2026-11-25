@@ -1,0 +1,24 @@
+{
+  "routine": "HackMotionArmRoutine",
+  "set": "pass",
+  "pace": {"hmStart":1500,"presenceWait":6000,"raiseAnim":3000,"raiseSettle":500,"refSettle":1500,"returnAnim":1500,"scale":0.05,"settle":2000},
+  "timeUnit": "ms at the real pace",
+  "setup": {"segments":"full","guideReady":true,"deviceId":"HM-1","initial":{"device":{"link":true,"streaming":true,"active":false,"phase":0,"state":1,"abort":0,"samples":0,"notMeasured":false,"lowerArm":[1,0,0,0],"given":{"device":true,"lowerArm":true},"guideReady":true}}},
+  "inputs": [
+    {"t":0,"ev":"command","name":"begin","device":{"link":true,"streaming":true,"active":false,"phase":0,"state":1,"abort":0,"samples":0,"notMeasured":false,"lowerArm":[1,0,0,0],"given":{"device":true,"lowerArm":true},"guideReady":true}},
+    {"t":1500,"ev":"timer","timer":"start","dt":1500,"device":{"link":true,"streaming":true,"active":false,"phase":0,"state":1,"abort":0,"samples":0,"notMeasured":false,"lowerArm":[1,0,0,0],"given":{"device":true,"lowerArm":true},"guideReady":true}},
+    {"t":1500,"ev":"device","cause":"beginCalibration","set":[["active",true],["abort",0],["samples",0],["notMeasured",false],["phase",1],["emit","stateChanged"]]},
+    {"t":3500,"ev":"timer","timer":"horizontalSettle","dt":2000,"device":{"link":true,"streaming":true,"active":true,"phase":1,"state":1,"abort":0,"samples":0,"notMeasured":false,"lowerArm":[1,0,0,0],"given":{"device":true,"lowerArm":true},"guideReady":true}},
+    {"t":3500,"ev":"device","cause":"confirmHorizontal","set":[["phase",2],["emit","stateChanged"]]},
+    {"t":3500,"ev":"device","cause":"confirmHorizontal","set":[["lowerArm",[0.996194698,0.087155743,0,0]],["phase",3],["emit","stateChanged"]]},
+    {"t":3500,"ev":"device","cause":"raise","set":[["lowerArm",[0.939692621,0.342020143,0,0]]]},
+    {"t":6500,"ev":"guideFinished","dt":3000,"listening":true,"device":{"link":true,"streaming":true,"active":true,"phase":3,"state":1,"abort":0,"samples":0,"notMeasured":false,"lowerArm":[0.939692621,0.342020143,0,0],"given":{"device":true,"lowerArm":true},"guideReady":true}},
+    {"t":7000,"ev":"timer","timer":"raiseConfirm","dt":500,"device":{"link":true,"streaming":true,"active":true,"phase":3,"state":1,"abort":0,"samples":0,"notMeasured":false,"lowerArm":[0.939692621,0.342020143,0,0],"given":{"device":true,"lowerArm":true},"guideReady":true}},
+    {"t":7000,"ev":"device","cause":"confirmRaise","set":[["phase",4],["emit","stateChanged"]]},
+    {"t":7000,"ev":"device","cause":"confirmRaise","set":[["phase",5],["emit","stateChanged"]]},
+    {"t":7000,"ev":"device","cause":"confirmRaise","set":[["phase",6],["emit","stateChanged"]]},
+    {"t":8500,"ev":"guideFinished","dt":1500,"listening":true,"device":{"link":true,"streaming":true,"active":true,"phase":6,"state":1,"abort":0,"samples":0,"notMeasured":false,"lowerArm":[0.939692621,0.342020143,0,0],"given":{"device":true,"lowerArm":true},"guideReady":true}},
+    {"t":10000,"ev":"timer","timer":"refSettle","dt":1500,"device":{"link":true,"streaming":true,"active":true,"phase":6,"state":1,"abort":0,"samples":0,"notMeasured":false,"lowerArm":[0.939692621,0.342020143,0,0],"given":{"device":true,"lowerArm":true},"guideReady":true}},
+    {"t":10000,"ev":"device","cause":"confirmReferencePose","set":[["active",false],["samples",64],["notMeasured",false],["state",2],["phase",7],["emit","stateChanged"]]}
+  ]
+}
