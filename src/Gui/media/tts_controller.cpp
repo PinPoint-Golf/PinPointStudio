@@ -73,6 +73,7 @@ TtsController::TtsController(AppSettings *settings, QObject *parent)
     , m_workerThread(new QThread(this))
     , m_audioOutput(new AudioOutput(this))
     , m_downloader(new ModelDownloader(this))
+    , m_cloud(CloudFallback::textToSpeech(), cloudHooks())
 {
     m_workerThread->setObjectName(QStringLiteral("TtsWorkerThread"));
 
@@ -84,7 +85,7 @@ TtsController::TtsController(AppSettings *settings, QObject *parent)
 
     // Cloud-fallback availability is gated on the Azure key being configured; the
     // cloudFallbackTts preference selects the backend (see applyCloudFallbackPref).
-    m_cloudToggleAvailable = ttsKeyPresent();
+    m_cloud.setAvailable(m_cloud.keyPresent());
     if (m_appSettings)
         connect(m_appSettings, &AppSettings::cloudFallbackTtsChanged,
                 this, &TtsController::applyCloudFallbackPref);
@@ -130,11 +131,11 @@ TtsController::TtsController(AppSettings *settings, QObject *parent)
     // ---- Initial backend ----------------------------------------------------
     // The cloudFallbackTts preference is authoritative: when set (and an Azure
     // key exists) go straight to cloud TTS and skip the Kokoro model download.
-    if (m_appSettings && m_appSettings->cloudFallbackTts() && m_cloudToggleAvailable) {
-        const QString apiKey = SecretsManager::read(QStringLiteral("azureTtsApiKey"));
-        m_usingCloudTts    = true;
+    if (m_appSettings && m_appSettings->cloudFallbackTts() && m_cloud.available()) {
+        const QString apiKey = m_cloud.key();
+        m_cloud.setUsingCloud(true);
         m_switchingToAzure = true;
-        m_ttsCloudKey      = apiKey;
+        m_cloud.setLoadedKey(apiKey);
         QTimer::singleShot(0, this, [this, apiKey]() { switchToAzure(apiKey); });
     } else if (modelFilesExist()) {
         triggerModelLoad();
@@ -189,7 +190,7 @@ void TtsController::setVoice(const QString &voice)
     // changes nothing); and the model reload (ttsReady false) happens BEFORE voiceChanged, so a host
     // re-preparing on it waits for ttsReady instead of synthesising in the old voice under the new
     // voice's key.
-    if (!m_usingCloudTts) {
+    if (!m_cloud.usingCloud()) {
         invalidatePrepared("voice changed");
         if (modelFilesExist())
             triggerModelLoad();
@@ -200,8 +201,8 @@ void TtsController::setVoice(const QString &voice)
 // The cloud engine (AzureTTSEngine) speaks in one fixed voice whatever `voice` says.
 TtsPhraseKey TtsController::phraseKey(const QString &trimmedText) const
 {
-    return m_usingCloudTts ? TtsPhraseKey{ QStringLiteral("cloud"), QString(), trimmedText }
-                           : TtsPhraseKey{ QStringLiteral("local"), m_voice, trimmedText };
+    return m_cloud.usingCloud() ? TtsPhraseKey{ QStringLiteral("cloud"), QString(), trimmedText }
+                                : TtsPhraseKey{ QStringLiteral("local"), m_voice, trimmedText };
 }
 
 void TtsController::speak(const QString &text)
@@ -401,50 +402,44 @@ void TtsController::invalidatePrepared(const char *why)
 
 void TtsController::toggleTtsBackend()
 {
-    // The persisted preference is the single source of truth — flipping it drives
-    // applyCloudFallbackPref() (and keeps the Settings toggle in sync).
-    if (!m_cloudToggleAvailable || !m_appSettings)
-        return;
-    m_appSettings->setCloudFallbackTts(!m_appSettings->cloudFallbackTts());
+    m_cloud.toggle();
 }
 
 void TtsController::applyCloudFallbackPref()
 {
-    if (!m_appSettings)
-        return;
-    const QString apiKey = SecretsManager::read(QStringLiteral("azureTtsApiKey"));
-    const bool    want   = m_appSettings->cloudFallbackTts() && !apiKey.isEmpty();
-    // Rebuild when the desired backend changes, OR when staying on cloud but the
-    // key value changed (e.g. the user corrected a bad key).
-    if (want == m_usingCloudTts && (!want || apiKey == m_ttsCloudKey))
-        return;
-    if (want) {
-        m_forceLocalTts    = false;
-        m_usingCloudTts    = true;
-        m_switchingToAzure = true;
-        m_ttsCloudKey      = apiKey;
-        QTimer::singleShot(0, this, [this, apiKey]() { switchToAzure(apiKey); });
-    } else {
-        m_forceLocalTts = true;   // prevent any implicit cloud re-engagement
-        m_ttsCloudKey.clear();
-        switchToKokoro();
-    }
+    m_cloud.apply();
 }
 
 void TtsController::refreshCloudAvailability()
 {
-    const bool avail = ttsKeyPresent();
-    if (avail != m_cloudToggleAvailable) {
-        m_cloudToggleAvailable = avail;
-        emit cloudTtsFallbackAvailableChanged();
-    }
-    // A newly-entered key may enable a force-cloud preference that was waiting on it.
-    applyCloudFallbackPref();
+    m_cloud.refresh();
 }
 
-bool TtsController::ttsKeyPresent() const
+// The cloud-fallback piece's hooks (media/cloud_fallback.h). The key is the Azure TTS key
+// (CloudFallback::textToSpeech()). To the cloud: deferred to the next event-loop turn, with the
+// Kokoro-ready signal held back until it is done (m_switchingToAzure). To local: at once;
+// switchToKokoro() marks the cloud out of use.
+CloudFallback::Hooks TtsController::cloudHooks()
 {
-    return !SecretsManager::read(QStringLiteral("azureTtsApiKey")).isEmpty();
+    CloudFallback::Hooks h;
+    h.readSecret = [](const QString &id) { return SecretsManager::read(id); };
+    h.preference = [this]() -> std::optional<bool> {
+        if (!m_appSettings)
+            return std::nullopt;
+        return m_appSettings->cloudFallbackTts();
+    };
+    h.setPreference = [this](bool v) { m_appSettings->setCloudFallbackTts(v); };
+    h.switchToCloud = [this](const QString &apiKey) {
+        m_forceLocalTts    = false;
+        m_switchingToAzure = true;
+        QTimer::singleShot(0, this, [this, apiKey]() { switchToAzure(apiKey); });
+    };
+    h.switchToLocal = [this]() {
+        m_forceLocalTts = true;   // prevent any implicit cloud re-engagement
+        switchToKokoro();
+    };
+    h.availabilityChanged = [this]() { emit cloudTtsFallbackAvailableChanged(); };
+    return h;
 }
 
 void TtsController::replayLastAudio()
@@ -614,7 +609,7 @@ void TtsController::switchToAzure(const QString &apiKey)
 
 void TtsController::switchToKokoro()
 {
-    m_usingCloudTts = false;
+    m_cloud.setUsingCloud(false);
     m_ttsReady = false;
     emit ttsReadyChanged();
 

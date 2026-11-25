@@ -26,6 +26,7 @@
 
 #include <optional>
 
+#include "cloud_fallback.h"
 #include "tts_phrase_cache.h"
 
 class AppSettings;
@@ -89,7 +90,7 @@ public:
     qreal       downloadProgress()          const { return m_downloadProgress; }
     QString     downloadStatus()            const { return m_downloadStatus; }
     QString     ttsBackend()               const { return m_ttsBackend; }
-    bool        cloudTtsFallbackAvailable() const { return m_cloudToggleAvailable; }
+    bool        cloudTtsFallbackAvailable() const { return m_cloud.available(); }
     QStringList voices()                    const;
     QString     voice()                     const { return m_voice; }
     void        setVoice(const QString &voice);
@@ -139,8 +140,8 @@ private slots:
     void onDownloadFailed(const QString &error);
 
 private slots:
-    // Swap to/from Azure cloud TTS to match cloudFallbackTts && key-present.
-    // Connected to AppSettings::cloudFallbackTtsChanged.
+    // Swap to/from Azure cloud TTS to match cloudFallbackTts && key-present (the cloud-fallback
+    // piece, media/cloud_fallback.h). Connected to AppSettings::cloudFallbackTtsChanged.
     void    applyCloudFallbackPref();
 
 private:
@@ -175,8 +176,8 @@ private:
     void    invalidatePrepared(const char *why);
     void    onDispatchTimeout();
 
-    // True when the Azure TTS key is configured.
-    bool    ttsKeyPresent() const;
+    // The cloud-fallback piece's hooks: the settings, the secrets and the two switches.
+    CloudFallback::Hooks cloudHooks();
 
     QString modelDataDir()    const;
     QString resolveModelPath()  const;
@@ -192,11 +193,8 @@ private:
     bool          m_ttsReady             = false;
     bool          m_ttsActive            = false;
     bool          m_downloading          = false;
-    bool          m_usingCloudTts        = false;
     bool          m_switchingToAzure     = false;
     bool          m_forceLocalTts        = false;
-    bool          m_cloudToggleAvailable = false;
-    QString       m_ttsCloudKey;            // Azure key currently loaded in the backend
     qreal         m_downloadProgress = 0.0;
     QString       m_downloadStatus;
     QString       m_ttsBackend;
@@ -210,4 +208,6 @@ private:
     QList<TtsJob>                 m_jobs;          // waiting, oldest first
     std::optional<TtsJob>         m_job;           // dispatched to the worker
     QTimer                        m_dispatchWatchdog;
+    // Cloud-fallback availability, whether Azure is in use, and the Azure key loaded in it.
+    CloudFallback                 m_cloud;
 };

@@ -49,6 +49,7 @@ TranscriptionController::TranscriptionController(AppSettings *settings, QObject 
     , m_streamSaver(nullptr)
     , m_acousticDetector(new AcousticShotDetector)
     , m_stt(new STTProcessor(settings && settings->cloudFallbackStt()))
+    , m_cloud(CloudFallback::speechToText(), cloudHooks())
 {
     m_audioThread->setObjectName(QStringLiteral("AudioThread"));
     m_processorThread->setObjectName(QStringLiteral("ProcessorThread"));
@@ -56,10 +57,10 @@ TranscriptionController::TranscriptionController(AppSettings *settings, QObject 
     // Cloud-fallback availability is gated on an Azure key being configured; the
     // user's force-cloud preference (cloudFallbackStt) selects the backend. The
     // initial backend was chosen in the STTProcessor ctor above.
-    m_sttCloudToggleAvailable = sttKeyPresent();
-    m_sttUsingCloud           = (settings && settings->cloudFallbackStt() && m_sttCloudToggleAvailable);
-    if (m_sttUsingCloud)
-        m_sttCloudKey = sttCloudKey();   // matches the key the STTProcessor ctor just used
+    m_cloud.setAvailable(m_cloud.keyPresent());
+    m_cloud.setUsingCloud(settings && settings->cloudFallbackStt() && m_cloud.available());
+    if (m_cloud.usingCloud())
+        m_cloud.setLoadedKey(m_cloud.key());   // matches the key the STTProcessor ctor just used
     if (m_appSettings)
         connect(m_appSettings, &AppSettings::cloudFallbackSttChanged,
                 this, &TranscriptionController::applyCloudFallbackPref);
@@ -188,9 +189,9 @@ TranscriptionController::~TranscriptionController()
 
 void TranscriptionController::onBackendLabelReady(const QString &label)
 {
-    m_sttUsingCloud = (label == QLatin1String("Cloud"));
-    if (m_sttUsingCloud && !m_sttCloudToggleAvailable) {
-        m_sttCloudToggleAvailable = true;
+    m_cloud.setUsingCloud(label == QLatin1String("Cloud"));
+    if (m_cloud.usingCloud() && !m_cloud.available()) {
+        m_cloud.setAvailable(true);
         emit cloudSttFallbackAvailableChanged();
     }
     m_sttBackend = label;
@@ -199,54 +200,46 @@ void TranscriptionController::onBackendLabelReady(const QString &label)
 
 void TranscriptionController::toggleSttBackend()
 {
-    // The persisted preference is the single source of truth — flipping it drives
-    // applyCloudFallbackPref() (and keeps the Settings toggle in sync).
-    if (!m_sttCloudToggleAvailable || !m_appSettings)
-        return;
-    m_appSettings->setCloudFallbackStt(!m_appSettings->cloudFallbackStt());
+    m_cloud.toggle();
 }
 
 void TranscriptionController::applyCloudFallbackPref()
 {
-    if (!m_appSettings)
-        return;
-    const QString key  = sttCloudKey();
-    const bool    want = m_appSettings->cloudFallbackStt() && !key.isEmpty();
-    // Rebuild when the desired backend changes, OR when staying on cloud but the
-    // key value changed (e.g. the user corrected a bad key) — swapBackend re-reads it.
-    if (want == m_sttUsingCloud && (!want || key == m_sttCloudKey))
-        return;
-    m_sttUsingCloud = want;   // optimistic; confirmed by onBackendLabelReady
-    m_sttCloudKey   = want ? key : QString();
-    STTProcessor *stt = m_stt;
-    QMetaObject::invokeMethod(stt, [stt, want]() {
-        stt->swapBackend(want);
-    }, Qt::QueuedConnection);
+    m_cloud.apply();
 }
 
 void TranscriptionController::refreshCloudAvailability()
 {
-    const bool avail = sttKeyPresent();
-    if (avail != m_sttCloudToggleAvailable) {
-        m_sttCloudToggleAvailable = avail;
-        emit cloudSttFallbackAvailableChanged();
-    }
-    // A newly-entered (or corrected) key may enable a force-cloud preference that
-    // was waiting on it, or change the key of the live cloud backend.
-    applyCloudFallbackPref();
+    m_cloud.refresh();
 }
 
-QString TranscriptionController::sttCloudKey() const
+// The cloud-fallback piece's hooks (media/cloud_fallback.h). The key is the STT-specific Azure key, or
+// the shared TTS key (CloudFallback::speechToText()). Both directions are one queued swapBackend() on
+// the processor thread, which re-reads the key; "in use" is set before it, optimistically, and
+// confirmed by onBackendLabelReady.
+CloudFallback::Hooks TranscriptionController::cloudHooks()
 {
-    QString k = SecretsManager::read(QStringLiteral("azureSttApiKey"));
-    if (k.isEmpty())
-        k = SecretsManager::read(QStringLiteral("azureTtsApiKey"));
-    return k;
-}
-
-bool TranscriptionController::sttKeyPresent() const
-{
-    return !sttCloudKey().isEmpty();
+    CloudFallback::Hooks h;
+    h.readSecret = [](const QString &id) { return SecretsManager::read(id); };
+    h.preference = [this]() -> std::optional<bool> {
+        if (!m_appSettings)
+            return std::nullopt;
+        return m_appSettings->cloudFallbackStt();
+    };
+    h.setPreference = [this](bool v) { m_appSettings->setCloudFallbackStt(v); };
+    const auto swap = [this](bool cloud) {
+        STTProcessor *stt = m_stt;
+        QMetaObject::invokeMethod(stt, [stt, cloud]() {
+            stt->swapBackend(cloud);
+        }, Qt::QueuedConnection);
+    };
+    h.switchToCloud = [swap](const QString &) { swap(true); };
+    h.switchToLocal = [this, swap]() {
+        m_cloud.setUsingCloud(false);
+        swap(false);
+    };
+    h.availabilityChanged = [this]() { emit cloudSttFallbackAvailableChanged(); };
+    return h;
 }
 
 void TranscriptionController::setAcousticLatencyUs(qint64 us)

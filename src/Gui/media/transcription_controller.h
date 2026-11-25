@@ -24,6 +24,8 @@
 #include <QElapsedTimer>
 #include <QVariantList>
 
+#include "cloud_fallback.h"
+
 class AcousticShotDetector;
 class AppSettings;
 class AudioInput;
@@ -49,7 +51,7 @@ public:
     QString transcript()              const { return m_transcript; }
     bool    isListening()             const { return m_capturing; }
     QString sttBackend()              const { return m_sttBackend; }
-    bool    cloudSttFallbackAvailable() const { return m_sttCloudToggleAvailable; }
+    bool    cloudSttFallbackAvailable() const { return m_cloud.available(); }
     qint64  lastSttLatencyMs()        const { return m_lastSttLatencyMs; }
 
 public slots:
@@ -119,8 +121,8 @@ private slots:
     void onAudioError(const QString &message);
     void onSTTError(const QString &message);
     void startAudio();   // called once microphone permission is confirmed
-    // Swap the STT backend to match cloudFallbackStt && key-present. Connected to
-    // AppSettings::cloudFallbackSttChanged.
+    // Swap the STT backend to match cloudFallbackStt && key-present (the cloud-fallback piece,
+    // media/cloud_fallback.h). Connected to AppSettings::cloudFallbackSttChanged.
     void applyCloudFallbackPref();
 
 private:
@@ -134,10 +136,8 @@ private:
     // for calibration/shot detection shares the mic but must not feed whisper.
     void setSttGate(bool enabled);
 
-    // Effective Azure key for STT: the STT-specific key, or the shared TTS key.
-    QString sttCloudKey() const;
-    // True when an Azure key (STT-specific, or the shared TTS key) is configured.
-    bool    sttKeyPresent() const;
+    // The cloud-fallback piece's hooks: the settings, the secrets and the backend swap.
+    CloudFallback::Hooks cloudHooks();
 
 private:
     AppSettings          *m_appSettings = nullptr;
@@ -154,9 +154,8 @@ private:
     bool              m_calibrationWanted       = false;   // calibration view open
     bool              m_shotDetectionWanted     = false;   // capturing session
     bool              m_capturing               = false;   // actual device state
-    bool              m_sttUsingCloud           = false;
-    bool              m_sttCloudToggleAvailable = false;
-    QString           m_sttCloudKey;            // Azure key currently loaded in the backend
     QElapsedTimer     m_sttDispatchTimer;
     qint64            m_lastSttLatencyMs        = 0;
+    // Cloud-fallback availability, whether the cloud backend is in use, and the Azure key loaded in it.
+    CloudFallback     m_cloud;
 };

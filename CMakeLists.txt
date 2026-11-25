@@ -736,6 +736,8 @@ qt_add_executable(PinPointStudio
     src/Gui/imu/imu_device.h
     src/Gui/imu/hm_instance.h                src/Gui/imu/hm_instance.cpp
     src/Gui/imu/trunk_ceremony_recorder.h    src/Gui/imu/trunk_ceremony_recorder.cpp
+    # The one cloud-fallback piece of the speech-to-text, text-to-speech and AI Coach controllers.
+    src/Gui/media/cloud_fallback.h           src/Gui/media/cloud_fallback.cpp
     src/Gui/media/transcription_controller.h src/Gui/media/transcription_controller.cpp
     src/Gui/media/tts_controller.h           src/Gui/media/tts_controller.cpp
     src/Gui/athlete/athlete_controller.h     src/Gui/athlete/athlete_controller.cpp

@@ -22,6 +22,8 @@
 #include <QVariantList>
 #include <QThread>
 
+#include "cloud_fallback.h"
+
 class AppSettings;
 class LlmWorker;
 class ModelDownloader;
@@ -73,7 +75,7 @@ public:
     qreal        downloadProgress()          const { return m_downloadProgress; }
     QString      downloadStatus()            const { return m_downloadStatus; }
     QString      llmBackend()                const { return m_llmBackend; }
-    bool         cloudLlmFallbackAvailable() const { return m_cloudToggleAvailable; }
+    bool         cloudLlmFallbackAvailable() const { return m_cloud.available(); }
     bool         localGpuAvailable()         const { return m_localGpuAvailable; }
     QVariantList conversation()              const;
     bool         voiceInputEnabled()         const { return m_voiceInputEnabled; }
@@ -111,8 +113,8 @@ private slots:
     void onModelReady();
     void onModelFailed(const QString &error);
     void onBackendChanged(const QString &backend);
-    // Swap to/from Gemini cloud to match (cloudFallbackLlm || no-GPU) && key-present.
-    // Connected to AppSettings::cloudFallbackLlmChanged.
+    // Swap to/from Gemini cloud to match (cloudFallbackLlm || no-GPU) && key-present (the
+    // cloud-fallback piece, media/cloud_fallback.h). Connected to AppSettings::cloudFallbackLlmChanged.
     void applyCloudFallbackPref();
     void onTokenReady(const QString &token);
     void onResponseReady(const QString &full);
@@ -132,6 +134,8 @@ private:
     void   connectWorkerSignals();
     void   switchToGemini(const QString &apiKey);
     void   switchToLocal();
+    // The cloud-fallback piece's hooks: the settings, the secrets, the GPU and the two switches.
+    CloudFallback::Hooks cloudHooks();
 
     QString modelDataDir() const;
 
@@ -146,17 +150,16 @@ private:
     bool    m_llmReady             = false;
     bool    m_llmActive            = false;
     bool    m_downloading          = false;
-    bool    m_usingCloudLlm        = false;
     bool    m_switchingToGemini    = false;
     bool    m_forceLocalLlm        = false;
-    bool    m_cloudToggleAvailable = false;
     bool    m_localGpuAvailable    = false;
     bool    m_voiceInputEnabled    = false;
-    QString m_llmCloudKey;            // Gemini key currently loaded in the backend
     bool    m_voiceOutputEnabled   = false;
     qreal   m_downloadProgress     = 0.0;
     QString m_downloadStatus;
     QString m_llmBackend;
     QElapsedTimer m_latencyTimer;
     qint64        m_lastLlmLatencyMs = 0;
+    // Cloud-fallback availability, whether Gemini is in use, and the Gemini key loaded in it.
+    CloudFallback m_cloud;
 };

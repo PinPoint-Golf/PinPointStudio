@@ -307,6 +307,16 @@ pp_add_test(tts_phrase_cache_test
     SOURCES tts_phrase_cache_test.cpp
     INCLUDE ${GUI} ${SRC})
 
+# The one cloud-fallback piece of the speech-to-text, text-to-speech and AI Coach controllers
+# (media/cloud_fallback.h), under each controller's own policy: which key, whether no local GPU means
+# cloud, the rebuild-on-a-changed-key guard, availability before the switch, the toggle's refusals.
+# Fakes for the secrets, the preference and the switches: no SecretsManager, no settings, no engine.
+pp_add_test(cloud_fallback_test
+    SOURCES cloud_fallback_test.cpp
+            ${GUI}/media/cloud_fallback.h ${GUI}/media/cloud_fallback.cpp
+    INCLUDE ${GUI} ${GUI}/media
+    LINK    Qt6::Test  AUTOMOC)
+
 # ShotListModel's ledger — the carousel's ordinals, its reload from disk, and the
 # write-through of the user's review.  Distinct from shot_list_model_test above,
 # which covers shotSummary() only: this one puts real swing.json documents on disk

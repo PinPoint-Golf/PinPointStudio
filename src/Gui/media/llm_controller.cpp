@@ -95,6 +95,7 @@ LlmController::LlmController(AppSettings *settings, QObject *parent)
     , m_workerThread(new QThread(this))
     , m_worker(nullptr)
     , m_downloader(new ModelDownloader(this))
+    , m_cloud(CloudFallback::aiCoach(), cloudHooks())
 {
     // Before anything is connected, probed or started. m_workerThread and m_downloader are
     // constructed by the member-init list above but are inert until started, and
@@ -115,8 +116,8 @@ LlmController::LlmController(AppSettings *settings, QObject *parent)
     connect(m_downloader, &ModelDownloader::failed,
             this, &LlmController::onDownloadFailed);
 
-    const QString geminiKey = SecretsManager::read(QStringLiteral("geminiApiKey"));
-    m_cloudToggleAvailable  = !geminiKey.isEmpty();
+    const QString geminiKey = m_cloud.key();
+    m_cloud.setAvailable(!geminiKey.isEmpty());
     m_localGpuAvailable     = LocalLlmEngine::hasGpu();
     if (m_appSettings)
         connect(m_appSettings, &AppSettings::cloudFallbackLlmChanged,
@@ -134,8 +135,8 @@ LlmController::LlmController(AppSettings *settings, QObject *parent)
                      << "local model download skipped.";
         else
             ppInfo() << "[LlmController] Cloud fallback forced — AI Coach will use Gemini cloud.";
-        m_usingCloudLlm = true;
-        m_llmCloudKey   = geminiKey;
+        m_cloud.setUsingCloud(true);
+        m_cloud.setLoadedKey(geminiKey);
         engine = new GeminiLlmEngine(geminiKey);
     } else if (!m_localGpuAvailable) {
         ppWarn() << "[LlmController] No GPU and no Gemini API key — AI Coach unavailable.";
@@ -149,7 +150,7 @@ LlmController::LlmController(AppSettings *settings, QObject *parent)
     connectWorkerSignals();
     m_workerThread->start();
 
-    if (m_usingCloudLlm) {
+    if (m_cloud.usingCloud()) {
         triggerModelLoad();
     } else if (modelFilesExist()) {
         triggerModelLoad();
@@ -244,48 +245,41 @@ void LlmController::clearHistory()
 
 void LlmController::toggleLlmBackend()
 {
-    // The persisted preference is the single source of truth — flipping it drives
-    // applyCloudFallbackPref() (and keeps the Settings toggle in sync).
-    if (!m_cloudToggleAvailable || !m_appSettings)
-        return;
-    // No local GPU → cloud is mandatory (toggle locked ON in the UI); guard here too
-    // so the badge can't force an unusable local LLM.
-    if (!m_localGpuAvailable)
-        return;
-    m_appSettings->setCloudFallbackLlm(!m_appSettings->cloudFallbackLlm());
+    m_cloud.toggle();
 }
 
 void LlmController::applyCloudFallbackPref()
 {
-    if (!m_appSettings)
-        return;
-    const QString key = SecretsManager::read(QStringLiteral("geminiApiKey"));
-    const bool want = (m_appSettings->cloudFallbackLlm() || !m_localGpuAvailable)
-                      && !key.isEmpty();
-    // Rebuild when the desired backend changes, OR when staying on cloud but the
-    // key value changed (e.g. the user corrected a bad key).
-    if (want == m_usingCloudLlm && (!want || key == m_llmCloudKey))
-        return;
-    if (want) {
-        m_usingCloudLlm     = true;
-        m_switchingToGemini = true;
-        m_llmCloudKey       = key;
-        switchToGemini(key);
-    } else {
-        m_llmCloudKey.clear();
-        switchToLocal();
-    }
+    m_cloud.apply();
 }
 
 void LlmController::refreshCloudAvailability()
 {
-    const bool avail = !SecretsManager::read(QStringLiteral("geminiApiKey")).isEmpty();
-    if (avail != m_cloudToggleAvailable) {
-        m_cloudToggleAvailable = avail;
-        emit cloudLlmFallbackAvailableChanged();
-    }
-    // A newly-entered key may enable a force-cloud (or no-GPU mandatory) preference.
-    applyCloudFallbackPref();
+    m_cloud.refresh();
+}
+
+// The cloud-fallback piece's hooks (media/cloud_fallback.h). The key is the Gemini key, and no local
+// GPU makes the cloud the only path (CloudFallback::aiCoach()); the GPU is the constructor's probe,
+// never probed again here. Both switches are made at once; switchToLocal() marks the cloud out of use,
+// and on a dark build neither switch does anything (llmEnabled()).
+CloudFallback::Hooks LlmController::cloudHooks()
+{
+    CloudFallback::Hooks h;
+    h.readSecret = [](const QString &id) { return SecretsManager::read(id); };
+    h.preference = [this]() -> std::optional<bool> {
+        if (!m_appSettings)
+            return std::nullopt;
+        return m_appSettings->cloudFallbackLlm();
+    };
+    h.setPreference = [this](bool v) { m_appSettings->setCloudFallbackLlm(v); };
+    h.localGpu      = [this]() { return m_localGpuAvailable; };
+    h.switchToCloud = [this](const QString &key) {
+        m_switchingToGemini = true;
+        switchToGemini(key);
+    };
+    h.switchToLocal       = [this]() { switchToLocal(); };
+    h.availabilityChanged = [this]() { emit cloudLlmFallbackAvailableChanged(); };
+    return h;
 }
 
 void LlmController::setVoiceInput(bool enabled)
@@ -313,10 +307,10 @@ void LlmController::onBackendChanged(const QString &backend)
     emit llmBackendChanged();
 
     // CPU-only local path → hot-swap to Gemini (same pattern as TtsController → Azure).
-    if (!m_usingCloudLlm && !m_switchingToGemini && backend.isEmpty()) {
-        const QString key = SecretsManager::read(QStringLiteral("geminiApiKey"));
+    if (!m_cloud.usingCloud() && !m_switchingToGemini && backend.isEmpty()) {
+        const QString key = m_cloud.key();
         if (!key.isEmpty()) {
-            m_usingCloudLlm     = true;
+            m_cloud.setUsingCloud(true);
             m_switchingToGemini = true;
             QTimer::singleShot(0, this, [this, key]() { switchToGemini(key); });
         }
@@ -421,9 +415,9 @@ void LlmController::onDownloadFailed(const QString &error)
     setDownloadStatus(tr("Download failed: %1").arg(error));
 
     // Fall back to cloud if we have a key and can't get the local model.
-    const QString key = SecretsManager::read(QStringLiteral("geminiApiKey"));
+    const QString key = m_cloud.key();
     if (!key.isEmpty()) {
-        m_usingCloudLlm     = true;
+        m_cloud.setUsingCloud(true);
         m_switchingToGemini = true;
         switchToGemini(key);
     }
@@ -546,7 +540,7 @@ void LlmController::switchToLocal()
     delete m_worker;
     m_worker = nullptr;
 
-    m_usingCloudLlm     = false;
+    m_cloud.setUsingCloud(false);
     m_switchingToGemini = false;
     m_llmReady          = false;
     emit llmReadyChanged();
