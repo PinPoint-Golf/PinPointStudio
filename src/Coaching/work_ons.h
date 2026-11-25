@@ -90,7 +90,11 @@ inline constexpr int kPrioritySchemaVersion = 3;
 // 6: the rows are checked against the ball flight when the ledger is built (checkStrikesAgainstFlight,
 // strike_from_flight.h, Mark 10 Nov 2026): a measured thin, top or fat the flight contradicts, and a measured
 // sky the flight rule doesn't call Sky, are NotAssessable, so the fired and assessable counts move.
-inline constexpr int kPriorityRuleVersion   = 6;
+// 7 (25 Nov 2026, #259): the Wilson bounds are exact at their ends: wilsonLowerBound is exactly 0 when nothing fired and
+// wilsonUpperBound exactly 1 when every shot fired. On arm64 the fused form left about 1e-18 at the lower end, so the
+// Mac ordered never-fired conditions by that residue and Windows by id; both now order them by id. work_ons.json
+// stores wilsonLower, so a rule-6 file is stale and re-reduced.
+inline constexpr int kPriorityRuleVersion   = 7;
 
 // "The top 3–5". Five is a cap; three is how far Delivery conditions may fill a session that
 // measured fewer movement faults than that. Neither is a quota — a session with two patterns
@@ -135,6 +139,9 @@ inline double wilsonUpperBound(double fired, double assessable, double z = kDiag
         return 1.0;
     const double n  = assessable;
     const double p  = std::clamp(fired / n, 0.0, 1.0);
+    // p = 1 (every shot fired): the bound is exactly 1, by the same reasoning as wilsonLowerBound's p = 0 (#259):
+    // the formula only cancels to it, and a fused multiply-add can leave a last-bit residue.
+    if (!(p < 1.0)) return 1.0;
     const double z2 = z * z;
     const double centre = p + z2 / (2.0 * n);
     const double inner  = p * (1.0 - p) / n + z2 / (4.0 * n * n);

@@ -287,6 +287,10 @@ inline double wilsonLowerBound(double fired, double assessable, double z = kDiag
         return 0.0;
     const double n  = assessable;
     const double p  = std::clamp(fired / n, 0.0, 1.0);
+    // p = 0 (nothing fired): the bound is exactly 0. The formula below only cancels to it, and a fused
+    // multiply-subtract (Apple clang's default on arm64) leaves about 1e-18 for some n, which sorts ahead of a
+    // true 0 and reorders never-fired conditions on the Mac only (#259; kPriorityRuleVersion 7).
+    if (!(p > 0.0)) return 0.0;
     const double z2 = z * z;
     const double centre = p + z2 / (2.0 * n);
     const double inner  = p * (1.0 - p) / n + z2 / (4.0 * n * n);

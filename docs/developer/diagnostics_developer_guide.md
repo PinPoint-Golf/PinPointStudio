@@ -658,6 +658,9 @@ In the session layer:
 
 - **Soft counts.** `LedgerOptions::softTier` feeds expected counts into the Wilson bound.
   `patternDraws()` gives each condition's P(Pattern) from 200 deterministic draws.
+- **Exact ends.** `wilsonLowerBound` returns exactly 0 when nothing fired, and `wilsonUpperBound`
+  (`work_ons.h`) exactly 1 when every shot fired. The formula only cancels to them, and the residue
+  sorts: the bound is a sort key, and the order must not depend on the compiler.[^wilson-ends]
 - **Hard captions.** Recurrence captions and the integer counts stay hard.
 
 ### `relation_resolver.h` — the explanation pass
@@ -1276,3 +1279,4 @@ src/Gui/review/metric_catalog.cpp      corridors for the metric + dashboard surf
 [^ps-d2]: Plane stack D2, 13 Nov 2026.
 [^r53-tools]: Refactor item 5.3, 22 Nov 2026 (`build/refactor/step-5/BRIEF-5.3.md`); the corpus golfer file is the Product Owner's answer 1 to step 5's questions, 22 Nov 2026.
 [^r54b]: Refactor 5.4b, 22 Nov 2026: the old diagnostics engine deleted once migration M1 left no session of the library naming another athlete id (build/refactor/step-5/DUTIES-5.4.md). Coordinator judgement call (J-72), 22 Nov 2026.
+[^wilson-ends]: #259, ruled by the Solution Architect, 25 Nov 2026: arm64's fused multiply-subtract left about 1e-18 at the lower end, which reordered never-fired conditions on the Mac only. Work-on rule 7.

@@ -10,6 +10,7 @@
 //   ctest --test-dir build/analysis-tests -R diagnostic_ledger --output-on-failure
 
 #include "../../Coaching/diagnostic_ledger.h"
+#include "../../Coaching/work_ons.h"   // wilsonUpperBound, the lower bound's sibling (#259)
 #include "synthetic_session_corpus.h"
 
 #include <QJsonDocument>
@@ -165,6 +166,29 @@ int main()
             for (int n = k; n <= 20; ++n)
                 if (n > 0 && wilsonLowerBound(k, n) < 0.0) everNegative = true;
         check(!everNegative, "the bound is clamped at zero everywhere");
+
+        // EXACT AT THE ENDS (#259, rule 7). Nothing fired is a lower bound of exactly 0, and every shot fired an
+        // upper bound of exactly 1, compared with ==: the formula only cancels to them, and the residue it left
+        // (about 1e-18 at n = 3 and 6 with arm64's fused multiply-subtract; a last bit under 1 at n = 12 and 20 on
+        // any machine) sorted a never-fired condition ahead of a true 0 on the Mac only.
+        bool loExact = true, hiExact = true;
+        QString loMiss, hiMiss;
+        for (int n = 1; n <= 200; ++n) {
+            if (!(wilsonLowerBound(0.0, double(n)) == 0.0) && loExact) { loExact = false; loMiss = QString::number(n); }
+            if (!(wilsonUpperBound(double(n), double(n)) == 1.0) && hiExact) { hiExact = false; hiMiss = QString::number(n); }
+        }
+        check(loExact, qPrintable(QStringLiteral("0 fired of n (n = 1..200) is a lower bound of exactly 0.0 %1").arg(loMiss)));
+        check(hiExact, qPrintable(QStringLiteral("n fired of n (n = 1..200) is an upper bound of exactly 1.0 %1").arg(hiMiss)));
+        check(wilsonLowerBound(0.0, 3.0) == 0.0 && wilsonLowerBound(0.0, 6.0) == 0.0,
+              "…at n = 3 and 6, the counts whose residue reordered the Mac's never-fired conditions");
+        check(wilsonUpperBound(12.0, 12.0) == 1.0 && wilsonUpperBound(20.0, 20.0) == 1.0,
+              "…and at n = 12 and 20, where the upper bound fell a last bit short of 1");
+        check(wilsonLowerBound(0.0, 1.5625) == 0.0 && wilsonUpperBound(1.5625, 1.5625) == 1.0,
+              "…and for a fractional (soft-tier) count");
+        check(wilsonLowerBound(-0.5, 4.0) == 0.0 && wilsonUpperBound(5.0, 4.0) == 1.0,
+              "…and past the ends, which clamp to them");
+        check(wilsonLowerBound(1.0, 6.0) > 0.0 && wilsonUpperBound(5.0, 6.0) < 1.0,
+              "one shot off either end is still a bound, not the end");
     }
 
     // ── Theil–Sen: one wild shot must not move the arrow ────────────────────────

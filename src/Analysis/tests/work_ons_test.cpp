@@ -261,7 +261,14 @@ int main()
         v3[QStringLiteral("ruleVersion")]   = 3;
         v3[QStringLiteral("schemaVersion")] = 1;
         sessionPrioritiesFromJson(v3, &ok);
-        check(kPriorityRuleVersion == 6 && !ok, "a rule-3 record is stale under rule 6");
+        check(kPriorityRuleVersion == 7 && !ok, "a rule-3 record is stale under rule 7");
+
+        // A rule-6 record (#259: its wilsonLower and its never-fired order could carry arm64's residue) is refused,
+        // so the catch-up re-derives it under rule 7.
+        QJsonObject v6 = toJson(s);
+        v6[QStringLiteral("ruleVersion")] = 6;
+        sessionPrioritiesFromJson(v6, &ok);
+        check(!ok, "a rule-6 record is stale under rule 7");
 
         // Reasons and linksTestable round-trip, the 2x2 included.
         const QHash<QString, PriorityClass> cls2{ { "cause", M }, { "symptom", M }, { "other", M } };
@@ -294,8 +301,8 @@ int main()
 
     // ── Schema 3: the evidence carries its measure and the typical over EVERY assessed reading ──
     {
-        check(kPrioritySchemaVersion == 3 && kPriorityRuleVersion == 6,
-              "schema 3 (evidence typical) under rule 6 (flight-checked rows): a schema bump, not a rule bump");
+        check(kPrioritySchemaVersion == 3 && kPriorityRuleVersion == 7,
+              "schema 3 (evidence typical) under rule 7 (exact Wilson ends): a schema bump, not a rule bump");
         const QHash<QString, PriorityClass> cls{ { "a", M } };
         // `a` fires on six of nine (a pattern) reading 6..11, and is clean on three reading 0, 1, 2.
         std::vector<ShotRecord> shots = sessionOf({ plan("a", { 1,1,1,1,1,1,0,0,0 }), plan("quiet", rep(0, 8)),

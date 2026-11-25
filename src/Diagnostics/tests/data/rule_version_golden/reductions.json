@@ -3,9 +3,9 @@
     "frozenContent": "72eeb4189aee4810",
     "reductions": {
         "athleteWorkOns": {
-            "sha1": "2585089f97485d6c30af7527022be69218f4d079",
+            "sha1": "f4c295092d1c2979db159071f79478595ce9d6bb",
             "versions": {
-                "workOnRule": 6,
+                "workOnRule": 7,
                 "workOnSchema": 3
             }
         },
@@ -41,9 +41,9 @@
             }
         },
         "sessionWorkOns": {
-            "sha1": "d0dd7d722bc34d03dcf916029550507fb6ea63bb",
+            "sha1": "4e4257fd5ca1fb54a2938d4c870e383ab25465d6",
             "versions": {
-                "workOnRule": 6,
+                "workOnRule": 7,
                 "workOnSchema": 3
             }
         },
