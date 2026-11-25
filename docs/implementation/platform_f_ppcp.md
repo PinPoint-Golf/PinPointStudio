@@ -174,7 +174,7 @@ Q3, and then for the row that names it below.
   a test already says.
 - **If nothing is ruled:** SF-2 runs anyway, so the pin and both checks exist. #208's fix waits for Q3.
 - **Waits:** nothing; SE-2a should wait for the pin.
-- **Ruled:**
+- **Ruled:** yes, all three kept with Stage F parked: the pairing pin before SE-2a, #208's one line with its test, and #241's check[^p1r].
 
 ## The files (SF-3a to SF-3e)
 
@@ -570,3 +570,5 @@ row changes anything a pairing is stored as.
 [^ds]: `docs/design/system/README.md`, "The non-negotiables": any change to the design system needs the Design Lead's approval before it is built. This page also sends to that role any row that changes what the golfer or coach sees.
 
 [^q3r]: The Product Owner, 25 Nov 2026, in the platform refactor's coordination session.
+
+[^p1r]: The Product Owner, 25 Nov 2026, in the platform refactor's coordination session.
