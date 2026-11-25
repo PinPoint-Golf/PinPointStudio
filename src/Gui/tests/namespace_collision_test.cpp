@@ -493,9 +493,9 @@ int main()
     check(defs > 1000, QStringLiteral("the namespace-scope types were read (%1 declarations, %2 definitions)").arg(all.size()).arg(defs));
     const bool anchor = std::any_of(all.cbegin(), all.cend(), [](const Decl &d) {
         return d.definition && keyOf(d) == QLatin1String("pinpoint::analysis::DagEdge")
-            && d.file == QLatin1String("Diagnostics/engine/dag_layout.h");
+            && d.file == QLatin1String("Gui/diagnosticmodel/layout/dag_layout.h");
     });
-    check(anchor, QStringLiteral("the scan sees pinpoint::analysis::DagEdge defined in Diagnostics/engine/dag_layout.h"));
+    check(anchor, QStringLiteral("the scan sees pinpoint::analysis::DagEdge defined in Gui/diagnosticmodel/layout/dag_layout.h"));
 
     std::sort(problems.begin(), problems.end());
     for (const QString &pr : problems) std::printf("      %s\n", qPrintable(pr));
