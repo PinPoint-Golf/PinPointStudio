@@ -487,7 +487,7 @@ The drivers are created by the composition root and reached as `app.calibration`
 
 **The ceremony file (FILE-SESS-11).** The recorder splits. Its taps and its in-memory ceremony stay with the trunk
 driver (until #291, with the recorder itself; Stage C's C-14 moves only the file write, with #265's fix[^c-v1]). Its file write goes behind a repository, so the pool-thread write and the file name spelled in `src/Gui`
-both go (A5 ×7, A6 ×2 → 0)[^plan-c]. The format, `pinpoint.trunk_ceremony/1`, does not change. Who the one writer is
+both go (A5 ×7 → 0)[^plan-c]. The recorder's two A6 lines, `attachResult` and `checkTurn`, are the QML routine's calls on it: they stay while that routine calls them, unless lint A6 narrowed to P9's wording counts them out[^c-v1]. The format, `pinpoint.trunk_ceremony/1`, does not change. Who the one writer is
 is open question 5; the recommendation is the `Session`, because the file lives, moves, archives and is trashed with
 its session.
 
@@ -703,7 +703,7 @@ commits a record, not what the block holds, so it may follow C-8.
 | C-11b (deferred, #291[^c-v1]) | The trunk driver, the sink call, `TrunkRoutine.qml` as bindings | C-11a, C-6b | `tst_setup_trunk` re-pointed; a before/after sheet |
 | C-12 (deferred, #291[^c-v1]) | `WitmotionArmProcedure` and its driver | C-11b | the equivalence test on C-9's trace; `tst_setup_calib_witmotion` re-pointed; a sheet |
 | C-13 (deferred, #291[^c-v1]) | `HackMotionArmProcedure` and its driver; the driver commits the `deviceHeld` record that C-6b's path committed until now | C-12 | the equivalence test, each abort reason included; `tst_setup_calib_hackmotion` re-pointed; a sheet |
-| C-14 | The ceremony file behind its door; the pool-thread write and the `trunkCeremony` global go (re-scoped: the file write only, with #265's fix; the global stays[^c-v1]) | C-11b; open question 5 (C-11b deferred: C-14 follows C-6b[^c-v1]) | `ceremony_store_test`: the same bytes as today for a synthetic fixture ceremony; an earlier ceremony kept aside; the three "dropped" cases; A5 ×7 and A6 ×2 at 0 |
+| C-14 | The ceremony file behind its door; the pool-thread write and the `trunkCeremony` global go (re-scoped: the file write only, with #265's fix; the global stays[^c-v1]) | C-11b; open question 5 (C-11b deferred: C-14 follows C-6b[^c-v1]) | `ceremony_store_test`: the same bytes as today for a synthetic fixture ceremony; an earlier ceremony kept aside; the three "dropped" cases; a test for each of #265's loss paths[^c-v1]; A5 ×7 at 0, the A6 ×2 as §4.8 says[^c-v1] |
 | C-16 | The close: the counts of §4.3, §4.6 and §4.7; IM §11; the written procedure for the cabin visit, with its trunk-recording step; an installer | all above | both lints; the full suite on the cabin PC |
 | C-17 (deferred, #291[^c-v1]) | After the visit: the three real ceremonies become fixtures | the cabin visit | the lanes replay through `TrunkProcedure` to the file's step sequence, verdicts and stand-tall A and M |
 
@@ -711,11 +711,11 @@ commits a record, not what the block holds, so it may follow C-8.
 and again through the commands in C-5a); two Recordings either side of a calibration change (C-8); a machine with no
 rig stored yet (C-4, and with settings keys in C-5a).
 
-**The cabin visit.** The three procedures on the real sensors, run by the Product Owner from C-16's written
-procedure in one visit[^plan-c]. One step records three trunk ceremonies on the installer that still has the QML
-trunk routine, so that installer is built before C-11b lands, and kept. Until the visit, C-11 to C-13 are proved by
-their traces and by the existing C++ tests of the solve, and their notes say so. With the procedures deferred, visit 2
-runs installer A only: the three ceremonies, #105's check and #270's two HackMotion attempts stay[^c-v1].
+**The cabin visit.** One visit by the Product Owner, from C-16's written procedure[^plan-c], on one installer of
+main, which still has the QML routines[^c-v1]: #105's check; three trunk ceremonies recorded on the real sensors and
+kept for #291, where they become its fixtures; and #270's two HackMotion attempts in a row, on today's arm routine,
+whose timed start and Recalibrate after a failure are expected, not faults, until #291[^arm-hands-free]. The
+procedures in C++, and their proof on the real sensors, go with #291[^c-v1].
 
 ## 11. What Stage C does not do
 
@@ -861,4 +861,4 @@ directory.
 [^code-test]: `src/Gui/tests/setup/support/CalibDriver.qml`; `tst_setup_trunk.qml`, `tst_setup_calib_witmotion.qml`, `tst_setup_calib_hackmotion.qml`.
 [^sa24-rig]: The Solution Architect, 24 Nov 2026: "approve as recommended" (`build/platform/JUDGEMENT-CALLS.md` PR-35). §9's questions 10, 14, 17 and 18 are implementation choices, taken as recommended by the coordinator and logged there too.
 [^arm-hands-free]: The Product Owner and the Solution Architect, 25 Nov 2026: the arm calibration routines' breach of the hands-free rule (`governance/controls/product/ui-behaviour.md`, UI-14) is accepted until #291's track, which takes #266 with it; named on #291. Only the trunk routine is hands-free today.
-[^c-v1]: The Product Owner and the Solution Architect, 25 Nov 2026 (the lever pass on #224-U, Stage C and Stage D, lever C-V1, as recommended; the Solution Architect agreed to defer this part of his approved design; the Product Owner confirmed it the same night: the calibration QML is moved all at once or not at all). The procedures' move to C++ (C-11 to C-13, C-15, C-17; 22–23 h) is deferred, with a trigger: one calibration track after the platform programme, built with #266 and #270; home #291. The 3,978 lines of calibration QML are a known breach of RP-7, §4.8 and the rule that QML holds no rules and only binds, pinned by the three golden traces (C-9). C-14 stays, re-scoped to the ceremony file's write behind the Session's door, with #265's fix. The three real ceremonies are still recorded at visit 2.
+[^c-v1]: The Product Owner and the Solution Architect, 25 Nov 2026 (the lever pass on #224-U, Stage C and Stage D, lever C-V1, as recommended; the Solution Architect agreed to defer this part of his approved design; the Product Owner confirmed it the same night: the calibration QML is moved all at once or not at all). The procedures' move to C++ (C-11 to C-13, C-15, C-17; 22–23 h) is deferred, with a trigger: one calibration track after the platform programme, built with #266 and #270; home #291. The 3,978 lines of calibration QML are a known breach of RP-7, §4.8 and the rule that QML holds no rules and only binds, pinned by the three golden traces (C-9). C-14 stays, re-scoped to the ceremony file's write behind the Session's door, with #265's fix and a test for each of its loss paths; the recorder's two A6 lines stay unless lint A6 narrowed to P9's wording counts them out (the lever's own text). The three real ceremonies are still recorded at visit 2.
