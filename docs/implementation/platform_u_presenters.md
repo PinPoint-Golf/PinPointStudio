@@ -249,3 +249,16 @@ Solution Architect.
 [^pr32]: The Design Lead, 24 Nov 2026: "retire any score being shown until we have the shot score done" (`build/platform/JUDGEMENT-CALLS.md`, PR-32; #186).
 [^pr37]: The coordinator's call, 24 Nov 2026, for the Design Lead's review (PR-37).
 [^pr38]: The coordinator's call, 24 Nov 2026, for the Design Lead's review (PR-38).
+
+
+## Added after U-1i (the inventory of the diagnostics adapter's keys, 25 Nov 2026)
+
+### Q12 · `expectations`: retire it? (HARD: the Design Lead)
+- **Today.** The adapter hands QML `expectations` (h:345), read in 3 files, but it is always empty (h:343–344). `build/platform/U/INVENTORY-U-1i.md`.
+- **Recommendation.** Retire it, since nothing ever fills it, so no golfer sees a change (proposed, for the Design Lead).
+- **Ruled:**
+
+### Q13 · `PpDiagReplayState` builds its own "partial" readout in QML (HARD: the Solution Architect)
+- **Today.** The view assembles a readout object of its own instead of reading one the session owns. That may be a view owning domain state (C10). `build/platform/U/NOTES-U-1i.md`.
+- **Recommendation.** The readout is built by the session's presenter, and the view only reads it; U-8 moves it (proposed, for the Solution Architect).
+- **Ruled:**
