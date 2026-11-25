@@ -505,7 +505,10 @@ int main()
                           want, got);
             check(m && near(got, want, 1e-4) && m->sigma && near(double(*m->sigma), want, 1e-4)
                       && m->phaseSamples.front().sigmaKind == uint8_t(SigmaKind::Propagated), lab);
-            const MetricSeries *u = find(buildDtlPosture(inputs(makePose(false), false), cfg), "armLiftTop");
+            // The result is a named local: find() points into it, so a temporary would be gone by the next line.
+            const PoseTrack2D plain = makePose(false);
+            const DtlPostureResult ru = buildDtlPosture(inputs(plain, false), cfg);
+            const MetricSeries *u = find(ru, "armLiftTop");
             check(u && !u->phaseSamples.front().sigma, "§9 …and no σ on a track with no smoother σ (unknown, not small)");
         }
         // The trail shoulder half hidden on every frame of the top (0.2 < confMin): no reading, refused.
