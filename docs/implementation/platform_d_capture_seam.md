@@ -156,7 +156,7 @@ SD-4, after B2.5). Everything else waits for a row below.
 - **Waits:** the two deadline pins and the reserve-and-collect pin (SD-2b); the back-to-back and near-End cases
   (SD-2c); and the three document cases if T1's rig cannot write one. SD-8a and everything after it wait for all
   eleven.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ## The ten questions
 
@@ -175,7 +175,7 @@ SD-4, after B2.5). Everything else waits for a row below.
 - **Class: HARD: the Solution Architect.** Keeping the service in Application matches the page. The new interfaces
   and the collaborator's directory each need a ring (C9).
 - **Waits:** SD-8a to SD-8f, SD-9a, and T2's interface.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S2 · When the shot is allocated, and when its session is bound
 - **Today.** `Session::addShot` is called in two places (`grep -n 'addShot(' src/Gui/shot/shot_processor.cpp`:
@@ -196,7 +196,7 @@ SD-4, after B2.5). Everything else waits for a row below.
   document never lands: a state of its own, shown with a warning, or an allocation undone? That is #235's half (1).
 - **Class: HARD: the Solution Architect** (C8: who creates the shot and when, and its states).
 - **Waits:** SD-8d, SD-8e, SD-10a.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S3 · The window's handle
 - **Today.** `swing_window.h` and `swing_payload_source.h` are Vocabulary by the lint's per-file entries and include
@@ -235,7 +235,7 @@ SD-4, after B2.5). Everything else waits for a row below.
 - **Class: HARD: the Solution Architect.** A new Vocabulary type and its home (C9). Option (b) would also change a
   persisted field (C3).
 - **Waits:** SD-9b, then SD-9c (#78's two-phones case); SD-1c lists every reader first.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S5 · Who owns the launch-monitor board (D-6)
 - **Today.** The board's interim owner is `SessionReviewController`. `lmBoard` is named 56 times in 10 files, 53
@@ -248,7 +248,7 @@ SD-4, after B2.5). Everything else waits for a row below.
 - **Recommendation: (a)**, as the plan proposes[^plan]. The board's rows are one session's shots.
 - **Class: HARD: the Solution Architect** (C1: an owner of facts).
 - **Waits:** SD-10b, SD-10c.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S6 · The device enumerator's home, and its `Device` struct
 - **Today.** `src/Core/device_enumerator.{h,cpp}` (159 + 490 lines) is the one named Adapters exception left in
@@ -262,7 +262,7 @@ SD-4, after B2.5). Everything else waits for a row below.
   with the move.
 - **Class: HARD: the Solution Architect** (C9: RING-ADAPTERS names the file by its path).
 - **Waits:** SD-6. It also needs B1.11.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S7 · The motion-capture probe's home
 - **Today.** `src/Pose/motion_capture_probe.{h,cpp}` (150 + 331 lines) is Adapters by a per-file entry in a Rules
@@ -275,7 +275,7 @@ SD-4, after B2.5). Everything else waits for a row below.
 - **Class: HARD: the Solution Architect** for the move (C9). The injected question alone makes code match the page
   and is not a change.
 - **Waits:** SD-7.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S8 · Live pose and ball triggering across the Acquisition boundary
 - **Today.** The camera instance includes the pose estimator's base, the MoveNet estimator and the ball detector
@@ -295,7 +295,7 @@ Both detectors take an OpenCV frame (`estimatePose(const cv::Mat &)`, `detect(co
 - **Class: HARD: the Solution Architect** (C9: the ring and context of the interface, of the wrapper and of the
   capture files; C11 if R-CTX-1 is to be read any other way).
 - **Waits:** SD-11c, and B1.21's lint A9 for the check.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S9 · Where the capture files in `Gui` go
 - **Today.** `src/Gui/cameras`, `src/Gui/imu` and `src/Gui/shot` hold 47 C++ files and 20,695 lines (10, 13 and
@@ -321,7 +321,7 @@ Both detectors take an OpenCV frame (`estimatePose(const cv::Mat &)`, `detect(co
 - **Class: HARD: the Solution Architect** (C9). Whether the stage's five QML globals leave with these files is
   V1's question, not this row's.
 - **Waits:** SD-13, then SD-14.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S10 · The context map: here, or with the coaching track
 - **Today.** The context map is kept for later, with two triggers: the coaching track's first information-model
@@ -334,7 +334,7 @@ Both detectors take an OpenCV frame (`estimatePose(const cv::Mat &)`, `detect(co
 - **Class: Product Owner** (which of two triggers, already ruled as alternatives, is taken). Applying the map, when
   it is applied, is the Solution Architect's (C9, C11).
 - **Waits:** nothing in Stage D under (a).
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ## The two levers, as proposals
 
@@ -354,7 +354,7 @@ Both detectors take an OpenCV frame (`estimatePose(const cv::Mat &)`, `detect(co
   with the Solution Architect and nothing waits on it: R-QML-1 allows "devices" as globals, and `liveWrist` is a
   presenter over a sensor, not a device.
 - **Waits:** SD-12d.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### V2 · Q5: lint A6 back to P9's wording
 - **Today.** P9 and the information model's A6 forbid an untyped map or list "in a presenter's or a domain type's
@@ -376,7 +376,7 @@ Both detectors take an OpenCV frame (`estimatePose(const cv::Mat &)`, `detect(co
 - **Class: HARD: the Solution Architect.** A change to a lint rule's scope is an information-model change (C4,
   C9)[^imc].
 - **Waits:** SD-12c; in Stage E, SE-9a and the three items it would otherwise add.
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ## What the design must also answer
 
@@ -467,14 +467,16 @@ Evidence for each: `build/platform/DEF/DUTIES-SD-1c.md` and `NOTES-SD-1c.md`. **
 ### S11 · Who owns trigger policy? (HARD: the Solution Architect)
 - **Today.** It sits in `main.cpp` lambdas with no owning object (F1). The device-only shot bypasses the controller (F3), and the rescue overwrites the trigger source (F4).
 - **Recommendation.** One owner, the capture service's trigger policy, in the Application ring: the device-only shot goes through it, and the rescue records its own source beside the trigger's, never over it (proposed, for the Solution Architect).
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S12 · Does R-INS-3 or R-INS-5 govern the impact instant? (HARD: the Solution Architect)
 - **Today.** Both rules read on it; the code follows neither consistently (F5).
 - **Recommendation.** R-INS-5 (rank the readings; the estimate is derived), the Product Owner's standing rule for estimates (proposed, for the Solution Architect).
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 ### S13 · Pose has no producer for a capture-time instant, and does the local arbiter survive SD-9c? (HARD: the Solution Architect)
 - **Today.** F2 and F13.
 - **Recommendation.** No pose producer for capture time (pose comes after the shot); the local arbiter folds into the trigger policy of S11 (proposed, for the Solution Architect).
-- **Ruled:**
+- **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
+
+[^d-ruled-25nov]: Ruled in the platform programme's coordination session, 25 Nov 2026: every open question of this pack as recommended. S2 (bind at the trigger, allocate at the freeze) is the structural fix for the lifecycle model's GAP-1; S10 is the context map with the coaching track (#277); S13's two-phone part is parked with Stage F (#272); Q17: a QML global leaves only when its owner changes.
