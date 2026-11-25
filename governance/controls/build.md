@@ -100,9 +100,9 @@ it is downloaded on demand at runtime, only when the user opts in, after a size 
 *Owner:* Product Owner · *Stage:* Build · *Compliance:* none yet
 
 **AD-52.** A rule must be built in C++, never in QML: a threshold, a tolerance, maths on a reading, or a pass/fail decision on a measured value ([R-QML-4](../artefacts/information_model.md), "QML contains no domain rules"). QML binds, lays out and sequences what C++ decides. A new routine or flow puts its rules in C++ from its first commit.
-In a review, a QML change that adds a rule is a blocking finding ([AG-22](review.md): a breach of a HARD rule). The calibration routines' QML is the one accepted exception, recorded on #291; it may shrink and must not grow.
+In a review, a QML change that adds a rule is a blocking finding ([AG-22](review.md): a breach of a HARD rule). The calibration routines' QML is an accepted exception, recorded on #291; it may shrink and must not grow. It is not the only QML that holds rules today: a check of the tree on 25 Nov found about 73 more in other screens (battery, sync and quality bands, the framing page's gates and others), whose treatment is not yet decided (proposed, for the Product Owner and the Solution Architect).
 *Why:* 3,978 lines of calibration logic built up in QML because nothing checked for it; moving it now is a 22-hour rework of proven routines.[^ad-52]
-*Owner:* Solution Architect · *Stage:* Build and Review · *Compliance:* a review today; a lint ratchet (planned: the calibration files' counts frozen, every other QML file allowed none)
+*Owner:* Solution Architect · *Stage:* Build and Review · *Compliance:* a review today; a lint ratchet is built but not committed, waiting on that decision
 
 **AG-37.** Before analysis or metrics work, the analysis pipeline guide (`docs/developer/analysis_pipeline_developer_guide.md`) must be read and its new-stage checklist followed; before diagnostics work, the diagnostics guide (`docs/developer/diagnostics_developer_guide.md`).
 *Why:* each guide's checklist holds the steps a new stage or condition needs.[^om-13]
