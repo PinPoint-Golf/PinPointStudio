@@ -295,7 +295,7 @@ MacAboutMenu,src/Gui/shell/MacAboutMenu.qml,shell,53,20,Labs.MenuBar,0,1,0,0,0,2
 Main,src/Gui/shell/Main.qml,shell,908,577,ApplicationWindow,0,2,1,22,2,0,1,0,48,0,0,app
 PlayPage,src/Gui/shell/PlayPage.qml,shell,75,51,Item,0,1,0,4,0,0,0,0,8,0,0,app
 PpAboutDialog,src/Gui/shell/PpAboutDialog.qml,shell,270,202,Popup,0,1,0,3,2,0,0,0,65,0,1,app
-PpAnalysingBadge,src/Gui/shell/PpAnalysingBadge.qml,shell,163,118,Rectangle,0,1,0,0,3,0,0,0,24,1,1,app
+PpAnalysingBadge,src/Gui/shell/PpAnalysingBadge.qml,shell,193,136,Rectangle,0,1,0,1,4,0,0,0,30,1,1,app
 PpDetectCluster,src/Gui/shell/PpDetectCluster.qml,shell,259,144,Item,0,1,0,1,3,0,0,1,32,3,1,app
 PpHeader,src/Gui/shell/PpHeader.qml,shell,296,215,Item,0,1,0,4,6,5,0,0,54,0,0,app
 PpRail,src/Gui/shell/PpRail.qml,shell,206,123,Item,0,1,0,3,3,2,0,0,29,0,0,app

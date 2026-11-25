@@ -420,6 +420,19 @@ pp_add_test(notification_center_test
     INCLUDE ${GUI} ${SRC} ${SRC}/Core
     LINK    Qt6::Qml  AUTOMOC)
 
+# MissedSwingNotice (#281's stopgap) — a launch-monitor reading discarded because its ball was struck while the
+# last shot was still analysing tells the golfer, once per swing; a paired reading never does. The real ShotPairing
+# makes every offer and the real NotificationCenter takes every notice, on a clock the test owns.
+pp_add_test(missed_swing_notice_test
+    SOURCES missed_swing_notice_test.cpp
+            ${GUI}/launchmonitor/missed_swing_notice.cpp
+            ${GUI}/app/notification_center.cpp
+            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+    LINK    Qt6::Qml  AUTOMOC)
+
 # markup_truth — the Markup panel's ground-truth sidecars: which camera a swing's
 # swing.json offers (face-on / down-the-line), and the two files those views write.
 # The pair is the point: truth.json is FACE-ON pixel space and always has been, so

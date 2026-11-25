@@ -18,6 +18,7 @@
 #pragma once
 
 #include "launch_monitor_base.h"
+#include "missed_swing_notice.h"
 #include "shot_pairing.h"
 #include "../../Vocabulary/Identity/identity.h"   // ShotRef: the standalone shot the capture service adds
 
@@ -33,6 +34,7 @@
 
 class AppSettings;
 class AthleteController;
+class NotificationCenter;
 class CameraManager;
 class SessionController;
 class ShotListModel;
@@ -48,7 +50,8 @@ namespace pinpoint { class RecordingRepository; class ShotCommandDoor; struct Wr
 //   ShotController::shotDetected   → arm for this swing (with its impact on the wall clock)
 //   ShotProcessor::shotProcessed   → a swingDir exists; flush anything parked
 //   ShotProcessor::shotFailed      → drop anything parked for a swing that died
-//   ShotProcessor::busyChanged     → write held club updates once the pipeline is idle
+//   ShotProcessor::busyChanged     → write held club updates once the pipeline is idle, and tell a swing
+//                                    struck while it was busy (MissedSwingNotice)
 //   ReanalysisController::reanalysed → write a club update that waited on a re-analysis
 //
 // State (the enum → string mapping) is translated here and nowhere else, so the QML
@@ -158,6 +161,14 @@ public:
     // EVT-01's moment (D19: DEC-168): a device-only document — the first document of its shot — has
     // landed. Reported to the capture service, whose Session announces it (ShotProcessor::shotDocumentWritten).
     void setDocumentWritten(std::function<void(const pinpoint::ShotRef &)> written) { m_documentWritten = std::move(written); }
+    // A reading discarded because a ball was struck while the last shot was still analysing is told to the golfer
+    // through `sink` (#281's stopgap; MissedSwingNotice), never while `quiet` says a session is being reviewed.
+    // Without a sink nothing is told.
+    void setMissedSwingNotices(NotificationCenter *sink, std::function<bool()> quiet)
+    {
+        m_missedSwing.setSink(sink);
+        m_missedSwing.setQuietWhen(std::move(quiet));
+    }
 
 public slots:
     // ShotController::shotDetected. Which swing a reading belongs to is decided by ORDER
@@ -268,6 +279,8 @@ private:
     // Updates waiting for the pipeline to go idle, by folder. The latest per folder wins.
     QHash<QString, pinpoint::lm::LaunchMonitorReading> m_heldUpdates;
     bool                           m_pipelineBusy = false;
+    // Which discarded readings are swings the app missed while analysing, and the notice for them (#281).
+    MissedSwingNotice              m_missedSwing;
     std::function<bool(const QString &)> m_folderHeld;
     std::function<void(const QString &)> m_reanalyse;
     pinpoint::RecordingRepository       *m_repo = nullptr;

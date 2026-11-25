@@ -13,7 +13,7 @@ The application window and chrome: Main.qml, rail, header, about dialog, update 
 | [Main](#main) | 908 | `ApplicationWindow` | 2 | 22 |  |
 | [PlayPage](#playpage) | 75 | `Item` | 1 | 4 |  |
 | [PpAboutDialog](#ppaboutdialog) | 270 | `Popup` | 1 | 3 |  |
-| [PpAnalysingBadge](#ppanalysingbadge) | 163 | `Rectangle` | 1 | 0 |  |
+| [PpAnalysingBadge](#ppanalysingbadge) | 193 | `Rectangle` | 1 | 1 |  |
 | [PpDetectCluster](#ppdetectcluster) | 259 | `Item` | 1 | 1 | 1 local comp. |
 | [PpHeader](#ppheader) | 296 | `Item` | 1 | 4 |  |
 | [PpRail](#pprail) | 206 | `Item` | 1 | 3 |  |
@@ -75,7 +75,7 @@ Developer-hatch container (Main.qml: 'screenPlay — dev-hatch only') with a Tab
 - **Used by (1):** `Main`
 
 ### PpAnalysingBadge
-`src/Gui/shell/PpAnalysingBadge.qml` · 163 lines · root `Rectangle` · 1 hard-coded colour(s)
+`src/Gui/shell/PpAnalysingBadge.qml` · 193 lines · root `Rectangle` · 1 hard-coded colour(s)
 
 > Post-shot ANALYSING badge — label + elapsed time on the top line, a filling
 > progress bar (sweeping sheen + leading-edge twinkles) beneath. Lifted out of
@@ -85,8 +85,14 @@ Developer-hatch container (Main.qml: 'screenPlay — dev-hatch only') with a Tab
 > presentation: the PLACEMENT
 > SITE owns the visibility gate. All motion is gated on Theme.reduceMotion; the
 > plain filling bar remains. Reads the global shotProcessor context property.
+> NOT READY (#281's stopgap): while the shot trigger is disarmed — and it is for
+> as long as a shot is in the pipeline — the label says so in words, after a ⊘
+> (the shape the "shot refused" notice uses), so a golfer who swings now knows the
+> swing will not be recorded. Bound to app.shotController.armed, not to the
+> badge being shown, so it stops saying it the day capture overlaps analysis.
 
-- **Properties:** `readonly bool sparkling`, `int elapsedS`, `readonly string elapsedLabel`
+- **Properties:** `readonly bool sparkling`, `readonly bool notReady`, `int elapsedS`, `readonly string elapsedLabel`
+- **Uses:** `PpMicro`
 - **Used by (1):** `PpHeader`
 
 ### PpDetectCluster

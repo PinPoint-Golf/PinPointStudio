@@ -34,7 +34,7 @@ Each gap is a place where today's behaviour falls short of a guarantee a golfer 
 - The refusal logs at debug level only, which the default log level leaves out of every build (`src/Gui/shot/shot_controller.cpp:247-250`). The code calls the real fix "deliberately not attempted" (`:553-557`).
 - *Observed* (visit 1 §4, swing 2); *seam, in a worktree* (`capture_overlap_test`, NOTES-281 §2; not on `main`).
 - Issue #281 (part A).
-- Still pending: the stopgap that tells the golfer (NOTES-281-stopgap) is built and held for a Design Lead ruling; it is not on `main`. Overlapping capture is parked for Stage D.
+- **Telling the golfer: done** (#281's stopgap, 25 Nov 2026). The badge says "not ready for the next swing" while the trigger is disarmed, and a launch-monitor reading for a missed swing posts a notice (the lifecycle model's SHOT-T2, SHOT-T18). The swing is still not recorded: overlapping capture is parked for Stage D, so the gap stays open.
 - Breaks GU-1.
 
 **GAP-3 · The next swing's clip can lose its start.**

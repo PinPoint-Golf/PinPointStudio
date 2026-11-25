@@ -130,6 +130,30 @@ TEST(ShotControllerDecline, AShotWhileTheProcessorIsBusyIsDeclinedBusy)
     EXPECT_EQ(captured.count(), 0);
 }
 
+// ── the capture status's binding (#281's stopgap) ──────────────────────────
+//
+// The title bar's ANALYSING badge says "not ready for the next swing" while `armed` is false
+// (PpAnalysingBadge.qml binds its words to app.shotController.armed). So `armed` must go false, and
+// say so, the moment the processor goes busy, and come back when it is idle again.
+
+TEST(ShotControllerDecline, TheCaptureStatusHearsTheProcessorGoBusyAndIdle)
+{
+    Capturing C;
+    ASSERT_NO_FATAL_FAILURE(C.build());
+    QSignalSpy changed(C.ctl.get(), &ShotController::armedChanged);
+
+    C.ctl->setProcessorBusy(true);
+    EXPECT_FALSE(C.ctl->armed()) << "analysing, yet the status would say ready for the next swing";
+    EXPECT_EQ(changed.count(), 1) << "a binding to armed is never told the processor went busy";
+
+    C.ctl->setProcessorBusy(true);   // a restatement changes nothing
+    EXPECT_EQ(changed.count(), 1);
+
+    C.ctl->setProcessorBusy(false);
+    EXPECT_TRUE(C.ctl->armed());
+    EXPECT_EQ(changed.count(), 2) << "the status would stay 'not ready' after the shot finished";
+}
+
 // ── review_mode — and it WINS over a stopped buffer ────────────────────────
 //
 // Entering review also stops capture, and the golfer did the former; so

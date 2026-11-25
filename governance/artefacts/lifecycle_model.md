@@ -302,7 +302,7 @@ The ruled lifecycle, moved verbatim from the information model's §5.4[^sa25-lif
 | Id | From → to | Trigger | Owner | Thread | On disk afterwards | What it guarantees today |
 |---|---|---|---|---|---|---|
 | SHOT-T1 | swing → S0 | A detector's candidate (acoustic, IMU, ball, phone), or the manual button | `ShotController` | GUI (the acoustic candidate is queued from the audio thread) | Nothing | Only while armed: capturing, not busy, no review (`src/Gui/shot/shot_controller.cpp:99-102`). Noise also becomes a candidate (GAP-5). |
-| SHOT-T2 | swing → S14 | Any candidate while disarmed | `ShotController` | GUI | Nothing | **Dropped, with a debug-level log line that the default log level leaves out of every build** (`src/Gui/shot/shot_controller.cpp:247-250`) and nothing on screen (GAP-2; *observed*, visit 1 §4). Pending commit: the badge says "not ready for the next swing", and a missed swing is announced (NOTES-281-stopgap). |
+| SHOT-T2 | swing → S14 | Any candidate while disarmed | `ShotController` | GUI | Nothing | **Dropped**, with a debug-level log line that the default log level leaves out of every build (`src/Gui/shot/shot_controller.cpp:247-250`) (GAP-2; *observed*, visit 1 §4). The golfer is warned before the swing: while the trigger is disarmed, the title bar's badge reads "⊘ Analysing: not ready for the next swing" (`src/Gui/shell/PpAnalysingBadge.qml:51`, bound to `app.shotController.armed`)[^281s]. After it, only a launch monitor's reading tells: SHOT-T18's notice. With no launch monitor, the badge is the only warning. The swing is still not recorded: overlapping capture is parked for Stage D (GAP-2). |
 | SHOT-T3 | S0 → S1 | The arbiter commits; `shotDetected` → `ShotProcessor::onShotDetected` | `ShotController` → `ShotProcessor` | GUI | Nothing (a 16-byte marker in the ring only) | The session type is read at this instant (DUTIES-SD-1c C1). |
 | SHOT-T4 | S1 → S2 | The post-roll timer (`src/Gui/shot/shot_processor.cpp:316-320`) | `ShotProcessor` | GUI | Nothing | The buffer is paused from here until the shot finishes (GAP-2, GAP-3). |
 | SHOT-T5 | S2 → S3 | The gather ends; workers start | `ShotProcessor` | GUI → global pool | Nothing | The window is read without copying, over a paused buffer. |
@@ -318,7 +318,7 @@ The ruled lifecycle, moved verbatim from the information model's §5.4[^sa25-lif
 | SHOT-T15 | S1–S3 → S12; S4 → S13 | "End anyway" on the toolbar: End itself waits while a shot is being saved (SES-T7; a878282f), so only "End anyway" reaches here. End's device release, after `Session::end` (`src/App/app_state.cpp:276-278`, at 8f33e190), calls `finishNowBlocking`, which waits for the workers and then clears the flags their handlers need (`src/Gui/shot/shot_processor.cpp:2117-2155`) | `ShotProcessor` | GUI (it blocks for the analysis: a 2.2 s stall at visit 1) | From S1–S3, nothing, and the session is discarded if that was its only shot. From S4, the folder and media, with the document only if its write had started; the session is then kept | **Dropped, by the golfer's choice** (AD-50; GAP-6, closed by a878282f). From S4 it still leaves media with no document (GAP-19). |
 | SHOT-T16 | S1–S3 → S12; S4 → S13 | A quit that skips the prompt (APP-T9, an updater's quit), or "Close anyway" (APP-T8; the prompt otherwise waits, a878282f): the post-roll is forfeited (`src/Gui/shot/shot_processor.cpp:2119`); the workers are joined, but a document write not yet started never starts | `ShotProcessor` | GUI | From S1–S3, nothing. From S4, as SHOT-T15 | **Dropped** (GAP-18, GAP-19), silently on a quit that skips the prompt; by the golfer's choice on "Close anyway" (AD-50). |
 | SHOT-T17 | S1–S3 → S12; S4 → S13 | Mid-shot: a camera selected or deselected (any change of selection: `src/Gui/cameras/camera_manager.cpp:370`), a sensor deselected (`src/Gui/imu/imu_manager.cpp:467-468`), or Disconnect pressed. Nothing shows that a link *loss* reaches either | `CameraManager`, `ImuManager` | GUI | As SHOT-T15 | **Dropped** (GAP-7, GAP-19). |
-| SHOT-T18 | reading → S5 | A launch-monitor reading with no shot waiting becomes a standalone device-only shot (`src/Gui/shot/shot_processor.cpp:1396-1407`; DUTIES-SD-1c T9, T10), or is discarded (`src/Gui/launchmonitor/launch_monitor_controller.cpp:422`) | `LaunchMonitorController` → `Session` | GUI | A swing folder with a device-only document, or nothing | A reading that arrives just before its own shot is committed is discarded (GAP-4). |
+| SHOT-T18 | reading → S5 | A launch-monitor reading with no shot waiting becomes a standalone device-only shot (`src/Gui/shot/shot_processor.cpp:1396-1407`; DUTIES-SD-1c T9, T10), or is discarded (`src/Gui/launchmonitor/launch_monitor_controller.cpp:423-427`) | `LaunchMonitorController` → `Session` | GUI | A swing folder with a device-only document, or nothing | A reading that arrives just before its own shot is committed is discarded (GAP-4). A discarded reading for a ball struck while the shot pipeline was busy posts one warning notice, "A swing was hit while the last one was being analysed, and it wasn't recorded" (`lm.swing.missed`; `src/Gui/launchmonitor/missed_swing_notice.cpp:90-116`)[^281s]. "Struck while busy" is its contact time inside one of the last four busy spans, or, for a reading with no contact time, the pipeline busy as it arrives. Once per device shot; never for a parked, claimed or standalone reading; never during session review. It does show during the automatic Replay after a shot, where capture is live. The reading stays discarded. |
 
 ### 3.3 Diagram
 
@@ -374,7 +374,8 @@ flowchart TD
     classDef gap stroke-dasharray:5 5
     swing(["A swing"])
     armed{"Trigger armed?"}
-    notrec["Not recorded (SHOT-T2) ⚠ GAP-2: dropped, and nothing on screen says so"]:::gap
+    notrec["Not recorded (SHOT-T2) ⚠ GAP-2: dropped. The badge said 'not ready for the next swing'"]:::gap
+    missed["A launch monitor read the ball: a notice says the swing wasn't recorded (SHOT-T18)"]
     detect["Detect: an acoustic, IMU, ball or phone candidate, or the button (SHOT-T1) ⚠ GAP-5: noise becomes a candidate too"]:::gap
     corrob{"Corroborated within the 200 ms hold: two detectors agree, or one is sure (DUTIES-SD-1c K3)?"}
     notshot(["Not committed: no chime, nothing kept"])
@@ -395,6 +396,7 @@ flowchart TD
     chosen(["Dropped by the golfer's choice: End anyway or Close anyway (AD-50, a878282f)"])
     swing --> armed
     armed -->|"no"| notrec
+    notrec -->|"a launch-monitor reading arrives"| missed
     armed -->|"yes"| detect
     detect --> corrob
     corrob -->|"no"| notshot
@@ -420,7 +422,7 @@ flowchart TD
     closewait -->|"Close anyway (SHOT-T16)"| chosen
 ```
 
-It shows one shot from the impact to saved, its late launch-monitor and phone data, and each way it can be cut short on the way.
+It shows one shot from the impact to saved, its late launch-monitor and phone data, and each way it can be cut short on the way. A swing that is not recorded is told after it only when a launch monitor read its ball (SHOT-T18).
 
 ---
 
@@ -682,9 +684,11 @@ Every row is a proposal, in plain words. Each names the role it is proposed to: 
 | 1.1 (proposed) | 25 Nov 2026 | Activity diagrams added for the application, a session and a shot (§1.4, §2.4, §3.4), with one legend for every diagram; the five state diagrams checked against their state and transition tables, each state labelled with its id, and the missing states and transition ids added (SHOT-S5a, ATH-S2a, ATH-S5, ATH-T4; SES-T3 on every edge it covers; SHOT-T16 and SHOT-T17 spelled out), with a line under each saying what is not drawn and why | Proposed, for the Solution Architect |
 | 1.2 | 25 Nov 2026 | #283 landed: SES-T2 enters Capture after the open, its row and the session's activity diagram no longer mark GAP-15 pending, and GU-12 covers every start path (the toolbar's re-arm after a Stop and Home's Start or Practise while a session runs, as well as a session's start) | Solution Architect, 25 Nov 2026[^sa25-start-paths] |
 | 1.3 | 25 Nov 2026 | The End and quit waits (a878282f, AD-50) and the start paths (8f33e190, #283) landed; facts updated, no ruling changed. APP-S4, APP-T8, SES-S3, SES-T2, SES-T5, SES-T7, SES-T8, §3's spine, SHOT-S12, SHOT-T15, SHOT-T16, the application's, the session's and the shot's diagrams, GU-2, GU-5, GU-6, GU-7, GU-12 and the AD-50 and `shotSaving` notes now say what holds, citing the commit; GAP-6, GAP-13 and GAP-15 are closed. The #281 stopgap (SHOT-T2, GAP-2) is not landed and is unchanged | Proposed, for the Solution Architect |
+| 1.4 | 25 Nov 2026 | #281's stopgap landed: SHOT-T2 (the badge says "not ready for the next swing" while the trigger is disarmed), SHOT-T18 (the missed-swing notice on a discarded reading), and the notice in the shot's activity diagram (§3.4). GAP-2 stays open: the swing is still not recorded | §7's update of the "today" rows in the change's own commit; the look and the notice's timing approved by the Design Lead and the Product Owner, 25 Nov 2026[^281s] |
 
 [^283]: The coordinator's account of #283 (25 Nov 2026): before refactor step 4-a, Start never switched the app to Capture either. It did not matter, because Start could not be reached while a saved session was on screen (the toolbar's review strip replaced the capture cluster). The set-up screen and the one start command made Start reachable from Replay, and the missing switch showed. The Solution Architect approved the two further paths the same day (the toolbar's re-arm after a Stop, and Home's Start or Practise while a session runs).
 [^sa25-start-paths]: Solution Architect, 25 Nov 2026 (`build/platform/JUDGEMENT-CALLS.md`, #283's extension): SES-T2 and GU-12 updated to every start path when #283 lands.
+[^281s]: #281's stopgap, until overlapping capture (Stage D). The Design Lead approved the badge's ⊘ and its width (about 344 px for the new words) as a changed look, and the Product Owner approved the notice showing during the automatic Replay after a shot, since capture is live then; both 25 Nov 2026 (`build/platform/JUDGEMENT-CALLS.md`, "The #281 stopgap"). The gate, "struck while the pipeline was busy", is the Product Owner's (NOTES-281-stopgap §3).
 [^ad50]: The Product Owner ruled on 25 Nov 2026 that losing a shot by quitting mid-session is the golfer's choice, if the prompt says so. The Solution Architect's simpler design and the Design Lead's warn tone followed the same day: End and quit wait for a shot being saved, and "End anyway" and "Close anyway" drop it by choice. Product control AD-50 records this (`governance/controls/product/capture-and-session.md`); built in NOTES-280 §9, §11 and committed in a878282f, 25 Nov 2026.
 [^saving]: The Solution Architect, 25 Nov 2026 (NOTES-280 §11): `shotSaving` is one read-only fact, computed by the shot processor and shown on `app.state`. The Session still owns its shots. (The first wording, "owned by the session", was a slip, not a ruling.) Committed in a878282f, 25 Nov 2026.
 [^dec-79]: Solution Architect, 14 Nov 2026 (DEC-79).

@@ -1487,6 +1487,15 @@ int main(int argc, char *argv[])
             n.glyph    = QStringLiteral("◎");
             notificationCenter.post(n);
         });
+
+        // A ball struck while the last shot was still analysing (#281's stopgap until overlapping capture): the
+        // detector was disarmed, so its reading arrives with no shot waiting and stays discarded. The golfer is
+        // told, once per missed swing (MissedSwingNotice), never while a session is being reviewed. Not silenced
+        // by the Replay MODE: the post-shot auto-replay enters it while the shot is still finishing and capture
+        // stays live there, so a swing missed then is a real miss.
+        launchMonitorController.setMissedSwingNotices(&notificationCenter, [&sessionReviewController] {
+            return sessionReviewController.reviewActive();
+        });
     }
 
     // ── Session-start preflight (design §7.7) ────────────────────────

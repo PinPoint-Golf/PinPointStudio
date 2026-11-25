@@ -814,6 +814,7 @@ qt_add_executable(PinPointStudio
     src/LaunchMonitor/premier_session_parser.h   src/LaunchMonitor/premier_session_parser.cpp
     src/LaunchMonitor/premier_monitor.h          src/LaunchMonitor/premier_monitor.cpp
     src/Gui/launchmonitor/launch_monitor_controller.h src/Gui/launchmonitor/launch_monitor_controller.cpp
+    src/Gui/launchmonitor/missed_swing_notice.h src/Gui/launchmonitor/missed_swing_notice.cpp
     src/Audio/onset_detector.h
     src/Audio/acoustic_shot_detector.h src/Audio/acoustic_shot_detector.cpp
     src/Audio/audio_processor_base.h src/Audio/audio_processor_base.cpp

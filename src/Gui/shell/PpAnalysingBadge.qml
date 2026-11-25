@@ -24,13 +24,22 @@
 // presentation: the PLACEMENT
 // SITE owns the visibility gate. All motion is gated on Theme.reduceMotion; the
 // plain filling bar remains. Reads the global shotProcessor context property.
+//
+// NOT READY (#281's stopgap): while the shot trigger is disarmed — and it is for
+// as long as a shot is in the pipeline — the label says so in words, after a ⊘
+// (the shape the "shot refused" notice uses), so a golfer who swings now knows the
+// swing will not be recorded. Bound to app.shotController.armed, not to the
+// badge being shown, so it stops saying it the day capture overlaps analysis.
 
 import QtQuick
 import PinPointStudio
 
 Rectangle {
     id: analysingBox
-    implicitWidth: Theme.sp(128)
+    // Wide enough for the words and the longest elapsed time ("0:00"), so the badge
+    // does not resize as the seconds tick.
+    implicitWidth: Math.max(Theme.sp(128),
+                            labelRow.implicitWidth + Theme.gap(10) + elapsedRoom.width + Theme.gap(24))
     implicitHeight: Theme.sp(40)
     radius: Theme.radius
     color: Theme.colorBg2
@@ -38,6 +47,8 @@ Rectangle {
     border.color: Theme.colorBorderMid
 
     readonly property bool sparkling: visible && !Theme.reduceMotion
+    // The next swing cannot be detected or recorded now.
+    readonly property bool notReady: !app.shotController.armed
 
     // Elapsed wall-time since the shot started processing (post-roll included).
     // Hidden for the first second so instant analyses never flash a "0s".
@@ -59,12 +70,35 @@ Rectangle {
 
         Item {   // label left, elapsed time right
             width: parent.width
-            height: analysingLbl.implicitHeight
+            height: labelRow.implicitHeight
 
-            PpMicro {
-                id: analysingLbl
+            Row {
+                id: labelRow
                 anchors.left: parent.left
-                text: Theme.caps(qsTr("Analysing"))
+                spacing: Theme.gap(5)
+
+                Text {   // the not-ready mark: a shape beside the words, never a colour alone
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: analysingBox.notReady
+                    text: "\u2298"   // ⊘
+                    font.family: Theme.fontSymbol
+                    font.pixelSize: Math.round(Theme.fontSzMicro * Theme.symbolScale("\u2298"))
+                    color: Theme.colorText3
+                }
+
+                PpMicro {
+                    id: analysingLbl
+                    text: analysingBox.notReady
+                          ? Theme.caps(qsTr("Analysing: not ready for the next swing"))
+                          : Theme.caps(qsTr("Analysing"))
+                }
+            }
+
+            TextMetrics {
+                id: elapsedRoom
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzMicro
+                text: "0:00"
             }
 
             Text {

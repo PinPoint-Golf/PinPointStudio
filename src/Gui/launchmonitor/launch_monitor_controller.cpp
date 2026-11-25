@@ -416,16 +416,23 @@ void LaunchMonitorController::onReadingAvailable(const LaunchMonitorReading &rea
         // Nothing was waiting for it. Normally that is the end of the matter — a ball
         // struck while we were not capturing, or a second write with no shot between.
         // With standalone shots switched on it becomes a shot of its own instead.
-        if (createStandaloneShot(reading))
+        if (createStandaloneShot(reading)) {
+            m_missedSwing.hear(offer, reading, /*becameShot=*/true);
             return;
+        }
         ppInfo() << "LaunchMonitor: reading" << reading.deviceShotId
                  << "arrived with no shot waiting; discarded";
+        // A ball struck while the last shot was still analysing (#281): the golfer is told (the notice
+        // is logged as it is posted), and the reading stays discarded.
+        m_missedSwing.hear(offer, reading);
         return;
     case ShotPairing::Disposition::Parked:
         // The usual case — analysis is still running, so there is nowhere to put it
         // yet. onShotProcessed() will flush it.
+        m_missedSwing.hear(offer, reading);   // this shot has its swing
         return;
     case ShotPairing::Disposition::Claimed:
+        m_missedSwing.hear(offer, reading);
         // The destination is known. Whether it already holds a document decides which
         // way the reading goes in — the shot may have failed before this arrived.
         if (m_destinationHasDoc)
@@ -709,6 +716,7 @@ void LaunchMonitorController::onReadingUpdated(const LaunchMonitorReading &readi
 void LaunchMonitorController::setPipelineBusy(bool busy)
 {
     m_pipelineBusy = busy;
+    m_missedSwing.setPipelineBusy(busy);
     if (!busy)
         flushUpdates();
 }
