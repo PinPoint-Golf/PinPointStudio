@@ -2158,7 +2158,13 @@ Item {
                         var ny2 = Math.max(0, Math.min(1, (y2 - crY) / crH))
                         // Via the manager so the hitting area persists per
                         // camera (restored on connect when fixed in place).
-                        cameraManager.setBallRoi(root.instance, Qt.rect(nx, ny, nx2 - nx, ny2 - ny))
+                        // A click, with no drag or a jitter of a pixel or
+                        // two, draws nothing and keeps the box (F31b): a new
+                        // box must be at least the editor's own minimum,
+                        // 0.02 each way (the corner handles' floor above).
+                        // An empty one would reach the manager as "clear".
+                        if (nx2 - nx >= 0.02 && ny2 - ny >= 0.02)
+                            cameraManager.setBallRoi(root.instance, Qt.rect(nx, ny, nx2 - nx, ny2 - ny))
                     }
                 } else if (dragMode !== "none") {
                     // Move/resize updated the instance live — persist once.

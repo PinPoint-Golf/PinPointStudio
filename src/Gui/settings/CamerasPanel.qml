@@ -580,14 +580,18 @@ SettingsPanelBase {
                         label:    qsTr("Mirrored")
                         selected: isMirrored
                         onClicked: {
+                            // The clicked value, read ONCE: the map write below re-evaluates
+                            // isMirrored at once, so reading it after would hand the manager the
+                            // old value, which it saves back (F31c).
+                            var mirrored = !mirrorChip.isMirrored
                             var map = appSettings.cameraIsMirrored
-                            if (mirrorChip.isMirrored)
-                                delete map[camRow.camData.cameraKey]
-                            else
+                            if (mirrored)
                                 map[camRow.camData.cameraKey] = true
+                            else
+                                delete map[camRow.camData.cameraKey]
                             appSettings.cameraIsMirrored = map
                             if (camRow.realInstance)
-                                cameraManager.setIsMirrored(camRow.realInstance, !mirrorChip.isMirrored)
+                                cameraManager.setIsMirrored(camRow.realInstance, mirrored)
                         }
                     }
                 }
@@ -2306,9 +2310,22 @@ SettingsPanelBase {
                         // editor opens, so a manipulable rect is there
                         // immediately (crop-editor pattern). Never touches a
                         // calibrated camera (those always have an area).
+                        // A camera not fixed in place has no box restored at
+                        // connect (rig_design_addendum.md:423) but may have
+                        // one saved: the editor shows that box, set on the
+                        // live instance only (the store already holds it), as
+                        // the Ball step does (SetupContext.ensureBallRoi).
+                        // Then a click or a move re-saves the golfer's own box,
+                        // never the default (F31a). With nothing saved, the
+                        // default is seeded and saved, as before.
                         onLoaded: {
                             var inst = camRow.realInstance
-                            if (inst && inst.roi.width <= 0)
+                            if (!inst || inst.roi.width > 0)
+                                return
+                            var r = appSettings.cameraBallRoi[camRow.camData.cameraKey]
+                            if (r && r.w > 0 && r.h > 0)
+                                inst.setRoi(Qt.rect(r.x, r.y, r.w, r.h))
+                            else
                                 cameraManager.setBallRoi(inst, Qt.rect(0.40, 0.55, 0.20, 0.30))
                         }
                         sourceComponent: PpCameraFrame {

@@ -33,6 +33,14 @@ import PinPointStudio
 // the countdown is formatted for a human, each of the four staged status lines
 // appears for its own condition, closing invalidates the code (RV 7.3b) but not
 // when a phone already got in, and a build with no PPCP renders nothing.
+//
+// The SECOND TestCase, "SettingsCameras", stands up the other Settings device panel, Settings ▸
+// Cameras (CamerasPanel.qml, and through its ball panel PpCameraFrame.qml), over an inline fake
+// `cameraManager` and the real AppSettings (this binary's scratch store). It guards a golfer's saved
+// camera settings (#268, build/platform/C/NOTES-F31-probe.md): the ball panel shows the saved box and
+// never saves the default over it, a click inside it re-saves the same box, a click outside it with no
+// drag or a jitter of a pixel or two keeps it, and the Mirrored chip hands the manager the value it was
+// clicked to.
 Item {
     id: probe
     width: 900; height: 700
@@ -508,6 +516,322 @@ Item {
             verify(stage !== null)
             verify(stage.text.indexOf("No code") >= 0, stage.text)
             nullDialog.close()
+        }
+    }
+    // ══ Settings ▸ Cameras (#268) ══════════════════════════════════════════════════════════════
+    //
+    // ⚠ CameraInstance IS NOT REGISTERED IN THIS BINARY (it is app-only; the setup suite's stand-in may
+    // not leak here, src/Gui/CMakeLists.txt). The panel's and the frame's `CameraInstance.*` bindings
+    // therefore warn ReferenceError and fall back; none of the handlers asserted below reads it, and the
+    // face-on perspective is given as its value, 2 (camera_instance.h, enum Perspective).
+    //
+    // The fake's writers do to the real AppSettings what camera_manager.cpp's do (setIsMirrored,
+    // setBallRoi with "empty means clear", clearBallRoi), so the store values asserted are the ones the
+    // app would hold. Names match the real Q_PROPERTYs and Q_INVOKABLEs.
+    readonly property string camKey: "Blackfly S BFS-U3-16S2C|12345678"
+
+    QtObject {
+        id: fakeCams
+        property var  calls: []
+        property bool live: true
+        property var  inst: null
+        property bool isRecording: true
+        property bool anyConnecting: false
+        readonly property bool anySelected: true
+        readonly property var instances: (live && inst) ? [inst] : []
+        readonly property var cameraList: [{
+            index: 0, cameraKey: probe.camKey, description: "Blackfly S BFS-U3-16S2C", alias: "Face-on",
+            perspective: 2, selected: live, enabled: true, sessionEnabled: true, serialNumber: "12345678",
+            interface: "USB3", maxWidth: 1440, maxHeight: 1080, maxFps: 226, isPpcp: false, impactCapable: false,
+            impactModes: [], gainMaxDb: 48, hwTrigger: false, tuningLockable: false, vendorName: "FLIR",
+            modelName: "Blackfly S", pixelFormat: "BayerRG8", bitsPerPixel: 8, slotWidth: 1440, slotHeight: 1080,
+            slotBytesPerPixel: 1, slotFps: 226 }]
+        function rec(name, args) { calls.push({ name: name, args: args }) }
+        function named(name) { return calls.filter(function(c) { return c.name === name }) }
+
+        function setIsMirrored(target, mirrored) {                    // camera_manager.cpp:809–830
+            rec("setIsMirrored", [mirrored])
+            if (!target) return
+            target.isMirrored = mirrored
+            var map = appSettings.cameraIsMirrored
+            if (mirrored) map[probe.camKey] = true
+            else delete map[probe.camKey]
+            appSettings.cameraIsMirrored = map
+        }
+        function setBallRoi(target, r) {                              // camera_manager.cpp:839–870
+            rec("setBallRoi", [r.x, r.y, r.width, r.height])
+            if (!target) return
+            var x1 = Math.max(0, Math.min(r.x, r.x + r.width)),  x2 = Math.min(1, Math.max(r.x, r.x + r.width))
+            var y1 = Math.max(0, Math.min(r.y, r.y + r.height)), y2 = Math.min(1, Math.max(r.y, r.y + r.height))
+            if (x2 - x1 <= 0 || y2 - y1 <= 0) { clearBallRoi(target); return }
+            target.roi = Qt.rect(x1, y1, x2 - x1, y2 - y1)
+            var map = appSettings.cameraBallRoi
+            map[probe.camKey] = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }
+            appSettings.cameraBallRoi = map
+        }
+        function clearBallRoi(target) {                               // camera_manager.cpp:872–890
+            rec("clearBallRoi", [])
+            if (!target) return
+            target.roi = Qt.rect(0, 0, 0, 0)
+            var map = appSettings.cameraBallRoi
+            delete map[probe.camKey]
+            appSettings.cameraBallRoi = map
+        }
+        function relearnBallBaseline(t)    { rec("relearnBallBaseline", []) }
+        function setSelected(i, on)        { rec("setSelected", [i, on]) }
+        function startAll()                { rec("startAll", []) }
+        function enumerate()               { rec("enumerate", []) }
+        function createPreviewInstance(i)  { rec("createPreviewInstance", [i]); return null }
+        function destroyPreviewInstance(p) { rec("destroyPreviewInstance", []) }
+        function setTargetFps(i, f)        { rec("setTargetFps", [i, f]) }
+        function setTriggerMode(i, m)      { rec("setTriggerMode", [i, m]) }
+        function setCameraAlias(i, a)      { rec("setCameraAlias", [i, a]) }
+        function setExcluded(i, e)         { rec("setExcluded", [i, e]) }
+        function reconnectCamera(k)        { rec("reconnectCamera", [k]) }
+        function assignPerspective(k, p)   { rec("assignPerspective", [k, p]) }
+    }
+
+    // A live CameraInstance as createController leaves it (camera_manager.cpp:991–1019): the mirror flag
+    // applied, the box restored only for a fixed camera.
+    Component {
+        id: camInstComp
+        QtObject {
+            property string cameraKey:       probe.camKey
+            property string deviceAlias:     "Face-on"
+            property int    perspective:     2
+            property bool   isMirrored:      false
+            property rect   roi:             Qt.rect(0, 0, 0, 0)
+            property rect   cropRoi:         Qt.rect(0, 0, 1, 1)
+            property bool   needsDebayer:    true
+            property int    frameWidth:      1440
+            property int    frameHeight:     1080
+            property bool   isRecording:     true
+            property bool   isPreviewFeed:   false
+            property real   configuredFps:   120
+            property real   cameraFps:       120
+            property string lastPreviewError: ""
+            property bool   poseEnabled:     false
+            property var    poseKeypoints:   []
+            property real   levelPeak:       0
+            property bool   levelClipped:    false
+            property real   levelBackground: 0
+            property bool   ballPresent:     false
+            property bool   ballDetected:    false
+            property real   ballX:           0
+            property real   ballY:           0
+            property real   ballRadius:      0
+            function setRoi(r)            { roi = r }
+            function clearRoi()           { roi = Qt.rect(0, 0, 0, 0) }
+            function setCropRoi(r)        { cropRoi = r }
+            function addVideoSink(s)      {}
+            function removeVideoSink(s)   {}
+            function addBayerItem(i)      {}
+            function removeBayerItem(i)   {}
+            function setSettingsSink(s)   {}
+            function startPreview()       {}
+            function stopPreview()        {}
+            function relearnBallBaseline(){}
+        }
+    }
+    // What PpCameraFrame reads through `app` and `shotProcessor`, inert.
+    QtObject {
+        id: camShotReplay
+        property bool   active: false
+        property var    streams: []
+        property real   positionUs: 0
+        property real   impactPositionUs: 0
+        property string swingDir: ""
+        property var    analysisDetail: ({})
+        signal positionChanged()
+        function setVideoSink(i, s) {}
+    }
+    QtObject {
+        id: camShotProcessor
+        property bool isReplaying: false
+        property var  replayAnalysisDetail: ({})
+        property real replayPositionUs: 0
+        signal replayPositionChanged()
+    }
+    QtObject {
+        id: camApp
+        property var state: ({ replay: camShotReplay, mode: 0, selection: { valid: false, shotRef: "", swingDir: "" } })
+        property var shotProcessor: camShotProcessor
+    }
+
+    Item { id: camPanelHost; anchors.fill: parent; z: 100 }
+    Component { id: camPanelComp; CamerasPanel { } }
+
+    TestCase {
+        id: camTc
+        name: "SettingsCameras"
+        when: windowShown
+
+        readonly property var savedBox: ({ x: 0.12, y: 0.18, w: 0.25, h: 0.22 })
+        readonly property var defaultBox: ({ x: 0.40, y: 0.55, w: 0.20, h: 0.30 })
+        property var panel: null
+
+        function initTestCase() {
+            chartsFixture.provide("cameraManager", fakeCams)
+            chartsFixture.provide("app", camApp)
+            chartsFixture.provide("shotProcessor", camShotProcessor)
+        }
+        function cleanup() {
+            if (panel) panel.destroy()
+            panel = null
+            if (fakeCams.inst) fakeCams.inst.destroy()
+            fakeCams.inst = null
+            appSettings.cameraBallRoi      = ({})
+            appSettings.cameraIsMirrored   = ({})
+            appSettings.cameraFixedInPlace = ({})
+        }
+
+        function findAll(item, pred, out) {
+            out = out || []
+            if (!item) return out
+            if (pred(item)) out.push(item)
+            var kids = item.children
+            if (kids) for (var i = 0; i < kids.length; ++i) findAll(kids[i], pred, out)
+            return out
+        }
+        function one(obj) { var o = {}; o[probe.camKey] = obj; return o }
+        function sameBox(r, b, what) {
+            verify(r !== undefined && r !== null, what + ": none")
+            fuzzyCompare(r.x, b.x, 1e-9, what + " x"); fuzzyCompare(r.y, b.y, 1e-9, what + " y")
+            fuzzyCompare(r.w !== undefined ? r.w : r.width,  b.w, 1e-9, what + " w")
+            fuzzyCompare(r.h !== undefined ? r.h : r.height, b.h, 1e-9, what + " h")
+        }
+        // The store as given, then (when `live`) a connected instance as createController leaves it, then
+        // the panel.
+        function makePanel(store, live) {
+            appSettings.cameraBallRoi      = store.ballRoi  || ({})
+            appSettings.cameraIsMirrored   = store.mirrored || ({})
+            appSettings.cameraFixedInPlace = store.fixed    || ({})
+            fakeCams.calls = []
+            fakeCams.live = live
+            var p = { isMirrored: appSettings.cameraIsMirrored[probe.camKey] === true }
+            var b = appSettings.cameraBallRoi[probe.camKey]
+            if (appSettings.cameraFixedInPlace[probe.camKey] === true && b) p.roi = Qt.rect(b.x, b.y, b.w, b.h)
+            fakeCams.inst = live ? camInstComp.createObject(probe, p) : null
+            panel = camPanelComp.createObject(camPanelHost, { width: camPanelHost.width, height: camPanelHost.height })
+            verify(panel !== null, "CamerasPanel instantiates over the fake")
+        }
+        // Scroll the panel so `it` is in view: the mouse functions go through the window.
+        function scrollTo(it) {
+            var flick = panel.scrollView.contentItem
+            flick.contentY = Math.max(0, it.mapToItem(flick.contentItem, 0, 0).y - 40)
+            waitForRendering(panel)
+        }
+        // Opens the ball panel the way its button does for a connected camera; returns the frame's editor
+        // area and overlay.
+        function openBallPanel() {
+            var btn = findAll(panel, function(o) { return o.label === "Ball detection" })
+            compare(btn.length, 1, "the row's Ball detection button")
+            btn[0].clicked()
+            compare(panel.openBallIndex, 0)
+            var frames
+            tryVerify(function() {
+                frames = findAll(panel, function(o) { return o.roiEditable === true && o.instance !== undefined })
+                return frames.length === 1
+            }, 3000, "the ball panel's camera frame")
+            // The ball panel opens with a height animation and clips while it runs: wait it out, or the
+            // editor's lower part is clipped away and a press there reaches nothing.
+            var bp = findAll(panel, function(o) { return o.fixedInPlace !== undefined && o.clip === true })[0]
+            tryVerify(function() { return bp.height > 0 && bp.height === bp.children[0].implicitHeight }, 3000,
+                      "the ball panel finished opening")
+            var area = findAll(frames[0], function(o) { return o.dragMode !== undefined && o.hitZone !== undefined })[0]
+            var ov   = findAll(frames[0], function(o) { return o.crW !== undefined && o.crX !== undefined })[0]
+            // The row's height animates too, and the card clips: wait until the editor is inside it.
+            var row = area; while (row && row.camData === undefined) row = row.parent
+            tryVerify(function() { return area.mapToItem(row, 0, 0).y + area.height <= row.height },
+                      3000, "the row grew to hold the editor (row " + row.height + ", implicit " + row.implicitHeight + ")")
+            scrollTo(area)
+            verify(ov.crW > 0 && ov.crH > 0, "the picture has a size (" + ov.crW + " x " + ov.crH + ")")
+            return { area: area, ov: ov }
+        }
+
+        // The ball panel: the saved box, shown and kept. The click inside the box (a move of nothing)
+        // re-saves what the editor shows, so the editor must show the golfer's box (#268 a, B1).
+        function test_the_ball_panel_keeps_the_saved_box_data() {
+            return [
+                { tag: "saved, not fixed", saved: true,  fixed: false, wantSaves: 0 },
+                { tag: "nothing saved",    saved: false, fixed: false, wantSaves: 1 },
+                { tag: "saved, fixed",     saved: true,  fixed: true,  wantSaves: 0 }
+            ]
+        }
+        function test_the_ball_panel_keeps_the_saved_box(row) {
+            makePanel({ ballRoi: row.saved ? one(savedBox) : null, fixed: row.fixed ? one(true) : null }, true)
+            var f = openBallPanel()
+            compare(fakeCams.named("setBallRoi").length, row.wantSaves, "saves on opening")
+            var want = row.saved ? savedBox : defaultBox
+            sameBox(fakeCams.inst.roi, want, "the box the editor shows")
+            sameBox(appSettings.cameraBallRoi[probe.camKey], want, "the saved box")
+            // A plain click inside the box.
+            var px = f.ov.x + f.ov.width / 2, py = f.ov.y + f.ov.height / 2
+            compare(f.area.hitZone(px, py), "move")
+            mouseClick(f.area, px, py)
+            sameBox(appSettings.cameraBallRoi[probe.camKey], want, "the saved box after a click inside it")
+        }
+
+        // Outside the box: a click, with no drag or a jitter of a pixel or two, keeps the box; a drag
+        // draws a new one (#268 b, B2).
+        function test_a_click_outside_the_box_keeps_it_data() {
+            return [
+                { tag: "no drag",       dx: 0,   dy: 0,   drawn: false },
+                { tag: "2 px jitter",   dx: 2,   dy: 2,   drawn: false },
+                { tag: "a real drag",   dx: -80, dy: -60, drawn: true }
+            ]
+        }
+        function test_a_click_outside_the_box_keeps_it(row) {
+            makePanel({ ballRoi: one(savedBox), fixed: one(true) }, true)
+            var f = openBallPanel()
+            // Below and right of the box, inside the picture.
+            var px = f.ov.crX + f.ov.crW * 0.8, py = f.ov.crY + f.ov.crH * 0.8
+            compare(f.area.hitZone(px, py), "new")
+            mousePress(f.area, px, py)
+            compare(f.area.dragMode, "new", "the press reached the editor")
+            if (row.dx !== 0 || row.dy !== 0) {
+                mouseMove(f.area, px + row.dx / 2, py + row.dy / 2)
+                mouseMove(f.area, px + row.dx, py + row.dy)
+            }
+            mouseRelease(f.area, px + row.dx, py + row.dy)
+            compare(fakeCams.named("clearBallRoi").length, 0, "nothing clears the box")
+            if (row.drawn) {
+                compare(fakeCams.named("setBallRoi").length, 1, "the drawn box is saved")
+                var r = appSettings.cameraBallRoi[probe.camKey]
+                verify(r && r.w > 0.1 && r.h > 0.1, "the drawn box " + JSON.stringify(r))
+            } else {
+                compare(fakeCams.named("setBallRoi").length, 0, "a click saves nothing")
+                sameBox(fakeCams.inst.roi, savedBox, "the live box")
+                sameBox(appSettings.cameraBallRoi[probe.camKey], savedBox, "the saved box")
+            }
+        }
+
+        // The Mirrored chip hands the manager the value it was clicked to, not the old one, so the click
+        // sticks with a camera connected (#268 c).
+        function test_the_mirror_chip_keeps_the_click_data() {
+            return [
+                { tag: "connected, mirrored → off",     live: true,  from: true },
+                { tag: "connected, not mirrored → on",  live: true,  from: false },
+                { tag: "not connected, mirrored → off", live: false, from: true }
+            ]
+        }
+        function test_the_mirror_chip_keeps_the_click(row) {
+            makePanel({ mirrored: row.from ? one(true) : null }, row.live)
+            var chip = findAll(panel, function(o) { return o.label === "Mirrored" && o.isMirrored !== undefined })
+            compare(chip.length, 1, "the row's Mirrored chip")
+            compare(chip[0].isMirrored, row.from)
+            scrollTo(chip[0])
+            mouseClick(chip[0])
+            var calls = fakeCams.named("setIsMirrored")
+            if (row.live) {
+                compare(calls.length, 1, "one live apply")
+                compare(calls[0].args[0], !row.from, "the manager is handed the clicked value")
+                compare(fakeCams.inst.isMirrored, !row.from)
+            } else {
+                compare(calls.length, 0, "no camera to apply it to")
+            }
+            compare(appSettings.cameraIsMirrored[probe.camKey] === true, !row.from, "the saved flag")
+            compare(chip[0].isMirrored, !row.from, "the chip shows the click")
         }
     }
 }
