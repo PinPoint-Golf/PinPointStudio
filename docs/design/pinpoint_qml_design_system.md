@@ -1460,6 +1460,15 @@ The rules for using them:
 
 ## 15. THE TYPESET SYSTEM
 
+> **Superseded.** The rules of the typeset system that still govern the code are now
+> `governance/artefacts/design_system/typeset.md`, with the mechanics on the component pages beside it
+> (`governance/artefacts/design_system/components/`); follow those. This section stays as the record of how the
+> system was made, and of the Session diagnostics panel's own design (its views per register, tier tables, live
+> states, click map, questions, figure sizes and printed document). Retired wording, where the code's rule stands:
+> 15.3's gutters through `u()` without the spacing scale, and its hover-wash values; 15.4's glyph examples; 15.5's
+> column tiers at the top of a block's own file; 15.7's click-map row that switches the stage to Analyse.
+> (Product Owner, 25 Nov 2026, #195 decision D13; the fold and the retirements are the Design Lead's, 25 Nov 2026.)
+
 October 2026. After three design rounds on the Session diagnostics panel, the Design Lead approved a second
 look for the app: the **typeset** system. It sets a panel the way a typesetter sets a page, where
 the old panels were dashboards of boxes. Session diagnostics is being built in it now. It is the

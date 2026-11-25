@@ -4,7 +4,7 @@ Status: design signed off by the Design Lead on 13 Oct 2026. This is round 4c of
 
 ## What it is
 
-The launch monitor stage panel is redrawn in Foresight FSX's graphic grammar, inside the typeset themes. GC Quad owners already read FSX fluently: a tile with a big value and an AVG ± SD footer, dispersion ellipses on carry arcs, and an annotated club view. A different grammar would read as wrong. Inside these figures, FSX's conventions take precedence over §15's no-boxes and colour-only-for-out rules. Themes, print, em size classes, and fold-don't-drop still follow §15.
+The launch monitor stage panel is redrawn in Foresight FSX's graphic grammar, inside the typeset themes. GC Quad owners already read FSX fluently: a tile with a big value and an AVG ± SD footer, dispersion ellipses on carry arcs, and an annotated club view. A different grammar would read as wrong. Inside these figures, FSX's conventions take precedence over §15's no-boxes and colour-only-for-out rules, and the panel's hover card, which outlives the pointer so its controls can be used, is allowed despite the typeset rule against floating cards[^hover-card]. Themes, print, em size classes, and fold-don't-drop still follow §15.
 
 The spec is the signed-off mock: `build/run-me/lm-variants/qml/Panel_A_fsxpro.qml`, with its notes in `NOTES.md` beside the scratch copy. The review sheets are in `build/run-me/lm-variants/round4/`. Where this document and the mock disagree, this document wins on the model contract and the mock wins on the look.
 
@@ -147,3 +147,5 @@ The art is vendored from `~/Projects/Resources`:
 - The new Analysis headers have passing tests, through ctest.
 - The Design Lead has looked at the renders and the try-out before the full `qml_ui` suite runs.
 - Nothing is committed until the Product Owner approves. The flight-model fix in `lm_flight_path.h` is still uncommitted and joins the same commit set.
+
+[^hover-card]: Design Lead, 25 Nov 2026 (#195, Q11).

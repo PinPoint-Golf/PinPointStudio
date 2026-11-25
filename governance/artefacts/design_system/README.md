@@ -8,14 +8,16 @@ PinPoint Studio is a desktop instrument for golf swing analysis: quiet chrome, f
 - [`tokens.json`](tokens.json) — every Theme value with a usage note, per theme. **Generated** from Theme.qml by `tools/theme/make_design_system.py`; never edit it by hand (`--check` fails when it is stale).
 - [`components/`](components/README.md) — one page per shared `Pp*` control: when to use it, its properties, the tokens it reads, its states.
 - The design system is this folder and Theme.qml; nothing is synced to a claude.ai artifact (Design Lead, 7 Nov 2026). The visual reference is the component pages and the previews they show (the variability marks' in `docs/design/variability-mark/previews/`).
-- `pinpoint_qml_design_system.md` (one level up) is the design history and reasoning — the coaching-card look (§13), themes as data (§14), the typeset system (§15). Its older value tables are superseded by Theme.qml and `tokens.json`.
+- [`typeset.md`](typeset.md) — the rules of the typeset system: the house rules, the shared encodings, the registers, interaction, the figure grammar and print.
+- `docs/design/pinpoint_qml_design_system.md` is the design history and reasoning — the coaching-card look (§13), themes as data (§14), how the typeset system was made (§15, whose rules are now [`typeset.md`](typeset.md)). Its older value tables are superseded by Theme.qml and `tokens.json`.
 
 ## The non-negotiables
 
 - Never hard-code a colour, font family, font size or space. Use `Theme.color*`, `Theme.font*`, `Theme.fontSz*`, `Theme.sp(n)` for the size of a thing and `Theme.gap(n)` for the space between things.
 - Never branch a component on `Theme.aesthetic`. If two aesthetics need different behaviour, that is a new optional key in the theme table (`_v(name, default)`), not an `if`.
 - Use the shared component from `src/Gui/components/` (or `src/Gui/typeset/`) rather than redrawing it. A restyle is one file. A screen never draws its own button, chip, field, heading, notice, badge, popup surface, switch, row or card from Rectangle + Text + MouseArea, and never copies a component's file to tweak it.
-- **Any change to the design system needs the Design Lead's approval before it is built** — a new component, a new `style` / `size` / `kind` variant, a changed look or behaviour, a new or changed Theme token, or retiring a component. Propose the need, the screens affected and a before/after picture, then wait. This binds Claude sessions and agents too: if no component fits, stop and ask; never build a local copy.
+- **A change to the design system needs the Design Lead's approval before it is built**: a new component; a new `style` / `size` / `kind` variant; a changed look or behaviour of an existing component; a new or changed Theme token; retiring a component or token; and any change no Design Lead ruling covers. Propose the need, the screens affected and a before/after picture, then wait. This binds Claude sessions and agents too: if no component fits, stop and ask; never build a local copy[^ds-approval].
+- **A change that only uses the design system as it stands may take the lighter route** ([UI-20](../../controls/decide.md)): one that only uses existing components and tokens on a screen, moves them, removes a component from a screen, or changes words, where a Design Lead ruling already covers it, is built, shown as an annotated before-and-after sheet and logged for the Design Lead's review afterwards[^ui-20].
 - **The rules are tested.** `design_system_lint_test` (ctest) reads every screen's QML and fails on a hand-drawn control (D1), a raw text input (D2), a popup that draws its own surface (D3), a literal colour (D4) or space that ignores Density (D5). Deliberate exceptions live in `src/Gui/tests/design_system_allowlist.txt`, each with its reason; adding one is a design-system decision. `design_system_tokens_check` fails when `tokens.json` is stale.
 - Colour is never the only channel: every tone comes with a shape, a word, or both.
 - Flat: no drop shadows, blur or decorative images; the only gradient is the display title's brand sweep.
@@ -103,3 +105,6 @@ PinPoint Studio is a desktop instrument for golf swing analysis: quiet chrome, f
 - No icon font. Rail and home-tile icons are Unicode symbol glyphs (⌂ ▶ ◑ ⚙ ⌖ ⇅ ✦) set in `Theme.fontSymbol` and sized with `Theme.symbolScale(glyph)` so their ink heights match.
 - Marks (tick, target, arrows, chevrons) are drawn as geometry in the tone colour, round caps, about `sp(1.6)` strokes.
 - The app icon (`src/Resources/icons/pinpointstudio.*`) is a fixed full-colour mark; never recolour it to a theme.
+
+[^ds-approval]: Design Lead, 1 Nov 2026; narrowed to this list by the lighter route, Design Lead, 25 Nov 2026 (a changed look or behaviour of an existing component stays before approval: review round 2, M9).
+[^ui-20]: Design Lead, 25 Nov 2026 (the lighter design route, [UI-20](../../controls/decide.md); the sheet is UI-17, [`review.md`](../../controls/review.md)).

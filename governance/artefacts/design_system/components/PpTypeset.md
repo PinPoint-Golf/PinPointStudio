@@ -1,6 +1,6 @@
 # PpTypeset
 
-The per-panel helper of the typeset system (design system §15.3): it turns Theme's typeset data into what a block draws with — the scale, the type roles, the inks, the marks, the size classes, the flows and tiers, and the small generic text and figure helpers.
+The per-panel helper of the typeset system ([typeset.md](../typeset.md)): it turns Theme's typeset data into what a block draws with — the scale, the type roles, the inks, the marks, the size classes, the flows and tiers, and the small generic text and figure helpers.
 
 Source: `src/Gui/typeset/PpTypeset.qml`.
 

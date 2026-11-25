@@ -71,7 +71,7 @@ Where a condition is read is not when the fault happens. A fault's links follow 
 *Owner:* Design Lead · *Stage:* Decide · *Compliance:* a recorded approval (Design Lead)
 
 **UI-20.** A UI change that only uses existing components and tokens on a screen, moves them, removes a component from a screen, or changes words, and that follows a ruling the Design Lead has already made, may take the lighter route: it must be built, shown as an annotated before-and-after sheet (UI-17), and logged for the Design Lead's review afterwards.
-Still approved before it is built: a new component; a new style, size or kind variant; a changed look or behaviour of an existing component[^dl-m9]; a new or changed token; retiring a component or token from the design system; and any change no ruling covers. Until the design-system README's "any change … before it is built" line is narrowed to match, this control prevails.
+Still approved before it is built: a new component; a new style, size or kind variant; a changed look or behaviour of an existing component[^dl-m9]; a new or changed token; retiring a component or token from the design system; and any change no ruling covers.
 *Why:* the before-approval gate is for what changes the design system, not for using it as it stands.[^ui-20]
 *Owner:* Design Lead · *Stage:* Decide · *Compliance:* a review (by the Design Lead, afterwards)
 

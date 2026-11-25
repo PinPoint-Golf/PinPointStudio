@@ -6,7 +6,7 @@ What screens must show and how they must behave, beside the design system (`gove
 
 - A catalogue metric always draws in its own identity colour, `Theme.metricColor(key)`; colour is never the only channel (`governance/artefacts/design_system/README.md`, "Colour", "The non-negotiables").
 - Every box plot in the app is the one box-plot component, and shows its values on the plot while it is examined (`governance/artefacts/design_system/components/PpBoxPlot.md`).
-- The registers, and a condition's detail opening in place (`docs/design/pinpoint_qml_design_system.md` §15.6; `docs/design/stage_typeset_playbook.md`).
+- The registers, and a condition's detail opening in place (`governance/artefacts/design_system/typeset.md`, "The registers"; `docs/design/stage_typeset_playbook.md`).
 
 ## What a reading shows
 
