@@ -4,7 +4,7 @@ A shot-quality score pill, its fill graded by quartile (red → rust → amber �
 
 Source: `src/Gui/components/PpQualityPill.qml`.
 
-**Not used while the shot score is retired (#186).** Until the shot score is built, the shot card and the shot action bar draw no pill, the carousel filter has no quality-band option (it filtered on the same number), the folded-strip shot picker's readout draws no score, and the sessions drawer has no "avg q" column. The score is still computed and stored. The component stays in the design system; retiring it is a separate Design Lead decision.¹
+**Not used while the shot score is retired (#186).** Until the shot score is built, the shot card and the shot action bar draw no pill, the carousel filter has no quality-band option (it filtered on the same number), the folded-strip shot picker draws no score (its chips are plain `PpChoiceChip`s, style `mono`, and its readout shows no number), and the sessions drawer has no "avg q" column. The score is still computed and stored. The component stays in the design system; retiring it is a separate Design Lead decision.¹
 
 **Use** (when a score is shown again) the small pill on a shot card and the large "NN /100" at the head of the review panel. Set `mark` where nothing beside the pill says the band in words, so it reads without its colour.
 
@@ -24,4 +24,4 @@ Bands for filter chips: 0–24, 25–49, 50–74, 75–100 (`qualityBands`).
 
 ---
 
-¹ The Design Lead, 24 Nov 2026 (platform refactor judgement calls PR-32 and PR-37). **Still showing the score's tint and mark:** the folded-strip shot picker's chips, which have no neutral style to fall back to; un-tinting them waits for the Design Lead. The wrist score itself still shows, named as such and only where one exists, in Charts' wrist section and the report's wrist page.
+¹ The Design Lead, 24 Nov 2026 (platform refactor judgement calls PR-32 and PR-37); the picker's chips, the Design Lead, 25 Nov 2026 (#186). The wrist score itself still shows, named as such and only where one exists, in Charts' wrist section and the report's wrist page.

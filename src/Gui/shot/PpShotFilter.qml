@@ -27,16 +27,17 @@
 // strip is folded away (showShots). With the cards up they ARE the selector and this
 // menu is just the filter, which is all it has ever been; collapsed, there is no other
 // way to reach a swing, and re-opening the strip to pick one defeats the fold. The
-// picker is a contact sheet of ordinals tinted by the score's quality ramp — one glance finds the good ones, one click puts a swing on the stage, one
-// click on the chip already on the stage takes it off again. It lists the rows of the
-// model the filters drive, so a filtered-out swing is absent here exactly as it is
-// absent from the strip: filtering is honoured by construction, not by a second rule.
+// picker is a contact sheet of plain ordinal chips — one click puts a swing on the
+// stage, one click on the chip already on the stage takes it off again. It lists the
+// rows of the model the filters drive, so a filtered-out swing is absent here exactly
+// as it is absent from the strip: filtering is honoured by construction, not by a second rule.
 // Ordinals alone would not identify a swing, so the readout line under the grid names
 // whatever the cursor is over (falling back to the swing on the stage).
 //
-// The tint is never the band's only channel: each chip carries the band's mark (a tick in
-// the top band, a target below it) beside its ordinal. The readout no longer repeats the
-// mark and the score: the score is retired from view until the shot score is built (#186).
+// The chips are neutral PpChoiceChips: they carried the score's tint and band mark until the
+// score was retired from view (#186), and the readout no longer shows the score either. The
+// chip on the stage is told by shape as well as colour: the chip's selected look plus an
+// accent ring, and the readout names it.
 
 import QtQuick
 import PinPointStudio
@@ -226,30 +227,36 @@ Item {
                     required property int    ordinal
                     required property string club
                     required property string timestampLabel
-                    required property int    score
                     required property string swingDir
                     required property bool   dataWarning   // the card's ⚠: recording known broken
 
                     width:  shotGrid.cellWidth
                     height: shotGrid.cellHeight
 
-                    // On the stage: filled in its quality colour and ringed in the accent,
-                    // the film-strip card's own selection treatment at chip scale.
+                    // On the stage: the chip's own selected look (accent wash, border and ink), ringed
+                    // in the accent as the film-strip card is, at chip scale.
                     readonly property bool picked: cell.shotId === root.focusedShotId
 
-                    Rectangle {
+                    // A plain choice chip: the ordinal alone, neutral at rest. It carried the shot
+                    // score's tint and band mark until the score was retired from view (#186).
+                    PpChoiceChip {
                         id: chip
                         anchors.centerIn: parent
-                        width:  shotGrid.cellWidth  - Theme.gap(6)
-                        height: shotGrid.cellHeight - Theme.gap(6)
-                        radius: Theme.radius
-                        color:  cell.picked      ? Theme.qualityColor(cell.score)
-                              : chipMa.containsMouse
-                                    ? Qt.lighter(Theme.qualityColorLight(cell.score), 1.08)
-                                    : Theme.qualityColorLight(cell.score)
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        width:    shotGrid.cellWidth  - Theme.gap(6)
+                        height:   shotGrid.cellHeight - Theme.gap(6)
+                        style:    "mono"
+                        label:    String(cell.ordinal)
+                        selected: cell.picked
+                        onClicked: root.shotToggled(cell.shotId, cell.swingDir)
+                        // Publish/withdraw this chip as the readout's subject. The withdrawal is
+                        // conditional because the pointer reaches the next chip before this one
+                        // loses hover.
+                        onHoveredChanged: {
+                            if (hovered)                       root._hoverChip = cell
+                            else if (root._hoverChip === cell) root._hoverChip = null
+                        }
 
-                        Rectangle {   // selection ring (the idiom of the quality-band chips retired by #186)
+                        Rectangle {   // selection ring, the shape that says "on the stage" beside the colour
                             anchors.fill: parent
                             anchors.margins: -Theme.sp(2)
                             radius:  Theme.radius + Theme.sp(2)
@@ -257,26 +264,6 @@ Item {
                             color:   "transparent"
                             border.width: 1
                             border.color: Theme.colorAccent
-                        }
-
-                        Row {   // the band's mark, then the ordinal, centred as one
-                            anchors.centerIn: parent
-                            spacing: Theme.gap(3)
-                            PpBadge {
-                                anchors.verticalCenter: parent.verticalCenter
-                                kind: Theme.qualityMark(cell.score)
-                                tone: cell.picked ? Theme.colorOnAccent
-                                                  : Theme.qualityColor(cell.score)
-                                size: Theme.sp(12)
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text:           cell.ordinal
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          cell.picked ? Theme.colorOnAccent
-                                                            : Theme.qualityColor(cell.score)
-                            }
                         }
 
                         // The card's data-integrity ⚠ at chip scale (top-right corner), so a
@@ -291,18 +278,6 @@ Item {
                             font.family:    Theme.fontSymbol
                             font.pixelSize: Theme.sp(9)
                             color:          Theme.colorWarn
-                        }
-
-                        PpPressable {
-                            id: chipMa
-                            onClicked: root.shotToggled(cell.shotId, cell.swingDir)
-                            // Publish/withdraw this chip as the readout's subject. The
-                            // withdrawal is conditional because the pointer reaches the
-                            // next chip before this one loses hover.
-                            onContainsMouseChanged: {
-                                if (containsMouse)              root._hoverChip = cell
-                                else if (root._hoverChip === cell) root._hoverChip = null
-                            }
                         }
                     }
                 }
