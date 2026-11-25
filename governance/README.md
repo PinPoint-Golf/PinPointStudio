@@ -25,7 +25,7 @@ This governance applies to PinPoint Studio only. Its sibling repositories (the p
 - [`controls/`](controls/), by stage of work, in order: [`decide.md`](controls/decide.md), [`plan.md`](controls/plan.md), [`build.md`](controls/build.md), [`test.md`](controls/test.md), [`review.md`](controls/review.md), [`commit.md`](controls/commit.md), [`release.md`](controls/release.md); then [`kinds-of-work.md`](controls/kinds-of-work.md), the extras for a feature, a bug fix, a refactor, and data and analysis work. [`controls/product/`](controls/product/) holds the controls on what the product must do: [`analysis-and-data.md`](controls/product/analysis-and-data.md), [`diagnostics-and-coaching.md`](controls/product/diagnostics-and-coaching.md) and [`ui-behaviour.md`](controls/product/ui-behaviour.md); the build and review stages point to them.
 - [`procedures/`](procedures/README.md): step-by-step procedures, including the release procedures and the capture and corpus collection protocols.
 - [`guidance/`](guidance/): [`advice.md`](guidance/advice.md) and [`lessons.md`](guidance/lessons.md).
-- [`artefacts/`](artefacts/README.md): the governing documents, moved in at the end of the platform refactor's Stage B Part 1[^po-move].
+- [`artefacts/`](artefacts/README.md): the governing specifications (the information model, the design system, the sign conventions, the normative reference, the IMU frame contract), each with its owning role.
 - [`AGENTS.md`](AGENTS.md): what applies only to agents. The repository's root `AGENTS.md` and `CONTRIBUTING.md` point here.
 
 Each control is written once, in the first stage where it applies; later stages list it by id with a few plain words and a link, never a copy. Every control id appears in at least one stage or kind of work[^structure].
@@ -73,7 +73,6 @@ Guidance that becomes mandatory moves to the stage where it first applies, as a 
 
 [^po-195]: Product Owner, 21 Nov 2026 (#195), and 25 Nov 2026 (#195: the first half, docs only).
 [^issue-195]: Product Owner, 21 Nov 2026 (#195, "Proposed shape").
-[^po-move]: Product Owner, 25 Nov 2026 (#195): the information model and the design system don't move yet; about 100 tracked files and the refactor's briefs cite their paths, and Stage B's B1.5 moves 279 files.
 [^structure]: Product Owner, 25 Nov 2026: the governing rules themselves are organised by stage, with product controls apart, in formal governance terms (policies, controls, procedures, guidance, artefacts); for people and agents alike.
 [^source]: Every control's source is a footnote: the role, the date, and the decision or incident (Product Owner, 22 Nov 2026: provenance as footnotes, never inline).
 [^po-g]: Product Owner, 25 Nov 2026 (#195): G1–G3.
