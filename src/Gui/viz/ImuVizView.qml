@@ -47,7 +47,7 @@ View3D {
     // an on-screen roll. Living on this PARENT Node makes it a left-multiply (C · q),
     // matching the composition ArmVizView applies via pinpoint::viz::worldToScene();
     // a conjugation (C · q · C⁻¹) would be wrong for a label-attached rigid body.
-    // docs/design/imu_frame_contract.md §6, src/Gui/cameras/viz_frame.h. The constant is
+    // governance/artefacts/imu_frame_contract.md §6, src/Gui/cameras/viz_frame.h. The constant is
     // VizMath.worldToScene(), the one ArmVizView composes with.
     Node {
         rotation: VizMath.worldToScene()

@@ -17,7 +17,7 @@
  */
 
 // golfer_input_test — THE GOLFER'S INPUT IS NOT IN THE CACHE (refactor step 2.5; audit H-04's missing test;
-// build/refactor/step-2/BRIEF.md §4.8, the lead's call J-33; docs/developer/information_model.md FILE-SESS-02,
+// build/refactor/step-2/BRIEF.md §4.8, the lead's call J-33; governance/artefacts/information_model.md FILE-SESS-02,
 // FILE-SESS-03, FILE-SHOT-02).
 //
 //   N  a focus, a run, a screen answer, a declared miss, a shot intent and a correction, made through the

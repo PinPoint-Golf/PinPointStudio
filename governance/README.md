@@ -1,6 +1,6 @@
 # Governance
 
-This folder is the project's one home for the policies, controls, procedures and guidance that decide whether a change is acceptable, and, after the move, for the governing documents themselves[^po-195]. People and agents read the same text here; an agent's own instructions file holds no rules of its own and points here[^issue-195].
+This folder is the project's one home for the policies, controls, procedures and guidance that decide whether a change is acceptable, and for the governing documents themselves[^po-195]. People and agents read the same text here; an agent's own instructions file holds no rules of its own and points here[^issue-195].
 
 ## Scope
 
@@ -25,7 +25,7 @@ This governance applies to PinPoint Studio only. Its sibling repositories (the p
 - [`controls/`](controls/), by stage of work, in order: [`decide.md`](controls/decide.md), [`plan.md`](controls/plan.md), [`build.md`](controls/build.md), [`test.md`](controls/test.md), [`review.md`](controls/review.md), [`commit.md`](controls/commit.md), [`release.md`](controls/release.md); then [`kinds-of-work.md`](controls/kinds-of-work.md), the extras for a feature, a bug fix, a refactor, and data and analysis work. [`controls/product/`](controls/product/) holds the controls on what the product must do: [`analysis-and-data.md`](controls/product/analysis-and-data.md), [`diagnostics-and-coaching.md`](controls/product/diagnostics-and-coaching.md) and [`ui-behaviour.md`](controls/product/ui-behaviour.md); the build and review stages point to them.
 - [`procedures/`](procedures/README.md): step-by-step procedures, including the release procedures and the capture and corpus collection protocols.
 - [`guidance/`](guidance/): [`advice.md`](guidance/advice.md) and [`lessons.md`](guidance/lessons.md).
-- [`artefacts/`](artefacts/README.md): the governing documents, which move in at the end of the platform refactor's Stage B Part 1[^po-move].
+- [`artefacts/`](artefacts/README.md): the governing documents, moved in at the end of the platform refactor's Stage B Part 1[^po-move].
 - [`AGENTS.md`](AGENTS.md): what applies only to agents. The repository's root `AGENTS.md` and `CONTRIBUTING.md` point here.
 
 Each control is written once, in the first stage where it applies; later stages list it by id with a few plain words and a link, never a copy. Every control id appears in at least one stage or kind of work[^structure].
@@ -58,7 +58,7 @@ Who decides follows [`roles.md`](roles.md): a decision belongs to the role whose
 
 - a new policy or control, or a change to one, is approved by the role whose domain it is in, named in its footnote and as its owner;
 - an information-model rule (a principle P1–P11, a rule R-*, a lint rule's scope) is the Solution Architect's, and is changed only as an information-model change (`information_model.md` §1.2)[^imc];
-- a design-system rule is the Design Lead's, and is changed only as a design-system change (`docs/design/system/README.md`, "The non-negotiables")[^dsc];
+- a design-system rule is the Design Lead's, and is changed only as a design-system change (`governance/artefacts/design_system/README.md`, "The non-negotiables")[^dsc];
 - an exception is approved by the role that owns the lint.
 
 How a change is made (proposed, for the Product Owner):
@@ -79,10 +79,10 @@ Guidance that becomes mandatory moves to the stage where it first applies, as a 
 [^po-g]: Product Owner, 25 Nov 2026 (#195): G1–G3.
 [^d11]: Product Owner, 25 Nov 2026 (#195, decision D11).
 [^trace]: Solution Architect, 14 Nov 2026, refined 22 Nov 2026: every sentence of a design or reference document traces to a decision or is marked proposed; a governing definition is pointed to, never paraphrased in a second place.
-[^allow]: `roles.md`, "The documents each role owns"; `information_model.md` §1.4; `docs/design/system/README.md`, "The non-negotiables".
+[^allow]: `roles.md`, "The documents each role owns"; `information_model.md` §1.4; `governance/artefacts/design_system/README.md`, "The non-negotiables".
 [^roles]: `roles.md`, "The four roles" (approved 22 Nov 2026).
-[^imc]: `docs/developer/information_model.md` §1.2 and §1.4.
-[^dsc]: `docs/design/system/README.md`, "The non-negotiables".
+[^imc]: `governance/artefacts/information_model.md` §1.2 and §1.4.
+[^dsc]: `governance/artefacts/design_system/README.md`, "The non-negotiables".
 [^agents]: `roles.md`, "Agent roles".
 [^scope]: Product Owner, 25 Nov 2026 (#195, OM-7).
 [^local]: Product Owner, 25 Nov 2026 (#195, OM-1; D5 revised).

@@ -18,7 +18,7 @@
 
 #pragma once
 
-// THE CONSISTENCY TAB'S GRADES (docs/design/system/variability.md; Mark's rulings R1, R2a, R3, 7 Nov): every reading of
+// THE CONSISTENCY TAB'S GRADES (governance/artefacts/design_system/variability.md; Mark's rulings R1, R2a, R3, 7 Nov): every reading of
 // the table graded by the variability grader, and every cell of it graded at its loosest third. The graded path sits
 // ALONGSIDE session_consistency.h's rules, which still find the stand-outs: this file reads a ConsistencyInput and never
 // changes one.

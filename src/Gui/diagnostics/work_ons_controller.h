@@ -110,7 +110,7 @@ namespace pinpoint { class Athlete; class AthleteLevel; }
 // golfer phrases), so editing a phrase needs no recompute.
 //
 // CONSISTENCY MARKS — Home's Consistency column and the badges beside its faults (Mark's rulings R5 and
-// R10, docs/design/variability-mark/decisions.md; docs/design/system/variability.md). One golfer-layer
+// R10, docs/design/variability-mark/decisions.md; governance/artefacts/design_system/variability.md). One golfer-layer
 // grade per (condition, measure): how consistently the golfer repeats the measure behind that fault.
 //
 //   - THE WINDOW is the condition's last kNWindow (20) readings on that measure ACROSS sessions, newest

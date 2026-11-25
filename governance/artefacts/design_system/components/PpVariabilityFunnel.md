@@ -6,15 +6,15 @@ Source: `src/Gui/components/PpVariabilityFunnel.qml`. Geometry: `VariabilityGeom
 
 Compact, golfer and technical layers: a break mid-series (the trend reads the latest run, 4 sessions), too few sessions after a break, 14 sessions with 12 drawn, one session:
 
-![Funnel states](../../variability-mark/previews/funnel_states.png)
+![Funnel states](../../../../docs/design/variability-mark/previews/funnel_states.png)
 
 Compact, grades 5 to 0, golfer and technical layers (grade 0 is synthetic, since real data skips a session with no ρ):
 
-![Funnel grades](../../variability-mark/previews/funnel_grades.png)
+![Funnel grades](../../../../docs/design/variability-mark/previews/funnel_grades.png)
 
 Wide, golfer and technical layers, on real sessions (Mark's 7-iron; ρ from the observed SD, without the grader's noise subtraction, so not what the grader computes today: decisions.md):
 
-![Funnel wide](../../variability-mark/previews/funnel_wide.png)
+![Funnel wide](../../../../docs/design/variability-mark/previews/funnel_wide.png)
 
 ## When to use
 - **Is the golfer getting more consistent over time?** Any display of a measure's spread across sessions, or a consistency trend: a trend tab, a progress view, a work-on's history.

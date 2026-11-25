@@ -3,7 +3,7 @@
 *The device-agnostic orientation boundary every IMU consumer depends on. A future
 non-Witmotion IMU must deliver into this contract; nothing downstream depends on the
 Witmotion device directly. Established by the Track-B work in
-[`imu_rearchitecture.md`](../implementation/imu_rearchitecture.md) §3.2 / §5; this is the authoritative
+[`imu_rearchitecture.md`](../../docs/implementation/imu_rearchitecture.md) §3.2 / §5; this is the authoritative
 reference, that doc is the rationale.*
 
 ---
@@ -13,7 +13,7 @@ reference, that doc is the rationale.*
 | Frame | Definition | Owner |
 |---|---|---|
 | **World** (`imu_world`) | Right-handed, **gravity-aligned, +Z up**. Yaw is **arbitrary-but-fixed per session** (re-zeroable via calibration `A`) — **NOT** magnetic-north referenced (we run 6-axis, no magnetometer). REP-103 ENU *vocabulary*, REP-145 *no-mag semantics*. | Host fusion (`orientation_filter.h` Madgwick / `eskf_orientation_filter.h`) |
-| **Sensor body** (`imu_link`) | Right-handed, **+X = device-right (your right with the face toward you, USB down), +Y = long axis pointing AWAY from the USB end, +Z = face-normal**. (Before 26 Oct 2026 this row said +Y = USB-end; the measured axes say the opposite — see the reference's §2 correction.) Identity quaternion at the neutral pose. | Device characterization ([`imu_axis_reference.md`](../reference/imu_axis_reference.md)) |
+| **Sensor body** (`imu_link`) | Right-handed, **+X = device-right (your right with the face toward you, USB down), +Y = long axis pointing AWAY from the USB end, +Z = face-normal**. (Before 26 Oct 2026 this row said +Y = USB-end; the measured axes say the opposite — see the reference's §2 correction.) Identity quaternion at the neutral pose. | Device characterization ([`imu_axis_reference.md`](../../docs/reference/imu_axis_reference.md)) |
 | **Anatomical body** | Per-segment frame from `imu_calibration::solveSegment` (limbs) or `solveTrunkSegment` (pelvis, thorax). Axis tables in §5. | `imu_calibration.h` (`A`, `M`) |
 
 The fused quaternion produced by host fusion **is** the world→sensor-body orientation in
@@ -90,7 +90,7 @@ Right-handed: right × anterior = up.
 - +Y is the horizontal direction the golfer faced during stand tall (toward the ball).
 - +X = Y × Z, which is the golfer's right.
 - ⚠ For a right-hander, stance +X therefore points **away from** the target. The 4 Oct text said "toward the target"; that was wrong (design R3).
-- Lead/trail and the handedness flip are owned by `pinpoint_sign_conventions.md`.
+- Lead/trail and the handedness flip are owned by `sign_conventions.md`.
 
 **The solve,** from a stand-tall still window (≥ 2 s; mean accel `f̄` and mean fused quaternion `q̄` in the sensor frame):
 - `e_z` = `f̄` normalised. At rest the accelerometer reads +1 g along "up", so this is up in the sensor frame.
@@ -150,7 +150,7 @@ Scene is Y-up, right-handed, −Z forward. The basis change is a fixed `Rx(−90
 (det +1, no handedness flip): world +Z→scene +Y, +Y→scene −Z, +X→+X. ⚠ This basis change
 is **not** the whole rendered bone rotation — the avatar needs rest→*hanging*, so each
 viz renderer folds the basis change into a per-GLB rest offset (`R0`). See §3.4c of
-[`imu_rearchitecture.md`](../implementation/imu_rearchitecture.md); the explicit `worldToScene()` helper is
+[`imu_rearchitecture.md`](../../docs/implementation/imu_rearchitecture.md); the explicit `worldToScene()` helper is
 Phase 2 (not yet landed).
 
 ## 7. Fusion filter gotcha (both implement `IOrientationFilter`)

@@ -52,7 +52,7 @@ class ICharacteristicPackProvider;
 class INormProvider;
 }
 
-// ── The variability marks on this panel (docs/design/system/variability.md; decisions.md §2, R4, R4b, R8) ──
+// ── The variability marks on this panel (governance/artefacts/design_system/variability.md; decisions.md §2, R4, R4b, R8) ──
 namespace pinpoint::lm {
 
 // R4b: the readings that are CLUB DELIVERY — movement, so a consistency grade and a typicality are allowed, per
@@ -351,7 +351,7 @@ class LmSessionModel : public QObject
     // statistics and the two enclosing ellipses, dispersion and strike), `mismatch` (the note) and `device` (whose
     // club markers the Impact face carries). See sessionGraphics() in the .cpp.
     //
-    // THE VARIABILITY MARKS (the technical layer; docs/design/system/variability.md). Two more keys:
+    // THE VARIABILITY MARKS (the technical layer; governance/artefacts/design_system/variability.md). Two more keys:
     //   clubs[].stats[key].variability   a club-delivery reading's per-club grade (R4b; lmIsClubDelivery),
     //                                    the `variabilityResult` fields as a map — clubDeliveryGrade().
     //                                    Ball flight and smash factor never carry one (R4).

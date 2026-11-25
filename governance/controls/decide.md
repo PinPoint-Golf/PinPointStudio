@@ -9,7 +9,7 @@ These need the named role's approval **before** the work is built. Propose, then
 | Change | Approved by | What counts, and how to propose |
 |---|---|---|
 | **Information-model change** | Solution Architect | `information_model.md` §1.2 (what counts, and how to propose).[^im-hard] |
-| **Design-system change**: a new component; a new style, size or kind variant; a changed look or behaviour of an existing component; a new or changed token; retiring a component or token; any change no ruling covers | Design Lead | `docs/design/system/README.md`, "The non-negotiables" (what counts, and how to propose). Using existing components and tokens on a screen, moving them, removing a component from a screen, or changing words, when a Design Lead ruling already covers it, takes the lighter route instead ([UI-20](decide.md)). Retiring a component or token from the design system is not light.[^ds-hard][^ui-20] |
+| **Design-system change**: a new component; a new style, size or kind variant; a changed look or behaviour of an existing component; a new or changed token; retiring a component or token; any change no ruling covers | Design Lead | `governance/artefacts/design_system/README.md`, "The non-negotiables" (what counts, and how to propose). Using existing components and tokens on a screen, moving them, removing a component from a screen, or changing words, when a Design Lead ruling already covers it, takes the lighter route instead ([UI-20](decide.md)). Retiring a component or token from the design system is not light.[^ds-hard][^ui-20] |
 | **An allowlist line** in `src/Gui/tests/architecture_allowlist.txt` or `design_system_allowlist.txt` | the lint's owner (Solution Architect; Design Lead) | Never add one to make a test pass: fix the code, or ask the owner[^allow] |
 | **A norm becoming proven, a fault edge, coaching wording** | Coaching Lead | `roles.md`; [DC-1](decide.md), DC-2 |
 | **Scope**: work into or out of a plan, a release, a change of release route | Product Owner | `roles.md`; the current plan |
@@ -78,9 +78,9 @@ Still approved before it is built: a new component; a new style, size or kind va
 **Guidance for this stage:** [AG-13](../guidance/advice.md) check a premise before applying findings · [AG-28](../guidance/advice.md) a result in front of the owner first (agents) · [AG-40](../guidance/advice.md) fix only the behaviour corrected.
 
 [^im-hard]: `information_model.md` §1.2.
-[^ds-hard]: `docs/design/system/README.md`, "The non-negotiables"; Design Lead, 1 Nov 2026.
+[^ds-hard]: `governance/artefacts/design_system/README.md`, "The non-negotiables"; Design Lead, 1 Nov 2026.
 [^ui-20]: Design Lead, 25 Nov 2026 (the lighter design route, and its wording).
-[^allow]: `roles.md`, "The documents each role owns"; `information_model.md` §1.4; `docs/design/system/README.md`.
+[^allow]: `roles.md`, "The documents each role owns"; `information_model.md` §1.4; `governance/artefacts/design_system/README.md`.
 [^ag-1]: Product Owner, 15 Nov 2026 (define coined terms) and 14 Nov 2026 (plain names for deferred work); widened 25 Nov 2026 to every governance decision.
 [^ag-3]: Product Owner, 15–16 Nov, 23 Nov and 24 Nov 2026.
 [^ag-4]: Solution Architect, 15 Nov 2026.

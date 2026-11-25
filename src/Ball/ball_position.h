@@ -31,7 +31,7 @@
 // This IS the published scale, x100: `ballPosition` is 0 % at the lead heel and
 // 100 % at the trail heel, because that is the scale other golf software uses.
 // It therefore does NOT follow the lead-positive convention the displacement
-// metrics do — see docs/design/pinpoint_sign_conventions.md, which explains why
+// metrics do — see governance/artefacts/sign_conventions.md, which explains why
 // interoperability wins wherever a number is read next to numbers we did not
 // produce. A HIGH value means the ball is further BACK, toward the trail foot.
 //

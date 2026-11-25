@@ -33,7 +33,7 @@ import PinPointStudio
 //   at (P tag)      3     line 2, first
 //   median          3     line 2, "median 72"
 //   place           3     line 2, "highest of 15"
-// A ROW MAY CARRY A VARIABILITY BADGE (docs/design/system/variability.md), on line 2: the row's optional
+// A ROW MAY CARRY A VARIABILITY BADGE (governance/artefacts/design_system/variability.md), on line 2: the row's optional
 // `variability` field, one of
 //   { kind: "consistency", result }            result: the presenter's variabilityResult map ({ grade, graded,
 //                                              measurementLimited, basisText, … }, variability_facade.h). A Dispersion

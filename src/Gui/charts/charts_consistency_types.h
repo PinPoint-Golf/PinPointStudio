@@ -27,7 +27,7 @@
 // RelationsReadingRow (charts_relations_types.h, refactor 5.5c), so Charts' Apart and this tab show one shape. Those two
 // are not QML-registered, as the Relations types are not: QML never names them.
 //
-// NO VARIABILITY WORD IS SPELLED HERE (docs/design/system/variability.md): the words are the vocabulary singletons'. A
+// NO VARIABILITY WORD IS SPELLED HERE (governance/artefacts/design_system/variability.md): the words are the vocabulary singletons'. A
 // cell says WHICH vocabulary names it and at WHICH grade (`vocabulary`, `vocabularyGrade`); QML only looks the word up.
 
 #include "../variability/variability_facade.h"     // VariabilityResultView: a cell's grade

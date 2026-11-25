@@ -527,7 +527,7 @@ struct MetricDescriptor {
     // frame-referenced meaning first and the gloss second, or a left-handed reader is misled by
     // prose that looks authoritative.
     //
-    // THE CANONICAL STATEMENT IS docs/design/pinpoint_sign_conventions.md — rules 0/1/2 and the
+    // THE CANONICAL STATEMENT IS governance/artefacts/sign_conventions.md — rules 0/1/2 and the
     // per-metric tables. Rule 0 (a published standard outranks a popular product) is why the four
     // ISB joint angles keep ISB polarity even though a market-leading wrist sensor reports the
     // inverse. These fields are that document made checkable at the point of authoring.

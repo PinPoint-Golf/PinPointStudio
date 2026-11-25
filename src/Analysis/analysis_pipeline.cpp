@@ -1412,7 +1412,7 @@ struct FootMetricsStage : AnalysisStage {
                 m.unit  = QStringLiteral("% stance width");
                 // 0 % at the LEAD heel, 100 % at the trail heel — the scale other golf software
                 // uses, which is why it is not the lead-positive convention the displacement
-                // metrics follow. See docs/design/pinpoint_sign_conventions.md: where a number is
+                // metrics follow. See governance/artefacts/sign_conventions.md: where a number is
                 // read alongside numbers we did not produce, the established convention wins.
                 //
                 //     lead heel  frac 0.0  ->    0 %       (a driver sits about here)

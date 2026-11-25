@@ -20,7 +20,7 @@
 
 // SessionDiagnosticsFiles — THE ONE READER AND WRITER of a session's diagnostics files and of the golfer's
 // input (refactor step 2.5, audit H-04 and D-08; build/refactor/step-2/BRIEF.md §3.3, §4.4, §4.8, §4.11;
-// docs/developer/information_model.md FILE-SESS-02…05, FILE-SESS-12, FILE-SHOT-02). Adapters ring, beside
+// governance/artefacts/information_model.md FILE-SESS-02…05, FILE-SESS-12, FILE-SHOT-02). Adapters ring, beside
 // the session store (session_store.h) whose files these are; every name is SessionFiles' (session_files.h).
 //
 //   FILE-SESS-03  diagnostics.json — A CACHE that can be deleted at any time (DEC-160: IM-S2-3): the ledger

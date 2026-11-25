@@ -591,7 +591,7 @@ public:
     QVariantList sequenceRows(const QVariantMap &ks) const;
 
     // sequenceVerdictText — the ONE categorical sentence the normative reference calls robust
-    // (golf_swing_normative_reference.md §2.3), and nothing graded:
+    // (normative_reference.md §2.3), and nothing graded:
     //   proximalToDistal → "pelvis → chest → arm → club"
     //   armBeforeThorax  → "arm peaks before chest"
     //   partial          → "placed nodes in order (n of 4)"

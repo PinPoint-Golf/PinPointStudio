@@ -179,7 +179,7 @@ inline TrunkTurnSensorRecord readTurnSensor(const TrunkTurnSeries &s, double min
 } // namespace detail
 
 // The turn check for one step (away or through) on both trunk sensors. Handedness flips "away":
-// a right-hander turns away about −Z and through about +Z (pinpoint_sign_conventions.md "Trunk IMU
+// a right-hander turns away about −Z and through about +Z (sign_conventions.md "Trunk IMU
 // readings": opening is + about +Z for a right-hander); a left-hander the reverse.
 //
 // The step's message is the first that applies, most specific first:

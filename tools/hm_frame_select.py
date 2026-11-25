@@ -24,7 +24,7 @@ them, so the choice is read off a measurement rather than argued from geometry.
 
 ⚠ AND DO NOT CHECK THE ANSWER AGAINST THE VENDOR'S APP.  It reports the inverse
   of us on bow/cup, so a CORRECT answer looks wrong there.  See
-  docs/design/pinpoint_sign_conventions.md Rule 0.
+  governance/artefacts/sign_conventions.md Rule 0.
 
 ⚠ RECORD THE MOUNTING THAT PRODUCED THE CAPTURE.  The constant describes where
   the boards sit on the strap, not the device, so it is meaningless without it.

@@ -31,7 +31,7 @@
 //            time. Under one outcome the opened detail heads with the contrast line (showOutcomeContrast),
 //            which the item row itself does not carry.
 //
-// The badges are the golfer layer (docs/design/system/variability.md): a Dispersion Icon, dense, the
+// The badges are the golfer layer (governance/artefacts/design_system/variability.md): a Dispersion Icon, dense, the
 // word with its line as the tooltip, no figures. Each is a `variabilityResult` from the controller
 // (WorkOnsController, CONSISTENCY MARKS): the measure's last Variability.nWindow readings across
 // sessions, centred per club, against its norm corridor. "Checking" when measurement-limited.

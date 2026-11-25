@@ -18,7 +18,7 @@
 
 #pragma once
 
-// THE SESSION REPORT'S TWO RECORDS, AS VALUES (refactor step 5.6a; docs/developer/information_model.md FILE-SESS-07,
+// THE SESSION REPORT'S TWO RECORDS, AS VALUES (refactor step 5.6a; governance/artefacts/information_model.md FILE-SESS-07,
 // FILE-SESS-13). The report's metadata is split in two files:
 //
 //   ReportInput   FILE-SESS-13, <session>/report/report_input.json: the report's SOURCE facts — the coach's note, the

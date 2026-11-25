@@ -1189,7 +1189,7 @@ int main()
 
     // 3e2. Every metric that can carry a direction says which way is positive.
     //
-    // The obligation is docs/design/pinpoint_sign_conventions.md's: "a metric whose value carries a
+    // The obligation is governance/artefacts/sign_conventions.md's: "a metric whose value carries a
     // direction MUST state which way is positive in its own MetricDescriptor". That document exists
     // because THREE SIGNALS SHIPPED INVERTED and none of them failed loudly — an inverted signal
     // fires happily on the wrong swings with correct-sounding consequence text attached. This is

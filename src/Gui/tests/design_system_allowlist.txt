@@ -1,4 +1,4 @@
-# Design-system lint allow-list (design_system_lint_test.cpp, docs/design/system/README.md, #133).
+# Design-system lint allow-list (design_system_lint_test.cpp, governance/artefacts/design_system/README.md, #133).
 #
 # One line per file and rule:   path under src/Gui | rule | findings allowed | WHY it is deliberate
 # Rules: D1 hand-drawn control · D2 raw text input · D3 popup surface · D4 literal colour · D5 space that ignores Density.

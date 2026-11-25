@@ -17,7 +17,7 @@
  */
 
 // THE ATHLETE LEVEL'S OWNER AND THE CATCH-UP (refactor step 3.6; build/refactor/step-3/BRIEF.md §4.6, §6 row 3.6;
-// docs/developer/information_model.md CLS-ATHLETE-DIAG, R-DER-3, OBJ-CLUB-BASELINE; DEC-46, DEC-60, DEC-172, DEC-181).
+// governance/artefacts/information_model.md CLS-ATHLETE-DIAG, R-DER-3, OBJ-CLUB-BASELINE; DEC-46, DEC-60, DEC-172, DEC-181).
 // Over the REAL session store, Athlete, Session, swing door, firing reader and SessionDiagnostics, the process's RuleData
 // over the shipped content, on a temporary library (every trash into its own .pinpoint-trash). Every expectation comes
 // from a stated contract, never from running the code.

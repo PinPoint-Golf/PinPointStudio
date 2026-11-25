@@ -835,7 +835,7 @@ RelationsReadingRow rowOf(const Ctx &x, const SessionReading &r, const ReadingMe
 
 RelationsReadingRow rowAt(const Ctx &x, int i) { return rowOf(x, x.r(i), x.m(i), i); }
 
-// ── Typicality: this shot against the usual (Mark's ruling R8; docs/design/system/variability.md) ─────────
+// ── Typicality: this shot against the usual (Mark's ruling R8; governance/artefacts/design_system/variability.md) ─────────
 // Charts is the technical layer: each surface shows a Typicality badge with the grader's basis ("this swing 82 mph ·
 // usual 72 mph"). Never a grade, never praise or fault: whether the shot was good is the corridor's job, so the
 // reading's norm corridor rides along where it has one.

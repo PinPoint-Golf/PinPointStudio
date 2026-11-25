@@ -19,7 +19,7 @@ extract from our own Witmotion placements.
 - [`analysis_pipeline_developer_guide.md`](../developer/analysis_pipeline_developer_guide.md) —
   standing rule before any metrics work. §3 (capabilities/context/stages), §4 (the wrist
   profile), §6 (adding a stage, and landing dark).
-- [`imu_frame_contract.md`](../design/imu_frame_contract.md) — §2 convention, §4 stored frame,
+- [`imu_frame_contract.md`](../../governance/artefacts/imu_frame_contract.md) — §2 convention, §4 stored frame,
   §5 `q_anat = A·q_raw·M` and the joint-DOF axis table.
 - [`deferred_sources_design.md`](../design/deferred_sources_design.md) — the whole thing. This
   brief is its first real consumer.
@@ -149,7 +149,7 @@ it is **ISB / Wu et al. 2005** (`ref.wu2005`), the recommendation of the Standar
 Terminology Committee of the International Society of Biomechanics. Twelve authors, five countries,
 published by the society under its standards collection.
 
-The canonical statement is [`../design/pinpoint_sign_conventions.md`](../design/pinpoint_sign_conventions.md)
+The canonical statement is [`governance/artefacts/sign_conventions.md`](../../governance/artefacts/sign_conventions.md)
 §Rule 0 — *a published standard outranks a popular product* — and it is enforced by
 `metric_catalogue_test`, which asserts all four ISB joint angles keep ISB polarity. Nothing in this
 integration may weaken that, and the phases below inherit it whether or not they mention it.

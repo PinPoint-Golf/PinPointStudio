@@ -18,7 +18,7 @@
 
 // shot_number_test — "SHOT N" IN DIAGNOSTICS IS THE SWING NUMBER, AND A SESSION IS PLACED BY ITS IDENTITY, NOT ITS
 // FOLDER'S NAME (refactor step 2.7a; audit E-06/F-07, E-05, F-06/C-11; build/refactor/step-2/BRIEF.md §3.1, §3.2;
-// docs/developer/information_model.md ID-SWING-NUMBER, P7, GL-07).
+// governance/artefacts/information_model.md ID-SWING-NUMBER, P7, GL-07).
 //
 //   S  after a trashed swing (3) and one with no document yet (4), the ledger holds swings 1, 2, 5, 6: its "shot N"
 //      — the header's label, the review badge, every readout on the run and the current one — is the swing number

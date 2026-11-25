@@ -168,7 +168,7 @@ The swings a failed gate affects are recaptured ([AD-40](kinds-of-work.md)).
 *Owner:* Coaching Lead · *Stage:* Data and analysis work · *Compliance:* none yet
 
 **AD-44.** Lab tools must not write into a corpus swing folder except its markup (`truth.json`) and the lab's own `pose.json`.
-Which component writes each of a swing's files, and who owns it, is the information model's file table (`docs/developer/information_model.md`, the `FILE-SHOT-*` rows); this control adds nothing to it for the app and covers only the lab tools.
+Which component writes each of a swing's files, and who owns it, is the information model's file table (`governance/artefacts/information_model.md`, the `FILE-SHOT-*` rows); this control adds nothing to it for the app and covers only the lab tools.
 *Why:* the swing folder is the captured record that every later run is compared against.[^ad-44]
 *Owner:* Solution Architect · *Stage:* Data and analysis work · *Compliance:* none yet
 

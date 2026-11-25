@@ -19,7 +19,7 @@
 #pragma once
 
 // AthleteCatchUp — THE CATCH-UP, an application service (refactor step 3.6; build/refactor/step-3/BRIEF.md §4.6, §3.5;
-// docs/developer/information_model.md CLS-ATHLETE-DIAG's "the athlete catch-up (an application service) asks it to
+// governance/artefacts/information_model.md CLS-ATHLETE-DIAG's "the athlete catch-up (an application service) asks it to
 // recompute and persist its caches"; DEC-60, DEC-167, DEC-190).
 //
 // WHAT IT DOES: for an athlete, every ENDED session, OLDEST FIRST by its day and place in the day (SessionIdentity's),

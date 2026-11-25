@@ -19,7 +19,7 @@
 #pragma once
 
 // The analysis job: the value one analysis run consumes. Moved out of shot_analyzer.h (refactor step 1,
-// docs/developer/information_model.md §2) so the measurement rules that read it — ball_anchor,
+// governance/artefacts/information_model.md §2) so the measurement rules that read it — ball_anchor,
 // shaft_tracker, dtl_shaft_tracker — include a Rules-ring header instead of the analyzer
 // interface (Application). It is Rules, not Vocabulary, because it carries SkeletonCalib.
 

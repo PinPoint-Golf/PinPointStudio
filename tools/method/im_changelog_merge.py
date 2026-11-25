@@ -2,7 +2,7 @@
 """im_changelog_merge.py — resolves the information model's changelog clashes when one lane's change is rebased onto
 another's: both lanes added a changelog row with the same next version, so git leaves a conflict block.
 
-  python3 tools/method/im_changelog_merge.py docs/developer/information_model.md    (mid-rebase, then git add it)
+  python3 tools/method/im_changelog_merge.py governance/artefacts/information_model.md    (mid-rebase, then git add it)
   python3 tools/method/im_changelog_merge.py --self-test                             proves it on fixtures in a temp dir
 
 Each conflict block whose two sides are each a single changelog row ("| 1.N.M | ...") keeps both rows: the first

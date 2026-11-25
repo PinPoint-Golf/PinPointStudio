@@ -8,8 +8,8 @@ Conventions for all additions:
 - **Provenance discipline.** Every new condition ships `"provenance": {"tier": "proposed"}` unless a real DOI/PMID is attached. NEVER cite a commercial organisation, product, certification body, or brand (no launch-monitor vendors, no screening franchises). Domain terms are common property; attributions are not.
 - **Norm discipline.** Seed values below are heuristic anchors, marked `"source": "heuristic"`. Do not invent citations. Where a peer-reviewed value is later found, update `mu`/`sigma` and the source together.
 - **Launch-monitor flag.** Measures that cannot be resolved by this product's sensors (two/three global-shutter cameras + BLE IMU; skeleton, shaft, ball vocabulary) are authored with `"status": "notCapturable"` and a `gapReason` beginning `"Requires launch monitor: …"`. This is the flag mechanism — it keeps the roadmap honest (per the `MeasureStatus` header comment) while letting the fault library reference the measure. Grep `Requires launch monitor` to enumerate them.
-- **`highMeans` is mandatory** on every new measure — three signals have already shipped inverted without it (see the comment block in `characteristic.h` and `docs/design/pinpoint_sign_conventions.md`).
-- **Sign conventions** must follow `docs/design/pinpoint_sign_conventions.md`; do not restate them per-measure.
+- **`highMeans` is mandatory** on every new measure — three signals have already shipped inverted without it (see the comment block in `characteristic.h` and `governance/artefacts/sign_conventions.md`).
+- **Sign conventions** must follow `governance/artefacts/sign_conventions.md`; do not restate them per-measure.
 
 ---
 

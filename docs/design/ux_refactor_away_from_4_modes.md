@@ -160,7 +160,7 @@ Naming: the old section heading "Your swing" now names the area tab; the summary
   condition, and the active work-ons (`workOns.items`: `id` = condition id, `name` = label).
   The Coaching focus has to be offered separately because it need not be a work-on: on Mark's
   library the focus is `trail_knee_straighten`, which has never been listed.
-- **Superseded by refactor 4-d (22 Nov 2026):** the `Session` owns the declared focus; the controller holds only the pick until a `Session` takes it, and no panel adopts or writes back a copy (`docs/developer/information_model.md` §11.1; `build/refactor/step-4/NOTES-d.md`). The text below is the four-modes design as it was.
+- **Superseded by refactor 4-d (22 Nov 2026):** the `Session` owns the declared focus; the controller holds only the pick until a `Session` takes it, and no panel adopts or writes back a copy (`governance/artefacts/information_model.md` §11.1; `build/refactor/step-4/NOTES-d.md`). The text below is the four-modes design as it was.
 - On start: `sessionController.focusConditionId = <draft focus>` then
   `sessionController.start()` (the default type). **`SessionController` holds the focus for the
   live session.** The diagnostics panel adopts it when it activates on the live session folder.

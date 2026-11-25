@@ -188,7 +188,7 @@ no timestamps. The Nova's clock is not ours, so its timestamps must not be used 
 | Unknown | Why it matters | What settles it |
 |---|---|---|
 | HLA sign (positive = right?) | `lm.launchDirection` would be mirrored | One deliberate push or pull, or Open Launch's answer |
-| Spin axis sign | `lm.spinAxis` mirrored; see `pinpoint_sign_conventions.md` | Same |
+| Spin axis sign | `lm.spinAxis` mirrored; see `sign_conventions.md` | Same |
 | `Speed` really mph under `"Units": "Yards"` | Wrong by a factor of 2.24 if not | A real shot, or the WebSocket's stated m/s |
 | Message framing on real firmware | Split or joined frames | A wire recording |
 | Extra message types or fields | Silently dropped data | A wire recording |

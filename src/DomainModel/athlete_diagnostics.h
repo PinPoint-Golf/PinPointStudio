@@ -19,7 +19,7 @@
 #pragma once
 
 // AthleteDiagnostics — THE ATHLETE LEVEL'S DERIVED OWNER, one per Athlete, its child (refactor step 3.6;
-// build/refactor/step-3/BRIEF.md §4.6, §6 row 3.6; docs/developer/information_model.md CLS-ATHLETE-DIAG,
+// build/refactor/step-3/BRIEF.md §4.6, §6 row 3.6; governance/artefacts/information_model.md CLS-ATHLETE-DIAG,
 // OBJ-ATHLETE-DIAG, R-DER-3, §7.1's athlete row; DEC-46, DEC-53, DEC-60, DEC-92, DEC-138, DEC-172, DEC-192).
 //
 // WHAT IT READS: THE SESSION SUMMARIES ONLY (R-DER-3, DEC-92): each session's work_ons.json (FILE-SESS-05, written

@@ -4,7 +4,7 @@ How much something varies, or how far a reading can be trusted, as a grade drawn
 
 Source: `src/Gui/components/PpVariabilityMark.qml`. Geometry: `src/Gui/variability/variability_geometry.h` (the `VariabilityGeometry` singleton). Words: the four vocabulary singletons (`ConsistencyVocabulary`, `MeasurementVocabulary`, `TrendVocabulary`, `TypicalityVocabulary`), listed in [variability.md, Words](../variability.md#words).
 
-![The graded variants, grades 5 to 0, Instrument Light](../../variability-mark/previews/marks_instrument_light.png)
+![The graded variants, grades 5 to 0, Instrument Light](../../../../docs/design/variability-mark/previews/marks_instrument_light.png)
 
 ## When to use
 - **Almost never on its own.** On a screen, use `PpVariabilityBadge`: it pairs the mark with its word, does the measurement-limited substitution and the golfer-layer tooltip. Use a bare mark only where the word already sits in the same row or cell, or in a key.
@@ -79,28 +79,28 @@ Grades 5 and 4 share a tone, and so do 2 and 1: the shape and the word tell them
 | Typicality | A dashed circle ("nearly all", \|z\| 2), a faint disc ("most swings", \|z\| 1) and this swing's accent ring. No ghosts, centre dot or chevron. | A dashed ellipse (\|z\| 2), a faint inner ellipse (\|z\| 1), up to 12 grey ghost dots (recent swings), this swing's accent ring with a centre dot. |
 | TypicalityTrace | None: drawn as the Cell, with a warning. In an icon context use Typicality with the trace's RMS z. | A baseline, the golfer's envelope (median ± robust spread at t, faint), the dashed median and this swing's trace in the accent. The curve scales to whichever side of its baseline is bigger, so every curve fills its cell (R35; below). |
 
-![Dispersion, grades 5 to 0](../../variability-mark/previews/mark_dispersion.png)
-![Overlay, grades 5 to 0](../../variability-mark/previews/mark_overlay.png)
-![Needle, grades 5 to 0](../../variability-mark/previews/mark_needle.png)
+![Dispersion, grades 5 to 0](../../../../docs/design/variability-mark/previews/mark_dispersion.png)
+![Overlay, grades 5 to 0](../../../../docs/design/variability-mark/previews/mark_overlay.png)
+![Needle, grades 5 to 0](../../../../docs/design/variability-mark/previews/mark_needle.png)
 
 Your group, Cell, at z 0, +1.5, +2.5 and +3.5, without (top) and with `showCorridor` (bottom), each over its Icon-golfer and Cell-technical badges:
 
-![Typicality Cell](../../variability-mark/previews/typicality_cell.png)
+![Typicality Cell](../../../../docs/design/variability-mark/previews/typicality_cell.png)
 
 Your group, Icon, at z 0, 1.5, 2.5, 3.5 and −3.5, each at 48, 24, 20 and 16 px, then with `showCorridor`:
 
-![Typicality Icon](../../variability-mark/previews/typicality_icon.png)
+![Typicality Icon](../../../../docs/design/variability-mark/previews/typicality_icon.png)
 
 Trace on envelope: on time, late and higher, early and lower; bottom row with `showCorridor`:
 
-![TypicalityTrace](../../variability-mark/previews/typicality_trace.png)
+![TypicalityTrace](../../../../docs/design/variability-mark/previews/typicality_trace.png)
 
 - **Trace vertical scale (R35).** One linear scale, zero on the baseline, never folded. The curve's bigger side (above or below zero, over the envelope and this swing) spans 17 units, y 4.5 to 21.5; the smaller side may take 2.5 units beyond the baseline. A mostly positive curve keeps §6.2's baseline at y 21.5. A mostly negative curve takes the same layout turned over: the baseline sits at y 4.5 and the deepest value on y 21.5, clear of the `showCorridor` bracket. When the smaller side needs more than 2.5 units, the whole curve spans 19.5 units and the baseline moves in just enough to fit both sides. Before R35 a mostly negative curve drew only 2.5 units tall.
 - The ghost dots' vertical position is a deterministic jitter from the swing id. It carries no meaning; never explain it as one.
 - The neutral elements are `colorBorderStrong` (ring, arc, baselines, ticks, the dashed outer zone) or `colorBorderMid` (the Dispersion target line, the Needle ruler). The typicality inner zone and envelope are `colorText` at 7 % and 9 %; ghosts `colorText3` at 70 %; the dashed mean `colorText3`; the ring is filled `colorSurface` so it covers what lies under it.
 - **Washes.** The translucent washes are the Dispersion Cell's group ellipse (tone at 12 %), the Needle's wedges (tone at 12 / 16 / 24 %, Icon and Cell, and the Icon's small-size alphas), the typicality inner zone and the trace's envelope. On screen each multiplies its alpha by `Theme.variabilityWashAlpha`, clamped to 1: 1 in light themes, 3 in dark, so the dark-theme wedges read apart (Design Lead, 7 Nov 2026). Where the Needle's three wedges overlap they composite to at most `Theme.variabilityWedgeCompositeMax` (0.8) of the tone, so the full-tone needle reads over them: the mark lowers the innermost wedge's alpha to fit (R25; at ×3 it composited to 91 %). Light themes (44 %) and paper (60 %) never reach it. The dots, ghosts, the dashed outer zone, the needle and every other stroke or line keep their alpha. The percentages on this page are the light-theme (base) values. The Needle in Instrument Dark, with the ×3 wash:
 
-  ![Needle, grades 5 to 0, Instrument Dark](../../variability-mark/previews/mark_needle_dark.png)
+  ![Needle, grades 5 to 0, Instrument Dark](../../../../docs/design/variability-mark/previews/mark_needle_dark.png)
 - Strokes are constant pixels at every size; positions and radii scale with `size`. At `size` ≤ 16 px the Overlay Icon's traces and the Needle Icon's needle thin, its pivot and wedge alphas grow; at ≤ 12 px the Dispersion Icon's dots grow.
 - Dashes are 2 px on, 2 px off.
 

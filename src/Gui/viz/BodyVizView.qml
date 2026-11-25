@@ -424,7 +424,7 @@ Item {
     property quaternion thoraxOverrideRotation: Qt.quaternion(1, 0, 0, 0)   // thorax q_anat (absolute)
 
     // A golfer-relative turn about the vertical (degrees, + = AWAY from the target) as a q_anat:
-    // about −Z for a right-hander, +Z for a left-hander (pinpoint_sign_conventions.md).
+    // about −Z for a right-hander, +Z for a left-hander (sign_conventions.md).
     function trunkTurn(awayDeg) { return adapter.trunkTurn(awayDeg, root.rightHanded) }
 
     // The trunk's slerp, the arm's pattern (animateLeadArm, above): when animateTrunk is true a

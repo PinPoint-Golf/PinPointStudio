@@ -53,7 +53,7 @@ WizardPage {
 
     readonly property var _pelvis: page.ctx.roles.pelvis.unit
     readonly property var _thorax: page.ctx.roles.thorax.unit
-    // Golfer-relative: a right-hander turns away about −Z (pinpoint_sign_conventions.md "Trunk IMU
+    // Golfer-relative: a right-hander turns away about −Z (sign_conventions.md "Trunk IMU
     // readings"), so the heading change is negated for one and kept for the other.
     readonly property real _awaySign: page.ctx.leftHanded ? 1 : -1
 

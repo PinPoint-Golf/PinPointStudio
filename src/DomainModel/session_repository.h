@@ -19,7 +19,7 @@
 #pragma once
 
 // SessionRepository — THE ONE DOOR TO A SESSION'S OWN FILES (refactor step 2.2; build/refactor/step-2/
-// BRIEF.md §4.3, §4.4; docs/developer/information_model.md FILE-SESS-01, FILE-SESS-10, LC-SESSION,
+// BRIEF.md §4.3, §4.4; governance/artefacts/information_model.md FILE-SESS-01, FILE-SESS-10, LC-SESSION,
 // OBJ-SESSION-INDEX). SessionStore (src/Export/session_store.h) implements it; the composition root
 // (main.cpp) holds the one instance and hands it to the callers, so a caller names this interface and
 // never the store.

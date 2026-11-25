@@ -255,7 +255,7 @@ and the fused quaternion are all current:
 - `gyroMag` comes from `m_imu->gyroData()` (raw, synchronous) — **not**
   `angularVelocityDps`, which is quaternion-derived, queued, and coarse.
 - `clubVertical = |z|` of the fused quaternion rotating the sensor long axis
-  (+Y, see `docs/design/imu_frame_contract.md`) into the +Z-up world frame.
+  (+Y, see `governance/artefacts/imu_frame_contract.md`) into the +Z-up world frame.
 - The hook adds **no new EventBuffer producer** — the producer/stop-barrier
   contract (CLAUDE.md) is untouched. The whole BLE chain runs on the GUI
   thread, so `impactDetected` → `ImuManager` → `main.cpp` → `ShotController`

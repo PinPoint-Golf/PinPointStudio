@@ -19,7 +19,7 @@
 #pragma once
 
 // THE ONE HEADER WRITER of the swing document, and the `analysisContext` block's writer and
-// reader (refactor step 1.2; docs/developer/information_model.md §2, IM-1; docs/reference/
+// reader (refactor step 1.2; governance/artefacts/information_model.md §2, IM-1; docs/reference/
 // swing_json_schema.md).
 //
 // Before step 1.2 four builders wrote the top of a swing document and drifted: the exporter

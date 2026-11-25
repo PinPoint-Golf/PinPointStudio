@@ -18,7 +18,7 @@
 
 #pragma once
 
-// THE REPORT'S VARIABILITY MARKS (docs/design/system/variability.md; Mark's rulings R4b, R10, R14, R19, 7 Nov), the pure
+// THE REPORT'S VARIABILITY MARKS (governance/artefacts/design_system/variability.md; Mark's rulings R4b, R10, R14, R19, 7 Nov), the pure
 // half: what SessionReportModel::build() copies, as value types in and out, so report_model_test can hold them without
 // the diagnostics stack.
 //

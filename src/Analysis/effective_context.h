@@ -19,7 +19,7 @@
 #pragma once
 
 // THE EFFECTIVE CONTEXT — the recorded analysis context with the shot's one club applied: what one analysis run uses
-// (docs/developer/information_model.md §2; IM-3, Mark 14 Nov 2026). DERIVED, never stored; a copy becomes the analysis'
+// (governance/artefacts/information_model.md §2; IM-3, Mark 14 Nov 2026). DERIVED, never stored; a copy becomes the analysis'
 // input stamp (step 1.6).
 //
 // THE RULE, effectiveContext() v2 (refactor 6.2; R-CLUB-2, R-REC-6, DEC-133; closes DEC-72's interim):

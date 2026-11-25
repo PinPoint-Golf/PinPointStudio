@@ -2,7 +2,7 @@
 
 Status: BUILT 6 Nov 2026; **retrofitted to the variability marks 7 Nov 2026** (variability marks, Session 5): the cells,
 the headline, the opened rows, the stand-outs and Home now take the design system's grades, and the old verdicts, the stored
-Home tables and the tally are retired (§10). The grade rules are `docs/design/system/variability.md`; the Design Lead's rulings R1–R19
+Home tables and the tally are retired (§10). The grade rules are `governance/artefacts/design_system/variability.md`; the Design Lead's rulings R1–R19
 are `docs/design/variability-mark/decisions.md` §2. Where a section below still describes the 6 Nov build, it says so. The Product Owner's brief (6 Nov): "for each area, e.g. setup, posture there are curves where there is a clear
 and consistent pattern at each phase of the swing … there are also some where there is a lot of movement and
 inconsistency from one swing to the next … let the non-statistical expert golfer [see] where their patterns look
@@ -252,7 +252,7 @@ rows carry golfer-layer typicality badges. Nothing to press, and no ◆. The tec
 
 **The words** (since 7 Nov, R1 and R11): the Consistency vocabulary's, through `ConsistencyVocabulary` and
 `MeasurementVocabulary` ("Checking"); no presenter spells one. The 6 Nov words, steady, some and loose, are retired; the
-old-words table in `docs/design/system/variability.md` maps them.
+old-words table in `governance/artefacts/design_system/variability.md` maps them.
 
 ---
 
@@ -291,7 +291,7 @@ first guesses.
   grade 0, "Not enough swings". No scale: not graded. The reading's own σ goes in as its propagated σ, never subtracted
   (R3): a spread no larger than it is measurement-limited. A guarded shot is left out of a reading that rests on its
   P-ladder. A span's five points are graded one by one and the reading takes the median point by ρ. The rules:
-  `docs/design/system/variability.md`.
+  `governance/artefacts/design_system/variability.md`.
 
 ### 4.2 A cell
 
@@ -415,7 +415,7 @@ Nothing else was changed.
 
 | Change | As built | Screens |
 |---|---|---|
-| `PpChMatrix` extended | Two forms. Setting `columns` gives the rectangle: named columns, generic cells, optional wash, `cellActivated`, and a short form that never drops a column. Without it, the family as Relations has always had it. Page: `docs/design/system/components/PpChMatrix.md` | Consistency, report, Relations |
+| `PpChMatrix` extended | Two forms. Setting `columns` gives the rectangle: named columns, generic cells, optional wash, `cellActivated`, and a short form that never drops a column. Without it, the family as Relations has always had it. Page: `governance/artefacts/design_system/components/PpChMatrix.md` | Consistency, report, Relations |
 | Moved to `src/Gui/typeset/` | `roles.ch` existed only on PpChRoles. The cell width goes through `r.ch`, so any PpTypeset can use it | All three |
 | Heat tokens | `colorHeatSome` 0.15, `colorHeatLoose` 0.40, `colorHeatAfter` 0.12: alphas on `colorAttention`, in `Theme.qml`. `make_design_system.py` computes them into `tokens.json` | Consistency, report |
 | The wash rule | Design system §15.4 item 4: the corridor stays the one chart wash, with one exception, the heat of a table cell. The word, or the mark and its key, stays in the cell, so colour is never the only channel | Consistency, report |
@@ -614,7 +614,7 @@ its own probe, on a copy of the athlete folder.
 ## 10. 7 Nov 2026: the variability grades
 
 Variability marks Session 5 put the design system's grades on this feature. The rules are
-`docs/design/system/variability.md`; the rulings are `docs/design/variability-mark/decisions.md` §2.
+`governance/artefacts/design_system/variability.md`; the rulings are `docs/design/variability-mark/decisions.md` §2.
 
 - **Cells** take the grade at their loosest third (R1, §4.2) and show its word, "Not enough swings", "Checking" or "-". No
   marks in the table; the short form shows the grade's figure.

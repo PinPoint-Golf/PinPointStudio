@@ -371,7 +371,7 @@ Q3, and then for the row that names it below.
 - **Options.** (a) A6 narrowed to P9's wording, "a presenter's or a domain type's public API": the host service
   is neither, so its 6 findings leave the rule. (b) A6 on every header: they stay, and SF-4c types them.
 - **Recommendation: (a)**, as in V2 and H4. **One line for the ruling to settle:** the model's close record lists
-  `ppcpHost` among the device globals (§11's R-QML-1 row: `grep -n 'ppcpHost' docs/developer/information_model.md`),
+  `ppcpHost` among the device globals (§11's R-QML-1 row: `grep -n 'ppcpHost' governance/artefacts/information_model.md`),
   which reads as "not a presenter". Proposed: it is out of
   scope as it stands, and comes back into scope if a typed presenter is ever cut from it, because that would be a
   presenter by name.
@@ -557,7 +557,7 @@ row changes anything a pairing is stored as.
 [^planf]: `build/platform/DEF/PLAN-F.md`, 24 Nov 2026: the items SF-0 to SF-7b, their order and hours, its six corrections, "Effort, at three sizes", and notes N2 (the parked set), N4 (a defect needs an observed failure) and N5 (SF-5 is the first to move if the stage is cut).
 [^fore]: `build/platform/DEF/FORECAST.md`, 24 Nov 2026: levers 6 and 6b, the calendar levers ("Four become three"), and "Needs you" 1.
 [^common]: `build/platform/COMMON.md`: "Loss is blocking: anything that can lose a shot, golfer input, a setting, a pairing or a key is blocking, however unusual the path"; and "Real stores and devices".
-[^imc]: `docs/developer/information_model.md` §1.2 (C1–C11, from §10's template), §1.4 (the lint rules; a change of a rule's scope is an information-model change: DEC-120), §8.1 (FILE-LIB-03, -04, -05, FILE-SHOT-11, FILE-SHOT-12), §8.2 (SET-09), P9, P11, R-QML-1, R-QML-2, R-HL-2, R-REC-1, RING-ADAPTERS, DEC-187 and OBJ-RIG, read as excerpts. §11's R-QML-1 row, which lists the context globals at the close, was found by a grep for `ppcpHost`.
+[^imc]: `governance/artefacts/information_model.md` §1.2 (C1–C11, from §10's template), §1.4 (the lint rules; a change of a rule's scope is an information-model change: DEC-120), §8.1 (FILE-LIB-03, -04, -05, FILE-SHOT-11, FILE-SHOT-12), §8.2 (SET-09), P9, P11, R-QML-1, R-QML-2, R-HL-2, R-REC-1, RING-ADAPTERS, DEC-187 and OBJ-RIG, read as excerpts. §11's R-QML-1 row, which lists the context globals at the close, was found by a grep for `ppcpHost`.
 [^inc]: The method's rule: check the include graph before proposing a dependency rule.
 [^sd0]: `docs/implementation/platform_d_capture_seam.md`: S2 (when the shot is allocated: `Session::addShot`, SD-8d), V1 (Q17) and V2 (Q5).
 [^se0]: `docs/implementation/platform_e_host_settings.md`: H4 (Q5), H5 (Q17), K1 (the API keys' store) and K5 (Q7: the pairing key stays in settings).
@@ -567,7 +567,7 @@ row changes anything a pairing is stored as.
 [^r3]: `docs/implementation/platform_b1_placements.md`, R3: `pp_settings` is Platform (the Solution Architect, 24 Nov 2026).
 [^rule10]: The plan's §5 rule 10: work that moves is listed where it lands, not carried by a tag alone.
 [^evid]: The project's rule that a bug needs an observed failure, as `PLAN-F.md`'s note N4 applies it.
-[^ds]: `docs/design/system/README.md`, "The non-negotiables": any change to the design system needs the Design Lead's approval before it is built. This page also sends to that role any row that changes what the golfer or coach sees.
+[^ds]: `governance/artefacts/design_system/README.md`, "The non-negotiables": any change to the design system needs the Design Lead's approval before it is built. This page also sends to that role any row that changes what the golfer or coach sees.
 
 [^q3r]: The Product Owner, 25 Nov 2026, in the platform refactor's coordination session.
 

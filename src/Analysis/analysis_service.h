@@ -18,7 +18,7 @@
 
 #pragma once
 
-// THE ANALYSIS SERVICE (refactor step 1.5; step 1 design §4.7; docs/developer/information_model.md
+// THE ANALYSIS SERVICE (refactor step 1.5; step 1 design §4.7; governance/artefacts/information_model.md
 // §2 "The Recording contract", R-REC-4: analysis only ever runs on a Recording).
 //
 //   analyse(recording, effective, options)  the ONE job builder (buildAnalysisJob) → the

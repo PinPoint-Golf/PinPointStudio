@@ -32,7 +32,7 @@ import PinPointStudio
 //   showNotes  draw the notes (margin or below); false when the register sets them elsewhere
 //   roles, brush, medium, interactive
 //   signals shotActivated(swingDir, shotId), shotHovered(shotId), sessionActivated(sessionDir)
-// THE VARIABILITY MARKS (docs/design/system/variability.md; technical layer, PAIRED): the box and the
+// THE VARIABILITY MARKS (governance/artefacts/design_system/variability.md; technical layer, PAIRED): the box and the
 // per-session boxes stay exactly as drawn. Under the run and its box, one consistency badge per club
 // (spread.clubBadges, R2b: "7 iron · Repeatable · σ …"); under the history, a wide spread funnel per club
 // of this session with enough swings (history.funnels). Every grade, word and basis is the model's (C++

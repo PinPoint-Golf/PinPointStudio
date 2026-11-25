@@ -417,7 +417,7 @@ FSX2020"* and *"GC Quad — Foresight Premier"*. Existing settings keep working 
 | `ClubData.ClubSpeedAtImpactMs` | — | not mapped (within ±2 % of `ClubSpeedMs`; meaning unconfirmed) |
 
 Any `ClubData` field may be `null` on its own (one sticker, §2.6.2). Each `null` is a `dropped[]` entry.
-Signs follow [`pinpoint_sign_conventions.md`](pinpoint_sign_conventions.md). They come from
+Signs follow [`sign_conventions.md`](../../governance/artefacts/sign_conventions.md). They come from
 deliberate shots checked against Premier's screen on 2026-11-02 (§2.6.5), right-handed only. The range checks and the `dropped[]`
 bookkeeping the CSV parser applies (`DroppedField`) apply here too, so a Premier reading
 explains its absences the same way.

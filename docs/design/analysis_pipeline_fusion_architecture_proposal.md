@@ -1,7 +1,7 @@
 # PinPoint Sensor Pipelines & Fusion — Architecture, As-Built Analysis, and Improvement Proposals
 
 *Derived from the source tree as of July 2026. All file paths are relative to `src/`. Companion
-reading: `docs/design/imu_frame_contract.md`, `docs/design/club_tracking_v3_design.md`,
+reading: `governance/artefacts/imu_frame_contract.md`, `docs/design/club_tracking_v3_design.md`,
 `docs/implementation/shot_analyzer_m1_wrist.md`.*
 
 ---

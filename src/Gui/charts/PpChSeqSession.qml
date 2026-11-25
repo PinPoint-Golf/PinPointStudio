@@ -27,7 +27,7 @@ import PinPointStudio
 // A PROBABLE peak (the chest bridged across the camera's gap, §2.2.1) keeps its rank and its mark, with its ⚠: the
 // segment's name carries the ⚠, its ranks are set in italic, its marks carry their ± as a whisker, and the ⚠'s
 // few words sit once under the dot plot (chSeqWarn; the full reason is the trust fold's).
-// THE COMMON ORDER'S CONSISTENCY (docs/design/system/variability.md; spec §8.4), under the sentence: one technical
+// THE COMMON ORDER'S CONSISTENCY (governance/artefacts/design_system/variability.md; spec §8.4), under the sentence: one technical
 // Dispersion badge per club, named ("7 iron · Settling · Same order in 9 of 12 swings"), graded on the swings with
 // every segment KEPT placed: the segments the sentence names that are placed on at least nMin swings (R23, sequence.orderGrades). The sentence and the peak-time figures stay as they are.
 // objectNames: chSeqBarcode, chSeqDots, chSeqWarn, chSeqOrderGrades.

@@ -68,7 +68,7 @@ see **[BUILDING.md](BUILDING.md)**.
 | `governance/` | The project's rules: policies, controls by stage of work, procedures (including the release runbooks and capture protocols), guidance, and who approves what. Read it before changing anything ([`CONTRIBUTING.md`](CONTRIBUTING.md); agents start at [`AGENTS.md`](AGENTS.md)) |
 | `.github/` | Continuous-integration workflows (release binaries are built locally, not by CI) |
 
-Inside `src/`. The folders follow the architecture's rings (Platform, Vocabulary, Rules, Domain model, Application, Adapters), whose authority is the information model's §4 ([`docs/developer/information_model.md`](docs/developer/information_model.md)); the platform refactor is still moving files between them.
+Inside `src/`. The folders follow the architecture's rings (Platform, Vocabulary, Rules, Domain model, Application, Adapters), whose authority is the information model's §4 ([`governance/artefacts/information_model.md`](governance/artefacts/information_model.md)); the platform refactor is still moving files between them.
 
 | Folder | What's there |
 |---|---|
@@ -93,7 +93,7 @@ Inside `src/`. The folders follow the architecture's rings (Platform, Vocabulary
 | [BUILDING.md](BUILDING.md) | Dependencies, building on each platform, packaging, running the tests |
 | [`docs/user/`](docs/user) | Using the app: [diagnostics guide](docs/user/pinpoint-diagnostics-guide.md), [wrist calibration](docs/user/wristcalibration.md), [phone capture](docs/user/phone_capture.md), UX design |
 | [`docs/developer/`](docs/developer) | Developer guides: [analysis pipeline](docs/developer/analysis_pipeline_developer_guide.md), [testing](docs/developer/testing_developer_guide.md), [SwingLab](docs/developer/swinglab_developer_guide.md), [feature switches](docs/developer/feature_switches_developer_guide.md), event buffer, diagnostics, metrics |
-| [`docs/design/`](docs/design) | Design records for each subsystem, and the [QML design system](docs/design/system/README.md) |
+| [`docs/design/`](docs/design) | Design records for each subsystem, and the [QML design system](governance/artefacts/design_system/README.md) |
 | [`docs/reference/`](docs/reference) | File formats ([`swing.json`](docs/reference/swing_json_schema.md), [swing folders](docs/reference/swing_folder_layout.md)), sign conventions, device protocols, normative data |
 | [`docs/validation/`](docs/validation), [`docs/research/`](docs/research) | Validation reports, corpus results and research notes (the collection protocols are in [`governance/procedures/`](governance/procedures)) |
 | [`docs/conformance/`](docs/conformance) | The phone link's conformance claim and its test bundles |

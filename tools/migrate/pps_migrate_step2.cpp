@@ -17,7 +17,7 @@
  */
 
 // pps_migrate_step2 — THE STEP-2 DATA MIGRATIONS, M1–M4 (refactor step 2.8a; build/refactor/step-2/BRIEF.md §5.1;
-// R-PERS-7; docs/developer/information_model.md §11). One tool, run once per machine, after Mark has read its
+// R-PERS-7; governance/artefacts/information_model.md §11). One tool, run once per machine, after Mark has read its
 // dry-run report.
 //
 //   pps_migrate_step2 --library <root> [--settings <PinPointStudio.ini>] --report <file.md>

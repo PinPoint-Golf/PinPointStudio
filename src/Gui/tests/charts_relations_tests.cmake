@@ -60,7 +60,7 @@ set_tests_properties(charts_relations_presenter_test PROPERTIES
 
 # The Consistency tab's presenter (src/Gui/charts/charts_consistency_presenter.{h,cpp}, consistency_design.md §3, §4.3 to
 # §4.5): the same chain, as it builds its rows with the relations presenter's, and the variability grades it shows
-# (consistency_grades.cpp, the grader, the scale provider and the façade's views; docs/design/system/variability.md). The fixtures are 5 Oct, with a launch
+# (consistency_grades.cpp, the grader, the scale provider and the façade's views; governance/artefacts/design_system/variability.md). The fixtures are 5 Oct, with a launch
 # monitor and its Consistency golden, and 4 July, with none.
 pp_add_test(charts_consistency_presenter_test
     SOURCES charts_consistency_presenter_test.cpp

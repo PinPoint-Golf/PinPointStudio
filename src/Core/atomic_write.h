@@ -18,7 +18,7 @@
 
 #pragma once
 
-// atomicWrite — the one way a file is replaced (R-PERS-2; docs/developer/information_model.md). Platform
+// atomicWrite — the one way a file is replaced (R-PERS-2; governance/artefacts/information_model.md). Platform
 // ring: Qt only, no PinPoint type, so every ring may use it (src/Gui/tests/architecture_lint_test.cpp).
 //
 // Write a file via a temporary beside it and a rename over it, so a crash, a kill or a full disk leaves

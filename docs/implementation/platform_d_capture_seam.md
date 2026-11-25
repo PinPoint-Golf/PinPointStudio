@@ -448,7 +448,7 @@ for at least 4 of the 11 pins and for 7 if a camera-less analysis does not succe
 [^hard]: `CLAUDE.md`: any information-model change needs the Solution Architect's approval, and any design-system change the Design Lead's, before it is built.
 [^plan]: `docs/implementation/platform_refactor_assessment.md`, "Stage D · The capture seam": its bullets marked "(proposed, for the Solution Architect)" and "(proposed, for the Product Owner)", and its Closes, Test and Accept rows.
 [^pland]: `build/platform/DEF/PLAN-D.md` (the items SD-0 to SD-15c, their order and hours) and `build/platform/DEF/FORECAST.md` (levers 1 and 2), both of 24 Nov 2026.
-[^imc]: `docs/developer/information_model.md` §1.2 (C1–C11), §1.4 (the lint rules; its last line makes a change of a rule's scope an information-model change: DEC-120), P9, R-QML-1, R-CTX-1, RING-APPLICATION, RING-ADAPTERS, LC-SHOT, R-REC-1 and R-REC-2, read as excerpts.
+[^imc]: `governance/artefacts/information_model.md` §1.2 (C1–C11), §1.4 (the lint rules; its last line makes a change of a rule's scope an information-model change: DEC-120), P9, R-QML-1, R-CTX-1, RING-APPLICATION, RING-ADAPTERS, LC-SHOT, R-REC-1 and R-REC-2, read as excerpts.
 [^inc]: The method's rule: check the include graph before proposing a dependency rule.
 [^dec142]: The Solution Architect, 15 Nov 2026 (DEC-142): `Session::addShot` allocates, creates through `RecordingRepository::create` and returns the `Shot`; capture then writes.
 [^j109]: The plan's "Rulings of 24 Nov": Buffer's stream types, the launch monitor's reading types and `frame_decode` move under `src/Vocabulary/`, Buffer's in Stage D (J-109; the Solution Architect).

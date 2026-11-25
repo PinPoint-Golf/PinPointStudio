@@ -349,7 +349,7 @@ From there:
 ### E-16 · `PpModeStage` hand-draws its tab strip (PpMicro + Rectangle + MouseArea) while `PpTabs` and `PpTabButton` exist
 - Category: 3 (CLAUDE.md UI rule) · 12 (lint gap)      - Severity: Low
 - Evidence:
-  - `PpModeStage.qml:456-490`: a `Row` of `PpMicro` labels, a 2 px `Rectangle` rule and a bare `MouseArea` with `onClicked: stage.tabIndex = tab.index`. It has no keyboard path. `PpTabs` provides arrow keys, a focus ring and accessibility (`docs/design/system/components/PpTabs.md`).
+  - `PpModeStage.qml:456-490`: a `Row` of `PpMicro` labels, a 2 px `Rectangle` rule and a bare `MouseArea` with `onClicked: stage.tabIndex = tab.index`. It has no keyboard path. `PpTabs` provides arrow keys, a focus ring and accessibility (`governance/artefacts/design_system/components/PpTabs.md`).
   - `design_system_lint_test` does not flag it, presumably because the label is a `Pp*` component rather than `Text`.
 - Fix: decide whether `PpTabs` (a typeset register) or `PpTabButton` fits the stage heading. If neither does, it is a design-system change, which **needs the Design Lead's approval before it is built**. Widen lint rule D1 to count `PpMicro` labels.
 - Effort: S (once decided)

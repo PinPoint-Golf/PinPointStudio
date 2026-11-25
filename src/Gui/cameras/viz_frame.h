@@ -23,7 +23,7 @@
 #include <cmath>
 
 // Explicit basis change from the IMU world frame to the Qt Quick3D scene frame
-// (docs/design/imu_frame_contract.md §6, imu_rearchitecture.md §3.4c).
+// (governance/artefacts/imu_frame_contract.md §6, imu_rearchitecture.md §3.4c).
 //
 //   IMU world : right-handed, +Z up (gravity reaction), +X right, +Y forward.
 //   Qt scene  : right-handed, +Y up, -Z forward, +X right.
@@ -74,7 +74,7 @@ inline QQuaternion trunkWorldToAvatar()
 }
 
 // A golfer-relative turn about the vertical (degrees, + = AWAY from the target) as a trunk-world
-// q_anat. A right-hander turns away about −Z, a left-hander about +Z (pinpoint_sign_conventions.md,
+// q_anat. A right-hander turns away about −Z, a left-hander about +Z (sign_conventions.md,
 // "Trunk IMU readings"): the guide's handedness lives here, the live sensors carry their own.
 inline QQuaternion trunkGolferTurn(double awayDeg, bool rightHanded)
 {

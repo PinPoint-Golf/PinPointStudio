@@ -18,7 +18,7 @@
 
 #pragma once
 
-// THE ONE JOB BUILDER (docs/developer/information_model.md §2: "One builder makes the analysis job
+// THE ONE JOB BUILDER (governance/artefacts/information_model.md §2: "One builder makes the analysis job
 // from the Recording and its effective context, for live capture and re-analysis alike").
 //
 //   buildAnalysisJob(recording, effective, options) → ShotAnalysisJob

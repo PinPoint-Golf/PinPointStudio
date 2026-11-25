@@ -7,7 +7,7 @@
 - *Thorax + Pelvis IMUs — Rotational Metrics and Lead-Side Load/Drive* (Fable brief, 13 Oct): the acceleration path, lever arm, COM, load and drive metrics, the ZMP lead fraction.
 - *Ground Reaction Force Estimation — Research & Implementation Brief* (Fable brief, 13 Oct): the per-foot GRF programme, force platforms, the split solver, the reference session.
 
-**Background, not replaced:** `grf_estimation_design_briefing.md` (July: the literature survey and the honesty table), `body_rotation_estimation.md`, `kinematic_sequence_design.md`, `ks_skeleton3d_route_design.md`, `imu_frame_contract.md`, `imu_rearchitecture.md`, `uncertainty_census_design.md`, `two_camera_capture_protocol.md`, `session_wizard_refactor_design.md`, `docs/reference/golf_swing_normative_reference.md` (§5 GRF and COP norms).
+**Background, not replaced:** `grf_estimation_design_briefing.md` (July: the literature survey and the honesty table), `body_rotation_estimation.md`, `kinematic_sequence_design.md`, `ks_skeleton3d_route_design.md`, `imu_frame_contract.md`, `imu_rearchitecture.md`, `uncertainty_census_design.md`, `two_camera_capture_protocol.md`, `session_wizard_refactor_design.md`, `governance/artefacts/normative_reference.md` (§5 GRF and COP norms).
 
 Where the sources disagreed, §2 states which way this document went and why. The decided items from 4 October (D1–D3, D10) stand.
 
@@ -60,7 +60,7 @@ Each part is useful on its own. Part A pays even if B and C never ship, because 
 |---|---|---|---|---|
 | R1 | **Ceremony motions** | Still hold, N-pose, functional turn, **hip-hinge forward bend**, address hold, **stool test**, **hop** | Stand tall, turn away, turn through; no hinge (D10) | **The 4 Oct three steps, plus a hop (D10 stands; D14).** The hinge solved the mount yaw δ; §6.1 shows δ comes from the mount and the swings instead. The briefs' still-hold gates run automatically inside Stand tall. **The stool test is not a user step:** the lever arm comes from a default refined by the cameras (§6.4). **The hop is (D14):** a small hop at the end of the ceremony sets the session's IMU ↔ camera clock offset (§7.1). The stool survives only as a validation test in the truth session (§13). |
 | R2 | **What the turn solves** | The dominant gyro axis of the turn completes the mount | A standing turn carries no information about δ; it is a check | **A check.** Upright turning rotates about +Z, which gravity already gives; every mount yaw sees the same gyro. This is physics, not a missing algorithm. |
-| R3 | **Frames** | World x = target line, z up; segment x = ML to the athlete's left, y longitudinal, z posterior; a new `docs/Frames.md` | Segment +X ML to the golfer's right, +Y anterior, +Z superior; trunk A heading-only, world gravity Z-up | **The repo trunk frame**, owned by `imu_frame_contract.md` (trunk rows) and `pinpoint_sign_conventions.md`. No new `Frames.md`: those two documents already are the single owner the brief asks for. ⚠ The 4 Oct text says stance +X points "toward the target for a right-hander"; with +X to the golfer's right and the golfer facing the ball, it points *away* from the target. To fix when the trunk rows are written (§5.2). |
+| R3 | **Frames** | World x = target line, z up; segment x = ML to the athlete's left, y longitudinal, z posterior; a new `docs/Frames.md` | Segment +X ML to the golfer's right, +Y anterior, +Z superior; trunk A heading-only, world gravity Z-up | **The repo trunk frame**, owned by `imu_frame_contract.md` (trunk rows) and `sign_conventions.md`. No new `Frames.md`: those two documents already are the single owner the brief asks for. ⚠ The 4 Oct text says stance +X points "toward the target for a right-hander"; with +X to the golfer's right and the golfer facing the ball, it points *away* from the target. To fix when the trunk rows are written (§5.2). |
 | R4 | **Angle definitions** | Projections of segment axes (heading of the ML axis, elevation of the ML and long axes) | Cardan Z-Y-X in the stance frame, checked against ISB Part I | **Open: D13.** Both are written down (§5.3). The projection form avoids sequence dependence at large angles; Cardan is what ISB and the sign conventions speak. |
 | R5 | **Placement** | Pelvis "at the belt line over the sacrum", rigid belt, keyed 3D-printed cradle; thorax T3–T4, harness with a rigid plate, or the sternum | Belt on the sacrum below the belt line; GPS-vest pocket, about T2–T5 | **The 4 Oct placement, defined once in §4.1:** hip sensor on the sacrum, below the waistband; chest sensor in the vest pocket between the shoulder blades. T3–T4 is the same spot within a vertebra. No cradle, no harness plate, no sternum: they add hardware the golfer has to own, and the sternum would break like-for-like with the Cheetham norms, which used upper-back sensors. |
 | R6 | **Sensor and rate** | WT9011DCL, 200 Hz assumed | "WT901BLE67"; 100 Hz default, 200 Hz unmeasured with three links | **The code's driver is `wt9011dcl_*`.** Confirm the model on the units in hand. **200 Hz is a day-1 measurement, not an assumption** (§4.2). |
@@ -275,7 +275,7 @@ So the trunk q_anat is the true segment orientation in a gravity-up, stance-head
 
 **Why not reuse the limb solve:** it would zero the reference posture (the trunk's posture *is* a measurement) and leave the vertical on Y. The limb convention stays as it is; the contract gains a trunk row group.
 
-**Owners.** `imu_frame_contract.md` owns the frames; `pinpoint_sign_conventions.md` owns the signs. The briefs' request for a single `docs/Frames.md` is met by those two; reconcile the camera world (calibration, alignment-stick mode) against them in the same edit.
+**Owners.** `imu_frame_contract.md` owns the frames; `sign_conventions.md` owns the signs. The briefs' request for a single `docs/Frames.md` is met by those two; reconcile the camera world (calibration, alignment-stick mode) against them in the same edit.
 
 **Handedness.** Metrics are handedness-neutral: turn positive in the backswing direction, obliquity and side bend positive lead side up, regardless of hand. Where the flip happens is D15.
 
@@ -638,7 +638,7 @@ Not in the model at all: the peak **magnitudes in relation to each other** (the 
 
 ### 10.2 The rules that bound it
 
-From `golf_swing_normative_reference.md`:
+From `normative_reference.md`:
 - **Order is categorical** and the most robust surfaceable statement (§2.3; NR-05 as amended: ✓/✗ against the professional order).
 - **No verdict on closeness to a published magnitude** (NR-03, NR-05). The tile may show each peak as a % of Cheetham's professional peak; a characteristic may not fire on it.
 - **No single-swing timing verdict against a published mean** (NR-11). Timing is judged as dispersion over a set.
@@ -935,7 +935,7 @@ Add w_a · ẍ(arms + club) from the face-on hand keypoints and the shaft track 
 
 ### 11.4 Quality flags
 
-Each load metric carries: calibration validity (all gates passed), lever-arm residual, impulse-closure residual, IMU ↔ video z̈ agreement when both exist, and `validationStatus` = `experimental` until the reference session. The session-diagnostics statistics layer decides what is surfaced. Norms from `golf_swing_normative_reference.md` §5 (lead/trail vertical GRF by phase, peak VGRF before impact) attach only after validation.
+Each load metric carries: calibration validity (all gates passed), lever-arm residual, impulse-closure residual, IMU ↔ video z̈ agreement when both exist, and `validationStatus` = `experimental` until the reference session. The session-diagnostics statistics layer decides what is surfaced. Norms from `normative_reference.md` §5 (lead/trail vertical GRF by phase, peak VGRF before impact) attach only after validation.
 
 ---
 
@@ -1164,7 +1164,7 @@ Every session runs stand tall's sensor-health gates; every swing runs the clock 
 | `SegmentModel`, `ComEstimator`, `NetGrfEstimator`, `GrfSplitSolver` | `src/Kinetics/` | Phase 0, 2 |
 | `ForcePlatformDevice`, factory, `WiiBalanceBoard`, `SyntheticForcePlatform`, `NrfLoadCellPlate` | `src/ForcePlatform/` (new) | Beside `src/IMU/`, `src/LaunchMonitor/` |
 | KS checks (Part K) | `core.json`, `norms.json`, engine (E1–E3), `segment_rates.cpp` (E5), the KS tile (E4) | §10.8 |
-| `docs/Frames.md` | — | Not created; `imu_frame_contract.md` + `pinpoint_sign_conventions.md` (R3) |
+| `docs/Frames.md` | — | Not created; `imu_frame_contract.md` + `sign_conventions.md` (R3) |
 
 **Before naming any struct:** grep all of `src` (memory note `odr-collision-in-pinpoint-analysis`). Stage version bumps on every producer change. Logging through `ppInfo/Warn/Error` to the app log. Tests silent, run through ctest.
 
@@ -1360,7 +1360,7 @@ These are weak and not consistent. By the plan the count should come off the til
 - **For the Product Owner:** judge the camera club per swing by two-sided coverage.
 
 **§16 step 1, frames and the trunk solve** (uncommitted at the time of writing):
-- **The contract:** `imu_frame_contract.md` §5 now has the trunk rows, and `pinpoint_sign_conventions.md` has "Trunk IMU readings".
+- **The contract:** `imu_frame_contract.md` §5 now has the trunk rows, and `sign_conventions.md` has "Trunk IMU readings".
 - **The code:**
   - `solveTrunkSegment()`, with its gates and messages, and `trunk_angles.h` (D13);
   - the KS trunk rate is now the segment S-I rate (D3), and the phase segmenter reads the pelvis about world Z;
@@ -1448,7 +1448,7 @@ All decided with the Product Owner on 14 October 2026 unless dated otherwise.
 | D20 | Club and ball in the GRF model | **Club in** (mass per club, 3-D shaft track); **ball impulse modelled** at the floor-camera impact time |
 | D28 | Where the sequence's body nodes come from (25 Oct, Product Owner) | *"Outside of the club the KS chart really needs imu/hm."* The pelvis, chest and arm come from the trunk Witmotions and the wG3 wherever they are worn. The camera routes for those three are stand-ins, shown with their ⚠ and graded against the sensors. The camera keeps the club. The worn session of 26 Oct week has the wG3 on (§3.7, §16.1) |
 
-**Amendments to the normative reference** (approved by the Coaching Lead and applied to `golf_swing_normative_reference.md`, 14 October 2026):
+**Amendments to the normative reference** (approved by the Coaching Lead and applied to `normative_reference.md`, 14 October 2026):
 - **NR-05, amended 2026-10-14 (Coaching Lead):** the kinematic-sequence hand-off checks fire when the ratio of a segment's peak speed to the previous segment's falls below 80 % of the ratio in Cheetham et al. (2008), 19 PGA tour professionals. The amateur ratios in the same study lie within 3 % of the professional ones, so the check marks a breakdown in the chain, not a skill gap, and is worded as such.
 - **NR-13, amended 2026-10-14 (Coaching Lead):** X-factor stretch may fire a characteristic (`xfactor_deficit`, `excessive_separation_stretch`) at the extremes of a wide corridor, labelled one-golfer and heuristic until a cohort exists. X-factor at the top is never graded on its own (NR-10), and no elastic-energy language is used (NR-14).
 

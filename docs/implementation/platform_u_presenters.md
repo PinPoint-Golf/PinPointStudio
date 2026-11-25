@@ -181,7 +181,7 @@ U-15c also wait on Q11, and U-6b on Q7.
   what is judged. **Before and after:** before, the Analysis group reads Score, Tier, Schema; after, Tier, Schema.
   U-17 delivers the annotated before-and-after sheet for the Design Lead's review before it is committed, and
   changes nothing else on the screen.
-- **A changed look** (`docs/design/system/README.md`: any changed look needs the Design Lead's approval before it
+- **A changed look** (`governance/artefacts/design_system/README.md`: any changed look needs the Design Lead's approval before it
   is built). No information-model change: the score is still computed and stored. Waits: U-17.
 - **Ruled:** (a), the row goes[^q8r].
 

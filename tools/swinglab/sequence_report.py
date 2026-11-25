@@ -16,7 +16,7 @@ docs/design/kinematic_sequence_design.md §9:
   * the club node against ``clubheadPeakLead`` (the LINEAR clubhead-speed peak's
     lead before impact, a live metric): median / IQR of the difference.
 
-The last column carries Cheetham (2008) — golf_swing_normative_reference.md §2 —
+The last column carries Cheetham (2008) — normative_reference.md §2 —
 as REFERENCE ONLY. Nothing here is a grade (NR-03): it is a distribution beside
 a published one so a reader can see whether the nodes land where a sequence
 lives at all.

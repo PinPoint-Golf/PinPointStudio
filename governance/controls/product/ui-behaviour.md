@@ -1,11 +1,11 @@
 # Product controls: screens
 
-What screens must show and how they must behave, beside the design system (`docs/design/system/README.md` and its component pages). How a UI change is approved and reviewed is in [`decide.md`](../decide.md) (UI-18, UI-20) and [`review.md`](../review.md) (UI-17). Each control is stated once, in the first stage where it applies; later stages list it by id. A listed id marked "(agents)" binds only agents. The control format and the terms are defined in [`README.md`](../../README.md).
+What screens must show and how they must behave, beside the design system (`governance/artefacts/design_system/README.md` and its component pages). How a UI change is approved and reviewed is in [`decide.md`](../decide.md) (UI-18, UI-20) and [`review.md`](../review.md) (UI-17). Each control is stated once, in the first stage where it applies; later stages list it by id. A listed id marked "(agents)" binds only agents. The control format and the terms are defined in [`README.md`](../../README.md).
 
 ## Already stated elsewhere
 
-- A catalogue metric always draws in its own identity colour, `Theme.metricColor(key)`; colour is never the only channel (`docs/design/system/README.md`, "Colour", "The non-negotiables").
-- Every box plot in the app is the one box-plot component, and shows its values on the plot while it is examined (`docs/design/system/components/PpBoxPlot.md`).
+- A catalogue metric always draws in its own identity colour, `Theme.metricColor(key)`; colour is never the only channel (`governance/artefacts/design_system/README.md`, "Colour", "The non-negotiables").
+- Every box plot in the app is the one box-plot component, and shows its values on the plot while it is examined (`governance/artefacts/design_system/components/PpBoxPlot.md`).
 - The registers, and a condition's detail opening in place (`docs/design/pinpoint_qml_design_system.md` §15.6; `docs/design/stage_typeset_playbook.md`).
 
 ## What a reading shows

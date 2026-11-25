@@ -69,7 +69,7 @@ clean, and a structural fault must not be softened into a style note.
 - Design docs under `docs/design/` and developer guides under `docs/developer/` describe intent; drift between
   stated design and code is itself a finding.
 - If your area includes QML, CLAUDE.md's UI rules apply to what you judge (design system in
-  `docs/design/system/README.md`; never hand-draw controls; Theme tokens only). Any design-system change needs
+  `governance/artefacts/design_system/README.md`; never hand-draw controls; Theme tokens only). Any design-system change needs
   the owner's approval before it is built — you are not building anything, but don't recommend one as if it
   were free.
 

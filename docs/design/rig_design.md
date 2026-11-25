@@ -529,7 +529,7 @@ C-11 say so. C-14's byte-identity fixture for the ceremony file is synthetic, as
 No look or behaviour change is planned, so no design-system approval is planned for. Three kinds of QML edit happen:
 the perspective rename (§4.7), `appSettings.*` reads and writes that become `app.rig.*`, and the three routine files
 losing their logic to bindings. No control is drawn, no component or token is added. Each item that touches QML
-reads `docs/design/system/README.md` and the component pages first, and ends with a before/after sheet of each page
+reads `governance/artefacts/design_system/README.md` and the component pages first, and ends with a before/after sheet of each page
 it touched as the evidence that nothing changed. **If an item finds it cannot keep the look, it stops and the change
 goes to the Design Lead before it is built.**[^hard-ds]
 
@@ -810,7 +810,7 @@ directory.
 
 ## Notes
 
-[^hard]: `CLAUDE.md`, "Information model and architecture"; IM §1.2 (`docs/developer/information_model.md`).
+[^hard]: `CLAUDE.md`, "Information model and architecture"; IM §1.2 (`governance/artefacts/information_model.md`).
 [^hard-ds]: `CLAUDE.md`, "UI and design system": any design-system change needs the Design Lead's approval before it is built.
 [^plan-c]: `docs/implementation/platform_refactor_assessment.md`, "Stage C · The Rig and calibration", with its Closes, Deletes, Test, Re-run, Tier, Accept, Scratch cases and Cabin visit rows.
 [^plan-b]: The same page, "Stage B", Part 1: `swing_analysis.h` is split and the Recording contract's types move to `Vocabulary/Recording`; `SegmentRole` (`segment_role.h`) and `trunk_calib_provenance.h` move to `Vocabulary/Common`.

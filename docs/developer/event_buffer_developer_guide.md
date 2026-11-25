@@ -689,7 +689,7 @@ bool ok = window.interpolateImu(imuId, frame_timestamp_us,
 samples, not raw device packets. Accel and gyro are lerped componentwise; the
 orientation quaternion is **slerped along the shortest arc**, never interpolated
 as Euler angles. All values are in the raw sensor body frame (schema
-`imu_sample_v2`) — see `imu_sample.h` and `docs/design/imu_frame_contract.md`.
+`imu_sample_v2`) — see `imu_sample.h` and `governance/artefacts/imu_frame_contract.md`.
 
 ### Backing the window with something other than a live buffer
 

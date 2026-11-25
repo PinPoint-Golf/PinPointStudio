@@ -214,7 +214,7 @@ Two easy traps:
 
 ## 1A. Sign conventions — the frames, and what ISB governs
 
-> **The canonical statement is [`docs/design/pinpoint_sign_conventions.md`](../design/pinpoint_sign_conventions.md)**
+> **The canonical statement is [`governance/artefacts/sign_conventions.md`](../../governance/artefacts/sign_conventions.md)**
 > — rules 0/1/2, the per-metric tables, and the ISB compliance audit. Code and
 > `axis_direction_test` cite it by rule number. This section is the working summary for somebody
 > adding a metric; where the two ever disagree, the design doc wins and this one is the bug.

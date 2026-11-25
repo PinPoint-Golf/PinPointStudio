@@ -19,7 +19,7 @@
 #pragma once
 
 // THE ANALYSIS CONTEXT RECORDED — the athlete facts an analysis consumes, frozen at capture into
-// the Recording so a re-analysis never reads a live profile (docs/developer/information_model.md
+// the Recording so a re-analysis never reads a live profile (governance/artefacts/information_model.md
 // §2, "The Recording contract"; IM-1, Mark 14 Nov 2026). It is a RECORDED INPUT: written once, by
 // capture, through the one header writer; for a document older than the block, built once by the
 // repository's reader from its legacy fields, unknowns left unknown.

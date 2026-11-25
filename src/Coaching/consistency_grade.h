@@ -18,7 +18,7 @@
 
 #pragma once
 
-// THE CONSISTENCY OF A CONDITION'S MEASURE OVER LEDGER ROWS (docs/design/system/variability.md; Mark's rulings R2a,
+// THE CONSISTENCY OF A CONDITION'S MEASURE OVER LEDGER ROWS (governance/artefacts/design_system/variability.md; Mark's rulings R2a,
 // R5, R10, R12, R13, R14, 7 Nov): the one rule Home's work-ons (WorkOnsController::runMarks: a fault's last 20 readings
 // across the golfer's ledgers) and the report's work-on page (SessionReportModel: that session's readings) grade by.
 // Pure: value types in and out, safe on any thread, no pack, no norms (the scale comes in through a callback).

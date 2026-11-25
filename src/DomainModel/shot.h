@@ -19,7 +19,7 @@
 #pragma once
 
 // Shot — one shot, ITS OWN OBJECT, a child of its Session (refactor step 3.4a; build/refactor/step-3/BRIEF.md
-// §4.3; docs/developer/information_model.md OBJ-SHOT, CLS-SHOT, LC-SHOT, CLS-SHOT-DIAG; P10, DEC-95,
+// §4.3; governance/artefacts/information_model.md OBJ-SHOT, CLS-SHOT, LC-SHOT, CLS-SHOT-DIAG; P10, DEC-95,
 // DEC-141, DEC-142).
 //
 //   ref()              its ShotRef (ID-SHOT): its session's id and its swing number. Never a folder

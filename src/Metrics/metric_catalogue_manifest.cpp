@@ -93,7 +93,7 @@
 // third voice and the shortest — how THIS rung gets the number, named as a method rather than as a
 // missing device. The biomechanics, formulae and reference ranges draw on
 // docs/design/shot_analyzer_design.md, docs/reference/wristmetrics.md,
-// docs/reference/golf_swing_normative_reference.md and docs/reference/swing_json_schema.md.
+// governance/artefacts/normative_reference.md and docs/reference/swing_json_schema.md.
 //
 // minTier stays Angles2D on every rung: wrist DOFs come from the fused IMU regardless of camera
 // reconstruction tier, and the speed/foot metrics are 2D face-on. Depth is stated as the `dtlCamera`
@@ -400,7 +400,7 @@ void installMetricManifest(MetricCatalogue &cat)
     //
     // ⚠ NO EXCEPTION TO RULE 0 IS INVOLVED HERE AND NONE SHOULD BE WRITTEN. ISB defines rotations
     // BETWEEN two segment triads; this is one segment twisting about its own long axis, which
-    // pinpoint_sign_conventions.md's "what ISB does NOT govern" table names as a family in its
+    // sign_conventions.md's "what ISB does NOT govern" table names as a family in its
     // "Segment axial rotations" row. Rule 0 not applying means Rule 1 applies — follow the outside
     // world — so this metric is PRONATION-POSITIVE, AGREEING with the wG3's vendor exactly where
     // `leadWristFlexExt` deliberately disagrees with them. That asymmetry looks like a bug beside

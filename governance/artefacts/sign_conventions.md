@@ -141,7 +141,7 @@ delivers the handedness invariance this document asks for everywhere else — `m
 positive, flexion (bowing) negative. When a standard and a popular product disagree, **the standard
 wins**: a vendor can change their convention next release, and a standard is the thing that lets two
 datasets be compared at all. The disagreement is recorded in `ref.wu2005` and in
-[`../reference/wristmetrics.md`](../reference/wristmetrics.md) so it stays a known difference rather
+[`docs/reference/wristmetrics.md`](../../docs/reference/wristmetrics.md) so it stays a known difference rather
 than a discovered one. Never compare a raw wrist sign across sources without checking the frame.
 
 ### What ISB does NOT govern, and why saying so protects the claim
@@ -299,7 +299,7 @@ the body squares up. This is not a shortcut of the camera estimator — it is wh
 corridors require (`m_pelvisRotP4` at +45° for the top, `m_pelvisRotP7` at +40° for impact; a signed
 curve cannot satisfy both). It does mean a peak reducer spanning the top to impact sees the larger
 of the two excursions rather than the open one. See
-[`body_rotation_estimation.md`](body_rotation_estimation.md).
+[`body_rotation_estimation.md`](../../docs/design/body_rotation_estimation.md).
 
 ### Turn RATES are signed
 
@@ -360,7 +360,7 @@ The three tilts keep their camera readings' signs, which differ from the D13 "ob
 
 ### Posture readings (21 Oct 2026)
 
-From [`posture_metrics_design.md`](posture_metrics_design.md) §3.1–3.2. None of the three is lateral, so
+From [`posture_metrics_design.md`](../../docs/design/posture_metrics_design.md) §3.1–3.2. None of the three is lateral, so
 neither rule 1 nor rule 2 reaches them, and each states its own. The two down-the-line angles take
 "toward the ball" from the golfer's own feet, as `pelvisThrust` and `spineForwardBend` do, so a
 left-handed golfer or a mirrored camera reads the same number.

@@ -287,7 +287,7 @@ struct Measure {
     // of what they assumed; an inverted signal then fires happily on the wrong swings with
     // correct-sounding consequence text attached. An author who reads "further back, toward the
     // trail foot" cannot make that mistake in the same way. See
-    // docs/design/pinpoint_sign_conventions.md.
+    // governance/artefacts/sign_conventions.md.
     QString       highMeans;
 
     // How a GOLFER, not a coach, would say that a reading was higher — and lower — than usual. Used

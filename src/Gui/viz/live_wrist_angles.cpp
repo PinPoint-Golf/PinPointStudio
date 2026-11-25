@@ -178,7 +178,7 @@ void LiveWristAngles::tick()
         // while the wG3's is forearm-alone would publish two different quantities under one
         // name, and a cross-lane comparison (P1→P7 deltas, Phase G grading) would read the
         // shoulder's contribution as sensor error. hm_frame.h's PRONATION RATE note is the
-        // authority; pinpoint_sign_conventions.md forbids implying ISB conformance we lack.
+        // authority; sign_conventions.md forbids implying ISB conformance we lack.
         //
         // ⚠ ZERO IS THE CALIBRATION POSE, NOT ANATOMICAL SQUARE — and the two vendors calibrate
         // in DIFFERENT poses (wG3 palm-down across the chest, Witmotion arm-down), so absolute

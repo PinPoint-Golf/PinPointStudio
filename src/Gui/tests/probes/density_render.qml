@@ -21,7 +21,7 @@ import QtQuick.Controls
 import PinPointStudio
 
 // Whole-window renders of screens at each Density (Settings → Appearance → Density), so the
-// compact / default / spacious policy in docs/design/system/README.md can be checked by eye and by
+// compact / default / spacious policy in governance/artefacts/design_system/README.md can be checked by eye and by
 // pixel diff. Run offscreen on a COPY of the settings:
 //   XDG_CONFIG_HOME=<scratch> QT_QPA_PLATFORM='offscreen:configfile=<json: one 1680×1050 screen>' \
 //       PinPointStudio --probe-qml <this file> --probe-screens home,sessions,settings,athletes \

@@ -346,7 +346,7 @@ does not.
 
 ### The sign is resolved, not assumed
 
-Lateral channels are lead-positive per `pinpoint_sign_conventions.md` rule 2. **Which image
+Lateral channels are lead-positive per `sign_conventions.md` rule 2. **Which image
 direction that is comes from the address geometry** — which ankle sits further along +x — rather
 than from a constant. A camera can be mirrored and an operator can flip the preview; a convention
 that depends on neither happening is not a convention. A hard-coded sign would report every sway and
@@ -506,5 +506,5 @@ says what it is, carries its uncertainty, and improves automatically when a bett
 ---
 
 **Read next**: `docs/developer/diagnostics_developer_guide.md` (§8 for what actually runs),
-`docs/design/pinpoint_sign_conventions.md` (before touching any direction),
+`governance/artefacts/sign_conventions.md` (before touching any direction),
 `docs/developer/metric_catalogue_developer_guide.md` (how to add a metric).

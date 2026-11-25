@@ -283,7 +283,7 @@ and the impact read has no counterpart in an address-only scalar. It also fixes 
 
 ## 6. Signs, and how they are pinned
 
-Full table in [`pinpoint_sign_conventions.md`](pinpoint_sign_conventions.md). The rule here:
+Full table in [`sign_conventions.md`](../../governance/artefacts/sign_conventions.md). The rule here:
 
 - **Body lines** — `shoulderPlaneAngle`, `elbowAlignment`, and `hipLineTilt` / `feetAlignment` next
   door — are positive when the **trail end sits above the lead end**, computed against the absolute

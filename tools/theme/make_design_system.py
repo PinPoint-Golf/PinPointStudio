@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PinPoint design system: docs/design/system/tokens.json, generated from src/Gui/theme/Theme.qml.
+"""PinPoint design system: governance/artefacts/design_system/tokens.json, generated from src/Gui/theme/Theme.qml.
 
 Theme.qml is the source of truth. This reads its theme tables as TEXT (never runs them) and writes the
 token file the design docs and Claude Code read. Run after any Theme.qml change; --check for CI.
@@ -7,12 +7,12 @@ token file the design docs and Claude Code read. Run after any Theme.qml change;
 import argparse, json, os, re, sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-ap = argparse.ArgumentParser(description="Regenerate docs/design/system/tokens.json from src/Gui/theme/Theme.qml "
+ap = argparse.ArgumentParser(description="Regenerate governance/artefacts/design_system/tokens.json from src/Gui/theme/Theme.qml "
                              "(read as text, never executed). --check exits 1 when the committed file is stale.")
 ap.add_argument("--check", action="store_true")
 args = ap.parse_args()
 SRC = os.path.join(ROOT, "src", "Gui", "theme", "Theme.qml")
-OUT = os.path.join(ROOT, "docs", "design", "system", "tokens.json")
+OUT = os.path.join(ROOT, "governance", "artefacts", "design_system", "tokens.json")
 qml = open(SRC, encoding="utf-8").read()
 
 
@@ -352,9 +352,9 @@ text = json.dumps(tokens, indent=1, ensure_ascii=False) + "\n"
 if args.check:
     cur = open(OUT, encoding="utf-8").read() if os.path.exists(OUT) else ""
     if cur != text:
-        print("docs/design/system/tokens.json is stale: run tools/theme/make_design_system.py", file=sys.stderr)
+        print("governance/artefacts/design_system/tokens.json is stale: run tools/theme/make_design_system.py", file=sys.stderr)
         sys.exit(1)
-    print("docs/design/system/tokens.json is current")
+    print("governance/artefacts/design_system/tokens.json is current")
     sys.exit(0)
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 open(OUT, "w", encoding="utf-8").write(text)

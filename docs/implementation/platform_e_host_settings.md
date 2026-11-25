@@ -90,7 +90,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
 - **Recommendation: (b).** Building the stores is the composition root's whole job, and the model already uses the
   term that way: the studio profile is created "by the composition root at launch" (OBJ-STUDIO-PROFILE), and the
   application services get their objects "through callables the composition root hands them" (R-HL-2)[^imc]. The
-  term is on 18 lines of the model (`grep -c 'composition root' docs/developer/information_model.md`). A `# kept` allowlist line treats that as debt that is never paid. Under (b)
+  term is on 18 lines of the model (`grep -c 'composition root' governance/artefacts/information_model.md`). A `# kept` allowlist line treats that as debt that is never paid. Under (b)
   what is left on the allowlist is real: the bundled-font listing (`main.cpp:291`) and the folder probe
   (`:1522`), which SE-2c moves or SE-1a places. (a) is the fallback: same file, one more allowlist line. (d) adds
   a ring for one file.
@@ -287,7 +287,7 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   The coach's mail password is already in the system's store: 467 lines in five files, one per platform, with an
   in-memory mode for tests (`wc -l src/Gui/report/mail_credentials*`). On Linux that "store" is the settings
   file, and the file says so. The information model names neither the keychain nor the keys
-  (`grep -c keychain docs/developer/information_model.md`: 0).
+  (`grep -c keychain governance/artefacts/information_model.md`: 0).
 - **Options.**
   (a) One credential store in `src/Secrets/` (Adapters, as that directory is today), generalised from
   `mail_credentials_*`: a service and an account in, a secret out. The mail password becomes its first client and
@@ -507,11 +507,11 @@ chains dropped are the ones that edit the most files for no count that anything 
 [^plan]: `docs/implementation/platform_refactor_assessment.md`, "Stage E · App host, settings, threading and secrets": its bullets marked "(proposed, for the Solution Architect)" and "(for the Product Owner)", its Closes, Test, Accept and Guards rows, §4 (the June items) and §9 (Q5, Q6, Q7, Q9, Q17, Q24).
 [^plane]: `build/platform/DEF/PLAN-E.md`, 24 Nov 2026: the items SE-0 to SE-11b, their order and hours, its six corrections, and notes N4 (the by-hand quit run) and N6 (Linux).
 [^fore]: `build/platform/DEF/FORECAST.md`, 24 Nov 2026: levers 1, 2, 5, 7, 8 and 12, and "Decide levers 7–9 when SE-0 and SD-0 are put to you, with their counts".
-[^imc]: `docs/developer/information_model.md` §1.2 (C1–C11), §1.4 (the lint rules; its last line makes a change of a rule's scope an information-model change: DEC-120), §8.2 (SET-01 to SET-20), §9.1 (R-CON-5), P9, P11, R-QML-1, R-HL-2, DEC-175, DEC-193, DEC-194, FILE-LIB-01, FILE-APP-06 and OBJ-STUDIO-PROFILE, read as excerpts.
+[^imc]: `governance/artefacts/information_model.md` §1.2 (C1–C11), §1.4 (the lint rules; its last line makes a change of a rule's scope an information-model change: DEC-120), §8.2 (SET-01 to SET-20), §9.1 (R-CON-5), P9, P11, R-QML-1, R-HL-2, DEC-175, DEC-193, DEC-194, FILE-LIB-01, FILE-APP-06 and OBJ-STUDIO-PROFILE, read as excerpts.
 [^inc]: The method's rule: check the include graph before proposing a dependency rule.
 [^sd0]: `docs/implementation/platform_d_capture_seam.md`: V1 (Q17) and V2 (Q5).
 [^q11]: The plan's "Rulings of 24 Nov": the studio profile goes to `src/App/`, and Stage E gives it its repository (Q11; the Solution Architect).
 [^r3]: `docs/implementation/platform_b1_placements.md`, R3: `pp_settings` is Platform, with lint A8's name check widened (the Solution Architect, 24 Nov 2026).
 [^rig]: `docs/design/rig_design.md`: `AppSettings` loses 13 properties in Stage C, and their copied keys are removed by Stage E's settings work.
-[^ds]: `docs/design/system/README.md`, "The non-negotiables": any change to the design system needs the Design Lead's approval before it is built. This page also sends to that role any row that changes what the golfer or coach sees.
+[^ds]: `governance/artefacts/design_system/README.md`, "The non-negotiables": any change to the design system needs the Design Lead's approval before it is built. This page also sends to that role any row that changes what the golfer or coach sees.
 [^sched]: The method's rule: a plan places every audit finding, as a step, an agreed deferral or a rejection. F-09 is `docs/implementation/swe-audit/02-findings.md`: "Five threading idioms".

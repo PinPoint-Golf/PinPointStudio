@@ -19,7 +19,7 @@
 #pragma once
 
 // THE RECORDING — everything Analysis is allowed to know about a captured swing, and nothing else
-// (docs/developer/information_model.md §2, "The Recording contract"). A SOURCE FACT: made once by
+// (governance/artefacts/information_model.md §2, "The Recording contract"). A SOURCE FACT: made once by
 // capture at the window freeze, or loaded by the repository from the swing file; never regenerated,
 // immutable once made. Live analysis and re-analysis consume the same value, so the same Recording
 // and the same effective context build the same job (buildAnalysisJob, src/Analysis/

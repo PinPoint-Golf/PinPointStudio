@@ -25,7 +25,7 @@
 
 // The world→scene BASIS CHANGE, a fixed Rx(-90°): the IMU world is Z-up, the Qt Quick3D scene is
 // Y-up with -Z forward. Canonical in C++ as pinpoint::viz::worldToScene() (src/Gui/cameras/viz_frame.h,
-// pinned by viz_frame_test); docs/design/imu_frame_contract.md §6. A function, not a shared var,
+// pinned by viz_frame_test); governance/artefacts/imu_frame_contract.md §6. A function, not a shared var,
 // so every caller gets its own value.
 function worldToScene() { return Qt.quaternion(0.70710678, -0.70710678, 0, 0) }
 

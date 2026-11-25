@@ -489,7 +489,7 @@ pp_add_test(session_setup_lint_test
     LINK    Qt6::Core
     COMPILE_OPTIONS -DPP_QML_ROOT="${GUI}")
 
-# Design-system lint (docs/design/system/README.md, #133). Reads every screen's QML and fails on a
+# Design-system lint (governance/artefacts/design_system/README.md, #133). Reads every screen's QML and fails on a
 # hand-drawn control, a raw text input, a popup that draws its own surface, a literal colour, or space
 # that ignores the Density setting — outside the reasoned exceptions in design_system_allowlist.txt.
 pp_add_test(design_system_lint_test
@@ -572,7 +572,7 @@ if(UNIX)
     set_tests_properties(run_headless_selftest PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)   # it times a 1 s window
 endif()
 
-# docs/design/system/tokens.json is generated from theme/Theme.qml: fail when it is stale, so the
+# governance/artefacts/design_system/tokens.json is generated from theme/Theme.qml: fail when it is stale, so the
 # design-system docs cannot drift from the code. Skipped (not failed) where there is no Python 3.
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
@@ -591,6 +591,12 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME move_files_selftest
              COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/refactor/move_files.py --self-test)
     set_tests_properties(move_files_selftest PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
+    # #195 moved the governing documents into governance/artefacts/ (governance/artefacts/README.md): fail when a
+    # tracked file still cites one at its old path, by name or by a relative link; the dated records that keep the old
+    # spelling are listed in the script with a reason. Exit 77, a skip, where there is no git.
+    add_test(NAME artefact_paths_check
+             COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/method/artefact_paths_check.py)
+    set_tests_properties(artefact_paths_check PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
 endif()
 
 # one_at_a_time_selftest: tools/method/one_at_a_time.sh, the machine-wide heavy-work lock, proved on a lock folder in a

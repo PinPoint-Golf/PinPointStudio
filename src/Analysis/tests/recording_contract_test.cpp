@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// THE RECORDING CONTRACT (docs/developer/information_model.md §2): same Recording + same effective
+// THE RECORDING CONTRACT (governance/artefacts/information_model.md §2): same Recording + same effective
 // context → same job, for live capture and re-analysis alike; a corrected club re-analyses with the
 // club really hit; an undeclared club stays undeclared.
 //

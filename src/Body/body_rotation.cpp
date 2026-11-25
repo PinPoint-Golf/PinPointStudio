@@ -93,7 +93,7 @@ double wrapPi(double a)
 //
 // Two readings from the one difference d (rad, positive about +Z):
 //   `mag`  |d| — the magnitude convention the corridors and the triangulated tier use.
-//   `sgn`  leadSign·d — LEAD-RELATIVE, + open (pinpoint_sign_conventions.md "Trunk IMU readings"):
+//   `sgn`  leadSign·d — LEAD-RELATIVE, + open (sign_conventions.md "Trunk IMU readings"):
 //          the trunk frame is the same for both hands, so +Z is opening for a right-hander and
 //          closing for a left-hander, and the mirror is the producer's (design D15). This is the
 //          series a rate through impact can be taken from (hip_stall): it crosses zero at the

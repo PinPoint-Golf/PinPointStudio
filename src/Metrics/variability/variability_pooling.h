@@ -18,7 +18,7 @@
 
 #pragma once
 
-// WITHIN-CLUB POOLING (Mark's ruling R2a, 7 Nov; docs/design/system/variability.md, "Where a consistency mark is allowed:
+// WITHIN-CLUB POOLING (Mark's ruling R2a, 7 Nov; governance/artefacts/design_system/variability.md, "Where a consistency mark is allowed:
 // Clubs") — the maths that centres each club's swings on that club's own median so spread is never graded across clubs.
 // Moved here from src/Gui/charts (consistencyResiduals in session_consistency.cpp; centreCircular and the scalar
 // pooledWithinClubInput in variability_clubs.cpp) in refactor step 3.8, UNCHANGED, so the Rules ring's consistency grade

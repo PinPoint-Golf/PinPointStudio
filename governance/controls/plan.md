@@ -49,7 +49,7 @@ Batch related edits and build at the end of each part, not after every stage. A 
 *Why:* builds are slow and memory-bound, and every build costs the owner time and energy; one step of the domain refactor ran about 200 builds.[^bt-2]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
 
-A plan that holds data copies in the ownership section, `docs/developer/information_model.md` §10, and answers it.
+A plan that holds data copies in the ownership section, `governance/artefacts/information_model.md` §10, and answers it.
 
 **Also at this stage (written elsewhere):** [AG-6](decide.md) architecture: design agreed before building · [AG-10](kinds-of-work.md) a duties inventory before a cut-over (agents) · [AG-31](kinds-of-work.md) the feature freeze · [AD-16](kinds-of-work.md) a sources × metrics matrix.
 

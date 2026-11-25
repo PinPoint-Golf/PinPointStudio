@@ -1309,7 +1309,7 @@ static void compositePresentationSuite(const QTemporaryDir &tmp)
           "…and the value slot quotes the setup's dominant part as it stands at address");
 }
 
-// ── The variability marks on the strip and the history (docs/design/system/variability.md) ───────
+// ── The variability marks on the strip and the history (governance/artefacts/design_system/variability.md) ───────
 //
 // Technical layer, PAIRED: the box and the per-session boxes stay; beside them a consistency grade per
 // club (R2b), graded by src/Metrics/variability/ against the norm corridor of the club's context. What is

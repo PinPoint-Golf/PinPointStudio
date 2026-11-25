@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// THE STORE SIDE OF THE RECORDING (refactor step 1.2; docs/developer/information_model.md §2,
+// THE STORE SIDE OF THE RECORDING (refactor step 1.2; governance/artefacts/information_model.md §2,
 // IM-1): the one header writer, the analysisContext block, the Recording loader.
 //
 //   Test 1  Recording → disk → Recording equal: the synthetic swing (recording_fixture.h) written

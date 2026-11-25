@@ -272,7 +272,7 @@ call, and the chart files' inventory.
 [^hard]: `CLAUDE.md`, "Information model and architecture": any information-model change needs the Solution Architect's approval before it is built.
 [^plan]: `docs/implementation/platform_refactor_assessment.md`, "Stage B · Build libraries, the `Core` split and the Vocabulary root", Part 1.
 [^ruled]: The same page, "Rulings of 24 Nov": Q15 (the area names), Q11 (the studio profile), Q26, Q27, J-107's J-2, J-109, J-110, and the four contexts (L1–L8).
-[^imc]: `docs/developer/information_model.md` §1.2 (C1–C11) and §1.4's last line: "A change to a lint rule's scope, or to A4's list, is an information-model change (C4, C9)".
+[^imc]: `governance/artefacts/information_model.md` §1.2 (C1–C11) and §1.4's last line: "A change to a lint rule's scope, or to A4's list, is an information-model change (C4, C9)".
 [^inc]: The context-map check of 24 Nov 2026 (the plan's rulings row "The context map: kept for later"), re-run on `f53626c4`. Its first run, at `4ae8ac9c`, counted 963 crossings; the rejected nine are the same.
 [^plan-core]: The plan's Stage B, Part 1, "The Vocabulary root move" and "`Core` holds only the Platform ring", both marked proposed for the Solution Architect.
 [^plan-ctx]: The plan's Stage B, Part 1, "The four contexts' moves": "cleared by `pp_settings`' placement (Platform, as a `QSettings` handle; proposed …) or by injecting the two settings".

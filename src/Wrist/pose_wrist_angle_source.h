@@ -117,7 +117,7 @@ public:
 // at +45°, and 45° at the top is the trail wrist CUPPING, which every source describes as the
 // normal backswing shape. The catalogue's howToRead was corrected to match rather than the other
 // way round — the corridor is seated content, the sentence was boilerplate copied from the lead
-// wrist. See docs/design/pinpoint_sign_conventions.md.
+// wrist. See governance/artefacts/sign_conventions.md.
 //
 // NOT address-referenced. Every measure over it but the first is a `delta` anchored at P1, which
 // does the referencing; a pre-subtracted series would make those deltas differences of differences.

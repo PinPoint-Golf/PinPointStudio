@@ -546,4 +546,4 @@ a412aed3). The curve values come from each swing's `swing_phasegrid.json` (the a
 values and the shoulder plane from `swing.ppsw`. The slot counts of §2.3 and the swing pair of §2.4 are read
 from the same CSV.
 
-[^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `docs/developer/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d. Before it, the presenter read the other sessions' `swing_phasegrid.json` itself, and the trust note counted the readings "cached before their swing was last changed" (issue #174). That count has gone: a summary is written again whenever one of its swings changes.
+[^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `governance/artefacts/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d. Before it, the presenter read the other sessions' `swing_phasegrid.json` itself, and the trust note counted the readings "cached before their swing was last changed" (issue #174). That count has gone: a summary is written again whenever one of its swings changes.

@@ -144,7 +144,7 @@ struct ChartsTracesPresenter::Worker {
     QHash<QString, QVariantMap> domains, specs;      // ChartMetrics, per key (catalogue reads)
     QHash<QString, bool> draws;
 
-    // THE VARIABILITY MARKS (docs/design/system/variability.md; Session 5 of the plan): the scale provider,
+    // THE VARIABILITY MARKS (governance/artefacts/design_system/variability.md; Session 5 of the plan): the scale provider,
     // MADE ON THE GUI THREAD by the presenter's constructor (variability_env.h's threading rule) and only read
     // here — made again between jobs after a corridor save (followNormSave) — and the two graders the Session
     // and Against views use. The graders are pure maths, made on first use.
@@ -2389,7 +2389,7 @@ bool sessionDrawable(const Ctx &c)
     return n >= 3 && alignedCount(c) >= 3 && !c.sessionKeys.isEmpty() && !c.grid.empty();
 }
 
-// ── THE VARIABILITY MARKS (docs/design/system/variability.md; Mark's rulings R2b, R8, 7 Nov) ───────────────
+// ── THE VARIABILITY MARKS (governance/artefacts/design_system/variability.md; Mark's rulings R2b, R8, 7 Nov) ───────────────
 // The grader's inputs are built here, from what the views already line up; the grading is the grader's
 // (src/Metrics/variability/) and the words are QML's vocabularies. Display only: no analysis stage changes.
 //

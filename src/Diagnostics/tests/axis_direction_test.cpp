@@ -54,7 +54,7 @@ static const Expect kExpected[] = {
       "shoulderLineYaw: 'OPEN IS NEGATIVE AND CLOSED IS POSITIVE, the club-path convention'" },
     { "sig_alignmentClosed",  Direction::High,  "shoulderLineYaw: closed is the positive end" },
     // Ball position follows the OUTSIDE convention (0 % lead heel .. 100 % trail heel), not the
-    // lead-positive one — see docs/design/pinpoint_sign_conventions.md rule 1. So forward is LOW.
+    // lead-positive one — see governance/artefacts/sign_conventions.md rule 1. So forward is LOW.
     { "sig_ballForward",      Direction::Low,
       "ballPosition: '0 % is level with the lead heel'; forward is the low end" },
     { "sig_ballBack",         Direction::High,

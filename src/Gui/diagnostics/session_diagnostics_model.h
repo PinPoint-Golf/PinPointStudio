@@ -853,7 +853,7 @@ private:
     // The distinct measures a condition's signals read, in pack order.
     QStringList conditionMeasures(const QString &conditionId) const;
 
-    // ── The variability marks on the strip and the history (docs/design/system/variability.md) ──
+    // ── The variability marks on the strip and the history (governance/artefacts/design_system/variability.md) ──
     //
     // TECHNICAL LAYER, PAIRED: the box and the per-session boxes stay exactly as drawn; beside them, a
     // consistency grade (src/Metrics/variability/) per club, never across clubs (Mark's ruling R2b).

@@ -126,7 +126,7 @@ std::optional<TraceTypicality> traceTypicality(const TraceTypicalityInput &in);
 // ---- The session window (Mark's ruling R8, 7 Nov) -------------------------------------------------
 // "Your usual" is this swing against the session's OTHER swings with the SAME club, at least N_MIN of
 // them. These build that window from every swing of the session and hand back what the two typicality
-// marks draw (docs/design/system/components/PpVariabilityMark.md, "Consumer supplies"). The QML shapes
+// marks draw (governance/artefacts/design_system/components/PpVariabilityMark.md, "Consumer supplies"). The QML shapes
 // are built from these by the façade (src/Gui/variability/variability_facade.h).
 //
 // `swings` is the session in strike order, oldest first. The club is compared exactly; a blank club is

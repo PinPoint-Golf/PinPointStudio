@@ -29,7 +29,7 @@
 // golfer stands on the +Y side of the target line and the FAR side — beyond the ball — is −Y, for a
 // right-hander and a left-hander alike. +X is the target for a right-hander, −X for a left-hander.
 //
-// THE SIGN (pinpoint_sign_conventions.md, ball-flight table): POSITIVE = the clubhead end of the
+// THE SIGN (sign_conventions.md, ball-flight table): POSITIVE = the clubhead end of the
 // shaft points to the FAR side of the target line, away from the golfer — across the line at the
 // top, outside in the takeaway; right of the target for a right-hander. Negative = toward the
 // golfer: laid off at the top, inside in the takeaway. Zero = parallel to the target line.

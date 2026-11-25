@@ -21,7 +21,7 @@ import PinPointStudio
 
 // THE CONSISTENCY TAB (docs/design/consistency_design.md §3): how the swing repeats, area by span, and what stood out
 // on the picked shot. Every word and figure is ChartsConsistencyPresenter's; this file only places them, but for the
-// VARIABILITY WORDS (docs/design/system/variability.md): the presenter grades and hands over grades and templates
+// VARIABILITY WORDS (governance/artefacts/design_system/variability.md): the presenter grades and hands over grades and templates
 // (charts_consistency_presenter.h, THE GRADES), and the words come from ConsistencyVocabulary and MeasurementVocabulary
 // here. The technical layer: a cell shows its grade's word (R1), its opened readings a Dispersion Cell badge with the
 // basis string, a picked shot's rows a Typicality Icon badge.

@@ -336,7 +336,7 @@ int main()
     //    about 45°, chest about 90°). Each sensor sits on its segment through a mount M_true (anat → sensor);
     //    the fusion reports q_raw = W·q_true·M_true⁻¹ for the filter's world W; the stand-tall solve sees
     //    q_true = I. Right-hander: away is −Z, through +Z; a left-hander the reverse
-    //    (pinpoint_sign_conventions.md "Trunk IMU readings").
+    //    (sign_conventions.md "Trunk IMU readings").
     std::printf("\n-- H. checkTrunkTurn (trunk turn away / turn through) --\n");
     {
         const QQuaternion mNom = QQuaternion::fromAxisAndAngle(X, -90);   // USB down, label out (§G)

@@ -19,7 +19,7 @@
 #pragma once
 
 // AthleteRepository — THE ONE DOOR TO THE ATHLETE'S RECORD (refactor step 2.3; build/refactor/step-2/
-// BRIEF.md §4.5; docs/developer/information_model.md CLS-REPOSITORIES, FILE-ATH-01, SET-01, LC-ATHLETE).
+// BRIEF.md §4.5; governance/artefacts/information_model.md CLS-REPOSITORIES, FILE-ATH-01, SET-01, LC-ATHLETE).
 // AthleteStore (src/Export/athlete_store.h) implements it; the composition root (main.cpp) holds the one
 // instance and hands it to AthleteController, so a caller names this interface and never the store.
 //

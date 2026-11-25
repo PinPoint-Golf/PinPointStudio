@@ -293,7 +293,7 @@ state with no home in the app today, and downstream of engine wiring.
 ### 10 — Documentation and the citation backlog
 `diagnostics_developer_guide.md` (§8's census is wrong in every number once stage 7 lands; §3 and §11
 gain the new enum values and the two registries), `metric_catalogue_developer_guide.md` (the
-launch-monitor requirement), `pinpoint-diagnostics-guide.md`, and `pinpoint_sign_conventions.md`.
+launch-monitor requirement), `pinpoint-diagnostics-guide.md`, and `sign_conventions.md`.
 
 ---
 

@@ -19,7 +19,7 @@
 #pragma once
 
 // SessionDiagnostics — THE SESSION'S DIAGNOSTICS OWNER, one per Session, its child (refactor step 3.5-i;
-// build/refactor/step-3/BRIEF.md §4.4, §4.5; docs/developer/information_model.md CLS-SESSION-DIAG,
+// build/refactor/step-3/BRIEF.md §4.4, §4.5; governance/artefacts/information_model.md CLS-SESSION-DIAG,
 // OBJ-SESSION-DIAG, FILE-SESS-03, M-SHOT-LAYERS, R-STAMP-1…3, R-CON-2…5; DEC-100, DEC-124, DEC-130, DEC-135,
 // DEC-141, DEC-190, DEC-191).
 //

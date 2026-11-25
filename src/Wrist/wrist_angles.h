@@ -28,7 +28,7 @@
 
 // Pure lead-arm joint-angle extraction from per-segment ANATOMICAL quaternions
 // (q_anat = A·q_raw·M; design: docs/implementation/shot_analyzer_m1_wrist.md §4; frame & joint-DOF
-// axis tables: docs/design/imu_frame_contract.md §4-5). Header-only and Qt-Gui-only so it is
+// axis tables: governance/artefacts/imu_frame_contract.md §4-5). Header-only and Qt-Gui-only so it is
 // unit-testable without the app / SwingWindow.
 //
 // ANATOMICAL BODY FRAME (from imu_calibration::solveSegment): per segment,
@@ -187,7 +187,7 @@ inline QQuaternion elbowRel(const QQuaternion &qUpperAnat, const QQuaternion &qF
 // constant offset cancels and what remains is TRAVEL, which is comparable and is
 // the quantity actually wanted: how far the forearm turned between address and
 // impact is the direct indicator of flipping. Publishing the un-referenced absolute
-// would be publishing the calibration pose. See docs/design/pinpoint_sign_conventions.md,
+// would be publishing the calibration pose. See governance/artefacts/sign_conventions.md,
 // "Segment axial rotations", and hm_frame.h's note on why the RATE needs no such
 // reference but an ANGLE does.
 inline QQuaternion forearmRel(const QQuaternion &qForeAnat, const QQuaternion &qForeAddr)

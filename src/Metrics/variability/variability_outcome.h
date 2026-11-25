@@ -18,7 +18,7 @@
 
 #pragma once
 
-// THE OUTCOME RULE (Mark's rulings R4 and R4b, 7 Nov; docs/design/system/variability.md, "Outcome or movement"), in
+// THE OUTCOME RULE (Mark's rulings R4 and R4b, 7 Nov; governance/artefacts/design_system/variability.md, "Outcome or movement"), in
 // one place, by measure. Until shots record an intent, an OUTCOME reading gets no variability mark at all: no
 // consistency grade, no trend and no typicality. Outcomes are ball flight (carry, total, offline, start direction,
 // ball speed, launch, spin rate and axis, back and side spin, peak height, descent, distance to the pin, the shot

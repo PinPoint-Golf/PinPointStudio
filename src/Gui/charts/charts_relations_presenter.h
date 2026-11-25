@@ -240,7 +240,7 @@
 // playhead (NOTIFY playheadChanged): { openValueText ("82 mph" | ""), leadValueText, replayIndex } — the
 //   open row's and the lead trace's value at the playhead, as text.
 //
-// ── TYPICALITY (Mark's ruling R8; docs/design/system/variability.md) ─────────────────────────
+// ── TYPICALITY (Mark's ruling R8; governance/artefacts/design_system/variability.md) ─────────────────────────
 // Charts is the technical layer, and Apart, Readings, the key figures and Replay's "now" are all this shot against
 // "the usual": a Typicality badge with the grader's basis, never a grade. The window is the session's OTHER shots with
 // this shot's club, this shot left out, shots whose P-ladder is guarded (consistencyGuarded) left out (R13),

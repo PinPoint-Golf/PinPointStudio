@@ -57,7 +57,7 @@
 //
 // ── Sign, for every channel ─────────────────────────────────────────────────
 //
-// docs/design/pinpoint_sign_conventions.md rule 2: lateral channels are
+// governance/artefacts/sign_conventions.md rule 2: lateral channels are
 // LEAD-POSITIVE, and which image direction that is gets RESOLVED from the address
 // geometry (which ankle is further along +x) rather than assumed. A camera may be
 // mirrored and an operator may flip the preview; a convention that depends on

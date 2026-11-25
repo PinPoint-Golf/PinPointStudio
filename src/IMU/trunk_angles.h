@@ -29,7 +29,7 @@
 //
 // The frame is imu_frame_contract.md §5 "Trunk segments": q_anat from solveTrunkSegment, a
 // gravity-aligned, Z-up, stance-headed world; segment +X the golfer's right, +Y anterior,
-// +Z superior. The signs are pinpoint_sign_conventions.md "Trunk IMU readings". Everything here is
+// +Z superior. The signs are sign_conventions.md "Trunk IMU readings". Everything here is
 // RAW — the frame is the same for both hands, so the lead-side mirroring a left-hander needs is the
 // caller's (design D15: the producer mirrors at ingest), and so is the reference to address.
 //

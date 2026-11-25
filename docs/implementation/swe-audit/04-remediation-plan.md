@@ -3,7 +3,7 @@
 **Status (14 Nov 2026):**
 - The Solution Architect has agreed the overall architecture in `03-target-architecture.md` (draft 2.1, and decisions 1–30: 19–23 his
   14 Nov decisions in draft 2.2, 24–30 step 1's information-model decisions in draft 2.3).
-- **The information model is `docs/developer/information_model.md` (the reference), version 1.7: canonical**; 03 is
+- **The information model is `governance/artefacts/information_model.md` (the reference), version 1.7: canonical**; 03 is
   its frozen rationale (Solution Architect, 14 Nov 2026; reference DEC-40). Decisions are cited here by the reference's ids
   (DEC-nn, register §13) and open questions by Q-nn (§14). The Solution Architect's decisions on the information-model audit (14 Nov
   2026, its D1–D8 = DEC-40…DEC-47) are applied to the steps below: the session file and `SessionId` (DEC-41, steps 2
@@ -143,7 +143,7 @@ today.
    rule. A `parity_diff` script compares any later run against it.
 2. **`architecture_lint_test`** (03 §11, rules A1–A8), with today's violations allowlisted and each entry tagged
    with the step that removes it.
-3. **`docs/developer/information_model.md`**, written from 03 §0–§9 (canonical since 14 Nov 2026[^dec40]; 03 is its frozen rationale).
+3. **`governance/artefacts/information_model.md`**, written from 03 §0–§9 (canonical since 14 Nov 2026[^dec40]; 03 is its frozen rationale).
 4. **The CLAUDE.md information-model rule and the reviewer's ownership check** (03 §14).
 
 **Done when:** the baseline is on the share, the lint is green, and the rule is in CLAUDE.md.

@@ -161,7 +161,7 @@ std::vector<MetricSeries> MetricExtractor::extract(const FusedStreams &s,
     // BETWEEN two segment triads), so Rule 1 does: positive is the pronation
     // direction, AGREEING with the vendor exactly where leadWristFlexExt deliberately
     // disagrees with them. That asymmetry is correct and is written down in
-    // docs/design/pinpoint_sign_conventions.md.
+    // governance/artefacts/sign_conventions.md.
     if (fore && static_cast<int>(fore->qAnat.size()) == N) {
         const int addrIdx = nearestIndex(grid, phaseTime(phases, Phase::Address, grid.front()));
         const QQuaternion qAddr = fore->qAnat[addrIdx];

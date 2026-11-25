@@ -223,7 +223,7 @@ clean build is 5,614 compiles, most of them the same 249 sources again, and shou
 
 [^plan]: `docs/implementation/platform_refactor_assessment.md`, "Stage B · Build libraries, the `Core` split and the Vocabulary root", Part 2: "Ring libraries (proposed, for the Solution Architect)" and "The per-release re-run of the audit tools … (proposed, for the Product Owner)".
 [^pilot]: Item B1.4, the Platform library pilot: its notes' §4 (six questions), its brief ("a build target is not an IM object") and its independent review of 24 Nov 2026, in `build/platform/B1/`.
-[^imc]: `docs/developer/information_model.md` §1.2 (C1–C11) and §1.4's last line, read as excerpts (`build/platform/B2/IM-B2.0.md`).
+[^imc]: `governance/artefacts/information_model.md` §1.2 (C1–C11) and §1.4's last line, read as excerpts (`build/platform/B2/IM-B2.0.md`).
 [^hard]: `CLAUDE.md`, "Information model and architecture": any information-model change needs the Solution Architect's approval before it is built.
 [^tools]: `build/platform/B2/ring_census.py` and `link_census.py`, with the commands and every figure in `build/platform/B2/NOTES-B2-plan.md` §1. Item B2.2 keeps them in `tools/refactor/`.
 [^ort]: `tests/CMakeLists.txt:4` ("WITHOUT building the app (no whisper/ggml, FFmpeg, espeak …)"); a search of every test build file for ONNX Runtime finds comments only.

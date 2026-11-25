@@ -292,7 +292,7 @@ preferred), the frame's long axis along the target line.
 
 | Quantity | Read | Note |
 |---|---|---|
-| **Club path** | tangent at the ball's position of a curved fit through the ground-plane head positions, with the head's vertical motion (from placement A, in the bay frame) removed first — see the mount notes below | `clubPath` sign per [pinpoint_sign_conventions.md](pinpoint_sign_conventions.md): + is the head travelling right of the target line |
+| **Club path** | tangent at the ball's position of a curved fit through the ground-plane head positions, with the head's vertical motion (from placement A, in the bay frame) removed first — see the mount notes below | `clubPath` sign per [sign_conventions.md](../../governance/artefacts/sign_conventions.md): + is the head travelling right of the target line |
 | **Heel/toe strike** | fitted head at the impact instant (§4's method — the ball is visible from above too) against the ball centre, along the face's heel–toe axis | same axis as `lm.strikeLocation`, toe +; perspective between head height and ground plane is a few percent — calibrate on lines drawn on the mat, accept ~3 mm |
 | **Launch direction** | ball track over its 1–2 frames in the field | a cross-check on `lm.launchDirection`, marginal at this field size |
 | **Clubhead speed** | head velocity in the ground plane at the contact instant | attack angle costs < 0.5 % at −5°; the head's top line is mapped at its height (+40–60 mm) |

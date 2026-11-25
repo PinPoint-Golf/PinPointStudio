@@ -446,7 +446,7 @@ back queued to `applyIngested` then `settleBatch`, which calls `rebuild()` and `
 - What goes wrong: a restyle of buttons does not reach it, and the design-system rule is bypassed by a
   handler type the lint does not know.
 - Fix: candidates are `PpButton` with `size: "micro"`, a quiet or ghost `style` and `active: win.pinned`
-  (`docs/design/system/components/PpButton.md`). Its "chromeless until hovered" look is not obviously an
+  (`governance/artefacts/design_system/components/PpButton.md`). Its "chromeless until hovered" look is not obviously an
   existing style, so whether one fits is **the Design Lead's decision**. If none does, a new variant is a design-system
   change that needs his approval before it is built. Separately, the lint could learn `TapHandler`.
 - Effort: S — Related: —

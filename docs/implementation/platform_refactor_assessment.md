@@ -6,7 +6,7 @@ step 8 left the plan for #222[^po23-plan]). The first version was reviewed (`bui
 21 Nov 2026) and revised; this revision folds in what steps 5–7 routed here and an outside review (§10).
 **What it is:** input to the platform refactor's briefs. It is not a plan. The worklist of record is
 `docs/implementation/swe-audit/05-deferred-worklist.md` (05); appendix A places every 05 row.
-**Checked against:** the first version at HEAD `8cd42e44` (main, 21 Nov 2026), with `docs/developer/information_model.md`
+**Checked against:** the first version at HEAD `8cd42e44` (main, 21 Nov 2026), with `governance/artefacts/information_model.md`
 (IM) v1.9.10, and v1.9.12 for DEC-193. This revision's new facts are read at `origin/main` `5946266d` (24 Nov 2026):
 the J-calls (`build/refactor/step-3/JUDGEMENT-CALLS.md`), GitHub #222, #224, #229 and #230, the allowlist, the lint's
 ring table and IM. Its counts are re-measured at the close, at `origin/main` `44ae9230` (24 Nov 2026), with IM v1.9.52[^c-sha]; revision 3's corrections are IM v1.9.53. Also
@@ -830,7 +830,7 @@ What to design (all proposed, for the Solution Architect):
   the thresholds, maths and step transitions out of `ImuCalibrationFlow.qml`, `TrunkRoutine.qml` and
   `HackMotionArmRoutine.qml` into tested C++ that produces a typed result and commits it to the Rig. The trunk
   ceremony recorder's file (FILE-SESS-11) and its pool-thread write move with it, and so does the `trunkCeremony`
-  QML global, if the globals leave with their stages (§9, Q17). The brief reads `docs/design/system/README.md` and the component pages
+  QML global, if the globals leave with their stages (§9, Q17). The brief reads `governance/artefacts/design_system/README.md` and the component pages
   before any QML is touched.
 - **A guard from the four contexts** (ruled 24 Nov, PR-4; a constraint on the design, not new work): **a third
   kind of Recording.** External video uploads (`coaching_layer.md` ASY-R1) will be a Recording with declared

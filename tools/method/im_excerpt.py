@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """im_excerpt.py — prints the information-model excerpt a brief needs, so an agent reads that excerpt and never the
-whole of docs/developer/information_model.md (about 100k tokens).
+whole of governance/artefacts/information_model.md (about 100k tokens).
 
   python3 tools/method/im_excerpt.py ID [ID ...] > build/platform/<stage>/IM-<item>.md
   python3 tools/method/im_excerpt.py --im <path> ID [ID ...]     reads another copy of the model (a fixture, a worktree's)
@@ -10,7 +10,7 @@ The excerpt is: §10 (ownership) whole, from its "## 10. " heading up to "## 11.
 that defines it — a table row whose first cell is the id (bold or not), a heading that names it (with its body, up to
 the next heading of any level), or a bullet that opens with the id in bold; then the footnote definitions those
 defining lines cite. An id matches whole: SHOT-0 does not match SHOT-01. An id with no defining line gets a line saying
-so. Without --im it reads docs/developer/information_model.md under the current directory, as the old
+so. Without --im it reads governance/artefacts/information_model.md under the current directory, as the old
 build/refactor/ copy did, or, when there is none there, the one in the checkout this script lives in.
 ctest: im_excerpt_selftest (src/Gui/tests/CMakeLists.txt).
 """
@@ -20,7 +20,7 @@ import subprocess
 import sys
 import tempfile
 
-IM_REL = os.path.join('docs', 'developer', 'information_model.md')
+IM_REL = os.path.join('governance', 'artefacts', 'information_model.md')
 
 
 def excerpt(lines, ids):

@@ -348,7 +348,7 @@ This is the test that guards §4.2's ⚠. It is Windows-only.
 
 ### 7.4 Sign conventions — before any spin-axis or HLA metric is graded
 
-`pinpoint_sign_conventions.md` fixes right (+) / left (−) for launch direction and spin axis.
+`sign_conventions.md` fixes right (+) / left (−) for launch direction and spin axis.
 GSPconnect computes `SA = asin(SS/TS)` from Foresight's side spin, whose sign we have not
 confirmed. Check it on a live session: hit a deliberate push-fade and pull-draw pair, then
 compare the logged signs against GSPro's shot shape and PinPoint's video. Record the result

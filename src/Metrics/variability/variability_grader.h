@@ -136,7 +136,7 @@ int bandGrade(double value, const GradeBands &bands);
 int hysteresisGrade(double value, int previousGrade, const GradeBands &bands,
                     double margin = kHysteresis);
 
-// ---- Cells that pool readings (Mark's ruling R1, 7 Nov; docs/design/system/variability.md) --------
+// ---- Cells that pool readings (Mark's ruling R1, 7 Nov; governance/artefacts/design_system/variability.md) --------
 
 // The grade of a table cell that rolls up several readings (the Consistency matrix's area at a span).
 // It is the grade at the cell's LOOSEST THIRD: the 67th-percentile ρ of its graded readings, by nearest

@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Design-system lint — docs/design/system/README.md, issue #133.
+// Design-system lint — governance/artefacts/design_system/README.md, issue #133.
 //
 // The GUI was built screen by screen by copying the nearest sibling, and the copies drifted (81
 // duplicated controls by 31 Oct). Two runs collapsed them onto one component per control; this
@@ -445,7 +445,7 @@ int main()
     }
     bool       allowOk = false;
     const auto allow   = readAllowList(QStringLiteral(PP_DS_ALLOWLIST), &allowOk);
-    std::printf("\n=== screens use the design system (docs/design/system/README.md) ===\n");
+    std::printf("\n=== screens use the design system (governance/artefacts/design_system/README.md) ===\n");
     check(allowOk, QStringLiteral("the allow-list was read (%1)").arg(QStringLiteral(PP_DS_ALLOWLIST)));
 
     // The design system itself, and the tests, are not screens.
@@ -501,7 +501,7 @@ int main()
         for (const QString &s : slack) std::printf("      note: %s\n", qPrintable(s));
     }
     if (g_fail)
-        std::printf("\n  Use the shared component (docs/design/system/components/) or the Theme token.\n"
+        std::printf("\n  Use the shared component (governance/artefacts/design_system/components/) or the Theme token.\n"
                     "  If none fits, that is a design-system change: ask Mark first — never a local copy.\n"
                     "  A deliberate exception goes in src/Gui/tests/design_system_allowlist.txt WITH its reason.\n");
 

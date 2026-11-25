@@ -696,12 +696,12 @@ when the session is first opened. Neither file records an email address, because
 share.
 
 [^report-files-5-6a]: The split is DEC-201 (Solution Architect, 22 Nov 2026) and J-66; built in refactor step 5.6a.
-See `docs/developer/information_model.md` FILE-SESS-07 and FILE-SESS-13.
+See `governance/artefacts/information_model.md` FILE-SESS-07 and FILE-SESS-13.
 
 [^report-reads-5-6b]: DEC-81 as the Solution Architect amended it, 23 Nov 2026: the session's diagnosis is a source for
 the report, and no figure is computed twice. The restamp as a `Session` command is the Solution Architect's option a,
 23 Nov 2026. Both built in refactor step 5.6b (`build/refactor/step-5/NOTES-5.6b.md`). See
-`docs/developer/information_model.md` DEC-81, FILE-SESS-07 and FILE-SESS-08.
+`governance/artefacts/information_model.md` DEC-81, FILE-SESS-07 and FILE-SESS-08.
 
 **Nothing is written into the session's analysis.** The report reads. It never moves a ratchet,
 closes a session or writes `diagnostics.json`.
@@ -1110,5 +1110,5 @@ directly, so it does not depend on the fix, but the panel does.
 
 [^report-reads-5-6c]: Refactor step 5.6c, 23 Nov 2026 (`build/refactor/step-5/NOTES-5.6c.md`): B5, B6, Q5 and Q9 of `build/refactor/step-5/DUTIES-5.6b.md`, under DEC-81 as the Solution Architect amended it (the session's diagnosis is a source for the report); its review is pending.
 [^report-reads-5-6d]: Refactor step 5.6d, 23 Nov 2026 (`build/refactor/step-5/NOTES-5.6c.md`, its "5.6d" section); the Solution Architect, 23 Nov 2026 (J-80, J-82).
-[^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `docs/developer/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.
+[^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `governance/artefacts/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.
 [^lm-board-6-1b]: Refactor step 6.1b (`build/refactor/step-6/NOTES-6.1b.md`): the board's statistics are one pure reduction, `lmBoardOf` (`src/Gui/launchmonitor/lm_session_model.h`), which the board and the report each ask; the report's private board (5.6b's C11) is gone. The embedded figures' names follow the Coaching Lead's 14 November decision above.

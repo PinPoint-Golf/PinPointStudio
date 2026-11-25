@@ -876,7 +876,7 @@ int main()
     // relative by `leadIsLeft`), the arm IMU against its own swing plane (signAgainstPlane, a reversal
     // only where the arm slows — 93c1e4c8) and then turned over as a whole so the downswing reads +
     // (orientDownswingPositive). Two independent sign rules meet on one chart, so a trunk curve upside
-    // down against the arm would read as a sequence fault. The convention (pinpoint_sign_conventions.md,
+    // down against the arm would read as a sequence fault. The convention (sign_conventions.md,
     // "Turn RATES are signed"; kSignedArmClub): opening / towards the target is POSITIVE — every curve
     // negative going back, crossing zero once near the top, one positive hump coming down.
     //

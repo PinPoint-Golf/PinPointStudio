@@ -2,7 +2,7 @@
 
 **Status:**
 - **Draft 2.4, 14 Nov 2026: frozen rationale; the reference is canonical (Solution Architect, 14 Nov 2026, D1).** The information
-  model is `docs/developer/information_model.md` (the reference), version 1.0 and later; this page records why it is
+  model is `governance/artefacts/information_model.md` (the reference), version 1.0 and later; this page records why it is
   so, and is never edited to change the model. Where the two disagree, the reference wins and the line here is
   marked "→ reference". The decisions below are registered there with stable ids (03 decision *n* = DEC-*n*; step
   1's D1–D9 = DEC-31…DEC-39; the information-model audit's D1–D8 = DEC-40…DEC-47). Settled since draft 2.3, in the
@@ -30,7 +30,7 @@
   step 6, capture writing in stages, the interim writers, the two new directories, and no norm cohort in step 1
   (Solution Architect, 14 Nov 2026). The later review of capture is called **the platform refactor (capture)** everywhere (Product Owner,
   14 Nov 2026); its worklist is `05-deferred-worklist.md`.
-- Draft 2.2, 14 Nov 2026: clarifications from the information-model review (`docs/developer/information_model.md`).
+- Draft 2.2, 14 Nov 2026: clarifications from the information-model review (`governance/artefacts/information_model.md`).
   Decisions 1–23 (§13) are the Solution Architect's; 19–23 record his 14 Nov decisions below. Each change says who decided it.
   - **Solution Architect, 14 Nov:**
     - **Grading** (the code's `detectShot`; step 3 renames it `gradeShot`): `SessionDiagnostics` grades every shot
@@ -598,8 +598,8 @@ The fix has the same two halves that work for the design system.
 
 ### 14a. Design phase: the information-model rule (CLAUDE.md, beside the design-system rule)
 
-- **`docs/developer/information_model.md`, written from §1–§9 once agreed, is canonical; this page is its frozen rationale.**[^dec40] It
-  plays the role `docs/design/system/README.md` plays for the UI.
+- **`governance/artefacts/information_model.md`, written from §1–§9 once agreed, is canonical; this page is its frozen rationale.**[^dec40] It
+  plays the role `governance/artefacts/design_system/README.md` plays for the UI.
 - **Every plan that touches data has an "Ownership" section.** It answers, for each new or changed thing:
   1. **Is it a source fact, a recorded input, a derived fact, application state or view state?** (P1, P2)
   2. Which object owns it, and at which level?

@@ -41,7 +41,7 @@ import PinPointStudio
 //   • THE CHEST'S BRIDGE (§2.2.1): each shot's fit across its gap dashed in the metric's hue (row.picked.estimate
 //     with its ± 1 sd as the wash, panel.others[].estimate), and the median dashed where a third or more of the
 //     shots are bridged (panel.medEst) — an estimate is never drawn solid. The straight bridge it replaces goes.
-//   • THE CURVES' CONSISTENCY (docs/design/system/variability.md, R2b), under the figure: for each row, one technical
+//   • THE CURVES' CONSISTENCY (governance/artefacts/design_system/variability.md, R2b), under the figure: for each row, one technical
 //     Overlay Cell badge per club, named ("7 iron · Repeatable · σ peak 18 ms · n 12"), graded top → impact
 //     (row.clubGrades); the curves and the middle half stay as drawn. The group fit has none (a model's curve).
 // objectNames: chSessionFigure, chEnvelope:<key> (chEnvelope:overlay overlaid), chFit:<key>, chCoverage:<key>, chPartAt,

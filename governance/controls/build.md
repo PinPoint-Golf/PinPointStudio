@@ -4,10 +4,10 @@ Writing the code, the screens and the documents. Each control is stated once, in
 
 ## What to read before you touch it
 
-- **Any QML:** `docs/design/system/README.md` (the rule book), then the page in `docs/design/system/components/` for each `Pp*` component you use.
-- **Anything that holds data** (a model, a file, a cache, an id, a controller, a QML property that carries domain facts): `docs/developer/information_model.md` §1.1, §1.2, §10 and the sections for the ids the work touches. Find them with grep, or print them with `python3 tools/method/im_excerpt.py ID …` (agents: [AG-32](build.md)).
+- **Any QML:** `governance/artefacts/design_system/README.md` (the rule book), then the page in `governance/artefacts/design_system/components/` for each `Pp*` component you use.
+- **Anything that holds data** (a model, a file, a cache, an id, a controller, a QML property that carries domain facts): `governance/artefacts/information_model.md` §1.1, §1.2, §10 and the sections for the ids the work touches. Find them with grep, or print them with `python3 tools/method/im_excerpt.py ID …` (agents: [AG-32](build.md)).
 - **C++ structure** (a new file, a directory, an include): `information_model.md` §4 (the rings) and §1.4 (the lint rules)[^im-rings].
-- **Norms:** `docs/reference/golf_swing_normative_reference.md`.
+- **Norms:** `governance/artefacts/normative_reference.md`.
 
 ## Already stated elsewhere
 

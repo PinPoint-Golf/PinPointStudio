@@ -1,6 +1,6 @@
 # Variability marks: decisions
 
-**7 Nov 2026.** What was decided for the variability marks, where the build differs from the spec or fills a gap in it, and what is still open. The spec is `spec.md`; the plan is `plan.md`. The design system (`docs/design/system/`) describes what was built. Where the two differ, this file says so.
+**7 Nov 2026.** What was decided for the variability marks, where the build differs from the spec or fills a gap in it, and what is still open. The spec is `spec.md`; the plan is `plan.md`. The design system (`governance/artefacts/design_system/`) describes what was built. Where the two differ, this file says so.
 
 ## 1. The spec's decisions (spec §12)
 
@@ -28,7 +28,7 @@ The spec's open items:
 - **Windows D3D11 is not measured in this run.** Recorded as open; check it in Session 5.
 - **This run is sessions 1–4 only.** The full qml_ui suite runs once, at the end.
 - **The build follows the spec; the docs describe what was built.** A gap between the two is a stop for the Product Owner first, then recorded here.
-- **The design system is the repo folder** (`docs/design/system/` and `Theme.qml`). Nothing is synced to a claude.ai artifact.
+- **The design system is the repo folder** (`governance/artefacts/design_system/` and `Theme.qml`). Nothing is synced to a claude.ai artifact.
 - **Dark-theme wash strength** (after the windowed sheets). In dark themes the Needle's 12/16/24 % wedges could not be told apart (options compared: `build/run-me/variability-review/needle_fill_options.png`). Ruling: a new Theme token `variabilityWashAlpha`, a screen-only multiplier on every translucent wash, 1 in light themes and 3 in dark, the product clamped to 1. The washes are the Dispersion Cell's group ellipse, the Needle wedges (Icon and Cell, small-size alphas included), the funnel's band fill, the typicality inner zone and the trace's envelope. Strokes, the band's edge, the 70–85 % dots, the ghost dots, the dashed outer zone and every line are not. Print is unaffected: it uses `variabilityPrintAlphaScale` alone, since paper is light. `variabilityWashAlphaStrong` is not added. Spec §3 and §10 amended. Built as an optional theme key whose default is `dark ? 3 : 1` (a theme or mode block may set its own); the mark and the funnel apply it in one helper each (`_washAlpha`), and the geometry provider keeps the spec's base alphas.
 
 ### Session 1: grader and data model
@@ -115,11 +115,11 @@ Found while documenting, for the Design Lead:
 
 ### Session 5: audit and retrospective application
 
-- **The family guide moved out of the README (Design Lead, 7 Nov).** The README's "Variability words" and "Variability marks" sections outweighed every other component's entry, so their text moved word for word to `docs/design/system/variability.md` (principles, family, eligibility, classification, rules, words, phrasing, basis strings). The README keeps one bullet under Content and one under Cards and marks, each linking there; the component pages and the index link to it too.
+- **The family guide moved out of the README (Design Lead, 7 Nov).** The README's "Variability words" and "Variability marks" sections outweighed every other component's entry, so their text moved word for word to `governance/artefacts/design_system/variability.md` (principles, family, eligibility, classification, rules, words, phrasing, basis strings). The README keeps one bullet under Content and one under Cards and marks, each linking there; the component pages and the index link to it too.
 
 #### The Design Lead's rulings on the audit (7 Nov)
 
-The audit's classification and copy audit were posted and ruled on one question at a time. The rules that belong to the design system are in `docs/design/system/variability.md`; the rest are here.
+The audit's classification and copy audit were posted and ruled on one question at a time. The rules that belong to the design system are in `governance/artefacts/design_system/variability.md`; the rest are here.
 
 - **R1, cells that pool readings.** The Consistency matrix keeps its layout and shows no marks. Each cell takes the grade at its loosest third (the 67th-percentile ρ of its graded readings) and shows that grade's word. The marks go on the reading rows a cell opens to.
 - **R2a, the matrix's club pooling.** Residuals about each club's median, pooled across clubs, are within-club spread: eligible, one grade.

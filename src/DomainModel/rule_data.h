@@ -19,7 +19,7 @@
 #pragma once
 
 // RuleData — THE OWNER OF THE PACKS AND NORMS, one per machine (refactor step 3.2; Q-02 closed by D5:
-// DEC-170, IM-S3-1; docs/developer/information_model.md OBJ-PACKS-NORMS, CLS-PACKS-NORMS, EVT-12, EVT-13,
+// DEC-170, IM-S3-1; governance/artefacts/information_model.md OBJ-PACKS-NORMS, CLS-PACKS-NORMS, EVT-12, EVT-13,
 // R-CON-4).
 //
 // What it owns, at the APPLICATION level (the user's edits are per machine, in <AppData>/diagnostics/,

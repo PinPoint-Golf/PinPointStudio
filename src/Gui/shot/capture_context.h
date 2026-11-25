@@ -19,7 +19,7 @@
 #pragma once
 
 // THE CAPTURE SIDE OF THE RECORDING CONTRACT (refactor step 1.5; step 1 design §4.1, §4.10;
-// docs/developer/information_model.md §2): the live facts → the Recording, and the Recording → the
+// governance/artefacts/information_model.md §2): the live facts → the Recording, and the Recording → the
 // shot's first document.
 //
 //   readCaptureAthlete(athlete, session)   the athlete and session facts capture records, read ONCE

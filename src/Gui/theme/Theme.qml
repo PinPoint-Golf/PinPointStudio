@@ -71,7 +71,7 @@ QtObject {
     // as opposed to the size of a thing. It also follows the theme's spacingScale, so a theme can
     // breathe more without growing its type or its marks. 1.0 in every theme but Folio, where
     // gap(n) is exactly sp(n). And it follows the user's Density setting (Settings → Appearance):
-    // densityScale is 0.75 compact, 1.0 default, 1.25 spacious (docs/design/system, "Density").
+    // densityScale is 0.75 compact, 1.0 default, 1.25 spacious (governance/artefacts/design_system, "Density").
     function gap(n) { return Math.round(n * fontScale * spacingScale * densityScale) }
 
     // Density — the space between things, never their size. "default" is the app as it always was.

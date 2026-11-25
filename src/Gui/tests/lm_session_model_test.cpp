@@ -26,7 +26,7 @@
 // Rows are a view of an in-memory session (fake_shot_source.h: the carousel is a view of a Session since refactor
 // step 5.2), and each row's readings come from the board's detail reader, so nothing is read from disk.
 //
-// And the variability marks the panel shows (docs/design/system/variability.md): G, club delivery's
+// And the variability marks the panel shows (governance/artefacts/design_system/variability.md): G, club delivery's
 // grade per club (R4b) — a two-sided corridor's half-width, the CV for club speed, ungraded without a
 // scale, never smash factor or ball flight (R4), never across clubs; H, typicality — this shot against
 // the session's other shots of its club, this one left out, at least N_MIN of them (R8).

@@ -386,7 +386,7 @@ Scoring           per-metric sub-scores vs reference bands → weighted geometri
 ```
 
 Two hardware-locked facts to respect (full story in `wrist_angles.h` and
-`docs/design/imu_frame_contract.md` §4–5):
+`governance/artefacts/imu_frame_contract.md` §4–5):
 
 - **Joint DOFs are read on the relative-rotation axes, not the segment-axis
   names**: in the forearm→hand decomposition, flexion/extension is about **Z**
@@ -847,7 +847,7 @@ Design rationale and the metric/scoring evidence base:
 architecture), `docs/implementation/shot_analyzer_m1_wrist.md` (the M1 wrist
 chain), `docs/design/shot_analyzer_viz.md` (replay graph),
 `docs/reference/wristmetrics.md` (bands),
-`docs/design/imu_frame_contract.md` (frames and joint-DOF axes). Upstream:
+`governance/artefacts/imu_frame_contract.md` (frames and joint-DOF axes). Upstream:
 `docs/developer/shot_detector_developer_guide.md`; sideways:
 `docs/developer/swing_export_developer_guide.md`; underneath:
 `docs/developer/event_buffer_developer_guide.md`.*

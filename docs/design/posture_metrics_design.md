@@ -781,7 +781,7 @@ anything is committed.
    - `src/Body/upper_body_metrics.{h,cpp}`: `trunkRise`
    - `src/Body/dtl_posture.h`: `armHang`, `headPitch`
    - `src/Metrics/metric_catalogue_manifest.cpp`: three descriptors and the Posture preset
-   - `docs/design/pinpoint_sign_conventions.md`: three signs
+   - `governance/artefacts/sign_conventions.md`: three signs
    - unit tests in `src/Analysis/tests/`
 3. **Measurement:** V1–V3 → `docs/research/data/posture/`, ρ and norms into `norms.json`.
 4. **Content:** §7, all of it, in `core.json` and `norms.json`. `core_pack_test` and

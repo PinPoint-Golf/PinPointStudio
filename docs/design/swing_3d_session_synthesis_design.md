@@ -194,7 +194,7 @@ Each step's files. No step waits for a judgement mid-way; the gates are in §7.
    (about 100 lines), `src/Gui/tests/swing_rig_driver_test.cpp`.
 5. **Panel.** Modified: `src/Gui/swing3d/SwingViz3DView.qml`, `src/Gui/swing3d/SwingViz3DHost.qml`,
    `src/Gui/session/ScreenWrist.qml` (about 30 lines). Any agent brief for this step carries the
-   CLAUDE.md design-system rule and reads `docs/design/system/README.md` and `PpSegmentedControl.md`.
+   CLAUDE.md design-system rule and reads `governance/artefacts/design_system/README.md` and `PpSegmentedControl.md`.
 6. **Probe.** New: `tools/probes/swing3d_session.qml`. No `tst_*.qml` and no `qml_ui` test is added.
 7. **Record.** Modified: this note's §8. The track reader gained `gripOffsetLocal` and `stageVersion`
    (`src/Skeleton3d/skeleton3d_json.h`).

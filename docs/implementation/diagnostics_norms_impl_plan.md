@@ -498,7 +498,7 @@ Everything through stage 4 is committed and pushed (`d7cf345`). Analyzer suite *
 1. `docs/design/pinpoint_qml_design_system.md` — **mandatory** per CLAUDE.md. Theme tokens only:
    never hardcode a colour, font size or spacing, and every component must work in all three
    aesthetic directions.
-2. `docs/design/pinpoint_sign_conventions.md` — the two-clause rule; stage 5 renders `highMeans`,
+2. `governance/artefacts/sign_conventions.md` — the two-clause rule; stage 5 renders `highMeans`,
    which is where it surfaces to the user.
 3. `src/Gui/characteristics/CharacteristicLibrary.qml` — the panel being extended.
 
@@ -946,7 +946,7 @@ signal cannot be added unaudited.
 `axis_direction_test` are empty and asserted to stay that way.
 
 The Coaching Lead then set the conventions that resolved all seven unverifiable signals, now written down in
-`docs/design/pinpoint_sign_conventions.md`. There are **two families**:
+`governance/artefacts/sign_conventions.md`. There are **two families**:
 
 - **Displacement — positive toward the lead side.** Lead-relative rather than left/right or "toward
   the target", matching the rest of the vocabulary: the same statement holds for a right- and a
@@ -1508,5 +1508,5 @@ less than it says.
 - **Two sign conventions are undocumented, so their signals cannot be audited at all:**
   `pelvisSway` (is positive toward the target? decides whether `sig_hangingBack: high` is right)
   and `shoulderAlignment`. This is the argument for `highMeans` being authored WITH each producer.
-  — **CLOSED at stage 4**: both stated, `docs/design/pinpoint_sign_conventions.md` written, and
+  — **CLOSED at stage 4**: both stated, `governance/artefacts/sign_conventions.md` written, and
   `axis_direction_test` now asserts the no-stated-convention count is **zero**.

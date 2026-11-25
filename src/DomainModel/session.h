@@ -19,7 +19,7 @@
 #pragma once
 
 // Session — the session aggregate root (refactor step 3.4a; build/refactor/step-3/BRIEF.md §2.2, §4.1, §4.2,
-// §4.8; docs/developer/information_model.md OBJ-SESSION, CLS-SESSION, LC-SESSION, EVT-01, EVT-03, EVT-09,
+// §4.8; governance/artefacts/information_model.md OBJ-SESSION, CLS-SESSION, LC-SESSION, EVT-01, EVT-03, EVT-09,
 // DEC-142, DEC-143, DEC-168).
 //
 //   id()          its SessionId (ID-SESSION)

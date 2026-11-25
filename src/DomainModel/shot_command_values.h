@@ -19,7 +19,7 @@
 #pragma once
 
 // The values the Shot's and the Session's golfer commands take (refactor step 3.4b-i; build/refactor/step-3/
-// BRIEF.md §4.3, §4.12; docs/developer/information_model.md CLS-SHOT, CLS-SESSION, EVT-06, EVT-08, EVT-10,
+// BRIEF.md §4.3, §4.12; governance/artefacts/information_model.md CLS-SHOT, CLS-SESSION, EVT-06, EVT-08, EVT-10,
 // OBJ-TUNING-LOG, OBJ-SESSION-INTENT). Plain values, in a header of their own so the interim door the adapters
 // reach the commands through (src/App/shot_command_door.h) needs no QObject header.
 //

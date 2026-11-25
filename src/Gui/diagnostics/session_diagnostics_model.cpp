@@ -2395,7 +2395,7 @@ void publishCorridor(QVariantMap &out, const SpreadCorridor &c, const SpreadAxis
 
 } // namespace
 
-// ── The variability marks (docs/design/system/variability.md; Mark's rulings R2b, R11) ─────────────
+// ── The variability marks (governance/artefacts/design_system/variability.md; Mark's rulings R2b, R11) ─────────────
 //
 // TECHNICAL LAYER, PAIRED. The strip's box and the history's per-session boxes stay exactly as drawn (every
 // shot, all clubs); a consistency grade goes beside them per club, because spread across clubs is expected

@@ -427,7 +427,7 @@ One element per IMU **lane**. A Witmotion is one lane. A HackMotion wG3 is one d
 | `instrument` | str, optional | **Added 2026-08-17.** `"hackmotion"` on a wG3 lane; absent on Witmotion. The machine-checkable discriminator — do not parse `units`. |
 | `units` | obj | Witmotion: `accel "g"`, `gyro "deg/s"`, `quat "wxyz"`. wG3 (since 2026-08-17): `accel` = `"g (linear, gravity-removed — NOT comparable to a Witmotion accel channel)"`, `gyro "deg/s"`, `quat` = `"wxyz, world->body (conjugate of the pipeline's convention — unreconciled, Phase D)"`. |
 | `samples.t_us` | int[] µs | Window-relative sample times. |
-| `samples.data` | float[][10] | Per sample `[ax,ay,az, gx,gy,gz, qw,qx,qy,qz]`. **Witmotion:** raw accelerometer (g, includes gravity — 1 g at rest), gyro (deg/s), and the **host-fused** world orientation PinPoint owns (Madgwick/ESKF over raw accel+gyro, not the device's on-board Euler output — see `docs/design/imu_frame_contract.md`). **wG3:** gravity-removed linear acceleration (g, ≈ 0 at rest; from the raw counts at 1 mg/LSB), the library's scaled gyro (deg/s), and the **device's own on-board orientation**, stored verbatim as it arrives — world→body, the conjugate of the pipeline's convention, and after the device's own calibration transform when the unit was calibrated (`hm_sample_convert.h`). It is not host-fused and cannot be re-fused. |
+| `samples.data` | float[][10] | Per sample `[ax,ay,az, gx,gy,gz, qw,qx,qy,qz]`. **Witmotion:** raw accelerometer (g, includes gravity — 1 g at rest), gyro (deg/s), and the **host-fused** world orientation PinPoint owns (Madgwick/ESKF over raw accel+gyro, not the device's on-board Euler output — see `governance/artefacts/imu_frame_contract.md`). **wG3:** gravity-removed linear acceleration (g, ≈ 0 at rest; from the raw counts at 1 mg/LSB), the library's scaled gyro (deg/s), and the **device's own on-board orientation**, stored verbatim as it arrives — world→body, the conjugate of the pipeline's convention, and after the device's own calibration transform when the unit was calibrated (`hm_sample_convert.h`). It is not host-fused and cannot be re-fused. |
 | `samples` | — | Always inline. The CSV/binary sidecar options were retired 2026-09-23. |
 | `device` | obj, optional | Device state at capture. Written when the lane's device was known to the capture. Keys below. Absent `device` on older files → role falls back to the placement map. |
 
@@ -862,7 +862,7 @@ Not written: the coaching band limits (`bandLo`/`bandHi`) and the stored-sign po
 
 - **As a table:** `docs/developer/metric_catalogue_developer_guide.md` §1A, "Every metric, and what its sign means". It is generated from the manifest by `python3 tools/metrics/gen_sign_table.py`, with columns key, unit, status (live / planned / device), what positive means and what negative means. Re-run the script first: the table goes stale whenever a descriptor changes.
 - **In code:** `MetricCatalogue::all()` and `descriptor(key)` (`metric_catalogue.h`).
-- **Sign frames** (target line, lead side, ISB): `docs/design/pinpoint_sign_conventions.md`.
+- **Sign frames** (target line, lead side, ISB): `governance/artefacts/sign_conventions.md`.
 
 No `--list-metrics` or JSON-dump tool exists.
 
@@ -882,7 +882,7 @@ No `--list-metrics` or JSON-dump tool exists.
 
 ### `kinematicSequence` — the ordered segment peaks (optional)
 
-Added 2026-09-17 (`docs/design/kinematic_sequence_design.md`). The kinematic sequence over the four segment angular-speed series that also sit in `metrics[]` — `pelvisAngularSpeed`, `thoraxAngularSpeed`, `leadArmAngularSpeed`, `clubAngularSpeed` (unit `°/s`; the pelvis and thorax are SIGNED, opening toward the lead side positive; the arm and club are unsigned magnitudes of the long axis's swing about the swing-plane normal — see `pinpoint_sign_conventions.md`). **Absent when nothing produced a node** (no downswing ladder, no pose / shaft / segment IMU), so a swing without it serialises exactly as before the object existed. Written by `src/Analysis/kinematic_sequence_json.h`, the ONE helper the live `analysisDetail` map and the reload also go through.
+Added 2026-09-17 (`docs/design/kinematic_sequence_design.md`). The kinematic sequence over the four segment angular-speed series that also sit in `metrics[]` — `pelvisAngularSpeed`, `thoraxAngularSpeed`, `leadArmAngularSpeed`, `clubAngularSpeed` (unit `°/s`; the pelvis and thorax are SIGNED, opening toward the lead side positive; the arm and club are unsigned magnitudes of the long axis's swing about the swing-plane normal — see `sign_conventions.md`). **Absent when nothing produced a node** (no downswing ladder, no pose / shaft / segment IMU), so a swing without it serialises exactly as before the object existed. Written by `src/Analysis/kinematic_sequence_json.h`, the ONE helper the live `analysisDetail` map and the reload also go through.
 
 > **Amended 2026-09-20.** `faceOn+dtl` is no longer planned: the uncalibrated face-on + down-the-line pair produces the **pelvis and thorax** nodes on a swing that has a down-the-line pose (`kinematic_sequence_design.md` §5.2, §13). Its `quality` is `estimated`. The two bound fields `peakNoEarlierThanMs` / `peakNoLaterThanMs` have been emitted since 2026-09-18, and the pair's `peakNoEarlierThanMs: 0` has a reading of its own.
 

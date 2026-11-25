@@ -19,7 +19,7 @@
 #pragma once
 
 // Athlete — the athlete aggregate's STEP-2 FORM (refactor step 2.3; build/refactor/step-2/BRIEF.md §4.5;
-// docs/developer/information_model.md OBJ-ATHLETE, OBJ-ATHLETE-RECORD, OBJ-BAG, OBJ-SESSION-INDEX,
+// governance/artefacts/information_model.md OBJ-ATHLETE, OBJ-ATHLETE-RECORD, OBJ-BAG, OBJ-SESSION-INDEX,
 // CLS-ATHLETE, LC-ATHLETE; IM-S2-5: DEC-160).
 //
 //   id()          its AthleteId (ID-ATHLETE), minted once at creation, never derived from a name

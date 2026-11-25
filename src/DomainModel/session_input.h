@@ -19,7 +19,7 @@
 #pragma once
 
 // SessionInput — the golfer's SESSION-LEVEL input, as the session keeps it (refactor step 2.5; brief
-// §4.8; docs/developer/information_model.md FILE-SESS-02, OBJ-SESSION-INTENT, R-INPUT-2, R-INPUT-3;
+// §4.8; governance/artefacts/information_model.md FILE-SESS-02, OBJ-SESSION-INTENT, R-INPUT-2, R-INPUT-3;
 // keys DEC-160: IM-S2-3). Source facts, owned by the session (until step 3 written by today's callers,
 // the diagnostics model's commands, through the session's files: IM-S2-4).
 //

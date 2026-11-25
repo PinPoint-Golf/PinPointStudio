@@ -4,7 +4,7 @@ What the product must do with faults, misses, tendencies and the words a golfer 
 
 ## Already stated elsewhere
 
-- There are no warm-up shots: every shot counts in full in every reduction (`docs/developer/information_model.md` §2; `docs/design/session_diagnostics_design.md` §5.4).
+- There are no warm-up shots: every shot counts in full in every reduction (`governance/artefacts/information_model.md` §2; `docs/design/session_diagnostics_design.md` §5.4).
 - Recorded intent never excuses, suppresses or re-grades a finding (`information_model.md` §2).
 - Diagnostics have three levels, shot, session and athlete, each owned at its own level (`information_model.md` §7.1).
 - A shot's tendency has three factors (`docs/design/shot_outcomes_design.md` §3.8, §7.0; `docs/design/ball-flight-classification.md`).

@@ -462,7 +462,7 @@ Item {
         return { key: key, label: lab, value: p.num, dir: p.dir, unit: unitWord(unitOf(key)), footL: (st ? st.n : scopeN) + " shots",
                  footR: st && st.hasSpread ? "±" + fmtKey(key, st.sd) : "", out: false, strip: stripFor(key), vr: varOf(key) }
     }
-    // ═══ THE VARIABILITY MARKS (the technical layer; docs/design/system/variability.md) ═══
+    // ═══ THE VARIABILITY MARKS (the technical layer; governance/artefacts/design_system/variability.md) ═══
     // A club-delivery reading's grade over the scoped club's shots (R4b): graphics.clubs[].stats[key].variability,
     // the model's. The model publishes one only for club delivery, so ball flight and smash factor never carry
     // one (R4). null when ungraded: no mark, never a raw SD in its place.
@@ -1034,7 +1034,7 @@ Item {
         }
     }
 
-    // THE VARIABILITY MARKS under a block of tiles (the technical layer; docs/design/system/variability.md): one
+    // THE VARIABILITY MARKS under a block of tiles (the technical layer; governance/artefacts/design_system/variability.md): one
     // named badge per reading, the tile's label, " · ", then the badge with the grader's basis ("CLUB SPEED · ◎
     // Repeatable · σ 0.4 mph · 0.21 of corridor · n 10"). Under the tiles rather than in them: a technical badge with its
     // basis is wider than a tile. `typ`: a Typicality badge (this shot against the other shots of its club, R8);

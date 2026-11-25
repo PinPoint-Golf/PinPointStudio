@@ -45,7 +45,7 @@
 //
 //   1. BOTH FRAMES PUT THE LIMB AXIS ON Y. Ours by construction
 //      (imu_calibration::solveSegment builds e_y = long axis, distal; see
-//      docs/design/imu_frame_contract.md §5).
+//      governance/artefacts/imu_frame_contract.md §5).
 //
 //   2. THE OTHER TWO AXES CARRY THE OPPOSITE DOFs. We read flexion/extension
 //      about Z and radial/ulnar deviation about X (wrist_angles.h:127-128,
@@ -95,7 +95,7 @@
 // The (flexion, deviation) pair alone is already unique across the four, so TWO
 // directed motions settle it — one known bow, one known ulnar deviation. In our
 // convention +flexion = bowed, +deviation = ulnar, +pronation = pronation (ISB /
-// Wu et al. 2005; docs/design/pinpoint_sign_conventions.md Rule 0).
+// Wu et al. 2005; governance/artefacts/sign_conventions.md Rule 0).
 //
 // ⚠ SO THE CAPTURE MUST RECORD WHICH WAY EACH MOTION WENT. "Pure flexion" is not
 // enough information to select a candidate; "bowed, then returned" is. An
@@ -105,7 +105,7 @@
 // the inverse of us on bow/cup — extension positive where we are flexion
 // positive, because we follow ISB and they do not. A CORRECT selection therefore
 // shows an INVERTED SIGN on the primary channel next to their display. See
-// pinpoint_sign_conventions.md Rule 0; the disagreement is deliberate.
+// sign_conventions.md Rule 0; the disagreement is deliberate.
 //
 // ---------------------------------------------------------------------------
 // WHAT CROSS-TALK IS STILL FOR
@@ -250,7 +250,7 @@ inline QQuaternion wristRelFromHm(const QQuaternion &qLowerArmWorldToBody,
 // forearmPronElbowFlex, driven by qUpper⁻¹·qFore). A wG3 has no upper-arm unit,
 // so that angle is not available from this device at all, and calling something
 // else by its name would claim an ISB conformance we would not have —
-// pinpoint_sign_conventions.md is explicit that four of our metrics are ISB joint
+// sign_conventions.md is explicit that four of our metrics are ISB joint
 // angles and the rest must never imply they are.
 //
 // What IS available is the angular RATE about the forearm's own long axis, in

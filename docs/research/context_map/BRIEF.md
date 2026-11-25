@@ -13,7 +13,7 @@ IM §2's R-CTX-1 (v1.10.1) orders the contexts Acquisition → Diagnostics → C
 The coordinator's hypothesis: the flaw is that a data-flow chain (DEC-48: "contexts and rings are different cuts") was promoted into a dependency rule. The better shape may be a **context map**, as in bounded contexts: contexts depend on each other only through a **named contract** or the **shared kernel**, and "left to right" follows from each contract's direction. **Test the hypothesis; don't assume it.** Find the cases that break it as hard as the ones that fit.
 
 ## Read
-- `docs/developer/information_model.md`, but never whole (about 100k tokens): §2 (to §2.4's end), §4 and §4.1, §1.4's lint table, and R-CTX-1 (grep).
+- `governance/artefacts/information_model.md`, but never whole (about 100k tokens): §2 (to §2.4's end), §4 and §4.1, §1.4's lint table, and R-CTX-1 (grep).
 - `git show 898b4892:docs/design/four_contexts.md`: the ruled amendment, in full.
 - `docs/design/coaching_layer.md`: skim, for what Coaching will need from the others.
 - `src/Gui/tests/architecture_lint_test.cpp`'s `fileRings()`, for how the lint maps files today.

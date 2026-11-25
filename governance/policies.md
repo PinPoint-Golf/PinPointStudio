@@ -21,7 +21,7 @@ The short principles that every control, procedure and piece of work here follow
 [^pol-1]: Product Owner, 15 Nov 2026, widened 25 Nov 2026.
 [^pol-2]: Product Owner, 22 Nov 2026 (roles, not names; footnotes); Solution Architect, 14 Nov 2026 (trace every sentence).
 [^pol-3]: Product Owner, 21 Nov 2026 (#195, "One source"); Solution Architect, 14 Nov 2026 (never paraphrase a governing definition).
-[^pol-4]: `roles.md`; `docs/developer/information_model.md` §1.2; `docs/design/system/README.md`, "The non-negotiables".
+[^pol-4]: `roles.md`; `governance/artefacts/information_model.md` §1.2; `governance/artefacts/design_system/README.md`, "The non-negotiables".
 [^pol-5]: Product Owner, 22 Oct 2026 ("a big philosophical principle for the entire product").
 [^pol-6]: Product Owner, 6 Nov 2026 (evidence for bugs) and 2 Oct 2026 (a result before a decision). Stated as a policy: proposed, for the Product Owner.
 [^pol-7]: Product Owner, 21 Nov 2026 (#195: "Nothing private is copied"; personal and machine matter "never goes into the repo").

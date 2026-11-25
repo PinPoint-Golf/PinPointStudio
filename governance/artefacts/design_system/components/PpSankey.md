@@ -2,7 +2,7 @@
 
 A Sankey: things flowing left to right through three columns of nodes, each flow a ribbon as thick as its count, the nodes named and counted, a legend under it, and the ribbons examined in place.
 
-Source: `src/Gui/components/PpSankey.qml`. Added 10 Nov 2026 for the tendency flow, on screen and in the report ([tendencies_flow_design.md](../../tendencies_flow_design.md)); approved by the Design Lead as a new component.
+Source: `src/Gui/components/PpSankey.qml`. Added 10 Nov 2026 for the tendency flow, on screen and in the report ([tendencies_flow_design.md](../../../../docs/design/tendencies_flow_design.md)); approved by the Design Lead as a new component.
 
 ## When to use
 Where shots (or anything counted) pass through a fixed sequence of categories and the question is where they go: the tendency flow on Home's Tendencies tab (strike → direction → flight, `HmTendencyFlow`). Not for a share of one category (use `PpBandBar`) or a value over time (a chart).

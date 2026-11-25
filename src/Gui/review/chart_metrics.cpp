@@ -1480,7 +1480,7 @@ QVariantMap ChartMetrics::sequenceOverlay(const QVariantMap &ks) const
 namespace {
 
 // Cheetham et al. (2008), 19 PGA Tour professionals and 19 amateurs, one swing each —
-// golf_swing_normative_reference.md §2.2. Time of peak in ms BEFORE impact; the club has no
+// normative_reference.md §2.2. Time of peak in ms BEFORE impact; the club has no
 // published timing because the professionals peak it at the ball (§2.3), so 0 with no SD.
 struct SequenceNorm { const char *segment; double proBeforeMs, proBeforeSdMs, proDps, amateurDps; };
 constexpr SequenceNorm kSequenceNorms[] = {

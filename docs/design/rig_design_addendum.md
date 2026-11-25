@@ -574,7 +574,7 @@ The calls logged in PR-36, PR-45, PR-48, PR-50, PR-51, PR-52 and PR-53 were read
 [^d49]: The same, §4.9: "No look or behaviour change is planned".
 [^d7]: The same, §7: the rows "A calibration result", "A procedure's running state" and "SET-05" ("not shown").
 [^d8]: The same, §8, the C9 row.
-[^im12]: IM §1.2, "What counts as an information-model change", C5 (`docs/developer/information_model.md`).
+[^im12]: IM §1.2, "What counts as an information-model change", C5 (`governance/artefacts/information_model.md`).
 [^d10]: The same, §10, C-8's test: "The block's per-camera set-up and per-sensor calibration equal `streams[].setup` and `streams[].device` of the same shot."
 [^a2]: The same, Appendix A, table A2, `camera/ballRoi`.
 [^q5]: The same, §9 question 5, approved as recommended: the `Session` writes the ceremony file, handed the ceremony when it starts.

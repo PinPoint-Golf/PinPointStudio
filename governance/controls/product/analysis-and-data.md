@@ -1,6 +1,6 @@
 # Product controls: analysis and data
 
-What the product must do with measurement, sources and devices. Who owns a piece of data, and where it persists, is the information model's (`docs/developer/information_model.md`). Each control is stated once, in the first stage where it applies; later stages list it by id. A listed id marked "(agents)" binds only agents. The control format and the terms are defined in [`README.md`](../../README.md).
+What the product must do with measurement, sources and devices. Who owns a piece of data, and where it persists, is the information model's (`governance/artefacts/information_model.md`). Each control is stated once, in the first stage where it applies; later stages list it by id. A listed id marked "(agents)" binds only agents. The control format and the terms are defined in [`README.md`](../../README.md).
 
 ## Already stated elsewhere
 

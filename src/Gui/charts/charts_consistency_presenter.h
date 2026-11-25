@@ -34,7 +34,7 @@
 // Relations presenter's RelationsReadingRow. A gadget has every property, so a key shown below as absent or {} is there
 // with its default ("", 0, false, an empty list or sentence); a row's `variability` is null where it had none.
 // A Sentence is { text, runs: [{ text, fig }] } (charts_words.h). A row is a READING ROW (charts_relations_presenter.h).
-// THE GRADES (docs/design/system/variability.md; Mark's rulings R1, R2a, R3, R8, R11, 7 Nov). Every reading and cell is
+// THE GRADES (governance/artefacts/design_system/variability.md; Mark's rulings R1, R2a, R3, R8, R11, 7 Nov). Every reading and cell is
 // graded in C++ (consistency_grades.h); a result reaches QML as a RESULT MAP, the façade's variabilityResult field for
 // field (variability_facade.h): { grade, graded, basis, ungradedReason, measurementLimited, n, hasRho, rho, basisText,
 // domain }. NO VARIABILITY WORD IS SPELLED HERE: the words are the vocabularies' (ConsistencyVocabulary,

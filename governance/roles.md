@@ -20,9 +20,9 @@ A decision is attributed to the role whose domain it is in. Where a decision spa
 | Role | Documents |
 |---|---|
 | Product Owner | The plan: `docs/implementation/swe-audit/04-remediation-plan.md` (and the audit's deferred work list, `05-deferred-worklist.md`) |
-| Solution Architect | The information model and its decision register: `docs/developer/information_model.md`; the target architecture, `docs/implementation/swe-audit/03-target-architecture.md`; the lint rules (`architecture_lint_test` A1–A8) and `src/Gui/tests/architecture_allowlist.txt` |
-| Design Lead | The design system: `docs/design/system/` (README, component pages, variability page, generated `tokens.json`); `src/Gui/theme/Theme.qml`; the design-system lint (`design_system_lint_test` D1–D5) and `src/Gui/tests/design_system_allowlist.txt` |
-| Coaching Lead | The norms and the coaching content: the norms and fault edges the diagnostics grade against, `docs/reference/golf_swing_normative_reference.md`, and the words a golfer reads |
+| Solution Architect | The information model and its decision register: `governance/artefacts/information_model.md`; the target architecture, `docs/implementation/swe-audit/03-target-architecture.md`; the lint rules (`architecture_lint_test` A1–A8) and `src/Gui/tests/architecture_allowlist.txt` |
+| Design Lead | The design system: `governance/artefacts/design_system/` (README, component pages, variability page, generated `tokens.json`); `src/Gui/theme/Theme.qml`; the design-system lint (`design_system_lint_test` D1–D5) and `src/Gui/tests/design_system_allowlist.txt` |
+| Coaching Lead | The norms and the coaching content: the norms and fault edges the diagnostics grade against, `governance/artefacts/normative_reference.md`, and the words a golfer reads |
 
 An allowlist line is an exception, so it needs its owner's approval: never add one to make a lint test pass.
 

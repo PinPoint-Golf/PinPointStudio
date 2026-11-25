@@ -1163,4 +1163,4 @@ distances are Mark 1.39 / 1.52, Nick 1.61 / 1.79, Jess 1.48 / 1.37 (Level / Squa
 golfer's nearest pattern changes.)
 
 [^r55c]: Refactor 5.5c (the Posture presenter typed; build/refactor/step-5/NOTES-5.5c.md).
-[^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `docs/developer/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.
+[^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `governance/artefacts/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.

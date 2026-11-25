@@ -6,15 +6,15 @@ Source: `src/Gui/components/PpVariabilityBadge.qml`. Its mark: [PpVariabilityMar
 
 Graded badges on the golfer layer, grades 5 to 0: Dispersion Icon, Dispersion Icon dense, Needle Icon, Overlay Cell:
 
-![Graded badges, golfer layer](../../variability-mark/previews/badge_graded.png)
+![Graded badges, golfer layer](../../../../docs/design/variability-mark/previews/badge_graded.png)
 
 Technical layer with basis strings (Dispersion Icon, Overlay Cell timing-limited, Needle Cell with no basis); then measurement-limited at grade 4, golfer layer ("Checking" on the variant's own grade-0 shape) and technical layer (the grade, and "· measurement-limited"), as Icon then Cell:
 
-![Technical and measurement-limited badges](../../variability-mark/previews/badge_technical_limited.png)
+![Technical and measurement-limited badges](../../../../docs/design/variability-mark/previews/badge_technical_limited.png)
 
 Typicality badges in every layout: Icon golfer, Icon dense, Icon technical, Cell golfer, Cell technical:
 
-![Typicality badges](../../variability-mark/previews/badge_typicality.png)
+![Typicality badges](../../../../docs/design/variability-mark/previews/badge_typicality.png)
 
 The graded and technical previews are offscreen renders (software painter, dpr 1): fine for the words and layout, not for judging stroke quality.
 

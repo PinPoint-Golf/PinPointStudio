@@ -186,7 +186,7 @@ lie, a constant per club, so the Δ is the same number either way. The launch mo
 negative flatter — "+ve delta is steepening" (Solution Architect). This runs the other way from `swingPlane`'s
 Δ PLANE, which was set positive-for-shallowing on 29 Sept; the two are different questions (a
 plane's average over a half-swing against the whole-swing path convention, versus a reading at two
-instants) and each carries its sign in the catalogue and in `pinpoint_sign_conventions.md`.
+instants) and each carries its sign in the catalogue and in `sign_conventions.md`.
 
 **The fold, and why there is no ball-side convention.** The reading is the line's angle to the
 ground, unsigned: 95° past vertical reads 85°, and a golfer facing image-left reads the same as one

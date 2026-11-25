@@ -28,7 +28,7 @@
 
 #include <vector>
 
-// CLUBS AND THE VARIABILITY GRADE (Mark's rulings R2a and R2b, 7 Nov; docs/design/system/variability.md,
+// CLUBS AND THE VARIABILITY GRADE (Mark's rulings R2a and R2b, 7 Nov; governance/artefacts/design_system/variability.md,
 // "Where a consistency mark is allowed: Clubs"). Spread is never graded across clubs, so a display that
 // holds several clubs' swings is graded one of two ways:
 //

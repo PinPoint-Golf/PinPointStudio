@@ -142,7 +142,7 @@ private:
 };
 
 // A typicality mark's data: `values` for PpVariabilityMark (Typicality or TypicalityTrace), in exactly
-// the shape its page specifies (docs/design/system/components/PpVariabilityMark.md, "Consumer supplies"),
+// the shape its page specifies (governance/artefacts/design_system/components/PpVariabilityMark.md, "Consumer supplies"),
 // and the technical-layer basis string beside it.
 //   Typicality       { z, ghosts: [{ swingId, z }], corridor: { loZ, hiZ } | null, band }
 //   TypicalityTrace  { mean: [101], sd: [101], swing: [101], corridor: { loT, hiT } | null, band }

@@ -19,7 +19,7 @@
 #pragma once
 
 // Housekeeping — THE ONE APPLICATION SERVICE THAT ENDS THINGS FOR GOOD (refactor step 3.8; build/refactor/step-3/BRIEF.md
-// §4.11; docs/developer/information_model.md §5.4, DEC-80, DEC-137, DEC-167, DEC-175, DEC-188). Application ring
+// §4.11; governance/artefacts/information_model.md §5.4, DEC-80, DEC-137, DEC-167, DEC-175, DEC-188). Application ring
 // (src/App: DEC-11); it includes no repository.
 //
 //   purge(root, cutoff)   THE ONE PURGE (MD-08: DEC-80, DEC-137): every entry of the library's own trash (FILE-LIB-01)

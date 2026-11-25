@@ -17,7 +17,7 @@
  */
 
 // A Sankey: things flowing left to right through columns of nodes, each flow a ribbon as thick as its count. Three
-// columns (docs/design/system/components/PpSankey.md; first used by the tendency flow, tendencies_flow_design.md).
+// columns (governance/artefacts/design_system/components/PpSankey.md; first used by the tendency flow, tendencies_flow_design.md).
 //
 // IT WORKS OUT NO NUMBER. Nodes and ribbons arrive placed, in plot units (y down from the plot's top, heights), from the
 // C++ layout that owns them (tendency_flow.h for the tendency flow), with every word final; this draws them, labels

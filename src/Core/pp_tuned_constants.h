@@ -214,7 +214,7 @@ inline constexpr int kCandidateUnset = -1;
 // ⚠ C2 inverts flexion relative to the device's own reported sense, and that is
 // the expected result, not a red flag: we report ISB (flexion positive) and the
 // vendor reports the inverse on bow/cup. A correct selection looks wrong beside
-// their application. See docs/design/pinpoint_sign_conventions.md Rule 0.
+// their application. See governance/artefacts/sign_conventions.md Rule 0.
 //
 // REPEATABILITY — MEASURED, not assumed. Three captures on one uninterrupted
 // mounting (`phased2/3/4.wrwire`), each with its own run of the calibration

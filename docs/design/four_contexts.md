@@ -1,7 +1,7 @@
 # PinPoint Studio: the four contexts (retired)
 
 **Status:** **retired.** Ruled on 24 Nov 2026 by the Solution Architect and the Product Owner (L1–L8), and merged
-into `docs/developer/information_model.md` v1.10.0: §2 (the four contexts, R-CTX-1, the results contract), §4 (the
+into `governance/artefacts/information_model.md` v1.10.0: §2 (the four contexts, R-CTX-1, the results contract), §4 (the
 Rules row and the Coaching folder), §4.1 (the Context column), §1.4 (lint A9) and the glossary (GL-37, GL-43, GL-69,
 GL-70, GL-71). The information model is canonical; read it, not this page.
 

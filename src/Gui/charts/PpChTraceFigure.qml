@@ -39,7 +39,7 @@ import PinPointStudio
 // The figure column (tier 2; below compact it folds to one line under each plot): Analyse shows the row's
 // figures (peak ± σ, order, at P7) and the reading at the playhead with its Δ from Address (F5); Replay shows
 // the readings at the playhead ("now").
-// TYPICALITY (docs/design/system/variability.md, R8): against the session median or the most typical shot, under each
+// TYPICALITY (governance/artefacts/design_system/variability.md, R8): against the session median or the most typical shot, under each
 // trace a technical TypicalityTrace Cell badge — this shot's top → impact curve on the envelope of the session's
 // other shots with its club ("A little off · peak 25 ms early"), reference.rows[].typicality. With fewer than 8 such
 // shots, or any other reference, there is no badge (the presenter hands null).

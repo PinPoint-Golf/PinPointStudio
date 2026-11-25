@@ -720,7 +720,7 @@ Two API details matter:
 | video `source.*`, `capture.*` | `CameraFormat` via `window.formatOf()` (`serial` from `FormatDescriptor::device_serial`) |
 | video `capture.exposureUs` / `exposureSource` / `exposureAuto` | `CameraFormat::exposure_us` / `exposure_source` — stamped from Spinnaker chunk data (`GetChunkData().GetExposureTime()`) or fps-derived; read back via `exposureSourceFromName()` |
 | video `frames.t_us` | Recorded in the encode loop — **written frames only**, so frame *i* in the MP4 corresponds to entry *i* here, always |
-| imu `samples` | Decoded `ImuSample` payloads (40 bytes / 10 floats, schema `imu_sample_v2` — accel, gyro, and quaternion all in the raw sensor frame; see [`imu_frame_contract.md`](../design/imu_frame_contract.md)) |
+| imu `samples` | Decoded `ImuSample` payloads (40 bytes / 10 floats, schema `imu_sample_v2` — accel, gyro, and quaternion all in the raw sensor frame; see [`imu_frame_contract.md`](../../governance/artefacts/imu_frame_contract.md)) |
 | `athlete`, `session`, `swing` | The `SwingExportJob` (resolved on the UI thread); `athlete.heightM` when known |
 | `analysisContext` | `SwingExportJob::analysisContext` (unset = not written) |
 

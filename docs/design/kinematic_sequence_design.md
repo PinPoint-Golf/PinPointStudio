@@ -112,7 +112,7 @@ same physical quantity and can be compared node for node.
 **Pelvis and thorax** are the *bearing rate* of the segment's medio-lateral axis projected into the
 horizontal plane — the same construction `body_rotation.cpp`'s IMU tier already uses for the level,
 differentiated, with the sign kept. This is what the Cheetham (2008) benchmark measured and what
-`golf_swing_normative_reference.md` §2 seats: pelvis 477 ± 53, thorax 727 ± 61 °/s for professionals.
+`normative_reference.md` §2 seats: pelvis 477 ± 53, thorax 727 ± 61 °/s for professionals.
 
 **Arm and club** are the angular speed of the segment's long axis about the swing-plane normal —
 `plane_coupled_kinematic_sequence_proposal.md` §3.3's ω∥, "the honest version of the chart we
@@ -342,9 +342,9 @@ decimals, and the test exists so the number on the strip has been checked agains
 **Manifest**: four new `TimeSeries` descriptors in group "Tempo & sequence", each with the §4 ladder,
 `.presets = { "Kinematic sequence" }`, coach-facing `description` / `howToRead` written to NR-03
 (direction of difference, order and consistency; no absolute-gap language), and sign entries added to
-`pinpoint_sign_conventions.md`. `kinematicSequence` loses the single PLANNED rung and gains the three
+`sign_conventions.md`. `kinematicSequence` loses the single PLANNED rung and gains the three
 mirrored ones, none planned. Its `howToRead` currently quotes "pelvis ~480, thorax ~605 and lead-arm
-~1310 °/s", which is not what `golf_swing_normative_reference.md` §2 seats (727 and 980); it is
+~1310 °/s", which is not what `normative_reference.md` §2 seats (727 and 980); it is
 rewritten to the reference's figures and to NR-03's direction-of-difference language. `clubheadPeakLead` stays as it is: it is a linear-speed timing and a
 useful cross-check on the club node (§9).
 
@@ -394,7 +394,7 @@ Club at analysis time, for §9 and for any future capture that predates a placem
 > Every peak on the plot has its numbers in the tile. An unplaced one is dimmed, with a "?" on
 > its rank, never hidden. ACTUAL is red at both ends of an inverted pair. The verdict is In /
 > Out of sequence, In order so far, or Order unclear. This overrides NR-03/05/11 at the Coaching Lead's call
-> (golf_swing_normative_reference.md).
+> (normative_reference.md).
 >
 > Code: `ChartMetrics::sequenceTable`. Tests: `chart_metrics_test` ("tile: …"),
 > `tst_chart_presets` test_016, probe `tools/probes/ks_rising_chart.qml`.
@@ -577,7 +577,7 @@ In the order the dependencies run; each step is buildable and testable on its ow
    **`PpSequenceStrip.qml`** (new), mounted in `PpMetricChart.qml` behind the preset name.
    **`tst_chart_presets.qml`** — the two-vs-one case.
 8. **`tools/swinglab/src/swinglab_run.cpp`** — `--bind`; ledger columns; `regrade_ledger`.
-9. **Docs**: `pinpoint_sign_conventions.md` (four rows), developer guide B.6 rewritten to point here
+9. **Docs**: `sign_conventions.md` (four rows), developer guide B.6 rewritten to point here
    and Appendix A's `kinematicSequence` row updated, `body_rotation_estimation.md` §6.4 closed with a
    pointer, this file's §12 written from the §9 runs.
 

@@ -492,7 +492,7 @@ Both run in the app. `detect()` runs inside `fireFindings()` for every shot (thr
 ### 6.0 Who runs it: the owners (refactor step 3)
 
 Since refactor step 3 the diagnostics have owners at three levels, and views only read them
-(`docs/developer/information_model.md` §10; CLS-SESSION-DIAG, CLS-ATHLETE-DIAG)[^dec-owners].
+(`governance/artefacts/information_model.md` §10; CLS-SESSION-DIAG, CLS-ATHLETE-DIAG)[^dec-owners].
 Nothing here is a view's: no QML creates a diagnostics model, and a panel that is closed changes nothing that is
 judged (always fire)[^dec02].
 
@@ -1249,7 +1249,7 @@ src/Wrist/reference_bands.{h,cpp}      NormBandProvider — Norm -> Band for the
 src/Gui/review/metric_catalog.cpp      corridors for the metric + dashboard surfaces
 ```
 
-**Read next:** `docs/design/swing_fault_ontology.md` (why `kind` and `prominence` exist, and the coaching review that produced them), `docs/design/diagnostics_norms.md` (the brief), `docs/implementation/diagnostics_norms_impl_plan.md` (how it was built, its ledger, and the handoff to *Diagnosis execution, V&V*), `docs/user/pinpoint-diagnostics-guide.md` (the same model in non-technical language — useful for naming things the way users will), `docs/design/pinpoint_sign_conventions.md` (before touching any direction), and `docs/developer/metric_catalogue_developer_guide.md` (the other registry).
+**Read next:** `docs/design/swing_fault_ontology.md` (why `kind` and `prominence` exist, and the coaching review that produced them), `docs/design/diagnostics_norms.md` (the brief), `docs/implementation/diagnostics_norms_impl_plan.md` (how it was built, its ledger, and the handoff to *Diagnosis execution, V&V*), `docs/user/pinpoint-diagnostics-guide.md` (the same model in non-technical language — useful for naming things the way users will), `governance/artefacts/sign_conventions.md` (before touching any direction), and `docs/developer/metric_catalogue_developer_guide.md` (the other registry).
 
 ## Notes
 

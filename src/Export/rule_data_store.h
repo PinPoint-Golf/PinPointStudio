@@ -19,7 +19,7 @@
 #pragma once
 
 // RuleDataStore — RuleDataRepository's adapter: THE ONE READER AND WRITER of the rule data's files
-// (refactor step 3.2; D5: DEC-170; docs/developer/information_model.md FILE-APP-01…05, SET-06, SET-15).
+// (refactor step 3.2; D5: DEC-170; governance/artefacts/information_model.md FILE-APP-01…05, SET-06, SET-15).
 // The contract is the interface's (src/DomainModel/rule_data_repository.h); what is here is where each
 // file is and how it is read.
 //
