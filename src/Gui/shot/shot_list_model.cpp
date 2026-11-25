@@ -36,11 +36,14 @@ QString folderKey(const QString &folder)
 {
     return folder.isEmpty() ? QString() : QDir::cleanPath(QFileInfo(folder).absoluteFilePath());
 }
-// The roles a Shot's event can change, and a rewrite of its document (EVT-22, EVT-02): refreshShot's set, as it was.
+// The roles a Shot's event can change; and a rewrite of its document (EVT-22, EVT-02): EVERY role data() reads from
+// the summary, since the summary is read again whole (a late phone clip moves the video flag and the thumbnail: #208).
+// A new summary role goes in kRewriteRoles too.
 const QList<int> kReviewRoles{ ShotListModel::ClubRole, ShotListModel::RatingRole, ShotListModel::NoteRole,
                                ShotListModel::LmExcludedRole, ShotListModel::LmClubOverrideRole,
                                ShotListModel::RecordedClubRole, ShotListModel::LegacyClubStubRole };
-const QList<int> kRewriteRoles{ ShotListModel::ScoreRole, ShotListModel::MetricsRole, ShotListModel::LmDeviceRole,
+const QList<int> kRewriteRoles{ ShotListModel::HasVideoRole, ShotListModel::ThumbnailSourceRole,
+                                ShotListModel::TimestampLabelRole, ShotListModel::OrdinalRole, ShotListModel::ScoreRole, ShotListModel::MetricsRole, ShotListModel::LmDeviceRole,
                                 ShotListModel::DataWarningRole, ShotListModel::DataWarningDetailRole,
                                 ShotListModel::LmExcludedRole, ShotListModel::LmClubOverrideRole, ShotListModel::ClubRole,
                                 ShotListModel::RecordedClubRole, ShotListModel::LegacyClubStubRole,

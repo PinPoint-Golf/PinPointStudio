@@ -515,6 +515,7 @@ static void doorAndCarousel()
 //   V6 re-entering the screen (the same live folder): no reset
 //   V7 the Session trashed (EVT-20): the view empties, nothing dangles
 //   V8 a camera shot that saved nothing, then its device-only document: one row, the same id
+//   V9 (lateClipOnTheCard) a late phone clip (EVT-22): the rewrite tells the card its video flag and thumbnail (#208)
 static void carouselView()
 {
     std::printf("\nV1–V8: the carousel as a view of the Session\n");
@@ -683,6 +684,69 @@ static void carouselView()
     QCoreApplication::processEvents();
     check(QStringLiteral("V7 the Session trashed: the view is empty and shows no session"),
           ts.ok() && live.rowCount() == 0 && live.sessionFolder().isEmpty());
+}
+
+// ── V9: a late phone clip reaches the card (#208) ──────────────────────────────────────────────────────────────
+//   A camera shot whose only video is a phone's: its document lands with the clip asked for (a video element with no
+//   `file`) and no thumbnail, so its row says "no video". The clip lands after (after End, in the issue): EVT-22. The
+//   row's rewrite must tell the delegates every role the re-read summary can move — the video flag and the thumbnail
+//   among them — or the card keeps "no video" until it is rebuilt.
+static void lateClipOnTheCard()
+{
+    std::printf("\nV9: a late phone clip reaches the card (#208)\n");
+    Rig rig;
+    Session *s = rig.athlete ? rig.athlete->startSession(kSwing, kPat) : nullptr;
+    Shot *shot = s ? shotWithDocument(s, rig) : nullptr;
+    check(QStringLiteral("V9 a session with a shot"), shot != nullptr);
+    if (!shot) return;
+    // The phone's clip asked for, not arrived: no `file` on its video element, no thumbnail (the fixture's own clip
+    // and thumbnail taken out).
+    const QString doc = QDir(shot->folder()).filePath(QStringLiteral("swing.json"));
+    {
+        QFile f(doc);
+        QJsonObject root = f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject();
+        f.close();
+        QJsonArray streams;
+        for (const QJsonValue &v : root.value(QStringLiteral("streams")).toArray()) {
+            QJsonObject el = v.toObject();
+            if (el.value(QStringLiteral("kind")).toString() == QLatin1String("video")) {
+                el.remove(QStringLiteral("file"));
+                el[QStringLiteral("alias")] = QStringLiteral("phone");
+            }
+            streams.append(el);
+        }
+        root[QStringLiteral("streams")] = streams;
+        root.remove(QStringLiteral("thumbnail"));
+        check(QStringLiteral("V9 the document staged with the clip owed"),
+              !root.isEmpty() && f.open(QIODevice::WriteOnly | QIODevice::Truncate)
+                  && f.write(QJsonDocument(root).toJson()) > 0);
+    }
+    s->shotDocumentWritten(shot->ref());
+
+    ShotListModel live;
+    live.setSource(shotSourceOf(s));
+    check(QStringLiteral("V9 the card: one row, no video yet"),
+          live.rowCount() == 1 && !live.data(live.index(0), ShotListModel::HasVideoRole).toBool());
+    QSignalSpy changed(&live, &QAbstractItemModel::dataChanged);
+    QSignalSpy resets(&live, &QAbstractItemModel::modelReset);
+
+    StreamArrival clip;
+    clip.alias = QStringLiteral("phone");
+    clip.origin.transport    = QStringLiteral("ppcp");
+    clip.origin.captureId    = QStringLiteral("cap-v9");
+    clip.origin.completeness = QStringLiteral("complete");
+    clip.fileName = QStringLiteral("phone.mp4");
+    const WriteResult w = shot->completeCapture(clip);   // EVT-22: the late part
+    const QList<int> roles = changed.isEmpty() ? QList<int>{ -1 } : changed.first().at(2).value<QList<int>>();
+    // An empty role list is "every role" (QAbstractItemModel::dataChanged).
+    const auto told = [&roles](int role) { return roles.isEmpty() || roles.contains(role); };
+    check(QStringLiteral("V9 the clip saved: the Shot now holds video"), w.changed() && shot->summary().hasVideo);
+    check(QStringLiteral("V9 EVT-22: one dataChanged for the row, no reset"), changed.count() == 1 && resets.isEmpty());
+    check(QStringLiteral("V9 …it carries the video flag and the thumbnail (#208)"),
+          told(ShotListModel::HasVideoRole) && told(ShotListModel::ThumbnailSourceRole));
+    check(QStringLiteral("V9 …and the time and the number, which a re-read summary can move too"),
+          told(ShotListModel::TimestampLabelRole) && told(ShotListModel::OrdinalRole));
+    check(QStringLiteral("V9 …and the card shows the video"), live.data(live.index(0), ShotListModel::HasVideoRole).toBool());
 }
 
 // ── C13 (refactor 5.4a): a panel edit through the adapter is in session_diagnostics_model_test ("C13 — a panel edit
@@ -1194,6 +1258,7 @@ int main(int argc, char **argv)
     analysisAndSummary();
     rowsOverShots();
     carouselView();
+    lateClipOnTheCard();
     reanalysisThroughTheShot();
     lateWriteAfterASwitch();
     measurementsFollowTheShot();
