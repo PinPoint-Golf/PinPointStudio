@@ -24,7 +24,8 @@
 //   - a main() suite: the first line of main(), before QCoreApplication;
 //   - a QTest suite: the FIRST member of the test class (so it is made before every other member, and before
 //     initTestCase);
-//   - a gtest suite with its own main(): the first line of that main().
+//   - a gtest suite with its own main(): the first line of that main(); with gtest_main, a file-scope static.
+// store_isolation_lint_test fails a suite that makes it anywhere else (#258).
 // It is test-only code (header-only, no library). Include it by relative path, e.g. from src/<Dir>/tests/:
 //   #include "../../Core/tests/isolated_stores.h"
 //
@@ -58,8 +59,8 @@
 // /var -> /private/var, Windows' case and short names), for a path that does not exist yet too.
 //
 // Guards: isolated_stores_test (src/Core/tests) proves the redirections on every platform;
-// store_isolation_lint_test (the tests umbrella) fails when a suite links code that calls ppSettings() and never
-// makes an IsolatedStores. docs/developer/testing_developer_guide.md §9 has the how-to.
+// store_isolation_lint_test (the tests umbrella) fails when an executable compiles or links code that calls
+// ppSettings() and does not make an IsolatedStores first. docs/developer/testing_developer_guide.md §9 has the how-to.
 
 #include <QByteArray>
 #include <QDir>

@@ -559,18 +559,21 @@ A suite that wants a finer store of its own (one settings file per test, `ppcp_*
 
 It prints where Home, Documents and the Desktop point.
 
-**`store_isolation_lint_test`** (registered by the umbrella, `tests/CMakeLists.txt`) stops a new suite forgetting it:
+**`store_isolation_lint_test`** (registered by the umbrella, `tests/CMakeLists.txt`) stops an executable forgetting it, or making it late:
 
-- **The rule:** a suite whose target compiles a source that calls `ppSettings()` must make an `IsolatedStores`, or the lint fails and names the suite and the files that reach the settings.
-- **The manifest:** at the end of every configure, the umbrella writes `store_isolation_manifest.txt`, with each executable target's sources and every test name. It is plain CMake, so it works under Ninja and NMake JOM.
-- **Comments and strings don't count.** The sources are read at run time with them blanked. The rule runs on fixtures first.
+- **The rule:** every executable of the umbrella that compiles a source calling `ppSettings()`, or links a library that does, must make an `IsolatedStores` **first**, in its own sources. First means the first statement of `main()`, the first member of a class (after `Q_OBJECT` and access labels), or a namespace-scope object (a file-scope static). A helper made later (a later statement or member, inside a test function or a nested block) fails, and so does one that only a linked library makes. The lint names the executable, the files that reach the settings (and the library each is in), and where its helper is.
+- **Every executable, not only the ones a test is named after.** An executable that must read the real settings is a named decision in the lint's own code (`kExemptions`, each with its reason), never an allowlist line:
+  - **tools** run by hand on a scratch copy, which no test may run, each with its own reason in the code. They only read the real settings: `ui/diagnosticsNormSetsOff` and `ui/diagnosticsGradePolicy` (SET-06 and SET-15, which `RuleData` reads on every load), and for some the `[athletes]` records (`AthleteStore`). `charts_series_dump`, `day_readings_dump` and `post_shot_bench` turn test mode on to keep the user's data out, but test mode does not move the settings file. `diag_rank_diff`, `diag_uncertainty_report`, `measure_dump` and `variability_calibrate` reach the settings only incidentally, through the process's `RuleData` (and, for the first two, `AthleteStore`). Two more are driven by a test through `cmake -P` (`athlete_dump` by `athlete_dump_ids_test`, `regrade_ledger` by `regrade_ledger_new_needs_ini_test`; the studio PC excludes those two tests). The tests that run each tool are read from the build tree's `CTestTestfile.cmake` files: a test that runs an exempt tool undeclared fails;
+  - **`isolated_stores_test`**, which may make the helper late, because measuring the real locations first is what it proves;
+  - an exemption that no longer reaches the settings, whose declared test no longer runs it, or whose helper is now first, fails as stale.
+- **The manifest:** at the end of every configure, the umbrella writes `store_isolation_manifest.txt`: every executable and in-tree library target, its type, its sources, the in-tree targets it links (`LINK_LIBRARIES`, `INTERFACE_LINK_LIBRARIES`, `$<TARGET_OBJECTS:…>`, aliases resolved), and every test name. The lint follows the links transitively. It is plain CMake, so it works under Ninja and NMake JOM.
+- **Comments and strings don't count.** The sources are read at run time with them blanked. The rule runs on fixtures first (a library two links away that calls `ppSettings()`, a helper that comes second, a stale exemption, an undeclared tool run).
 - **What it does not see:**
   - an inline `ppSettings()` in a header the target does not list;
-  - the two tests that drive a tool through `cmake -P` (`athlete_dump_ids_test`, `regrade_ledger_new_needs_ini_test`). Their tools read the real settings by design, so the studio PC still excludes them;
   - code that reaches only `QStandardPaths` (the pack readers). That is a folder named after the test binary, never the app's;
-  - **a call in a linked library.** It scans only each executable's own listed sources, and follows no `target_link_libraries`. Clean today, because no in-tree library is linked into a suite; it stops being sound when Stage B Part 2 makes the rings libraries (#258);
-  - **a suite whose test has another name** than its target, or `<target less _test>.<file>`. The opt-in `session_setup_ui_test` reaches the settings and is unchecked (its settings are isolated by its own `setPath`, but test mode is not on);
-  - **the order.** It checks that an `IsolatedStores` appears, not that it comes first. The review of 24 Nov 2026 checked all 67 by hand: 46 as `main()`'s first line, 18 as a class's first member, 3 as a file-scope static.
+  - an earlier file-scope static that touches a store before the helper is made: "first" is read from the code's shape;
+  - "the first member" is of any class: a helper first in a gtest fixture passes, though a fixture is made per test;
+  - a test that runs a tool through a script that finds the tool itself, or names it only in its ENVIRONMENT: only `add_test` command lines are read.
 - **Why a lint and not a hash:** a hash of the real store around the run cannot see a read, which is what kept 45 suites off the studio PC, and it cannot say which suite changed the store.
 
 ### The packs and norms — `RULE_DATA_SOURCES` and `installProcessRuleData()`

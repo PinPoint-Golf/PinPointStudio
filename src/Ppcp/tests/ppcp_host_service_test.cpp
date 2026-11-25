@@ -208,8 +208,9 @@ protected:
         }
         ~SettingsRedirect()
         {
-            QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
-                               QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation));
+            // Back to the helper's folder (g_stores, above: it owns the process-wide path, #187), never Qt's shared
+            // test folder, so every later test in this binary still has this run's own settings (#258, E5).
+            QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, g_stores.settingsDir());
         }
     } m_settingsRedirect;
 

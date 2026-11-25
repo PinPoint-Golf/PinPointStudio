@@ -939,9 +939,9 @@ protected:
     }
     void TearDown() override
     {
-        // Put it back, so a later test in this binary is not still redirected.
-        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
-                           QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation));
+        // Put it back to the helper's folder (g_stores, above: it owns the process-wide path, #187), never Qt's
+        // shared test folder, so a later test in this binary still has this run's own settings (#258, E5).
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, g_stores.settingsDir());
     }
     QTemporaryDir m_dir;
 };

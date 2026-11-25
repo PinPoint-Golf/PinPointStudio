@@ -67,6 +67,7 @@
 
 #include "app_settings.h"
 #include "../../../Export/rule_data_install.h"
+#include "../../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 // Same as qml_ui_test: the bundled faces, so text measures the way the app draws it.
 static void loadBundledFonts()
@@ -461,6 +462,9 @@ private:
 class SessionSetupUiTestSetup : public QObject
 {
     Q_OBJECT
+    // #187, #258: the first member, so test mode, the settings path and the app's own data folders are scratch
+    // before anything below runs (as qml_ui_test.cpp); qmlEngineAvailable then gives each file a store of its own.
+    pinpoint::test::IsolatedStores m_stores;
 
 public slots:
     void qmlEngineAvailable(QQmlEngine *engine)
