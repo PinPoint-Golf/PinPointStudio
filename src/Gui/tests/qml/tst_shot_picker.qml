@@ -109,16 +109,32 @@ Item {
 
         function grid() { return findChild(panel, "shotPickerGrid") }
 
+        // A Row/Column/Grid positions on POLISH, not on the binding that sized it: read geometry, or
+        // press anything, only after every polish the change scheduled has run. Wait on the WINDOW,
+        // since an item's own flag says nothing about the positioners inside it, and spin the event loop
+        // around it so a queued signal or a Loader lands and any polish it schedules is waited on too.
+        // A layout that never settles fails here. (It was waitForRendering, which returns on a NEW frame
+        // or after 5 s, and whose false was ignored: a change that drew nothing slept 5 s, #254, #256.)
+        function laidOut() {
+            const w = panel.Window.window
+            wait(0)
+            for (let i = 0; i < 20 && isPolishScheduled(w); ++i) {
+                verify(waitForPolish(w), "the panel's layout settles")
+                wait(0)
+            }
+            verify(!isPolishScheduled(w), "the panel's layout settles")
+        }
+
         // Folding the strip changes the Column's layout, and a Column re-lays-out on polish —
         // reading a height or clicking a chip in the same tick measures and presses the panel
         // as it was before the picker appeared.
         function reveal() {
             panel.showShots = true
-            waitForRendering(panel)
+            laidOut()
         }
         function fold() {
             panel.showShots = false
-            waitForRendering(panel)
+            laidOut()
         }
 
         // ── the strip is up: the cards are the selector, the menu is the filter ──
@@ -190,7 +206,7 @@ Item {
             // Whatever removes a row from the proxy — a band chip above, a trashed shot —
             // reaches the picker as a row that is simply no longer there.
             shots.remove(2)                        // ordinal 4
-            waitForRendering(g)
+            laidOut()
             compare(g.count, 5)
             compare(g.itemAtIndex(2).ordinal, 3)
         }

@@ -279,7 +279,21 @@ Item {
         }
 
         // ── the Tendencies tab ──
-        function laidOut() { waitForRendering(tabs); wait(0) }
+        // A Row/Column/Grid positions on POLISH, not on the binding that sized it: read geometry, or
+        // press anything, only after every polish the change scheduled has run. Wait on the WINDOW,
+        // since an item's own flag says nothing about the positioners inside it, and spin the event loop
+        // around it so a queued signal or a Loader lands and any polish it schedules is waited on too.
+        // A layout that never settles fails here. (It was waitForRendering, which returns on a NEW frame
+        // or after 5 s, and whose false was ignored: a change that drew nothing slept 5 s, #254, #256.)
+        function laidOut() {
+            const w = tabs.Window.window
+            wait(0)
+            for (let i = 0; i < 20 && isPolishScheduled(w); ++i) {
+                verify(waitForPolish(w), "the tabs' layout settles")
+                wait(0)
+            }
+            verify(!isPolishScheduled(w), "the tabs' layout settles")
+        }
         function rowOf(key) { return one(tabs, "homeTendencyRow:" + key) }
         function showTendencies() { mouseClick(tabOf("tendencies")); laidOut() }
 

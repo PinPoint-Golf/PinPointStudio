@@ -53,6 +53,22 @@ Item {
         name: "GraphPan"
         when: windowShown
 
+        // A Row/Column/Grid positions on POLISH, not on the binding that sized it: read geometry, or
+        // press anything, only after every polish the change scheduled has run. Wait on the WINDOW,
+        // since an item's own flag says nothing about the positioners inside it, and spin the event loop
+        // around it so a queued signal or a Loader lands and any polish it schedules is waited on too.
+        // A layout that never settles fails here. (It was waitForRendering, which returns on a NEW frame
+        // or after 5 s, and whose false was ignored: a change that drew nothing slept 5 s, #254, #256.)
+        function laidOut() {
+            const w = g.Window.window
+            wait(0)
+            for (let i = 0; i < 20 && isPolishScheduled(w); ++i) {
+                verify(waitForPolish(w), "the graph's layout settles")
+                wait(0)
+            }
+            verify(!isPolishScheduled(w), "the graph's layout settles")
+        }
+
         // Zoomed to 2×, because a FITTED graph has nowhere to pan to — the picture is already
         // inside the pane. It is the zoomed reading case that needed a hand in the first place.
         // Layout 700×300 in a 900×500 pane fits at 1, so this makes the content 1400×600 and
@@ -61,9 +77,9 @@ Item {
             // Back to fitted first: at 1× the content is the pane, so the Flickable has to return
             // whatever the last case panned to, and each test starts looking at the same place.
             g._userZoom = 1.0
-            waitForRendering(g)
+            laidOut()
             g._userZoom = 2.0
-            waitForRendering(g)
+            laidOut()
             compare(g._panX, 0)
             probe.asked = []
         }
