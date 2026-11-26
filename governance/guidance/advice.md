@@ -6,7 +6,7 @@ Recommended practice: these say what should be done, not what must be. They keep
 (the deployment, the user, the use case).
 *Why:* twenty findings were applied, over four review passes, to a change request granted for a deployment that doesn't exist.[^ag-13]
 
-AG-20 (start the next issue at first review) is now a control: [`controls/plan.md`](../controls/plan.md).
+AG-20 (start the next issue at first review) became a control, retired on 26 Nov 2026: [`controls/plan.md`](../controls/plan.md).
 
 **AG-28.** Put a result in front of the owner before asking for a decision on it:
 once a change's gates pass, offer the whole path to something the owner can try in the app (commit and push, re-analysis, regrade), and say what will and won't show until then; "built, awaiting commit" is not a finished state. Commits and library writes still need their approvals.

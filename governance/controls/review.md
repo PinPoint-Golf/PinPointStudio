@@ -2,8 +2,8 @@
 
 Reviewing the change, and putting it before the role that approves it. Each control is stated once, in the first stage where it applies; later stages list it by id. A listed id marked "(agents)" binds only agents. The control format and the terms are defined in [`README.md`](../README.md).
 
-**AG-21.** Every item, and each fix in a batch reviewed later, must get a fresh, independent reviewer agent (not a fork of the coordinator) that checks every definition-of-done bullet and the diff, and returns SIGNED OFF or CHANGES NEEDED before it reaches the role's list.
-No kind of item is exempt: review is not kept for cut-overs, deletions and data writes only[^ag-21b]. A fix round that changes only wording (a document, a comment, a commit message) is checked by the coordinator against the review's findings, not by a fresh reviewer; a fix that changes code, a test or a governed rule's meaning gets a fresh reviewer[^ag-21c].
+**AG-21.** A step must get a fresh, independent reviewer agent (not a fork of the coordinator) when it moves files by script, is a cut-over, writes or migrates stored data, or changes how a store is read or written (the step list's Review column); the reviewer checks every definition-of-done bullet and the diff, and returns SIGNED OFF or CHANGES NEEDED before it reaches the role's list.
+Every other step is checked by its own tests, both lints and the Product Owner's look at the result. A fix found by a review is checked by the coordinator against the review's findings, not reviewed again[^ag-21d].
 Reviewers read, and run ctest on the implementer's build; they never edit, and rebuild only when the build is stale.
 *Why:* what lands on the owner's list should already have survived an independent check, so the review time goes on judgement.[^ag-21]
 *Owner:* Product Owner · *Stage:* Review · *Compliance:* a review (this control is the review)
@@ -14,7 +14,7 @@ The reviewer reads the red log and the green log, and checks that the red was fo
 *Owner:* Product Owner · *Stage:* Review · *Compliance:* a review (AG-21's reviewer)
 
 **AG-22.** Only blocking findings may be fixed in an item, and the rest must be filed as issues, everywhere, interactive or unattended. A finding is blocking only when it is wrong data or lost golfer input in the normal flow, a defect the golfer sees in the normal flow, a breach of a HARD rule, a broken build or test, or the item's own deliverable not met. Blocking findings are fixed in the item.
-Anything that needs an unusual condition is an edge case: a GitHub issue labelled `edge case`, with an area label, a priority and the evidence, and parked. A finding nobody has seen happen (predicted by reading, not observed) is filed as an issue labelled `finding`, marked "reproduce first", never `bug` ([AG-24](review.md))[^finding]. Reviewers tag each finding BLOCKING or EDGE. A fix round fixes blockers, plus minors that are wording, comments or tests; a minor that changes behaviour goes on the carry list unless the golfer would see it. Each item gets one review plus one check of the fixes; a defect an item's own testing finds becomes a new small item, never part of the one that found it.
+Anything that needs an unusual condition is an edge case: a GitHub issue labelled `edge case`, with an area label, a priority and the evidence, and parked. A finding nobody has seen happen (predicted by reading, not observed) is filed as an issue labelled `finding`, marked "reproduce first", never `bug` ([AG-24](review.md))[^finding]. Reviewers tag each finding BLOCKING or EDGE. A fix round fixes blockers, plus minors that are wording, comments or tests; a minor that changes behaviour goes on the carry list unless the golfer would see it. A reviewed step gets one review plus the coordinator's check of its fixes; a defect an item's own testing finds becomes a new small item, never part of the one that found it.
 *Why:* reviews kept finding real but rare cases, each costing a round and its builds.[^ag-22][^d4]
 *Owner:* Product Owner · *Stage:* Review · *Compliance:* a review
 
@@ -51,8 +51,7 @@ Check each sheet yourself before showing it.
 **Guidance for this stage:** [AG-28](../guidance/advice.md) a result in front of the owner first (agents).
 
 [^ag-21]: Product Owner, 30 Oct 2026.
-[^ag-21b]: Product Owner, 26 Nov 2026 (the memory audit, item 14): every item is reviewed; a lighter tier that reviews only cut-overs, deletions and data writes is not adopted.
-[^ag-21c]: Product Owner, 26 Nov 2026 ("just do it"), after a one-cell wording fix took a third fresh review; with the work in chunks of about 6–10 h, each with one review.
+[^ag-21d]: Product Owner, 26 Nov 2026 (the programme runs attended, one step at a time): one fresh review is kept for the risky steps, and a fix from a review is not reviewed again; the wording approved the same day. It replaces the same day's earlier rulings that every item, then every chunk, is reviewed (the memory audit, item 14) and that a code fix gets a fresh reviewer.
 [^finding]: Product Owner, 26 Nov 2026 (the memory audit, contradiction 18): a finding nobody has seen is filed as a `finding` issue, "reproduce first", never as a `bug`; this settles AG-22 against AG-24.
 [^git-15]: Product Owner, 31 Jul 2026; a control from 26 Nov 2026 (the memory audit, item 15).
 [^ag-22]: Product Owner, 21–22 Nov 2026.

@@ -37,7 +37,7 @@
 4. **The Product Owner tests the UI-visible changes** in the running app, from a short list of what to try.
 5. **One commit per fix or step, pre-approved for the refactor**[^m14nov]. It is committed and pushed by the
    lead only when all of these hold:
-   - the reviewer has signed off;
+   - the reviewer has signed off, for a step whose Review column says yes;
    - the touched tests pass (and, from step G, the lint);
    - from step G, there is no unexplained parity difference;
    - only that change's files and hunks are staged;

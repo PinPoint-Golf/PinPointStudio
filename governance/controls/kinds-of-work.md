@@ -10,7 +10,7 @@ On top of the stages, each kind of work adds its own controls. A control written
 
 ## Bug fix
 
-**Extras:** [AG-22](review.md) fix only blocking findings; file the rest · [AG-24](review.md) bugs need evidence; how to file · [AD-22](kinds-of-work.md) one swing for a hypothesis · [AG-38](review.md) a backtrace before diagnosing a crash · [AG-20](plan.md) two ready items per lane; the next issue at first review (agents) · [BT-41](review.md) the proof, red before the fix · [GIT-14](commit.md) the evidence in the commit.
+**Extras:** [AG-22](review.md) fix only blocking findings; file the rest · [AG-24](review.md) bugs need evidence; how to file · [AD-22](kinds-of-work.md) one swing for a hypothesis · [AG-38](review.md) a backtrace before diagnosing a crash · [BT-41](review.md) the proof, red before the fix · [GIT-14](commit.md) the evidence in the commit.
 
 **Guidance, lessons that bite here:** [L-21](../guidance/lessons.md) sample intermittent failures · [L-36](../guidance/lessons.md) read the truth first.
 
