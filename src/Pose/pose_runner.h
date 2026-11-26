@@ -142,8 +142,8 @@ public:
     // (versions.pose.model). Never the reuse key: Mark's pose rule (14 Nov 2026) reuses
     // a saved pose whatever model file this host has, and re-poses only on a
     // kPoseStageVersion bump (reuse_gate.h); a reused pose keeps the identity it was
-    // recorded with. The file's size is read outside the stage, by the reader a composition root
-    // installed (pose_model_selection.h, installModelFileFingerprint; step 7.2); with none, "<file>@?".
+    // recorded with. The text is pinpoint::modelFileFingerprint's (Core/pp_model_path.h), 0 bytes
+    // when the file is missing.
     static QString modelIdentity(const QString &motionCaptureQuality);
     // An injected pose file's content (SwingLab --pose / --dtl-pose; ShotAnalysisJob::poseTrackJson),
     // read by whoever named the file, never here (P11, refactor step 7.2): nullopt = it could not be

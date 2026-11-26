@@ -20,11 +20,12 @@
 // Pure QString logic, no ONNX Runtime — locks the rule that ViTPose++-L runs ONLY
 // when the "High" tier is selected AND the (on-demand) L model has been downloaded,
 // and that every other combination falls back to ViTPose-B.
-// And the model file's fingerprint (refactor step 7.2, P11): read by the reader a composition root
-// installs (src/Export/model_file_fingerprint.h), never by the stage; empty while none is installed.
+// And the model file's fingerprint, pinpoint::modelFileFingerprint (src/Core/pp_model_path.h): the
+// text analysis.versions.pose.model holds, pinned to the strings the reader it replaced produced on
+// the same files (that reader, run on 26 Nov 2026 at 1e3269a8), so a swing's stamp cannot move.
 
 #include "../pose_model_selection.h"
-#include "../../Export/model_file_fingerprint.h"
+#include "../../Core/pp_model_path.h"
 
 #include <QFile>
 #include <QTemporaryDir>
@@ -70,21 +71,35 @@ int main()
     CHECK("empty tier -> B",                  useVitPoseLarge(QString(),                 true)  == false);
     CHECK("unknown tier -> B",                useVitPoseLarge(QStringLiteral("Ultra"),   true)  == false);
 
-    // The model file's fingerprint, through the installed reader (step 7.2).
+    // The model file's fingerprint: "<file name>@<bytes>", 0 bytes when the file is missing. Every
+    // expected string below is what the replaced reader gave for the same file. There is no
+    // "no reader installed" case any more: nothing is installed, so there is no such state.
     QTemporaryDir tmp;
-    const QString model = tmp.path() + QStringLiteral("/vitpose-test.onnx");
-    {
-        QFile f(model);
-        CHECK("fixture: a 7-byte model file", tmp.isValid() && f.open(QIODevice::WriteOnly) && f.write("1234567", 7) == 7);
-    }
-    using pinpoint::pose::modelFileFingerprint;
-    CHECK("no reader installed -> empty (the stage stamps \"<file>@?\")", modelFileFingerprint(model).isEmpty());
-    pinpoint::pose::installModelFileFingerprint(&pinpoint::readModelFileFingerprint);
-    CHECK("installed: \"<file>@<bytes>\"", modelFileFingerprint(model) == QStringLiteral("vitpose-test.onnx@7"));
-    CHECK("installed, file missing: \"<file>@0\" (as before 7.2)",
-          modelFileFingerprint(tmp.path() + QStringLiteral("/absent.onnx")) == QStringLiteral("absent.onnx@0"));
-    pinpoint::pose::installModelFileFingerprint(nullptr);
-    CHECK("uninstalled again -> empty", modelFileFingerprint(model).isEmpty());
+    const QString accented = QStringLiteral("mod") + QChar(0x00E8) + QStringLiteral("le fp16.onnx");
+    auto makeFile = [&](const QString &name, qint64 bytes) {
+        QFile f(tmp.path() + QLatin1Char('/') + name);
+        if (!f.open(QIODevice::WriteOnly))
+            return false;
+        return bytes <= 16 ? f.write(QByteArray(int(bytes), 'x')) == bytes : f.resize(bytes);
+    };
+    CHECK("fixture: the model files", tmp.isValid()
+              && makeFile(QStringLiteral("vitpose-test.onnx"), 7)
+              && makeFile(QStringLiteral("empty.onnx"), 0)
+              && makeFile(accented, 12)
+              && makeFile(QStringLiteral("big.onnx"), 360242862));
+    using pinpoint::modelFileFingerprint;
+    const QString dir = tmp.path() + QLatin1Char('/');
+    CHECK("present: \"<file>@<bytes>\"",
+          modelFileFingerprint(dir + QStringLiteral("vitpose-test.onnx")) == QStringLiteral("vitpose-test.onnx@7"));
+    CHECK("missing: \"<file>@0\"",
+          modelFileFingerprint(dir + QStringLiteral("absent.onnx")) == QStringLiteral("absent.onnx@0"));
+    CHECK("present and empty: \"<file>@0\"",
+          modelFileFingerprint(dir + QStringLiteral("empty.onnx")) == QStringLiteral("empty.onnx@0"));
+    CHECK("a name with an accent and a space, as written",
+          modelFileFingerprint(dir + accented) == accented + QStringLiteral("@12"));
+    CHECK("the bundled ViTPose-B's size, in full (vitpose-b-wholebody.onnx@360242862 on a real swing)",
+          modelFileFingerprint(dir + QStringLiteral("big.onnx")) == QStringLiteral("big.onnx@360242862"));
+    CHECK("no path: \"@0\"", modelFileFingerprint(QString()) == QStringLiteral("@0"));
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;

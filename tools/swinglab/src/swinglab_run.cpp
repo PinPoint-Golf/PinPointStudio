@@ -99,8 +99,6 @@
 #include "../../../src/Analysis/analysis_pipeline.h"   // analysisGraphJson (--dag)
 #include "../../../src/Analysis/swing_reanalyzer.h"
 #include "../../../src/Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
-#include "../../../src/Export/model_file_fingerprint.h"   // the pose model's fingerprint, read here (step 7.2)
-#include "../../../src/Pose/pose_model_selection.h"      // installModelFileFingerprint
 #include "../../../src/Ball/ball_runner.h"
 #include "../../../src/IMU/imu_vision_fuser.h"
 #include "../../../src/Timeline/phase_segmenter.h"
@@ -593,7 +591,6 @@ int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
     pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
-    pinpoint::pose::installModelFileFingerprint(&pinpoint::readModelFileFingerprint);   // versions.pose.model (7.2)
 
     // The pipeline explains itself through ppInfo/ppWarn/ppError, and those go to
     // PpMessageLog — which only the GUI drains. Unset, this tool discards every

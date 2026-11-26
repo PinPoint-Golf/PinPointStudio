@@ -100,8 +100,6 @@
 #include "../Diagnostics/packs/pack_provider.h"
 #include "../DomainModel/rule_data.h"     // RuleData: the packs and norms, one per machine (step 3.2)
 #include "../Export/rule_data_install.h" // the process's one RuleData, over its store
-#include "../Export/model_file_fingerprint.h"   // the pose model's fingerprint, read here, not by the stage (7.2)
-#include "../Pose/pose_model_selection.h"       // installModelFileFingerprint
 #include "../Vocabulary/Metrics/metric_catalogue.h"
 #include "shot_controller.h"
 #include "shot_list_model.h"
@@ -333,9 +331,6 @@ int main(int argc, char *argv[])
     // returns (the global pool drains in ~QCoreApplication, after main's locals) must not read freed memory.
     pinpoint::RuleData &ruleData = pinpoint::installProcessRuleData(
         std::make_shared<const pinpoint::analysis::MetricCatalogue>(pinpoint::analysis::makeMetricCatalogue()));
-    // THE POSE MODEL'S FINGERPRINT (versions.pose.model, "<file>@<bytes>"): read by this adapter, asked for
-    // by the pose stage at each stamp, which opens no file itself (P11; refactor step 7.2).
-    pinpoint::pose::installModelFileFingerprint(&pinpoint::readModelFileFingerprint);
     // SET-06 and SET-15 stay where they are stored (the v1.9 reviewer's condition), and the settings page's
     // two AppSettings properties become a view of RuleData: read from its snapshot, written through its
     // commands, notified on its EVT-12 — so its repository is their only reader and writer.

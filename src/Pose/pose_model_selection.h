@@ -29,8 +29,6 @@
 
 #include <QString>
 
-#include <atomic>
-
 namespace pinpoint::pose {
 
 // True iff the High tier should run ViTPose++-L. Falls back to ViTPose-B when the
@@ -41,33 +39,6 @@ inline bool useVitPoseLarge(const QString &quality, bool largeAvailable)
 {
     return largeAvailable
            && quality.compare(QLatin1String("High"), Qt::CaseInsensitive) == 0;
-}
-
-// THE MODEL FILE'S FINGERPRINT, READ OUTSIDE THE STAGE (P11; refactor step 7.2). The pose stage names
-// its model file (PoseEstimatorViTPose::modelPath) but never stats it: a composition root installs the
-// reader once, at start-up (src/Export/model_file_fingerprint.h, readModelFileFingerprint: "<file>@<bytes>",
-// 0 bytes when the file is missing), and the stage asks it each time it stamps versions.pose.model, so a
-// model downloaded mid-session reads as it did before. With no reader installed the answer is empty, and
-// PoseRunner::modelIdentity warns once and stamps "<file>@?", which no reader can take for a missing
-// model ("@0"). The pattern is the norm slot's factory (7.1, J-104).
-using ModelFileFingerprint = QString (*)(const QString &path);
-
-inline std::atomic<ModelFileFingerprint> &modelFileFingerprintSlot()
-{
-    static std::atomic<ModelFileFingerprint> slot{ nullptr };
-    return slot;
-}
-
-inline void installModelFileFingerprint(ModelFileFingerprint reader)
-{
-    modelFileFingerprintSlot().store(reader);
-}
-
-// The installed reader's answer for `path`; empty when none is installed.
-inline QString modelFileFingerprint(const QString &path)
-{
-    const ModelFileFingerprint reader = modelFileFingerprintSlot().load();
-    return reader ? reader(path) : QString();
 }
 
 } // namespace pinpoint::pose

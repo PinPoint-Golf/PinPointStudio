@@ -44,9 +44,18 @@
 // When nothing exists the FIRST candidate comes back, not an empty string, so a
 // caller's "model not found" message names the place the model was supposed to
 // be rather than the last place we happened to look.
+//
+// And the model file's fingerprint, modelFileFingerprint: the text a swing's
+// analysis.versions.pose.model (and poseDtl.model) holds, "<file name>@<bytes>",
+// 0 bytes when the file is missing. The pose stage calls it each time it stamps,
+// so a model downloaded mid-session reads as it now is. It is provenance, never a
+// reuse key (reuse_gate.h). The model files are bundled resources, not domain
+// files (information_model.md EXT-14), and this is a Platform file, so the read
+// is allowed here (lint A5).
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
 #include <QString>
 
 namespace pinpoint {
@@ -67,6 +76,13 @@ inline QString modelFilePath(const QString &file, const QString &buildSubdir)
         if (QFile::exists(c))
             return c;
     return candidates.first();
+}
+
+// "<file name>@<bytes>" for the model file at `path`; "<file name>@0" when it is missing.
+inline QString modelFileFingerprint(const QString &path)
+{
+    const QFileInfo fi(path);
+    return fi.fileName() + QLatin1Char('@') + QString::number(fi.exists() ? fi.size() : 0);
 }
 
 } // namespace pinpoint

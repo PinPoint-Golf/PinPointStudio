@@ -53,8 +53,6 @@
 #include "../../../src/Export/swing_exporter.h"
 #include "../../../src/Export/swing_store.h"
 #include "../../../src/Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
-#include "../../../src/Export/model_file_fingerprint.h"   // the pose model's fingerprint, read here (step 7.2)
-#include "../../../src/Pose/pose_model_selection.h"      // installModelFileFingerprint
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -63,7 +61,6 @@ int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
     pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
-    pinpoint::pose::installModelFileFingerprint(&pinpoint::readModelFileFingerprint);   // versions.pose.model (7.2)
     PpMessageLog::instance()->setEchoToStderr(true);
 
     QCommandLineParser cli;

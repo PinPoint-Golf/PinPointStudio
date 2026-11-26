@@ -42,6 +42,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h" // registerThread: the inference thread's CPU row
 #include "../Core/pp_profiler.h"
+#include "../Core/pp_model_path.h" // modelFileFingerprint: versions.pose.model
 
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
 #include <opencv2/core.hpp>
@@ -968,15 +969,8 @@ QString PoseRunner::modelIdentity(const QString &motionCaptureQuality)
         motionCaptureQuality, PoseEstimatorViTPose::isVariantAvailable(ViTVariant::WholeBodyLarge));
     const QString path = PoseEstimatorViTPose::modelPath(useLarge ? ViTVariant::WholeBodyLarge
                                                                   : ViTVariant::WholeBodyB);
-    // The fingerprint is read outside the stage (P11; step 7.2): the reader a composition root installed.
-    const QString id = pinpoint::pose::modelFileFingerprint(path);
-    if (!id.isEmpty())
-        return id;
-    static std::atomic<bool> warned{ false };
-    if (!warned.exchange(true))
-        ppWarn() << "[PoseRunner] no model-file reader installed (pinpoint::pose::installModelFileFingerprint):"
-                    " versions.pose.model is stamped \"<file>@?\"";
-    return QFileInfo(path).fileName() + QStringLiteral("@?");
+    // "<file>@<bytes>", read at each stamp by the Platform's model-file helper (pp_model_path.h).
+    return pinpoint::modelFileFingerprint(path);
 #else
     Q_UNUSED(motionCaptureQuality);
     return QStringLiteral("none");
