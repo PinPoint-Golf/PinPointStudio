@@ -48,8 +48,8 @@
 // Unit-tested standalone in src/Analysis/tests/shot_factors_test.cpp.
 
 #include "shot_outcomes.h"
-#include "../Vocabulary/Club/club_vocabulary.h"
-#include "../LaunchMonitor/lm_flight_path.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
+#include "../../LaunchMonitor/lm_flight_path.h"
 
 #include <QFile>
 #include <QHash>

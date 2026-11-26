@@ -42,10 +42,10 @@
 
 #include "diagnostic_ledger.h"
 #include "strike_from_flight.h"
-#include "../Vocabulary/Club/club_vocabulary.h"
-#include "../Diagnostics/engine/excludes_rule.h"
-#include "../Diagnostics/measures/club_baseline_provider.h"
-#include "../LaunchMonitor/lm_session_reductions.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
+#include "../engine/excludes_rule.h"
+#include "../measures/club_baseline_provider.h"
+#include "../../LaunchMonitor/lm_session_reductions.h"
 
 #include <QDate>
 #include <QHash>

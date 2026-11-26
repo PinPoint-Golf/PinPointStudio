@@ -1295,7 +1295,7 @@ QString tileMs(double ms, double sigma)
            + (sigma > 0.0 ? QStringLiteral(" ±") + QString::number(std::lround(sigma)) : QString()) + QStringLiteral(" ms");
 }
 
-// The shot's sequence checks (Coaching/sequence_checks.h sequenceChecksToVariant's shape) as their gadget, or null
+// The shot's sequence checks (Diagnostics/derived/sequence_checks.h sequenceChecksToVariant's shape) as their gadget, or null
 // when nothing was recorded (its empty map): PpChSeqTable draws its line for a recorded shot only.
 QVariant sequenceChecksOf(const QVariantMap &m)
 {
@@ -1432,7 +1432,7 @@ T::SequenceBlock sequenceBlock(Ctx &c)
                              ? QStringLiteral("Reasons not recorded for this shot; re-analyse it to see which gates fired.")
                              : QString();
     // The sequence checks (§10.6 E4): marks and reasons, no count — the engine's own verdicts,
-    // as the ledger row carries them (Coaching/sequence_checks.h). Null when none recorded.
+    // as the ledger row carries them (Diagnostics/derived/sequence_checks.h). Null when none recorded.
     out.checks = sequenceChecksOf(c.shot->diagnostics.sequenceChecks);
     return out;
 }

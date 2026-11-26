@@ -34,7 +34,7 @@
 
 #include "../rule_data.h"
 #include "../../Export/rule_data_store.h"
-#include "../../Coaching/strike_from_flight.h"   // FlightNorms: the store's read of the flight table (7.1)
+#include "../../Diagnostics/derived/strike_from_flight.h"   // FlightNorms: the store's read of the flight table (7.1)
 #include "../../Core/pp_settings.h"
 
 #include <QCoreApplication>

@@ -18,7 +18,7 @@
 
 #pragma once
 
-// What the swing themes (src/Coaching/swing_themes.h) need from the diagnostics pack, marshalled
+// What the swing themes (src/Diagnostics/derived/swing_themes.h) need from the diagnostics pack, marshalled
 // so that no pack type reaches the arithmetic — the same split work_ons.h keeps with PriorityClass.
 // Header-only; links nothing beyond what holding a CharacteristicPack already needs. The two functions
 // that name drills take the drill registry as an argument (RuleData's snapshot's, for a caller reading
@@ -28,7 +28,7 @@
 //                            is read, and its metricKey
 //   themeConditionInfo()     per condition: whether it is a fault to work on and whether it may be
 //                            praised — both from the condition's ROLE (conditionRoleFor,
-//                            src/Coaching/condition_role_pack.h), the one projection the work-on
+//                            src/Diagnostics/derived/condition_role_pack.h), the one projection the work-on
 //                            list reads too, so Your swing follows Work-ons: a held condition is
 //                            neither, an unheld Setup is worked on and praisable (rule v5) —
 //                            its detection mode and prominence, and its FAMILIES — the metricKey (or
@@ -58,8 +58,8 @@
 #include "characteristic_pack.h"
 #include "drill_pack.h"
 
-#include "../../Coaching/swing_themes.h"
-#include "../../Coaching/condition_role_pack.h"   // conditionRoleFor
+#include "../derived/swing_themes.h"
+#include "../derived/condition_role_pack.h"   // conditionRoleFor
 
 #include <QHash>
 #include <QSet>

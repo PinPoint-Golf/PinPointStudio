@@ -92,7 +92,7 @@ pushes on each of them:
 | Outcome signals read LM / impact measures: `m_spinAxis`, `m_lmLaunchDirection`, `m_lmStrikeHeight`, `m_strikeLocation`, `m_carryDistance`, `m_smashFactor`, `m_lowPointAhead` (prefers `lm.lowPointAhead`, falls back to our own) | core.json measures; `src/Diagnostics/measures/live_measure_source.cpp` (key ladder) | Evidence line per label (E2). |
 | Ball ← club edges, e.g. `slice ← out_to_in_path, open_face_to_path`; `chunk ← low_point_behind_ball, attack_too_steep, ball_back, diving, posture_sinks_impact, deceleration`; `shank ← early_extension, ball_too_close, …` | core.json edges | The trace below each label. |
 | Outcome ↔ outcome edges: only `excludes` (chunk ⊥ thin/top, sky ⊥ chunk, pull_hook ⊥ push_slice), `strike_heel ⇢ shank` (corroborates), `strike_toe/heel → smash_deficit` (causes) | core.json | Extend (§3.2). |
-| Per-shot ledger row: `ShotRecord { shotId, club, contextId, timestampMs, dataWarning, rows, signalRows, clubheadSpeed, peakTimes }` | `src/Coaching/diagnostic_ledger.h` | Already carries every fired outcome row per shot. |
+| Per-shot ledger row: `ShotRecord { shotId, club, contextId, timestampMs, dataWarning, rows, signalRows, clubheadSpeed, peakTimes }` | `src/Diagnostics/derived/diagnostic_ledger.h` | Already carries every fired outcome row per shot. |
 | `diagnostics.json` persists **rows and intent, never verdicts** | `SessionDiagnosticsModel` class comment §2 | Add corrections + shot intent to the envelope (§4.4). |
 | Declared miss: `declareMiss()`, `declaredMiss`, `declaredMissName`, `missChain`, `missCandidates()` (every outcome-kind condition) | `src/Gui/diagnostics/session_diagnostics_model.{h,cpp}`; chip text in `PpDiagReplayState.qml` (`missText`, `missInvited`); picker `sdMissPicker` in `PpDiagAnalyse.qml` | Retire as an input; reuse `missCandidates()` for the correction picker (§4.5). |
 | Explanation: `chains`, `driver`, `cards` with `reachesBall` / `rootHere`, `conditionDetail()` with `causes` / `effects` paths | session_diagnostics_model | Reasons table filter; cause graph. |
@@ -643,7 +643,7 @@ of the shot on the carousel (next to the other shot details) it will only be the
   (no new field in the summary file)[^d4b].
 - **The model.** `app.state.shotOutcome`, a typed value (`ShotOutcomeSummary`, `src/App/app_state.h`) worked out on
   each read from `app.state.outcome`'s shot and its own diagnostics (`ShotDiagnostics` over its
-  Session's `SessionDiagnostics`). The words and tone kinds are `src/Coaching/shot_factor_words.h`'s; QML maps a kind
+  Session's `SessionDiagnostics`). The words and tone kinds are `src/Diagnostics/derived/shot_factor_words.h`'s; QML maps a kind
   to a colour and nothing else. The summary is kept nowhere: it moves with the outcome, the selection, the session on screen, the Session's
   `ShotTrashed`, and its owner's kept results, so a re-analysis (EVT-02) or a correction refreshes it in place;
   `ShotAdded` moves `app.state.outcome` to the new shot. Tests: `outcome_summary_test`; on screen: `src/Gui/tests/probes/shot_summary_on_screen.qml`.
@@ -722,7 +722,7 @@ shot is re-composed from its row (`composeShotOutcome`, the panel's composer).
 - **Shots counted**: a launch-monitor reading, the ball's shape judged,
   straight intent (intended shapes excluded), corrections applied. A shot with a data warning still
   counts unless its rows are NotAssessable.
-- **The launch monitor board's annotations (refactor step 3.6, Stage 0.5's follow-up; `src/Coaching/board_annotations.h`)**:
+- **The launch monitor board's annotations (refactor step 3.6, Stage 0.5's follow-up; `src/Diagnostics/derived/board_annotations.h`)**:
   every shot is read as the golfer annotated it on the board — a re-labelled club is the shot's club (its key, its
   group, its distances), and a reading left out is read as one the monitor never made (its monitor readings and the
   rows they drive are not read), exactly the shot the board leaves out of its own figures. The same for Your
@@ -742,7 +742,7 @@ shot is re-composed from its row (`composeShotOutcome`, the panel's composer).
   sessions ⇒ likely, else possible. A second reason on ≥ 20 % of driven shots (and ≥ 2) is "Also seen".
 - **Trend**: last two judged sessions vs earlier, 15-point rule (home_themes). Under three judged
   sessions: "→ steady" if present throughout, "new" if it showed up in the latest, else "↓ easing".
-- **How often** words: the one frequency rule for a share (`src/Coaching/frequency_words.h`, Stage 0.13,
+- **How often** words: the one frequency rule for a share (`src/Diagnostics/derived/frequency_words.h`, Stage 0.13,
   14 Nov 2026), shared with Your swing: "every swing" … "more than half your swings", then "fairly often"
   (≥ 40 %), "sometimes" (≥ 25 %), "rarely". Tendencies stores these words in `tendencies.json`, so a change to
   a band needs `kTendencyRuleVersion` bumped.
@@ -899,7 +899,7 @@ fewShotsText, gapsText, shortBelowText }` in bag order, strings final.
 
 A second filter sits under Home's club filter[^m10nov]: **All shots · Good
 shots · each miss the golfer has had** within the club choice, most common first (`HmOutcomeScopeFilter`,
-`workOns.outcomeScope`, `src/Coaching/outcome_scope.h`). It answers "what am I doing on the shots that
+`workOns.outcomeScope`, `src/Diagnostics/derived/outcome_scope.h`). It answers "what am I doing on the shots that
 slice?". Coaching, Your swing and Matchups use it. Tendencies does not show it and ignores it, because
 Tendencies is already the table of outcomes and stays as it is.
 

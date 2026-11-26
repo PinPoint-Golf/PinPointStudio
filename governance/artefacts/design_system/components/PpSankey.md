@@ -7,7 +7,7 @@ Source: `src/Gui/components/PpSankey.qml`. Added 10 Nov 2026 for the tendency fl
 ## When to use
 Where shots (or anything counted) pass through a fixed sequence of categories and the question is where they go: the tendency flow on Home's Tendencies tab (strike → direction → flight, `HmTendencyFlow`). Not for a share of one category (use `PpBandBar`) or a value over time (a chart).
 
-It works out no number. The layout (counts, folding, order, every node's and ribbon's place) comes from C++, for the tendency flow `src/Coaching/tendency_flow.h` (`layoutTendencyFlow`), unit-tested on its own; the words come from whoever owns them (`WorkOnsController::tendencyFlow`). Never draw a flow from Shapes in a panel.
+It works out no number. The layout (counts, folding, order, every node's and ribbon's place) comes from C++, for the tendency flow `src/Diagnostics/derived/tendency_flow.h` (`layoutTendencyFlow`), unit-tested on its own; the words come from whoever owns them (`WorkOnsController::tendencyFlow`). Never draw a flow from Shapes in a panel.
 
 ## Consumer supplies
 `nodes`, `links` and `columns`, placed in plot units for a plot `plotHeight` high (lay the flow out at the height it is drawn, so a unit is a pixel), each ribbon's `tone` and `strength`, and optionally a `legend`.

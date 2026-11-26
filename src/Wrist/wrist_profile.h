@@ -33,7 +33,7 @@
 // Auto resolved this swing to — the wrist pattern. The checkpoint times are NOT here: they are the shot's phases
 // (wristCheckpoints(), the adapter's own table), read by the view on its own clock.
 //
-// Values and their JSON only (Qt Core): included by Coaching/diagnostic_ledger.h for ShotRecord, so it names no engine
+// Values and their JSON only (Qt Core): included by Diagnostics/derived/diagnostic_ledger.h for ShotRecord, so it names no engine
 // type.
 
 #include <QJsonArray>

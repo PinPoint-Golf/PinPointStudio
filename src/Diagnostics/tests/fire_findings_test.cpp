@@ -34,7 +34,7 @@
 #include "../../Export/rule_data_install.h"
 #include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
 #include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
-#include "../../Coaching/shot_outcomes_pack.h"
+#include "../derived/shot_outcomes_pack.h"
 
 #include <QCoreApplication>
 #include <QDir>

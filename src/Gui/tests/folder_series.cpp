@@ -22,9 +22,9 @@
 
 #include "../../Vocabulary/Analysis/swing_analysis.h"              // Phase::Impact
 #include "../../Vocabulary/Analysis/uncertainty_json.h"            // copyPhaseSampleSigma — σ keys, one spelling
-#include "../../Coaching/diagnostic_ledger.h"
-#include "../../Coaching/work_ons_pack.h"           // the work-on order (SessionSnapshot::workOnOrder)
-#include "../../Coaching/sequence_checks.h"         // the KS checks off the ledger's signal rows           // the ledger's one deserialiser
+#include "../../Diagnostics/derived/diagnostic_ledger.h"
+#include "../../Diagnostics/derived/work_ons_pack.h"           // the work-on order (SessionSnapshot::workOnOrder)
+#include "../../Diagnostics/derived/sequence_checks.h"         // the KS checks off the ledger's signal rows           // the ledger's one deserialiser
 #include "../../Vocabulary/Club/club_vocabulary.h"                 // swingDocDeclaredClub
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/condition_reading.h" // condition → { metricKey, phase }

@@ -19,8 +19,8 @@
 #pragma once
 
 // THE CONSISTENCY OF A CONDITION'S MEASURE OVER LEDGER ROWS moved to the Rules ring (refactor step 3.8; J-34):
-// src/Coaching/consistency_grade.h, unchanged — the one rule Home's consistency marks (AthleteDiagnostics::askConsistency,
+// src/Diagnostics/derived/consistency_grade.h, unchanged — the one rule Home's consistency marks (AthleteDiagnostics::askConsistency,
 // from the session summaries since refactor 3.7-f, J-52) and the report's work-on page (SessionReportModel) grade by.
 // This header forwards, so the report keeps its include.
 
-#include "../../Coaching/consistency_grade.h"
+#include "../../Diagnostics/derived/consistency_grade.h"

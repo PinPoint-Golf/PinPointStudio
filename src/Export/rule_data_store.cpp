@@ -20,7 +20,7 @@
 #include "rule_data_install.h"
 
 #include "../Core/atomic_write.h"
-#include "../Coaching/strike_from_flight.h"   // FlightNorms
+#include "../Diagnostics/derived/strike_from_flight.h"   // FlightNorms
 #include "../Core/pp_debug.h"
 #include "../Core/pp_settings.h"
 

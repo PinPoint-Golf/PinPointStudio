@@ -37,7 +37,7 @@
 //
 // The rules that MAKE them are session_day_readings_rules.h's (the writer and the posture presenter's own session).
 //
-// Rules ring (src/Coaching): values and JSON only.
+// Rules ring (src/Diagnostics/derived): values and JSON only.
 
 #include <QHash>
 #include <QJsonArray>

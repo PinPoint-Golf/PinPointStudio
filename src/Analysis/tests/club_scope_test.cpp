@@ -19,8 +19,8 @@
 // The club scope (club_scope.h): which shots a scope sees, its options and how a key resolves; and that
 // the quick half of the swing summary is exactly Layer 1 of the full reduction.
 
-#include "../../Coaching/club_scope.h"
-#include "../../Coaching/swing_themes.h"
+#include "../../Diagnostics/derived/club_scope.h"
+#include "../../Diagnostics/derived/swing_themes.h"
 
 #include <cstdio>
 

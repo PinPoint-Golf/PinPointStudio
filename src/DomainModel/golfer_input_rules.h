@@ -35,7 +35,7 @@
 
 #include "recording_repository.h"   // ShotReview, LabelCorrection
 #include "session_input.h"
-#include "../Coaching/tendencies.h"   // shotIntentsFromJson, shotCorrectionsFromJson (the older keys' readers)
+#include "../Diagnostics/derived/tendencies.h"   // shotIntentsFromJson, shotCorrectionsFromJson (the older keys' readers)
 
 #include <QHash>
 #include <QJsonObject>

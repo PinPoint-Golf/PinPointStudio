@@ -624,7 +624,7 @@ public:
     friend bool operator==(const SeqTableRow &, const SeqTableRow &) = default;
 };
 
-// One sequence check (Coaching/sequence_checks.h sequenceChecksToVariant's entry).
+// One sequence check (Diagnostics/derived/sequence_checks.h sequenceChecksToVariant's entry).
 struct SeqCheck
 {
     Q_GADGET

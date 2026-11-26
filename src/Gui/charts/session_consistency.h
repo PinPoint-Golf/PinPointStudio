@@ -44,7 +44,7 @@
 // compared with are the same wherever it lands, so a row stands out or not once and for all. Each
 // shuffle only counts which shot it landed on.
 
-#include "../../Coaching/consistency_home.h"    // the table's shape: columns and areas
+#include "../../Diagnostics/derived/consistency_home.h"    // the table's shape: columns and areas
 #include "session_series_types.h"
 #include "session_warp.h"
 #include "../../Vocabulary/Metrics/variability/variability_pooling.h"   // the within-club residuals (moved down in step 3.8)

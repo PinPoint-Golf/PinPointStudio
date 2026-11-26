@@ -23,7 +23,7 @@
 #include "../../DomainModel/session.h"
 #include "../../DomainModel/session_diagnostics.h"
 #include "../../DomainModel/shot.h"
-#include "../../Coaching/diagnostic_ledger.h"
+#include "../derived/diagnostic_ledger.h"
 #include "../../Export/athlete_store.h"
 #include "../../Export/firing_reader_store.h"
 #include "../../Export/recording_loader.h"

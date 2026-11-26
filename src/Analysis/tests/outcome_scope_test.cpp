@@ -19,7 +19,7 @@
 // The shot filter (outcome_scope.h): its keys, which shots a choice holds (the Tendencies rule, shared, factor by
 // factor), the counts that set a fault on the chosen shots against the other shots, and the words for them.
 
-#include "../../Coaching/outcome_scope.h"
+#include "../../Diagnostics/derived/outcome_scope.h"
 
 #include <cstdio>
 #include <limits>

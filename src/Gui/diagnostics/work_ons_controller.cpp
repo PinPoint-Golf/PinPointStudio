@@ -18,24 +18,24 @@
 
 #include "work_ons_controller.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
-#include "../../Coaching/tendency_flow_map.h"
+#include "../../Diagnostics/derived/tendency_flow_map.h"
 
-#include "../../Coaching/session_spread.h"
+#include "../../Diagnostics/derived/session_spread.h"
 
 
-#include "../../Coaching/board_annotations.h"   // the launch monitor board's annotations (step 3.6)
-#include "../../Coaching/club_scope.h"
-#include "../../Coaching/tendencies_pack.h"   // the tendencies over read sessions: one rule (3.6)
-#include "../../Coaching/shot_outcomes_pack.h"
-#include "../../Coaching/condition_in_hand.h"   // a condition worded for the golfer's hand (refactor 6.3b fix round, B-2)
-#include "../../Coaching/swing_areas_pack.h"
-#include "../../Coaching/work_ons_pack.h"
+#include "../../Diagnostics/derived/board_annotations.h"   // the launch monitor board's annotations (step 3.6)
+#include "../../Diagnostics/derived/club_scope.h"
+#include "../../Diagnostics/derived/tendencies_pack.h"   // the tendencies over read sessions: one rule (3.6)
+#include "../../Diagnostics/derived/shot_outcomes_pack.h"
+#include "../../Diagnostics/derived/condition_in_hand.h"   // a condition worded for the golfer's hand (refactor 6.3b fix round, B-2)
+#include "../../Diagnostics/derived/swing_areas_pack.h"
+#include "../../Diagnostics/derived/work_ons_pack.h"
 
 #include "../../Diagnostics/packs/characteristic_pack.h"
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/engine/pack_io.h"
 #include "../../Diagnostics/engine/fire_findings.h"   // contentStamp: the one rule (refactor 3.7-e)
-#include "../../Coaching/session_results.h"        // the summary's strict read (3.7-e)
+#include "../../Diagnostics/derived/session_results.h"        // the summary's strict read (3.7-e)
 #include "../../DomainModel/summary_rules.h"       // the rule data as the firing reads it; summaryFingerprintOf (3.7-e round 2)
 #include "../../DomainModel/athlete_diagnostics.h"   // AthleteLevel: the athlete level, which this adapts (3.7-f)
 #include <QMutex>
@@ -144,7 +144,7 @@ QString packLabel(const CharacteristicPack &pack, const QString &id, const QStri
     return fallback.isEmpty() ? id : fallback;
 }
 
-// tendencyClubGroup and tendencySetFromSessions: Coaching/tendencies_pack.h (one rule with AthleteDiagnostics; 3.6).
+// tendencyClubGroup and tendencySetFromSessions: Diagnostics/derived/tendencies_pack.h (one rule with AthleteDiagnostics; 3.6).
 
 // "1 shot", "38 shots".
 QString outcomeCountText(int n, const QString &one, const QString &many)

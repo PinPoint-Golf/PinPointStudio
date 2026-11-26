@@ -43,7 +43,7 @@
 #include "../DomainModel/recording_repository.h"   // WriteResult
 #include "../DomainModel/session_repository.h"     // DiagnosticsRead, SessionInputRead, JsonFileRead
 #include "../DomainModel/session_input.h"
-#include "../Coaching/diagnostic_ledger.h"   // kDiagSchemaVersion: a newer ledger is read-only (R-PERS-3; REVIEW-e B2)
+#include "../Diagnostics/derived/diagnostic_ledger.h"   // kDiagSchemaVersion: a newer ledger is read-only (R-PERS-3; REVIEW-e B2)
 
 #include <QDateTime>
 #include <QFile>

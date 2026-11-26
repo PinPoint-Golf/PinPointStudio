@@ -25,7 +25,7 @@
 
 #include "rule_data.h"
 #include "session_repository.h"   // JsonFileRead
-#include "../Coaching/club_distances.h"   // the club baseline file's reader
+#include "../Diagnostics/derived/club_distances.h"   // the club baseline file's reader
 #include "../Diagnostics/engine/fire_findings.h"
 #include "../Diagnostics/engine/session_reduction.h"
 

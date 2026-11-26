@@ -64,7 +64,7 @@
 //     session-level word, the stage held — into one immutable value and posts reduceSession()
 //     (src/Diagnostics/engine/session_reduction.h) to the same lane, under the next number of the one counter; the
 //     receiver keeps only the latest (an older reduction is dropped as superseded), and the owner applies it: the
-//     ledgers, the stage ratchet, the typed results (src/Coaching/session_results.h: work-ons, evidence, reasons,
+//     ledgers, the stage ratchet, the typed results (src/Diagnostics/derived/session_results.h: work-ons, evidence, reasons,
 //     each shot's "because" (J-14 (b)), per club the usual, carry today, mix and baseline window (D7)). The session's
 //     status is read from the Session, its one writer (J-24): an ended session's diagnosis is closed.
 //   • THE SUMMARY (FILE-SESS-05, DEC-55, DEC-192): summary() is the session's typed results with their provenance
@@ -75,7 +75,7 @@
 //     (AthleteDiagnostics::clubBaselineFor) — through Session::freezeClubBaseline when persisting (EVT-16 on a rewrite),
 //     in memory only when not — or not at all while it is not computable (loadOrFreezeClubBaseline).
 //   • THE BOARD'S ANNOTATIONS (step 3.6; Stage 0.5's follow-up): the reduction reads each shot as the golfer annotated
-//     it on the launch monitor board (Coaching/board_annotations.h), asked of the Shot (its summary).
+//     it on the launch monitor board (Diagnostics/derived/board_annotations.h), asked of the Shot (its summary).
 //   • HEADLESS (§4.4 step 11; R-HL-2): DiagnosticsDoors::synchronous runs the same jobs on the calling thread and
 //     hands each result to WorkReceiver::accept() itself; the same checks apply.
 //
@@ -102,13 +102,13 @@
 #include "firing_reader.h"
 #include "rule_data.h"
 #include "golfer_input_rules.h"
-#include "../Coaching/board_annotations.h"   // BoardAnnotation (step 3.6)
+#include "../Diagnostics/derived/board_annotations.h"   // BoardAnnotation (step 3.6)
 #include "session_input.h"    // IntentRun
-#include "../Coaching/shot_outcomes_pack.h"
+#include "../Diagnostics/derived/shot_outcomes_pack.h"
 #include "../Core/work_pool.h"
 #include "../Diagnostics/engine/fire_findings.h"
 #include "../Diagnostics/engine/session_reduction.h"
-#include "../Coaching/session_day_readings.h"   // the summary's day readings (refactor 5.5d)
+#include "../Diagnostics/derived/session_day_readings.h"   // the summary's day readings (refactor 5.5d)
 #include "../Vocabulary/Identity/identity.h"
 
 #include <QDate>

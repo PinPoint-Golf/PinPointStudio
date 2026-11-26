@@ -42,7 +42,7 @@
 #include "report/report_mailer.h"
 #include "report/mail_credentials.h"
 #include "report/report_meta.h"
-#include "../../Coaching/work_ons.h"
+#include "../../Diagnostics/derived/work_ons.h"
 #include "../../Export/session_archiver.h"
 #include "../../Export/session_report_io.h"   // the report's records, written as the repository writes them (5.6a)
 #include "../../Export/swing_doc.h"

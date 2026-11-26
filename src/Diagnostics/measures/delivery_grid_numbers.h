@@ -20,7 +20,7 @@
 
 // THE CLUB DELIVERY NUMBERS OF ONE SWING, OFF ITS PHASE GRID (refactor 5.5d; DEC-74). ONE RULE for the two places that
 // read them: the Charts delivery section's shot input (Gui/charts/session_delivery.cpp deliveryInputFromGrid, for this
-// session's shots) and the session summary's day readings (Coaching/session_day_readings.h, written by the shot's
+// session's shots) and the session summary's day readings (Diagnostics/derived/session_day_readings.h, written by the shot's
 // SessionDiagnostics, read by another session's Charts and report). Before 5.5d the second was the Charts presenter
 // reading the other sessions' swing_phasegrid.json itself; the numbers are the same, because the rule is the same.
 //

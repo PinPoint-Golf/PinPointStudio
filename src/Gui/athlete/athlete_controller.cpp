@@ -28,7 +28,7 @@
 #include "../../DomainModel/shot.h"      // the Wrist ★'s edge: a Shot's ref and folder, through its Session (step 5.7b)
 #include "../session/session_list_presenter.h"   // the one session list: each athlete's activity (step 5.7b)
 #include "../../DomainModel/athlete_diagnostics.h"   // AthleteLevel: Your distances, the athlete level's (3.7-f)
-#include "../../Coaching/tendencies.h"           // clubDistanceItemToJson
+#include "../../Diagnostics/derived/tendencies.h"           // clubDistanceItemToJson
 #include <QDate>
 #include <QDir>
 #include <QFile>

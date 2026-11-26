@@ -38,7 +38,7 @@
 
 #include "recording_repository.h"                     // ShotReview
 #include "../Diagnostics/engine/fire_findings.h"      // FiringReadings
-#include "../Coaching/session_day_readings.h"         // SessionCameras (refactor 5.5d)
+#include "../Diagnostics/derived/session_day_readings.h"         // SessionCameras (refactor 5.5d)
 #include "../Vocabulary/Identity/identity.h"
 
 #include <QString>

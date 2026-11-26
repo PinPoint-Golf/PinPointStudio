@@ -80,9 +80,9 @@
 #include <QString>
 #include <QStringList>
 
-#include "../Vocabulary/Common/pp_tuned_constants.h"   // tuned::diagUncertainty (§A8)
-#include "../Vocabulary/Analysis/det_rng.h"           // the P(Pattern) Monte Carlo
-#include "../Wrist/wrist_profile.h"        // ShotRecord::wrist (schema 16; DEC-123)
+#include "../../Vocabulary/Common/pp_tuned_constants.h"   // tuned::diagUncertainty (§A8)
+#include "../../Vocabulary/Analysis/det_rng.h"           // the P(Pattern) Monte Carlo
+#include "../../Wrist/wrist_profile.h"        // ShotRecord::wrist (schema 16; DEC-123)
 
 #include <algorithm>
 #include <optional>

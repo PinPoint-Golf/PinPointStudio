@@ -54,7 +54,7 @@
 #include "../../Export/session_archiver.h"
 #include "../../Export/session_store.h"
 #include "../../Export/session_index_summary.h"   // the entries' summaries' file work, set on the store as main.cpp sets it
-#include "../../Coaching/work_ons.h"
+#include "../../Diagnostics/derived/work_ons.h"
 #include "../../Export/tests/swing_doc_test_writes.h"
 #include "../../Core/pp_settings.h"
 

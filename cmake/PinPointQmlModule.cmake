@@ -639,7 +639,7 @@ set(PP_QML_SOURCES
     # The Consistency maths (consistency_design.md): sampling and rules, pure over the snapshot.
     src/Gui/charts/session_consistency.h
     src/Gui/charts/session_consistency.cpp
-    src/Coaching/consistency_home.h
+    src/Diagnostics/derived/consistency_home.h
     # Its production env: areas and norm sigma from the packs.
     src/Gui/charts/consistency_env.h
     src/Gui/charts/consistency_env.cpp
@@ -804,9 +804,9 @@ set(PP_QML_SOURCES
     src/Export/rule_data_store.cpp
     src/Export/rule_data_install.h
     src/Gui/diagnostics/session_diagnostics_model.h
-    src/Coaching/session_spread.h
+    src/Diagnostics/derived/session_spread.h
     src/Gui/diagnostics/session_diagnostics_model.cpp
-    src/Coaching/work_ons.h
+    src/Diagnostics/derived/work_ons.h
     src/Gui/diagnostics/work_ons_controller.h
     src/Gui/diagnostics/work_ons_controller.cpp
     src/Wrist/reference_bands.h

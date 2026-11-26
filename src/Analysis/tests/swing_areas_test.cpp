@@ -22,7 +22,7 @@
 // trend against the newest substantive session, the orders, the top fault and the work-on words.
 // Session records are built by hand so every count is the one the rule sees.
 
-#include "../../Coaching/swing_areas.h"
+#include "../../Diagnostics/derived/swing_areas.h"
 
 #include <cstdio>
 #include <vector>

@@ -1396,7 +1396,7 @@ pp_add_test(swing_themes_golden_test
     AUTOMOC)
 set_tests_properties(swing_themes_golden_test PROPERTIES TIMEOUT 600)
 
-# A condition's role (src/Coaching/condition_role_pack.h), the one projection of the pack's kind and
+# A condition's role (src/Diagnostics/derived/condition_role_pack.h), the one projection of the pack's kind and
 # hold rule (audit C-06): on the shipped core.json, Your swing's "a fault to work on" is the work-on
 # list's for every condition, and the list, areas, report and shot composer read the same answers as
 # before the role.
@@ -2288,7 +2288,7 @@ pp_add_test(session_diagnostics_test
 set_tests_properties(session_diagnostics_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
-# THE SESSION SUMMARY'S GATE COUNTS (platform refactor P-3b; src/Coaching/session_gates.h; information_model.md FILE-SESS-05
+# THE SESSION SUMMARY'S GATE COUNTS (platform refactor P-3b; src/Diagnostics/derived/session_gates.h; information_model.md FILE-SESS-05
 # `gates`): the writer (SessionDiagnostics, over the real store, Athletes and firing reader), the reader (the session index's
 # summary: SessionIndexSummaries) and the model browser's count (src/Gui/diagnosticmodel/gate_count_reads.h): the sum over
 # two athletes' indexes equals the library walk. A suite of its own: session_diagnostics_test is #187's (studio-build.cmd
@@ -2308,7 +2308,7 @@ set(SESSION_GATES_TEST_SOURCES ${SESSION_DIAGNOSTICS_TEST_SOURCES}
     ${SRC}/Export/swing_paths.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Export/phase_grid_store.cpp   # the count's reads
     ${SRC}/Gui/diagnosticmodel/gate_counts.h ${SRC}/Gui/diagnosticmodel/gate_count_reads.h
     ${SRC}/Gui/diagnosticmodel/corridor_grid_read.h   # the fallback's folder read; the suite defines it (B1.14)
-    ${SRC}/Gui/diagnosticmodel/gate_count_index.h ${SRC}/Coaching/session_gates.h ${SRC}/Export/athlete_store.cpp)
+    ${SRC}/Gui/diagnosticmodel/gate_count_index.h ${SRC}/Diagnostics/derived/session_gates.h ${SRC}/Export/athlete_store.cpp)
 list(REMOVE_DUPLICATES SESSION_GATES_TEST_SOURCES)
 pp_add_test(session_gates_test
     SOURCES ${SRC}/DomainModel/tests/session_gates_test.cpp ${SESSION_GATES_TEST_SOURCES}
@@ -2336,7 +2336,7 @@ pp_add_test(outcome_summary_test
             ${SRC}/Export/firing_reader_store.cpp
             ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
             ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp
-            ${SRC}/App/outcome_summary.h ${SRC}/App/outcome_summary.cpp ${SRC}/Coaching/shot_factor_words.h
+            ${SRC}/App/outcome_summary.h ${SRC}/App/outcome_summary.cpp ${SRC}/Diagnostics/derived/shot_factor_words.h
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS} Qt6::Qml
     STD 20
@@ -2631,6 +2631,6 @@ pp_add_test(forward_backward_test
     COMPILE_OPTIONS -O2)
 pp_add_test(plane_bootstrap_test SOURCES plane_bootstrap_test.cpp NO_QT)
 
-# The session report's pure reductions (src/Coaching/session_report.h, header-only, beside work_ons.h).
+# The session report's pure reductions (src/Diagnostics/derived/session_report.h, header-only, beside work_ons.h).
 # At the end of the file so every path variable above (DIAG, DIAGRES, NORM_INC…) is in scope.
 include(${CMAKE_CURRENT_LIST_DIR}/session_report_tests.cmake)

@@ -41,8 +41,8 @@
 #include "../shot.h"
 #include "../../Core/work_pool.h"
 #include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
-#include "../../Coaching/session_gates.h"
-#include "../../Coaching/session_results.h"
+#include "../../Diagnostics/derived/session_gates.h"
+#include "../../Diagnostics/derived/session_results.h"
 #include "../../Export/firing_reader_store.h"
 #include "../../Export/recording_loader.h"
 #include "../../Export/rule_data_install.h"

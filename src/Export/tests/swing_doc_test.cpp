@@ -2391,7 +2391,7 @@ int main()
         // src/Analysis holds the pipeline; its producers live in the topic folders beside it.
         static const char *const kAnalysisDirs[] = {
             "Analysis", "Club", "Wrist", "Body", "Timeline", "Ball", "Kinematics", "Skeleton3d",
-            "Coaching", "Pose", "IMU", "LaunchMonitor", "Vocabulary/LaunchMonitor", "Vocabulary/Metrics",
+            "Diagnostics/derived", "Pose", "IMU", "LaunchMonitor", "Vocabulary/LaunchMonitor", "Vocabulary/Metrics",
         };
         QStringList offenders, missing;
         int scanned = 0;

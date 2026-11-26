@@ -20,7 +20,7 @@
 
 #include "../charts/session_series_types.h"
 #include "../charts/charts_work.h"   // SeriesSource (refactor 5.5a)
-#include "../../Coaching/board_annotations.h"   // the launch monitor board's rule (J-45)
+#include "../../Diagnostics/derived/board_annotations.h"   // the launch monitor board's rule (J-45)
 
 #include <QHash>
 #include <QJsonObject>

@@ -62,7 +62,7 @@
 #include "../../Core/folder_lock.h"
 #include "../../Core/work_pool.h"
 #include "../../Diagnostics/measures/live_measure_source.h"
-#include "../../Coaching/session_day_readings_rules.h"   // the day readings' rules (refactor 5.5d)
+#include "../../Diagnostics/derived/session_day_readings_rules.h"   // the day readings' rules (refactor 5.5d)
 #include "../../Export/firing_reader_store.h"
 #include "../../Export/phase_grid_store.h"   // the phase grid's file door (platform refactor P-3)
 #include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)

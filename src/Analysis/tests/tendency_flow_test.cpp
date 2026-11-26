@@ -15,10 +15,10 @@
  * with this program; if not, write to the Free Software Foundation, Inc., 51
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-// tendency_flow_test — the Sankey layout (src/Coaching/tendency_flow.h; docs/design/tendencies_flow_design.md §8):
+// tendency_flow_test — the Sankey layout (src/Diagnostics/derived/tendency_flow.h; docs/design/tendencies_flow_design.md §8):
 // conservation, determinism, folding, the edge cases, geometry, the first-failure rule, and the doc's 80-shot golden set.
 
-#include "../../Coaching/tendency_flow.h"
+#include "../../Diagnostics/derived/tendency_flow.h"
 
 #include <algorithm>
 #include <cmath>

@@ -22,7 +22,7 @@
 // bands under a half, each club's factor tuples, the on-ball lines, and the JSON. Header-only:
 // `shot_outcomes_test` proves the composer and `shot_factors_test` the factors it reads.
 
-#include "../../Coaching/tendencies.h"
+#include "../../Diagnostics/derived/tendencies.h"
 #include "../../Gui/report/report_tendencies.h"
 
 #include <QJsonDocument>

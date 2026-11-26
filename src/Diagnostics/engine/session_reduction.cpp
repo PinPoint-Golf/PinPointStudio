@@ -20,11 +20,11 @@
 
 #include "characteristic_engine.h"
 #include "../measures/session_measure_source.h"
-#include "../../Coaching/club_distances.h"
-#include "../../Coaching/sequence_checks.h"
-#include "../../Coaching/strike_from_flight.h"
-#include "../../Coaching/tendencies.h"
-#include "../../Coaching/work_ons_pack.h"
+#include "../derived/club_distances.h"
+#include "../derived/sequence_checks.h"
+#include "../derived/strike_from_flight.h"
+#include "../derived/tendencies.h"
+#include "../derived/work_ons_pack.h"
 #include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
 

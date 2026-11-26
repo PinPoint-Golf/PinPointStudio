@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// A CONDITION'S ROLE (src/Coaching/condition_role_pack.h) — the one projection of the pack's kind and
+// A CONDITION'S ROLE (src/Diagnostics/derived/condition_role_pack.h) — the one projection of the pack's kind and
 // hold rule that the work-on list, Home's areas, the shot outcome composer, the session report and
 // Home → Your swing read (audit C-06, 14 Nov 2026).
 //
@@ -29,11 +29,11 @@
 //   3. The shipped pack's own cases: a held fault (chicken_wing) is in none of Your swing's lists; an
 //      unheld Setup habit can be needs work and praised; the same set-up held is neither.
 
-#include "../../Coaching/condition_role_pack.h"
-#include "../../Coaching/work_ons_pack.h"
-#include "../../Coaching/swing_areas_pack.h"
-#include "../../Coaching/shot_outcomes_pack.h"
-#include "../../Coaching/session_report.h"
+#include "../../Diagnostics/derived/condition_role_pack.h"
+#include "../../Diagnostics/derived/work_ons_pack.h"
+#include "../../Diagnostics/derived/swing_areas_pack.h"
+#include "../../Diagnostics/derived/shot_outcomes_pack.h"
+#include "../../Diagnostics/derived/session_report.h"
 #include "../../Diagnostics/packs/swing_themes_pack.h"
 
 #include <QFile>

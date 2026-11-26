@@ -51,9 +51,9 @@
 #include "../norms/norm.h"                      // Cohort
 #include "../norms/norm_provider.h"
 #include "../packs/pack_provider.h"
-#include "../../Coaching/diagnostic_ledger.h"   // ShotRecord, the rows
-#include "../../Coaching/shot_factors.h"        // ShotFactors (and, through it, ShotOutcome, composeShotOutcome)
-#include "../../Coaching/strike_from_flight.h"  // FlightNorms, ClubFlightUsual
+#include "../derived/diagnostic_ledger.h"   // ShotRecord, the rows
+#include "../derived/shot_factors.h"        // ShotFactors (and, through it, ShotOutcome, composeShotOutcome)
+#include "../derived/strike_from_flight.h"  // FlightNorms, ClubFlightUsual
 #include "../../Vocabulary/Common/pp_tuned_constants.h"
 #include "../../Wrist/wrist_profile_assess.h"   // WristInput, the wrist checkpoint profile (DEC-123)
 
@@ -138,7 +138,7 @@ QString firingStamp(const FiringInputs &inputs);
 // THE CONTENT STAMP (refactor step 3.7-e: ONE rule, the old model's contentStampOf moved here so the owner and the screens'
 // model hash alike): the diagnostic graph, the norms and their contexts, and the row shape's versions (schema, words,
 // grading, the phase grid) — "which pack and norms graded the rows" (FIELD-LIST §1.8). What a session summary's freshness
-// fingerprint carries (Coaching/session_results.h summaryFingerprintOf) and the catch-up's scan compares; the screens'
+// fingerprint carries (Diagnostics/derived/session_results.h summaryFingerprintOf) and the catch-up's scan compares; the screens'
 // SessionDiagnosticsModel::contentStamp(). Empty without both. The rows it speaks for are checked against the ball
 // flight, so it carries the flight table and the flight check's rule and thresholds too (C-02; refactor 6.3a: R-STAMP-1);
 // a null `flight` hashes as the empty table, as an empty snapshot's rows are checked.

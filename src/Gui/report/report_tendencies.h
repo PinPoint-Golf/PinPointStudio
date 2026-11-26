@@ -33,8 +33,8 @@
 // W4: the three factor maps are the minimum for this to compile against the three-factor TendencyItem
 // (shot_factors.h); the page's columns and words are W4's.
 
-#include "../../Coaching/tendencies.h"
-#include "../../Coaching/tendency_flow_map.h"
+#include "../../Diagnostics/derived/tendencies.h"
+#include "../../Diagnostics/derived/tendency_flow_map.h"
 
 #include <QString>
 #include <QVariant>

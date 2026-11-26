@@ -695,7 +695,7 @@ def longest_text(base, pack):
 
 
 def causes_at_caps(base, pack):
-    """Every cause group of every work-on at its cap (src/Coaching/session_report.h: spotted is uncapped — three here;
+    """Every cause group of every work-on at its cap (src/Diagnostics/derived/session_report.h: spotted is uncapped — three here;
     could-be kCouldBeCap 6 and "7 more, less likely"; ruled-out kRuledOutCap 4 and "6 more"), with the pack's longest
     condition names, the model's lead for that many spotted; the order page's checks and "not on the list" at length."""
     r = copy.deepcopy(base)

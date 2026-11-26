@@ -35,11 +35,11 @@ inline void appendRules(std::vector<GateEntry> &c)
     const QString charts = QStringLiteral("Charts");
     const QString lmArea = QStringLiteral("Launch monitor");
 
-    const char *ledger    = "src/Coaching/diagnostic_ledger.h";
+    const char *ledger    = "src/Diagnostics/derived/diagnostic_ledger.h";
     const char *engine    = "src/Diagnostics/engine/characteristic_engine.cpp";
-    const char *workOns   = "src/Coaching/work_ons.h";
-    const char *themes    = "src/Coaching/swing_themes.h";
-    const char *seqChecks = "src/Coaching/sequence_checks.h";
+    const char *workOns   = "src/Diagnostics/derived/work_ons.h";
+    const char *themes    = "src/Diagnostics/derived/swing_themes.h";
+    const char *seqChecks = "src/Diagnostics/derived/sequence_checks.h";
     const char *traces    = "src/Gui/charts/session_traces.cpp";
     const char *consistency = "src/Gui/charts/session_consistency.cpp";
     const char *consistencyGrades = "src/Gui/charts/consistency_grades.cpp";    // the table's grades

@@ -37,7 +37,7 @@
 // Domain model ring (src/DomainModel): the vocabulary (the launch monitor's device names) and one rules header (the gate
 // counts' value type), both header-only.
 
-#include "../Coaching/session_gates.h"     // SessionGates (rules: values and JSON only)
+#include "../Diagnostics/derived/session_gates.h"     // SessionGates (rules: values and JSON only)
 #include "../Vocabulary/LaunchMonitor/lm_device.h"   // canonicalDeviceToken (vocabulary)
 
 #include <QString>

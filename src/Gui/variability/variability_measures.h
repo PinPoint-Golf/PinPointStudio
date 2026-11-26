@@ -19,6 +19,6 @@
 #pragma once
 
 // WHAT A MEASURE IS, FOR A VARIABILITY MARK moved to the Rules ring (refactor step 3.7-f; J-52, as J-34 moved the grader in
-// 3.8-i): src/Coaching/variability_measures.h, unchanged. This header forwards, so its callers keep their include.
+// 3.8-i): src/Diagnostics/derived/variability_measures.h, unchanged. This header forwards, so its callers keep their include.
 
-#include "../../Coaching/variability_measures.h"
+#include "../../Diagnostics/derived/variability_measures.h"

@@ -18,18 +18,18 @@
 
 #pragma once
 
-#include "../../Coaching/diagnostic_ledger.h"
-#include "../../Coaching/firing_side.h"            // conditionFiringSide (#16)
-#include "../../Coaching/shot_outcomes.h"
-#include "../../Coaching/tendencies.h"
-#include "../../Coaching/work_ons.h"
+#include "../../Diagnostics/derived/diagnostic_ledger.h"
+#include "../../Diagnostics/derived/firing_side.h"            // conditionFiringSide (#16)
+#include "../../Diagnostics/derived/shot_outcomes.h"
+#include "../../Diagnostics/derived/tendencies.h"
+#include "../../Diagnostics/derived/work_ons.h"
 #include "../../Diagnostics/engine/characteristic_engine.h"
 #include "../../Diagnostics/engine/relation_resolver.h"
 #include "../../DomainModel/session_input.h"
 #include "../../DomainModel/session_identity.h"   // the held session's identity (its id names its shots)
-#include "../../Coaching/session_spread.h"
+#include "../../Diagnostics/derived/session_spread.h"
 
-#include "../../Coaching/session_results.h"   // SessionResults (the thin adapter's view of its owner: 3.7-a)
+#include "../../Diagnostics/derived/session_results.h"   // SessionResults (the thin adapter's view of its owner: 3.7-a)
 
 #include <optional>
 #include <QHash>
@@ -73,7 +73,7 @@ class INormProvider;
 // It is a JOIN and an ORCHESTRATOR, and deliberately not a second place where diagnostics
 // arithmetic lives. Everything it publishes is one of three things:
 //
-//   · a reduction from `src/Coaching/diagnostic_ledger.h` (every tier, recurrence, trend,
+//   · a reduction from `src/Diagnostics/derived/diagnostic_ledger.h` (every tier, recurrence, trend,
 //     link grade, chain, stage, bookend and anti-churn ordering),
 //   · a fact from the authored pack (`src/Diagnostics`: names, consequences, screens,
 //     causal edges, the explanation pass), or
@@ -452,7 +452,7 @@ public:
     // ── The kinematic sequence checks (trunk_imu_sequence_grf_design.md §10.6, E4) ──────
     //
     // The thirteen sequence checks for one shot (marks and reasons; no count), read off the
-    // engine's own signal verdicts that the per-shot firing recorded (Coaching/sequence_checks.h has the
+    // engine's own signal verdicts that the per-shot firing recorded (Diagnostics/derived/sequence_checks.h has the
     // shape). Empty map for a shot not in the ledger or one recorded before schema 5.
     Q_INVOKABLE QVariantMap sequenceChecks(int shotId) const;
     // The session's swings best-sequenced first (§10.6: checks failed with pFire > 0.5, then
@@ -461,7 +461,7 @@ public:
     Q_INVOKABLE QVariantList sequenceRanking() const;
     // The session's sequence consistency (F10, §10.8 E2): "In sequence on 9 of 14 swings", the
     // peak-timing spread against the professional spread with the cohort named, and the engine's
-    // verdict on the session condition (Coaching/sequence_checks.h sequenceConsistencyToVariant has
+    // verdict on the session condition (Diagnostics/derived/sequence_checks.h sequenceConsistencyToVariant has
     // the shape), plus `countLine` / `afterLine`: the session card's count and the line under it, named
     // by the clause that fired (sequenceConsistencyCountLine / AfterLine; absent with no session
     // condition in the pack). Read over the session, never one swing. The Charts KS Session view binds

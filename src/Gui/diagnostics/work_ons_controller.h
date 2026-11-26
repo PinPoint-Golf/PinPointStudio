@@ -18,11 +18,11 @@
 
 #pragma once
 
-#include "../../Coaching/club_scope.h"
-#include "../../Coaching/outcome_scope.h"
-#include "../../Coaching/swing_themes.h"
-#include "../../Coaching/tendencies.h"
-#include "../../Coaching/work_ons.h"
+#include "../../Diagnostics/derived/club_scope.h"
+#include "../../Diagnostics/derived/outcome_scope.h"
+#include "../../Diagnostics/derived/swing_themes.h"
+#include "../../Diagnostics/derived/tendencies.h"
+#include "../../Diagnostics/derived/work_ons.h"
 #include "../variability/variability_facade.h"      // VariabilityResultView: the consistency marks
 
 #include <QDate>

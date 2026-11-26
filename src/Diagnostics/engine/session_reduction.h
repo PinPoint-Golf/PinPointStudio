@@ -24,7 +24,7 @@
 // values out (R-CON-2), reading nothing but its argument. It reduces the session's kept findings (the rows as checked
 // against the session's usual flight) and each shot's derived data to the session's diagnosis — the ledgers (tiers),
 // the session-scope conditions, the pattern graph's links, the stage ratchet — and to its typed results
-// (src/Coaching/session_results.h): the work-ons and evidence, the outcome evidence, the reasons and each shot's
+// (src/Diagnostics/derived/session_results.h): the work-ons and evidence, the outcome evidence, the reasons and each shot's
 // "because" (J-14 (b): the session's links and tiers name a shot's driver; the shot's own outcome carries none),
 // the shot mix, per club the carry today, the factor mix and the baseline window (D7), and the usuals (G-10).
 //
@@ -41,10 +41,10 @@
 // Rules ring (src/Diagnostics/engine, beside fire_findings): no reader, no file, no QObject.
 
 #include "fire_findings.h"
-#include "../../Coaching/diagnostic_ledger.h"
-#include "../../Coaching/sequence_checks.h"   // the session's sequence-consistency reading (SessionDiagnosis::sequence)
-#include "../../Coaching/session_results.h"
-#include "../../Coaching/shot_outcomes_pack.h"
+#include "../derived/diagnostic_ledger.h"
+#include "../derived/sequence_checks.h"   // the session's sequence-consistency reading (SessionDiagnosis::sequence)
+#include "../derived/session_results.h"
+#include "../derived/shot_outcomes_pack.h"
 
 #include <QCryptographicHash>
 #include <QDate>
@@ -60,7 +60,7 @@ namespace pinpoint::analysis {
 
 // The reduction's own version (R-STAMP-3; C-05's other half is 3.6's golden). 1 (16 Nov 2026): refactor 3.5-ii.
 // 2 (16 Nov 2026, refactor 3.6; Stage 0.5's follow-up): its input is each shot as the launch monitor board annotated it
-// (Coaching/board_annotations.h; SessionDiagnostics::reductionInput) — the effective club, a left-out reading not read.
+// (Diagnostics/derived/board_annotations.h; SessionDiagnostics::reductionInput) — the effective club, a left-out reading not read.
 // 3 (16 Nov 2026, refactor 3.6, round 2): its results carried the shots as judged (withdrawn). 4 (round 3): they carry
 // the compact per-shot facts (SessionResults version 3), and a shot the board re-labelled is composed under its new club
 // (review CN-1).

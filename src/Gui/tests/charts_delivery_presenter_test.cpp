@@ -37,7 +37,7 @@
 #include "charts/session_delivery.h"
 #include "charts/session_series_types.h"
 #include "Diagnostics/measures/measure_sample.h"
-#include "Coaching/session_day_readings_rules.h"   // the day readings' one rule (refactor 5.5d)
+#include "Diagnostics/derived/session_day_readings_rules.h"   // the day readings' one rule (refactor 5.5d)
 #include "charts/session_neighbours.h"
 
 #include <QDateTime>

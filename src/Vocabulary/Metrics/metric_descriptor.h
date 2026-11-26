@@ -571,7 +571,7 @@ struct MetricDescriptor {
     QStringList        usedBy;
 
     // The swing area the Consistency table reads this metric under, an area token of areaGroupOrder()
-    // (Coaching/swing_areas.h). Optional: a reading's area normally comes from the conditions that
+    // (Diagnostics/derived/swing_areas.h). Optional: a reading's area normally comes from the conditions that
     // detect on it (metricAreasForPack), so this is set only on the readings no condition detects on
     // (consistency_design.md Appendix B). When set it wins. Empty for everything else.
     QString            consistencyArea;

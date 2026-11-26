@@ -319,7 +319,7 @@ TEST(PpcpAnnotations, NothingInAnalysisReadsAnAnnotation)
     // producers live in the topic folders beside it. Every one of them is scanned.
     static const char *const kAnalysisDirs[] = {
         "Analysis", "Club", "Wrist", "Body", "Timeline", "Ball", "Kinematics", "Skeleton3d",
-        "Coaching", "Pose", "IMU", "LaunchMonitor", "Vocabulary/LaunchMonitor", "Vocabulary/Metrics",
+        "Diagnostics/derived", "Pose", "IMU", "LaunchMonitor", "Vocabulary/LaunchMonitor", "Vocabulary/Metrics",
     };
 
     std::vector<std::string> offenders;

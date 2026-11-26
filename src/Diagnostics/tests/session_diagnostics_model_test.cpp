@@ -40,8 +40,8 @@
 #include "../../Export/swing_store.h"
 #include "../../Export/swing_store_repository.h"
 #include "../../Gui/variability/variability_facade.h"   // the per-club badges' variabilityResult
-#include "../../Coaching/sequence_checks.h"
-#include "../../Coaching/condition_in_hand.h"   // the one function a condition is worded through (6.3b fix round, B-2)
+#include "../derived/sequence_checks.h"
+#include "../derived/condition_in_hand.h"   // the one function a condition is worded through (6.3b fix round, B-2)
 #include "../engine/characteristic_engine.h"
 #include "../packs/pack_provider.h"                // makeCharacteristicPackProvider (#16 side checks)
 #include "../norms/norm_provider.h"                // a saved corridor edit (audit B-01, Stage 0.4b)

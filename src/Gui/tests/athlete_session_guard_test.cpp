@@ -34,7 +34,7 @@
 #include "athlete_test_library.h"
 #include "pp_settings.h"
 
-#include "../../Coaching/tendencies.h"   // clubDistanceItemToJson (the typed distances, step 5.7b)
+#include "../../Diagnostics/derived/tendencies.h"   // clubDistanceItemToJson (the typed distances, step 5.7b)
 
 #include <QFileInfo>
 #include <QJsonObject>

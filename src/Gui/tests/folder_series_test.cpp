@@ -33,8 +33,8 @@
 #include "../../Wrist/wrist_profile_assess.h"
 #include "../../Export/rule_data_install.h"
 
-#include "../../Coaching/board_annotations.h"
-#include "../../Coaching/diagnostic_ledger.h"
+#include "../../Diagnostics/derived/board_annotations.h"
+#include "../../Diagnostics/derived/diagnostic_ledger.h"
 #include "../../DomainModel/rule_data.h"   // makeCharacteristicPackProvider
 #include "../../Vocabulary/Metrics/metric_reducer.h"
 #include "../../Export/swing_store.h"

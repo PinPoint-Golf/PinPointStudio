@@ -5,7 +5,7 @@
 //   cmake --build build/analyzer-tests --target dashboard_reductions_test
 //   ctest --test-dir build/analyzer-tests -R dashboard_reductions --output-on-failure
 
-#include "../../Coaching/dashboard_reductions.h"
+#include "../../Diagnostics/derived/dashboard_reductions.h"
 
 #include <cmath>
 #include <cstdio>

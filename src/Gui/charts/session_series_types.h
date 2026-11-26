@@ -146,7 +146,7 @@ struct ChartShotFindings {
     QHash<QString, Reading> gradedBy;     // conditionId → reading; fired and clean conditions
 
     // ADDED 14 Oct (K4). The kinematic sequence checks (marks and reasons; no count), in the shape
-    // Coaching/sequence_checks.h sequenceChecksToVariant() publishes — read off the ledger's own
+    // Diagnostics/derived/sequence_checks.h sequenceChecksToVariant() publishes — read off the ledger's own
     // per-signal verdicts (schema 5), never re-derived here. Empty when the row carries none.
     QVariantMap sequenceChecks;
 
@@ -239,7 +239,7 @@ struct SessionSnapshot {
     QHash<QString, QString> tiers;
     // ADDED 22 Oct: EVERY session pattern in the work-on list's order — roots before symptoms, still
     // happening before resolving, sharp first, then where in the swing, then the bigger miss — by the
-    // ONE reduction Session diagnostics and the report use (Coaching/work_ons_pack.h
+    // ONE reduction Session diagnostics and the report use (Diagnostics/derived/work_ons_pack.h
     // sessionPrioritiesForPack, uncapped), over the same ledgers as `tiers`. The Posture section orders its
     // head line and its Findings by it. Empty with no ledger, or no pattern.
     QStringList workOnOrder;

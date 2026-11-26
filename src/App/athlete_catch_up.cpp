@@ -22,7 +22,7 @@
 #include "../DomainModel/athlete_diagnostics.h"
 #include "../DomainModel/session.h"
 #include "../DomainModel/session_diagnostics.h"
-#include "../Coaching/club_distances.h"   // kClubDistanceWindowSessions
+#include "../Diagnostics/derived/club_distances.h"   // kClubDistanceWindowSessions
 #include "../Core/pp_debug.h"
 
 #include <QDir>

@@ -40,7 +40,7 @@ DIRS = {
     'Vocabulary/Recording/': ACQ, 'Vocabulary/Identity/': S, 'Core/': S,
     'Vocabulary/Club/': S, 'Vocabulary/Common/': S, 'Vocabulary/LaunchMonitor/': ACQ,
     'Pose/': DIA, 'Club/': DIA, 'Ball/': DIA, 'Kinematics/': DIA, 'Timeline/': DIA, 'Diagnostics/': DIA,
-    'Coaching/': DIA,                       # today's files: the derived facts (move to Diagnostics/derived/ in Stage B)
+    'Diagnostics/derived/': DIA,                       # the derived facts (from the Coaching folder, Stage B, Part 1)
     'IMU/': DIA,                            # golf fusion; signal-level files and device back-ends below
     'Analysis/': DIA,
     'DomainModel/': HUB, 'App/': HUB, 'Gui/': HUB, 'Export/': HUB,
@@ -112,7 +112,7 @@ HUB_CONTRACT = {
     'DomainModel/golfer_input_rules', 'DomainModel/summary_rules'}
 # The results contract (Diagnostics -> Coaching): IM names objects (OBJ-SHOT-DERIVED ...), not headers. This script's
 # stand-in: the result value types, i.e. Diagnostics' vocabulary and the derived facts' headers.
-RESULT_DIRS = ('Vocabulary/Analysis/', 'Vocabulary/Metrics/', 'Coaching/')
+RESULT_DIRS = ('Vocabulary/Analysis/', 'Vocabulary/Metrics/', 'Diagnostics/derived/')
 
 LITERAL_L2 = '--literal-l2' in sys.argv
 

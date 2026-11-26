@@ -19,7 +19,7 @@
 // club_distances.h — the as-of baseline, the window, the floors, the mishit rule and the classifier,
 // one block per rule, plus the schema-11 ledger round trip the reductions read.
 
-#include "../../Coaching/club_distances.h"
+#include "../../Diagnostics/derived/club_distances.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>

@@ -72,7 +72,7 @@ at the next refresh.
    session that measured fewer than three movements up to three. A condition the pack holds back
    (`reportHold`: a reading not trusted enough to headline) is never listed, whatever its kind.
    This class is one part of a condition's ROLE (`conditionRoleFor`,
-   `src/Coaching/condition_role_pack.h`), read off the pack once: Home's swing areas, the session
+   `src/Diagnostics/derived/condition_role_pack.h`), read off the pack once: Home's swing areas, the session
    report, the shot outcome composer and Home → Your swing take the same role, so "something to
    work on" names the same habits on every screen (14 Nov 2026, audit C-06 — Your swing follows
    Work-ons). `condition_role_test` holds Your swing and this list to one answer for every

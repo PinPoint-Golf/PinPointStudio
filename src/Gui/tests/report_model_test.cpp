@@ -63,7 +63,7 @@ static QString ms1036() { return pinpoint::figures::withUnit(QStringLiteral("1.0
 #include "report/report_meta.h"
 #include "report/report_tendencies.h"   // the athlete level's left-out rules (3.7-f R1-m6, R1-m7)
 #include "variability/variability_ledger.h"
-#include "../../Coaching/swing_areas_pack.h"
+#include "../../Diagnostics/derived/swing_areas_pack.h"
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/packs/gate_words_pack.h"
 #include "../../Diagnostics/packs/pack_provider.h"

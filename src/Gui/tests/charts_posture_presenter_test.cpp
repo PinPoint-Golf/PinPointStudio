@@ -45,8 +45,8 @@
 #include "Vocabulary/Metrics/variability/variability_grader.h"
 #include "Diagnostics/measures/measure_sample.h"
 #include "Diagnostics/norms/norm_provider.h"
-#include "Coaching/session_day_readings_rules.h"   // the owner's rules: an earlier session's summary (refactor 5.5d)
-#include "Coaching/diagnostic_ledger.h"
+#include "Diagnostics/derived/session_day_readings_rules.h"   // the owner's rules: an earlier session's summary (refactor 5.5d)
+#include "Diagnostics/derived/diagnostic_ledger.h"
 #include "charts/session_neighbours.h"
 
 #include <QDir>

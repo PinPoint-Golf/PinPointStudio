@@ -22,10 +22,10 @@
 #include "shot.h"
 #include "summary_rules.h"   // the rule data as the firing reads it; a summary's rules (3.7-e round 2)
 
-#include "../Coaching/board_annotations.h"     // the board's annotations, read by the reduction (step 3.6)
-#include "../Coaching/club_distances.h"        // clubBaselineFromJson
-#include "../Coaching/strike_from_flight.h"    // sessionFlightUsuals, checkShotAgainstFlight
-#include "../Coaching/session_day_readings_rules.h"   // the summary's day readings' rules (refactor 5.5d)
+#include "../Diagnostics/derived/board_annotations.h"     // the board's annotations, read by the reduction (step 3.6)
+#include "../Diagnostics/derived/club_distances.h"        // clubBaselineFromJson
+#include "../Diagnostics/derived/strike_from_flight.h"    // sessionFlightUsuals, checkShotAgainstFlight
+#include "../Diagnostics/derived/session_day_readings_rules.h"   // the summary's day readings' rules (refactor 5.5d)
 #include "../Vocabulary/Club/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 #include "../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)

@@ -112,7 +112,7 @@ QVariant lmNumbersBlock(const LmFigures &f, bool typical, const QStringList &hab
 QVariantList lmGridCarry(const LmFigures &f);
 QStringList  lmGridCarryText(const LmFigures &f);
 
-// The reference swing's carries (Coaching/session_report.h referenceSwing): NaN for a swing not in the figures, so a
+// The reference swing's carries (Diagnostics/derived/session_report.h referenceSwing): NaN for a swing not in the figures, so a
 // left-out misread can neither win the tie-break nor be "your longest".
 std::vector<double> lmReferenceCarry(const LmFigures &f);
 // "152" / "-": a reading of report swing k + 1 for the reference swing's words — "-" when it is not in the figures.

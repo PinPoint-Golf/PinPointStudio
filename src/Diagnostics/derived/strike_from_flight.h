@@ -39,8 +39,8 @@
 // (shot_factors.h) and the ledger check all read one Sky.
 
 #include "diagnostic_ledger.h"
-#include "../Vocabulary/Club/club_vocabulary.h"
-#include "../LaunchMonitor/lm_flight_path.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"
+#include "../../LaunchMonitor/lm_flight_path.h"
 
 #include <QByteArray>
 #include <QCryptographicHash>

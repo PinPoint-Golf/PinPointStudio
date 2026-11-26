@@ -56,11 +56,11 @@
 // summary, as the owner rewrites both together, so the scan asks for it again.
 
 #include "Gui/diagnostics/work_ons_controller.h"
-#include "Coaching/condition_in_hand.h"   // the one function Home words a condition through (6.3b fix round, B-2)
+#include "Diagnostics/derived/condition_in_hand.h"   // the one function Home words a condition through (6.3b fix round, B-2)
 #include "Gui/diagnostics/session_diagnostics_model.h"   // currentContentStamp (the record's content stamp)
 #include "Diagnostics/engine/session_reduction.h"   // the catch-up's stand-in: the owner's reduction (5.4a)
-#include "Coaching/strike_from_flight.h"   // sessionFlightUsuals
-#include "Coaching/session_results.h"
+#include "Diagnostics/derived/strike_from_flight.h"   // sessionFlightUsuals
+#include "Diagnostics/derived/session_results.h"
 #include "DomainModel/summary_rules.h"
 #include "Export/swing_paths.h"
 #include "../../Export/rule_data_install.h"
@@ -77,14 +77,14 @@
 #include "DomainModel/session.h"
 #include "DomainModel/session_diagnostics.h"
 #include "Export/session_diagnostics_files.h"
-#include "Coaching/club_distances.h"
-#include "Coaching/tendencies_pack.h"
+#include "Diagnostics/derived/club_distances.h"
+#include "Diagnostics/derived/tendencies_pack.h"
 #include "Core/work_pool.h"
-#include "Coaching/board_annotations.h"
-#include "Coaching/frequency_words.h"
-#include "Coaching/shot_outcomes_pack.h"
-#include "Coaching/swing_themes.h"
-#include "Coaching/swing_areas_pack.h"
+#include "Diagnostics/derived/board_annotations.h"
+#include "Diagnostics/derived/frequency_words.h"
+#include "Diagnostics/derived/shot_outcomes_pack.h"
+#include "Diagnostics/derived/swing_themes.h"
+#include "Diagnostics/derived/swing_areas_pack.h"
 #include "Diagnostics/packs/characteristic_pack.h"
 #include "Export/swing_store.h"
 #include "Gui/report/report_athlete_stamps.h"   // the report's left-out stamps (R2-B1)

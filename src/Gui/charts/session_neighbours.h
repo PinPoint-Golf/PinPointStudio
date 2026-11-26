@@ -21,7 +21,7 @@
 // SessionNeighbours — THE GOLFER'S OTHER SESSIONS AS THEIR SUMMARIES HOLD THEM (refactor 5.5d; DEC-74). What the Charts
 // delivery and posture presenters and the report's Club delivery and Posture pages read of OTHER sessions: each one's
 // place (its day and place in the day), whether its summary is this build's with its day readings, and those readings
-// (Coaching/session_day_readings.h). Taken ON THE GUI THREAD from the session's athlete level — the Athlete's SessionIndex
+// (Diagnostics/derived/session_day_readings.h). Taken ON THE GUI THREAD from the session's athlete level — the Athlete's SessionIndex
 // summaries (AthleteLevel::summaries(), information_model.md OBJ-SESSION-INDEX) — and handed to a job BY VALUE. Never
 // another session's files: before 5.5d the presenters read the day's swing_phasegrid.json and every earlier
 // diagnostics.json and swing document themselves (P11).
@@ -38,8 +38,8 @@
 //
 // Adapters ring (Gui/charts): values only; no file. Header-only, so every target that compiles a presenter links it.
 
-#include "../../Coaching/club_distances.h"   // SessionPlace, sessionPlaceBefore
-#include "../../Coaching/session_day_readings.h"
+#include "../../Diagnostics/derived/club_distances.h"   // SessionPlace, sessionPlaceBefore
+#include "../../Diagnostics/derived/session_day_readings.h"
 #include "../../DomainModel/athlete_diagnostics.h"   // AthleteLevel, AthleteSessionSummary (an interface: nothing to link)
 
 #include <QDir>

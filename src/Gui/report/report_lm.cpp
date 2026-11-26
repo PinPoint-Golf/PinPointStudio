@@ -21,8 +21,8 @@
 #include "report_variability.h"
 #include "report_words.h"
 
-#include "../../Coaching/diagnostic_ledger.h"          // medianOf — the report's one median
-#include "../../Coaching/handedness_gloss.h"           // the one handedness gloss (refactor 6.3b)
+#include "../../Diagnostics/derived/diagnostic_ledger.h"          // medianOf — the report's one median
+#include "../../Diagnostics/derived/handedness_gloss.h"           // the one handedness gloss (refactor 6.3b)
 #include "../../Vocabulary/Common/figure_format.h"
 #include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h" // lm::fieldDefs()
 #include "../../LaunchMonitor/lm_session_reductions.h"  // lmDecimals

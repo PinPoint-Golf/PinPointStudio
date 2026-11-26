@@ -50,7 +50,7 @@
 #include <memory>
 
 namespace pinpoint::analysis {
-struct FlightNorms;   // Coaching/strike_from_flight.h — not included here: it brings the whole ledger with it
+struct FlightNorms;   // Diagnostics/derived/strike_from_flight.h — not included here: it brings the whole ledger with it
 }
 
 namespace pinpoint {

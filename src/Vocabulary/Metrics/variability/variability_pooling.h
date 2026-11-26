@@ -22,7 +22,7 @@
 // Clubs") — the maths that centres each club's swings on that club's own median so spread is never graded across clubs.
 // Moved here from src/Gui/charts (consistencyResiduals in session_consistency.cpp; centreCircular and the scalar
 // pooledWithinClubInput in variability_clubs.cpp) in refactor step 3.8, UNCHANGED, so the Rules ring's consistency grade
-// (src/Coaching/consistency_grade.h; J-34) uses it; the Charts code keeps thin calls to these. Vocabulary: pure maths,
+// (src/Diagnostics/derived/consistency_grade.h; J-34) uses it; the Charts code keeps thin calls to these. Vocabulary: pure maths,
 // header-only, safe on any thread.
 //
 //   withinClubResiduals   each value less its club's median at each sample (the swing itself included); a club with

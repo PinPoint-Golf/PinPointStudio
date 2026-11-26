@@ -19,7 +19,7 @@
 // shot_outcomes.h — labels, phrase, story, driver, strength and waterfall, one fixture per rule,
 // with the design's §11 session numbers converted to yards.
 
-#include "../../Coaching/shot_outcomes.h"
+#include "../../Diagnostics/derived/shot_outcomes.h"
 
 #include <algorithm>
 #include <cmath>

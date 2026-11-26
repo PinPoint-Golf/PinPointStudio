@@ -83,7 +83,7 @@
 //      "hips in" or "standing up" for the chart.
 //   9. ROOTS BEFORE SYMPTOMS (22 Oct). The head line leads with the named departure whose conditions
 //      come first in the session's WORK-ON ORDER (SessionSnapshot::workOnOrder — the work-on list's own
-//      reduction, Coaching/work_ons_pack.h), its exit stated with the good-player band — the row that
+//      reduction, Diagnostics/derived/work_ons_pack.h), its exit stated with the good-player band — the row that
 //      defines the departure before a trunk bend attributed to it, then the largest; a
 //      departure none of whose conditions is ranked follows the ranked ones, by |z|. No order (no
 //      ledger): the largest named exit, as before. The presenter orders Findings by the same order.

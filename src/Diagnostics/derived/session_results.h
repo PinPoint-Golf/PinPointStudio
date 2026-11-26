@@ -44,7 +44,7 @@
 // (FILE-SESS-04). G-09: `ClubFactorMix` counts EVERY value a shot shows (a factor's parts may add up to more than its
 // shots), which Tendencies' bar does not (each shot once): two rules, two names (`countsEveryValue`).
 //
-// Rules ring (src/Coaching): values and JSON only.
+// Rules ring (src/Diagnostics/derived): values and JSON only.
 
 #include "club_distances.h"
 #include "shot_factors.h"
@@ -56,7 +56,7 @@
 #include "swing_themes.h"   // ThemeShot (DEC-192 as amended, round 3)
 #include "tendencies.h"
 #include "work_ons.h"
-#include "../Diagnostics/measures/club_baseline_provider.h"
+#include "../measures/club_baseline_provider.h"
 
 #include <QCryptographicHash>
 #include <QHash>

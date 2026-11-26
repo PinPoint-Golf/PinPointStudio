@@ -532,11 +532,11 @@ The analysis pipeline never fires findings.
   shot marked unread (a persisted key), re-asked at the next load.
 - *The diagnosis.* When a batch settles it posts `reduceSession()` (`Diagnostics/engine/session_reduction.h`, pure) to the
   same lane; the latest reduction is kept. It reads each shot as the golfer annotated it on the launch-monitor board
-  (`Coaching/board_annotations.h`; Stage 0.5's follow-up). The session's status is read from the `Session`, its one writer.
+  (`Diagnostics/derived/board_annotations.h`; Stage 0.5's follow-up). The session's status is read from the `Session`, its one writer.
 - *Its files.* It writes what it kept, debounced after a batch, at once on a release, and on quit, through
   `SessionRepository`'s id-keyed diagnostics methods: `diagnostics.json` (each shot's findings, its derived data under
   `derived`, the unread marks) and the summary `work_ons.json`, which carries the session's gate counts (`gates`,
-  `Coaching/session_gates.h`: the swings counted, those with nothing recorded, per `gatesVersion`, per gate the swings it
+  `Diagnostics/derived/session_gates.h`: the swings counted, those with nothing recorded, per `gatesVersion`, per gate the swings it
   fired on), made off the same grid read as the day readings; the model browser's Gates view sums them over every
   athlete's `SessionIndex` (`Gui/diagnosticmodel/gate_counts.h`) and reads only a session not summarised yet swing by
   swing. A live session's summary waits for its End. A newer

@@ -57,7 +57,7 @@ tests them hardest:
 | Existing piece | What the report takes from it |
 |---|---|
 | `SessionDiagnosticsModel` (cards, watching, chains, driver, bookends, `spreadOf`, `historyOf`, `conditionDetail`, `sequenceConsistency`, `notJudged`) | Every habit, count, value, target range, run of values and link grade. |
-| `reduceSessionPriorities` (`src/Coaching/work_ons.h`) | The list and its order, **derived fresh** from the model, never read from `work_ons.json`. Nick's `work_ons.json` on the share still says 12 measurable swings on a 10-swing session; it was written before two swings were deleted, and is re-derived only at the next catch-up. |
+| `reduceSessionPriorities` (`src/Diagnostics/derived/work_ons.h`) | The list and its order, **derived fresh** from the model, never read from `work_ons.json`. Nick's `work_ons.json` on the share still says 12 measurable swings on a 10-swing session; it was written before two swings were deleted, and is re-derived only at the next catch-up. |
 | `aggregatePriorities` and the sibling sessions' records | "Earlier today" and "across sessions": Active, Easing, Cleared, and the tick per session. |
 | The pack (`core.json`, `drills.json`, `screens.json`) | Golfer phrasing (`golfer`, `golferWell`, `golferWhy`), aliases, consequences, drills, screens, causal edges. |
 | The launch monitor board's one reduction (`lmBoardOf`) over the session's shots | Every ball number, with the golfer's "Leave out" and club overrides applied (§3, "Launch monitor figures: one source"). The diagnostics ledger supplies the "what came with it" facts where a condition reads an LM measure. |
@@ -650,7 +650,7 @@ yet — add it in Settings → Studio".
 - **It reads its figures; it does not compute one twice**[^report-reads-5-6b]. The work-on list, each shot's rows and
   the ledgers are the session's own diagnosis, read through its `Session` (`SessionDiagnostics::diagnosis`,
   `diagnosisInput`), never the adapter's copy. The choices only the report makes — the caps, the strengths, the
-  reference swing, the order's explanation, the causes — are its own rules (`src/Coaching/session_report.h`). The map is
+  reference swing, the order's explanation, the causes — are its own rules (`src/Diagnostics/derived/session_report.h`). The map is
   built in named parts, one per piece of the report (`session_report_model.cpp`: the swings, the launch monitor, the
   day, the brand, the meta, the headline, the cover, the reference swing, the grid, Earlier today, the order, the work-on
   pages, the later pages, About).
@@ -1009,8 +1009,8 @@ it is rejected.
 
 | | New or changed |
 |---|---|
-| `src/Coaching/session_report.h` | **new**, pure and header-only: strengths selection, reference swing, still choice, range words, "came with it" sets, timeline positions, the ordering reasons. Unit-tested like `work_ons.h`. |
-| `src/Coaching/work_ons.h` | `PriorityEntry::reasons` and `SessionPriorities::linksTestable`. Rule v4 too, if option A (§4.3). |
+| `src/Diagnostics/derived/session_report.h` | **new**, pure and header-only: strengths selection, reference swing, still choice, range words, "came with it" sets, timeline positions, the ordering reasons. Unit-tested like `work_ons.h`. |
+| `src/Diagnostics/derived/work_ons.h` | `PriorityEntry::reasons` and `SessionPriorities::linksTestable`. Rule v4 too, if option A (§4.3). |
 | `src/Gui/report/session_report_model.{h,cpp}` | **new**: the façade. It owns the private diagnostics model, assembles the `report` map (every string; QML positions and paints), and drives stills and printing. Registered like `WorkOnsController`. |
 | `src/Gui/report/report_stills.{h,cpp}` | **new**: frame at a phase, pose overlay, crop to the golfer. Worker thread. |
 | `src/Gui/report/PpSessionReport.qml` + blocks (`PpReportCover`, `PpSwingGrid`, `PpOrderPage`, `PpWorkOnPage`, `PpDrillCard`, `PpStill`, `PpBallTiles`, `PpNumbersTable`, `PpReportAbout`) | **new**: the register, on `PpPager` and `PpTypeset` print roles, with page starts as `breakBefore` atoms. The cover suppresses the running head. The appendix is the existing `PpDiagPrint`. |

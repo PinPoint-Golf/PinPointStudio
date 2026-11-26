@@ -21,7 +21,7 @@
 // against a speed-matched reference); Sky; the left-hander's gloss; a factor's mix; the flight table's reader,
 // over the shipped flight_norms.json too.
 
-#include "../../Coaching/shot_factors.h"
+#include "../../Diagnostics/derived/shot_factors.h"
 
 #include <QDate>
 #include <QFile>

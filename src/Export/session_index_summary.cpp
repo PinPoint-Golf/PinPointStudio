@@ -21,8 +21,8 @@
 #include "session_archiver.h"
 #include "session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
 #include "swing_doc.h"
-#include "../Coaching/session_gates.h"
-#include "../Coaching/work_ons.h"
+#include "../Diagnostics/derived/session_gates.h"
+#include "../Diagnostics/derived/work_ons.h"
 
 #include <QVector>
 

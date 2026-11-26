@@ -92,15 +92,15 @@
 #include "athlete.h"
 #include "session_repository.h"
 #include "rule_data.h"
-#include "../Coaching/club_distances.h"
-#include "../Coaching/club_scope.h"
-#include "../Coaching/outcome_scope.h"
+#include "../Diagnostics/derived/club_distances.h"
+#include "../Diagnostics/derived/club_scope.h"
+#include "../Diagnostics/derived/outcome_scope.h"
 #include "../Core/work_pool.h"
 #include "../Vocabulary/Metrics/variability/variability_grader.h"   // VariabilityResult: the marks
-#include "../Coaching/session_results.h"
-#include "../Coaching/swing_themes.h"
-#include "../Coaching/tendencies.h"
-#include "../Coaching/work_ons.h"
+#include "../Diagnostics/derived/session_results.h"
+#include "../Diagnostics/derived/swing_themes.h"
+#include "../Diagnostics/derived/tendencies.h"
+#include "../Diagnostics/derived/work_ons.h"
 #include "../Vocabulary/Identity/identity.h"
 
 #include <QHash>

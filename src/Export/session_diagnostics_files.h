@@ -71,9 +71,9 @@
 #include "session_store.h"
 #include "swing_paths.h"
 #include "swing_store_repository.h"
-#include "../Coaching/board_annotations.h"    // BoardAnnotation (step 3.6)
-#include "../Coaching/club_distances.h"       // ShotCorrection
-#include "../Coaching/tendencies.h"           // shotCorrectionsFromJson, shotIntentsFromJson
+#include "../Diagnostics/derived/board_annotations.h"    // BoardAnnotation (step 3.6)
+#include "../Diagnostics/derived/club_distances.h"       // ShotCorrection
+#include "../Diagnostics/derived/tendencies.h"           // shotCorrectionsFromJson, shotIntentsFromJson
 #include "../Core/atomic_write.h"
 #include "../Core/folder_lock.h"
 #include "../Core/pp_debug.h"

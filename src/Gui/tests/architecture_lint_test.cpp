@@ -174,7 +174,7 @@ const QVector<QPair<QString, int>> &dirRings()
         { QStringLiteral("Skeleton3d/"), Rules },
         { QStringLiteral("Timeline/"), Rules },
         { QStringLiteral("Diagnostics/"), Rules },
-        { QStringLiteral("Coaching/"), Rules },
+        { QStringLiteral("Coaching/"), Rules },         // the Coaching context's folder, empty: its first file has a ring (IM §4, "The Coaching folder")
         { QStringLiteral("DomainModel/"), DomainModel },  // repository interfaces (step 1, IM-6)
         { QStringLiteral("Analysis/"), Application },
         { QStringLiteral("App/"), Application },          // AppState's home in 03 §2 (created in step 3.4a: app)     // the stages' shared types and rules below
@@ -360,7 +360,7 @@ const QVector<OwnedFile> &ownedFiles()
 bool isRulesIoDir(const QString &rel)
 {
     if (rel.startsWith(QLatin1String("Analysis/"))) return ringOf(rel) == Rules;     // 03 §11 "Analysis rules"
-    return rel.startsWith(QLatin1String("Coaching/")) || rel.startsWith(QLatin1String("Diagnostics/engine/"))
+    return rel.startsWith(QLatin1String("Diagnostics/derived/")) || rel.startsWith(QLatin1String("Diagnostics/engine/"))
         || rel.startsWith(QLatin1String("Diagnostics/norms/")) || rel.startsWith(QLatin1String("Diagnostics/measures/"));
 }
 
@@ -729,7 +729,7 @@ void selfTest()
 {
     std::printf("=== the rules still catch what they are for ===\n");
     Tree t;
-    for (const char *f : { "Gui/shot/shot_processor.h", "Gui/athlete/athlete_controller.h", "Coaching/shot_factors.h",
+    for (const char *f : { "Gui/shot/shot_processor.h", "Gui/athlete/athlete_controller.h", "Diagnostics/derived/shot_factors.h",
                            "Vocabulary/Metrics/metric_catalogue.h", "Buffer/source_ring.h", "Buffer/types.h", "Core/pp_debug.h",
                            "Vocabulary/Analysis/swing_analysis.h", "Analysis/analysis_pipeline.h", "Export/session_store.h",
                            "Export/swing_paths.h", "DomainModel/session_repository.h", "DomainModel/athlete.h" }) {
@@ -738,14 +738,14 @@ void selfTest()
     }
     auto run = [&](const char *rel, const QString &text) { return scan(makeSource(QString::fromLatin1(rel), text), t); };
 
-    check(countRule(run("Coaching/x.cpp", QStringLiteral("#include \"../Gui/shot/shot_processor.h\"\n")), "A1") == 1,
+    check(countRule(run("Diagnostics/derived/x.cpp", QStringLiteral("#include \"../Gui/shot/shot_processor.h\"\n")), "A1") == 1,
           QStringLiteral("A1 catches a rule including a Gui header"));
     check(countRule(run("Vocabulary/Metrics/x.h", QStringLiteral("#include \"shot_factors.h\"\n")), "A1") == 1,
           QStringLiteral("A1 resolves a bare include by its unique basename (Vocabulary → Rules)"));
-    check(countRule(run("Coaching/x.cpp", QStringLiteral("#include \"../Vocabulary/Metrics/metric_catalogue.h\"\n#include \"pp_debug.h\"\n"
+    check(countRule(run("Diagnostics/derived/x.cpp", QStringLiteral("#include \"../Vocabulary/Metrics/metric_catalogue.h\"\n#include \"pp_debug.h\"\n"
                                                          "#include \"../Buffer/types.h\"\n#include <QFile>\n")), "A1") == 0,
           QStringLiteral("A1 passes inward includes, Platform logging, the Recording's types and system headers"));
-    check(countRule(run("Coaching/x.cpp", QStringLiteral("// #include \"../Gui/shot/shot_processor.h\"\n")), "A1") == 0,
+    check(countRule(run("Diagnostics/derived/x.cpp", QStringLiteral("// #include \"../Gui/shot/shot_processor.h\"\n")), "A1") == 0,
           QStringLiteral("A1 ignores a commented-out include"));
     check(countRule(run("Vocabulary/Analysis/swing_analysis.h", QStringLiteral("#include \"../../Analysis/analysis_pipeline.h\"\n")), "A1") == 1,
           QStringLiteral("A1 catches the Vocabulary folder including an Analysis stage (Vocabulary → Application)"));
@@ -780,7 +780,7 @@ void selfTest()
     const QString names = QStringLiteral(
         "const QString a = QStringLiteral(\"diagnostics.json\");\nauto b = dir + \"/work_ons.json\";\n"
         "auto c = QStringLiteral(\"swing_themes.%1.json\");\nppWarn() << \"diagnostics.json could not be read\";\n"
-        "// \"tendencies.json\" in a comment\n#include \"../../Coaching/swing_themes.h\"\n");
+        "// \"tendencies.json\" in a comment\n#include \"../../Diagnostics/derived/swing_themes.h\"\n");
     check(countRule(run("Gui/x/y.cpp", names), "A4") == 3,
           QStringLiteral("A4 catches a name or a path ending in it; passes a log sentence, a comment and a header"));
     check(countRule(run("Export/session_files.h", QStringLiteral("auto b = \"work_ons.json\";\n")), "A4") == 0,
@@ -795,7 +795,7 @@ void selfTest()
     check(countRule(run("Export/athlete_files.h", QStringLiteral("auto e = \"outcome_corrections.jsonl\";\n")), "A4") == 0
               && countRule(run("Gui/diagnostics/session_diagnostics_model.cpp", QStringLiteral("auto p = \"tendencies.json\";\n")), "A4") == 1,
           QStringLiteral("A4: the athlete files' owner is AthleteFiles (the diagnostics model spells no athlete file; FILE-ATH-05 is retired, 3.8-ii)"));
-    check(countRule(run("Coaching/x.cpp", QStringLiteral("#include <QFile>\nQFile f(p);\nQString s = \"QDir\";\nstd::ifstream in(p);\n")), "A5") == 2,
+    check(countRule(run("Diagnostics/derived/x.cpp", QStringLiteral("#include <QFile>\nQFile f(p);\nQString s = \"QDir\";\nstd::ifstream in(p);\n")), "A5") == 2,
           QStringLiteral("A5 catches file I/O lines in a rules directory, not a word in a string or the <QFile> include"));
     const auto charts = run("Gui/charts/x.cpp", QStringLiteral(
         "QFile f(p);\nQDir(d).mkpath(\".\");\natomicWrite(p, bytes);\nFolderLock lock(dir);\n#include \"../../Export/session_store.h\"\n"
@@ -836,7 +836,7 @@ void selfTest()
     QString longFn = QStringLiteral("namespace n {\nint big(int a) const\n{\n");
     for (int i = 0; i < 300; ++i) longFn += QStringLiteral("  if (a) { a += 1; }  // }\n");
     longFn += QStringLiteral("  auto f = [&](int x) {\n    return x;\n  };\n  return a;\n}\nint small() { return 1; }\n}\n");
-    const auto a7 = run("Coaching/x.cpp", longFn);
+    const auto a7 = run("Diagnostics/derived/x.cpp", longFn);
     check(countRule(a7, "A7") == 1 && a7.first().text.startsWith(QLatin1String("big is 306 lines")),
           QStringLiteral("A7 finds a 306-line function in a rules ring and measures it (got: %1)")
               .arg(a7.isEmpty() ? QStringLiteral("none") : a7.first().text));
@@ -846,7 +846,7 @@ void selfTest()
     longSig += QStringLiteral("const Options &o = {})\n{\n");
     for (int i = 0; i < 300; ++i) longSig += QStringLiteral("  ++x;\n");
     longSig += QStringLiteral("  return 0;\n}\n");
-    const auto a7s = run("Coaching/x.h", longSig);
+    const auto a7s = run("Diagnostics/derived/x.h", longSig);
     check(countRule(a7s, "A7") == 1 && a7s.first().text.startsWith(QLatin1String("composed is")),
           QStringLiteral("A7 finds a long function whose signature is longer than 240 characters and has a {} default (got: %1)")
               .arg(a7s.isEmpty() ? QStringLiteral("none") : a7s.first().text));

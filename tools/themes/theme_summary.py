@@ -25,7 +25,7 @@ drill, what to aim for (`golferWell`), what happens now (`golfer`), why it matte
 and the drill to practise; every other needs-work fault is "next on your list", in group order.
 
 The page itself (subtitle, the focus, the cards, the "goes together" pairs and the note) is
-summary_view(), the reference the app's swingSummaryView() (src/Coaching/swing_themes.h) is tested
+summary_view(), the reference the app's swingSummaryView() (src/Diagnostics/derived/swing_themes.h) is tested
 against through make_golden.py; swingSummaryLines() is the older flat form of the same words.
 Change a word here and the golden fixture with it.
 Co-movement, never cause: no line may say because / cause / due to / leads to.
@@ -73,7 +73,7 @@ MAX_DO_WELL = 3
 MAX_NEEDS_WORK = MAX_SEEN_MOST
 MAX_NEXT = 4                # "next on your list", after the focus
 UNPLACED = 11               # a focus group with no known swing position ranks after P10
-# How often (src/Coaching/frequency_words.h, the one rule Your swing and Tendencies share): the caption
+# How often (src/Diagnostics/derived/frequency_words.h, the one rule Your swing and Tendencies share): the caption
 # and frequency boundaries from half up, then the fixed bands below half.
 EVERY_SWING = 0.995
 ALMOST_EVERY = 0.9
@@ -127,7 +127,7 @@ def is_held(c):
 
 
 def is_work_on_fault(c):
-    """A fault to work on — the work-on list's Movement class (src/Coaching/condition_role_pack.h,
+    """A fault to work on — the work-on list's Movement class (src/Diagnostics/derived/condition_role_pack.h,
     rule v4, Mark 14 Nov 2026: Your swing follows Work-ons): a fault or a set-up, never a held
     condition. The only conditions "what we see most", the focus and "next on your list" name."""
     return c.get("kind") in ("fault", "setup") and not is_held(c)

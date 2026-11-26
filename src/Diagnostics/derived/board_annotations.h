@@ -44,11 +44,11 @@
 // Mark's J-45, the Charts tab (SessionSeriesModel): the swing series under the board's club, a left-out shot's
 // monitor series and monitor-driven ledger rows not read.
 //
-// Rules ring (src/Coaching): pure, no I/O.
+// Rules ring (src/Diagnostics/derived): pure, no I/O.
 
 #include "diagnostic_ledger.h"
-#include "../Diagnostics/engine/characteristic.h"
-#include "../Vocabulary/Club/club_vocabulary.h"   // effectiveClub: the one club rule (refactor 6.2)
+#include "../engine/characteristic.h"
+#include "../../Vocabulary/Club/club_vocabulary.h"   // effectiveClub: the one club rule (refactor 6.2)
 
 #include <QHash>
 #include <QJsonObject>

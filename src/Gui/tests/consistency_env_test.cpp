@@ -24,7 +24,7 @@
 #include "../../Export/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
-#include "Coaching/swing_areas_pack.h"
+#include "Diagnostics/derived/swing_areas_pack.h"
 #include "Diagnostics/packs/pack_provider.h"
 #include "Vocabulary/Metrics/metric_catalogue.h"
 

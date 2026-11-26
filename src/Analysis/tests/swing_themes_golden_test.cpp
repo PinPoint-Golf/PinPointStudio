@@ -33,7 +33,7 @@
 // Each field prints one PASS/FAIL line; a failing field prints its first few differences. The wall
 // time of the reduction is printed too — it is the cost the app pays on a catch-up.
 
-#include "../../Coaching/swing_themes.h"
+#include "../../Diagnostics/derived/swing_themes.h"
 #include "../../Export/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../../Diagnostics/packs/swing_themes_pack.h"

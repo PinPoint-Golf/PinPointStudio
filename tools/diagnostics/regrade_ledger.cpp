@@ -96,7 +96,7 @@
 
 #include "Gui/diagnostics/session_diagnostics_model.h"
 #include "Gui/diagnostics/diag_parallel_run.h"
-#include "Coaching/session_results.h"
+#include "Diagnostics/derived/session_results.h"
 #include "Core/work_pool.h"
 #include "DomainModel/athlete.h"
 #include "DomainModel/rule_data.h"
@@ -111,7 +111,7 @@
 #include "Export/session_diagnostics_files.h"
 #include "Export/session_store.h"          // SessionStore::fileSaysInProgress (D11)
 #include "Export/athlete_store.h"          // the athletes, from the library (refactor 4-c, J-61)
-#include "Coaching/shot_factors.h"
+#include "Diagnostics/derived/shot_factors.h"
 #include "Core/PpMessageLog.h"
 #include "parity_json.h"
 

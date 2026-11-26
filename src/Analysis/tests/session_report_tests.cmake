@@ -1,4 +1,4 @@
-# Session report — pure reductions tests (src/Coaching/session_report.h). Included at the END of CMakeLists.txt
+# Session report — pure reductions tests (src/Diagnostics/derived/session_report.h). Included at the END of CMakeLists.txt
 # here, so ${SRC}, ${DIAG}, ${DIAGRES} and the other path variables, and pp_add_test, are in scope.
 
 # Every rule the client report uses to choose what to say (strengths and the whole-axis rule, the

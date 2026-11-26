@@ -23,14 +23,14 @@
 #include "athlete_repository.h"
 #include "summary_rules.h"   // firingInputsOf, summaryCohortFacts: the summary fingerprint's inputs
 
-#include "../Coaching/consistency_grade.h"      // the marks' reading and grade (Rules ring; J-34)
-#include "../Coaching/shot_outcomes_pack.h"
-#include "../Coaching/swing_areas_pack.h"       // areaConditionInfoForPack: a yes/no condition is ungraded
-#include "../Coaching/tendencies_pack.h"
-#include "../Coaching/variability_measures.h"   // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth (J-52)
+#include "../Diagnostics/derived/consistency_grade.h"      // the marks' reading and grade (Rules ring; J-34)
+#include "../Diagnostics/derived/shot_outcomes_pack.h"
+#include "../Diagnostics/derived/swing_areas_pack.h"       // areaConditionInfoForPack: a yes/no condition is ungraded
+#include "../Diagnostics/derived/tendencies_pack.h"
+#include "../Diagnostics/derived/variability_measures.h"   // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth (J-52)
 #include "../Diagnostics/engine/fire_findings.h"   // contentStamp: the one rule
 #include "../Diagnostics/engine/session_reduction.h"   // SessionReductionInput: a session's judged rows (DEC-195)
-#include "../Coaching/work_ons_pack.h"
+#include "../Diagnostics/derived/work_ons_pack.h"
 #include "../Diagnostics/packs/swing_themes_pack.h"
 #include "../Vocabulary/Metrics/variability/variability_constants.h"   // kNWindow
 #include "../Core/pp_debug.h"

@@ -24,11 +24,11 @@
 // the club group by where the club resolves in the context tree (§7.1 of shot_outcomes_design.md), reduceTendencies,
 // then reduceClubDistances over the same sessions.
 //
-// Rules ring (src/Coaching): pure; reads the context tree it is handed.
+// Rules ring (src/Diagnostics/derived): pure; reads the context tree it is handed.
 
 #include "club_distances.h"
 #include "tendencies.h"
-#include "../Diagnostics/norms/context_tree.h"
+#include "../norms/context_tree.h"
 
 #include <QJsonArray>
 

@@ -79,7 +79,8 @@ Inside `src/`. The folders follow the architecture's rings (Platform, Vocabulary
 | `Video/`, `Pose/` | Camera backends; pose, ball and person-segmentation models |
 | `Analysis/`, `Timeline/` | The swing analysis pipeline, and swing positions (P1–P10) over time |
 | `Body/`, `Club/`, `Ball/`, `Wrist/`, `Kinematics/`, `Skeleton3d/` | Measurement rules: posture, the club and shaft, the ball, the wrist, the kinematic sequence, the 3-D skeleton |
-| `Diagnostics/`, `Coaching/` | Fault diagnostics, and the priorities and outcomes built from them |
+| `Diagnostics/` | Fault diagnostics, and in `derived/` the priorities and outcomes built from them |
+| `Coaching/` | The Coaching context: reading results against the golfer's intent and goals (no code yet) |
 | `Buffer/` | The lock-free event buffer that time-aligns every sensor |
 | `IMU/`, `LaunchMonitor/`, `Ppcp/`, `Audio/` | Motion sensors, launch monitors, phone capture, microphones and shot sound |
 | `Export/` | Swing video, and the swing and athlete files |

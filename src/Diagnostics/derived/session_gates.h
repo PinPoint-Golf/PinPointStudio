@@ -35,9 +35,9 @@
 // the gate record (gate_record.h), never the phase grid's header. The session's own SessionDiagnostics makes the block, off the grid each shot's fire read (or the reduction's lane
 // read for a result loaded from the file), and its summary's one write carries it.
 //
-// Rules ring (src/Coaching): values and JSON only.
+// Rules ring (src/Diagnostics/derived): values and JSON only.
 
-#include "../Vocabulary/Analysis/gate_record.h"   // GateRecord (Qt Core only)
+#include "../../Vocabulary/Analysis/gate_record.h"   // GateRecord (Qt Core only)
 
 #include <QJsonArray>
 #include <QJsonObject>

@@ -253,7 +253,7 @@ Line numbers are at `ab5c4d9a`.
 | **Focus delivery** | `session/SessionMode.qml:54`, `diagnostics/PpSessionDiagnosticsPanel.qml` l.90–201, `session_diagnostics_model.cpp` l.1240, 1430–1449, 1943–1972 | `SessionMode.sessionDiagnostics` is **null unless the panel is on**, and no default layout includes it. Each panel owns its model and rebuilds it on every Capture↔Replay switch. The cast window (`shot/PpSessionDiagnosticsWindow.qml`) has **a second model**, and either model's `persist()` can overwrite the other's intent (an existing defect). `activateSession()` wipes the focus. `declareFocus()` sets the split at the current row count, with no explicit shot. |
 | Home | `home/ScreenHome.qml` (826 lines) | Sections (line ranges): §1 identity + first-run onboarding (l.167–403); §2 launcher: hero, `HmTypeCard` grid, club chips, Start (l.405–559); §3 `HmSwingSummary` (l.561–577); §4 devices: PPCP pair button, device rows, `PpcpOfferList`, `RmWarningNotice` (l.579–782); §5 Sessions (l.784–823); plus `PpTopoBackground`. Signals: `startSessionRequested(int)`, `openSessionScreenRequested(int)`, `swingDiagnosticsRequested`, `reviewSessionRequested`, `athleteSessionsRequested`, `studioSettingsRequested`, plus athlete signals. |
 | YOUR SWING | `HmSwingSummary.qml`, `HmFocus.qml`; `HmGoesTogether.qml` is on Swing diagnostics | Paint-only; every string from `workOns`. Data present: `focusItem.rightNow[]` and `nextItems[]` carry `{text, share, frequency, trend, sessions}`. **Missing:** `share` on `doWellItems` (the C++ `DoWellRow.share` exists); `focusConditionId`; a short focus reason for the one-line header; a "last session" accessor. Design: `home_themes_design.md`. |
-| Work-ons | `Coaching/work_ons.h`, `diagnostics/work_ons_controller.h/.cpp` | `reduceSessionWorkOns` (l.430–436) writes a `WorkOnEvidence {id, state, fired, assessable, excess}` row for **every assessed condition**, of every class. On Mark's library that is 126 ids, against 13 ever listed. `aggregateWorkOns` (l.661–666) builds summaries for **listed ids only**. Measure, typical and corridor are on listed entries (`WorkOnEntry` l.282–287) only. `kWorkOnSchemaVersion = 2` (l.75), `kWorkOnRuleVersion = 4` (l.82). |
+| Work-ons | `Diagnostics/derived/work_ons.h`, `diagnostics/work_ons_controller.h/.cpp` | `reduceSessionWorkOns` (l.430–436) writes a `WorkOnEvidence {id, state, fired, assessable, excess}` row for **every assessed condition**, of every class. On Mark's library that is 126 ids, against 13 ever listed. `aggregateWorkOns` (l.661–666) builds summaries for **listed ids only**. Measure, typical and corridor are on listed entries (`WorkOnEntry` l.282–287) only. `kWorkOnSchemaVersion = 2` (l.75), `kWorkOnRuleVersion = 4` (l.82). |
 | Work-ons publishing | `work_ons_controller.cpp` `publish()` l.378–517, `publishSummary()` l.744–810 | Two GUI-thread publish points. `publish()` runs the aggregate and emits `itemsChanged`. `publishSummary()` runs `swingSummaryView` when the swing themes land, seconds later, and emits `summaryChanged`. `FocusItem.conditionIds` exists in C++ (`swing_themes.h` l.2126–2136) but is not published. |
 | Condition groups | `src/Resources/diagnostics/core.json` | `group` on every condition: setup 55, armsAndClub 29, sequence 21, ballFlight 20, posture 19, impact 15, lateral 13, release 7, finish 3 (182 conditions). Groups are a closed enum. All 20 ballFlight conditions are Outcome class. |
 | Grades | `Diagnostics/norms/norm.h` l.78 | `enum class Grade { Ideal, Good, Watch, Action, NotMeasured }`. **No function grades a stored typical value.** `spreadCorridorFromRow` (`diagnostics/session_spread.h` l.144–180) rebuilds the edges from the stored band and is the nearest helper. `Theme.corridorTone()` maps Action to the fault coral (`tst_theme_bands.qml`). |
@@ -279,9 +279,9 @@ Line numbers are at `ab5c4d9a`.
 | `SessionController` | **Adapt** | Add `focusConditionId` (settable before `start()`, cleared in `endSession()`); one default type (`Wrist`) so the wizard and the toolbar cannot drift apart. |
 | `SessionDiagnosticsModel` | **Adapt (small)** | An explicit focus start (e.g. `declareFocusFrom(id, fromShot)` or a pending focus applied at activation). Today's `declareFocus` uses the current row count, which is 0 only by accident on late adoption. |
 | `PpSessionDiagnosticsPanel` | **Adapt** | On activating the live session folder, adopt `sessionController.focusConditionId`; `_declareFocus` writes it back. This also fixes the two-window overwrite. |
-| `Coaching/work_ons.h` | **Adapt** | A second aggregate entry point over evidence ids (default unchanged); `WorkOnEvidence` gains measure, typical and corridor (schema 2→3). |
+| `Diagnostics/derived/work_ons.h` | **Adapt** | A second aggregate entry point over evidence ids (default unchanged); `WorkOnEvidence` gains measure, typical and corridor (schema 2→3). |
 | `WorkOnsController` | **Adapt** | `areaItems` built in `publish()`; `focusItem.focusConditionId`; `doWellItems[].share`; short focus reason; `conditionLabel(id)` for the wizard. |
-| `Coaching/swing_areas.h` (+ `swing_areas_pack.h`) | **New** | Pure, pack-agnostic `summariseAreas()` + unit tests; the pack marshalling sits in a thin `_pack.h`, as `work_ons_pack.h` does. |
+| `Diagnostics/derived/swing_areas.h` (+ `swing_areas_pack.h`) | **New** | Pure, pack-agnostic `summariseAreas()` + unit tests; the pack marshalling sits in a thin `_pack.h`, as `work_ons_pack.h` does. |
 | `home/HmSwingAreas.qml`, `home/HmAreaRow.qml` | **New** | Paint-only, controller injectable (same pattern as `HmSwingSummary`). |
 | `home/HmRigCapability.qml` + a shared facts helper | **New** | Paints `setupSummary()` + `CapRows.rows()` for the kit Home "could measure" with (D10); the wizard keeps its draft gate. |
 | `home/HmHomeTabs.qml` | **New** | `PpTabs` + `StackLayout` holding `HmSwingSummary` and `HmSwingAreas`; remembers the tab per athlete. |
@@ -418,7 +418,7 @@ Whatever D1 picks, the implementation is a free function, so the rule can change
 the controller or QML:
 
 ```cpp
-// Coaching/swing_areas.h — pack-agnostic; swing_areas_pack.h marshals the pack
+// Diagnostics/derived/swing_areas.h — pack-agnostic; swing_areas_pack.h marshals the pack
 struct AreaConditionInfo { QString group, label, golfer, unit; WorkOnClass cls; bool lmOnly; };
 struct AreaItem { /* as §5.1 items */ };
 struct AreaSummary { QString group; bool measurable; int score; int trend; bool hasTrend;
@@ -462,7 +462,7 @@ static and has its own chart. The rule and the membership are in `docs/design/sw
 | ballFlight | Ball flight | **only with launch-monitor evidence**: a ballFlight condition whose measures are all `lm.*` has `swingsAssessable > 0`. "Any ballFlight condition assessable" is not an LM test, because `top` and `sky` are also judged from the camera. These are Outcome-class conditions, never work-ons. |
 | golfer | Golfer | **never.** The latent causes (capacity, intent, equipment), filed here for the model browser and editor. `areaGroupOrder()` leaves it out, so it yields no area on Home, in Consistency or in the report. |
 
-The table's order is `areaGroupOrder()` (`src/Coaching/swing_areas.h`): body, arms, hands, club, ball. It is Consistency's
+The table's order is `areaGroupOrder()` (`src/Diagnostics/derived/swing_areas.h`): body, arms, hands, club, ball. It is Consistency's
 row order, without Ball flight, and the last tie-break between Home's rows (§5.2).
 
 Labels come from the C++ table `conditionGroupLabel()` (`kGroups`, `characteristic.cpp`), which the model browser also
@@ -627,10 +627,10 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
 
 **Before starting: D1 must be decided** (§5.2), and D9 (the typical-value meaning).
 
-- `Coaching/work_ons.h`: the all-conditions aggregate entry point (default unchanged); the
+- `Diagnostics/derived/work_ons.h`: the all-conditions aggregate entry point (default unchanged); the
   `WorkOnEvidence` extension with the shared median helper; schema 2→3, serialised in `toJson`
   and read in `sessionWorkOnsFromJson`. `work_ons_test` gains a schema round-trip check.
-- New `Coaching/swing_areas.h` + `swing_areas_pack.h` implementing §5.2 under D1, with grade
+- New `Diagnostics/derived/swing_areas.h` + `swing_areas_pack.h` implementing §5.2 under D1, with grade
   reconstruction from the stored band (policy-aware). Unit tests in a header-only
   `swing_areas_test` beside `work_ons_test` (`src/Analysis/tests/CMakeLists.txt` l.150–154), for:
   - an empty library;

@@ -21,7 +21,7 @@
 // 20 October session rebuilt from the model dump to show the reductions pick what the mock printed
 // (docs/design/session_report_design.md §3.2, §3.3, §4.2, §6, §7.3, §10).
 
-#include "../../Coaching/session_report.h"
+#include "../../Diagnostics/derived/session_report.h"
 
 #include <cstdio>
 #include <limits>

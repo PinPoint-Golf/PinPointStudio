@@ -20,7 +20,7 @@
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "report_meta.h"
-#include "../../Coaching/handedness_gloss.h"   // golferHand: the athlete's hand for a device-only session (6.3b fix, B-3)
+#include "../../Diagnostics/derived/handedness_gloss.h"   // golferHand: the athlete's hand for a device-only session (6.3b fix, B-3)
 #include "report_lm.h"
 #include "report_consistency.h"
 #include "report_tendencies.h"
@@ -52,12 +52,12 @@
 #include "../variability/variability_facade.h"
 #include "../variability/variability_ledger.h"         // ledgerConsistencyGrade (R10, R14)
 #include "../variability/variability_measures.h"       // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth
-#include "../../Coaching/board_annotations.h"         // the board's annotations, as every reduction reads them (3.7-d)
-#include "../../Coaching/session_report.h"
-#include "../../Coaching/sequence_checks.h"   // the session's sequence reading over the Session's diagnosis (5.6c, B6)
-#include "../../Coaching/swing_areas_pack.h"          // areaConditionInfoForPack: a yes/no condition has no grade
-#include "../../Coaching/shot_outcomes_pack.h"
-#include "../../Coaching/work_ons.h"
+#include "../../Diagnostics/derived/board_annotations.h"         // the board's annotations, as every reduction reads them (3.7-d)
+#include "../../Diagnostics/derived/session_report.h"
+#include "../../Diagnostics/derived/sequence_checks.h"   // the session's sequence reading over the Session's diagnosis (5.6c, B6)
+#include "../../Diagnostics/derived/swing_areas_pack.h"          // areaConditionInfoForPack: a yes/no condition has no grade
+#include "../../Diagnostics/derived/shot_outcomes_pack.h"
+#include "../../Diagnostics/derived/work_ons.h"
 #include "../../DomainModel/athlete_diagnostics.h"   // the Tendencies page as of the session; Earlier today (3.7-f)
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_settings.h"
@@ -1062,7 +1062,7 @@ QVariant workOnConsistencyOf(const Ctx &x, const Run &r, const QString &id, bool
 // made it before, in the same order and with the same words, over one make's state (MapState). THE REPORT READS, IT DOES
 // NOT COMPUTE A FIGURE TWICE (DEC-81; the Solution Architect, 23 Nov 2026): the work-on list, the rows and the ledgers are
 // the session's own diagnosis, read through its Session (SessionDiagnostics::diagnosis, diagnosisInput), never the
-// adapter's copy; the selection rules only the report makes (Coaching/session_report.h) stay its own.
+// adapter's copy; the selection rules only the report makes (Diagnostics/derived/session_report.h) stay its own.
 
 struct Sibling { QString dir; SessionPriorities rec; bool ok = false; bool self = false; int swings = 0; };
 

@@ -32,7 +32,7 @@
 // Header-only so the diagnostics model and its tests take it without the Charts sources.
 //
 // VOCABULARY (pure maths, no Qt): moved here from src/Gui/typeset in refactor step 3.8, unchanged, so the Rules ring's
-// consistency grade (src/Coaching/consistency_grade.h, J-34) and the variability rule (Vocabulary/Metrics/variability) take it
+// consistency grade (src/Diagnostics/derived/consistency_grade.h, J-34) and the variability rule (Vocabulary/Metrics/variability) take it
 // without reaching into the Gui ring. src/Gui/typeset/box_stats.h forwards here.
 
 #include <algorithm>

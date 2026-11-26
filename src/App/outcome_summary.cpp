@@ -18,7 +18,7 @@
 
 #include "outcome_summary.h"
 
-#include "../Coaching/shot_factor_words.h"
+#include "../Diagnostics/derived/shot_factor_words.h"
 #include "../DomainModel/session.h"
 #include "../DomainModel/session_diagnostics.h"
 #include "../DomainModel/shot.h"

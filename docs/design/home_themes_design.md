@@ -256,7 +256,7 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   (`reportHold`). Before, Your swing took every `Fault` and no `Setup`, and ignored the hold: a held
   reading (chicken_wing, "we could not measure your lead arm after impact") could be "needs work"
   here while Work-ons left it out, and a set-up habit (ball too far) could be a work-on but never
-  Your focus. Both lists now read one role (`conditionRoleFor`, `src/Coaching/condition_role_pack.h`;
+  Your focus. Both lists now read one role (`conditionRoleFor`, `src/Diagnostics/derived/condition_role_pack.h`;
   `swing_themes_pack.h` marshals it into `ThemeConditionInfo::fault`), and `condition_role_test`
   holds them to one answer for every shipped condition. Under rule v4 "what you do well" named only
   an unheld `Fault` (`ThemeConditionInfo::praisable`), and a held reading reassures no more than it
@@ -280,7 +280,7 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   not do pretty consistently (it doesn't have to be grooved but should be close)". That grade is the
   consistency marks' (`AthleteDiagnostics` since refactor 3.7-f, from the summaries' facts; `WorkOnsController` until then), worked out after the
   reduction, kept in memory per (condition, measure) and never stored, with the grader and the norm
-  provider in `src/Gui/variability`; the reduction (`src/Coaching`, pure, fingerprinted on the
+  provider in `src/Gui/variability`; the reduction (`src/Diagnostics/derived`, pure, fingerprinted on the
   ledgers) cannot read it. The Coaching Lead's decision (14 Nov): set-up praise ships now on the in-range rule, and
   the consistency gate for ALL praise is built in refactor step 3.
   **As built (3.6):** the gate is THE PRAISE RULE (`swing_themes.h` `applyPraiseRule`, `kPraiseRuleVersion` 1),
@@ -291,7 +291,7 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   "Not enough swings", too few readings — is not praised (D23), and stays shown in range in its area. The marks land
   after the summary, so "What you do well" fills in once they do; until then it lists nothing.
 - **How often, in words (14 Nov 2026, Stage 0.13).** One rule says how often a share is seen, for Your
-  swing and Tendencies alike (`src/Coaching/frequency_words.h`): "every swing" (≥ 0.995), "almost every
+  swing and Tendencies alike (`src/Diagnostics/derived/frequency_words.h`): "every swing" (≥ 0.995), "almost every
   swing" (≥ 0.9), "most swings" (≥ 0.7), "more than half your swings" (≥ 0.5), then "fairly often"
   (≥ 0.4), "sometimes" (≥ 0.25) and "rarely". The words never claim more than the share beside them.
   Before, Your swing's words stopped at "more than half your swings", and since rule v4 a needs-work row

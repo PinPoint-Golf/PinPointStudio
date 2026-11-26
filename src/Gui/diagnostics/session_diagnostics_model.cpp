@@ -34,10 +34,10 @@
 #include "../../App/shot_command_door.h"   // the golfer's commands forward to the Shot's and Session's (step 3.4b-i)
 #include "../../Export/session_diagnostics_files.h"   // the history read: the athlete's other sessions' ledgers
 #include "../../Export/swing_paths.h"
-#include "../../Coaching/sequence_checks.h"
-#include "../../Coaching/condition_in_hand.h"   // a condition worded for the golfer's hand (refactor 6.3b fix round, B-2)
-#include "../../Coaching/shot_outcomes_pack.h"
-#include "../../Coaching/work_ons_pack.h"
+#include "../../Diagnostics/derived/sequence_checks.h"
+#include "../../Diagnostics/derived/condition_in_hand.h"   // a condition worded for the golfer's hand (refactor 6.3b fix round, B-2)
+#include "../../Diagnostics/derived/shot_outcomes_pack.h"
+#include "../../Diagnostics/derived/work_ons_pack.h"
 #include "../../Vocabulary/Metrics/gate_catalogue.h"
 #include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../Core/pp_debug.h"
@@ -1614,7 +1614,7 @@ void SessionDiagnosticsModel::rebuild()
 // THE SESSION-SCOPE CONDITIONS (trunk_imu_sequence_grf_design.md §10.8 E2, F10).
 //
 // Reduced from the shot records — the persisted order-check verdicts and placed peak instants —
-// by sessionSequenceConsistency() (Coaching/sequence_checks.h), handed to the engine as the
+// by sessionSequenceConsistency() (Diagnostics/derived/sequence_checks.h), handed to the engine as the
 // session-scope measures' readings, and evaluated by the SAME detect() every swing goes through, so
 // the threshold, σ → pFire and ANY rules are the engine's own. Each session-scope finding becomes one
 // ledger that says what the session decided and nothing about any swing: its run is all

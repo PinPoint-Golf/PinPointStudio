@@ -42,7 +42,7 @@
 #include "Core/atomic_write.h"
 #include "Export/session_diagnostics_files.h"
 #include "Export/session_files.h"
-#include "Coaching/sequence_checks.h"
+#include "Diagnostics/derived/sequence_checks.h"
 #include "Diagnostics/measures/live_measure_source.h"
 #include "Diagnostics/norms/norm_provider.h"
 #include "Diagnostics/packs/pack_provider.h"

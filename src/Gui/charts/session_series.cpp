@@ -19,8 +19,8 @@
 #include "session_series.h"
 #include "session_series_extract.h"
 
-#include "../../Coaching/board_annotations.h"
-#include "../../Coaching/handedness_gloss.h"   // golferHand: the hand a shot is named in (refactor 6.3b fix round, B-3)
+#include "../../Diagnostics/derived/board_annotations.h"
+#include "../../Diagnostics/derived/handedness_gloss.h"   // golferHand: the hand a shot is named in (refactor 6.3b fix round, B-3)
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../Core/pp_debug.h"
 #include "../../DomainModel/rule_data.h"

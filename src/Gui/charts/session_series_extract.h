@@ -36,8 +36,8 @@
 //                        reading it grades (design §6.4).
 
 #include "session_series_types.h"
-#include "../../Coaching/board_annotations.h"
-#include "../../Coaching/diagnostic_ledger.h"   // ShotRecord
+#include "../../Diagnostics/derived/board_annotations.h"
+#include "../../Diagnostics/derived/diagnostic_ledger.h"   // ShotRecord
 
 #include <QJsonObject>
 #include <QJsonValue>

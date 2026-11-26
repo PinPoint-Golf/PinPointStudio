@@ -19,9 +19,9 @@
 #pragma once
 
 #include "diagnostic_ledger.h"
-#include "../Diagnostics/norms/norm.h"
-#include "../Vocabulary/Metrics/box_stats.h"
-#include "../Vocabulary/Common/figure_format.h"
+#include "../norms/norm.h"
+#include "../../Vocabulary/Metrics/box_stats.h"
+#include "../../Vocabulary/Common/figure_format.h"
 
 #include <algorithm>
 #include <cmath>
@@ -392,7 +392,7 @@ inline std::vector<double> trailingMedians(const std::vector<double> &values, in
 // ways — and it is the app's one formatter (Vocabulary/Common/figure_format.h), so they cannot differ from
 // the Charts panel or the report either. The true minus; a value that rounds to zero printed as
 // 0, never "−0"; "-" where there is no number. Decimals come from the CALLER — an axis's span, or
-// a corridor's — and never from σ. Kept under these names for Coaching/session_report.h.
+// a corridor's — and never from σ. Kept under these names for Diagnostics/derived/session_report.h.
 inline QString spreadNumber(double v, int decimals, bool trimZeros = false)
 {
     return pinpoint::figures::fig(v, decimals, trimZeros);

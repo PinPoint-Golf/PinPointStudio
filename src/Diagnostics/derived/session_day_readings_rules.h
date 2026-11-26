@@ -31,12 +31,12 @@
 //   sessionCamerasOf        a swing document's analysis root → the session's cameras by view (setup.perspectiveName,
 //                           else the alias) and their serials (source.serial).
 //
-// Rules ring (src/Coaching): values only, no file.
+// Rules ring (src/Diagnostics/derived): values only, no file.
 
 #include "session_day_readings.h"
 #include "diagnostic_ledger.h"
-#include "../Diagnostics/engine/characteristic.h"
-#include "../Diagnostics/measures/delivery_grid_numbers.h"
+#include "../engine/characteristic.h"
+#include "../measures/delivery_grid_numbers.h"
 
 #include <QJsonArray>
 #include <QJsonObject>

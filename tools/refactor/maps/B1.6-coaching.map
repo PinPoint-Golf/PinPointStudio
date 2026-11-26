@@ -2,3 +2,9 @@
 # Solution Architect and Product Owner, 24 Nov 2026 (L4 of the four contexts, AM5; PR-4). Every file, listed from the
 # tree at run time; file and type names don't change. src/Coaching is then the Coaching context's folder, empty.
 src/Coaching/ -> src/Diagnostics/derived/
+# The IM's lines that must say what was true when written (line numbers on origin/main 8f33e190, before the move):
+# 1429 GL-71 (the priorities' rename and move, B1.8 edits it); 2066 change log 1.9.46; 2074 change log 1.10.0.
+keep: governance/artefacts/information_model.md:1429,2066,2074
+# Lines still true after the move, because src/Coaching is then the Coaching context's folder (the old spelling is the
+# new meaning): IM 418 and 423 ("The Coaching folder", §4; its middle lines change tense by hand).
+keep: governance/artefacts/information_model.md:418,423

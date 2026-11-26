@@ -91,7 +91,7 @@ ends less the one the condition never fires on, so shot 8's Ball too far forward
 0; a condition on both tails reads |z| as before. A threshold test is measured against its own line
 (`faultAt`: the band's middle is 0, the line is 2) — on FIRED rows too, so a threshold condition's "how far
 out when it fires" (the card and work-on rankings) is distance from its own line — and a clean all-of condition (reverse pivot) reads the
-part that kept it clean (`allOf`). One derivation of the side (`Coaching/firing_side.h`) serves the
+part that kept it clean (`allOf`). One derivation of the side (`Diagnostics/derived/firing_side.h`) serves the
 rows, Home's work-on line and Home's areas. The panel's corridor (sentence — "fault below −7.5 cm",
 strip, fault line, position words, key figures) opens the other end; the dot plot's "‹ out on the
 other side" mark is gone. The report's "going well" keeps the two-sided distance from the

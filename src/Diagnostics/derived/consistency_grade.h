@@ -40,8 +40,8 @@
 //   IS a result. A ledger row carries no per-reading σ, so no propagatedSigma.
 
 #include "diagnostic_ledger.h"                               // ShotRecord, ConditionRow, rowFor
-#include "../Vocabulary/Metrics/variability/variability_grader.h"
-#include "../Vocabulary/Metrics/variability/variability_pooling.h"       // withinClubPooledInput (R2a)
+#include "../../Vocabulary/Metrics/variability/variability_grader.h"
+#include "../../Vocabulary/Metrics/variability/variability_pooling.h"       // withinClubPooledInput (R2a)
 
 #include <QString>
 

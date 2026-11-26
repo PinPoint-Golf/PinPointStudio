@@ -45,13 +45,13 @@
 // Numbers are snapped and rounded as 3.3's test does (|x| < 1e-9 → 0; 9 significant digits).
 
 #include "../engine/fire_findings.h"
-#include "../../Coaching/board_annotations.h"
-#include "../../Coaching/club_distances.h"
-#include "../../Coaching/outcome_scope.h"
-#include "../../Coaching/shot_outcomes_pack.h"
-#include "../../Coaching/swing_themes.h"
-#include "../../Coaching/tendencies.h"
-#include "../../Coaching/work_ons_pack.h"
+#include "../derived/board_annotations.h"
+#include "../derived/club_distances.h"
+#include "../derived/outcome_scope.h"
+#include "../derived/shot_outcomes_pack.h"
+#include "../derived/swing_themes.h"
+#include "../derived/tendencies.h"
+#include "../derived/work_ons_pack.h"
 #include "../../DomainModel/rule_data.h"
 #include "../../Export/rule_data_install.h"
 #include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)

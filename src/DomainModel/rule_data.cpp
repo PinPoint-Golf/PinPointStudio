@@ -18,7 +18,7 @@
 
 #include "rule_data.h"
 
-#include "../Coaching/strike_from_flight.h"   // FlightNorms
+#include "../Diagnostics/derived/strike_from_flight.h"   // FlightNorms
 #include "../Core/pp_debug.h"
 
 #include <QMutexLocker>

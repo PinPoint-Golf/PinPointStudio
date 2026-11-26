@@ -748,7 +748,7 @@ qt_add_executable(PinPointStudio
     src/Core/studio_profile.h                src/Core/studio_profile.cpp
     src/Core/atomic_write.h                  # the one atomic write (header-only; R-PERS-2)
     # (the advisory folder lock, folder_lock.*, R-PERS-6, is in pp_platform: src/Core/CMakeLists.txt)
-    src/Coaching/session_report.h
+    src/Diagnostics/derived/session_report.h
     src/Gui/report/session_report_model.h    src/Gui/report/session_report_model.cpp
     src/Gui/report/report_stills.h           src/Gui/report/report_stills.cpp
     src/Gui/report/report_stills_pure.h      src/Gui/report/report_stills_pure.cpp
@@ -864,7 +864,6 @@ target_include_directories(PinPointStudio PRIVATE
     src/Gui/characteristics src/Gui/diagnosticmodel src/Gui/launchmonitor src/Gui/print
     src/IMU src/LaunchMonitor src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
     src/Analysis src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d
-    src/Coaching
     src/Diagnostics/engine src/Diagnostics/packs src/Diagnostics/norms src/Diagnostics/measures
     src/Update
     "${CMAKE_BINARY_DIR}/generated")
@@ -2967,7 +2966,7 @@ target_sources(PinPointStudio PRIVATE
     src/Export/series_store.cpp
     src/Diagnostics/engine/session_reduction.h
     src/Diagnostics/engine/session_reduction.cpp
-    src/Coaching/session_results.h
+    src/Diagnostics/derived/session_results.h
     # (the one worker pool, src/Core/work_pool.*, is in pp_platform)
     # The athlete level's derived owner (refactor step 3.6; Domain model: the club baseline a session freezes, the
     # athlete work-ons, the distances, from the summaries) and the catch-up service (Application) — wired to Home at
@@ -2976,7 +2975,7 @@ target_sources(PinPointStudio PRIVATE
     src/DomainModel/athlete_diagnostics.cpp
     src/App/athlete_catch_up.h
     src/App/athlete_catch_up.cpp
-    src/Coaching/board_annotations.h
+    src/Diagnostics/derived/board_annotations.h
     # The parallel run's form P, its in-memory doors and the two forms' difference (refactor 3.5-ii; the app's switch,
     # PINPOINT_DIAG_PARALLEL=1, went in 3.10): regrade_ledger's dump, the tools' and tests' — NOT a QML type, so not in
     # PP_QML_SOURCES: the QML suites, which compile the module's C++ without the session diagnostics owner, need none of it.
@@ -3003,7 +3002,7 @@ target_sources(PinPointStudio PRIVATE
     src/App/session_shot_source.cpp
     src/App/outcome_summary.h     # the carousel's shot summary, AppState's doors (refactor 4-b): links the owner
     src/App/outcome_summary.cpp
-    src/Coaching/shot_factor_words.h
+    src/Diagnostics/derived/shot_factor_words.h
     src/Analysis/effective_context.h
     src/Analysis/effective_context.cpp
     src/Analysis/reuse_gate.h
@@ -3516,7 +3515,7 @@ if(PINPOINT_BUILD_TOOLS)
     function(pinpoint_configure_offline_target tgt)
         target_include_directories(${tgt} PRIVATE
             src/Buffer src/Analysis src/Export src/Pose src/Core src/IMU
-            src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d src/Coaching
+            src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d
             # src/Export/swing_doc.h includes launch_monitor_reading.h, so every
             # consumer of it needs this — the app target got it when the reading
             # was added, these offline targets did not.
