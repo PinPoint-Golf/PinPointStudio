@@ -18,7 +18,8 @@
 
 // isolated_stores_test (#187): with pinpoint::test::IsolatedStores on, the settings file, the app's own data folders
 // and the standard locations are not the machine's, on every platform. It reads the app's own path helpers
-// (ppSettings(), diagnosticsDataDir(), StudioProfileStore::studioDir()), so a renamed seam fails here, not on a studio PC.
+// (ppSettings(), diagnosticsDataDir(), StudioProfileStore::studioDir(), RigStore::defaultFolder()), so a renamed seam
+// fails here, not on a studio PC.
 // The real locations are computed with test mode off and NO store opened: nothing here reads or writes a real store.
 
 #include "isolated_stores.h"
@@ -26,6 +27,7 @@
 #include "../pp_settings.h"
 #include "../../App/studio_profile.h"
 #include "../../Stores/studio_profile_store.h"
+#include "../../Stores/rig_store.h"
 #include "../../Diagnostics/engine/pack_io.h"
 
 #include <QCoreApplication>
@@ -76,6 +78,7 @@ int main(int argc, char **argv)
     QStandardPaths::setTestModeEnabled(false);
     qunsetenv("PINPOINT_DIAGNOSTICS_DIR");
     qunsetenv("PINPOINT_STUDIO_DIR");
+    qunsetenv("PINPOINT_RIG_DIR");
     QCoreApplication app(argc, argv);
     QString real[std::size(kMoved)];
     for (size_t i = 0; i < std::size(kMoved); ++i) real[i] = QStandardPaths::writableLocation(kMoved[i].type);
@@ -128,6 +131,11 @@ int main(int argc, char **argv)
               "D3 the studio profile's folder (an imported logo's copy) is inside it");
         check(stores.contains(stores.libraryRoot()) && QFileInfo(stores.libraryRoot()).isDir(),
               "D4 libraryRoot() is a folder inside it");
+        // The Rig's folder (FILE-APP-07): the store the composition root makes reads RigStore::defaultFolder().
+        const QString rig = RigStore::defaultFolder();
+        std::printf("  RigStore::defaultFolder() = %s (without the helper: %s/rig)\n", qPrintable(rig), qPrintable(real[0]));
+        check(stores.contains(rig) && rig == QDir::cleanPath(stores.rigDir()) && stores.contains(RigStore(rig).filePath()),
+              "D5 the Rig's folder (rig.json) is inside it");
     }
 
     std::printf("\nthe standard locations (test mode: Qt's own test folders, never the real ones)\n");

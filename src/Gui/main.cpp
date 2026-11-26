@@ -90,6 +90,9 @@
 #include "work_ons_controller.h"
 #include "../App/studio_profile.h"
 #include "../Stores/studio_profile_store.h"   // the studio profile's repository (SET-20, FILE-APP-06)
+#include "../DomainModel/rig.h"               // the Rig, one per machine (OBJ-RIG); made here, the composition root
+#include "../Stores/rig_store.h"              // its one store, rig/rig.json (FILE-APP-07)
+#include "app/rig_presenter.h"                // app.rig
 #include "report/session_report_model.h"
 #include "report/report_stills.h"
 #include "charts/charts_posture_presenter.h"
@@ -794,6 +797,17 @@ int main(int argc, char *argv[])
     // (and honours the same PINPOINT_WORKONS_DIR dev seam), and refreshes when a work-on record lands.
     StudioProfileStore     studioProfileStore;      // its keys and its folder; outlives the profile (made first)
     StudioProfile          studioProfile(studioProfileStore);
+
+    // THE RIG (information_model.md OBJ-RIG, LC-RIG; docs/design/rig_design.md §4.1, §4.4): one per machine, made here
+    // on the GUI thread with its store, which takes its folder from here (RigStore::defaultFolder(): <AppData>/rig,
+    // or PINPOINT_RIG_DIR for a test or a probe), and loaded once: a machine with nothing stored gets an empty rig and
+    // a new RigId, written once. No group of settings keys is copied into it yet (C-5b, C-6b.1, C-7): AppSettings
+    // stays each group's one writer. `app.rig` reads it.
+    RigStore               rigStore(RigStore::defaultFolder());
+    pinpoint::Rig          rig(rigStore);
+    rig.load();
+    pinpoint::RigPresenter rigPresenter(rig);
+    QQmlEngine::setObjectOwnership(&rigPresenter, QQmlEngine::CppOwnership);   // on main()'s stack, as the four below
     SessionReportModel     sessionReport;
     SessionReportListModel sessionReportList;
     ReportMailer           reportMailer;
@@ -2054,6 +2068,7 @@ int main(int argc, char *argv[])
         m.profiler                = &profilerController;
         m.resourceMonitor         = &resourceMonitor;
         m.cudaRuntime             = &cudaRuntime;
+        m.rig                     = &rigPresenter;   // app.rig (C-4: read-only)
         appObject.setMembers(m);
     }
 

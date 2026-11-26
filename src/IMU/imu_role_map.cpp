@@ -18,7 +18,7 @@
 
 #include "imu_role_map.h"
 
-#include "../../IMU/hm_unit_id.h"
+#include "hm_unit_id.h"
 
 #include <QPair>
 

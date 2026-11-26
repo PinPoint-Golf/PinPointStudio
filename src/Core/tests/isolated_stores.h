@@ -46,7 +46,8 @@
 //       PINPOINT_DIAGNOSTICS_DIR = <tmp>/diagnostics   (pinpoint::analysis::diagnosticsDataDir(): every user pack,
 //                                                       norm set, screen, drill, gate-word and reference layer)
 //       PINPOINT_STUDIO_DIR      = <tmp>/studio        (StudioProfileStore::studioDir(): the report's logo and photo)
-//     A suite that sets either again afterwards (report_studio_test does) wins.
+//       PINPOINT_RIG_DIR         = <tmp>/rig           (RigStore::defaultFolder(): the machine's rig, rig.json)
+//     A suite that sets one again afterwards (report_studio_test does) wins.
 //   - libraryRoot() is <tmp>/library, made, for a suite to hand to a store as its library root. The stores' own
 //     fallback when no root is set (AppDataLocation + "/swings", athlete_store.cpp, session_store.cpp) has no seam:
 //     under this helper it is the test location above, never the real one.
@@ -84,7 +85,7 @@ public:
                    qPrintable(m_dir.errorString()));
         m_root = QFileInfo(m_dir.path()).canonicalFilePath();
         if (m_root.isEmpty()) m_root = QDir::cleanPath(m_dir.path());
-        for (const QString &sub : { settingsDir(), diagnosticsDir(), studioDir(), libraryRoot() })
+        for (const QString &sub : { settingsDir(), diagnosticsDir(), studioDir(), rigDir(), libraryRoot() })
             if (!QDir().mkpath(sub)) qFatal("IsolatedStores: cannot make %s", qPrintable(sub));
 
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDir());
@@ -94,6 +95,7 @@ public:
 
         qputenv("PINPOINT_DIAGNOSTICS_DIR", QDir::toNativeSeparators(diagnosticsDir()).toLocal8Bit());
         qputenv("PINPOINT_STUDIO_DIR", QDir::toNativeSeparators(studioDir()).toLocal8Bit());
+        qputenv("PINPOINT_RIG_DIR", QDir::toNativeSeparators(rigDir()).toLocal8Bit());
     }
 
     IsolatedStores(const IsolatedStores &)            = delete;
@@ -103,6 +105,7 @@ public:
     QString settingsDir() const { return m_root + QStringLiteral("/settings"); }
     QString diagnosticsDir() const { return m_root + QStringLiteral("/diagnostics"); }
     QString studioDir() const { return m_root + QStringLiteral("/studio"); }
+    QString rigDir() const { return m_root + QStringLiteral("/rig"); }
     QString libraryRoot() const { return m_root + QStringLiteral("/library"); }
 
     // Whether `path` lies inside the temporary directory (the directory itself counts). The nearest existing

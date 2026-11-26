@@ -67,11 +67,12 @@ pp_add_test(atomic_write_test
     SOURCES atomic_write_test.cpp
     INCLUDE ${CORE})
 # The test-isolation helper (isolated_stores.h, header-only, #187): with it on, ppSettings(), the user diagnostics
-# folder (diagnosticsDataDir), the studio profile's folder and libraryRoot() lie inside its temporary directory, and
+# folder (diagnosticsDataDir), the studio profile's folder, the Rig's folder and libraryRoot() lie inside its temporary directory, and
 # the standard locations are not the real ones. It reads the app's own path helpers, so a renamed seam fails here.
 # Hand-rolled main; the real log (studio_profile.cpp logs).
 pp_add_test(isolated_stores_test
     SOURCES isolated_stores_test.cpp ${PP_SRC}/App/studio_profile.cpp ${PP_SRC}/Stores/studio_profile_store.cpp
+            ${PP_SRC}/Stores/rig_store.cpp
             ${CORE}/../Diagnostics/engine/pack_io.cpp
     INCLUDE ${CORE}  LINK pp_platform
     AUTOMOC)

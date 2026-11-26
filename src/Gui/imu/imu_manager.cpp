@@ -23,7 +23,7 @@
 #include "event_buffer.h"
 #include "hm_instance.h"
 #include "imu_instance.h"
-#include "imu_role_map.h"
+#include "imu_labels.h"
 #include "paced_connect_queue.h"
 #include "pp_debug.h"
 #include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE (refactor 4-c)

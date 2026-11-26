@@ -658,6 +658,46 @@ pp_add_test(rig_state_test
             ${SRC}/Vocabulary/Recording/perspective.h
     AUTOMOC)
 pp_requirement(rig_state_test REQ-DEV-17)   # supports: one value for a bay's set-up and calibration, named by its content
+# rig_store_test: the Rig and its one file (src/DomainModel/rig.*, src/Stores/rig_store.*; FILE-APP-07): a machine with
+# no rig gets an empty one with a new RigId, written once; the next launch reads it and writes nothing; the schema is
+# checked on read (another schema, not JSON, no rigId: read-only, never saved over); a newer pinpoint.rig/N is read for
+# what this build knows and never saved over; the write is whole and atomic; a failed save keeps the state and warns;
+# an unknown member is written back; both parts round-trip with no sensor alignment written; no event at load; the
+# test override (PINPOINT_RIG_DIR, set by IsolatedStores) keeps the real rig folder untouched. Hand-rolled main.
+pp_add_test(rig_store_test
+    SOURCES ${SRC}/DomainModel/tests/rig_store_test.cpp
+            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
+            ${SRC}/Stores/rig_store.cpp
+            ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    AUTOMOC)
+pp_requirement(rig_store_test REQ-DEV-17)   # supports: the bay's set-up kept per machine and loaded at launch (still planned, #74)
+# rig_commands_test: the Rig's camera commands (src/DomainModel/rig.*, rig_commands.h): each versioned command makes a
+# new state, saved, then one RigChanged; Impact exclusive across three cameras; a camera put back gives its earlier
+# RigStateId; a no-op saves and emits nothing; the box kept while not fixed; an alias or an enabled flag emits one
+# RigDeviceLabelChanged and no RigChanged; aliases by their own spelling; an unknown code survives; a failed save
+# keeps the change and the next command saves it. Hand-rolled main.
+pp_add_test(rig_commands_test
+    SOURCES ${SRC}/DomainModel/tests/rig_commands_test.cpp
+            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
+            ${SRC}/Stores/rig_store.cpp
+            ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    AUTOMOC)
+pp_requirement(rig_commands_test REQ-DEV-1 REQ-DEV-17)   # the camera roles, Impact exclusive, an unknown code kept; REQ-DEV-17 supports
+# rig_import_test: the copy of the camera keys from settings into rig.json (src/Stores/rig_store.*; rig_design.md §4.4):
+# the fixture copies to the same values, a bare key kept verbatim and matched to no camera; the keys untouched byte for
+# byte; no second copy when nothing changed; the four downgrade cases (the older build runs; it changes a key; rig.json
+# deleted; a newer rig.json); values of the wrong shape kept; neither keys nor rig; switched off. On ppSettings()
+# inside IsolatedStores. Hand-rolled main.
+pp_add_test(rig_import_test
+    SOURCES ${SRC}/Stores/tests/rig_import_test.cpp
+            ${SRC}/Stores/rig_store.cpp
+            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
+            ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    AUTOMOC)
+pp_requirement(rig_import_test REQ-INST-17 REQ-DEV-17)   # an update or a step back keeps each bay's set-up; REQ-DEV-17 supports
 # session_identity_test: a legacy folder's name read under every naming pattern (against the names
 # SwingPaths composes), D3's name-based id against Python's uuid5, n-of-day by start time.
 pp_add_test(session_identity_test

@@ -784,7 +784,8 @@ qt_add_executable(PinPointStudio
     src/Gui/app/notification_center.h        src/Gui/app/notification_center.cpp
     src/Gui/shot/ppcp_clip_filer.h           src/Gui/shot/ppcp_clip_filer.cpp
     src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp
-    src/Gui/imu/imu_role_map.h               src/Gui/imu/imu_role_map.cpp
+    src/IMU/imu_role_map.h               src/IMU/imu_role_map.cpp
+    src/Gui/imu/imu_labels.h
     src/Gui/imu/paced_connect_queue.h        src/Gui/imu/paced_connect_queue.cpp
     src/Vocabulary/Common/segment_role.h
     src/Gui/imu/imu_instance.h               src/Gui/imu/imu_instance.cpp
@@ -808,6 +809,12 @@ qt_add_executable(PinPointStudio
     src/App/studio_profile.h                src/App/studio_profile.cpp
     src/App/studio_profile_repository.h      # its keys and its folder, as the profile reaches them (SET-20, FILE-APP-06)
     src/Stores/studio_profile_store.h        src/Stores/studio_profile_store.cpp   # the one store behind it
+    # The Rig (docs/design/rig_design.md §4.1, §4.4; information_model.md OBJ-RIG, FILE-APP-07): one per machine,
+    # its repository and the one store behind it (rig/rig.json), and `app.rig`, its read-only presenter.
+    src/DomainModel/rig.h                    src/DomainModel/rig.cpp
+    src/DomainModel/rig_repository.h
+    src/Stores/rig_store.h                   src/Stores/rig_store.cpp
+    src/Gui/app/rig_presenter.h              src/Gui/app/rig_presenter.cpp
     src/Core/atomic_write.h                  # the one atomic write (header-only; R-PERS-2)
     # (the advisory folder lock, folder_lock.*, R-PERS-6, is in pp_platform: src/Core/CMakeLists.txt)
     src/Diagnostics/derived/session_report.h

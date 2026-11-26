@@ -250,7 +250,7 @@ set_tests_properties(variability_data_geometry_test PROPERTIES ENVIRONMENT "QT_Q
 # marker and "imu/placement is never written" are properties of what lands on disk.
 pp_add_test(imu_role_map_test
     SOURCES imu_role_map_test.cpp
-            ${GUI}/imu/imu_role_map.cpp
+            ${SRC}/IMU/imu_role_map.cpp
             ${GUI}/app/app_settings.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
@@ -263,7 +263,7 @@ pp_add_test(imu_role_map_test
 # QSettings path, as imu_role_map_test does, because the migration is what lands on disk.
 pp_add_test(camera_roi_test
     SOURCES camera_roi_test.cpp
-            ${GUI}/imu/imu_role_map.cpp
+            ${SRC}/IMU/imu_role_map.cpp
             ${GUI}/app/app_settings.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
@@ -278,7 +278,7 @@ pp_add_test(camera_roi_test
 pp_add_test(device_key_test
     SOURCES device_key_test.cpp
             ${SRC}/Vocabulary/Rig/device_key.h
-            ${GUI}/imu/imu_role_map.cpp
+            ${SRC}/IMU/imu_role_map.cpp
             ${GUI}/app/app_settings.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
@@ -656,6 +656,7 @@ if(UNIX)
     add_test(NAME run_headless_selftest
              COMMAND ${SRC}/../tools/probe/run_headless_selftest.sh ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(run_headless_selftest PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)   # it times a 1 s window
+    pp_requirement(run_headless_selftest CTL-AG-15)   # the one launcher keeps a probe off the real home, settings, library and Rig folder
 endif()
 
 # THE QUIT PINS (SE-1b; testing_developer_guide.md "The quit pins"): the APP BINARY (the same one headless_probe_test

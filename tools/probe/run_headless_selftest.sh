@@ -171,7 +171,7 @@ grep -q 'standin: started' "$WORK/happy.log" && grep -q 'standin: done rc=7' "$W
     pass "teed the app's stderr to the log" || fail "the log lacks the stand-in's stderr"
 GOT_ENV=$(sed -n 's/^env=//p' "$MARK" | sort)
 WANT_ENV=$(printf '%s\n' "PINPOINT_HEADLESS_PROBE=1" "QT_QPA_PLATFORM=offscreen" "PINPOINT_LOG_STDERR=1" \
-    "HOME=$OK_HOME" "CFFIXED_USER_HOME=$OK_HOME" "XDG_CONFIG_HOME=$WORK/cfg" "PINPOINT_DIAGNOSTICS_DIR=$OK_HOME/diagnostics" \
+    "HOME=$OK_HOME" "CFFIXED_USER_HOME=$OK_HOME" "XDG_CONFIG_HOME=$WORK/cfg" "PINPOINT_DIAGNOSTICS_DIR=$OK_HOME/diagnostics" "PINPOINT_RIG_DIR=$OK_HOME/rig" \
     "TMPDIR=$OK_HOME/tmp" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "LANG=en_US.UTF-8" "PINPOINT_STANDIN_MARKER=$MARK" | sort)
 # macOS adds __CF_USER_TEXT_ENCODING to a process at exec; that one is not ours to control.
 if [ "$(printf '%s\n' "$GOT_ENV" | grep -v '^__CF_USER_TEXT_ENCODING=')" = "$WANT_ENV" ]; then

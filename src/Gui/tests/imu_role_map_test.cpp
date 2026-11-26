@@ -32,7 +32,7 @@
 // top of these functions is the device-facts callback, the live instances and logging.
 
 #include "app/app_settings.h"
-#include "imu/imu_role_map.h"
+#include "../imu/imu_labels.h"
 
 #include <QCoreApplication>
 #include <QMetaProperty>

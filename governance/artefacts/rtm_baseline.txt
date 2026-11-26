@@ -615,7 +615,6 @@
 4 review_views_shot_test
 4 rule_data_test
 4 rule_version_golden_test
-4 run_headless_selftest
 4 seed_conversion_test
 4 segment_rates_test
 4 series_key_ladder_test

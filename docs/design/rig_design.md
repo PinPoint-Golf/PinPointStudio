@@ -96,11 +96,13 @@ It has two parts with different rules (RP-4):
 | Part | Holds | A change |
 |---|---|---|
 | **The rig state** (versioned) | Per camera, by its device key: perspective, mirrored, fixed in place, the hitting-area box, its calibration records. Per sensor placement, by its placement key (§4.6): the role, and the alignment record held for the run (§4.2) | makes a new rig state and emits `RigChanged` |
-| **The Rig's other facts** (not versioned) | Display aliases; whether each device is enabled on this machine (today's `excluded` lists); the learned club-length prior (SET-05)[^dec153]; by this design also `ppcp/studioName`, which Stage F moves (§4.3) | is saved; no new state, no event |
+| **The Rig's other facts** (not versioned) | Display aliases; whether each device is enabled on this machine (today's `excluded` lists); the learned club-length prior (SET-05)[^dec153]; by this design also `ppcp/studioName`, which Stage F moves (§4.3) | is saved; no new state and no `RigChanged`. A change to an alias or an enabled flag emits `RigDeviceLabelChanged` (§4.2)[^add8] |
 
 **One writer.** Only `Rig` changes either part, by its own commands, and only `Rig` saves, through `RigRepository`
-(an interface in the Domain model; its adapter in `src/Stores`)[^p]. Today's writers (`CameraManager`,
-`CameraInstance`, `ImuManager`, `ShotProcessor`, QML through `appSettings`) call the Rig's commands instead.
+(an interface in the Domain model; its adapter in `src/Stores`)[^p]. Today's writers call the Rig's commands instead.
+The C++ writers (`CameraManager`, `CameraInstance`, `ImuManager`, `ShotProcessor`) call them through `RigCommands`, a
+set of interfaces among the Domain model's contracts (`rig_commands.h`) that `Rig` implements and the composition root
+hands to each of them. QML calls them through `app.rig`[^add1].
 
 **Commands** (the names are placeholders): `assignPerspective(camera, perspective)`, `setMirrored`,
 `setFixedInPlace`, `setHittingArea`, `clearHittingArea`, `claimRole(placement, role, facts)`, `releaseRole`,
@@ -145,8 +147,9 @@ stands, and the next command saves again. A command is never refused because the
 the Rig's file or the settings keys it replaced[^p]. Only the composition root, `app.rig` and the store include
 `rig.h` (a lint check, C-4).
 
-**Acquisition reaches it** in two directions, both by contract (§5, §6): devices are handed the current rig state as
-a typed value, and a driver hands back a calibration record or a clear.
+**Acquisition reaches it** in two directions, both by contract (§5, §6): devices are handed the current rig state and,
+for their own devices, the alias and the enabled flag, each as a typed value, and are told of every change to either;
+and a device object hands back a calibration record or a clear[^add8].
 
 ### 4.2 Identity and the versioned rig state
 
@@ -173,6 +176,10 @@ The rig state also carries `sinceUtc`, the time the state came into force. It is
 | Carries | the new `RigRef` |
 | Recomputes | nothing. No derived fact reads the current Rig. A Recording captured after it references the new state; every earlier Recording keeps its own copy |
 | Not emitted for | an alias, an enabled flag, a learned prior; a command that leaves the digest unchanged; the state loaded at launch |
+
+A change to an alias or an enabled flag emits a second event (placeholder name `RigDeviceLabelChanged`) from the Rig,
+after the save. It carries the device key and which of the two changed. It recomputes nothing and makes no new rig
+state. A learned prior emits nothing[^add8].
 
 A worn sensor is calibrated at each wearing, so a session will usually begin with one or two `RigChanged` events.
 That is intended: the alignment in force is part of the state the shots were captured with.
@@ -233,7 +240,7 @@ It keeps no history. Every state a Recording used is in that Recording (§4.5).
 
 **Tests never write a real machine's rig.** The store takes its folder from the composition root, with an override
 for tests as the studio profile has (`PINPOINT_STUDIO_DIR`), and C-4's test proves that a test run on the Mac or on
-the cabin PC's test lane leaves the real folder untouched. `rig.json` joins lint A5's table of file names, so no
+the cabin PC's test lane leaves the real folder untouched. `rig.json` joins lint A4's table of file names (A5 has no file-name table), so no
 other code spells it.
 
 **From settings to the file, one group at a time.** There are three groups: the camera keys, the sensor keys and
@@ -393,7 +400,10 @@ Each persisted map keeps today's spelling, byte for byte (table A2), so nothing 
 | A phone camera | `peer_id + source_id`[^ccd]: the type has room for it; Stage F builds it | n/a |
 
 So a sensor's `DeviceKey` has two persisted spellings, with and without its description, and the type names them
-(`persistedWithDescription()`, `persistedId()`); each map's reader and writer states which it uses. In the Rig and
+(`persistedWithDescription()`, `persistedId()`); each map's reader and writer states which it uses. Two sensor keys are equal when
+their device ids are; the description is carried only for the alias spelling, and `imu/alias` is looked up by that
+spelling, never by key equality. A camera key is equal when both its parts are[^add9]. A key that fits no spelling is
+not a `DeviceKey`. The copy from settings keeps such an entry verbatim and matches it to no device[^add10]. In the Rig and
 in the block, a sensor entry is keyed by `PlacementKey`, so a HackMotion appears as two entries.
 
 Sites: 8 open-coded builds → 0, and the 6 places that know a shape → 0.
@@ -475,7 +485,7 @@ model (§6 rule 3)[^rctx][^ring].
 
 | Piece | Ring, context | Does |
 |---|---|---|
-| A step machine: `TrunkProcedure`, `WitmotionArmProcedure`, `HackMotionArmProcedure` (`src/IMU/calibration/`) | Rules, Acquisition | Takes events: a tick with its elapsed time, a sensor summary (gyro rate, tilt, heading, link up or down), "the guide finished", "speech finished", the HackMotion's own phase. Returns its stage, progress, reason codes, cue codes, and requests (start a step, solve now, check the turn). Ends with a `CalibrationRecord` or a failure code. It holds every threshold and every transition. It has no clock, no timer and no sentence |
+| A step machine: `TrunkProcedure`, `WitmotionArmProcedure`, `HackMotionArmProcedure` (`src/IMU/calibration/`) | Rules, Acquisition | Takes events: a tick with its elapsed time, a sensor summary (gyro rate, tilt, heading, link up or down), "the guide finished", "speech finished", the HackMotion's own phase. Returns its stage, progress, reason codes, cue codes, and requests (start a step, solve now, check the turn, clear the sensors' calibration, apply or refine an alignment, open or close the recording, attach a result, close a step, and each call a HackMotion's own calibration needs)[^add1]. Ends with a `CalibrationRecord` or a failure code. It holds every threshold and every transition. It has no clock, no timer and no sentence |
 | A driver per procedure (`src/Gui/imu/` until Stage D) | Adapters | Owns the timers and the sensor taps, feeds the machine, calls the sink, and exposes the machine's state to QML as typed properties under the names the QML reads today |
 
 Because time is an input, a recorded run replays to the same answer. The Rules ring holds no golfer-facing
@@ -562,6 +572,7 @@ short note saying so when this design is approved.
 | The role rules of `imu_role_map.*` (moved) | `src/IMU/` | Rules | Acquisition |
 | `sensorDisplayName`, `stripDeviceIds` (the display labels; they stay) | `src/Gui/imu/`, behind `app.rig` | Adapters | Domain + Application |
 | `Rig`; `RigRepository`; `RigCalibrationSink` | `src/DomainModel/rig.*`, `rig_repository.h`, `rig_calibration_sink.h` | Domain model | Domain + Application |
+| `RigCommands` (the camera commands, the sensor commands, `learnClubLength`), the Rig's commands as a contract[^add1] | `src/DomainModel/rig_commands.h` | Domain model | Domain + Application |
 | The Rig's store (`rig.json`) and the copies from settings | `src/Stores/rig_store.*` | Adapters | Domain + Application |
 | The `rig` block's writer and reader | `src/Stores/recording_header.*` (the one header writer) | Adapters | Domain + Application |
 | The ceremony file's door | `src/Stores/` (name with open question 5) | Adapters | Domain + Application |
@@ -582,7 +593,7 @@ record holds, both go to `Vocabulary/Common` in Stage B, Part 1[^q27][^plan-b].
 |---|---|---|
 | 1 | `Vocabulary/Rig` includes only Platform, `Identity`, `Vocabulary/Common`, the perspective header and Qt value types. It never includes `recording.h` | `recording.h` includes `Buffer/types.h`, `Vocabulary/Analysis/swing_analysis.h` and `Vocabulary/Club/club_standards.h`, so the enum gets its own header (A5-4) |
 | 2 | `recording.h` includes `Vocabulary/Rig` (for `RigReference`); `Vocabulary/Rig` never includes `recording.h` | no cycle is made. One file under `Vocabulary/` names `Recording/` today (`analysis_versions.h`); the rig types do not include it (A5-5) |
-| 3 | **The step machines (Rules) include nothing of the Domain model: they return a record** (when built: #291[^c-v1]). Only the drivers and device objects (Adapters) include `rig_calibration_sink.h`, and none includes `rig.h`. The sink joins lint A9's named contract headers[^q26] | 0 files under `src/IMU`, `src/Buffer`, `src/Video`, `Gui/imu`, `Gui/cameras` or `Gui/calibration` include `DomainModel/` today (A5-6). The check is extended to `src/IMU/calibration` and stays at 0 for `src/IMU` |
+| 3 | **The step machines (Rules) include nothing of the Domain model: they return a record** (when built: #291[^c-v1]). Only the drivers and device objects (Adapters) include `rig_calibration_sink.h`, and none includes `rig.h`. The sink joins lint A9's named contract headers[^q26]. `rig_commands.h` joins lint A9's named contract headers[^add1] | 0 files under `src/IMU`, `src/Buffer`, `src/Video`, `Gui/imu`, `Gui/cameras` or `Gui/calibration` include `DomainModel/` today (A5-6). The check is extended to `src/IMU/calibration` and stays at 0 for `src/IMU` |
 | 4 | `rig.*` includes only `Vocabulary/Rig`, `Identity`, Platform and the pure role rule (`IMU/imu_role_map.h`, Rules) | the Domain model's production files include `Analysis`, `Coaching`, `Core`, `Diagnostics`, `Identity`, `LaunchMonitor`, `Metrics`, `Recording` and `Vocabulary`; none includes `IMU`, `Buffer` or `Gui` (A5-7). `imu_role_map.*` includes only Qt, `segment_role.h` and `hm_unit_id.h` (A5-8), so its role rules can move to `src/IMU` and be the Domain model's first include of that directory |
 | 5 | The Rig never includes `app_settings.h`; the copies from settings are made in the Rig's store, which reads the settings store itself | `app_settings.h` is included by 18 production files and 4 tests under `src/Gui`, and 4 files under `src/Update` (allowlisted, A1), and by no inner ring (A5-9) |
 | 6 | `CameraInstance`'s enum can be deleted without touching an inner ring | `camera_instance.h` is included by 5 files, all in `Gui/cameras` and `Gui/shot` (A5-1) |
@@ -861,10 +872,14 @@ directory.
 [^code-set]: `src/Gui/app/app_settings.h`, the `Q_PROPERTY` list; `app_settings.cpp` for `imu/rolesMigrated`.
 [^code-cer]: `src/Gui/imu/trunk_ceremony_recorder.h` (its header comment) and `.cpp` (`QThreadPool::globalInstance()->start`); `src/Gui/tests/architecture_allowlist.txt`.
 [^code-cam]: `src/Gui/cameras/camera_instance.h`, the comment on `Perspective`; `CameraManager::assignPerspective` (`camera_manager.cpp`): "Impact is exclusive".
-[^code-key]: `src/Gui/cameras/camera_instance.cpp` (`cameraKey()`); `src/Gui/imu/imu_role_map.h` (`aliasKey()`).
+[^code-key]: `src/Gui/cameras/camera_instance.cpp` (`cameraKey()`); `src/IMU/imu_role_map.h` (`aliasKey()`).
 [^code-id]: `src/Vocabulary/Identity/identity.h`.
 [^code-hm]: The header of `src/Gui/calibration/HackMotionArmRoutine.qml`: "Nothing about the HackMotion calibration is persisted, ever".
 [^code-test]: `src/Gui/tests/setup/support/CalibDriver.qml`; `tst_setup_trunk.qml`, `tst_setup_calib_witmotion.qml`, `tst_setup_calib_hackmotion.qml`.
+[^add1]: The Rig design addendum (`docs/design/rig_design_addendum.md`), decision 1, ruled as recommended by the Solution Architect, 25 Nov 2026; its "Becomes" texts written in by the platform refactor's C-5a.1, which declares `rig_commands.h` with the camera commands.
+[^add8]: The same addendum, decision 8, ruled as recommended by the Solution Architect, 25 Nov 2026; written in by C-5a.1, which emits the second event from the Rig's camera commands.
+[^add9]: The same addendum, decision 9, ruled as recommended by the Solution Architect, 25 Nov 2026 (built by C-1c and C-3); written in by C-5a.2.
+[^add10]: The same addendum, decision 10, ruled as recommended by the Solution Architect, 25 Nov 2026; written in by C-5a.2, whose copy keeps such entries in `rig.json` (`keptFromSettings`), beside the two parts.
 [^sa24-rig]: The Solution Architect, 24 Nov 2026: "approve as recommended" (`build/platform/JUDGEMENT-CALLS.md` PR-35). §9's questions 10, 14, 17 and 18 are implementation choices, taken as recommended by the coordinator and logged there too.
 [^arm-hands-free]: The Product Owner and the Solution Architect, 25 Nov 2026: the arm calibration routines' breach of the hands-free rule (`governance/controls/product/ui-behaviour.md`, UI-14) is accepted until #291's track, which takes #266 with it; named on #291. Only the trunk routine is hands-free today.
 [^c-v1]: The Product Owner and the Solution Architect, 25 Nov 2026 (the lever pass on #224-U, Stage C and Stage D, lever C-V1, as recommended; the Solution Architect agreed to defer this part of his approved design; the Product Owner confirmed it the same night: the calibration QML is moved all at once or not at all). The procedures' move to C++ (C-11 to C-13, C-15, C-17; 22–23 h) is deferred, with a trigger: one calibration track after the platform programme, built with #266 and #270; home #291. The 3,978 lines of calibration QML are a known breach of RP-7, §4.8 and the rule that QML holds no rules and only binds, pinned by the three golden traces (C-9). C-14 stays, re-scoped to the ceremony file's write behind the Session's door, with #265's fix and a test for each of its loss paths; the recorder's two A6 lines stay unless lint A6 narrowed to P9's wording counts them out (the lever's own text). The three real ceremonies are still recorded at visit 2.

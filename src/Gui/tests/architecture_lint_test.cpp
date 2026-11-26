@@ -84,7 +84,7 @@
 //       IM §4.1's Context column (dirContexts(), fileContexts() below, read like the ring tables), when
 //       (1) an earlier context includes a later one (the order is Acquisition → Diagnostics → Coaching);
 //       (2) a context includes a Domain + Application header that is not one of the hub's contracts
-//           (hubContracts(): R13's five, each with why it meets Q26's test: only interfaces and value types,
+//           (hubContracts(): R13's five and the Rig's commands, each with why it meets Q26's test: only interfaces and value types,
 //           no owner class or service; a header joins by a ruling, when a context first needs it); or
 //       (3) a Shared Vocabulary file (or a Platform file) includes any context's file (Q27).
 //       Allowed: the hub including every context (it composes them), any include of Platform or Shared, a
@@ -92,6 +92,10 @@
 //       placed on purpose; a stale table entry fails too. A9 has NO allow-list line, and the list refuses one.
 //       The deferrals are in the tables, not in the rule: Gui's capture code stays in the hub until Stage D,
 //       and the drill pack stays Diagnostics until no Diagnostics file includes it.
+//   A10 an #include "…" of the Rig's header, DomainModel/rig.h, from any file but the three kinds that may hold the
+//       Rig (docs/design/rig_design.md §6 rule 8; platform refactor C-4): the composition root (Gui/main, App/),
+//       app.rig (Gui/app/rig_presenter) and the Rig's store (Stores/rig_store); rig.cpp is its own. The managers
+//       reach the Rig through its contracts, never this header. No allow-list line: the list refuses one.
 //
 // THE RING TABLE. A file's ring is its directory's (dirRings(), longest prefix wins) unless it is
 // named in fileRings(), which exists because four directories straddled rings (03 §2) — Analysis,
@@ -387,6 +391,7 @@ const QHash<QString, int> &fileContexts()
         { QStringLiteral("IMU/hm_skew_stats"), CtxAcquisition },
         { QStringLiteral("IMU/trunk_ceremony"), CtxAcquisition },
         { QStringLiteral("IMU/trunk_ceremony_file"), CtxAcquisition },
+        { QStringLiteral("IMU/imu_role_map"), CtxAcquisition },              // the role rules (rig_design.md §5: Rules, Acquisition)
         // IMU: the device back-ends (R13).
         { QStringLiteral("IMU/ble_adapter_pool"), CtxAcquisition },
         { QStringLiteral("IMU/ble_imu_transport"), CtxAcquisition },
@@ -416,8 +421,9 @@ int contextOf(const QString &rel)
 }
 
 // The hub's contracts: the Domain model headers a context may include (R-CTX-1; Q26, "contracts, not owners"; R13's
-// five, ruled by the Solution Architect, 24 Nov 2026). Q26's test for each: it declares only interfaces and value
-// types, and no owner class or service. Any other header joins by a ruling, when a context first needs it.
+// five, ruled by the Solution Architect, 24 Nov 2026; and rig_commands.h, by the Rig design addendum's decision 1,
+// ruled 25 Nov 2026). Q26's test for each: it declares only interfaces and value types, and no owner class or service.
+// Any other header joins by a ruling, when a context first needs it.
 struct HubContract {
     const char *stem;
     const char *why;
@@ -430,6 +436,8 @@ const QVector<HubContract> &hubContracts()
         { "DomainModel/recording_repository", "RecordingRepository, an interface, and the value types its calls carry" },
         { "DomainModel/shot_command_values", "the Shot's commands' value types (LabelCorrectionNote, SessionIntentEdit, …)" },
         { "DomainModel/session_input", "the session's typed input, value types (DeclaredFocus, IntentRun, SessionInput)" },
+        // Joined by the Rig design addendum's decision 1 (the Solution Architect, 25 Nov 2026; platform refactor C-5a.1).
+        { "DomainModel/rig_commands", "the Rig's commands: interfaces the Rig implements (RigCameraCommands), and a value type (RigDeviceLabel)" },
     };
     return t;
 }
@@ -511,6 +519,8 @@ const QVector<OwnedFile> &ownedFiles()
         { "tendencies.json",    R"(tendencies\.json)",                        "Stores/athlete_files" },   // FILE-ATH-02 (step 2.5: names only; written by the work-ons controller until step 3)
         { "swing_themes*.json", R"(swing_themes(?:\.[^/]*)?\.json|swing_themes)","Stores/athlete_files" },   // FILE-ATH-03 (step 2.5: likewise)
         { "outcome_corrections.jsonl", R"(outcome_corrections\.jsonl)",       "Stores/athlete_files" },   // FILE-ATH-04 (the append: AthleteFiles::appendTuningLine)
+        // the machine's rig (FILE-APP-07): its one store spells it (rig_design.md §4.4; platform refactor C-4)
+        { "rig.json",           R"(rig\.json)",                               "Stores/rig_store" },
     };
     return t;
 }
@@ -550,8 +560,18 @@ bool isRepositoryHeader(const QString &target)
         QStringLiteral("DomainModel/rule_data_repository"), QStringLiteral("Stores/rule_data_store"),
         // The phase grid's file door (FILE-SHOT-07; platform refactor P-3): the model browser's folder read includes it (B1.14, R11).
         QStringLiteral("Stores/phase_grid_store"),
+        // The Rig's repository (FILE-APP-07; platform refactor C-4): only the Rig and its store include it.
+        QStringLiteral("DomainModel/rig_repository"),
     };
     return t.contains(stemOf(target));
+}
+
+// A10 (rig_design.md §6 rule 8): the files that may include the Rig's header, DomainModel/rig.h.
+bool mayIncludeRig(const QString &rel)
+{
+    const QString s = stemOf(rel);
+    return s == QLatin1String("DomainModel/rig") || s == QLatin1String("Gui/main") || rel.startsWith(QLatin1String("App/"))
+        || s == QLatin1String("Gui/app/rig_presenter") || s == QLatin1String("Stores/rig_store");
 }
 
 // A5: the line with its pure path text blanked (not access): QDir's path-string statics and enum values, a
@@ -743,6 +763,11 @@ QVector<Finding> scan(const Source &s, const Tree &tree)
                 const QString why = contextBreach(cs, ct, target);
                 if (!why.isEmpty()) out.append({ QStringLiteral("A9"), li + 1, why });
             }
+            // A10 — the Rig's header, only where the Rig is held
+            if (stemOf(target) == QLatin1String("DomainModel/rig") && !mayIncludeRig(rel))
+                out.append({ QStringLiteral("A10"), li + 1,
+                             QStringLiteral("includes %1: only the composition root, app.rig and the Rig's store hold the Rig "
+                                            "(rig_design.md §6 rule 8)").arg(target) });
         }
         // A5 — file or directory access outside the repositories (P11); in a rules directory, its old message
         if (!a5Exempt(rel)) {
@@ -907,7 +932,8 @@ void selfTest()
                            "Stores/swing_paths.h", "DomainModel/session_repository.h", "DomainModel/athlete.h",
                            "Core/pp_settings.h", "Vocabulary/Recording/recording.h", "Vocabulary/Common/figure_format.h",
                            "Vocabulary/Analysis/phase_grid.h", "DomainModel/session.h", "DomainModel/recording_source.h",
-                           "Coaching/plan.h", "IMU/imu_base.h" }) {
+                           "Coaching/plan.h", "IMU/imu_base.h", "DomainModel/rig.h", "DomainModel/rig_repository.h",
+                           "DomainModel/rig_commands.h" }) {
         t.files.insert(QString::fromLatin1(f));
         t.byName[QFileInfo(QString::fromLatin1(f)).fileName()].append(QString::fromLatin1(f));
     }
@@ -977,6 +1003,25 @@ void selfTest()
           QStringLiteral("A4 catches a name or a path ending in it; passes a log sentence, a comment and a header"));
     check(countRule(run("Stores/session_files.h", QStringLiteral("auto b = \"work_ons.json\";\n")), "A4") == 0,
           QStringLiteral("A4 allows the owner"));
+    check(countRule(run("Gui/app/x.cpp", QStringLiteral("auto p = folder + QStringLiteral(\"/rig.json\");\n")), "A4") == 1
+              && countRule(run("Stores/rig_store.cpp", QStringLiteral("const QString n = QStringLiteral(\"rig.json\");\n")), "A4") == 0,
+          QStringLiteral("A4 catches rig.json spelled outside the Rig's store (FILE-APP-07), and allows the store"));
+    // A10: the Rig's header only where the Rig is held (rig_design.md §6 rule 8)
+    const QString incRig = QStringLiteral("#include \"../../DomainModel/rig.h\"\n");
+    check(countRule(run("Gui/cameras/camera_manager.cpp", incRig), "A10") == 1
+              && countRule(run("Gui/app/app_settings.cpp", incRig), "A10") == 1
+              && countRule(run("DomainModel/session.cpp", QStringLiteral("#include \"rig.h\"\n")), "A10") == 1,
+          QStringLiteral("A10 catches rig.h included by a manager, a presenter that is not app.rig, and another domain object"));
+    check(countRule(run("Gui/main.cpp", QStringLiteral("#include \"../DomainModel/rig.h\"\n")), "A10") == 0
+              && countRule(run("Gui/app/rig_presenter.cpp", incRig), "A10") == 0
+              && countRule(run("Stores/rig_store.h", QStringLiteral("#include \"../DomainModel/rig.h\"\n")), "A10") == 0
+              && countRule(run("App/app.cpp", QStringLiteral("#include \"../DomainModel/rig.h\"\n")), "A10") == 0
+              && countRule(run("DomainModel/rig.cpp", QStringLiteral("#include \"rig.h\"\n")), "A10") == 0
+              && countRule(run("Gui/cameras/camera_manager.cpp", QStringLiteral("#include \"../../DomainModel/rig_repository.h\"\n")), "A10") == 0,
+          QStringLiteral("A10 passes the composition root, app.rig, the store and rig.cpp, and reads only rig.h"));
+    check(countRule(run("Gui/cameras/camera_manager.cpp", QStringLiteral("#include \"../../DomainModel/rig_repository.h\"\n")), "A5") == 1
+              && countRule(run("Stores/rig_store.h", QStringLiteral("#include \"../DomainModel/rig_repository.h\"\n")), "A5") == 0,
+          QStringLiteral("A5 catches the Rig's repository included outside the Rig and its store"));
     check(countRule(run("Gui/x/y.cpp", QStringLiteral(
               "auto a = QStringLiteral(\"session.json\");\nauto b = QStringLiteral(\"_session-report.pdf\");\n"
               "auto c = dir.filePath(QStringLiteral(\"trunk_ceremony_%1.json\"));\nauto d = QStringLiteral(\"report-stills/\");\n"
@@ -1068,6 +1113,9 @@ void selfTest()
     const auto pastContract = a9("Diagnostics/derived/x.cpp", "#include \"../../DomainModel/session.h\"\n");
     check(countRule(pastContract, "A9") == 1 && a9Says(pastContract, "past its contracts") == 1,
           QStringLiteral("A9 catches a context including a hub header that is not a contract (DomainModel/session.h)"));
+    check(countRule(a9("Video/x.cpp", "#include \"../DomainModel/rig_commands.h\"\n"), "A9") == 0
+              && countRule(a9("Video/x.cpp", "#include \"../DomainModel/rig.h\"\n"), "A9") == 1,
+          QStringLiteral("A9 passes a context including the Rig's commands (a contract, decision 1), and catches one including rig.h"));
     check(countRule(a9("Analysis/x.cpp", "#include \"../DomainModel/recording_source.h\"\n"), "A9") == 0
               && countRule(a9("Gui/x/y.cpp", "#include \"../../Diagnostics/derived/shot_factors.h\"\n"
                                              "#include \"../../IMU/imu_base.h\"\n#include \"../../Coaching/plan.h\"\n"), "A9") == 0,
@@ -1120,7 +1168,7 @@ QMap<QString, Allow> readAllowList(const QString &path, bool *ok, QMap<QString, 
     if (!*ok) return out;
     static const QRegularExpression tag(QStringLiteral(
         R"(#\s*(step\s+[1-8](?:\.\d+)?|platform refactor \((?:capture|settings|#224)\)|#222|not domain \(§8\.3\)|unplanned|kept(?: \([^()]+\))?)\s*$)"));
-    // A9 is not in it: R-CTX-1 lands with no allow-list line (IM §1.4), so a line for A9 is refused as malformed.
+    // A9 and A10 are not in it: each lands with no allow-list line (IM §1.4), so a line for either is refused as malformed.
     static const QRegularExpression ruleRe(QStringLiteral(R"(^A[1-8]$)"));
     const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
     for (int i = 0; i < lines.size(); ++i) {
@@ -1245,10 +1293,11 @@ int main()
                                        "A6 QVariantMap/QVariantList on the QML boundary",
                                        "A7 functions over 300 lines in rings 1-2",
                                        "A8 Analysis past the Recording contract",
-                                       "A9 a context including a later one, the hub past its contracts, or Shared including a context (R-CTX-1)" };
+                                       "A9 a context including a later one, the hub past its contracts, or Shared including a context (R-CTX-1)",
+                                       "A10 the Rig's header included outside the composition root, app.rig and the Rig's store" };
     int totalEntries = 0, totalAllowed = 0;
     std::printf("\n");
-    for (int r = 0; r < 9; ++r) {     // A9 has no allow-list line: readAllowList() refuses one (R-CTX-1 lands with none)
+    for (int r = 0; r < 10; ++r) {    // A9 and A10 have no allow-list line: readAllowList() refuses one
         const QString rule = QStringLiteral("A%1").arg(r + 1);
         QStringList   over, slack;
         int           allowed = 0, entries = 0;

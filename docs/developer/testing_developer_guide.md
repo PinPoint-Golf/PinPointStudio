@@ -559,7 +559,8 @@ What it does, against one fresh `QTemporaryDir` per process, so two runs at once
 - **The app's own folders**, through their seams:
   - `PINPOINT_DIAGNOSTICS_DIR=<tmp>/diagnostics` is `diagnosticsDataDir()`: every user pack, norm set, screen, drill, gate-word and reference layer.
   - `PINPOINT_STUDIO_DIR=<tmp>/studio` is the studio profile's folder.
-  - A suite that sets either afterwards wins (`report_studio_test`).
+  - `PINPOINT_RIG_DIR=<tmp>/rig` is the Rig's folder (`RigStore::defaultFolder()`, `rig.json`, FILE-APP-07).
+  - A suite that sets one afterwards wins (`report_studio_test`).
 - **The library.** `libraryRoot()` is `<tmp>/library`, for a suite to hand to a store. The stores' no-root fallback (`AppDataLocation/swings`) has no seam; under the helper it is the test folder.
 - **Checking a path.** `contains(path)` says whether a path lies inside the temporary directory. Both sides are canonicalised (macOS `/var` and `/private/var`, Windows case), and a path not yet written counts too.
 - **No restore.** It never restores anything when it is destroyed. If no temporary directory can be made, it stops the run (`qFatal`) rather than fall back to a real store.
@@ -611,7 +612,7 @@ Since refactor step 3.2 the packs, norms and content sets have one owner, `RuleD
   the files, so `model_browser_test` and `inspector_refresh_test` call `RuleData::installed()->reload()`
   after clearing their scratch files.
 
-A probe of the running app keeps its saves off the real user files with `PINPOINT_DIAGNOSTICS_DIR`
+A probe of the running app keeps its saves off the real user files with `PINPOINT_DIAGNOSTICS_DIR` and the machine's rig off the real `rig.json` with `PINPOINT_RIG_DIR`
 (`docs/developer/feature_switches_developer_guide.md`); on macOS the app data location ignores
 `XDG_DATA_HOME`.
 
@@ -628,7 +629,7 @@ reset" state. `shared_norm_provider_test` deliberately installs none: it is the 
       [--env PINPOINT_<seam>=<value>]... -- [app args]
 
 - **Refused (exit 2, nothing launched)** unless `--home`, `--settings`, `--log` and the settings file's `[%General]` `athleteLibraryPath` are strictly beneath `/mnt/swingdata/scratch/`, the repository's `build/`, or the session scratchpad `/private/tmp/claude-<uid>/`, after symlinks are resolved (a `..` component or whitespace is refused; so are `/mnt/swingdata` itself, an athlete folder, and any other setting pointing into the share). The app reads its settings as `$XDG_CONFIG_HOME/PinPointStudio/PinPointStudio.ini`, so `--settings` must be named that way; the launcher sets `XDG_CONFIG_HOME` to the folder above it. A binary named PinPointStudio that lacks the switch's log text is refused too.
-- **The environment** is passed through `/usr/bin/env -i`, one argument each: `PINPOINT_HEADLESS_PROBE=1`, `QT_QPA_PLATFORM=offscreen`, `PINPOINT_LOG_STDERR=1`, `HOME` and `CFFIXED_USER_HOME` (the scratch home), `XDG_CONFIG_HOME`, `PINPOINT_DIAGNOSTICS_DIR=<home>/diagnostics`, `TMPDIR=<home>/tmp`, a system `PATH`, `LANG`, and each `--env` (`PINPOINT_*` names only, for seams such as `PINPOINT_WORKONS_DIR`; a path value must be scratch or inside the repository).
+- **The environment** is passed through `/usr/bin/env -i`, one argument each: `PINPOINT_HEADLESS_PROBE=1`, `QT_QPA_PLATFORM=offscreen`, `PINPOINT_LOG_STDERR=1`, `HOME` and `CFFIXED_USER_HOME` (the scratch home), `XDG_CONFIG_HOME`, `PINPOINT_DIAGNOSTICS_DIR=<home>/diagnostics`, `PINPOINT_RIG_DIR=<home>/rig`, `TMPDIR=<home>/tmp`, a system `PATH`, `LANG`, and each `--env` (`PINPOINT_*` names only, for seams such as `PINPOINT_WORKONS_DIR`; a path value must be scratch or inside the repository).
 - **The check (exit 3).** Within a second of the launch the running process's own environment is read (macOS `ps -E`, Linux `/proc/<pid>/environ`); without `PINPOINT_HEADLESS_PROBE=1` and the scratch `HOME`, or if it cannot be read, the process is killed with SIGKILL.
 - **The run.** stderr is teed to a log whose path is printed first (default `<home>/run_headless-<time>-<pid>.log`); `--timeout` (default 120 s) stops the app and exits 124; otherwise the app's exit code passes through.
 - **`run_headless_selftest`** (ctest, Gui suite; `tools/probe/run_headless_selftest.sh`, about 10 s) proves the refusals, the kill path (through the `--_test_drop_switch` and `--_test_wrong_home` hooks, which the launcher refuses for the real app), the exact environment, the exit code and the timeout, with a stand-in binary it compiles. It never launches the app.
@@ -644,7 +645,7 @@ What the launcher sets up, by hand (for reading, not for launching): a probe run
 
     PINPOINT_HEADLESS_PROBE=1 QT_QPA_PLATFORM=offscreen PINPOINT_LOG_STDERR=1 \
       HOME=<scratch> CFFIXED_USER_HOME=<scratch> XDG_CONFIG_HOME=<scratch>/.config PINPOINT_DIAGNOSTICS_DIR=<scratch>/diag \
-      <PinPointStudio> --probe-qml <abs path to the probe>
+      PINPOINT_RIG_DIR=<scratch>/rig <PinPointStudio> --probe-qml <abs path to the probe>
 
 **`headless_probe_test`** (ctest, Gui suite; `src/Gui/tests/headless_probe_check.cmake`) launches the app binary that way with `src/Gui/tests/probes/headless_start.qml`, which visits every screen and Settings panel and exits. It fails on a missing "not started" line, any `REFUSED` line, a QML `ReferenceError` or `TypeError`, or, on macOS, a `display_prompt` in `tccd`'s log over the run, or a `tccd` log that cannot be read. The binary is `-DPP_APP_BINARY=<path>` at configure, else the first that exists of the app tree beside the tests tree (a worktree's `build/app`) and the main tree's Qt Creator build (`build/Qt_*_for_macOS_Debug`); configure prints which. A missing binary, or one built before the switch (the script looks for the switch's own log text in it first), **fails the test and is never launched**. The only skip is an explicit `-DPP_APP_BINARY=OFF`, which ctest reports as Not Run (exit 77), never as passed. About 35 s. A shell launch is attributed to the terminal by TCC, so the test proves no permission is asked for, not how a granted app behaves. `src/Gui/tests/probes/app_state_on_screen.qml` (refactor 4-c) drives 4-a's application state the same way over a scratch library: a pick kept across a reload of the same session and a return to the session screen, the Consistency glance following the selection, the Motion popup back on Presets on a switch to Capture, and an empty session's End with no "not being saved" notice. It needs the stage panel in the Replay layout (the default layouts have none: copy a `[view]` section into the scratch settings).
 

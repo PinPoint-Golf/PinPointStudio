@@ -32,7 +32,7 @@
 
 #include "app/app_settings.h"
 #include "cameras/camera_roi.h"
-#include "imu/imu_role_map.h"
+#include "../../IMU/imu_role_map.h"
 #include "../../IMU/hm_unit_id.h"
 #include "../../Vocabulary/Rig/device_key.h"
 #include "../../Vocabulary/Rig/club_length_prior_key.h"

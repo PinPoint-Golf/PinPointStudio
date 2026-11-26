@@ -24,8 +24,8 @@
 #include <QVariantMap>
 #include <functional>
 
-#include "../../Vocabulary/Common/segment_role.h"
-#include "../../Vocabulary/Rig/device_key.h"
+#include "../Vocabulary/Common/segment_role.h"
+#include "../Vocabulary/Rig/device_key.h"
 
 // ---------------------------------------------------------------------------
 // Role-keyed IMU placement — the pure logic (session_wizard_refactor_design.md §4.13)
@@ -92,48 +92,6 @@ inline QString seededAlias(const rig::DeviceKey &sensor)
     return QString(sensor.description() + QLatin1Char(' ') + sensor.id()).replace(QLatin1Char('|'), QLatin1Char(' '));
 }
 
-// The name to show for a sensor, from what is REMEMBERED — it may be switched off and so absent
-// from the device list. ⚠ NEVER A RAW DEVICE ID: on macOS a BLE id is a "{…}" UUID, and the
-// golfer was shown "Lead forearm + hand — {767a6a67-…} not found". In order:
-//   1. the alias the coach gave it. An alias equal to "<description> <id>" is the one
-//      ImuManager SEEDS for every newly seen device (deviceAdded), not a name anyone gave;
-//   2. its description — `presentDescription` when the enumerator lists it, else the description
-//      half of its alias key (remembered from when it was last seen);
-//   3. "HackMotion wG3" when the roles map holds one of its unit keys ("<id>#lowerArm"/"#palm");
-//   4. "sensor".
-// Any UUID-shaped token (the form a raw BLE id takes) is stripped from 1 and 2 before they are
-// used.
-inline QString stripDeviceIds(QString s)
-{
-    static const QRegularExpression uuid(QStringLiteral(
-        R"(\{?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}?)"));
-    s.remove(uuid);
-    return s.simplified();
-}
-inline QString sensorDisplayName(const QString &deviceId, const QString &presentDescription,
-                                 const QVariantMap &aliasMap, const QVariantMap &roles)
-{
-    QString desc = presentDescription, alias;
-    if (!desc.isEmpty()) {
-        alias = aliasMap.value(aliasKey(desc, deviceId)).toString();
-    } else {
-        const QString tail = aliasKey(QString(), deviceId);           // "|<id>"
-        for (auto it = aliasMap.cbegin(); it != aliasMap.cend(); ++it)
-            if (it.key().endsWith(tail)) {
-                desc  = it.key().left(it.key().size() - tail.size());
-                alias = it.value().toString();
-                break;
-            }
-    }
-    if (alias == desc + QStringLiteral(" ") + deviceId) alias.clear();   // the seeded default
-    alias = stripDeviceIds(alias);
-    if (!alias.isEmpty()) return alias;
-    desc = stripDeviceIds(desc);
-    if (!desc.isEmpty()) return desc;
-    if (roles.contains(deviceId + QStringLiteral("#lowerArm")) || roles.contains(deviceId + QStringLiteral("#palm")))
-        return QStringLiteral("HackMotion wG3");
-    return QStringLiteral("sensor");
-}
 
 inline QString roleForLegacySlot(const QString &slot)
 {

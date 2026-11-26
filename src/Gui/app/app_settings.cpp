@@ -18,7 +18,7 @@
 
 #include "app_settings.h"
 
-#include "../imu/imu_role_map.h"
+#include "../../IMU/imu_role_map.h"
 #include "../../Vocabulary/Recording/perspective.h"   // the one perspective type: migrateImpactRoi reads Impact
 #include "pp_debug.h"
 

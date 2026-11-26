@@ -6,3 +6,5 @@
 # it, for example "4 pp_profiler_concurrency_test" or "3 REQ-CAP-11 E6". The approving role is the Product Owner, or
 # the Solution Architect for a gap in a test's or a control's labelling; the date is 2026-11-26 or 26 Nov 2026.
 # Each line is approved by that role before it is added: never add one to make the check pass.
+4 isolated_stores_test | test infrastructure: it proves every suite's settings, data folders and the Rig's folder are temporary, never the machine's real ones; no requirement or control covers test isolation | Solution Architect | 2026-11-26
+4 headless_probe_test | test infrastructure: it starts the app headless once, its stores in a scratch place, so the probes that rely on it can run; it proves no requirement or control | Solution Architect | 2026-11-26

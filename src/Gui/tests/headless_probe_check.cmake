@@ -33,7 +33,7 @@ endif()
 file(STRINGS "${APP}" _ppcp REGEX "\\[HeadlessProbe\\] not started: phone link" LIMIT_COUNT 1)
 
 file(REMOVE_RECURSE "${WORK}")
-file(MAKE_DIRECTORY "${WORK}/home/.config/PinPointStudio" "${WORK}/lib" "${WORK}/diagnostics")
+file(MAKE_DIRECTORY "${WORK}/home/.config/PinPointStudio" "${WORK}/lib" "${WORK}/diagnostics" "${WORK}/rig")
 file(WRITE "${WORK}/home/.config/PinPointStudio/PinPointStudio.ini"
      "[%General]\nathleteLibraryPath=${WORK}/lib\ncheckForUpdates=false\n")   # AppSettings' "General/..." keys
 
@@ -42,7 +42,7 @@ execute_process(
   COMMAND ${CMAKE_COMMAND} -E env
           PINPOINT_HEADLESS_PROBE=1 PINPOINT_LOG_STDERR=1 QT_QPA_PLATFORM=offscreen
           "HOME=${WORK}/home" "CFFIXED_USER_HOME=${WORK}/home" "XDG_CONFIG_HOME=${WORK}/home/.config"
-          "PINPOINT_DIAGNOSTICS_DIR=${WORK}/diagnostics"
+          "PINPOINT_DIAGNOSTICS_DIR=${WORK}/diagnostics" "PINPOINT_RIG_DIR=${WORK}/rig"
           "${APP}" --probe-qml "${PROBE}"
   RESULT_VARIABLE _rc OUTPUT_VARIABLE _out ERROR_VARIABLE _err TIMEOUT 200)
 set(_log "${_out}\n${_err}")

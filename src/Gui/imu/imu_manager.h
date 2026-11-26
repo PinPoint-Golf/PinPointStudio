@@ -29,7 +29,7 @@
 #include "app_settings.h"
 #include "device_enumerator.h"
 #include "imu_device.h"
-#include "imu_role_map.h"
+#include "../../IMU/imu_role_map.h"
 #include "types.h"
 
 namespace pinpoint { class EventBuffer; }

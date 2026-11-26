@@ -1,0 +1,7 @@
+# C-6a.1 · The role rules move from src/Gui/imu to src/IMU (build/platform/C/BRIEF-C-6a.1.md; docs/design/rig_design.md
+# §4.1 invariant 2, §5, §6 rule 4). Solution Architect, 24 Nov 2026 (PR-35): the Rig keeps "one claim per role" and may
+# not include src/Gui, and the rules are pure, so they live in the Rules ring, tagged Acquisition. The two functions that
+# return a golfer-facing label stay in Gui, split out by hand after the move (the hand: line below).
+src/Gui/imu/imu_role_map.h -> src/IMU/
+src/Gui/imu/imu_role_map.cpp -> src/IMU/
+hand: src/Gui/imu/imu_labels.h <- src/Gui/imu/imu_role_map.h:95-136

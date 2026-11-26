@@ -41,6 +41,9 @@
 // runtime offer (`app.cudaRuntime`). Their C++ objects and owners are unchanged; only the name QML reaches them by
 // moved.
 //
+// THE RIG (`app.rig`) joined them in the platform refactor (C-4): its presenter (src/Gui/app/rig_presenter.h), read-only
+// for now, over the one Rig the composition root makes (information_model.md OBJ-RIG, "How a view reaches it").
+//
 // WHAT STAYS A CONTEXT GLOBAL (main.cpp): the devices (cameraManager, imuManager, launchMonitor, trunkCeremony,
 // bufferController, liveWrist, ppcpHost, ppcpOffers), the settings (appSettings, secrets) and the logging (appLog).
 
@@ -82,6 +85,7 @@ class GuiApp : public App
     Q_PROPERTY(QObject *profiler                READ profiler                CONSTANT)
     Q_PROPERTY(QObject *resourceMonitor         READ resourceMonitor         CONSTANT)
     Q_PROPERTY(QObject *cudaRuntime             READ cudaRuntime             CONSTANT)
+    Q_PROPERTY(QObject *rig                     READ rig                     CONSTANT)
 public:
     // The objects main() makes, by their QML names. Set once, before the engine loads anything.
     struct Members {
@@ -114,6 +118,7 @@ public:
         QObject *profiler                = nullptr;
         QObject *resourceMonitor         = nullptr;
         QObject *cudaRuntime             = nullptr;
+        QObject *rig                     = nullptr;
     };
 
     using App::App;
@@ -149,6 +154,7 @@ public:
     QObject *profiler() const                { return m_m.profiler; }
     QObject *resourceMonitor() const         { return m_m.resourceMonitor; }
     QObject *cudaRuntime() const             { return m_m.cudaRuntime; }
+    QObject *rig() const                     { return m_m.rig; }
 
 private:
     Members m_m;

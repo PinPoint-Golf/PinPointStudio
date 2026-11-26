@@ -29,7 +29,8 @@
 #
 # THE APP'S ENVIRONMENT is exactly this, through /usr/bin/env -i, each one a separate argument:
 #   PINPOINT_HEADLESS_PROBE=1 QT_QPA_PLATFORM=offscreen PINPOINT_LOG_STDERR=1 HOME CFFIXED_USER_HOME XDG_CONFIG_HOME
-#   PINPOINT_DIAGNOSTICS_DIR=<home>/diagnostics TMPDIR=<home>/tmp PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=en_US.UTF-8
+#   PINPOINT_DIAGNOSTICS_DIR=<home>/diagnostics PINPOINT_RIG_DIR=<home>/rig (the machine's rig, rig.json) TMPDIR=<home>/tmp
+#   PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=en_US.UTF-8
 #   plus each --env.
 #
 # THE CHECK. Within 1 s of the launch the running process's own environment is read (macOS: ps -E; Linux:
@@ -197,7 +198,7 @@ case "$TIMEOUT" in ''|*[!0-9]*) refuse "--timeout '$TIMEOUT' is not a whole numb
 [ -n "$LOG_ARG" ] || LOG_ARG="$HOME_DIR/run_headless-$(date +%Y%m%d-%H%M%S)-$$.log"
 LOG=$(must_scratch "--log" "$LOG_ARG") || exit 2
 
-RESERVED=" PINPOINT_HEADLESS_PROBE PINPOINT_LOG_STDERR PINPOINT_DIAGNOSTICS_DIR QT_QPA_PLATFORM HOME CFFIXED_USER_HOME XDG_CONFIG_HOME TMPDIR PATH LANG "
+RESERVED=" PINPOINT_HEADLESS_PROBE PINPOINT_LOG_STDERR PINPOINT_DIAGNOSTICS_DIR PINPOINT_RIG_DIR QT_QPA_PLATFORM HOME CFFIXED_USER_HOME XDG_CONFIG_HOME TMPDIR PATH LANG "
 for kv in ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"}; do
     name="${kv%%=*}"; value="${kv#*=}"
     [ "$name" != "$kv" ] || refuse "--env '$kv' is not NAME=value"
@@ -211,14 +212,14 @@ for kv in ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"}; do
 done
 
 # ---- the environment ---------------------------------------------------------------------------------------------
-mkdir -p "$HOME_DIR/diagnostics" "$HOME_DIR/tmp" "$(dirname "$LOG")" || refuse "cannot make the scratch folders under $HOME_DIR"
+mkdir -p "$HOME_DIR/diagnostics" "$HOME_DIR/rig" "$HOME_DIR/tmp" "$(dirname "$LOG")" || refuse "cannot make the scratch folders under $HOME_DIR"
 APP_HOME="$HOME_DIR"
 [ $WRONG_HOME = 1 ] && APP_HOME="$HOME_DIR/elsewhere"
 ENVV=()
 [ $DROP_SWITCH = 1 ] || ENVV+=("PINPOINT_HEADLESS_PROBE=1")
 ENVV+=("QT_QPA_PLATFORM=offscreen" "PINPOINT_LOG_STDERR=1"
        "HOME=$APP_HOME" "CFFIXED_USER_HOME=$APP_HOME" "XDG_CONFIG_HOME=$CONFIG_HOME"
-       "PINPOINT_DIAGNOSTICS_DIR=$HOME_DIR/diagnostics" "TMPDIR=$HOME_DIR/tmp"
+       "PINPOINT_DIAGNOSTICS_DIR=$HOME_DIR/diagnostics" "PINPOINT_RIG_DIR=$HOME_DIR/rig" "TMPDIR=$HOME_DIR/tmp"
        "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "LANG=en_US.UTF-8")
 ENVV+=(${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"})
 

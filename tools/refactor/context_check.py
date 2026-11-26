@@ -55,6 +55,7 @@ DIRS = {
 FILES = {
     'Vocabulary/Recording/frame_decode': ACQ,                                                   # ruled: part of the Recording contract
     'IMU/imu_calibration': ACQ, 'IMU/trunk_angles': ACQ, 'IMU/trunk_stand_tall': ACQ,   # ruled (L2)
+    'IMU/imu_role_map': ACQ,                # the role rules (rig_design.md §5: Rules ring, Acquisition; ruled, PR-35)
     # to place (this script's placements):
     'Core/device_enumerator': ACQ,
     'Analysis/mp4_frame_reader': HUB,       # "the store's" (lint comment): persistence
@@ -99,7 +100,8 @@ HUB_CONTRACT = {
     'DomainModel/session_repository', 'DomainModel/athlete_repository', 'DomainModel/rule_data_repository',
     'DomainModel/firing_reader', 'DomainModel/series_reader', 'DomainModel/shot_command_values',
     'DomainModel/report_record', 'DomainModel/session_input', 'DomainModel/session_roll_up',
-    'DomainModel/golfer_input_rules', 'DomainModel/summary_rules'}
+    'DomainModel/golfer_input_rules', 'DomainModel/summary_rules',
+    'DomainModel/rig_commands'}   # the Rig's commands (the Rig design addendum's decision 1, ruled 25 Nov 2026)
 # The results contract (Diagnostics -> Coaching): IM names objects (OBJ-SHOT-DERIVED ...), not headers. This script's
 # stand-in: the result value types, i.e. Diagnostics' vocabulary and the derived facts' headers.
 RESULT_DIRS = ('Vocabulary/Analysis/', 'Vocabulary/Metrics/', 'Diagnostics/derived/')
