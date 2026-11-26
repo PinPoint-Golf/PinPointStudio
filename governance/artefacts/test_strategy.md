@@ -7,7 +7,7 @@
 | **Governs** | What counts as evidence that the app does what a requirement says: the kinds of evidence, which kind can prove which class of requirement, how long each lasts, what makes a test count as proof, and how the requirements traceability matrix (RTM) reads it. It governs *what proves*, never *how to write or run a test*: that is the testing developer guide, [`docs/developer/testing_developer_guide.md`](../../docs/developer/testing_developer_guide.md), which stays |
 | **Applied by** | Policy **POL-9** ([`../policies.md`](../policies.md)) and controls **BT-38** ([Plan](../controls/plan.md)), **BT-39** and **BT-40** ([Test](../controls/test.md)), **BT-41** ([Review](../controls/review.md)) and **BT-42** ([Release](../controls/release.md)). The RTM's check, `rtm_check` (once built), enforces the parts a script can see |
 | **Reads with** | [`requirements.md`](requirements.md) (the needs, their status values and owners); [`uc-map.csv`](uc-map.csv), which the matrix reads beside the requirements, for each requirement's use cases[^sa-afternoon]; `governance/artefacts/rtm.md` (generated), once it lands; [`lifecycle_model.md`](lifecycle_model.md) (its evidence labels: *observed*, *seam, in a worktree*, *reading*); [`rtm_observations.csv`](rtm_observations.csv), the observations register (§7.2) |
-| **Status** | v1.1, 26 Nov 2026; v1.0 approved, 26 Nov 2026[^owner]. A sentence still marked "(proposed, for the *Role*)" waits on that role's later ruling |
+| **Status** | v1.2, 26 Nov 2026; v1.0 approved, 26 Nov 2026[^owner]. A sentence still marked "(proposed, for the *Role*)" waits on that role's later ruling |
 
 **How to read it.** §1 is the rule. §2 and §3 say which evidence can prove what. §4 says how long it lasts. §5 says when a test counts. §6 says where each level runs, by pointing to the controls. §7 defines the observation record. §8 is how the RTM uses all of it. §9 is the audit of today's tests against this page.
 
@@ -72,6 +72,8 @@ A requirement is proved only by a kind that can see what it promises. A kind mar
 
 **A requirement is a hardware requirement** when any kind it needs is E6: its proof needs a real shot, a person's hands or a real device. The words are the visit rule's[^visit].
 
+**A corpus swing meets E6.** Where a requirement needs E6, an E3 run over a corpus swing that shows the functionality meets it too, in every area, capture and devices included: the swing was a real shot, taken on the real devices[^sa-corpus]. In the observations register it is a line of Kind E3 whose Record reads `corpus: <session date> shot <n>, captured on <commit>`: the session date, the shot number and the build that captured the swing, never the golfer (POL-7); its Build is the build that replayed it (the line's form proposed, for the Solution Architect).
+
 ## 4. How long evidence lasts
 
 | Evidence | Lasts | Ends when |
@@ -84,6 +86,7 @@ A requirement is proved only by a kind that can see what it promises. A kind mar
 | A validation result (E3) | Until the stage it measures changes version (version-gated re-analysis), which a script can check | That stage's version changes |
 | A headless probe (E4) | Its build only | Any change; to last, it becomes a screen test |
 | A primary-platform run (E5) | Its build only | Any change; a test it ran is current as a test, above |
+| A corpus swing that meets E6 (§3) | **No build or age limit:** it showed the requirement met, and the build that captured it is kept as a record only | Never by age or a later build. A regression shows as an open bug naming the requirement, beside the evidence, never by removing it[^sa-corpus-age] |
 | A visit observation (E6) | **Its build only** | The next build. Between releases, and at a release that does not re-observe it, it stays on the requirement's row as "last observed on build X", with no time limit, except an age limit the Product Owner sets for safety-critical requirements (lost work, lost shots). Each release re-observes the smoke checklist (BT-42) |
 | A release check (E7) | That release | The next release |
 
@@ -225,6 +228,7 @@ The catalogue of tests (405 names on macOS at 25 Nov 2026, holding about 1,450 t
 | 0.2 | 25 Nov 2026 | After the first review: no athlete ids; the RTM reads the source; a test's evidence stands on its own pass, and "green" allows accepted gaps; pre- and post-publish release checks; the Windows gap explained; four forms of "seen to fail"; the yardsticks split from the runs; the audit's sample, platforms and thin history |
 | 1.0 | 26 Nov 2026 | Approved, and moved here from the programme's working folder; owner the Solution Architect. The marker on the register's home removed (approved); the others kept, for the Solution Architect's confirmation or a later ruling. Machines named generically (POL-7): the primary platform's test machine, a development machine or macOS, and the capture rig; no rule changed. The observations register created, empty, with §7.2's header. The visit footnote points to BT-43 |
 | 1.1 | 26 Nov 2026 | The observations register's nine fields are approved, and their marker removed (§7.2). The matrix reads `uc-map.csv` beside the requirements ("Reads with"). `[^visit]`: BT-42's smoke checklist is ruled against the visit rule; §3's "hardware requirement" is still open |
+| 1.2 | 26 Nov 2026 | A corpus swing that shows the functionality meets E6, in every area (§3), with no build or age limit (§4); the register line's form proposed, for the Solution Architect |
 
 [^owner]: The Product Owner, 25 Nov 2026, asked for a test strategy artefact owned by the Solution Architect. The Product Owner accepted the strategy, 26 Nov 2026 ("The content is fine"; "I am happy"); the Product Owner and the Solution Architect approved its controls, its home here and its owner, the Solution Architect, 26 Nov 2026.
 [^rule]: Product Owner, 25 Nov 2026 (the "killer rule"), after the requirements draft called 91 needs "delivered" by reading the code; with it, that a fix's test is shown failing before the fix, and the governance form (a policy, this artefact, and controls at Plan, Test, Review and Release).
@@ -235,3 +239,5 @@ The catalogue of tests (405 names on macOS at 25 Nov 2026, holding about 1,450 t
 [^obs-home]: Solution Architect, with the Product Owner, 26 Nov 2026: the evidence register's home.
 [^sa-approval]: Solution Architect, 26 Nov 2026: approved §2 (the kinds of evidence, how long each lasts, and the conditions for proof), §3's wiring row, and §8's lead-in.
 [^sa-afternoon]: Solution Architect, 26 Nov 2026 (the Solution Architect's afternoon batch, items 9 and 10, each as recommended): the evidence register's nine fields (§7.2); the matrix reads `uc-map.csv`.
+[^sa-corpus]: Solution Architect, 26 Nov 2026, on the evidence each area needs ("if the corpus contains a swing that demonstrates the functionality, that is a pass too"), and on its reach ("of course it means capture too: where else would the data have come from?").
+[^sa-corpus-age]: Solution Architect, 26 Nov 2026 ("this is evidence the requirement was met. A regression does not take that away"): a corpus line's evidence has no build or age limit; the captured-on build is a record only.
