@@ -13,8 +13,12 @@
                                                       and rewrite rtm.md; refused, with the reason, unless <old> is
                                                       in the baseline and registered nowhere, and <new> is
                                                       registered, unlabelled and not in the baseline
-  python3 tools/method/make_rtm.py --refresh-issues   rewrite the issue snapshot from GitHub (`gh`; the only mode that
-                                                      uses the network; it writes nothing to GitHub)
+  python3 tools/method/make_rtm.py --refresh-issues --library <the library folder>
+                                                      rewrite the issue snapshot from GitHub (`gh`; the only mode that
+                                                      uses the network; it writes nothing to GitHub), titles included;
+                                                      it writes nothing, and names each issue, when a title it would
+                                                      keep names a golfer (an athlete folder's or a session folder's
+                                                      name, read from the library, never written or printed: POL-7)
   python3 tools/method/make_rtm.py --platform-list <configured ctest tree> <platform>
                                                       write governance/artefacts/rtm_platform_tests/<platform>.txt, the
                                                       tests that tree configured (`ctest --show-only=json-v1`)
@@ -51,7 +55,7 @@ The flags, in this order (rtm.md and the self-test use the same numbers):
      delivered.
    9 A test labelled for a requirement but in no platform's gate list (only when at least one list exists).
   10 A hardware row (one that needs E6) never observed: delivered, built or partial rows.
-  11 The evidence supports a different status from the page's (delivered against not delivered, either way).
+  11 The evidence supports a different status from requirements.md's (delivered against not delivered, either way).
   12 A row not delivered, with no open issue and no accepted gap (exempt: release never, won't have, withdrawn).
   13 A baseline line whose gap has closed: the line must come out, so the baseline only shrinks.
 An observation counts only when its "What was seen" starts with "pass". A corpus line (Kind E3, Record "corpus:
@@ -63,8 +67,15 @@ Warnings never fail the check: a proposed row with no issue; a design document n
 issue with neither a Requirement: nor a Control: line; an issue a row cites that the snapshot lacks; an accepted gap
 that is no longer open; a gate-list test the source does not register.
 
+The page, in this order: the summary; the requirements, area by area (each row's words, status, evidence present and
+missing in words, tests, observations, issues with titles, and its corpus swings as one line: the count, then the
+count by date, never a per-swing list or a build); the flags, in words, and the warnings; the controls, the labelled
+tests and the documents; every gap, flag by flag, its baseline key in small print. Every requirement id carries its
+Requirement sentence (cut to about 12 words, at a word boundary, with "…"), every control id its first sentence,
+every issue number its title; text from the inputs is escaped with HTML entities, never a backslash. The wording
+never changes a gap's key, so the baseline does not change.
 The matrix never overrides requirements.md: where the evidence supports another status it raises flag 11, and the
-page's owner changes the page. Pass or fail is ctest's report, not the matrix's. Output is byte-identical on every
+owner of requirements.md changes it. Pass or fail is ctest's report, not the matrix's. Output is byte-identical on every
 platform: sorted, LF, no dates or times, no absolute paths. Python 3 standard library only; exit 0 clean, 1 flags or
 stale, 2 an input it cannot read (the message names the file and line).
 """
@@ -129,7 +140,7 @@ FLAG_TITLES = {
     8: 'A row that needs a ruling change but is marked built or delivered',
     9: "A test labelled for a requirement but in no platform's gate list",
     10: 'A hardware row never observed',
-    11: "The evidence supports a different status from the page's",
+    11: "The evidence supports a different status from requirements.md's",
     12: 'A row not delivered, with no open issue and no accepted gap',
     13: 'A baseline line whose gap has closed',
 }
@@ -188,8 +199,120 @@ def walk_files(root, rel_dir, pred, recursive=True):
     return sorted(out)
 
 
-def md_cell(s):
-    return s.replace('|', '\\|').replace('\n', ' ')
+def md(s):
+    """Plain text made safe for a Markdown table cell or list line: HTML entities, never a backslash."""
+    out = []
+    for ch in s.replace('\n', ' '):
+        out.append({'&': '&amp;', '<': '&lt;', '>': '&gt;', '|': '&#124;', '*': '&#42;', '`': '&#96;',
+                    '[': '&#91;', ']': '&#93;', '\\': '&#92;', '~': '&#126;'}.get(ch, ch))
+    return ''.join(out)
+
+
+# The words beside an id. A requirement's words are its row's Requirement sentence and a control's its first sentence,
+# never paraphrased: footnote markers and emphasis are dropped, and the sentence is cut to SHORT_WORDS words at a word
+# boundary, with "…", when it is longer than SHORT_WORDS + SHORT_SLACK. A cut that would open a bracket leaves that
+# bracketed aside out and cuts again, so the words never stop short of what the sentence says.
+SHORT_WORDS = 12
+SHORT_SLACK = 3
+KIND_WORDS = {'E1': 'an automated test of the logic', 'E2': 'a frozen record of old behaviour',
+              'E3': 'a run over real swings', 'E4': 'an automated screen test', 'E5': 'a run on Windows',
+              'E6': 'seen at the rig or in a corpus swing', 'E7': 'the installer checked'}
+KIND_MISSING = {'E1': 'no automated test of the logic yet', 'E2': 'no frozen record of old behaviour yet',
+                'E3': 'no run over real swings yet', 'E4': 'no automated screen test yet', 'E5': 'no run on Windows yet',
+                'E6': 'never seen at the rig or in a corpus swing', 'E7': 'the installer never checked'}
+STATUS_PLAIN = {'delivered': 'delivered', 'built': 'built, not verified', 'partial': 'partial',
+                'planned': 'planned', 'proposed': 'proposed', 'wont': "won't have"}
+
+
+def plain_words(s):
+    s = re.sub(r'\[\^[^\]]*\]', '', s).replace('\\|', '|')
+    s = re.sub(r'\*\*([^*]+)\*\*', r'\1', s)
+    s = re.sub(r'(?<![\w*])\*([^*\n]+)\*(?![\w*])', r'\1', s)
+    s = re.sub(r'(?<![\w_])_([^_\n]+)_(?![\w_])', r'\1', s)
+    return ' '.join(s.split())
+
+
+def first_sentence(s):
+    return re.split(r'(?<=[.!?])\s+(?=[A-Z])', plain_words(s), maxsplit=1)[0]
+
+
+def short_words(s):
+    words = first_sentence(s).split()
+    if len(words) <= SHORT_WORDS + SHORT_SLACK:
+        return ' '.join(words)
+    cut = words[:SHORT_WORDS]
+    opened = _open_bracket(cut)
+    if opened is not None:
+        closed = _bracket_close(words, opened)
+        if closed is not None:
+            # A cut would open a bracket: leave the bracketed aside out (its trailing punctuation kept), then cut again.
+            tail = words[closed][words[closed].rindex(')') + 1:]
+            rest = words[:opened]
+            if tail and rest:
+                rest = rest[:-1] + [rest[-1] + tail]
+            return short_words(' '.join(rest + words[closed + 1:]))
+    while len(cut) > SHORT_WORDS // 2 and _open_bracket(cut) is not None:
+        cut.pop()  # a bracket that never closes: cut before it
+    cut[-1] = cut[-1].rstrip(',;:')
+    return ' '.join(cut) + ' …'
+
+
+def _open_bracket(words):
+    """The index of the word that opens the first bracket left open in words, or None."""
+    stack = []
+    for i, w in enumerate(words):
+        for ch in w:
+            if ch == '(':
+                stack.append(i)
+            elif ch == ')' and stack:
+                stack.pop()
+    return stack[0] if stack else None
+
+
+def _bracket_close(words, opened):
+    """The index of the word that closes the bracket opened in words[opened], or None."""
+    depth = 0
+    for i in range(opened, len(words)):
+        for ch in words[i][words[i].index('(') if i == opened else 0:]:
+            depth += {'(': 1, ')': -1}.get(ch, 0)
+            if depth == 0:
+                return i
+    return None
+
+
+def id_words(m, x):
+    """'REQ-CAP-3 (The app shall …)' or 'CTL-UI-1 (its first sentence)': plain text."""
+    if x.startswith('REQ-'):
+        r = m['req']['rows'].get(x)
+        if r:
+            return '%s (%s)' % (x, short_words(r['text']))
+        return '%s (%s)' % (x, 'withdrawn' if x in m['req']['withdrawn'] else 'no such requirement')
+    t = m['control_text'].get(x)
+    return '%s (%s)' % (x, short_words(t) if t is not None else 'no such control')
+
+
+def issue_words(m, n):
+    """'#77 (its title)', or '#77' while the snapshot holds no title for it: plain text."""
+    iss = m['issues'].get(n)
+    if iss is None:
+        return '#%d (not in the issue snapshot)' % n
+    return '#%d (%s)' % (n, iss['title']) if iss.get('title') else '#%d' % n
+
+
+def with_words(m, text):
+    """Every REQ- id and #n in a sentence from the page, with its words or its title beside it."""
+    text = REQ_FIND.sub(lambda mm: id_words(m, mm.group(1)), text)
+    return ISSUE_REF.sub(lambda mm: issue_words(m, int(mm.group(1))), text)
+
+
+def joined(items):
+    if len(items) <= 1:
+        return ''.join(items)
+    return ', '.join(items[:-1]) + ', and ' + items[-1]
+
+
+def kinds_in_words(kinds, missing=False):
+    return joined(['%s (%s)' % ((KIND_MISSING if missing else KIND_WORDS)[k], k) for k in kinds])
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -278,7 +401,7 @@ def parse_requirements(text):
         rows[rid] = {
             'id': rid, 'line': n, 'section': section, 'area': rid.split('-')[1],
             'status': st, 'release': d['Release'].strip(), 'moscow': d['MoSCoW'].strip(),
-            'sources': d['Sources'], 'issues': sorted(refs),
+            'sources': d['Sources'], 'issues': sorted(refs), 'text': d['Requirement'],
             'needs_cell': d.get('Needs', '').strip(),
         }
         order.append(rid)
@@ -353,7 +476,7 @@ def parse_observations(text):
                                '<n>[ at <HH:MM> UTC][, captured on <commit>]", for example "corpus: 2026-08-04 shot 7, '
                                'captured on 1a2b3c4d": a date and a shot number, a time of day only where two swings '
                                'share both, the build only when the swing records one, never a golfer' % (P_OBS, n))
-            corpus = {'captured': cm.group(4)}
+            corpus = {'captured': cm.group(4), 'date': cm.group(1), 'shot': int(cm.group(2)), 'tod': cm.group(3)}
             key, tod = (cm.group(1), cm.group(2)), cm.group(3)
             others = [s for s in swings.get(key, []) if s[0] != d['Id']]
             if others and (tod is None or any(s[1] is None or s[1] == tod for s in others)):
@@ -379,6 +502,7 @@ def parse_issue_snapshot(text):
         out[int(i['number'])] = {
             'number': int(i['number']), 'state': i['state'], 'labels': sorted(i.get('labels') or []),
             'milestone': i.get('milestone'), 'requirement': i.get('requirement'), 'control': i.get('control'),
+            'title': i.get('title'),
         }
     return out
 
@@ -440,12 +564,14 @@ def parse_loop_table(text):
 
 
 def parse_controls(root):
+    """{CTL-id: (active or retired, the control's text after its bold id)}."""
     out = {}
     for rel in walk_files(root, P_CONTROLS, lambda f: f.endswith('.md')):
         for line in read_text(root, rel).split('\n'):
             m = re.match(r'^\*\*([A-Z]+-[0-9]+[a-z]?)\.\*\*\s*(.*)$', line)
             if m:
-                out['CTL-' + m.group(1)] = 'retired' if m.group(2).lower().startswith('retired') else 'active'
+                out['CTL-' + m.group(1)] = ('retired' if m.group(2).lower().startswith('retired') else 'active',
+                                            m.group(2))
     return out
 
 
@@ -915,7 +1041,9 @@ def load(root):
     m['accepted'] = parse_gap_lines(acc, P_ACCEPTED, True)
     m['baseline'] = parse_gap_lines(read_text(root, P_BASELINE), P_BASELINE, False)
     m['platforms'] = load_platform_lists(root)
-    m['controls'] = parse_controls(root)
+    ctl = parse_controls(root)
+    m['controls'] = {k: v[0] for k, v in ctl.items()}
+    m['control_text'] = {k: v[1] for k, v in ctl.items()}
     m['design'] = walk_files(root, P_DESIGN, lambda f: f.endswith('.md'))
     scan = scan_tests(root, parse_loop_table(read_text(root, P_LOOPS)))
     errors = list(scan.errors)
@@ -1014,8 +1142,18 @@ def id_state(m, x):
     return 'withdrawn' if st == 'retired' else 'unknown'
 
 
-def _gap(flag, key, msg):
-    return {'flag': flag, 'key': '%d %s' % (flag, key), 'msg': msg}
+def _gap(flag, key, msg, row=None):
+    # key: the baseline's and the accepted gaps' spelling, never changed by the wording; msg: plain words.
+    return {'flag': flag, 'key': '%d %s' % (flag, key), 'msg': msg, 'row': row}
+
+
+def _where_words(m, where):
+    kind, _, what = where.partition(':')
+    return {'test': lambda: 'the test %s' % what,
+            'issue': lambda: 'issue %s' % issue_words(m, int(what.lstrip('#'))),
+            'observation': lambda: 'the observation %s' % what,
+            'uc-map': lambda: 'uc-map.csv', 'accepted-gaps': lambda: 'the accepted gaps',
+            'baseline': lambda: 'the baseline'}.get(kind, lambda: where)()
 
 
 def _flag2(m):
@@ -1043,7 +1181,7 @@ def _flag2(m):
         st = id_state(m, x)
         if st != 'ok':
             out.append(_gap(2, '%s %s' % (x, where), '%s, cited by %s, %s' % (
-                x, where, 'is withdrawn' if st == 'withdrawn' else 'does not exist')))
+                x, _where_words(m, where), 'is withdrawn' if st == 'withdrawn' else 'does not exist')))
     return out
 
 
@@ -1053,15 +1191,13 @@ def _flag3(m):
         row = m['req']['rows'][rid]
         if row['status']['base'] in ('delivered', 'built', 'partial'):
             for k in row['missing']:
-                out.append(_gap(3, '%s %s' % (rid, k), '%s (%s) has no %s evidence' % (
-                    rid, BASE_WORDS[row['status']['base']], k)))
+                out.append(_gap(3, '%s %s' % (rid, k), '%s: %s; %s (%s)' % (
+                    id_words(m, rid), STATUS_PLAIN[row['status']['base']], KIND_MISSING[k], k), row=rid))
     return out
 
 
 def _flag4(m):
-    return [_gap(4, t, '%s has no requirement or control label: name what it proves with pp_requirement() (or a '
-                    '// REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; '
-                    'a test that proves neither is an accepted gap, approved by the Solution Architect' % t)
+    return [_gap(4, t, '%s names no requirement or control it proves' % t)
             for t in nat_sorted(m['tests']) if not m['tests'][t]['ids']]
 
 
@@ -1073,14 +1209,16 @@ def _flag5(m):
             continue
         req = iss['requirement']
         if req is None:
-            out.append(_gap(5, '#%d' % n, '#%d, an open enhancement, has no Requirement: line' % n))
+            out.append(_gap(5, '#%d' % n, '%s, an open enhancement, says no requirement it serves (no Requirement: '
+                            'line)' % issue_words(m, n)))
         elif not req:
-            out.append(_gap(5, '#%d' % n, '#%d: its Requirement: line names no id and is not "none"' % n))
+            out.append(_gap(5, '#%d' % n, '%s: its Requirement: line names no id and is not "none"' % issue_words(m, n)))
         else:
             bad = [x for x in req if x != 'none' and id_state(m, x) != 'ok']
             if bad:
-                out.append(_gap(5, '#%d' % n, '#%d: its Requirement: line names %s, which %s' % (
-                    n, ', '.join(bad), 'is unknown or withdrawn' if len(bad) == 1 else 'are unknown or withdrawn')))
+                out.append(_gap(5, '#%d' % n, '%s: its Requirement: line names %s, which %s' % (
+                    issue_words(m, n), ', '.join(id_words(m, x) for x in bad),
+                    'is unknown or withdrawn' if len(bad) == 1 else 'are unknown or withdrawn')))
     return out
 
 
@@ -1096,7 +1234,8 @@ def _flag6(m):
         for rid in nat_sorted(names):
             if rows[rid]['status']['base'] == 'delivered' and (n, rid) not in seen:
                 seen.add((n, rid))
-                out.append(_gap(6, '#%d %s' % (n, rid), 'open bug #%d names %s, which the page calls delivered' % (n, rid)))
+                out.append(_gap(6, '#%d %s' % (n, rid), 'open bug %s names %s, which requirements.md calls '
+                                'delivered: the row is failing' % (issue_words(m, n), id_words(m, rid)), row=rid))
     return out
 
 
@@ -1108,8 +1247,8 @@ def _flag7(m):
             continue
         states = [m['issues'].get(n, {}).get('state') for n in row['all_issues']]
         if all(s == 'closed' for s in states):
-            out.append(_gap(7, rid, '%s is planned, and its issues (%s) are all closed' % (
-                rid, ', '.join('#%d' % n for n in row['all_issues']))))
+            out.append(_gap(7, rid, '%s is planned, but its issues are all closed: %s' % (
+                id_words(m, rid), '; '.join(issue_words(m, n) for n in row['all_issues'])), row=rid))
     return out
 
 
@@ -1119,7 +1258,7 @@ def _flag8(m):
         row = m['req']['rows'][rid]
         if row['status']['needs_ruling'] and row['status']['base'] in ('built', 'delivered'):
             out.append(_gap(8, rid, '%s waits on a ruling change (proposed, for the Solution Architect) but is marked %s'
-                            % (rid, BASE_WORDS[row['status']['base']])))
+                            % (id_words(m, rid), STATUS_PLAIN[row['status']['base']]), row=rid))
     return out
 
 
@@ -1130,10 +1269,8 @@ def _flag9(m):
     for t in nat_sorted(m['tests']):
         tt = m['tests'][t]
         if any(x.startswith('REQ-') for x in tt['ids']) and not tt['lists']:
-            out.append(_gap(9, t, '%s is labelled for a requirement but is in no gate list (%s). A commit that '
-                            'adds a labelled test retakes macos.txt until BT-25\'s release gate writes the lists: '
-                            'python3 tools/method/make_rtm.py --platform-list <configured test tree> macos' % (
-                                t, ', '.join(sorted(m['platforms'])))))
+            out.append(_gap(9, t, '%s is labelled for a requirement but is in no gate list (%s)' % (
+                t, ', '.join(sorted(m['platforms'])))))
     return out
 
 
@@ -1143,7 +1280,8 @@ def _flag10(m):
         row = m['req']['rows'][rid]
         if 'E6' in row['needs'] and row['status']['base'] in ('delivered', 'built', 'partial') \
                 and 'E6' not in row['present']:
-            out.append(_gap(10, rid, '%s needs a visit observation (E6) and has never been observed' % rid))
+            out.append(_gap(10, rid, '%s needs to be seen at the rig or in a corpus swing (E6), and never has been'
+                            % id_words(m, rid), row=rid))
     return out
 
 
@@ -1155,10 +1293,12 @@ def _flag11(m):
         if base in (None, 'wont'):
             continue
         if row['supports'] == 'delivered' and base != 'delivered':
-            out.append(_gap(11, rid, '%s: the evidence supports delivered; the page says %s' % (rid, BASE_WORDS[base])))
+            out.append(_gap(11, rid, '%s: the evidence supports delivered; requirements.md says %s' % (
+                id_words(m, rid), STATUS_PLAIN[base]), row=rid))
         elif base == 'delivered' and row['supports'] != 'delivered':
-            out.append(_gap(11, rid, '%s: the evidence supports built, not verified (missing %s); the page says '
-                            'delivered' % (rid, ', '.join(row['missing']))))
+            out.append(_gap(11, rid, '%s: the evidence supports built, not verified (%s); requirements.md says '
+                                     'delivered' % (
+                id_words(m, rid), kinds_in_words(row['missing'], True)), row=rid))
     return out
 
 
@@ -1170,7 +1310,8 @@ def _flag12(m):
         if base in ('delivered', 'wont') or row['release'] == 'never' or row['moscow'].lower().startswith("won"):
             continue
         if not any(m['issues'].get(n, {}).get('state') == 'open' for n in row['all_issues']):
-            out.append(_gap(12, rid, '%s (%s) has no open issue' % (rid, BASE_WORDS.get(base, row['status']['text']))))
+            out.append(_gap(12, rid, '%s is %s, and has no open issue and no accepted gap' % (
+                id_words(m, rid), STATUS_PLAIN.get(base, row['status']['text'])), row=rid))
     return out
 
 
@@ -1183,7 +1324,7 @@ def warnings(m):
     rows = m['req']['rows']
     for rid in m['req']['order']:
         if rows[rid]['status']['base'] == 'proposed' and not rows[rid]['all_issues']:
-            w.append('a proposed row with no issue: %s' % rid)
+            w.append('a proposed row with no issue: %s' % id_words(m, rid))
     cited = ' '.join(rows[r]['sources'] for r in rows)
     for d in m['design']:
         b = posixpath.basename(d)
@@ -1193,10 +1334,11 @@ def warnings(m):
         iss = m['issues'][n]
         if iss['state'] == 'open' and 'engineering' in iss['labels'] and iss['requirement'] is None \
                 and iss['control'] is None:
-            w.append('an open engineering issue with neither a Requirement: nor a Control: line: #%d' % n)
+            w.append('an open engineering issue with neither a Requirement: nor a Control: line: %s' % issue_words(m, n))
     for n in sorted(m['cited_issues']):
         if n not in m['issues']:
-            w.append('#%d, cited by %s, is not in the issue snapshot' % (n, ', '.join(m['cited_issues'][n])))
+            w.append('#%d, cited by %s, is not in the issue snapshot' % (
+                n, ', '.join(id_words(m, r) for r in m['cited_issues'][n])))
     for p in sorted(m['platforms']):
         for t in nat_sorted(m['platforms'][p] - set(m['tests'])):
             w.append('%s, in the %s gate list, is registered nowhere in the source' % (t, p))
@@ -1215,12 +1357,126 @@ def evaluate(m):
     for g in gaps:
         g['state'] = 'accepted' if g['key'] in acc else 'baseline' if g['key'] in base else 'NEW'
     for k in sorted(base - keys, key=nat_key):
-        gaps.append({'flag': 13, 'key': '13 ' + k, 'msg': 'the baseline lists "%s", which is no longer a gap: '
-                     'take the line out' % k, 'state': 'NEW'})
+        gaps.append({'flag': 13, 'key': '13 ' + k, 'msg': 'the baseline still lists "%s", which is no longer a gap: '
+                     'take the line out' % k, 'state': 'NEW', 'row': None})
     w = warnings(m)
     for k in sorted(set(acc) - keys, key=nat_key):
-        w.append('an accepted gap that is no longer open: %s' % k)
+        w.append('an accepted gap that is no longer open: "%s"' % k)
     return gaps, w
+
+
+FLAG_HELP = {
+    1: 'The page differs from what the inputs make now. It clears when python3 tools/method/make_rtm.py is run and '
+       'rtm.md committed.',
+    2: 'A test, an issue, uc-map.csv, an observation or a gap file names a requirement or control that does not exist, '
+       'or was withdrawn. It clears when the citation is corrected.',
+    3: 'A row requirements.md calls delivered, built or partial lacks a kind of evidence it needs. It clears when that '
+       'evidence exists: a labelled test, or a passing observation in rtm_observations.csv.',
+    4: 'A test does not say what it proves. It clears with pp_requirement(<test> <id>...) beside its registration, or '
+       'a // REQ: line in a tst_*.qml file; a mechanical rename is make_rtm.py --rename <old> <new>; a test that '
+       'proves neither is an accepted gap, approved by the Solution Architect.',
+    5: 'An open enhancement does not say which requirement it serves. It clears with a Requirement: line in the issue '
+       '(an id, or "none").',
+    6: 'An open bug names a row requirements.md calls delivered, so the row is failing. It clears when the bug is '
+       'closed, or no longer names the row.',
+    7: "A planned row's issues are all closed. It clears when requirements.md's owner updates the status, or an "
+       'issue is opened for what is left.',
+    8: 'A row whose status says "proposed, for the Solution Architect" (it waits on a ruling change) is marked built '
+       'or delivered. It clears when requirements.md drops that marker, or the status changes.',
+    9: "A test labelled for a requirement is in no platform's gate list. A commit that adds a labelled test retakes "
+       "macos.txt until BT-25's release gate writes the lists: python3 tools/method/make_rtm.py --platform-list "
+       '<configured test tree> macos. It clears when the test is in a gate list.',
+    10: 'A row that needs hardware has never been seen at the rig or in a corpus swing (E6). It clears with a passing '
+        'observation at the rig, or a corpus swing.',
+    11: "The evidence supports a different status from requirements.md's. It clears when requirements.md's owner "
+        'changes the status: the matrix never does.',
+    12: 'A row not delivered has no open issue and no accepted gap. It clears with an open issue, or an accepted gap.',
+    13: 'The baseline lists a gap that has closed. It clears when the line is taken out of rtm_baseline.txt, so the '
+        'baseline only shrinks.',
+}
+STATE_WORDS = {'accepted': 'accepted', 'baseline': 'baseline', 'NEW': 'new'}
+
+
+MONTHS = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
+
+
+def _corpus_line(swings):
+    """A row's corpus swings as one line: the count, then the count by date ("130 corpus swings in 2026: 3 Jul (10),
+    ..., 20 Oct (52)."). No per-swing list and no build: the build is a record only, kept in rtm_observations.csv. The
+    year is said once when every date shares it, and on each date otherwise. A date says how many of its swings failed,
+    unless they all did. The month names are fixed, never the locale's."""
+    by_date, failed = {}, {}
+    for o in swings:
+        d = o['corpus']['date']
+        by_date[d] = by_date.get(d, 0) + 1
+        if not o['passed']:
+            failed[d] = failed.get(d, 0) + 1
+    dates = sorted(by_date)
+    one_year = len(set(d[:4] for d in dates)) == 1
+
+    def day(d):
+        y, mo, dd = d.split('-')
+        return '%d %s%s' % (int(dd), MONTHS[int(mo) - 1], '' if one_year else ' ' + y)
+
+    def failures(k, of):
+        return '' if not k else ', failed' if of == 1 else ', all failed' if k == of else ', %d failed' % k
+
+    n, nf = len(swings), sum(failed.values())
+    head = '%d corpus swing%s' % (n, '' if n == 1 else 's')
+    if one_year:
+        head += ' in ' + dates[0][:4]
+    head += failures(nf, n)
+    return '%s: %s.' % (head, ', '.join('%s (%d%s)' % (day(d), by_date[d], '' if nf == n else failures(
+        failed.get(d, 0), by_date[d])) for d in dates))
+
+
+def _row_lines(m, rid):
+    r = m['req']['rows'][rid]
+    L = ['- **%s**: %s' % (rid, md(with_words(m, first_sentence(r['text']))))]
+    bits = ['Status: ' + with_words(m, r['status']['text']), 'release ' + (r['release'] or 'none'),
+            r['moscow'] or 'no MoSCoW']
+    uc = m['uc'].get(rid, {}).get('use_cases', '')
+    if uc:
+        bits.append('use cases ' + uc)
+    L.append('  - ' + md('; '.join(bits)) + '.')
+    wont = r['status']['base'] == 'wont'
+    ev = 'Evidence: ' + (kinds_in_words(r['present']) if r['present'] else
+                         "none needed (won't have)" if wont else 'none yet')
+    if wont:
+        pass  # a row that will never be built lacks nothing
+    elif r['missing']:
+        ev += '; ' + kinds_in_words(r['missing'], True)
+    elif r['needs']:
+        ev += '; every kind it needs is present'
+    L.append('  - ' + md(ev) + '.')
+    base, sup = r['status']['base'], r['supports']
+    if sup != base and base not in (None, 'wont'):
+        L.append('  - ' + md('The evidence supports %s; requirements.md says %s (flag 11).' % (
+            STATUS_PLAIN.get(sup, sup), STATUS_PLAIN[base])))
+    if m['by_req'].get(rid):
+        L.append('  - Tests: ' + ', '.join('`%s`' % t for t in m['by_req'][rid]) + '.')
+    plain = [o for o in r['obs'] if not o['corpus']]
+    if plain:
+        L.append('  - Observations: ' + md('; '.join('%s, %s (%s), %s on %s, build %s' % (
+            o['id'], KIND_WORDS[o['kind']], o['kind'], 'passed' if o['passed'] else 'failed', o['date'], o['build'])
+            for o in plain)) + '.')
+    opened = [n for n in r['all_issues'] if m['issues'].get(n, {}).get('state') == 'open']
+    other = [n for n in r['all_issues'] if n not in opened]
+    if opened or other:
+        parts = []
+        if opened:
+            parts.append('Open issues: ' + '; '.join(issue_words(m, n) for n in opened))
+        if other:
+            parts.append(('Closed issues: ' if all(n in m['issues'] for n in other) else 'Other issues: ')
+                         + '; '.join(issue_words(m, n) for n in other))
+        L.append('  - ' + md('. '.join(parts)) + '.')
+    swings = {}
+    for o in r['obs']:
+        if o['corpus']:
+            swings.setdefault(o['id'], o)
+    if swings:
+        L.append('  - ' + md(_corpus_line(list(swings.values()))))
+    return L
 
 
 def render(m, gaps, warns):
@@ -1228,6 +1484,7 @@ def render(m, gaps, warns):
     L = []
     have = sorted(m['platforms'])
     lack = [p for p in m['plats'] if p not in m['platforms']]
+    titled = any(i.get('title') for i in m['issues'].values())
     L += ['# Requirements traceability matrix', '',
           '**Generated by `tools/method/make_rtm.py` from committed source files only: never edit it by hand.** '
           '`rtm_check` (ctest) fails when this page is stale, or on a flag below that is neither an accepted gap '
@@ -1238,86 +1495,73 @@ def render(m, gaps, warns):
           '- **A test registered for one platform only counts on every platform, except where a platform\'s gate '
           'list says otherwise** (`rtm_platform_tests/<platform>.txt`, `test_strategy.md` §8.3). Gate lists: %s. '
           'No gate list: %s.' % (', '.join(have) or 'none', ', '.join(lack) or 'none'),
-          '- **The matrix never overrides the page.** Where the evidence supports another status, flag 11 says so; '
-          "the page's owner changes the page.",
-          '- **Kinds of evidence** (`test_strategy.md` §2): a labelled test is E4 when it carries the `qml_ui` label, '
-          'E2 when it carries `golden`, and E1 otherwise; an observation is the kind its line in '
-          '`rtm_observations.csv` names, and counts only when what was seen is a pass; a corpus line (an E3 line whose '
-          'Record begins `corpus:`) counts for E6 too, with no build or age limit (`test_strategy.md` §3, §4). The '
-          'kinds a row needs are its '
-          'Needs column, or its area\'s default in `rtm_kind_defaults.csv`.', '']
-    # Summary
+          '- **The matrix never overrides requirements.md.** Where the evidence supports another status, flag 11 says '
+          "so; requirements.md's owner changes the status.",
+          '- **Kinds of evidence** (`test_strategy.md` §2): ' + '; '.join(
+              '%s (%s)' % (KIND_WORDS[k], k) for k in KINDS) + '. A labelled test is an automated screen test (E4) '
+          'when it carries the `qml_ui` label, a frozen record of old behaviour (E2) when it carries `golden`, and an '
+          'automated test of the logic (E1) otherwise. An observation is the kind its line in `rtm_observations.csv` '
+          'names, and counts only when what was seen is a pass; a corpus swing (an E3 line whose Record begins '
+          '`corpus:`) also counts as seen in a corpus swing (E6), with no build or age limit (`test_strategy.md` §3, '
+          "§4). The kinds a row needs are its Needs column, or its area's default in `rtm_kind_defaults.csv`.",
+          "- **The words beside an id.** A requirement id carries its row's Requirement sentence, shortened to about "
+          "%d words; a control id its control's first sentence; an issue number its title, from the issue snapshot "
+          '(`rtm_issues.json`) as of its last refresh.%s' % (
+              SHORT_WORDS, '' if titled else ' The snapshot holds no titles yet, so an issue shows by its number '
+              'until `make_rtm.py --refresh-issues --library <the library folder>` adds them.'), '']
+    # 1. The summary
     counts = {}
     for rid in m['req']['order']:
         counts[rows[rid]['status']['base']] = counts.get(rows[rid]['status']['base'], 0) + 1
     L += ['## Summary', '', '| | Rows |', '|---|---|']
     for b in ('delivered', 'built', 'partial', 'planned', 'proposed', 'wont'):
-        L.append('| %s (the page) | %d |' % (BASE_WORDS[b], counts.get(b, 0)))
+        L.append('| %s (requirements.md) | %d |' % (BASE_WORDS[b], counts.get(b, 0)))
     if counts.get(None):
         L.append('| a status not understood | %d |' % counts[None])
     L.append('| **all** | **%d** |' % len(rows))
     L.append('| every kind it needs present | %d |' % sum(1 for r in rows.values() if r['needs'] and not r['missing']))
     L.append('| withdrawn ids | %d |' % len(m['req']['withdrawn']))
-    L += ['', '| Flag | Gaps | Accepted | Baseline | New |', '|---|---|---|---|---|',
-          '| 1. %s | checked by `--check` | | | |' % FLAG_TITLES[1]]
+    st = [g['state'] for g in gaps]
+    L += ['', '%d gaps: %d accepted, %d in the baseline, %d new (a new gap fails the check); %d warnings. "The flags" '
+          'says what each kind of gap means; every gap is listed last.' % (
+              len(gaps), st.count('accepted'), st.count('baseline'), st.count('NEW'), len(warns)), '']
+    # 2. The requirements, area by area
+    L += ['## Requirements, area by area', '',
+          "Each row: its id and Requirement sentence; its status in requirements.md, release and MoSCoW; the kinds of "
+          'evidence present and still missing; its tests and observations; its issues, with titles (every `#n` in the '
+          "row's Status, Sources and Evidence, and every issue whose Requirement: line names it). A row's corpus "
+          'swings are one line: the count, then the count by date (each swing\'s build is in '
+          '`rtm_observations.csv`).', '']
+    for sec in m['req']['sections']:
+        L += ['### ' + sec, '']
+        for rid in m['req']['order']:
+            if rows[rid]['section'] == sec:
+                L += _row_lines(m, rid)
+        if L[-1] != '':
+            L.append('')
+    # 3. The flags
+    L += ['## The flags', '', 'Each flag is a kind of gap. A gap fails `rtm_check` unless it is an accepted gap '
+          '(`rtm_accepted_gaps.txt`) or in the baseline (`rtm_baseline.txt`), which only shrinks.', '',
+          '| Flag | What it means | Gaps | Accepted | Baseline | New |', '|---|---|---|---|---|---|',
+          '| 1. %s | %s | checked by `--check` | | | |' % (md(FLAG_TITLES[1]), md(FLAG_HELP[1]))]
     for f in range(2, 14):
         gs = [g for g in gaps if g['flag'] == f]
-        L.append('| %d. %s | %d | %d | %d | %d |' % (f, FLAG_TITLES[f], len(gs),
+        L.append('| %d. %s | %s | %d | %d | %d | %d |' % (f, md(FLAG_TITLES[f]), md(FLAG_HELP[f]), len(gs),
                  sum(1 for g in gs if g['state'] == 'accepted'), sum(1 for g in gs if g['state'] == 'baseline'),
                  sum(1 for g in gs if g['state'] == 'NEW')))
-    L += ['| warnings | %d | | | |' % len(warns), '']
-    # Flags
-    L += ['## Flags', '', 'Each line: the gap as the baseline and the accepted gaps spell it, what it means, and its '
-          'state (accepted, baseline, or NEW, which fails the check).', '',
-          '### 1. %s' % FLAG_TITLES[1], '', '`--check` compares this page with what the inputs make now.', '']
-    for f in range(2, 14):
-        L += ['### %d. %s' % (f, FLAG_TITLES[f]), '']
-        gs = [g for g in gaps if g['flag'] == f]
-        if not gs:
-            L.append('None.')
-        for g in gs:
-            L.append('- `%s`: %s (%s)' % (g['key'], g['msg'], g['state']))
-        L.append('')
+    L += ['| warnings | Printed by every mode; they never fail the check. | %d | | | |' % len(warns), '']
     L += ['## Warnings', '', 'Printed by every mode; they never fail the check.', '']
-    L += ['- ' + x for x in warns] or ['None.']
+    L += ['- ' + md(x) for x in warns] or ['None.']
     L.append('')
-    # Requirements
-    L += ['## Requirements', '', 'Status, Release and MoSCoW are the page\'s. **Supports** is the status the '
-          'evidence supports: "delivered" when every kind the row needs is present (an open bug never lowers it: it shows '
-          'as flag 6); '
-          '"page" when it agrees with the page. Issues are every `#n` in the row\'s Status, Sources and Evidence and '
-          'every issue whose Requirement: line names it.', '']
-    for sec in m['req']['sections']:
-        L += ['### ' + sec, '', '| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | '
-              'Observations | Issues | Use cases |', '|---|---|---|---|---|---|---|---|---|---|---|---|']
-        for rid in m['req']['order']:
-            r = rows[rid]
-            if r['section'] != sec:
-                continue
-            sup = r['supports']
-            sup = 'page' if sup == r['status']['base'] else BASE_WORDS.get(sup, '?')
-            iss = ', '.join('#%d %s' % (n, m['issues'][n]['state'] if n in m['issues'] else '(not in the snapshot)')
-                            for n in r['all_issues'])
-            obs = ', '.join('%s %s %s %s%s' % (o['id'], o['kind'], 'pass' if o['passed'] else 'fail', o['build'],
-                                                (' (a corpus swing: E3 and E6, captured on build %s)'
-                                                 % o['corpus']['captured'] if o['corpus']['captured']
-                                                 else ' (a corpus swing: E3 and E6)')
-                                                if o['corpus'] else '') for o in r['obs'])
-            uc = m['uc'].get(rid, {}).get('use_cases', '')
-            L.append('| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |' % tuple(md_cell(x) for x in (
-                rid, r['status']['text'], r['release'], r['moscow'], ' '.join(r['needs']), ' '.join(r['present']),
-                ' '.join(r['missing']), sup, ', '.join('`%s`' % t for t in m['by_req'].get(rid, [])), obs, iss, uc)))
-        L.append('')
-    # Controls
+    # 4. The controls, the labelled tests and the documents
     L += ['## Controls checked by tests', '']
     ctl = nat_sorted(k for k in m['by_req'] if k.startswith('CTL-'))
     if ctl:
         L += ['| Control | Tests |', '|---|---|']
-        L += ['| %s | %s |' % (c, ', '.join('`%s`' % t for t in m['by_req'][c])) for c in ctl]
+        L += ['| %s | %s |' % (md(id_words(m, c)), ', '.join('`%s`' % t for t in m['by_req'][c])) for c in ctl]
     else:
         L.append('None yet.')
     L.append('')
-    # Tests
     labelled = [t for t in nat_sorted(tests) if tests[t]['ids']]
     L += ['## Labelled tests', '', '%d tests are registered in the source; %d carry a requirement or control label. '
           'Gate lists: the platform lists that hold the test.' % (len(tests), len(labelled)), '']
@@ -1325,12 +1569,12 @@ def render(m, gaps, warns):
         L += ['| Test | Kind | Labels | Gate lists | Registered in |', '|---|---|---|---|---|']
         for t in labelled:
             tt = tests[t]
-            L.append('| `%s` | %s | %s | %s | %s |' % (t, ' '.join(tt['kinds']), ' '.join(nat_sorted(tt['ids'])),
-                     ', '.join(tt['lists']) or '-', ', '.join('`%s`' % f for f in tt['files'])))
+            L.append('| `%s` | %s | %s | %s | %s |' % (
+                t, md(kinds_in_words(tt['kinds'])), md('; '.join(id_words(m, x) for x in nat_sorted(tt['ids']))),
+                ', '.join(tt['lists']) or '-', ', '.join('`%s`' % f for f in tt['files'])))
     else:
         L.append('None yet.')
     L.append('')
-    # Design documents, the reverse view of the Sources column
     docs = {}
     for rid in m['req']['order']:
         for name in re.findall(r'(?<![\w.-])([\w.-]+\.md)(?![\w-])', rows[rid]['sources']):
@@ -1338,8 +1582,33 @@ def render(m, gaps, warns):
     L += ['## Documents and the rows that cite them', '', 'The reverse view of the Sources column, the one home of the '
           'design link.', '', '| Document | Rows |', '|---|---|']
     for name in sorted(docs):
-        L.append('| %s | %s |' % (name, ', '.join(nat_sorted(set(docs[name])))))
+        L.append('| %s | %s |' % (md(name), md('; '.join(id_words(m, x) for x in nat_sorted(set(docs[name]))))))
     L.append('')
+    # 5. Every gap, last
+    L += ['## Every gap, flag by flag', '', 'Each line says the gap in words. The small print after it is the gap as '
+          'the baseline and the accepted gaps spell it, and its state: accepted, baseline, or new (a new gap fails the '
+          'check).', '']
+    for f in range(2, 14):
+        L += ['### %d. %s' % (f, md(FLAG_TITLES[f])), '']
+        gs = [g for g in gaps if g['flag'] == f]
+        if not gs:
+            L.append('None.')
+        if f == 3:
+            by_row = {}
+            for g in gs:
+                by_row.setdefault(g['row'], []).append(g)
+            for rid in m['req']['order']:
+                if rid not in by_row:
+                    continue
+                kinds = [g['key'].split(' ')[-1] for g in by_row[rid]]
+                text = '%s: %s; %s' % (id_words(m, rid), STATUS_PLAIN[rows[rid]['status']['base']],
+                                       kinds_in_words(kinds, True))
+                L.append('- %s <sub>%s</sub>' % (md(text), '; '.join(
+                    '`%s` %s' % (g['key'], STATE_WORDS[g['state']]) for g in by_row[rid])))
+        else:
+            for g in gs:
+                L.append('- %s <sub>`%s` %s</sub>' % (md(g['msg']), g['key'], STATE_WORDS[g['state']]))
+        L.append('')
     return '\n'.join(L)
 
 
@@ -1473,8 +1742,57 @@ def parse_marked_line(body, word):
     return nat_sorted(set(found))
 
 
-def snapshot_from_gh(items, cited):
-    """gh's JSON (number, state, labels, milestone, body; titles ignored) -> the committed snapshot's text."""
+SESSION_FOLDER = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}_([^_]+)_')
+
+
+def golfer_names(library):
+    """The golfers' names, read from the library's folders and never written or printed: every folder that holds an
+    athlete.json, and the name in every session folder's name (<date>_<name>_...), up to three levels down (the
+    athlete folders, and the corpus's copies), never inside a hidden folder (the library's trash). It fails closed: a
+    missing library, or one with no athlete folder, is an error, never an empty list."""
+    if not library or not os.path.isdir(library):
+        raise RtmError('--refresh-issues: the library folder (--library) is missing or not a folder')
+    names = set()
+
+    def scan(d, depth):
+        try:
+            entries = sorted(os.listdir(d))
+        except OSError as e:
+            # Fail closed: a folder it cannot read could hold a golfer's name. The folder is never named.
+            raise RtmError('--refresh-issues: a folder in the library folder (--library) could not be read (%s); '
+                           'nothing was written' % (e.strerror or type(e).__name__))
+        for e in entries:
+            p = os.path.join(d, e)
+            if e.startswith('.') or not os.path.isdir(p):
+                continue
+            sm = SESSION_FOLDER.match(e)
+            if sm:
+                names.add(sm.group(1))
+                continue
+            if os.path.isfile(os.path.join(p, 'athlete.json')):
+                names.add(e)
+            if depth < 3:
+                scan(p, depth + 1)
+    scan(library, 1)
+    if not names:
+        raise RtmError('--refresh-issues: the library folder (--library) holds no athlete folder')
+    return sorted(names)
+
+
+def golfer_title_hits(titles, names):
+    """The issues whose title names a golfer: any part of a name (split at - _ . and spaces) that starts with a
+    capital, as a whole word, case-sensitive. A name with no capital (a developer's test athlete) names no one; a
+    library with no name it can match is an error (it fails closed), never a pass."""
+    parts = sorted(set(p for n in names for p in re.split(r'[-_. ]+', n) if len(p) >= 2 and p[0].isupper()))
+    if not parts:
+        raise RtmError('--refresh-issues: the library folder (--library) holds no golfer\'s name the check can match')
+    rx = re.compile(r'(?<![A-Za-z])(?:' + '|'.join(re.escape(p) for p in parts) + r')(?![A-Za-z])')
+    return sorted(n for n, t in titles.items() if t and rx.search(t))
+
+
+def snapshot_from_gh(items, cited, names):
+    """gh's JSON (number, title, state, labels, milestone, body) -> the committed snapshot's text: the title kept, the
+    body never. A kept issue whose title names a golfer (POL-7) stops it with an error, naming only the issue."""
     out = []
     for it in items:
         n = int(it['number'])
@@ -1485,25 +1803,32 @@ def snapshot_from_gh(items, cited):
         if state != 'open' and n not in cited and req is None and ctl is None:
             continue
         ms = it.get('milestone')
-        out.append({'number': n, 'state': state, 'labels': sorted(l['name'] for l in it.get('labels') or []),
+        out.append({'number': n, 'title': ' '.join(str(it.get('title') or '').split()) or None, 'state': state,
+                    'labels': sorted(l['name'] for l in it.get('labels') or []),
                     'milestone': ms.get('title') if isinstance(ms, dict) else None,
                     'requirement': req, 'control': ctl})
     out.sort(key=lambda d: d['number'])
+    hits = golfer_title_hits({d['number']: d['title'] for d in out}, names)
+    if hits:
+        raise RtmError('the snapshot is not written: retitle each issue, then refresh again:\n' + '\n'.join(
+            "issue #%d's title names a golfer" % n for n in hits))
     doc = {'about': 'The issue snapshot rtm_check reads offline, written by tools/method/make_rtm.py --refresh-issues: '
                     'every open issue, every issue requirements.md cites, and every issue with a Requirement: or '
-                    'Control: line. Number, state, labels, milestone and the parsed ids only: no titles and no bodies '
-                    '(POL-7). requirement/control: null when the issue has no such line, ["none"] for "none".',
+                    'Control: line. Number, title, state, labels, milestone and the parsed ids only: never a body '
+                    '(POL-7), and a refresh whose titles would name a golfer writes nothing. requirement/control: '
+                    'null when the issue has no such line, ["none"] for "none".',
            'issues': out}
     return json.dumps(doc, indent=1, sort_keys=True, ensure_ascii=False) + '\n'
 
 
-def mode_refresh(root, out):
+def mode_refresh(root, out, library):
+    names = golfer_names(library)
     gh = shutil.which('gh')
     if not gh:
         raise RtmError('gh is not on PATH')
     limit = 5000
     r = subprocess.run([gh, 'issue', 'list', '--state', 'all', '--limit', str(limit), '--json',
-                        'number,state,labels,milestone,body'], cwd=root, stdout=subprocess.PIPE,
+                        'number,title,state,labels,milestone,body'], cwd=root, stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE)
     if r.returncode != 0:
         raise RtmError('gh issue list failed (%d)' % r.returncode)
@@ -1512,7 +1837,7 @@ def mode_refresh(root, out):
         raise RtmError('gh returned %d issues, the limit: raise it' % len(items))
     req_text = read_text(root, P_REQ) or ''
     cited = set(int(x) for x in ISSUE_REF.findall(req_text))
-    text = snapshot_from_gh(items, cited)
+    text = snapshot_from_gh(items, cited, names)
     write_text(root, P_ISSUES, text)
     doc = json.loads(text)
     have = set(i['number'] for i in doc['issues'])
@@ -1582,7 +1907,7 @@ FIX_REQ = """# Fixture requirements
 
 | Id | Owner | Requirement | Why | Sources | Status | Release | MoSCoW | Evidence |
 |---|---|---|---|---|---|---|---|---|
-| REQ-ANA-1 | PO | The app shall compute A. | Why. | a_design.md §2 | delivered | v1 | Must | here |
+| REQ-ANA-1 | PO | The app shall compute A \\| B <now> for every *swing* the golfer hits in the bay, from every camera in use.[^x] *The rule is GU-9; this row only traces it.* | Why. | a_design.md §2 | delivered | v1 | Must | here |
 | REQ-ANA-2 | PO | The app shall compute B. | Why. | #2 | planned (#2) | v1 | Should | |
 
 ## Capture
@@ -1608,9 +1933,10 @@ FIX_OBS = (','.join(OBS_HEADER) + '\nOBS-1,2026-11-26,REQ-ANA-1,abc12345 macOS a
            'pass: unchanged,build/x,agent\nOBS-2,2026-11-26,REQ-CAP-1,abc12345 macOS arm64 Debug,E6,a swing,'
            'pass: captured,visit 1 §2,Product Owner\n')
 FIX_ISSUES = [
-    {'number': 1, 'state': 'open', 'labels': ['bug'], 'milestone': None, 'requirement': ['REQ-LIB-1'], 'control': None},
+    {'number': 1, 'state': 'open', 'labels': ['bug'], 'milestone': None, 'requirement': ['REQ-LIB-1'], 'control': None,
+     'title': 'Files go missing'},
     {'number': 2, 'state': 'open', 'labels': ['enhancement'], 'milestone': 'v1', 'requirement': ['REQ-LIB-1'],
-     'control': None},
+     'control': None, 'title': 'Keep it | fast <soon> *now*'},
     {'number': 3, 'state': 'open', 'labels': ['enhancement'], 'milestone': None, 'requirement': ['REQ-LIB-2'],
      'control': None},
     {'number': 4, 'state': 'open', 'labels': ['engineering'], 'milestone': None, 'requirement': None,
@@ -1743,6 +2069,64 @@ def self_test():
         crlf_root = make_fixture(base, green_files, crlf=True)
         ok(generate(crlf_root)[3] == text, 'a fixture written with CRLF gives the same rtm.md, byte for byte')
 
+        # The page made readable: words beside every id, a title beside every issue, the flags in plain words, and an
+        # order for a reader.
+        short = 'REQ-ANA-1 (The app shall compute A &#124; B &lt;now&gt; for every swing the …)'
+        ok(short in text, 'an id carries its Requirement sentence, shortened to 12 words at a word boundary with '
+           '"…", | and < escaped, emphasis stripped: %s' % short)
+        ok('**REQ-ANA-1**: The app shall compute A &#124; B &lt;now&gt; for every swing the golfer hits in the bay, '
+           'from every camera in use.' in text, "a row's own entry carries its whole first Requirement sentence")
+        ok('[^' not in text and '&#91;^' not in text, 'no footnote marker reaches rtm.md, raw or escaped')
+        ok('REQ-CAP-1 (The app shall capture.)' in text, 'a short Requirement sentence is shown whole')
+        ok(short_words('The app shall add everything a device reports for a shot (a reading, a clip) to it.')
+           == 'The app shall add everything a device reports for a shot to it.',
+           'a cut that would open a bracket leaves the bracketed aside out, never stops before it')
+        bt40 = short_words('A test shown unable to fail (it stayed green with what it proves broken, on any '
+                           'platform) must be strengthened or retired; it must never be kept as proof.')
+        ok(bt40.startswith('A test shown unable to fail must be strengthened or retired'),
+           'a control\'s words never read as its opposite: the aside goes, the rule stays (%s)' % bt40)
+        ok(short_words('The app shall show one two three four five six seven (and never close it at all') ==
+           'The app shall show one two three four five six seven \u2026',
+           'a bracket that never closes is cut before, as before')
+        ok('CTL-BT-39 (A test names what it proves.)' in text, "a control id carries its control's first sentence")
+        fb = dict(green_files)
+        fb[P_REQ] = FIX_REQ.replace('| REQ-ANA-2 | PO | The app shall compute B. |',
+                                    '| REQ-ANA-2 | PO | The app shall compute B for REQ-CAP-1, as #2 asks. |')
+        tb = run(fb)[1][3]
+        ok('- **REQ-ANA-2**: The app shall compute B for REQ-CAP-1 (The app shall capture.), as #2 (Keep it &#124; '
+           'fast &lt;soon&gt; &#42;now&#42;) asks.\n' in tb,
+           "an id or #n inside a row's own sentence carries its words too")
+        ok('| partial (requirements.md) |' in text and '(the page)' not in text and 'partly built' not in text
+           and 'the page says' not in text and 'the page calls' not in text,
+           'one word for a status everywhere ("partial"), and requirements.md named, never "the page"')
+        lib3 = text[text.find('- **REQ-LIB-3**'):]
+        lib3 = re.split(r'\n(?:- \*\*|\n)', lib3)[0]
+        ok("  - Evidence: none needed (won't have).\n" in lib3 + '\n' and 'yet' not in lib3,
+           "a won't-have row lists no missing kinds: %r" % lib3)
+        ok('#2 (Keep it &#124; fast &lt;soon&gt; &#42;now&#42;)' in text, 'an issue number carries its title, escaped')
+        bad_rows = []
+        cols = None
+        for ln in text.split('\n'):
+            if ln.startswith('|'):
+                n = len(re.findall(r'(?<!\\)\|', ln))
+                if cols is None:
+                    cols = n
+                elif n != cols:
+                    bad_rows.append(ln[:60])
+            else:
+                cols = None
+        ok(not bad_rows, 'every table row has its header\'s cells: an escaped | never splits one (%s)' % bad_rows)
+        legend = ['an automated test of the logic (E1)', 'a frozen record of old behaviour (E2)',
+                  'a run over real swings (E3)', 'an automated screen test (E4)', 'a run on Windows (E5)',
+                  'seen at the rig or in a corpus swing (E6)', 'the installer checked (E7)']
+        ok(all(x in text for x in legend), 'the page names every kind of evidence in words, its code in brackets')
+        heads = ['## Summary', '## Requirements, area by area', '## The flags', '## Warnings',
+                 '## Controls checked by tests',
+                 '## Labelled tests', '## Documents and the rows that cite them', '## Every gap, flag by flag']
+        pos = [text.find(h) for h in heads]
+        ok(all(p >= 0 for p in pos) and pos == sorted(pos), 'the page runs: summary, requirements area by area, the '
+           'flags, the controls, tests and documents, the full gap list last (%s)' % pos)
+
         def flag_case(flag, files, expect, what):
             # Any other flag the fault also raises is held in the fixture's baseline, so the only NEW gap, and so
             # --check's exit 1, is this flag's.
@@ -1786,7 +2170,12 @@ def self_test():
         f = dict(green_files)
         f[P_REQ] = FIX_REQ.replace('| REQ-ANA-2 | PO | The app shall compute B. | Why. | #2 | planned (#2) |',
                                    '| REQ-ANA-2 | PO | The app shall compute B. | Why. | #2 | partial (#2) |')
-        flag_case(3, f, '3 REQ-ANA-2 E1', 'a partial row with no test')
+        r3a = flag_case(3, f, '3 REQ-ANA-2 E1', 'a partial row with no test')
+        t3a = generate(r3a)[3]
+        ok('REQ-ANA-2 (The app shall compute B.): partial; no automated test of the logic yet (E1), and no run '
+           'over real swings yet (E3)' in t3a and '`3 REQ-ANA-2 E1` new' in t3a and '`3 REQ-ANA-2 E3` new' in t3a,
+           'flag 3 in words: one sentence for the row, its missing kinds named, each gap\'s key and state in small '
+           'print')
         f['src/A/tests/CMakeLists.txt'] = FIX_SUITE + 'pp_add_test(ana2_test SOURCES x.cpp)\npp_requirement(ana2_test REQ-ANA-2)\n'
         f[P_PLATFORMS + '/macos.txt'] = green_files[P_PLATFORMS + '/macos.txt'] + 'ana2_test\n'
         r3 = flag_case(3, f, '3 REQ-ANA-2 E3', 'every kind: a partial row with its E1 test and no E3 run')
@@ -1836,7 +2225,9 @@ def self_test():
 
         f = dict(green_files)
         f[P_OBS] = FIX_OBS.split('OBS-2')[0]
-        flag_case(10, f, '10 REQ-CAP-1', 'a hardware row never observed')
+        r10 = flag_case(10, f, '10 REQ-CAP-1', 'a hardware row never observed')
+        ok('REQ-CAP-1 (The app shall capture.) needs to be seen at the rig or in a corpus swing (E6), and never has '
+           'been' in generate(r10)[3], 'flag 10 in words')
 
         f = dict(green_files)
         f[P_REQ] = FIX_REQ.replace('| a_design.md \u00a72 | delivered |', '| a_design.md \u00a72 | built, not verified |')
@@ -1881,8 +2272,9 @@ def self_test():
         f[P_OBS] = corpus_obs
         rc_, (mc, gc, wc, tc) = run(f)
         ok('E6' in mc['req']['rows']['REQ-CAP-1']['present'] and not gc
-           and 'captured on build 1a2b3c4d' in tc,
-           'a corpus line meets the CAP row\'s E6, no gap, and the matrix shows "captured on build 1a2b3c4d"')
+           and '  - 1 corpus swing in 2026: 4 Aug (1).\n' in tc and '1a2b3c4d' not in tc and 'captured on' not in tc,
+           'a corpus line meets the CAP row\'s E6, no gap, and the matrix shows "1 corpus swing in 2026: 4 Aug (1).", '
+           'never its build')
         f[P_OBS] = corpus_obs.replace('"corpus: 2026-08-04 shot 7, captured on 1a2b3c4d"', 'build/replay-log')
         flag_case(10, f, '10 REQ-CAP-1', 'a plain E3 line, without corpus:, does not meet E6')
         f = dict(green_files)
@@ -1931,7 +2323,7 @@ def self_test():
 
         mn, gn, wn, tn = accepted(corpus_lines('corpus: 2026-08-04 shot 7'))
         ok(mn is not None and 'E6' in mn['req']['rows']['REQ-CAP-1']['present'] and not gn
-           and '(a corpus swing: E3 and E6)' in tn,
+           and '1 corpus swing in 2026: 4 Aug (1).' in tn and 'captured on' not in tn,
            'a corpus line with no build is accepted, meets E6, and the matrix names no build%s' % (
                '' if mn is not None else ' (refused: %s)' % tn))
         mt, gt, wt, tt = accepted(corpus_lines('corpus: 2026-07-10 shot 1 at 17:58 UTC, captured on 1a2b3c4d',
@@ -1939,6 +2331,31 @@ def self_test():
         ok(mt is not None and 'E6' in mt['req']['rows']['REQ-CAP-1']['present'] and not gt,
            'two swings sharing a date and a shot number are accepted when each names its time of day%s' % (
                '' if mt is not None else ' (refused: %s)' % tt))
+        mf, gf, wf, tf = accepted(corpus_lines('corpus: 2026-08-04 shot 7',
+                                               'corpus: 2026-07-10 shot 1 at 17:58 UTC, captured on 1a2b3c4d'))
+        ok(tf is not None and '  - 2 corpus swings in 2026: 10 Jul (1), 4 Aug (1).\n' in tf
+           and '<details' not in tf and 'shot 7' not in tf and '17:58' not in tf and '1a2b3c4d' not in tf,
+           'a row\'s corpus swings are one line, the count then the count by date: no per-swing list, no build, '
+           'no <details>')
+        # The count by date: in date order, each date once; a failed swing counted on its date and in the total; a
+        # second year puts the year on every date.
+        my, gy, wy, ty = accepted(corpus_lines('corpus: 2026-10-20 shot 2 at 09:46 UTC', 'corpus: 2026-07-03 shot 2',
+                                               'corpus: 2026-10-20 shot 2 at 10:10 UTC', 'corpus: 2026-07-03 shot 3'))
+        ok(ty is not None and '  - 4 corpus swings in 2026: 3 Jul (2), 20 Oct (2).\n' in ty,
+           'swings sharing a date are counted together, the dates in order: %r' % (
+               [x for x in (ty or '').split('\n') if 'corpus swing' in x and x.startswith('  - ')],))
+        fy = corpus_lines('corpus: 2025-12-30 shot 1', 'corpus: 2026-01-02 shot 1', 'corpus: 2026-01-02 shot 2')
+        fy = fy.replace('pass: detected,"corpus: 2026-01-02 shot 2"', 'fail: missed,"corpus: 2026-01-02 shot 2"')
+        mz, gz, wz, tz = accepted(fy)
+        ok(tz is not None and '  - 3 corpus swings, 1 failed: 30 Dec 2025 (1), 2 Jan 2026 (2, 1 failed).\n'
+           in tz, 'a failed swing is counted on its date and in the total; two years put the year on each date: %r' % (
+               [x for x in (tz or '').split('\n') if 'corpus swing' in x and x.startswith('  - ')],))
+        fa = corpus_lines('corpus: 2026-07-03 shot 2', 'corpus: 2026-07-03 shot 3').replace('pass: detected',
+                                                                                             'fail: missed')
+        ok('  - 2 corpus swings in 2026, all failed: 3 Jul (2).\n' in (accepted(fa)[3] or '')
+           and '  - 1 corpus swing in 2026, failed: 3 Jul (1).\n' in (accepted(
+               corpus_lines('corpus: 2026-07-03 shot 2').replace('pass: detected', 'fail: missed'))[3] or ''),
+           'every swing failed reads "all failed" once, not on each date; a lone failed swing reads "failed"')
         for clash in (('corpus: 2026-07-10 shot 1, captured on 1a2b3c4d', 'corpus: 2026-07-10 shot 1, captured on '
                        '1a2b3c4d'),
                       ('corpus: 2026-07-10 shot 1 at 17:58 UTC, captured on 1a2b3c4d', 'corpus: 2026-07-10 shot 1, '
@@ -2025,22 +2442,94 @@ def self_test():
         f[P_OBS] = FIX_OBS.replace(',E6,', ',E9,')
         refused(f, 'rtm_observations.csv:3', 'an observation of an unknown kind fails, naming the line')
 
-        # The issue snapshot keeps the parsed ids, never a title or a body.
+        # The issue snapshot keeps the parsed ids and the title, never a body.
         snap = snapshot_from_gh([
-            {'number': 9, 'state': 'OPEN', 'title': 'Jane Golfer cannot record', 'labels': [{'name': 'enhancement'}],
+            {'number': 9, 'state': 'OPEN', 'title': 'Cannot record', 'labels': [{'name': 'enhancement'}],
              'milestone': {'title': 'v1'}, 'body': 'Private words.\n\nRequirement: REQ-CAP-1, REQ-CAP-2\n'
                                                    '**Control:** UI-1\n'},
             {'number': 10, 'state': 'OPEN', 'title': 't', 'labels': [], 'milestone': None,
              'body': 'Requirement: none (a tidy-up, says Jane)'},
             {'number': 11, 'state': 'CLOSED', 'title': 't', 'labels': [], 'milestone': None, 'body': 'old'},
-            {'number': 12, 'state': 'CLOSED', 'title': 't', 'labels': [], 'milestone': None, 'body': 'x'}], {12})
-        ok('Jane' not in snap and 'Private' not in snap and 'tidy' not in snap,
-           'the snapshot holds no title and no body text')
+            {'number': 12, 'state': 'CLOSED', 'title': 't', 'labels': [], 'milestone': None, 'body': 'x'}], {12},
+            ['Zed-Nobody'])
+        ok('Private' not in snap and 'tidy' not in snap and json.loads(snap)['issues'][0].get('title') == 'Cannot record',
+           'the snapshot keeps each title and no body text')
         d = {i['number']: i for i in json.loads(snap)['issues']}
         ok(d[9]['requirement'] == ['REQ-CAP-1', 'REQ-CAP-2'] and d[9]['control'] == ['CTL-UI-1']
            and d[10]['requirement'] == ['none'] and d[10]['control'] is None,
            'Requirement: and Control: lines parse to ids, or ["none"]')
         ok(set(d) == {9, 10, 12}, 'the snapshot keeps open issues and cited ones, and drops the rest')
+
+        # The privacy check (POL-7): a title naming a golfer (an athlete folder of the library) stops the refresh.
+        lib = tempfile.mkdtemp(dir=base)
+        for p in ('Jane-Doeling/athlete.json', 'corpus/pose2/2026-01-02_Avery-Example_7i_01/swing.json',
+                  '.pinpoint-trash/Hidden-Person/athlete.json', 'dev/athlete.json', 'scratch/notes.txt'):
+            write_text(lib, p, '{}\n')
+        try:
+            names = golfer_names(lib)
+        except Exception as e:  # noqa: BLE001 (red before it is built)
+            names = 'error: %r' % e
+        ok(names == ['Avery-Example', 'Jane-Doeling', 'dev'], 'the golfers\' names are the athlete folders (an '
+           'athlete.json) and the session folders\' names, a level or two down, never a hidden folder: %s' % (names,))
+        gh_items = [{'number': n, 'state': st, 'title': t, 'labels': [], 'milestone': None, 'body': ''} for n, st, t in (
+            (21, 'OPEN', 'Jane cannot record'), (22, 'OPEN', "Doeling's view is empty"),
+            (23, 'OPEN', 'A swing of Avery-Example'), (24, 'OPEN', 'janet and the dev tools'),
+            (25, 'OPEN', 'Hidden here'), (26, 'CLOSED', 'Jane again'))]
+        try:
+            snapshot_from_gh(gh_items, set(), names)
+            ok(False, 'a title naming a golfer stops the refresh (it wrote a snapshot)')
+        except RtmError as e:
+            msg = str(e)
+            ok(all("issue #%d's title names a golfer" % n in msg for n in (21, 22, 23))
+               and not any('#%d' % n in msg for n in (24, 25, 26))
+               and not any(x in msg for x in ('Jane', 'Doeling', 'Avery', 'Example')),
+               'a title naming a golfer (a first name, a surname, the folder\'s name) stops the refresh, naming the '
+               'issue only; a lower-case word, a hidden folder and an issue the snapshot drops do not: %s' % msg.replace('\n', ' / '))
+        except Exception as e:  # noqa: BLE001
+            ok(False, 'a title naming a golfer stops the refresh: %r' % e)
+        try:
+            kept = json.loads(snapshot_from_gh(gh_items[3:], set(), names))['issues']
+            ok([i['title'] for i in kept] == ['janet and the dev tools', 'Hidden here'],
+               'titles naming no golfer are kept: %s' % [i['title'] for i in kept])
+        except Exception as e:  # noqa: BLE001
+            ok(False, 'titles naming no golfer are kept: %r' % e)
+        lib2 = tempfile.mkdtemp(dir=base)
+        write_text(lib2, 'dev/athlete.json', '{}\n')
+        try:
+            snapshot_from_gh(gh_items[3:], set(), golfer_names(lib2))
+            ok(False, 'the refresh fails closed on a library whose names hold no capital (no name it can match)')
+        except RtmError:
+            ok(True, 'the refresh fails closed on a library whose names hold no capital (no name it can match)')
+        except Exception as e:  # noqa: BLE001
+            ok(False, 'the refresh fails closed on a library whose names hold no capital: %r' % e)
+        for what, d in (('a missing library folder', os.path.join(lib, 'absent')),
+                        ('a library with no athlete folder', os.path.join(lib, 'scratch'))):
+            try:
+                golfer_names(d)
+                ok(False, 'the refresh fails closed on %s' % what)
+            except RtmError:
+                ok(True, 'the refresh fails closed on %s' % what)
+            except Exception as e:  # noqa: BLE001
+                ok(False, 'the refresh fails closed on %s: %r' % (what, e))
+        # A folder it cannot read, at any level, stops the refresh (fails closed), naming no folder. os.listdir is
+        # stood in for, so the check runs the same on every platform (a chmod does not stop a read on Windows).
+        real_listdir = os.listdir
+        for what, bad_dir in (('a sub-folder', os.path.join(lib, 'corpus')), ('the library itself', lib)):
+            def flaky(d, bad_dir=bad_dir):
+                if os.path.normpath(d) == os.path.normpath(bad_dir):
+                    raise PermissionError(13, 'Permission denied')
+                return real_listdir(d)
+            os.listdir = flaky
+            try:
+                got = golfer_names(lib)
+                ok(False, 'the refresh fails closed on %s it cannot read (it read %d names)' % (what, len(got)))
+            except RtmError as e:
+                ok('corpus' not in str(e) and lib not in str(e) and 'could not be read' in str(e),
+                   'the refresh fails closed on %s it cannot read, naming no folder: %s' % (what, e))
+            except Exception as e:  # noqa: BLE001
+                ok(False, 'the refresh fails closed on %s it cannot read: %r' % (what, e))
+            finally:
+                os.listdir = real_listdir
         ok(platform_list_text(['b', 'a', 'a'], 'macos', 'commit x').split('\n')[4:6] == ['a', 'b'],
            'a gate list is sorted and unique')
 
@@ -2068,6 +2557,11 @@ def main(argv):
         k = args.index('--root')
         root = os.path.abspath(args[k + 1])
         del args[k:k + 2]
+    library = None
+    if '--library' in args:
+        k = args.index('--library')
+        library = os.path.abspath(args[k + 1])
+        del args[k:k + 2]
     ctest = None
     if '--ctest' in args:
         k = args.index('--ctest')
@@ -2084,7 +2578,10 @@ def main(argv):
         if len(args) == 3 and args[0] == '--rename':
             return mode_rename(root, args[1], args[2], out)
         if args == ['--refresh-issues']:
-            return mode_refresh(root, out)
+            if library is None:
+                raise RtmError('--refresh-issues needs --library <the library folder>: it refuses a title naming a '
+                               'golfer, so it reads the athlete folders\' names (never written or printed)')
+            return mode_refresh(root, out, library)
         if len(args) == 3 and args[0] == '--platform-list':
             return mode_platform_list(root, os.path.abspath(args[1]), args[2], ctest, out)
         if args in (['--self-test'], ['--selftest']):

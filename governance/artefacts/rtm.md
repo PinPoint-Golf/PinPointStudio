@@ -4,1062 +4,1125 @@
 
 - **Pass or fail is ctest's report, not the matrix's.** The matrix shows which tests and observations bear on which requirement; ctest says at every run whether each test passes.
 - **A test registered for one platform only counts on every platform, except where a platform's gate list says otherwise** (`rtm_platform_tests/<platform>.txt`, `test_strategy.md` §8.3). Gate lists: macos. No gate list: linux, windows.
-- **The matrix never overrides the page.** Where the evidence supports another status, flag 11 says so; the page's owner changes the page.
-- **Kinds of evidence** (`test_strategy.md` §2): a labelled test is E4 when it carries the `qml_ui` label, E2 when it carries `golden`, and E1 otherwise; an observation is the kind its line in `rtm_observations.csv` names, and counts only when what was seen is a pass; a corpus line (an E3 line whose Record begins `corpus:`) counts for E6 too, with no build or age limit (`test_strategy.md` §3, §4). The kinds a row needs are its Needs column, or its area's default in `rtm_kind_defaults.csv`.
+- **The matrix never overrides requirements.md.** Where the evidence supports another status, flag 11 says so; requirements.md's owner changes the status.
+- **Kinds of evidence** (`test_strategy.md` §2): an automated test of the logic (E1); a frozen record of old behaviour (E2); a run over real swings (E3); an automated screen test (E4); a run on Windows (E5); seen at the rig or in a corpus swing (E6); the installer checked (E7). A labelled test is an automated screen test (E4) when it carries the `qml_ui` label, a frozen record of old behaviour (E2) when it carries `golden`, and an automated test of the logic (E1) otherwise. An observation is the kind its line in `rtm_observations.csv` names, and counts only when what was seen is a pass; a corpus swing (an E3 line whose Record begins `corpus:`) also counts as seen in a corpus swing (E6), with no build or age limit (`test_strategy.md` §3, §4). The kinds a row needs are its Needs column, or its area's default in `rtm_kind_defaults.csv`.
+- **The words beside an id.** A requirement id carries its row's Requirement sentence, shortened to about 12 words; a control id its control's first sentence; an issue number its title, from the issue snapshot (`rtm_issues.json`) as of its last refresh. The snapshot holds no titles yet, so an issue shows by its number until `make_rtm.py --refresh-issues --library <the library folder>` adds them.
 
 ## Summary
 
 | | Rows |
 |---|---|
-| delivered (the page) | 0 |
-| built, not verified (the page) | 82 |
-| partial (the page) | 104 |
-| planned (the page) | 48 |
-| proposed (the page) | 42 |
-| won't have (the page) | 2 |
+| delivered (requirements.md) | 0 |
+| built, not verified (requirements.md) | 82 |
+| partial (requirements.md) | 104 |
+| planned (requirements.md) | 48 |
+| proposed (requirements.md) | 42 |
+| won't have (requirements.md) | 2 |
 | **all** | **278** |
 | every kind it needs present | 0 |
 | withdrawn ids | 8 |
 
-| Flag | Gaps | Accepted | Baseline | New |
-|---|---|---|---|---|
-| 1. rtm.md is stale | checked by `--check` | | | |
-| 2. An id cited anywhere does not exist, or is withdrawn | 0 | 0 | 0 | 0 |
-| 3. A delivered, built or partial row without evidence of every kind it needs | 299 | 0 | 299 | 0 |
-| 4. A test with no requirement or control label | 427 | 0 | 427 | 0 |
-| 5. An open enhancement with no Requirement: line, or one naming an unknown id | 66 | 0 | 66 | 0 |
-| 6. An open bug naming a delivered row: the row is failing | 0 | 0 | 0 | 0 |
-| 7. A planned row whose issues are all closed | 0 | 0 | 0 | 0 |
-| 8. A row that needs a ruling change but is marked built or delivered | 0 | 0 | 0 | 0 |
-| 9. A test labelled for a requirement but in no platform's gate list | 0 | 0 | 0 | 0 |
-| 10. A hardware row never observed | 52 | 0 | 52 | 0 |
-| 11. The evidence supports a different status from the page's | 0 | 0 | 0 | 0 |
-| 12. A row not delivered, with no open issue and no accepted gap | 111 | 0 | 111 | 0 |
-| 13. A baseline line whose gap has closed | 0 | 0 | 0 | 0 |
-| warnings | 43 | | | |
+955 gaps: 0 accepted, 955 in the baseline, 0 new (a new gap fails the check); 43 warnings. "The flags" says what each kind of gap means; every gap is listed last.
 
-## Flags
+## Requirements, area by area
 
-Each line: the gap as the baseline and the accepted gaps spell it, what it means, and its state (accepted, baseline, or NEW, which fails the check).
+Each row: its id and Requirement sentence; its status in requirements.md, release and MoSCoW; the kinds of evidence present and still missing; its tests and observations; its issues, with titles (every `#n` in the row's Status, Sources and Evidence, and every issue whose Requirement: line names it). A row's corpus swings are one line: the count, then the count by date (each swing's build is in `rtm_observations.csv`).
 
-### 1. rtm.md is stale
+### Capture
 
-`--check` compares this page with what the inputs make now.
+- **REQ-CAP-1**: The app shall record every swing the golfer hits while it shows it is capturing, from every camera, sensor and launch monitor in use, as one shot.
+  - Status: partial; release v1; Must; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-2**: The app shall be ready for the next swing as soon as the golfer can hit it, without waiting for the previous shot's analysis or replay.
+  - Status: planned (#281, #79); release v1; Could; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #79; #281.
+- **REQ-CAP-3**: The app shall detect a swing by itself, without the golfer touching anything, from every detector it has (sound, motion sensors, camera pose, the ball, a phone).
+  - Status: partial · open bug #281; release v1; Must; use cases UC-12.
+  - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated screen test yet (E4).
+  - Open issues: #281.
+  - 130 corpus swings in 2026: 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
+- **REQ-CAP-4**: The app shall let the golfer or coach record a shot by hand when detection misses one.
+  - Status: built, not verified · to confirm; release v1; Must; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-5**: The app shall not treat a sound or movement that is not a swing as a shot, and shall save and mark one it is unsure of, never hide it.
+  - Status: partial · open bug #282; release v1; Must; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #282.
+- **REQ-CAP-6**: The app shall tell the golfer, by a short sound, that a swing was accepted, and by a different sound that one was refused.
+  - Status: partial · open bug #281; release v1; Should; use cases UC-12 ; UC-13.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #281.
+- **REQ-CAP-7**: The app shall save each accepted shot, or tell the golfer that it did not and why.
+  - Status: planned (platform refactor, Stage D) · ruling change approved: changes LC-SHOT once its wording is approved (GU-3); release v1; Must; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-8**: The app shall pair each launch-monitor reading with the swing it belongs to, by time, and keep a reading no swing matched as a shot of its own.
+  - Status: partial · open bug #281; release v1; Must; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #281.
+- **REQ-CAP-9**: The app shall add everything a device reports for a shot (a launch-monitor reading, its later club data, a phone clip) to that shot within 5 s of it arriving, never holding it until the session ends; Premier's club data, which Premier sends only with the next shot, is the one exception.
+  - Status: partial; release v1; Should; use cases UC-12 ; UC-16.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-10**: The app shall replay each shot slowed down as soon as it is captured, and let the golfer skip the replay.
+  - Status: built, not verified; release v1; Should; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-11**: The app shall show live camera pictures while capturing, so the golfer and coach can check framing.
+  - Status: built, not verified; release v1; Must; use cases UC-4.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-12**: The app shall trim stored video to the swing plus a margin, and keep a two-camera shot within a storage budget the Product Owner sets once today's sizes are measured.
+  - Status: planned (#75); release v1; Should; use cases UC-12 ; UC-40.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #75.
+- **REQ-CAP-13**: The app shall record a short clip from the impact camera, trimmed around impact.
+  - Status: built, not verified; release v2; Could; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-14**: The app shall keep capturing when a device drops out, tell the golfer which device was lost, and keep the shot with what remains.
+  - Status: partial · to confirm; release v1; Must; use cases UC-13 ; UC-15.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-15**: Readings from every device shall line up in time to within a frame.
+  - Status: partial; release v1; Must; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #75; #87.
+- **REQ-CAP-16**: The app shall time impact on every shot to within a frame of the video.
+  - Status: planned (#70, #67); release v1; Must; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #67; #70.
+- **REQ-CAP-17**: The app shall record on every shot the club the golfer declared, or 'not declared', and let the golfer set the club for the session and change it between shots.
+  - Status: partial; release v1; Must; use cases UC-11 ; UC-14.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #81; #238.
+- **REQ-CAP-18**: The app shall let the golfer correct a saved shot's club, and carry the correction into every per-club number.
+  - Status: planned (#169); release v1; Must; use cases UC-14.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #169.
+- **REQ-CAP-33**: The app shall take a shot's club from the simulator software when the golfer chooses that.
+  - Status: built, not verified; release v1; Could; use cases UC-11 ; UC-14.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-20**: The app shall let the golfer say, at the start of a session, what they are working on and their usual miss, and keep it with the session.
+  - Status: partial; release v1; Could; use cases UC-11 ; UC-29.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #328.
+- **REQ-CAP-21**: The app shall start every session in Capture, on every start path.
+  - Status: built, not verified; release v1; Must; use cases UC-11.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Closed issues: #283.
+- **REQ-CAP-22**: The app shall end a session only after any shot still being saved is saved, unless the golfer chooses to end anyway.
+  - Status: partial · open bug #280; release v1; Must; use cases UC-16.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #280.
+- **REQ-CAP-23**: The app shall let the golfer continue today's session for the same golfer instead of starting a new one; once sessions carry a coaching modality, only under the same modality.
+  - Status: built, not verified; release v1; Could; use cases UC-11.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-24**: The app shall capture from two phones at once, face-on and down-the-line, as one shot per ball with both clips.
+  - Status: planned (#78); release v2; Should; use cases UC-5 ; UC-13.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #78.
+- **REQ-CAP-25**: The app shall attach a phone clip that arrives late to its shot, re-analyse the shot, and show whether each clip is requested, arriving, absent or timed out.
+  - Status: planned (#78); release v2; Should; use cases UC-13 ; UC-16.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #78.
+- **REQ-CAP-26**: The app shall accept a phone's shot only when the computer's own detectors agree, where it has any.
+  - Status: built, not verified · to confirm; release v1; Could; use cases UC-13.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-27**: The app shall pair a phone as a camera by scanning a code, and reconnect an already-paired phone by itself.
+  - Status: partial; release v1; Could; use cases UC-5.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #79.
+- **REQ-CAP-28**: The app shall capture from a phone over a cable as well as over Wi-Fi, and never connect one phone twice.
+  - Status: partial; release v1; Could; use cases UC-5.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #79.
+- **REQ-CAP-29**: The app shall import a phone's recorded session and launch-monitor files into the library.
+  - Status: built, not verified; release v1; Could; use cases UC-17.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-34**: The app shall check that the phone app and the studio app can work together, and say which one to update when they cannot.
+  - Status: partial; release v1; Could; use cases UC-5.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #329.
+- **REQ-CAP-35**: The app shall warn before a session starts when the library's disk is nearly full.
+  - Status: proposed · to confirm; release v1; Could; use cases UC-11.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-36**: The app shall let the golfer or coach move a launch-monitor reading that was paired with the wrong shot to the right one.
+  - Status: won't have; release never; no MoSCoW; use cases UC-12.
+  - Evidence: none needed (won't have).
+- **REQ-CAP-37**: The app shall let the golfer stop capture and start it again within a session.
+  - Status: built, not verified · to confirm; release v1; Should; use cases UC-15.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-38**: When an import stops part-way, the app shall say which shots came in, and let the golfer run it again.
+  - Status: proposed · to confirm; release v2; Could; use cases UC-17.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-39**: At End, the app shall name a phone clip still on its way, and offer to wait for it.
+  - Status: proposed · to confirm; release v2; Could; use cases UC-16.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-CAP-30**: The app shall capture shots while the golfer plays a simulator round, and let the golfer view them apart from practice.
+  - Status: proposed; release v2; Could; use cases UC-30.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #330.
+- **REQ-CAP-31**: The app shall let the golfer or coach declare the session's coaching modality; the modality shall steer coaching feedback only, never analysis or grading.
+  - Status: proposed · its model change is approved with its design: a new fact on the session, its coaching modality (IM C2/C3); release v2; Should; use cases UC-11 ; UC-30.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #328.
+- **REQ-CAP-32**: The app shall support a third camera view, down the line and high, beside the face-on and down-the-line views.
+  - Status: planned (#180); release v2; Must; use cases UC-4.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #180.
 
-### 2. An id cited anywhere does not exist, or is withdrawn
+### Devices and calibration
 
-None.
+- **REQ-DEV-1**: The app shall work with machine-vision cameras (FLIR and any GigE or USB3 Vision camera), the computer's own cameras and phones, each in a face-on, down-the-line or impact role.
+  - Status: built, not verified; release v1; Must; use cases UC-4.
+  - Evidence: an automated test of the logic (E1), a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated screen test yet (E4).
+  - Tests: `perspective_test`.
+  - 130 corpus swings in 2026: 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
+- **REQ-DEV-2**: Every camera shall give a usable picture in the studio's light, every session.
+  - Status: partial · open bug #183; release v1; Must; use cases UC-4.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #75; #183.
+- **REQ-DEV-3**: The app shall offer for the swing roles only cameras fast enough for swing analysis, and let the user choose a local camera's frame rate.
+  - Status: partial; release v1; Should; use cases UC-4.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #75.
+- **REQ-DEV-4**: The app shall record each camera's lens, region of interest, exposure and gain with each shot.
+  - Status: planned (#75); release v1; Must; use cases UC-12.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #75.
+- **REQ-DEV-5**: The app shall read launch monitors: a GC Quad directly, devices bridged through GSPro Connect, and Foresight devices under Premier.
+  - Status: built, not verified; release v1; Must; use cases UC-6.
+  - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated screen test yet (E4).
+  - 84 corpus swings in 2026: 4 Aug (25), 18 Aug (11), 20 Oct (48).
+- **REQ-DEV-6**: The app shall read an Open Launch Nova when one is available.
+  - Status: planned (#80); release later; no MoSCoW; use cases UC-6.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #80.
+- **REQ-DEV-7**: The app shall connect wrist sensors (HackMotion, Witmotion) and chest and hip sensors, and set each up the same way at every connect.
+  - Status: built, not verified · to confirm; release v1; Could; use cases UC-6.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #109.
+- **REQ-DEV-8**: The app shall let the golfer or coach choose where each motion sensor is worn for this session.
+  - Status: planned (#85); release v2; Could; use cases UC-6.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #85.
+- **REQ-DEV-9**: Every device control the app shows shall do what it says.
+  - Status: planned (#85); release v1; Must; use cases UC-6.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #85.
+- **REQ-DEV-10**: The app shall run every sensor calibration without the golfer touching the screen.
+  - Status: partial; release v1; Could; use cases UC-7.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #266.
+- **REQ-DEV-11**: The app shall guide each calibration with a face-on figure and golf-swing words, and speak an instruction only when the golfer cannot see the screen.
+  - Status: partial; release v1; Could; use cases UC-7.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #106.
+- **REQ-DEV-12**: The app shall clear a sensor's calibration, and tell the golfer, whenever the calibration stops being valid (a lost link, a re-link, a move to another body segment).
+  - Status: proposed · ruling change approved: GU-17 and GU-27 are adopted, which changes the Rig design §4.2 (PR-35) and adds an R-RIG rule; release v1; Should; use cases UC-7 ; UC-15.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-DEV-13**: The app shall tell the golfer when a chest or hip sensor is worn facing the wrong way.
+  - Status: planned (#108); release v1; Must; use cases UC-6.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #108.
+- **REQ-DEV-14**: The app shall give one plain answer to 'is calibration good enough?', with the technical detail behind a disclosure.
+  - Status: partial · to confirm; release v1; Could; use cases UC-7.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-DEV-15**: The app shall calibrate every camera with everyday kit (an alignment stick, a sheet of paper and a ball) in one routine, once per studio bay.
+  - Status: planned (#74, #76); release v2; Must; use cases UC-8.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #74; #76.
+- **REQ-DEV-16**: The app shall check each session, quickly, that the camera calibration still holds, and say when it does not.
+  - Status: planned (#74); release v2; Must; use cases UC-8 ; UC-11.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #74.
+- **REQ-DEV-17**: The app shall keep the calibration and set-up of each studio bay and load it, so a fixed studio calibrates once.
+  - Status: planned (#74); release v2; Must; use cases UC-8 ; UC-18.
+  - Evidence: an automated test of the logic (E1); no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Tests: `rig_state_test`.
+  - Open issues: #74.
+- **REQ-DEV-18**: The app shall show when a camera's focus lock has failed, and restore the camera's focus.
+  - Status: planned (#74); release v2; Should; use cases UC-4.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #74.
+- **REQ-DEV-20**: The app shall save every change to the rig's set-up, and never refuse a golfer's change because the save failed.
+  - Status: planned (platform refactor, Stage C); release v1; Should; use cases UC-8.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-DEV-21**: Session set-up shall show only the steps the connected hardware needs, and end in a plain 'Ready'.
+  - Status: built, not verified; release v1; Should; use cases UC-11.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #85.
+- **REQ-DEV-22**: The app shall let a studio whose devices have not changed go straight to Ready after a quick check.
+  - Status: proposed; release v2; Could; use cases UC-11.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #328.
+- **REQ-DEV-23**: The app shall say at set-up which readings the camera framing will lose.
+  - Status: built, not verified · to confirm; release v1; Should; use cases UC-4.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #75.
+- **REQ-DEV-24**: The app shall find the ball at address without the golfer calibrating anything.
+  - Status: partial; release v1; Must; use cases UC-12.
+  - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated screen test yet (E4).
+  - Open issues: #77.
+  - 130 corpus swings in 2026, 2 failed: 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6, 1 failed), 10 Jul (11), 18 Aug (11, 1 failed), 9 Sep (7), 20 Oct (49).
+- **REQ-DEV-25**: The app shall show live device health (cameras, sensors, phones, buffers) on a screen a first-time golfer never meets unless they go to it.
+  - Status: built, not verified; release v1; Could; use cases UC-10.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-DEV-26**: The app shall show, before a session, what the connected rig can measure.
+  - Status: built, not verified; release v1; Should; use cases UC-10 ; UC-11.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-DEV-28**: The app shall let the user choose the microphone, the screen the app opens on, and the display the views are cast to.
+  - Status: built, not verified · to confirm; release v1; Should; use cases UC-6 ; UC-9.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-DEV-29**: The app shall let the user unpair a phone the studio no longer uses, after which it stops reconnecting.
+  - Status: proposed · to confirm; release v1; Should; use cases UC-5.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+- **REQ-DEV-30**: The app shall tell the user when a change to the set-up fails to save.
+  - Status: proposed · to confirm; release v1; Must; use cases UC-8.
+  - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #352.
 
-### 3. A delivered, built or partial row without evidence of every kind it needs
+### Analysis and metrics
 
-- `3 REQ-CAP-1 E4`: REQ-CAP-1 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-1 E6`: REQ-CAP-1 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-3 E4`: REQ-CAP-3 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-4 E4`: REQ-CAP-4 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-CAP-4 E6`: REQ-CAP-4 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-CAP-5 E4`: REQ-CAP-5 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-5 E6`: REQ-CAP-5 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-6 E4`: REQ-CAP-6 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-6 E6`: REQ-CAP-6 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-8 E4`: REQ-CAP-8 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-8 E6`: REQ-CAP-8 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-9 E4`: REQ-CAP-9 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-9 E6`: REQ-CAP-9 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-10 E4`: REQ-CAP-10 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-CAP-10 E6`: REQ-CAP-10 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-CAP-11 E4`: REQ-CAP-11 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-CAP-11 E6`: REQ-CAP-11 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-CAP-13 E4`: REQ-CAP-13 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-CAP-13 E6`: REQ-CAP-13 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-CAP-14 E4`: REQ-CAP-14 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-14 E6`: REQ-CAP-14 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-15 E4`: REQ-CAP-15 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-15 E6`: REQ-CAP-15 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-17 E4`: REQ-CAP-17 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-17 E6`: REQ-CAP-17 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-33 E4`: REQ-CAP-33 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-CAP-33 E6`: REQ-CAP-33 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-CAP-20 E4`: REQ-CAP-20 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-20 E6`: REQ-CAP-20 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-21 E4`: REQ-CAP-21 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-CAP-21 E6`: REQ-CAP-21 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-CAP-22 E4`: REQ-CAP-22 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-22 E6`: REQ-CAP-22 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-23 E4`: REQ-CAP-23 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-CAP-23 E6`: REQ-CAP-23 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-CAP-26 E4`: REQ-CAP-26 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-CAP-26 E6`: REQ-CAP-26 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-CAP-27 E4`: REQ-CAP-27 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-27 E6`: REQ-CAP-27 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-28 E4`: REQ-CAP-28 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-28 E6`: REQ-CAP-28 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-29 E4`: REQ-CAP-29 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-CAP-29 E6`: REQ-CAP-29 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-CAP-34 E4`: REQ-CAP-34 (partial) has no E4 evidence (baseline)
-- `3 REQ-CAP-34 E6`: REQ-CAP-34 (partial) has no E6 evidence (baseline)
-- `3 REQ-CAP-37 E4`: REQ-CAP-37 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-CAP-37 E6`: REQ-CAP-37 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-DEV-1 E4`: REQ-DEV-1 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-DEV-2 E4`: REQ-DEV-2 (partial) has no E4 evidence (baseline)
-- `3 REQ-DEV-2 E6`: REQ-DEV-2 (partial) has no E6 evidence (baseline)
-- `3 REQ-DEV-3 E4`: REQ-DEV-3 (partial) has no E4 evidence (baseline)
-- `3 REQ-DEV-3 E6`: REQ-DEV-3 (partial) has no E6 evidence (baseline)
-- `3 REQ-DEV-5 E4`: REQ-DEV-5 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-DEV-7 E4`: REQ-DEV-7 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-DEV-7 E6`: REQ-DEV-7 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-DEV-10 E4`: REQ-DEV-10 (partial) has no E4 evidence (baseline)
-- `3 REQ-DEV-10 E6`: REQ-DEV-10 (partial) has no E6 evidence (baseline)
-- `3 REQ-DEV-11 E4`: REQ-DEV-11 (partial) has no E4 evidence (baseline)
-- `3 REQ-DEV-11 E6`: REQ-DEV-11 (partial) has no E6 evidence (baseline)
-- `3 REQ-DEV-14 E4`: REQ-DEV-14 (partial) has no E4 evidence (baseline)
-- `3 REQ-DEV-14 E6`: REQ-DEV-14 (partial) has no E6 evidence (baseline)
-- `3 REQ-DEV-21 E4`: REQ-DEV-21 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-DEV-21 E6`: REQ-DEV-21 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-DEV-23 E4`: REQ-DEV-23 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-DEV-23 E6`: REQ-DEV-23 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-DEV-24 E4`: REQ-DEV-24 (partial) has no E4 evidence (baseline)
-- `3 REQ-DEV-25 E4`: REQ-DEV-25 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-DEV-25 E6`: REQ-DEV-25 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-DEV-26 E4`: REQ-DEV-26 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-DEV-26 E6`: REQ-DEV-26 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-DEV-28 E4`: REQ-DEV-28 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-DEV-28 E6`: REQ-DEV-28 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-ANA-1 E1`: REQ-ANA-1 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-1 E3`: REQ-ANA-1 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-ANA-2 E1`: REQ-ANA-2 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-2 E3`: REQ-ANA-2 (partial) has no E3 evidence (baseline)
-- `3 REQ-ANA-3 E1`: REQ-ANA-3 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-3 E3`: REQ-ANA-3 (partial) has no E3 evidence (baseline)
-- `3 REQ-ANA-5 E1`: REQ-ANA-5 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-6 E1`: REQ-ANA-6 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-6 E3`: REQ-ANA-6 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-ANA-7 E1`: REQ-ANA-7 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-7 E3`: REQ-ANA-7 (partial) has no E3 evidence (baseline)
-- `3 REQ-ANA-8 E1`: REQ-ANA-8 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-9 E1`: REQ-ANA-9 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-9 E3`: REQ-ANA-9 (partial) has no E3 evidence (baseline)
-- `3 REQ-ANA-12 E1`: REQ-ANA-12 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-12 E3`: REQ-ANA-12 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-ANA-13 E1`: REQ-ANA-13 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-13 E3`: REQ-ANA-13 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-ANA-14 E1`: REQ-ANA-14 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-15 E1`: REQ-ANA-15 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-16 E1`: REQ-ANA-16 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-16 E3`: REQ-ANA-16 (partial) has no E3 evidence (baseline)
-- `3 REQ-ANA-17 E1`: REQ-ANA-17 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-17 E3`: REQ-ANA-17 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-ANA-18 E1`: REQ-ANA-18 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-20 E1`: REQ-ANA-20 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-21 E1`: REQ-ANA-21 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-21 E3`: REQ-ANA-21 (partial) has no E3 evidence (baseline)
-- `3 REQ-ANA-22 E1`: REQ-ANA-22 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-22 E3`: REQ-ANA-22 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-ANA-36 E1`: REQ-ANA-36 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-24 E1`: REQ-ANA-24 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-24 E3`: REQ-ANA-24 (partial) has no E3 evidence (baseline)
-- `3 REQ-ANA-29 E1`: REQ-ANA-29 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-ANA-29 E3`: REQ-ANA-29 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-ANA-30 E1`: REQ-ANA-30 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-30 E3`: REQ-ANA-30 (partial) has no E3 evidence (baseline)
-- `3 REQ-ANA-31 E1`: REQ-ANA-31 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-31 E3`: REQ-ANA-31 (partial) has no E3 evidence (baseline)
-- `3 REQ-ANA-32 E1`: REQ-ANA-32 (partial) has no E1 evidence (baseline)
-- `3 REQ-ANA-32 E3`: REQ-ANA-32 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-1 E1`: REQ-DIAG-1 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-1 E3`: REQ-DIAG-1 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-2 E1`: REQ-DIAG-2 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-2 E3`: REQ-DIAG-2 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-3 E1`: REQ-DIAG-3 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-DIAG-3 E3`: REQ-DIAG-3 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-DIAG-22 E1`: REQ-DIAG-22 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-22 E3`: REQ-DIAG-22 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-23 E1`: REQ-DIAG-23 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-DIAG-23 E3`: REQ-DIAG-23 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-DIAG-4 E1`: REQ-DIAG-4 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-DIAG-4 E3`: REQ-DIAG-4 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-DIAG-5 E1`: REQ-DIAG-5 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-DIAG-5 E3`: REQ-DIAG-5 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-DIAG-6 E1`: REQ-DIAG-6 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-DIAG-6 E3`: REQ-DIAG-6 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-DIAG-7 E1`: REQ-DIAG-7 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-7 E3`: REQ-DIAG-7 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-8 E1`: REQ-DIAG-8 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-DIAG-8 E3`: REQ-DIAG-8 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-DIAG-9 E1`: REQ-DIAG-9 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-DIAG-9 E3`: REQ-DIAG-9 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-DIAG-10 E1`: REQ-DIAG-10 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-10 E3`: REQ-DIAG-10 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-11 E1`: REQ-DIAG-11 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-11 E3`: REQ-DIAG-11 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-12 E1`: REQ-DIAG-12 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-12 E3`: REQ-DIAG-12 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-14 E1`: REQ-DIAG-14 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-14 E3`: REQ-DIAG-14 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-15 E1`: REQ-DIAG-15 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-15 E3`: REQ-DIAG-15 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-16 E1`: REQ-DIAG-16 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-16 E3`: REQ-DIAG-16 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-17 E1`: REQ-DIAG-17 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-DIAG-17 E3`: REQ-DIAG-17 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-DIAG-18 E1`: REQ-DIAG-18 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-18 E3`: REQ-DIAG-18 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-20 E1`: REQ-DIAG-20 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-20 E3`: REQ-DIAG-20 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-21 E1`: REQ-DIAG-21 (partial) has no E1 evidence (baseline)
-- `3 REQ-DIAG-21 E3`: REQ-DIAG-21 (partial) has no E3 evidence (baseline)
-- `3 REQ-DIAG-24 E1`: REQ-DIAG-24 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-DIAG-24 E3`: REQ-DIAG-24 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-COACH-1 E3`: REQ-COACH-1 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-COACH-3 E3`: REQ-COACH-3 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-COACH-5 E3`: REQ-COACH-5 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-COACH-6 E3`: REQ-COACH-6 (partial) has no E3 evidence (baseline)
-- `3 REQ-COACH-9 E3`: REQ-COACH-9 (built, not verified) has no E3 evidence (baseline)
-- `3 REQ-COACH-16 E3`: REQ-COACH-16 (partial) has no E3 evidence (baseline)
-- `3 REQ-COACH-23 E3`: REQ-COACH-23 (partial) has no E3 evidence (baseline)
-- `3 REQ-COACH-21 E3`: REQ-COACH-21 (partial) has no E3 evidence (baseline)
-- `3 REQ-COACH-22 E3`: REQ-COACH-22 (partial) has no E3 evidence (baseline)
-- `3 REQ-REV-1 E4`: REQ-REV-1 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-2 E4`: REQ-REV-2 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-3 E4`: REQ-REV-3 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-4 E4`: REQ-REV-4 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-5 E4`: REQ-REV-5 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-6 E4`: REQ-REV-6 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-9 E4`: REQ-REV-9 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-10 E4`: REQ-REV-10 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-11 E4`: REQ-REV-11 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-12 E4`: REQ-REV-12 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-13 E4`: REQ-REV-13 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-14 E4`: REQ-REV-14 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-32 E4`: REQ-REV-32 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-18 E4`: REQ-REV-18 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-19 E4`: REQ-REV-19 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-20 E4`: REQ-REV-20 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-21 E4`: REQ-REV-21 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-22 E4`: REQ-REV-22 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-23 E4`: REQ-REV-23 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-24 E4`: REQ-REV-24 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-25 E4`: REQ-REV-25 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-26 E4`: REQ-REV-26 (partial) has no E4 evidence (baseline)
-- `3 REQ-REV-27 E4`: REQ-REV-27 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-REV-30 E4`: REQ-REV-30 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-LIB-1 E1`: REQ-LIB-1 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-LIB-2 E1`: REQ-LIB-2 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-LIB-3 E1`: REQ-LIB-3 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-4 E1`: REQ-LIB-4 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-6 E1`: REQ-LIB-6 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-LIB-7 E1`: REQ-LIB-7 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-8 E1`: REQ-LIB-8 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-9 E1`: REQ-LIB-9 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-LIB-10 E1`: REQ-LIB-10 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-12 E1`: REQ-LIB-12 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-13 E1`: REQ-LIB-13 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-14 E1`: REQ-LIB-14 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-LIB-26 E1`: REQ-LIB-26 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-LIB-27 E1`: REQ-LIB-27 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-LIB-15 E1`: REQ-LIB-15 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-LIB-16 E1`: REQ-LIB-16 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-17 E1`: REQ-LIB-17 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-18 E1`: REQ-LIB-18 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-19 E1`: REQ-LIB-19 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-LIB-21 E1`: REQ-LIB-21 (partial) has no E1 evidence (baseline)
-- `3 REQ-LIB-25 E1`: REQ-LIB-25 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-INST-1 E5`: REQ-INST-1 (built, not verified) has no E5 evidence (baseline)
-- `3 REQ-INST-1 E6`: REQ-INST-1 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-INST-1 E7`: REQ-INST-1 (built, not verified) has no E7 evidence (baseline)
-- `3 REQ-INST-2 E5`: REQ-INST-2 (partial) has no E5 evidence (baseline)
-- `3 REQ-INST-2 E6`: REQ-INST-2 (partial) has no E6 evidence (baseline)
-- `3 REQ-INST-2 E7`: REQ-INST-2 (partial) has no E7 evidence (baseline)
-- `3 REQ-INST-3 E5`: REQ-INST-3 (built, not verified) has no E5 evidence (baseline)
-- `3 REQ-INST-3 E6`: REQ-INST-3 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-INST-3 E7`: REQ-INST-3 (built, not verified) has no E7 evidence (baseline)
-- `3 REQ-INST-4 E5`: REQ-INST-4 (built, not verified) has no E5 evidence (baseline)
-- `3 REQ-INST-4 E6`: REQ-INST-4 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-INST-4 E7`: REQ-INST-4 (built, not verified) has no E7 evidence (baseline)
-- `3 REQ-INST-5 E5`: REQ-INST-5 (partial) has no E5 evidence (baseline)
-- `3 REQ-INST-5 E6`: REQ-INST-5 (partial) has no E6 evidence (baseline)
-- `3 REQ-INST-5 E7`: REQ-INST-5 (partial) has no E7 evidence (baseline)
-- `3 REQ-INST-8 E5`: REQ-INST-8 (built, not verified) has no E5 evidence (baseline)
-- `3 REQ-INST-8 E6`: REQ-INST-8 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-INST-8 E7`: REQ-INST-8 (built, not verified) has no E7 evidence (baseline)
-- `3 REQ-INST-9 E5`: REQ-INST-9 (partial) has no E5 evidence (baseline)
-- `3 REQ-INST-9 E6`: REQ-INST-9 (partial) has no E6 evidence (baseline)
-- `3 REQ-INST-9 E7`: REQ-INST-9 (partial) has no E7 evidence (baseline)
-- `3 REQ-INST-10 E5`: REQ-INST-10 (partial) has no E5 evidence (baseline)
-- `3 REQ-INST-10 E6`: REQ-INST-10 (partial) has no E6 evidence (baseline)
-- `3 REQ-INST-10 E7`: REQ-INST-10 (partial) has no E7 evidence (baseline)
-- `3 REQ-INST-11 E5`: REQ-INST-11 (built, not verified) has no E5 evidence (baseline)
-- `3 REQ-INST-11 E6`: REQ-INST-11 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-INST-11 E7`: REQ-INST-11 (built, not verified) has no E7 evidence (baseline)
-- `3 REQ-INST-13 E5`: REQ-INST-13 (partial) has no E5 evidence (baseline)
-- `3 REQ-INST-13 E6`: REQ-INST-13 (partial) has no E6 evidence (baseline)
-- `3 REQ-INST-13 E7`: REQ-INST-13 (partial) has no E7 evidence (baseline)
-- `3 REQ-REL-1 E1`: REQ-REL-1 (partial) has no E1 evidence (baseline)
-- `3 REQ-REL-1 E6`: REQ-REL-1 (partial) has no E6 evidence (baseline)
-- `3 REQ-REL-2 E1`: REQ-REL-2 (partial) has no E1 evidence (baseline)
-- `3 REQ-REL-2 E6`: REQ-REL-2 (partial) has no E6 evidence (baseline)
-- `3 REQ-REL-3 E1`: REQ-REL-3 (partial) has no E1 evidence (baseline)
-- `3 REQ-REL-3 E6`: REQ-REL-3 (partial) has no E6 evidence (baseline)
-- `3 REQ-REL-4 E1`: REQ-REL-4 (partial) has no E1 evidence (baseline)
-- `3 REQ-REL-4 E6`: REQ-REL-4 (partial) has no E6 evidence (baseline)
-- `3 REQ-REL-5 E1`: REQ-REL-5 (partial) has no E1 evidence (baseline)
-- `3 REQ-REL-5 E6`: REQ-REL-5 (partial) has no E6 evidence (baseline)
-- `3 REQ-REL-6 E1`: REQ-REL-6 (partial) has no E1 evidence (baseline)
-- `3 REQ-REL-6 E6`: REQ-REL-6 (partial) has no E6 evidence (baseline)
-- `3 REQ-REL-11 E1`: REQ-REL-11 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-REL-11 E6`: REQ-REL-11 (built, not verified) has no E6 evidence (baseline)
-- `3 REQ-REL-10 E1`: REQ-REL-10 (partial) has no E1 evidence (baseline)
-- `3 REQ-REL-10 E6`: REQ-REL-10 (partial) has no E6 evidence (baseline)
-- `3 REQ-PERF-1 E5`: REQ-PERF-1 (partial) has no E5 evidence (baseline)
-- `3 REQ-PERF-2 E5`: REQ-PERF-2 (partial) has no E5 evidence (baseline)
-- `3 REQ-PERF-4 E5`: REQ-PERF-4 (partial) has no E5 evidence (baseline)
-- `3 REQ-PERF-6 E5`: REQ-PERF-6 (partial) has no E5 evidence (baseline)
-- `3 REQ-PERF-7 E5`: REQ-PERF-7 (partial) has no E5 evidence (baseline)
-- `3 REQ-PRIV-1 E4`: REQ-PRIV-1 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-PRIV-3 E4`: REQ-PRIV-3 (partial) has no E4 evidence (baseline)
-- `3 REQ-PRIV-4 E4`: REQ-PRIV-4 (partial) has no E4 evidence (baseline)
-- `3 REQ-PRIV-6 E4`: REQ-PRIV-6 (partial) has no E4 evidence (baseline)
-- `3 REQ-ACC-1 E4`: REQ-ACC-1 (partial) has no E4 evidence (baseline)
-- `3 REQ-ACC-3 E4`: REQ-ACC-3 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-ACC-9 E4`: REQ-ACC-9 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-ACC-10 E4`: REQ-ACC-10 (partial) has no E4 evidence (baseline)
-- `3 REQ-ACC-11 E4`: REQ-ACC-11 (partial) has no E4 evidence (baseline)
-- `3 REQ-ACC-4 E4`: REQ-ACC-4 (partial) has no E4 evidence (baseline)
-- `3 REQ-ACC-5 E4`: REQ-ACC-5 (partial) has no E4 evidence (baseline)
-- `3 REQ-ACC-7 E4`: REQ-ACC-7 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-ACC-8 E4`: REQ-ACC-8 (partial) has no E4 evidence (baseline)
-- `3 REQ-HON-1 E1`: REQ-HON-1 (partial) has no E1 evidence (baseline)
-- `3 REQ-HON-1 E4`: REQ-HON-1 (partial) has no E4 evidence (baseline)
-- `3 REQ-HON-2 E1`: REQ-HON-2 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-HON-2 E4`: REQ-HON-2 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-HON-3 E1`: REQ-HON-3 (partial) has no E1 evidence (baseline)
-- `3 REQ-HON-3 E4`: REQ-HON-3 (partial) has no E4 evidence (baseline)
-- `3 REQ-HON-5 E1`: REQ-HON-5 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-HON-5 E4`: REQ-HON-5 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-HON-6 E1`: REQ-HON-6 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-HON-6 E4`: REQ-HON-6 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-HON-8 E1`: REQ-HON-8 (partial) has no E1 evidence (baseline)
-- `3 REQ-HON-8 E4`: REQ-HON-8 (partial) has no E4 evidence (baseline)
-- `3 REQ-HON-9 E1`: REQ-HON-9 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-HON-9 E4`: REQ-HON-9 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-HON-10 E1`: REQ-HON-10 (partial) has no E1 evidence (baseline)
-- `3 REQ-HON-10 E4`: REQ-HON-10 (partial) has no E4 evidence (baseline)
-- `3 REQ-HON-11 E1`: REQ-HON-11 (partial) has no E1 evidence (baseline)
-- `3 REQ-HON-11 E4`: REQ-HON-11 (partial) has no E4 evidence (baseline)
-- `3 REQ-HON-12 E1`: REQ-HON-12 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-HON-12 E4`: REQ-HON-12 (built, not verified) has no E4 evidence (baseline)
-- `3 REQ-HON-13 E1`: REQ-HON-13 (partial) has no E1 evidence (baseline)
-- `3 REQ-HON-13 E4`: REQ-HON-13 (partial) has no E4 evidence (baseline)
-- `3 REQ-HON-15 E1`: REQ-HON-15 (built, not verified) has no E1 evidence (baseline)
-- `3 REQ-HON-15 E4`: REQ-HON-15 (built, not verified) has no E4 evidence (baseline)
+- **REQ-ANA-1**: The app shall analyse every shot by itself after capture, with no step from the golfer.
+  - Status: built, not verified; release v1; Must; use cases UC-12 ; UC-17.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-ANA-2**: The app shall analyse each shot by the data it holds.
+  - Status: partial; release v1; Should; use cases UC-17 ; UC-43.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #73; #89; #273.
+- **REQ-ANA-3**: The app shall find the swing positions P1 to P10 on every shot, choosing for each the better of the camera and the sensors.
+  - Status: partial; release v1; Must; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #70; #181.
+  - 139 corpus swings in 2026, all failed: 11 Jun (9), 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
+- **REQ-ANA-4**: The app shall name swing positions in plain words (for example 'late downswing' for P6), or explain each label on hover.
+  - Status: proposed · to confirm; release v1; Could; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #331.
+- **REQ-ANA-5**: The app shall track the whole body from each camera, and fit a 3-D skeleton when two cameras see the swing.
+  - Status: built, not verified; release v1; Must; use cases UC-20.
+  - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - 139 corpus swings in 2026, 1 failed: 11 Jun (9), 3 Jul (10, 1 failed), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
+- **REQ-ANA-6**: The app shall track the club shaft and clubhead through the swing from the face-on camera, with no markers on the club.
+  - Status: built, not verified; release v1; Must; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #69.
+- **REQ-ANA-7**: The app shall track the club from the down-the-line camera, and say where it cannot see it.
+  - Status: partial; release v1; Must; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #68.
+- **REQ-ANA-8**: The app shall combine the two camera views of the club into one club in 3-D.
+  - Status: built, not verified; release v1; Should; use cases UC-20.
+  - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - 83 corpus swings in 2026, 2 failed: 11 Jun (9), 3 Jul (10, 1 failed), 4 Jul (15), 20 Oct (49, 1 failed).
+- **REQ-ANA-9**: The app shall measure clubhead speed from the cameras when no launch monitor gives it, agreeing with a launch monitor within ±10 mph on a single swing.
+  - Status: partial; release v2; Must; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #67; #126.
+- **REQ-ANA-10**: Every reading the app estimates (one no device reports) shall say how it was made and how sure it is.
+  - Status: planned (#230, #239); release v1; Could; use cases UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #230; #239.
+- **REQ-ANA-11**: The app shall estimate the low point of the club's arc from every input it has, with its uncertainty.
+  - Status: planned (#229, #67, #76); release v2; Should; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #67; #76; #229.
+- **REQ-ANA-12**: Where a launch monitor measures a quantity, the app shall use its reading first and keep its own estimate beside it.
+  - Status: built, not verified; release v1; Must; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-ANA-13**: The app shall measure the kinematic sequence (the order and timing of the pelvis, chest, arm and club peaks), with an uncertainty on every peak, and refuse an order its timings cannot support.
+  - Status: built, not verified; release v1; Should; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - 1 corpus swing in 2026, failed: 20 Oct (1).
+- **REQ-ANA-14**: The app shall measure pelvis and chest turn, and the difference between them, from two cameras, or from the chest and hip sensors when worn.
+  - Status: built, not verified; release v1; Should; use cases UC-20.
+  - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - 83 corpus swings in 2026, 1 failed: 11 Jun (9), 3 Jul (10, 1 failed), 4 Jul (15), 20 Oct (49).
+- **REQ-ANA-15**: The app shall measure posture at address and through the swing (forward bend, knee flex, loss of posture).
+  - Status: partial; release v1; Should; use cases UC-20.
+  - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - Open issues: #93; #96.
+  - 83 corpus swings in 2026, 1 failed: 11 Jun (9), 3 Jul (10, 1 failed), 4 Jul (15), 20 Oct (49).
+- **REQ-ANA-16**: The app shall measure lower-body movement (sway, lift, lead-knee drift, hip-line tilt) in units that stay honest before the cameras are calibrated, and in 3-D when two cameras see the swing.
+  - Status: partial; release v1; Should; use cases UC-8 ; UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #331.
+- **REQ-ANA-17**: The app shall measure the chest, shoulders and arms from the face-on camera.
+  - Status: built, not verified; release v1; Should; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-ANA-18**: The app shall measure the swing plane and the club's delivery the way a coach reads them: the shaft plane at address, the hand path, the plane at the top and in the downswing.
+  - Status: built, not verified; release v1; Should; use cases UC-20.
+  - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - 83 corpus swings in 2026, 5 failed: 11 Jun (9), 3 Jul (10, 1 failed), 4 Jul (15), 20 Oct (49, 4 failed).
+- **REQ-ANA-19**: The app shall measure set-up aim (feet, hips and chest) at address from readings that can see aim, never assuming the golfer is square.
+  - Status: planned (#178); release v2; Should; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #178.
+- **REQ-ANA-20**: The app shall measure ball position and the ball's distance from the body at address, and refuse a ball the club cannot reach.
+  - Status: built, not verified; release v1; Should; use cases UC-20.
+  - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - 51 corpus swings in 2026: 11 Jun (3), 3 Jul (1), 4 Jul (2), 20 Oct (45).
+- **REQ-ANA-21**: The app shall measure the lead and trail wrist angles through the swing, from a wrist sensor when worn and from the cameras otherwise.
+  - Status: partial; release v1; Should; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #73.
+- **REQ-ANA-35**: The app shall estimate the club face angle from the wrist sensor when no launch monitor gives it.
+  - Status: proposed; release v2; Could; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #331.
+- **REQ-ANA-22**: The app shall measure tempo: the backswing and downswing times and their ratio.
+  - Status: built, not verified; release v1; Could; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-ANA-36**: The app shall measure head movement through the swing.
+  - Status: built, not verified; release v1; Could; use cases UC-20.
+  - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - 139 corpus swings in 2026: 11 Jun (9), 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
+- **REQ-ANA-23**: The app shall produce every reading the diagnostics model needs (for example upper-back rounding, low-back arch, the camera's own club path).
+  - Status: planned (#64); release v2; Must; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #64.
+- **REQ-ANA-24**: The app shall measure trunk turn and bend from the chest and hip sensors, fused into the 3-D skeleton.
+  - Status: partial; release v2; Could; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #72; #109.
+- **REQ-ANA-25**: The app shall estimate lead-side load and ground forces when a sensor or force device can support it, and label any stand-in measure as a stand-in.
+  - Status: planned (#72); release later; no MoSCoW; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #72.
+- **REQ-ANA-26**: The app shall measure club speed, ball speed, launch, attack angle and strike from the impact camera, tagged as the camera's.
+  - Status: planned (#77); release v2; Should; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #77.
+- **REQ-ANA-27**: The app shall cross-check the cameras against the sensors, and name the device that is wrong when they disagree.
+  - Status: planned (#87); release v2; Must; use cases UC-20 ; UC-45.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #87.
+- **REQ-ANA-28**: The app shall measure short-game strokes (tempo, acceleration through impact, length).
+  - Status: planned (#87); release v2; Could; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #87.
+- **REQ-ANA-29**: The app shall give each shot three outcome factors, strike, direction and flight, with flight graded Low, Mid or High against the club's norms and strike checked against the flight.
+  - Status: built, not verified; release v1; Should; use cases UC-22.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #237.
+- **REQ-ANA-30**: The app shall model the ball's flight (carry, height, descent) from the stored launch-monitor reading.
+  - Status: partial; release v1; Could; use cases UC-22.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #80.
+- **REQ-ANA-31**: Old shots shall get the app's improvements, and every result shall say which version of the app made it.
+  - Status: partial; release v1; Should; use cases UC-43.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #332.
+- **REQ-ANA-32**: The app shall let the golfer re-analyse a session or the library, and either finish or say that it did not.
+  - Status: partial; release v1; Must; use cases UC-43.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-ANA-33**: The app shall read a left-handed golfer's swing correctly from capture to report.
+  - Status: planned (#84, #236, #76); release v2; Must; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #76; #84; #236.
 
-### 4. A test with no requirement or control label
+### Diagnostics
 
-- `4 acoustic_shot_detector_test`: acoustic_shot_detector_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 address_marks_test`: address_marks_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 adversarial_fuzz_test`: adversarial_fuzz_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 analysis_block_roundtrip_test`: analysis_block_roundtrip_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 analysis_dag_test`: analysis_dag_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 analysis_detail_projection_test`: analysis_detail_projection_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 analysis_profiling_test`: analysis_profiling_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 analysis_stage_test`: analysis_stage_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 anatomy_overlay_parity_test`: anatomy_overlay_parity_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 anatomy_vocabulary_test`: anatomy_vocabulary_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 angular_rate_test`: angular_rate_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 app_state_test`: app_state_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 arbiter_test`: arbiter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 architecture_lint_test`: architecture_lint_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 artefact_paths_check`: artefact_paths_check has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 athlete_diagnostics_test`: athlete_diagnostics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 athlete_dump_ids_test`: athlete_dump_ids_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 athlete_repository_test`: athlete_repository_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 athlete_session_guard_test`: athlete_session_guard_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 atomic_write_test`: atomic_write_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 axis_direction_test`: axis_direction_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 azure_speech_request_test`: azure_speech_request_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ball_activity_test`: ball_activity_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ball_anchor_test`: ball_anchor_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ball_baseline_io_test`: ball_baseline_io_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ball_detector_contract_test`: ball_detector_contract_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ball_position_test`: ball_position_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ball_roi_decode_test`: ball_roi_decode_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ball_temporal_parity_test`: ball_temporal_parity_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ball_temporal_test`: ball_temporal_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 battery_band_test`: battery_band_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 body_rotation_test`: body_rotation_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 cabin_run_selftest`: cabin_run_selftest has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 camera_pose_sticks_test`: camera_pose_sticks_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 camera_roi_test`: camera_roi_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 capture_integrity_check_test`: capture_integrity_check_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 characteristic_engine_test`: characteristic_engine_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 characteristic_pack_test`: characteristic_pack_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 chart_metrics_test`: chart_metrics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 charts_consistency_presenter_test`: charts_consistency_presenter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 charts_delivery_presenter_test`: charts_delivery_presenter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 charts_posture_presenter_test`: charts_posture_presenter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 charts_relations_presenter_test`: charts_relations_presenter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 charts_session_maths_test`: charts_session_maths_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 charts_traces_presenter_test`: charts_traces_presenter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 charts_work_test`: charts_work_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 charts_wrist_presenter_test`: charts_wrist_presenter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 cloud_fallback_test`: cloud_fallback_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 club_baseline_provider_test`: club_baseline_provider_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 club_delivery_test`: club_delivery_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 club_distances_test`: club_distances_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 club_length_fusion_test`: club_length_fusion_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 club_rate_filter_test`: club_rate_filter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 club_scope_test`: club_scope_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 club_slot_top_test`: club_slot_top_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 club_standards_test`: club_standards_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 clubhead_measure_test`: clubhead_measure_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 clubhead_temporal_test`: clubhead_temporal_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 composite_score_v2_test`: composite_score_v2_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 condition_reading_test`: condition_reading_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 condition_role_test`: condition_role_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 confidence_test`: confidence_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 consistency_env_test`: consistency_env_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 context_tree_test`: context_tree_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 core_pack_test`: core_pack_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 corridor_plot_test`: corridor_plot_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 dag_layout_test`: dag_layout_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 dashboard_reductions_test`: dashboard_reductions_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 delivery_picture_test`: delivery_picture_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 design_system_lint_test`: design_system_lint_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 design_system_tokens_check`: design_system_tokens_check has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 det_rng_test`: det_rng_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 device_clock_mapper_test`: device_clock_mapper_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 diag_footer_test`: diag_footer_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 diag_parallel_live_test`: diag_parallel_live_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 diag_stage_panel_test`: diag_stage_panel_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 diag_uncertainty_test`: diag_uncertainty_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 diagnostic_ledger_test`: diagnostic_ledger_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 diagnostics_catalogue_integrity_test`: diagnostics_catalogue_integrity_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 diagnostics_health_test`: diagnostics_health_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 display_tone_test`: display_tone_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 dtl_posture_test`: dtl_posture_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 dtl_shaft_bands_test`: dtl_shaft_bands_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 dtl_shaft_decide_test`: dtl_shaft_decide_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 dtl_shaft_lie_test`: dtl_shaft_lie_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 dtl_shaft_post_test`: dtl_shaft_post_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 dtl_shaft_synth3d_test`: dtl_shaft_synth3d_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 eskf_gyro_units_test`: eskf_gyro_units_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 event_buffer_test`: event_buffer_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 event_refine_test`: event_refine_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 fault_rules_test`: fault_rules_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 fire_findings_test`: fire_findings_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 folder_lock_test`: folder_lock_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 folder_series_test`: folder_series_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 foot_metrics_test`: foot_metrics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 forward_backward_test`: forward_backward_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 frame_decode_test`: frame_decode_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 frame_store_test`: frame_store_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 gate_catalogue_test`: gate_catalogue_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 gcquad_csv_parser_test`: gcquad_csv_parser_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 gcquad_pairing_test`: gcquad_pairing_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 gemini_request_test`: gemini_request_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 genicam_pixel_format_test`: genicam_pixel_format_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 golfer_input_test`: golfer_input_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 gspro_link_test`: gspro_link_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 gspro_monitor_test`: gspro_monitor_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 gspro_reading_test`: gspro_reading_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 hackmotion_gate_test`: hackmotion_gate_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 hackmotion_link_test`: hackmotion_link_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 hand_axis_test`: hand_axis_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 head_track_test`: head_track_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 headless_probe_test`: headless_probe_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 heatmap_decode_test`: heatmap_decode_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 height_text_test`: height_text_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 hm_binding_recon_test`: hm_binding_recon_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 hm_capture_provenance_test`: hm_capture_provenance_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 hm_conjugate_test`: hm_conjugate_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 hm_frame_test`: hm_frame_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 hm_sample_convert_test`: hm_sample_convert_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 hm_skew_stats_test`: hm_skew_stats_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 hm_unit_id_test`: hm_unit_id_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 housekeeping_test`: housekeeping_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 identity_test`: identity_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 im_changelog_merge_selftest`: im_changelog_merge_selftest has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 im_excerpt_selftest`: im_excerpt_selftest has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 impact_anchor_test`: impact_anchor_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 impact_detector_test`: impact_detector_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 impact_geom_test`: impact_geom_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 imu_calibration_test`: imu_calibration_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 imu_driver_frame_test`: imu_driver_frame_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 imu_fuser_retime_test`: imu_fuser_retime_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 imu_io_worker_test`: imu_io_worker_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 imu_refusion_check_test`: imu_refusion_check_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 imu_retime_test`: imu_retime_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 imu_role_map_test`: imu_role_map_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 imu_sample_test`: imu_sample_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 inference_thread_test`: inference_thread_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 inspector_refresh_test`: inspector_refresh_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 isolated_stores_test`: isolated_stores_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 kinematic_sequence_test`: kinematic_sequence_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 kinematic_series_test`: kinematic_series_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 linux_update_logic_test`: linux_update_logic_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 live_measure_source_test`: live_measure_source_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 live_wrist_angles_test`: live_wrist_angles_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 lm_club_evidence_test`: lm_club_evidence_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 lm_corridor_test`: lm_corridor_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 lm_device_test`: lm_device_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 lm_enclosing_ellipse_test`: lm_enclosing_ellipse_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 lm_flight_path_test`: lm_flight_path_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 lm_inferred_reads_test`: lm_inferred_reads_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 lm_session_model_test`: lm_session_model_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 lm_session_reductions_test`: lm_session_reductions_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 lower_body_metrics_test`: lower_body_metrics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 manifest_migration_test`: manifest_migration_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 measure_dump_test`: measure_dump_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 measure_facets_test`: measure_facets_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 measure_sample_test`: measure_sample_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 metric_catalogue_test`: metric_catalogue_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 migrate_step2_test`: migrate_step2_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 missed_swing_notice_test`: missed_swing_notice_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 model_browser_test`: model_browser_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 move_files_selftest`: move_files_selftest has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 mp4_frame_reader_test`: mp4_frame_reader_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 namespace_collision_test`: namespace_collision_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 navigation_controller_test`: navigation_controller_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 norm_measure_source_test`: norm_measure_source_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 norm_pack_test`: norm_pack_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 norm_test`: norm_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 notification_center_test`: notification_center_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 one_at_a_time_selftest`: one_at_a_time_selftest has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 orientation_filter_test`: orientation_filter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 orientation_refuse_test`: orientation_refuse_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 outcome_scope_test`: outcome_scope_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 outcome_summary_test`: outcome_summary_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 paced_connect_queue_test`: paced_connect_queue_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pack_io_test`: pack_io_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 parity_json_test`: parity_json_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pdf_document_writer_test`: pdf_document_writer_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 phase_segmenter_test`: phase_segmenter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 phase_signals_test`: phase_signals_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pipeline_test`: pipeline_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 plane_bootstrap_test`: plane_bootstrap_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 platform_target_test`: platform_target_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pose_crop_test`: pose_crop_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pose_ep_cascade_test`: pose_ep_cascade_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pose_model_selection_test`: pose_model_selection_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pose_pipeline_test`: pose_pipeline_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pose_smoother_test`: pose_smoother_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pose_synthesis_test`: pose_synthesis_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pose_wrist_angle_source_test`: pose_wrist_angle_source_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 positions_ladder_test`: positions_ladder_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 post_shot_trace_test`: post_shot_trace_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pp_debug_else_test_l1`: pp_debug_else_test_l1 has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pp_debug_else_test_l3`: pp_debug_else_test_l3 has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pp_gpu_metrics_test`: pp_gpu_metrics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pp_os_metrics_test`: pp_os_metrics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pp_profiler_compileout_test`: pp_profiler_compileout_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pp_profiler_concurrency_test`: pp_profiler_concurrency_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pp_profiler_test`: pp_profiler_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 pp_stats_log_test`: pp_stats_log_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_advertise_hold`: ppcp_advertise_hold has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_advertise_test`: ppcp_advertise_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_annotation_test`: ppcp_annotation_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_app_tu_syntax`: ppcp_app_tu_syntax has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_arbitration_test`: ppcp_arbitration_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_bootstrap_test`: ppcp_bootstrap_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_bundle_import_test`: ppcp_bundle_import_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_clip_filer_test`: ppcp_clip_filer_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_conformance`: ppcp_conformance has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_host_peer_test`: ppcp_host_peer_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_host_service_test`: ppcp_host_service_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_interop_iop_3`: ppcp_interop_iop_3 has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_interop_iop_3_live`: ppcp_interop_iop_3_live has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_interop_iop_4`: ppcp_interop_iop_4 has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_interop_iop_5`: ppcp_interop_iop_5 has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_interop_iop_6`: ppcp_interop_iop_6 has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_interop_iop_7`: ppcp_interop_iop_7 has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_interop_iop_8`: ppcp_interop_iop_8 has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_interop_iop_9`: ppcp_interop_iop_9 has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_interop_iop_10`: ppcp_interop_iop_10 has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_link_bind_test`: ppcp_link_bind_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_live_session_test`: ppcp_live_session_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_mdns_wire_test`: ppcp_mdns_wire_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_offer_test`: ppcp_offer_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_qr_test`: ppcp_qr_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_rendezvous_test`: ppcp_rendezvous_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_source_declaration_test`: ppcp_source_declaration_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_stored_pairing_pin`: ppcp_stored_pairing_pin has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_transport_test`: ppcp_transport_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_usbmux_test`: ppcp_usbmux_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 ppcp_video_input_test`: ppcp_video_input_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 premier_monitor_test`: premier_monitor_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 premier_session_parser_test`: premier_session_parser_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 profiler_controller_test`: profiler_controller_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_globals_lint_test`: qml_globals_lint_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_reactivity_test`: qml_reactivity_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_auto_annotations`: qml_ui.tst_auto_annotations has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_band_bar`: qml_ui.tst_band_bar has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_box_plot_row_hover`: qml_ui.tst_box_plot_row_hover has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_chart_presets`: qml_ui.tst_chart_presets has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_charts_panel`: qml_ui.tst_charts_panel has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_coach_line_sets`: qml_ui.tst_coach_line_sets has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_expand_row`: qml_ui.tst_expand_row has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_facet_fold`: qml_ui.tst_facet_fold has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_graph_measures`: qml_ui.tst_graph_measures has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_graph_opener`: qml_ui.tst_graph_opener has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_graph_pan`: qml_ui.tst_graph_pan has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_graph_references`: qml_ui.tst_graph_references has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_graph_scope`: qml_ui.tst_graph_scope has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_home_tabs`: qml_ui.tst_home_tabs has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_inspector_citation`: qml_ui.tst_inspector_citation has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_inspector_report_fields`: qml_ui.tst_inspector_report_fields has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_lm_graphics`: qml_ui.tst_lm_graphics has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_pp_badge`: qml_ui.tst_pp_badge has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_pp_chip`: qml_ui.tst_pp_chip has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_pp_meter`: qml_ui.tst_pp_meter has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_pp_pips`: qml_ui.tst_pp_pips has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_pp_tabs`: qml_ui.tst_pp_tabs has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_pp_variability_funnel`: qml_ui.tst_pp_variability_funnel has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_pp_variability_mark`: qml_ui.tst_pp_variability_mark has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_pp_variability_typicality`: qml_ui.tst_pp_variability_typicality has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_ppcp_pair_dialog`: qml_ui.tst_ppcp_pair_dialog has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_rail_fold`: qml_ui.tst_rail_fold has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_ring_collar`: qml_ui.tst_ring_collar has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_session_diagnostics_chrome`: qml_ui.tst_session_diagnostics_chrome has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_session_diagnostics_detail`: qml_ui.tst_session_diagnostics_detail has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_session_diagnostics_promises`: qml_ui.tst_session_diagnostics_promises has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_session_diagnostics_review`: qml_ui.tst_session_diagnostics_review has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_session_diagnostics_states`: qml_ui.tst_session_diagnostics_states has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_session_report`: qml_ui.tst_session_report has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_sessions_bulk`: qml_ui.tst_sessions_bulk has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_sessions_selection`: qml_ui.tst_sessions_selection has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_shot_card`: qml_ui.tst_shot_card has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_shot_picker`: qml_ui.tst_shot_picker has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_swing_areas`: qml_ui.tst_swing_areas has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_table_card`: qml_ui.tst_table_card has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_table_row`: qml_ui.tst_table_row has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_theme_bands`: qml_ui.tst_theme_bands has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 qml_ui.tst_theme_tables`: qml_ui.tst_theme_tables has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.after-warm-up`: quit_pin.after-warm-up has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.athlete-on-screen`: quit_pin.athlete-on-screen has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.housekeeping`: quit_pin.housekeeping has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.re-analysis`: quit_pin.re-analysis has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.re-analysis-in-warm-up`: quit_pin.re-analysis-in-warm-up has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.ready`: quit_pin.ready has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.ready-close`: quit_pin.ready-close has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.report-list`: quit_pin.report-list has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.startup`: quit_pin.startup has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.warm-up`: quit_pin.warm-up has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 quit_pin.work-ons`: quit_pin.work-ons has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 reanalysis_controller_test`: reanalysis_controller_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 recording_contract_test`: recording_contract_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 recording_repository_test`: recording_repository_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 recording_store_test`: recording_store_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 reduction_rule_golden_test`: reduction_rule_golden_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 reference_bands_test`: reference_bands_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 reference_sets_test`: reference_sets_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 regrade_ledger_new_needs_ini_test`: regrade_ledger_new_needs_ini_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 relationship_rules_test`: relationship_rules_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 replay_score_test`: replay_score_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 report_list_test`: report_list_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 report_lm_test`: report_lm_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 report_meta_test`: report_meta_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 report_model_test`: report_model_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 report_smtp_test`: report_smtp_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 report_stills_test`: report_stills_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 report_studio_test`: report_studio_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 reuse_gate_test`: reuse_gate_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 review_views_shot_test`: review_views_shot_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 rule_data_test`: rule_data_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 rule_version_golden_test`: rule_version_golden_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 run_headless_selftest`: run_headless_selftest has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 seed_conversion_test`: seed_conversion_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 segment_rates_test`: segment_rates_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 series_key_ladder_test`: series_key_ladder_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 series_reduce_test`: series_reduce_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_archiver_test`: session_archiver_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_clock_test`: session_clock_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_consistency_test`: session_consistency_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_delivery_test`: session_delivery_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_diagnostics_model_test`: session_diagnostics_model_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_diagnostics_test`: session_diagnostics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_focus_test`: session_focus_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_gates_test`: session_gates_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_identity_test`: session_identity_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_list_test`: session_list_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_posture_test`: session_posture_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_report_test`: session_report_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_repository_test`: session_repository_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_series_test`: session_series_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_setup_ui`: session_setup_ui has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_setup_ui.tst_setup_calib_hackmotion`: session_setup_ui.tst_setup_calib_hackmotion has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_setup_ui.tst_setup_calib_witmotion`: session_setup_ui.tst_setup_calib_witmotion has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_setup_ui.tst_setup_trunk`: session_setup_ui.tst_setup_trunk has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_summary_test`: session_summary_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 session_test`: session_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 setup_capability_test`: setup_capability_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_decide_test`: shaft_decide_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_direction_test`: shaft_direction_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_evidence_test`: shaft_evidence_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_fusion_test`: shaft_fusion_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_hand_axis_prior_test`: shaft_hand_axis_prior_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_kinematics_test`: shaft_kinematics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_onset_test`: shaft_onset_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_plane_corpus_test`: shaft_plane_corpus_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_plane_curve_test`: shaft_plane_curve_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_plane_test`: shaft_plane_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_position_fit_test`: shaft_position_fit_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_positions_test`: shaft_positions_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_resynth_test`: shaft_resynth_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_segment_test`: shaft_segment_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_synthesis_test`: shaft_synthesis_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shaft_wedge_test`: shaft_wedge_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shared_norm_provider_test`: shared_norm_provider_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shot_commands_test`: shot_commands_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shot_controller_decline_test`: shot_controller_decline_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shot_factors_test`: shot_factors_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shot_ledger_test`: shot_ledger_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shot_list_model_test`: shot_list_model_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shot_number_test`: shot_number_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shot_outcome_test`: shot_outcome_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shot_outcomes_test`: shot_outcomes_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shot_source_map_test`: shot_source_map_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 shoulder_tilt_vs_bend_test`: shoulder_tilt_vs_bend_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 skeleton3d_body_metrics_test`: skeleton3d_body_metrics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 skeleton3d_pool_test`: skeleton3d_pool_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 skeleton3d_synthesis_test`: skeleton3d_synthesis_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 skeleton3d_test`: skeleton3d_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 source_ring_test`: source_ring_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 standalone_gate_test`: standalone_gate_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 store_isolation_lint_test`: store_isolation_lint_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 stream_trim_test`: stream_trim_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 strengths_test`: strengths_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_annotation_geometry_test`: swing_annotation_geometry_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_areas_test`: swing_areas_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_doc_test`: swing_doc_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_onset_test`: swing_onset_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_paths_test`: swing_paths_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_rig_driver_test`: swing_rig_driver_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_series_model_test`: swing_series_model_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_store_test`: swing_store_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_themes_golden_test`: swing_themes_golden_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_themes_test`: swing_themes_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_window_parity`: swing_window_parity has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 swing_window_test`: swing_window_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 synth_posterior_test`: synth_posterior_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 tempo_metrics_test`: tempo_metrics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 tendencies_test`: tendencies_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 tendency_flow_test`: tendency_flow_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 test_markup_truth`: test_markup_truth has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 thread_policy_test`: thread_policy_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 tier1_banding_test`: tier1_banding_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 timeline_fusion_test`: timeline_fusion_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 timeline_index_test`: timeline_index_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 timeline_labels_test`: timeline_labels_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 trunk_ceremony_file_test`: trunk_ceremony_file_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 trunk_e2e_test`: trunk_e2e_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 trunk_stand_tall_test`: trunk_stand_tall_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 trunk_turn_path_test`: trunk_turn_path_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 trust_readings_test`: trust_readings_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 tts_phrase_cache_test`: tts_phrase_cache_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 tuned_constants_parity_test`: tuned_constants_parity_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 tuning_overrides_test`: tuning_overrides_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 uncertainty_delta_test`: uncertainty_delta_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 update_controller_policy_test`: update_controller_policy_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 update_host_test`: update_host_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 upper_body_metrics_test`: upper_body_metrics_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 variability_clubs_test`: variability_clubs_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 variability_data_geometry_test`: variability_data_geometry_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 variability_env_test`: variability_env_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 variability_facade_test`: variability_facade_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 variability_geometry_test`: variability_geometry_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 variability_grader_test`: variability_grader_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 viz_frame_test`: viz_frame_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 wait_flag_test`: wait_flag_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 watchdog_test`: watchdog_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 work_ons_controller_test`: work_ons_controller_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 work_ons_test`: work_ons_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 work_pool_test`: work_pool_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 wrist_analysis_adapter_test`: wrist_analysis_adapter_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 wrist_angle_sampling_test`: wrist_angle_sampling_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 wrist_angles_test`: wrist_angles_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 wrist_domain_score_test`: wrist_domain_score_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 wrist_norm_render_test`: wrist_norm_render_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 wrist_resemblance_test`: wrist_resemblance_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 wt901_config_check_test`: wt901_config_check_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 wt901_config_retry_test`: wt901_config_retry_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
+- **REQ-DIAG-1**: The app shall grade every reading against a norm for players like the golfer, and say how unusual it is.
+  - Status: partial; release v1; Must; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #63.
+- **REQ-DIAG-2**: The app shall say, for every reading, what it measures, its typical range, and what a high or low value means, in plain coaching words.
+  - Status: partial · to confirm; release v1; Should; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #65.
+- **REQ-DIAG-3**: The app shall find the faults and habits a session shows.
+  - Status: built, not verified; release v1; Must; use cases UC-24.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-DIAG-22**: The app shall link each fault to its likely causes, where the session's own shots support the link.
+  - Status: partial; release v1; Must; use cases UC-24.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #63.
+- **REQ-DIAG-23**: The app shall show the evidence behind each finding: the shots it fired on and the readings that fired it.
+  - Status: built, not verified; release v1; Should; use cases UC-24.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-DIAG-4**: The app shall say, for each finding, how often it fired in the session and whether it is still happening.
+  - Status: built, not verified; release v1; Must; use cases UC-24.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-DIAG-5**: The app shall answer 'what happened there?' for a shot: what stood out on it against the golfer's usual swing.
+  - Status: built, not verified; release v1; Should; use cases UC-22.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-DIAG-6**: The app shall show where the golfer's swing repeats and where it gets loose, within a session and across sessions.
+  - Status: built, not verified; release v1; Could; use cases UC-24 ; UC-27.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-DIAG-7**: The app shall grade new readings at once, with their uncertainty and warnings, and show which faults rest on readings not yet validated, without putting a warning on every row.
+  - Status: partial; release v1; Must; use cases UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #177.
+- **REQ-DIAG-8**: The app shall let the Coaching Lead change, inside the app, a norm's corridor, which side fires, a measure, a characteristic and its causes, and how strict grading is, and keep those edits.
+  - Status: built, not verified; release v1; Should; use cases UC-44.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-DIAG-9**: The app shall show the health of the diagnostics model: measures with no producer, habits that can never fire, broken links.
+  - Status: built, not verified; release v1; Could; use cases UC-44.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-DIAG-10**: A habit the app cannot yet judge shall be shown as not yet judged, never as passed.
+  - Status: partial · to confirm; release v1; Must; use cases UC-24.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #63; #64.
+- **REQ-DIAG-11**: The app shall record, for each cause link, whether it rests on published evidence or on coaching practice.
+  - Status: partial; release v2; Should; use cases UC-24 ; UC-44.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #63.
+- **REQ-DIAG-12**: The app shall show the golfer when a norm it grades against is still provisional.
+  - Status: partial · to confirm; release v1; Must; use cases UC-24 ; UC-44.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #63.
+- **REQ-DIAG-13**: The app shall let a coach record a physical screen (mobility, strength) for causes a camera cannot see, and use it in the diagnosis.
+  - Status: planned (#66) · its model change is approved with its design: a new golfer fact (IM C1–C3); release v2; Could; use cases UC-25.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #66.
+- **REQ-DIAG-14**: The app shall diagnose every shot as it is captured, whether or not a panel is open, and keep the session's diagnosis with the session.
+  - Status: partial; release v1; Must; use cases UC-12 ; UC-16 ; UC-24.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #65.
+- **REQ-DIAG-15**: The app shall say the real reason a reading is unavailable or refused on a shot, in words a golfer reads.
+  - Status: partial; release v1; Must; use cases UC-16 ; UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #65.
+- **REQ-DIAG-16**: The app shall judge each shot's outcome (carry, ball speed, club speed) against the golfer's own usual for that club.
+  - Status: partial; release v2; Should; use cases UC-22.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #333.
+- **REQ-DIAG-17**: The app shall grade by club where the club changes what is normal.
+  - Status: built, not verified; release v1; Must; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+- **REQ-DIAG-18**: The app shall grade wrist positions against reference bands and swing styles, and against the golfer's own best shots.
+  - Status: partial; release v2; Should; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #73.
+- **REQ-DIAG-19**: The app shall describe direction misses (pull, push, hook, slice, draw, fade) with one consistent set of thresholds.
+  - Status: planned (#237); release v1; Must; use cases UC-22.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #237.
+- **REQ-DIAG-20**: The app shall judge the backswing plane in layers (set-up, turn, takeaway, arms, club), each against the layer beneath, so each fault has one cause and one fix.
+  - Status: partial; release v2; Should; use cases UC-24.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #179.
+- **REQ-DIAG-21**: The app shall show what the golfer does well, and say why when nothing qualifies yet.
+  - Status: partial; release v1; Could; use cases UC-24.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #194.
+- **REQ-DIAG-24**: The app shall explain a session's outcomes: where the yards went, what is usual for the golfer, and which faults come together.
+  - Status: built, not verified; release v1; Should; use cases UC-24.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
 
-### 5. An open enhancement with no Requirement: line, or one naming an unknown id
+### Coaching and priorities
 
-- `5 #61`: #61, an open enhancement, has no Requirement: line (baseline)
-- `5 #63`: #63, an open enhancement, has no Requirement: line (baseline)
-- `5 #64`: #64, an open enhancement, has no Requirement: line (baseline)
-- `5 #65`: #65, an open enhancement, has no Requirement: line (baseline)
-- `5 #66`: #66, an open enhancement, has no Requirement: line (baseline)
-- `5 #67`: #67, an open enhancement, has no Requirement: line (baseline)
-- `5 #68`: #68, an open enhancement, has no Requirement: line (baseline)
-- `5 #69`: #69, an open enhancement, has no Requirement: line (baseline)
-- `5 #70`: #70, an open enhancement, has no Requirement: line (baseline)
-- `5 #71`: #71, an open enhancement, has no Requirement: line (baseline)
-- `5 #72`: #72, an open enhancement, has no Requirement: line (baseline)
-- `5 #73`: #73, an open enhancement, has no Requirement: line (baseline)
-- `5 #74`: #74, an open enhancement, has no Requirement: line (baseline)
-- `5 #75`: #75, an open enhancement, has no Requirement: line (baseline)
-- `5 #77`: #77, an open enhancement, has no Requirement: line (baseline)
-- `5 #78`: #78, an open enhancement, has no Requirement: line (baseline)
-- `5 #79`: #79, an open enhancement, has no Requirement: line (baseline)
-- `5 #80`: #80, an open enhancement, has no Requirement: line (baseline)
-- `5 #81`: #81, an open enhancement, has no Requirement: line (baseline)
-- `5 #82`: #82, an open enhancement, has no Requirement: line (baseline)
-- `5 #83`: #83, an open enhancement, has no Requirement: line (baseline)
-- `5 #84`: #84, an open enhancement, has no Requirement: line (baseline)
-- `5 #85`: #85, an open enhancement, has no Requirement: line (baseline)
-- `5 #86`: #86, an open enhancement, has no Requirement: line (baseline)
-- `5 #87`: #87, an open enhancement, has no Requirement: line (baseline)
-- `5 #88`: #88, an open enhancement, has no Requirement: line (baseline)
-- `5 #89`: #89, an open enhancement, has no Requirement: line (baseline)
-- `5 #93`: #93, an open enhancement, has no Requirement: line (baseline)
-- `5 #96`: #96, an open enhancement, has no Requirement: line (baseline)
-- `5 #97`: #97, an open enhancement, has no Requirement: line (baseline)
-- `5 #98`: #98, an open enhancement, has no Requirement: line (baseline)
-- `5 #102`: #102, an open enhancement, has no Requirement: line (baseline)
-- `5 #106`: #106, an open enhancement, has no Requirement: line (baseline)
-- `5 #108`: #108, an open enhancement, has no Requirement: line (baseline)
-- `5 #109`: #109, an open enhancement, has no Requirement: line (baseline)
-- `5 #117`: #117, an open enhancement, has no Requirement: line (baseline)
-- `5 #126`: #126, an open enhancement, has no Requirement: line (baseline)
-- `5 #131`: #131, an open enhancement, has no Requirement: line (baseline)
-- `5 #169`: #169, an open enhancement, has no Requirement: line (baseline)
-- `5 #177`: #177, an open enhancement, has no Requirement: line (baseline)
-- `5 #178`: #178, an open enhancement, has no Requirement: line (baseline)
-- `5 #179`: #179, an open enhancement, has no Requirement: line (baseline)
-- `5 #180`: #180, an open enhancement, has no Requirement: line (baseline)
-- `5 #181`: #181, an open enhancement, has no Requirement: line (baseline)
-- `5 #182`: #182, an open enhancement, has no Requirement: line (baseline)
-- `5 #193`: #193, an open enhancement, has no Requirement: line (baseline)
-- `5 #194`: #194, an open enhancement, has no Requirement: line (baseline)
-- `5 #229`: #229, an open enhancement, has no Requirement: line (baseline)
-- `5 #230`: #230, an open enhancement, has no Requirement: line (baseline)
-- `5 #237`: #237, an open enhancement, has no Requirement: line (baseline)
-- `5 #238`: #238, an open enhancement, has no Requirement: line (baseline)
-- `5 #239`: #239, an open enhancement, has no Requirement: line (baseline)
-- `5 #240`: #240, an open enhancement, has no Requirement: line (baseline)
-- `5 #262`: #262, an open enhancement, has no Requirement: line (baseline)
-- `5 #266`: #266, an open enhancement, has no Requirement: line (baseline)
-- `5 #289`: #289, an open enhancement, has no Requirement: line (baseline)
-- `5 #291`: #291, an open enhancement, has no Requirement: line (baseline)
-- `5 #292`: #292, an open enhancement, has no Requirement: line (baseline)
-- `5 #293`: #293, an open enhancement, has no Requirement: line (baseline)
-- `5 #308`: #308, an open enhancement, has no Requirement: line (baseline)
-- `5 #314`: #314, an open enhancement, has no Requirement: line (baseline)
-- `5 #315`: #315, an open enhancement, has no Requirement: line (baseline)
-- `5 #316`: #316, an open enhancement, has no Requirement: line (baseline)
-- `5 #317`: #317, an open enhancement, has no Requirement: line (baseline)
-- `5 #318`: #318, an open enhancement, has no Requirement: line (baseline)
-- `5 #319`: #319, an open enhancement, has no Requirement: line (baseline)
+- **REQ-COACH-1**: The app shall coach the golfer directly by default, picking from all of a session's findings the few things to work on, causes before what they cause where the session's own shots support the link.
+  - Status: built, not verified; release v1; Should; use cases UC-25.
+  - Evidence: none yet; no run over real swings yet (E3).
+- **REQ-COACH-2**: The app shall let the golfer or coach see the whole coaching picture, not only the first five work-ons.
+  - Status: planned (#182); release v2; Should; use cases UC-25.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #182.
+- **REQ-COACH-3**: The app shall follow each work-on across sessions: still happening, improving or resolved, with a trend.
+  - Status: built, not verified; release v1; Could; use cases UC-27.
+  - Evidence: none yet; no run over real swings yet (E3).
+- **REQ-COACH-4**: The app shall let the golfer dismiss a work-on, make one the session's focus, and watch it live.
+  - Status: planned (#65, #83); release v2; Should; use cases UC-25 ; UC-29.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #65; #83.
+- **REQ-COACH-5**: The app shall show the golfer's tendencies across sessions by strike, direction and flight, filtered by club, and how they lead into one another.
+  - Status: built, not verified; release v1; Could; use cases UC-26.
+  - Evidence: none yet; no run over real swings yet (E3).
+- **REQ-COACH-6**: The app shall show, for the shots a filter picks (club, strike, direction, flight), how often each fault fires on them against the rest, and how their readings differ.
+  - Status: partial; release v2; Could; use cases UC-26.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #334.
+- **REQ-COACH-7**: The app shall let the golfer pick shots by a reading's value (for example face-to-path over 3°).
+  - Status: proposed; release v2; Could; use cases UC-26.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #335.
+- **REQ-COACH-8**: The app shall rank which body readings move with each ball-flight number across the golfer's library, worded as 'moves with', never as cause.
+  - Status: proposed; release v2; Could; use cases UC-26.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #335.
+- **REQ-COACH-9**: The app shall group findings by swing area (what moves) and show each area's state on Home.
+  - Status: built, not verified; release v1; Could; use cases UC-24.
+  - Evidence: none yet; no run over real swings yet (E3).
+- **REQ-COACH-10**: The app shall give lessons: a lesson has a purpose, sets (a baseline, a drill, a re-test) and a takeaway, and leads into the next one.
+  - Status: planned (#66) · its model change is approved with its design: a new domain object, the lesson (IM C1); release v2; Must; use cases UC-28.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #66; #335.
+- **REQ-COACH-11**: The app shall run practice between lessons against the one reading the lesson prescribed, reporting the rate in its zone, the trend against the lesson and the spread, never a made-up score.
+  - Status: proposed; release v2; Could; use cases UC-29.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #335.
+- **REQ-COACH-12**: The app shall judge progress on what holds at the next visit and in varied practice, not on improvement within one session.
+  - Status: proposed; release v2; Could; use cases UC-27.
+  - Evidence: none yet; no run over real swings yet (E3).
+- **REQ-COACH-13**: The app shall let a coach override any coaching decision the app makes, and record each override.
+  - Status: proposed · its model change is approved with its design: a new golfer fact, the override record (IM C2/C3); release v2; Should; use cases UC-25 ; UC-28.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #335.
+- **REQ-COACH-14**: The app shall offer, in practice only and when the golfer or coach opts in, a non-speech cue after each shot saying whether one chosen reading was in its band, fading over shots by default.
+  - Status: proposed; release later; no MoSCoW; use cases UC-29.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #335.
+- **REQ-COACH-15**: The app shall give a live cue from the wrist sensor at the top of the swing when the golfer asks for one.
+  - Status: proposed; release later; no MoSCoW; use cases UC-29.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #335.
+- **REQ-COACH-16**: The app shall narrate its coaching decisions, in text, in words suited to the golfer's level, using a language model as the voice and never as the decider, and never speak a verdict.
+  - Status: partial; release v1; Could; use cases UC-25.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #81.
+- **REQ-COACH-23**: The app shall let the golfer or coach ask about a session, by voice or by typing, and give an observation at the end of a session when the user turns that on; the setting is off by default, and its first use says what is sent.
+  - Status: partial; release v1; Could; use cases UC-25.
+  - Evidence: none yet; no run over real swings yet (E3).
+- **REQ-COACH-17**: The app shall let a coach keep the app's coaching reasoning off the screen the pupil sees, while it stays one step away on the coach's.
+  - Status: proposed; release v2; Should; use cases UC-25 ; UC-28.
+  - Evidence: none yet; no run over real swings yet (E3).
+- **REQ-COACH-18**: The app shall offer a short-term fix before an event that expires and never changes the golfer's plan.
+  - Status: proposed · its model change is approved with its design: a new golfer fact, a temporary fix (IM C2/C3); release later; no MoSCoW; use cases UC-31.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #335.
+- **REQ-COACH-19**: The app shall let a golfer send a session to a coach for review and receive the review back, with no server the project must run.
+  - Status: proposed · its model change is approved with its design: a new object, the review package (IM C1); release later; no MoSCoW; use cases UC-34.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #335; #347.
+- **REQ-COACH-20**: The app shall advise during a simulator round with at most one cue the golfer opted into, and debrief the round afterwards.
+  - Status: proposed; release later; no MoSCoW; use cases UC-30.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #335.
+- **REQ-COACH-21**: The app shall give the golfer, at the end of a lesson or session, one or two things to work on, how each should feel, a drill, and what to ignore.
+  - Status: partial; release v1; Should; use cases UC-25 ; UC-28 ; UC-32.
+  - Evidence: none yet; no run over real swings yet (E3).
+- **REQ-COACH-22**: The app shall draw drills, constraints and feels for each work-on from a coach-written library that cites its sources and names no commercial programme.
+  - Status: partial · to confirm; release v2; Should; use cases UC-25.
+  - Evidence: none yet; no run over real swings yet (E3).
+  - Open issues: #336.
 
-### 6. An open bug naming a delivered row: the row is failing
+### Review, replay and reports
 
-None.
+- **REQ-REV-1**: The app shall replay any saved shot from every camera together, in step, frame by frame and slowed down.
+  - Status: built, not verified; release v1; Must; use cases UC-19.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-2**: The app shall draw the tracked body and club over the video, and let the golfer turn each overlay on or off.
+  - Status: built, not verified; release v1; Should; use cases UC-19.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-3**: The app shall draw coach's lines (head, hips, plane, spine, shoulder plane) at address by itself.
+  - Status: partial; release v1; Could; use cases UC-19.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #83.
+- **REQ-REV-4**: The app shall let a coach draw on the video (lines, circles, angles) and keep the marks with the swing.
+  - Status: partial; release v1; Must; use cases UC-19.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #83.
+- **REQ-REV-5**: The app shall chart each reading of a shot through the swing, and say for each chart how far to trust it.
+  - Status: built, not verified; release v1; Should; use cases UC-23.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-6**: The app shall compare a shot against another (the session's median, its typical or least typical shot, the previous or next, similar shots, a reference swing), lined up by swing position, with the difference shown.
+  - Status: built, not verified; release v1; Could; use cases UC-23.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-7**: The app shall show two swings' videos side by side or overlaid, kept in step by swing position.
+  - Status: proposed; release v2; Should; use cases UC-23.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #337.
+- **REQ-REV-8**: The app shall compare a shot against the golfer's best swings, chosen by their outcome.
+  - Status: proposed; release v2; Could; use cases UC-23.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #337.
+- **REQ-REV-9**: The app shall let the golfer mark a reference swing and compare others against it, from any session.
+  - Status: built, not verified; release v1; Could; use cases UC-23.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-10**: The app shall plot any reading against any other within a session and rank what moves with what.
+  - Status: built, not verified; release v1; Could; use cases UC-23.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-11**: The app shall show the session's launch-monitor numbers, with dispersion and per-club figures.
+  - Status: partial; release v1; Should; use cases UC-24.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #80.
+- **REQ-REV-12**: The app shall show the session's diagnosis while the session runs, in depth for analysis, and in print, each with the same content.
+  - Status: partial; release v1; Must; use cases UC-24.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #65.
+- **REQ-REV-13**: The app shall make a session report for the golfer: what happened, what to work on and why, with pictures, a launch-monitor appendix and the coach's note.
+  - Status: partial; release v1; Could; use cases UC-32.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #61.
+- **REQ-REV-14**: The app shall send the report by email directly or hand it to the mail app, on every platform.
+  - Status: partial; release v2; Should; use cases UC-32.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #61.
+- **REQ-REV-32**: The app shall put the studio's and the coach's details (name, logo, contact, booking link) on the report and its email.
+  - Status: built, not verified; release v1; Could; use cases UC-9 ; UC-32.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-15**: The app shall show a report inside the app.
+  - Status: planned (#98); release v2; Could; use cases UC-32.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #98.
+- **REQ-REV-16**: The app shall print, or save as a PDF, the Diagnostics, Launch monitor and Charts panels.
+  - Status: planned (#82); release v2; Could; use cases UC-33.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #82.
+- **REQ-REV-17**: The app shall keep a report small enough to email: 3 MB, by means decided in #61.
+  - Status: planned (#61); release v2; Should; use cases UC-32.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #61.
+- **REQ-REV-18**: The app shall show every shot as a card with its outcome, club, key numbers and a picture.
+  - Status: partial; release v1; Should; use cases UC-19.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #81.
+- **REQ-REV-19**: The app shall show a table of every reading for a shot, and export it as a spreadsheet file.
+  - Status: built, not verified; release v1; Could; use cases UC-20.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-20**: The app shall show the wrist analysis: live angles during set-up, curves on replay, and a reference pattern to compare against.
+  - Status: partial; release v1; Could; use cases UC-23.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #97.
+- **REQ-REV-21**: The app shall show the golfer's posture at each swing position against good players, by pattern, on screen and in the report.
+  - Status: partial; release v1; Could; use cases UC-23.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #96.
+- **REQ-REV-22**: The app shall show the club's delivery as a coach reads it, and add the release (lag and the clubhead's peak timing) once arm and club timing are verified.
+  - Status: partial; release v1; Should; use cases UC-23.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #117.
+- **REQ-REV-23**: The app shall show the kinematic sequence as a chart and a strip, among the first things a teaching pro sees after a session.
+  - Status: built, not verified; release v1; Should; use cases UC-23 ; UC-24.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-24**: The app shall show the swing in 3-D from any side, with the club and ball, and the session's usual swing.
+  - Status: built, not verified; release v1; Could; use cases UC-19.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #71.
+- **REQ-REV-33**: The app shall show a body figure with each joint marked by how its readings graded.
+  - Status: planned (#73); release v2; Could; use cases UC-20.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #73.
+- **REQ-REV-25**: The app shall show the golfer's progress over weeks and months: a dated trend for each fault, work-on, launch-monitor number or chosen reading.
+  - Status: partial; release v2; Should; use cases UC-27.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #338.
+- **REQ-REV-26**: The app shall show a dashboard on a second screen during a session.
+  - Status: partial · to confirm; release v1; Could; use cases UC-18 ; UC-28.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-27**: The app shall let the golfer rate a shot and note it, and keep both with the shot.
+  - Status: built, not verified; release v1; Must; use cases UC-39.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-28**: The app shall let the golfer or coach keep a note for a session outside the report.
+  - Status: proposed · its model change is approved with its design: a new golfer fact, the session note (IM C2/C3); release v2; Could; use cases UC-28.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #339.
+- **REQ-REV-29**: The app shall export a clip of a swing with the coach's marks and lines drawn in.
+  - Status: proposed; release v2; Could; use cases UC-34.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-34**: The app shall let a coach record a spoken commentary over a replay.
+  - Status: proposed; release later; no MoSCoW; use cases UC-28 ; UC-34.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #339.
+- **REQ-REV-35**: The app shall show a session side by side with an earlier one.
+  - Status: proposed; release v2; Could; use cases UC-27.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #338.
+- **REQ-REV-36**: When a report fails to send, the app shall say so and keep it to send again.
+  - Status: proposed · to confirm; release v1; Should; use cases UC-32.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-REV-30**: The app shall let an analyst mark the club and body on video frames as reference truth for checking the trackers.
+  - Status: built, not verified; release v2; Must; use cases UC-45.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #68.
+- **REQ-REV-31**: The app shall offer short read-outs on Charts (sequence, speed, rotation, wrist style, body, tempo).
+  - Status: planned (#82); release v2; Could; use cases UC-23.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #82.
 
-### 7. A planned row whose issues are all closed
+### The library and athletes
 
-None.
+- **REQ-LIB-1**: The app shall keep every shot with a golfer and a session; a shot recorded with no golfer chosen is kept for a golfer to be assigned later.
+  - Status: built, not verified; release v1; Must; use cases UC-11 ; UC-37.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-2**: The app shall let the user add, edit and remove golfers with their details (name, handedness, height, handicap, the bag).
+  - Status: built, not verified; release v1; Must; use cases UC-36.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-3**: The app shall keep each golfer's bag of clubs (loft, length, shaft, markings) and use it in analysis.
+  - Status: partial; release v1; Should; use cases UC-36.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #69.
+- **REQ-LIB-4**: The app shall put the most recent golfers one click away, so the coach can switch pupil in seconds.
+  - Status: partial · to confirm; release v1; Could; use cases UC-11 ; UC-18.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-5**: The app shall import golfers from a roster file.
+  - Status: proposed; release v2; Could; use cases UC-36.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #340.
+- **REQ-LIB-6**: The app shall change the golfer on screen only when no session is being recorded.
+  - Status: built, not verified; release v1; Must; use cases UC-18.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-7**: Renaming a golfer shall change only the name: every session stays with them.
+  - Status: partial; release v1; Must; use cases UC-36.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-8**: Moving a golfer to the trash shall take all their sessions to a trash the app can restore from, tell the user what went where, and be refused while one of their sessions is being recorded.
+  - Status: partial · ruling change approved: changes DEC-99 and DEC-175 (GU-24); release v1; Must; use cases UC-36.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-9**: The app shall move a session to another golfer keeping everything in it, and refuse while it is in progress.
+  - Status: built, not verified; release v1; Must; use cases UC-37.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #204; #205.
+- **REQ-LIB-10**: The app shall list a golfer's sessions with their date, shots, clubs, devices and work-on, and let the user select several for one job (export, archive, report).
+  - Status: partial; release v1; Should; use cases UC-27 ; UC-32.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #61.
+- **REQ-LIB-11**: A golfer's page shall list that golfer's own sessions, whoever is chosen on Home.
+  - Status: planned (#61); release v2; Should; use cases UC-27.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #61.
+- **REQ-LIB-12**: The app shall remove a saved shot, or a whole session, only when the golfer or coach moves it to the trash, and let that be undone until the app's own clean-up purges it, even where the system would empty its own trash first.
+  - Status: partial · ruling change approved: changes DEC-175 (GU-4); release v1; Must; use cases UC-38.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #89; #193.
+- **REQ-LIB-13**: The app shall never give a trashed shot's number to another shot.
+  - Status: partial; release v1; Must; use cases UC-38.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-14**: The app shall archive a session to save space, dropping raw frames only when asked and with a warning, and restore it with every edit kept.
+  - Status: built, not verified; release v1; Must; use cases UC-40.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-26**: The app shall archive old sessions and empty the trash by itself, on rules the user sets.
+  - Status: built, not verified · to confirm; release v1; Could; use cases UC-9 ; UC-38 ; UC-40.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-27**: The app shall let the user choose what is kept with each shot (raw frames, body points, streams) and at what video quality.
+  - Status: built, not verified · to confirm; release v1; Could; use cases UC-9 ; UC-40.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-15**: The app shall let the user choose where the library lives, including a shared folder that several computers use.
+  - Status: built, not verified; release v1; Could; use cases UC-9 ; UC-41.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-16**: The app shall never let two computers record into one session, and never end a session that is live on another computer.
+  - Status: partial; release v1; Should; use cases UC-11 ; UC-41.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-17**: The app shall let the golfer or coach end a session a crash left running, without starting a new one.
+  - Status: partial; release v1; Must; use cases UC-16 ; UC-42.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-18**: The app shall discard a session as empty only when nothing was recorded in it, and tell the golfer it did.
+  - Status: partial · ruling change approved: changes DEC-93 (GU-6); release v1; Must; use cases UC-16.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-19**: The app shall export shots or a whole session as videos and swing data.
+  - Status: built, not verified; release v1; Could; use cases UC-35.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-20**: The app shall export one row per shot, with every reading, its uncertainty and the launch-monitor numbers, for a session or the whole library.
+  - Status: proposed; release v2; Could; use cases UC-35.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #341.
+- **REQ-LIB-21**: The app shall store swings in an open, documented format with a published reader, and keep its description current.
+  - Status: partial; release v2; Should; use cases UC-35.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #341.
+- **REQ-LIB-22**: The app shall export the 3-D skeleton in a standard motion format, saying when the cameras were not calibrated.
+  - Status: proposed; release v2; Could; use cases UC-35.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #341.
+- **REQ-LIB-23**: A golfer's history shall survive every upgrade: the app reads every swing file it has written, a past shot keeps the set-up it was captured with, and no upgrade alters a recording or a golfer's input.
+  - Status: planned (#88); release v2; Must; use cases UC-2 ; UC-43.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #88.
+- **REQ-LIB-25**: The app shall keep each golfer's distances and sideways spread by club.
+  - Status: built, not verified; release v1; Could; use cases UC-27.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-28**: The app shall let the user keep a second copy of the library, from which every golfer's history can be brought back if its disk fails; a studio's own disk back-up may meet this.
+  - Status: proposed · to confirm; release v2; Could; use cases UC-40.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-29**: The app shall let the user move the library to a new disk or computer with everything in it, and find it there.
+  - Status: proposed · to confirm; release v2; Could; use cases UC-41.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-30**: The app shall let the golfer or coach move shots recorded into the wrong golfer's session to the right golfer.
+  - Status: proposed · to confirm; release v2; Could; use cases UC-18.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+- **REQ-LIB-31**: A re-analysis the golfer asks for shall keep every input of the golfer's and the coach's (ratings, notes, club corrections, the coach's marks, the reference swing) as it was.
+  - Status: proposed · to confirm; release v1; Must; use cases UC-43.
+  - Evidence: none yet; no automated test of the logic yet (E1).
+  - Open issues: #356.
 
-### 8. A row that needs a ruling change but is marked built or delivered
+### Install, update and platforms
 
-None.
+- **REQ-INST-1**: The app shall run on Windows 11 (the primary studio platform, with a fast NVIDIA graphics card), on macOS on Apple and Intel machines, and on Linux.
+  - Status: built, not verified; release v1; Must; use cases UC-1.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+- **REQ-INST-2**: The app shall install from one signed installer per platform.
+  - Status: partial; release v1; Should; use cases UC-1.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+  - Open issues: #89.
+- **REQ-INST-3**: The app shall tell the user an update is ready, install it when the user says so, and relaunch.
+  - Status: built, not verified; release v1; Should; use cases UC-2.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+- **REQ-INST-4**: The app shall check every update's signature before installing it.
+  - Status: built, not verified · to confirm; release v1; Must; use cases UC-2.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+- **REQ-INST-5**: The app shall install an update only when nothing is in progress: no live session, shot being saved, re-analysis, export or catch-up.
+  - Status: partial; release v1; Must; use cases UC-2 ; UC-16 ; UC-43.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+- **REQ-INST-6**: The app shall let the user choose a stable or a beta update channel.
+  - Status: planned (#89); release v2; Could; use cases UC-2.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+  - Open issues: #89.
+- **REQ-INST-7**: The app shall download only what changed in an update, where the platform allows it.
+  - Status: planned (#89); release v2; Could; use cases UC-2.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+  - Open issues: #89.
+- **REQ-INST-8**: The app shall install without the graphics-card runtime and fetch it only when the machine has a supported card.
+  - Status: built, not verified · to confirm; release v1; Could; use cases UC-1.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+- **REQ-INST-9**: The app shall run its pose engine on any maker's graphics card (NVIDIA, AMD, Apple), and fall back to the processor when there is none.
+  - Status: partial; release v2; Should; use cases UC-1.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+  - Open issues: #86.
+- **REQ-INST-10**: The app shall ask for the system permissions it needs (camera, microphone, Bluetooth, local network) with a reason, and keep them across signed upgrades.
+  - Status: partial · to confirm; release v1; Must; use cases UC-1 ; UC-2.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+  - Open issues: #89.
+- **REQ-INST-11**: The app shall work with phones on the local network without the user setting up the firewall.
+  - Status: built, not verified · to confirm; release v1; Could; use cases UC-1 ; UC-5.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+- **REQ-INST-13**: The app shall show its version and licences, and check for an update when the user asks.
+  - Status: partial; release v1; Should; use cases UC-2 ; UC-3.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+  - Open issues: #342.
+- **REQ-INST-14**: When the user refuses a system permission, the app shall say what will not work without it and how to grant it later.
+  - Status: proposed · to confirm; release v1; Must; use cases UC-1.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+  - Open issues: #357.
+- **REQ-INST-15**: When an update fails or will not start, the app shall let the user put the previous version back, with the library untouched and readable by it.
+  - Status: planned (#350); release v2; Should; use cases UC-2.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+  - Open issues: #350.
+- **REQ-INST-16**: Uninstalling or reinstalling the app shall leave the library untouched.
+  - Status: proposed · to confirm; release v1; Must; use cases UC-2.
+  - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+  - Open issues: #351.
+- **REQ-INST-17**: Every update shall keep the studio's settings, each bay's calibration and set-up, the paired phones and the Coaching Lead's edits to the diagnostics model.
+  - Status: proposed · to confirm; release v1; Must; use cases UC-2.
+  - Evidence: an automated test of the logic (E1); no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
+  - Tests: `device_key_test`.
+  - Open issues: #351.
 
-### 9. A test labelled for a requirement but in no platform's gate list
+### Non-functional: reliability
 
-None.
+- **REQ-REL-1**: Every way of quitting shall go through one prompt, no quit shall drop a shot still being saved without the golfer choosing to, and End, quit and update shall never disagree about whether a shot is still being saved.
+  - Status: partial · open bug #280; release v1; Must; use cases UC-2 ; UC-16.
+  - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #280.
+- **REQ-REL-2**: Once the golfer has answered the quit prompt, the app shall be gone promptly, leave no process without a window, and name any work still in flight.
+  - Status: partial; release v1; Should; use cases UC-2 ; UC-16.
+  - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
+- **REQ-REL-3**: After a crash, every shot saved before it shall be in the library.
+  - Status: partial; release v1; Must; use cases UC-16 ; UC-42.
+  - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
+- **REQ-REL-4**: An edit to a saved shot shall be on disk before the app shows it as made, and every view of that shot shall then show it.
+  - Status: partial · ruling change approved: changes DEC-70 (GU-15); release v1; Must; use cases UC-39.
+  - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
+- **REQ-REL-5**: A calibration's evidence shall be saved with its session, or the golfer told it was not.
+  - Status: partial · open bug #265; release v1; Must; use cases UC-7.
+  - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #265.
+- **REQ-REL-6**: A power cut shall never lose a saved shot or edit.
+  - Status: partial; release v1; Must; use cases UC-16 ; UC-39 ; UC-42.
+  - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #343.
+- **REQ-REL-8**: The app shall tell the golfer about a problem once, not repeat the same notice.
+  - Status: planned (#79); release v1; Could; use cases UC-3 ; UC-15.
+  - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #79.
+- **REQ-REL-11**: The app shall keep a log the user can read and filter, and hand to support.
+  - Status: built, not verified · to confirm; release v1; Should; use cases UC-3.
+  - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
+- **REQ-REL-9**: The app shall keep working when the shared library folder is out of reach, say so, and catch up when it returns.
+  - Status: won't have; release never; no MoSCoW; use cases UC-15 ; UC-41.
+  - Evidence: none needed (won't have).
+  - Closed issues: #344.
+- **REQ-REL-10**: The app shall run a full studio day without slowing down or running out of memory.
+  - Status: partial · to confirm; release v1; Must; use cases UC-18.
+  - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
+  - Open issues: #353.
 
-### 10. A hardware row never observed
+### Non-functional: performance
 
-- `10 REQ-CAP-1`: REQ-CAP-1 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-4`: REQ-CAP-4 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-5`: REQ-CAP-5 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-6`: REQ-CAP-6 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-8`: REQ-CAP-8 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-9`: REQ-CAP-9 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-10`: REQ-CAP-10 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-11`: REQ-CAP-11 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-13`: REQ-CAP-13 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-14`: REQ-CAP-14 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-15`: REQ-CAP-15 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-17`: REQ-CAP-17 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-33`: REQ-CAP-33 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-20`: REQ-CAP-20 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-21`: REQ-CAP-21 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-22`: REQ-CAP-22 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-23`: REQ-CAP-23 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-26`: REQ-CAP-26 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-27`: REQ-CAP-27 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-28`: REQ-CAP-28 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-29`: REQ-CAP-29 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-34`: REQ-CAP-34 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-CAP-37`: REQ-CAP-37 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-2`: REQ-DEV-2 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-3`: REQ-DEV-3 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-7`: REQ-DEV-7 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-10`: REQ-DEV-10 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-11`: REQ-DEV-11 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-14`: REQ-DEV-14 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-21`: REQ-DEV-21 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-23`: REQ-DEV-23 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-25`: REQ-DEV-25 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-26`: REQ-DEV-26 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-DEV-28`: REQ-DEV-28 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-INST-1`: REQ-INST-1 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-INST-2`: REQ-INST-2 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-INST-3`: REQ-INST-3 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-INST-4`: REQ-INST-4 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-INST-5`: REQ-INST-5 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-INST-8`: REQ-INST-8 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-INST-9`: REQ-INST-9 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-INST-10`: REQ-INST-10 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-INST-11`: REQ-INST-11 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-INST-13`: REQ-INST-13 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-REL-1`: REQ-REL-1 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-REL-2`: REQ-REL-2 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-REL-3`: REQ-REL-3 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-REL-4`: REQ-REL-4 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-REL-5`: REQ-REL-5 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-REL-6`: REQ-REL-6 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-REL-11`: REQ-REL-11 needs a visit observation (E6) and has never been observed (baseline)
-- `10 REQ-REL-10`: REQ-REL-10 needs a visit observation (E6) and has never been observed (baseline)
+- **REQ-PERF-1**: The app shall show a shot's results within about 10 s of impact, on the primary studio platform (REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …)).
+  - Status: partial; release v1; Should; use cases UC-12.
+  - Evidence: none yet; no run on Windows yet (E5).
+  - Open issues: #86.
+- **REQ-PERF-2**: No step (launch, Start, opening a shot, saving a shot, End) shall freeze the screen for longer than the app's own stall warning allows.
+  - Status: partial · open bug #284, #278; release v1; Should; use cases UC-11 ; UC-12 ; UC-16 ; UC-19.
+  - Evidence: none yet; no run on Windows yet (E5).
+  - Open issues: #82; #86; #278; #284.
+- **REQ-PERF-4**: Home and the session lists shall open within a time the Product Owner sets once today's times are measured, on the primary studio platform (REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …)).
+  - Status: partial · to confirm; release v1; Could; use cases UC-24.
+  - Evidence: none yet; no run on Windows yet (E5).
+- **REQ-PERF-5**: The app shall make a report in the background, without freezing the screen.
+  - Status: planned (#61); release v2; Could; use cases UC-32.
+  - Evidence: none yet; no run on Windows yet (E5).
+  - Open issues: #61.
+- **REQ-PERF-6**: The app shall share the studio computer's graphics card with the simulator software without either failing.
+  - Status: partial · to confirm; release v1; Must; use cases UC-18.
+  - Evidence: none yet; no run on Windows yet (E5).
+  - Open issues: #240.
+- **REQ-PERF-7**: The app shall be ready to capture within 30 s of its first launch, and within 6 s of any later launch.
+  - Status: partial; release v1; Should; use cases UC-1 ; UC-11.
+  - Evidence: none yet; no run on Windows yet (E5).
 
-### 11. The evidence supports a different status from the page's
+### Non-functional: privacy
 
-None.
+- **REQ-PRIV-1**: The app shall keep every golfer's data on the user's own machines, with no cloud service needed.
+  - Status: built, not verified; release v1; Must; use cases UC-9 ; UC-34 ; UC-41.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-PRIV-2**: The app shall send nothing to an outside service (speech, voice, a language model, email) unless the user has turned that service on, and shall say what it sends.
+  - Status: proposed; release v1; Must; use cases UC-9 ; UC-25 ; UC-32.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #345.
+- **REQ-PRIV-3**: The app shall keep passwords and keys in the system's secure store, never as plain text.
+  - Status: partial; release v2; Should; use cases UC-9 ; UC-32.
+  - Evidence: an automated test of the logic (E1); no automated screen test yet (E4).
+  - Tests: `secret_store_test`.
+  - Open issues: #61.
+- **REQ-PRIV-4**: The app shall put a golfer's photo in a report only with that golfer's recorded consent, asked of every golfer whatever their age and recorded with its date; without it, no photo.
+  - Status: partial; release v1; Must; use cases UC-32.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #346.
+- **REQ-PRIV-6**: The app shall send crash and performance reports only if the user opts in, and the setting shall do what it says.
+  - Status: partial; release v1; Must; use cases UC-9.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #345.
+- **REQ-PRIV-5**: A session sent for review shall hold only what the golfer chose to include.
+  - Status: proposed; release later; no MoSCoW; use cases UC-34.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #347.
 
-### 12. A row not delivered, with no open issue and no accepted gap
+### Non-functional: accessibility and ease of use
 
-- `12 REQ-CAP-1`: REQ-CAP-1 (partial) has no open issue (baseline)
-- `12 REQ-CAP-4`: REQ-CAP-4 (built, not verified) has no open issue (baseline)
-- `12 REQ-CAP-7`: REQ-CAP-7 (planned) has no open issue (baseline)
-- `12 REQ-CAP-9`: REQ-CAP-9 (partial) has no open issue (baseline)
-- `12 REQ-CAP-10`: REQ-CAP-10 (built, not verified) has no open issue (baseline)
-- `12 REQ-CAP-11`: REQ-CAP-11 (built, not verified) has no open issue (baseline)
-- `12 REQ-CAP-13`: REQ-CAP-13 (built, not verified) has no open issue (baseline)
-- `12 REQ-CAP-14`: REQ-CAP-14 (partial) has no open issue (baseline)
-- `12 REQ-CAP-33`: REQ-CAP-33 (built, not verified) has no open issue (baseline)
-- `12 REQ-CAP-21`: REQ-CAP-21 (built, not verified) has no open issue (baseline)
-- `12 REQ-CAP-23`: REQ-CAP-23 (built, not verified) has no open issue (baseline)
-- `12 REQ-CAP-26`: REQ-CAP-26 (built, not verified) has no open issue (baseline)
-- `12 REQ-CAP-29`: REQ-CAP-29 (built, not verified) has no open issue (baseline)
-- `12 REQ-CAP-35`: REQ-CAP-35 (proposed) has no open issue (baseline)
-- `12 REQ-CAP-37`: REQ-CAP-37 (built, not verified) has no open issue (baseline)
-- `12 REQ-CAP-38`: REQ-CAP-38 (proposed) has no open issue (baseline)
-- `12 REQ-CAP-39`: REQ-CAP-39 (proposed) has no open issue (baseline)
-- `12 REQ-DEV-1`: REQ-DEV-1 (built, not verified) has no open issue (baseline)
-- `12 REQ-DEV-5`: REQ-DEV-5 (built, not verified) has no open issue (baseline)
-- `12 REQ-DEV-12`: REQ-DEV-12 (proposed) has no open issue (baseline)
-- `12 REQ-DEV-14`: REQ-DEV-14 (partial) has no open issue (baseline)
-- `12 REQ-DEV-20`: REQ-DEV-20 (planned) has no open issue (baseline)
-- `12 REQ-DEV-25`: REQ-DEV-25 (built, not verified) has no open issue (baseline)
-- `12 REQ-DEV-26`: REQ-DEV-26 (built, not verified) has no open issue (baseline)
-- `12 REQ-DEV-28`: REQ-DEV-28 (built, not verified) has no open issue (baseline)
-- `12 REQ-DEV-29`: REQ-DEV-29 (proposed) has no open issue (baseline)
-- `12 REQ-ANA-1`: REQ-ANA-1 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-5`: REQ-ANA-5 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-8`: REQ-ANA-8 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-12`: REQ-ANA-12 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-13`: REQ-ANA-13 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-14`: REQ-ANA-14 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-17`: REQ-ANA-17 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-18`: REQ-ANA-18 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-20`: REQ-ANA-20 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-22`: REQ-ANA-22 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-36`: REQ-ANA-36 (built, not verified) has no open issue (baseline)
-- `12 REQ-ANA-32`: REQ-ANA-32 (partial) has no open issue (baseline)
-- `12 REQ-DIAG-3`: REQ-DIAG-3 (built, not verified) has no open issue (baseline)
-- `12 REQ-DIAG-23`: REQ-DIAG-23 (built, not verified) has no open issue (baseline)
-- `12 REQ-DIAG-4`: REQ-DIAG-4 (built, not verified) has no open issue (baseline)
-- `12 REQ-DIAG-5`: REQ-DIAG-5 (built, not verified) has no open issue (baseline)
-- `12 REQ-DIAG-6`: REQ-DIAG-6 (built, not verified) has no open issue (baseline)
-- `12 REQ-DIAG-8`: REQ-DIAG-8 (built, not verified) has no open issue (baseline)
-- `12 REQ-DIAG-9`: REQ-DIAG-9 (built, not verified) has no open issue (baseline)
-- `12 REQ-DIAG-17`: REQ-DIAG-17 (built, not verified) has no open issue (baseline)
-- `12 REQ-DIAG-24`: REQ-DIAG-24 (built, not verified) has no open issue (baseline)
-- `12 REQ-COACH-1`: REQ-COACH-1 (built, not verified) has no open issue (baseline)
-- `12 REQ-COACH-3`: REQ-COACH-3 (built, not verified) has no open issue (baseline)
-- `12 REQ-COACH-5`: REQ-COACH-5 (built, not verified) has no open issue (baseline)
-- `12 REQ-COACH-9`: REQ-COACH-9 (built, not verified) has no open issue (baseline)
-- `12 REQ-COACH-12`: REQ-COACH-12 (proposed) has no open issue (baseline)
-- `12 REQ-COACH-23`: REQ-COACH-23 (partial) has no open issue (baseline)
-- `12 REQ-COACH-17`: REQ-COACH-17 (proposed) has no open issue (baseline)
-- `12 REQ-COACH-21`: REQ-COACH-21 (partial) has no open issue (baseline)
-- `12 REQ-REV-1`: REQ-REV-1 (built, not verified) has no open issue (baseline)
-- `12 REQ-REV-2`: REQ-REV-2 (built, not verified) has no open issue (baseline)
-- `12 REQ-REV-5`: REQ-REV-5 (built, not verified) has no open issue (baseline)
-- `12 REQ-REV-6`: REQ-REV-6 (built, not verified) has no open issue (baseline)
-- `12 REQ-REV-9`: REQ-REV-9 (built, not verified) has no open issue (baseline)
-- `12 REQ-REV-10`: REQ-REV-10 (built, not verified) has no open issue (baseline)
-- `12 REQ-REV-32`: REQ-REV-32 (built, not verified) has no open issue (baseline)
-- `12 REQ-REV-19`: REQ-REV-19 (built, not verified) has no open issue (baseline)
-- `12 REQ-REV-23`: REQ-REV-23 (built, not verified) has no open issue (baseline)
-- `12 REQ-REV-26`: REQ-REV-26 (partial) has no open issue (baseline)
-- `12 REQ-REV-27`: REQ-REV-27 (built, not verified) has no open issue (baseline)
-- `12 REQ-REV-29`: REQ-REV-29 (proposed) has no open issue (baseline)
-- `12 REQ-REV-36`: REQ-REV-36 (proposed) has no open issue (baseline)
-- `12 REQ-LIB-1`: REQ-LIB-1 (built, not verified) has no open issue (baseline)
-- `12 REQ-LIB-2`: REQ-LIB-2 (built, not verified) has no open issue (baseline)
-- `12 REQ-LIB-4`: REQ-LIB-4 (partial) has no open issue (baseline)
-- `12 REQ-LIB-6`: REQ-LIB-6 (built, not verified) has no open issue (baseline)
-- `12 REQ-LIB-7`: REQ-LIB-7 (partial) has no open issue (baseline)
-- `12 REQ-LIB-8`: REQ-LIB-8 (partial) has no open issue (baseline)
-- `12 REQ-LIB-13`: REQ-LIB-13 (partial) has no open issue (baseline)
-- `12 REQ-LIB-14`: REQ-LIB-14 (built, not verified) has no open issue (baseline)
-- `12 REQ-LIB-26`: REQ-LIB-26 (built, not verified) has no open issue (baseline)
-- `12 REQ-LIB-27`: REQ-LIB-27 (built, not verified) has no open issue (baseline)
-- `12 REQ-LIB-15`: REQ-LIB-15 (built, not verified) has no open issue (baseline)
-- `12 REQ-LIB-16`: REQ-LIB-16 (partial) has no open issue (baseline)
-- `12 REQ-LIB-17`: REQ-LIB-17 (partial) has no open issue (baseline)
-- `12 REQ-LIB-18`: REQ-LIB-18 (partial) has no open issue (baseline)
-- `12 REQ-LIB-19`: REQ-LIB-19 (built, not verified) has no open issue (baseline)
-- `12 REQ-LIB-25`: REQ-LIB-25 (built, not verified) has no open issue (baseline)
-- `12 REQ-LIB-28`: REQ-LIB-28 (proposed) has no open issue (baseline)
-- `12 REQ-LIB-29`: REQ-LIB-29 (proposed) has no open issue (baseline)
-- `12 REQ-LIB-30`: REQ-LIB-30 (proposed) has no open issue (baseline)
-- `12 REQ-INST-1`: REQ-INST-1 (built, not verified) has no open issue (baseline)
-- `12 REQ-INST-3`: REQ-INST-3 (built, not verified) has no open issue (baseline)
-- `12 REQ-INST-4`: REQ-INST-4 (built, not verified) has no open issue (baseline)
-- `12 REQ-INST-5`: REQ-INST-5 (partial) has no open issue (baseline)
-- `12 REQ-INST-8`: REQ-INST-8 (built, not verified) has no open issue (baseline)
-- `12 REQ-INST-11`: REQ-INST-11 (built, not verified) has no open issue (baseline)
-- `12 REQ-REL-2`: REQ-REL-2 (partial) has no open issue (baseline)
-- `12 REQ-REL-3`: REQ-REL-3 (partial) has no open issue (baseline)
-- `12 REQ-REL-4`: REQ-REL-4 (partial) has no open issue (baseline)
-- `12 REQ-REL-11`: REQ-REL-11 (built, not verified) has no open issue (baseline)
-- `12 REQ-PERF-4`: REQ-PERF-4 (partial) has no open issue (baseline)
-- `12 REQ-PERF-7`: REQ-PERF-7 (partial) has no open issue (baseline)
-- `12 REQ-PRIV-1`: REQ-PRIV-1 (built, not verified) has no open issue (baseline)
-- `12 REQ-ACC-3`: REQ-ACC-3 (built, not verified) has no open issue (baseline)
-- `12 REQ-ACC-9`: REQ-ACC-9 (built, not verified) has no open issue (baseline)
-- `12 REQ-ACC-4`: REQ-ACC-4 (partial) has no open issue (baseline)
-- `12 REQ-ACC-5`: REQ-ACC-5 (partial) has no open issue (baseline)
-- `12 REQ-ACC-7`: REQ-ACC-7 (built, not verified) has no open issue (baseline)
-- `12 REQ-HON-2`: REQ-HON-2 (built, not verified) has no open issue (baseline)
-- `12 REQ-HON-5`: REQ-HON-5 (built, not verified) has no open issue (baseline)
-- `12 REQ-HON-6`: REQ-HON-6 (built, not verified) has no open issue (baseline)
-- `12 REQ-HON-9`: REQ-HON-9 (built, not verified) has no open issue (baseline)
-- `12 REQ-HON-12`: REQ-HON-12 (built, not verified) has no open issue (baseline)
-- `12 REQ-HON-15`: REQ-HON-15 (built, not verified) has no open issue (baseline)
+- **REQ-ACC-1**: The app shall never use colour as the only way of saying something: every colour comes with a shape or words.
+  - Status: partial · to confirm; release v1; Must; use cases UC-19.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #354.
+- **REQ-ACC-2**: The app shall be usable from the keyboard throughout, designed once for the whole app.
+  - Status: planned (#83); release v2; Should; use cases UC-9.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #83.
+- **REQ-ACC-3**: The app shall let the user choose how dense the screens are and whether they are light or dark, and every screen shall follow the choice.
+  - Status: built, not verified; release v1; Could; use cases UC-9.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-ACC-9**: The app shall let the user set text size, reduce motion, and the strength of the overlays.
+  - Status: built, not verified · to confirm; release v1; Could; use cases UC-9.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-ACC-10**: The app shall show its words in the language the user picks, from the languages it offers.
+  - Status: partial; release v2; Could; use cases UC-9.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #345.
+- **REQ-ACC-11**: The app shall show speeds, distances and forces in the units the user picks (for example mph or km/h).
+  - Status: partial; release v1; Should; use cases UC-9 ; UC-20.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #345.
+- **REQ-ACC-4**: The app shall stay usable in a smaller window.
+  - Status: partial · to confirm; release v1; Should; use cases UC-9.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-ACC-5**: The app shall speak to the golfer in golf words throughout, and keep technical measures out of the main path.
+  - Status: partial · to confirm; release v1; Should; use cases UC-7 ; UC-20 ; UC-25.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-ACC-6**: The app shall guide a golfer's first session step by step: explain each set-up step plainly and recommend defaults, ending in REQ-DEV-21 (Session set-up shall show only the steps the connected hardware needs, and …)'s plain 'Ready'.
+  - Status: proposed; release v2; Should; use cases UC-11.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #328.
+- **REQ-ACC-7**: The app shall start cleanly on a machine with no golfers and no devices, and lead the user to their first session.
+  - Status: built, not verified · to confirm; release v1; Must; use cases UC-1.
+  - Evidence: none yet; no automated screen test yet (E4).
+- **REQ-ACC-8**: The app shall speak only what the golfer must do and cannot read at that moment.
+  - Status: partial; release v1; Should; use cases UC-7.
+  - Evidence: none yet; no automated screen test yet (E4).
+  - Open issues: #66; #276.
 
-### 13. A baseline line whose gap has closed
+### Non-functional: data honesty
 
-None.
+- **REQ-HON-1**: The golfer shall see every reading the app has.
+  - Status: partial; release v1; Must; use cases UC-20.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Open issues: #82.
+- **REQ-HON-2**: The golfer shall be able to tell a missing reading from a zero.
+  - Status: built, not verified · to confirm; release v1; Must; use cases UC-16 ; UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Closed issues: #186.
+- **REQ-HON-3**: The golfer shall be able to see how sure each number is.
+  - Status: partial; release v1; Must; use cases UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Open issues: #88.
+- **REQ-HON-4**: Before the first full release, the app shall state for every reading its sources of error and what its uncertainty covers.
+  - Status: planned (#88); release v1; Must; use cases UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Open issues: #88.
+- **REQ-HON-5**: The app shall say how far to trust each reading it shows; why a reading is missing or refused is REQ-DIAG-15 (The app shall say the real reason a reading is unavailable or …).
+  - Status: built, not verified; release v1; Must; use cases UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+- **REQ-HON-6**: The app shall never claim more than it measured: a reading from uncalibrated cameras says it is estimated, and a stand-in says it is a stand-in.
+  - Status: built, not verified; release v1; Must; use cases UC-8 ; UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+- **REQ-HON-7**: No screen shall show placeholder content or a made-up value.
+  - Status: planned (#81); release v1; Must; use cases UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Open issues: #81.
+- **REQ-HON-8**: The app shall draw noisy curves honestly: a gap shows as a gap, never smoothed over, and the uncertainty band is visible.
+  - Status: partial; release v1; Must; use cases UC-23.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Open issues: #82.
+- **REQ-HON-9**: A summary shall agree with its chart.
+  - Status: built, not verified · to confirm; release v1; Must; use cases UC-23.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+- **REQ-HON-10**: A finding shall never be excused by what the golfer meant to do.
+  - Status: partial · to confirm; release v1; Must; use cases UC-24.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Open issues: #355.
+- **REQ-HON-11**: Every shot of a session shall count in full.
+  - Status: partial · to confirm; release v1; Must; use cases UC-12 ; UC-24 ; UC-30.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Open issues: #355.
+- **REQ-HON-12**: The app shall do its best with the cameras where they are, and say how good each reading is.
+  - Status: built, not verified · to confirm; release v1; Must; use cases UC-4 ; UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+- **REQ-HON-13**: The app shall not grade what a reading cannot see.
+  - Status: partial; release v1; Must; use cases UC-21.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Open issues: #63.
+- **REQ-HON-14**: The app shall never let a stored field change meaning between releases without it being caught.
+  - Status: planned (#88); release v1; Must; use cases UC-2 ; UC-43.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Open issues: #88.
+- **REQ-HON-15**: The app shall show when a shot is still being analysed.
+  - Status: built, not verified · to confirm; release v1; Must; use cases UC-12 ; UC-19.
+  - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+
+## The flags
+
+Each flag is a kind of gap. A gap fails `rtm_check` unless it is an accepted gap (`rtm_accepted_gaps.txt`) or in the baseline (`rtm_baseline.txt`), which only shrinks.
+
+| Flag | What it means | Gaps | Accepted | Baseline | New |
+|---|---|---|---|---|---|
+| 1. rtm.md is stale | The page differs from what the inputs make now. It clears when python3 tools/method/make_rtm.py is run and rtm.md committed. | checked by `--check` | | | |
+| 2. An id cited anywhere does not exist, or is withdrawn | A test, an issue, uc-map.csv, an observation or a gap file names a requirement or control that does not exist, or was withdrawn. It clears when the citation is corrected. | 0 | 0 | 0 | 0 |
+| 3. A delivered, built or partial row without evidence of every kind it needs | A row requirements.md calls delivered, built or partial lacks a kind of evidence it needs. It clears when that evidence exists: a labelled test, or a passing observation in rtm_observations.csv. | 299 | 0 | 299 | 0 |
+| 4. A test with no requirement or control label | A test does not say what it proves. It clears with pp_requirement(&lt;test&gt; &lt;id&gt;...) beside its registration, or a // REQ: line in a tst_&#42;.qml file; a mechanical rename is make_rtm.py --rename &lt;old&gt; &lt;new&gt;; a test that proves neither is an accepted gap, approved by the Solution Architect. | 427 | 0 | 427 | 0 |
+| 5. An open enhancement with no Requirement: line, or one naming an unknown id | An open enhancement does not say which requirement it serves. It clears with a Requirement: line in the issue (an id, or "none"). | 66 | 0 | 66 | 0 |
+| 6. An open bug naming a delivered row: the row is failing | An open bug names a row requirements.md calls delivered, so the row is failing. It clears when the bug is closed, or no longer names the row. | 0 | 0 | 0 | 0 |
+| 7. A planned row whose issues are all closed | A planned row's issues are all closed. It clears when requirements.md's owner updates the status, or an issue is opened for what is left. | 0 | 0 | 0 | 0 |
+| 8. A row that needs a ruling change but is marked built or delivered | A row whose status says "proposed, for the Solution Architect" (it waits on a ruling change) is marked built or delivered. It clears when requirements.md drops that marker, or the status changes. | 0 | 0 | 0 | 0 |
+| 9. A test labelled for a requirement but in no platform's gate list | A test labelled for a requirement is in no platform's gate list. A commit that adds a labelled test retakes macos.txt until BT-25's release gate writes the lists: python3 tools/method/make_rtm.py --platform-list &lt;configured test tree&gt; macos. It clears when the test is in a gate list. | 0 | 0 | 0 | 0 |
+| 10. A hardware row never observed | A row that needs hardware has never been seen at the rig or in a corpus swing (E6). It clears with a passing observation at the rig, or a corpus swing. | 52 | 0 | 52 | 0 |
+| 11. The evidence supports a different status from requirements.md's | The evidence supports a different status from requirements.md's. It clears when requirements.md's owner changes the status: the matrix never does. | 0 | 0 | 0 | 0 |
+| 12. A row not delivered, with no open issue and no accepted gap | A row not delivered has no open issue and no accepted gap. It clears with an open issue, or an accepted gap. | 111 | 0 | 111 | 0 |
+| 13. A baseline line whose gap has closed | The baseline lists a gap that has closed. It clears when the line is taken out of rtm_baseline.txt, so the baseline only shrinks. | 0 | 0 | 0 | 0 |
+| warnings | Printed by every mode; they never fail the check. | 43 | | | |
 
 ## Warnings
 
 Printed by every mode; they never fail the check.
 
-- a proposed row with no issue: REQ-CAP-35
-- a proposed row with no issue: REQ-CAP-38
-- a proposed row with no issue: REQ-CAP-39
-- a proposed row with no issue: REQ-DEV-12
-- a proposed row with no issue: REQ-DEV-29
-- a proposed row with no issue: REQ-COACH-12
-- a proposed row with no issue: REQ-COACH-17
-- a proposed row with no issue: REQ-REV-29
-- a proposed row with no issue: REQ-REV-36
-- a proposed row with no issue: REQ-LIB-28
-- a proposed row with no issue: REQ-LIB-29
-- a proposed row with no issue: REQ-LIB-30
+- a proposed row with no issue: REQ-CAP-35 (The app shall warn before a session starts when the library's disk is nearly full.)
+- a proposed row with no issue: REQ-CAP-38 (When an import stops part-way, the app shall say which shots came …)
+- a proposed row with no issue: REQ-CAP-39 (At End, the app shall name a phone clip still on its …)
+- a proposed row with no issue: REQ-DEV-12 (The app shall clear a sensor's calibration, and tell the golfer, whenever …)
+- a proposed row with no issue: REQ-DEV-29 (The app shall let the user unpair a phone the studio no …)
+- a proposed row with no issue: REQ-COACH-12 (The app shall judge progress on what holds at the next visit …)
+- a proposed row with no issue: REQ-COACH-17 (The app shall let a coach keep the app's coaching reasoning off …)
+- a proposed row with no issue: REQ-REV-29 (The app shall export a clip of a swing with the coach's …)
+- a proposed row with no issue: REQ-REV-36 (When a report fails to send, the app shall say so and …)
+- a proposed row with no issue: REQ-LIB-28 (The app shall let the user keep a second copy of the …)
+- a proposed row with no issue: REQ-LIB-29 (The app shall let the user move the library to a new …)
+- a proposed row with no issue: REQ-LIB-30 (The app shall let the golfer or coach move shots recorded into …)
 - a design document no row cites: docs/design/aesthetic/pinpoint-aesthetic-concepts.md
 - a design document no row cites: docs/design/ball_detection_calibration.md
 - a design document no row cites: docs/design/ball_detection_v2_exemplar_explained.md
@@ -1092,361 +1155,14 @@ Printed by every mode; they never fail the check.
 - an open engineering issue with neither a Requirement: nor a Control: line: #222
 - an open engineering issue with neither a Requirement: nor a Control: line: #224
 
-## Requirements
-
-Status, Release and MoSCoW are the page's. **Supports** is the status the evidence supports: "delivered" when every kind the row needs is present (an open bug never lowers it: it shows as flag 6); "page" when it agrees with the page. Issues are every `#n` in the row's Status, Sources and Evidence and every issue whose Requirement: line names it.
-
-### Capture
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-CAP-1 | partial | v1 | Must | E4 E6 |  | E4 E6 | page |  |  |  | UC-12 |
-| REQ-CAP-2 | planned (#281, #79) | v1 | Could | E4 E6 |  | E4 E6 | page |  |  | #79 open, #281 open | UC-12 |
-| REQ-CAP-3 | partial · open bug #281 | v1 | Must | E4 E6 | E3 E6 | E4 | page |  | OBS-10 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-11 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-12 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-13 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-14 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-15 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-16 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-17 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-18 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-19 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-20 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-21 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-22 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-23 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-24 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-25 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-26 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-27 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-28 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-29 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-31 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-32 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-33 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-34 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-35 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-36 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-37 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-38 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-39 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-40 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-41 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-42 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-43 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-44 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-45 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-46 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-47 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-48 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-49 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-50 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-51 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-52 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-53 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-54 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-55 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-56 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-57 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-58 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-59 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-60 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-61 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-62 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-63 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-64 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-65 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-66 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-67 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-68 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-69 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-70 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-71 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-72 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-98 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-99 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-100 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-101 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-102 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-103 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-104 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-105 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-106 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-107 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-108 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-109 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-110 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-111 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-112 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-113 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-114 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-115 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-116 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb) | #281 open | UC-12 |
-| REQ-CAP-4 | built, not verified · to confirm | v1 | Must | E4 E6 |  | E4 E6 | page |  |  |  | UC-12 |
-| REQ-CAP-5 | partial · open bug #282 | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #282 open | UC-12 |
-| REQ-CAP-6 | partial · open bug #281 | v1 | Should | E4 E6 |  | E4 E6 | page |  |  | #281 open | UC-12 ; UC-13 |
-| REQ-CAP-7 | planned (platform refactor, Stage D) · ruling change approved: changes LC-SHOT once its wording is approved (GU-3) | v1 | Must | E4 E6 |  | E4 E6 | page |  |  |  | UC-12 |
-| REQ-CAP-8 | partial · open bug #281 | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #281 open | UC-12 |
-| REQ-CAP-9 | partial | v1 | Should | E4 E6 |  | E4 E6 | page |  |  |  | UC-12 ; UC-16 |
-| REQ-CAP-10 | built, not verified | v1 | Should | E4 E6 |  | E4 E6 | page |  |  |  | UC-12 |
-| REQ-CAP-11 | built, not verified | v1 | Must | E4 E6 |  | E4 E6 | page |  |  |  | UC-4 |
-| REQ-CAP-12 | planned (#75) | v1 | Should | E4 E6 |  | E4 E6 | page |  |  | #75 open | UC-12 ; UC-40 |
-| REQ-CAP-13 | built, not verified | v2 | Could | E4 E6 |  | E4 E6 | page |  |  |  | UC-12 |
-| REQ-CAP-14 | partial · to confirm | v1 | Must | E4 E6 |  | E4 E6 | page |  |  |  | UC-13 ; UC-15 |
-| REQ-CAP-15 | partial | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #75 open, #87 open | UC-12 |
-| REQ-CAP-16 | planned (#70, #67) | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #67 open, #70 open | UC-12 |
-| REQ-CAP-17 | partial | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #81 open, #238 open | UC-11 ; UC-14 |
-| REQ-CAP-18 | planned (#169) | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #169 open | UC-14 |
-| REQ-CAP-33 | built, not verified | v1 | Could | E4 E6 |  | E4 E6 | page |  |  |  | UC-11 ; UC-14 |
-| REQ-CAP-20 | partial | v1 | Could | E4 E6 |  | E4 E6 | page |  |  | #328 open | UC-11 ; UC-29 |
-| REQ-CAP-21 | built, not verified | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #283 closed | UC-11 |
-| REQ-CAP-22 | partial · open bug #280 | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #280 open | UC-16 |
-| REQ-CAP-23 | built, not verified | v1 | Could | E4 E6 |  | E4 E6 | page |  |  |  | UC-11 |
-| REQ-CAP-24 | planned (#78) | v2 | Should | E4 E6 |  | E4 E6 | page |  |  | #78 open | UC-5 ; UC-13 |
-| REQ-CAP-25 | planned (#78) | v2 | Should | E4 E6 |  | E4 E6 | page |  |  | #78 open | UC-13 ; UC-16 |
-| REQ-CAP-26 | built, not verified · to confirm | v1 | Could | E4 E6 |  | E4 E6 | page |  |  |  | UC-13 |
-| REQ-CAP-27 | partial | v1 | Could | E4 E6 |  | E4 E6 | page |  |  | #79 open | UC-5 |
-| REQ-CAP-28 | partial | v1 | Could | E4 E6 |  | E4 E6 | page |  |  | #79 open | UC-5 |
-| REQ-CAP-29 | built, not verified | v1 | Could | E4 E6 |  | E4 E6 | page |  |  |  | UC-17 |
-| REQ-CAP-34 | partial | v1 | Could | E4 E6 |  | E4 E6 | page |  |  | #329 open | UC-5 |
-| REQ-CAP-35 | proposed · to confirm | v1 | Could | E4 E6 |  | E4 E6 | page |  |  |  | UC-11 |
-| REQ-CAP-36 | won't have | never |  | E4 E6 |  | E4 E6 | page |  |  |  | UC-12 |
-| REQ-CAP-37 | built, not verified · to confirm | v1 | Should | E4 E6 |  | E4 E6 | page |  |  |  | UC-15 |
-| REQ-CAP-38 | proposed · to confirm | v2 | Could | E4 E6 |  | E4 E6 | page |  |  |  | UC-17 |
-| REQ-CAP-39 | proposed · to confirm | v2 | Could | E4 E6 |  | E4 E6 | page |  |  |  | UC-16 |
-| REQ-CAP-30 | proposed | v2 | Could | E4 E6 |  | E4 E6 | page |  |  | #330 open | UC-30 |
-| REQ-CAP-31 | proposed · its model change is approved with its design: a new fact on the session, its coaching modality (IM C2/C3) | v2 | Should | E4 E6 |  | E4 E6 | page |  |  | #328 open | UC-11 ; UC-30 |
-| REQ-CAP-32 | planned (#180) | v2 | Must | E4 E6 |  | E4 E6 | page |  |  | #180 open | UC-4 |
-
-### Devices and calibration
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-DEV-1 | built, not verified | v1 | Must | E4 E6 | E1 E3 E6 | E4 | page | `perspective_test` | OBS-10 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-11 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-12 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-13 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-14 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-15 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-16 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-17 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-18 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-19 E3 pass 197eacc Windows 11 25H2 app 0.1.10006 (a corpus swing: E3 and E6, captured on build 197eacc), OBS-20 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-21 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-22 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-23 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-24 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-25 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-26 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-27 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-28 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-29 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-31 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-32 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-33 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-34 E3 pass bf4348d Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build bf4348d), OBS-35 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-36 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-37 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-38 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-39 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-40 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-41 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-42 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-43 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-44 E3 pass cb5c646 Windows 11 25H2 app 0.1.10007 (a corpus swing: E3 and E6, captured on build cb5c646), OBS-45 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-46 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-47 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-48 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-49 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-50 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-51 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-52 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-53 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-54 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-55 E3 pass aaf7bb0 Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-56 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-57 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-58 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-59 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-60 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-61 E3 pass 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-62 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-63 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-64 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-65 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-66 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-67 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-68 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-69 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-70 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-71 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-72 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-98 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-99 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-100 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-101 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-102 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-103 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-104 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-105 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-106 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-107 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-108 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-109 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-110 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-111 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-112 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-113 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-114 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-115 E3 pass d5420a1 Windows 11 25H2 app 0.1.10026 (a corpus swing: E3 and E6, captured on build d5420a1), OBS-116 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb) |  | UC-4 |
-| REQ-DEV-2 | partial · open bug #183 | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #75 open, #183 open | UC-4 |
-| REQ-DEV-3 | partial | v1 | Should | E4 E6 |  | E4 E6 | page |  |  | #75 open | UC-4 |
-| REQ-DEV-4 | planned (#75) | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #75 open | UC-12 |
-| REQ-DEV-5 | built, not verified | v1 | Must | E4 E6 | E3 E6 | E4 | page |  | OBS-73 E3 pass unknown (a corpus swing: E3 and E6), OBS-74 E3 pass unknown (a corpus swing: E3 and E6), OBS-75 E3 pass unknown (a corpus swing: E3 and E6), OBS-76 E3 pass unknown (a corpus swing: E3 and E6), OBS-77 E3 pass unknown (a corpus swing: E3 and E6), OBS-78 E3 pass unknown (a corpus swing: E3 and E6), OBS-79 E3 pass unknown (a corpus swing: E3 and E6), OBS-80 E3 pass unknown (a corpus swing: E3 and E6), OBS-81 E3 pass unknown (a corpus swing: E3 and E6), OBS-82 E3 pass unknown (a corpus swing: E3 and E6), OBS-83 E3 pass unknown (a corpus swing: E3 and E6), OBS-84 E3 pass unknown (a corpus swing: E3 and E6), OBS-85 E3 pass unknown (a corpus swing: E3 and E6), OBS-86 E3 pass unknown (a corpus swing: E3 and E6), OBS-87 E3 pass unknown (a corpus swing: E3 and E6), OBS-88 E3 pass unknown (a corpus swing: E3 and E6), OBS-89 E3 pass unknown (a corpus swing: E3 and E6), OBS-90 E3 pass unknown (a corpus swing: E3 and E6), OBS-91 E3 pass unknown (a corpus swing: E3 and E6), OBS-92 E3 pass unknown (a corpus swing: E3 and E6), OBS-93 E3 pass unknown (a corpus swing: E3 and E6), OBS-94 E3 pass unknown (a corpus swing: E3 and E6), OBS-95 E3 pass unknown (a corpus swing: E3 and E6), OBS-96 E3 pass unknown (a corpus swing: E3 and E6), OBS-97 E3 pass unknown (a corpus swing: E3 and E6), OBS-98 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-99 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-100 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-101 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-102 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-103 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-104 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-105 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-106 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-107 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-108 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-116 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb) |  | UC-6 |
-| REQ-DEV-6 | planned (#80) | later |  | E4 E6 |  | E4 E6 | page |  |  | #80 open | UC-6 |
-| REQ-DEV-7 | built, not verified · to confirm | v1 | Could | E4 E6 |  | E4 E6 | page |  |  | #109 open | UC-6 |
-| REQ-DEV-8 | planned (#85) | v2 | Could | E4 E6 |  | E4 E6 | page |  |  | #85 open | UC-6 |
-| REQ-DEV-9 | planned (#85) | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #85 open | UC-6 |
-| REQ-DEV-10 | partial | v1 | Could | E4 E6 |  | E4 E6 | page |  |  | #266 open | UC-7 |
-| REQ-DEV-11 | partial | v1 | Could | E4 E6 |  | E4 E6 | page |  |  | #106 open | UC-7 |
-| REQ-DEV-12 | proposed · ruling change approved: GU-17 and GU-27 are adopted, which changes the Rig design §4.2 (PR-35) and adds an R-RIG rule | v1 | Should | E4 E6 |  | E4 E6 | page |  |  |  | UC-7 ; UC-15 |
-| REQ-DEV-13 | planned (#108) | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #108 open | UC-6 |
-| REQ-DEV-14 | partial · to confirm | v1 | Could | E4 E6 |  | E4 E6 | page |  |  |  | UC-7 |
-| REQ-DEV-15 | planned (#74, #76) | v2 | Must | E4 E6 |  | E4 E6 | page |  |  | #74 open, #76 open | UC-8 |
-| REQ-DEV-16 | planned (#74) | v2 | Must | E4 E6 |  | E4 E6 | page |  |  | #74 open | UC-8 ; UC-11 |
-| REQ-DEV-17 | planned (#74) | v2 | Must | E4 E6 | E1 | E4 E6 | page | `rig_state_test` |  | #74 open | UC-8 ; UC-18 |
-| REQ-DEV-18 | planned (#74) | v2 | Should | E4 E6 |  | E4 E6 | page |  |  | #74 open | UC-4 |
-| REQ-DEV-20 | planned (platform refactor, Stage C) | v1 | Should | E4 E6 |  | E4 E6 | page |  |  |  | UC-8 |
-| REQ-DEV-21 | built, not verified | v1 | Should | E4 E6 |  | E4 E6 | page |  |  | #85 open | UC-11 |
-| REQ-DEV-22 | proposed | v2 | Could | E4 E6 |  | E4 E6 | page |  |  | #328 open | UC-11 |
-| REQ-DEV-23 | built, not verified · to confirm | v1 | Should | E4 E6 |  | E4 E6 | page |  |  | #75 open | UC-4 |
-| REQ-DEV-24 | partial | v1 | Must | E4 E6 | E3 E6 | E4 | page |  | OBS-10 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-11 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-12 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-13 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-14 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-15 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-16 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-17 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-18 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-19 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-20 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-21 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-22 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-23 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-24 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-25 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-26 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-27 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-28 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-29 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-31 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-32 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-33 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-34 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-35 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-36 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-37 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-38 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-39 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-40 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-41 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-42 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-43 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-44 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-45 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-46 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-47 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-48 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-49 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-50 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-51 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-52 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-53 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-54 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-55 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-56 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-57 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-58 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-59 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-60 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-61 E3 fail 84b18ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-62 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-63 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-64 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-65 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-66 E3 pass 15336ed Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 15336ed), OBS-67 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-68 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-69 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-70 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-71 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-72 E3 pass 2ad418d Windows 11 25H2 app 0.1.10008 (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-98 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-99 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-100 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-101 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-102 E3 pass 7e0a1b1 Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-103 E3 fail b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-104 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-105 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-106 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-107 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-108 E3 pass b5ec45b Windows 11 25H2 app 0.1.10011 (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-109 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-110 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-111 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-112 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-113 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-114 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-115 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-116 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass f3b405cb Windows 11 25H2 app 0.1.10030 (a corpus swing: E3 and E6, captured on build f3b405cb) | #77 open | UC-12 |
-| REQ-DEV-25 | built, not verified | v1 | Could | E4 E6 |  | E4 E6 | page |  |  |  | UC-10 |
-| REQ-DEV-26 | built, not verified | v1 | Should | E4 E6 |  | E4 E6 | page |  |  |  | UC-10 ; UC-11 |
-| REQ-DEV-28 | built, not verified · to confirm | v1 | Should | E4 E6 |  | E4 E6 | page |  |  |  | UC-6 ; UC-9 |
-| REQ-DEV-29 | proposed · to confirm | v1 | Should | E4 E6 |  | E4 E6 | page |  |  |  | UC-5 |
-| REQ-DEV-30 | proposed · to confirm | v1 | Must | E4 E6 |  | E4 E6 | page |  |  | #352 open | UC-8 |
-
-### Analysis and metrics
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-ANA-1 | built, not verified | v1 | Must | E1 E3 |  | E1 E3 | page |  |  |  | UC-12 ; UC-17 |
-| REQ-ANA-2 | partial | v1 | Should | E1 E3 |  | E1 E3 | page |  |  | #73 open, #89 open, #273 open | UC-17 ; UC-43 |
-| REQ-ANA-3 | partial | v1 | Must | E1 E3 |  | E1 E3 | page |  | OBS-1 E3 fail unknown (a corpus swing: E3 and E6), OBS-2 E3 fail unknown (a corpus swing: E3 and E6), OBS-3 E3 fail unknown (a corpus swing: E3 and E6), OBS-4 E3 fail unknown (a corpus swing: E3 and E6), OBS-5 E3 fail unknown (a corpus swing: E3 and E6), OBS-6 E3 fail unknown (a corpus swing: E3 and E6), OBS-7 E3 fail unknown (a corpus swing: E3 and E6), OBS-8 E3 fail unknown (a corpus swing: E3 and E6), OBS-9 E3 fail unknown (a corpus swing: E3 and E6), OBS-10 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-11 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-12 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-13 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-14 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-15 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-16 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-17 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-18 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-19 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-20 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-21 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-22 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-23 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-24 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-25 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-26 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-27 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-28 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-29 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-31 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-32 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-33 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-34 E3 fail unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-35 E3 fail unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-36 E3 fail unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-37 E3 fail unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-38 E3 fail unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-39 E3 fail unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-40 E3 fail unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-41 E3 fail unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-42 E3 fail unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-43 E3 fail unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-44 E3 fail unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-45 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-46 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-47 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-48 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-49 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-50 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-51 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-52 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-53 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-54 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-55 E3 fail unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-56 E3 fail unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-57 E3 fail unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-58 E3 fail unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-59 E3 fail unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-60 E3 fail unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-61 E3 fail unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-62 E3 fail unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-63 E3 fail unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-64 E3 fail unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-65 E3 fail unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-66 E3 fail unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-67 E3 fail unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-68 E3 fail unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-69 E3 fail unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-70 E3 fail unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-71 E3 fail unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-72 E3 fail unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-98 E3 fail unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-99 E3 fail unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-100 E3 fail unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-101 E3 fail unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-102 E3 fail unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-103 E3 fail unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-104 E3 fail unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-105 E3 fail unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-106 E3 fail unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-107 E3 fail unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-108 E3 fail unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-109 E3 fail unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-110 E3 fail unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-111 E3 fail unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-112 E3 fail unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-113 E3 fail unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-114 E3 fail unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-115 E3 fail unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-116 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb) | #70 open, #181 open | UC-20 |
-| REQ-ANA-4 | proposed · to confirm | v1 | Could | E1 E3 |  | E1 E3 | page |  |  | #331 open | UC-20 |
-| REQ-ANA-5 | built, not verified | v1 | Must | E1 E3 | E3 E6 | E1 | page |  | OBS-1 E3 pass unknown (a corpus swing: E3 and E6), OBS-2 E3 pass unknown (a corpus swing: E3 and E6), OBS-3 E3 pass unknown (a corpus swing: E3 and E6), OBS-4 E3 pass unknown (a corpus swing: E3 and E6), OBS-5 E3 pass unknown (a corpus swing: E3 and E6), OBS-6 E3 pass unknown (a corpus swing: E3 and E6), OBS-7 E3 pass unknown (a corpus swing: E3 and E6), OBS-8 E3 pass unknown (a corpus swing: E3 and E6), OBS-9 E3 pass unknown (a corpus swing: E3 and E6), OBS-10 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-11 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-12 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-13 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-14 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-15 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-16 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-17 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-18 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-19 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-20 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-21 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-22 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-23 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-24 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-25 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-26 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-27 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-28 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-29 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-31 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-32 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-33 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-34 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-35 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-36 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-37 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-38 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-39 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-40 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-41 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-42 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-43 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-44 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-45 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-46 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-47 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-48 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-49 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-50 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-51 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-52 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-53 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-54 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-55 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-56 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-57 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-58 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-59 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-60 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-61 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-62 E3 pass unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-63 E3 pass unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-64 E3 pass unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-65 E3 pass unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-66 E3 pass unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-67 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-68 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-69 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-70 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-71 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-72 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-98 E3 pass unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-99 E3 pass unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-100 E3 pass unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-101 E3 pass unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-102 E3 pass unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-103 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-104 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-105 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-106 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-107 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-108 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-109 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-110 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-111 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-112 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-113 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-114 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-115 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-116 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb) |  | UC-20 |
-| REQ-ANA-6 | built, not verified | v1 | Must | E1 E3 |  | E1 E3 | page |  |  | #69 open | UC-20 |
-| REQ-ANA-7 | partial | v1 | Must | E1 E3 |  | E1 E3 | page |  |  | #68 open | UC-20 |
-| REQ-ANA-8 | built, not verified | v1 | Should | E1 E3 | E3 E6 | E1 | page |  | OBS-1 E3 pass unknown (a corpus swing: E3 and E6), OBS-2 E3 pass unknown (a corpus swing: E3 and E6), OBS-3 E3 pass unknown (a corpus swing: E3 and E6), OBS-4 E3 pass unknown (a corpus swing: E3 and E6), OBS-5 E3 pass unknown (a corpus swing: E3 and E6), OBS-6 E3 pass unknown (a corpus swing: E3 and E6), OBS-7 E3 pass unknown (a corpus swing: E3 and E6), OBS-8 E3 pass unknown (a corpus swing: E3 and E6), OBS-9 E3 pass unknown (a corpus swing: E3 and E6), OBS-10 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-11 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-12 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-13 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-14 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-15 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-16 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-17 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-18 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-19 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-20 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-21 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-22 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-23 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-24 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-25 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-26 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-27 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-28 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-29 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-31 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-32 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-33 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-34 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-116 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb) |  | UC-20 |
-| REQ-ANA-9 | partial | v2 | Must | E1 E3 |  | E1 E3 | page |  |  | #67 open, #126 open | UC-20 |
-| REQ-ANA-10 | planned (#230, #239) | v1 | Could | E1 E3 |  | E1 E3 | page |  |  | #230 open, #239 open | UC-21 |
-| REQ-ANA-11 | planned (#229, #67, #76) | v2 | Should | E1 E3 |  | E1 E3 | page |  |  | #67 open, #76 open, #229 open | UC-20 |
-| REQ-ANA-12 | built, not verified | v1 | Must | E1 E3 |  | E1 E3 | page |  |  |  | UC-20 |
-| REQ-ANA-13 | built, not verified | v1 | Should | E1 E3 |  | E1 E3 | page |  | OBS-147 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb) |  | UC-20 |
-| REQ-ANA-14 | built, not verified | v1 | Should | E1 E3 | E3 E6 | E1 | page |  | OBS-1 E3 pass unknown (a corpus swing: E3 and E6), OBS-2 E3 pass unknown (a corpus swing: E3 and E6), OBS-3 E3 pass unknown (a corpus swing: E3 and E6), OBS-4 E3 pass unknown (a corpus swing: E3 and E6), OBS-5 E3 pass unknown (a corpus swing: E3 and E6), OBS-6 E3 pass unknown (a corpus swing: E3 and E6), OBS-7 E3 pass unknown (a corpus swing: E3 and E6), OBS-8 E3 pass unknown (a corpus swing: E3 and E6), OBS-9 E3 pass unknown (a corpus swing: E3 and E6), OBS-10 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-11 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-12 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-13 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-14 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-15 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-16 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-17 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-18 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-19 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-20 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-21 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-22 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-23 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-24 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-25 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-26 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-27 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-28 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-29 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-31 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-32 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-33 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-34 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-116 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb) |  | UC-20 |
-| REQ-ANA-15 | partial | v1 | Should | E1 E3 | E3 E6 | E1 | page |  | OBS-1 E3 pass unknown (a corpus swing: E3 and E6), OBS-2 E3 pass unknown (a corpus swing: E3 and E6), OBS-3 E3 pass unknown (a corpus swing: E3 and E6), OBS-4 E3 pass unknown (a corpus swing: E3 and E6), OBS-5 E3 pass unknown (a corpus swing: E3 and E6), OBS-6 E3 pass unknown (a corpus swing: E3 and E6), OBS-7 E3 pass unknown (a corpus swing: E3 and E6), OBS-8 E3 pass unknown (a corpus swing: E3 and E6), OBS-9 E3 pass unknown (a corpus swing: E3 and E6), OBS-10 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-11 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-12 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-13 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-14 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-15 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-16 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-17 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-18 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-19 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-20 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-21 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-22 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-23 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-24 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-25 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-26 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-27 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-28 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-29 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-31 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-32 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-33 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-34 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-116 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb) | #93 open, #96 open | UC-20 |
-| REQ-ANA-16 | partial | v1 | Should | E1 E3 |  | E1 E3 | page |  |  | #331 open | UC-8 ; UC-20 |
-| REQ-ANA-17 | built, not verified | v1 | Should | E1 E3 |  | E1 E3 | page |  |  |  | UC-20 |
-| REQ-ANA-18 | built, not verified | v1 | Should | E1 E3 | E3 E6 | E1 | page |  | OBS-1 E3 pass unknown (a corpus swing: E3 and E6), OBS-2 E3 pass unknown (a corpus swing: E3 and E6), OBS-3 E3 pass unknown (a corpus swing: E3 and E6), OBS-4 E3 pass unknown (a corpus swing: E3 and E6), OBS-5 E3 pass unknown (a corpus swing: E3 and E6), OBS-6 E3 pass unknown (a corpus swing: E3 and E6), OBS-7 E3 pass unknown (a corpus swing: E3 and E6), OBS-8 E3 pass unknown (a corpus swing: E3 and E6), OBS-9 E3 pass unknown (a corpus swing: E3 and E6), OBS-10 E3 fail unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-11 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-12 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-13 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-14 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-15 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-16 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-17 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-18 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-19 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-20 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-21 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-22 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-23 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-24 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-25 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-26 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-27 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-28 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-29 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-31 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-32 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-33 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-34 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-116 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 fail unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb) |  | UC-20 |
-| REQ-ANA-19 | planned (#178) | v2 | Should | E1 E3 |  | E1 E3 | page |  |  | #178 open | UC-20 |
-| REQ-ANA-20 | built, not verified | v1 | Should | E1 E3 | E3 E6 | E1 | page |  | OBS-1 E3 pass unknown (a corpus swing: E3 and E6), OBS-2 E3 pass unknown (a corpus swing: E3 and E6), OBS-3 E3 pass unknown (a corpus swing: E3 and E6), OBS-19 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-22 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-116 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb) |  | UC-20 |
-| REQ-ANA-21 | partial | v1 | Should | E1 E3 |  | E1 E3 | page |  |  | #73 open | UC-20 |
-| REQ-ANA-35 | proposed | v2 | Could | E1 E3 |  | E1 E3 | page |  |  | #331 open | UC-20 |
-| REQ-ANA-22 | built, not verified | v1 | Could | E1 E3 |  | E1 E3 | page |  |  |  | UC-20 |
-| REQ-ANA-36 | built, not verified | v1 | Could | E1 E3 | E3 E6 | E1 | page |  | OBS-1 E3 pass unknown (a corpus swing: E3 and E6), OBS-2 E3 pass unknown (a corpus swing: E3 and E6), OBS-3 E3 pass unknown (a corpus swing: E3 and E6), OBS-4 E3 pass unknown (a corpus swing: E3 and E6), OBS-5 E3 pass unknown (a corpus swing: E3 and E6), OBS-6 E3 pass unknown (a corpus swing: E3 and E6), OBS-7 E3 pass unknown (a corpus swing: E3 and E6), OBS-8 E3 pass unknown (a corpus swing: E3 and E6), OBS-9 E3 pass unknown (a corpus swing: E3 and E6), OBS-10 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-11 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-12 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-13 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-14 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-15 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-16 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-17 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-18 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-19 E3 pass unknown (a corpus swing: E3 and E6, captured on build 197eacc), OBS-20 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-21 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-22 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-23 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-24 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-25 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-26 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-27 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-28 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-29 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-30 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-31 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-32 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-33 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-34 E3 pass unknown (a corpus swing: E3 and E6, captured on build bf4348d), OBS-35 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-36 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-37 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-38 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-39 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-40 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-41 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-42 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-43 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-44 E3 pass unknown (a corpus swing: E3 and E6, captured on build cb5c646), OBS-45 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-46 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-47 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-48 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-49 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-50 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-51 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-52 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-53 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-54 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-55 E3 pass unknown (a corpus swing: E3 and E6, captured on build aaf7bb0), OBS-56 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-57 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-58 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-59 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-60 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-61 E3 pass unknown (a corpus swing: E3 and E6, captured on build 84b18ed), OBS-62 E3 pass unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-63 E3 pass unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-64 E3 pass unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-65 E3 pass unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-66 E3 pass unknown (a corpus swing: E3 and E6, captured on build 15336ed), OBS-67 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-68 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-69 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-70 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-71 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-72 E3 pass unknown (a corpus swing: E3 and E6, captured on build 2ad418d), OBS-98 E3 pass unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-99 E3 pass unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-100 E3 pass unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-101 E3 pass unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-102 E3 pass unknown (a corpus swing: E3 and E6, captured on build 7e0a1b1), OBS-103 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-104 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-105 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-106 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-107 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-108 E3 pass unknown (a corpus swing: E3 and E6, captured on build b5ec45b), OBS-109 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-110 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-111 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-112 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-113 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-114 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-115 E3 pass unknown (a corpus swing: E3 and E6, captured on build d5420a1), OBS-116 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-117 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-118 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-119 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-120 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-121 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-122 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-123 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-124 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-125 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-126 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-127 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-128 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-129 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-130 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-131 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-132 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-133 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-134 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-135 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-136 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-137 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-138 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-139 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-140 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-141 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-142 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-143 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-144 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-145 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-146 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-147 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-148 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-149 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-150 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-151 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-152 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-153 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-154 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-155 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-156 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-157 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-158 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-159 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-160 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-161 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-162 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-163 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb), OBS-164 E3 pass unknown (a corpus swing: E3 and E6, captured on build f3b405cb) |  | UC-20 |
-| REQ-ANA-23 | planned (#64) | v2 | Must | E1 E3 |  | E1 E3 | page |  |  | #64 open | UC-20 |
-| REQ-ANA-24 | partial | v2 | Could | E1 E3 |  | E1 E3 | page |  |  | #72 open, #109 open | UC-20 |
-| REQ-ANA-25 | planned (#72) | later |  | E1 E3 |  | E1 E3 | page |  |  | #72 open | UC-20 |
-| REQ-ANA-26 | planned (#77) | v2 | Should | E1 E3 |  | E1 E3 | page |  |  | #77 open | UC-20 |
-| REQ-ANA-27 | planned (#87) | v2 | Must | E1 E3 |  | E1 E3 | page |  |  | #87 open | UC-20 ; UC-45 |
-| REQ-ANA-28 | planned (#87) | v2 | Could | E1 E3 |  | E1 E3 | page |  |  | #87 open | UC-20 |
-| REQ-ANA-29 | built, not verified | v1 | Should | E1 E3 |  | E1 E3 | page |  |  | #237 open | UC-22 |
-| REQ-ANA-30 | partial | v1 | Could | E1 E3 |  | E1 E3 | page |  |  | #80 open | UC-22 |
-| REQ-ANA-31 | partial | v1 | Should | E1 E3 |  | E1 E3 | page |  |  | #332 open | UC-43 |
-| REQ-ANA-32 | partial | v1 | Must | E1 E3 |  | E1 E3 | page |  |  |  | UC-43 |
-| REQ-ANA-33 | planned (#84, #236, #76) | v2 | Must | E1 E3 |  | E1 E3 | page |  |  | #76 open, #84 open, #236 open | UC-20 |
-
-### Diagnostics
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-DIAG-1 | partial | v1 | Must | E1 E3 |  | E1 E3 | page |  |  | #63 open | UC-20 |
-| REQ-DIAG-2 | partial · to confirm | v1 | Should | E1 E3 |  | E1 E3 | page |  |  | #65 open | UC-20 |
-| REQ-DIAG-3 | built, not verified | v1 | Must | E1 E3 |  | E1 E3 | page |  |  |  | UC-24 |
-| REQ-DIAG-22 | partial | v1 | Must | E1 E3 |  | E1 E3 | page |  |  | #63 open | UC-24 |
-| REQ-DIAG-23 | built, not verified | v1 | Should | E1 E3 |  | E1 E3 | page |  |  |  | UC-24 |
-| REQ-DIAG-4 | built, not verified | v1 | Must | E1 E3 |  | E1 E3 | page |  |  |  | UC-24 |
-| REQ-DIAG-5 | built, not verified | v1 | Should | E1 E3 |  | E1 E3 | page |  |  |  | UC-22 |
-| REQ-DIAG-6 | built, not verified | v1 | Could | E1 E3 |  | E1 E3 | page |  |  |  | UC-24 ; UC-27 |
-| REQ-DIAG-7 | partial | v1 | Must | E1 E3 |  | E1 E3 | page |  |  | #177 open | UC-21 |
-| REQ-DIAG-8 | built, not verified | v1 | Should | E1 E3 |  | E1 E3 | page |  |  |  | UC-44 |
-| REQ-DIAG-9 | built, not verified | v1 | Could | E1 E3 |  | E1 E3 | page |  |  |  | UC-44 |
-| REQ-DIAG-10 | partial · to confirm | v1 | Must | E1 E3 |  | E1 E3 | page |  |  | #63 open, #64 open | UC-24 |
-| REQ-DIAG-11 | partial | v2 | Should | E1 E3 |  | E1 E3 | page |  |  | #63 open | UC-24 ; UC-44 |
-| REQ-DIAG-12 | partial · to confirm | v1 | Must | E1 E3 |  | E1 E3 | page |  |  | #63 open | UC-24 ; UC-44 |
-| REQ-DIAG-13 | planned (#66) · its model change is approved with its design: a new golfer fact (IM C1–C3) | v2 | Could | E1 E3 |  | E1 E3 | page |  |  | #66 open | UC-25 |
-| REQ-DIAG-14 | partial | v1 | Must | E1 E3 |  | E1 E3 | page |  |  | #65 open | UC-12 ; UC-16 ; UC-24 |
-| REQ-DIAG-15 | partial | v1 | Must | E1 E3 |  | E1 E3 | page |  |  | #65 open | UC-16 ; UC-21 |
-| REQ-DIAG-16 | partial | v2 | Should | E1 E3 |  | E1 E3 | page |  |  | #333 open | UC-22 |
-| REQ-DIAG-17 | built, not verified | v1 | Must | E1 E3 |  | E1 E3 | page |  |  |  | UC-20 |
-| REQ-DIAG-18 | partial | v2 | Should | E1 E3 |  | E1 E3 | page |  |  | #73 open | UC-20 |
-| REQ-DIAG-19 | planned (#237) | v1 | Must | E1 E3 |  | E1 E3 | page |  |  | #237 open | UC-22 |
-| REQ-DIAG-20 | partial | v2 | Should | E1 E3 |  | E1 E3 | page |  |  | #179 open | UC-24 |
-| REQ-DIAG-21 | partial | v1 | Could | E1 E3 |  | E1 E3 | page |  |  | #194 open | UC-24 |
-| REQ-DIAG-24 | built, not verified | v1 | Should | E1 E3 |  | E1 E3 | page |  |  |  | UC-24 |
-
-### Coaching and priorities
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-COACH-1 | built, not verified | v1 | Should | E3 |  | E3 | page |  |  |  | UC-25 |
-| REQ-COACH-2 | planned (#182) | v2 | Should | E3 |  | E3 | page |  |  | #182 open | UC-25 |
-| REQ-COACH-3 | built, not verified | v1 | Could | E3 |  | E3 | page |  |  |  | UC-27 |
-| REQ-COACH-4 | planned (#65, #83) | v2 | Should | E3 |  | E3 | page |  |  | #65 open, #83 open | UC-25 ; UC-29 |
-| REQ-COACH-5 | built, not verified | v1 | Could | E3 |  | E3 | page |  |  |  | UC-26 |
-| REQ-COACH-6 | partial | v2 | Could | E3 |  | E3 | page |  |  | #334 open | UC-26 |
-| REQ-COACH-7 | proposed | v2 | Could | E3 |  | E3 | page |  |  | #335 open | UC-26 |
-| REQ-COACH-8 | proposed | v2 | Could | E3 |  | E3 | page |  |  | #335 open | UC-26 |
-| REQ-COACH-9 | built, not verified | v1 | Could | E3 |  | E3 | page |  |  |  | UC-24 |
-| REQ-COACH-10 | planned (#66) · its model change is approved with its design: a new domain object, the lesson (IM C1) | v2 | Must | E3 |  | E3 | page |  |  | #66 open, #335 open | UC-28 |
-| REQ-COACH-11 | proposed | v2 | Could | E3 |  | E3 | page |  |  | #335 open | UC-29 |
-| REQ-COACH-12 | proposed | v2 | Could | E3 |  | E3 | page |  |  |  | UC-27 |
-| REQ-COACH-13 | proposed · its model change is approved with its design: a new golfer fact, the override record (IM C2/C3) | v2 | Should | E3 |  | E3 | page |  |  | #335 open | UC-25 ; UC-28 |
-| REQ-COACH-14 | proposed | later |  | E3 |  | E3 | page |  |  | #335 open | UC-29 |
-| REQ-COACH-15 | proposed | later |  | E3 |  | E3 | page |  |  | #335 open | UC-29 |
-| REQ-COACH-16 | partial | v1 | Could | E3 |  | E3 | page |  |  | #81 open | UC-25 |
-| REQ-COACH-23 | partial | v1 | Could | E3 |  | E3 | page |  |  |  | UC-25 |
-| REQ-COACH-17 | proposed | v2 | Should | E3 |  | E3 | page |  |  |  | UC-25 ; UC-28 |
-| REQ-COACH-18 | proposed · its model change is approved with its design: a new golfer fact, a temporary fix (IM C2/C3) | later |  | E3 |  | E3 | page |  |  | #335 open | UC-31 |
-| REQ-COACH-19 | proposed · its model change is approved with its design: a new object, the review package (IM C1) | later |  | E3 |  | E3 | page |  |  | #335 open, #347 open | UC-34 |
-| REQ-COACH-20 | proposed | later |  | E3 |  | E3 | page |  |  | #335 open | UC-30 |
-| REQ-COACH-21 | partial | v1 | Should | E3 |  | E3 | page |  |  |  | UC-25 ; UC-28 ; UC-32 |
-| REQ-COACH-22 | partial · to confirm | v2 | Should | E3 |  | E3 | page |  |  | #336 open | UC-25 |
-
-### Review, replay and reports
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-REV-1 | built, not verified | v1 | Must | E4 |  | E4 | page |  |  |  | UC-19 |
-| REQ-REV-2 | built, not verified | v1 | Should | E4 |  | E4 | page |  |  |  | UC-19 |
-| REQ-REV-3 | partial | v1 | Could | E4 |  | E4 | page |  |  | #83 open | UC-19 |
-| REQ-REV-4 | partial | v1 | Must | E4 |  | E4 | page |  |  | #83 open | UC-19 |
-| REQ-REV-5 | built, not verified | v1 | Should | E4 |  | E4 | page |  |  |  | UC-23 |
-| REQ-REV-6 | built, not verified | v1 | Could | E4 |  | E4 | page |  |  |  | UC-23 |
-| REQ-REV-7 | proposed | v2 | Should | E4 |  | E4 | page |  |  | #337 open | UC-23 |
-| REQ-REV-8 | proposed | v2 | Could | E4 |  | E4 | page |  |  | #337 open | UC-23 |
-| REQ-REV-9 | built, not verified | v1 | Could | E4 |  | E4 | page |  |  |  | UC-23 |
-| REQ-REV-10 | built, not verified | v1 | Could | E4 |  | E4 | page |  |  |  | UC-23 |
-| REQ-REV-11 | partial | v1 | Should | E4 |  | E4 | page |  |  | #80 open | UC-24 |
-| REQ-REV-12 | partial | v1 | Must | E4 |  | E4 | page |  |  | #65 open | UC-24 |
-| REQ-REV-13 | partial | v1 | Could | E4 |  | E4 | page |  |  | #61 open | UC-32 |
-| REQ-REV-14 | partial | v2 | Should | E4 |  | E4 | page |  |  | #61 open | UC-32 |
-| REQ-REV-32 | built, not verified | v1 | Could | E4 |  | E4 | page |  |  |  | UC-9 ; UC-32 |
-| REQ-REV-15 | planned (#98) | v2 | Could | E4 |  | E4 | page |  |  | #98 open | UC-32 |
-| REQ-REV-16 | planned (#82) | v2 | Could | E4 |  | E4 | page |  |  | #82 open | UC-33 |
-| REQ-REV-17 | planned (#61) | v2 | Should | E4 |  | E4 | page |  |  | #61 open | UC-32 |
-| REQ-REV-18 | partial | v1 | Should | E4 |  | E4 | page |  |  | #81 open | UC-19 |
-| REQ-REV-19 | built, not verified | v1 | Could | E4 |  | E4 | page |  |  |  | UC-20 |
-| REQ-REV-20 | partial | v1 | Could | E4 |  | E4 | page |  |  | #97 open | UC-23 |
-| REQ-REV-21 | partial | v1 | Could | E4 |  | E4 | page |  |  | #96 open | UC-23 |
-| REQ-REV-22 | partial | v1 | Should | E4 |  | E4 | page |  |  | #117 open | UC-23 |
-| REQ-REV-23 | built, not verified | v1 | Should | E4 |  | E4 | page |  |  |  | UC-23 ; UC-24 |
-| REQ-REV-24 | built, not verified | v1 | Could | E4 |  | E4 | page |  |  | #71 open | UC-19 |
-| REQ-REV-33 | planned (#73) | v2 | Could | E4 |  | E4 | page |  |  | #73 open | UC-20 |
-| REQ-REV-25 | partial | v2 | Should | E4 |  | E4 | page |  |  | #338 open | UC-27 |
-| REQ-REV-26 | partial · to confirm | v1 | Could | E4 |  | E4 | page |  |  |  | UC-18 ; UC-28 |
-| REQ-REV-27 | built, not verified | v1 | Must | E4 |  | E4 | page |  |  |  | UC-39 |
-| REQ-REV-28 | proposed · its model change is approved with its design: a new golfer fact, the session note (IM C2/C3) | v2 | Could | E4 |  | E4 | page |  |  | #339 open | UC-28 |
-| REQ-REV-29 | proposed | v2 | Could | E4 |  | E4 | page |  |  |  | UC-34 |
-| REQ-REV-34 | proposed | later |  | E4 |  | E4 | page |  |  | #339 open | UC-28 ; UC-34 |
-| REQ-REV-35 | proposed | v2 | Could | E4 |  | E4 | page |  |  | #338 open | UC-27 |
-| REQ-REV-36 | proposed · to confirm | v1 | Should | E4 |  | E4 | page |  |  |  | UC-32 |
-| REQ-REV-30 | built, not verified | v2 | Must | E4 |  | E4 | page |  |  | #68 open | UC-45 |
-| REQ-REV-31 | planned (#82) | v2 | Could | E4 |  | E4 | page |  |  | #82 open | UC-23 |
-
-### The library and athletes
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-LIB-1 | built, not verified | v1 | Must | E1 |  | E1 | page |  |  |  | UC-11 ; UC-37 |
-| REQ-LIB-2 | built, not verified | v1 | Must | E1 |  | E1 | page |  |  |  | UC-36 |
-| REQ-LIB-3 | partial | v1 | Should | E1 |  | E1 | page |  |  | #69 open | UC-36 |
-| REQ-LIB-4 | partial · to confirm | v1 | Could | E1 |  | E1 | page |  |  |  | UC-11 ; UC-18 |
-| REQ-LIB-5 | proposed | v2 | Could | E1 |  | E1 | page |  |  | #340 open | UC-36 |
-| REQ-LIB-6 | built, not verified | v1 | Must | E1 |  | E1 | page |  |  |  | UC-18 |
-| REQ-LIB-7 | partial | v1 | Must | E1 |  | E1 | page |  |  |  | UC-36 |
-| REQ-LIB-8 | partial · ruling change approved: changes DEC-99 and DEC-175 (GU-24) | v1 | Must | E1 |  | E1 | page |  |  |  | UC-36 |
-| REQ-LIB-9 | built, not verified | v1 | Must | E1 |  | E1 | page |  |  | #204 open, #205 open | UC-37 |
-| REQ-LIB-10 | partial | v1 | Should | E1 |  | E1 | page |  |  | #61 open | UC-27 ; UC-32 |
-| REQ-LIB-11 | planned (#61) | v2 | Should | E1 |  | E1 | page |  |  | #61 open | UC-27 |
-| REQ-LIB-12 | partial · ruling change approved: changes DEC-175 (GU-4) | v1 | Must | E1 |  | E1 | page |  |  | #89 open, #193 open | UC-38 |
-| REQ-LIB-13 | partial | v1 | Must | E1 |  | E1 | page |  |  |  | UC-38 |
-| REQ-LIB-14 | built, not verified | v1 | Must | E1 |  | E1 | page |  |  |  | UC-40 |
-| REQ-LIB-26 | built, not verified · to confirm | v1 | Could | E1 |  | E1 | page |  |  |  | UC-9 ; UC-38 ; UC-40 |
-| REQ-LIB-27 | built, not verified · to confirm | v1 | Could | E1 |  | E1 | page |  |  |  | UC-9 ; UC-40 |
-| REQ-LIB-15 | built, not verified | v1 | Could | E1 |  | E1 | page |  |  |  | UC-9 ; UC-41 |
-| REQ-LIB-16 | partial | v1 | Should | E1 |  | E1 | page |  |  |  | UC-11 ; UC-41 |
-| REQ-LIB-17 | partial | v1 | Must | E1 |  | E1 | page |  |  |  | UC-16 ; UC-42 |
-| REQ-LIB-18 | partial · ruling change approved: changes DEC-93 (GU-6) | v1 | Must | E1 |  | E1 | page |  |  |  | UC-16 |
-| REQ-LIB-19 | built, not verified | v1 | Could | E1 |  | E1 | page |  |  |  | UC-35 |
-| REQ-LIB-20 | proposed | v2 | Could | E1 |  | E1 | page |  |  | #341 open | UC-35 |
-| REQ-LIB-21 | partial | v2 | Should | E1 |  | E1 | page |  |  | #341 open | UC-35 |
-| REQ-LIB-22 | proposed | v2 | Could | E1 |  | E1 | page |  |  | #341 open | UC-35 |
-| REQ-LIB-23 | planned (#88) | v2 | Must | E1 |  | E1 | page |  |  | #88 open | UC-2 ; UC-43 |
-| REQ-LIB-25 | built, not verified | v1 | Could | E1 |  | E1 | page |  |  |  | UC-27 |
-| REQ-LIB-28 | proposed · to confirm | v2 | Could | E1 |  | E1 | page |  |  |  | UC-40 |
-| REQ-LIB-29 | proposed · to confirm | v2 | Could | E1 |  | E1 | page |  |  |  | UC-41 |
-| REQ-LIB-30 | proposed · to confirm | v2 | Could | E1 |  | E1 | page |  |  |  | UC-18 |
-| REQ-LIB-31 | proposed · to confirm | v1 | Must | E1 |  | E1 | page |  |  | #356 open | UC-43 |
-
-### Install, update and platforms
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-INST-1 | built, not verified | v1 | Must | E5 E6 E7 |  | E5 E6 E7 | page |  |  |  | UC-1 |
-| REQ-INST-2 | partial | v1 | Should | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #89 open | UC-1 |
-| REQ-INST-3 | built, not verified | v1 | Should | E5 E6 E7 |  | E5 E6 E7 | page |  |  |  | UC-2 |
-| REQ-INST-4 | built, not verified · to confirm | v1 | Must | E5 E6 E7 |  | E5 E6 E7 | page |  |  |  | UC-2 |
-| REQ-INST-5 | partial | v1 | Must | E5 E6 E7 |  | E5 E6 E7 | page |  |  |  | UC-2 ; UC-16 ; UC-43 |
-| REQ-INST-6 | planned (#89) | v2 | Could | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #89 open | UC-2 |
-| REQ-INST-7 | planned (#89) | v2 | Could | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #89 open | UC-2 |
-| REQ-INST-8 | built, not verified · to confirm | v1 | Could | E5 E6 E7 |  | E5 E6 E7 | page |  |  |  | UC-1 |
-| REQ-INST-9 | partial | v2 | Should | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #86 open | UC-1 |
-| REQ-INST-10 | partial · to confirm | v1 | Must | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #89 open | UC-1 ; UC-2 |
-| REQ-INST-11 | built, not verified · to confirm | v1 | Could | E5 E6 E7 |  | E5 E6 E7 | page |  |  |  | UC-1 ; UC-5 |
-| REQ-INST-13 | partial | v1 | Should | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #342 open | UC-2 ; UC-3 |
-| REQ-INST-14 | proposed · to confirm | v1 | Must | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #357 open | UC-1 |
-| REQ-INST-15 | planned (#350) | v2 | Should | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #350 open | UC-2 |
-| REQ-INST-16 | proposed · to confirm | v1 | Must | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #351 open | UC-2 |
-| REQ-INST-17 | proposed · to confirm | v1 | Must | E5 E6 E7 | E1 | E5 E6 E7 | page | `device_key_test` |  | #351 open | UC-2 |
-
-### Non-functional: reliability
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-REL-1 | partial · open bug #280 | v1 | Must | E1 E6 |  | E1 E6 | page |  |  | #280 open | UC-2 ; UC-16 |
-| REQ-REL-2 | partial | v1 | Should | E1 E6 |  | E1 E6 | page |  |  |  | UC-2 ; UC-16 |
-| REQ-REL-3 | partial | v1 | Must | E1 E6 |  | E1 E6 | page |  |  |  | UC-16 ; UC-42 |
-| REQ-REL-4 | partial · ruling change approved: changes DEC-70 (GU-15) | v1 | Must | E1 E6 |  | E1 E6 | page |  |  |  | UC-39 |
-| REQ-REL-5 | partial · open bug #265 | v1 | Must | E1 E6 |  | E1 E6 | page |  |  | #265 open | UC-7 |
-| REQ-REL-6 | partial | v1 | Must | E1 E6 |  | E1 E6 | page |  |  | #343 open | UC-16 ; UC-39 ; UC-42 |
-| REQ-REL-8 | planned (#79) | v1 | Could | E1 E6 |  | E1 E6 | page |  |  | #79 open | UC-3 ; UC-15 |
-| REQ-REL-11 | built, not verified · to confirm | v1 | Should | E1 E6 |  | E1 E6 | page |  |  |  | UC-3 |
-| REQ-REL-9 | won't have | never |  | E1 E6 |  | E1 E6 | page |  |  | #344 closed | UC-15 ; UC-41 |
-| REQ-REL-10 | partial · to confirm | v1 | Must | E1 E6 |  | E1 E6 | page |  |  | #353 open | UC-18 |
-
-### Non-functional: performance
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-PERF-1 | partial | v1 | Should | E5 |  | E5 | page |  |  | #86 open | UC-12 |
-| REQ-PERF-2 | partial · open bug #284, #278 | v1 | Should | E5 |  | E5 | page |  |  | #82 open, #86 open, #278 open, #284 open | UC-11 ; UC-12 ; UC-16 ; UC-19 |
-| REQ-PERF-4 | partial · to confirm | v1 | Could | E5 |  | E5 | page |  |  |  | UC-24 |
-| REQ-PERF-5 | planned (#61) | v2 | Could | E5 |  | E5 | page |  |  | #61 open | UC-32 |
-| REQ-PERF-6 | partial · to confirm | v1 | Must | E5 |  | E5 | page |  |  | #240 open | UC-18 |
-| REQ-PERF-7 | partial | v1 | Should | E5 |  | E5 | page |  |  |  | UC-1 ; UC-11 |
-
-### Non-functional: privacy
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-PRIV-1 | built, not verified | v1 | Must | E4 |  | E4 | page |  |  |  | UC-9 ; UC-34 ; UC-41 |
-| REQ-PRIV-2 | proposed | v1 | Must | E4 |  | E4 | page |  |  | #345 open | UC-9 ; UC-25 ; UC-32 |
-| REQ-PRIV-3 | partial | v2 | Should | E4 | E1 | E4 | page | `secret_store_test` |  | #61 open | UC-9 ; UC-32 |
-| REQ-PRIV-4 | partial | v1 | Must | E4 |  | E4 | page |  |  | #346 open | UC-32 |
-| REQ-PRIV-6 | partial | v1 | Must | E4 |  | E4 | page |  |  | #345 open | UC-9 |
-| REQ-PRIV-5 | proposed | later |  | E4 |  | E4 | page |  |  | #347 open | UC-34 |
-
-### Non-functional: accessibility and ease of use
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-ACC-1 | partial · to confirm | v1 | Must | E4 |  | E4 | page |  |  | #354 open | UC-19 |
-| REQ-ACC-2 | planned (#83) | v2 | Should | E4 |  | E4 | page |  |  | #83 open | UC-9 |
-| REQ-ACC-3 | built, not verified | v1 | Could | E4 |  | E4 | page |  |  |  | UC-9 |
-| REQ-ACC-9 | built, not verified · to confirm | v1 | Could | E4 |  | E4 | page |  |  |  | UC-9 |
-| REQ-ACC-10 | partial | v2 | Could | E4 |  | E4 | page |  |  | #345 open | UC-9 |
-| REQ-ACC-11 | partial | v1 | Should | E4 |  | E4 | page |  |  | #345 open | UC-9 ; UC-20 |
-| REQ-ACC-4 | partial · to confirm | v1 | Should | E4 |  | E4 | page |  |  |  | UC-9 |
-| REQ-ACC-5 | partial · to confirm | v1 | Should | E4 |  | E4 | page |  |  |  | UC-7 ; UC-20 ; UC-25 |
-| REQ-ACC-6 | proposed | v2 | Should | E4 |  | E4 | page |  |  | #328 open | UC-11 |
-| REQ-ACC-7 | built, not verified · to confirm | v1 | Must | E4 |  | E4 | page |  |  |  | UC-1 |
-| REQ-ACC-8 | partial | v1 | Should | E4 |  | E4 | page |  |  | #66 open, #276 open | UC-7 |
-
-### Non-functional: data honesty
-
-| Id | Status | Release | MoSCoW | Needs | Present | Missing | Supports | Tests | Observations | Issues | Use cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| REQ-HON-1 | partial | v1 | Must | E1 E4 |  | E1 E4 | page |  |  | #82 open | UC-20 |
-| REQ-HON-2 | built, not verified · to confirm | v1 | Must | E1 E4 |  | E1 E4 | page |  |  | #186 closed | UC-16 ; UC-21 |
-| REQ-HON-3 | partial | v1 | Must | E1 E4 |  | E1 E4 | page |  |  | #88 open | UC-21 |
-| REQ-HON-4 | planned (#88) | v1 | Must | E1 E4 |  | E1 E4 | page |  |  | #88 open | UC-21 |
-| REQ-HON-5 | built, not verified | v1 | Must | E1 E4 |  | E1 E4 | page |  |  |  | UC-21 |
-| REQ-HON-6 | built, not verified | v1 | Must | E1 E4 |  | E1 E4 | page |  |  |  | UC-8 ; UC-21 |
-| REQ-HON-7 | planned (#81) | v1 | Must | E1 E4 |  | E1 E4 | page |  |  | #81 open | UC-21 |
-| REQ-HON-8 | partial | v1 | Must | E1 E4 |  | E1 E4 | page |  |  | #82 open | UC-23 |
-| REQ-HON-9 | built, not verified · to confirm | v1 | Must | E1 E4 |  | E1 E4 | page |  |  |  | UC-23 |
-| REQ-HON-10 | partial · to confirm | v1 | Must | E1 E4 |  | E1 E4 | page |  |  | #355 open | UC-24 |
-| REQ-HON-11 | partial · to confirm | v1 | Must | E1 E4 |  | E1 E4 | page |  |  | #355 open | UC-12 ; UC-24 ; UC-30 |
-| REQ-HON-12 | built, not verified · to confirm | v1 | Must | E1 E4 |  | E1 E4 | page |  |  |  | UC-4 ; UC-21 |
-| REQ-HON-13 | partial | v1 | Must | E1 E4 |  | E1 E4 | page |  |  | #63 open | UC-21 |
-| REQ-HON-14 | planned (#88) | v1 | Must | E1 E4 |  | E1 E4 | page |  |  | #88 open | UC-2 ; UC-43 |
-| REQ-HON-15 | built, not verified · to confirm | v1 | Must | E1 E4 |  | E1 E4 | page |  |  |  | UC-12 ; UC-19 |
-
 ## Controls checked by tests
 
 | Control | Tests |
 |---|---|
-| CTL-AD-52 | `session_setup_lint_test` |
-| CTL-AG-15 | `synthetic_devices_off_test`, `synthetic_devices_test` |
-| CTL-BT-39 | `rtm_check`, `rtm_selftest` |
-| CTL-BT-40 | `quit_pins_selftest`, `quit_pins_synthetic_selftest` |
+| CTL-AD-52 (A rule must be built in C++, never in QML: a threshold …) | `session_setup_lint_test` |
+| CTL-AG-15 (Agents must never launch the app plainly, offscreen included: every probe or …) | `synthetic_devices_off_test`, `synthetic_devices_test` |
+| CTL-BT-39 (Every new test, and every test whose assertions or set-up change, must …) | `rtm_check`, `rtm_selftest` |
+| CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | `quit_pins_selftest`, `quit_pins_synthetic_selftest` |
 
 ## Labelled tests
 
@@ -1454,17 +1170,17 @@ Status, Release and MoSCoW are the page's. **Supports** is the status the eviden
 
 | Test | Kind | Labels | Gate lists | Registered in |
 |---|---|---|---|---|
-| `device_key_test` | E1 | REQ-INST-17 | macos | `src/Gui/tests/CMakeLists.txt` |
-| `perspective_test` | E1 | REQ-DEV-1 | macos | `src/Analysis/tests/CMakeLists.txt` |
-| `quit_pins_selftest` | E1 | CTL-BT-40 | macos | `src/Gui/tests/CMakeLists.txt` |
-| `quit_pins_synthetic_selftest` | E1 | CTL-BT-40 | macos | `src/Gui/tests/CMakeLists.txt` |
-| `rig_state_test` | E1 | REQ-DEV-17 | macos | `src/Analysis/tests/CMakeLists.txt` |
-| `rtm_check` | E1 | CTL-BT-39 | macos | `src/Gui/tests/CMakeLists.txt` |
-| `rtm_selftest` | E1 | CTL-BT-39 | macos | `src/Gui/tests/CMakeLists.txt` |
-| `secret_store_test` | E1 | REQ-PRIV-3 | macos | `src/Gui/tests/report_smtp_tests.cmake` |
-| `session_setup_lint_test` | E1 | CTL-AD-52 | macos | `src/Gui/tests/CMakeLists.txt` |
-| `synthetic_devices_off_test` | E1 | CTL-AG-15 | macos | `src/Gui/tests/CMakeLists.txt` |
-| `synthetic_devices_test` | E1 | CTL-AG-15 | macos | `src/Gui/tests/CMakeLists.txt` |
+| `device_key_test` | an automated test of the logic (E1) | REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `perspective_test` | an automated test of the logic (E1) | REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …) | macos | `src/Analysis/tests/CMakeLists.txt` |
+| `quit_pins_selftest` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `quit_pins_synthetic_selftest` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `rig_state_test` | an automated test of the logic (E1) | REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …) | macos | `src/Analysis/tests/CMakeLists.txt` |
+| `rtm_check` | an automated test of the logic (E1) | CTL-BT-39 (Every new test, and every test whose assertions or set-up change, must …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `rtm_selftest` | an automated test of the logic (E1) | CTL-BT-39 (Every new test, and every test whose assertions or set-up change, must …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `secret_store_test` | an automated test of the logic (E1) | REQ-PRIV-3 (The app shall keep passwords and keys in the system's secure store …) | macos | `src/Gui/tests/report_smtp_tests.cmake` |
+| `session_setup_lint_test` | an automated test of the logic (E1) | CTL-AD-52 (A rule must be built in C++, never in QML: a threshold …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `synthetic_devices_off_test` | an automated test of the logic (E1) | CTL-AG-15 (Agents must never launch the app plainly, offscreen included: every probe or …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `synthetic_devices_test` | an automated test of the logic (E1) | CTL-AG-15 (Agents must never launch the app plainly, offscreen included: every probe or …) | macos | `src/Gui/tests/CMakeLists.txt` |
 
 ## Documents and the rows that cite them
 
@@ -1472,109 +1188,998 @@ The reverse view of the Sources column, the one home of the design link.
 
 | Document | Rows |
 |---|---|
-| README.md | REQ-ACC-1, REQ-ACC-3 |
-| analysis_dag_design.md | REQ-ANA-1, REQ-PERF-1 |
-| analysis_pipeline_fusion_architecture_proposal.md | REQ-ANA-27, REQ-CAP-15 |
-| auto_annotations_design.md | REQ-REV-2, REQ-REV-3 |
-| ball-flight-classification.md | REQ-ANA-29 |
-| ball_detection_v2.md | REQ-DEV-24 |
-| ball_detector_design.md | REQ-DEV-24 |
-| ball_reach_by_club.md | REQ-ANA-20 |
-| body_rotation_estimation.md | REQ-ANA-14, REQ-HON-6 |
-| camera_calibration_design.md | REQ-DEV-15, REQ-DEV-16, REQ-DEV-18 |
-| charts_and_print_reuse_design.md | REQ-REV-16 |
-| charts_panel_traces_relations.md | REQ-REV-5, REQ-REV-10, REQ-REV-31 |
-| club_delivery_chart_design.md | REQ-ANA-18, REQ-REV-22 |
-| club_rate_filter_design.md | REQ-ANA-6 |
-| club_tracking_v3_design.md | REQ-ANA-6 |
-| clubhead_detection_design.md | REQ-ANA-6 |
-| coaching_layer.md | REQ-CAP-30, REQ-CAP-31, REQ-COACH-10, REQ-COACH-11, REQ-COACH-12, REQ-COACH-13, REQ-COACH-14, REQ-COACH-16, REQ-COACH-18, REQ-COACH-19, REQ-COACH-20, REQ-COACH-21, REQ-COACH-22, REQ-DIAG-13, REQ-PRIV-5 |
-| consistency_design.md | REQ-DIAG-5, REQ-DIAG-6, REQ-DIAG-24 |
-| deferred_sources_design.md | REQ-CAP-9 |
-| diagnostics-and-coaching.md | REQ-DIAG-10, REQ-HON-10, REQ-HON-11 |
-| diagnostics_content_extension.md | REQ-ANA-23 |
-| diagnostics_norms.md | REQ-DIAG-1, REQ-DIAG-9 |
-| dtl_continuous_track_design_update.md | REQ-ANA-7 |
-| dtl_posture_design.md | REQ-ANA-15 |
-| dtl_shaft_tracker_design.md | REQ-ANA-7, REQ-REV-30 |
-| event_buffer_design.md | REQ-CAP-14, REQ-CAP-15, REQ-DEV-1, REQ-DEV-25 |
-| flir_camera_settings.md | REQ-DEV-2 |
-| flir_image_clarity.md | REQ-DEV-2 |
-| foresight_premier_connector.md | REQ-CAP-33, REQ-DEV-5 |
-| grf_estimation_design_briefing.md | REQ-ANA-25 |
-| gspro_gcquad_connector.md | REQ-CAP-8 |
-| home_themes_design.md | REQ-COACH-9 |
-| impact_camera_design.md | REQ-ANA-26, REQ-CAP-13 |
-| killer-features.md | REQ-ANA-16, REQ-ANA-25, REQ-ANA-35, REQ-CAP-1, REQ-CAP-2, REQ-CAP-3, REQ-CAP-4, REQ-CAP-5, REQ-CAP-6, REQ-CAP-8, REQ-CAP-10, REQ-CAP-12, REQ-CAP-13, REQ-CAP-29, REQ-COACH-1, REQ-COACH-3, REQ-COACH-6, REQ-COACH-7, REQ-COACH-8, REQ-COACH-14, REQ-COACH-15, REQ-COACH-19, REQ-DEV-1, REQ-DEV-5, REQ-DEV-22, REQ-DIAG-6, REQ-HON-6, REQ-LIB-19, REQ-LIB-20, REQ-LIB-21, REQ-LIB-22, REQ-PERF-1, REQ-PERF-4, REQ-REV-4, REQ-REV-6, REQ-REV-7, REQ-REV-8, REQ-REV-9, REQ-REV-10, REQ-REV-19, REQ-REV-25, REQ-REV-27, REQ-REV-28, REQ-REV-29, REQ-REV-34 |
-| kinematic_sequence_design.md | REQ-ANA-13, REQ-REV-23 |
-| ks_skeleton3d_route_design.md | REQ-ANA-13 |
-| lifecycle_model.md | REQ-CAP-7, REQ-CAP-22, REQ-CAP-37, REQ-HON-15, REQ-PERF-7 |
-| linux_update.md | REQ-INST-1, REQ-INST-3, REQ-INST-4 |
-| live_capture_collection_design.md | REQ-CAP-14 |
-| lm_panel_fsx.md | REQ-ANA-30, REQ-REV-11 |
-| low_point_metric_design.md | REQ-ANA-11 |
-| lower_body_face_on_metrics.md | REQ-ANA-16 |
-| macos_update.md | REQ-INST-1, REQ-INST-2, REQ-INST-3, REQ-INST-4, REQ-INST-6 |
-| markerless_club_tracker_design.md | REQ-ANA-6 |
-| metric_presentation_honesty.md | REQ-HON-8 |
-| norm_shapes.md | REQ-DIAG-1 |
-| normative_reference.md | REQ-DIAG-12 |
-| nova_launch_monitor.md | REQ-DEV-6 |
-| personas.md | REQ-ACC-5, REQ-ACC-6, REQ-ANA-4, REQ-ANA-13, REQ-COACH-16, REQ-COACH-17, REQ-COACH-23, REQ-DEV-14, REQ-DEV-17, REQ-DEV-22, REQ-DEV-25, REQ-DIAG-1, REQ-DIAG-2, REQ-LIB-4, REQ-LIB-5, REQ-REV-6, REQ-REV-20, REQ-REV-23, REQ-REV-25 |
-| phone_capture.md | REQ-CAP-27, REQ-CAP-28, REQ-CAP-34, REQ-INST-10, REQ-INST-11 |
-| pinpoint-diagnostics-guide.md | REQ-ANA-20, REQ-DIAG-1, REQ-DIAG-3, REQ-DIAG-8, REQ-DIAG-9, REQ-DIAG-17, REQ-DIAG-18, REQ-DIAG-22, REQ-DIAG-23 |
-| pinpoint-lesson-model.md | REQ-COACH-10, REQ-COACH-11, REQ-COACH-13 |
-| pinpoint-persona-assessment.md | REQ-ACC-6, REQ-DEV-14, REQ-DIAG-2 |
-| pinpoint-ux-design.md | REQ-ACC-7, REQ-ACC-10, REQ-ACC-11, REQ-CAP-1, REQ-CAP-10, REQ-CAP-11, REQ-CAP-17, REQ-COACH-23, REQ-DEV-21, REQ-DEV-28, REQ-INST-1, REQ-INST-13, REQ-LIB-1, REQ-LIB-2, REQ-LIB-4, REQ-LIB-26, REQ-LIB-27, REQ-PRIV-1, REQ-PRIV-2, REQ-PRIV-6, REQ-REL-3, REQ-REL-11, REQ-REV-1, REQ-REV-7, REQ-REV-18, REQ-REV-25, REQ-REV-26 |
-| pinpoint_qml_design_system.md | REQ-ACC-3, REQ-ACC-9 |
-| plane_coupled_kinematic_sequence_proposal.md | REQ-ANA-27 |
-| plane_stack_design.md | REQ-ANA-18, REQ-DIAG-12, REQ-DIAG-20 |
-| planned_metrics_promotion.md | REQ-DIAG-7 |
-| pose_inference_performance_plan.md | REQ-PERF-1 |
-| posture_chart_design.md | REQ-REV-21 |
-| posture_metrics_design.md | REQ-ANA-15 |
-| release.md | REQ-INST-10 |
-| reload_replay_design.md | REQ-REV-1 |
-| rig_design.md | REQ-DEV-12, REQ-DEV-17, REQ-DEV-20, REQ-LIB-23 |
-| rig_design_addendum.md | REQ-DEV-12 |
-| session_diagnostics_build_findings.md | REQ-DIAG-13 |
-| session_diagnostics_design.md | REQ-DIAG-3, REQ-DIAG-4, REQ-DIAG-23, REQ-HON-11, REQ-REV-12 |
-| session_report_design.md | REQ-COACH-21, REQ-COACH-22, REQ-PRIV-3, REQ-REV-13, REQ-REV-14, REQ-REV-32 |
-| session_wizard_refactor_design.md | REQ-CAP-20, REQ-DEV-21 |
-| sessions_screen_redesign.md | REQ-LIB-10 |
-| shaft_detection_improvements.md | REQ-ANA-6 |
-| shaft_fusion_design.md | REQ-ANA-8 |
-| shaft_position_first_design.md | REQ-ANA-6 |
-| shaft_uncertainty_propagation_design.md | REQ-ANA-6 |
-| shot_analyzer_design.md | REQ-ANA-1, REQ-ANA-22 |
-| shot_analyzer_viz.md | REQ-REV-5 |
-| shot_outcomes_design.md | REQ-ANA-29, REQ-COACH-5, REQ-DIAG-5, REQ-DIAG-24 |
-| shotdetection.md | REQ-CAP-3, REQ-CAP-5 |
-| sign_conventions.md | REQ-ANA-33 |
-| skeleton3d_shaft_branch_design.md | REQ-ANA-8 |
-| stage_typeset_playbook.md | REQ-REV-12 |
-| swing_3d_annotations_design.md | REQ-REV-2 |
-| swing_3d_session_synthesis_design.md | REQ-REV-24 |
-| swing_3d_viz_design.md | REQ-ANA-5, REQ-REV-24 |
-| swing_areas_regroup.md | REQ-COACH-9 |
-| swing_fault_ontology.md | REQ-DIAG-3, REQ-DIAG-22 |
-| swing_json_schema.md | REQ-LIB-21 |
-| swing_plane_area.md | REQ-ANA-18 |
-| tendencies_flow_design.md | REQ-COACH-5 |
-| timeline-fusion.md | REQ-ANA-3, REQ-CAP-16 |
-| trunk_imu_sequence_grf_design.md | REQ-ANA-14, REQ-ANA-24, REQ-ANA-25, REQ-DEV-7 |
-| trust_and_gates_design.md | REQ-DIAG-15, REQ-HON-5 |
-| trust_stage6_plan.md | REQ-HON-5 |
-| uncertainty_census_design.md | REQ-HON-4 |
-| upper_body_face_on_metrics.md | REQ-ANA-17 |
-| use_cases.md | REQ-CAP-35, REQ-CAP-36, REQ-CAP-38, REQ-CAP-39, REQ-DEV-29, REQ-DEV-30, REQ-INST-14, REQ-INST-15, REQ-INST-16, REQ-INST-17, REQ-LIB-28, REQ-LIB-29, REQ-LIB-30, REQ-LIB-31, REQ-REV-35, REQ-REV-36 |
-| ux_refactor_away_from_4_modes.md | REQ-DEV-26 |
-| vendor_neutral_gpu.md | REQ-INST-9 |
-| watch_me_play_design.md | REQ-CAP-30, REQ-COACH-20 |
-| wholebody_pose_design.md | REQ-ANA-5 |
-| windows_update.md | REQ-INST-1, REQ-INST-2, REQ-INST-3, REQ-INST-4, REQ-INST-8 |
-| wired_transport_design.md | REQ-CAP-28 |
-| work_ons_design.md | REQ-COACH-1, REQ-COACH-3, REQ-COACH-4, REQ-DIAG-4 |
-| wrist_motion_into_charts.md | REQ-ANA-21, REQ-REV-20 |
-| wristcalibration.md | REQ-DEV-10 |
-| wristmotion_assessment_design.md | REQ-ANA-21, REQ-DEV-7, REQ-DIAG-18, REQ-REV-20 |
+| README.md | REQ-ACC-1 (The app shall never use colour as the only way of saying …); REQ-ACC-3 (The app shall let the user choose how dense the screens are …) |
+| analysis_dag_design.md | REQ-ANA-1 (The app shall analyse every shot by itself after capture, with no …); REQ-PERF-1 (The app shall show a shot's results within about 10 s of …) |
+| analysis_pipeline_fusion_architecture_proposal.md | REQ-ANA-27 (The app shall cross-check the cameras against the sensors, and name the …); REQ-CAP-15 (Readings from every device shall line up in time to within a frame.) |
+| auto_annotations_design.md | REQ-REV-2 (The app shall draw the tracked body and club over the video …); REQ-REV-3 (The app shall draw coach's lines (head, hips, plane, spine, shoulder plane) …) |
+| ball-flight-classification.md | REQ-ANA-29 (The app shall give each shot three outcome factors, strike, direction and …) |
+| ball_detection_v2.md | REQ-DEV-24 (The app shall find the ball at address without the golfer calibrating anything.) |
+| ball_detector_design.md | REQ-DEV-24 (The app shall find the ball at address without the golfer calibrating anything.) |
+| ball_reach_by_club.md | REQ-ANA-20 (The app shall measure ball position and the ball's distance from the …) |
+| body_rotation_estimation.md | REQ-ANA-14 (The app shall measure pelvis and chest turn, and the difference between …); REQ-HON-6 (The app shall never claim more than it measured: a reading from …) |
+| camera_calibration_design.md | REQ-DEV-15 (The app shall calibrate every camera with everyday kit in one routine …); REQ-DEV-16 (The app shall check each session, quickly, that the camera calibration still …); REQ-DEV-18 (The app shall show when a camera's focus lock has failed, and …) |
+| charts_and_print_reuse_design.md | REQ-REV-16 (The app shall print, or save as a PDF, the Diagnostics, Launch …) |
+| charts_panel_traces_relations.md | REQ-REV-5 (The app shall chart each reading of a shot through the swing …); REQ-REV-10 (The app shall plot any reading against any other within a session …); REQ-REV-31 (The app shall offer short read-outs on Charts (sequence, speed, rotation, wrist style, body, tempo).) |
+| club_delivery_chart_design.md | REQ-ANA-18 (The app shall measure the swing plane and the club's delivery the …); REQ-REV-22 (The app shall show the club's delivery as a coach reads it …) |
+| club_rate_filter_design.md | REQ-ANA-6 (The app shall track the club shaft and clubhead through the swing …) |
+| club_tracking_v3_design.md | REQ-ANA-6 (The app shall track the club shaft and clubhead through the swing …) |
+| clubhead_detection_design.md | REQ-ANA-6 (The app shall track the club shaft and clubhead through the swing …) |
+| coaching_layer.md | REQ-CAP-30 (The app shall capture shots while the golfer plays a simulator round …); REQ-CAP-31 (The app shall let the golfer or coach declare the session's coaching …); REQ-COACH-10 (The app shall give lessons: a lesson has a purpose, sets and …); REQ-COACH-11 (The app shall run practice between lessons against the one reading the …); REQ-COACH-12 (The app shall judge progress on what holds at the next visit …); REQ-COACH-13 (The app shall let a coach override any coaching decision the app …); REQ-COACH-14 (The app shall offer, in practice only and when the golfer or …); REQ-COACH-16 (The app shall narrate its coaching decisions, in text, in words suited …); REQ-COACH-18 (The app shall offer a short-term fix before an event that expires …); REQ-COACH-19 (The app shall let a golfer send a session to a coach …); REQ-COACH-20 (The app shall advise during a simulator round with at most one …); REQ-COACH-21 (The app shall give the golfer, at the end of a lesson …); REQ-COACH-22 (The app shall draw drills, constraints and feels for each work-on from …); REQ-DIAG-13 (The app shall let a coach record a physical screen (mobility, strength) …); REQ-PRIV-5 (A session sent for review shall hold only what the golfer chose to include.) |
+| consistency_design.md | REQ-DIAG-5 (The app shall answer 'what happened there?' for a shot: what stood …); REQ-DIAG-6 (The app shall show where the golfer's swing repeats and where it …); REQ-DIAG-24 (The app shall explain a session's outcomes: where the yards went, what …) |
+| deferred_sources_design.md | REQ-CAP-9 (The app shall add everything a device reports for a shot to …) |
+| diagnostics-and-coaching.md | REQ-DIAG-10 (A habit the app cannot yet judge shall be shown as not …); REQ-HON-10 (A finding shall never be excused by what the golfer meant to do.); REQ-HON-11 (Every shot of a session shall count in full.) |
+| diagnostics_content_extension.md | REQ-ANA-23 (The app shall produce every reading the diagnostics model needs.) |
+| diagnostics_norms.md | REQ-DIAG-1 (The app shall grade every reading against a norm for players like …); REQ-DIAG-9 (The app shall show the health of the diagnostics model: measures with …) |
+| dtl_continuous_track_design_update.md | REQ-ANA-7 (The app shall track the club from the down-the-line camera, and say …) |
+| dtl_posture_design.md | REQ-ANA-15 (The app shall measure posture at address and through the swing.) |
+| dtl_shaft_tracker_design.md | REQ-ANA-7 (The app shall track the club from the down-the-line camera, and say …); REQ-REV-30 (The app shall let an analyst mark the club and body on …) |
+| event_buffer_design.md | REQ-CAP-14 (The app shall keep capturing when a device drops out, tell the …); REQ-CAP-15 (Readings from every device shall line up in time to within a frame.); REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …); REQ-DEV-25 (The app shall show live device health (cameras, sensors, phones, buffers) on …) |
+| flir_camera_settings.md | REQ-DEV-2 (Every camera shall give a usable picture in the studio's light, every session.) |
+| flir_image_clarity.md | REQ-DEV-2 (Every camera shall give a usable picture in the studio's light, every session.) |
+| foresight_premier_connector.md | REQ-CAP-33 (The app shall take a shot's club from the simulator software when …); REQ-DEV-5 (The app shall read launch monitors: a GC Quad directly, devices bridged …) |
+| grf_estimation_design_briefing.md | REQ-ANA-25 (The app shall estimate lead-side load and ground forces when a sensor …) |
+| gspro_gcquad_connector.md | REQ-CAP-8 (The app shall pair each launch-monitor reading with the swing it belongs …) |
+| home_themes_design.md | REQ-COACH-9 (The app shall group findings by swing area (what moves) and show …) |
+| impact_camera_design.md | REQ-ANA-26 (The app shall measure club speed, ball speed, launch, attack angle and …); REQ-CAP-13 (The app shall record a short clip from the impact camera, trimmed around impact.) |
+| killer-features.md | REQ-ANA-16 (The app shall measure lower-body movement (sway, lift, lead-knee drift, hip-line tilt) …); REQ-ANA-25 (The app shall estimate lead-side load and ground forces when a sensor …); REQ-ANA-35 (The app shall estimate the club face angle from the wrist sensor …); REQ-CAP-1 (The app shall record every swing the golfer hits while it shows …); REQ-CAP-2 (The app shall be ready for the next swing as soon as …); REQ-CAP-3 (The app shall detect a swing by itself, without the golfer touching …); REQ-CAP-4 (The app shall let the golfer or coach record a shot by …); REQ-CAP-5 (The app shall not treat a sound or movement that is not …); REQ-CAP-6 (The app shall tell the golfer, by a short sound, that a …); REQ-CAP-8 (The app shall pair each launch-monitor reading with the swing it belongs …); REQ-CAP-10 (The app shall replay each shot slowed down as soon as it …); REQ-CAP-12 (The app shall trim stored video to the swing plus a margin …); REQ-CAP-13 (The app shall record a short clip from the impact camera, trimmed around impact.); REQ-CAP-29 (The app shall import a phone's recorded session and launch-monitor files into the library.); REQ-COACH-1 (The app shall coach the golfer directly by default, picking from all …); REQ-COACH-3 (The app shall follow each work-on across sessions: still happening, improving or …); REQ-COACH-6 (The app shall show, for the shots a filter picks, how often …); REQ-COACH-7 (The app shall let the golfer pick shots by a reading's value …); REQ-COACH-8 (The app shall rank which body readings move with each ball-flight number …); REQ-COACH-14 (The app shall offer, in practice only and when the golfer or …); REQ-COACH-15 (The app shall give a live cue from the wrist sensor at …); REQ-COACH-19 (The app shall let a golfer send a session to a coach …); REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …); REQ-DEV-5 (The app shall read launch monitors: a GC Quad directly, devices bridged …); REQ-DEV-22 (The app shall let a studio whose devices have not changed go …); REQ-DIAG-6 (The app shall show where the golfer's swing repeats and where it …); REQ-HON-6 (The app shall never claim more than it measured: a reading from …); REQ-LIB-19 (The app shall export shots or a whole session as videos and swing data.); REQ-LIB-20 (The app shall export one row per shot, with every reading, its …); REQ-LIB-21 (The app shall store swings in an open, documented format with a …); REQ-LIB-22 (The app shall export the 3-D skeleton in a standard motion format …); REQ-PERF-1 (The app shall show a shot's results within about 10 s of …); REQ-PERF-4 (Home and the session lists shall open within a time the Product …); REQ-REV-4 (The app shall let a coach draw on the video and keep …); REQ-REV-6 (The app shall compare a shot against another, lined up by swing …); REQ-REV-7 (The app shall show two swings' videos side by side or overlaid …); REQ-REV-8 (The app shall compare a shot against the golfer's best swings, chosen by their outcome.); REQ-REV-9 (The app shall let the golfer mark a reference swing and compare …); REQ-REV-10 (The app shall plot any reading against any other within a session …); REQ-REV-19 (The app shall show a table of every reading for a shot …); REQ-REV-25 (The app shall show the golfer's progress over weeks and months: a …); REQ-REV-27 (The app shall let the golfer rate a shot and note it …); REQ-REV-28 (The app shall let the golfer or coach keep a note for …); REQ-REV-29 (The app shall export a clip of a swing with the coach's …); REQ-REV-34 (The app shall let a coach record a spoken commentary over a replay.) |
+| kinematic_sequence_design.md | REQ-ANA-13 (The app shall measure the kinematic sequence, with an uncertainty on every …); REQ-REV-23 (The app shall show the kinematic sequence as a chart and a …) |
+| ks_skeleton3d_route_design.md | REQ-ANA-13 (The app shall measure the kinematic sequence, with an uncertainty on every …) |
+| lifecycle_model.md | REQ-CAP-7 (The app shall save each accepted shot, or tell the golfer that …); REQ-CAP-22 (The app shall end a session only after any shot still being …); REQ-CAP-37 (The app shall let the golfer stop capture and start it again within a session.); REQ-HON-15 (The app shall show when a shot is still being analysed.); REQ-PERF-7 (The app shall be ready to capture within 30 s of its …) |
+| linux_update.md | REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …); REQ-INST-3 (The app shall tell the user an update is ready, install it …); REQ-INST-4 (The app shall check every update's signature before installing it.) |
+| live_capture_collection_design.md | REQ-CAP-14 (The app shall keep capturing when a device drops out, tell the …) |
+| lm_panel_fsx.md | REQ-ANA-30 (The app shall model the ball's flight (carry, height, descent) from the stored launch-monitor reading.); REQ-REV-11 (The app shall show the session's launch-monitor numbers, with dispersion and per-club figures.) |
+| low_point_metric_design.md | REQ-ANA-11 (The app shall estimate the low point of the club's arc from …) |
+| lower_body_face_on_metrics.md | REQ-ANA-16 (The app shall measure lower-body movement (sway, lift, lead-knee drift, hip-line tilt) …) |
+| macos_update.md | REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …); REQ-INST-2 (The app shall install from one signed installer per platform.); REQ-INST-3 (The app shall tell the user an update is ready, install it …); REQ-INST-4 (The app shall check every update's signature before installing it.); REQ-INST-6 (The app shall let the user choose a stable or a beta update channel.) |
+| markerless_club_tracker_design.md | REQ-ANA-6 (The app shall track the club shaft and clubhead through the swing …) |
+| metric_presentation_honesty.md | REQ-HON-8 (The app shall draw noisy curves honestly: a gap shows as a …) |
+| norm_shapes.md | REQ-DIAG-1 (The app shall grade every reading against a norm for players like …) |
+| normative_reference.md | REQ-DIAG-12 (The app shall show the golfer when a norm it grades against is still provisional.) |
+| nova_launch_monitor.md | REQ-DEV-6 (The app shall read an Open Launch Nova when one is available.) |
+| personas.md | REQ-ACC-5 (The app shall speak to the golfer in golf words throughout, and …); REQ-ACC-6 (The app shall guide a golfer's first session step by step: explain …); REQ-ANA-4 (The app shall name swing positions in plain words, or explain each label on hover.); REQ-ANA-13 (The app shall measure the kinematic sequence, with an uncertainty on every …); REQ-COACH-16 (The app shall narrate its coaching decisions, in text, in words suited …); REQ-COACH-17 (The app shall let a coach keep the app's coaching reasoning off …); REQ-COACH-23 (The app shall let the golfer or coach ask about a session …); REQ-DEV-14 (The app shall give one plain answer to 'is calibration good enough?' …); REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …); REQ-DEV-22 (The app shall let a studio whose devices have not changed go …); REQ-DEV-25 (The app shall show live device health (cameras, sensors, phones, buffers) on …); REQ-DIAG-1 (The app shall grade every reading against a norm for players like …); REQ-DIAG-2 (The app shall say, for every reading, what it measures, its typical …); REQ-LIB-4 (The app shall put the most recent golfers one click away, so …); REQ-LIB-5 (The app shall import golfers from a roster file.); REQ-REV-6 (The app shall compare a shot against another, lined up by swing …); REQ-REV-20 (The app shall show the wrist analysis: live angles during set-up, curves …); REQ-REV-23 (The app shall show the kinematic sequence as a chart and a …); REQ-REV-25 (The app shall show the golfer's progress over weeks and months: a …) |
+| phone_capture.md | REQ-CAP-27 (The app shall pair a phone as a camera by scanning a …); REQ-CAP-28 (The app shall capture from a phone over a cable as well …); REQ-CAP-34 (The app shall check that the phone app and the studio app …); REQ-INST-10 (The app shall ask for the system permissions it needs with a …); REQ-INST-11 (The app shall work with phones on the local network without the …) |
+| pinpoint-diagnostics-guide.md | REQ-ANA-20 (The app shall measure ball position and the ball's distance from the …); REQ-DIAG-1 (The app shall grade every reading against a norm for players like …); REQ-DIAG-3 (The app shall find the faults and habits a session shows.); REQ-DIAG-8 (The app shall let the Coaching Lead change, inside the app, a …); REQ-DIAG-9 (The app shall show the health of the diagnostics model: measures with …); REQ-DIAG-17 (The app shall grade by club where the club changes what is normal.); REQ-DIAG-18 (The app shall grade wrist positions against reference bands and swing styles …); REQ-DIAG-22 (The app shall link each fault to its likely causes, where the …); REQ-DIAG-23 (The app shall show the evidence behind each finding: the shots it …) |
+| pinpoint-lesson-model.md | REQ-COACH-10 (The app shall give lessons: a lesson has a purpose, sets and …); REQ-COACH-11 (The app shall run practice between lessons against the one reading the …); REQ-COACH-13 (The app shall let a coach override any coaching decision the app …) |
+| pinpoint-persona-assessment.md | REQ-ACC-6 (The app shall guide a golfer's first session step by step: explain …); REQ-DEV-14 (The app shall give one plain answer to 'is calibration good enough?' …); REQ-DIAG-2 (The app shall say, for every reading, what it measures, its typical …) |
+| pinpoint-ux-design.md | REQ-ACC-7 (The app shall start cleanly on a machine with no golfers and …); REQ-ACC-10 (The app shall show its words in the language the user picks …); REQ-ACC-11 (The app shall show speeds, distances and forces in the units the …); REQ-CAP-1 (The app shall record every swing the golfer hits while it shows …); REQ-CAP-10 (The app shall replay each shot slowed down as soon as it …); REQ-CAP-11 (The app shall show live camera pictures while capturing, so the golfer …); REQ-CAP-17 (The app shall record on every shot the club the golfer declared …); REQ-COACH-23 (The app shall let the golfer or coach ask about a session …); REQ-DEV-21 (Session set-up shall show only the steps the connected hardware needs, and …); REQ-DEV-28 (The app shall let the user choose the microphone, the screen the …); REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …); REQ-INST-13 (The app shall show its version and licences, and check for an …); REQ-LIB-1 (The app shall keep every shot with a golfer and a session …); REQ-LIB-2 (The app shall let the user add, edit and remove golfers with …); REQ-LIB-4 (The app shall put the most recent golfers one click away, so …); REQ-LIB-26 (The app shall archive old sessions and empty the trash by itself …); REQ-LIB-27 (The app shall let the user choose what is kept with each …); REQ-PRIV-1 (The app shall keep every golfer's data on the user's own machines …); REQ-PRIV-2 (The app shall send nothing to an outside service unless the user …); REQ-PRIV-6 (The app shall send crash and performance reports only if the user …); REQ-REL-3 (After a crash, every shot saved before it shall be in the library.); REQ-REL-11 (The app shall keep a log the user can read and filter …); REQ-REV-1 (The app shall replay any saved shot from every camera together, in …); REQ-REV-7 (The app shall show two swings' videos side by side or overlaid …); REQ-REV-18 (The app shall show every shot as a card with its outcome …); REQ-REV-25 (The app shall show the golfer's progress over weeks and months: a …); REQ-REV-26 (The app shall show a dashboard on a second screen during a session.) |
+| pinpoint_qml_design_system.md | REQ-ACC-3 (The app shall let the user choose how dense the screens are …); REQ-ACC-9 (The app shall let the user set text size, reduce motion, and …) |
+| plane_coupled_kinematic_sequence_proposal.md | REQ-ANA-27 (The app shall cross-check the cameras against the sensors, and name the …) |
+| plane_stack_design.md | REQ-ANA-18 (The app shall measure the swing plane and the club's delivery the …); REQ-DIAG-12 (The app shall show the golfer when a norm it grades against is still provisional.); REQ-DIAG-20 (The app shall judge the backswing plane in layers, each against the …) |
+| planned_metrics_promotion.md | REQ-DIAG-7 (The app shall grade new readings at once, with their uncertainty and …) |
+| pose_inference_performance_plan.md | REQ-PERF-1 (The app shall show a shot's results within about 10 s of …) |
+| posture_chart_design.md | REQ-REV-21 (The app shall show the golfer's posture at each swing position against …) |
+| posture_metrics_design.md | REQ-ANA-15 (The app shall measure posture at address and through the swing.) |
+| release.md | REQ-INST-10 (The app shall ask for the system permissions it needs with a …) |
+| reload_replay_design.md | REQ-REV-1 (The app shall replay any saved shot from every camera together, in …) |
+| rig_design.md | REQ-DEV-12 (The app shall clear a sensor's calibration, and tell the golfer, whenever …); REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …); REQ-DEV-20 (The app shall save every change to the rig's set-up, and never …); REQ-LIB-23 (A golfer's history shall survive every upgrade: the app reads every swing …) |
+| rig_design_addendum.md | REQ-DEV-12 (The app shall clear a sensor's calibration, and tell the golfer, whenever …) |
+| session_diagnostics_build_findings.md | REQ-DIAG-13 (The app shall let a coach record a physical screen (mobility, strength) …) |
+| session_diagnostics_design.md | REQ-DIAG-3 (The app shall find the faults and habits a session shows.); REQ-DIAG-4 (The app shall say, for each finding, how often it fired in …); REQ-DIAG-23 (The app shall show the evidence behind each finding: the shots it …); REQ-HON-11 (Every shot of a session shall count in full.); REQ-REV-12 (The app shall show the session's diagnosis while the session runs, in …) |
+| session_report_design.md | REQ-COACH-21 (The app shall give the golfer, at the end of a lesson …); REQ-COACH-22 (The app shall draw drills, constraints and feels for each work-on from …); REQ-PRIV-3 (The app shall keep passwords and keys in the system's secure store …); REQ-REV-13 (The app shall make a session report for the golfer: what happened …); REQ-REV-14 (The app shall send the report by email directly or hand it …); REQ-REV-32 (The app shall put the studio's and the coach's details on the …) |
+| session_wizard_refactor_design.md | REQ-CAP-20 (The app shall let the golfer say, at the start of a …); REQ-DEV-21 (Session set-up shall show only the steps the connected hardware needs, and …) |
+| sessions_screen_redesign.md | REQ-LIB-10 (The app shall list a golfer's sessions with their date, shots, clubs …) |
+| shaft_detection_improvements.md | REQ-ANA-6 (The app shall track the club shaft and clubhead through the swing …) |
+| shaft_fusion_design.md | REQ-ANA-8 (The app shall combine the two camera views of the club into …) |
+| shaft_position_first_design.md | REQ-ANA-6 (The app shall track the club shaft and clubhead through the swing …) |
+| shaft_uncertainty_propagation_design.md | REQ-ANA-6 (The app shall track the club shaft and clubhead through the swing …) |
+| shot_analyzer_design.md | REQ-ANA-1 (The app shall analyse every shot by itself after capture, with no …); REQ-ANA-22 (The app shall measure tempo: the backswing and downswing times and their ratio.) |
+| shot_analyzer_viz.md | REQ-REV-5 (The app shall chart each reading of a shot through the swing …) |
+| shot_outcomes_design.md | REQ-ANA-29 (The app shall give each shot three outcome factors, strike, direction and …); REQ-COACH-5 (The app shall show the golfer's tendencies across sessions by strike, direction …); REQ-DIAG-5 (The app shall answer 'what happened there?' for a shot: what stood …); REQ-DIAG-24 (The app shall explain a session's outcomes: where the yards went, what …) |
+| shotdetection.md | REQ-CAP-3 (The app shall detect a swing by itself, without the golfer touching …); REQ-CAP-5 (The app shall not treat a sound or movement that is not …) |
+| sign_conventions.md | REQ-ANA-33 (The app shall read a left-handed golfer's swing correctly from capture to report.) |
+| skeleton3d_shaft_branch_design.md | REQ-ANA-8 (The app shall combine the two camera views of the club into …) |
+| stage_typeset_playbook.md | REQ-REV-12 (The app shall show the session's diagnosis while the session runs, in …) |
+| swing_3d_annotations_design.md | REQ-REV-2 (The app shall draw the tracked body and club over the video …) |
+| swing_3d_session_synthesis_design.md | REQ-REV-24 (The app shall show the swing in 3-D from any side, with …) |
+| swing_3d_viz_design.md | REQ-ANA-5 (The app shall track the whole body from each camera, and fit …); REQ-REV-24 (The app shall show the swing in 3-D from any side, with …) |
+| swing_areas_regroup.md | REQ-COACH-9 (The app shall group findings by swing area (what moves) and show …) |
+| swing_fault_ontology.md | REQ-DIAG-3 (The app shall find the faults and habits a session shows.); REQ-DIAG-22 (The app shall link each fault to its likely causes, where the …) |
+| swing_json_schema.md | REQ-LIB-21 (The app shall store swings in an open, documented format with a …) |
+| swing_plane_area.md | REQ-ANA-18 (The app shall measure the swing plane and the club's delivery the …) |
+| tendencies_flow_design.md | REQ-COACH-5 (The app shall show the golfer's tendencies across sessions by strike, direction …) |
+| timeline-fusion.md | REQ-ANA-3 (The app shall find the swing positions P1 to P10 on every …); REQ-CAP-16 (The app shall time impact on every shot to within a frame of the video.) |
+| trunk_imu_sequence_grf_design.md | REQ-ANA-14 (The app shall measure pelvis and chest turn, and the difference between …); REQ-ANA-24 (The app shall measure trunk turn and bend from the chest and …); REQ-ANA-25 (The app shall estimate lead-side load and ground forces when a sensor …); REQ-DEV-7 (The app shall connect wrist sensors (HackMotion, Witmotion) and chest and hip …) |
+| trust_and_gates_design.md | REQ-DIAG-15 (The app shall say the real reason a reading is unavailable or …); REQ-HON-5 (The app shall say how far to trust each reading it shows …) |
+| trust_stage6_plan.md | REQ-HON-5 (The app shall say how far to trust each reading it shows …) |
+| uncertainty_census_design.md | REQ-HON-4 (Before the first full release, the app shall state for every reading …) |
+| upper_body_face_on_metrics.md | REQ-ANA-17 (The app shall measure the chest, shoulders and arms from the face-on camera.) |
+| use_cases.md | REQ-CAP-35 (The app shall warn before a session starts when the library's disk is nearly full.); REQ-CAP-36 (The app shall let the golfer or coach move a launch-monitor reading …); REQ-CAP-38 (When an import stops part-way, the app shall say which shots came …); REQ-CAP-39 (At End, the app shall name a phone clip still on its …); REQ-DEV-29 (The app shall let the user unpair a phone the studio no …); REQ-DEV-30 (The app shall tell the user when a change to the set-up fails to save.); REQ-INST-14 (When the user refuses a system permission, the app shall say what …); REQ-INST-15 (When an update fails or will not start, the app shall let …); REQ-INST-16 (Uninstalling or reinstalling the app shall leave the library untouched.); REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …); REQ-LIB-28 (The app shall let the user keep a second copy of the …); REQ-LIB-29 (The app shall let the user move the library to a new …); REQ-LIB-30 (The app shall let the golfer or coach move shots recorded into …); REQ-LIB-31 (A re-analysis the golfer asks for shall keep every input of the …); REQ-REV-35 (The app shall show a session side by side with an earlier one.); REQ-REV-36 (When a report fails to send, the app shall say so and …) |
+| ux_refactor_away_from_4_modes.md | REQ-DEV-26 (The app shall show, before a session, what the connected rig can measure.) |
+| vendor_neutral_gpu.md | REQ-INST-9 (The app shall run its pose engine on any maker's graphics card …) |
+| watch_me_play_design.md | REQ-CAP-30 (The app shall capture shots while the golfer plays a simulator round …); REQ-COACH-20 (The app shall advise during a simulator round with at most one …) |
+| wholebody_pose_design.md | REQ-ANA-5 (The app shall track the whole body from each camera, and fit …) |
+| windows_update.md | REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …); REQ-INST-2 (The app shall install from one signed installer per platform.); REQ-INST-3 (The app shall tell the user an update is ready, install it …); REQ-INST-4 (The app shall check every update's signature before installing it.); REQ-INST-8 (The app shall install without the graphics-card runtime and fetch it only …) |
+| wired_transport_design.md | REQ-CAP-28 (The app shall capture from a phone over a cable as well …) |
+| work_ons_design.md | REQ-COACH-1 (The app shall coach the golfer directly by default, picking from all …); REQ-COACH-3 (The app shall follow each work-on across sessions: still happening, improving or …); REQ-COACH-4 (The app shall let the golfer dismiss a work-on, make one the …); REQ-DIAG-4 (The app shall say, for each finding, how often it fired in …) |
+| wrist_motion_into_charts.md | REQ-ANA-21 (The app shall measure the lead and trail wrist angles through the …); REQ-REV-20 (The app shall show the wrist analysis: live angles during set-up, curves …) |
+| wristcalibration.md | REQ-DEV-10 (The app shall run every sensor calibration without the golfer touching the screen.) |
+| wristmotion_assessment_design.md | REQ-ANA-21 (The app shall measure the lead and trail wrist angles through the …); REQ-DEV-7 (The app shall connect wrist sensors (HackMotion, Witmotion) and chest and hip …); REQ-DIAG-18 (The app shall grade wrist positions against reference bands and swing styles …); REQ-REV-20 (The app shall show the wrist analysis: live angles during set-up, curves …) |
+
+## Every gap, flag by flag
+
+Each line says the gap in words. The small print after it is the gap as the baseline and the accepted gaps spell it, and its state: accepted, baseline, or new (a new gap fails the check).
+
+### 2. An id cited anywhere does not exist, or is withdrawn
+
+None.
+
+### 3. A delivered, built or partial row without evidence of every kind it needs
+
+- REQ-CAP-1 (The app shall record every swing the golfer hits while it shows …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-1 E4` baseline; `3 REQ-CAP-1 E6` baseline</sub>
+- REQ-CAP-3 (The app shall detect a swing by itself, without the golfer touching …): partial; no automated screen test yet (E4) <sub>`3 REQ-CAP-3 E4` baseline</sub>
+- REQ-CAP-4 (The app shall let the golfer or coach record a shot by …): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-4 E4` baseline; `3 REQ-CAP-4 E6` baseline</sub>
+- REQ-CAP-5 (The app shall not treat a sound or movement that is not …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-5 E4` baseline; `3 REQ-CAP-5 E6` baseline</sub>
+- REQ-CAP-6 (The app shall tell the golfer, by a short sound, that a …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-6 E4` baseline; `3 REQ-CAP-6 E6` baseline</sub>
+- REQ-CAP-8 (The app shall pair each launch-monitor reading with the swing it belongs …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-8 E4` baseline; `3 REQ-CAP-8 E6` baseline</sub>
+- REQ-CAP-9 (The app shall add everything a device reports for a shot to …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-9 E4` baseline; `3 REQ-CAP-9 E6` baseline</sub>
+- REQ-CAP-10 (The app shall replay each shot slowed down as soon as it …): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-10 E4` baseline; `3 REQ-CAP-10 E6` baseline</sub>
+- REQ-CAP-11 (The app shall show live camera pictures while capturing, so the golfer …): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-11 E4` baseline; `3 REQ-CAP-11 E6` baseline</sub>
+- REQ-CAP-13 (The app shall record a short clip from the impact camera, trimmed around impact.): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-13 E4` baseline; `3 REQ-CAP-13 E6` baseline</sub>
+- REQ-CAP-14 (The app shall keep capturing when a device drops out, tell the …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-14 E4` baseline; `3 REQ-CAP-14 E6` baseline</sub>
+- REQ-CAP-15 (Readings from every device shall line up in time to within a frame.): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-15 E4` baseline; `3 REQ-CAP-15 E6` baseline</sub>
+- REQ-CAP-17 (The app shall record on every shot the club the golfer declared …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-17 E4` baseline; `3 REQ-CAP-17 E6` baseline</sub>
+- REQ-CAP-33 (The app shall take a shot's club from the simulator software when …): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-33 E4` baseline; `3 REQ-CAP-33 E6` baseline</sub>
+- REQ-CAP-20 (The app shall let the golfer say, at the start of a …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-20 E4` baseline; `3 REQ-CAP-20 E6` baseline</sub>
+- REQ-CAP-21 (The app shall start every session in Capture, on every start path.): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-21 E4` baseline; `3 REQ-CAP-21 E6` baseline</sub>
+- REQ-CAP-22 (The app shall end a session only after any shot still being …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-22 E4` baseline; `3 REQ-CAP-22 E6` baseline</sub>
+- REQ-CAP-23 (The app shall let the golfer continue today's session for the same …): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-23 E4` baseline; `3 REQ-CAP-23 E6` baseline</sub>
+- REQ-CAP-26 (The app shall accept a phone's shot only when the computer's own …): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-26 E4` baseline; `3 REQ-CAP-26 E6` baseline</sub>
+- REQ-CAP-27 (The app shall pair a phone as a camera by scanning a …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-27 E4` baseline; `3 REQ-CAP-27 E6` baseline</sub>
+- REQ-CAP-28 (The app shall capture from a phone over a cable as well …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-28 E4` baseline; `3 REQ-CAP-28 E6` baseline</sub>
+- REQ-CAP-29 (The app shall import a phone's recorded session and launch-monitor files into the library.): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-29 E4` baseline; `3 REQ-CAP-29 E6` baseline</sub>
+- REQ-CAP-34 (The app shall check that the phone app and the studio app …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-34 E4` baseline; `3 REQ-CAP-34 E6` baseline</sub>
+- REQ-CAP-37 (The app shall let the golfer stop capture and start it again within a session.): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-CAP-37 E4` baseline; `3 REQ-CAP-37 E6` baseline</sub>
+- REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-DEV-1 E4` baseline</sub>
+- REQ-DEV-2 (Every camera shall give a usable picture in the studio's light, every session.): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-2 E4` baseline; `3 REQ-DEV-2 E6` baseline</sub>
+- REQ-DEV-3 (The app shall offer for the swing roles only cameras fast enough …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-3 E4` baseline; `3 REQ-DEV-3 E6` baseline</sub>
+- REQ-DEV-5 (The app shall read launch monitors: a GC Quad directly, devices bridged …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-DEV-5 E4` baseline</sub>
+- REQ-DEV-7 (The app shall connect wrist sensors (HackMotion, Witmotion) and chest and hip …): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-7 E4` baseline; `3 REQ-DEV-7 E6` baseline</sub>
+- REQ-DEV-10 (The app shall run every sensor calibration without the golfer touching the screen.): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-10 E4` baseline; `3 REQ-DEV-10 E6` baseline</sub>
+- REQ-DEV-11 (The app shall guide each calibration with a face-on figure and golf-swing …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-11 E4` baseline; `3 REQ-DEV-11 E6` baseline</sub>
+- REQ-DEV-14 (The app shall give one plain answer to 'is calibration good enough?' …): partial; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-14 E4` baseline; `3 REQ-DEV-14 E6` baseline</sub>
+- REQ-DEV-21 (Session set-up shall show only the steps the connected hardware needs, and …): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-21 E4` baseline; `3 REQ-DEV-21 E6` baseline</sub>
+- REQ-DEV-23 (The app shall say at set-up which readings the camera framing will lose.): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-23 E4` baseline; `3 REQ-DEV-23 E6` baseline</sub>
+- REQ-DEV-24 (The app shall find the ball at address without the golfer calibrating anything.): partial; no automated screen test yet (E4) <sub>`3 REQ-DEV-24 E4` baseline</sub>
+- REQ-DEV-25 (The app shall show live device health (cameras, sensors, phones, buffers) on …): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-25 E4` baseline; `3 REQ-DEV-25 E6` baseline</sub>
+- REQ-DEV-26 (The app shall show, before a session, what the connected rig can measure.): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-26 E4` baseline; `3 REQ-DEV-26 E6` baseline</sub>
+- REQ-DEV-28 (The app shall let the user choose the microphone, the screen the …): built, not verified; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-DEV-28 E4` baseline; `3 REQ-DEV-28 E6` baseline</sub>
+- REQ-ANA-1 (The app shall analyse every shot by itself after capture, with no …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-1 E1` baseline; `3 REQ-ANA-1 E3` baseline</sub>
+- REQ-ANA-2 (The app shall analyse each shot by the data it holds.): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-2 E1` baseline; `3 REQ-ANA-2 E3` baseline</sub>
+- REQ-ANA-3 (The app shall find the swing positions P1 to P10 on every …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-3 E1` baseline; `3 REQ-ANA-3 E3` baseline</sub>
+- REQ-ANA-5 (The app shall track the whole body from each camera, and fit …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-ANA-5 E1` baseline</sub>
+- REQ-ANA-6 (The app shall track the club shaft and clubhead through the swing …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-6 E1` baseline; `3 REQ-ANA-6 E3` baseline</sub>
+- REQ-ANA-7 (The app shall track the club from the down-the-line camera, and say …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-7 E1` baseline; `3 REQ-ANA-7 E3` baseline</sub>
+- REQ-ANA-8 (The app shall combine the two camera views of the club into …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-ANA-8 E1` baseline</sub>
+- REQ-ANA-9 (The app shall measure clubhead speed from the cameras when no launch …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-9 E1` baseline; `3 REQ-ANA-9 E3` baseline</sub>
+- REQ-ANA-12 (Where a launch monitor measures a quantity, the app shall use its …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-12 E1` baseline; `3 REQ-ANA-12 E3` baseline</sub>
+- REQ-ANA-13 (The app shall measure the kinematic sequence, with an uncertainty on every …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-13 E1` baseline; `3 REQ-ANA-13 E3` baseline</sub>
+- REQ-ANA-14 (The app shall measure pelvis and chest turn, and the difference between …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-ANA-14 E1` baseline</sub>
+- REQ-ANA-15 (The app shall measure posture at address and through the swing.): partial; no automated test of the logic yet (E1) <sub>`3 REQ-ANA-15 E1` baseline</sub>
+- REQ-ANA-16 (The app shall measure lower-body movement (sway, lift, lead-knee drift, hip-line tilt) …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-16 E1` baseline; `3 REQ-ANA-16 E3` baseline</sub>
+- REQ-ANA-17 (The app shall measure the chest, shoulders and arms from the face-on camera.): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-17 E1` baseline; `3 REQ-ANA-17 E3` baseline</sub>
+- REQ-ANA-18 (The app shall measure the swing plane and the club's delivery the …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-ANA-18 E1` baseline</sub>
+- REQ-ANA-20 (The app shall measure ball position and the ball's distance from the …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-ANA-20 E1` baseline</sub>
+- REQ-ANA-21 (The app shall measure the lead and trail wrist angles through the …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-21 E1` baseline; `3 REQ-ANA-21 E3` baseline</sub>
+- REQ-ANA-22 (The app shall measure tempo: the backswing and downswing times and their ratio.): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-22 E1` baseline; `3 REQ-ANA-22 E3` baseline</sub>
+- REQ-ANA-36 (The app shall measure head movement through the swing.): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-ANA-36 E1` baseline</sub>
+- REQ-ANA-24 (The app shall measure trunk turn and bend from the chest and …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-24 E1` baseline; `3 REQ-ANA-24 E3` baseline</sub>
+- REQ-ANA-29 (The app shall give each shot three outcome factors, strike, direction and …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-29 E1` baseline; `3 REQ-ANA-29 E3` baseline</sub>
+- REQ-ANA-30 (The app shall model the ball's flight (carry, height, descent) from the stored launch-monitor reading.): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-30 E1` baseline; `3 REQ-ANA-30 E3` baseline</sub>
+- REQ-ANA-31 (Old shots shall get the app's improvements, and every result shall say …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-31 E1` baseline; `3 REQ-ANA-31 E3` baseline</sub>
+- REQ-ANA-32 (The app shall let the golfer re-analyse a session or the library …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-ANA-32 E1` baseline; `3 REQ-ANA-32 E3` baseline</sub>
+- REQ-DIAG-1 (The app shall grade every reading against a norm for players like …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-1 E1` baseline; `3 REQ-DIAG-1 E3` baseline</sub>
+- REQ-DIAG-2 (The app shall say, for every reading, what it measures, its typical …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-2 E1` baseline; `3 REQ-DIAG-2 E3` baseline</sub>
+- REQ-DIAG-3 (The app shall find the faults and habits a session shows.): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-3 E1` baseline; `3 REQ-DIAG-3 E3` baseline</sub>
+- REQ-DIAG-22 (The app shall link each fault to its likely causes, where the …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-22 E1` baseline; `3 REQ-DIAG-22 E3` baseline</sub>
+- REQ-DIAG-23 (The app shall show the evidence behind each finding: the shots it …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-23 E1` baseline; `3 REQ-DIAG-23 E3` baseline</sub>
+- REQ-DIAG-4 (The app shall say, for each finding, how often it fired in …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-4 E1` baseline; `3 REQ-DIAG-4 E3` baseline</sub>
+- REQ-DIAG-5 (The app shall answer 'what happened there?' for a shot: what stood …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-5 E1` baseline; `3 REQ-DIAG-5 E3` baseline</sub>
+- REQ-DIAG-6 (The app shall show where the golfer's swing repeats and where it …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-6 E1` baseline; `3 REQ-DIAG-6 E3` baseline</sub>
+- REQ-DIAG-7 (The app shall grade new readings at once, with their uncertainty and …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-7 E1` baseline; `3 REQ-DIAG-7 E3` baseline</sub>
+- REQ-DIAG-8 (The app shall let the Coaching Lead change, inside the app, a …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-8 E1` baseline; `3 REQ-DIAG-8 E3` baseline</sub>
+- REQ-DIAG-9 (The app shall show the health of the diagnostics model: measures with …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-9 E1` baseline; `3 REQ-DIAG-9 E3` baseline</sub>
+- REQ-DIAG-10 (A habit the app cannot yet judge shall be shown as not …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-10 E1` baseline; `3 REQ-DIAG-10 E3` baseline</sub>
+- REQ-DIAG-11 (The app shall record, for each cause link, whether it rests on …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-11 E1` baseline; `3 REQ-DIAG-11 E3` baseline</sub>
+- REQ-DIAG-12 (The app shall show the golfer when a norm it grades against is still provisional.): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-12 E1` baseline; `3 REQ-DIAG-12 E3` baseline</sub>
+- REQ-DIAG-14 (The app shall diagnose every shot as it is captured, whether or …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-14 E1` baseline; `3 REQ-DIAG-14 E3` baseline</sub>
+- REQ-DIAG-15 (The app shall say the real reason a reading is unavailable or …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-15 E1` baseline; `3 REQ-DIAG-15 E3` baseline</sub>
+- REQ-DIAG-16 (The app shall judge each shot's outcome (carry, ball speed, club speed) …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-16 E1` baseline; `3 REQ-DIAG-16 E3` baseline</sub>
+- REQ-DIAG-17 (The app shall grade by club where the club changes what is normal.): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-17 E1` baseline; `3 REQ-DIAG-17 E3` baseline</sub>
+- REQ-DIAG-18 (The app shall grade wrist positions against reference bands and swing styles …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-18 E1` baseline; `3 REQ-DIAG-18 E3` baseline</sub>
+- REQ-DIAG-20 (The app shall judge the backswing plane in layers, each against the …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-20 E1` baseline; `3 REQ-DIAG-20 E3` baseline</sub>
+- REQ-DIAG-21 (The app shall show what the golfer does well, and say why …): partial; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-21 E1` baseline; `3 REQ-DIAG-21 E3` baseline</sub>
+- REQ-DIAG-24 (The app shall explain a session's outcomes: where the yards went, what …): built, not verified; no automated test of the logic yet (E1), and no run over real swings yet (E3) <sub>`3 REQ-DIAG-24 E1` baseline; `3 REQ-DIAG-24 E3` baseline</sub>
+- REQ-COACH-1 (The app shall coach the golfer directly by default, picking from all …): built, not verified; no run over real swings yet (E3) <sub>`3 REQ-COACH-1 E3` baseline</sub>
+- REQ-COACH-3 (The app shall follow each work-on across sessions: still happening, improving or …): built, not verified; no run over real swings yet (E3) <sub>`3 REQ-COACH-3 E3` baseline</sub>
+- REQ-COACH-5 (The app shall show the golfer's tendencies across sessions by strike, direction …): built, not verified; no run over real swings yet (E3) <sub>`3 REQ-COACH-5 E3` baseline</sub>
+- REQ-COACH-6 (The app shall show, for the shots a filter picks, how often …): partial; no run over real swings yet (E3) <sub>`3 REQ-COACH-6 E3` baseline</sub>
+- REQ-COACH-9 (The app shall group findings by swing area (what moves) and show …): built, not verified; no run over real swings yet (E3) <sub>`3 REQ-COACH-9 E3` baseline</sub>
+- REQ-COACH-16 (The app shall narrate its coaching decisions, in text, in words suited …): partial; no run over real swings yet (E3) <sub>`3 REQ-COACH-16 E3` baseline</sub>
+- REQ-COACH-23 (The app shall let the golfer or coach ask about a session …): partial; no run over real swings yet (E3) <sub>`3 REQ-COACH-23 E3` baseline</sub>
+- REQ-COACH-21 (The app shall give the golfer, at the end of a lesson …): partial; no run over real swings yet (E3) <sub>`3 REQ-COACH-21 E3` baseline</sub>
+- REQ-COACH-22 (The app shall draw drills, constraints and feels for each work-on from …): partial; no run over real swings yet (E3) <sub>`3 REQ-COACH-22 E3` baseline</sub>
+- REQ-REV-1 (The app shall replay any saved shot from every camera together, in …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-1 E4` baseline</sub>
+- REQ-REV-2 (The app shall draw the tracked body and club over the video …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-2 E4` baseline</sub>
+- REQ-REV-3 (The app shall draw coach's lines (head, hips, plane, spine, shoulder plane) …): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-3 E4` baseline</sub>
+- REQ-REV-4 (The app shall let a coach draw on the video and keep …): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-4 E4` baseline</sub>
+- REQ-REV-5 (The app shall chart each reading of a shot through the swing …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-5 E4` baseline</sub>
+- REQ-REV-6 (The app shall compare a shot against another, lined up by swing …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-6 E4` baseline</sub>
+- REQ-REV-9 (The app shall let the golfer mark a reference swing and compare …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-9 E4` baseline</sub>
+- REQ-REV-10 (The app shall plot any reading against any other within a session …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-10 E4` baseline</sub>
+- REQ-REV-11 (The app shall show the session's launch-monitor numbers, with dispersion and per-club figures.): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-11 E4` baseline</sub>
+- REQ-REV-12 (The app shall show the session's diagnosis while the session runs, in …): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-12 E4` baseline</sub>
+- REQ-REV-13 (The app shall make a session report for the golfer: what happened …): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-13 E4` baseline</sub>
+- REQ-REV-14 (The app shall send the report by email directly or hand it …): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-14 E4` baseline</sub>
+- REQ-REV-32 (The app shall put the studio's and the coach's details on the …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-32 E4` baseline</sub>
+- REQ-REV-18 (The app shall show every shot as a card with its outcome …): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-18 E4` baseline</sub>
+- REQ-REV-19 (The app shall show a table of every reading for a shot …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-19 E4` baseline</sub>
+- REQ-REV-20 (The app shall show the wrist analysis: live angles during set-up, curves …): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-20 E4` baseline</sub>
+- REQ-REV-21 (The app shall show the golfer's posture at each swing position against …): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-21 E4` baseline</sub>
+- REQ-REV-22 (The app shall show the club's delivery as a coach reads it …): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-22 E4` baseline</sub>
+- REQ-REV-23 (The app shall show the kinematic sequence as a chart and a …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-23 E4` baseline</sub>
+- REQ-REV-24 (The app shall show the swing in 3-D from any side, with …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-24 E4` baseline</sub>
+- REQ-REV-25 (The app shall show the golfer's progress over weeks and months: a …): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-25 E4` baseline</sub>
+- REQ-REV-26 (The app shall show a dashboard on a second screen during a session.): partial; no automated screen test yet (E4) <sub>`3 REQ-REV-26 E4` baseline</sub>
+- REQ-REV-27 (The app shall let the golfer rate a shot and note it …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-27 E4` baseline</sub>
+- REQ-REV-30 (The app shall let an analyst mark the club and body on …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-REV-30 E4` baseline</sub>
+- REQ-LIB-1 (The app shall keep every shot with a golfer and a session …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-1 E1` baseline</sub>
+- REQ-LIB-2 (The app shall let the user add, edit and remove golfers with …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-2 E1` baseline</sub>
+- REQ-LIB-3 (The app shall keep each golfer's bag of clubs and use it in analysis.): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-3 E1` baseline</sub>
+- REQ-LIB-4 (The app shall put the most recent golfers one click away, so …): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-4 E1` baseline</sub>
+- REQ-LIB-6 (The app shall change the golfer on screen only when no session is being recorded.): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-6 E1` baseline</sub>
+- REQ-LIB-7 (Renaming a golfer shall change only the name: every session stays with them.): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-7 E1` baseline</sub>
+- REQ-LIB-8 (Moving a golfer to the trash shall take all their sessions to …): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-8 E1` baseline</sub>
+- REQ-LIB-9 (The app shall move a session to another golfer keeping everything in …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-9 E1` baseline</sub>
+- REQ-LIB-10 (The app shall list a golfer's sessions with their date, shots, clubs …): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-10 E1` baseline</sub>
+- REQ-LIB-12 (The app shall remove a saved shot, or a whole session, only …): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-12 E1` baseline</sub>
+- REQ-LIB-13 (The app shall never give a trashed shot's number to another shot.): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-13 E1` baseline</sub>
+- REQ-LIB-14 (The app shall archive a session to save space, dropping raw frames …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-14 E1` baseline</sub>
+- REQ-LIB-26 (The app shall archive old sessions and empty the trash by itself …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-26 E1` baseline</sub>
+- REQ-LIB-27 (The app shall let the user choose what is kept with each …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-27 E1` baseline</sub>
+- REQ-LIB-15 (The app shall let the user choose where the library lives, including …): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-15 E1` baseline</sub>
+- REQ-LIB-16 (The app shall never let two computers record into one session, and …): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-16 E1` baseline</sub>
+- REQ-LIB-17 (The app shall let the golfer or coach end a session a …): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-17 E1` baseline</sub>
+- REQ-LIB-18 (The app shall discard a session as empty only when nothing was …): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-18 E1` baseline</sub>
+- REQ-LIB-19 (The app shall export shots or a whole session as videos and swing data.): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-19 E1` baseline</sub>
+- REQ-LIB-21 (The app shall store swings in an open, documented format with a …): partial; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-21 E1` baseline</sub>
+- REQ-LIB-25 (The app shall keep each golfer's distances and sideways spread by club.): built, not verified; no automated test of the logic yet (E1) <sub>`3 REQ-LIB-25 E1` baseline</sub>
+- REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …): built, not verified; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7) <sub>`3 REQ-INST-1 E5` baseline; `3 REQ-INST-1 E6` baseline; `3 REQ-INST-1 E7` baseline</sub>
+- REQ-INST-2 (The app shall install from one signed installer per platform.): partial; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7) <sub>`3 REQ-INST-2 E5` baseline; `3 REQ-INST-2 E6` baseline; `3 REQ-INST-2 E7` baseline</sub>
+- REQ-INST-3 (The app shall tell the user an update is ready, install it …): built, not verified; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7) <sub>`3 REQ-INST-3 E5` baseline; `3 REQ-INST-3 E6` baseline; `3 REQ-INST-3 E7` baseline</sub>
+- REQ-INST-4 (The app shall check every update's signature before installing it.): built, not verified; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7) <sub>`3 REQ-INST-4 E5` baseline; `3 REQ-INST-4 E6` baseline; `3 REQ-INST-4 E7` baseline</sub>
+- REQ-INST-5 (The app shall install an update only when nothing is in progress …): partial; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7) <sub>`3 REQ-INST-5 E5` baseline; `3 REQ-INST-5 E6` baseline; `3 REQ-INST-5 E7` baseline</sub>
+- REQ-INST-8 (The app shall install without the graphics-card runtime and fetch it only …): built, not verified; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7) <sub>`3 REQ-INST-8 E5` baseline; `3 REQ-INST-8 E6` baseline; `3 REQ-INST-8 E7` baseline</sub>
+- REQ-INST-9 (The app shall run its pose engine on any maker's graphics card …): partial; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7) <sub>`3 REQ-INST-9 E5` baseline; `3 REQ-INST-9 E6` baseline; `3 REQ-INST-9 E7` baseline</sub>
+- REQ-INST-10 (The app shall ask for the system permissions it needs with a …): partial; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7) <sub>`3 REQ-INST-10 E5` baseline; `3 REQ-INST-10 E6` baseline; `3 REQ-INST-10 E7` baseline</sub>
+- REQ-INST-11 (The app shall work with phones on the local network without the …): built, not verified; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7) <sub>`3 REQ-INST-11 E5` baseline; `3 REQ-INST-11 E6` baseline; `3 REQ-INST-11 E7` baseline</sub>
+- REQ-INST-13 (The app shall show its version and licences, and check for an …): partial; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7) <sub>`3 REQ-INST-13 E5` baseline; `3 REQ-INST-13 E6` baseline; `3 REQ-INST-13 E7` baseline</sub>
+- REQ-REL-1 (Every way of quitting shall go through one prompt, no quit shall …): partial; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-REL-1 E1` baseline; `3 REQ-REL-1 E6` baseline</sub>
+- REQ-REL-2 (Once the golfer has answered the quit prompt, the app shall be …): partial; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-REL-2 E1` baseline; `3 REQ-REL-2 E6` baseline</sub>
+- REQ-REL-3 (After a crash, every shot saved before it shall be in the library.): partial; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-REL-3 E1` baseline; `3 REQ-REL-3 E6` baseline</sub>
+- REQ-REL-4 (An edit to a saved shot shall be on disk before the …): partial; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-REL-4 E1` baseline; `3 REQ-REL-4 E6` baseline</sub>
+- REQ-REL-5 (A calibration's evidence shall be saved with its session, or the golfer …): partial; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-REL-5 E1` baseline; `3 REQ-REL-5 E6` baseline</sub>
+- REQ-REL-6 (A power cut shall never lose a saved shot or edit.): partial; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-REL-6 E1` baseline; `3 REQ-REL-6 E6` baseline</sub>
+- REQ-REL-11 (The app shall keep a log the user can read and filter …): built, not verified; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-REL-11 E1` baseline; `3 REQ-REL-11 E6` baseline</sub>
+- REQ-REL-10 (The app shall run a full studio day without slowing down or …): partial; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6) <sub>`3 REQ-REL-10 E1` baseline; `3 REQ-REL-10 E6` baseline</sub>
+- REQ-PERF-1 (The app shall show a shot's results within about 10 s of …): partial; no run on Windows yet (E5) <sub>`3 REQ-PERF-1 E5` baseline</sub>
+- REQ-PERF-2 (No step (launch, Start, opening a shot, saving a shot, End) shall …): partial; no run on Windows yet (E5) <sub>`3 REQ-PERF-2 E5` baseline</sub>
+- REQ-PERF-4 (Home and the session lists shall open within a time the Product …): partial; no run on Windows yet (E5) <sub>`3 REQ-PERF-4 E5` baseline</sub>
+- REQ-PERF-6 (The app shall share the studio computer's graphics card with the simulator …): partial; no run on Windows yet (E5) <sub>`3 REQ-PERF-6 E5` baseline</sub>
+- REQ-PERF-7 (The app shall be ready to capture within 30 s of its …): partial; no run on Windows yet (E5) <sub>`3 REQ-PERF-7 E5` baseline</sub>
+- REQ-PRIV-1 (The app shall keep every golfer's data on the user's own machines …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-PRIV-1 E4` baseline</sub>
+- REQ-PRIV-3 (The app shall keep passwords and keys in the system's secure store …): partial; no automated screen test yet (E4) <sub>`3 REQ-PRIV-3 E4` baseline</sub>
+- REQ-PRIV-4 (The app shall put a golfer's photo in a report only with …): partial; no automated screen test yet (E4) <sub>`3 REQ-PRIV-4 E4` baseline</sub>
+- REQ-PRIV-6 (The app shall send crash and performance reports only if the user …): partial; no automated screen test yet (E4) <sub>`3 REQ-PRIV-6 E4` baseline</sub>
+- REQ-ACC-1 (The app shall never use colour as the only way of saying …): partial; no automated screen test yet (E4) <sub>`3 REQ-ACC-1 E4` baseline</sub>
+- REQ-ACC-3 (The app shall let the user choose how dense the screens are …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-ACC-3 E4` baseline</sub>
+- REQ-ACC-9 (The app shall let the user set text size, reduce motion, and …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-ACC-9 E4` baseline</sub>
+- REQ-ACC-10 (The app shall show its words in the language the user picks …): partial; no automated screen test yet (E4) <sub>`3 REQ-ACC-10 E4` baseline</sub>
+- REQ-ACC-11 (The app shall show speeds, distances and forces in the units the …): partial; no automated screen test yet (E4) <sub>`3 REQ-ACC-11 E4` baseline</sub>
+- REQ-ACC-4 (The app shall stay usable in a smaller window.): partial; no automated screen test yet (E4) <sub>`3 REQ-ACC-4 E4` baseline</sub>
+- REQ-ACC-5 (The app shall speak to the golfer in golf words throughout, and …): partial; no automated screen test yet (E4) <sub>`3 REQ-ACC-5 E4` baseline</sub>
+- REQ-ACC-7 (The app shall start cleanly on a machine with no golfers and …): built, not verified; no automated screen test yet (E4) <sub>`3 REQ-ACC-7 E4` baseline</sub>
+- REQ-ACC-8 (The app shall speak only what the golfer must do and cannot …): partial; no automated screen test yet (E4) <sub>`3 REQ-ACC-8 E4` baseline</sub>
+- REQ-HON-1 (The golfer shall see every reading the app has.): partial; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-1 E1` baseline; `3 REQ-HON-1 E4` baseline</sub>
+- REQ-HON-2 (The golfer shall be able to tell a missing reading from a zero.): built, not verified; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-2 E1` baseline; `3 REQ-HON-2 E4` baseline</sub>
+- REQ-HON-3 (The golfer shall be able to see how sure each number is.): partial; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-3 E1` baseline; `3 REQ-HON-3 E4` baseline</sub>
+- REQ-HON-5 (The app shall say how far to trust each reading it shows …): built, not verified; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-5 E1` baseline; `3 REQ-HON-5 E4` baseline</sub>
+- REQ-HON-6 (The app shall never claim more than it measured: a reading from …): built, not verified; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-6 E1` baseline; `3 REQ-HON-6 E4` baseline</sub>
+- REQ-HON-8 (The app shall draw noisy curves honestly: a gap shows as a …): partial; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-8 E1` baseline; `3 REQ-HON-8 E4` baseline</sub>
+- REQ-HON-9 (A summary shall agree with its chart.): built, not verified; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-9 E1` baseline; `3 REQ-HON-9 E4` baseline</sub>
+- REQ-HON-10 (A finding shall never be excused by what the golfer meant to do.): partial; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-10 E1` baseline; `3 REQ-HON-10 E4` baseline</sub>
+- REQ-HON-11 (Every shot of a session shall count in full.): partial; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-11 E1` baseline; `3 REQ-HON-11 E4` baseline</sub>
+- REQ-HON-12 (The app shall do its best with the cameras where they are …): built, not verified; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-12 E1` baseline; `3 REQ-HON-12 E4` baseline</sub>
+- REQ-HON-13 (The app shall not grade what a reading cannot see.): partial; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-13 E1` baseline; `3 REQ-HON-13 E4` baseline</sub>
+- REQ-HON-15 (The app shall show when a shot is still being analysed.): built, not verified; no automated test of the logic yet (E1), and no automated screen test yet (E4) <sub>`3 REQ-HON-15 E1` baseline; `3 REQ-HON-15 E4` baseline</sub>
+
+### 4. A test with no requirement or control label
+
+- acoustic_shot_detector_test names no requirement or control it proves <sub>`4 acoustic_shot_detector_test` baseline</sub>
+- address_marks_test names no requirement or control it proves <sub>`4 address_marks_test` baseline</sub>
+- adversarial_fuzz_test names no requirement or control it proves <sub>`4 adversarial_fuzz_test` baseline</sub>
+- analysis_block_roundtrip_test names no requirement or control it proves <sub>`4 analysis_block_roundtrip_test` baseline</sub>
+- analysis_dag_test names no requirement or control it proves <sub>`4 analysis_dag_test` baseline</sub>
+- analysis_detail_projection_test names no requirement or control it proves <sub>`4 analysis_detail_projection_test` baseline</sub>
+- analysis_profiling_test names no requirement or control it proves <sub>`4 analysis_profiling_test` baseline</sub>
+- analysis_stage_test names no requirement or control it proves <sub>`4 analysis_stage_test` baseline</sub>
+- anatomy_overlay_parity_test names no requirement or control it proves <sub>`4 anatomy_overlay_parity_test` baseline</sub>
+- anatomy_vocabulary_test names no requirement or control it proves <sub>`4 anatomy_vocabulary_test` baseline</sub>
+- angular_rate_test names no requirement or control it proves <sub>`4 angular_rate_test` baseline</sub>
+- app_state_test names no requirement or control it proves <sub>`4 app_state_test` baseline</sub>
+- arbiter_test names no requirement or control it proves <sub>`4 arbiter_test` baseline</sub>
+- architecture_lint_test names no requirement or control it proves <sub>`4 architecture_lint_test` baseline</sub>
+- artefact_paths_check names no requirement or control it proves <sub>`4 artefact_paths_check` baseline</sub>
+- athlete_diagnostics_test names no requirement or control it proves <sub>`4 athlete_diagnostics_test` baseline</sub>
+- athlete_dump_ids_test names no requirement or control it proves <sub>`4 athlete_dump_ids_test` baseline</sub>
+- athlete_repository_test names no requirement or control it proves <sub>`4 athlete_repository_test` baseline</sub>
+- athlete_session_guard_test names no requirement or control it proves <sub>`4 athlete_session_guard_test` baseline</sub>
+- atomic_write_test names no requirement or control it proves <sub>`4 atomic_write_test` baseline</sub>
+- axis_direction_test names no requirement or control it proves <sub>`4 axis_direction_test` baseline</sub>
+- azure_speech_request_test names no requirement or control it proves <sub>`4 azure_speech_request_test` baseline</sub>
+- ball_activity_test names no requirement or control it proves <sub>`4 ball_activity_test` baseline</sub>
+- ball_anchor_test names no requirement or control it proves <sub>`4 ball_anchor_test` baseline</sub>
+- ball_baseline_io_test names no requirement or control it proves <sub>`4 ball_baseline_io_test` baseline</sub>
+- ball_detector_contract_test names no requirement or control it proves <sub>`4 ball_detector_contract_test` baseline</sub>
+- ball_position_test names no requirement or control it proves <sub>`4 ball_position_test` baseline</sub>
+- ball_roi_decode_test names no requirement or control it proves <sub>`4 ball_roi_decode_test` baseline</sub>
+- ball_temporal_parity_test names no requirement or control it proves <sub>`4 ball_temporal_parity_test` baseline</sub>
+- ball_temporal_test names no requirement or control it proves <sub>`4 ball_temporal_test` baseline</sub>
+- battery_band_test names no requirement or control it proves <sub>`4 battery_band_test` baseline</sub>
+- body_rotation_test names no requirement or control it proves <sub>`4 body_rotation_test` baseline</sub>
+- cabin_run_selftest names no requirement or control it proves <sub>`4 cabin_run_selftest` baseline</sub>
+- camera_pose_sticks_test names no requirement or control it proves <sub>`4 camera_pose_sticks_test` baseline</sub>
+- camera_roi_test names no requirement or control it proves <sub>`4 camera_roi_test` baseline</sub>
+- capture_integrity_check_test names no requirement or control it proves <sub>`4 capture_integrity_check_test` baseline</sub>
+- characteristic_engine_test names no requirement or control it proves <sub>`4 characteristic_engine_test` baseline</sub>
+- characteristic_pack_test names no requirement or control it proves <sub>`4 characteristic_pack_test` baseline</sub>
+- chart_metrics_test names no requirement or control it proves <sub>`4 chart_metrics_test` baseline</sub>
+- charts_consistency_presenter_test names no requirement or control it proves <sub>`4 charts_consistency_presenter_test` baseline</sub>
+- charts_delivery_presenter_test names no requirement or control it proves <sub>`4 charts_delivery_presenter_test` baseline</sub>
+- charts_posture_presenter_test names no requirement or control it proves <sub>`4 charts_posture_presenter_test` baseline</sub>
+- charts_relations_presenter_test names no requirement or control it proves <sub>`4 charts_relations_presenter_test` baseline</sub>
+- charts_session_maths_test names no requirement or control it proves <sub>`4 charts_session_maths_test` baseline</sub>
+- charts_traces_presenter_test names no requirement or control it proves <sub>`4 charts_traces_presenter_test` baseline</sub>
+- charts_work_test names no requirement or control it proves <sub>`4 charts_work_test` baseline</sub>
+- charts_wrist_presenter_test names no requirement or control it proves <sub>`4 charts_wrist_presenter_test` baseline</sub>
+- cloud_fallback_test names no requirement or control it proves <sub>`4 cloud_fallback_test` baseline</sub>
+- club_baseline_provider_test names no requirement or control it proves <sub>`4 club_baseline_provider_test` baseline</sub>
+- club_delivery_test names no requirement or control it proves <sub>`4 club_delivery_test` baseline</sub>
+- club_distances_test names no requirement or control it proves <sub>`4 club_distances_test` baseline</sub>
+- club_length_fusion_test names no requirement or control it proves <sub>`4 club_length_fusion_test` baseline</sub>
+- club_rate_filter_test names no requirement or control it proves <sub>`4 club_rate_filter_test` baseline</sub>
+- club_scope_test names no requirement or control it proves <sub>`4 club_scope_test` baseline</sub>
+- club_slot_top_test names no requirement or control it proves <sub>`4 club_slot_top_test` baseline</sub>
+- club_standards_test names no requirement or control it proves <sub>`4 club_standards_test` baseline</sub>
+- clubhead_measure_test names no requirement or control it proves <sub>`4 clubhead_measure_test` baseline</sub>
+- clubhead_temporal_test names no requirement or control it proves <sub>`4 clubhead_temporal_test` baseline</sub>
+- composite_score_v2_test names no requirement or control it proves <sub>`4 composite_score_v2_test` baseline</sub>
+- condition_reading_test names no requirement or control it proves <sub>`4 condition_reading_test` baseline</sub>
+- condition_role_test names no requirement or control it proves <sub>`4 condition_role_test` baseline</sub>
+- confidence_test names no requirement or control it proves <sub>`4 confidence_test` baseline</sub>
+- consistency_env_test names no requirement or control it proves <sub>`4 consistency_env_test` baseline</sub>
+- context_tree_test names no requirement or control it proves <sub>`4 context_tree_test` baseline</sub>
+- core_pack_test names no requirement or control it proves <sub>`4 core_pack_test` baseline</sub>
+- corridor_plot_test names no requirement or control it proves <sub>`4 corridor_plot_test` baseline</sub>
+- dag_layout_test names no requirement or control it proves <sub>`4 dag_layout_test` baseline</sub>
+- dashboard_reductions_test names no requirement or control it proves <sub>`4 dashboard_reductions_test` baseline</sub>
+- delivery_picture_test names no requirement or control it proves <sub>`4 delivery_picture_test` baseline</sub>
+- design_system_lint_test names no requirement or control it proves <sub>`4 design_system_lint_test` baseline</sub>
+- design_system_tokens_check names no requirement or control it proves <sub>`4 design_system_tokens_check` baseline</sub>
+- det_rng_test names no requirement or control it proves <sub>`4 det_rng_test` baseline</sub>
+- device_clock_mapper_test names no requirement or control it proves <sub>`4 device_clock_mapper_test` baseline</sub>
+- diag_footer_test names no requirement or control it proves <sub>`4 diag_footer_test` baseline</sub>
+- diag_parallel_live_test names no requirement or control it proves <sub>`4 diag_parallel_live_test` baseline</sub>
+- diag_stage_panel_test names no requirement or control it proves <sub>`4 diag_stage_panel_test` baseline</sub>
+- diag_uncertainty_test names no requirement or control it proves <sub>`4 diag_uncertainty_test` baseline</sub>
+- diagnostic_ledger_test names no requirement or control it proves <sub>`4 diagnostic_ledger_test` baseline</sub>
+- diagnostics_catalogue_integrity_test names no requirement or control it proves <sub>`4 diagnostics_catalogue_integrity_test` baseline</sub>
+- diagnostics_health_test names no requirement or control it proves <sub>`4 diagnostics_health_test` baseline</sub>
+- display_tone_test names no requirement or control it proves <sub>`4 display_tone_test` baseline</sub>
+- dtl_posture_test names no requirement or control it proves <sub>`4 dtl_posture_test` baseline</sub>
+- dtl_shaft_bands_test names no requirement or control it proves <sub>`4 dtl_shaft_bands_test` baseline</sub>
+- dtl_shaft_decide_test names no requirement or control it proves <sub>`4 dtl_shaft_decide_test` baseline</sub>
+- dtl_shaft_lie_test names no requirement or control it proves <sub>`4 dtl_shaft_lie_test` baseline</sub>
+- dtl_shaft_post_test names no requirement or control it proves <sub>`4 dtl_shaft_post_test` baseline</sub>
+- dtl_shaft_synth3d_test names no requirement or control it proves <sub>`4 dtl_shaft_synth3d_test` baseline</sub>
+- eskf_gyro_units_test names no requirement or control it proves <sub>`4 eskf_gyro_units_test` baseline</sub>
+- event_buffer_test names no requirement or control it proves <sub>`4 event_buffer_test` baseline</sub>
+- event_refine_test names no requirement or control it proves <sub>`4 event_refine_test` baseline</sub>
+- fault_rules_test names no requirement or control it proves <sub>`4 fault_rules_test` baseline</sub>
+- fire_findings_test names no requirement or control it proves <sub>`4 fire_findings_test` baseline</sub>
+- folder_lock_test names no requirement or control it proves <sub>`4 folder_lock_test` baseline</sub>
+- folder_series_test names no requirement or control it proves <sub>`4 folder_series_test` baseline</sub>
+- foot_metrics_test names no requirement or control it proves <sub>`4 foot_metrics_test` baseline</sub>
+- forward_backward_test names no requirement or control it proves <sub>`4 forward_backward_test` baseline</sub>
+- frame_decode_test names no requirement or control it proves <sub>`4 frame_decode_test` baseline</sub>
+- frame_store_test names no requirement or control it proves <sub>`4 frame_store_test` baseline</sub>
+- gate_catalogue_test names no requirement or control it proves <sub>`4 gate_catalogue_test` baseline</sub>
+- gcquad_csv_parser_test names no requirement or control it proves <sub>`4 gcquad_csv_parser_test` baseline</sub>
+- gcquad_pairing_test names no requirement or control it proves <sub>`4 gcquad_pairing_test` baseline</sub>
+- gemini_request_test names no requirement or control it proves <sub>`4 gemini_request_test` baseline</sub>
+- genicam_pixel_format_test names no requirement or control it proves <sub>`4 genicam_pixel_format_test` baseline</sub>
+- golfer_input_test names no requirement or control it proves <sub>`4 golfer_input_test` baseline</sub>
+- gspro_link_test names no requirement or control it proves <sub>`4 gspro_link_test` baseline</sub>
+- gspro_monitor_test names no requirement or control it proves <sub>`4 gspro_monitor_test` baseline</sub>
+- gspro_reading_test names no requirement or control it proves <sub>`4 gspro_reading_test` baseline</sub>
+- hackmotion_gate_test names no requirement or control it proves <sub>`4 hackmotion_gate_test` baseline</sub>
+- hackmotion_link_test names no requirement or control it proves <sub>`4 hackmotion_link_test` baseline</sub>
+- hand_axis_test names no requirement or control it proves <sub>`4 hand_axis_test` baseline</sub>
+- head_track_test names no requirement or control it proves <sub>`4 head_track_test` baseline</sub>
+- headless_probe_test names no requirement or control it proves <sub>`4 headless_probe_test` baseline</sub>
+- heatmap_decode_test names no requirement or control it proves <sub>`4 heatmap_decode_test` baseline</sub>
+- height_text_test names no requirement or control it proves <sub>`4 height_text_test` baseline</sub>
+- hm_binding_recon_test names no requirement or control it proves <sub>`4 hm_binding_recon_test` baseline</sub>
+- hm_capture_provenance_test names no requirement or control it proves <sub>`4 hm_capture_provenance_test` baseline</sub>
+- hm_conjugate_test names no requirement or control it proves <sub>`4 hm_conjugate_test` baseline</sub>
+- hm_frame_test names no requirement or control it proves <sub>`4 hm_frame_test` baseline</sub>
+- hm_sample_convert_test names no requirement or control it proves <sub>`4 hm_sample_convert_test` baseline</sub>
+- hm_skew_stats_test names no requirement or control it proves <sub>`4 hm_skew_stats_test` baseline</sub>
+- hm_unit_id_test names no requirement or control it proves <sub>`4 hm_unit_id_test` baseline</sub>
+- housekeeping_test names no requirement or control it proves <sub>`4 housekeeping_test` baseline</sub>
+- identity_test names no requirement or control it proves <sub>`4 identity_test` baseline</sub>
+- im_changelog_merge_selftest names no requirement or control it proves <sub>`4 im_changelog_merge_selftest` baseline</sub>
+- im_excerpt_selftest names no requirement or control it proves <sub>`4 im_excerpt_selftest` baseline</sub>
+- impact_anchor_test names no requirement or control it proves <sub>`4 impact_anchor_test` baseline</sub>
+- impact_detector_test names no requirement or control it proves <sub>`4 impact_detector_test` baseline</sub>
+- impact_geom_test names no requirement or control it proves <sub>`4 impact_geom_test` baseline</sub>
+- imu_calibration_test names no requirement or control it proves <sub>`4 imu_calibration_test` baseline</sub>
+- imu_driver_frame_test names no requirement or control it proves <sub>`4 imu_driver_frame_test` baseline</sub>
+- imu_fuser_retime_test names no requirement or control it proves <sub>`4 imu_fuser_retime_test` baseline</sub>
+- imu_io_worker_test names no requirement or control it proves <sub>`4 imu_io_worker_test` baseline</sub>
+- imu_refusion_check_test names no requirement or control it proves <sub>`4 imu_refusion_check_test` baseline</sub>
+- imu_retime_test names no requirement or control it proves <sub>`4 imu_retime_test` baseline</sub>
+- imu_role_map_test names no requirement or control it proves <sub>`4 imu_role_map_test` baseline</sub>
+- imu_sample_test names no requirement or control it proves <sub>`4 imu_sample_test` baseline</sub>
+- inference_thread_test names no requirement or control it proves <sub>`4 inference_thread_test` baseline</sub>
+- inspector_refresh_test names no requirement or control it proves <sub>`4 inspector_refresh_test` baseline</sub>
+- isolated_stores_test names no requirement or control it proves <sub>`4 isolated_stores_test` baseline</sub>
+- kinematic_sequence_test names no requirement or control it proves <sub>`4 kinematic_sequence_test` baseline</sub>
+- kinematic_series_test names no requirement or control it proves <sub>`4 kinematic_series_test` baseline</sub>
+- linux_update_logic_test names no requirement or control it proves <sub>`4 linux_update_logic_test` baseline</sub>
+- live_measure_source_test names no requirement or control it proves <sub>`4 live_measure_source_test` baseline</sub>
+- live_wrist_angles_test names no requirement or control it proves <sub>`4 live_wrist_angles_test` baseline</sub>
+- lm_club_evidence_test names no requirement or control it proves <sub>`4 lm_club_evidence_test` baseline</sub>
+- lm_corridor_test names no requirement or control it proves <sub>`4 lm_corridor_test` baseline</sub>
+- lm_device_test names no requirement or control it proves <sub>`4 lm_device_test` baseline</sub>
+- lm_enclosing_ellipse_test names no requirement or control it proves <sub>`4 lm_enclosing_ellipse_test` baseline</sub>
+- lm_flight_path_test names no requirement or control it proves <sub>`4 lm_flight_path_test` baseline</sub>
+- lm_inferred_reads_test names no requirement or control it proves <sub>`4 lm_inferred_reads_test` baseline</sub>
+- lm_session_model_test names no requirement or control it proves <sub>`4 lm_session_model_test` baseline</sub>
+- lm_session_reductions_test names no requirement or control it proves <sub>`4 lm_session_reductions_test` baseline</sub>
+- lower_body_metrics_test names no requirement or control it proves <sub>`4 lower_body_metrics_test` baseline</sub>
+- manifest_migration_test names no requirement or control it proves <sub>`4 manifest_migration_test` baseline</sub>
+- measure_dump_test names no requirement or control it proves <sub>`4 measure_dump_test` baseline</sub>
+- measure_facets_test names no requirement or control it proves <sub>`4 measure_facets_test` baseline</sub>
+- measure_sample_test names no requirement or control it proves <sub>`4 measure_sample_test` baseline</sub>
+- metric_catalogue_test names no requirement or control it proves <sub>`4 metric_catalogue_test` baseline</sub>
+- migrate_step2_test names no requirement or control it proves <sub>`4 migrate_step2_test` baseline</sub>
+- missed_swing_notice_test names no requirement or control it proves <sub>`4 missed_swing_notice_test` baseline</sub>
+- model_browser_test names no requirement or control it proves <sub>`4 model_browser_test` baseline</sub>
+- move_files_selftest names no requirement or control it proves <sub>`4 move_files_selftest` baseline</sub>
+- mp4_frame_reader_test names no requirement or control it proves <sub>`4 mp4_frame_reader_test` baseline</sub>
+- namespace_collision_test names no requirement or control it proves <sub>`4 namespace_collision_test` baseline</sub>
+- navigation_controller_test names no requirement or control it proves <sub>`4 navigation_controller_test` baseline</sub>
+- norm_measure_source_test names no requirement or control it proves <sub>`4 norm_measure_source_test` baseline</sub>
+- norm_pack_test names no requirement or control it proves <sub>`4 norm_pack_test` baseline</sub>
+- norm_test names no requirement or control it proves <sub>`4 norm_test` baseline</sub>
+- notification_center_test names no requirement or control it proves <sub>`4 notification_center_test` baseline</sub>
+- one_at_a_time_selftest names no requirement or control it proves <sub>`4 one_at_a_time_selftest` baseline</sub>
+- orientation_filter_test names no requirement or control it proves <sub>`4 orientation_filter_test` baseline</sub>
+- orientation_refuse_test names no requirement or control it proves <sub>`4 orientation_refuse_test` baseline</sub>
+- outcome_scope_test names no requirement or control it proves <sub>`4 outcome_scope_test` baseline</sub>
+- outcome_summary_test names no requirement or control it proves <sub>`4 outcome_summary_test` baseline</sub>
+- paced_connect_queue_test names no requirement or control it proves <sub>`4 paced_connect_queue_test` baseline</sub>
+- pack_io_test names no requirement or control it proves <sub>`4 pack_io_test` baseline</sub>
+- parity_json_test names no requirement or control it proves <sub>`4 parity_json_test` baseline</sub>
+- pdf_document_writer_test names no requirement or control it proves <sub>`4 pdf_document_writer_test` baseline</sub>
+- phase_segmenter_test names no requirement or control it proves <sub>`4 phase_segmenter_test` baseline</sub>
+- phase_signals_test names no requirement or control it proves <sub>`4 phase_signals_test` baseline</sub>
+- pipeline_test names no requirement or control it proves <sub>`4 pipeline_test` baseline</sub>
+- plane_bootstrap_test names no requirement or control it proves <sub>`4 plane_bootstrap_test` baseline</sub>
+- platform_target_test names no requirement or control it proves <sub>`4 platform_target_test` baseline</sub>
+- pose_crop_test names no requirement or control it proves <sub>`4 pose_crop_test` baseline</sub>
+- pose_ep_cascade_test names no requirement or control it proves <sub>`4 pose_ep_cascade_test` baseline</sub>
+- pose_model_selection_test names no requirement or control it proves <sub>`4 pose_model_selection_test` baseline</sub>
+- pose_pipeline_test names no requirement or control it proves <sub>`4 pose_pipeline_test` baseline</sub>
+- pose_smoother_test names no requirement or control it proves <sub>`4 pose_smoother_test` baseline</sub>
+- pose_synthesis_test names no requirement or control it proves <sub>`4 pose_synthesis_test` baseline</sub>
+- pose_wrist_angle_source_test names no requirement or control it proves <sub>`4 pose_wrist_angle_source_test` baseline</sub>
+- positions_ladder_test names no requirement or control it proves <sub>`4 positions_ladder_test` baseline</sub>
+- post_shot_trace_test names no requirement or control it proves <sub>`4 post_shot_trace_test` baseline</sub>
+- pp_debug_else_test_l1 names no requirement or control it proves <sub>`4 pp_debug_else_test_l1` baseline</sub>
+- pp_debug_else_test_l3 names no requirement or control it proves <sub>`4 pp_debug_else_test_l3` baseline</sub>
+- pp_gpu_metrics_test names no requirement or control it proves <sub>`4 pp_gpu_metrics_test` baseline</sub>
+- pp_os_metrics_test names no requirement or control it proves <sub>`4 pp_os_metrics_test` baseline</sub>
+- pp_profiler_compileout_test names no requirement or control it proves <sub>`4 pp_profiler_compileout_test` baseline</sub>
+- pp_profiler_concurrency_test names no requirement or control it proves <sub>`4 pp_profiler_concurrency_test` baseline</sub>
+- pp_profiler_test names no requirement or control it proves <sub>`4 pp_profiler_test` baseline</sub>
+- pp_stats_log_test names no requirement or control it proves <sub>`4 pp_stats_log_test` baseline</sub>
+- ppcp_advertise_hold names no requirement or control it proves <sub>`4 ppcp_advertise_hold` baseline</sub>
+- ppcp_advertise_test names no requirement or control it proves <sub>`4 ppcp_advertise_test` baseline</sub>
+- ppcp_annotation_test names no requirement or control it proves <sub>`4 ppcp_annotation_test` baseline</sub>
+- ppcp_app_tu_syntax names no requirement or control it proves <sub>`4 ppcp_app_tu_syntax` baseline</sub>
+- ppcp_arbitration_test names no requirement or control it proves <sub>`4 ppcp_arbitration_test` baseline</sub>
+- ppcp_bootstrap_test names no requirement or control it proves <sub>`4 ppcp_bootstrap_test` baseline</sub>
+- ppcp_bundle_import_test names no requirement or control it proves <sub>`4 ppcp_bundle_import_test` baseline</sub>
+- ppcp_clip_filer_test names no requirement or control it proves <sub>`4 ppcp_clip_filer_test` baseline</sub>
+- ppcp_conformance names no requirement or control it proves <sub>`4 ppcp_conformance` baseline</sub>
+- ppcp_host_peer_test names no requirement or control it proves <sub>`4 ppcp_host_peer_test` baseline</sub>
+- ppcp_host_service_test names no requirement or control it proves <sub>`4 ppcp_host_service_test` baseline</sub>
+- ppcp_interop_iop_3 names no requirement or control it proves <sub>`4 ppcp_interop_iop_3` baseline</sub>
+- ppcp_interop_iop_3_live names no requirement or control it proves <sub>`4 ppcp_interop_iop_3_live` baseline</sub>
+- ppcp_interop_iop_4 names no requirement or control it proves <sub>`4 ppcp_interop_iop_4` baseline</sub>
+- ppcp_interop_iop_5 names no requirement or control it proves <sub>`4 ppcp_interop_iop_5` baseline</sub>
+- ppcp_interop_iop_6 names no requirement or control it proves <sub>`4 ppcp_interop_iop_6` baseline</sub>
+- ppcp_interop_iop_7 names no requirement or control it proves <sub>`4 ppcp_interop_iop_7` baseline</sub>
+- ppcp_interop_iop_8 names no requirement or control it proves <sub>`4 ppcp_interop_iop_8` baseline</sub>
+- ppcp_interop_iop_9 names no requirement or control it proves <sub>`4 ppcp_interop_iop_9` baseline</sub>
+- ppcp_interop_iop_10 names no requirement or control it proves <sub>`4 ppcp_interop_iop_10` baseline</sub>
+- ppcp_link_bind_test names no requirement or control it proves <sub>`4 ppcp_link_bind_test` baseline</sub>
+- ppcp_live_session_test names no requirement or control it proves <sub>`4 ppcp_live_session_test` baseline</sub>
+- ppcp_mdns_wire_test names no requirement or control it proves <sub>`4 ppcp_mdns_wire_test` baseline</sub>
+- ppcp_offer_test names no requirement or control it proves <sub>`4 ppcp_offer_test` baseline</sub>
+- ppcp_qr_test names no requirement or control it proves <sub>`4 ppcp_qr_test` baseline</sub>
+- ppcp_rendezvous_test names no requirement or control it proves <sub>`4 ppcp_rendezvous_test` baseline</sub>
+- ppcp_source_declaration_test names no requirement or control it proves <sub>`4 ppcp_source_declaration_test` baseline</sub>
+- ppcp_stored_pairing_pin names no requirement or control it proves <sub>`4 ppcp_stored_pairing_pin` baseline</sub>
+- ppcp_transport_test names no requirement or control it proves <sub>`4 ppcp_transport_test` baseline</sub>
+- ppcp_usbmux_test names no requirement or control it proves <sub>`4 ppcp_usbmux_test` baseline</sub>
+- ppcp_video_input_test names no requirement or control it proves <sub>`4 ppcp_video_input_test` baseline</sub>
+- premier_monitor_test names no requirement or control it proves <sub>`4 premier_monitor_test` baseline</sub>
+- premier_session_parser_test names no requirement or control it proves <sub>`4 premier_session_parser_test` baseline</sub>
+- profiler_controller_test names no requirement or control it proves <sub>`4 profiler_controller_test` baseline</sub>
+- qml_globals_lint_test names no requirement or control it proves <sub>`4 qml_globals_lint_test` baseline</sub>
+- qml_reactivity_test names no requirement or control it proves <sub>`4 qml_reactivity_test` baseline</sub>
+- qml_ui.tst_auto_annotations names no requirement or control it proves <sub>`4 qml_ui.tst_auto_annotations` baseline</sub>
+- qml_ui.tst_band_bar names no requirement or control it proves <sub>`4 qml_ui.tst_band_bar` baseline</sub>
+- qml_ui.tst_box_plot_row_hover names no requirement or control it proves <sub>`4 qml_ui.tst_box_plot_row_hover` baseline</sub>
+- qml_ui.tst_chart_presets names no requirement or control it proves <sub>`4 qml_ui.tst_chart_presets` baseline</sub>
+- qml_ui.tst_charts_panel names no requirement or control it proves <sub>`4 qml_ui.tst_charts_panel` baseline</sub>
+- qml_ui.tst_coach_line_sets names no requirement or control it proves <sub>`4 qml_ui.tst_coach_line_sets` baseline</sub>
+- qml_ui.tst_expand_row names no requirement or control it proves <sub>`4 qml_ui.tst_expand_row` baseline</sub>
+- qml_ui.tst_facet_fold names no requirement or control it proves <sub>`4 qml_ui.tst_facet_fold` baseline</sub>
+- qml_ui.tst_graph_measures names no requirement or control it proves <sub>`4 qml_ui.tst_graph_measures` baseline</sub>
+- qml_ui.tst_graph_opener names no requirement or control it proves <sub>`4 qml_ui.tst_graph_opener` baseline</sub>
+- qml_ui.tst_graph_pan names no requirement or control it proves <sub>`4 qml_ui.tst_graph_pan` baseline</sub>
+- qml_ui.tst_graph_references names no requirement or control it proves <sub>`4 qml_ui.tst_graph_references` baseline</sub>
+- qml_ui.tst_graph_scope names no requirement or control it proves <sub>`4 qml_ui.tst_graph_scope` baseline</sub>
+- qml_ui.tst_home_tabs names no requirement or control it proves <sub>`4 qml_ui.tst_home_tabs` baseline</sub>
+- qml_ui.tst_inspector_citation names no requirement or control it proves <sub>`4 qml_ui.tst_inspector_citation` baseline</sub>
+- qml_ui.tst_inspector_report_fields names no requirement or control it proves <sub>`4 qml_ui.tst_inspector_report_fields` baseline</sub>
+- qml_ui.tst_lm_graphics names no requirement or control it proves <sub>`4 qml_ui.tst_lm_graphics` baseline</sub>
+- qml_ui.tst_pp_badge names no requirement or control it proves <sub>`4 qml_ui.tst_pp_badge` baseline</sub>
+- qml_ui.tst_pp_chip names no requirement or control it proves <sub>`4 qml_ui.tst_pp_chip` baseline</sub>
+- qml_ui.tst_pp_meter names no requirement or control it proves <sub>`4 qml_ui.tst_pp_meter` baseline</sub>
+- qml_ui.tst_pp_pips names no requirement or control it proves <sub>`4 qml_ui.tst_pp_pips` baseline</sub>
+- qml_ui.tst_pp_tabs names no requirement or control it proves <sub>`4 qml_ui.tst_pp_tabs` baseline</sub>
+- qml_ui.tst_pp_variability_funnel names no requirement or control it proves <sub>`4 qml_ui.tst_pp_variability_funnel` baseline</sub>
+- qml_ui.tst_pp_variability_mark names no requirement or control it proves <sub>`4 qml_ui.tst_pp_variability_mark` baseline</sub>
+- qml_ui.tst_pp_variability_typicality names no requirement or control it proves <sub>`4 qml_ui.tst_pp_variability_typicality` baseline</sub>
+- qml_ui.tst_ppcp_pair_dialog names no requirement or control it proves <sub>`4 qml_ui.tst_ppcp_pair_dialog` baseline</sub>
+- qml_ui.tst_rail_fold names no requirement or control it proves <sub>`4 qml_ui.tst_rail_fold` baseline</sub>
+- qml_ui.tst_ring_collar names no requirement or control it proves <sub>`4 qml_ui.tst_ring_collar` baseline</sub>
+- qml_ui.tst_session_diagnostics_chrome names no requirement or control it proves <sub>`4 qml_ui.tst_session_diagnostics_chrome` baseline</sub>
+- qml_ui.tst_session_diagnostics_detail names no requirement or control it proves <sub>`4 qml_ui.tst_session_diagnostics_detail` baseline</sub>
+- qml_ui.tst_session_diagnostics_promises names no requirement or control it proves <sub>`4 qml_ui.tst_session_diagnostics_promises` baseline</sub>
+- qml_ui.tst_session_diagnostics_review names no requirement or control it proves <sub>`4 qml_ui.tst_session_diagnostics_review` baseline</sub>
+- qml_ui.tst_session_diagnostics_states names no requirement or control it proves <sub>`4 qml_ui.tst_session_diagnostics_states` baseline</sub>
+- qml_ui.tst_session_report names no requirement or control it proves <sub>`4 qml_ui.tst_session_report` baseline</sub>
+- qml_ui.tst_sessions_bulk names no requirement or control it proves <sub>`4 qml_ui.tst_sessions_bulk` baseline</sub>
+- qml_ui.tst_sessions_selection names no requirement or control it proves <sub>`4 qml_ui.tst_sessions_selection` baseline</sub>
+- qml_ui.tst_shot_card names no requirement or control it proves <sub>`4 qml_ui.tst_shot_card` baseline</sub>
+- qml_ui.tst_shot_picker names no requirement or control it proves <sub>`4 qml_ui.tst_shot_picker` baseline</sub>
+- qml_ui.tst_swing_areas names no requirement or control it proves <sub>`4 qml_ui.tst_swing_areas` baseline</sub>
+- qml_ui.tst_table_card names no requirement or control it proves <sub>`4 qml_ui.tst_table_card` baseline</sub>
+- qml_ui.tst_table_row names no requirement or control it proves <sub>`4 qml_ui.tst_table_row` baseline</sub>
+- qml_ui.tst_theme_bands names no requirement or control it proves <sub>`4 qml_ui.tst_theme_bands` baseline</sub>
+- qml_ui.tst_theme_tables names no requirement or control it proves <sub>`4 qml_ui.tst_theme_tables` baseline</sub>
+- quit_pin.after-warm-up names no requirement or control it proves <sub>`4 quit_pin.after-warm-up` baseline</sub>
+- quit_pin.athlete-on-screen names no requirement or control it proves <sub>`4 quit_pin.athlete-on-screen` baseline</sub>
+- quit_pin.housekeeping names no requirement or control it proves <sub>`4 quit_pin.housekeeping` baseline</sub>
+- quit_pin.re-analysis names no requirement or control it proves <sub>`4 quit_pin.re-analysis` baseline</sub>
+- quit_pin.re-analysis-in-warm-up names no requirement or control it proves <sub>`4 quit_pin.re-analysis-in-warm-up` baseline</sub>
+- quit_pin.ready names no requirement or control it proves <sub>`4 quit_pin.ready` baseline</sub>
+- quit_pin.ready-close names no requirement or control it proves <sub>`4 quit_pin.ready-close` baseline</sub>
+- quit_pin.report-list names no requirement or control it proves <sub>`4 quit_pin.report-list` baseline</sub>
+- quit_pin.startup names no requirement or control it proves <sub>`4 quit_pin.startup` baseline</sub>
+- quit_pin.warm-up names no requirement or control it proves <sub>`4 quit_pin.warm-up` baseline</sub>
+- quit_pin.work-ons names no requirement or control it proves <sub>`4 quit_pin.work-ons` baseline</sub>
+- reanalysis_controller_test names no requirement or control it proves <sub>`4 reanalysis_controller_test` baseline</sub>
+- recording_contract_test names no requirement or control it proves <sub>`4 recording_contract_test` baseline</sub>
+- recording_repository_test names no requirement or control it proves <sub>`4 recording_repository_test` baseline</sub>
+- recording_store_test names no requirement or control it proves <sub>`4 recording_store_test` baseline</sub>
+- reduction_rule_golden_test names no requirement or control it proves <sub>`4 reduction_rule_golden_test` baseline</sub>
+- reference_bands_test names no requirement or control it proves <sub>`4 reference_bands_test` baseline</sub>
+- reference_sets_test names no requirement or control it proves <sub>`4 reference_sets_test` baseline</sub>
+- regrade_ledger_new_needs_ini_test names no requirement or control it proves <sub>`4 regrade_ledger_new_needs_ini_test` baseline</sub>
+- relationship_rules_test names no requirement or control it proves <sub>`4 relationship_rules_test` baseline</sub>
+- replay_score_test names no requirement or control it proves <sub>`4 replay_score_test` baseline</sub>
+- report_list_test names no requirement or control it proves <sub>`4 report_list_test` baseline</sub>
+- report_lm_test names no requirement or control it proves <sub>`4 report_lm_test` baseline</sub>
+- report_meta_test names no requirement or control it proves <sub>`4 report_meta_test` baseline</sub>
+- report_model_test names no requirement or control it proves <sub>`4 report_model_test` baseline</sub>
+- report_smtp_test names no requirement or control it proves <sub>`4 report_smtp_test` baseline</sub>
+- report_stills_test names no requirement or control it proves <sub>`4 report_stills_test` baseline</sub>
+- report_studio_test names no requirement or control it proves <sub>`4 report_studio_test` baseline</sub>
+- reuse_gate_test names no requirement or control it proves <sub>`4 reuse_gate_test` baseline</sub>
+- review_views_shot_test names no requirement or control it proves <sub>`4 review_views_shot_test` baseline</sub>
+- rule_data_test names no requirement or control it proves <sub>`4 rule_data_test` baseline</sub>
+- rule_version_golden_test names no requirement or control it proves <sub>`4 rule_version_golden_test` baseline</sub>
+- run_headless_selftest names no requirement or control it proves <sub>`4 run_headless_selftest` baseline</sub>
+- seed_conversion_test names no requirement or control it proves <sub>`4 seed_conversion_test` baseline</sub>
+- segment_rates_test names no requirement or control it proves <sub>`4 segment_rates_test` baseline</sub>
+- series_key_ladder_test names no requirement or control it proves <sub>`4 series_key_ladder_test` baseline</sub>
+- series_reduce_test names no requirement or control it proves <sub>`4 series_reduce_test` baseline</sub>
+- session_archiver_test names no requirement or control it proves <sub>`4 session_archiver_test` baseline</sub>
+- session_clock_test names no requirement or control it proves <sub>`4 session_clock_test` baseline</sub>
+- session_consistency_test names no requirement or control it proves <sub>`4 session_consistency_test` baseline</sub>
+- session_delivery_test names no requirement or control it proves <sub>`4 session_delivery_test` baseline</sub>
+- session_diagnostics_model_test names no requirement or control it proves <sub>`4 session_diagnostics_model_test` baseline</sub>
+- session_diagnostics_test names no requirement or control it proves <sub>`4 session_diagnostics_test` baseline</sub>
+- session_focus_test names no requirement or control it proves <sub>`4 session_focus_test` baseline</sub>
+- session_gates_test names no requirement or control it proves <sub>`4 session_gates_test` baseline</sub>
+- session_identity_test names no requirement or control it proves <sub>`4 session_identity_test` baseline</sub>
+- session_list_test names no requirement or control it proves <sub>`4 session_list_test` baseline</sub>
+- session_posture_test names no requirement or control it proves <sub>`4 session_posture_test` baseline</sub>
+- session_report_test names no requirement or control it proves <sub>`4 session_report_test` baseline</sub>
+- session_repository_test names no requirement or control it proves <sub>`4 session_repository_test` baseline</sub>
+- session_series_test names no requirement or control it proves <sub>`4 session_series_test` baseline</sub>
+- session_setup_ui names no requirement or control it proves <sub>`4 session_setup_ui` baseline</sub>
+- session_setup_ui.tst_setup_calib_hackmotion names no requirement or control it proves <sub>`4 session_setup_ui.tst_setup_calib_hackmotion` baseline</sub>
+- session_setup_ui.tst_setup_calib_witmotion names no requirement or control it proves <sub>`4 session_setup_ui.tst_setup_calib_witmotion` baseline</sub>
+- session_setup_ui.tst_setup_trunk names no requirement or control it proves <sub>`4 session_setup_ui.tst_setup_trunk` baseline</sub>
+- session_summary_test names no requirement or control it proves <sub>`4 session_summary_test` baseline</sub>
+- session_test names no requirement or control it proves <sub>`4 session_test` baseline</sub>
+- setup_capability_test names no requirement or control it proves <sub>`4 setup_capability_test` baseline</sub>
+- shaft_decide_test names no requirement or control it proves <sub>`4 shaft_decide_test` baseline</sub>
+- shaft_direction_test names no requirement or control it proves <sub>`4 shaft_direction_test` baseline</sub>
+- shaft_evidence_test names no requirement or control it proves <sub>`4 shaft_evidence_test` baseline</sub>
+- shaft_fusion_test names no requirement or control it proves <sub>`4 shaft_fusion_test` baseline</sub>
+- shaft_hand_axis_prior_test names no requirement or control it proves <sub>`4 shaft_hand_axis_prior_test` baseline</sub>
+- shaft_kinematics_test names no requirement or control it proves <sub>`4 shaft_kinematics_test` baseline</sub>
+- shaft_onset_test names no requirement or control it proves <sub>`4 shaft_onset_test` baseline</sub>
+- shaft_plane_corpus_test names no requirement or control it proves <sub>`4 shaft_plane_corpus_test` baseline</sub>
+- shaft_plane_curve_test names no requirement or control it proves <sub>`4 shaft_plane_curve_test` baseline</sub>
+- shaft_plane_test names no requirement or control it proves <sub>`4 shaft_plane_test` baseline</sub>
+- shaft_position_fit_test names no requirement or control it proves <sub>`4 shaft_position_fit_test` baseline</sub>
+- shaft_positions_test names no requirement or control it proves <sub>`4 shaft_positions_test` baseline</sub>
+- shaft_resynth_test names no requirement or control it proves <sub>`4 shaft_resynth_test` baseline</sub>
+- shaft_segment_test names no requirement or control it proves <sub>`4 shaft_segment_test` baseline</sub>
+- shaft_synthesis_test names no requirement or control it proves <sub>`4 shaft_synthesis_test` baseline</sub>
+- shaft_wedge_test names no requirement or control it proves <sub>`4 shaft_wedge_test` baseline</sub>
+- shared_norm_provider_test names no requirement or control it proves <sub>`4 shared_norm_provider_test` baseline</sub>
+- shot_commands_test names no requirement or control it proves <sub>`4 shot_commands_test` baseline</sub>
+- shot_controller_decline_test names no requirement or control it proves <sub>`4 shot_controller_decline_test` baseline</sub>
+- shot_factors_test names no requirement or control it proves <sub>`4 shot_factors_test` baseline</sub>
+- shot_ledger_test names no requirement or control it proves <sub>`4 shot_ledger_test` baseline</sub>
+- shot_list_model_test names no requirement or control it proves <sub>`4 shot_list_model_test` baseline</sub>
+- shot_number_test names no requirement or control it proves <sub>`4 shot_number_test` baseline</sub>
+- shot_outcome_test names no requirement or control it proves <sub>`4 shot_outcome_test` baseline</sub>
+- shot_outcomes_test names no requirement or control it proves <sub>`4 shot_outcomes_test` baseline</sub>
+- shot_source_map_test names no requirement or control it proves <sub>`4 shot_source_map_test` baseline</sub>
+- shoulder_tilt_vs_bend_test names no requirement or control it proves <sub>`4 shoulder_tilt_vs_bend_test` baseline</sub>
+- skeleton3d_body_metrics_test names no requirement or control it proves <sub>`4 skeleton3d_body_metrics_test` baseline</sub>
+- skeleton3d_pool_test names no requirement or control it proves <sub>`4 skeleton3d_pool_test` baseline</sub>
+- skeleton3d_synthesis_test names no requirement or control it proves <sub>`4 skeleton3d_synthesis_test` baseline</sub>
+- skeleton3d_test names no requirement or control it proves <sub>`4 skeleton3d_test` baseline</sub>
+- source_ring_test names no requirement or control it proves <sub>`4 source_ring_test` baseline</sub>
+- standalone_gate_test names no requirement or control it proves <sub>`4 standalone_gate_test` baseline</sub>
+- store_isolation_lint_test names no requirement or control it proves <sub>`4 store_isolation_lint_test` baseline</sub>
+- stream_trim_test names no requirement or control it proves <sub>`4 stream_trim_test` baseline</sub>
+- strengths_test names no requirement or control it proves <sub>`4 strengths_test` baseline</sub>
+- swing_annotation_geometry_test names no requirement or control it proves <sub>`4 swing_annotation_geometry_test` baseline</sub>
+- swing_areas_test names no requirement or control it proves <sub>`4 swing_areas_test` baseline</sub>
+- swing_doc_test names no requirement or control it proves <sub>`4 swing_doc_test` baseline</sub>
+- swing_onset_test names no requirement or control it proves <sub>`4 swing_onset_test` baseline</sub>
+- swing_paths_test names no requirement or control it proves <sub>`4 swing_paths_test` baseline</sub>
+- swing_rig_driver_test names no requirement or control it proves <sub>`4 swing_rig_driver_test` baseline</sub>
+- swing_series_model_test names no requirement or control it proves <sub>`4 swing_series_model_test` baseline</sub>
+- swing_store_test names no requirement or control it proves <sub>`4 swing_store_test` baseline</sub>
+- swing_themes_golden_test names no requirement or control it proves <sub>`4 swing_themes_golden_test` baseline</sub>
+- swing_themes_test names no requirement or control it proves <sub>`4 swing_themes_test` baseline</sub>
+- swing_window_parity names no requirement or control it proves <sub>`4 swing_window_parity` baseline</sub>
+- swing_window_test names no requirement or control it proves <sub>`4 swing_window_test` baseline</sub>
+- synth_posterior_test names no requirement or control it proves <sub>`4 synth_posterior_test` baseline</sub>
+- tempo_metrics_test names no requirement or control it proves <sub>`4 tempo_metrics_test` baseline</sub>
+- tendencies_test names no requirement or control it proves <sub>`4 tendencies_test` baseline</sub>
+- tendency_flow_test names no requirement or control it proves <sub>`4 tendency_flow_test` baseline</sub>
+- test_markup_truth names no requirement or control it proves <sub>`4 test_markup_truth` baseline</sub>
+- thread_policy_test names no requirement or control it proves <sub>`4 thread_policy_test` baseline</sub>
+- tier1_banding_test names no requirement or control it proves <sub>`4 tier1_banding_test` baseline</sub>
+- timeline_fusion_test names no requirement or control it proves <sub>`4 timeline_fusion_test` baseline</sub>
+- timeline_index_test names no requirement or control it proves <sub>`4 timeline_index_test` baseline</sub>
+- timeline_labels_test names no requirement or control it proves <sub>`4 timeline_labels_test` baseline</sub>
+- trunk_ceremony_file_test names no requirement or control it proves <sub>`4 trunk_ceremony_file_test` baseline</sub>
+- trunk_e2e_test names no requirement or control it proves <sub>`4 trunk_e2e_test` baseline</sub>
+- trunk_stand_tall_test names no requirement or control it proves <sub>`4 trunk_stand_tall_test` baseline</sub>
+- trunk_turn_path_test names no requirement or control it proves <sub>`4 trunk_turn_path_test` baseline</sub>
+- trust_readings_test names no requirement or control it proves <sub>`4 trust_readings_test` baseline</sub>
+- tts_phrase_cache_test names no requirement or control it proves <sub>`4 tts_phrase_cache_test` baseline</sub>
+- tuned_constants_parity_test names no requirement or control it proves <sub>`4 tuned_constants_parity_test` baseline</sub>
+- tuning_overrides_test names no requirement or control it proves <sub>`4 tuning_overrides_test` baseline</sub>
+- uncertainty_delta_test names no requirement or control it proves <sub>`4 uncertainty_delta_test` baseline</sub>
+- update_controller_policy_test names no requirement or control it proves <sub>`4 update_controller_policy_test` baseline</sub>
+- update_host_test names no requirement or control it proves <sub>`4 update_host_test` baseline</sub>
+- upper_body_metrics_test names no requirement or control it proves <sub>`4 upper_body_metrics_test` baseline</sub>
+- variability_clubs_test names no requirement or control it proves <sub>`4 variability_clubs_test` baseline</sub>
+- variability_data_geometry_test names no requirement or control it proves <sub>`4 variability_data_geometry_test` baseline</sub>
+- variability_env_test names no requirement or control it proves <sub>`4 variability_env_test` baseline</sub>
+- variability_facade_test names no requirement or control it proves <sub>`4 variability_facade_test` baseline</sub>
+- variability_geometry_test names no requirement or control it proves <sub>`4 variability_geometry_test` baseline</sub>
+- variability_grader_test names no requirement or control it proves <sub>`4 variability_grader_test` baseline</sub>
+- viz_frame_test names no requirement or control it proves <sub>`4 viz_frame_test` baseline</sub>
+- wait_flag_test names no requirement or control it proves <sub>`4 wait_flag_test` baseline</sub>
+- watchdog_test names no requirement or control it proves <sub>`4 watchdog_test` baseline</sub>
+- work_ons_controller_test names no requirement or control it proves <sub>`4 work_ons_controller_test` baseline</sub>
+- work_ons_test names no requirement or control it proves <sub>`4 work_ons_test` baseline</sub>
+- work_pool_test names no requirement or control it proves <sub>`4 work_pool_test` baseline</sub>
+- wrist_analysis_adapter_test names no requirement or control it proves <sub>`4 wrist_analysis_adapter_test` baseline</sub>
+- wrist_angle_sampling_test names no requirement or control it proves <sub>`4 wrist_angle_sampling_test` baseline</sub>
+- wrist_angles_test names no requirement or control it proves <sub>`4 wrist_angles_test` baseline</sub>
+- wrist_domain_score_test names no requirement or control it proves <sub>`4 wrist_domain_score_test` baseline</sub>
+- wrist_norm_render_test names no requirement or control it proves <sub>`4 wrist_norm_render_test` baseline</sub>
+- wrist_resemblance_test names no requirement or control it proves <sub>`4 wrist_resemblance_test` baseline</sub>
+- wt901_config_check_test names no requirement or control it proves <sub>`4 wt901_config_check_test` baseline</sub>
+- wt901_config_retry_test names no requirement or control it proves <sub>`4 wt901_config_retry_test` baseline</sub>
+
+### 5. An open enhancement with no Requirement: line, or one naming an unknown id
+
+- #61, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #61` baseline</sub>
+- #63, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #63` baseline</sub>
+- #64, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #64` baseline</sub>
+- #65, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #65` baseline</sub>
+- #66, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #66` baseline</sub>
+- #67, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #67` baseline</sub>
+- #68, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #68` baseline</sub>
+- #69, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #69` baseline</sub>
+- #70, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #70` baseline</sub>
+- #71, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #71` baseline</sub>
+- #72, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #72` baseline</sub>
+- #73, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #73` baseline</sub>
+- #74, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #74` baseline</sub>
+- #75, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #75` baseline</sub>
+- #77, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #77` baseline</sub>
+- #78, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #78` baseline</sub>
+- #79, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #79` baseline</sub>
+- #80, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #80` baseline</sub>
+- #81, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #81` baseline</sub>
+- #82, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #82` baseline</sub>
+- #83, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #83` baseline</sub>
+- #84, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #84` baseline</sub>
+- #85, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #85` baseline</sub>
+- #86, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #86` baseline</sub>
+- #87, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #87` baseline</sub>
+- #88, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #88` baseline</sub>
+- #89, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #89` baseline</sub>
+- #93, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #93` baseline</sub>
+- #96, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #96` baseline</sub>
+- #97, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #97` baseline</sub>
+- #98, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #98` baseline</sub>
+- #102, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #102` baseline</sub>
+- #106, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #106` baseline</sub>
+- #108, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #108` baseline</sub>
+- #109, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #109` baseline</sub>
+- #117, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #117` baseline</sub>
+- #126, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #126` baseline</sub>
+- #131, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #131` baseline</sub>
+- #169, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #169` baseline</sub>
+- #177, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #177` baseline</sub>
+- #178, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #178` baseline</sub>
+- #179, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #179` baseline</sub>
+- #180, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #180` baseline</sub>
+- #181, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #181` baseline</sub>
+- #182, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #182` baseline</sub>
+- #193, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #193` baseline</sub>
+- #194, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #194` baseline</sub>
+- #229, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #229` baseline</sub>
+- #230, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #230` baseline</sub>
+- #237, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #237` baseline</sub>
+- #238, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #238` baseline</sub>
+- #239, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #239` baseline</sub>
+- #240, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #240` baseline</sub>
+- #262, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #262` baseline</sub>
+- #266, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #266` baseline</sub>
+- #289, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #289` baseline</sub>
+- #291, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #291` baseline</sub>
+- #292, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #292` baseline</sub>
+- #293, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #293` baseline</sub>
+- #308, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #308` baseline</sub>
+- #314, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #314` baseline</sub>
+- #315, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #315` baseline</sub>
+- #316, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #316` baseline</sub>
+- #317, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #317` baseline</sub>
+- #318, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #318` baseline</sub>
+- #319, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #319` baseline</sub>
+
+### 6. An open bug naming a delivered row: the row is failing
+
+None.
+
+### 7. A planned row whose issues are all closed
+
+None.
+
+### 8. A row that needs a ruling change but is marked built or delivered
+
+None.
+
+### 9. A test labelled for a requirement but in no platform's gate list
+
+None.
+
+### 10. A hardware row never observed
+
+- REQ-CAP-1 (The app shall record every swing the golfer hits while it shows …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-1` baseline</sub>
+- REQ-CAP-4 (The app shall let the golfer or coach record a shot by …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-4` baseline</sub>
+- REQ-CAP-5 (The app shall not treat a sound or movement that is not …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-5` baseline</sub>
+- REQ-CAP-6 (The app shall tell the golfer, by a short sound, that a …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-6` baseline</sub>
+- REQ-CAP-8 (The app shall pair each launch-monitor reading with the swing it belongs …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-8` baseline</sub>
+- REQ-CAP-9 (The app shall add everything a device reports for a shot to …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-9` baseline</sub>
+- REQ-CAP-10 (The app shall replay each shot slowed down as soon as it …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-10` baseline</sub>
+- REQ-CAP-11 (The app shall show live camera pictures while capturing, so the golfer …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-11` baseline</sub>
+- REQ-CAP-13 (The app shall record a short clip from the impact camera, trimmed around impact.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-13` baseline</sub>
+- REQ-CAP-14 (The app shall keep capturing when a device drops out, tell the …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-14` baseline</sub>
+- REQ-CAP-15 (Readings from every device shall line up in time to within a frame.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-15` baseline</sub>
+- REQ-CAP-17 (The app shall record on every shot the club the golfer declared …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-17` baseline</sub>
+- REQ-CAP-33 (The app shall take a shot's club from the simulator software when …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-33` baseline</sub>
+- REQ-CAP-20 (The app shall let the golfer say, at the start of a …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-20` baseline</sub>
+- REQ-CAP-21 (The app shall start every session in Capture, on every start path.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-21` baseline</sub>
+- REQ-CAP-22 (The app shall end a session only after any shot still being …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-22` baseline</sub>
+- REQ-CAP-23 (The app shall let the golfer continue today's session for the same …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-23` baseline</sub>
+- REQ-CAP-26 (The app shall accept a phone's shot only when the computer's own …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-26` baseline</sub>
+- REQ-CAP-27 (The app shall pair a phone as a camera by scanning a …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-27` baseline</sub>
+- REQ-CAP-28 (The app shall capture from a phone over a cable as well …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-28` baseline</sub>
+- REQ-CAP-29 (The app shall import a phone's recorded session and launch-monitor files into the library.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-29` baseline</sub>
+- REQ-CAP-34 (The app shall check that the phone app and the studio app …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-34` baseline</sub>
+- REQ-CAP-37 (The app shall let the golfer stop capture and start it again within a session.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-CAP-37` baseline</sub>
+- REQ-DEV-2 (Every camera shall give a usable picture in the studio's light, every session.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-2` baseline</sub>
+- REQ-DEV-3 (The app shall offer for the swing roles only cameras fast enough …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-3` baseline</sub>
+- REQ-DEV-7 (The app shall connect wrist sensors (HackMotion, Witmotion) and chest and hip …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-7` baseline</sub>
+- REQ-DEV-10 (The app shall run every sensor calibration without the golfer touching the screen.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-10` baseline</sub>
+- REQ-DEV-11 (The app shall guide each calibration with a face-on figure and golf-swing …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-11` baseline</sub>
+- REQ-DEV-14 (The app shall give one plain answer to 'is calibration good enough?' …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-14` baseline</sub>
+- REQ-DEV-21 (Session set-up shall show only the steps the connected hardware needs, and …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-21` baseline</sub>
+- REQ-DEV-23 (The app shall say at set-up which readings the camera framing will lose.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-23` baseline</sub>
+- REQ-DEV-25 (The app shall show live device health (cameras, sensors, phones, buffers) on …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-25` baseline</sub>
+- REQ-DEV-26 (The app shall show, before a session, what the connected rig can measure.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-26` baseline</sub>
+- REQ-DEV-28 (The app shall let the user choose the microphone, the screen the …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-DEV-28` baseline</sub>
+- REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-INST-1` baseline</sub>
+- REQ-INST-2 (The app shall install from one signed installer per platform.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-INST-2` baseline</sub>
+- REQ-INST-3 (The app shall tell the user an update is ready, install it …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-INST-3` baseline</sub>
+- REQ-INST-4 (The app shall check every update's signature before installing it.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-INST-4` baseline</sub>
+- REQ-INST-5 (The app shall install an update only when nothing is in progress …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-INST-5` baseline</sub>
+- REQ-INST-8 (The app shall install without the graphics-card runtime and fetch it only …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-INST-8` baseline</sub>
+- REQ-INST-9 (The app shall run its pose engine on any maker's graphics card …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-INST-9` baseline</sub>
+- REQ-INST-10 (The app shall ask for the system permissions it needs with a …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-INST-10` baseline</sub>
+- REQ-INST-11 (The app shall work with phones on the local network without the …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-INST-11` baseline</sub>
+- REQ-INST-13 (The app shall show its version and licences, and check for an …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-INST-13` baseline</sub>
+- REQ-REL-1 (Every way of quitting shall go through one prompt, no quit shall …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-REL-1` baseline</sub>
+- REQ-REL-2 (Once the golfer has answered the quit prompt, the app shall be …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-REL-2` baseline</sub>
+- REQ-REL-3 (After a crash, every shot saved before it shall be in the library.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-REL-3` baseline</sub>
+- REQ-REL-4 (An edit to a saved shot shall be on disk before the …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-REL-4` baseline</sub>
+- REQ-REL-5 (A calibration's evidence shall be saved with its session, or the golfer …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-REL-5` baseline</sub>
+- REQ-REL-6 (A power cut shall never lose a saved shot or edit.) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-REL-6` baseline</sub>
+- REQ-REL-11 (The app shall keep a log the user can read and filter …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-REL-11` baseline</sub>
+- REQ-REL-10 (The app shall run a full studio day without slowing down or …) needs to be seen at the rig or in a corpus swing (E6), and never has been <sub>`10 REQ-REL-10` baseline</sub>
+
+### 11. The evidence supports a different status from requirements.md's
+
+None.
+
+### 12. A row not delivered, with no open issue and no accepted gap
+
+- REQ-CAP-1 (The app shall record every swing the golfer hits while it shows …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-CAP-1` baseline</sub>
+- REQ-CAP-4 (The app shall let the golfer or coach record a shot by …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-CAP-4` baseline</sub>
+- REQ-CAP-7 (The app shall save each accepted shot, or tell the golfer that …) is planned, and has no open issue and no accepted gap <sub>`12 REQ-CAP-7` baseline</sub>
+- REQ-CAP-9 (The app shall add everything a device reports for a shot to …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-CAP-9` baseline</sub>
+- REQ-CAP-10 (The app shall replay each shot slowed down as soon as it …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-CAP-10` baseline</sub>
+- REQ-CAP-11 (The app shall show live camera pictures while capturing, so the golfer …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-CAP-11` baseline</sub>
+- REQ-CAP-13 (The app shall record a short clip from the impact camera, trimmed around impact.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-CAP-13` baseline</sub>
+- REQ-CAP-14 (The app shall keep capturing when a device drops out, tell the …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-CAP-14` baseline</sub>
+- REQ-CAP-33 (The app shall take a shot's club from the simulator software when …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-CAP-33` baseline</sub>
+- REQ-CAP-21 (The app shall start every session in Capture, on every start path.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-CAP-21` baseline</sub>
+- REQ-CAP-23 (The app shall let the golfer continue today's session for the same …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-CAP-23` baseline</sub>
+- REQ-CAP-26 (The app shall accept a phone's shot only when the computer's own …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-CAP-26` baseline</sub>
+- REQ-CAP-29 (The app shall import a phone's recorded session and launch-monitor files into the library.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-CAP-29` baseline</sub>
+- REQ-CAP-35 (The app shall warn before a session starts when the library's disk is nearly full.) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-CAP-35` baseline</sub>
+- REQ-CAP-37 (The app shall let the golfer stop capture and start it again within a session.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-CAP-37` baseline</sub>
+- REQ-CAP-38 (When an import stops part-way, the app shall say which shots came …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-CAP-38` baseline</sub>
+- REQ-CAP-39 (At End, the app shall name a phone clip still on its …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-CAP-39` baseline</sub>
+- REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DEV-1` baseline</sub>
+- REQ-DEV-5 (The app shall read launch monitors: a GC Quad directly, devices bridged …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DEV-5` baseline</sub>
+- REQ-DEV-12 (The app shall clear a sensor's calibration, and tell the golfer, whenever …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-DEV-12` baseline</sub>
+- REQ-DEV-14 (The app shall give one plain answer to 'is calibration good enough?' …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-DEV-14` baseline</sub>
+- REQ-DEV-20 (The app shall save every change to the rig's set-up, and never …) is planned, and has no open issue and no accepted gap <sub>`12 REQ-DEV-20` baseline</sub>
+- REQ-DEV-25 (The app shall show live device health (cameras, sensors, phones, buffers) on …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DEV-25` baseline</sub>
+- REQ-DEV-26 (The app shall show, before a session, what the connected rig can measure.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DEV-26` baseline</sub>
+- REQ-DEV-28 (The app shall let the user choose the microphone, the screen the …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DEV-28` baseline</sub>
+- REQ-DEV-29 (The app shall let the user unpair a phone the studio no …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-DEV-29` baseline</sub>
+- REQ-ANA-1 (The app shall analyse every shot by itself after capture, with no …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-1` baseline</sub>
+- REQ-ANA-5 (The app shall track the whole body from each camera, and fit …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-5` baseline</sub>
+- REQ-ANA-8 (The app shall combine the two camera views of the club into …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-8` baseline</sub>
+- REQ-ANA-12 (Where a launch monitor measures a quantity, the app shall use its …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-12` baseline</sub>
+- REQ-ANA-13 (The app shall measure the kinematic sequence, with an uncertainty on every …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-13` baseline</sub>
+- REQ-ANA-14 (The app shall measure pelvis and chest turn, and the difference between …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-14` baseline</sub>
+- REQ-ANA-17 (The app shall measure the chest, shoulders and arms from the face-on camera.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-17` baseline</sub>
+- REQ-ANA-18 (The app shall measure the swing plane and the club's delivery the …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-18` baseline</sub>
+- REQ-ANA-20 (The app shall measure ball position and the ball's distance from the …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-20` baseline</sub>
+- REQ-ANA-22 (The app shall measure tempo: the backswing and downswing times and their ratio.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-22` baseline</sub>
+- REQ-ANA-36 (The app shall measure head movement through the swing.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-36` baseline</sub>
+- REQ-ANA-32 (The app shall let the golfer re-analyse a session or the library …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-ANA-32` baseline</sub>
+- REQ-DIAG-3 (The app shall find the faults and habits a session shows.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-3` baseline</sub>
+- REQ-DIAG-23 (The app shall show the evidence behind each finding: the shots it …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-23` baseline</sub>
+- REQ-DIAG-4 (The app shall say, for each finding, how often it fired in …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-4` baseline</sub>
+- REQ-DIAG-5 (The app shall answer 'what happened there?' for a shot: what stood …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-5` baseline</sub>
+- REQ-DIAG-6 (The app shall show where the golfer's swing repeats and where it …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-6` baseline</sub>
+- REQ-DIAG-8 (The app shall let the Coaching Lead change, inside the app, a …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-8` baseline</sub>
+- REQ-DIAG-9 (The app shall show the health of the diagnostics model: measures with …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-9` baseline</sub>
+- REQ-DIAG-17 (The app shall grade by club where the club changes what is normal.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-17` baseline</sub>
+- REQ-DIAG-24 (The app shall explain a session's outcomes: where the yards went, what …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-24` baseline</sub>
+- REQ-COACH-1 (The app shall coach the golfer directly by default, picking from all …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-COACH-1` baseline</sub>
+- REQ-COACH-3 (The app shall follow each work-on across sessions: still happening, improving or …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-COACH-3` baseline</sub>
+- REQ-COACH-5 (The app shall show the golfer's tendencies across sessions by strike, direction …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-COACH-5` baseline</sub>
+- REQ-COACH-9 (The app shall group findings by swing area (what moves) and show …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-COACH-9` baseline</sub>
+- REQ-COACH-12 (The app shall judge progress on what holds at the next visit …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-COACH-12` baseline</sub>
+- REQ-COACH-23 (The app shall let the golfer or coach ask about a session …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-COACH-23` baseline</sub>
+- REQ-COACH-17 (The app shall let a coach keep the app's coaching reasoning off …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-COACH-17` baseline</sub>
+- REQ-COACH-21 (The app shall give the golfer, at the end of a lesson …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-COACH-21` baseline</sub>
+- REQ-REV-1 (The app shall replay any saved shot from every camera together, in …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REV-1` baseline</sub>
+- REQ-REV-2 (The app shall draw the tracked body and club over the video …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REV-2` baseline</sub>
+- REQ-REV-5 (The app shall chart each reading of a shot through the swing …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REV-5` baseline</sub>
+- REQ-REV-6 (The app shall compare a shot against another, lined up by swing …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REV-6` baseline</sub>
+- REQ-REV-9 (The app shall let the golfer mark a reference swing and compare …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REV-9` baseline</sub>
+- REQ-REV-10 (The app shall plot any reading against any other within a session …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REV-10` baseline</sub>
+- REQ-REV-32 (The app shall put the studio's and the coach's details on the …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REV-32` baseline</sub>
+- REQ-REV-19 (The app shall show a table of every reading for a shot …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REV-19` baseline</sub>
+- REQ-REV-23 (The app shall show the kinematic sequence as a chart and a …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REV-23` baseline</sub>
+- REQ-REV-26 (The app shall show a dashboard on a second screen during a session.) is partial, and has no open issue and no accepted gap <sub>`12 REQ-REV-26` baseline</sub>
+- REQ-REV-27 (The app shall let the golfer rate a shot and note it …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REV-27` baseline</sub>
+- REQ-REV-29 (The app shall export a clip of a swing with the coach's …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-REV-29` baseline</sub>
+- REQ-REV-36 (When a report fails to send, the app shall say so and …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-REV-36` baseline</sub>
+- REQ-LIB-1 (The app shall keep every shot with a golfer and a session …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-LIB-1` baseline</sub>
+- REQ-LIB-2 (The app shall let the user add, edit and remove golfers with …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-LIB-2` baseline</sub>
+- REQ-LIB-4 (The app shall put the most recent golfers one click away, so …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-LIB-4` baseline</sub>
+- REQ-LIB-6 (The app shall change the golfer on screen only when no session is being recorded.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-LIB-6` baseline</sub>
+- REQ-LIB-7 (Renaming a golfer shall change only the name: every session stays with them.) is partial, and has no open issue and no accepted gap <sub>`12 REQ-LIB-7` baseline</sub>
+- REQ-LIB-8 (Moving a golfer to the trash shall take all their sessions to …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-LIB-8` baseline</sub>
+- REQ-LIB-13 (The app shall never give a trashed shot's number to another shot.) is partial, and has no open issue and no accepted gap <sub>`12 REQ-LIB-13` baseline</sub>
+- REQ-LIB-14 (The app shall archive a session to save space, dropping raw frames …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-LIB-14` baseline</sub>
+- REQ-LIB-26 (The app shall archive old sessions and empty the trash by itself …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-LIB-26` baseline</sub>
+- REQ-LIB-27 (The app shall let the user choose what is kept with each …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-LIB-27` baseline</sub>
+- REQ-LIB-15 (The app shall let the user choose where the library lives, including …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-LIB-15` baseline</sub>
+- REQ-LIB-16 (The app shall never let two computers record into one session, and …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-LIB-16` baseline</sub>
+- REQ-LIB-17 (The app shall let the golfer or coach end a session a …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-LIB-17` baseline</sub>
+- REQ-LIB-18 (The app shall discard a session as empty only when nothing was …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-LIB-18` baseline</sub>
+- REQ-LIB-19 (The app shall export shots or a whole session as videos and swing data.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-LIB-19` baseline</sub>
+- REQ-LIB-25 (The app shall keep each golfer's distances and sideways spread by club.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-LIB-25` baseline</sub>
+- REQ-LIB-28 (The app shall let the user keep a second copy of the …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-LIB-28` baseline</sub>
+- REQ-LIB-29 (The app shall let the user move the library to a new …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-LIB-29` baseline</sub>
+- REQ-LIB-30 (The app shall let the golfer or coach move shots recorded into …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-LIB-30` baseline</sub>
+- REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-INST-1` baseline</sub>
+- REQ-INST-3 (The app shall tell the user an update is ready, install it …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-INST-3` baseline</sub>
+- REQ-INST-4 (The app shall check every update's signature before installing it.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-INST-4` baseline</sub>
+- REQ-INST-5 (The app shall install an update only when nothing is in progress …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-INST-5` baseline</sub>
+- REQ-INST-8 (The app shall install without the graphics-card runtime and fetch it only …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-INST-8` baseline</sub>
+- REQ-INST-11 (The app shall work with phones on the local network without the …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-INST-11` baseline</sub>
+- REQ-REL-2 (Once the golfer has answered the quit prompt, the app shall be …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-REL-2` baseline</sub>
+- REQ-REL-3 (After a crash, every shot saved before it shall be in the library.) is partial, and has no open issue and no accepted gap <sub>`12 REQ-REL-3` baseline</sub>
+- REQ-REL-4 (An edit to a saved shot shall be on disk before the …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-REL-4` baseline</sub>
+- REQ-REL-11 (The app shall keep a log the user can read and filter …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-REL-11` baseline</sub>
+- REQ-PERF-4 (Home and the session lists shall open within a time the Product …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-PERF-4` baseline</sub>
+- REQ-PERF-7 (The app shall be ready to capture within 30 s of its …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-PERF-7` baseline</sub>
+- REQ-PRIV-1 (The app shall keep every golfer's data on the user's own machines …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-PRIV-1` baseline</sub>
+- REQ-ACC-3 (The app shall let the user choose how dense the screens are …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ACC-3` baseline</sub>
+- REQ-ACC-9 (The app shall let the user set text size, reduce motion, and …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ACC-9` baseline</sub>
+- REQ-ACC-4 (The app shall stay usable in a smaller window.) is partial, and has no open issue and no accepted gap <sub>`12 REQ-ACC-4` baseline</sub>
+- REQ-ACC-5 (The app shall speak to the golfer in golf words throughout, and …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-ACC-5` baseline</sub>
+- REQ-ACC-7 (The app shall start cleanly on a machine with no golfers and …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ACC-7` baseline</sub>
+- REQ-HON-2 (The golfer shall be able to tell a missing reading from a zero.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-2` baseline</sub>
+- REQ-HON-5 (The app shall say how far to trust each reading it shows …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-5` baseline</sub>
+- REQ-HON-6 (The app shall never claim more than it measured: a reading from …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-6` baseline</sub>
+- REQ-HON-9 (A summary shall agree with its chart.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-9` baseline</sub>
+- REQ-HON-12 (The app shall do its best with the cameras where they are …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-12` baseline</sub>
+- REQ-HON-15 (The app shall show when a shot is still being analysed.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-15` baseline</sub>
+
+### 13. A baseline line whose gap has closed
+
+None.
