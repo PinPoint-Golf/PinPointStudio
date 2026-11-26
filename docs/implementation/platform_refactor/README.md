@@ -14,6 +14,6 @@ These are working documents, not governance: where one disagrees with `governanc
 | `standing-C.md` | The rules every Stage C brief carries, beyond #402 | #377–#380, #400 |
 | `pending-tools/` | Three scripts not yet in `tools/`: `ring_census.py` and `link_census.py` (step 18, #381, moves them into `tools/refactor/` with their tests), and `count_includers.py` (the includer count a scripted move's proof uses) | #381–#383, every scripted move |
 | `parked/281-overlap.patch` | The overlapping-capture change for #281, built and parked on 25 Nov 2026 | #394, step 85 |
-| `notes/` | Earlier items' notes that later briefs read (B0.2b, B0.4, B0.5, B1.4 and its review), and the Stage B build-time baseline (`build-times-e10eddf7.txt`, `build-times-a7a6b4b2.txt`, taken on the studio PC on 24 Nov 2026) | #381–#384 |
+| `notes/` | Earlier items' notes that later briefs read (B0.2b, B0.4, B0.5, B1.4 and its review; the #281 investigation behind the parked patch), and the Stage B build-time baseline (`build-times-e10eddf7.txt`, `build-times-a7a6b4b2.txt`, taken on the studio PC on 24 Nov 2026) | #381–#384, #394 |
 
 Earlier items' notes that these files mention by a `build/platform/…` path, and the per-item information-model excerpts, were not kept: the items they describe have landed, and their commits carry what was done. Read the information model by section instead of an excerpt.

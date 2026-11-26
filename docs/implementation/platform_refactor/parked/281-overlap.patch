@@ -263,7 +263,7 @@ index 00000000..510317c2
 +// #281 part A — a swing hit while the previous one is being analysed, on the REAL event buffer
 +// with a fake two-camera feed (G1: capture code lands with its fake and a test).
 +//
-+// Visit 1 (25 Nov 2026, Wrist_02; build/platform/A/NOTES-281.md §1): three swings about 8 s apart.
++// Visit 1 (25 Nov 2026, Wrist_02; docs/implementation/platform_refactor/notes/NOTES-281.md §1): three swings about 8 s apart.
 +// Swing 2 was never recorded, and swing 3's window held 278 frames of 595. The cause: from the
 +// freeze of one shot until its analysis, export and write are done, the window reads the frozen
 +// ring zero-copy, so the WHOLE buffer stays Paused — nothing is recorded — and resume() then
@@ -1689,7 +1689,7 @@ index fd640d91..c8dbc250 100644
  }
  
 +// ═══════════════════════════════ ShotPairing, two swings in flight at once (#281) ══
-+// Visit 1 (25 Nov 2026, Wrist_02; build/platform/A/NOTES-281.md): swing 2 was hit while swing 1
++// Visit 1 (25 Nov 2026, Wrist_02; docs/implementation/platform_refactor/notes/NOTES-281.md): swing 2 was hit while swing 1
 +// analysed, and swing 3's reading arrived before its shot was committed (the GUI thread was busy
 +// with swing 1's join). Premier readings are timed (contactAtMs), as there.
 +
