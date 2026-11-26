@@ -1721,9 +1721,9 @@ set(SESSION_DIAG_MARKS_SOURCES
     ${SRC}/Vocabulary/Metrics/variability/variability_trend.cpp
     ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
     ${SRC}/Gui/variability/variability_facade.cpp
-    ${SRC}/Gui/charts/variability_clubs.cpp
-    ${SRC}/Gui/charts/session_consistency.cpp ${SRC}/Gui/charts/session_curves.cpp
-    ${SRC}/Gui/charts/session_warp.cpp ${SRC}/Gui/charts/session_traces.cpp
+    ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
+    ${SRC}/Diagnostics/derived/series/session_consistency.cpp ${SRC}/Diagnostics/derived/series/session_curves.cpp
+    ${SRC}/Diagnostics/derived/series/session_warp.cpp ${SRC}/Diagnostics/derived/series/session_traces.cpp
     # The tuning log's append takes the athlete folder's advisory lock (Export/athlete_files.h, step 2.3).
     ${SRC}/Core/folder_lock.cpp
     # The golfer's input on each shot's review, through a session store and swing door of the model's own
@@ -2073,7 +2073,8 @@ set(_review_views_shot_sources ${_owner_view_test_sources}
     ${SRC}/Gui/review/swing_data_source.h ${SRC}/Gui/review/swing_data_source.cpp ${SRC}/Gui/review/swing_data_types.h
     ${SRC}/Gui/review/swing_series_model.cpp ${SRC}/Gui/review/swing_coverage_model.cpp ${SRC}/Gui/review/timeline_labels.cpp
     ${SRC}/Gui/review/shot_data_door.h ${SRC}/Gui/review/shot_data_door_impl.h ${SRC}/Gui/review/shot_data_door.cpp
-    ${SRC}/Gui/trust/trust_readings.cpp ${SRC}/Gui/charts/session_sequence.cpp ${SRC}/Gui/charts/session_curves.cpp)
+    ${SRC}/Gui/charts/session_sequence_words.cpp
+    ${SRC}/Gui/trust/trust_readings.cpp ${SRC}/Diagnostics/derived/series/session_sequence.cpp ${SRC}/Diagnostics/derived/series/session_curves.cpp)
 list(REMOVE_DUPLICATES _review_views_shot_sources)
 pp_add_test(review_views_shot_test
     SOURCES ${SRC}/Gui/tests/review_views_shot_test.cpp ${_review_views_shot_sources}

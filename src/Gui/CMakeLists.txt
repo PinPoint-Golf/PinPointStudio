@@ -122,6 +122,7 @@ else()
         set_source_files_properties("${PP_ROOT}/${_s}" PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
     endforeach()
     list(TRANSFORM PP_QML_SOURCES PREPEND "${PP_ROOT}/")
+    list(TRANSFORM PP_CHARTS_RULES_SOURCES PREPEND "${PP_ROOT}/")
 
     pp_qml_cachegen_keep_unchanged(qml_ui_test)   # see cmake/PinPointQmlModule.cmake
     qt_add_qml_module(qml_ui_test
@@ -129,6 +130,7 @@ else()
         VERSION 1.0
         QML_FILES ${_pp_qml_abs}
         SOURCES   ${PP_QML_SOURCES})
+    target_sources(qml_ui_test PRIVATE ${PP_CHARTS_RULES_SOURCES})   # not QML types (cmake/PinPointQmlModule.cmake)
 
     # The faces the app ships. Without these every containment assertion measures whatever the HOST
     # falls back to — see loadBundledFonts() in tests/qml/qml_ui_test.cpp for the two different wrong
@@ -319,6 +321,7 @@ else()
             SOURCES   ${_pp_setup_qml_sources}
                       ${CMAKE_CURRENT_SOURCE_DIR}/tests/setup/silent_ting_player.h
                       ${CMAKE_CURRENT_SOURCE_DIR}/tests/setup/setup_enum_standins.h)
+        target_sources(session_setup_ui_test PRIVATE ${PP_CHARTS_RULES_SOURCES})   # PP_ROOT-prefixed above, as PP_QML_SOURCES
 
         qt_add_resources(session_setup_ui_test "setup_test_fonts"
             PREFIX "/fonts"

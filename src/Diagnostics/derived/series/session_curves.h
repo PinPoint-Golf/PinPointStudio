@@ -55,7 +55,7 @@
 // when it covers the whole curve; a shorter one is a malformed document and is ignored wholesale.
 
 #include "session_series_types.h"
-#include "../typeset/box_stats.h"
+#include "../../../Vocabulary/Metrics/box_stats.h"
 
 #include <QString>
 
@@ -98,8 +98,8 @@ std::vector<double> timeGrid(double t0, double t1, double step);
 std::vector<double> sessionGrid(double t0, double t1);
 
 // Type-7 quantile (R's default) over the FINITE values; NaN when there are none. Takes its argument by
-// value: it sorts a copy. The one implementation, shared with Session diagnostics: ../typeset/box_stats.h
-using pinpoint::box::quantile7;   // the one implementation: ../typeset/box_stats.h
+// value: it sorts a copy. The one implementation, shared with Session diagnostics: Vocabulary/Metrics/box_stats.h
+using pinpoint::box::quantile7;   // the one implementation: Vocabulary/Metrics/box_stats.h
 inline double medianOf(std::vector<double> values) { return quantile7(std::move(values), 0.5); }
 
 } // namespace pinpoint::charts

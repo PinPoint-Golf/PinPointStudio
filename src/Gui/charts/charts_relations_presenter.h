@@ -253,9 +253,9 @@
 
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include "charts_relations_types.h"   // the typed results (refactor 5.5c)
-#include "session_consistency.h"
-#include "session_curves.h"
-#include "session_series_types.h"
+#include "../../Diagnostics/derived/series/session_consistency.h"
+#include "../../Diagnostics/derived/series/session_curves.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 
 #include <QMutex>
 #include <QObject>

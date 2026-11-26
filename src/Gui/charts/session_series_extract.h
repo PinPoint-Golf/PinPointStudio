@@ -35,7 +35,7 @@
 //   seriesLinkConditions every condition that fired on some shot of the snapshot, named, grouped and linked to the
 //                        reading it grades (design §6.4).
 
-#include "session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "../../Diagnostics/derived/board_annotations.h"
 #include "../../Diagnostics/derived/diagnostic_ledger.h"   // ShotRecord
 

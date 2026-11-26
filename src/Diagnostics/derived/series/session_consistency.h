@@ -44,10 +44,10 @@
 // compared with are the same wherever it lands, so a row stands out or not once and for all. Each
 // shuffle only counts which shot it landed on.
 
-#include "../../Diagnostics/derived/consistency_home.h"    // the table's shape: columns and areas
+#include "../consistency_home.h"    // the table's shape: columns and areas
 #include "session_series_types.h"
 #include "session_warp.h"
-#include "../../Vocabulary/Metrics/variability/variability_pooling.h"   // the within-club residuals (moved down in step 3.8)
+#include "../../../Vocabulary/Metrics/variability/variability_pooling.h"   // the within-club residuals (moved down in step 3.8)
 
 #include <QString>
 #include <QStringList>
@@ -144,9 +144,6 @@ bool consistencyGuarded(const ShotSeries &shot, const ShotWarp *warp);
 // True for a reading that rests on the shot's P-ladder, so a guarded shot does not count it: a span, and the
 // backswing timing read at P3-P4.
 bool consistencyGuardCovers(const ConsistencyReading &reading);
-
-// What a guarded shot is told, in one place: the row's caution and the shot's note both say this.
-inline QString consistencyGuardWords() { return QStringLiteral("the timing of this swing's positions looks unusual"); }
 
 // ── Layer 2 ─────────────────────────────────────────────────────────────────────────────────────
 

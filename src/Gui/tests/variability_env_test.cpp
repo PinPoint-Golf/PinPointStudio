@@ -23,7 +23,7 @@
 
 #include "charts/consistency_env.h"
 #include "../../Export/rule_data_install.h"
-#include "charts/session_warp.h"                // phase ids
+#include "../../Diagnostics/derived/series/session_warp.h"                // phase ids
 #include "charts/variability_env.h"
 
 #include "Vocabulary/Metrics/metric_catalogue.h"

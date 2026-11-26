@@ -135,6 +135,9 @@ inline QString latePelvisNote()
                           "two-camera measurement; it cannot yet tell them apart.");
 }
 
+// What a guarded shot is told, in one place: the row's caution and the shot's note both say this.
+inline QString consistencyGuardWords() { return QStringLiteral("the timing of this swing's positions looks unusual"); }
+
 // A sentence's first clause: its text up to the first ';' or '.', or the whole text when it has neither — what a
 // folded section's head keeps of its sentence (the session view's fold heads). It cuts at the point in "1.6 in" and
 // gives "" for a text that starts with one, as the view's old /^[^;.]*/ did.

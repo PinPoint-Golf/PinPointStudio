@@ -10,16 +10,17 @@ pp_add_test(charts_wrist_presenter_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_wrist_presenter.cpp
             ${GUI}/charts/charts_relations_presenter.cpp
-            ${GUI}/charts/session_consistency.cpp
+            ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
             ${GUI}/tests/folder_series.cpp
-            ${GUI}/charts/session_curves.cpp
-            ${GUI}/charts/session_warp.cpp
-            ${GUI}/charts/session_traces.cpp
-            ${GUI}/charts/session_relations.cpp
-            ${GUI}/charts/session_sequence.cpp
+            ${SRC}/Diagnostics/derived/series/session_curves.cpp
+            ${SRC}/Diagnostics/derived/series/session_warp.cpp
+            ${SRC}/Diagnostics/derived/series/session_traces.cpp
+            ${SRC}/Diagnostics/derived/series/session_relations.cpp
+            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
+            ${GUI}/charts/session_sequence_words.cpp
             # the session's consistency grades (R2b, R7): one window per club, the grader, the `variabilityResult` type
-            ${GUI}/charts/variability_clubs.cpp
+            ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
             ${GUI}/variability/variability_facade.cpp
             ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
             ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp

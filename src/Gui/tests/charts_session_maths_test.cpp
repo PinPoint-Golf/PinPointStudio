@@ -27,12 +27,12 @@
 //               the warp's properties, the landmarks against the real P-times.
 //   synth*    — every gate and edge on hand-built sessions.
 
-#include "charts/session_bridge.h"
-#include "charts/session_curves.h"
-#include "charts/session_relations.h"
-#include "charts/session_sequence.h"
-#include "charts/session_traces.h"
-#include "charts/session_warp.h"
+#include "../../Diagnostics/derived/series/session_bridge.h"
+#include "../../Diagnostics/derived/series/session_curves.h"
+#include "../../Diagnostics/derived/series/session_relations.h"
+#include "../../Diagnostics/derived/series/session_sequence.h"
+#include "../../Diagnostics/derived/series/session_traces.h"
+#include "../../Diagnostics/derived/series/session_warp.h"
 #include "charts_maths_fixture.h"
 
 #include <QJsonArray>

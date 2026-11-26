@@ -20,9 +20,9 @@
 
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include "charts_traces_types.h"     // the typed results (refactor 5.5c)
-#include "session_series_types.h"
-#include "session_traces.h"
-#include "session_warp.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
+#include "../../Diagnostics/derived/series/session_traces.h"
+#include "../../Diagnostics/derived/series/session_warp.h"
 
 #include <QObject>
 #include <QPointer>

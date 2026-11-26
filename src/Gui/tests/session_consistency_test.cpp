@@ -16,14 +16,14 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// THE CONSISTENCY MATHS (src/Gui/charts/session_consistency.h, docs/design/consistency_design.md §4). The
+// THE CONSISTENCY MATHS (src/Diagnostics/derived/series/session_consistency.h, docs/design/consistency_design.md §4). The
 // rules on hand-made readings and a stub env, the sampling on synthetic shots, the guard on the 4 July
 // fixture, then the 5 Oct fixture on the production env: its timing and its golden.
 
 #include "charts/consistency_env.h"
 #include "../../Export/rule_data_install.h"
-#include "charts/session_consistency.h"
-#include "charts/session_traces.h"
+#include "../../Diagnostics/derived/series/session_consistency.h"
+#include "../../Diagnostics/derived/series/session_traces.h"
 #include "charts_maths_fixture.h"
 
 #include <QElapsedTimer>

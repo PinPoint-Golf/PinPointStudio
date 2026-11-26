@@ -38,7 +38,7 @@
 #include "charts/session_posture.h"
 #include "../../Export/rule_data_install.h"
 #include "charts/session_series_extract.h"   // extractShot (refactor 5.5a)
-#include "charts/session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "charts/session_wrist.h"
 #include "../../Vocabulary/Analysis/gate_record.h"                // a substitute record, written as swing.json writes it
 #include "../../Vocabulary/Metrics/gate_catalogue.h"             // its replaced record's claim words

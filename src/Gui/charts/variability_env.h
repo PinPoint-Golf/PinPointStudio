@@ -18,7 +18,8 @@
 
 #pragma once
 
-#include "session_consistency.h"                            // ConsistencyEnv, ConsistencyReading
+#include "../../Diagnostics/derived/series/session_consistency.h"                            // ConsistencyEnv, ConsistencyReading
+#include "../../Diagnostics/derived/series/consistency_grades.h"                             // ConsistencyGradeScales
 
 #include "../../Vocabulary/Metrics/variability/variability_result.h"     // ScaleSource
 #include "../../Vocabulary/Metrics/variability/variability_scale_type.h" // ScaleType
@@ -133,5 +134,8 @@ std::unique_ptr<IVariabilityScaleProvider> makeVariabilityScaleProvider();
 std::unique_ptr<IVariabilityScaleProvider> makeVariabilityScaleProvider(ConsistencyEnv env,
                                                                         VariabilityDescriptorLookup descriptors,
                                                                         VariabilityMeasureNormLookup measureNorms = {});
+
+// The production scales. `provider` must outlive what this returns.
+ConsistencyGradeScales consistencyGradeScales(const IVariabilityScaleProvider &provider);
 
 } // namespace pinpoint::charts

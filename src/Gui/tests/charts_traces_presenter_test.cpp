@@ -27,9 +27,10 @@
 #include "charts/charts_traces_presenter.h"
 #include "charts/charts_gadget.h"   // chartsGadgetMap: the typed results read as maps (refactor 5.5c)
 #include "charts/charts_words.h"
-#include "charts/session_sequence.h"
+#include "../../Diagnostics/derived/series/session_sequence.h"
+#include "charts/session_sequence_words.h"
 #include "folder_series.h"   // the old loader, a test double (5.5a)
-#include "charts/session_warp.h"
+#include "../../Diagnostics/derived/series/session_warp.h"
 #include "charts/variability_env.h"
 #include "Vocabulary/Metrics/metric_catalogue.h"
 #include "variability/variability_facade.h"

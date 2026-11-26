@@ -47,7 +47,7 @@
 
 #include "session_consistency.h"
 
-#include "../../Vocabulary/Metrics/variability/variability_grader.h"   // CellGrade, VariabilityResult, ScaleType
+#include "../../../Vocabulary/Metrics/variability/variability_grader.h"   // CellGrade, VariabilityResult, ScaleType
 
 #include <QString>
 
@@ -57,17 +57,12 @@
 
 namespace pinpoint::charts {
 
-class IVariabilityScaleProvider;
-
 // What a reading is graded against beyond its own normSigma, and what kind of number it is. Empty functions: Interval,
 // no variabilityScale.
 struct ConsistencyGradeScales {
     std::function<variability::ScaleType(const QString &key)>    scaleType;
     std::function<std::optional<double>(const QString &key)>     variabilityScale;
 };
-
-// The production scales. `provider` must outlive what this returns.
-ConsistencyGradeScales consistencyGradeScales(const IVariabilityScaleProvider &provider);
 
 // One applicable cell.
 struct ConsistencyCellGrade {

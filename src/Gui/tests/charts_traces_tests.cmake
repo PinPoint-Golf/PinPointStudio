@@ -14,15 +14,16 @@ pp_add_test(charts_traces_presenter_test
             ${GUI}/charts/charts_traces_presenter.cpp
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
-            ${GUI}/charts/session_curves.cpp
-            ${GUI}/charts/session_warp.cpp
-            ${GUI}/charts/session_traces.cpp
-            ${GUI}/charts/session_relations.cpp
-            ${GUI}/charts/session_sequence.cpp
-            ${GUI}/charts/session_bridge.cpp
-            ${GUI}/charts/session_consistency.cpp
+            ${SRC}/Diagnostics/derived/series/session_curves.cpp
+            ${SRC}/Diagnostics/derived/series/session_warp.cpp
+            ${SRC}/Diagnostics/derived/series/session_traces.cpp
+            ${SRC}/Diagnostics/derived/series/session_relations.cpp
+            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
+            ${GUI}/charts/session_sequence_words.cpp
+            ${SRC}/Diagnostics/derived/series/session_bridge.cpp
+            ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
-            ${GUI}/charts/variability_clubs.cpp
+            ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
             ${GUI}/charts/variability_env.cpp
             ${GUI}/variability/variability_facade.cpp
             ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp

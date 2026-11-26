@@ -36,8 +36,8 @@
 // A shot is IMMUTABLE once published: the model swaps in a new shared_ptr when a shot is
 // re-analysed, so a reader holding a SessionSnapshot never sees a shot change under it.
 
-#include "../../Vocabulary/Metrics/series_reduce.h"   // reduceInstantOver
-#include "../../Wrist/wrist_profile.h"      // ChartShotFindings::wrist (DEC-123)
+#include "../../../Vocabulary/Metrics/series_reduce.h"   // reduceInstantOver
+#include "../../../Wrist/wrist_profile.h"      // ChartShotFindings::wrist (DEC-123)
 
 #include <QHash>
 #include <QJsonObject>

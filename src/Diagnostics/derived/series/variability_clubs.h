@@ -21,8 +21,8 @@
 
 #include "session_series_types.h"                             // kNaN
 
-#include "../../Vocabulary/Metrics/variability/variability_grader.h"     // VariabilityInput
-#include "../../Vocabulary/Metrics/variability/variability_pooling.h"    // ClubReading, the within-club pooling (R2a)
+#include "../../../Vocabulary/Metrics/variability/variability_grader.h"     // VariabilityInput
+#include "../../../Vocabulary/Metrics/variability/variability_pooling.h"    // ClubReading, the within-club pooling (R2a)
 
 #include <QString>
 

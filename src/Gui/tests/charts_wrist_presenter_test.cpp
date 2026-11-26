@@ -31,7 +31,7 @@
 #include "charts/charts_gadget.h"   // chartsGadgetMap: the typed results read as maps (refactor 5.5c)
 #include "charts/charts_words.h"
 #include "../../Export/rule_data_install.h"
-#include "charts/session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "charts/session_wrist.h"
 #include "Diagnostics/norms/norm.h"            // gradePolicyByName
 #include "Diagnostics/norms/norm_provider.h"   // sharedNormProvider

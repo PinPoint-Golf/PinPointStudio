@@ -37,7 +37,7 @@
 #include "charts/delivery_picture.h"
 #include "charts/charts_gadget.h"
 #include "charts/posture_picture.h"
-#include "charts/session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "Club/shaft_plane_curve.h"
 
 #include <QDir>

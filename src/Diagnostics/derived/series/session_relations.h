@@ -69,7 +69,7 @@ namespace pinpoint::charts {
 
 // ── box statistics ──────────────────────────────────────────────────────────────────────────
 
-// The one implementation, shared with Session diagnostics' strips: ../typeset/box_stats.h
+// The one implementation, shared with Session diagnostics' strips: Vocabulary/Metrics/box_stats.h
 using pinpoint::box::BoxStats;
 using pinpoint::box::boxStats;
 

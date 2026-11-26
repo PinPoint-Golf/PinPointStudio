@@ -17,10 +17,10 @@
  */
 
 
-// Clubs and the variability grade (src/Gui/charts/variability_clubs.h; Mark's rulings R2a and R2b, 7 Nov):
+// Clubs and the variability grade (src/Diagnostics/derived/series/variability_clubs.h; Mark's rulings R2a and R2b, 7 Nov):
 // the pooled within-club input and the per-club windows, scalar and trace, on synthetic swings.
 
-#include "charts/variability_clubs.h"
+#include "../../Diagnostics/derived/series/variability_clubs.h"
 #include "../../Export/rule_data_install.h"
 
 #include "../../Vocabulary/Metrics/variability/variability_grader.h"

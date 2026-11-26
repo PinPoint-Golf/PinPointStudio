@@ -19,8 +19,8 @@
 #pragma once
 
 // THE CONSISTENCY TABLE'S SHAPE (docs/design/consistency_design.md §4.2): its columns and its areas. A cell's grade is
-// the variability grader's (src/Gui/charts/consistency_grades.h); the old cell words were retired (Mark, 7 Nov).
-// Pure, header-only, QString and std only. The rules that fill the cells are src/Gui/charts/session_consistency.h,
+// the variability grader's (src/Diagnostics/derived/series/consistency_grades.h); the old cell words were retired (Mark, 7 Nov).
+// Pure, header-only, QString and std only. The rules that fill the cells are src/Diagnostics/derived/series/session_consistency.h,
 // which includes this file. Home no longer rolls the table up (Mark's rulings R5 and R15, 7 Nov): its Consistency
 // column is the consistency mark of the biggest fault's measure (work_ons_controller.h, CONSISTENCY MARKS), and the
 // old per-session <session>/consistency.json files stay in the libraries, unread.

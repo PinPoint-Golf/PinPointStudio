@@ -40,9 +40,9 @@ inline void appendRules(std::vector<GateEntry> &c)
     const char *workOns   = "src/Diagnostics/derived/work_ons.h";
     const char *themes    = "src/Diagnostics/derived/swing_themes.h";
     const char *seqChecks = "src/Diagnostics/derived/sequence_checks.h";
-    const char *traces    = "src/Gui/charts/session_traces.cpp";
-    const char *consistency = "src/Gui/charts/session_consistency.cpp";
-    const char *consistencyGrades = "src/Gui/charts/consistency_grades.cpp";    // the table's grades
+    const char *traces    = "src/Diagnostics/derived/series/session_traces.cpp";
+    const char *consistency = "src/Diagnostics/derived/series/session_consistency.cpp";
+    const char *consistencyGrades = "src/Diagnostics/derived/series/consistency_grades.cpp";    // the table's grades
 
     const char *diagDesign   = "docs/design/session_diagnostics_design.md";
     const char *chartsDesign = "docs/design/charts_panel_traces_relations.md";
@@ -207,11 +207,11 @@ inline void appendRules(std::vector<GateEntry> &c)
         .tuning = { tune("charts.findingMinShots", 5, "shots") };
     rule(c, "rule.charts.correlationMin", charts, "Too few shots to relate", "too few shots",
          QStringLiteral("Whether two readings move together is worked out only over five or more shots that have "
-                        "both."), "src/Gui/charts/session_relations.cpp", chartsDesign)
+                        "both."), "src/Diagnostics/derived/series/session_relations.cpp", chartsDesign)
         .tuning = { tune("charts.correlationMinShots", 5, "shots") };
     rule(c, "rule.charts.boxMin", charts, "Too few shots for a spread", "too few shots",
          QStringLiteral("A reading's spread is drawn as a box only with at least three shots."),
-         "src/Gui/charts/session_relations.cpp", chartsDesign)
+         "src/Diagnostics/derived/series/session_relations.cpp", chartsDesign)
         .tuning = { tune("charts.boxMinShots", 3, "shots") };
     rule(c, "rule.charts.kindsAsClubs", charts, "The kinds are the clubs", "kinds are clubs",
          QStringLiteral("When the two kinds of swing in a session line up with two clubs — at least 75% of shots with "
@@ -222,10 +222,10 @@ inline void appendRules(std::vector<GateEntry> &c)
          QStringLiteral("Shots are lined up on their swing positions. A position is not used when it was found with "
                         "low confidence (under 0.35), runs backwards in time, or makes a stretch more than twice or "
                         "less than half the session's usual length (judged once three shots have it)."),
-         "src/Gui/charts/session_warp.cpp", chartsDesign)
+         "src/Diagnostics/derived/series/session_warp.cpp", chartsDesign)
         .tuning = { tune("charts.warp.minConf", 0.35, ""), tune("charts.warp.maxSegmentRatio", 2.0, ""),
                     tune("charts.warp.minSegmentShots", 3, "shots") };
-    // The Consistency tab's rules (src/Gui/charts/session_consistency.h; the grades, and the first three gates, are src/Gui/charts/consistency_grades.h
+    // The Consistency tab's rules (src/Diagnostics/derived/series/session_consistency.h; the grades, and the first three gates, are src/Diagnostics/derived/series/consistency_grades.h
     // over src/Vocabulary/Metrics/variability/, whose constants — kNMin, kCellLoosestPercentile — they quote). A reading the grader
     // cannot grade is one of two cases, told apart: too few shots (grade 0, consistencyVerdict) or nothing to set the
     // spread against (no mark, consistencyNoScale).

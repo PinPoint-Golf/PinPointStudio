@@ -19,15 +19,16 @@
 #include "charts_traces_presenter.h"
 
 #include "charts_words.h"
-#include "session_curves.h"
-#include "session_relations.h"   // the facets (conditionFacets, halfFacet, clubFacet, shapeFacet)
+#include "../../Diagnostics/derived/series/session_curves.h"
+#include "../../Diagnostics/derived/series/session_relations.h"   // the facets (conditionFacets, halfFacet, clubFacet, shapeFacet)
 #include "../../Vocabulary/Metrics/gate_catalogue.h"   // the gates' words (the out-of-sight bars)
 #include "../trust/trust_readings.h"         // the readings a gate touched (the marks open them)
-#include "session_sequence.h"
-#include "session_bridge.h"     // the chest's probable peak (Session only)
+#include "../../Diagnostics/derived/series/session_sequence.h"
+#include "session_sequence_words.h"
+#include "../../Diagnostics/derived/series/session_bridge.h"     // the chest's probable peak (Session only)
 #include "session_series_extract.h"   // folderShotId (refactor 5.5a)
 #include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
-#include "variability_clubs.h"      // perClubTraceInputs (R2b: one window per club)
+#include "../../Diagnostics/derived/series/variability_clubs.h"      // perClubTraceInputs (R2b: one window per club)
 #include "variability_env.h"        // the scale provider: each curve's scale type
 #include "consistency_env.h"        // consistencyEnvGeneration: a norm or pack save makes the scales again (5.5a)
 #include "../../Diagnostics/norms/norm_provider.h"   // sharedNormProviderGeneration: re-make the scales after a save

@@ -22,13 +22,13 @@
 #include "charts_relations_presenter.h"     // movesWith(): the Relations ledger, asked our own question
 #include "charts_gadget.h"                  // chartsGadgetMap: the report's payload, from the typed session
 #include "charts_words.h"
-#include "session_curves.h"
-#include "session_relations.h"              // boxStats, pearson
+#include "../../Diagnostics/derived/series/session_curves.h"
+#include "../../Diagnostics/derived/series/session_relations.h"              // boxStats, pearson
 #include "session_series_extract.h"   // folderShotId (refactor 5.5a)
 #include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
-#include "session_warp.h"
+#include "../../Diagnostics/derived/series/session_warp.h"
 #include "session_wrist.h"
-#include "variability_clubs.h"                    // perClubInputs: one window per club (R2b)
+#include "../../Diagnostics/derived/series/variability_clubs.h"                    // perClubInputs: one window per club (R2b)
 #include "../variability/variability_facade.h"    // VariabilityResultView: the `variabilityResult` QML reads
 #include "../../Vocabulary/Metrics/variability/variability_grader.h"
 

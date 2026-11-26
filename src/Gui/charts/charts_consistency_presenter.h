@@ -95,7 +95,7 @@
 
 #include "charts_consistency_types.h"      // the typed results
 #include "charts_relations_presenter.h"     // ConsistencyReadingRows
-#include "consistency_grades.h"             // ConsistencyHead
+#include "../../Diagnostics/derived/series/consistency_grades.h"             // ConsistencyHead
 
 #include <QObject>
 #include <QPointer>

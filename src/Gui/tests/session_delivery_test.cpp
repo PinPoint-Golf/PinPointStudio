@@ -34,7 +34,7 @@
 
 #include "charts/session_delivery.h"
 #include "../../Export/rule_data_install.h"
-#include "charts/session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "charts/session_series_extract.h"   // extractShot: the swing's handedness (refactor 6.3b)
 #include "../../LaunchMonitor/inferred/lm_inferred_reads.h"   // the launch monitor card's classifier, which the shapes must agree with
 

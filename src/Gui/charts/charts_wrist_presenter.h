@@ -21,7 +21,7 @@
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include "charts_relations_types.h"   // RelationsMovesWith: the Relations ledger the Wrist tab shows (refactor 5.5c)
 #include "charts_wrist_types.h"   // the typed results QML reads (refactor 5.5c)
-#include "session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 
 #include <QObject>
 #include <QPointer>

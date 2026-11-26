@@ -43,7 +43,7 @@
 #include "../../Core/pp_debug.h"
 #include "../../Vocabulary/Metrics/variability/variability_grader.h"
 #include "../../Vocabulary/Metrics/variability/variability_trend.h"
-#include "../charts/variability_clubs.h"            // perClubInputs (R2b)
+#include "../../Diagnostics/derived/series/variability_clubs.h"            // perClubInputs (R2b)
 #include "../variability/variability_facade.h"      // VariabilityResultView: the `variabilityResult` QML reads
 #include "../variability/variability_measures.h"    // isOutcomeMeasure, measureScaleType, normCorridorHalfWidth
 

@@ -21,8 +21,8 @@
 #include "charts_gadget.h"            // chartsGadgetMap: the report's maps, off the typed results
 #include "charts_words.h"
 #include "consistency_env.h"
-#include "consistency_grades.h"
-#include "session_consistency.h"
+#include "../../Diagnostics/derived/series/consistency_grades.h"
+#include "../../Diagnostics/derived/series/session_consistency.h"
 #include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
 #include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "variability_env.h"
@@ -487,8 +487,8 @@ ConsistencyTabCellDetail cellDetail(const ConsistencyReadingRows &rows, const Co
         if (guarded && consistencyGuardCovers(reading) && row.measured) {
             const QString had = row.cautionText;
             row.caution = true;
-            row.cautionText = had.isEmpty() ? QStringLiteral("⚠ ") + consistencyGuardWords()
-                                            : had + QStringLiteral("; ") + consistencyGuardWords();
+            row.cautionText = had.isEmpty() ? QStringLiteral("⚠ ") + words::consistencyGuardWords()
+                                            : had + QStringLiteral("; ") + words::consistencyGuardWords();
         }
         RelationsVariability grade;
         grade.kind = QStringLiteral("consistency");

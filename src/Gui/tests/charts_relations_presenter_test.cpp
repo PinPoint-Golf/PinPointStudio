@@ -29,10 +29,10 @@
 #include "../../Export/rule_data_install.h"
 #include "charts/charts_words.h"
 #include "charts/consistency_env.h"
-#include "charts/session_consistency.h"
-#include "charts/session_relations.h"
+#include "../../Diagnostics/derived/series/session_consistency.h"
+#include "../../Diagnostics/derived/series/session_relations.h"
 #include "folder_series.h"   // the old loader, a test double (5.5a)
-#include "charts/session_warp.h"
+#include "../../Diagnostics/derived/series/session_warp.h"
 #include "charts_maths_fixture.h"
 #include "Vocabulary/Metrics/metric_catalogue.h"
 #include "Vocabulary/Metrics/variability/variability_outcome.h"

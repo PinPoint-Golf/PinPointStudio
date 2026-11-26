@@ -57,7 +57,7 @@
 //
 // Pure: no QObject, no files, no threads of its own. Safe on any thread.
 
-#include "session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "../../Wrist/wrist_profile_assess.h"   // WristInput
 
 #include <QJsonObject>

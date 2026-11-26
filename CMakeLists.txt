@@ -886,6 +886,7 @@ qt_add_qml_module(PinPointStudio
     QML_FILES ${PP_QML_FILES}
     SOURCES   ${PP_QML_SOURCES}
 )
+target_sources(PinPointStudio PRIVATE ${PP_CHARTS_RULES_SOURCES})   # not QML types (cmake/PinPointQmlModule.cmake)
 
 qt6_add_shaders(PinPointStudio "debayer_shaders"
     BATCHABLE

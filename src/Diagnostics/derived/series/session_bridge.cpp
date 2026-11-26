@@ -18,7 +18,7 @@
 
 #include "session_bridge.h"
 #include "session_warp.h"
-#include "../../Kinematics/gap_bridge.h"
+#include "../../../Kinematics/gap_bridge.h"
 
 #include <algorithm>
 #include <cmath>

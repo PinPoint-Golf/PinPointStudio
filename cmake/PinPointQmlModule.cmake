@@ -11,6 +11,8 @@
 #   PP_QML_FILES        the .qml sources
 #   PP_QML_SINGLETONS   which of them are `pragma Singleton`
 #   PP_QML_SOURCES      the C++ that registers QML_ELEMENT types into the module
+#   PP_CHARTS_RULES_SOURCES  the Charts' session maths the module's C++ calls (no QML type): each consumer adds it
+#                       to its own sources
 #
 # The singleton list is the one that bites. Omit it and everything still builds, every C++
 # type still resolves, the module still imports — and seventy tests fail with
@@ -617,9 +619,8 @@ set(PP_QML_SOURCES
     src/Gui/review/timeline_labels.cpp
     src/Gui/review/chart_metrics.h
     src/Gui/review/chart_metrics.cpp
-    # The Charts panel's session half (docs/design/charts_panel_traces_relations.md §6.1): the
-    # snapshot types and the model that fills them off the GUI thread.
-    src/Gui/charts/session_series_types.h
+    # The Charts panel's session half (docs/design/charts_panel_traces_relations.md §6.1): the model that fills the
+    # snapshot off the GUI thread. The snapshot's types and the session maths are PP_CHARTS_RULES_SOURCES (below).
     # The series' pure half and the charts' one threading idiom (refactor 5.5a: ChartsLane on the app's WorkPool;
     # SeriesSource, what a presenter reads; ChartsSeries, the QML door to a Session's own series). The series itself
     # (session_series.*) links the domain model, so it is the app's (CMakeLists.txt), beside SessionDiagnostics.
@@ -627,37 +628,17 @@ set(PP_QML_SOURCES
     src/Gui/charts/session_series_extract.cpp
     src/Gui/charts/charts_work.h
     src/Gui/charts/charts_work.cpp
-    # The session maths (§4, §6.2): pure C++ over the snapshot, P-aligned.
-    src/Gui/charts/session_curves.h
-    src/Gui/charts/session_curves.cpp
-    src/Gui/charts/session_warp.h
-    src/Gui/charts/session_warp.cpp
-    src/Gui/charts/session_traces.h
-    src/Gui/charts/session_traces.cpp
-    src/Gui/charts/session_relations.h
-    src/Gui/charts/session_relations.cpp
-    # The Consistency maths (consistency_design.md): sampling and rules, pure over the snapshot.
-    src/Gui/charts/session_consistency.h
-    src/Gui/charts/session_consistency.cpp
     src/Diagnostics/derived/consistency_home.h
-    # Its production env: areas and norm sigma from the packs.
+    # The Consistency maths' production env: areas and norm sigma from the packs.
     src/Gui/charts/consistency_env.h
     src/Gui/charts/consistency_env.cpp
-    # Clubs and the variability grade (R2a pooled within-club, R2b per club): the grader's inputs from
-    # per-swing (club, value) readings. Needs session_consistency.cpp (above) and src/Vocabulary/Metrics/variability/.
-    src/Gui/charts/variability_clubs.h
-    src/Gui/charts/variability_clubs.cpp
     # The variability scale provider (spec §8.2 step 4): what a reading is graded against, from the norms and the
     # catalogue. Make it on the GUI thread. Needs consistency_env.cpp (above).
     src/Gui/charts/variability_env.h
     src/Gui/charts/variability_env.cpp
-    # The Consistency tab's grades (R1, R2a, R3): every reading and cell graded. Needs variability_clubs.cpp (above).
-    src/Gui/charts/consistency_grades.h
-    src/Gui/charts/consistency_grades.cpp
-    src/Gui/charts/session_sequence.h
-    src/Gui/charts/session_sequence.cpp
-    src/Gui/charts/session_bridge.h
-    src/Gui/charts/session_bridge.cpp
+    # The kinematic sequence in words (session_sequence's rules are below, in PP_CHARTS_RULES_SOURCES).
+    src/Gui/charts/session_sequence_words.h
+    src/Gui/charts/session_sequence_words.cpp
     src/Gui/charts/charts_words.h
     src/Gui/charts/charts_traces_presenter.h
     src/Gui/charts/charts_traces_presenter.cpp
@@ -837,4 +818,36 @@ set(PP_QML_SOURCES
 if(APPLE)
     list(APPEND PP_QML_SOURCES src/Gui/print/busy_activity_mac.mm)
 endif()
+
+# THE CHARTS' SESSION MATHS (src/Diagnostics/derived/series/, the Rules ring; the Solution Architect's ruling R7,
+# docs/implementation/platform_b1_placements.md): pure C++ over the session's snapshot, which the Charts presenters in
+# PP_QML_SOURCES call. They register no QML type, so they are not module sources: every target that declares the module
+# (the app, qml_ui_test, session_setup_ui_test) adds this list to its own sources, straight after the module.
+set(PP_CHARTS_RULES_SOURCES
+    # The snapshot's types (OBJ-SESSION-SERIES's value types).
+    src/Diagnostics/derived/series/session_series_types.h
+    # The session maths (§4, §6.2): pure C++ over the snapshot, P-aligned.
+    src/Diagnostics/derived/series/session_curves.h
+    src/Diagnostics/derived/series/session_curves.cpp
+    src/Diagnostics/derived/series/session_warp.h
+    src/Diagnostics/derived/series/session_warp.cpp
+    src/Diagnostics/derived/series/session_traces.h
+    src/Diagnostics/derived/series/session_traces.cpp
+    src/Diagnostics/derived/series/session_relations.h
+    src/Diagnostics/derived/series/session_relations.cpp
+    # The Consistency maths (consistency_design.md): sampling and rules, pure over the snapshot.
+    src/Diagnostics/derived/series/session_consistency.h
+    src/Diagnostics/derived/series/session_consistency.cpp
+    # Clubs and the variability grade (R2a pooled within-club, R2b per club): the grader's inputs from
+    # per-swing (club, value) readings. Needs session_consistency.cpp (above) and src/Vocabulary/Metrics/variability/.
+    src/Diagnostics/derived/series/variability_clubs.h
+    src/Diagnostics/derived/series/variability_clubs.cpp
+    # The Consistency tab's grades (R1, R2a, R3): every reading and cell graded. Needs variability_clubs.cpp (above).
+    src/Diagnostics/derived/series/consistency_grades.h
+    src/Diagnostics/derived/series/consistency_grades.cpp
+    src/Diagnostics/derived/series/session_sequence.h
+    src/Diagnostics/derived/series/session_sequence.cpp
+    src/Diagnostics/derived/series/session_bridge.h
+    src/Diagnostics/derived/series/session_bridge.cpp
+)
 

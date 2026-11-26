@@ -52,11 +52,11 @@
 
 #include "charts/consistency_env.h"
 #include "../../Export/rule_data_install.h"
-#include "charts/session_consistency.h"
-#include "charts/session_curves.h"
-#include "charts/session_sequence.h"
-#include "charts/session_traces.h"
-#include "charts/session_warp.h"
+#include "../../Diagnostics/derived/series/session_consistency.h"
+#include "../../Diagnostics/derived/series/session_curves.h"
+#include "../../Diagnostics/derived/series/session_sequence.h"
+#include "../../Diagnostics/derived/series/session_traces.h"
+#include "../../Diagnostics/derived/series/session_warp.h"
 #include "charts/variability_env.h"
 #include "charts_maths_fixture.h"
 #include "variability/variability_facade.h"       // the shared token spellings

@@ -8,11 +8,11 @@
 #include "charts/charts_gadget.h"     // the typed results as maps, for the assertions (refactor 5.5b)
 #include "../../Export/rule_data_install.h"
 #include "charts/consistency_env.h"
-#include "charts/consistency_grades.h"
+#include "../../Diagnostics/derived/series/consistency_grades.h"
 #include "charts/variability_env.h"
-#include "charts/session_consistency.h"
+#include "../../Diagnostics/derived/series/session_consistency.h"
 #include "folder_series.h"   // the old loader, a test double (5.5a)
-#include "charts/session_warp.h"
+#include "../../Diagnostics/derived/series/session_warp.h"
 #include "charts_maths_fixture.h"
 #include "Diagnostics/norms/norm_provider.h"
 #include "variability/variability_facade.h"

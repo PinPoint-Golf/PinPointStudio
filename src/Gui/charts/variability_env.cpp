@@ -154,4 +154,11 @@ std::unique_ptr<IVariabilityScaleProvider> makeVariabilityScaleProvider(Consiste
     return std::make_unique<VariabilityScaleProvider>(std::move(env), std::move(descriptors), std::move(measureNorms));
 }
 
+ConsistencyGradeScales consistencyGradeScales(const IVariabilityScaleProvider &provider)
+{
+    const IVariabilityScaleProvider *p = &provider;
+    return { [p](const QString &key) { return p->scaleType(key); },
+             [p](const QString &key) { return p->variabilityScale(key); } };
+}
+
 } // namespace pinpoint::charts

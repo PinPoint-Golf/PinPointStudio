@@ -1,0 +1,23 @@
+# B1.15b · The chart rule files leave src/Gui for a Rules directory (build/platform/B1/BRIEF-B1.15b.md).
+# The Solution Architect, 24 Nov 2026 (docs/implementation/platform_b1_placements.md R7, C9): src/Diagnostics/derived/series/,
+# Rules, context Diagnostics, for the list as the inventory grew it (B1.15a): eight of the ten, plus the value types and
+# helpers they need, session_series_types.h (OBJ-SESSION-SERIES's value types) and session_curves, 19 files. The ring and
+# the context come from the Diagnostics/ directory entries of the lint and context_check.py; no table entry changes.
+# Each stem's .h and .cpp, listed from the tree at run time. File, type and namespace names don't change.
+# The value types and the helper stem the eight need (NOTES-B1.15a §2):
+src/Gui/charts/session_series_types.h -> src/Diagnostics/derived/series/
+src/Gui/charts/session_curves -> src/Diagnostics/derived/series/
+# Eight of the audit's ten:
+src/Gui/charts/session_warp -> src/Diagnostics/derived/series/
+src/Gui/charts/session_traces -> src/Diagnostics/derived/series/
+src/Gui/charts/session_relations -> src/Diagnostics/derived/series/
+src/Gui/charts/session_consistency -> src/Diagnostics/derived/series/
+src/Gui/charts/consistency_grades -> src/Diagnostics/derived/series/
+src/Gui/charts/session_sequence -> src/Diagnostics/derived/series/
+src/Gui/charts/session_bridge -> src/Diagnostics/derived/series/
+src/Gui/charts/variability_clubs -> src/Diagnostics/derived/series/
+# Held in src/Gui by the ruling, until #224-H separates their words from their rules: session_posture, session_delivery.
+# Part 1's split, made by hand before the move (NOTES-B1.15a §5, E4): the sequence's words stay in Gui as a new pair.
+# Line numbers are the source's at the commit before the move.
+hand: src/Gui/charts/session_sequence_words.h <- src/Gui/charts/session_sequence.h:40,111-136
+hand: src/Gui/charts/session_sequence_words.cpp <- src/Gui/charts/session_sequence.cpp:22-24,168-288

@@ -43,7 +43,7 @@
 //
 // Unit-tested in src/Gui/tests/charts_work_test.cpp.
 
-#include "session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "../../Core/work_pool.h"
 
 #include <QObject>

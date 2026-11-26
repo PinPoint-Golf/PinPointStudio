@@ -14,12 +14,13 @@
 # card read-at instants come from the fixture's readAt table.
 pp_add_test(charts_session_maths_test
     SOURCES charts_session_maths_test.cpp
-            ${GUI}/charts/session_curves.cpp
-            ${GUI}/charts/session_warp.cpp
-            ${GUI}/charts/session_traces.cpp
-            ${GUI}/charts/session_relations.cpp
-            ${GUI}/charts/session_sequence.cpp
-            ${GUI}/charts/session_bridge.cpp
+            ${SRC}/Diagnostics/derived/series/session_curves.cpp
+            ${SRC}/Diagnostics/derived/series/session_warp.cpp
+            ${SRC}/Diagnostics/derived/series/session_traces.cpp
+            ${SRC}/Diagnostics/derived/series/session_relations.cpp
+            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
+            ${GUI}/charts/session_sequence_words.cpp
+            ${SRC}/Diagnostics/derived/series/session_bridge.cpp
             ${SRC}/Kinematics/gap_bridge.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
@@ -33,8 +34,9 @@ pp_add_test(charts_session_maths_test
 pp_add_test(trust_readings_test
     SOURCES trust_readings_test.cpp
             ${GUI}/trust/trust_readings.cpp
-            ${GUI}/charts/session_sequence.cpp
-            ${GUI}/charts/session_curves.cpp
+            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
+            ${GUI}/charts/session_sequence_words.cpp
+            ${SRC}/Diagnostics/derived/series/session_curves.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/trust ${SRC} ${SRC}/Core)
 
 # The Consistency env (src/Gui/charts/consistency_env.{h,cpp}): where each reading is placed and what norm it is
@@ -89,15 +91,15 @@ pp_add_test(variability_env_test
     AUTOMOC)
 set_tests_properties(variability_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
-# The Consistency maths (src/Gui/charts/session_consistency.{h,cpp}, consistency_design.md §4): the rules on a stub
+# The Consistency maths (src/Diagnostics/derived/series/session_consistency.{h,cpp}, consistency_design.md §4): the rules on a stub
 # env and synthetic shots, the guard and sampling on the 4 July fixture, and the 5 Oct fixture on the real env for
 # its timing and its golden stand-outs (goldens_1005_consistency.json: frozen since the matrix verdicts and the tally that
 # cut it were retired, Mark 7 Nov; its `standouts`, `flags` and shuffle figures are still the rules' own).
 set(CONSISTENCY_MATHS_SOURCES
-    ${GUI}/charts/session_consistency.cpp
-    ${GUI}/charts/session_curves.cpp
-    ${GUI}/charts/session_warp.cpp
-    ${GUI}/charts/session_traces.cpp)
+    ${SRC}/Diagnostics/derived/series/session_consistency.cpp
+    ${SRC}/Diagnostics/derived/series/session_curves.cpp
+    ${SRC}/Diagnostics/derived/series/session_warp.cpp
+    ${SRC}/Diagnostics/derived/series/session_traces.cpp)
 pp_add_test(session_consistency_test
     SOURCES session_consistency_test.cpp ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
@@ -106,12 +108,12 @@ pp_add_test(session_consistency_test
     AUTOMOC)
 set_tests_properties(session_consistency_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
-# Clubs and the variability grade (src/Gui/charts/variability_clubs.{h,cpp}; Mark's rulings R2a and R2b, 7 Nov): the
+# Clubs and the variability grade (src/Diagnostics/derived/series/variability_clubs.{h,cpp}; Mark's rulings R2a and R2b, 7 Nov): the
 # pooled within-club input (residuals about each club's median, consistencyResiduals' own centring, clubs under 3
 # swings left out) and the per-club windows (ordered by readings, a club under N_MIN still graded 0), scalar and
 # trace. Synthetic swings; no env is read.
 pp_add_test(variability_clubs_test
-    SOURCES variability_clubs_test.cpp ${GUI}/charts/variability_clubs.cpp ${CONSISTENCY_MATHS_SOURCES}
+    SOURCES variability_clubs_test.cpp ${SRC}/Diagnostics/derived/series/variability_clubs.cpp ${CONSISTENCY_MATHS_SOURCES}
             ${CONSISTENCY_ENV_SOURCES}
             ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
@@ -126,7 +128,8 @@ pp_add_test(variability_clubs_test
 # The façade's token spellings (src/Gui/variability/variability_facade.cpp) are linked, not copied.
 add_executable(variability_calibrate variability_calibrate.cpp ${GUI}/charts/variability_env.cpp
     ${GUI}/variability/variability_facade.cpp
-    ${GUI}/charts/session_sequence.cpp
+    ${SRC}/Diagnostics/derived/series/session_sequence.cpp
+    ${GUI}/charts/session_sequence_words.cpp
     ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
     ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp ${SRC}/Vocabulary/Metrics/variability/variability_trend.cpp
     ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES})

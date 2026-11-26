@@ -17,13 +17,14 @@ pp_add_test(charts_relations_presenter_test
             ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
             ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
             ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
-            ${GUI}/charts/session_consistency.cpp
+            ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
-            ${GUI}/charts/session_curves.cpp
-            ${GUI}/charts/session_warp.cpp
-            ${GUI}/charts/session_traces.cpp
-            ${GUI}/charts/session_relations.cpp
-            ${GUI}/charts/session_sequence.cpp
+            ${SRC}/Diagnostics/derived/series/session_curves.cpp
+            ${SRC}/Diagnostics/derived/series/session_warp.cpp
+            ${SRC}/Diagnostics/derived/series/session_traces.cpp
+            ${SRC}/Diagnostics/derived/series/session_relations.cpp
+            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
+            ${GUI}/charts/session_sequence_words.cpp
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
@@ -67,21 +68,22 @@ pp_add_test(charts_consistency_presenter_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_consistency_presenter.cpp
             ${GUI}/charts/charts_consistency_types.h   # its typed values: moc (refactor 5.5b)
-            ${GUI}/charts/consistency_grades.cpp
-            ${GUI}/charts/variability_clubs.cpp
+            ${SRC}/Diagnostics/derived/series/consistency_grades.cpp
+            ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
             ${GUI}/charts/variability_env.cpp
             ${GUI}/variability/variability_facade.cpp
             ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
             ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
             ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
             ${GUI}/charts/charts_relations_presenter.cpp
-            ${GUI}/charts/session_consistency.cpp
+            ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
-            ${GUI}/charts/session_curves.cpp
-            ${GUI}/charts/session_warp.cpp
-            ${GUI}/charts/session_traces.cpp
-            ${GUI}/charts/session_relations.cpp
-            ${GUI}/charts/session_sequence.cpp
+            ${SRC}/Diagnostics/derived/series/session_curves.cpp
+            ${SRC}/Diagnostics/derived/series/session_warp.cpp
+            ${SRC}/Diagnostics/derived/series/session_traces.cpp
+            ${SRC}/Diagnostics/derived/series/session_relations.cpp
+            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
+            ${GUI}/charts/session_sequence_words.cpp
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}

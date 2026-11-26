@@ -258,8 +258,8 @@ old-words table in `governance/artefacts/design_system/variability.md` maps them
 
 ## 4. Rules
 
-The sampling and stand-out constants live in `src/Gui/charts/session_consistency.h`; the table's shape in
-`src/Diagnostics/derived/consistency_home.h`; the grades in `src/Gui/charts/consistency_grades.{h,cpp}` over the grader's constants
+The sampling and stand-out constants live in `src/Diagnostics/derived/series/session_consistency.h`; the table's shape in
+`src/Diagnostics/derived/consistency_home.h`; the grades in `src/Diagnostics/derived/series/consistency_grades.{h,cpp}` over the grader's constants
 (`src/Vocabulary/Metrics/variability/variability_constants.h`: `kNMin` 8, `kCellLoosestPercentile` 0.67, the scalar bands). All are
 first guesses.
 
@@ -485,7 +485,7 @@ a print one on the Folio aesthetic. No line was added to `design_system_allowlis
 
 All of it is in the working tree, uncommitted. Commits come after the Product Owner has judged the sheets.
 
-1. **The maths.** `src/Gui/charts/session_consistency.{h,cpp}`, in two layers: sampling (snapshot to readings) and rules
+1. **The maths.** `src/Diagnostics/derived/series/session_consistency.{h,cpp}`, in two layers: sampling (snapshot to readings) and rules
    (readings to cells, stand-outs, flags). `src/Gui/charts/consistency_env.{h,cpp}` is the one place those reach the shipped
    catalogue, conditions and norms. `src/Diagnostics/derived/consistency_home.h` holds the table's shape and Home's word, header-only,
    so Coaching takes them without the charts maths. Reuses `box_stats.h` and `session_warp`. An optional `consistencyArea` on
@@ -510,7 +510,7 @@ All of it is in the working tree, uncommitted. Commits come after the Product Ow
    removed; the old files stay in the libraries, unread.
 8. **Print.** `src/Gui/report/report_consistency.h` cuts the presenter's report payload; `PpConsistencyPage.qml`,
    `session_report_model.{h,cpp}`, `PpSessionReport.qml`.
-9. **The grades** (7 Nov). `src/Gui/charts/consistency_grades.{h,cpp}` grades every reading and cell and builds the head;
+9. **The grades** (7 Nov). `src/Diagnostics/derived/series/consistency_grades.{h,cpp}` grades every reading and cell and builds the head;
    the presenter hands QML typed values (`charts_consistency_types.h`) and word templates (`charts_consistency_presenter.h`,
    THE GRADES); each graded cell names its vocabulary and grade, so the view only looks its word up in the vocabulary
    singletons, where the words live[^r55b]. The open row's `cell` and `shot` are the Relations

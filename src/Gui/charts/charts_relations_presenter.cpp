@@ -20,13 +20,14 @@
 
 #include "charts_words.h"
 #include "consistency_env.h"
-#include "session_consistency.h"
-#include "session_relations.h"
-#include "session_sequence.h"
+#include "../../Diagnostics/derived/series/session_consistency.h"
+#include "../../Diagnostics/derived/series/session_relations.h"
+#include "../../Diagnostics/derived/series/session_sequence.h"
+#include "session_sequence_words.h"
 #include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
 #include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
-#include "session_traces.h"
-#include "session_warp.h"
+#include "../../Diagnostics/derived/series/session_traces.h"
+#include "../../Diagnostics/derived/series/session_warp.h"
 
 #include "../review/timeline_labels.h"
 #include "../trust/trust_readings.h"     // the gate behind a reading a shot has no value for (gateFor)
@@ -2903,7 +2904,7 @@ QString ConsistencyReadingRows::cannotCompare(int shot, bool swingOnly) const
 
 QString ConsistencyReadingRows::guardNote()
 {
-    return QStringLiteral("⚠ ") + words::cap1(consistencyGuardWords()) + QStringLiteral(", so comparisons across its spans are not counted.");
+    return QStringLiteral("⚠ ") + words::cap1(words::consistencyGuardWords()) + QStringLiteral(", so comparisons across its spans are not counted.");
 }
 
 // ── the QObject ───────────────────────────────────────────────────────────────────────────

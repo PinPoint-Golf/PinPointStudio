@@ -18,8 +18,9 @@ pp_add_test(replay_score_test
             ${GUI}/review/swing_coverage_model.cpp
             ${GUI}/review/timeline_labels.cpp
             ${GUI}/trust/trust_readings.cpp
-            ${GUI}/charts/session_sequence.cpp
-            ${GUI}/charts/session_curves.cpp
+            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
+            ${GUI}/charts/session_sequence_words.cpp
+            ${SRC}/Diagnostics/derived/series/session_curves.cpp
             ${GUI}/shot/disk_replay_source.cpp
             ${GUI}/shot/replay_source.h
             ${GUI}/markup/markup_truth.cpp

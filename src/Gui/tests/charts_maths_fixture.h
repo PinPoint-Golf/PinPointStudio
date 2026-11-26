@@ -33,7 +33,7 @@
 // pickedOrdinal, session?. `swing` is the swing's folder name. A missing number reads as NaN, or -1 for
 // sigmaKind.
 
-#include "charts/session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 
 #include <QFile>
 #include <QHash>

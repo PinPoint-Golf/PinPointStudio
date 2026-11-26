@@ -19,7 +19,8 @@
 #include "trust_readings.h"
 
 #include "../charts/charts_words.h"
-#include "../charts/session_sequence.h"
+#include "../../Diagnostics/derived/series/session_sequence.h"
+#include "../charts/session_sequence_words.h"
 #include "../../Vocabulary/Metrics/gate_catalogue.h"
 #include "../../Analysis/route_substitution.h"   // substitutedGapGate (substitutedGapFor)
 

@@ -31,11 +31,11 @@ set_tests_properties(session_posture_test PROPERTIES
 # The session's consistency grades (R2b, R7): the grader, one window per club (variability_clubs.cpp, which needs the
 # Consistency maths), and the `variabilityResult` value type the payload carries.
 set(POSTURE_VARIABILITY_SRC
-    ${GUI}/charts/variability_clubs.cpp
-    ${GUI}/charts/session_consistency.cpp
-    ${GUI}/charts/session_curves.cpp
-    ${GUI}/charts/session_warp.cpp
-    ${GUI}/charts/session_traces.cpp
+    ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
+    ${SRC}/Diagnostics/derived/series/session_consistency.cpp
+    ${SRC}/Diagnostics/derived/series/session_curves.cpp
+    ${SRC}/Diagnostics/derived/series/session_warp.cpp
+    ${SRC}/Diagnostics/derived/series/session_traces.cpp
     ${GUI}/variability/variability_facade.cpp
     ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
     ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp

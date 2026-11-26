@@ -37,7 +37,7 @@
 //  GATE    = { gate, effect, effectWord, title, evidence (the filled sentence), explain, tuning
 //              ("Threshold 20°"), lift ("Timed on swings with …"), primary (the record the claim shows) }
 
-#include "../charts/session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 
 #include <QVariantList>
 #include <QVariantMap>

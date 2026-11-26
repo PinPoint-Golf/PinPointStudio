@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "session_consistency.h"                    // ConsistencyEnv
+#include "../../Diagnostics/derived/series/session_consistency.h"                    // ConsistencyEnv
 
 // THE PRODUCTION ENV of the Consistency maths (docs/design/consistency_design.md): the one place the
 // rules and the sampling reach the shipped catalogue, conditions and norms, through two functions, so

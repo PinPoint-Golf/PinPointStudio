@@ -26,7 +26,7 @@
 
 // "1.0 s" (1036 ms, in seconds as the card says it) with the app's figure-to-unit space (Vocabulary/Common/figure_format.h withUnit)
 static QString ms1036() { return pinpoint::figures::withUnit(QStringLiteral("1.0"), QStringLiteral("s")); }
-#include "../charts/session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "../../Vocabulary/Metrics/gate_catalogue.h"   // gateEntry, claimWords (the substituted gap)
 
 #include <QHashSeed>

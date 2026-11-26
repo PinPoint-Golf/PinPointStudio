@@ -44,13 +44,14 @@ pp_add_test(report_model_test
             # the within-club pooling over the Consistency maths' centring (variability_clubs.cpp needs those four).
             ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
             ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
-            ${GUI}/charts/variability_clubs.cpp
-            ${GUI}/charts/session_consistency.cpp
-            ${GUI}/charts/session_curves.cpp
-            ${GUI}/charts/session_sequence.cpp   # trust/trust_readings.cpp's
+            ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
+            ${SRC}/Diagnostics/derived/series/session_consistency.cpp
+            ${SRC}/Diagnostics/derived/series/session_curves.cpp
+            ${SRC}/Diagnostics/derived/series/session_sequence.cpp   # trust/trust_readings.cpp's
+            ${GUI}/charts/session_sequence_words.cpp
             ${GUI}/trust/trust_readings.cpp      # the session's data warnings into "What we could not check" (#123)
-            ${GUI}/charts/session_warp.cpp
-            ${GUI}/charts/session_traces.cpp
+            ${SRC}/Diagnostics/derived/series/session_warp.cpp
+            ${SRC}/Diagnostics/derived/series/session_traces.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
     AUTOMOC)
 set_tests_properties(report_model_test PROPERTIES

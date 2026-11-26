@@ -19,7 +19,6 @@
 #include "consistency_grades.h"
 
 #include "variability_clubs.h"      // pooledWithinClubInput (R2a)
-#include "variability_env.h"        // IVariabilityScaleProvider
 
 #include <algorithm>
 #include <cmath>
@@ -48,13 +47,6 @@ pv::VariabilityResult asResult(const pv::CellGrade &c)
 }
 
 } // namespace
-
-ConsistencyGradeScales consistencyGradeScales(const IVariabilityScaleProvider &provider)
-{
-    const IVariabilityScaleProvider *p = &provider;
-    return { [p](const QString &key) { return p->scaleType(key); },
-             [p](const QString &key) { return p->variabilityScale(key); } };
-}
 
 const ConsistencyCellGrade *ConsistencyGrades::cellAt(const QString &area, int column) const &
 {

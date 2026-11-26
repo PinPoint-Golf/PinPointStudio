@@ -139,7 +139,7 @@
 //      its address anchor keeps its figure and draws the ⚠; the same stretch elsewhere in the swing (the hips going
 //      edge-on at the top) leaves the reading alone. The corridor's standing is one sentence in the trust fold.
 
-#include "session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "../typeset/box_stats.h"
 #include "../../Diagnostics/norms/norm.h"   // GradePolicy
 

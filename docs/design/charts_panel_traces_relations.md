@@ -101,7 +101,7 @@ This amends D9 for Session only; This shot, Against and every other cross-shot a
 - **Draw: small multiples · overlaid** — This shot's F6 choice, shared, now on Session too: every row's
   layers in one plot on one value axis (the KS curves are all °/s), a key at the top left, the rows' figures
   stacked in the column and their coverage strips stacked under the plot.
-- **The chest's probable peak** (`src/Gui/charts/session_bridge.h`). The face-on chest curve has a 20–40 ms
+- **The chest's probable peak** (`src/Diagnostics/derived/series/session_bridge.h`). The face-on chest curve has a 20–40 ms
   hole at or just before impact (3–6 frames; sequence.sightedBand), at the same instant on every shot, so
   pooling cannot fill it and each shot is bridged on its own. On 07-04 and 10-20 the curve rises into the
   hole and falls out of it on 24 of 32 shots: the peak is in the hole.

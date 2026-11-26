@@ -113,7 +113,7 @@
 //      counted sidecars cached before their swing changed (issue #174); a summary is written again whenever a swing
 //      changes (its fingerprint), so that count has gone.
 
-#include "session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "../../LaunchMonitor/inferred/lm_inferred_reads.h"   // ShotDirectionBounds: the one direction rule's (refactor 6.3b)
 #include "../typeset/box_stats.h"
 

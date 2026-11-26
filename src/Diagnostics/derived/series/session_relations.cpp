@@ -18,7 +18,7 @@
 
 #include "session_relations.h"
 
-#include "../../Vocabulary/Metrics/fitted_curve.h"
+#include "../../../Vocabulary/Metrics/fitted_curve.h"
 
 #include <QHash>
 #include <QSet>

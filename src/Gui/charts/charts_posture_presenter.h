@@ -20,7 +20,7 @@
 
 #include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include "charts_posture_types.h"  // the typed results (refactor 5.5c)
-#include "session_series_types.h"
+#include "../../Diagnostics/derived/series/session_series_types.h"
 #include "session_posture.h"      // PostureAddressHistory, PostureEnv
 #include "session_neighbours.h"   // the golfer's other sessions, from their summaries (refactor 5.5d)
 
