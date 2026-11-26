@@ -592,8 +592,12 @@ refactor, applied", whose number is in brackets). A stage's brief carries them.
    reviewed behind it.
 2. **Checks on hardware (2).** Each check that needs the cabin PC, real devices or the Product Owner's hands is
    named in the brief with: who runs it (agents do not launch the app on real devices), a script or a written
-   procedure, its cost in the Product Owner's time, and what is built behind it meanwhile. Checks are batched into
-   one cabin visit per stage where possible. A fault a live run finds gets a test shaped like the live case.
+   procedure, its cost in the Product Owner's time, and what is built behind it meanwhile. Only a check that needs
+   a real shot (clubs and a ball being hit) goes to a cabin visit, and those are batched into as few visits as
+   possible: one visit may serve two stages, and a stage's close then waits for it (proposed, for the Product
+   Owner, after the ruling that combined two stages' visits[^visits-combined]); a check that needs real devices or
+   hands but no shot is automated or done at the desk beforehand[^visits-26nov]. A fault a live run finds gets a
+   test shaped like the live case.
 3. **Windows (3).** A stage's Windows checks run from a script on the cabin PC. The cabin PC is the working studio
    and shares its GPU with the launch monitor's software, so its time is booked with the Product Owner.
 4. **Acceptance (4).** The stage's Accept row is its aim as counts: the method, the baseline, the target and what
@@ -1068,7 +1072,7 @@ The last stage of the capture plan, after Stage E's composition root, which take
 | Tier (proposed, for the Product Owner) | Independent review for every item: file ownership, pairings and a split of a class. A duties inventory of `PpcpHostService` before its split |
 | Accept (proposed, for the Product Owner) | PPCP files with A5 lines: 7 → 0. `ppcp_host_service.h`'s A6 findings: 6 → 0. `ppcp_clip_filer.cpp`'s A5 line: gone. The conformance suite: passing before and after. Stored pairings: still valid after the upgrade |
 | Scratch cases (proposed, for the Product Owner) | A library that still holds the legacy ledger (FILE-LIB-05); a phone paired before the upgrade; a clip that arrives after End |
-| Cabin visit (proposed, for the Product Owner) | Two phones and a cabled phone, run by the Product Owner from a written procedure in one visit. A lost pairing or a lost clip is blocking (§5 rule 6) |
+| Cabin visit (proposed, for the Product Owner) | ~~Two phones and a cabled phone, run by the Product Owner from a written procedure in one visit. A lost pairing or a lost clip is blocking (§5 rule 6)~~ **Cancelled** (the Product Owner, 26 Nov 2026: one phone only)[^visits-26nov]. Stage F is parked on #272; its one-phone check with a ball (a clip that arrives after End) goes to Stage D's visit, the stored pairing and the legacy ledger to their automatic tests |
 
 **Ownership.** Answered when the stage is planned. Ids: FILE-LIB-03, FILE-LIB-04, FILE-LIB-05, FILE-SHOT-11, SET-09
 (`ppcp/pairings`, unchanged).
@@ -1486,3 +1490,7 @@ for steps 3 and 4 only[^l-record].
 [^buffer-back]: The Product Owner and the Solution Architect, 25 Nov 2026: the lever pass's D-V3 (Buffer's stream types to stay in `src/Buffer`) was reversed the same night. Buffer's stream types and the window's handle are built in Stage D as J-109 and S3 ruled, keeping the Solution Architect's mandate of 23 Nov 2026 that the lint ends with one Vocabulary rule. The information model says so again from v1.12.14.
 
 [^lever-25nov]: The Product Owner and the Solution Architect, 25 Nov 2026: the lever pass on #224-U, Stage C and Stage D (`docs/implementation/platform_d_capture_seam.md`, "The lever pass of 25 Nov"). D-V1: `CameraInstance`'s two collaborators and the managers' shared mechanics dropped; D-V2: `pp_rules_vision` moved to #292; C-V1: the calibration procedures' move to C++ deferred to #291, with #266 and #270 (`docs/design/rig_design.md` §4.8).
+
+[^visits-26nov]: The Product Owner, 26 Nov 2026 (governance BT-43, tightened): a visit holds only steps that need golf clubs and a ball being hit; checks that can be automated or done at the desk are not run there. The visits as re-cut: `build/platform/visits/RECUT-26nov.md`.
+
+[^visits-combined]: The Product Owner, 26 Nov 2026: Stage C's visit and Stage D's visit are combined into one, at Stage D, to save time; Stage C's close waits for it (`build/platform/JUDGEMENT-CALLS.md`; the placements: `build/platform/visits/FOLD-2-into-3.md`). The stage sections' "Cabin visit" rows for Stages C and D are proposals of their day, like those for Stages A and E.

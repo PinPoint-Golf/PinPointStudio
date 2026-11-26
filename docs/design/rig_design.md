@@ -711,11 +711,16 @@ commits a record, not what the block holds, so it may follow C-8.
 and again through the commands in C-5a); two Recordings either side of a calibration change (C-8); a machine with no
 rig stored yet (C-4, and with settings keys in C-5a).
 
-**The cabin visit.** One visit by the Product Owner, from C-16's written procedure[^plan-c], on one installer of
-main, which still has the QML routines[^c-v1]: #105's check; three trunk ceremonies recorded on the real sensors and
-kept for #291, where they become its fixtures; and #270's two HackMotion attempts in a row, on today's arm routine,
-whose timed start and Recalibrate after a failure are expected, not faults, until #291[^arm-hands-free]. The
-procedures in C++, and their proof on the real sensors, go with #291[^c-v1].
+**The cabin visit.** Stage C has no cabin visit of its own (proposed, for the Solution Architect, after the two
+26 Nov rulings[^visits-26nov][^visits-combined]). A visit holds only steps that need clubs and a ball being hit, so
+Stage C's one such check, End and quit while a shot is analysing (#280, #281), runs at Stage D's visit, on its
+installer of main, which still has the QML routines[^c-v1], and Stage C's close waits for that visit. Its written
+procedure is Stage D's visit pack, not C-16's. The rest is not a visit step: the three trunk ceremonies,
+recorded on the real sensors and kept for #291, where they become its fixtures, and #270's two HackMotion attempts
+in a row, on today's arm routine, whose timed start and Recalibrate after a failure are expected, not faults, until
+#291[^arm-hands-free], are desk checks by the Product Owner on a development machine; #105's check is its two tests
+and the real connect's log lines, and the sensors' `rig` blocks on real shots are read from the same visit, which
+wears the sensors. The procedures in C++, and their proof on the real sensors, go with #291[^c-v1].
 
 ## 11. What Stage C does not do
 
@@ -862,3 +867,7 @@ directory.
 [^sa24-rig]: The Solution Architect, 24 Nov 2026: "approve as recommended" (`build/platform/JUDGEMENT-CALLS.md` PR-35). §9's questions 10, 14, 17 and 18 are implementation choices, taken as recommended by the coordinator and logged there too.
 [^arm-hands-free]: The Product Owner and the Solution Architect, 25 Nov 2026: the arm calibration routines' breach of the hands-free rule (`governance/controls/product/ui-behaviour.md`, UI-14) is accepted until #291's track, which takes #266 with it; named on #291. Only the trunk routine is hands-free today.
 [^c-v1]: The Product Owner and the Solution Architect, 25 Nov 2026 (the lever pass on #224-U, Stage C and Stage D, lever C-V1, as recommended; the Solution Architect agreed to defer this part of his approved design; the Product Owner confirmed it the same night: the calibration QML is moved all at once or not at all). The procedures' move to C++ (C-11 to C-13, C-15, C-17; 22–23 h) is deferred, with a trigger: one calibration track after the platform programme, built with #266 and #270; home #291. The 3,978 lines of calibration QML are a known breach of RP-7, §4.8 and the rule that QML holds no rules and only binds, pinned by the three golden traces (C-9). C-14 stays, re-scoped to the ceremony file's write behind the Session's door, with #265's fix and a test for each of its loss paths; the recorder's two A6 lines stay unless lint A6 narrowed to P9's wording counts them out (the lever's own text). The three real ceremonies are still recorded at visit 2.
+
+[^visits-26nov]: The Product Owner, 26 Nov 2026 (governance BT-43, tightened): a visit holds only steps that need golf clubs and a ball being hit; checks that can be automated or done at the desk are not run there. The 25 Nov wording above (`[^c-v1]`, "still recorded at visit 2") is kept as that ruling's record.
+
+[^visits-combined]: The Product Owner, 26 Nov 2026: Stage C's visit and Stage D's visit are combined into one, at Stage D, to save time; Stage C's close waits for it (the platform programme's decision log, `build/platform/JUDGEMENT-CALLS.md`). The C-16 row above, "the written procedure for the cabin visit, with its trunk-recording step", is the 24 Nov design's record.

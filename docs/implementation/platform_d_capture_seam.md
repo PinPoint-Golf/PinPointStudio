@@ -104,8 +104,8 @@ SD-4, after B2.5). Everything else waits for a row below.
   (e) puts a test-only mode in the product.
 - **Cost of (a).** A second compile of the app's sources wherever the option is on; its time is not measured here.
   The cabin's `tests` mode builds only the test tree today, so `tools/studio/studio-build.cmd` changes, and a
-  change to that script cannot be checked through the cabin runner (its exit 21): it is checked at a visit or by
-  an off-hours run. SD-2a's 3.5 hours becomes about 5.
+  change to that script cannot be checked through the cabin runner (its exit 21): it is checked by an off-hours
+  run, never at a visit[^visits-26nov]. SD-2a's 3.5 hours becomes about 5.
 - **Two limits to state now.** The gather deadline reads the wall clock (`QDateTime::currentMSecsSinceEpoch`,
   `:393`) and the post-roll is a `QTimer`, so a deadline pin takes its real 6 to 7 seconds. "Two runs equal" (SD-2a's
   Accept) can only mean the two documents less their timestamps and paths: the brief names the fields left out.
@@ -496,3 +496,5 @@ Evidence for each: `build/platform/DEF/DUTIES-SD-1c.md` and `NOTES-SD-1c.md`. **
 - **Ruled:** as recommended (the Solution Architect and the Product Owner, 25 Nov 2026)[^d-ruled-25nov].
 
 [^d-ruled-25nov]: Ruled in the platform programme's coordination session, 25 Nov 2026: every open question of this pack as recommended. S2 (bind at the trigger, allocate at the freeze) is the structural fix for the lifecycle model's GAP-1; S10 is the context map with the coaching track (#277); S13's two-phone part is parked with Stage F (#272); Q17: a QML global leaves only when its owner changes.
+
+[^visits-26nov]: The Product Owner, 26 Nov 2026 (governance BT-43, tightened): a visit holds only steps that need golf clubs and a ball being hit; everything else is automated or done at the desk.
