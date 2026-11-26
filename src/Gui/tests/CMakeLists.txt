@@ -446,6 +446,20 @@ pp_add_test(gemini_request_test
     INCLUDE ${SRC}/LLM ${SRC}/Core
     LINK    Qt6::Network  AUTOMOC)
 
+# The cloud speech engines' requests, text to speech (src/TTS/AzureTTSEngine) and speech to text
+# (src/STT/STTBackendAzure): each carries the Azure key in the Ocp-Apim-Subscription-Key header and
+# follows a redirect only to the same site. A made-up key; each redirect is checked against two local
+# servers, and no call leaves the machine. Multimedia is for the speech engine base's audio format.
+find_package(Qt6 REQUIRED COMPONENTS Network Multimedia)
+pp_add_test(azure_speech_request_test
+    SOURCES azure_speech_request_test.cpp
+            ${SRC}/TTS/AzureTTSEngine.h ${SRC}/TTS/AzureTTSEngine.cpp
+            ${SRC}/TTS/TTSEngine.h      ${SRC}/TTS/TTSEngine.cpp
+            ${SRC}/STT/STTBackendAzure.h ${SRC}/STT/STTBackendAzure.cpp
+            ${SRC}/STT/STTBackend.h
+    INCLUDE ${SRC}/TTS ${SRC}/STT
+    LINK    Qt6::Network Qt6::Multimedia  AUTOMOC)
+
 # MissedSwingNotice (#281's stopgap) — a launch-monitor reading discarded because its ball was struck while the
 # last shot was still analysing tells the golfer, once per swing; a paired reading never does. The real ShotPairing
 # makes every offer and the real NotificationCenter takes every notice, on a clock the test owns.

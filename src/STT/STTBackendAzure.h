@@ -18,6 +18,7 @@
 
 #pragma once
 #include "STTBackend.h"
+#include <QNetworkRequest>
 #include <QString>
 
 class QNetworkAccessManager;
@@ -29,6 +30,10 @@ class QNetworkReply;
 //
 // Each transcribe() call POSTs a WAV chunk to Azure and emits transcriptionReady on
 // success.  Silence gating is enabled so only speech-bearing chunks are sent.
+//
+// The key is sent in the Ocp-Apim-Subscription-Key header. A request carrying it follows a
+// redirect only to the same site, so a redirect cannot hand the key to another host.
+// buildRequest() is the one place a request is made, and azure_speech_request_test checks it.
 class STTBackendAzure : public STTBackend {
     Q_OBJECT
 public:
@@ -41,6 +46,10 @@ public:
     bool    requiresModelFile()    const override { return false; }
     bool    requiresSilenceGating() const override { return true; }
     QString backendLabel()         const override { return QStringLiteral("Cloud"); }
+
+    // The request for one transcribe() call: the key in the Ocp-Apim-Subscription-Key header,
+    // redirects followed only to the same site. No network access; transcribe() posts it.
+    static QNetworkRequest buildRequest(const QString& apiKey);
 
 private:
     static QByteArray buildWav(const std::vector<float>& pcmF32);

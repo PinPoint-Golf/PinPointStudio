@@ -18,6 +18,7 @@
 
 #pragma once
 #include "TTSEngine.h"
+#include <QNetworkRequest>
 #include <QString>
 
 class QNetworkAccessManager;
@@ -26,6 +27,9 @@ class QNetworkReply;
 // TTSEngine backend that synthesises speech via Azure Cognitive Services TTS.
 // Used automatically on CPU-only builds when an Azure TTS API key is available.
 // Stores key under SecretsManager "azureTtsApiKey" / env AZURE_TTS_API_KEY.
+// The key is sent in the Ocp-Apim-Subscription-Key header. A request carrying it follows a
+// redirect only to the same site, so a redirect cannot hand the key to another host.
+// buildRequest() is the one place a request is made, and azure_speech_request_test checks it.
 //
 // Connection lifecycle (one HTTP POST per synthesise() call):
 //   - No persistent connection — each call opens, streams, and closes.
@@ -40,6 +44,10 @@ public:
     void    stop() override;
     bool    isReady()     const override { return m_ready; }
     QString gpuBackend()  const override { return QStringLiteral("Cloud"); }
+
+    // The request for one synthesise() call: the key in the Ocp-Apim-Subscription-Key header,
+    // redirects followed only to the same site. No network access; synthesise() posts it.
+    static QNetworkRequest buildRequest(const QString &apiKey);
 
 private:
     QString buildSsml(const QString &text) const;

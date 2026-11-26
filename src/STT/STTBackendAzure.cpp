@@ -42,6 +42,8 @@ bool STTBackendAzure::loadModel(const QString&)
     // QNetworkAccessManager must be created on the thread it will be used from.
     // loadModel() is invoked from the worker thread, so affinity is correct here.
     m_nam = new QNetworkAccessManager(this);
+    // The same policy as buildRequest() sets on each request (which takes precedence).
+    m_nam->setRedirectPolicy(QNetworkRequest::SameOriginRedirectPolicy);
     return true;
 }
 
@@ -55,12 +57,7 @@ void STTBackendAzure::transcribe(const std::vector<float>& pcmF32)
     if (!m_nam || pcmF32.empty()) return;
     if (m_reply) return;  // drop chunk if a request is still in flight
 
-    QNetworkRequest req{QUrl(QString::fromLatin1(kAzureEndpoint))};
-    req.setRawHeader("Ocp-Apim-Subscription-Key", m_apiKey.toLatin1());
-    req.setRawHeader("Content-Type", "audio/wav; codec=audio/pcm; samplerate=16000");
-    req.setRawHeader("Accept",       "application/json");
-
-    m_reply = m_nam->post(req, buildWav(pcmF32));
+    m_reply = m_nam->post(buildRequest(m_apiKey), buildWav(pcmF32));
     QNetworkReply* reply = m_reply;
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -87,6 +84,20 @@ void STTBackendAzure::transcribe(const std::vector<float>& pcmF32)
         if (!text.isEmpty())
             emit transcriptionReady(text);
     });
+}
+
+QNetworkRequest STTBackendAzure::buildRequest(const QString& apiKey)
+{
+    QNetworkRequest req{QUrl(QString::fromLatin1(kAzureEndpoint))};
+    req.setRawHeader("Ocp-Apim-Subscription-Key", apiKey.toLatin1());
+    req.setRawHeader("Content-Type", "audio/wav; codec=audio/pcm; samplerate=16000");
+    req.setRawHeader("Accept",       "application/json");
+    // A redirect re-sends the request's headers, key included, to wherever it points. Only a
+    // redirect to the same scheme, host and port is followed; one to another site fails the
+    // request with an error, which transcribe() reports. Azure does not redirect these calls.
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                     QNetworkRequest::SameOriginRedirectPolicy);
+    return req;
 }
 
 void STTBackendAzure::stopStreaming()

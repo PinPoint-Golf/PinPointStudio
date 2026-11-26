@@ -51,6 +51,8 @@ AzureTTSEngine::AzureTTSEngine(const QString &apiKey, QObject *parent)
 bool AzureTTSEngine::loadModel(const QString &, const QString &, const QString &)
 {
     m_nam   = new QNetworkAccessManager(this);
+    // The same policy as buildRequest() sets on each request (which takes precedence).
+    m_nam->setRedirectPolicy(QNetworkRequest::SameOriginRedirectPolicy);
     m_ready = true;
     emit modelLoaded();
     return true;
@@ -62,12 +64,7 @@ void AzureTTSEngine::synthesise(const QString &text)
 
     emit synthesisStarted();
 
-    QNetworkRequest req{QUrl(QString::fromLatin1(kAzureEndpoint))};
-    req.setRawHeader("Ocp-Apim-Subscription-Key", m_apiKey.toLatin1());
-    req.setRawHeader("Content-Type",               "application/ssml+xml");
-    req.setRawHeader("X-Microsoft-OutputFormat",   "raw-24khz-16bit-mono-pcm");
-
-    m_reply = m_nam->post(req, buildSsml(text).toUtf8());
+    m_reply = m_nam->post(buildRequest(m_apiKey), buildSsml(text).toUtf8());
     QNetworkReply *reply = m_reply;
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -102,6 +99,20 @@ void AzureTTSEngine::synthesise(const QString &text)
         }
         emit synthesisFinished();
     });
+}
+
+QNetworkRequest AzureTTSEngine::buildRequest(const QString &apiKey)
+{
+    QNetworkRequest req{QUrl(QString::fromLatin1(kAzureEndpoint))};
+    req.setRawHeader("Ocp-Apim-Subscription-Key", apiKey.toLatin1());
+    req.setRawHeader("Content-Type",               "application/ssml+xml");
+    req.setRawHeader("X-Microsoft-OutputFormat",   "raw-24khz-16bit-mono-pcm");
+    // A redirect re-sends the request's headers, key included, to wherever it points. Only a
+    // redirect to the same scheme, host and port is followed; one to another site fails the
+    // request with an error, which synthesise() reports. Azure does not redirect these calls.
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                     QNetworkRequest::SameOriginRedirectPolicy);
+    return req;
 }
 
 void AzureTTSEngine::stop()
