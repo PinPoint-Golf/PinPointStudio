@@ -18,9 +18,9 @@
 
 #include "studio_profile.h"
 
-#include "atomic_write.h"
-#include "pp_debug.h"
-#include "pp_settings.h"
+#include "../Core/atomic_write.h"
+#include "../Core/pp_debug.h"
+#include "../Core/pp_settings.h"
 
 #include <QBuffer>
 #include <QColor>

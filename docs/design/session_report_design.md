@@ -1020,7 +1020,7 @@ it is rejected.
 | `src/Gui/home/ScreenHome.qml` | The **Sessions** section at the foot (§8.0). |
 | `src/Gui/athlete/ScreenAthleteForm.qml` | Two tabs, **Details** (the form as it is) and **Sessions**; the Reports group (§7.3) in Details. |
 | `src/Gui/report/PpReportSheet.qml` | **new**: the sheet (note, options, photo line, missing-detail links, Make, progress). |
-| `src/Gui/settings/PpStudioSettings.qml` + `src/Core/studio_profile.{h,cpp}` | **new**: the studio and its coach (§7.1, §7.2), in the app INI under `Studio/`; the logo copied into `<AppData>/studio/`. A `StudioProfile` QML singleton the report model reads. |
+| `src/Gui/settings/PpStudioSettings.qml` + `src/App/studio_profile.{h,cpp}` | **new**: the studio and its coach (§7.1, §7.2), in the app INI under `Studio/`; the logo copied into `<AppData>/studio/`. A `StudioProfile` QML singleton the report model reads. |
 | `src/Gui/athlete/athlete_controller.{h,cpp}` | The Reports fields (§7.3) through `updateAthlete`, exposed as `currentReportEmail`, `currentReportGreeting`, `currentIsJunior`, `currentPhotosApproved(On)`; ticking or unticking stamps or clears the date; address shape check. |
 | `src/Gui/report/report_mailer.{h,cpp}` (+ `_mac.mm`, `_win.cpp`, `_linux.cpp`) | **new**: hand-off to the mail app (§8.3, option A): one interface, a platform file each. Option C's copy and reveal. |
 | `src/Gui/report/report_meta.h` | **new**, pure: the report's state rules and words over its two records. Their reads and writes are `SessionRepository`'s (`src/Export/session_report_io.h`, since refactor step 5.6a), including the send log (no addresses). |

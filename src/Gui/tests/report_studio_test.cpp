@@ -34,7 +34,7 @@
 //                     uuid and by name, the greeting's fallback, isJuniorOn on the session date, the
 //                     email shape check, the approval date, and deleteAthlete taking them all away
 
-#include "studio_profile.h"
+#include "../../App/studio_profile.h"
 #include "athlete_controller.h"
 #include "athlete_test_library.h"
 #include "pp_settings.h"

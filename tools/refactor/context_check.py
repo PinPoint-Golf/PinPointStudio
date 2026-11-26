@@ -63,7 +63,7 @@ FILES = {
     'IMU/imu_calibration': ACQ, 'IMU/trunk_angles': ACQ, 'IMU/trunk_stand_tall': ACQ,   # ruled (L2)
     # to place (this script's placements):
     'Core/device_enumerator': ACQ,
-    'Core/studio_profile': HUB,
+    'App/studio_profile': HUB,
     'Analysis/mp4_frame_reader': HUB,       # "the store's" (lint comment): persistence
     'Pose/motion_capture_probe': HUB,       # the hardware probe behind a setting
     'Audio/audio_output': HUB, 'Audio/audio_output_base': HUB, 'Audio/ting_player': HUB,   # feedback sound, presentation

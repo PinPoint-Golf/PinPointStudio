@@ -1,0 +1,4 @@
+# B1.9: the studio profile (the studio's and coach's details for the printed report) moves from Core to the
+# Application ring's own folder, beside AppState (Solution Architect, Q11, 24 Nov 2026). Its ring changes from
+# Adapters to Application; fileRings()'s Core/studio_profile entry is a hand edit (App/ is Application by directory).
+src/Core/studio_profile -> src/App/

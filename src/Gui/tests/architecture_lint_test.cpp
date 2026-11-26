@@ -202,9 +202,9 @@ const QHash<QString, int> &fileRings()
     static const QHash<QString, int> t{
         // Core: logging, profiling, machine queries, the two persistence mechanisms (the atomic
         // write, the folder lock), the one worker pool, the process environment, path spelling, the
-        // release version and the settings handle are Platform; the studio profile and the device
-        // enumerator are adapters. The Core/ rule above becomes Platform once the studio profile has left
-        // (B1.9), and its Platform entries below then go (the Solution Architect, 24 Nov 2026: R1, R3, R4).
+        // release version and the settings handle are Platform; the device enumerator is an adapter. The
+        // studio profile has left for App/ (B1.9), Application by directory; the Core/ rule above becomes
+        // Platform next, and its Platform entries below then go (the Solution Architect, 24 Nov 2026: R1, R3, R4).
         { QStringLiteral("Core/pp_debug"), Platform },
         { QStringLiteral("Core/pp_log_stream"), Platform },
         { QStringLiteral("Core/PpMessageLog"), Platform },
@@ -232,7 +232,6 @@ const QHash<QString, int> &fileRings()
         // The settings handle (R3): A8 still keeps it out of Analysis and the inner rings.
         { QStringLiteral("Core/pp_settings"), Platform },
         { QStringLiteral("Core/device_enumerator"), Adapters },
-        { QStringLiteral("Core/studio_profile"), Adapters },
         // Analysis: the per-shot stages' pure rules (their shared vocabulary is Vocabulary/Analysis/); reading a recorded MP4 is the store's (the recorded products' JSON form is Vocabulary/Analysis/, R10).
         { QStringLiteral("Analysis/shot_analysis_job"), Rules },      // the job carries SkeletonCalib (Rules)
         { QStringLiteral("Analysis/effective_context"), Rules },      // the effective-club rule (IM-3)
@@ -437,7 +436,7 @@ bool isAcquisitionOrAppState(const QString &target)
 {
     const QString s = stemOf(target);
     // named application state, matched before the ring test so that a file's ring never hides it
-    if (isSettingsHandle(target) || s == QLatin1String("Core/studio_profile")
+    if (isSettingsHandle(target) || s == QLatin1String("App/studio_profile")
         || s == QLatin1String("Core/device_enumerator"))
         return true;
     const int r = ringOf(target);

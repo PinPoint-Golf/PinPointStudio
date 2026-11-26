@@ -61,7 +61,7 @@
 #include "../../DomainModel/athlete_diagnostics.h"   // the Tendencies page as of the session; Earlier today (3.7-f)
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_settings.h"
-#include "../../Core/studio_profile.h"
+#include "../../App/studio_profile.h"
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/packs/gate_words_pack.h"

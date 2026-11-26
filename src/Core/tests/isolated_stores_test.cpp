@@ -24,7 +24,7 @@
 #include "isolated_stores.h"
 
 #include "../pp_settings.h"
-#include "../studio_profile.h"
+#include "../../App/studio_profile.h"
 #include "../../Diagnostics/engine/pack_io.h"
 
 #include <QCoreApplication>

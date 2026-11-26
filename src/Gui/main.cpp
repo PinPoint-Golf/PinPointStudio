@@ -87,7 +87,7 @@
 #include "session_controller.h"
 #include "session_review_controller.h"
 #include "work_ons_controller.h"
-#include "studio_profile.h"
+#include "../App/studio_profile.h"
 #include "report/session_report_model.h"
 #include "report/report_stills.h"
 #include "charts/charts_posture_presenter.h"
