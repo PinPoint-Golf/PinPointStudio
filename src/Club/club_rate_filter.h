@@ -36,7 +36,7 @@
 // frame's R by its Huber weight on the previous pass's smoothed residual. What it threw out or
 // down-weighted is counted, and that count is the developer diagnostic (ClubFilterStats).
 
-#include "../Core/kf3_smoother.h"
+#include "../Kinematics/kf3_smoother.h"
 #include "../Vocabulary/Analysis/club_filter_stats.h"   // ClubFilterStats (vocabulary since refactor 7.3)
 
 #include <cstdint>

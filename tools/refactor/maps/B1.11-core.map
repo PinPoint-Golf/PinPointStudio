@@ -1,0 +1,7 @@
+# B1.11 · Core's placements: the Kalman smoother and the About box's facade leave src/Core (build/platform/B1/BRIEF-B1.11.md).
+# The Solution Architect, 24 Nov 2026 (docs/implementation/platform_b1_placements.md): R2 (a), the smoother to
+# src/Kinematics/, Rules, context Diagnostics; R4 part 1, app_info to src/Gui/app/ (presentation, Domain + Application).
+# R1 and R3 (three headers and the settings handle made Platform) are ring-table edits by hand, not moves. R4 part 2
+# (the Core/ directory rule becoming Platform) waits until the studio profile has left Core (B1.9).
+src/Core/kf3_smoother -> src/Kinematics/
+src/Core/app_info -> src/Gui/app/

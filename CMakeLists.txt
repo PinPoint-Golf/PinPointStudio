@@ -959,8 +959,8 @@ target_sources(PinPointStudio PRIVATE
     src/Vocabulary/Common/figure_format.h
     src/Vocabulary/Common/height_text.h
     src/Core/pp_debug.cpp
-    src/Core/app_info.h
-    src/Core/app_info.cpp
+    src/Gui/app/app_info.h
+    src/Gui/app/app_info.cpp
     src/Core/pp_settings.h
 )
 
@@ -2825,7 +2825,7 @@ target_sources(PinPointStudio PRIVATE
     src/Club/club_rate_filter.h
     src/Vocabulary/Analysis/club_filter_stats.h
     src/Club/club_rate_filter.cpp
-    src/Core/kf3_smoother.h
+    src/Kinematics/kf3_smoother.h
     src/Club/shaft_track_shared.h
     src/Club/shaft_frame_io.h
     # Down-the-line shaft tracker (dtl_shaft_tracker_design.md). Run in the app by
@@ -3913,7 +3913,7 @@ endif()
 # ── Dependency version header for the About box ──────────────────────────────
 # Generated LAST so every find_package / FetchContent version variable above is
 # already resolved (the pp_version.h configure at the top runs too early for
-# these). Feeds src/Core/app_info.cpp -> the About dialog's library list. Tag-
+# these). Feeds src/Gui/app/app_info.cpp -> the About dialog's library list. Tag-
 # pinned deps with no version variable are supplied as literals here (kept in
 # lockstep with their FetchContent GIT_TAG above).
 set(PP_WHISPER_VERSION    "1.7.2")   # whisper FetchContent GIT_TAG v1.7.2

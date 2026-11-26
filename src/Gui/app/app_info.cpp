@@ -22,7 +22,7 @@
 #include <QVariantMap>
 #include <QtGlobal>
 
-#include "version.h"      // PINPOINT_VERSION_STRING / _BUILD_STRING  (src/Core)
+#include "../../Core/version.h"      // PINPOINT_VERSION_STRING / _BUILD_STRING  (src/Core)
 #include "pp_version.h"   // PP_GIT_SHA                               (generated)
 #include "pp_deps.h"      // PP_<LIB>_VERSION                         (generated)
 

@@ -2,7 +2,7 @@
 //
 // Version strings for the bundled third-party libraries, captured at configure
 // time from the CMake variables that each dependency's find_package / FetchContent
-// populates. Consumed by src/Core/app_info.cpp to build the About box's library
+// populates. Consumed by src/Gui/app/app_info.cpp to build the About box's library
 // list. Presence is gated in C++ by the existing HAVE_* / WITH_* compile defines,
 // so an empty string here just means "not resolved / not applicable".
 #pragma once

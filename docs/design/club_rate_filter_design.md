@@ -3,7 +3,7 @@
 **Status:** ON by default at σ_jerk 6000 since 24 October 2026 (Solution Architect, after the §7 gate and the off/on
 angular-speed plots); the library re-analysed with it.
 **Owner:** Solution Architect. **Started:** 24 October 2026.
-**Code:** `src/Club/club_rate_filter.{h,cpp}`, `src/Core/kf3_smoother.h`, wired in
+**Code:** `src/Club/club_rate_filter.{h,cpp}`, `src/Kinematics/kf3_smoother.h`, wired in
 `src/Club/shaft_track_assembly.cpp` (`applyClubRateFilter`), `src/Club/shaft_synthesis.h` (`synthDraws`),
 `src/Kinematics/segment_rates.cpp` (the KS club channel). Test: `club_rate_filter_test`.
 **Gate tool:** `tools/swinglab/club_filter_gate.py`. Data: `docs/research/data/club_filter/`.
@@ -31,7 +31,7 @@ club peak at the P6 knot: a false "peaked early" by construction. So neither rat
 ## 2. The estimator
 
 A robust Kalman filter with an RTS backward pass over θ(t), state **[θ, θ̇, θ̈]**, white-jerk process
-noise, variable dt — the same `Kf3` the pose smoother runs, moved to `src/Core/kf3_smoother.h`.
+noise, variable dt — the same `Kf3` the pose smoother runs, moved to `src/Kinematics/kf3_smoother.h`.
 
 **Observations** — every independent reading the tracker made:
 - each measured frame (flags Measured / Wedge / ImuBridged, not Coasted, Implausible, Predicted or

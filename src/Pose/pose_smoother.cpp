@@ -18,7 +18,7 @@
 
 #include "pose_smoother.h"
 
-#include "../Core/kf3_smoother.h"
+#include "../Kinematics/kf3_smoother.h"
 
 #include <algorithm>
 #include <cmath>
@@ -32,7 +32,7 @@ namespace {
 
 constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
-// The Kalman core lives in Core/kf3_smoother.h (shared with the club rate filter).
+// The Kalman core lives in Kinematics/kf3_smoother.h (shared with the club rate filter).
 using kf3::Kf3;
 
 // Per-keypoint per-frame smoother result (pixel domain).

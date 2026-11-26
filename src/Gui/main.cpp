@@ -59,7 +59,7 @@
 #include "settings/library_converter.h"
 #include "settings/archive_controller.h"
 #endif
-#include "app_info.h"
+#include "app/app_info.h"
 #ifdef HAVE_OPENCV
 #  include <opencv2/core.hpp>
 #  include <opencv2/core/utils/logger.hpp>

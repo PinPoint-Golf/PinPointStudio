@@ -76,7 +76,9 @@
 //       Ported, not called: this test must run wherever the tests tree is built, with no Python.
 //   A8  src/Analysis reaching past the Recording contract (§0.1) into Acquisition — the ring buffer,
 //       camera / IMU / launch-monitor device classes — or into application state (any src/Gui header,
-//       the settings file, the studio profile).
+//       the settings file, the studio profile); and any Vocabulary, Rules or Domain-model file including
+//       the settings handle, Core/pp_settings, which is Platform, so A1 no longer stops it (R3, the
+//       Solution Architect, 24 Nov 2026). The named files are matched by name, whatever their ring.
 //
 // THE RING TABLE. A file's ring is its directory's (dirRings(), longest prefix wins) unless it is
 // named in fileRings(), which exists because four directories straddle rings today (03 §2) — Analysis,
@@ -199,8 +201,10 @@ const QHash<QString, int> &fileRings()
 {
     static const QHash<QString, int> t{
         // Core: logging, profiling, machine queries, the two persistence mechanisms (the atomic
-        // write, the folder lock) and the one worker pool are Platform; settings, the studio profile,
-        // app info and the device enumerator are adapters; the Kalman smoother is an algorithm.
+        // write, the folder lock), the one worker pool, the process environment, path spelling, the
+        // release version and the settings handle are Platform; the studio profile and the device
+        // enumerator are adapters. The Core/ rule above becomes Platform once the studio profile has left
+        // (B1.9), and its Platform entries below then go (the Solution Architect, 24 Nov 2026: R1, R3, R4).
         { QStringLiteral("Core/pp_debug"), Platform },
         { QStringLiteral("Core/pp_log_stream"), Platform },
         { QStringLiteral("Core/PpMessageLog"), Platform },
@@ -221,10 +225,13 @@ const QHash<QString, int> &fileRings()
         // The one worker pool, its serial lanes and the post-to-owner receiver (refactor step 3.1; R-CON-5;
         // Mark, 15 Nov 2026: D15, IM-S3-8).
         { QStringLiteral("Core/work_pool"), Platform },
-        { QStringLiteral("Core/kf3_smoother"), Rules },
+        // The process environment, path spelling per operating system and the release version (R1).
+        { QStringLiteral("Core/headless_probe"), Platform },
+        { QStringLiteral("Core/same_folder"), Platform },
+        { QStringLiteral("Core/version"), Platform },
+        // The settings handle (R3): A8 still keeps it out of Analysis and the inner rings.
+        { QStringLiteral("Core/pp_settings"), Platform },
         { QStringLiteral("Core/device_enumerator"), Adapters },
-        { QStringLiteral("Core/app_info"), Adapters },
-        { QStringLiteral("Core/pp_settings"), Adapters },
         { QStringLiteral("Core/studio_profile"), Adapters },
         // Analysis: the per-shot stages' pure rules (their shared vocabulary is Vocabulary/Analysis/); reading a recorded MP4 is the store's (the recorded products' JSON form is Vocabulary/Analysis/, R10).
         { QStringLiteral("Analysis/shot_analysis_job"), Rules },      // the job carries SkeletonCalib (Rules)
@@ -419,9 +426,20 @@ QString withoutPathText(const QString &line)
     return l;
 }
 
+// A8: the settings handle. It is Platform (R3), so the ring test below would pass it; it is matched by name.
+bool isSettingsHandle(const QString &target)
+{
+    return stemOf(target) == QLatin1String("Core/pp_settings");
+}
+
 // An include that takes src/Analysis past the Recording contract (A8).
 bool isAcquisitionOrAppState(const QString &target)
 {
+    const QString s = stemOf(target);
+    // named application state, matched before the ring test so that a file's ring never hides it
+    if (isSettingsHandle(target) || s == QLatin1String("Core/studio_profile")
+        || s == QLatin1String("Core/device_enumerator"))
+        return true;
     const int r = ringOf(target);
     if (target.startsWith(QLatin1String("Gui/"))) return true;            // application state, live controllers
     if (r != Adapters) return false;
@@ -429,9 +447,7 @@ bool isAcquisitionOrAppState(const QString &target)
                                   QStringLiteral("Ppcp/"), QStringLiteral("IMU/"), QStringLiteral("LaunchMonitor/") };
     for (const QString &d : acq)
         if (target.startsWith(d)) return true;
-    const QString s = stemOf(target);
-    return s == QLatin1String("Core/pp_settings") || s == QLatin1String("Core/studio_profile")
-        || s == QLatin1String("Core/device_enumerator");
+    return false;
 }
 
 // ── Source text: Source, strip(), makeSource(), lineAt() are in lint_source_text.h (shared with namespace_collision_test)
@@ -571,6 +587,10 @@ QVector<Finding> scan(const Source &s, const Tree &tree)
             if (rel.startsWith(QLatin1String("Analysis/")) && isAcquisitionOrAppState(target))
                 out.append({ QStringLiteral("A8"), li + 1,
                              QStringLiteral("Analysis reaches past the Recording contract: includes %1").arg(target) });
+            else if ((ring == Vocabulary || ring == Rules || ring == DomainModel) && isSettingsHandle(target))
+                out.append({ QStringLiteral("A8"), li + 1,
+                             QStringLiteral("%1 reads application state: includes %2 (the settings handle; R3)")
+                                 .arg(QLatin1String(ringName(ring)), target) });
         }
         // A5 — file or directory access outside the repositories (P11); in a rules directory, its old message
         if (!a5Exempt(rel)) {
@@ -732,7 +752,8 @@ void selfTest()
     for (const char *f : { "Gui/shot/shot_processor.h", "Gui/athlete/athlete_controller.h", "Diagnostics/derived/shot_factors.h",
                            "Vocabulary/Metrics/metric_catalogue.h", "Buffer/source_ring.h", "Buffer/types.h", "Core/pp_debug.h",
                            "Vocabulary/Analysis/swing_analysis.h", "Analysis/analysis_pipeline.h", "Export/session_store.h",
-                           "Export/swing_paths.h", "DomainModel/session_repository.h", "DomainModel/athlete.h" }) {
+                           "Export/swing_paths.h", "DomainModel/session_repository.h", "DomainModel/athlete.h",
+                           "Core/pp_settings.h" }) {
         t.files.insert(QString::fromLatin1(f));
         t.byName[QFileInfo(QString::fromLatin1(f)).fileName()].append(QString::fromLatin1(f));
     }
@@ -758,6 +779,18 @@ void selfTest()
     check(countRule(run("Analysis/x.cpp", QStringLiteral("#include \"source_ring.h\"\n#include \"../Gui/athlete/athlete_controller.h\"\n"
                                                          "#include \"types.h\"\n")), "A8") == 2,
           QStringLiteral("A8 catches Analysis including the ring buffer and app state, passes the Recording's types"));
+    check(countRule(run("Analysis/x.cpp", QStringLiteral("#include \"../Core/pp_settings.h\"\n")), "A8") == 1
+              && countRule(run("Analysis/seg_resolve.cpp", QStringLiteral("#include \"../Core/pp_settings.h\"\n")), "A8") == 1
+              && countRule(run("Vocabulary/Metrics/x.h", QStringLiteral("#include \"../../Core/pp_settings.h\"\n")), "A8") == 1
+              && countRule(run("Diagnostics/derived/x.cpp", QStringLiteral("#include \"../../Core/pp_settings.h\"\n")), "A8") == 1
+              && countRule(run("DomainModel/x.cpp", QStringLiteral("#include \"../Core/pp_settings.h\"\n")), "A8") == 1,
+          QStringLiteral("A8 catches the settings handle (Platform, R3) included from Analysis and from the Vocabulary, Rules "
+                         "and Domain-model rings"));
+    const auto settingsOuter = run("Gui/x/y.cpp", QStringLiteral("#include \"../../Core/pp_settings.h\"\n"));
+    check(countRule(settingsOuter, "A8") == 0 && countRule(settingsOuter, "A1") == 0
+              && countRule(run("Export/x.cpp", QStringLiteral("#include \"../Core/pp_settings.h\"\n")), "A8") == 0
+              && countRule(run("Core/x.cpp", QStringLiteral("#include \"pp_settings.h\"\n")), "A1") == 0,
+          QStringLiteral("A8 and A1 pass the settings handle from the adapters and from Platform"));
     check(countRule(run("Gui/x/PpY.qml", QStringLiteral("Item {\n  SessionSeriesModel { id: m }\n  ChartsTracesPresenter {\n  }\n"
                                                         "  property SessionSeriesModel ref: null\n  ChartMetrics { }\n}\n")), "A2") == 2,
           QStringLiteral("A2 catches QML creating scoped types; passes a typed property and a view-local helper"));
@@ -852,6 +885,8 @@ void selfTest()
               .arg(a7s.isEmpty() ? QStringLiteral("none") : a7s.first().text));
     check(ringOf(QStringLiteral("Analysis/analysis_pipeline.cpp")) == Application && ringOf(QStringLiteral("Vocabulary/Analysis/gate_record.h")) == Vocabulary
               && ringOf(QStringLiteral("Core/pp_debug.cpp")) == Platform && ringOf(QStringLiteral("Gui/diagnostics/x.h")) == Adapters
+              && ringOf(QStringLiteral("Core/pp_settings.h")) == Platform && ringOf(QStringLiteral("Core/version.h")) == Platform
+              && ringOf(QStringLiteral("Kinematics/kf3_smoother.h")) == Rules && ringOf(QStringLiteral("Gui/app/app_info.cpp")) == Adapters
               && ringOf(QStringLiteral("NoSuchDir/x.h")) == -1 && ringOf(QStringLiteral("Gui/shot/shot_processor.cpp")) == Application,
           QStringLiteral("the ring table: per-file entries over directory defaults; unknown directories have no ring"));
 }

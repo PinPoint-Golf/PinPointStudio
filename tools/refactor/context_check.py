@@ -57,12 +57,13 @@ FILES = {
     'Core/AnalysisProfileLog': P, 'Core/pp_profiler': P, 'Core/ort_log': P, 'Core/cpu_topology': P,
     'Core/pp_gpu_metrics': P, 'Core/pp_gpu_metrics_mac': P, 'Core/pp_os_metrics': P, 'Core/pp_model_path': P,
     'Core/atomic_write': P, 'Core/folder_lock': P, 'Core/post_shot_trace': P, 'Core/work_pool': P,
+    'Core/headless_probe': P, 'Core/same_folder': P, 'Core/version': P,     # ruled R1 (24 Nov)
+    'Core/pp_settings': P,                                                  # ruled R3 (24 Nov): the settings handle
     'Vocabulary/Recording/frame_decode': ACQ,                                                   # ruled: part of the Recording contract
     'IMU/imu_calibration': ACQ, 'IMU/trunk_angles': ACQ, 'IMU/trunk_stand_tall': ACQ,   # ruled (L2)
     # to place (this script's placements):
-    'Core/kf3_smoother': S,                 # generic maths, no golf in it
     'Core/device_enumerator': ACQ,
-    'Core/pp_settings': HUB, 'Core/studio_profile': HUB, 'Core/app_info': HUB,
+    'Core/studio_profile': HUB,
     'Analysis/mp4_frame_reader': HUB,       # "the store's" (lint comment): persistence
     'Pose/motion_capture_probe': HUB,       # the hardware probe behind a setting
     'Audio/audio_output': HUB, 'Audio/audio_output_base': HUB, 'Audio/ting_player': HUB,   # feedback sound, presentation
