@@ -45,7 +45,7 @@
 //   - The app's own path helpers, pointed into the temporary directory through their seams:
 //       PINPOINT_DIAGNOSTICS_DIR = <tmp>/diagnostics   (pinpoint::analysis::diagnosticsDataDir(): every user pack,
 //                                                       norm set, screen, drill, gate-word and reference layer)
-//       PINPOINT_STUDIO_DIR      = <tmp>/studio        (StudioProfile::studioDir(): the report's logo and photo)
+//       PINPOINT_STUDIO_DIR      = <tmp>/studio        (StudioProfileStore::studioDir(): the report's logo and photo)
 //     A suite that sets either again afterwards (report_studio_test does) wins.
 //   - libraryRoot() is <tmp>/library, made, for a suite to hand to a store as its library root. The stores' own
 //     fallback when no root is set (AppDataLocation + "/swings", athlete_store.cpp, session_store.cpp) has no seam:

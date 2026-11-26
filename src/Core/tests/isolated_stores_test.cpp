@@ -18,13 +18,14 @@
 
 // isolated_stores_test (#187): with pinpoint::test::IsolatedStores on, the settings file, the app's own data folders
 // and the standard locations are not the machine's, on every platform. It reads the app's own path helpers
-// (ppSettings(), diagnosticsDataDir(), StudioProfile::studioDir()), so a renamed seam fails here, not on a studio PC.
+// (ppSettings(), diagnosticsDataDir(), StudioProfileStore::studioDir()), so a renamed seam fails here, not on a studio PC.
 // The real locations are computed with test mode off and NO store opened: nothing here reads or writes a real store.
 
 #include "isolated_stores.h"
 
 #include "../pp_settings.h"
 #include "../../App/studio_profile.h"
+#include "../../Stores/studio_profile_store.h"
 #include "../../Diagnostics/engine/pack_io.h"
 
 #include <QCoreApplication>
@@ -110,14 +111,15 @@ int main(int argc, char **argv)
               "D1 the user diagnostics folder (packs, norms, screens, drills, gate words, references) is inside it");
         check(stores.contains(pinpoint::analysis::diagnosticsFilePath(QStringLiteral("user_pack.json"))),
               "D2 and so is a file in it");
-        // The studio folder is StudioProfile's own (private): an imported logo is copied into it, and its path kept.
+        // The studio folder is the studio profile's store's: an imported logo is copied into it, and its path kept.
         const QString svg = stores.path() + QStringLiteral("/logo-source.svg");
         {
             QFile f(svg);
             f.open(QIODevice::WriteOnly);
             f.write("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>");
         }
-        StudioProfile profile;
+        StudioProfileStore studioStore;
+        StudioProfile profile(studioStore);
         const bool imported = profile.importLogo(svg);
         std::printf("  StudioProfile logo copy = %s (the studio folder without the helper: %s/studio)\n",
                     qPrintable(profile.logoPath()), qPrintable(real[0]));

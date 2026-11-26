@@ -18,30 +18,23 @@
 
 #include "studio_profile.h"
 
-#include "../Core/atomic_write.h"
 #include "../Core/pp_debug.h"
-#include "../Core/pp_settings.h"
 
 #include <QBuffer>
 #include <QColor>
 #include <QCryptographicHash>
-#include <QDir>
-#include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
-#include <QStandardPaths>
 #include <QUrl>
 #include <QtGlobal>
 
 #include <cmath>
 
 namespace {
-
-constexpr auto kGroup = "Studio";
 
 // The accent a studio gets before it chooses one: Folio light's own accent, so an unbranded report
 // looks exactly like the app it came from rather than like somebody else's brand.
@@ -80,14 +73,9 @@ double luminance(const QColor &c)
 
 // The four steps of page 8, word for word from the mock (tools/session-report-mock/assemble.py,
 // "How to practise a change") — the text Mark approved. The coach edits it once, here.
-QVariantList builtInPracticeSteps()
+QList<StudioPracticeStep> builtInPracticeSteps()
 {
-    auto step = [](const QString &head, const QString &body) {
-        QVariantMap m;
-        m.insert(QStringLiteral("head"), head);
-        m.insert(QStringLiteral("body"), body);
-        return QVariant(m);
-    };
+    auto step = [](const QString &head, const QString &body) { return StudioPracticeStep{ head, body }; };
     return {
         step(QStringLiteral("Rehearse without a ball"),
              QStringLiteral("Slow swings, ten at a time, feeling the change. This is where the new move is learned.")),
@@ -102,105 +90,84 @@ QVariantList builtInPracticeSteps()
 
 // The steps as the INI stores them: JSON text, readable by a person opening the file, rather than
 // QSettings' @Variant blob for a list of maps.
-QString stepsToJson(const QVariantList &steps)
+QString stepsToJson(const QList<StudioPracticeStep> &steps)
 {
     QJsonArray arr;
-    for (const QVariant &v : steps) {
-        const QVariantMap m = v.toMap();
+    for (const StudioPracticeStep &step : steps) {
         QJsonObject o;
-        o.insert(QStringLiteral("head"), m.value(QStringLiteral("head")).toString());
-        o.insert(QStringLiteral("body"), m.value(QStringLiteral("body")).toString());
+        o.insert(QStringLiteral("head"), step.head);
+        o.insert(QStringLiteral("body"), step.body);
         arr.append(o);
     }
     return QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact));
 }
 
-QVariantList stepsFromJson(const QString &text)
+// The steps as stored, read back: only head and body, whatever else the text holds (as written, not trimmed: what
+// the INI holds is what the coach set). Not an array, or not JSON at all, reads as no override.
+QList<StudioPracticeStep> stepsFromJson(const QString &text)
 {
-    QVariantList out;
+    QList<StudioPracticeStep> out;
     const QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8());
     if (!doc.isArray()) return out;
     for (const QJsonValue &v : doc.array()) {
         const QJsonObject o = v.toObject();
-        QVariantMap m;
-        m.insert(QStringLiteral("head"), o.value(QStringLiteral("head")).toString());
-        m.insert(QStringLiteral("body"), o.value(QStringLiteral("body")).toString());
-        out.append(m);
+        out.append({ o.value(QStringLiteral("head")).toString(), o.value(QStringLiteral("body")).toString() });
     }
     return out;
 }
 
-// Steps normalised for comparison and storage: only head/body, both trimmed, wholly blank steps
-// dropped. A QML caller hands over JS objects that may carry anything else (an index, a delegate's
-// bookkeeping); none of it belongs in the INI or in the stamp.
-QVariantList cleanSteps(const QVariantList &steps)
+// Steps normalised for comparison and storage: both parts trimmed, wholly blank steps dropped, so a stray space or an
+// empty fourth row typed on Settings → Studio neither reaches the INI nor moves the stamp.
+QList<StudioPracticeStep> cleanSteps(const QList<StudioPracticeStep> &steps)
 {
-    QVariantList out;
-    for (const QVariant &v : steps) {
-        const QVariantMap m = v.toMap();
-        const QString head = m.value(QStringLiteral("head")).toString().trimmed();
-        const QString body = m.value(QStringLiteral("body")).toString().trimmed();
+    QList<StudioPracticeStep> out;
+    for (const StudioPracticeStep &step : steps) {
+        const QString head = step.head.trimmed();
+        const QString body = step.body.trimmed();
         if (head.isEmpty() && body.isEmpty()) continue;
-        QVariantMap c;
-        c.insert(QStringLiteral("head"), head);
-        c.insert(QStringLiteral("body"), body);
-        out.append(c);
+        out.append({ head, body });
     }
     return out;
 }
 
 } // namespace
 
-StudioProfile::StudioProfile(QObject *parent) : QObject(parent)
+StudioProfile::StudioProfile(StudioProfileRepository &repository, QObject *parent)
+    : QObject(parent), m_repo(repository)
 {
     load();
     m_stamp = computeStamp();
 }
 
-QString StudioProfile::studioDir()
-{
-    const QString env = qEnvironmentVariable("PINPOINT_STUDIO_DIR");
-    if (!env.isEmpty()) return QDir::cleanPath(env);
-    return QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                           + QStringLiteral("/studio"));
-}
-
 void StudioProfile::load()
 {
-    QSettings s = ppSettings();
-    s.beginGroup(QLatin1String(kGroup));
-    auto str = [&s](const char *key) { return s.value(QLatin1String(key)).toString(); };
-    m_studioName  = str("name");
-    m_accent      = str("accent");
-    m_address     = str("address");
-    m_phone       = str("phone");
-    m_email       = str("email");
-    m_website     = str("website");
-    m_booking     = str("booking");
-    m_practiceSteps = stepsFromJson(str("practiceSteps"));
-    m_emailSubject = str("emailSubject");
-    m_emailBody    = str("emailBody");
-    m_coachName   = str("coachName");
-    m_coachTitle  = str("coachTitle");
-    m_coachEmail  = str("coachEmail");
-    m_coachPhone  = str("coachPhone");
+    auto str = [this](StudioKey key) { return m_repo.value(key); };
+    m_studioName  = str(StudioKey::Name);
+    m_accent      = str(StudioKey::Accent);
+    m_address     = str(StudioKey::Address);
+    m_phone       = str(StudioKey::Phone);
+    m_email       = str(StudioKey::Email);
+    m_website     = str(StudioKey::Website);
+    m_booking     = str(StudioKey::Booking);
+    m_practiceSteps = stepsFromJson(str(StudioKey::PracticeSteps));
+    m_emailSubject = str(StudioKey::EmailSubject);
+    m_emailBody    = str(StudioKey::EmailBody);
+    m_coachName   = str(StudioKey::CoachName);
+    m_coachTitle  = str(StudioKey::CoachTitle);
+    m_coachEmail  = str(StudioKey::CoachEmail);
+    m_coachPhone  = str(StudioKey::CoachPhone);
     // A copy that has gone (the app data folder cleared, a restore from another machine) reads as no
-    // logo at all: the report then draws the monogram, rather than an empty frame where a logo was.
-    const QString logo  = str("logo");
-    const QString photo = str("coachPhoto");
-    m_logoPath       = (!logo.isEmpty()  && QFileInfo::exists(logo))  ? logo  : QString();
-    m_coachPhotoPath = (!photo.isEmpty() && QFileInfo::exists(photo)) ? photo : QString();
-    s.endGroup();
+    // logo at all: the report then draws the monogram, rather than an empty frame where a logo was. The key
+    // itself stays as it is: nothing is written on a load.
+    const QString logo  = str(StudioKey::Logo);
+    const QString photo = str(StudioKey::CoachPhoto);
+    m_logoPath       = m_repo.copyExists(logo)  ? logo  : QString();
+    m_coachPhotoPath = m_repo.copyExists(photo) ? photo : QString();
 }
 
-void StudioProfile::store(const char *key, const QString &value)
+void StudioProfile::store(StudioKey key, const QString &value)
 {
-    QSettings s = ppSettings();
-    s.beginGroup(QLatin1String(kGroup));
-    if (value.isEmpty()) s.remove(QLatin1String(key));
-    else                 s.setValue(QLatin1String(key), value);
-    s.endGroup();
-    s.sync();
+    m_repo.store(key, value);
 }
 
 void StudioProfile::touch()
@@ -226,16 +193,16 @@ void StudioProfile::touch()
         touch();                                                                                   \
     }
 
-PP_STUDIO_TEXT(studioName, setStudioName, m_studioName, "name")
-PP_STUDIO_TEXT(address,    setAddress,    m_address,    "address")
-PP_STUDIO_TEXT(phone,      setPhone,      m_phone,      "phone")
-PP_STUDIO_TEXT(email,      setEmail,      m_email,      "email")
-PP_STUDIO_TEXT(website,    setWebsite,    m_website,    "website")
-PP_STUDIO_TEXT(booking,    setBooking,    m_booking,    "booking")
-PP_STUDIO_TEXT(coachName,  setCoachName,  m_coachName,  "coachName")
-PP_STUDIO_TEXT(coachTitle, setCoachTitle, m_coachTitle, "coachTitle")
-PP_STUDIO_TEXT(coachEmail, setCoachEmail, m_coachEmail, "coachEmail")
-PP_STUDIO_TEXT(coachPhone, setCoachPhone, m_coachPhone, "coachPhone")
+PP_STUDIO_TEXT(studioName, setStudioName, m_studioName, StudioKey::Name)
+PP_STUDIO_TEXT(address,    setAddress,    m_address,    StudioKey::Address)
+PP_STUDIO_TEXT(phone,      setPhone,      m_phone,      StudioKey::Phone)
+PP_STUDIO_TEXT(email,      setEmail,      m_email,      StudioKey::Email)
+PP_STUDIO_TEXT(website,    setWebsite,    m_website,    StudioKey::Website)
+PP_STUDIO_TEXT(booking,    setBooking,    m_booking,    StudioKey::Booking)
+PP_STUDIO_TEXT(coachName,  setCoachName,  m_coachName,  StudioKey::CoachName)
+PP_STUDIO_TEXT(coachTitle, setCoachTitle, m_coachTitle, StudioKey::CoachTitle)
+PP_STUDIO_TEXT(coachEmail, setCoachEmail, m_coachEmail, StudioKey::CoachEmail)
+PP_STUDIO_TEXT(coachPhone, setCoachPhone, m_coachPhone, StudioKey::CoachPhone)
 
 #undef PP_STUDIO_TEXT
 
@@ -262,7 +229,7 @@ void StudioProfile::setAccent(const QString &v)
     }
     if (norm == m_accent) return;
     m_accent = norm;
-    store("accent", norm);
+    store(StudioKey::Accent, norm);
     touch();
 }
 
@@ -295,22 +262,38 @@ QStringList StudioProfile::accentPresets() const
 
 // ── the practice steps and the email templates ─────────────────────────────────────────────────
 
-QVariantList StudioProfile::defaultPracticeSteps() const { return builtInPracticeSteps(); }
+QList<StudioPracticeStep> StudioProfile::defaultPracticeSteps() const { return builtInPracticeSteps(); }
 
-QVariantList StudioProfile::practiceSteps() const
+QList<StudioPracticeStep> StudioProfile::practiceSteps() const
 {
     return m_practiceSteps.isEmpty() ? builtInPracticeSteps() : m_practiceSteps;
 }
 
-void StudioProfile::setPracticeSteps(const QVariantList &v)
+bool StudioProfile::practiceStepsAreDefault() const
 {
-    QVariantList clean = cleanSteps(v);
+    // What is shown, not what is stored: an INI that holds the shipped text itself (a hand edit) is the default too.
+    return practiceSteps() == builtInPracticeSteps();
+}
+
+void StudioProfile::setPracticeSteps(const QList<StudioPracticeStep> &v)
+{
+    QList<StudioPracticeStep> clean = cleanSteps(v);
     if (clean == builtInPracticeSteps()) clean.clear();     // the default again: drop the override
     if (clean == m_practiceSteps) return;
     m_practiceSteps = clean;
-    store("practiceSteps", clean.isEmpty() ? QString() : stepsToJson(clean));
+    store(StudioKey::PracticeSteps, clean.isEmpty() ? QString() : stepsToJson(clean));
     touch();
 }
+
+void StudioProfile::setPracticeStepTexts(const QStringList &heads, const QStringList &bodies)
+{
+    QList<StudioPracticeStep> steps;
+    for (qsizetype i = 0; i < qMax(heads.size(), bodies.size()); ++i)
+        steps.append({ heads.value(i), bodies.value(i) });
+    setPracticeSteps(steps);
+}
+
+void StudioProfile::resetPracticeSteps() { setPracticeSteps(builtInPracticeSteps()); }
 
 QString StudioProfile::defaultEmailSubject() const
 {
@@ -343,7 +326,7 @@ void StudioProfile::setEmailSubject(const QString &v)
     if (t == defaultEmailSubject()) t.clear();
     if (t == m_emailSubject) return;
     m_emailSubject = t;
-    store("emailSubject", t);
+    store(StudioKey::EmailSubject, t);
     touch();
 }
 
@@ -355,15 +338,15 @@ void StudioProfile::setEmailBody(const QString &v)
     if (t == defaultEmailBody()) t.clear();
     if (t == m_emailBody) return;
     m_emailBody = t;
-    store("emailBody", t);
+    store(StudioKey::EmailBody, t);
     touch();
 }
 
-QString StudioProfile::fill(const QString &tpl, const QVariantMap &values) const
+QString StudioProfile::fill(const QString &tpl, const QMap<QString, QString> &values) const
 {
     QString out = tpl;
     for (auto it = values.cbegin(); it != values.cend(); ++it)
-        out.replace(QLatin1Char('{') + it.key() + QLatin1Char('}'), it.value().toString());
+        out.replace(QLatin1Char('{') + it.key() + QLatin1Char('}'), it.value());
     return out;
 }
 
@@ -408,8 +391,7 @@ QString StudioProfile::computeStamp() const
     add(m_coachName); add(m_coachTitle); add(m_coachEmail); add(m_coachPhone);
     for (const QString &path : { m_logoPath, m_coachPhotoPath }) {
         add(QFileInfo(path).suffix().toLower());
-        QFile f(path);
-        if (!path.isEmpty() && f.open(QIODevice::ReadOnly)) h.addData(f.readAll());
+        h.addData(m_repo.copyBytes(path));                  // nothing for no copy, or one that cannot be read
         add(QString());
     }
     return QString::fromLatin1(h.result().toHex().left(12));
@@ -417,15 +399,10 @@ QString StudioProfile::computeStamp() const
 
 QString StudioProfile::stamp() const { return m_stamp; }
 
-QVariantList StudioProfile::missingDetails() const
+QList<StudioMissingDetail> StudioProfile::missingDetails() const
 {
-    QVariantList out;
-    auto miss = [&out](const QString &text) {
-        QVariantMap m;
-        m.insert(QStringLiteral("text"), text);
-        m.insert(QStringLiteral("where"), QStringLiteral("studio"));
-        out.append(m);
-    };
+    QList<StudioMissingDetail> out;
+    auto miss = [&out](const QString &text) { out.append({ text, QStringLiteral("studio") }); };
     if (m_studioName.isEmpty()) miss(tr("No studio name yet — add it in Settings → Studio"));
     if (m_coachName.isEmpty())  miss(tr("No coach name yet — add it in Settings → Studio"));
     if (m_coachEmail.isEmpty()) miss(tr("No coach email yet, so replies have nowhere to go — add it in Settings → Studio"));
@@ -434,25 +411,21 @@ QVariantList StudioProfile::missingDetails() const
 
 // ── the logo and the coach's photo ─────────────────────────────────────────────────────────────
 
-bool StudioProfile::importImage(const QString &path, const QString &baseName, const char *key, QString &member)
+bool StudioProfile::importImage(const QString &path, const QString &baseName, StudioKey key, QString &member)
 {
     QString local = path.trimmed();
     if (local.startsWith(QLatin1String("file:"))) local = QUrl(local).toLocalFile();
-    const QFileInfo fi(local);
-    QString ext = fi.suffix().toLower();
+    QString ext = QFileInfo(local).suffix().toLower();
     if (ext == QLatin1String("jpeg")) ext = QStringLiteral("jpg");
-    if (!fi.isFile() || !fi.isReadable()
-        || !(ext == QLatin1String("png") || ext == QLatin1String("jpg") || ext == QLatin1String("svg"))) {
+    // Read it whole BEFORE the old copy is replaced: re-importing the file that is already the logo
+    // (the picker started in the studio folder) must not delete its own source.
+    const bool known = ext == QLatin1String("png") || ext == QLatin1String("jpg") || ext == QLatin1String("svg");
+    const std::optional<QByteArray> picked = known ? m_repo.readPicked(local) : std::nullopt;
+    if (!picked) {
         ppWarn() << "StudioProfile: cannot import" << local << "— not a readable PNG, JPEG or SVG file";
         return false;
     }
-
-    // Read it whole BEFORE removing the old copy: re-importing the file that is already the logo
-    // (the picker started in the studio folder) must not delete its own source.
-    QFile in(local);
-    if (!in.open(QIODevice::ReadOnly)) return false;
-    const QByteArray bytes = in.readAll();
-    in.close();
+    const QByteArray &bytes = *picked;
 
     // It must be what its name says. A raster is decoded; an SVG is checked for an <svg element, which
     // is as far as Qt Gui can go without the Svg module — the register's Image does the real decode.
@@ -472,37 +445,25 @@ bool StudioProfile::importImage(const QString &path, const QString &baseName, co
         }
     }
 
-    const QString dir = studioDir();
-    if (!QDir().mkpath(dir)) {
-        ppWarn() << "StudioProfile: cannot create" << dir;
-        return false;
-    }
-    const QString dest = dir + QLatin1Char('/') + baseName + QLatin1Char('.') + ext;
-    if (const pinpoint::AtomicWriteResult w = pinpoint::atomicWrite(dest, bytes); !w.ok) {
-        ppWarn() << "StudioProfile: cannot write" << dest << w.detail;
-        return false;
-    }
-    // The earlier copy under another extension (logo.png → logo.svg) goes, so the folder holds one.
-    for (const char *other : { "png", "jpg", "svg" }) {
-        const QString p = dir + QLatin1Char('/') + baseName + QLatin1Char('.') + QLatin1String(other);
-        if (p != dest) QFile::remove(p);
-    }
+    // The copy, and the earlier one under another extension gone (logo.png → logo.svg): the folder holds one.
+    const QString dest = m_repo.writeCopy(baseName, ext, bytes);
+    if (dest.isEmpty()) return false;
     member = dest;
     store(key, dest);
     touch();   // the path may be unchanged; the bytes, and so the stamp, are not
     return true;
 }
 
-void StudioProfile::clearImage(const char *key, QString &member)
+void StudioProfile::clearImage(StudioKey key, QString &member)
 {
     if (member.isEmpty()) return;
-    QFile::remove(member);
+    m_repo.removeCopy(member);
     member.clear();
     store(key, QString());
     touch();
 }
 
-bool StudioProfile::importLogo(const QString &path)       { return importImage(path, QStringLiteral("logo"),  "logo",       m_logoPath); }
-bool StudioProfile::importCoachPhoto(const QString &path) { return importImage(path, QStringLiteral("coach"), "coachPhoto", m_coachPhotoPath); }
-void StudioProfile::clearLogo()                           { clearImage("logo",       m_logoPath); }
-void StudioProfile::clearCoachPhoto()                     { clearImage("coachPhoto", m_coachPhotoPath); }
+bool StudioProfile::importLogo(const QString &path)       { return importImage(path, QStringLiteral("logo"),  StudioKey::Logo,       m_logoPath); }
+bool StudioProfile::importCoachPhoto(const QString &path) { return importImage(path, QStringLiteral("coach"), StudioKey::CoachPhoto, m_coachPhotoPath); }
+void StudioProfile::clearLogo()                           { clearImage(StudioKey::Logo,       m_logoPath); }
+void StudioProfile::clearCoachPhoto()                     { clearImage(StudioKey::CoachPhoto, m_coachPhotoPath); }

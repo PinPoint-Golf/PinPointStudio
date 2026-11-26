@@ -12,6 +12,7 @@
 pp_add_test(report_studio_test
     SOURCES report_studio_test.cpp
             ${SRC}/App/studio_profile.cpp
+            ${SRC}/Stores/studio_profile_store.cpp   # its repository: the keys and the folder (SET-20, FILE-APP-06)
             ${GUI}/athlete/athlete_controller.cpp
             # The athlete's record through its one door (refactor step 2.3): the Athlete, AthleteStore and
             # the session repository its index reads through.

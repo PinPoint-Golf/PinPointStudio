@@ -29,9 +29,14 @@
 // (setMembers), so every property is CONSTANT. They are QObject *: QML reads each through its own meta-object, as it
 // read the context property.
 //
+// THE STUDIO PROFILE (`app.studioProfile`) joined them in the platform refactor, when it got its repository: it was a
+// context global of its own, and the information model reaches it through `app` (OBJ-STUDIO-PROFILE). Its class is the
+// Application ring's (src/App/studio_profile.h); it hangs here, as a QObject * like the others, so `App` and every test
+// that builds it need not link it.
+//
 // WHAT STAYS A CONTEXT GLOBAL (main.cpp): the devices (cameraManager, imuManager, launchMonitor, trunkCeremony,
 // bufferController, cudaRuntime, resourceMonitor, liveWrist, ppcpHost, ppcpOffers, the voice in and out: controller,
-// ttsController), the settings (appSettings, studioProfile, secrets) and the logging (appLog, profiler).
+// ttsController), the settings (appSettings, secrets) and the logging (appLog, profiler).
 
 #include "../../App/app.h"
 
@@ -65,6 +70,7 @@ class GuiApp : public App
     Q_PROPERTY(QObject *motionCaptureProbe      READ motionCaptureProbe      CONSTANT)
     Q_PROPERTY(QObject *appInfo                 READ appInfo                 CONSTANT)
     Q_PROPERTY(QObject *clipboard               READ clipboard               CONSTANT)
+    Q_PROPERTY(QObject *studioProfile           READ studioProfile           CONSTANT)
 public:
     // The objects main() makes, by their QML names. Set once, before the engine loads anything.
     struct Members {
@@ -91,6 +97,7 @@ public:
         QObject *motionCaptureProbe      = nullptr;
         QObject *appInfo                 = nullptr;
         QObject *clipboard               = nullptr;
+        QObject *studioProfile           = nullptr;
     };
 
     using App::App;
@@ -120,6 +127,7 @@ public:
     QObject *motionCaptureProbe() const      { return m_m.motionCaptureProbe; }
     QObject *appInfo() const                 { return m_m.appInfo; }
     QObject *clipboard() const               { return m_m.clipboard; }
+    QObject *studioProfile() const           { return m_m.studioProfile; }
 
 private:
     Members m_m;

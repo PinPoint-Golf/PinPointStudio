@@ -20,7 +20,7 @@
 //
 // The studio and its one coach, entered once and printed on every session report: the masthead, the
 // running head, the sign-off box, page 8's "How to practise a change", and the email that carries the
-// PDF. Everything lives in StudioProfile (context property `studioProfile`, INI group Studio/); this
+// PDF. Everything lives in StudioProfile (`app.studioProfile`, INI group Studio/); this
 // panel only edits it. Text commits on editingFinished (Return, or the field losing focus), the way
 // every other settings panel commits.
 //
@@ -28,7 +28,7 @@
 // application opens no native dialogs) and COPIED into the app's data folder by StudioProfile, so
 // moving or deleting the original never breaks a report.
 //
-// Any change here moves studioProfile.stamp, which puts already-made reports out of date (§8.2) —
+// Any change here moves app.studioProfile.stamp, which puts already-made reports out of date (§8.2) —
 // except the email subject and message, which are not in the PDF.
 //
 // SENDING REPORTS (§8.3, "Changed (Mark, 21 October)") is the one section that is not the profile: it edits
@@ -54,7 +54,7 @@ SettingsPanelBase {
         return target.visible ? target : (root.findChild(root.contentColumn, "setting_sendProvider") || target)
     }
 
-    readonly property bool hasProfile: typeof studioProfile !== "undefined" && studioProfile !== null
+    readonly property bool hasProfile: typeof app !== "undefined" && !!app.studioProfile
     readonly property bool hasMailer:  (typeof app !== "undefined" && !!app.reportMailer) && app.reportMailer !== null
     // Sending reports is set up: a session row's Email sends the report itself.
     readonly property bool sendReady:  root.hasMailer && app.reportMailer.sendConfigured
@@ -63,7 +63,7 @@ SettingsPanelBase {
     // (logo.png) when it is replaced, and the Image cache would otherwise go on drawing the old one.
     function imageUrl(path) {
         if (!path || path.length === 0) return ""
-        return Theme.fileUrl(path) + "?v=" + studioProfile.stamp
+        return Theme.fileUrl(path) + "?v=" + app.studioProfile.stamp
     }
 
     // ── the picker, shared by the logo and the photo ──────────────────────────
@@ -85,7 +85,7 @@ SettingsPanelBase {
         id: picker
         objectName: "studioFilePicker"
         onChosen: function (path) {
-            var ok = root.pickFor === "logo" ? studioProfile.importLogo(path) : studioProfile.importCoachPhoto(path)
+            var ok = root.pickFor === "logo" ? app.studioProfile.importLogo(path) : app.studioProfile.importCoachPhoto(path)
             root.pickErrorFor = root.pickFor
             root.pickError = ok ? "" : qsTr("That file could not be used. Choose a PNG, JPEG or SVG image.")
         }
@@ -111,8 +111,8 @@ SettingsPanelBase {
     property string testTo:    ""
     function sendTestNow() {
         if (!root.hasMailer) return
-        const coachEmail = root.hasProfile ? studioProfile.coachEmail : ""
-        const fromName = root.hasProfile ? app.reportMailer.senderName(studioProfile.coachName, studioProfile.studioName) : ""
+        const coachEmail = root.hasProfile ? app.studioProfile.coachEmail : ""
+        const fromName = root.hasProfile ? app.reportMailer.senderName(app.studioProfile.coachName, app.studioProfile.studioName) : ""
         root.testTo = app.reportMailer.fromAddress(coachEmail)
         const res = app.reportMailer.sendTest(fromName, coachEmail)
         if (!res || !res.ok) { root.testState = "failed"; root.testError = (res && res.error) || qsTr("The test could not be sent."); return }
@@ -211,7 +211,7 @@ SettingsPanelBase {
                     objectName: "studioRemove_" + ir.what
                     visible: ir.path.length > 0
                     text: qsTr("Remove")
-                    onClicked: ir.what === "logo" ? studioProfile.clearLogo() : studioProfile.clearCoachPhoto()
+                    onClicked: ir.what === "logo" ? app.studioProfile.clearLogo() : app.studioProfile.clearCoachPhoto()
                 }
             }
         }
@@ -235,7 +235,7 @@ SettingsPanelBase {
 
     // What a report would still be missing, said once at the top, in the report sheet's words.
     Repeater {
-        model: root.hasProfile ? studioProfile.missingDetails : []
+        model: root.hasProfile ? app.studioProfile.missingDetails : []
         delegate: Text {
             required property var modelData
             objectName: "studioMissing"
@@ -252,23 +252,23 @@ SettingsPanelBase {
         title: qsTr("Studio name")
         subtitle: qsTr("The masthead, the running head and the sign-off. Without one, reports carry “PinPoint Studio”.")
         placeholder: qsTr("e.g. Northfield Golf Studio")
-        value: root.hasProfile ? studioProfile.studioName : ""
-        onCommit: (t) => studioProfile.studioName = t
+        value: root.hasProfile ? app.studioProfile.studioName : ""
+        onCommit: (t) => app.studioProfile.studioName = t
     }
     ImageRow {
         objectName: "setting_studioLogo"
         what: "logo"
         title: qsTr("Logo")
         subtitle: qsTr("Without a logo, a monogram is made from the studio name, in the accent colour.")
-        path: root.hasProfile ? studioProfile.logoPath : ""
+        path: root.hasProfile ? app.studioProfile.logoPath : ""
         empty: Component {
             Rectangle {
                 objectName: "studioMonogram"
                 width: Theme.sp(64); height: width; radius: width / 2
-                color: studioProfile.accent
+                color: app.studioProfile.accent
                 Text {
                     anchors.centerIn: parent
-                    text: studioProfile.monogram
+                    text: app.studioProfile.monogram
                     color: "white"
                     font.family: Theme.fontDisplay; font.pixelSize: Theme.sp(26)
                 }
@@ -280,8 +280,8 @@ SettingsPanelBase {
     SettingsRow {
         id: accentRow
         objectName: "setting_studioAccent"
-        property string typed: root.hasProfile ? studioProfile.accent : ""
-        readonly property bool typedValid: root.hasProfile && studioProfile.isColour(accentField.text)
+        property string typed: root.hasProfile ? app.studioProfile.accent : ""
+        readonly property bool typedValid: root.hasProfile && app.studioProfile.isColour(accentField.text)
         spacing: Theme.gap(8)
         SettingsRowTitle {
             title: qsTr("Accent colour")
@@ -290,11 +290,11 @@ SettingsPanelBase {
         RowLayout {
             spacing: Theme.gap(8)
             Repeater {
-                model: root.hasProfile ? studioProfile.accentPresets() : []
+                model: root.hasProfile ? app.studioProfile.accentPresets() : []
                 delegate: Rectangle {
                     required property string modelData
                     objectName: "studioSwatch"
-                    readonly property bool on: root.hasProfile && studioProfile.accent === modelData
+                    readonly property bool on: root.hasProfile && app.studioProfile.accent === modelData
                     width: Theme.sp(26); height: width; radius: width / 2
                     color: modelData
                     border.width: on ? 2 : 0
@@ -306,7 +306,7 @@ SettingsPanelBase {
                         color: "transparent"; border.width: 2; border.color: Theme.colorSurface
                     }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: studioProfile.accent = parent.modelData }
+                                onClicked: app.studioProfile.accent = parent.modelData }
                 }
             }
             Item { width: Theme.gap(8); height: 1 }
@@ -318,18 +318,18 @@ SettingsPanelBase {
                 placeholderText: "#1f5a4c"
                 hasError: text.trim().length > 0 && !accentRow.typedValid
                 onEditingFinished: {
-                    if (accentRow.typedValid) studioProfile.accent = text
+                    if (accentRow.typedValid) app.studioProfile.accent = text
                     text = Qt.binding(function () { return accentRow.typed })
                 }
             }
         }
         Text {
             objectName: "studioAccentWarning"
-            readonly property string candidate: accentRow.typedValid ? accentField.text : (root.hasProfile ? studioProfile.accent : "")
+            readonly property string candidate: accentRow.typedValid ? accentField.text : (root.hasProfile ? app.studioProfile.accent : "")
             visible: text.length > 0
             text: accentField.text.trim().length > 0 && !accentRow.typedValid
                   ? qsTr("Not a colour. Use a hex value such as #1f5a4c, or press a swatch.")
-                  : root.hasProfile && studioProfile.accentTooLight(candidate)
+                  : root.hasProfile && app.studioProfile.accentTooLight(candidate)
                     ? qsTr("Too light to read as text on white paper. Headings and work-on numbers in this colour will be hard to see; a darker shade will read.")
                     : ""
             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorWarn
@@ -346,30 +346,30 @@ SettingsPanelBase {
         title: qsTr("Address")
         subtitle: qsTr("Optional. The report's footer and sign-off.")
         placeholder: qsTr("e.g. 1 High Street, Northfield NF1 2AB")
-        value: root.hasProfile ? studioProfile.address : ""
-        onCommit: (t) => studioProfile.address = t
+        value: root.hasProfile ? app.studioProfile.address : ""
+        onCommit: (t) => app.studioProfile.address = t
     }
     FieldRow {
         objectName: "setting_studioPhone"
         title: qsTr("Phone")
         placeholder: qsTr("e.g. 01234 567890")
-        value: root.hasProfile ? studioProfile.phone : ""
-        onCommit: (t) => studioProfile.phone = t
+        value: root.hasProfile ? app.studioProfile.phone : ""
+        onCommit: (t) => app.studioProfile.phone = t
     }
     FieldRow {
         objectName: "setting_studioEmail"
         title: qsTr("Email")
         subtitle: qsTr("The studio's own address. Replies to a sent report go to the coach's address below.")
         placeholder: qsTr("e.g. hello@northfieldgolf.co.uk")
-        value: root.hasProfile ? studioProfile.email : ""
-        onCommit: (t) => studioProfile.email = t
+        value: root.hasProfile ? app.studioProfile.email : ""
+        onCommit: (t) => app.studioProfile.email = t
     }
     FieldRow {
         objectName: "setting_studioWebsite"
         title: qsTr("Website")
         placeholder: qsTr("e.g. northfieldgolf.co.uk")
-        value: root.hasProfile ? studioProfile.website : ""
-        onCommit: (t) => studioProfile.website = t
+        value: root.hasProfile ? app.studioProfile.website : ""
+        onCommit: (t) => app.studioProfile.website = t
     }
     SettingsRow {
         objectName: "setting_studioBooking"
@@ -382,8 +382,8 @@ SettingsPanelBase {
             Layout.fillWidth: true
             commitOnBlur: true
             placeholderText: qsTr("e.g. Book your next session at northfieldgolf.co.uk or reply to this email.")
-            value: root.hasProfile ? studioProfile.booking : ""
-            onCommit: (t) => studioProfile.booking = t
+            value: root.hasProfile ? app.studioProfile.booking : ""
+            onCommit: (t) => app.studioProfile.booking = t
         }
     }
 
@@ -396,38 +396,38 @@ SettingsPanelBase {
         title: qsTr("Name")
         subtitle: qsTr("The sign-off and the page header.")
         placeholder: qsTr("e.g. Alex Morgan")
-        value: root.hasProfile ? studioProfile.coachName : ""
-        onCommit: (t) => studioProfile.coachName = t
+        value: root.hasProfile ? app.studioProfile.coachName : ""
+        onCommit: (t) => app.studioProfile.coachName = t
     }
     FieldRow {
         objectName: "setting_studioCoachTitle"
         title: qsTr("Title")
         placeholder: qsTr("e.g. Head coach")
-        value: root.hasProfile ? studioProfile.coachTitle : ""
-        onCommit: (t) => studioProfile.coachTitle = t
+        value: root.hasProfile ? app.studioProfile.coachTitle : ""
+        onCommit: (t) => app.studioProfile.coachTitle = t
     }
     FieldRow {
         objectName: "setting_studioCoachEmail"
         title: qsTr("Email")
         subtitle: qsTr("Where the golfer's replies go.")
         placeholder: qsTr("e.g. alex@northfieldgolf.co.uk")
-        value: root.hasProfile ? studioProfile.coachEmail : ""
-        onCommit: (t) => studioProfile.coachEmail = t
+        value: root.hasProfile ? app.studioProfile.coachEmail : ""
+        onCommit: (t) => app.studioProfile.coachEmail = t
     }
     FieldRow {
         objectName: "setting_studioCoachPhone"
         title: qsTr("Phone")
         subtitle: qsTr("Optional.")
         placeholder: qsTr("e.g. 07700 900123")
-        value: root.hasProfile ? studioProfile.coachPhone : ""
-        onCommit: (t) => studioProfile.coachPhone = t
+        value: root.hasProfile ? app.studioProfile.coachPhone : ""
+        onCommit: (t) => app.studioProfile.coachPhone = t
     }
     ImageRow {
         objectName: "setting_studioCoachPhoto"
         what: "coach"
         title: qsTr("Photo")
         subtitle: qsTr("Optional. Shown in the sign-off box.")
-        path: root.hasProfile ? studioProfile.coachPhotoPath : ""
+        path: root.hasProfile ? app.studioProfile.coachPhotoPath : ""
     }
 
     PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
@@ -438,14 +438,14 @@ SettingsPanelBase {
         id: stepsCol
         objectName: "setting_studioPractice"
         spacing: Theme.gap(14)
-        readonly property var steps: root.hasProfile ? studioProfile.practiceSteps : []
+        readonly property var steps: root.hasProfile ? app.studioProfile.practiceSteps : []
         function commit() {
-            var out = []
+            var heads = [], bodies = []
             for (var i = 0; i < stepRepeater.count; ++i) {
                 var it = stepRepeater.itemAt(i)
-                if (it) out.push({ head: it.headText, body: it.bodyText })
+                if (it) { heads.push(it.headText); bodies.push(it.bodyText) }
             }
-            studioProfile.practiceSteps = out
+            app.studioProfile.setPracticeStepTexts(heads, bodies)
         }
         RowLayout {
             Layout.fillWidth: true
@@ -456,8 +456,8 @@ SettingsPanelBase {
             PpLink {
                 objectName: "studioPracticeReset"
                 text: qsTr("Use the original text")
-                visible: root.hasProfile && JSON.stringify(studioProfile.practiceSteps) !== JSON.stringify(studioProfile.defaultPracticeSteps())
-                onClicked: studioProfile.practiceSteps = studioProfile.defaultPracticeSteps()
+                visible: root.hasProfile && !app.studioProfile.practiceStepsAreDefault
+                onClicked: app.studioProfile.resetPracticeSteps()
             }
         }
         Repeater {
@@ -478,7 +478,7 @@ SettingsPanelBase {
                     Layout.preferredWidth: Theme.sp(18)
                     text: String(index + 1)
                     font.family: Theme.fontDisplay; font.pixelSize: Theme.fontSzHeading
-                    color: root.hasProfile ? studioProfile.accent : Theme.colorAccent
+                    color: root.hasProfile ? app.studioProfile.accent : Theme.colorAccent
                 }
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -517,9 +517,9 @@ SettingsPanelBase {
     FieldRow {
         objectName: "setting_studioEmailSubject"
         title: qsTr("Subject")
-        value: root.hasProfile ? studioProfile.emailSubject : ""
-        placeholder: root.hasProfile ? studioProfile.defaultEmailSubject() : ""
-        onCommit: (t) => studioProfile.emailSubject = t
+        value: root.hasProfile ? app.studioProfile.emailSubject : ""
+        placeholder: root.hasProfile ? app.studioProfile.defaultEmailSubject() : ""
+        onCommit: (t) => app.studioProfile.emailSubject = t
     }
     SettingsRow {
         objectName: "setting_studioEmailBody"
@@ -534,9 +534,9 @@ SettingsPanelBase {
             PpLink {
                 objectName: "studioEmailReset"
                 text: qsTr("Use the original text")
-                visible: root.hasProfile && (studioProfile.emailBody !== studioProfile.defaultEmailBody()
-                                             || studioProfile.emailSubject !== studioProfile.defaultEmailSubject())
-                onClicked: { studioProfile.emailSubject = ""; studioProfile.emailBody = "" }
+                visible: root.hasProfile && (app.studioProfile.emailBody !== app.studioProfile.defaultEmailBody()
+                                             || app.studioProfile.emailSubject !== app.studioProfile.defaultEmailSubject())
+                onClicked: { app.studioProfile.emailSubject = ""; app.studioProfile.emailBody = "" }
             }
         }
         PpTextArea {
@@ -544,8 +544,8 @@ SettingsPanelBase {
             Layout.fillWidth: true
             commitOnBlur: true
             Layout.preferredHeight: Math.max(implicitHeight, Theme.sp(150))
-            value: root.hasProfile ? studioProfile.emailBody : ""
-            onCommit: (t) => studioProfile.emailBody = t
+            value: root.hasProfile ? app.studioProfile.emailBody : ""
+            onCommit: (t) => app.studioProfile.emailBody = t
         }
     }
 

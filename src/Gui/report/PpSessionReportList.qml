@@ -83,7 +83,7 @@ Column {
     property var model:   ((typeof app !== "undefined" && !!app.sessionReportList)) ? app.sessionReportList : null
     property var reports: ((typeof app !== "undefined" && !!app.sessionReport)) ? app.sessionReport : null
     property var mailer:  ((typeof app !== "undefined" && !!app.reportMailer)) ? app.reportMailer : null
-    property var studio:  (typeof studioProfile !== "undefined") ? studioProfile : null
+    property var studio:  (typeof app !== "undefined" && !!app.studioProfile) ? app.studioProfile : null
     property var athletes: ((typeof app !== "undefined" && !!app.athleteController)) ? app.athleteController : null
     property var exporter: ((typeof app !== "undefined" && !!app.swingExporter)) ? app.swingExporter : null
     property var archiver: ((typeof app !== "undefined" && !!app.archiveController)) ? app.archiveController : null

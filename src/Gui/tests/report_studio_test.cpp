@@ -23,6 +23,11 @@
 //                     Folio's accent, the PS monogram, all three details missing
 //   round trip      — every field written by one instance is read back by a fresh one, and an absent
 //                     key (the shipped default) is not written at all
+//   persisted bytes — a load and a save of every field leave the settings file and the studio folder
+//                     byte-for-byte as they were (a copy that has gone keeps its key; stored JSON is not
+//                     rewritten), through the profile and through its store
+//   steps as text   — Settings → Studio's two lists of text, trimmed, a blank step dropped; the reset
+//                     and the "is it the default" answer
 //   logo / photo    — import copies into the studio folder, replaces any earlier copy (another
 //                     extension included), refuses what is not an image, survives the original going;
 //                     clear removes the copy
@@ -35,6 +40,7 @@
 //                     email shape check, the approval date, and deleteAthlete taking them all away
 
 #include "../../App/studio_profile.h"
+#include "../../Stores/studio_profile_store.h"
 #include "athlete_controller.h"
 #include "athlete_test_library.h"
 #include "pp_settings.h"
@@ -55,6 +61,8 @@ class ReportStudioTest : public QObject
 {
     Q_OBJECT
     pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
+
+    StudioProfileStore m_repo;                  // the profile's repository, over the scratch INI and folder below
 
     QTemporaryDir m_cfg;
     QTemporaryDir m_studio;
@@ -93,7 +101,7 @@ private slots:
 
     void defaults()
     {
-        StudioProfile p;
+        StudioProfile p(m_repo);
         QVERIFY(p.studioName().isEmpty());
         QVERIFY(p.coachName().isEmpty());
         QVERIFY(p.coachEmail().isEmpty());
@@ -102,22 +110,25 @@ private slots:
         QCOMPARE(p.accent(), QStringLiteral("#2573d1"));
         QCOMPARE(p.monogram(), QStringLiteral("PS"));
 
-        const QVariantList steps = p.practiceSteps();
+        const QList<StudioPracticeStep> steps = p.practiceSteps();
         QCOMPARE(steps.size(), 4);
-        QCOMPARE(steps[0].toMap().value("head").toString(), QStringLiteral("Rehearse without a ball"));
-        QCOMPARE(steps[3].toMap().value("body").toString(),
+        QCOMPARE(steps[0].head, QStringLiteral("Rehearse without a ball"));
+        QCOMPARE(steps[3].body,
                  QStringLiteral("Stay with work-on 1 until your next session. The rest of the list waits."));
+        QVERIFY(p.practiceStepsAreDefault());
 
         QCOMPARE(p.emailSubject(), QStringLiteral("Your session report — {date}"));
         QVERIFY(p.emailBody().startsWith(QStringLiteral("Hi {first},\n\nHere is your report from today's session.")));
         QVERIFY(p.emailBody().endsWith(QStringLiteral("{coach}\n{studio}")));
 
-        const QVariantList missing = p.missingDetails();
+        const QList<StudioMissingDetail> missing = p.missingDetails();
         QCOMPARE(missing.size(), 3);
-        for (const QVariant &m : missing) QCOMPARE(m.toMap().value("where").toString(), QStringLiteral("studio"));
-        QCOMPARE(missing[0].toMap().value("text").toString(),
-                 QStringLiteral("No studio name yet — add it in Settings → Studio"));
-        QVERIFY(!p.stamp().isEmpty());
+        for (const StudioMissingDetail &m : missing) QCOMPARE(m.where, QStringLiteral("studio"));
+        QCOMPARE(missing[0].text, QStringLiteral("No studio name yet — add it in Settings → Studio"));
+        // The stamp of an untouched profile, pinned: every report made before a change of this class carries it, so
+        // a refactor that moved it would put every one of them out of date. Worked out apart from this class (the
+        // SHA-1 of each printed field's text and a unit separator, in computeStamp's order; its first 12 hex digits).
+        QCOMPARE(p.stamp(), QStringLiteral("68300e625e8d"));
 
         // Nothing is written until something is set.
         QVERIFY(!QFileInfo::exists(iniPath()) || ppSettings().childGroups().isEmpty());
@@ -125,11 +136,11 @@ private slots:
 
     void roundTrip()
     {
-        QVariantList steps;
-        steps << QVariantMap{{"head", "Step one"}, {"body", "Do this."}}
-              << QVariantMap{{"head", "Step two"}, {"body", "Then this."}, {"junk", 7}};
+        const QList<StudioPracticeStep> steps{ { QStringLiteral("Step one"), QStringLiteral("Do this.") },
+                                               { QStringLiteral("  Step two "), QStringLiteral("Then this.  ") },
+                                               { QStringLiteral("  "), QString() } };   // blank: dropped
         {
-            StudioProfile p;
+            StudioProfile p(m_repo);
             QSignalSpy spy(&p, &StudioProfile::changed);
             p.setStudioName(QStringLiteral("  Northfield Golf Studio  "));
             p.setAccent(QStringLiteral("1F5A4C"));
@@ -150,7 +161,7 @@ private slots:
             QCOMPARE(spy.count(), 14);
             QVERIFY(p.missingDetails().isEmpty());
         }
-        StudioProfile q;
+        StudioProfile q(m_repo);
         QCOMPARE(q.studioName(), QStringLiteral("Northfield Golf Studio"));
         QCOMPARE(q.accent(), QStringLiteral("#1f5a4c"));
         QCOMPARE(q.address(), QStringLiteral("1 High Street, Northfield"));
@@ -159,8 +170,9 @@ private slots:
         QCOMPARE(q.website(), QStringLiteral("northfieldgolf.example"));
         QCOMPARE(q.booking(), QStringLiteral("Book your next session at northfieldgolf.example."));
         QCOMPARE(q.practiceSteps().size(), 2);
-        QCOMPARE(q.practiceSteps()[1].toMap().value("body").toString(), QStringLiteral("Then this."));
-        QVERIFY(!q.practiceSteps()[1].toMap().contains("junk"));
+        QCOMPARE(q.practiceSteps()[1].head, QStringLiteral("Step two"));
+        QCOMPARE(q.practiceSteps()[1].body, QStringLiteral("Then this."));
+        QVERIFY(!q.practiceStepsAreDefault());
         QCOMPARE(q.emailSubject(), QStringLiteral("Your report, {first}"));
         QCOMPARE(q.emailBody(), QStringLiteral("Hello {first},\n\nAttached.\n\n{coach}"));
         QCOMPARE(q.coachName(), QStringLiteral("Alex Morgan"));
@@ -187,8 +199,8 @@ private slots:
 
     void fill()
     {
-        StudioProfile p;
-        const QVariantMap v{{"first", "Nick"}, {"date", "20 October 2026"}, {"coach", "Alex"}, {"studio", "Northfield"}};
+        StudioProfile p(m_repo);
+        const QMap<QString, QString> v{{"first", "Nick"}, {"date", "20 October 2026"}, {"coach", "Alex"}, {"studio", "Northfield"}};
         QCOMPARE(p.fill(p.emailSubject(), v), QStringLiteral("Your session report — 20 October 2026"));
         QVERIFY(p.fill(p.emailBody(), v).startsWith(QStringLiteral("Hi Nick,")));
         QVERIFY(p.fill(p.emailBody(), v).endsWith(QStringLiteral("Alex\nNorthfield")));
@@ -201,7 +213,7 @@ private slots:
         const QString blue = makePng(QStringLiteral("blue.png"), Qt::blue);
         QVERIFY(!red.isEmpty() && !blue.isEmpty());
 
-        StudioProfile p;
+        StudioProfile p(m_repo);
         const QString before = p.stamp();
         QVERIFY(p.importLogo(red));
         const QString dest = m_studio.path() + QStringLiteral("/logo.png");
@@ -242,17 +254,17 @@ private slots:
 
         // The original going does not matter: the report reads the copy.
         QVERIFY(QFile::remove(svg));
-        { StudioProfile q; QCOMPARE(q.logoPath(), keep); }
+        { StudioProfile q(m_repo); QCOMPARE(q.logoPath(), keep); }
 
         p.clearLogo();
         QVERIFY(p.logoPath().isEmpty());
         QVERIFY(!QFile::exists(keep));
-        { StudioProfile q; QVERIFY(q.logoPath().isEmpty()); }
+        { StudioProfile q(m_repo); QVERIFY(q.logoPath().isEmpty()); }
 
         // The coach's photo, the same way, under its own name.
         QVERIFY(p.importCoachPhoto(red));
         QVERIFY(p.coachPhotoPath().endsWith(QStringLiteral("/coach.png")));
-        { StudioProfile q; QCOMPARE(q.coachPhotoPath(), p.coachPhotoPath()); }
+        { StudioProfile q(m_repo); QCOMPARE(q.coachPhotoPath(), p.coachPhotoPath()); }
         const QString jpg = m_files.path() + QStringLiteral("/coach.jpeg");
         QVERIFY(QImage(red).save(jpg, "JPEG"));
         QVERIFY(p.importCoachPhoto(jpg));
@@ -264,7 +276,7 @@ private slots:
 
     void stampMovesWithEachField()
     {
-        StudioProfile p;
+        StudioProfile p(m_repo);
         QString last = p.stamp();
         auto moved = [&](const char *what) {
             const QString now = p.stamp();
@@ -280,7 +292,7 @@ private slots:
         p.setEmail("a@b.co");                       QVERIFY(moved("email"));
         p.setWebsite("b.co");                       QVERIFY(moved("website"));
         p.setBooking("Book");                       QVERIFY(moved("booking"));
-        p.setPracticeSteps({ QVariantMap{{"head", "H"}, {"body", "B"}} });  QVERIFY(moved("practiceSteps"));
+        p.setPracticeSteps({ { QStringLiteral("H"), QStringLiteral("B") } });  QVERIFY(moved("practiceSteps"));
         p.setCoachName("C");                        QVERIFY(moved("coachName"));
         p.setCoachTitle("T");                       QVERIFY(moved("coachTitle"));
         p.setCoachEmail("c@b.co");                  QVERIFY(moved("coachEmail"));
@@ -294,7 +306,7 @@ private slots:
         QCOMPARE(p.stamp(), last);
 
         // Deterministic: a fresh instance over the same INI and files computes the same stamp.
-        StudioProfile q;
+        StudioProfile q(m_repo);
         QCOMPARE(q.stamp(), p.stamp());
     }
 
@@ -317,14 +329,14 @@ private slots:
     {
         QFETCH(QString, name);
         QFETCH(QString, mono);
-        StudioProfile p;
+        StudioProfile p(m_repo);
         p.setStudioName(name);
         QCOMPARE(p.monogram(), mono);
     }
 
     void accent()
     {
-        StudioProfile p;
+        StudioProfile p(m_repo);
         QVERIFY(p.isColour("#1F5A4C"));
         QVERIFY(p.isColour("1f5a4c"));
         QVERIFY(p.isColour("darkgreen"));
@@ -353,6 +365,196 @@ private slots:
             QVERIFY2(p.isColour(c), qPrintable(c));
             QVERIFY2(!p.accentTooLight(c), qPrintable(c));
         }
+    }
+
+    // ── the practice steps as Settings → Studio sets them ──────────────────────────────────────────
+
+    void practiceStepTexts()
+    {
+        StudioProfile p(m_repo);
+        QSignalSpy spy(&p, &StudioProfile::changed);
+        // Four rows, as the panel hands them: the third wholly blank, the fourth with no body.
+        p.setPracticeStepTexts({ QStringLiteral(" Slow swings "), QStringLiteral("Half swings"), QString(), QStringLiteral("Mix") },
+                               { QStringLiteral("Ten of them."), QStringLiteral(" At half speed. "), QStringLiteral("  ") });
+        QCOMPARE(spy.count(), 1);
+        const QList<StudioPracticeStep> want{ { QStringLiteral("Slow swings"), QStringLiteral("Ten of them.") },
+                                              { QStringLiteral("Half swings"), QStringLiteral("At half speed.") },
+                                              { QStringLiteral("Mix"), QString() } };
+        QCOMPARE(p.practiceSteps(), want);
+        QVERIFY(!p.practiceStepsAreDefault());
+        {
+            QSettings s = ppSettings();
+            QCOMPARE(s.value("Studio/practiceSteps").toString(),
+                     QStringLiteral("[{\"body\":\"Ten of them.\",\"head\":\"Slow swings\"},{\"body\":\"At half speed.\",\"head\":\"Half swings\"},{\"body\":\"\",\"head\":\"Mix\"}]"));
+        }
+        // The same texts again: nothing written, nothing emitted.
+        p.setPracticeStepTexts({ QStringLiteral("Slow swings"), QStringLiteral("Half swings"), QStringLiteral("Mix") },
+                               { QStringLiteral("Ten of them."), QStringLiteral("At half speed.") });
+        QCOMPARE(spy.count(), 1);
+
+        // The shipped text typed back in, as texts, is the default again: the override key goes.
+        QStringList heads, bodies;
+        for (const StudioPracticeStep &st : p.defaultPracticeSteps()) { heads << st.head; bodies << st.body; }
+        p.setPracticeStepTexts(heads, bodies);
+        QVERIFY(p.practiceStepsAreDefault());
+        QVERIFY(!ppSettings().contains("Studio/practiceSteps"));
+
+        // "Use the original text".
+        p.setPracticeStepTexts({ QStringLiteral("One") }, { QStringLiteral("Two") });
+        QVERIFY(!p.practiceStepsAreDefault());
+        p.resetPracticeSteps();
+        QVERIFY(p.practiceStepsAreDefault());
+        QCOMPARE(p.practiceSteps(), p.defaultPracticeSteps());
+        QVERIFY(!ppSettings().contains("Studio/practiceSteps"));
+
+        // An INI holding the shipped text itself (a hand edit) reads as the default too.
+        {
+            QSettings s = ppSettings();
+            s.setValue("Studio/practiceSteps",
+                       QString::fromUtf8(
+                           "[{\"head\":\"Rehearse without a ball\",\"body\":\"Slow swings, ten at a time, feeling the change. This is where the new move is learned.\"},"
+                           "{\"head\":\"Small swings with a ball\",\"body\":\"Half swings at half speed. Keep the feel; ignore where the ball goes.\"},"
+                           "{\"head\":\"Mix it in\",\"body\":\"Full swings: one with the feel, then two normal ones. Film every fifth swing.\"},"
+                           "{\"head\":\"One thing at a time\",\"body\":\"Stay with work-on 1 until your next session. The rest of the list waits.\"}]"));
+            s.sync();
+        }
+        StudioProfile q(m_repo);
+        QVERIFY(q.practiceStepsAreDefault());
+    }
+
+    // ── nothing persisted changes: a load and a save leave the settings file and the folder as they were ─
+
+    void persistedBytesUnchanged()
+    {
+        // A profile as a studio's machine holds it: every key, written by QSettings itself (as the app writes it),
+        // with what a round trip could disturb — text QSettings must quote or escape, a message over several lines,
+        // practice steps stored as JSON that is not this build's own spelling (spaced, an extra member), a logo
+        // whose copy has gone (the key stays; the profile reads no logo), a coach's photo that is there, a key of
+        // the group this build does not know, and another group beside it.
+        const QString photo = m_studio.path() + QStringLiteral("/coach.png");
+        {
+            QImage img(4, 4, QImage::Format_RGB32);
+            img.fill(Qt::darkCyan);
+            QVERIFY(img.save(photo, "PNG"));
+        }
+        const QString goneLogo = m_studio.path() + QStringLiteral("/logo.svg");   // never written
+        // The fixture, by each key's literal name as every build since the first has written it (SET-20): the names are
+        // spelled here, not taken from the store, so a key the store renamed reads back wrong below.
+        const QString stepsJson = QString::fromUtf8("[ {\"head\": \"Step one\", \"body\": \"Do this.\", \"kept\": 7},\n"
+                                                    "  {\"body\": \"Then this.\", \"head\": \"Step two\"} ]");
+        const QList<QPair<QString, QString>> fixture{
+            { "name",         QStringLiteral("École de Golf, Northfield") },
+            { "logo",         goneLogo },
+            { "accent",       QStringLiteral("#1f5a4c") },
+            { "address",      QStringLiteral("1 High Street; Northfield = \"the village\"") },
+            { "phone",        QStringLiteral("01234 567890") },
+            { "email",        QStringLiteral("hello@northfieldgolf.example") },
+            { "website",      QStringLiteral("https://northfieldgolf.example/book?x=1&y=2") },
+            { "booking",      QStringLiteral("Book at northfieldgolf.example — any day.") },
+            { "practiceSteps", stepsJson },
+            { "emailSubject", QStringLiteral("Your report, {first}") },
+            { "emailBody",    QStringLiteral("Hello {first},\n\nAttached.\n\n{coach}\n{studio}") },
+            { "coachName",    QStringLiteral("Alex Morgan") },
+            { "coachTitle",   QStringLiteral("Head coach, PGA") },
+            { "coachEmail",   QStringLiteral("alex@northfieldgolf.example") },
+            { "coachPhone",   QStringLiteral("07700 900123") },
+            { "coachPhoto",   photo },
+        };
+        QCOMPARE(fixture.size(), 16);
+        auto fx = [&fixture](const char *key) {
+            for (const auto &kv : fixture) if (kv.first == QLatin1String(key)) return kv.second;
+            return QString();
+        };
+        {
+            QSettings s = ppSettings();
+            s.setValue("Camera/perspective", "dtl");
+            s.beginGroup("Studio");
+            for (const auto &kv : fixture) s.setValue(kv.first, kv.second);
+            s.setValue("futureKey", QStringLiteral("kept as it is"));
+            s.endGroup();
+            s.sync();
+        }
+        // All 16 values, as a profile loaded from the fixture must read them.
+        auto checkLoaded = [&](const StudioProfile &p) {
+            QCOMPARE(p.studioName(), fx("name"));
+            QVERIFY(p.logoPath().isEmpty());                                 // the copy has gone...
+            QCOMPARE(m_repo.value(StudioKey::Logo), fx("logo"));             // ...and its key stays as written
+            QCOMPARE(p.accent(), fx("accent"));
+            QCOMPARE(p.address(), fx("address"));
+            QCOMPARE(p.phone(), fx("phone"));
+            QCOMPARE(p.email(), fx("email"));
+            QCOMPARE(p.website(), fx("website"));
+            QCOMPARE(p.booking(), fx("booking"));
+            QCOMPARE(p.practiceSteps(), (QList<StudioPracticeStep>{ { QStringLiteral("Step one"), QStringLiteral("Do this.") },
+                                                                    { QStringLiteral("Step two"), QStringLiteral("Then this.") } }));
+            QCOMPARE(m_repo.value(StudioKey::PracticeSteps), fx("practiceSteps"));   // the stored text, not respelled
+            QCOMPARE(p.emailSubject(), fx("emailSubject"));
+            QCOMPARE(p.emailBody(), fx("emailBody"));
+            QCOMPARE(p.coachName(), fx("coachName"));
+            QCOMPARE(p.coachTitle(), fx("coachTitle"));
+            QCOMPARE(p.coachEmail(), fx("coachEmail"));
+            QCOMPARE(p.coachPhone(), fx("coachPhone"));
+            QCOMPARE(p.coachPhotoPath(), fx("coachPhoto"));
+        };
+        auto bytesOf = [](const QString &path) {
+            QFile f(path);
+            return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+        };
+        auto folder = [this] { return QDir(m_studio.path()).entryList(QDir::Files, QDir::Name); };
+        const QByteArray ini = bytesOf(iniPath());
+        const QByteArray photoBytes = bytesOf(photo);
+        const QStringList files = folder();
+        QVERIFY(!ini.isEmpty() && !photoBytes.isEmpty());
+        QCOMPARE(files, QStringList{ QStringLiteral("coach.png") });
+
+        // Load, then save every field with what was loaded, through the profile's own setters.
+        {
+            StudioProfile p(m_repo);
+            checkLoaded(p);
+            if (QTest::currentTestFailed()) return;
+            p.setStudioName(p.studioName());   p.setAccent(p.accent());
+            p.setAddress(p.address());         p.setPhone(p.phone());
+            p.setEmail(p.email());             p.setWebsite(p.website());
+            p.setBooking(p.booking());         p.setPracticeSteps(p.practiceSteps());
+            p.setEmailSubject(p.emailSubject()); p.setEmailBody(p.emailBody());
+            p.setCoachName(p.coachName());     p.setCoachTitle(p.coachTitle());
+            p.setCoachEmail(p.coachEmail());   p.setCoachPhone(p.coachPhone());
+            QStringList heads, bodies;
+            for (const StudioPracticeStep &st : p.practiceSteps()) { heads << st.head; bodies << st.body; }
+            p.setPracticeStepTexts(heads, bodies);                   // the panel's own save of the steps
+        }
+        QCOMPARE(bytesOf(iniPath()), ini);
+        QCOMPARE(bytesOf(photo), photoBytes);
+        QCOMPARE(folder(), files);
+
+        // And through the store, every key written back as it was read: the file QSettings writes is the same file.
+        for (StudioKey k : { StudioKey::Name, StudioKey::Logo, StudioKey::Accent, StudioKey::Address, StudioKey::Phone,
+                             StudioKey::Email, StudioKey::Website, StudioKey::Booking, StudioKey::PracticeSteps,
+                             StudioKey::EmailSubject, StudioKey::EmailBody, StudioKey::CoachName, StudioKey::CoachTitle,
+                             StudioKey::CoachEmail, StudioKey::CoachPhone, StudioKey::CoachPhoto })
+            m_repo.store(k, m_repo.value(k));
+        QCOMPARE(bytesOf(iniPath()), ini);
+        QCOMPARE(folder(), files);
+
+        // A fresh profile reads it all back as the first did.
+        StudioProfile q(m_repo);
+        checkLoaded(q);
+    }
+
+    void stampPinnedWithALogo()
+    {
+        // A printed field of each kind and a logo's bytes, pinned as in defaults() (worked out apart from this class).
+        StudioProfile p(m_repo);
+        p.setStudioName(QStringLiteral("Northfield Golf Studio"));
+        p.setAccent(QStringLiteral("#1f5a4c"));
+        p.setCoachName(QStringLiteral("Alex Morgan"));
+        p.setPracticeSteps({ { QStringLiteral("Step one"), QStringLiteral("Do this.") } });
+        const QString svg = m_files.path() + QStringLiteral("/pin.svg");
+        { QFile f(svg); QVERIFY(f.open(QIODevice::WriteOnly)); f.write("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>"); }
+        QVERIFY(p.importLogo(svg));
+        QCOMPARE(p.stamp(), QStringLiteral("caa87835a0f3"));
+        StudioProfile q(m_repo);
+        QCOMPARE(q.stamp(), QStringLiteral("caa87835a0f3"));
     }
 
     // ── each golfer's activity, read from the library (the picker's counts and Recent order) ──────

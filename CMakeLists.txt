@@ -748,6 +748,8 @@ qt_add_executable(PinPointStudio
     # report state, the hand-off to the coach's mail app, and sending it over SMTP from the coach's own
     # account with the password in the system's secure store (platform halves below).
     src/App/studio_profile.h                src/App/studio_profile.cpp
+    src/App/studio_profile_repository.h      # its keys and its folder, as the profile reaches them (SET-20, FILE-APP-06)
+    src/Stores/studio_profile_store.h        src/Stores/studio_profile_store.cpp   # the one store behind it
     src/Core/atomic_write.h                  # the one atomic write (header-only; R-PERS-2)
     # (the advisory folder lock, folder_lock.*, R-PERS-6, is in pp_platform: src/Core/CMakeLists.txt)
     src/Diagnostics/derived/session_report.h

@@ -88,6 +88,7 @@
 #include "session_review_controller.h"
 #include "work_ons_controller.h"
 #include "../App/studio_profile.h"
+#include "../Stores/studio_profile_store.h"   // the studio profile's repository (SET-20, FILE-APP-06)
 #include "report/session_report_model.h"
 #include "report/report_stills.h"
 #include "charts/charts_posture_presenter.h"
@@ -788,7 +789,8 @@ int main(int argc, char *argv[])
     // model that makes a session's report, the golfer's session list with each report's state, and the
     // hand-off to the coach's mail app. The list follows the current athlete exactly as the work-ons do
     // (and honours the same PINPOINT_WORKONS_DIR dev seam), and refreshes when a work-on record lands.
-    StudioProfile          studioProfile;
+    StudioProfileStore     studioProfileStore;      // its keys and its folder; outlives the profile (made first)
+    StudioProfile          studioProfile(studioProfileStore);
     SessionReportModel     sessionReport;
     SessionReportListModel sessionReportList;
     ReportMailer           reportMailer;
@@ -2017,7 +2019,6 @@ int main(int argc, char *argv[])
     for (QObject *o : { static_cast<QObject *>(&studioProfile), static_cast<QObject *>(&sessionReport),
                         static_cast<QObject *>(&sessionReportList), static_cast<QObject *>(&reportMailer) })
         QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
-    engine.rootContext()->setContextProperty(QStringLiteral("studioProfile"),     &studioProfile);
     engine.rootContext()->setContextProperty(QStringLiteral("liveWrist"),         &liveWrist);
 
     // THE APP-WIDE OBJECTS, REACHED THROUGH `app` (refactor 5.8b; R-QML-1: the context globals are only devices, settings,
@@ -2047,6 +2048,7 @@ int main(int argc, char *argv[])
         m.motionCaptureProbe      = &motionCaptureProbe;
         m.appInfo                 = &appInfo;
         m.clipboard               = &clipboardHelper;
+        m.studioProfile           = &studioProfile;   // a context global of its own until the platform refactor gave it its repository
         appObject.setMembers(m);
     }
 

@@ -503,7 +503,11 @@ QVariantMap SessionReportModel::preflight(const QString &sessionDir) const
     if (first.isEmpty()) first = QStringLiteral("The golfer");
     const QDate approvedOn = QDate::fromString(athlete.value(QStringLiteral("photosApprovedOn")).toString(), Qt::ISODate);
 
-    QVariantList missing = m_studio ? m_studio->missingDetails() : QVariantList();
+    // The studio's typed details as the report's maps, with the same keys (text, where).
+    QVariantList missing;
+    if (m_studio)
+        for (const StudioMissingDetail &d : m_studio->missingDetails())
+            missing.append(QVariantMap{ { QStringLiteral("text"), d.text }, { QStringLiteral("where"), d.where } });
     if (athlete.isEmpty())
         missing.append(QVariantMap{ { QStringLiteral("text"), QStringLiteral("This golfer has no details on this machine — photos are included and the report cannot be emailed") },
                                     { QStringLiteral("where"), QStringLiteral("athlete") } });
@@ -2002,7 +2006,10 @@ void pagesPart(MapState &state, const StudioProfile *studio)
     {
         QVariant practice = kNull;
         if (isReport && studio) {
-            QVariantList steps = studio->practiceSteps();
+            // The typed steps as the payload's maps, with the same keys (head, body).
+            QVariantList steps;
+            for (const StudioPracticeStep &step : studio->practiceSteps())
+                steps.append(QVariantMap{ { QStringLiteral("head"), step.head }, { QStringLiteral("body"), step.body } });
             while (steps.size() > kPracticeCap) steps.removeLast();
             if (!steps.isEmpty()) practice = QVariantMap{ { QStringLiteral("title"), QStringLiteral("How to practice a change") }, { QStringLiteral("steps"), steps } };
         }

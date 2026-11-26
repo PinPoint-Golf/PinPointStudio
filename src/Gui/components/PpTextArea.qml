@@ -31,8 +31,8 @@
 //         PpTextArea {
 //             Layout.fillWidth: true
 //             commitOnBlur: true
-//             value: studioProfile.booking
-//             onCommit: (t) => studioProfile.booking = t
+//             value: app.studioProfile.booking
+//             onCommit: (t) => app.studioProfile.booking = t
 //         }
 //
 // `style: "lab"` is the Developer page's look: 10 px in all round (14 px at the left, as the style's

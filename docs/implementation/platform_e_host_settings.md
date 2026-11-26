@@ -208,6 +208,9 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   9 hours, which the 83 hours do not hold.
 - **Waits:** SE-9a; the three items that (b) would add; the scope of SE-4.
 - **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
+- **Built (SE-4):** `studio_profile.h`'s 4 findings are typed: the practice steps and the missing details are lists
+  of two gadgets (`StudioPracticeStep`, `StudioMissingDetail`), QML sets the steps as two lists of text, and the
+  template fill, which no QML calls, is C++ only. Its A6 line is gone[^se4-built].
 
 ### H5 · Q17: no QML global is renamed for the count
 - **Today.** The same question as the Stage D pack's row V1, before the Product Owner[^sd0]. Stage E's globals
@@ -247,6 +250,10 @@ the Gemini key in a header (SE-7c). Everything else waits for a row below.
   stays at 18.
 - **Waits:** SE-5h, SE-9b.
 - **Ruled:** as recommended (the Product Owner and the Solution Architect, 25 Nov 2026)[^e-ruled-25nov].
+- **Built (SE-4):** the studio profile has its repository (`src/App/studio_profile_repository.h`, over the one store
+  `src/Stores/studio_profile_store.*`) and QML reaches it as `app.studioProfile`: the globals are 17. The 62 uses
+  were 60 in `StudioPanel.qml` and 2 in a comment in `PpTextArea.qml`; the count's pattern missed the two bare
+  reads, `StudioPanel.qml`'s guard and `PpSessionReportList.qml`'s default, which moved too[^se4-built].
 
 ### H6 · Q6: #193, the app's own trash always
 - **Today.** A discard goes to the operating system's trash first, and to the library's own trash only where the
@@ -517,3 +524,4 @@ chains dropped are the ones that edit the most files for no count that anything 
 [^sched]: The method's rule: a plan places every audit finding, as a step, an agreed deferral or a rejection. F-09 is `docs/implementation/swe-audit/02-findings.md`: "Five threading idioms".
 
 [^e-ruled-25nov]: Ruled in the platform programme's coordination session, 25 Nov 2026: every open question of this pack as recommended, levers 7 (settings: one class, bodies out of the header, no groups) and 8 (threads: name the owners, build no helper yet) taken. **Condition on lever 8 (Product Owner):** Stage E's first items include quit tests aimed at the lifecycle model's GAP-20 (a quit that waits with no window) and GAP-21 (a quit that touches destroyed objects or kills a thread), quitting while each long-lived thread is busy; a fault they find brings the helper back as its fix, for the owner at fault first. H4 and H5 were ruled with Stage D (Q5, Q17). K2's new behaviour (the key never shown again; Change and Remove) is the Design Lead's approval.
+[^se4-built]: Built in SE-4, 26 Nov 2026 (`build/platform/E/NOTES-SE-4.md`): lint A5 on `studio_profile.cpp` 9 → 0 and A6 on `studio_profile.h` 4 → 0 (both allowlist lines removed); no settings key, file or format changes (`report_studio_test`, `persistedBytesUnchanged`). The information model's §11 rows are updated (version 1.12.19).
