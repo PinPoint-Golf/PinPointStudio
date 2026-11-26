@@ -60,10 +60,11 @@
 //       Allowed: src/Stores (the stores and file doors), the Platform ring's own helpers (atomic_write,
 //       folder_lock, logging), and, for (b) only, src/DomainModel (the interfaces and the owning
 //       objects). The tools (tools/) and the tests are not scanned. The rules directories keep their
-//       own message; everything else is reported as a P11 finding. Two of src/Stores's files are counted
-//       all the same (the close of steps 5–7, J-88, approved J-95): the store doors the one session list
-//       added, session_list_reads (5.7a) and session_index_summary (5.7a-P1), so that their file reads
-//       and the repositories they include show (countedStoreDoor() below).
+//       own message; everything else is reported as a P11 finding. A store door (a store's file work in a
+//       file of its own: session_list_reads and session_index_summary, the session store's; rule_data_reads,
+//       RuleDataStore's) is part of its store, named so in the information model (§1.4, A5), and exempt with
+//       the rest of src/Stores (R9, the Solution Architect, 24 Nov 2026). From the close of steps 5–7 (J-88)
+//       to B1.17 the lint counted the session list's two doors by name; that list is deleted.
 //   A6  a Q_INVOKABLE that returns or takes a QVariantMap / QVariantList, or a Q_PROPERTY of that
 //       type, or a public slot / signal that carries one, in any header under src/ (the QML boundary,
 //       03 §9: values become Q_GADGETs).
@@ -336,18 +337,11 @@ bool isRulesIoDir(const QString &rel)
 }
 
 // A5 (P11): the files allowed to touch the disk — the stores and file doors of src/Stores, and the Platform
-// ring's own helpers (the atomic write, the folder lock, logging).
-// The store doors counted all the same (J-88, approved J-95): each has its allow-list line.
-bool countedStoreDoor(const QString &rel)
-{
-    static const QSet<QString> doors{ QStringLiteral("Stores/session_list_reads"),
-                                      QStringLiteral("Stores/session_index_summary") };
-    return doors.contains(stemOf(rel));
-}
-
+// ring's own helpers (the atomic write, the folder lock, logging). A store door is part of its store, so it is
+// exempt with the rest of src/Stores (R9); the IM names each door with its store.
 bool a5Exempt(const QString &rel)
 {
-    return (rel.startsWith(QLatin1String("Stores/")) && !countedStoreDoor(rel)) || ringOf(rel) == Platform;
+    return rel.startsWith(QLatin1String("Stores/")) || ringOf(rel) == Platform;
 }
 
 // A5 (P11): the repositories — the interfaces the domain model defines (P4) and the stores and file doors in
@@ -810,11 +804,13 @@ void selfTest()
     check(countRule(run("Stores/session_store.cpp", QStringLiteral("QFile f(p);\natomicWrite(p, b);\n#include \"../DomainModel/session_repository.h\"\n")), "A5") == 0
               && countRule(run("Core/atomic_write.h", QStringLiteral("QSaveFile f(p);\n")), "A5") == 0,
           QStringLiteral("A5 (P11) allows a store and the Platform ring's own helpers"));
-    check(countRule(run("Stores/session_list_reads.cpp", QStringLiteral("auto t = QFileInfo(p).lastModified();\n")), "A5") == 1
-              && countRule(run("Stores/session_index_summary.cpp", QStringLiteral("#include \"session_store.h\"\n")), "A5") == 1
-              && countRule(run("Stores/session_list_presenter_x.cpp", QStringLiteral("auto t = QFileInfo(p).lastModified();\n")), "A5") == 0,
-          QStringLiteral("A5 counts the two store doors of the one session list (J-88): a file read and a repository include; "
-                         "the rest of src/Stores stays allowed"));
+    check(countRule(run("Stores/session_list_reads.cpp", QStringLiteral("auto t = QFileInfo(p).lastModified();\n")), "A5") == 0
+              && countRule(run("Stores/session_index_summary.cpp", QStringLiteral("#include \"session_store.h\"\nQFile f(p);\n")), "A5") == 0
+              && countRule(run("Stores/rule_data_reads.cpp", QStringLiteral("QFile f(path);\nQDir(d).entryList(QDir::Files);\n")), "A5") == 0
+              && countRule(run("Gui/session/session_list_presenter.cpp", QStringLiteral("auto t = QFileInfo(p).lastModified();\n")), "A5") == 1
+              && countRule(run("Gui/session/x.cpp", QStringLiteral("#include \"../../Stores/session_store.h\"\n")), "A5") == 1,
+          QStringLiteral("A5 (R9): a store door is part of its store, so the session list's two doors and the rule data's reads "
+                         "pass a file read and a repository include; the same read or include in a view still fails"));
     check(countRule(run("DomainModel/athlete.cpp", QStringLiteral("#include \"session_repository.h\"\n#include \"athlete.h\"\n")), "A5") == 0
               && countRule(run("DomainModel/athlete.cpp", QStringLiteral("QFile f(p);\n")), "A5") == 1
               && countRule(run("Gui/x/y.cpp", QStringLiteral("#include \"../../DomainModel/session_repository.h\"\n#include \"../../DomainModel/athlete.h\"\n")), "A5") == 1,
