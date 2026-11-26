@@ -99,10 +99,10 @@ QString missingReasonText(MissingKind k);
 // THE GRID A LIVE SOURCE READS is the shot's, handed in (platform refactor P-3): a caller with a Shot reads it by ShotRef
 // through the Recording's reader (RecordingReader::phaseGrid, src/DomainModel/recording_reader.h) with the pack's
 // millisecond spans (msWindowsOf) added to its config; the firing reader, inside the store, reads it through the file door
-// (PhaseGridStore::readForMeasures, src/Export/phase_grid_store.h). The rules read no file.
+// (PhaseGridStore::readForMeasures, src/Stores/phase_grid_store.h). The rules read no file.
 
 // THE SHOT'S WRIST READINGS (refactor 3.8-ii; DEC-123) are read by the file door, PhaseGridStore::readWristInput
-// (src/Export/phase_grid_store.h; platform refactor P-3): reading the document is the store's, not the rules'.
+// (src/Stores/phase_grid_store.h; platform refactor P-3): reading the document is the store's, not the rules'.
 
 // One recorded swing, presented as measure values, over the shot's phase grid (read by its caller: above).
 class LiveMeasureSource final : public IMeasureValueSource {

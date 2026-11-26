@@ -41,7 +41,7 @@
 // monitor reads one, then the monitor's.
 
 #include "launchmonitor/lm_session_model.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "variability/variability_measures.h"
 #include "shot/shot_list_model.h"
@@ -58,9 +58,9 @@
 #include "../../DomainModel/athlete.h"
 #include "../../DomainModel/session.h"
 #include "../../DomainModel/shot.h"
-#include "../../Export/athlete_store.h"
-#include "../../Export/session_store.h"
-#include "../../Export/swing_store_repository.h"
+#include "../../Stores/athlete_store.h"
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_store_repository.h"
 #include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "../../Vocabulary/Common/figure_format.h"   // T5: the app's one ±
 

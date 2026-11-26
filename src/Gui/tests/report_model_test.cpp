@@ -53,7 +53,7 @@
 
 // "1.0 s" (1036 ms, in seconds as the card says it) with the app's figure-to-unit space (Vocabulary/Common/figure_format.h withUnit)
 static QString ms1036() { return pinpoint::figures::withUnit(QStringLiteral("1.0"), QStringLiteral("s")); }
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "report/report_posture.h"
 #include "report/report_wrist.h"

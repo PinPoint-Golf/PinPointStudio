@@ -1,4 +1,4 @@
-// session_archiver_test — the archive (src/Export/session_archiver.h) behind SessionRepository::archive /
+// session_archiver_test — the archive (src/Stores/session_archiver.h) behind SessionRepository::archive /
 // restore / trash (step 2.6): a session moved to an archive location and back, by its SessionId.
 //
 // Guarded:

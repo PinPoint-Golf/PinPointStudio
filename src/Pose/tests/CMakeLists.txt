@@ -34,7 +34,7 @@ pp_add_test(ball_temporal_test
 # crop-only grey/float gives the full-frame path's R and W3 crop byte for byte.
 pp_add_test(ball_roi_decode_test
     SOURCES ball_roi_decode_test.cpp ${PP_SRC}/Vocabulary/Recording/frame_decode.cpp
-    INCLUDE ${OpenCV_INCLUDE_DIRS} ${POSE}/../Buffer ${POSE}/../Export
+    INCLUDE ${OpenCV_INCLUDE_DIRS} ${POSE}/../Buffer ${PP_SRC}/Stores
     LINK    ${OpenCV_LIBS}
     NO_QT)
 

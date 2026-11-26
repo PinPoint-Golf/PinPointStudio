@@ -21,7 +21,7 @@
 // A SESSION REPORT'S RECORD (docs/design/session_report_design.md §8.1–§8.4): the report's rules over its two records
 // (refactor step 5.6a; FILE-SESS-07, FILE-SESS-13), which this file no longer reads or writes. The records are the
 // Session's: src/DomainModel/report_record.h holds them as values, SessionRepository reads and writes them
-// (src/Export/session_report_io.h), and the Session's commands write them (recordReportMake, recordReportSend,
+// (src/Stores/session_report_io.h), and the Session's commands write them (recordReportMake, recordReportSend,
 // saveReport). The session list reads them through Athlete::readReportAt without opening the session.
 //
 // ReportMeta is the report's FLAT VIEW of the two, as read: the source facts (the coach's note and options, every
@@ -44,9 +44,9 @@
 // Pure apart from the swing documents' identity (swingsIdentity); header-only; report_meta_test.
 
 #include "../../DomainModel/report_record.h"   // the two records, as values (step 5.6a)
-#include "../../Export/session_files.h"   // the report documents' names (D9)
-#include "../../Export/swing_store.h"
-#include "../../Export/swing_paths.h"
+#include "../../Stores/session_files.h"   // the report documents' names (D9)
+#include "../../Stores/swing_store.h"
+#include "../../Stores/swing_paths.h"
 
 #include <QCryptographicHash>
 #include <QDate>

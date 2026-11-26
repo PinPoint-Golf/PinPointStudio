@@ -31,7 +31,7 @@
 //
 // An older report_meta.json held both halves. SessionRepository reads that shape (ReportRead::legacy) and the Session
 // migrates it when it is first opened (Session::migrateReport): FILE-SESS-13 first, read back, then FILE-SESS-07 as
-// derived only. The file work is src/Export/session_report_io.h. Values only: no file is touched here.
+// derived only. The file work is src/Stores/session_report_io.h. Values only: no file is touched here.
 //
 // Domain model ring (src/DomainModel).
 

@@ -22,7 +22,7 @@
 // FILE-ATH-03 swing_themes.json), for the headless tools and the tests that make their own Athlete over a folder with no
 // athlete.json (athlete_dump, work_ons_controller_test). It lists, loads, creates, saves and trashes nothing, and keeps no
 // tuning log (an Athlete with no repository did not either). The files by AthleteFiles' names, written as AthleteStore
-// writes them (refactor 3.7-f). Adapters ring (src/Export). Header-only.
+// writes them (refactor 3.7-f). Adapters ring (src/Stores). Header-only.
 
 #include "athlete_files.h"
 #include "../DomainModel/athlete_repository.h"

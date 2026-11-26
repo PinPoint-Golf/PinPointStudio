@@ -21,7 +21,7 @@
 // the pooled within-club input and the per-club windows, scalar and trace, on synthetic swings.
 
 #include "../../Diagnostics/derived/series/variability_clubs.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 
 #include "../../Vocabulary/Metrics/variability/variability_grader.h"
 

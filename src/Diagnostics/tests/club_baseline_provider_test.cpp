@@ -5,8 +5,8 @@
 // except these two — so it is asserted across the whole shipped pack, not assumed.
 
 #include "../measures/live_measure_source.h"
-#include "../../Export/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
+#include "../../Stores/rule_data_install.h"
 #include "../packs/pack_provider.h"
 
 #include <QCoreApplication>

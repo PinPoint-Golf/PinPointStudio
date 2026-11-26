@@ -58,7 +58,7 @@
 // A TOOL'S OWN OUTPUT is not a shot: writeOutsideLibrary writes a document into a folder that is no
 // session's (SwingLab's research outputs), by path, and is not on the interface.
 //
-// Adapters ring (src/Export).
+// Adapters ring (src/Stores).
 
 #include "../DomainModel/recording_repository.h"
 

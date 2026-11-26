@@ -33,7 +33,7 @@
 
 #include "charts/charts_delivery_presenter.h"
 #include "charts/charts_gadget.h"   // the typed results as maps, for the assertions (refactor 5.5b)
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "charts/session_delivery.h"
 #include "../../Diagnostics/derived/series/session_series_types.h"
 #include "Diagnostics/measures/measure_sample.h"

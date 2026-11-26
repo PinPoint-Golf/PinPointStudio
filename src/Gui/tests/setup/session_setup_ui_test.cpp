@@ -67,7 +67,7 @@
 #include <QTemporaryDir>
 
 #include "app_settings.h"
-#include "../../../Export/rule_data_install.h"
+#include "../../../Stores/rule_data_install.h"
 #include "../../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 
 // Same as qml_ui_test: the bundled faces, so text measures the way the app draws it.

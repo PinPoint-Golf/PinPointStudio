@@ -21,7 +21,7 @@
 // THE SESSION INDEX ENTRY'S SUMMARY, AS READ FROM ITS FOLDER (refactor step 5.7a-P1; information_model.md OBJ-SESSION-INDEX,
 // proposal P1: the Solution Architect, 23 Nov 2026). SessionStore's file work behind SessionRepository::deferredSummary, set on
 // it by the composition root (SessionStore::setSummaryReads), as the archive's is. Exactly the reads the three session lists
-// made before (5.7a's kept reads, Export/session_list_reads.h, which now keeps only the folder's modification time):
+// made before (5.7a's kept reads, Stores/session_list_reads.h, which now keeps only the folder's modification time):
 //   - the swing roll-up: each swing's cheap summary (SwingDocReader::readSwingSummary, writeSidecar = false: a list read never
 //     fat-parses and never writes), folded by rollUpSwings, and how many swing folders there are;
 //   - the size on disk: every file in the folder (SessionArchiver::folderBytes);

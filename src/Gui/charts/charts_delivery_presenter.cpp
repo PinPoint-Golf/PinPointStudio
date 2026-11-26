@@ -23,14 +23,14 @@
 #include "charts_words.h"
 #include "session_delivery.h"
 #include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
-#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
+#include "../../Stores/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "../../DomainModel/rule_data.h"   // RuleData's snapshot: the pack the direction rule's boundaries come from
 #include "../../Diagnostics/norms/context_tree.h"
 #include "../../Diagnostics/norms/shot_direction_bounds.h"   // the one direction rule's boundaries (refactor 6.3b)
 
 #include "../../Core/pp_debug.h"
-#include "../../Export/swing_store.h"
-#include "../../Export/swing_paths.h"
+#include "../../Stores/swing_store.h"
+#include "../../Stores/swing_paths.h"
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>

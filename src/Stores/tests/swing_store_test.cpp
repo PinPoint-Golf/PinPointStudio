@@ -1,4 +1,4 @@
-// swing_store_test — the swing-document store (src/Export/swing_store.h) and its Qt adapter.
+// swing_store_test — the swing-document store (src/Stores/swing_store.h) and its Qt adapter.
 //
 // What is guarded here:
 //   · the adapter round trip keeps VALUES and TYPES: an integer reads back as an integer and a double

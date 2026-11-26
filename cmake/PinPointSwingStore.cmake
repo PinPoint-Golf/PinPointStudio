@@ -1,7 +1,7 @@
 # PinPointSwingStore.cmake — the swing-document store library, shared by the app build and the
 # test umbrella.
 #
-# pinpoint_swingstore is src/Export/swing_store.cpp + ppsw_qt.cpp: THE door to a swing's
+# pinpoint_swingstore is src/Stores/swing_store.cpp + ppsw_qt.cpp: THE door to a swing's
 # document on disk (swing.ppsw, or a legacy swing.json). Every target that reads or writes a
 # document links it — the app, the swinglab/lm_repair tools, and most test suites, which compile
 # swing_doc_*.cpp and friends straight from source.

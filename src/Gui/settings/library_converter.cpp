@@ -20,10 +20,10 @@
 
 #include "../app/app_settings.h"
 #include "../../Core/pp_debug.h"
-#include "../../Export/swing_store.h"
+#include "../../Stores/swing_store.h"
 #include "../../DomainModel/recording_repository.h"
-#include "../../Export/session_store.h"
-#include "../../Export/swing_store_repository.h"
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_store_repository.h"
 
 #include <QFileInfo>
 #include <QPointer>

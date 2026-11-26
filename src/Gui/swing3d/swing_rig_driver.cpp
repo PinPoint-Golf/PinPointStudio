@@ -34,8 +34,8 @@
 #include "../../Skeleton3d/skeleton3d_json.h"
 #include "../../Skeleton3d/skeleton3d_rig.h"
 #include "../../Skeleton3d/skeleton3d_synthesis.h"
-#include "../../Export/swing_store.h"
-#include "../../Export/swing_paths.h"
+#include "../../Stores/swing_store.h"
+#include "../../Stores/swing_paths.h"
 #include "../../Vocabulary/Club/club_vocabulary.h"    // swingDocEffectiveClub: the one club rule (refactor 6.2)
 #include "../../Vocabulary/Metrics/gate_catalogue.h"   // a gate's short words
 #include "../trust/trust_readings.h"        // gateFor: the gate on a reading

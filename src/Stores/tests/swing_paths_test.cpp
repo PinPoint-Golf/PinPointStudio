@@ -27,7 +27,7 @@
 // session_repository_test (refactor step 2.2): where a session goes, where a swing goes inside it, and
 // what happens to a session that captured nothing are SessionRepository's now.
 
-#include "swing_paths.h"
+#include "../swing_paths.h"
 #include "temp_library.h"
 
 #include <QCoreApplication>

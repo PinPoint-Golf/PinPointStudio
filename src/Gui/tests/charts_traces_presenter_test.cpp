@@ -22,7 +22,7 @@
 // budgets of build/charts-build/STEP2A.md are MEASURED and reported, not asserted.
 
 #include "charts_maths_fixture.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 
 #include "charts/charts_traces_presenter.h"
 #include "charts/charts_gadget.h"   // chartsGadgetMap: the typed results read as maps (refactor 5.5c)

@@ -208,6 +208,6 @@ number in the UI.
   `center`/`radiusNorm` (+ `hasPosition`) — `src/Gui/cameras/camera_instance.*`.
 - Persisted to `swing.json` `setup.ballDetection.{center, radiusNorm,
   positionSource}` per camera (additive; omitted when uncalibrated) —
-  `src/Export/swing_exporter.*`, populated in `src/Gui/shot/shot_processor.cpp`.
+  `src/Stores/swing_exporter.*`, populated in `src/Gui/shot/shot_processor.cpp`.
 - Clubhead trajectory persistence (`analysis.club.samples[].head`) was already
   present — unchanged.

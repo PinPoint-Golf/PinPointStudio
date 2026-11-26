@@ -28,7 +28,7 @@
 //                                          (the accumulator snapshot, the search box, the empty-mat
 //                                          baseline), the IMU bindings, the integrity inputs and
 //                                          the analysis context (captureAnalysisContext(), the one
-//                                          builder of the recorded context; Export/recording_header.h)
+//                                          builder of the recorded context; Stores/recording_header.h)
 //   fillExportFromSnapshot(job, snap)      the export job's athlete, club, analysis context — and every
 //                                          other Recording input it writes (each camera's placement,
 //                                          search box and empty-mat baseline, the pose-quality tier,
@@ -61,7 +61,7 @@
 #include "../../Vocabulary/Analysis/swing_analysis.h"        // BallTrack2D, SwingAnalysis
 #include "../../Analysis/recording_integrity.h"   // IntegrityVerdicts
 #include "../../Club/club_length_fusion.h"        // LengthPriorState
-#include "../../Export/capture_export_facts.h"     // the Recording's inputs the export takes from the freeze
+#include "../../Stores/capture_export_facts.h"     // the Recording's inputs the export takes from the freeze
 #include <QHash>
 #include "shot_outcome.h"                          // PersistPath
 

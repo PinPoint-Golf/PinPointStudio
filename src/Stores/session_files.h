@@ -19,7 +19,7 @@
 #pragma once
 
 // SessionFiles — the names of a session folder's own files, spelled once (H-12; refactor step 2.2,
-// brief §4.7). Adapters ring (src/Export), beside the repository that reads and writes them
+// brief §4.7). Adapters ring (src/Stores), beside the repository that reads and writes them
 // (session_store.h).
 //
 //   <session>/

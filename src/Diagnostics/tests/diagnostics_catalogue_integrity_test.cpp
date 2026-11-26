@@ -12,7 +12,7 @@
 //   ctest --test-dir build/analyzer-tests -R diagnostics_catalogue_integrity --output-on-failure
 
 #include "../packs/characteristic_pack.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../engine/diagnostics_health.h" // referenceHealth()
 #include "../norms/norm_pack.h"       // requiredNormSchemaVersion()

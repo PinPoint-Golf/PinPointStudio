@@ -12,7 +12,7 @@
 //   ctest --test-dir build/analyzer-tests -R reference_sets --output-on-failure
 
 #include "../packs/characteristic_pack.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../packs/drill_pack.h"
 #include "../packs/reference_pack.h"

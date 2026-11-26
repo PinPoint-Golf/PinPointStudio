@@ -19,13 +19,13 @@
 // report_meta_test — the session report's records: the rules (src/Gui/report/report_meta.h) — the file name, the
 // fingerprint moving with exactly the inputs it should, the three states and their words, and the send log saying
 // whether the PDF on disk is the one that went — and their two files (refactor step 5.6a; FILE-SESS-07, FILE-SESS-13:
-// src/Export/session_report_io.h, SessionRepository's file work): the round trip, the derived write never touching the
+// src/Stores/session_report_io.h, SessionRepository's file work): the round trip, the derived write never touching the
 // source file, a newer file read-only, and the lazy migration of an older report_meta.json — a fresh session, a legacy
 // one, a crash between the two writes, a newer file, and a second open (a no-op) — and an archive's restamp of a
 // legacy record keeping its note and send log.
 
 #include "report/report_meta.h"
-#include "../../Export/session_report_io.h"
+#include "../../Stores/session_report_io.h"
 
 #include <QFile>
 #include <QFileInfo>

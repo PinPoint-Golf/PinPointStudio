@@ -1,7 +1,7 @@
 # Pinpoint Shot Analyzer — Developer Guide
 
 **Audience**: Developers working on or integrating with the Pinpoint application  
-**Location**: `src/Analysis/` (analyzers + math), `src/Gui/shot/shot_processor.{h,cpp}` (orchestration), `src/Export/swing_doc.{h,cpp}` (persistence)  
+**Location**: `src/Analysis/` (analyzers + math), `src/Gui/shot/shot_processor.{h,cpp}` (orchestration), `src/Stores/swing_doc.{h,cpp}` (persistence)  
 **Language**: C++17 (analysis value types and math) / C++20 (app integration)  
 **Status**: Production. Two analyzers: `PipelineAnalyzer` (session type 1 — the full IMU + camera stage profile) and `CameraKinematicsAnalyzer` (types 0/2/3 and the unknown fallback). Offline re-analysis of an exported swing runs the same analyzers over a disk-backed window.
 
@@ -520,7 +520,7 @@ pipeline changes.
 ### `SwingDiskLoader` — swing.json → SwingWindow
 
 `SwingDiskLoader::load(source)` (the shot's `RecordingSource`; refactor step 3.4b-ii — a folder by its path is
-`loadSwingFolder(swingDir)` in `src/Export/swing_folder_reanalysis.h`) returns a `LoadedSwing`: a **disk-backed**
+`loadSwingFolder(swingDir)` in `src/Stores/swing_folder_reanalysis.h`) returns a `LoadedSwing`: a **disk-backed**
 `SwingWindow` plus a `ShotAnalysisJob` resolved entirely from `swing.json`
 (session type, face-on-first camera sources, IMU sources, serial-matched A/M
 bindings, impact, handedness, club record, quality tier, ball baseline).
@@ -834,7 +834,7 @@ src/Gui/shot/
 ├── shot_list_model.*           Carousel: a view of one Session's Shots (landShot: capture's card)
 └── shot_replay_controller.*    The ¼× replay tail
 
-src/Export/
+src/Stores/
 ├── swing_exporter.{h,cpp}      The media-export worker, run after analysis (separate guide)
 ├── swing_doc.{h,cpp}           SwingDocWriter/Reader — the unified swing.json
 └── swing_paths.{h,cpp}         Session/swing directory allocation

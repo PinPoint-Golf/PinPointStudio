@@ -22,7 +22,7 @@
 #include "../../Core/atomic_write.h"             // the one atomic write
 #include "../../Core/pp_debug.h"               // ppInfo / ppWarn — the app log
 #include "../../Vocabulary/Common/pp_tuned_constants.h"     // the per-keypoint pose gate
-#include "../../Export/swing_store.h"          // the swing document, whichever format it is in
+#include "../../Stores/swing_store.h"          // the swing document, whichever format it is in
 #include "../markup/markup_truth.h"            // faceOnStreamIndex / streamLooksDownTheLine / frameIndexForUs
 
 #include <QBuffer>

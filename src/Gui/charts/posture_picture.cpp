@@ -23,7 +23,7 @@
 #include "../../Body/head_track.h"          // trackHead — the inter-ear ruler headLift is measured with
 #include "../../Diagnostics/measures/measure_sample.h"   // buildPhaseGrid — the chart's own sampler, for the head ticks
 #include "../report/report_stills_pure.h"   // which frame, which crop: the report stills' own rule
-#include "../../Export/dtl_overlay_payload.h"   // the DTL ball and club samples, as the replay payload carries them
+#include "../../Stores/dtl_overlay_payload.h"   // the DTL ball and club samples, as the replay payload carries them
 
 #include <QCryptographicHash>
 #include <QDir>

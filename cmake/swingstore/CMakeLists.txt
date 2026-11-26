@@ -14,11 +14,11 @@ if(MSVC)
 endif()
 
 add_library(pinpoint_swingstore STATIC
-    ${PP_SWINGSTORE_ROOT}/src/Export/swing_store.h
-    ${PP_SWINGSTORE_ROOT}/src/Export/swing_store.cpp
-    ${PP_SWINGSTORE_ROOT}/src/Export/ppsw_qt.h
-    ${PP_SWINGSTORE_ROOT}/src/Export/ppsw_qt.cpp)
-target_include_directories(pinpoint_swingstore PUBLIC ${PP_SWINGSTORE_ROOT}/src/Export)
+    ${PP_SWINGSTORE_ROOT}/src/Stores/swing_store.h
+    ${PP_SWINGSTORE_ROOT}/src/Stores/swing_store.cpp
+    ${PP_SWINGSTORE_ROOT}/src/Stores/ppsw_qt.h
+    ${PP_SWINGSTORE_ROOT}/src/Stores/ppsw_qt.cpp)
+target_include_directories(pinpoint_swingstore PUBLIC ${PP_SWINGSTORE_ROOT}/src/Stores)
 target_link_libraries(pinpoint_swingstore PUBLIC Qt6::Core PRIVATE ppswing::ppswing)
 target_compile_options(pinpoint_swingstore PRIVATE $<IF:$<CXX_COMPILER_ID:MSVC>,/O2,-O2>)
 set_target_properties(pinpoint_swingstore PROPERTIES POSITION_INDEPENDENT_CODE ON)

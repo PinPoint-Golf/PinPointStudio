@@ -52,12 +52,12 @@
 #include "../../DomainModel/session_diagnostics.h"
 #include "../../DomainModel/shot.h"
 #include "../../Core/work_pool.h"
-#include "../../Export/firing_reader_store.h"
-#include "../../Export/recording_loader.h"   // SwingStoreRecordingReader
+#include "../../Stores/firing_reader_store.h"
+#include "../../Stores/recording_loader.h"   // SwingStoreRecordingReader
 #include "../../Buffer/swing_window.h"     // a LoadedRecording owns one
-#include "../../Export/rule_data_install.h"
-#include "../../Export/session_store.h"
-#include "../../Export/swing_store_repository.h"
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_store_repository.h"
 
 #include <QCoreApplication>
 #include <QDir>

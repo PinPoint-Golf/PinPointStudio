@@ -23,7 +23,7 @@
 // depending on shipped content at all.
 
 #include "../../Wrist/reference_bands.h"
-#include "../../Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
+#include "../../Stores/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 
 #include <QSet>
 

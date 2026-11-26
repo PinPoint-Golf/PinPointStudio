@@ -15,21 +15,21 @@ find_package(Qt6 REQUIRED COMPONENTS Network)
 pp_add_test(report_list_test
     SOURCES report_list_test.cpp
             ${GUI}/report/session_report_list_model.cpp
-            ${GUI}/session/session_list_presenter.cpp ${SRC}/Export/session_list_reads.cpp   # its rows (refactor step 5.7a)
-            ${SRC}/Export/session_index_summary.cpp   # the entries' summaries (5.7a-P1)
+            ${GUI}/session/session_list_presenter.cpp ${SRC}/Stores/session_list_reads.cpp   # its rows (refactor step 5.7a)
+            ${SRC}/Stores/session_index_summary.cpp   # the entries' summaries (5.7a-P1)
             ${GUI}/review/device_filter_model.cpp
             ${GUI}/report/report_mailer.cpp
             ${GUI}/report/smtp_message.cpp
             ${GUI}/report/smtp_client.cpp
             ${GUI}/report/mail_credentials.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Export/swing_doc_reader.cpp
-            ${SRC}/Export/swing_doc_analysis.cpp
-            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-            ${SRC}/Export/session_archiver.cpp
-            ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_reader.cpp
+            ${SRC}/Stores/swing_doc_analysis.cpp
+            ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Stores/session_archiver.cpp
+            ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Core/folder_lock.cpp ${SRC}/Vocabulary/Identity/identity.h   # the archiver's door (step 2.4)
-            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/Stores/swing_paths.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp

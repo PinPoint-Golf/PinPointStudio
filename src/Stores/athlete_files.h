@@ -19,7 +19,7 @@
 #pragma once
 
 // AthleteFiles — the names of an athlete folder's own files, spelled once (H-12; refactor step 2.3,
-// brief §4.7). Adapters ring (src/Export), beside the repository that reads and writes them
+// brief §4.7). Adapters ring (src/Stores), beside the repository that reads and writes them
 // (athlete_store.h). Lint A4 names this file the owner of every name below.
 //
 //   <library>/<athlete>/

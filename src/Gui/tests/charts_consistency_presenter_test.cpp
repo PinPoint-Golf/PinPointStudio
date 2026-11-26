@@ -6,7 +6,7 @@
 
 #include "charts/charts_consistency_presenter.h"
 #include "charts/charts_gadget.h"     // the typed results as maps, for the assertions (refactor 5.5b)
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "charts/consistency_env.h"
 #include "../../Diagnostics/derived/series/consistency_grades.h"
 #include "charts/variability_env.h"

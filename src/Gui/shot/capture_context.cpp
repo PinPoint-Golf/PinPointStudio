@@ -31,10 +31,10 @@
 #include "../../Core/pp_debug.h"
 #include "../../DomainModel/athlete.h"   // isUnassigned: a capture into Unassigned records no golfer (J-67)
 #include "../../DomainModel/recording_repository.h"
-#include "../../Export/recording_header.h"   // captureAnalysisContext — the one builder of the context
-#include "../../Export/swing_doc.h"          // the integrity blocks, the data warning, the one projection
-#include "../../Export/swing_exporter.h"     // SwingExportJob
-#include "../../Export/swing_store.h"        // the document's path, for the log
+#include "../../Stores/recording_header.h"   // captureAnalysisContext — the one builder of the context
+#include "../../Stores/swing_doc.h"          // the integrity blocks, the data warning, the one projection
+#include "../../Stores/swing_exporter.h"     // SwingExportJob
+#include "../../Stores/swing_store.h"        // the document's path, for the log
 #include "../../IMU/hm_frame.h"              // isSelected() — no frame, no binding
 
 #include <QDate>

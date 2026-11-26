@@ -66,12 +66,12 @@
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/packs/gate_words_pack.h"
 #include "../../Diagnostics/packs/pack_provider.h"
-#include "../../Export/swing_paths.h"
-#include "../../Export/swing_store.h"
+#include "../../Stores/swing_paths.h"
+#include "../../Stores/swing_store.h"
 #include "../../DomainModel/session.h"   // the Session the report is saved through (5.6a)
 #include "../../DomainModel/session_diagnostics.h"   // its own diagnosis, read through it (5.6b)
 #include "../../DomainModel/shot.h"                  // a kept shot's folder (5.6b)
-#include "../../Export/session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
+#include "../../Stores/session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
 #include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "../../LaunchMonitor/inferred/lm_session_reductions.h"
 

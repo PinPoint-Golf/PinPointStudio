@@ -26,9 +26,9 @@
 #include "model_browser.h"
 #include "model_browser_test_support.h"
 #include "../../Gui/diagnosticmodel/layout/dag_layout.h"   // DagLayoutOptions, for the typed options' defaults
-#include "../../Export/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
-#include "../../Export/rule_data_install.h"
-#include "../../Export/phase_grid_store.h"                 // the swing on screen's door double reads by folder (P-3)
+#include "../../Stores/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/phase_grid_store.h"                 // the swing on screen's door double reads by folder (P-3)
 #include "../../Gui/diagnosticmodel/shot_grid_door.h"     // the model browser's swing on screen, by its Shot (P-3)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 

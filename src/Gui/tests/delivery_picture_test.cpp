@@ -33,7 +33,7 @@
 //     the still maker filling `src` (synchronous).
 
 #include "charts/charts_delivery_presenter.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "charts/delivery_picture.h"
 #include "charts/charts_gadget.h"
 #include "charts/posture_picture.h"

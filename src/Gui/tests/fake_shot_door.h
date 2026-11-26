@@ -27,9 +27,9 @@
 // shot_commands_test and athlete_repository_test against the real App.
 
 #include "../../App/shot_command_door.h"
-#include "../../Export/swing_doc.h"
-#include "../../Export/swing_paths.h"
-#include "../../Export/tests/swing_doc_test_writes.h"
+#include "../../Stores/swing_doc.h"
+#include "../../Stores/swing_paths.h"
+#include "../../Stores/tests/swing_doc_test_writes.h"
 
 #include <QDir>
 #include <QFileInfo>

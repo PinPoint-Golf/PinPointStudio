@@ -25,7 +25,7 @@
 // presenter's `ordinal`, a rank, which after a gap can equal another swing's printed number. The ordinal only
 // when none of those is there (a fixture with no folder).
 
-#include "../../Export/swing_paths.h"
+#include "../../Stores/swing_paths.h"
 
 #include <QDir>
 #include <QFileInfo>

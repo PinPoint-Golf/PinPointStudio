@@ -14,7 +14,7 @@ set(CHARTS_WRIST_SRC
     # the wrist profile: it reads each cell through the measure engine's own sampler (measure_sample.cpp).
     ${GUI}/charts/session_posture.cpp
     ${SRC}/Diagnostics/measures/measure_sample.cpp
-    ${SRC}/Export/phase_grid_store.cpp   # the sampler's folder-keyed reads go through the file door (P-3)
+    ${SRC}/Stores/phase_grid_store.cpp   # the sampler's folder-keyed reads go through the file door (P-3)
     ${SRC}/Wrist/wrist_analysis_adapter.cpp
     ${SRC}/Wrist/wrist_assessment_engine.cpp
     ${SRC}/Wrist/assessment_rules.cpp
@@ -23,7 +23,7 @@ set(CHARTS_WRIST_SRC
     ${SRC}/Diagnostics/norms/norm_pack.cpp
     ${SRC}/Diagnostics/norms/context_tree.cpp
     ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-    ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
+    ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
     ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
     ${SRC}/Diagnostics/engine/pack_io.cpp
     ${SRC}/Diagnostics/engine/characteristic.cpp
@@ -33,12 +33,12 @@ set(CHARTS_WRIST_SRC
     ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
     # A session's day and place (SessionDiagnosticsFiles::identityOf / sessionPlaces, step 2.7b): the session store
     # reads the session file, SessionIdentity a legacy folder's name, SwingPaths the swing numbers and the listing.
-    ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Export/swing_paths.cpp
+    ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Stores/swing_paths.cpp
     ${SRC}/Core/folder_lock.cpp
     # The charts' one threading idiom and the series' pure half (refactor 5.5a): every presenter's lane is a ChartsLane on
     # the one WorkPool (charts_work.h; SeriesSource there too), every snapshot shot is extractShot's, and the ★ label is
     # the series store's (seriesSwingLabelOf).
     ${GUI}/charts/charts_work.cpp ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
-    ${GUI}/charts/session_series_extract.cpp ${SRC}/Export/series_store.cpp)
+    ${GUI}/charts/session_series_extract.cpp ${SRC}/Stores/series_store.cpp)
 set(CHARTS_NORM_ENV
     "PINPOINT_CORE_NORMS=${SRC}/Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${SRC}/Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${SRC}/Resources/diagnostics/contexts.json")

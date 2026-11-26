@@ -36,7 +36,7 @@
 // 4 + 2 shots.
 
 #include "report/report_lm.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "report/report_words.h"
 #include "launchmonitor/lm_session_model.h"
 #include "shot/shot_list_model.h"

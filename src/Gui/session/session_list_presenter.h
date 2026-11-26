@@ -26,7 +26,7 @@
 //
 // A ROW is one session of an athlete's SessionIndex: its entry (the typed SessionIndexEntry: identity, folder, status,
 // archived, and its summary — the swing roll-up, the size on disk, the lead work-on: proposal P1, refactor step 5.7a-P1),
-// and the one fact the entry does not hold, the folder's modification time (the kept read, Export/session_list_reads.h).
+// and the one fact the entry does not hold, the folder's modification time (the kept read, Stores/session_list_reads.h).
 // The summary is read through the Athlete (SessionRepository::deferredSummary), off this thread. Typed throughout, no
 // QVariant shape: QML sees each screen's own model, never this.
 //
@@ -49,7 +49,7 @@
 // runs, any number asked make one more.
 
 #include "../../DomainModel/athlete.h"           // SessionIndexEntry, through the Athlete (a view never names the repository)
-#include "../../Export/session_list_reads.h"     // the kept read's value (SessionListFacts: the modification time)
+#include "../../Stores/session_list_reads.h"     // the kept read's value (SessionListFacts: the modification time)
 
 #include <QHash>
 #include <QList>

@@ -22,7 +22,7 @@ Inputs
         t_us,ax,ay,az,gx,gy,gz,qw,qx,qy,qz
     t_us = host-arrival micros (bursty BLE), accel g, gyro deg/s, sensor frame.
   * Swing documents (swing.ppsw / swing.json), read ONLY through tools/pp_swingdoc.py.
-    IMU lanes are doc["streams"][kind=="imu"] (src/Export/swing_exporter.cpp ~570-830):
+    IMU lanes are doc["streams"][kind=="imu"] (src/Stores/swing_exporter.cpp ~570-830):
     source.serial, device{outputRateHz, role, roleName, ...}, samples{t_us, data[[ax ay az gx gy
     gz qw qx qy qz]]}.
   * swinglab refusion output refusion.json (pinpoint.refusion/1).

@@ -1,7 +1,7 @@
 # Pinpoint Swing Export — Developer Guide
 
 **Audience**: Developers working on or integrating with the Pinpoint application
-**Location**: `src/Export/` (plus integration in `src/Gui/shot/shot_processor.{h,cpp}`)
+**Location**: `src/Stores/` (plus integration in `src/Gui/shot/shot_processor.{h,cpp}`)
 **Language**: C++20, Qt 6
 **Status**: Production — video + IMU + ball streams (codec h264/h265, container mp4/mov/mkv, export-time downscale, optional raw-payload sidecar, IMU json/csv/binary, pattern-based session-folder naming), impact thumbnail, extensive capture provenance, and a bulk zip export. Pose streams are serialised **if present on the job** but still have no producer; metrics/launch-monitor streams are schema-ready but not produced
 
@@ -176,7 +176,7 @@ Note the last field: the exporter **returns** the raw `pinpoint.swing` manifest
 tree rather than writing it. The unified `swing.json` (manifest + the analyzer's
 `"analysis"` block) is written once, at the join, on the GUI thread — see the
 shot-analyzer guide §9. The header is not built here: `run()` and the degraded
-analysis-only path both call **the one header writer** (`src/Export/recording_header.h`,
+analysis-only path both call **the one header writer** (`src/Stores/recording_header.h`,
 step 1.2 — `recordingHeaderFor(job, t0, duration)` + `recordingHeaderJson(header,
 streams)`); `SwingExporter::analysisOnlyHeader(job, t0, duration)` is that header with no
 media, so the two headers are identical but for `streams` and `thumbnail`.
@@ -470,7 +470,7 @@ type later is just another element of `streams[]` — readers must ignore unknow
 
 Every write of a swing file — and its archive stub and its markup truth — goes through
 **`RecordingRepository`** (`src/DomainModel/recording_repository.h`, the domain-model ring),
-implemented on the store by **`SwingStoreRecordingRepository`** (`src/Export/swing_store_repository.*`).
+implemented on the store by **`SwingStoreRecordingRepository`** (`src/Stores/swing_store_repository.*`).
 `SwingDocWriter`'s write functions are **private**: the adapter is their friend.
 
 **The key is the shot's `ShotRef`** (its session's `SessionId` + its swing number; IM-S2-2)[^dec160],
@@ -479,7 +479,7 @@ through `SessionRepository::swingFolder` — the one method of the session store
 because it reads the folders the identity map *publishes* — so a worker (the live join, re-analysis)
 writes by ShotRef without touching the map. A ShotRef it cannot resolve (null, or its session not
 open) is never guessed at: every write is `Failed` ("not found"), every read empty. The reading door,
-**`RecordingReader::load(ShotRef)`** (`SwingStoreRecordingReader`, `src/Export/recording_loader.*`), is
+**`RecordingReader::load(ShotRef)`** (`SwingStoreRecordingReader`, `src/Stores/recording_loader.*`), is
 keyed and resolved the same way.
 
 **The edge translation**[^dec90]. Whoever holds a *path* — a tool's argument, a picker, a carousel row
@@ -702,7 +702,7 @@ Two API details matter:
   guard exactly as `ParseAndWrite` does, write nothing. `ParseNoWrite` is the
   parallel run's firing reader (`pinpoint::parallel::doors`), which must leave
   every file of a session to its one writer; `PhaseGridStore::read`
-  (`src/Export/phase_grid_store.h`) takes the same policy. A `.ppsw`'s own summary block is never
+  (`src/Stores/phase_grid_store.h`) takes the same policy. A `.ppsw`'s own summary block is never
   written back by any policy.
 - Both the cheap and the full path extract through **one** function
   (`summaryFromRoot`), so they cannot disagree about a score shape, a club
@@ -807,10 +807,10 @@ under every naming pattern, and D3's name-based `SessionId`).
 
 ### The session file — `session.json` (FILE-SESS-01; step 2.2)
 
-Written only by `SessionStore` (`src/Export/session_store.*`, the adapter of
+Written only by `SessionStore` (`src/Stores/session_store.*`, the adapter of
 `src/DomainModel/session_repository.h`), whole, through `atomicWrite`, under the session folder's
 `FolderLock` held for that one write. The names are spelled once, in `SessionFiles`
-(`src/Export/session_files.h`).
+(`src/Stores/session_files.h`).
 
 | Key | Meaning |
 |---|---|
@@ -828,9 +828,9 @@ file is read from its folder's name in memory (`SessionIdentity::fromLegacyFolde
 
 ### The athlete file — `athlete.json` (FILE-ATH-01; step 2.3)
 
-Written only by `AthleteStore` (`src/Export/athlete_store.*`, the adapter of
+Written only by `AthleteStore` (`src/Stores/athlete_store.*`, the adapter of
 `src/DomainModel/athlete_repository.h`), whole, through `atomicWrite`, under the athlete folder's
-`FolderLock` for that one write; its name is spelled once, in `AthleteFiles` (`src/Export/athlete_files.h`,
+`FolderLock` for that one write; its name is spelled once, in `AthleteFiles` (`src/Stores/athlete_files.h`,
 lint A4's owner). Keys: `schema` (`"pinpoint.athlete/1"`, checked on read; a newer one is read-only, an
 unparseable one never listed nor overwritten), `athleteId`, `record` (SET-01's keys as stored today, the
 bag as `clubs`, the Wrist ★ as `wristReference`, a `ShotRef` string; never `lastSessionAt` /
@@ -920,7 +920,7 @@ library, day and type stay the same and never discarded.
 ### The archive — `archive` / `restore` (FILE-SESS-06, FILE-LIB-02; step 2.6)
 
 `SessionStore` checks the session and hands its folder to the file work, `SessionArchiver`
-(`src/Export/session_archiver.*`, the store's `SessionArchiving`). An archive runs on a worker, so it
+(`src/Stores/session_archiver.*`, the store's `SessionArchiving`). An archive runs on a worker, so it
 never uses the app's store: `SessionArchiveRun` composes a `SessionStore`, the swing door over it and the
 archiver, and `openSession(folder)` is the edge translation — the session file's id, else D3's from the
 folder's `athlete.json`, else from the athlete its swings record[^j39]. The store does not link the
@@ -1178,7 +1178,7 @@ be multiple GB; building the zip in a `QByteArray` would not survive it.
 
 ### Adding a new encoder backend (`h265`, ProRes, hardware)
 
-1. Implement `IVideoEncoder` in a new `src/Export/<name>_encoder.{h,cpp}`.
+1. Implement `IVideoEncoder` in a new `src/Stores/<name>_encoder.{h,cpp}`.
 2. Add its factory key in `video_encoder.cpp`.
 3. Gate compilation in CMake the same way `ffmpeg_video_encoder` is gated.
 The exporter and `CameraManager` need no changes — codec selection already flows
@@ -1280,7 +1280,7 @@ asynchronous by design — a long save must not freeze the UI.
 ## 14. File Map
 
 ```
-src/Export/
+src/Stores/
 ├── video_encoder.h             VideoEncoderConfig, IVideoEncoder (abstract),
 │                               makeVideoEncoder() declaration. No libav includes.
 ├── video_encoder.cpp           Factory — the only file with HAVE_FFMPEG ifdefs
@@ -1394,7 +1394,7 @@ real captured frames — and are validated by hand (see
 
 ### `swing_doc_test` — the unified document round-trip
 
-`src/Export/tests/swing_doc_test.cpp` exercises `SwingDocWriter` / `SwingDocReader`
+`src/Stores/tests/swing_doc_test.cpp` exercises `SwingDocWriter` / `SwingDocReader`
 (§6) end to end against a temp directory. Its writes go through the repository
 (`swing_doc_test_writes.h` keeps the call shapes), as every test's do since step 1.4:
 
@@ -1424,7 +1424,7 @@ real captured frames — and are validated by hand (see
 
 ### `recording_repository_test` — the one door
 
-`src/Export/tests/recording_repository_test.cpp` runs every `RecordingRepository` method on a
+`src/Stores/tests/recording_repository_test.cpp` runs every `RecordingRepository` method on a
 temp folder: `create` (the review seed), `savePose` on `create` and `writeAnalysis`, the
 write-back (the analysis replaced, capture / streams / review / LM rows carried, both
 verdicts from this pass), the empty-document guard, `editReview`'s merge, `completeCapture`
@@ -1446,7 +1446,7 @@ unchanged on repeat, removed when cleared; an old document reads none); and an u
 
 ### `session_repository_test` — the session file and the one allocator (step 2.2)
 
-`src/Export/tests/session_repository_test.cpp` runs `SessionStore` on temp libraries: Start writes
+`src/Stores/tests/session_repository_test.cpp` runs `SessionStore` on temp libraries: Start writes
 `session.json` with every key (a newer schema read-only and byte-identical after every refused write;
 unknown keys kept); the naming patterns; allocation, and a number never reissued after deletes, a
 restart or a trashed swing (these sections moved here from `swing_paths_test` with the allocator);
@@ -1469,7 +1469,7 @@ the mark gone; no capture time anywhere, no end and no mark.
 
 ### `session_archiver_test` — the archive and the session trash (step 2.6)
 
-`src/Export/tests/session_archiver_test.cpp` (Analysis suite) archives and restores temp sessions through
+`src/Stores/tests/session_archiver_test.cpp` (Analysis suite) archives and restores temp sessions through
 `SessionRepository` by `SessionId`, each in a `SessionArchiveRun`: every copy byte-identical, the stubs
 still listing, a review made while archived and one made during the restore both kept, raw dropped only
 when asked, a cancel leaving the library as it was; and (step 2.6) the session file copied, the library's
@@ -1501,7 +1501,7 @@ the Wrist ★ on the record as a `ShotRef`; the tuning log's append and a held l
 picker's activity from the index.
 
 There is **no Export test project**. `swing_doc_test.cpp` lives in
-`src/Export/tests/` but is compiled by the **Analysis suite**
+`src/Stores/tests/` but is compiled by the **Analysis suite**
 (`src/Analysis/tests/CMakeLists.txt`) because it links `swing_analysis.h`:
 
 ```bash

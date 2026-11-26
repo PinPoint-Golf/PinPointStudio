@@ -51,8 +51,8 @@
 #include "../review/swing_data_source.h"
 #include "../review/shot_data_door_impl.h"
 #include "../../Vocabulary/Analysis/swing_analysis.h"
-#include "../../Export/rule_data_install.h"
-#include "../../Export/swing_doc.h"
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/swing_doc.h"
 #include "../../Buffer/swing_window.h"     // a LoadedRecording (the door's read of a Shot) is destroyed here
 
 #include <QCoreApplication>

@@ -31,7 +31,7 @@
 // the window's own clock; nothing else converts.
 //
 // Who makes it: the live capture-side snapshot at the window freeze (src/Gui/shot/capture_context.h,
-// step 1.5) and the Recording loader behind the domain's RecordingReader (src/Export, steps 1.2 and
+// step 1.5) and the Recording loader behind the domain's RecordingReader (src/Stores, steps 1.2 and
 // 1.5). Both feed the one job builder; there is no other.
 //
 // Vocabulary ring: value types and one code mapping, no rules.
@@ -73,7 +73,7 @@ inline int perspectiveCode(Perspective p) { return static_cast<int>(p); }
 // Recording. The kind is the Shot's own fact: the one header writer writes it when the shot is created
 // (the swing file's `shotKind`) wherever no later write can make it false, and it never changes. A
 // document without the field (older, or one whose kind a later stream or reading could still decide)
-// is classified once, by the repository's reader (readShotKind, src/Export/recording_header.h).
+// is classified once, by the repository's reader (readShotKind, src/Stores/recording_header.h).
 enum class ShotKind : int { Captured = 0, DeviceOnly = 1 };
 
 // The one spelling on disk ("captured" / "deviceOnly"); fromName → false on any other text.

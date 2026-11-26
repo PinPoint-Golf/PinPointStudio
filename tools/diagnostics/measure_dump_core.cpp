@@ -17,12 +17,12 @@
  */
 
 #include "measure_dump_core.h"
-#include "../../src/Export/phase_grid_store.h"   // the phase grid's file door: a tool over bare folders (P-3)
+#include "../../src/Stores/phase_grid_store.h"   // the phase grid's file door: a tool over bare folders (P-3)
 
 #include "Vocabulary/Club/club_vocabulary.h"
 #include "Diagnostics/norms/norm_measure_source.h"
-#include "Export/swing_doc.h"
-#include "Export/swing_store.h"
+#include "Stores/swing_doc.h"
+#include "Stores/swing_store.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -150,7 +150,7 @@ QStringList selectMeasures(const CharacteristicPack &pack, const Options &opt)
 SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut, const PhaseGridConfig &cfg)
 {
     // THE OWNER'S READ (refactor 5.3): the file door's read (PhaseGridStore; P-3) with SidecarPolicy::ParseNoWrite, as the session owner's firing
-    // reader takes it (Export/firing_reader_store.cpp; the parallel run's policy): a current sidecar answers, else the
+    // reader takes it (Stores/firing_reader_store.cpp; the parallel run's policy): a current sidecar answers, else the
     // document is parsed, and nothing is written. Until 5.3 this was readPhaseGrid() copied line for line minus its write.
     // PhaseGridStore::readForMeasures adds the pack's millisecond spans; here the caller's `cfg` names them.
     pinpoint::SwingStore::LazyDocument parsed(swingDir);

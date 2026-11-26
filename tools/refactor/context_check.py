@@ -43,7 +43,7 @@ DIRS = {
     'Diagnostics/derived/': DIA,                       # the derived facts (from the Coaching folder, Stage B, Part 1)
     'IMU/': DIA,                            # golf fusion; signal-level files and device back-ends below
     'Analysis/': DIA,
-    'DomainModel/': HUB, 'App/': HUB, 'Gui/': HUB, 'Export/': HUB,
+    'DomainModel/': HUB, 'App/': HUB, 'Gui/': HUB, 'Stores/': HUB,
     'Buffer/': ACQ, 'Video/': ACQ, 'Ppcp/': ACQ,
     'LaunchMonitor/': ACQ,                                     # the connectors (R5, ruled)
     'LaunchMonitor/inferred/': DIA,                            # the inferred reads: rules that derive measurements from a reading (R5)

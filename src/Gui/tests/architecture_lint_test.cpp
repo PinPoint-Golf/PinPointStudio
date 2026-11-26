@@ -34,7 +34,7 @@
 //         4 Application  orchestration: the analysis pipeline, re-analysis, AppState, use cases
 //         5 Adapters     devices, the Recording store and other persistence, UI (all of src/Gui)
 //       A file may include its own ring or any ring inside it, never one outside. Also (step 2, S1-g;
-//       Mark, 15 Nov 2026, DEC-146): an Adapters-ring file outside src/Gui (Export, Buffer, Video, the
+//       Mark, 15 Nov 2026, DEC-146): an Adapters-ring file outside src/Gui (Stores, Buffer, Video, the
 //       connectors, the device back-ends, …) or a src/Vocabulary/Recording file never includes a src/Gui header —
 //       an include inside the Adapters ring that the ring check alone does not see.
 //   A2  QML creating a C++ type that is session- or athlete-scoped (scopedTypeRe() below — from
@@ -57,10 +57,10 @@
 //           uses are); before S1-g it counted, so the rules directories' counts fell with the widening.
 //       (b) an #include "…" of a repository: the repository interfaces (isRepositoryHeader() below) and
 //           the stores and file doors that implement them.
-//       Allowed: src/Export (the stores and file doors), the Platform ring's own helpers (atomic_write,
+//       Allowed: src/Stores (the stores and file doors), the Platform ring's own helpers (atomic_write,
 //       folder_lock, logging), and, for (b) only, src/DomainModel (the interfaces and the owning
 //       objects). The tools (tools/) and the tests are not scanned. The rules directories keep their
-//       own message; everything else is reported as a P11 finding. Two of src/Export's files are counted
+//       own message; everything else is reported as a P11 finding. Two of src/Stores's files are counted
 //       all the same (the close of steps 5–7, J-88, approved J-95): the store doors the one session list
 //       added, session_list_reads (5.7a) and session_index_summary (5.7a-P1), so that their file reads
 //       and the repositories they include show (countedStoreDoor() below).
@@ -186,7 +186,7 @@ const QVector<QPair<QString, int>> &dirRings()
         { QStringLiteral("Buffer/"), Adapters },          // the Recording contract's stream types below
         { QStringLiteral("Video/"), Adapters },
         { QStringLiteral("Audio/"), Adapters },
-        { QStringLiteral("Export/"), Adapters },          // the Recording store; frame decode below
+        { QStringLiteral("Stores/"), Adapters },          // the stores and file doors (R6)
         { QStringLiteral("LaunchMonitor/"), Adapters },   // the connectors (the readings are in Vocabulary/LaunchMonitor/)
         { QStringLiteral("LaunchMonitor/inferred/"), Rules },  // the inferred reads, gates, pairing and reductions (R5)
         { QStringLiteral("Ppcp/"), Adapters },
@@ -289,7 +289,7 @@ const QRegularExpression &scopedTypeRe()
 bool a3Allowed(const QString &rel)
 {
     const QString stem = stemOf(rel);
-    return stem == QLatin1String("Export/swing_paths")
+    return stem == QLatin1String("Stores/swing_paths")
         || stem.endsWith(QLatin1String("/session_identity"));     // step 2's SessionIdentity
 }
 
@@ -306,23 +306,23 @@ const QVector<OwnedFile> &ownedFiles()
     // ceremony, the diagnostics model) calls the owner's name function; it never spells the name itself.
     static const QVector<OwnedFile> t{
         // the session folder (FILE-SESS-*)
-        { "session.json",       R"(session\.json)",                           "Export/session_files" },   // FILE-SESS-01 (step 2.2)
-        { "session_input.json", R"(session_input\.json)",                     "Export/session_files" },   // FILE-SESS-02 (step 2.5: SessionDiagnosticsFiles' names)
-        { "diagnostics.json",   R"(diagnostics\.json)",                       "Export/session_files" },   // FILE-SESS-03, -12 (step 2.5)
-        { "club_baseline.json", R"(club_baseline\.json)",                     "Export/session_files" },   // FILE-SESS-04 (step 2.5)
-        { "work_ons.json",      R"(work_ons\.json)",                          "Export/session_files" },   // FILE-SESS-05 (step 2.5)
-        { "archived.json",      R"(archived\.json)",                          "Export/session_files" },   // FILE-SESS-06 (step 2.6)
-        { "report_meta.json",   R"(report_meta\.json)",                       "Export/session_files" },   // FILE-SESS-07 (D9: names now; writes through SessionRepository since 5.6a)
-        { "report_input.json",  R"(report_input\.json)",                      "Export/session_files" },   // FILE-SESS-13 (step 5.6a)
-        { "*_session-report.pdf", R"((?:[^/]*_)?session-report\.pdf)",        "Export/session_files" },   // FILE-SESS-08 (D9)
-        { "report-stills/",     R"(report-stills/?)",                          "Export/session_files" },   // FILE-SESS-09 (D9; in the cache)
-        { ".pinpoint-last-swing", R"(\.pinpoint-last-swing)",                 "Export/session_files" },   // FILE-SESS-10 (step 2.2)
-        { "trunk_ceremony*.json", R"(trunk_ceremony(?:_[^/]*)?\.json)",       "Export/session_files" },   // FILE-SESS-11 (names only; Studio/Rig writes it)
+        { "session.json",       R"(session\.json)",                           "Stores/session_files" },   // FILE-SESS-01 (step 2.2)
+        { "session_input.json", R"(session_input\.json)",                     "Stores/session_files" },   // FILE-SESS-02 (step 2.5: SessionDiagnosticsFiles' names)
+        { "diagnostics.json",   R"(diagnostics\.json)",                       "Stores/session_files" },   // FILE-SESS-03, -12 (step 2.5)
+        { "club_baseline.json", R"(club_baseline\.json)",                     "Stores/session_files" },   // FILE-SESS-04 (step 2.5)
+        { "work_ons.json",      R"(work_ons\.json)",                          "Stores/session_files" },   // FILE-SESS-05 (step 2.5)
+        { "archived.json",      R"(archived\.json)",                          "Stores/session_files" },   // FILE-SESS-06 (step 2.6)
+        { "report_meta.json",   R"(report_meta\.json)",                       "Stores/session_files" },   // FILE-SESS-07 (D9: names now; writes through SessionRepository since 5.6a)
+        { "report_input.json",  R"(report_input\.json)",                      "Stores/session_files" },   // FILE-SESS-13 (step 5.6a)
+        { "*_session-report.pdf", R"((?:[^/]*_)?session-report\.pdf)",        "Stores/session_files" },   // FILE-SESS-08 (D9)
+        { "report-stills/",     R"(report-stills/?)",                          "Stores/session_files" },   // FILE-SESS-09 (D9; in the cache)
+        { ".pinpoint-last-swing", R"(\.pinpoint-last-swing)",                 "Stores/session_files" },   // FILE-SESS-10 (step 2.2)
+        { "trunk_ceremony*.json", R"(trunk_ceremony(?:_[^/]*)?\.json)",       "Stores/session_files" },   // FILE-SESS-11 (names only; Studio/Rig writes it)
         // the athlete folder (FILE-ATH-*)
-        { "athlete.json",       R"(athlete\.json)",                           "Export/athlete_files" },   // FILE-ATH-01 (step 2.3: AthleteRepository's names)
-        { "tendencies.json",    R"(tendencies\.json)",                        "Export/athlete_files" },   // FILE-ATH-02 (step 2.5: names only; written by the work-ons controller until step 3)
-        { "swing_themes*.json", R"(swing_themes(?:\.[^/]*)?\.json|swing_themes)","Export/athlete_files" },   // FILE-ATH-03 (step 2.5: likewise)
-        { "outcome_corrections.jsonl", R"(outcome_corrections\.jsonl)",       "Export/athlete_files" },   // FILE-ATH-04 (the append: AthleteFiles::appendTuningLine)
+        { "athlete.json",       R"(athlete\.json)",                           "Stores/athlete_files" },   // FILE-ATH-01 (step 2.3: AthleteRepository's names)
+        { "tendencies.json",    R"(tendencies\.json)",                        "Stores/athlete_files" },   // FILE-ATH-02 (step 2.5: names only; written by the work-ons controller until step 3)
+        { "swing_themes*.json", R"(swing_themes(?:\.[^/]*)?\.json|swing_themes)","Stores/athlete_files" },   // FILE-ATH-03 (step 2.5: likewise)
+        { "outcome_corrections.jsonl", R"(outcome_corrections\.jsonl)",       "Stores/athlete_files" },   // FILE-ATH-04 (the append: AthleteFiles::appendTuningLine)
     };
     return t;
 }
@@ -335,40 +335,40 @@ bool isRulesIoDir(const QString &rel)
         || rel.startsWith(QLatin1String("Diagnostics/norms/")) || rel.startsWith(QLatin1String("Diagnostics/measures/"));
 }
 
-// A5 (P11): the files allowed to touch the disk — the stores and file doors of src/Export, and the Platform
+// A5 (P11): the files allowed to touch the disk — the stores and file doors of src/Stores, and the Platform
 // ring's own helpers (the atomic write, the folder lock, logging).
 // The store doors counted all the same (J-88, approved J-95): each has its allow-list line.
 bool countedStoreDoor(const QString &rel)
 {
-    static const QSet<QString> doors{ QStringLiteral("Export/session_list_reads"),
-                                      QStringLiteral("Export/session_index_summary") };
+    static const QSet<QString> doors{ QStringLiteral("Stores/session_list_reads"),
+                                      QStringLiteral("Stores/session_index_summary") };
     return doors.contains(stemOf(rel));
 }
 
 bool a5Exempt(const QString &rel)
 {
-    return (rel.startsWith(QLatin1String("Export/")) && !countedStoreDoor(rel)) || ringOf(rel) == Platform;
+    return (rel.startsWith(QLatin1String("Stores/")) && !countedStoreDoor(rel)) || ringOf(rel) == Platform;
 }
 
 // A5 (P11): the repositories — the interfaces the domain model defines (P4) and the stores and file doors in
-// src/Export that implement them. Only src/Export and src/DomainModel (the owning objects) include one.
+// src/Stores that implement them. Only src/Stores and src/DomainModel (the owning objects) include one.
 bool isRepositoryHeader(const QString &target)
 {
     static const QSet<QString> t{
         QStringLiteral("DomainModel/recording_repository"), QStringLiteral("DomainModel/recording_reader"),
         QStringLiteral("DomainModel/session_repository"),   QStringLiteral("DomainModel/athlete_repository"),
-        QStringLiteral("Export/swing_store"),               QStringLiteral("Export/swing_store_repository"),
-        QStringLiteral("Export/recording_loader"),          QStringLiteral("Export/swing_doc"),
-        QStringLiteral("Export/session_store"),             QStringLiteral("Export/session_archiver"),
-        QStringLiteral("Export/session_files"),             QStringLiteral("Export/session_diagnostics_files"),
+        QStringLiteral("Stores/swing_store"),               QStringLiteral("Stores/swing_store_repository"),
+        QStringLiteral("Stores/recording_loader"),          QStringLiteral("Stores/swing_doc"),
+        QStringLiteral("Stores/session_store"),             QStringLiteral("Stores/session_archiver"),
+        QStringLiteral("Stores/session_files"),             QStringLiteral("Stores/session_diagnostics_files"),
         // The diagnostics files' file work, moved out of session_diagnostics_files.h for the store (step 3.4a, J-42).
-        QStringLiteral("Export/session_diagnostics_io"),
-        QStringLiteral("Export/athlete_store"),             QStringLiteral("Export/athlete_files"),
+        QStringLiteral("Stores/session_diagnostics_io"),
+        QStringLiteral("Stores/athlete_store"),             QStringLiteral("Stores/athlete_files"),
         // The packs and norms' door (refactor step 3.2; D5: DEC-170): RuleData includes the interface,
-        // the store implements it. A composition root reaches the owner through Export/rule_data_install.h.
-        QStringLiteral("DomainModel/rule_data_repository"), QStringLiteral("Export/rule_data_store"),
+        // the store implements it. A composition root reaches the owner through Stores/rule_data_install.h.
+        QStringLiteral("DomainModel/rule_data_repository"), QStringLiteral("Stores/rule_data_store"),
         // The phase grid's file door (FILE-SHOT-07; platform refactor P-3): the model browser's folder read includes it (B1.14, R11).
-        QStringLiteral("Export/phase_grid_store"),
+        QStringLiteral("Stores/phase_grid_store"),
     };
     return t.contains(stemOf(target));
 }
@@ -715,8 +715,8 @@ void selfTest()
     Tree t;
     for (const char *f : { "Gui/shot/shot_processor.h", "Gui/athlete/athlete_controller.h", "Diagnostics/derived/shot_factors.h",
                            "Vocabulary/Metrics/metric_catalogue.h", "Buffer/source_ring.h", "Buffer/types.h", "Core/pp_debug.h",
-                           "Vocabulary/Analysis/swing_analysis.h", "Analysis/analysis_pipeline.h", "Export/session_store.h",
-                           "Export/swing_paths.h", "DomainModel/session_repository.h", "DomainModel/athlete.h",
+                           "Vocabulary/Analysis/swing_analysis.h", "Analysis/analysis_pipeline.h", "Stores/session_store.h",
+                           "Stores/swing_paths.h", "DomainModel/session_repository.h", "DomainModel/athlete.h",
                            "Core/pp_settings.h" }) {
         t.files.insert(QString::fromLatin1(f));
         t.byName[QFileInfo(QString::fromLatin1(f)).fileName()].append(QString::fromLatin1(f));
@@ -734,9 +734,9 @@ void selfTest()
           QStringLiteral("A1 ignores a commented-out include"));
     check(countRule(run("Vocabulary/Analysis/swing_analysis.h", QStringLiteral("#include \"../../Analysis/analysis_pipeline.h\"\n")), "A1") == 1,
           QStringLiteral("A1 catches the Vocabulary folder including an Analysis stage (Vocabulary → Application)"));
-    const auto exportToGui = run("Export/x.cpp", QStringLiteral("#include \"../Gui/athlete/athlete_controller.h\"\n#include \"swing_paths.h\"\n"));
+    const auto exportToGui = run("Stores/x.cpp", QStringLiteral("#include \"../Gui/athlete/athlete_controller.h\"\n#include \"swing_paths.h\"\n"));
     check(countRule(exportToGui, "A1") == 1 && exportToGui.first().text.contains(QLatin1String("Gui/athlete/athlete_controller.h")),
-          QStringLiteral("A1 catches Export including a Gui header inside the Adapters ring (DEC-146); passes Export → Export"));
+          QStringLiteral("A1 catches Stores including a Gui header inside the Adapters ring (DEC-146); passes Stores → Stores"));
     check(countRule(run("Buffer/source_ring.cpp", QStringLiteral("#include \"athlete_controller.h\"\n")), "A1") == 1
               && countRule(run("Gui/x/y.cpp", QStringLiteral("#include \"../athlete/athlete_controller.h\"\n")), "A1") == 0,
           QStringLiteral("A1 catches any other adapter outside Gui including Gui; passes Gui → Gui"));
@@ -752,7 +752,7 @@ void selfTest()
                          "and Domain-model rings"));
     const auto settingsOuter = run("Gui/x/y.cpp", QStringLiteral("#include \"../../Core/pp_settings.h\"\n"));
     check(countRule(settingsOuter, "A8") == 0 && countRule(settingsOuter, "A1") == 0
-              && countRule(run("Export/x.cpp", QStringLiteral("#include \"../Core/pp_settings.h\"\n")), "A8") == 0
+              && countRule(run("Stores/x.cpp", QStringLiteral("#include \"../Core/pp_settings.h\"\n")), "A8") == 0
               && countRule(run("Core/x.cpp", QStringLiteral("#include \"pp_settings.h\"\n")), "A1") == 0,
           QStringLiteral("A8 and A1 pass the settings handle from the adapters and from Platform"));
     const auto coreNew = run("Core/x.cpp", QStringLiteral("#include \"../Vocabulary/Metrics/metric_catalogue.h\"\n"));
@@ -771,7 +771,7 @@ void selfTest()
         "auto h = QCryptographicHash::hash(x).toHex().left(10);\n");
     check(countRule(run("Gui/x/y.cpp", parse), "A3") == 4,
           QStringLiteral("A3 catches '_' parsing, a swing_ prefix test and a dated left(10); passes a hash's left(10)"));
-    check(countRule(run("Export/swing_paths.cpp", parse), "A3") == 0, QStringLiteral("A3 allows SwingPaths"));
+    check(countRule(run("Stores/swing_paths.cpp", parse), "A3") == 0, QStringLiteral("A3 allows SwingPaths"));
     check(countRule(run("Gui/x/y.cpp", QStringLiteral(
               "auto e = d.entryList({ QStringLiteral(\"swing_*\") }, QDir::Dirs);\n"
               "static const QRegularExpression re(QStringLiteral(\"^(\\\\d{4}-\\\\d{2}-\\\\d{2})\"));\n"
@@ -785,7 +785,7 @@ void selfTest()
         "// \"tendencies.json\" in a comment\n#include \"../../Diagnostics/derived/swing_themes.h\"\n");
     check(countRule(run("Gui/x/y.cpp", names), "A4") == 3,
           QStringLiteral("A4 catches a name or a path ending in it; passes a log sentence, a comment and a header"));
-    check(countRule(run("Export/session_files.h", QStringLiteral("auto b = \"work_ons.json\";\n")), "A4") == 0,
+    check(countRule(run("Stores/session_files.h", QStringLiteral("auto b = \"work_ons.json\";\n")), "A4") == 0,
           QStringLiteral("A4 allows the owner"));
     check(countRule(run("Gui/x/y.cpp", QStringLiteral(
               "auto a = QStringLiteral(\"session.json\");\nauto b = QStringLiteral(\"_session-report.pdf\");\n"
@@ -794,27 +794,27 @@ void selfTest()
               "auto g = QStringLiteral(\"pinpoint.trunk_ceremony/1\");\n")), "A4") == 5,
           QStringLiteral("A4 covers every session and athlete file (session.json, the report PDF, the ceremony, the stills, "
                          "the tuning log); passes a schema name"));
-    check(countRule(run("Export/athlete_files.h", QStringLiteral("auto e = \"outcome_corrections.jsonl\";\n")), "A4") == 0
+    check(countRule(run("Stores/athlete_files.h", QStringLiteral("auto e = \"outcome_corrections.jsonl\";\n")), "A4") == 0
               && countRule(run("Gui/diagnostics/session_diagnostics_model.cpp", QStringLiteral("auto p = \"tendencies.json\";\n")), "A4") == 1,
           QStringLiteral("A4: the athlete files' owner is AthleteFiles (the diagnostics model spells no athlete file; FILE-ATH-05 is retired, 3.8-ii)"));
     check(countRule(run("Diagnostics/derived/x.cpp", QStringLiteral("#include <QFile>\nQFile f(p);\nQString s = \"QDir\";\nstd::ifstream in(p);\n")), "A5") == 2,
           QStringLiteral("A5 catches file I/O lines in a rules directory, not a word in a string or the <QFile> include"));
     const auto charts = run("Gui/charts/x.cpp", QStringLiteral(
-        "QFile f(p);\nQDir(d).mkpath(\".\");\natomicWrite(p, bytes);\nFolderLock lock(dir);\n#include \"../../Export/session_store.h\"\n"
+        "QFile f(p);\nQDir(d).mkpath(\".\");\natomicWrite(p, bytes);\nFolderLock lock(dir);\n#include \"../../Stores/session_store.h\"\n"
         "auto n = QFileInfo(p).fileName();\nauto c = QDir::cleanPath(a + QDir::separator() + b);\nauto e = d.entryList(QDir::Files);\n"
         "auto f = QDir(d).filePath(QFileInfo(p).absolutePath());\nauto g = QDir(QFileInfo(p).path()).dirName();\n"
         "if (QFileInfo::exists(p)) {}\n"));
     check(countRule(charts, "A5") == 6 && charts.first().text.contains(QLatin1String("P11")),
           QStringLiteral("A5 (P11) catches a Charts file opening a QFile, making a folder, writing atomically, taking the lock, "
                          "asking whether a file exists and including a store; passes a name part, path text and a QDir enum"));
-    check(countRule(run("Export/session_store.cpp", QStringLiteral("QFile f(p);\natomicWrite(p, b);\n#include \"../DomainModel/session_repository.h\"\n")), "A5") == 0
+    check(countRule(run("Stores/session_store.cpp", QStringLiteral("QFile f(p);\natomicWrite(p, b);\n#include \"../DomainModel/session_repository.h\"\n")), "A5") == 0
               && countRule(run("Core/atomic_write.h", QStringLiteral("QSaveFile f(p);\n")), "A5") == 0,
           QStringLiteral("A5 (P11) allows a store and the Platform ring's own helpers"));
-    check(countRule(run("Export/session_list_reads.cpp", QStringLiteral("auto t = QFileInfo(p).lastModified();\n")), "A5") == 1
-              && countRule(run("Export/session_index_summary.cpp", QStringLiteral("#include \"session_store.h\"\n")), "A5") == 1
-              && countRule(run("Export/session_list_presenter_x.cpp", QStringLiteral("auto t = QFileInfo(p).lastModified();\n")), "A5") == 0,
+    check(countRule(run("Stores/session_list_reads.cpp", QStringLiteral("auto t = QFileInfo(p).lastModified();\n")), "A5") == 1
+              && countRule(run("Stores/session_index_summary.cpp", QStringLiteral("#include \"session_store.h\"\n")), "A5") == 1
+              && countRule(run("Stores/session_list_presenter_x.cpp", QStringLiteral("auto t = QFileInfo(p).lastModified();\n")), "A5") == 0,
           QStringLiteral("A5 counts the two store doors of the one session list (J-88): a file read and a repository include; "
-                         "the rest of src/Export stays allowed"));
+                         "the rest of src/Stores stays allowed"));
     check(countRule(run("DomainModel/athlete.cpp", QStringLiteral("#include \"session_repository.h\"\n#include \"athlete.h\"\n")), "A5") == 0
               && countRule(run("DomainModel/athlete.cpp", QStringLiteral("QFile f(p);\n")), "A5") == 1
               && countRule(run("Gui/x/y.cpp", QStringLiteral("#include \"../../DomainModel/session_repository.h\"\n#include \"../../DomainModel/athlete.h\"\n")), "A5") == 1,

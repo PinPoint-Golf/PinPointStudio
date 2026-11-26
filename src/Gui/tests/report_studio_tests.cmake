@@ -18,11 +18,11 @@ pp_add_test(report_studio_test
             ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp   # the Athlete's sessions (step 3.4a)
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
-            ${SRC}/Export/athlete_store.cpp
-            ${SRC}/Export/session_store.cpp
+            ${SRC}/Stores/athlete_store.cpp
+            ${SRC}/Stores/session_store.cpp
             ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Vocabulary/Identity/identity.h
-            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/Stores/swing_paths.cpp
             ${SRC}/Core/folder_lock.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
@@ -37,7 +37,7 @@ pp_add_test(report_studio_test
             ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
             # The one session list: the controller's activity is its rows' (refactor step 5.7b).
             ${GUI}/session/session_list_presenter.h ${GUI}/session/session_list_presenter.cpp
-            ${GUI}/session/session_list_follow.cpp ${SRC}/Export/session_list_reads.cpp
+            ${GUI}/session/session_list_follow.cpp ${SRC}/Stores/session_list_reads.cpp
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
     LINK    Qt6::Test
     AUTOMOC)

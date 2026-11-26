@@ -33,7 +33,7 @@
 //     n 16 fit and is shown; Nick's day is refused; Mark's 5 Oct (one session) keeps the session's words.
 
 #include "charts/session_delivery.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "../../Diagnostics/derived/series/session_series_types.h"
 #include "charts/session_series_extract.h"   // extractShot: the swing's handedness (refactor 6.3b)
 #include "../../LaunchMonitor/inferred/lm_inferred_reads.h"   // the launch monitor card's classifier, which the shapes must agree with

@@ -33,8 +33,8 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-#include "../../Export/swing_doc.h"
-#include "../../Export/swing_store.h"
+#include "../../Stores/swing_doc.h"
+#include "../../Stores/swing_store.h"
 #include "../review/swing_data_source.h"
 #include "../shot/disk_replay_source.h"
 

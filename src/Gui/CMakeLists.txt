@@ -84,14 +84,14 @@ else()
         ${PP_ROOT}/src/LaunchMonitor/gspro_reading.cpp
         ${PP_ROOT}/src/LaunchMonitor/premier_monitor.cpp
         ${PP_ROOT}/src/LaunchMonitor/premier_session_parser.cpp
-        ${PP_ROOT}/src/Export/swing_doc_writer.cpp ${PP_ROOT}/src/Export/swing_store_repository.cpp
-        ${PP_ROOT}/src/Export/swing_doc_reader.cpp
-        ${PP_ROOT}/src/Export/swing_doc_analysis.cpp
-        ${PP_ROOT}/src/Export/recording_header.cpp ${PP_ROOT}/src/Analysis/effective_context.cpp
-        ${PP_ROOT}/src/Export/swing_paths.cpp
+        ${PP_ROOT}/src/Stores/swing_doc_writer.cpp ${PP_ROOT}/src/Stores/swing_store_repository.cpp
+        ${PP_ROOT}/src/Stores/swing_doc_reader.cpp
+        ${PP_ROOT}/src/Stores/swing_doc_analysis.cpp
+        ${PP_ROOT}/src/Stores/recording_header.cpp ${PP_ROOT}/src/Analysis/effective_context.cpp
+        ${PP_ROOT}/src/Stores/swing_paths.cpp
         ${PP_ROOT}/src/Core/folder_lock.cpp   # the tuning log's append (session_diagnostics_model.cpp, step 2.3)
         # the golfer's input on each shot's review: the model's own session store (step 2.5)
-        ${PP_ROOT}/src/Export/session_store.cpp ${PP_ROOT}/src/DomainModel/session_identity.cpp
+        ${PP_ROOT}/src/Stores/session_store.cpp ${PP_ROOT}/src/DomainModel/session_identity.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
         # the chest's gap bridge (session_bridge.cpp bridges older swings with it)
         ${PP_ROOT}/src/Kinematics/gap_bridge.cpp
@@ -103,7 +103,7 @@ else()
         ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_typicality.cpp
         ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_trend.cpp
         # the charts' one idiom (charts_work.cpp: ChartsLane on the one WorkPool) and the ★ label's store (refactor 5.5a)
-        ${PP_ROOT}/src/Core/work_pool.cpp ${PP_ROOT}/src/Export/series_store.cpp
+        ${PP_ROOT}/src/Core/work_pool.cpp ${PP_ROOT}/src/Stores/series_store.cpp
         ${PP_ROOT}/src/Core/pp_log_stream.cpp
         ${PP_ROOT}/src/Core/PpMessageLog.cpp)
 
@@ -153,7 +153,7 @@ else()
     set_target_properties(qml_ui_test PROPERTIES AUTOMOC ON MACOSX_BUNDLE OFF)
     target_include_directories(qml_ui_test PRIVATE
         ${SRC} ${PP_ROOT}/src/Core ${PP_ROOT}/src/Buffer ${PP_ROOT}/src/Vocabulary/Metrics ${PP_ROOT}/src/Analysis ${PP_ROOT}/src/Diagnostics
-        ${PP_ROOT}/src/Export ${PP_ROOT}/src/LaunchMonitor ${PP_ROOT}/src/Audio ${PP_ROOT}/src/Video
+        ${PP_ROOT}/src/Stores ${PP_ROOT}/src/LaunchMonitor ${PP_ROOT}/src/Audio ${PP_ROOT}/src/Video
         ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/app ${CMAKE_CURRENT_SOURCE_DIR}/review ${CMAKE_CURRENT_SOURCE_DIR}/viz ${CMAKE_CURRENT_SOURCE_DIR}/swing3d ${CMAKE_CURRENT_SOURCE_DIR}/shot ${CMAKE_CURRENT_SOURCE_DIR}/launchmonitor
         ${CMAKE_CURRENT_SOURCE_DIR}/diagnosticmodel ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics ${CMAKE_CURRENT_SOURCE_DIR}/print ${CMAKE_CURRENT_SOURCE_DIR}/charts ${CMAKE_CURRENT_SOURCE_DIR}/trust ${CMAKE_CURRENT_SOURCE_DIR}/shell ${CMAKE_CURRENT_SOURCE_DIR}/variability)
     # PP_DIAG_RESOURCES_DIR: the shipped diagnostics content, which the binary falls back to for any
@@ -277,20 +277,20 @@ else()
             ${PP_ROOT}/src/LaunchMonitor/gspro_reading.cpp
             ${PP_ROOT}/src/LaunchMonitor/premier_monitor.cpp
             ${PP_ROOT}/src/LaunchMonitor/premier_session_parser.cpp
-            ${PP_ROOT}/src/Export/swing_doc_writer.cpp ${PP_ROOT}/src/Export/swing_store_repository.cpp
-            ${PP_ROOT}/src/Export/swing_doc_reader.cpp
-            ${PP_ROOT}/src/Export/swing_doc_analysis.cpp
-            ${PP_ROOT}/src/Export/recording_header.cpp ${PP_ROOT}/src/Analysis/effective_context.cpp
-            ${PP_ROOT}/src/Export/swing_paths.cpp
+            ${PP_ROOT}/src/Stores/swing_doc_writer.cpp ${PP_ROOT}/src/Stores/swing_store_repository.cpp
+            ${PP_ROOT}/src/Stores/swing_doc_reader.cpp
+            ${PP_ROOT}/src/Stores/swing_doc_analysis.cpp
+            ${PP_ROOT}/src/Stores/recording_header.cpp ${PP_ROOT}/src/Analysis/effective_context.cpp
+            ${PP_ROOT}/src/Stores/swing_paths.cpp
             ${PP_ROOT}/src/Core/folder_lock.cpp
-            ${PP_ROOT}/src/Export/session_store.cpp ${PP_ROOT}/src/DomainModel/session_identity.cpp   # step 2.5
+            ${PP_ROOT}/src/Stores/session_store.cpp ${PP_ROOT}/src/DomainModel/session_identity.cpp   # step 2.5
             ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
             ${PP_ROOT}/src/Kinematics/gap_bridge.cpp
             ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_result.cpp
             ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_grader.cpp
             ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_typicality.cpp
             ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_trend.cpp
-            ${PP_ROOT}/src/Core/work_pool.cpp ${PP_ROOT}/src/Export/series_store.cpp   # refactor 5.5a
+            ${PP_ROOT}/src/Core/work_pool.cpp ${PP_ROOT}/src/Stores/series_store.cpp   # refactor 5.5a
             ${PP_ROOT}/src/Core/pp_log_stream.cpp
             ${PP_ROOT}/src/Core/PpMessageLog.cpp)
 
@@ -360,7 +360,7 @@ else()
         set_target_properties(session_setup_ui_test PROPERTIES AUTOMOC ON MACOSX_BUNDLE OFF)
         target_include_directories(session_setup_ui_test PRIVATE
             ${SRC} ${PP_ROOT}/src/Core ${PP_ROOT}/src/Buffer ${PP_ROOT}/src/Vocabulary/Metrics ${PP_ROOT}/src/Analysis ${PP_ROOT}/src/Diagnostics
-            ${PP_ROOT}/src/Export ${PP_ROOT}/src/LaunchMonitor ${PP_ROOT}/src/Audio ${PP_ROOT}/src/Video
+            ${PP_ROOT}/src/Stores ${PP_ROOT}/src/LaunchMonitor ${PP_ROOT}/src/Audio ${PP_ROOT}/src/Video
             ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/app ${CMAKE_CURRENT_SOURCE_DIR}/review ${CMAKE_CURRENT_SOURCE_DIR}/viz ${CMAKE_CURRENT_SOURCE_DIR}/swing3d ${CMAKE_CURRENT_SOURCE_DIR}/shot ${CMAKE_CURRENT_SOURCE_DIR}/launchmonitor
             ${CMAKE_CURRENT_SOURCE_DIR}/diagnosticmodel ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics ${CMAKE_CURRENT_SOURCE_DIR}/print ${CMAKE_CURRENT_SOURCE_DIR}/charts ${CMAKE_CURRENT_SOURCE_DIR}/trust ${CMAKE_CURRENT_SOURCE_DIR}/shell ${CMAKE_CURRENT_SOURCE_DIR}/variability
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/setup)

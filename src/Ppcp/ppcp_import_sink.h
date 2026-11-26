@@ -37,7 +37,7 @@
 // ⚠ WHAT IS NOT HERE.  The imported Session is NOT yet written into the swing
 // library as a `swing.json` beside the live captures.  It cannot be: this
 // application's `Session.id` is a filesystem directory path and its `Shot.id`
-// an `int` ordinal (src/Export/swing_paths.h), and CORE 8.5c keys idempotent
+// an `int` ordinal (src/Stores/swing_paths.h), and CORE 8.5c keys idempotent
 // re-import on OPAQUE ids.  Bolting an opaque PPCP identity onto a path-derived
 // one is host work item 2 in the PPS review, and doing it here would either
 // duplicate sessions on the second import or throw the PPCP identity away.  So

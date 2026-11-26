@@ -21,7 +21,7 @@
 // SeriesReader — HOW THE SESSION'S SERIES READ ONE SHOT'S ANALYSIS, ON ANY THREAD (refactor 5.5a; OBJ-SESSION-SERIES:
 // "from the shots' measurements"). A small interface keyed by the shot's ShotRef, as FiringReader and RecordingReader
 // are: one reading door per need (the lead's call J1 of 3.5-i), so the frame decoder stays out of every target that
-// draws a chart. Its adapter (SwingStoreSeriesReader, src/Export/series_store.h) resolves the folder ONLY through
+// draws a chart. Its adapter (SwingStoreSeriesReader, src/Stores/series_store.h) resolves the folder ONLY through
 // SessionRepository::swingFolder, the one store call any thread may make; a session no longer published reads nothing.
 //
 // What it reads: the shot's analysis WITHOUT its per-frame tracks (the root chunk and /analysis/metrics; never the pose

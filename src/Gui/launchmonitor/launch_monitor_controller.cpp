@@ -27,7 +27,7 @@
 #include "../../LaunchMonitor/inferred/standalone_gate.h"
 #include "shot_list_model.h"
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
-#include "../../Export/swing_paths.h"
+#include "../../Stores/swing_paths.h"
 #include "../../DomainModel/recording_repository.h"
 #include "../../App/shot_command_door.h"   // the Shot's late part (step 3.4b-i)
 

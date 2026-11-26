@@ -144,7 +144,7 @@ sessions on Cancel.
 | Model | `report/session_report_list_model.h` | Roles: `DirRole, DateLabelRole, SessionOfDayRole, ClubsRole, SwingsRole, DevicesRole, WorkOn1Role, IsLiveRole, CanReportRole, StateRole, StateWordsRole, PdfPathRole, SizeBytesRole (the PDF), SessionMsRole, WorkOnKnownRole, StateKnownRole, SentDiffersRole, PreparedMsRole, DeviceTokensRole, ShownRankRole`. Two-pass scan; device filter via `ShownRankRole`. |
 | Archive | `settings/archive_controller.h` | `sessions` list `{…, bytes, swings, archived}`; `archiveSession`, `restoreSession`, worker thread, `busy/progress/status`. |
 | Delete | `review/session_review_controller.h` l.115–121 | `trashSession(id)` → OS trash; `swingDirsForSession(id)`. |
-| Export | `Export/swing_zip_exporter.h` | `camerasForShots(dirs)`, `exportShots(dirs, videos, includeJson)`, `exportFinished(ok, zip, error)`; single job. |
+| Export | `Stores/swing_zip_exporter.h` | `camerasForShots(dirs)`, `exportShots(dirs, videos, includeJson)`, `exportFinished(ok, zip, error)`; single job. |
 | Hover action precedent | `diagnosticmodel/ModelTable.qml` ~l.650 | the Graph chip. |
 | Selection precedent | `diagnosticmodel/ModelTable.qml` l.48, ~l.580 | `property var selection: []` of ids; modifier handling in the cell's `PpPressable`. |
 | Shared components | `components/PpCard, PpTableRow, PpExpandRow, PpBandBar, PpDeviceFilterBar, PpDeviceTags, PpSegmentedControl, PpChip` | from the four-modes refactor. |

@@ -62,21 +62,21 @@
 #include "Diagnostics/derived/strike_from_flight.h"   // sessionFlightUsuals
 #include "Diagnostics/derived/session_results.h"
 #include "DomainModel/summary_rules.h"
-#include "Export/swing_paths.h"
-#include "../../Export/rule_data_install.h"
-#include "../../Export/rule_data_store.h"   // the shipped flight table, as the repository reads it (7.1)
+#include "Stores/swing_paths.h"
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/rule_data_store.h"   // the shipped flight table, as the repository reads it (7.1)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "Gui/variability/variability_measures.h"
 #include "DomainModel/athlete.h"
 #include "DomainModel/athlete_diagnostics.h"
-#include "Export/athlete_cache_repository.h"
-#include "Export/session_store.h"
-#include "Export/swing_store_repository.h"
-#include "Export/firing_reader_store.h"
-#include "Export/recording_loader.h"
+#include "Stores/athlete_cache_repository.h"
+#include "Stores/session_store.h"
+#include "Stores/swing_store_repository.h"
+#include "Stores/firing_reader_store.h"
+#include "Stores/recording_loader.h"
 #include "DomainModel/session.h"
 #include "DomainModel/session_diagnostics.h"
-#include "Export/session_diagnostics_files.h"
+#include "Stores/session_diagnostics_files.h"
 #include "Diagnostics/derived/club_distances.h"
 #include "Diagnostics/derived/tendencies_pack.h"
 #include "Core/work_pool.h"
@@ -86,10 +86,10 @@
 #include "Diagnostics/derived/swing_themes.h"
 #include "Diagnostics/derived/swing_areas_pack.h"
 #include "Diagnostics/packs/characteristic_pack.h"
-#include "Export/swing_store.h"
+#include "Stores/swing_store.h"
 #include "Gui/report/report_athlete_stamps.h"   // the report's left-out stamps (R2-B1)
 #include "Gui/report/report_meta.h"
-#include "Export/session_report_io.h"   // the report's records, as the repository writes them (5.6a)
+#include "Stores/session_report_io.h"   // the report's records, as the repository writes them (5.6a)
 #include "App/dev_athlete.h"                   // the dev folder's Athlete (R2-m2)
 
 #include <QCoreApplication>

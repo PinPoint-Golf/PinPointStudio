@@ -73,15 +73,15 @@
 #include "../../src/DomainModel/summary_rules.h"
 #include "../../src/Core/work_pool.h"
 #include "../../src/Diagnostics/packs/swing_themes_pack.h"   // themeMeasureInfo, themeConditionInfo (the bench)
-#include "../../src/Export/athlete_cache_repository.h"   // the athlete's own caches (FILE-ATH-02/03), as the app keeps them (3.7-f)
-#include "../../src/Export/firing_reader_store.h"
-#include "../../src/Export/recording_loader.h"
-#include "../../src/Export/rule_data_install.h"
-#include "../../src/Export/session_diagnostics_files.h"
-#include "../../src/Export/session_store.h"
-#include "../../src/Export/swing_store_repository.h"
+#include "../../src/Stores/athlete_cache_repository.h"   // the athlete's own caches (FILE-ATH-02/03), as the app keeps them (3.7-f)
+#include "../../src/Stores/firing_reader_store.h"
+#include "../../src/Stores/recording_loader.h"
+#include "../../src/Stores/rule_data_install.h"
+#include "../../src/Stores/session_diagnostics_files.h"
+#include "../../src/Stores/session_store.h"
+#include "../../src/Stores/swing_store_repository.h"
 #include "Core/PpMessageLog.h"
-#include "Export/session_files.h"
+#include "Stores/session_files.h"
 #include "parity_json.h"
 #include "../migrate/real_path.h"   // realPath: links resolved, junctions too on Windows (#243)
 
@@ -147,7 +147,7 @@ QStringList sessionDirs(const QString &athleteDir)
     const QFileInfoList kids = QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QFileInfo &fi : kids) {
         const QDir d(fi.absoluteFilePath());
-        // The session's files by their one owner's names (Export/session_files.h; step 2.5).
+        // The session's files by their one owner's names (Stores/session_files.h; step 2.5).
         if (QFileInfo::exists(pinpoint::SessionFiles::diagnosticsFile(d.path()))
             || QFileInfo::exists(pinpoint::SessionFiles::workOnsFile(d.path()))
             || !d.entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot).isEmpty())

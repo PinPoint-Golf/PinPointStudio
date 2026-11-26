@@ -55,9 +55,9 @@
 //   ctest --test-dir build/analysis-tests -R live_measure_source --output-on-failure
 
 #include "../measures/live_measure_source.h"
-#include "../../Export/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
-#include "../../Export/rule_data_install.h"
-#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
+#include "../../Stores/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../norms/norm_provider.h"
 #include "../norms/context_tree.h"   // contextIdForClub (refactor 6.2)

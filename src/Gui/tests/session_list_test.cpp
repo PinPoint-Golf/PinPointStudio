@@ -48,14 +48,14 @@
 #include "../../DomainModel/athlete.h"
 #include "../../DomainModel/session.h"
 #include "../../DomainModel/shot.h"
-#include "../../Export/athlete_store.h"
-#include "../../Export/recording_loader.h"
-#include "../../Export/swing_store_repository.h"
-#include "../../Export/session_archiver.h"
-#include "../../Export/session_store.h"
-#include "../../Export/session_index_summary.h"   // the entries' summaries' file work, set on the store as main.cpp sets it
+#include "../../Stores/athlete_store.h"
+#include "../../Stores/recording_loader.h"
+#include "../../Stores/swing_store_repository.h"
+#include "../../Stores/session_archiver.h"
+#include "../../Stores/session_store.h"
+#include "../../Stores/session_index_summary.h"   // the entries' summaries' file work, set on the store as main.cpp sets it
 #include "../../Diagnostics/derived/work_ons.h"
-#include "../../Export/tests/swing_doc_test_writes.h"
+#include "../../Stores/tests/swing_doc_test_writes.h"
 #include "../../Core/pp_settings.h"
 
 #include <QCoreApplication>

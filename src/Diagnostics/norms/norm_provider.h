@@ -158,7 +158,7 @@ public:
 
 // ── User norm set on disk ───────────────────────────────────────────────────
 // The user's own norm set's path, exposed so the one writer (the rule data's repository,
-// src/Export/rule_data_store.cpp; refactor step 3.2, FILE-APP-02) writes the file the provider reads,
+// src/Stores/rule_data_store.cpp; refactor step 3.2, FILE-APP-02) writes the file the provider reads,
 // rather than each guessing the path. The write itself is RuleData's command (saveUserNorms), not a
 // function here.
 QString userNormPath();
@@ -174,7 +174,7 @@ inline constexpr const char kContextTreeFileName[] = "contexts.json";
 // resources, or the files PINPOINT_CORE_NORMS / PINPOINT_CORE_CONTEXTS name; refactor step 7.1, P11:
 // RuleDataStore is the one door to the files). Read-only. Either file absent or unreadable is an error
 // in report(): the shipped content is built into the app. The by-path form, for the tests and offline
-// tools that build a provider from a file of their own, is the repository's (src/Export/rule_data_store.h).
+// tools that build a provider from a file of their own, is the repository's (src/Stores/rule_data_store.h).
 std::unique_ptr<INormProvider> makeResourceNormProvider(const RuleFile &norms, const RuleFile &contexts);
 
 // Which of a directory's file names are norm sets, in LAYERING ORDER: `user.norms.json` first if
@@ -235,7 +235,7 @@ std::unique_ptr<INormProvider> makeMergedNormProvider(
 // The norm slot's assembly when no RuleData is installed (a test or an offline tool; the app always installs
 // one): a FACTORY HOOK, as the source below is. The rules read no file and name no adapter (refactor step 7.1,
 // P11): the repository's assembly, shipped core plus whatever the user has authored (makeNormProvider(),
-// src/Export/rule_data_store.h), is installed here by the composition root at start-up
+// src/Stores/rule_data_store.h), is installed here by the composition root at start-up
 // (installNormFileFactory(); installProcessRuleData() does too). With no factory and no source, the slot is
 // an empty norm set, as RuleData::current() answers with no RuleData. An empty function uninstalls.
 using NormProviderFactory = std::function<std::unique_ptr<INormProvider>()>;

@@ -94,23 +94,23 @@
 #include "charts/charts_delivery_presenter.h"
 #include "charts/charts_work.h"       // ChartsLane: the charts' lanes on the one pool (refactor 5.5a)
 #include "charts/session_series.h"   // SessionSeries: every loaded Session's series (refactor 5.5a)
-#include "../Export/series_store.h"  // its read door
+#include "../Stores/series_store.h"  // its read door
 #include "report/session_report_list_model.h"
 #include "report/report_mailer.h"
 #include "../Diagnostics/packs/pack_provider.h"
 #include "../DomainModel/rule_data.h"     // RuleData: the packs and norms, one per machine (step 3.2)
-#include "../Export/rule_data_install.h" // the process's one RuleData, over its store
+#include "../Stores/rule_data_install.h" // the process's one RuleData, over its store
 #include "../Vocabulary/Metrics/metric_catalogue.h"
 #include "shot_controller.h"
 #include "shot_list_model.h"
-#include "../Export/swing_doc.h"
-#include "../Export/swing_paths.h"
-#include "../Export/swing_zip_exporter.h"
-#include "../Export/swing_store_repository.h"
-#include "../Export/session_store.h"        // SessionRepository's adapter (step 2.2)
-#include "../Export/session_index_summary.h"   // the index entry's summary's file work, set on the store (5.7a-P1)
-#include "../Export/recording_loader.h"     // SwingStorePhaseGridReader (by ShotRef, step 2.4; P-3)
-#include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
+#include "../Stores/swing_doc.h"
+#include "../Stores/swing_paths.h"
+#include "../Stores/swing_zip_exporter.h"
+#include "../Stores/swing_store_repository.h"
+#include "../Stores/session_store.h"        // SessionRepository's adapter (step 2.2)
+#include "../Stores/session_index_summary.h"   // the index entry's summary's file work, set on the store (5.7a-P1)
+#include "../Stores/recording_loader.h"     // SwingStorePhaseGridReader (by ShotRef, step 2.4; P-3)
+#include "../Stores/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "../App/housekeeping.h"             // the one application service that ends things for good (DEC-80)
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
 #include "app/gui_app.h"                     // `app` as QML reaches it, with the app-wide objects hung from it (5.8b)
@@ -123,7 +123,7 @@
 #include "../DomainModel/shot.h"   // Shot::ref (the model browser's swing-on-screen door, P-3)
 #include "../DomainModel/session_diagnostics.h"   // diagnosticsWorkTarget (3.5-ii)
 #include "../DomainModel/athlete_diagnostics.h"   // athleteDiagnosticsWorkTarget: the athlete level's lane (3.7-f)
-#include "../Export/athlete_cache_repository.h"   // PINPOINT_WORKONS_DIR's Athlete (3.7-f)
+#include "../Stores/athlete_cache_repository.h"   // PINPOINT_WORKONS_DIR's Athlete (3.7-f)
 #include "session/session_list_presenter.h"        // the one session list (refactor step 5.7a)
 #include "../App/dev_athlete.h"                  // …and its rule (J-56, R2-m2)
 #include "diagnostics/session_diagnostics_adapter.h"   // diagnosticsAdapters: each Session's thin adapter (3.7-a)
@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
     ArchiveController        archiveController(&appSettings);
     // The session repository's worker-safe archive job (step 3.8): Session::archiveJob hands it out, housekeeping runs it.
     // ⚠ A LINT DODGE, recorded for Mark with J-9 (3.8-i NOTES, round 3): the job is the archiver's
-    // (SessionArchiveRun::archiveInOwnRun), and the honest wiring is this file naming src/Export/session_archiver.h —
+    // (SessionArchiveRun::archiveInOwnRun), and the honest wiring is this file naming src/Stores/session_archiver.h —
     // lint A5's count for main.cpp 8 → 9, an allowlist change only Mark makes. Until he decides, it comes through the
     // Archiving tab, which already includes the archiver.
     sessionStore.setArchiveJobs(ArchiveController::archiveJobs());

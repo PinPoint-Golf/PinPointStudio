@@ -31,12 +31,12 @@
 
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
 #include "owner_rig.h"   // the owners the suite drives (refactor 5.4a)
-#include "../../Export/rule_data_install.h"
-#include "../../Export/session_diagnostics_files.h"
-#include "../../Export/session_files.h"
-#include "../../Export/session_store.h"
-#include "../../Export/swing_store.h"
-#include "../../Export/swing_store_repository.h"
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/session_diagnostics_files.h"
+#include "../../Stores/session_files.h"
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_store.h"
+#include "../../Stores/swing_store_repository.h"
 
 #include <QCoreApplication>
 #include <QDateTime>

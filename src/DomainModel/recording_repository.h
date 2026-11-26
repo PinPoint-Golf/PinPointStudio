@@ -24,7 +24,7 @@
 // Every write of a shot's `swing.ppsw`, its archive stub and its markup truth goes through this
 // interface, KEYED BY THE SHOT'S ShotRef (step 2.4; IM-S2-2: DEC-160). The folder is resolved through
 // SessionRepository (the session's identity map) and is a property and provenance only, never a key.
-// SwingStoreRecordingRepository (src/Export/swing_store_repository.h) implements it; the composition
+// SwingStoreRecordingRepository (src/Stores/swing_store_repository.h) implements it; the composition
 // root (main.cpp, each tool's main) holds the one instance and hands it to the callers, so a caller
 // names this interface and never the store.
 //
@@ -145,7 +145,7 @@ struct PersistOptions {
 // ── create ───────────────────────────────────────────────────────────────────────────────────────
 // The first write of a camera / IMU / phone shot.
 struct NewRecording {
-    // The document's header and streams, from the one header writer (Export/recording_header.h),
+    // The document's header and streams, from the one header writer (Stores/recording_header.h),
     // with any integrity verdict the capture reached already in it.
     QJsonObject header;
     // The analysis, when there is one (none: the header alone, e.g. the phone-clip placeholder).
@@ -312,7 +312,7 @@ struct ConversionResult {
 // ── backfillAnalysisContext (the step-1 backfill; D4, DEC-34) ────────────────────────────────────
 // The athlete facts the old capture never wrote, as the athlete's record holds them. The store
 // turns them into the context the shot would have recorded (backfilledAnalysisContext,
-// Export/recording_header.h): the legacy context, with the height and the club set ON THE SWING'S
+// Stores/recording_header.h): the legacy context, with the height and the club set ON THE SWING'S
 // DATE. A height the document itself recorded at capture (athlete.heightM) wins over the record's.
 struct AthleteRecordFacts {
     double  heightM = 0.0;   // standing height from the record; 0 = unknown (left unknown)

@@ -29,11 +29,11 @@
 #include "corridor_grid_read.h"   // the folder read of a swing's grid: the corridor scan's recorded exception (B1.14, R11)
 // THE PHASE GRID'S FILE DOOR (FILE-SHOT-07), for the folder read alone (corridor_grid_read.h, defined below). The
 // architecture allowlist counts this include on model_browser.cpp's A5 line (R11; the Solution Architect, 24 Nov 2026).
-#include "../../Export/phase_grid_store.h"
+#include "../../Stores/phase_grid_store.h"
 #include "../../Diagnostics/packs/reference_pack.h"
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Vocabulary/Metrics/gate_catalogue.h"
-#include "../../Export/swing_paths.h"
+#include "../../Stores/swing_paths.h"
 
 #include <QDateTime>
 #include <QFile>

@@ -39,10 +39,10 @@
 //
 // THE SHOT IS READ THROUGH ITS RecordingSource (refactor step 3.4b-ii; recording_source.h: 04 step 3 item 8, "they
 // ask the Shot"): the value the Shot hands out, which wraps the one RecordingReader, whose store adapter is the
-// RECORDING LOADER (src/Export/recording_loader.h, step 1.2): a disk-backed window that STREAMS camera frames on
+// RECORDING LOADER (src/Stores/recording_loader.h, step 1.2): a disk-backed window that STREAMS camera frames on
 // demand (one reusable buffer per camera, raw sidecar else MP4; IMU samples and the index in RAM), and the
 // Recording that describes it. This file reads no folder itself (P11): a test or tool that has only a folder reads it
-// through src/Export/swing_folder_reanalysis.h (the Export ring), which then hands the loaded swing here. The
+// through src/Stores/swing_folder_reanalysis.h (the Export ring), which then hands the loaded swing here. The
 // job is then made by the ONE builder (buildAnalysisJob, analysis_job_builder.h) from the
 // Recording and its effective context, and run through the analysis service (analysis_service.h),
 // which also reaches the two integrity verdicts with the one rule (integrityFor) — the very code the

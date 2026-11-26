@@ -37,7 +37,7 @@
 // vocabulary, the wrist profile's input), because every target that compiles the sampler compiles this beside it. The
 // session lock and the archive marker (the firing read's guarded write) stay in firing_reader_store.cpp.
 //
-// Adapters ring (src/Export). Safe from any thread; it holds no state.
+// Adapters ring (src/Stores). Safe from any thread; it holds no state.
 
 #include "../Diagnostics/measures/measure_sample.h"   // SwingPhaseGrid, PhaseGridConfig, savePhaseGrid, loadPhaseGrid
 #include "../Vocabulary/Common/sidecar_policy.h"

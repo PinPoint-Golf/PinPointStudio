@@ -75,7 +75,7 @@
 //                          did (HANDOFF from 1.1's review).
 //   bag                    empty (no bag was recorded)
 //
-// Adapters ring (src/Export): JSON in and out, no file I/O.
+// Adapters ring (src/Stores): JSON in and out, no file I/O.
 
 #include <QDate>
 #include <QDateTime>

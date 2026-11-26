@@ -58,13 +58,13 @@
 #include "../housekeeping.h"
 #include "../../DomainModel/athlete.h"
 #include "../../DomainModel/session.h"
-#include "../../Export/athlete_store.h"
-#include "../../Export/session_archiver.h"
-#include "../../Export/session_files.h"
-#include "../../Export/session_report_io.h"   // the report's records, read and written for H10 (step 5.6b)
-#include "../../Export/session_store.h"
-#include "../../Export/swing_paths.h"
-#include "../../Export/tests/swing_doc_test_writes.h"   // a swing's document, through the one door
+#include "../../Stores/athlete_store.h"
+#include "../../Stores/session_archiver.h"
+#include "../../Stores/session_files.h"
+#include "../../Stores/session_report_io.h"   // the report's records, read and written for H10 (step 5.6b)
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_paths.h"
+#include "../../Stores/tests/swing_doc_test_writes.h"   // a swing's document, through the one door
 #include "../../Core/pp_settings.h"
 
 #include <QCoreApplication>

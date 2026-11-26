@@ -39,12 +39,12 @@ set(SRC ${GUI}/..)                         # src
 # provider from a file by path, links these. With what they read: the registries, the pack and norm
 # providers and the pack loader. RuleData is a QObject, so such a target is AUTOMOC.
 set(RULE_DATA_SOURCES
-    ${SRC}/DomainModel/rule_data.cpp ${SRC}/Export/rule_data_store.cpp
+    ${SRC}/DomainModel/rule_data.cpp ${SRC}/Stores/rule_data_store.cpp
     ${SRC}/Diagnostics/packs/drill_pack.cpp ${SRC}/Diagnostics/packs/screen_pack.cpp
     ${SRC}/Diagnostics/packs/reference_pack.cpp ${SRC}/Diagnostics/packs/gate_words_pack.cpp
     ${SRC}/Diagnostics/packs/resource_pack_provider.cpp ${SRC}/Diagnostics/packs/file_pack_provider.cpp
     ${SRC}/Diagnostics/packs/merged_pack_provider.cpp ${SRC}/Diagnostics/packs/memory_pack_provider.cpp
-    ${SRC}/Diagnostics/norms/resource_norm_provider.cpp ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
+    ${SRC}/Diagnostics/norms/resource_norm_provider.cpp ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
     ${SRC}/Diagnostics/norms/merged_norm_provider.cpp ${SRC}/Diagnostics/norms/memory_norm_provider.cpp
     ${SRC}/Diagnostics/norms/norm.cpp ${SRC}/Diagnostics/norms/norm_pack.cpp ${SRC}/Diagnostics/norms/context_tree.cpp
     ${SRC}/Diagnostics/engine/pack_io.cpp ${SRC}/Diagnostics/packs/characteristic_pack.cpp
@@ -89,7 +89,7 @@ pp_add_test(chart_metrics_test
             ${SRC}/Diagnostics/packs/reference_pack.cpp
             ${SRC}/Diagnostics/measures/measure_facets.cpp ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
             ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
+            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     LINK    Qt6::Qml  AUTOMOC)
@@ -113,9 +113,9 @@ set(_rig_gate_sources ${GUI}/trust/trust_types.h ${GUI}/trust/trust_readings.cpp
                       ${SRC}/Diagnostics/derived/series/session_curves.cpp ${GUI}/review/shot_data_door.h)
 pp_add_test(swing_rig_driver_test
     SOURCES swing_rig_driver_test.cpp ${GUI}/swing3d/swing_rig_driver.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
-            ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the session's swings by SwingPaths, keyed by swing number (step 2.7b)
+            ${SRC}/Stores/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the session's swings by SwingPaths, keyed by swing number (step 2.7b)
             ${_rig_gate_sources}
-    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
+    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Stores ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Qml  AUTOMOC)
 
 # The 3-D swing panel's motion annotations as meshes (swing_annotation_mesh.h) — trace growth and
@@ -124,9 +124,9 @@ pp_add_test(swing_rig_driver_test
 pp_add_test(swing_annotation_geometry_test
     SOURCES swing_annotation_geometry_test.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
             ${GUI}/swing3d/swing_rig_driver.cpp
-            ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the rig driver's session listing (step 2.7b)
+            ${SRC}/Stores/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the rig driver's session listing (step 2.7b)
             ${_rig_gate_sources}
-    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
+    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Stores ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
     LINK    Qt6::Qml  AUTOMOC)
 
 # SwingSeriesModel — playhead→row mapping (rowForTimeUs) for the table cross-highlight.
@@ -153,15 +153,15 @@ pp_add_test(charts_work_test
 pp_add_test(shot_list_model_test
     SOURCES shot_list_model_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Export/swing_doc_reader.cpp
-            ${SRC}/Export/swing_doc_analysis.cpp
-            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_reader.cpp
+            ${SRC}/Stores/swing_doc_analysis.cpp
+            ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Stores/swing_paths.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Export/tests
+    INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Stores ${SRC}/Stores/tests
     LINK    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # ReanalysisController — the single re-analyse seam the carousel forwards to.
@@ -327,12 +327,12 @@ pp_add_test(cloud_fallback_test
 pp_add_test(shot_ledger_test
     SOURCES shot_ledger_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Export/swing_doc_reader.cpp
-            ${SRC}/Export/swing_doc_analysis.cpp
-            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-            ${SRC}/Export/swing_paths.cpp
-            ${SRC}/Export/session_store.cpp            # the one swing allocator (step 2.2)
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_reader.cpp
+            ${SRC}/Stores/swing_doc_analysis.cpp
+            ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Stores/swing_paths.cpp
+            ${SRC}/Stores/session_store.cpp            # the one swing allocator (step 2.2)
             ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Vocabulary/Identity/identity.h
             ${SRC}/Core/folder_lock.cpp
@@ -341,7 +341,7 @@ pp_add_test(shot_ledger_test
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
-            ${SRC}/Export ${SRC}/Export/tests
+            ${SRC}/Stores ${SRC}/Stores/tests
     LINK    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # LmSessionModel — the launch monitor board's empty lines (#57): the picked shot with no reading, the
@@ -358,11 +358,11 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/Diagnostics/derived/series/session_sequence.cpp
             ${GUI}/charts/session_sequence_words.cpp
             ${SRC}/Diagnostics/derived/series/session_curves.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Export/swing_doc_reader.cpp
-            ${SRC}/Export/swing_doc_analysis.cpp
-            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_reader.cpp
+            ${SRC}/Stores/swing_doc_analysis.cpp
+            ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Stores/swing_paths.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/launch_monitor_base.cpp
             ${SRC}/LaunchMonitor/launch_monitor_factory.cpp
@@ -386,7 +386,7 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/Diagnostics/norms/norm_pack.cpp
             ${SRC}/Diagnostics/norms/context_tree.cpp
             ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Export/rule_data_reads.cpp
+            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
@@ -403,16 +403,16 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/Wrist/reference_bands.cpp
 )
 set(PP_LM_BOARD_INCLUDES ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts ${GUI}/trust ${GUI}/variability ${SRC} ${SRC}/Core
-    ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics)
+    ${SRC}/LaunchMonitor ${SRC}/Stores ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics)
 # T (refactor 6.1a fix round): the board THROUGH THE SHOT — an Athlete, its Session and Shot over a temporary library
 # and the carousel's port (migrate_step2_test's domain link line, less what the board's list already has).
 pp_add_test(lm_session_model_test
     SOURCES lm_session_model_test.cpp ${PP_LM_BOARD_SOURCES}
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp ${SRC}/Export/athlete_store.cpp
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp ${SRC}/Stores/athlete_store.cpp
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
-            ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
+            ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Vocabulary/Identity/identity.h   # moc: ShotRef / SessionId are gadgets (the events carry them)
             ${SRC}/App/shot_source.h ${SRC}/App/session_shot_source.h ${SRC}/App/session_shot_source.cpp
     INCLUDE ${PP_LM_BOARD_INCLUDES}
@@ -489,13 +489,13 @@ pp_add_test(pdf_document_writer_test
     COMPILE_OPTIONS -DPP_PRINT_QML_DIR="${GUI}/print")
 set_tests_properties(pdf_document_writer_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
-# The session report's records (report/report_meta.h's rules; Export/session_report_io.h, the repository's file work, both
+# The session report's records (report/report_meta.h's rules; Stores/session_report_io.h, the repository's file work, both
 # header-only): the file name, the fingerprint moving with exactly its inputs, the three states and their words, the send
 # log, the two files' round trip and the lazy migration of an older report_meta.json (refactor step 5.6a).
 # Links pinpoint_swingstore (pp_add_test does) for SwingStore::info.
 pp_add_test(report_meta_test
     SOURCES report_meta_test.cpp
-            ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the report's swing fingerprint lists swings through SwingPaths (step 2.7b)
+            ${SRC}/Stores/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the report's swing fingerprint lists swings through SwingPaths (step 2.7b)
             ${SRC}/Core/folder_lock.cpp   # the records' writes take the session's lock (session_report_io.h, step 5.6a)
     INCLUDE ${GUI} ${SRC})
 

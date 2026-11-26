@@ -29,9 +29,9 @@
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/condition_reading.h" // condition → { metricKey, phase }
 #include "../../Diagnostics/packs/pack_provider.h"      // condition names and groups
-#include "../../Export/swing_store.h"
-#include "../../Export/swing_paths.h"
-#include "../../Export/session_diagnostics_files.h"   // diagnostics.json's one reader (step 2.5)
+#include "../../Stores/swing_store.h"
+#include "../../Stores/swing_paths.h"
+#include "../../Stores/session_diagnostics_files.h"   // diagnostics.json's one reader (step 2.5)
 #include "../../Kinematics/kinematic_sequence_json.h"  // retimeKinematicSequence — one shape, four paths
 #include "../charts/session_wrist.h"                               // the wrist checkpoint profile (CONTRACT I3)
 

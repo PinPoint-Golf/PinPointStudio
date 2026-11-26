@@ -24,7 +24,7 @@ set(_pp_report_diag ${SRC}/Resources/diagnostics)
 pp_add_test(report_model_test
     SOURCES report_model_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${SRC}/Export/swing_paths.cpp   # report_swing_no.h: an unlisted swing's number off its folder (step 2.7b)
+            ${SRC}/Stores/swing_paths.cpp   # report_swing_no.h: an unlisted swing's number off its folder (step 2.7b)
             ${SRC}/Diagnostics/engine/pack_io.cpp
             ${SRC}/Diagnostics/engine/characteristic.cpp
             ${SRC}/Diagnostics/packs/characteristic_pack.cpp
@@ -63,7 +63,7 @@ set_tests_properties(report_model_test PROPERTIES
 # on the board. Links the board exactly as lm_session_model_test does (PP_LM_BOARD_SOURCES, CMakeLists.txt).
 pp_add_test(report_lm_test
     SOURCES report_lm_test.cpp ${GUI}/report/report_lm.cpp ${PP_LM_BOARD_SOURCES}
-    INCLUDE ${PP_LM_BOARD_INCLUDES} ${GUI}/report ${SRC}/Export/tests
+    INCLUDE ${PP_LM_BOARD_INCLUDES} ${GUI}/report ${SRC}/Stores/tests
     LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
     # Z: a real launch-monitor swing document (the fixture the diagnostics tests read).
     COMPILE_OPTIONS -DPP_LM_SWING_FIXTURE="${SRC}/Diagnostics/tests/data/live_swings/lm_7iron/swing.json")

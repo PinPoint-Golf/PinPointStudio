@@ -31,9 +31,9 @@
 #include "../engine/fire_findings.h"
 #include "../norms/context_tree.h"   // kDefaultContextId (ASM)
 #include "../../DomainModel/rule_data.h"
-#include "../../Export/rule_data_install.h"
-#include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
-#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
+#include "../../Stores/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../derived/shot_outcomes_pack.h"
 
 #include <QCoreApplication>

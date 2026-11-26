@@ -37,11 +37,11 @@
 // NOT A TEST, not registered with ctest — precedent: rank_shift_report, diag_uncertainty_report.
 
 #include "owner_harness.h"   // the session's own owner, headless (refactor 3.7-d)
-#include "../../src/Export/rule_data_install.h"
+#include "../../src/Stores/rule_data_install.h"
 #include "../../src/DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "Core/atomic_write.h"
-#include "Export/session_diagnostics_files.h"
-#include "Export/session_files.h"
+#include "Stores/session_diagnostics_files.h"
+#include "Stores/session_files.h"
 #include "Diagnostics/derived/sequence_checks.h"
 #include "Diagnostics/measures/live_measure_source.h"
 #include "Diagnostics/norms/norm_provider.h"

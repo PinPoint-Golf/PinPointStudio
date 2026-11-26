@@ -22,7 +22,7 @@
 // again (analysis_versions.h; information_model.md R-ANA-5, R-ANA-7; refactor step 1.6). Pure: it reads
 // the recorded `analysis.versions` and the facts of this run, and decides. The loading itself (the
 // typed readers over the recorded block) is the caller's (reanalyzeLoaded, swing_reanalyzer.cpp: whichever door
-// the swing came in by — a Shot's RecordingSource, or a folder through src/Export/swing_folder_reanalysis.h).
+// the swing came in by — a Shot's RecordingSource, or a folder through src/Stores/swing_folder_reanalysis.h).
 //
 // THE RULES
 //   pose     reused when its stage version (kPoseStageVersion) and scan scope match (a "full" record

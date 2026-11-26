@@ -24,7 +24,7 @@
 #include "../../DomainModel/session_diagnostics.h"
 #include "../../DomainModel/shot.h"
 #include "../../DomainModel/athlete.h"            // DiagnosticsDoors (appDiagnosticsDoors)
-#include "../../Export/firing_reader_store.h"     // the app's firing reader (appDiagnosticsDoors)
+#include "../../Stores/firing_reader_store.h"     // the app's firing reader (appDiagnosticsDoors)
 
 #include <QDir>
 #include <algorithm>

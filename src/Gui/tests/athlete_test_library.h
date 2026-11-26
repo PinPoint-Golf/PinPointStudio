@@ -29,9 +29,9 @@
 
 #include "athlete_controller.h"
 #include "../../DomainModel/session_roll_up.h"
-#include "../../Export/athlete_store.h"
-#include "../../Export/session_store.h"
-#include "../../Export/swing_paths.h"
+#include "../../Stores/athlete_store.h"
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_paths.h"
 #include "../session/session_list_presenter.h"
 
 #include <QTemporaryDir>

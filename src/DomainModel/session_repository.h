@@ -20,7 +20,7 @@
 
 // SessionRepository — THE ONE DOOR TO A SESSION'S OWN FILES (refactor step 2.2; build/refactor/step-2/
 // BRIEF.md §4.3, §4.4; governance/artefacts/information_model.md FILE-SESS-01, FILE-SESS-10, LC-SESSION,
-// OBJ-SESSION-INDEX). SessionStore (src/Export/session_store.h) implements it; the composition root
+// OBJ-SESSION-INDEX). SessionStore (src/Stores/session_store.h) implements it; the composition root
 // (main.cpp) holds the one instance and hands it to the callers, so a caller names this interface and
 // never the store.
 //
@@ -202,7 +202,7 @@ struct SessionArchiveJob {
 };
 
 // ── A SESSION'S DIAGNOSTICS FILES, AS READ (FILE-SESS-02…05; refactor step 2.5, moved here in 3.4a for
-//    J-42's id-keyed methods below). The rules for each: src/Export/session_diagnostics_files.h. ──────────
+//    J-42's id-keyed methods below). The rules for each: src/Stores/session_diagnostics_files.h. ──────────
 
 // diagnostics.json as read: the cache half, and the older shape's golfer keys kept apart.
 struct DiagnosticsEnvelope {
@@ -368,7 +368,7 @@ public:
     virtual JsonFileRead     readWorkOns(const SessionId &id) = 0;
     virtual WriteResult      writeWorkOns(const SessionId &id, const QJsonObject &root) = 0;
     // ── THE SESSION REPORT'S RECORDS BY ITS ID (refactor step 5.6a; FILE-SESS-07, 09, 13; DEC-201, J-66) ──────────────
-    // Their rules: src/Export/session_report_io.h (a newer file read-only, the older report_meta.json read as the input
+    // Their rules: src/Stores/session_report_io.h (a newer file read-only, the older report_meta.json read as the input
     // while report_input.json is missing, its source keys dropped only once report_input.json reads back, the session's
     // lock for each write, an atomic write). A session that is not held: the read answers empty, every write Failed.
     //   readReport           both files (reads only: a read never migrates)

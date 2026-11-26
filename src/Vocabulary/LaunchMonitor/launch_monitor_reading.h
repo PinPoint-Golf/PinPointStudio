@@ -167,7 +167,7 @@ const std::vector<const char *> &fieldGroups();
 // Declaration order is display order wherever the table drives a list.
 //
 // `label` and `unit` are repeated from the descriptor rather than looked up, so that writing a
-// swing.json does not drag the metric catalogue into src/Export. The duplication is guarded:
+// swing.json does not drag the metric catalogue into src/Stores. The duplication is guarded:
 // metric_catalogue_test walks this table and fails if any key is missing a descriptor or if a
 // label or unit has drifted from it.
 const std::vector<FieldDef> &fieldDefs();

@@ -19,7 +19,7 @@
 #pragma once
 
 // THE GOLFER'S INPUT, RESOLVED — ONE RULE (J-33; refactor step 2.5's rule, moved here in step 3.5-i so its two readers
-// share it: SessionDiagnosticsFiles::golferInput (src/Export, the old model, the work-ons, the tools) and
+// share it: SessionDiagnosticsFiles::golferInput (src/Stores, the old model, the work-ons, the tools) and
 // SessionDiagnostics (src/DomainModel)). Values in, values out; nothing is read here.
 //
 // Each field from its NEW HOME — session_input.json (FILE-SESS-02) for the session level, the shot's review

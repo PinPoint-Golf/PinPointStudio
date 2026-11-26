@@ -447,7 +447,7 @@ clean seam; Phase 2 delivers the *accuracy* win once the model lands.
 **New:** `src/Pose/ball_detector_cnn.{h,cpp}`, `src/{Buffer,Export}/frame_decode.h` (shared decoder),
 `src/Analysis/ball_trajectory_worker.{h,cpp}` (+ job/result types), tests under `src/Pose/tests/`.
 **Edit:** `src/Gui/camera_instance.cpp` (type swap + `load()` invoke), `src/Gui/shot_processor.{h,cpp}`
-(3rd worker + `maybeJoin`/`finishNowBlocking`), `src/Export/swing_exporter.cpp` (use shared decoder),
+(3rd worker + `maybeJoin`/`finishNowBlocking`), `src/Stores/swing_exporter.cpp` (use shared decoder),
 `CMakeLists.txt` (model block + sources), `src/Gui/app_settings.*` (A/B backend flag).
 **Unchanged (contract preserved):** `PpCameraFrame.qml`, `onBallDetected` hysteresis,
 `BallDetection`, `FrameThrottle`, `ShotController`.

@@ -631,7 +631,7 @@ unset(_gspro_origin)
 # Phase 2 of docs/implementation/swing_storage_impl.md, and swing.json is still
 # read, indefinitely. C++17, one vendored dependency (zstd), links nothing else.
 #
-# ⚠ THE APP NEVER INCLUDES A ppsw HEADER OUTSIDE src/Export/swing_store.cpp and
+# ⚠ THE APP NEVER INCLUDES A ppsw HEADER OUTSIDE src/Stores/swing_store.cpp and
 # ppsw_qt.cpp. Those two files are the pinpoint_swingstore library
 # (cmake/PinPointSwingStore.cmake), and every target that touches a swing
 # document links that one name. That is what keeps dozens of test link lines
@@ -2760,46 +2760,46 @@ endif()
 # only when the libraries are found.  Without FFmpeg the app still builds and
 # runs — makeVideoEncoder() returns nullptr and swing export is disabled.
 target_sources(PinPointStudio PRIVATE
-    src/Export/video_encoder.h
-    src/Export/video_encoder.cpp
-    src/Export/swing_paths.h
-    src/Export/swing_paths.cpp
+    src/Stores/video_encoder.h
+    src/Stores/video_encoder.cpp
+    src/Stores/swing_paths.h
+    src/Stores/swing_paths.cpp
     # The session's own files and the one swing allocator (refactor step 2.2): SessionRepository's
     # adapter and the session files' names.
-    src/Export/session_store.h
-    src/Export/session_store.cpp
-    src/Export/session_files.h
+    src/Stores/session_store.h
+    src/Stores/session_store.cpp
+    src/Stores/session_files.h
     # The session's diagnostics files and the golfer's input, one reader and writer (refactor step 2.5).
-    src/Export/session_diagnostics_files.h
-    src/Export/session_diagnostics_io.h   # its file work, shared with the session store (step 3.4a, J-42)
+    src/Stores/session_diagnostics_files.h
+    src/Stores/session_diagnostics_io.h   # its file work, shared with the session store (step 3.4a, J-42)
     src/DomainModel/session_input.h
     # The session report's two records and their file work (refactor step 5.6a: FILE-SESS-07, 09, 13).
     src/DomainModel/report_record.h
-    src/Export/session_report_io.h
+    src/Stores/session_report_io.h
     # The athlete's record and its one door (refactor step 2.3): AthleteRepository's adapter and the
     # athlete files' names; the Athlete (Domain model) below.
-    src/Export/athlete_store.h
-    src/Export/athlete_store.cpp
-    src/Export/athlete_files.h
+    src/Stores/athlete_store.h
+    src/Stores/athlete_store.cpp
+    src/Stores/athlete_files.h
     src/Vocabulary/Recording/frame_decode.h
     src/Vocabulary/Recording/frame_decode.cpp
-    src/Export/swing_exporter.h
-    src/Export/swing_exporter.cpp
-    src/Export/swing_zip_exporter.h
-    src/Export/swing_zip_exporter.cpp
-    src/Export/export_tone.h
-    src/Export/export_tone.cpp
-    src/Export/swing_doc.h
-    src/Export/swing_doc_internal.h
-    src/Export/dtl_overlay_payload.h
-    src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
-    src/Export/swing_doc_reader.cpp
-    src/Export/swing_doc_analysis.cpp
-    src/Export/recording_header.cpp
-    src/Export/session_archiver.h
-    src/Export/session_archiver.cpp
-    src/Export/session_list_reads.h src/Export/session_list_reads.cpp   # the one session list's kept read (5.7a; cut in 5.7a-P1)
-    src/Export/session_index_summary.h src/Export/session_index_summary.cpp   # the index entry's summary reads (5.7a-P1)
+    src/Stores/swing_exporter.h
+    src/Stores/swing_exporter.cpp
+    src/Stores/swing_zip_exporter.h
+    src/Stores/swing_zip_exporter.cpp
+    src/Stores/export_tone.h
+    src/Stores/export_tone.cpp
+    src/Stores/swing_doc.h
+    src/Stores/swing_doc_internal.h
+    src/Stores/dtl_overlay_payload.h
+    src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
+    src/Stores/swing_doc_reader.cpp
+    src/Stores/swing_doc_analysis.cpp
+    src/Stores/recording_header.cpp
+    src/Stores/session_archiver.h
+    src/Stores/session_archiver.cpp
+    src/Stores/session_list_reads.h src/Stores/session_list_reads.cpp   # the one session list's kept read (5.7a; cut in 5.7a-P1)
+    src/Stores/session_index_summary.h src/Stores/session_index_summary.cpp   # the index entry's summary reads (5.7a-P1)
     src/DomainModel/session_roll_up.h
     src/Vocabulary/Analysis/swing_analysis.h
     src/Vocabulary/Analysis/address_marks_types.h
@@ -2922,7 +2922,7 @@ target_sources(PinPointStudio PRIVATE
     # The one door to the swing files (refactor step 1.4): the repository interface, its store
     # adapter, and the one re-analysis write-back.
     src/DomainModel/recording_repository.h
-    src/Export/swing_store_repository.h
+    src/Stores/swing_store_repository.h
     src/Analysis/reanalyse_and_persist.h
     src/Analysis/reanalyse_and_persist.cpp
     # The analysis service and the one integrity rule (refactor step 1.5), the reading interface the
@@ -2960,12 +2960,12 @@ target_sources(PinPointStudio PRIVATE
     src/DomainModel/session_diagnostics.cpp
     src/DomainModel/firing_reader.h
     src/DomainModel/golfer_input_rules.h
-    src/Export/firing_reader_store.h
-    src/Export/firing_reader_store.cpp
+    src/Stores/firing_reader_store.h
+    src/Stores/firing_reader_store.cpp
     # The session's series' read door (refactor 5.5a; Domain model interface, Adapters store).
     src/DomainModel/series_reader.h
-    src/Export/series_store.h
-    src/Export/series_store.cpp
+    src/Stores/series_store.h
+    src/Stores/series_store.cpp
     src/Diagnostics/engine/session_reduction.h
     src/Diagnostics/engine/session_reduction.cpp
     src/Diagnostics/derived/session_results.h
@@ -3011,10 +3011,10 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/reuse_gate.cpp   # the one reuse gate and the input stamp's staleness (step 1.6)
     src/Analysis/analysis_job_builder.h
     src/Analysis/analysis_job_builder.cpp
-    src/Export/recording_header.h
-    src/Export/recording_loader.h
-    src/Export/recording_loader.cpp
-    src/Export/recording_phase_grid.cpp   # the app's Recording reader's phase grid (platform refactor P-3)
+    src/Stores/recording_header.h
+    src/Stores/recording_loader.h
+    src/Stores/recording_loader.cpp
+    src/Stores/recording_phase_grid.cpp   # the app's Recording reader's phase grid (platform refactor P-3)
     src/Analysis/mp4_frame_reader.h
     src/Analysis/mp4_frame_reader.cpp
     src/Vocabulary/Metrics/metric_type.h
@@ -3050,8 +3050,8 @@ if(FFMPEG_FOUND)
     target_compile_definitions(PinPointStudio PRIVATE HAVE_FFMPEG)
     target_link_libraries(PinPointStudio PRIVATE PkgConfig::FFMPEG)
     target_sources(PinPointStudio PRIVATE
-        src/Export/ffmpeg_video_encoder.h
-        src/Export/ffmpeg_video_encoder.cpp
+        src/Stores/ffmpeg_video_encoder.h
+        src/Stores/ffmpeg_video_encoder.cpp
     )
     if(WIN32)
         # POST_BUILD: copy the linked FFmpeg DLLs (and swresample, a runtime
@@ -3284,22 +3284,22 @@ option(PINPOINT_BUILD_LM_REPAIR "Build the launch-monitor metric repair tool" OF
 if(PINPOINT_BUILD_LM_REPAIR)
     add_executable(lm_repair
         tools/launchmonitor/lm_repair.cpp
-        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
         src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
-        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
-        src/Export/swing_doc_reader.cpp
-        src/Export/swing_doc_analysis.cpp
-        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
+        src/Stores/swing_doc_reader.cpp
+        src/Stores/swing_doc_analysis.cpp
+        src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
         # SwingDocReader's session-directory helpers call SwingPaths::sanitise. The tool
         # never walks a library that way, but they are in the same translation unit.
-        src/Export/swing_paths.cpp
+        src/Stores/swing_paths.cpp
         src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         # NOT src/Core/pp_debug.cpp — it includes whisper.h and would pull ggml and FFmpeg
         # into a tool that rewrites one JSON file. lm_repair.cpp provides PpLogStream itself
         # and routes it to stderr; see the note there.
     )
     target_include_directories(lm_repair PRIVATE
-        src/Buffer src/Export src/LaunchMonitor src/Core)
+        src/Buffer src/Stores src/LaunchMonitor src/Core)
     target_link_libraries(lm_repair PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Launch monitor tools: lm_repair enabled")
 endif()
@@ -3312,13 +3312,13 @@ option(PINPOINT_BUILD_STORAGE_TOOLS "Build the swing-library storage tools" ON)
 if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(pps_convert_library
         tools/storage/pps_convert_library.cpp
-        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
         src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
-        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
-        src/Export/swing_doc_reader.cpp
-        src/Export/swing_doc_analysis.cpp
-        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
-        src/Export/swing_paths.cpp
+        src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
+        src/Stores/swing_doc_reader.cpp
+        src/Stores/swing_doc_analysis.cpp
+        src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Stores/swing_paths.cpp
         src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         # The real log: swing_paths reports through ppWarn, and a line a conversion says on the
         # way past must reach whoever runs it. Standalone now — no whisper, no ggml.
@@ -3326,7 +3326,7 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Core/PpMessageLog.cpp
     )
     target_include_directories(pps_convert_library PRIVATE
-        src/Buffer src/Export src/LaunchMonitor src/Core)
+        src/Buffer src/Stores src/LaunchMonitor src/Core)
     target_link_libraries(pps_convert_library PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_convert_library enabled")
 
@@ -3336,19 +3336,19 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
     # --backup-dir). The same link line as pps_convert_library (tools/migrate/).
     add_executable(backfill_analysis_context
         tools/migrate/backfill_analysis_context.cpp
-        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
         src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
-        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
-        src/Export/swing_doc_reader.cpp
-        src/Export/swing_doc_analysis.cpp
-        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
-        src/Export/swing_paths.cpp
+        src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
+        src/Stores/swing_doc_reader.cpp
+        src/Stores/swing_doc_analysis.cpp
+        src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Stores/swing_paths.cpp
         src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         src/Core/pp_log_stream.cpp
         src/Core/PpMessageLog.cpp
     )
     target_include_directories(backfill_analysis_context PRIVATE
-        src/Buffer src/Export src/LaunchMonitor src/Core)
+        src/Buffer src/Stores src/LaunchMonitor src/Core)
     target_link_libraries(backfill_analysis_context PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: backfill_analysis_context enabled")
 
@@ -3359,21 +3359,21 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(pps_migrate_step2
         tools/migrate/pps_migrate_step2.cpp
         tools/migrate/migrate_step2.cpp tools/migrate/migrate_step2.h
-        src/DomainModel/athlete.h src/DomainModel/athlete.cpp src/Export/athlete_store.cpp   # AthleteRecord
+        src/DomainModel/athlete.h src/DomainModel/athlete.cpp src/Stores/athlete_store.cpp   # AthleteRecord
         src/DomainModel/session.h src/DomainModel/session.cpp src/DomainModel/shot.h src/DomainModel/shot.cpp   # the Athlete's sessions (3.4a)
-        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
         src/Vocabulary/Identity/identity.h
-        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
-        src/Export/swing_doc_reader.cpp
-        src/Export/swing_doc_analysis.cpp
-        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
-        src/Export/swing_paths.cpp
+        src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
+        src/Stores/swing_doc_reader.cpp
+        src/Stores/swing_doc_analysis.cpp
+        src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Stores/swing_paths.cpp
         src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         src/Core/pp_log_stream.cpp
         src/Core/PpMessageLog.cpp
     )
     target_include_directories(pps_migrate_step2 PRIVATE
-        src src/Buffer src/Export src/LaunchMonitor src/Core src/Analysis)
+        src src/Buffer src/Stores src/LaunchMonitor src/Core src/Analysis)
     target_link_libraries(pps_migrate_step2 PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_migrate_step2 enabled")
 endif()
@@ -3404,9 +3404,9 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/reanalyse_and_persist.cpp   # the one re-analysis write-back (step 1.4)
         src/Analysis/analysis_service.cpp   # the analysis service (step 1.5)
         src/Analysis/recording_integrity.cpp   # the one integrity rule (step 1.5)
-        src/Export/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
-        src/Export/swing_folder_reanalysis.cpp   # a folder re-analysed by its path (refactor step 3.4b-ii)
-        src/Export/session_store.cpp        # the session store SwingLab names its ShotRef through (2.4)
+        src/Stores/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
+        src/Stores/swing_folder_reanalysis.cpp   # a folder re-analysed by its path (refactor step 3.4b-ii)
+        src/Stores/session_store.cpp        # the session store SwingLab names its ShotRef through (2.4)
         src/DomainModel/session_identity.cpp
         src/Core/folder_lock.cpp
         src/Analysis/effective_context.cpp  # the effective club (step 1.1)
@@ -3442,7 +3442,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Diagnostics/measures/anatomy_vocabulary.cpp
         src/Diagnostics/norms/resource_norm_provider.cpp
         src/Diagnostics/norms/file_norm_provider.cpp
-        src/Export/rule_data_reads.cpp
+        src/Stores/rule_data_reads.cpp
         src/Diagnostics/norms/merged_norm_provider.cpp
         # screens.json and drills.json are embedded into every offline target by
         # pinpoint_add_diagnostics_resources below, so their loaders belong here too — otherwise the
@@ -3490,11 +3490,11 @@ if(PINPOINT_BUILD_TOOLS)
         src/Vocabulary/Metrics/metric_catalogue_manifest.cpp
         src/Vocabulary/Metrics/metric_providers.cpp
         src/Vocabulary/Recording/frame_decode.cpp
-        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
-        src/Export/swing_doc_reader.cpp
-        src/Export/swing_doc_analysis.cpp
-        src/Export/recording_header.cpp
-        src/Export/swing_paths.cpp
+        src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
+        src/Stores/swing_doc_reader.cpp
+        src/Stores/swing_doc_analysis.cpp
+        src/Stores/recording_header.cpp
+        src/Stores/swing_paths.cpp
         # swing_doc_writer.cpp writes the launchMonitor block by walking lm::fieldDefs(),
         # so the offline tools need the table itself, not just its header. The
         # PARSER and the monitor stay out: an offline tool replays a recorded
@@ -3516,9 +3516,9 @@ if(PINPOINT_BUILD_TOOLS)
     # Common include/define/link wiring for an offline tool target.
     function(pinpoint_configure_offline_target tgt)
         target_include_directories(${tgt} PRIVATE
-            src/Buffer src/Analysis src/Export src/Pose src/Core src/IMU
+            src/Buffer src/Analysis src/Stores src/Pose src/Core src/IMU
             src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d
-            # src/Export/swing_doc.h includes launch_monitor_reading.h, so every
+            # src/Stores/swing_doc.h includes launch_monitor_reading.h, so every
             # consumer of it needs this — the app target got it when the reading
             # was added, these offline targets did not.
             src/LaunchMonitor
@@ -3624,13 +3624,13 @@ if(PINPOINT_BUILD_TOOLS)
     add_executable(swing_window_parity_test
         src/Analysis/tests/swing_window_parity_test.cpp
         ${_pinpoint_offline_sources}
-        src/Export/swing_exporter.cpp
-        src/Export/video_encoder.cpp
+        src/Stores/swing_exporter.cpp
+        src/Stores/video_encoder.cpp
     )
     pinpoint_configure_offline_target(swing_window_parity_test)
     pinpoint_add_diagnostics_resources(swing_window_parity_test)
     if(FFMPEG_FOUND)
-        target_sources(swing_window_parity_test PRIVATE src/Export/ffmpeg_video_encoder.cpp)
+        target_sources(swing_window_parity_test PRIVATE src/Stores/ffmpeg_video_encoder.cpp)
         target_compile_definitions(swing_window_parity_test PRIVATE HAVE_FFMPEG)
         target_link_libraries(swing_window_parity_test PRIVATE PkgConfig::FFMPEG)
     endif()
@@ -3644,9 +3644,9 @@ if(PINPOINT_BUILD_TOOLS)
         add_executable(raw_reencode
             tools/swinglab/src/raw_reencode.cpp
             ${_pinpoint_offline_sources}
-            src/Export/swing_exporter.cpp
-            src/Export/video_encoder.cpp
-            src/Export/ffmpeg_video_encoder.cpp
+            src/Stores/swing_exporter.cpp
+            src/Stores/video_encoder.cpp
+            src/Stores/ffmpeg_video_encoder.cpp
         )
         pinpoint_configure_offline_target(raw_reencode)
         pinpoint_add_diagnostics_resources(raw_reencode)

@@ -185,7 +185,7 @@ code drops both camera views (decision 6).
 Each step's files. No step waits for a judgement mid-way; the gates are in §7.
 
 1. **FK split.** Modified: `src/Skeleton3d/skeleton3d_rig.h`.
-2. **Narrow read.** Modified: `src/Export/swing_store.h`, `src/Export/swing_store.cpp`.
+2. **Narrow read.** Modified: `src/Stores/swing_store.h`, `src/Stores/swing_store.cpp`.
 3. **Synthesis.** New: `src/Skeleton3d/skeleton3d_synthesis.h` (namespace `pinpoint::skeleton3d`; types
    `SynthSwing`, `SynthResult`, `synthesiseSession()`, about 300 lines; grep all of `src` for each new
    name first), `src/Analysis/tests/skeleton3d_synthesis_test.cpp`. Modified:

@@ -53,11 +53,11 @@ pp_add_test(update_controller_policy_test
             ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp   # the Athlete's sessions (step 3.4a)
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
-            ${SRC}/Export/athlete_store.cpp
-            ${SRC}/Export/session_store.cpp
+            ${SRC}/Stores/athlete_store.cpp
+            ${SRC}/Stores/session_store.cpp
             ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Vocabulary/Identity/identity.h
-            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/Stores/swing_paths.cpp
             ${SRC}/Core/folder_lock.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
@@ -81,7 +81,7 @@ pp_add_test(update_controller_policy_test
             ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
             # The one session list: athlete_controller.cpp's activity is its rows' (refactor step 5.7b).
             ${SRC}/Gui/session/session_list_presenter.h ${SRC}/Gui/session/session_list_presenter.cpp
-            ${SRC}/Gui/session/session_list_follow.cpp ${SRC}/Export/session_list_reads.cpp
+            ${SRC}/Gui/session/session_list_follow.cpp ${SRC}/Stores/session_list_reads.cpp
     # Diagnostics -> Metrics -> Analysis, all three: metric_reducer.h includes swing_analysis.h
     # non-relatively. Same reason as NORM_INC in src/Analysis/tests/CMakeLists.txt.
     INCLUDE ${UPDATE} ${SRC}/Core ${SRC}/Gui/app ${SRC}/Gui/session ${SRC}/Gui/athlete

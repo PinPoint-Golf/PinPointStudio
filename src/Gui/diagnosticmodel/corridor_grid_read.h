@@ -20,7 +20,7 @@
 
 // THE MODEL BROWSER'S FOLDER READ OF A SWING'S GRID (platform refactor P-3, P-3b; moved here from the sampler,
 // measure_sample.h, by B1.14 under the Solution Architect's ruling R11, 24 Nov 2026): a forwarder to the grid's file door
-// (PhaseGridStore, src/Export/phase_grid_store.h), which owns the read, the sidecar and its write (FILE-SHOT-07).
+// (PhaseGridStore, src/Stores/phase_grid_store.h), which owns the read, the sidecar and its write (FILE-SHOT-07).
 // Everything else reads a shot's grid by ShotRef (RecordingReader::phaseGrid, src/DomainModel/recording_reader.h; the
 // swing on screen through shot_grid_door.h) or, inside the store, through the door itself. Kept for two callers, both on
 // the model browser's worker, with no Shot to ask:

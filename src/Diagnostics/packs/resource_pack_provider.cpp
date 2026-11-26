@@ -32,7 +32,7 @@ namespace {
 // Nothing else to say, which is the point: loadShipped() carries the open-or-report-an-error, the
 // read-only mark and the Core origin, identical to the norm set beside it (provider_leaf_p.h). The
 // bytes, and the PINPOINT_CORE_PACK seam that picks the file, are the rule data's repository's
-// (src/Export/rule_data_store.cpp; refactor step 3.2).
+// (src/Stores/rule_data_store.cpp; refactor step 3.2).
 class ResourcePackProvider final : public detail::PackLeaf {
 public:
     ResourcePackProvider(const RuleFile &core, const ReferenceSet *refs) { loadShipped(core, refs); }

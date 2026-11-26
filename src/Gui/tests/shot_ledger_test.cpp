@@ -33,12 +33,12 @@
 // swing door (FolderShotSource), so every edit round-trips through the documents as the app's Shots make it.
 
 #include "shot/shot_list_model.h"
-#include "swing_doc.h"
-#include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
+#include "../../Stores/swing_doc.h"
+#include "../../Stores/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "fake_shot_source.h"   // the carousel is a view of a Session, through its port (step 5.2)
-#include "session_store.h"   // the one allocator (step 2.2)
-#include "temp_library.h"
-#include "swing_store.h"
+#include "../../Stores/session_store.h"   // the one allocator (step 2.2)
+#include "../../Stores/tests/temp_library.h"
+#include "../../Stores/swing_store.h"
 #include "Vocabulary/Analysis/swing_analysis.h"
 #include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 

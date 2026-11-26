@@ -16,7 +16,7 @@
 ## 2. Current state (built in M1)
 
 ### Reload — read-only, works
-- `SwingDocReader` (`src/Export/swing_doc.{h,cpp}`): `readSwingJson(swingDir) →
+- `SwingDocReader` (`src/Stores/swing_doc.{h,cpp}`): `readSwingJson(swingDir) →
   PersistedShot {ok, swingDir, ordinal, timestampLabel, club, hasVideo, thumbnailPath, score,
   metrics, analysisDetail}`; `findSwingDirs(sessionDir)`; `latestSessionDir(athleteDir)`.
 - `ShotListModel::addPersistedShot(...)` prepends a reloaded shot; the `Shot` struct carries a
@@ -149,9 +149,9 @@ reload t_us offset, the `review` round-trip in `swing_doc_test`).
   unifying so fresh and reloaded rows are identical (R1 forces part of this).
 
 ## 7. File & symbol quick-reference
-- Persistence: `src/Export/swing_doc.{h,cpp}` (`SwingDocWriter`, `SwingDocReader`,
-  `PersistedShot`); `src/Export/swing_exporter.cpp` (manifest + MP4 + thumb, the `streams`
-  block); `src/Export/swing_paths.{h,cpp}` (dir layout).
+- Persistence: `src/Stores/swing_doc.{h,cpp}` (`SwingDocWriter`, `SwingDocReader`,
+  `PersistedShot`); `src/Stores/swing_exporter.cpp` (manifest + MP4 + thumb, the `streams`
+  block); `src/Stores/swing_paths.{h,cpp}` (dir layout).
 - Model: `src/Gui/shot_list_model.{h,cpp}` (`addShot`, `addPersistedShot`, `Shot.swingDir`,
   `setRating/setNote`).
 - Replay (fresh): `src/Gui/shot_processor.{h,cpp}` (`startReplay`, `onReplayTick`,
@@ -161,7 +161,7 @@ reload t_us offset, the `review` round-trip in `swing_doc_test`).
 - Trigger: `src/Gui/PpShotPanel.qml` (`replayRequested`) → `src/Gui/PpShotCarousel.qml` →
   wiring in `src/Gui/Main.qml` / `VideoPage.qml`.
 - Reload entry: `src/Gui/main.cpp` (startup reload block).
-- Tests: `src/Analysis/tests/CMakeLists.txt` (CTest suite); `src/Export/tests/swing_doc_test.cpp`.
+- Tests: `src/Analysis/tests/CMakeLists.txt` (CTest suite); `src/Stores/tests/swing_doc_test.cpp`.
 
 ## 8. Reload performance (as-built, 2026-06-15 — commit `cbb63aa`)
 

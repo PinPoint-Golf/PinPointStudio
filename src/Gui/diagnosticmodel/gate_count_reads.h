@@ -32,7 +32,7 @@
 
 #include "gate_counts.h"
 #include "corridor_grid_read.h"                         // readPhaseGrid: the folder read (FILE-SHOT-07's recorded exception)
-#include "../../Export/swing_paths.h"                    // the one swing listing
+#include "../../Stores/swing_paths.h"                    // the one swing listing
 
 #include <QSet>
 

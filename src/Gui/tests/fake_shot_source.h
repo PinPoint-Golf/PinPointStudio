@@ -29,9 +29,9 @@
 //                     whose edits must round-trip through the documents
 
 #include "../../App/shot_source.h"
-#include "../../Export/swing_doc.h"
-#include "../../Export/swing_paths.h"
-#include "../../Export/tests/swing_doc_test_writes.h"
+#include "../../Stores/swing_doc.h"
+#include "../../Stores/swing_paths.h"
+#include "../../Stores/tests/swing_doc_test_writes.h"
 
 #include <QDir>
 #include <QFileInfo>

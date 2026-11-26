@@ -27,7 +27,7 @@
 #include "session_sequence_words.h"
 #include "../../Diagnostics/derived/series/session_bridge.h"     // the chest's probable peak (Session only)
 #include "session_series_extract.h"   // folderShotId (refactor 5.5a)
-#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
+#include "../../Stores/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "../../Diagnostics/derived/series/variability_clubs.h"      // perClubTraceInputs (R2b: one window per club)
 #include "variability_env.h"        // the scale provider: each curve's scale type
 #include "consistency_env.h"        // consistencyEnvGeneration: a norm or pack save makes the scales again (5.5a)

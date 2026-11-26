@@ -41,8 +41,8 @@
 
 #include "model_browser.h"
 #include "model_browser_test_support.h"
-#include "../../Export/rule_data_install.h"
-#include "../../Export/rule_data_store.h"   // the shipped pack factory, for the typed-value checks
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/rule_data_store.h"   // the shipped pack factory, for the typed-value checks
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../packs/pack_provider.h"

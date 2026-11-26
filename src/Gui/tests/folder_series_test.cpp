@@ -31,13 +31,13 @@
 #include "../../Diagnostics/norms/norm.h"           // gradePolicyByName
 #include "../../Diagnostics/norms/norm_provider.h"  // sharedNormProvider
 #include "../../Wrist/wrist_profile_assess.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 
 #include "../../Diagnostics/derived/board_annotations.h"
 #include "../../Diagnostics/derived/diagnostic_ledger.h"
 #include "../../DomainModel/rule_data.h"   // makeCharacteristicPackProvider
 #include "../../Vocabulary/Metrics/metric_reducer.h"
-#include "../../Export/swing_store.h"
+#include "../../Stores/swing_store.h"
 
 #include <QDateTime>
 #include <QDir>

@@ -59,7 +59,7 @@ namespace pinpoint::analysis::detail {
 
 // ── What it means when the bytes will not come ──────────────────────────────
 //
-// THE BYTES ARE THE REPOSITORY'S (refactor step 7.1; P11): RuleDataStore (src/Export) is the one door to
+// THE BYTES ARE THE REPOSITORY'S (refactor step 7.1; P11): RuleDataStore (src/Stores) is the one door to
 // every rule file, the PINPOINT_CORE_* seam a standalone test or an offline tool reaches the shipped
 // content through among them (the Qt resource exists only inside the app binary). A leaf is handed a
 // RuleFile and says what its state means. Two readings, because a missing file means opposite things

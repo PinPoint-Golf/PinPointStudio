@@ -21,7 +21,7 @@
 // fixture, then the 5 Oct fixture on the production env: its timing and its golden.
 
 #include "charts/consistency_env.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "../../Diagnostics/derived/series/session_consistency.h"
 #include "../../Diagnostics/derived/series/session_traces.h"
 #include "charts_maths_fixture.h"

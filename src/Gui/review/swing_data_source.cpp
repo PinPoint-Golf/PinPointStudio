@@ -23,7 +23,7 @@
 #include "swing_series_model.h"
 #include "timeline_labels.h"              // the one phase-tag vocabulary (P1…P10 + mnemonics)
 #include "../../Vocabulary/Analysis/swing_analysis.h"   // SegmentRole + segmentRoleForSlot/Name
-#include "../../Export/swing_doc.h"     // overallScoreFromAnalysis — the stored score, either shape
+#include "../../Stores/swing_doc.h"     // overallScoreFromAnalysis — the stored score, either shape
 #include "../charts/charts_work.h"       // ChartsLane — the one worker idiom (R-CON-5)
 #include "../trust/trust_readings.h"     // gateFor: the gate behind a lane the region lacks
 

@@ -99,7 +99,7 @@ It has two parts with different rules (RP-4):
 | **The Rig's other facts** (not versioned) | Display aliases; whether each device is enabled on this machine (today's `excluded` lists); the learned club-length prior (SET-05)[^dec153]; by this design also `ppcp/studioName`, which Stage F moves (§4.3) | is saved; no new state, no event |
 
 **One writer.** Only `Rig` changes either part, by its own commands, and only `Rig` saves, through `RigRepository`
-(an interface in the Domain model; its adapter in `src/Export`)[^p]. Today's writers (`CameraManager`,
+(an interface in the Domain model; its adapter in `src/Stores`)[^p]. Today's writers (`CameraManager`,
 `CameraInstance`, `ImuManager`, `ShotProcessor`, QML through `appSettings`) call the Rig's commands instead.
 
 **Commands** (the names are placeholders): `assignPerspective(camera, perspective)`, `setMirrored`,
@@ -562,9 +562,9 @@ short note saying so when this design is approved.
 | The role rules of `imu_role_map.*` (moved) | `src/IMU/` | Rules | Acquisition |
 | `sensorDisplayName`, `stripDeviceIds` (the display labels; they stay) | `src/Gui/imu/`, behind `app.rig` | Adapters | Domain + Application |
 | `Rig`; `RigRepository`; `RigCalibrationSink` | `src/DomainModel/rig.*`, `rig_repository.h`, `rig_calibration_sink.h` | Domain model | Domain + Application |
-| The Rig's store (`rig.json`) and the copies from settings | `src/Export/rig_store.*` | Adapters | Domain + Application |
-| The `rig` block's writer and reader | `src/Export/recording_header.*` (the one header writer) | Adapters | Domain + Application |
-| The ceremony file's door | `src/Export/` (name with open question 5) | Adapters | Domain + Application |
+| The Rig's store (`rig.json`) and the copies from settings | `src/Stores/rig_store.*` | Adapters | Domain + Application |
+| The `rig` block's writer and reader | `src/Stores/recording_header.*` (the one header writer) | Adapters | Domain + Application |
+| The ceremony file's door | `src/Stores/` (name with open question 5) | Adapters | Domain + Application |
 | The three step machines (deferred, #291[^c-v1]) | `src/IMU/calibration/` | Rules | Acquisition |
 | The three drivers (deferred, #291[^c-v1]) | `src/Gui/imu/` until Stage D splits capture[^ring] | Adapters | Domain + Application until Stage D, then Acquisition |
 | `app.rig`, `app.calibration` (`app.calibration` deferred, #291[^c-v1]) | `src/Gui/app/` | Adapters | Domain + Application |

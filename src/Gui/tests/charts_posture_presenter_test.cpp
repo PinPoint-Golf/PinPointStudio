@@ -34,7 +34,7 @@
 #include "charts/charts_posture_presenter.h"
 #include "charts/charts_gadget.h"   // chartsGadgetMap: the typed results as maps, for the assertions (refactor 5.5c)
 #include "charts/charts_words.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "charts/posture_picture.h"
 #include "charts/session_posture.h"
 #include "charts/session_series_extract.h"   // extractShot (refactor 5.5a)

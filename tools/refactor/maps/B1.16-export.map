@@ -1,0 +1,9 @@
+# B1.16 · src/Export is renamed for what it holds, the stores (build/platform/B1/BRIEF-B1.16.md).
+# The Solution Architect, 24 Nov 2026 (docs/implementation/platform_b1_placements.md R6, option (a), C9 and C4):
+# src/Stores. The directory is one ring (Adapters) and one context (Domain + Application), as before. Every file, listed
+# from the tree at run time, with its tests/ folder. File, type and namespace names don't change, and neither does any
+# string that is not a path (a thread name, a profile tag, a UI word).
+src/Export/ -> src/Stores/
+# The IM's change-log rows that must say what was true when written (line numbers on origin/main 4f3a843e, before the
+# move): 2076 (1.9.52), 2082 (1.10.4), 2092 (1.12.1, B1.5: "frame_decode leaves src/Export").
+keep: governance/artefacts/information_model.md:2076,2082,2092

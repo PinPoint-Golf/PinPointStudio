@@ -37,7 +37,7 @@ width capped to ~2400px): corpus_pstrips.png, corpus_strobes.png.
 
 positions[] (P1-P8) and synth[] are read straight off result.json's
 analysis.club block (RunResult.club); see src/Vocabulary/Analysis/swing_analysis.h
-(ShaftPosition) and src/Export/swing_doc_analysis.cpp for the on-disk schema this
+(ShaftPosition) and src/Stores/swing_doc_analysis.cpp for the on-disk schema this
 mirrors. synth[] may not exist yet on older runs -- treated as optional
 throughout.
 

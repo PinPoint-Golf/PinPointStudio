@@ -49,10 +49,10 @@
 
 #include "../../../src/Core/PpMessageLog.h"
 #include "../../../src/Analysis/swing_reanalyzer.h"
-#include "../../../src/Export/swing_folder_reanalysis.h"   // a folder by its path (refactor step 3.4b-ii)
-#include "../../../src/Export/swing_exporter.h"
-#include "../../../src/Export/swing_store.h"
-#include "../../../src/Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
+#include "../../../src/Stores/swing_folder_reanalysis.h"   // a folder by its path (refactor step 3.4b-ii)
+#include "../../../src/Stores/swing_exporter.h"
+#include "../../../src/Stores/swing_store.h"
+#include "../../../src/Stores/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;

@@ -25,7 +25,7 @@
 // detector math + a tests/ gate, e.g. src/IMU/impact_detector.h). Shape mirrors
 // the parity fixtures' loadF32 (src/Pose/tests/ball_temporal_parity_test.cpp).
 // The stage opens no file (P11, refactor step 7.2): a recorded swing's blob is read
-// by the Recording loader (src/Export/recording_loader.cpp) into
+// by the Recording loader (src/Stores/recording_loader.cpp) into
 // BallBaselineRef::bytes, as the live capture's already is.
 
 #ifdef HAVE_OPENCV

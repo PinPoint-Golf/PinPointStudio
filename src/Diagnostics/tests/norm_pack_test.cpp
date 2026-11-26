@@ -14,7 +14,7 @@
 //   ctest --test-dir build/analyzer-tests -R norm_pack_test --output-on-failure
 
 #include "../norms/norm_provider.h"
-#include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
+#include "../../Stores/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
 
 #include <QDir>
 #include <QFile>

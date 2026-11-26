@@ -63,16 +63,16 @@
 #include "../../Core/work_pool.h"
 #include "../../Diagnostics/measures/live_measure_source.h"
 #include "../../Diagnostics/derived/session_day_readings_rules.h"   // the day readings' rules (refactor 5.5d)
-#include "../../Export/firing_reader_store.h"
-#include "../../Export/phase_grid_store.h"   // the phase grid's file door (platform refactor P-3)
-#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
-#include "../../Export/recording_loader.h"
-#include "../../Export/rule_data_install.h"
-#include "../../Export/session_files.h"
-#include "../../Export/session_store.h"
-#include "../../Export/swing_doc.h"
-#include "../../Export/swing_store.h"   // SwingStore::info: the document's stamp (P3)
-#include "../../Export/swing_store_repository.h"
+#include "../../Stores/firing_reader_store.h"
+#include "../../Stores/phase_grid_store.h"   // the phase grid's file door (platform refactor P-3)
+#include "../../Stores/phase_grid_store.h"   // the phase grid's file door (P-3)
+#include "../../Stores/recording_loader.h"
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/session_files.h"
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_doc.h"
+#include "../../Stores/swing_store.h"   // SwingStore::info: the document's stamp (P3)
+#include "../../Stores/swing_store_repository.h"
 #include "../../Buffer/swing_window.h"   // a LoadedRecording owns one
 
 #include <QCoreApplication>

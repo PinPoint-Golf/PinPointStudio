@@ -229,7 +229,7 @@ std::unique_ptr<INormProvider> makeMergedNormProvider(
 }
 
 // The slot's assembly with no RuleData is the repository's since refactor step 7.1 (makeNormProvider(),
-// src/Export/rule_data_reads.cpp), installed as the slot's factory at start-up: it reads the files, and the
+// src/Stores/rule_data_reads.cpp), installed as the slot's factory at start-up: it reads the files, and the
 // rules read none and name no adapter.
 
 namespace {

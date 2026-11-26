@@ -78,7 +78,7 @@ In this order. They carry the reasoning that makes the rest of this document sho
 5. `src/Video/VideoInputPpcp.cpp:1533` — `deliver()`, the preview/clip fork.
 6. `src/Gui/shot/shot_controller.cpp:470-510` — the arbitrated-shot path, where the ask belongs.
 7. `src/Gui/cameras/camera_instance.cpp:738-758` — why a preview frame must never reach the ring.
-8. `src/Export/swing_paths.h` — the derived identity, the other half of the clash.
+8. `src/Stores/swing_paths.h` — the derived identity, the other half of the clash.
 
 ### 0.5 What changed since this was written
 

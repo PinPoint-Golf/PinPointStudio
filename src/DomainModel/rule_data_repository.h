@@ -20,7 +20,7 @@
 
 // RuleDataRepository — THE ONE DOOR TO THE PACKS AND NORMS (refactor step 3.2; Q-02 closed by D5: DEC-170,
 // IM-S3-1; governance/artefacts/information_model.md OBJ-PACKS-NORMS, CLS-PACKS-NORMS, FILE-APP-01…05, SET-06,
-// SET-15). RuleDataStore (src/Export/rule_data_store.h) implements it; RuleData (rule_data.h), the owner,
+// SET-15). RuleDataStore (src/Stores/rule_data_store.h) implements it; RuleData (rule_data.h), the owner,
 // is the only caller. The interface sits here, beside its owner (P4; D17: the owning object includes its
 // repository).
 //

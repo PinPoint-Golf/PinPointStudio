@@ -45,11 +45,11 @@
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Vocabulary/Metrics/variability/variability_grader.h"
 #include "../../Core/pp_debug.h"
-#include "../../Export/swing_store.h"
-#include "../../Export/session_diagnostics_files.h"   // the session's files, and the golfer's input (step 2.5)
-#include "../../Export/session_files.h"
-#include "../../Export/swing_paths.h"
-#include "../../Export/athlete_files.h"
+#include "../../Stores/swing_store.h"
+#include "../../Stores/session_diagnostics_files.h"   // the session's files, and the golfer's input (step 2.5)
+#include "../../Stores/session_files.h"
+#include "../../Stores/swing_paths.h"
+#include "../../Stores/athlete_files.h"
 
 #include <limits>
 #include <QCoreApplication>

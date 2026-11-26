@@ -47,7 +47,7 @@ namespace pinpoint::analysis {
 // partially read: silently dropping fields it does not understand would let a newer pack round-trip
 // through an older build and lose content. The rule data's repository also keeps a USER pack that
 // declares a higher version read-only, so this build's next save cannot overwrite it (audit B-20;
-// RuleDataRepository, src/Export/rule_data_store.cpp).
+// RuleDataRepository, src/Stores/rule_data_store.cpp).
 //
 // THE LOG. Every field added since 1 is OPTIONAL and absent means what it always meant, so a pack
 // written before it reads exactly as it did, and none needed a bump:

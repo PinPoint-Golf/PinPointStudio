@@ -17,7 +17,7 @@
  */
 
 // THE ONE DOOR TO A SWING FILE (refactor step 1.4; src/DomainModel/recording_repository.h,
-// src/Export/swing_store_repository.h): every RecordingRepository method on a temporary folder.
+// src/Stores/swing_store_repository.h): every RecordingRepository method on a temporary folder.
 //
 //   Test 1  create: the header, the analysis and the seeded review club; no club → no review
 //   Test 2  savePose honoured for newly inferred keypoints: create and writeAnalysis drop the pose

@@ -24,11 +24,11 @@ pp_add_test(replay_score_test
             ${GUI}/shot/disk_replay_source.cpp
             ${GUI}/shot/replay_source.h
             ${GUI}/markup/markup_truth.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Export/swing_doc_reader.cpp
-            ${SRC}/Export/swing_doc_analysis.cpp
-            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-            ${SRC}/Export/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_reader.cpp
+            ${SRC}/Stores/swing_doc_analysis.cpp
+            ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Stores/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Core/pp_log_stream.cpp

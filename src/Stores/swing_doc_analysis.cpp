@@ -23,7 +23,7 @@
 //   block                     writer / typed reader                       where
 //   score, metrics,           scoreToJson / scoreFromJson, metrics…,      Analysis/swing_analysis_json.h
 //   versions, filter          analysisVersions…, filter…
-//   path                      analysisPathToJson / analysisPathFromJson   Export/analysis_path_json.h
+//   path                      analysisPathToJson / analysisPathFromJson   Stores/analysis_path_json.h
 //   assessment, timings,      writer only (nothing reads them back typed)  Analysis/swing_analysis_json.h
 //   bindings
 //   phases, segmentation,     phasesToJson / phasesFromJson,              Vocabulary/Analysis/recorded_products.h

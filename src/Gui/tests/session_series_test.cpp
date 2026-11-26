@@ -46,8 +46,8 @@
 #include "../charts/session_series.h"
 #include "../charts/session_series_extract.h"
 #include "folder_series.h"
-#include "../../Export/rule_data_install.h"
-#include "../../Export/series_store.h"
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/series_store.h"
 
 #include <QCoreApplication>
 #include <QStandardPaths>

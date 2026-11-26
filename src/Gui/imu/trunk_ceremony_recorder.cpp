@@ -19,7 +19,7 @@
 #include "trunk_ceremony_recorder.h"
 
 #include "../../Core/atomic_write.h"
-#include "../../Export/session_files.h"   // trunk_ceremony.json's name (FILE-SESS-11; lint A4)
+#include "../../Stores/session_files.h"   // trunk_ceremony.json's name (FILE-SESS-11; lint A4)
 #include "pp_debug.h"
 #include "pp_version.h"
 #include "athlete_controller.h"

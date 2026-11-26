@@ -45,7 +45,7 @@ namespace pinpoint {
 // ONE HALF ONLY (refactor step 2.2). The session allocator that lived here — allocateSwingDir,
 // findTodaySessionDir, beginSession, endSession and their per-run session cache — is gone: a session's
 // folder is chosen ONCE, at Start, by SessionRepository (src/DomainModel/session_repository.h, adapter
-// src/Export/session_store.h), which keeps it for the session's life and issues its swing numbers.
+// src/Stores/session_store.h), which keeps it for the session's life and issues its swing numbers.
 // What is left are pure names, the one swing_* listing and the trash.
 class SwingPaths {
 public:

@@ -96,7 +96,7 @@ LoadedSwing SwingDiskLoader::fromRecording(LoadedRecording loaded)
 }
 
 // Through the shot's RecordingSource (refactor step 3.4b-ii): the one reader, whose store adapter is the Recording
-// loader (src/Export/recording_loader.*, step 1.2); this builds the job from the Recording through the ONE builder.
+// loader (src/Stores/recording_loader.*, step 1.2); this builds the job from the Recording through the ONE builder.
 LoadedSwing SwingDiskLoader::load(const RecordingSource& source, const SwingLoadOptions& opts)
 {
     return fromRecording(source.read(loadOptions(opts)));

@@ -27,8 +27,8 @@
 //   ctest --test-dir build/analyzer-tests -R measure_sample --output-on-failure
 
 #include "../measures/measure_sample.h"
-#include "../../Export/swing_store.h"   // LazyDocument: the parse shared with the summary reader
-#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
+#include "../../Stores/swing_store.h"   // LazyDocument: the parse shared with the summary reader
+#include "../../Stores/phase_grid_store.h"   // the phase grid's file door (P-3)
 
 #include "../../Vocabulary/Metrics/series_reduce.h"
 #include "../../Vocabulary/Metrics/line_angle.h"

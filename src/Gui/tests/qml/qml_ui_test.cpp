@@ -56,7 +56,7 @@
 // module registers its own types now, so naming them here would claim a dependency this file
 // does not have.
 #include "app_settings.h"
-#include "../../../Export/rule_data_install.h"
+#include "../../../Stores/rule_data_install.h"
 
 // The Charts panel's fixture feeder (below): the presenters' setSnapshot is C++-only.
 #include "charts/charts_relations_presenter.h"

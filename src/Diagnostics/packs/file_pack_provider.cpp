@@ -32,7 +32,7 @@
 #include <QJsonObject>
 
 // The user and community pack LAYERS, from bytes. Refactor step 3.2 (Q-02: DEC-170) moved every read
-// and write of the pack files to the rule data's repository (src/Export/rule_data_store.cpp), the one
+// and write of the pack files to the rule data's repository (src/Stores/rule_data_store.cpp), the one
 // door to FILE-APP-01 and FILE-APP-04; what stays here is what a pack layer MEANS — its origin by file
 // name, which files in the shared directory are packs and in what order, and the regroup's rewrite of
 // the user's own file as a pure transform the repository applies.

@@ -78,17 +78,17 @@
 #include "swing_window.h"
 
 #include "../../Vocabulary/Recording/frame_decode.h"
-#include "swing_doc.h"
-#include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
-#include "swing_exporter.h"
+#include "../../Stores/swing_doc.h"
+#include "../../Stores/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
+#include "../../Stores/swing_exporter.h"
 
 #include "../../IMU/imu_vision_fuser.h"
 #include "swing_reanalyzer.h"
 #include "recording_integrity.h"
-#include "../../Export/capture_export_facts.h"
-#include "../../Export/recording_loader.h"
-#include "../../Export/swing_folder_reanalysis.h"   // a folder re-analysed by its path (refactor step 3.4b-ii)
-#include "../../Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
+#include "../../Stores/capture_export_facts.h"
+#include "../../Stores/recording_loader.h"
+#include "../../Stores/swing_folder_reanalysis.h"   // a folder re-analysed by its path (refactor step 3.4b-ii)
+#include "../../Stores/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 #include "analysis_pipeline.h"
 #include "mp4_frame_reader.h"                 // the direct decode: the tone case's reference
 #include "../../Video/display_tone.h"          // the tone curve's one table (Test 9)

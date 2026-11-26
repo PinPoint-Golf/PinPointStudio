@@ -214,7 +214,7 @@ returns a `LoadedSwing`: a disk-backed `SwingWindow` plus a `ShotAnalysisJob`
 resolved from `swing.json`. The in-app re-analyse path
 (`ReanalysisController`, through the `Shot`'s `RecordingSource`) calls the same loader, so a reconstruction
 bug cannot exist in one and not the other. A tool or test holding only a folder reads it by its path
-through `loadSwingFolder` / `reanalyzeSwingDir` (`src/Export/swing_folder_reanalysis.h`: the Export ring, the
+through `loadSwingFolder` / `reanalyzeSwingDir` (`src/Stores/swing_folder_reanalysis.h`: the stores, the
 same loader, then the same job builder).
 
 The important behavioural change: it **streams**. The old runner rebuilt a full
@@ -262,7 +262,7 @@ all is a hard error (`--impact-us` is the manual rescue).
 (issue #183): does the analysis do better or
 worse on frames with the display tone curve? It is off by default.
 - **What it does:** it puts `decode.toneExponent` into the tuning map. The MP4
-  reader (`Mp4FrameReader::read`, `src/Export/recording_loader.cpp`) then maps every
+  reader (`Mp4FrameReader::read`, `src/Stores/recording_loader.cpp`) then maps every
   decoded frame through the curve's 256-entry table, `displayToneLutFor(exponent)`
   in `src/Video/display_tone.h`, into a buffer of its own. That happens before any
   stage sees the frame, so pose, the shaft trackers, the ball tracker and the
@@ -677,7 +677,7 @@ src/Vocabulary/Analysis/analysis_tuning.h  # tuning::apply — dotted key → co
 src/Vocabulary/Common/pp_tuned_constants.h   # pinpoint::tuned::* — the frozen defaults
 src/Vocabulary/Recording/capture_time_types.h  # ImuSegmentBinding (calibration status, as captured)
 src/Vocabulary/Analysis/swing_analysis.h   # BindingRecord (calibration status, as analysed)
-src/Export/swing_doc.{h,cpp}    # result.json writer (shared with the app)
+src/Stores/swing_doc.{h,cpp}    # result.json writer (shared with the app)
 
 docs/implementation/swinglab_impl.md      # design + stage history (L0–L5)
 docs/developer/swing_export_developer_guide.md  # the swing-dir artifacts replayed here

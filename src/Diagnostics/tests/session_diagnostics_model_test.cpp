@@ -28,17 +28,17 @@
 //   ctest --test-dir build/analysis-tests -R session_diagnostics_model --output-on-failure
 
 #include "../../Gui/typeset/box_stats.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
 #include "owner_rig.h"                        // the owners a view test drives (refactor 5.4a)
 #include "../engine/session_reduction.h"   // the owner's reduction, pure (the flight check)
 #include "../../Core/PpMessageLog.h"                // the unreadable-ledger warning (H-04)
-#include "../../Export/session_diagnostics_files.h"   // the golfer's input, out of the cache (step 2.5)
-#include "../../Export/session_files.h"
-#include "../../Export/session_store.h"
-#include "../../Export/swing_store.h"
-#include "../../Export/swing_store_repository.h"
+#include "../../Stores/session_diagnostics_files.h"   // the golfer's input, out of the cache (step 2.5)
+#include "../../Stores/session_files.h"
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_store.h"
+#include "../../Stores/swing_store_repository.h"
 #include "../../Gui/variability/variability_facade.h"   // the per-club badges' variabilityResult
 #include "../derived/sequence_checks.h"
 #include "../derived/condition_in_hand.h"   // the one function a condition is worded through (6.3b fix round, B-2)

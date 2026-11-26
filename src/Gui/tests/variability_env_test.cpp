@@ -22,7 +22,7 @@
 // stub env and in-memory descriptors, since the shipped manifest states no variabilityScale yet.
 
 #include "charts/consistency_env.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "../../Diagnostics/derived/series/session_warp.h"                // phase ids
 #include "charts/variability_env.h"
 

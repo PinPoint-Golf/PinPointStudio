@@ -29,8 +29,8 @@
 #include "../../Vocabulary/Recording/recording.h"
 #include "../../Vocabulary/Club/club_standards.h"
 #include "../../Analysis/swing_analysis_json.h"   // bindingsToJson — the writer's own spelling
-#include "../../Export/recording_header.h"
-#include "../../Export/swing_doc.h"
+#include "../../Stores/recording_header.h"
+#include "../../Stores/swing_doc.h"
 
 #include <QByteArray>
 #include <QDateTime>

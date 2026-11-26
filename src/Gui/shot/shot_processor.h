@@ -42,8 +42,8 @@
 #include "../Club/club_length_fusion.h"
 #include "../Analysis/shot_analyzer.h"
 #include "../Analysis/analysis_service.h"   // the one run + the Recording's integrity verdicts (step 1.5)
-#include "../Export/swing_exporter.h"
-#include "../Export/swing_paths.h"   // SwingPaths::sanitise, for the camera files' names
+#include "../../Stores/swing_exporter.h"
+#include "../../Stores/swing_paths.h"   // SwingPaths::sanitise, for the camera files' names
 #include "../../Vocabulary/Identity/identity.h"      // SessionId: the session swings are written into
 #include "../DomainModel/recording_repository.h"   // WriteResult (the allocation's, J-22)
 #include "shot_outcome.h"

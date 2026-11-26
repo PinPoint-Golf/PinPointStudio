@@ -194,7 +194,7 @@ QString diagnosticsFilePath(const QString &fileName);
 
 // ONE FILE'S BYTES, as the rule data's repository read them (refactor step 3.2, Q-02: DEC-170).
 //
-// The loaders here compute; they do not open files. `RuleDataRepository` (src/Export/rule_data_store)
+// The loaders here compute; they do not open files. `RuleDataRepository` (src/Stores/rule_data_store)
 // is the one door to the shipped and user rule data (FILE-APP-01…05), so it reads each file and hands
 // the providers this value: where the bytes came from, and whether there were any. The three states
 // are the three a provider has always told apart, because a missing file means opposite things at

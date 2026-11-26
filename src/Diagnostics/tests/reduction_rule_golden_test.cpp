@@ -53,9 +53,9 @@
 #include "../derived/tendencies.h"
 #include "../derived/work_ons_pack.h"
 #include "../../DomainModel/rule_data.h"
-#include "../../Export/rule_data_install.h"
-#include "../../Export/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
-#include "../../Export/phase_grid_store.h"   // the phase grid's file door (P-3)
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
+#include "../../Stores/phase_grid_store.h"   // the phase grid's file door (P-3)
 #include "../engine/pack_io.h"
 #include "../norms/context_tree.h"
 #include "../norms/norm_pack.h"

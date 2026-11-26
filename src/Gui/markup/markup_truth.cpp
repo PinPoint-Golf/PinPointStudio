@@ -18,7 +18,7 @@
 
 #include "markup_truth.h"
 
-#include "../../Export/swing_store.h"   // the swing document, whichever format it is in
+#include "../../Stores/swing_store.h"   // the swing document, whichever format it is in
 #include "../../Vocabulary/Analysis/swing_analysis.h"   // windowTimeUs, documentAnalysisOriginUs — the one time rule
 
 #include <QDir>

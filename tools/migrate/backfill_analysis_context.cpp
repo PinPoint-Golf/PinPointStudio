@@ -46,7 +46,7 @@
 // DEC-158), unless --allow-in-progress — for one a crash left open; a dry run reads it as any other. A JSON-era swing.json that is written becomes swing.ppsw (SwingStore::save
 // removes the JSON and its sidecar): the report counts them, and the backup holds the original.
 //
-// What each swing gets (the store's rule, backfilledAnalysisContext in Export/recording_header.h):
+// What each swing gets (the store's rule, backfilledAnalysisContext in Stores/recording_header.h):
 //   heightM   the document's own athlete.heightM when it has one, else the record's
 //   clubSet   the record's sex and date of birth on the session's date (else the capture's)
 //   club      the captured club as the legacy context reads it; its standard length again for that
@@ -64,12 +64,12 @@
 //
 // Exit status: 0 when nothing failed; 1 when a swing failed; 2 on a usage error or a refusal.
 
-#include "swing_doc.h"
-#include "swing_paths.h"
-#include "swing_store.h"
-#include "swing_store_repository.h"   // the one door to the swing files
-#include "session_store.h"            // what names each swing's ShotRef (step 2.4)
-#include "recording_header.h"         // legacyAnalysisContext, backfilledAnalysisContext
+#include "../../src/Stores/swing_doc.h"
+#include "../../src/Stores/swing_paths.h"
+#include "../../src/Stores/swing_store.h"
+#include "../../src/Stores/swing_store_repository.h"   // the one door to the swing files
+#include "../../src/Stores/session_store.h"            // what names each swing's ShotRef (step 2.4)
+#include "../../src/Stores/recording_header.h"         // legacyAnalysisContext, backfilledAnalysisContext
 #include "real_path.h"                // realPath: links resolved, junctions too on Windows (#243)
 
 #include <QCoreApplication>

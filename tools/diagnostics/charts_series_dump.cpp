@@ -33,8 +33,8 @@
 
 #include "../../src/Gui/charts/session_series.h"
 #include "../../src/Gui/tests/folder_series.h"
-#include "../../src/Export/rule_data_install.h"
-#include "../../src/Export/series_store.h"
+#include "../../src/Stores/rule_data_install.h"
+#include "../../src/Stores/series_store.h"
 #include "../../src/Wrist/wrist_profile.h"
 
 #include <QCoreApplication>

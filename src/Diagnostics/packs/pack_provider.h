@@ -29,7 +29,7 @@
 
 // The pack provider seam: providers over content that is already in hand. Nothing here reads a file
 // (refactor step 3.2): RuleData (src/DomainModel/rule_data.h) owns the one assembled library, and its
-// repository (src/Export/rule_data_store.cpp) is the one door to the files. No self-registering
+// repository (src/Stores/rule_data_store.cpp) is the one door to the files. No self-registering
 // statics, no startup registration, nothing that runs before main().
 
 namespace pinpoint::analysis {
@@ -104,7 +104,7 @@ public:
 };
 
 // Where the user's own pack lives, and its file name. A PATH, not an access: the rule data's repository
-// (src/Export/rule_data_store.cpp) reads and writes the file (refactor step 3.2; FILE-APP-01); since item
+// (src/Stores/rule_data_store.cpp) reads and writes the file (refactor step 3.2; FILE-APP-01); since item
 // 3.9 the editor reads RuleData's snapshot and names no file.
 QString userPackPath();
 QString userPackFileName();

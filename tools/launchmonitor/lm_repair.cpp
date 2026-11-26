@@ -60,10 +60,10 @@
 // A path may be a swing directory (one holding swing.json) or a session directory, in which
 // case every swing_* beneath it is visited.
 
-#include "swing_doc.h"
-#include "swing_store.h"
-#include "swing_store_repository.h"   // the one door to the swing files
-#include "session_store.h"            // what names each swing's ShotRef (step 2.4)
+#include "../../src/Stores/swing_doc.h"
+#include "../../src/Stores/swing_store.h"
+#include "../../src/Stores/swing_store_repository.h"   // the one door to the swing files
+#include "../../src/Stores/session_store.h"            // what names each swing's ShotRef (step 2.4)
 #include "../../src/Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 #include "pp_debug.h"
 

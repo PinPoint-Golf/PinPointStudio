@@ -30,7 +30,7 @@
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/condition_reading.h" // condition → { metricKey, phase }
 #include "../../Diagnostics/packs/pack_provider.h"      // condition names and groups
-#include "../../Export/swing_paths.h"                   // swingNumberOf: the swing number, the one rule
+#include "../../Stores/swing_paths.h"                   // swingNumberOf: the swing number, the one rule
 #include "../../Kinematics/kinematic_sequence_json.h"   // retimeKinematicSequence
 #include "session_wrist.h"                               // wristResemblanceOf
 

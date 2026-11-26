@@ -83,7 +83,7 @@ Inside `src/`. The folders follow the architecture's rings (Platform, Vocabulary
 | `Coaching/` | The Coaching context: reading results against the golfer's intent and goals (no code yet) |
 | `Buffer/` | The lock-free event buffer that time-aligns every sensor |
 | `IMU/`, `LaunchMonitor/`, `Ppcp/`, `Audio/` | Motion sensors, launch monitors, phone capture, microphones and shot sound |
-| `Export/` | Swing video, and the swing and athlete files |
+| `Stores/` | The stores: the swing, session and athlete files, and the video and zip exports |
 | `STT/`, `TTS/`, `LLM/`, `Secrets/` | Speech, the AI coach, API-key storage |
 | `Update/`, `Core/`, `Resources/`, `Shaders/` | In-app updates, shared infrastructure, bundled assets, GPU shaders |
 

@@ -179,7 +179,7 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
 
 // The grid of a whole swing document (its root): buildPhaseGrid over its `analysis`, with the swing's identity fields
 // (its ordinal, its capture instant, its effective club) read off the document as the carousel reads them. Pure: the
-// swing folder and session id are the caller's (PhaseGridStore, src/Export/phase_grid_store.h; platform refactor P-3).
+// swing folder and session id are the caller's (PhaseGridStore, src/Stores/phase_grid_store.h; platform refactor P-3).
 SwingPhaseGrid phaseGridOfDocument(const QJsonObject &root, const PhaseGridConfig &cfg = {});
 
 // ── Reduction ───────────────────────────────────────────────────────────────
@@ -252,7 +252,7 @@ bool msSpanUncovered(const SwingPhaseGrid &grid, const Measure &m);
 // still matches its swing.json byte-for-byte while holding numbers from the previous window.
 // `loadPhaseGrid` therefore takes the configuration the caller intends to use and refuses a grid
 // that was not built that way. The sidecar's path, read and write are its file door's (PhaseGridStore,
-// src/Export/phase_grid_store.h; platform refactor P-3).
+// src/Stores/phase_grid_store.h; platform refactor P-3).
 
 //
 // The millisecond spans (PhaseGridConfig::msWindows) are a SUBSET test: a sidecar built for spans

@@ -43,16 +43,16 @@
 #include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
 #include "../../Diagnostics/derived/session_gates.h"
 #include "../../Diagnostics/derived/session_results.h"
-#include "../../Export/firing_reader_store.h"
-#include "../../Export/recording_loader.h"
-#include "../../Export/rule_data_install.h"
-#include "../../Export/athlete_store.h"
-#include "../../Export/session_index_summary.h"
-#include "../../Export/session_store.h"
-#include "../../Export/swing_store_repository.h"
+#include "../../Stores/firing_reader_store.h"
+#include "../../Stores/recording_loader.h"
+#include "../../Stores/rule_data_install.h"
+#include "../../Stores/athlete_store.h"
+#include "../../Stores/session_index_summary.h"
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_store_repository.h"
 #include "../../Gui/diagnosticmodel/gate_count_index.h"
 #include "../../Gui/diagnosticmodel/gate_count_reads.h"
-#include "../../Export/phase_grid_store.h"   // the folder read's door, for this suite's own definition of it (below)
+#include "../../Stores/phase_grid_store.h"   // the folder read's door, for this suite's own definition of it (below)
 
 #include <QCoreApplication>
 #include <QDir>

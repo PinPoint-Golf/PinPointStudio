@@ -56,13 +56,13 @@
 #include "../../Vocabulary/Recording/recording.h"
 #include "../../Vocabulary/Club/club_standards.h"
 #include "../../Buffer/swing_window.h"
-#include "../../Export/recording_loader.h"
-#include "../../Export/recording_header.h"   // clubReviewOf: the device club read (refactor 6.2)
+#include "../../Stores/recording_loader.h"
+#include "../../Stores/recording_header.h"   // clubReviewOf: the device club read (refactor 6.2)
 #include "../../Vocabulary/Club/club_vocabulary.h"       // the one club rule (refactor 6.2)
 #include "../recording_integrity.h"
-#include "../../Export/swing_doc.h"   // imuIntegrityJson / captureIntegrityJson — the verdicts as stored
-#include "../../Export/capture_export_facts.h"   // the export's Recording inputs from the freeze (Test 9)
-#include "../../Export/swing_exporter.h"
+#include "../../Stores/swing_doc.h"   // imuIntegrityJson / captureIntegrityJson — the verdicts as stored
+#include "../../Stores/capture_export_facts.h"   // the export's Recording inputs from the freeze (Test 9)
+#include "../../Stores/swing_exporter.h"
 #include "recording_fixture.h"
 
 #include <memory>

@@ -20,8 +20,8 @@
 
 #include "../../Core/atomic_write.h"
 #include "../../Core/pp_debug.h"
-#include "../../Export/swing_doc.h"
-#include "../../Export/recording_header.h"   // the one header writer (the placeholder)
+#include "../../Stores/swing_doc.h"
+#include "../../Stores/recording_header.h"   // the one header writer (the placeholder)
 #include "../../DomainModel/recording_repository.h"
 #include "../../App/shot_command_door.h"   // the Shot's late part (step 3.4b-i)
 #include "../../Ppcp/ppcp_import_ledger.h"

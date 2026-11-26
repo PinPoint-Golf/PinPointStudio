@@ -40,7 +40,7 @@
 //
 // THE PROCESS'S ONE, until each reader is handed it (refactor steps 3.5–3.9, 5, 7). The composition root
 // (main.cpp, a tool's or a test's main) makes and installs it through installProcessRuleData()
-// (src/Export/rule_data_install.h), which never destroys it. The readers not yet handed the snapshot reach it through current() and the
+// (src/Stores/rule_data_install.h), which never destroys it. The readers not yet handed the snapshot reach it through current() and the
 // interim accessors at the end of this header, which replace the lazy registries and the per-caller
 // assemblies they used to build (audit B-02, B-03, B-13). Installing also makes RuleData the source of
 // the process-wide norm slot (sharedNormProvider(), norm_provider.h), so the analysis passes that read

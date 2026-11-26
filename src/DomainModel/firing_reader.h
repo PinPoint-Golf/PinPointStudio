@@ -21,7 +21,7 @@
 // FiringReader — HOW A FIRING JOB READS ONE SHOT'S READINGS, ON ANY THREAD (refactor step 3.5-i; build/refactor/
 // step-3/BRIEF.md §4.4 step 5: "the job reads the shot's readings through its RecordingSource (or the phase-grid
 // cache)"). A small interface keyed by the shot's ShotRef, as RecordingReader is: its adapter
-// (SwingStoreFiringReader, src/Export/firing_reader_store.h) resolves the folder ONLY through
+// (SwingStoreFiringReader, src/Stores/firing_reader_store.h) resolves the folder ONLY through
 // SessionRepository::swingFolder — the one store call any thread may make — and makes exactly the read the
 // diagnostics model's the per-shot firing makes today: the phase grid (its sidecar cache, else one parse), the summary
 // (the hand, the capture instant, the two integrity facts), and the review's shot intent and label corrections.

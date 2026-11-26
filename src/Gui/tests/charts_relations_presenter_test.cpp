@@ -26,7 +26,7 @@
 
 #include "charts/charts_gadget.h"   // chartsGadgetMap: the typed results read as maps (refactor 5.5c)
 #include "charts/charts_relations_presenter.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "charts/charts_words.h"
 #include "charts/consistency_env.h"
 #include "../../Diagnostics/derived/series/session_consistency.h"

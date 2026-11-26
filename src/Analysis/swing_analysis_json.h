@@ -20,7 +20,7 @@
 
 // THE ONE SERIALISER of the `analysis` blocks the pipeline itself produces (their types are in
 // swing_analysis.h): `score`, `metrics[]`, `versions`, `filter`, `assessment`, `timings` and
-// `bindings`. (`path` is in Export/analysis_path_json.h: it spells the `origin` key, which no
+// `bindings`. (`path` is in Stores/analysis_path_json.h: it spells the `origin` key, which no
 // analysis code may — swing_doc_test's provenance guard, the sibling of CT-I37.) Refactor step 1.3a (information_model.md §8 "One serialiser per analysis
 // block"): each writer sits beside its typed reader; swing_doc_analysis.cpp composes the document.
 //

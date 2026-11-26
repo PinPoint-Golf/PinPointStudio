@@ -18,7 +18,7 @@
 //   ctest --test-dir build/analyzer-tests -R seed_conversion --output-on-failure
 
 #include "../engine/characteristic.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../norms/norm.h"
 #include "../norms/norm_provider.h"

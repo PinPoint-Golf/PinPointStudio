@@ -33,7 +33,7 @@
 // repository would pull that into every writer of a review. So the write door stays light, and the
 // one reader of Recordings — the analysis side (re-analysis, SwingLab) — names this interface.
 //
-// Its adapter is SwingStoreRecordingReader (src/Export/recording_loader.h), which the composition
+// Its adapter is SwingStoreRecordingReader (src/Stores/recording_loader.h), which the composition
 // root holds (each tool's main; the app's re-analysis). Reading never writes the document. Stateless
 // and safe from worker threads.
 //
@@ -134,7 +134,7 @@ public:
 
     // THE SHOT'S PHASE GRID (FILE-SHOT-07, OBJ-PHASE-GRID; platform refactor P-3, ruled 24 Nov 2026, J-104): the sampler's
     // numbers per phase, its cache read and written by the adapter through the swing store's file door (PhaseGridStore,
-    // src/Export/phase_grid_store.h), never by the caller. The grid is built under `config` (its millisecond spans
+    // src/Stores/phase_grid_store.h), never by the caller. The grid is built under `config` (its millisecond spans
     // widened to what the cache already holds); `policy` (src/Vocabulary/Common/sidecar_policy.h) says what a miss or a stale cache may
     // cost: CachedOnly never parses, ParseNoWrite parses and writes nothing, ParseAndWrite parses and indexes the result
     // under the session's lock and outside the archive window. buildPhaseGrid stays a pure function. Any thread.

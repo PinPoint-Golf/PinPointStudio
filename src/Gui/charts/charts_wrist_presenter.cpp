@@ -25,7 +25,7 @@
 #include "../../Diagnostics/derived/series/session_curves.h"
 #include "../../Diagnostics/derived/series/session_relations.h"              // boxStats, pearson
 #include "session_series_extract.h"   // folderShotId (refactor 5.5a)
-#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
+#include "../../Stores/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "../../Diagnostics/derived/series/session_warp.h"
 #include "session_wrist.h"
 #include "../../Diagnostics/derived/series/variability_clubs.h"                    // perClubInputs: one window per club (R2b)

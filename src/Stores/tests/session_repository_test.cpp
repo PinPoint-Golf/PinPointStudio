@@ -21,7 +21,7 @@
 // allocator (refactor step 2.2; brief §4.3, §4.4, §4.13).
 //
 // ⚠ EVERY EXPECTATION COMES FROM A STATED CONTRACT OR FROM THE FILESYSTEM, NEVER FROM RUNNING THE CODE.
-// The contracts: src/DomainModel/session_repository.h and src/Export/session_store.h (the file's keys),
+// The contracts: src/DomainModel/session_repository.h and src/Stores/session_store.h (the file's keys),
 // and the decisions they cite — DEC-91 (a swing number is never reissued), DEC-93 (the empty discard),
 // DEC-134 (resume: today's session of the same type, same id), DEC-78/DEC-73 (one InProgress per
 // athlete), DEC-136 (the typed entry), DEC-150 (an old session's id), DEC-154 (D7), and J-18 (Mark, 15 Nov
@@ -37,9 +37,9 @@
 //   cmake --build build/tests --target session_repository_test -j 6
 //   ctest --test-dir build/tests -R '^session_repository_test$' --output-on-failure
 
-#include "session_store.h"
-#include "session_files.h"
-#include "swing_paths.h"
+#include "../session_store.h"
+#include "../session_files.h"
+#include "../swing_paths.h"
 #include "temp_library.h"
 
 #include "../../Core/folder_lock.h"

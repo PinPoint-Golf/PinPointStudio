@@ -21,7 +21,7 @@
 
 #include "posture_picture.h"                // the DTL frames, crop, ball and address grip: the Posture picture's reading
 #include "../report/report_stills_pure.h"   // which frame: the report stills' own rule
-#include "../../Export/dtl_overlay_payload.h"   // the DTL club samples, as the replay payload carries them
+#include "../../Stores/dtl_overlay_payload.h"   // the DTL club samples, as the replay payload carries them
 #include "../../Club/shaft_plane_curve.h"   // shoulderPlaneFromHold — the shoulderPlane metric's own point
 
 #include <QCryptographicHash>

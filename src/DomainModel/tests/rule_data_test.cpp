@@ -33,7 +33,7 @@
 //   ctest --test-dir build/tests -R '^rule_data_test$' --output-on-failure
 
 #include "../rule_data.h"
-#include "../../Export/rule_data_store.h"
+#include "../../Stores/rule_data_store.h"
 #include "../../Diagnostics/derived/strike_from_flight.h"   // FlightNorms: the store's read of the flight table (7.1)
 #include "../../Core/pp_settings.h"
 

@@ -41,11 +41,11 @@
 #include "Diagnostics/derived/diagnostic_ledger.h"
 #include "Diagnostics/derived/session_day_readings_rules.h"
 #include "Diagnostics/derived/session_results.h"
-#include "Export/rule_data_install.h"
-#include "Export/session_diagnostics_files.h"
-#include "Export/session_files.h"
-#include "Export/swing_paths.h"
-#include "Export/swing_store.h"
+#include "Stores/rule_data_install.h"
+#include "Stores/session_diagnostics_files.h"
+#include "Stores/session_files.h"
+#include "Stores/swing_paths.h"
+#include "Stores/swing_store.h"
 #include "Core/pp_debug.h"
 
 #include <QCoreApplication>

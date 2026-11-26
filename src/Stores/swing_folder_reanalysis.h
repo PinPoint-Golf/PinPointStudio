@@ -30,7 +30,7 @@
 //
 // The app never calls these: its re-analysis reads each shot through the Shot's RecordingSource.
 //
-// Adapters ring (src/Export).
+// Adapters ring (src/Stores).
 
 #include <QString>
 

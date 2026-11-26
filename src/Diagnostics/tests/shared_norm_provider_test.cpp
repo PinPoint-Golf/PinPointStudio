@@ -35,7 +35,7 @@
 //   ctest --test-dir build/tests -R '^shared_norm_provider_test$' --output-on-failure
 
 #include "../norms/norm_provider.h"
-#include "../../Export/rule_data_store.h"   // the user norm set written through the one door, without a RuleData
+#include "../../Stores/rule_data_store.h"   // the user norm set written through the one door, without a RuleData
 
 #include <QCoreApplication>
 #include <QDir>

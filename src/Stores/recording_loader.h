@@ -54,7 +54,7 @@
 // The types it returns (LoadedRecording, RecordingLoadOptions) are the domain's reading interface's
 // (src/DomainModel/recording_reader.h); SwingStoreRecordingReader below is that interface's adapter.
 //
-// Adapters ring (src/Export): the only code that turns a swing folder into a Recording.
+// Adapters ring (src/Stores): the only code that turns a swing folder into a Recording.
 
 #include <QString>
 

@@ -30,7 +30,7 @@
 // made", so the reader is checked against the writer, not against a copy of it.
 
 #include "session_identity.h"
-#include "swing_paths.h"
+#include "../../Stores/swing_paths.h"
 
 #include <QCoreApplication>
 #include <QDate>

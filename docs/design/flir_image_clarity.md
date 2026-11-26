@@ -100,7 +100,7 @@ beside every edge, and the shaft tracker, ball detector and pose model would all
   picture-in-picture. The rule follows the pixel format, so a phone's or a webcam's video (already
   tone-mapped) is shown as it is.
 - **In an export zip:** a raw-Bayer clip goes in as a curved copy, re-encoded through the same 256-entry
-  table (`src/Export/export_tone.h`). `thumb.jpg` in the zip is curved likewise (proposed, for the Product Owner).
+  table (`src/Stores/export_tone.h`). `thumb.jpg` in the zip is curved likewise (proposed, for the Product Owner).
 - **Not curved:** the stored MP4s and raw sidecars, `thumb.jpg` on disk, Settings → Cameras' sensor preview and
   the Markup Lab (proposed, for the Product Owner)[^scope].
 - **Not curved in this change:** the report stills, which have their own exposure curve. Whether they should

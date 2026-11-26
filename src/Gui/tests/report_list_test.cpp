@@ -37,16 +37,16 @@
 
 #include "report/session_report_list_model.h"
 #include "session/session_list_presenter.h"   // the rows: the one session list (refactor step 5.7a)
-#include "../../Export/session_store.h"        // the index the rows are a view of
-#include "../../Export/session_index_summary.h"   // its entries' summaries' file work, as main.cpp sets it (5.7a-P1)
+#include "../../Stores/session_store.h"        // the index the rows are a view of
+#include "../../Stores/session_index_summary.h"   // its entries' summaries' file work, as main.cpp sets it (5.7a-P1)
 #include "report/report_mailer.h"
 #include "report/mail_credentials.h"
 #include "report/report_meta.h"
 #include "../../Diagnostics/derived/work_ons.h"
-#include "../../Export/session_archiver.h"
-#include "../../Export/session_report_io.h"   // the report's records, written as the repository writes them (5.6a)
-#include "../../Export/swing_doc.h"
-#include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
+#include "../../Stores/session_archiver.h"
+#include "../../Stores/session_report_io.h"   // the report's records, written as the repository writes them (5.6a)
+#include "../../Stores/swing_doc.h"
+#include "../../Stores/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 
 #include <QCoreApplication>
 #include <QDateTime>

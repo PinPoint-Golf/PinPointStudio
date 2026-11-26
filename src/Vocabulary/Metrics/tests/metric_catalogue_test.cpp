@@ -1247,7 +1247,7 @@ int main()
     // 3f. The reading table and the manifest must agree.
     //
     // pinpoint::lm::fieldDefs() repeats each metric's label and unit so that writing a swing.json
-    // does not drag the catalogue into src/Export. That duplication is only safe if something
+    // does not drag the catalogue into src/Stores. That duplication is only safe if something
     // fails when it drifts, and this is that something: a field added to LaunchMonitorReading with
     // no descriptor would otherwise be written into swing.json under a key nothing can render.
     {

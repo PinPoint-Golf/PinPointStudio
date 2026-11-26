@@ -24,8 +24,8 @@
 // dropping it is precisely the defect this work exists to remove.
 
 #include "../../Gui/shot/ppcp_clip_filer.h"
-#include "../../Export/swing_doc.h"
-#include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
+#include "../../Stores/swing_doc.h"
+#include "../../Stores/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "../ppcp_import_ledger.h"
 #include "../../Gui/tests/fake_shot_door.h"   // the shot-command door (step 5.1)
 

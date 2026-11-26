@@ -54,9 +54,9 @@
 #include "../app_state.h"
 #include "../../DomainModel/athlete.h"
 #include "../../DomainModel/session.h"
-#include "../../Export/recording_loader.h"
-#include "../../Export/session_store.h"
-#include "../../Export/swing_store_repository.h"
+#include "../../Stores/recording_loader.h"
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_store_repository.h"
 #include "../../Gui/shot/replay_source.h"
 
 #include <QCoreApplication>

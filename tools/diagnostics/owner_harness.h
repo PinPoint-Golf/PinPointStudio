@@ -25,9 +25,9 @@
 #include "DomainModel/rule_data.h"
 #include "DomainModel/session.h"
 #include "DomainModel/session_diagnostics.h"
-#include "Export/recording_loader.h"        // SwingStoreRecordingReader
-#include "Export/swing_store_repository.h"
-#include "Export/session_store.h"
+#include "Stores/recording_loader.h"        // SwingStoreRecordingReader
+#include "Stores/swing_store_repository.h"
+#include "Stores/session_store.h"
 #include "Gui/diagnostics/diag_parallel_run.h"
 #include "Gui/diagnostics/session_diagnostics_adapter.h"
 #include "Gui/diagnostics/session_diagnostics_model.h"

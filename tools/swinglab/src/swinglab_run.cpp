@@ -98,7 +98,7 @@
 #include "../../../src/Analysis/shot_analyzer.h"
 #include "../../../src/Analysis/analysis_pipeline.h"   // analysisGraphJson (--dag)
 #include "../../../src/Analysis/swing_reanalyzer.h"
-#include "../../../src/Export/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
+#include "../../../src/Stores/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 #include "../../../src/Ball/ball_runner.h"
 #include "../../../src/IMU/imu_vision_fuser.h"
 #include "../../../src/Timeline/phase_segmenter.h"
@@ -108,13 +108,13 @@
 #include "../../../src/Club/dtl_face_on_witness.h"      // buildFaceOnWitness — the app's witness
 #include "../../../src/Club/dtl_shaft_json.h"           // dtlShaftTrackToJson — club_dtl.json == analysis.clubDtl
 #include "../../../src/Club/dtl_shaft_config.h"         // the resolved scalars echoed into club_dtl.json
-#include "../../../src/Export/swing_doc.h"
-#include "../../../src/Export/swing_store.h"
-#include "../../../src/Export/swing_store_repository.h"      // the one door to the swing files
-#include "../../../src/Export/session_store.h"               // what names the swing's ShotRef (step 2.4)
+#include "../../../src/Stores/swing_doc.h"
+#include "../../../src/Stores/swing_store.h"
+#include "../../../src/Stores/swing_store_repository.h"      // the one door to the swing files
+#include "../../../src/Stores/session_store.h"               // what names the swing's ShotRef (step 2.4)
 #include "../../../src/Analysis/reanalyse_and_persist.h"     // the one re-analysis write-back
 #include "../../../src/Analysis/analysis_service.h"          // the run + the integrity verdicts (step 1.5)
-#include "../../../src/Export/recording_loader.h"            // SwingStoreRecordingReader — the reading door
+#include "../../../src/Stores/recording_loader.h"            // SwingStoreRecordingReader — the reading door
 #include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)
 #include "../../../src/IMU/orientation_refuser.h"    // refuseOrientation / refuseOrientationAdaptive / parity
 #include "../../../src/Vocabulary/Analysis/analysis_tuning.h"   // tuning::apply (filter.* keys)

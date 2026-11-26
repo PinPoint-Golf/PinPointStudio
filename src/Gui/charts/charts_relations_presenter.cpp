@@ -25,7 +25,7 @@
 #include "../../Diagnostics/derived/series/session_sequence.h"
 #include "session_sequence_words.h"
 #include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
-#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
+#include "../../Stores/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "../../Diagnostics/derived/series/session_traces.h"
 #include "../../Diagnostics/derived/series/session_warp.h"
 

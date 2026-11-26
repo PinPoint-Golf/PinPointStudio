@@ -22,7 +22,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include "../../Export/session_archiver.h"
+#include "../../Stores/session_archiver.h"
 #include <QTime>
 #include <QTimer>
 #include <QUrl>
@@ -35,7 +35,7 @@
 #include "session_summary.h"
 #include "../session/session_list_presenter.h"   // the one session list (refactor step 5.7a)
 #include "../Core/pp_debug.h"
-#include "../Export/swing_doc.h"
+#include "../../Stores/swing_doc.h"
 #include "../DomainModel/athlete.h"
 #include "../DomainModel/session.h"    // the Session its Athlete holds (the drawer's delete, refactor step 3.4b-ii)
 #include "../DomainModel/recording_repository.h"

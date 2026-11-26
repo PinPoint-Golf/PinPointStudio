@@ -489,7 +489,7 @@ it **one serialiser, beside its producer** (refactor step 1.3a; `information_mod
 a writer and its typed reader as a pair, in the producer's `*_json.h` (for example
 `Pose/pose_track_json.h`, `Ball/ball_track_json.h`, `Vocabulary/Analysis/recorded_products.h`,
 `Analysis/swing_analysis_json.h`). Then add one line to the composition in
-`src/Export/swing_doc_analysis.cpp`: `serializeAnalysis` calls the writer, and
+`src/Stores/swing_doc_analysis.cpp`: `serializeAnalysis` calls the writer, and
 `analysisFromDocument` calls the reader. The table at the top of that file lists every block
 and where its pair lives; a block with no typed reader says why.
 

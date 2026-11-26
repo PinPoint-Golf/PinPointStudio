@@ -25,7 +25,7 @@
 // repository's reader from its legacy fields, unknowns left unknown.
 //
 // On disk it is the schema-tagged `analysisContext` block of the swing file. Its writer and reader
-// are the store's (src/Export, step 1.2); this header is the value only.
+// are the store's (src/Stores, step 1.2); this header is the value only.
 //
 // What it is NOT: the club the analysis uses. That is the EFFECTIVE club, which applies the golfer's
 // correction (effectiveContext(), src/Analysis/effective_context.h). The captured club below stays

@@ -24,7 +24,7 @@
 #include "posture_picture.h"
 #include "session_posture.h"
 #include "session_series_extract.h"   // folderShotId (refactor 5.5a)
-#include "../../Export/series_store.h"   // seriesSwingLabelOf: the ★ label
+#include "../../Stores/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "../../Diagnostics/derived/series/variability_clubs.h"                              // perClubInputs: one window per club (R2b)
 
 #include "../variability/variability_facade.h"              // VariabilityResultView: the `variabilityResult` QML reads

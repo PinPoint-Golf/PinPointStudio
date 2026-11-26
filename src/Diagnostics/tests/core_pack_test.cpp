@@ -8,8 +8,8 @@
 //   ctest --test-dir build/analyzer-tests -R core_pack --output-on-failure
 
 #include "../packs/area_regroup_table.h"
-#include "../../Export/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
+#include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../packs/characteristic_pack.h"
 #include "../norms/context_tree.h"

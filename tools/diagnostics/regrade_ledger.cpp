@@ -9,7 +9,7 @@
 // way to see what the new pack says about an old session is to set the file aside and let the
 // model back-fill every shot again. That is the whole of this tool:
 //
-//   1. diagnostics.json is read through its one reader (Export/session_diagnostics_files.h). One that
+//   1. diagnostics.json is read through its one reader (Stores/session_diagnostics_files.h). One that
 //      cannot be read, or that a newer build saved, is left exactly as it is and the session is SKIPPED.
 //   2. diagnostics.json is COPIED to diagnostics.json.<tag> (default tag pre-regrade; never overwritten:
 //      refuses if present) — SessionDiagnosticsFiles::backupDiagnostics, through the session's files. The
@@ -102,15 +102,15 @@
 #include "DomainModel/rule_data.h"
 #include "DomainModel/session.h"
 #include "DomainModel/session_diagnostics.h"
-#include "Export/firing_reader_store.h"
-#include "Export/recording_loader.h"
-#include "Export/swing_paths.h"
-#include "Export/swing_store.h"        // SwingStore::loadParts: the recorded athlete id (5.3c)
-#include "Export/swing_store_repository.h"
-#include "../../src/Export/rule_data_install.h"
-#include "Export/session_diagnostics_files.h"
-#include "Export/session_store.h"          // SessionStore::fileSaysInProgress (D11)
-#include "Export/athlete_store.h"          // the athletes, from the library (refactor 4-c, J-61)
+#include "Stores/firing_reader_store.h"
+#include "Stores/recording_loader.h"
+#include "Stores/swing_paths.h"
+#include "Stores/swing_store.h"        // SwingStore::loadParts: the recorded athlete id (5.3c)
+#include "Stores/swing_store_repository.h"
+#include "../../src/Stores/rule_data_install.h"
+#include "Stores/session_diagnostics_files.h"
+#include "Stores/session_store.h"          // SessionStore::fileSaysInProgress (D11)
+#include "Stores/athlete_store.h"          // the athletes, from the library (refactor 4-c, J-61)
 #include "Diagnostics/derived/shot_factors.h"
 #include "Core/PpMessageLog.h"
 #include "parity_json.h"

@@ -23,7 +23,7 @@
 // code path the binary does.
 //
 // THE SAME READ AND CONSTRUCTION AS THE SESSION'S OWNER (refactor 5.3). SessionDiagnostics fires each shot
-// through its firing reader (Export/firing_reader_store.cpp, SwingStoreFiringReader::read) and fireFindings
+// through its firing reader (Stores/firing_reader_store.cpp, SwingStoreFiringReader::read) and fireFindings
 // (Diagnostics/engine/fire_findings.cpp), which build, per swing:
 //
 //   PhaseGridStore::readForMeasures(swingDir, pack.measures, policy, {}, &parsed) one lazy parse, shared with the summary read

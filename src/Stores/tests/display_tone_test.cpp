@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-// The display tone curve (#183; src/Video/display_tone.h, src/Export/export_tone.h).
+// The display tone curve (#183; src/Video/display_tone.h, src/Stores/export_tone.h).
 //
 //  1. The table: its ends, monotone, never darker, values worked out by hand for γ 0.80, and every one of the
 //     256 entries equal to what the shader computes on an 8-bit value (round(255·(v/255)^exponent)).
@@ -306,12 +306,12 @@ static void analysisNeverSeesIt()
     std::printf("=== who includes the curve ===\n");
     // The only files that may: the curve's own module, the screen (live and replay), the export zip, this test.
     const QSet<QString> allowed{
-        QStringLiteral("Export/export_tone.h"), QStringLiteral("Export/export_tone.cpp"),
-        QStringLiteral("Export/swing_zip_exporter.cpp"),
+        QStringLiteral("Stores/export_tone.h"), QStringLiteral("Stores/export_tone.cpp"),
+        QStringLiteral("Stores/swing_zip_exporter.cpp"),
         QStringLiteral("Gui/cameras/camera_instance.cpp"), QStringLiteral("Gui/shot/disk_replay_source.cpp"),
-        QStringLiteral("Export/tests/display_tone_test.cpp"),
+        QStringLiteral("Stores/tests/display_tone_test.cpp"),
         // #183's analysis A/B (a tool's switch, off unless decode.toneExponent is set: display_tone.h) and its test.
-        QStringLiteral("Export/recording_loader.cpp"), QStringLiteral("Analysis/tests/swing_window_parity_test.cpp") };
+        QStringLiteral("Stores/recording_loader.cpp"), QStringLiteral("Analysis/tests/swing_window_parity_test.cpp") };
     const QDir rootDir(QDir(QStringLiteral(PP_SRC_DIR)).canonicalPath());
     const QString root = rootDir.path();
     QStringList offenders;
@@ -333,7 +333,7 @@ static void analysisNeverSeesIt()
     for (const QString &o : offenders) std::printf("    includes the curve: %s\n", qPrintable(o));
     check(scanned > 500, "the source tree was scanned");
     check(offenders.isEmpty(), "nothing else includes the curve: not the analysis, the recorder, the decoder or the encoder");
-    QFile loader(rootDir.filePath(QStringLiteral("Export/recording_loader.cpp")));
+    QFile loader(rootDir.filePath(QStringLiteral("Stores/recording_loader.cpp")));
     const QString loaderText = loader.open(QIODevice::ReadOnly) ? QString::fromUtf8(loader.readAll()) : QString();
     check(loaderText.contains(QStringLiteral("toneExponent")),
           "the recording loader uses it only behind the A/B tool's decode.toneExponent key");

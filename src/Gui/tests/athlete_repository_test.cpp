@@ -20,7 +20,7 @@
 // §4.5, §6 row 2.3).
 //
 // ⚠ EVERY EXPECTATION COMES FROM A STATED CONTRACT OR FROM THE FILESYSTEM, NEVER FROM RUNNING THE CODE.
-// The contracts: src/DomainModel/athlete.h, athlete_repository.h, src/Export/athlete_store.h (the file),
+// The contracts: src/DomainModel/athlete.h, athlete_repository.h, src/Stores/athlete_store.h (the file),
 // and the decisions they cite — DEC-52 (one instance per id), DEC-04/DEC-151 (the folder chosen once,
 // no `folder` key, kept on a rename), DEC-05 (athlete.json at creation), DEC-79/DEC-99 (delete = the
 // whole folder to the trash, refused while a session is InProgress), FILE-LIB-01 (the library trash's
@@ -36,11 +36,11 @@
 #include "pp_settings.h"
 
 #include "../../Core/folder_lock.h"
-#include "../../Export/athlete_files.h"
-#include "../../Export/session_files.h"
+#include "../../Stores/athlete_files.h"
+#include "../../Stores/session_files.h"
 #include "../../DomainModel/session.h"
-#include "../../Export/swing_paths.h"
-#include "../../Export/swing_store_repository.h"   // the Shots' recordings door (the Wrist ★, step 5.7b)
+#include "../../Stores/swing_paths.h"
+#include "../../Stores/swing_store_repository.h"   // the Shots' recordings door (the Wrist ★, step 5.7b)
 #include "../../DomainModel/shot.h"
 
 #include <QDateTime>

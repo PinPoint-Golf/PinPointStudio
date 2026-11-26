@@ -51,7 +51,7 @@
 // NaN is written as an empty CSV field and as JSON null. Numbers are never rounded.
 
 #include "charts/consistency_env.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "../../Diagnostics/derived/series/session_consistency.h"
 #include "../../Diagnostics/derived/series/session_curves.h"
 #include "../../Diagnostics/derived/series/session_sequence.h"

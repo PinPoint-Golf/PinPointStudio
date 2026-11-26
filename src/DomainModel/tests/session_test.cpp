@@ -64,12 +64,12 @@
 #include "../session.h"
 #include "../shot.h"
 #include "../../App/app.h"
-#include "../../Export/recording_loader.h"
-#include "../../Export/session_files.h"
-#include "../../Export/session_report_io.h"   // the report's files, looked at directly (S11)
-#include "../../Export/session_store.h"
-#include "../../Export/swing_paths.h"
-#include "../../Export/swing_store_repository.h"
+#include "../../Stores/recording_loader.h"
+#include "../../Stores/session_files.h"
+#include "../../Stores/session_report_io.h"   // the report's files, looked at directly (S11)
+#include "../../Stores/session_store.h"
+#include "../../Stores/swing_paths.h"
+#include "../../Stores/swing_store_repository.h"
 #include "../../Buffer/swing_window.h"   // a LoadedRecording owns one
 #include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
 

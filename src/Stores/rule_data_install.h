@@ -19,7 +19,7 @@
 #pragma once
 
 // How a process gets its one RuleData (refactor step 3.2; D5: DEC-170). Not a repository: what it hands
-// back is the OWNER, RuleData, made over the one store (src/Export/rule_data_store.h), so a composition
+// back is the OWNER, RuleData, made over the one store (src/Stores/rule_data_store.h), so a composition
 // root never names the store and no view reaches it (P11).
 //
 //   makeRuleDataRepository   the store, for a caller that constructs a RuleData of its own over another

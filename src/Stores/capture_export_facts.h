@@ -37,7 +37,7 @@
 // The capture snapshot fills these at the freeze from the live devices; the export job is given them
 // here. The analysis consumed exactly these values, so the file holds what the analysis used.
 //
-// Adapters ring (src/Export): the export job's vocabulary, no I/O.
+// Adapters ring (src/Stores): the export job's vocabulary, no I/O.
 
 #include <QByteArray>
 #include <QRectF>

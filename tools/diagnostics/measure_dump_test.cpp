@@ -19,8 +19,8 @@
 // No ids are pinned: the pack is being authored as this test is written.
 
 #include "measure_dump_core.h"
-#include "../../src/Export/phase_grid_store.h"   // the phase grid's file door (P-3)
-#include "../../src/Export/rule_data_install.h"
+#include "../../src/Stores/phase_grid_store.h"   // the phase grid's file door (P-3)
+#include "../../src/Stores/rule_data_install.h"
 #include "../../src/DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "Diagnostics/engine/fire_findings.h"

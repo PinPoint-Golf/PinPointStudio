@@ -36,7 +36,7 @@
 //     butt line is refused it falls back to the hip joints under the ⚠, and the trust fold says which source.
 
 #include "charts/session_posture.h"
-#include "../../Export/rule_data_install.h"
+#include "../../Stores/rule_data_install.h"
 #include "charts/session_series_extract.h"   // extractShot (refactor 5.5a)
 #include "../../Diagnostics/derived/series/session_series_types.h"
 #include "charts/session_wrist.h"

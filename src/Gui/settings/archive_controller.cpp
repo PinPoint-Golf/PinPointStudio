@@ -20,8 +20,8 @@
 
 #include "../app/app_settings.h"
 #include "../../Core/pp_debug.h"
-#include "../../Export/session_archiver.h"
-#include "../../Export/swing_paths.h"
+#include "../../Stores/session_archiver.h"
+#include "../../Stores/swing_paths.h"
 #include "../session/session_list_presenter.h"   // the one session list (refactor step 5.7a)
 
 #include <QDateTime>

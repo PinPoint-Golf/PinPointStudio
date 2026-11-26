@@ -32,8 +32,8 @@
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../App/shot_command_door.h"   // the golfer's commands forward to the Shot's and Session's (step 3.4b-i)
-#include "../../Export/session_diagnostics_files.h"   // the history read: the athlete's other sessions' ledgers
-#include "../../Export/swing_paths.h"
+#include "../../Stores/session_diagnostics_files.h"   // the history read: the athlete's other sessions' ledgers
+#include "../../Stores/swing_paths.h"
 #include "../../Diagnostics/derived/sequence_checks.h"
 #include "../../Diagnostics/derived/condition_in_hand.h"   // a condition worded for the golfer's hand (refactor 6.3b fix round, B-2)
 #include "../../Diagnostics/derived/shot_outcomes_pack.h"
@@ -1963,7 +1963,7 @@ std::vector<RankedCondition> SessionDiagnosticsModel::rankScores() const
 
 // ── Persistence ─────────────────────────────────────────────────────────────────────────
 //
-// THE SESSION'S FILES THROUGH THEIR ONE READER AND WRITER, SessionDiagnosticsFiles (Export/
+// THE SESSION'S FILES THROUGH THEIR ONE READER AND WRITER, SessionDiagnosticsFiles (Stores/
 // session_diagnostics_files.h; refactor step 2.5): diagnostics.json is the cache, session_input.json and
 // each shot's review hold what the golfer said. Every write's result is checked and a failure said
 // (DEC-126): ledgerWritesBlocked, the panel's existing notice.
@@ -3143,7 +3143,7 @@ SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing, in
                                                                : fi.canonicalFilePath();
         if (canon == selfCanon) continue;           // this session comes from memory, not disk
 
-        // Through the envelope's one reader (Export/session_diagnostics_files.h).
+        // Through the envelope's one reader (Stores/session_diagnostics_files.h).
         const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(dir);
         if (!read.exists() || read.state == pinpoint::DiagnosticsRead::State::Unopenable) {
             // A session with swings and no ledger yet — never opened with the panel. Counted, so
