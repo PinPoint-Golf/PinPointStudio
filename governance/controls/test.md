@@ -81,8 +81,8 @@ Rules agreed but not yet checked by a test say "none yet" in their compliance; t
 
 Coverage: every control in this folder appears in at least one stage or kind (a retired control excepted), and every id links to the file that states it; as a repo doc check it joins #195's step 5 (proposed, for the Product Owner).
 
-**BT-43.** A visit (a hands-on session at a real capture rig) must hold only the steps that need a real shot, a person's hands or real devices; every other step runs beforehand (headless on a development machine, or unattended on a test machine) and the visit gets only its result. The visit procedure says which steps were moved out and where they ran.
-*Why:* after the first visit, many of its steps needed no golf shot and could have been done at a desk, which cost the owner's time at the rig.[^bt-43]
+**BT-43.** A visit (a hands-on session at a real capture rig) must hold only the steps that need a real shot: golf clubs and a ball being hit. Every other step, including one that needs a person's hands or a real device but no shot, is automated (headless on a development machine, or unattended on a test machine) or done as a short check at a desk, beforehand; the visit gets only its result. A ball step's own set-up, and the reading of its results, go with it: they are part of that step, not steps to move out. The visit procedure says which steps were moved out and where they ran.
+*Why:* after the first visit, many of its steps needed no golf shot and could have been done at a desk, which cost the owner's time at the rig[^bt-43]; time at the rig is for hitting balls, not for checks that can be automated or done at a desk.[^bt-43b]
 *Owner:* Product Owner · *Stage:* Test · *Compliance:* a review of each visit procedure
 
 **Also at this stage (written elsewhere):** [AG-26](build.md) a watchdog on every long command (agents) · [AD-20](kinds-of-work.md) measure the pose noise floor · [AD-22](kinds-of-work.md) one swing for a hypothesis.
@@ -106,3 +106,4 @@ Coverage: every control in this folder appears in at least one stage or kind (a 
 [^ag-16]: Product Owner, 26 Oct 2026 (windowed renders); incidents 11 Oct and 6 Nov 2026.
 [^po-g]: Product Owner, 25 Nov 2026 (#195).
 [^bt-43]: Product Owner, 25 Nov 2026 (after visit 1).
+[^bt-43b]: Product Owner, 26 Nov 2026: visits must need golf clubs and a ball being hit, and no time there is to be spent on checks that can be automated or done at the desk.
