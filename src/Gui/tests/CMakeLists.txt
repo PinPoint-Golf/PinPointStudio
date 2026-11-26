@@ -580,13 +580,15 @@ pp_add_test(design_system_lint_test
 # a session/athlete-scoped type (A2), folder-name parsing (A3), a session/athlete file name outside its
 # owner (A4), file I/O in a rules directory (A5), QVariantMap/QVariantList on the QML boundary (A6), a
 # function over 300 lines in rings 1-2 (A7) and Analysis past the Recording contract (A8) — outside the
-# tagged entries in architecture_allowlist.txt. Plain C++ on Qt Core: no Python needed on any builder.
+# tagged entries in architecture_allowlist.txt — and an include that breaks R-CTX-1, the contexts' order and the hub's
+# contracts (A9), which has no allow-list line. Plain C++ on Qt Core: no Python needed on any builder.
 pp_add_test(architecture_lint_test
     SOURCES architecture_lint_test.cpp
     INCLUDE ${GUI} ${SRC}
     LINK    Qt6::Core
     COMPILE_OPTIONS -DPP_SRC_ROOT="${SRC}"
                     -DPP_ARCH_ALLOWLIST="${CMAKE_CURRENT_SOURCE_DIR}/architecture_allowlist.txt")
+pp_requirement(architecture_lint_test CTL-BT-40)   # every rule runs on its fixtures first, red then green, so one that stops matching fails
 
 # The names QML reads are the names C++ gives it (R-QML-1: the context globals are only devices, settings, logging and
 # `app`): main.cpp registers exactly the ruled globals, no production QML or JS reads one of the five names that moved

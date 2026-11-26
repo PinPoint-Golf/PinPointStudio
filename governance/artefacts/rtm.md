@@ -22,7 +22,7 @@
 | every kind it needs present | 0 |
 | withdrawn ids | 8 |
 
-955 gaps: 0 accepted, 955 in the baseline, 0 new (a new gap fails the check); 43 warnings. "The flags" says what each kind of gap means; every gap is listed last.
+954 gaps: 0 accepted, 954 in the baseline, 0 new (a new gap fails the check); 43 warnings. "The flags" says what each kind of gap means; every gap is listed last.
 
 ## Requirements, area by area
 
@@ -1095,7 +1095,7 @@ Each flag is a kind of gap. A gap fails `rtm_check` unless it is an accepted gap
 | 1. rtm.md is stale | The page differs from what the inputs make now. It clears when python3 tools/method/make_rtm.py is run and rtm.md committed. | checked by `--check` | | | |
 | 2. An id cited anywhere does not exist, or is withdrawn | A test, an issue, uc-map.csv, an observation or a gap file names a requirement or control that does not exist, or was withdrawn. It clears when the citation is corrected. | 0 | 0 | 0 | 0 |
 | 3. A delivered, built or partial row without evidence of every kind it needs | A row requirements.md calls delivered, built or partial lacks a kind of evidence it needs. It clears when that evidence exists: a labelled test, or a passing observation in rtm_observations.csv. | 299 | 0 | 299 | 0 |
-| 4. A test with no requirement or control label | A test does not say what it proves. It clears with pp_requirement(&lt;test&gt; &lt;id&gt;...) beside its registration, or a // REQ: line in a tst_&#42;.qml file; a mechanical rename is make_rtm.py --rename &lt;old&gt; &lt;new&gt;; a test that proves neither is an accepted gap, approved by the Solution Architect. | 427 | 0 | 427 | 0 |
+| 4. A test with no requirement or control label | A test does not say what it proves. It clears with pp_requirement(&lt;test&gt; &lt;id&gt;...) beside its registration, or a // REQ: line in a tst_&#42;.qml file; a mechanical rename is make_rtm.py --rename &lt;old&gt; &lt;new&gt;; a test that proves neither is an accepted gap, approved by the Solution Architect. | 426 | 0 | 426 | 0 |
 | 5. An open enhancement with no Requirement: line, or one naming an unknown id | An open enhancement does not say which requirement it serves. It clears with a Requirement: line in the issue (an id, or "none"). | 66 | 0 | 66 | 0 |
 | 6. An open bug naming a delivered row: the row is failing | An open bug names a row requirements.md calls delivered, so the row is failing. It clears when the bug is closed, or no longer names the row. | 0 | 0 | 0 | 0 |
 | 7. A planned row whose issues are all closed | A planned row's issues are all closed. It clears when requirements.md's owner updates the status, or an issue is opened for what is left. | 0 | 0 | 0 | 0 |
@@ -1162,14 +1162,15 @@ Printed by every mode; they never fail the check.
 | CTL-AD-52 (A rule must be built in C++, never in QML: a threshold …) | `session_setup_lint_test` |
 | CTL-AG-15 (Agents must never launch the app plainly, offscreen included: every probe or …) | `synthetic_devices_off_test`, `synthetic_devices_test` |
 | CTL-BT-39 (Every new test, and every test whose assertions or set-up change, must …) | `rtm_check`, `rtm_selftest` |
-| CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | `quit_pins_selftest`, `quit_pins_synthetic_selftest` |
+| CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | `architecture_lint_test`, `quit_pins_selftest`, `quit_pins_synthetic_selftest` |
 
 ## Labelled tests
 
-438 tests are registered in the source; 11 carry a requirement or control label. Gate lists: the platform lists that hold the test.
+438 tests are registered in the source; 12 carry a requirement or control label. Gate lists: the platform lists that hold the test.
 
 | Test | Kind | Labels | Gate lists | Registered in |
 |---|---|---|---|---|
+| `architecture_lint_test` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `device_key_test` | an automated test of the logic (E1) | REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `perspective_test` | an automated test of the logic (E1) | REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …) | macos | `src/Analysis/tests/CMakeLists.txt` |
 | `quit_pins_selftest` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
@@ -1507,7 +1508,6 @@ None.
 - angular_rate_test names no requirement or control it proves <sub>`4 angular_rate_test` baseline</sub>
 - app_state_test names no requirement or control it proves <sub>`4 app_state_test` baseline</sub>
 - arbiter_test names no requirement or control it proves <sub>`4 arbiter_test` baseline</sub>
-- architecture_lint_test names no requirement or control it proves <sub>`4 architecture_lint_test` baseline</sub>
 - artefact_paths_check names no requirement or control it proves <sub>`4 artefact_paths_check` baseline</sub>
 - athlete_diagnostics_test names no requirement or control it proves <sub>`4 athlete_diagnostics_test` baseline</sub>
 - athlete_dump_ids_test names no requirement or control it proves <sub>`4 athlete_dump_ids_test` baseline</sub>

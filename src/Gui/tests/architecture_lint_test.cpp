@@ -80,6 +80,18 @@
 //       the settings file, the studio profile); and any Vocabulary, Rules or Domain-model file including
 //       the settings handle, Core/pp_settings, which is Platform, so A1 no longer stops it (R3, the
 //       Solution Architect, 24 Nov 2026). The named files are matched by name, whatever their ring.
+//   A9  R-CTX-1 (information_model.md §2; platform refactor B1.21): an #include "…" that crosses a context, by
+//       IM §4.1's Context column (dirContexts(), fileContexts() below, read like the ring tables), when
+//       (1) an earlier context includes a later one (the order is Acquisition → Diagnostics → Coaching);
+//       (2) a context includes a Domain + Application header that is not one of the hub's contracts
+//           (hubContracts(): R13's five, each with why it meets Q26's test: only interfaces and value types,
+//           no owner class or service; a header joins by a ruling, when a context first needs it); or
+//       (3) a Shared Vocabulary file (or a Platform file) includes any context's file (Q27).
+//       Allowed: the hub including every context (it composes them), any include of Platform or Shared, a
+//       later context including an earlier one. A C++ file with no context fails, so a new directory is
+//       placed on purpose; a stale table entry fails too. A9 has NO allow-list line, and the list refuses one.
+//       The deferrals are in the tables, not in the rule: Gui's capture code stays in the hub until Stage D,
+//       and the drill pack stays Diagnostics until no Diagnostics file includes it.
 //
 // THE RING TABLE. A file's ring is its directory's (dirRings(), longest prefix wins) unless it is
 // named in fileRings(), which exists because four directories straddled rings (03 §2) — Analysis,
@@ -118,6 +130,8 @@
 //     path from any other: a model, log or download file counts like a session's file, so such a line
 //     is allowlisted with its reason. A QFileInfo variable used only for its name still counts.
 //   - A7 misses trailing-return functions (`auto f() -> T {`), as size_table.py does.
+//   - A9 reads direct includes only: a contract's own includes are not followed (recording_reader.h's reach every
+//     file that includes the contract), and a type used through a forward declaration is not seen.
 //
 //   cmake --build build/tests --target architecture_lint_test -j 6
 //   ctest --test-dir build/tests -R '^architecture_lint_test$' --output-on-failure
@@ -275,6 +289,179 @@ int ringOf(const QString &rel)
         if (rel.startsWith(d.first) && d.first.size() > bestLen) { best = d.second; bestLen = d.first.size(); }
     return best;
 }
+
+// ── The contexts (A9) ──────────────────────────────────────────────────────────────────────────
+// information_model.md §2 (the four contexts, R-CTX-1) and §4.1's Context column, with R13's placements of the rows
+// once marked "to place in Stage B" (docs/implementation/platform_b1_placements.md; the Solution Architect, 24 Nov
+// 2026). Platform is the base, not a context; Shared is the Vocabulary areas every context may use (Q27). Contexts are
+// tagged, not foldered, so these tables sit beside the ring tables and are read the same way: a file's own entry,
+// else its directory's (longest prefix wins); a C++ file in neither has no context and fails the test.
+enum Context { NoContext = -1, CtxPlatform = 0, CtxShared, CtxAcquisition, CtxDiagnostics, CtxCoaching, CtxHub };
+
+const char *contextName(int c)
+{
+    static const char *n[] = { "Platform", "Shared", "Acquisition", "Diagnostics", "Coaching", "Domain + Application" };
+    return c >= 0 && c <= 5 ? n[c] : "no context";
+}
+
+// R-CTX-1's order: Acquisition → Diagnostics → Coaching. The hub, Platform and Shared are not in it.
+int contextOrder(int c)
+{
+    return c == CtxAcquisition ? 0 : c == CtxDiagnostics ? 1 : c == CtxCoaching ? 2 : -1;
+}
+
+// Directory → context (IM §4.1's Context column). Longest prefix wins.
+const QVector<QPair<QString, int>> &dirContexts()
+{
+    static const QVector<QPair<QString, int>> t{
+        // The Vocabulary areas, one by one: a new area has no context until it is placed.
+        { QStringLiteral("Vocabulary/Analysis/"), CtxDiagnostics },
+        { QStringLiteral("Vocabulary/Metrics/"), CtxDiagnostics },
+        { QStringLiteral("Vocabulary/Recording/"), CtxAcquisition },     // the Recording contract's types, frame_decode with them
+        { QStringLiteral("Vocabulary/Rig/"), CtxAcquisition },           // the rig's value types, part of its contract (RING-VOCABULARY)
+        { QStringLiteral("Vocabulary/LaunchMonitor/"), CtxAcquisition }, // the reading types
+        { QStringLiteral("Vocabulary/Identity/"), CtxShared },
+        { QStringLiteral("Vocabulary/Club/"), CtxShared },
+        { QStringLiteral("Vocabulary/Common/"), CtxShared },
+        { QStringLiteral("Core/"), CtxPlatform },                       // Platform by its directory (R4); the device enumerator below
+        { QStringLiteral("Pose/"), CtxDiagnostics },
+        { QStringLiteral("Club/"), CtxDiagnostics },
+        { QStringLiteral("Ball/"), CtxDiagnostics },
+        { QStringLiteral("Body/"), CtxDiagnostics },                    // R13
+        { QStringLiteral("Wrist/"), CtxDiagnostics },                   // R13
+        { QStringLiteral("Skeleton3d/"), CtxDiagnostics },              // R13
+        { QStringLiteral("Kinematics/"), CtxDiagnostics },              // with the Kalman smoother (R2, R13)
+        { QStringLiteral("Timeline/"), CtxDiagnostics },
+        { QStringLiteral("IMU/"), CtxDiagnostics },                     // golf fusion; the signal-level files and device back-ends below
+        { QStringLiteral("Analysis/"), CtxDiagnostics },                // the pipeline and the stages; the MP4 reader below
+        // The whole of Diagnostics, its derived facts and their series/ folder with it: one entry, so a re-cut of its
+        // folders (B1.19) re-keys nothing here. The drill pack is named below.
+        { QStringLiteral("Diagnostics/"), CtxDiagnostics },
+        { QStringLiteral("Coaching/"), CtxCoaching },                   // the Coaching context's folder, empty until its first file
+        { QStringLiteral("LaunchMonitor/"), CtxAcquisition },           // the connectors (R5, R13)
+        { QStringLiteral("LaunchMonitor/inferred/"), CtxDiagnostics },  // the inferred reads (R5, R13)
+        { QStringLiteral("Buffer/"), CtxAcquisition },                  // the ring and the stream types
+        { QStringLiteral("Video/"), CtxAcquisition },
+        { QStringLiteral("Ppcp/"), CtxAcquisition },
+        { QStringLiteral("Audio/"), CtxAcquisition },                   // the input and the acoustic shot detector (R13); the output below
+        { QStringLiteral("DomainModel/"), CtxHub },
+        { QStringLiteral("App/"), CtxHub },
+        { QStringLiteral("Stores/"), CtxHub },                          // the stores (R6)
+        // The whole of Gui: presentation, with Gui/cameras, Gui/imu and Gui/shot's capture services, which stay in the
+        // hub until Stage D splits capture (the deferral IM §4.1 records); app_info with them (R13).
+        { QStringLiteral("Gui/"), CtxHub },
+        { QStringLiteral("LLM/"), CtxHub },                             // R13, with STT, TTS, Secrets and Update
+        { QStringLiteral("STT/"), CtxHub },
+        { QStringLiteral("TTS/"), CtxHub },
+        { QStringLiteral("Secrets/"), CtxHub },
+        { QStringLiteral("Update/"), CtxHub },
+    };
+    return t;
+}
+
+// The files whose context is not their directory's. Path under src/ without the extension.
+const QHash<QString, int> &fileContexts()
+{
+    static const QHash<QString, int> t{
+        { QStringLiteral("Core/device_enumerator"), CtxAcquisition },        // R13
+        { QStringLiteral("Analysis/mp4_frame_reader"), CtxHub },             // R13
+        { QStringLiteral("Pose/motion_capture_probe"), CtxHub },             // R13: the hardware probe behind a setting
+        { QStringLiteral("Audio/audio_output"), CtxHub },                    // R13: Audio's output
+        { QStringLiteral("Audio/audio_output_base"), CtxHub },
+        { QStringLiteral("Audio/ting_player"), CtxHub },
+        // The drill pack stays Diagnostics until no Diagnostics file includes it; then Coaching (IM §2, "The packs").
+        // Named, though its directory says the same, so that day is a one-line change.
+        { QStringLiteral("Diagnostics/packs/drill_pack"), CtxDiagnostics },
+        // IMU: the device-level, calibration-procedure and signal-level files (IM §2's Acquisition row, L2; RING-RULES).
+        { QStringLiteral("IMU/imu_calibration"), CtxAcquisition },
+        { QStringLiteral("IMU/trunk_angles"), CtxAcquisition },
+        { QStringLiteral("IMU/trunk_stand_tall"), CtxAcquisition },
+        { QStringLiteral("IMU/orientation_filter"), CtxAcquisition },
+        { QStringLiteral("IMU/iorientation_filter"), CtxAcquisition },
+        { QStringLiteral("IMU/eskf_orientation_filter"), CtxAcquisition },
+        { QStringLiteral("IMU/impact_detector"), CtxAcquisition },
+        { QStringLiteral("IMU/hm_unit_id"), CtxAcquisition },
+        { QStringLiteral("IMU/hm_session_types"), CtxAcquisition },
+        { QStringLiteral("IMU/hm_capture_provenance"), CtxAcquisition },
+        { QStringLiteral("IMU/hm_sample_convert"), CtxAcquisition },
+        { QStringLiteral("IMU/hm_skew_stats"), CtxAcquisition },
+        { QStringLiteral("IMU/trunk_ceremony"), CtxAcquisition },
+        { QStringLiteral("IMU/trunk_ceremony_file"), CtxAcquisition },
+        // IMU: the device back-ends (R13).
+        { QStringLiteral("IMU/ble_adapter_pool"), CtxAcquisition },
+        { QStringLiteral("IMU/ble_imu_transport"), CtxAcquisition },
+        { QStringLiteral("IMU/imu_base"), CtxAcquisition },
+        { QStringLiteral("IMU/imu_capabilities"), CtxAcquisition },
+        { QStringLiteral("IMU/imu_factory"), CtxAcquisition },
+        { QStringLiteral("IMU/imu_io_worker"), CtxAcquisition },
+        { QStringLiteral("IMU/imu_sample_tap"), CtxAcquisition },
+        { QStringLiteral("IMU/hm_session_worker"), CtxAcquisition },
+        { QStringLiteral("IMU/wt9011dcl"), CtxAcquisition },
+        { QStringLiteral("IMU/wt9011dcl_ble"), CtxAcquisition },
+        { QStringLiteral("IMU/wt9011dcl_base"), CtxAcquisition },
+        { QStringLiteral("IMU/wt901_config_check"), CtxAcquisition },
+    };
+    return t;
+}
+
+int contextOf(const QString &rel)
+{
+    const auto &files = fileContexts();
+    const auto  f     = files.constFind(stemOf(rel));
+    if (f != files.cend()) return f.value();
+    int best = NoContext, bestLen = -1;
+    for (const auto &d : dirContexts())
+        if (rel.startsWith(d.first) && d.first.size() > bestLen) { best = d.second; bestLen = d.first.size(); }
+    return best;
+}
+
+// The hub's contracts: the Domain model headers a context may include (R-CTX-1; Q26, "contracts, not owners"; R13's
+// five, ruled by the Solution Architect, 24 Nov 2026). Q26's test for each: it declares only interfaces and value
+// types, and no owner class or service. Any other header joins by a ruling, when a context first needs it.
+struct HubContract {
+    const char *stem;
+    const char *why;
+};
+const QVector<HubContract> &hubContracts()
+{
+    static const QVector<HubContract> t{
+        { "DomainModel/recording_source", "RecordingSource: an immutable value, a ShotRef and the reader the Shot was given" },
+        { "DomainModel/recording_reader", "RecordingReader, an interface, and its value types (LoadedRecording, RecordingLoadOptions)" },
+        { "DomainModel/recording_repository", "RecordingRepository, an interface, and the value types its calls carry" },
+        { "DomainModel/shot_command_values", "the Shot's commands' value types (LabelCorrectionNote, SessionIntentEdit, …)" },
+        { "DomainModel/session_input", "the session's typed input, value types (DeclaredFocus, IntentRun, SessionInput)" },
+    };
+    return t;
+}
+
+bool isHubContract(const QString &target)
+{
+    const QString s = stemOf(target);
+    for (const auto &c : hubContracts())
+        if (s == QLatin1String(c.stem)) return true;
+    return false;
+}
+
+// A9: why an include from context `from` into context `to` breaks R-CTX-1, or empty when it doesn't.
+QString contextBreach(int from, int to, const QString &target)
+{
+    if (from == to || to == CtxPlatform || to == CtxShared) return {};   // the base is everyone's
+    if (from == CtxPlatform || from == CtxShared)
+        return QStringLiteral("R-CTX-1 (Q27): a %1 file includes %2's %3; Shared and Platform never depend outward")
+            .arg(QLatin1String(contextName(from)), QLatin1String(contextName(to)), target);
+    if (from == CtxHub) return {};                                        // the hub composes every context (Q26)
+    if (to == CtxHub)
+        return isHubContract(target)
+                   ? QString()
+                   : QStringLiteral("R-CTX-1 (Q26): %1 reaches Domain + Application past its contracts: includes %2, "
+                                    "which is not in hubContracts()").arg(QLatin1String(contextName(from)), target);
+    if (contextOrder(from) < contextOrder(to))
+        return QStringLiteral("R-CTX-1: %1 includes the later context %2: %3")
+            .arg(QLatin1String(contextName(from)), QLatin1String(contextName(to)), target);
+    return {};
+}
+
+int g_contextCrossings = 0;   // includes that cross a context (A9 reads each); reset after the fixtures
 
 // ── A2: the session- and athlete-scoped C++ types QML must not create ──────────────────────────
 const QRegularExpression &scopedTypeRe()
@@ -524,7 +711,7 @@ QVector<Finding> scan(const Source &s, const Tree &tree)
         }
     } else {
         const int ring = ringOf(rel);
-        // A1 / A8 — includes
+        // A1 / A5 / A8 / A9 — includes
         for (int li = 0; li < s.litLines.size(); ++li) {
             const auto m = includeRe().match(s.litLines.at(li));
             if (!m.hasMatch()) continue;
@@ -549,6 +736,13 @@ QVector<Finding> scan(const Source &s, const Tree &tree)
                 out.append({ QStringLiteral("A8"), li + 1,
                              QStringLiteral("%1 reads application state: includes %2 (the settings handle; R3)")
                                  .arg(QLatin1String(ringName(ring)), target) });
+            // A9 — R-CTX-1: the contexts' order, the hub's contracts, and a base that never depends outward
+            const int cs = contextOf(rel), ct = contextOf(target);
+            if (cs != NoContext && ct != NoContext && cs != ct) {
+                ++g_contextCrossings;
+                const QString why = contextBreach(cs, ct, target);
+                if (!why.isEmpty()) out.append({ QStringLiteral("A9"), li + 1, why });
+            }
         }
         // A5 — file or directory access outside the repositories (P11); in a rules directory, its old message
         if (!a5Exempt(rel)) {
@@ -711,7 +905,9 @@ void selfTest()
                            "Vocabulary/Metrics/metric_catalogue.h", "Buffer/source_ring.h", "Buffer/types.h", "Core/pp_debug.h",
                            "Vocabulary/Analysis/swing_analysis.h", "Analysis/analysis_pipeline.h", "Stores/session_store.h",
                            "Stores/swing_paths.h", "DomainModel/session_repository.h", "DomainModel/athlete.h",
-                           "Core/pp_settings.h" }) {
+                           "Core/pp_settings.h", "Vocabulary/Recording/recording.h", "Vocabulary/Common/figure_format.h",
+                           "Vocabulary/Analysis/phase_grid.h", "DomainModel/session.h", "DomainModel/recording_source.h",
+                           "Coaching/plan.h", "IMU/imu_base.h" }) {
         t.files.insert(QString::fromLatin1(f));
         t.byName[QFileInfo(QString::fromLatin1(f)).fileName()].append(QString::fromLatin1(f));
     }
@@ -848,6 +1044,56 @@ void selfTest()
     check(countRule(a7s, "A7") == 1 && a7s.first().text.startsWith(QLatin1String("composed is")),
           QStringLiteral("A7 finds a long function whose signature is longer than 240 characters and has a {} default (got: %1)")
               .arg(a7s.isEmpty() ? QStringLiteral("none") : a7s.first().text));
+    // A9: one passing and one failing case per clause; each failing case must fail for its own clause.
+    const auto a9 = [&](const char *rel, const char *text) { return run(rel, QString::fromLatin1(text)); };
+    const auto a9Says = [](const QVector<Finding> &fs, const char *words) {
+        int n = 0;
+        for (const auto &f : fs)
+            if (f.rule == QLatin1String("A9")) n += f.text.contains(QLatin1String("R-CTX-1")) && f.text.contains(QLatin1String(words)) ? 1 : 0;
+        return n;
+    };
+    // (1) the order: an earlier context never includes a later one
+    const auto acqToDiag  = a9("Video/x.cpp", "#include \"../Diagnostics/derived/shot_factors.h\"\n");
+    const auto diagToCoa  = a9("Diagnostics/derived/x.cpp", "#include \"../../Coaching/plan.h\"\n");
+    check(countRule(acqToDiag, "A9") == 1 && a9Says(acqToDiag, "includes the later context Diagnostics") == 1
+              && countRule(diagToCoa, "A9") == 1 && a9Says(diagToCoa, "includes the later context Coaching") == 1,
+          QStringLiteral("A9 catches an earlier context including a later one (Acquisition → Diagnostics, Diagnostics → Coaching)"));
+    check(countRule(a9("Diagnostics/derived/x.cpp", "#include \"../../Vocabulary/Recording/recording.h\"\n"
+                                                    "#include \"../../IMU/imu_base.h\"\n"), "A9") == 0
+              && countRule(a9("Coaching/x.cpp", "#include \"../Diagnostics/derived/shot_factors.h\"\n"
+                                                "#include \"../Vocabulary/Recording/recording.h\"\n"), "A9") == 0
+              && countRule(a9("Video/x.cpp", "// #include \"../Diagnostics/derived/shot_factors.h\"\n"), "A9") == 0,
+          QStringLiteral("A9 passes a later context including an earlier one, and ignores a commented-out include"));
+    // (2) the hub: reached only through its contracts; the hub itself composes every context
+    const auto pastContract = a9("Diagnostics/derived/x.cpp", "#include \"../../DomainModel/session.h\"\n");
+    check(countRule(pastContract, "A9") == 1 && a9Says(pastContract, "past its contracts") == 1,
+          QStringLiteral("A9 catches a context including a hub header that is not a contract (DomainModel/session.h)"));
+    check(countRule(a9("Analysis/x.cpp", "#include \"../DomainModel/recording_source.h\"\n"), "A9") == 0
+              && countRule(a9("Gui/x/y.cpp", "#include \"../../Diagnostics/derived/shot_factors.h\"\n"
+                                             "#include \"../../IMU/imu_base.h\"\n#include \"../../Coaching/plan.h\"\n"), "A9") == 0,
+          QStringLiteral("A9 passes a context including a hub contract, and the hub including every context"));
+    // (3) the base: Shared and Platform include no context's file; every context may include them
+    const auto sharedOut   = a9("Vocabulary/Common/x.h", "#include \"../Analysis/phase_grid.h\"\n");
+    const auto platformOut = a9("Core/x.cpp", "#include \"../IMU/imu_base.h\"\n");
+    check(countRule(sharedOut, "A9") == 1 && a9Says(sharedOut, "never depend outward") == 1
+              && countRule(platformOut, "A9") == 1 && a9Says(platformOut, "never depend outward") == 1,
+          QStringLiteral("A9 catches a Shared file including a context's file (Vocabulary/Common → Vocabulary/Analysis), and Platform the same"));
+    check(countRule(a9("Vocabulary/Common/x.h", "#include \"figure_format.h\"\n#include \"../../Core/pp_debug.h\"\n"), "A9") == 0
+              && countRule(a9("IMU/imu_base.cpp", "#include \"../Vocabulary/Common/figure_format.h\"\n#include \"../Core/pp_debug.h\"\n"), "A9") == 0,
+          QStringLiteral("A9 passes Shared including Shared and Platform, and a context including both"));
+    // the context table: a file's entry over its directory's; a directory in neither table has no context
+    check(contextOf(QStringLiteral("IMU/imu_calibration.h")) == CtxAcquisition && contextOf(QStringLiteral("IMU/hm_frame.h")) == CtxDiagnostics
+              && contextOf(QStringLiteral("IMU/wt9011dcl.cpp")) == CtxAcquisition && contextOf(QStringLiteral("Analysis/mp4_frame_reader.cpp")) == CtxHub
+              && contextOf(QStringLiteral("Audio/ting_player.h")) == CtxHub && contextOf(QStringLiteral("Audio/audio_input.h")) == CtxAcquisition
+              && contextOf(QStringLiteral("Core/device_enumerator.h")) == CtxAcquisition && contextOf(QStringLiteral("Core/pp_settings.h")) == CtxPlatform
+              && contextOf(QStringLiteral("LaunchMonitor/inferred/lm_gates.h")) == CtxDiagnostics
+              && contextOf(QStringLiteral("LaunchMonitor/gcquad_monitor.cpp")) == CtxAcquisition
+              && contextOf(QStringLiteral("Diagnostics/packs/drill_pack.h")) == CtxDiagnostics
+              && contextOf(QStringLiteral("Diagnostics/derived/series/session_curves.h")) == CtxDiagnostics
+              && contextOf(QStringLiteral("Gui/shot/shot_arbiter.h")) == CtxHub && contextOf(QStringLiteral("Vocabulary/Rig/rig_state.h")) == CtxAcquisition
+              && contextOf(QStringLiteral("Vocabulary/Identity/identity.h")) == CtxShared
+              && contextOf(QStringLiteral("Vocabulary/NewArea/x.h")) == NoContext && contextOf(QStringLiteral("NoSuchDir/x.h")) == NoContext,
+          QStringLiteral("the context table: per-file entries over directory defaults; a new directory or Vocabulary area has no context"));
     check(ringOf(QStringLiteral("Analysis/analysis_pipeline.cpp")) == Application && ringOf(QStringLiteral("Vocabulary/Analysis/gate_record.h")) == Vocabulary
               && ringOf(QStringLiteral("Core/pp_debug.cpp")) == Platform && ringOf(QStringLiteral("Gui/diagnostics/x.h")) == Adapters
               && ringOf(QStringLiteral("Core/pp_settings.h")) == Platform && ringOf(QStringLiteral("Core/version.h")) == Platform
@@ -874,6 +1120,7 @@ QMap<QString, Allow> readAllowList(const QString &path, bool *ok, QMap<QString, 
     if (!*ok) return out;
     static const QRegularExpression tag(QStringLiteral(
         R"(#\s*(step\s+[1-8](?:\.\d+)?|platform refactor \((?:capture|settings|#224)\)|#222|not domain \(§8\.3\)|unplanned|kept(?: \([^()]+\))?)\s*$)"));
+    // A9 is not in it: R-CTX-1 lands with no allow-list line (IM §1.4), so a line for A9 is refused as malformed.
     static const QRegularExpression ruleRe(QStringLiteral(R"(^A[1-8]$)"));
     const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
     for (int i = 0; i < lines.size(); ++i) {
@@ -913,6 +1160,7 @@ QMap<QString, Allow> readAllowList(const QString &path, bool *ok, QMap<QString, 
 int main()
 {
     selfTest();
+    g_contextCrossings = 0;   // the fixtures' crossings are not the tree's
 
     const QString root = QStringLiteral(PP_SRC_ROOT);
     if (!QDir(root).exists()) {
@@ -965,6 +1213,30 @@ int main()
     for (const QString &u : unplaced) std::printf("      %s\n", qPrintable(u));
     check(unplaced.isEmpty(), QStringLiteral("every C++ file's directory has a ring in the table (a new directory is placed on purpose)"));
 
+    // A9's tables: every C++ file has a context or is Platform, and no entry is stale (a stale key checks nothing).
+    QStringList noContext, stale;
+    for (const QString &f : tree.files)
+        if (contextOf(f) == NoContext) noContext << f;
+    noContext.sort();
+    for (const QString &u : noContext) std::printf("      %s\n", qPrintable(u));
+    check(noContext.isEmpty(), QStringLiteral("every C++ file has a context, or is Platform, in A9's tables (IM §4.1's Context "
+                                              "column, as R13 placed it): a new directory is placed on purpose, by a ruling"));
+    for (const auto &d : dirContexts()) {
+        if (d.first == QLatin1String("Coaching/")) continue;   // the Coaching context's folder: empty until its first file
+        bool any = false;
+        for (const QString &f : tree.files) any = any || f.startsWith(d.first);
+        if (!any) stale << d.first;
+    }
+    QStringList keys = fileContexts().keys();
+    for (const auto &c : hubContracts()) keys << QString::fromLatin1(c.stem);
+    for (const QString &k : keys) {
+        bool any = false;
+        for (const QString &f : tree.files) any = any || stemOf(f) == k;
+        if (!any) stale << k;
+    }
+    for (const QString &k : stale) std::printf("      %s\n", qPrintable(k));
+    check(stale.isEmpty(), QStringLiteral("every entry of A9's tables and of the hub's contracts names a directory or file in the tree"));
+
     static const char *ruleNames[] = { "A1 includes from an inner ring into an outer one, or from an adapter outside Gui into Gui",
                                        "A2 QML creating a session/athlete-scoped type",
                                        "A3 folder-name parsing outside SwingPaths / SessionIdentity",
@@ -972,10 +1244,11 @@ int main()
                                        "A5 file access or a repository include outside the repositories (P11)",
                                        "A6 QVariantMap/QVariantList on the QML boundary",
                                        "A7 functions over 300 lines in rings 1-2",
-                                       "A8 Analysis past the Recording contract" };
+                                       "A8 Analysis past the Recording contract",
+                                       "A9 a context including a later one, the hub past its contracts, or Shared including a context (R-CTX-1)" };
     int totalEntries = 0, totalAllowed = 0;
     std::printf("\n");
-    for (int r = 0; r < 8; ++r) {
+    for (int r = 0; r < 9; ++r) {     // A9 has no allow-list line: readAllowList() refuses one (R-CTX-1 lands with none)
         const QString rule = QStringLiteral("A%1").arg(r + 1);
         QStringList   over, slack;
         int           allowed = 0, entries = 0;
@@ -1006,6 +1279,8 @@ int main()
                                   .arg(QLatin1String(ruleNames[r])).arg(allowed).arg(entries).arg(entries == 1 ? "" : "s"));
         for (const QString &s : slack) std::printf("      note: %s\n", qPrintable(s));
     }
+    std::printf("\n  A9 read %d includes that cross a context (tools/refactor/context_check.py counts the same on the ruled tags).\n",
+                g_contextCrossings);
     QStringList steps;
     for (auto s = perStep.cbegin(); s != perStep.cend(); ++s) steps << QStringLiteral("%1: %2").arg(s.key()).arg(s.value());
     std::printf("\n  Today's debt: %d findings allowed in %d allow-list lines (%s).\n", totalAllowed, totalEntries,

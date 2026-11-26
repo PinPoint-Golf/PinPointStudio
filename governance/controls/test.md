@@ -77,7 +77,7 @@ These run under ctest ([BT-3](test.md): always through ctest). A rule with a che
 
 | Test | Checks | Rules written in |
 |---|---|---|
-| `architecture_lint_test` | A1–A8 (A9 lands with the platform refactor's Stage B) | `information_model.md` §1.4; exceptions in `src/Gui/tests/architecture_allowlist.txt` |
+| `architecture_lint_test` | A1–A9 | `information_model.md` §1.4; exceptions in `src/Gui/tests/architecture_allowlist.txt` |
 | `design_system_lint_test` | D1–D5 | `governance/artefacts/design_system/README.md`; exceptions in `src/Gui/tests/design_system_allowlist.txt` |
 | `design_system_tokens_check` | `tokens.json` is current. After changing `Theme.qml`, run `python3 tools/theme/make_design_system.py` and commit the regenerated `tokens.json` | `governance/artefacts/design_system/README.md` |
 | `session_setup_lint_test` | W1–W12; W12 is [AD-52](build.md)'s check: no rule built in QML, R-QML-4's exceptions frozen at their counts | the test's header (`src/Gui/tests/session_setup_lint_test.cpp`); `docs/design/session_wizard_refactor_design.md` §7.5; W12's exceptions in `src/Gui/tests/qml_rule_allowlist.txt` |

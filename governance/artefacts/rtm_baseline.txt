@@ -318,7 +318,6 @@
 4 angular_rate_test
 4 app_state_test
 4 arbiter_test
-4 architecture_lint_test
 4 artefact_paths_check
 4 athlete_diagnostics_test
 4 athlete_dump_ids_test

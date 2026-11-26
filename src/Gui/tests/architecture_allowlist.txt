@@ -4,7 +4,9 @@
 # Rules: A1 include into an outer ring, or from an adapter outside Gui into Gui · A2 QML creating a scoped type · A3
 #        folder-name parsing · A4 a session/athlete file name outside its owner · A5 file access or a repository include
 #        outside the repositories (P11) · A6 QVariantMap/QVariantList on the QML boundary · A7 a function over 300 lines
-#        in rings 1-2 · A8 Analysis past the Recording contract.
+#        in rings 1-2 · A8 Analysis past the Recording contract. A9 (R-CTX-1: a context including a later one, the hub
+#        past its contracts, or Shared including a context) is checked by the same test and has NO line here, ever:
+#        the list refuses one (information_model.md §1.4).
 # The tag is the refactor step that removes the entry (04-remediation-plan.md §3): `# step 1` … `# step 8` (or a
 # sub-step, `# step 3.0`; since 24 Nov 2026 only item 3.0's library_converter line still carries one); `# platform refactor (capture)` / `# platform refactor (settings)` for one the platform
 # refactor removes (05-deferred-worklist.md §1 / §2); `# platform refactor (#224)` for one left when steps 5–7 closed
