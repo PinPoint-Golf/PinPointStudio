@@ -77,7 +77,7 @@ from pp_swingdoc import find_swing_dirs, has_swing, load_swing  # noqa: E402
 
 G = 9.80665
 RECORD_MAGIC = "# pinpoint.imu_record/1"
-# SegmentRole (src/Vocabulary/Analysis/segment_role.h) — APPEND-ONLY ints persisted in swing documents.
+# SegmentRole (src/Vocabulary/Common/segment_role.h) — APPEND-ONLY ints persisted in swing documents.
 ROLE_BY_INT = {1: "pelvis", 2: "thorax", 3: "t12", 4: "leadUpperArm", 5: "leadForearm",
                6: "leadHand", 7: "trailThigh", 8: "leadThigh", 9: "club"}
 TRUNK = ("pelvis", "thorax")

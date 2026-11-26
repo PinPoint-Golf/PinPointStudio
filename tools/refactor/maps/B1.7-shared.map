@@ -1,0 +1,6 @@
+# B1.7 · The two shared vocabulary headers move to src/Vocabulary/Common/ (build/platform/B1/BRIEF-B1.7.md).
+# Solution Architect, 24 Nov 2026 (Q27, option B): a Vocabulary type that two contexts use goes in a Shared area.
+# Acquisition (IMU's trunk calibration, the Recording contract's binding) and Diagnostics both use these two. The
+# Recording contract's capture-time types leave swing_analysis.h by hand (capture_time_types.h), not by this map.
+src/Vocabulary/Analysis/segment_role.h -> src/Vocabulary/Common/
+src/Vocabulary/Analysis/trunk_calib_provenance.h -> src/Vocabulary/Common/

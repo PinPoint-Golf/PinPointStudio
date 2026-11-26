@@ -728,7 +728,7 @@ qt_add_executable(PinPointStudio
     src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp
     src/Gui/imu/imu_role_map.h               src/Gui/imu/imu_role_map.cpp
     src/Gui/imu/paced_connect_queue.h        src/Gui/imu/paced_connect_queue.cpp
-    src/Vocabulary/Analysis/segment_role.h
+    src/Vocabulary/Common/segment_role.h
     src/Gui/imu/imu_instance.h               src/Gui/imu/imu_instance.cpp
     # imu_device.h carries Q_OBJECT and has no .cpp of its own, so AUTOMOC only
     # sees it if it is listed here — without the line, HmInstance links against
@@ -2803,7 +2803,7 @@ target_sources(PinPointStudio PRIVATE
     src/Vocabulary/Analysis/swing_analysis.h
     src/Vocabulary/Analysis/address_marks_types.h
     src/Vocabulary/Analysis/pose_timing_types.h
-    src/Vocabulary/Analysis/trunk_calib_provenance.h
+    src/Vocabulary/Common/trunk_calib_provenance.h
     src/Vocabulary/Analysis/wrist_finding.h
     src/Vocabulary/Analysis/wrist_assessment_types.h
     src/Analysis/analysis_stage.h
@@ -2937,6 +2937,7 @@ target_sources(PinPointStudio PRIVATE
     # builder, and the store side — the one header writer and the Recording loader (1.2).
     src/Vocabulary/Recording/recording.h
     src/Vocabulary/Recording/analysis_context.h
+    src/Vocabulary/Recording/capture_time_types.h
     # The identity types (refactor step 2.1; Vocabulary, DEC-148) and the session's identity
     # (Domain model): AthleteId, SessionId, ShotRef; SessionIdentity (D3's legacy id, n-of-day).
     src/Vocabulary/Identity/identity.h

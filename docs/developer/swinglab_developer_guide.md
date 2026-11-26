@@ -675,7 +675,8 @@ src/Analysis/shot_analyzer.h    # ShotAnalysisJob (tuningOverrides, poseTrackPat
                                 #   ballTrackPath)
 src/Vocabulary/Analysis/analysis_tuning.h  # tuning::apply — dotted key → config struct field
 src/Vocabulary/Common/pp_tuned_constants.h   # pinpoint::tuned::* — the frozen defaults
-src/Vocabulary/Analysis/swing_analysis.h   # ImuSegmentBinding / BindingRecord (calibration status)
+src/Vocabulary/Recording/capture_time_types.h  # ImuSegmentBinding (calibration status, as captured)
+src/Vocabulary/Analysis/swing_analysis.h   # BindingRecord (calibration status, as analysed)
 src/Export/swing_doc.{h,cpp}    # result.json writer (shared with the app)
 
 docs/implementation/swinglab_impl.md      # design + stage history (L0–L5)

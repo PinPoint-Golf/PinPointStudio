@@ -42,7 +42,7 @@
 
 #include "../Buffer/imu_sample.h"
 #include "imu_calibration.h"
-#include "../Vocabulary/Analysis/trunk_calib_provenance.h"
+#include "../Vocabulary/Common/trunk_calib_provenance.h"
 
 namespace trunk_stand_tall {
 

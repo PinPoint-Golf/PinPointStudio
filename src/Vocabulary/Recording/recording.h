@@ -42,7 +42,7 @@
 #include <vector>
 
 #include "../../Buffer/types.h"               // pinpoint::SourceId, kInvalidSourceId
-#include "../Analysis/swing_analysis.h"    // ImuSegmentBinding, BallTrack2D, BallBaselineRef
+#include "capture_time_types.h"            // ImuSegmentBinding, BallTrack2D, BallBaselineRef
 #include "analysis_context.h"
 
 namespace pinpoint { class SwingWindow; }

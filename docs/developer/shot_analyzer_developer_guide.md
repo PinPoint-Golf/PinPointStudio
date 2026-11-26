@@ -805,9 +805,11 @@ src/Analysis/
 │                                 the app's callers switch to it in refactor step 1.5
 ├── shot_analyzer.cpp           makeShotAnalyzer factory: PipelineAnalyzer (type 1),
 │                                 CameraKinematicsAnalyzer (everything else)
-├── swing_analysis.h            All value shapes: SegmentRole, ImuSegmentBinding,
-│                                 Phase(+Event/Sample), MetricSeries, ScoredMetric,
-│                                 Fault, ScoreBreakdown, SwingAnalysis
+├── swing_analysis.h            The value shapes: Phase(+Event/Sample), MetricSeries,
+│                                 ScoredMetric, Fault, ScoreBreakdown, SwingAnalysis
+│                                 (SegmentRole: Vocabulary/Common/segment_role.h;
+│                                 ImuSegmentBinding and the ball inputs, which the
+│                                 Recording carries: Vocabulary/Recording/capture_time_types.h)
 ├── analysis_stage.h            The stage mechanism — AnalysisStage, AnalysisContext,
 │                                 CaptureCapabilities, runStages (pipeline guide)
 ├── analysis_pipeline.{h,cpp}   The full profile: the stage list + projectResult

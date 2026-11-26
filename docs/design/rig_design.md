@@ -804,7 +804,7 @@ directory.
 | A5-5 | What under `src/Vocabulary` names `Recording/` | 1: `Vocabulary/Analysis/analysis_versions.h` → `Vocabulary/Recording/analysis_context.h` |
 | A5-6 | `DomainModel/` included from `src/IMU`, `src/Buffer`, `src/Video`, `Gui/imu`, `Gui/cameras`, `Gui/calibration` | 0 in each |
 | A5-7 | What the Domain model's production files include (`src/DomainModel/*.h`, `*.cpp`) | `Analysis` 1, `Coaching` 24, `Core` 13, `Diagnostics` 15, `Identity` 13, `LaunchMonitor` 1, `Metrics` 4, `Recording` 2, `Vocabulary` 2; no `IMU`, `Buffer` or `Gui` |
-| A5-8 | What `imu_role_map.h` and `.cpp` include | Qt core types, `<functional>`, `Vocabulary/Analysis/segment_role.h`, `IMU/hm_unit_id.h` |
+| A5-8 | What `imu_role_map.h` and `.cpp` include | Qt core types, `<functional>`, `Vocabulary/Common/segment_role.h`, `IMU/hm_unit_id.h` |
 | A5-9 | Who includes `app_settings.h` | `src/Gui`: 18 production files and 4 tests; `src/Update` 4; no inner ring |
 | A5-10 | Who includes `trunk_ceremony_recorder.h` / `trunk_ceremony_file.h` / `imu_calibration.h` | 2 (`Gui`, `Gui/imu`) / 3 (`Gui/imu`, two tests) / `IMU` 5, `Gui/imu` 1, tests 6 |
 | A5-11 | Uses of the moved properties outside `app_settings.*` (QML / C++) | perspective 2/14, mirrored 3/3, fixed 6/3, ballRoi 0/5, cameraAlias 0/9, cameraExcluded 2/4, imuRoles 7/2, imuPlacement 1/0, imuAlias 0/11, imuExcluded 6/2, clubLenPrior 0/3 |

@@ -33,7 +33,7 @@
 
 #include "device_enumerator.h"
 #include "imu_device.h"
-#include "../../Vocabulary/Analysis/trunk_calib_provenance.h"
+#include "../../Vocabulary/Common/trunk_calib_provenance.h"
 #include "types.h"
 #include "wt9011dcl_ble.h"
 
