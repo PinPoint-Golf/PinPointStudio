@@ -983,7 +983,7 @@ Item {
 
         // ═════ The pages (TP) ═════════════════════════════════════════════════
         function trunkSetup(withWg3) {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             if (withWg3) d.addWg3("HM-1", true)
             d.addWitmotion("WT-P", "P", true)
             d.addWitmotion("WT-T", "T", true)

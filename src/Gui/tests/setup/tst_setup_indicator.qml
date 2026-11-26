@@ -231,8 +231,8 @@ Item {
 
         // ── P3 (through the shell) ───────────────────────────────────────────
         function test_P3_clickDoneJumpsFutureInert() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
-            d.addCamera("DTL1", CameraInstance.DownTheLine, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
+            d.addCamera("DTL1", Perspective.DownTheLine, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.open()
             d.next(); d.next(); d.next(); d.next()       // Focus, Cameras, Framing, Triangulate done → Ball
@@ -251,7 +251,7 @@ Item {
 
         // ── P5 (through the shell) ───────────────────────────────────────────
         function test_P5_attentionRingAndHover() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.open()
             d.next(); d.next(); d.next()                 // Focus, Cameras, Framing done → Ball

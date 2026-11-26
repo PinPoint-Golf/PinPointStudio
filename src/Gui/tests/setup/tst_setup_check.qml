@@ -41,7 +41,7 @@ Item {
 
         // ── CK1 ──────────────────────────────────────────────────────────────
         function test_CK01_liveWristActiveOnlyOnCheck() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
             d.open()

@@ -28,9 +28,10 @@
 //       Q_INVOKABLE or slot, a read needs a Q_PROPERTY, a signal or a public invokable. And no
 //       Q_INVOKABLE sits in a non-public section anywhere in the device headers — moc registers it,
 //       QML cannot call it, and nothing says so at runtime but a silent `undefined`.
-//   W6  The test enum stand-ins under tests/setup/ match CameraInstance::Perspective and
-//       SessionController::Type, and the real enums still hold the values the stand-ins were cut
-//       from.
+//   W6  The test enum stand-ins under tests/setup/ match SessionController::Type, and the real
+//       enum still holds the values the stand-in was cut from. The camera perspective has no
+//       stand-in: the one perspective type (Vocabulary/Recording/perspective.h) still holds its
+//       codes, and no file under tests/setup/ mirrors it again.
 //
 //   W7  The routines' clock (`pace`, and its `scale`) is overridden only under tests/: no
 //       production QML assigns `pace.scale`, every production `pace:` binding is a
@@ -1025,8 +1026,10 @@ QString describe(const Enumerators &e)
     return parts.join(QStringLiteral(", "));
 }
 
+// `mirrorsAllowed` false: the real enum is registered in every QML module, so a stand-in under
+// tests/setup/ is itself the fault (a second declaration of the name, which can drift).
 void checkEnum(const QString &label, const QString &realHeader, const QString &cppHead,
-               const QString &qmlHead, const Enumerators &expected)
+               const QString &qmlHead, const Enumerators &expected, bool mirrorsAllowed = true)
 {
     QString raw;
     if (!readText(absPath(realHeader), &raw)) {
@@ -1060,6 +1063,12 @@ void checkEnum(const QString &label, const QString &realHeader, const QString &c
         const LineIndex lines(stripped);
         for (const auto &h : hits) {
             ++compared;
+            if (!mirrorsAllowed) {
+                check(false, QStringLiteral("no stand-in mirrors %1: %2:%3 declares it again — use the registered type")
+                                 .arg(label, relPath(f))
+                                 .arg(lines.line(h.first)));
+                continue;
+            }
             check(okS && h.second == real,
                   QStringLiteral("stand-in %1:%2 matches %3 {%4}%5")
                       .arg(relPath(f))
@@ -1068,16 +1077,23 @@ void checkEnum(const QString &label, const QString &realHeader, const QString &c
                            h.second == real ? QString() : QStringLiteral(" — it reads {%1}").arg(describe(h.second))));
         }
     }
-    if (compared == 0)
-        skip(QStringLiteral("%1: no stand-in under tests/setup/ yet").arg(label));
+    if (compared == 0) {
+        if (mirrorsAllowed)
+            skip(QStringLiteral("%1: no stand-in under tests/setup/ yet").arg(label));
+        else
+            check(true, QStringLiteral("no stand-in under tests/setup/ mirrors %1").arg(label));
+    }
 }
 
 void ruleW6()
 {
-    checkEnum(QStringLiteral("CameraInstance::Perspective"), QStringLiteral("cameras/camera_instance.h"),
-              QStringLiteral("Perspective"), QStringLiteral("Perspective"),
+    // The one perspective type: QML names it Perspective.FaceOn in every module (perspective_qml.h), so the
+    // set-up suite has no mirror of it; a C++ stand-in, scoped or not, or a QML `enum Perspective` fails.
+    checkEnum(QStringLiteral("recording::Perspective"), QStringLiteral("../Vocabulary/Recording/perspective.h"),
+              QStringLiteral("(?:class\\s+)?Perspective"), QStringLiteral("Perspective"),
               { { QStringLiteral("None"), 0 }, { QStringLiteral("DownTheLine"), 1 }, { QStringLiteral("FaceOn"), 2 },
-                { QStringLiteral("Other"), 3 }, { QStringLiteral("Impact"), 4 } });
+                { QStringLiteral("Other"), 3 }, { QStringLiteral("Impact"), 4 } },
+              /*mirrorsAllowed=*/false);
     // QML has no `enum class`; a QML stand-in declares `enum Type`.
     checkEnum(QStringLiteral("SessionController::Type"), QStringLiteral("session/session_controller.h"),
               QStringLiteral("class\\s+Type"), QStringLiteral("Type"),

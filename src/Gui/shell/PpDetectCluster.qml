@@ -106,7 +106,7 @@ Item {
                 readonly property QtObject foInst: {
                     var insts = cameraManager.instances
                     for (var i = 0; i < insts.length; ++i)
-                        if (insts[i].perspective === CameraInstance.FaceOn)
+                        if (insts[i].perspective === Perspective.FaceOn)
                             return insts[i]
                     return null
                 }

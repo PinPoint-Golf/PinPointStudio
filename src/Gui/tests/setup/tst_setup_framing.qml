@@ -60,13 +60,13 @@ Item {
         }
         // One face-on camera, connected, with a live instance; pose `poseOn` before the visit.
         function faceOnLive(poseOn) {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             return d.addCameraInstance("FO1", { ballPresent: true, isRecording: true, poseEnabled: poseOn })
         }
 
         // ── Applicability ────────────────────────────────────────────────────
         function test_F01_appliesOnlyWithAConnectedCamera() {
-            d.addCamera("FO1", CameraInstance.FaceOn, false)
+            d.addCamera("FO1", Perspective.FaceOn, false)
             d.open()
             verify(d.plan().indexOf("framing") < 0, "framing applies with no camera connected: " + d.plan())
             d.cams.setCameraSelected("FO1", true)
@@ -79,10 +79,10 @@ Item {
         }
         function test_F02_impactCameraAloneDoesNotApply() {
             // The impact camera films club and ball, no body: pose never runs on it.
-            d.addCamera("IMP", CameraInstance.Impact, true)
+            d.addCamera("IMP", Perspective.Impact, true)
             d.open()
             verify(d.plan().indexOf("framing") < 0, "framing applies to an impact camera: " + d.plan())
-            d.addCamera("DTL1", CameraInstance.DownTheLine, true)
+            d.addCamera("DTL1", Perspective.DownTheLine, true)
             verify(d.plan().indexOf("framing") > 0, "framing missing with a DTL camera connected")
         }
 

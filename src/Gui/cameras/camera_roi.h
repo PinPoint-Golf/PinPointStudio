@@ -34,6 +34,7 @@
 // "k#wide" collapse into one (the header's warning).
 
 #include "../../Video/camera_capabilities.h"
+#include "../../Vocabulary/Recording/perspective.h"   // the one perspective type: Impact keys the strip
 #include "../../Vocabulary/Rig/device_key.h"
 
 #include <QRectF>
@@ -43,10 +44,6 @@
 #include <algorithm>
 
 namespace pp_camroi {
-
-// CameraInstance::Impact (static_assert'ed in camera_instance.cpp; this header
-// stays free of the instance's).
-inline constexpr int kImpactPerspective = 4;
 
 // A camera's DeviceKey from what the enumerator reports: a Device, or anything
 // with its fields (description, capabilities.serialNumber, id). One builder, so
@@ -70,7 +67,8 @@ inline QString seededAlias(const pinpoint::rig::DeviceKey &camera)
 inline QString key(const pinpoint::rig::DeviceKey &camera, int perspective)
 {
     using CropEntry = pinpoint::rig::DeviceKey::CropEntry;
-    return camera.persistedRoiKey(perspective == kImpactPerspective ? CropEntry::ImpactStrip : CropEntry::Shared);
+    const bool impact = perspective == int(pinpoint::recording::Perspective::Impact);
+    return camera.persistedRoiKey(impact ? CropEntry::ImpactStrip : CropEntry::Shared);
 }
 
 inline QRectF rectFrom(const QVariantMap &r)
@@ -108,7 +106,7 @@ inline QRectF cropFor(const QVariantMap &roiMap, const pinpoint::rig::DeviceKey 
         if (r.width() > 0 && r.height() > 0)
             return r;
     }
-    if (perspective == kImpactPerspective && caps)
+    if (perspective == int(pinpoint::recording::Perspective::Impact) && caps)
         return recommendedImpactCrop(*caps);
     return {};
 }
@@ -122,8 +120,8 @@ inline QRectF cropFor(const QVariantMap &roiMap, const pinpoint::rig::DeviceKey 
 inline QString tuningKey(const pinpoint::rig::DeviceKey &camera, int perspective)
 {
     using TuningEntry = pinpoint::rig::DeviceKey::TuningEntry;
-    return camera.persistedTuningKey(perspective == kImpactPerspective ? TuningEntry::ImpactRole
-                                                                       : TuningEntry::OtherRoles);
+    const bool impact = perspective == int(pinpoint::recording::Perspective::Impact);
+    return camera.persistedTuningKey(impact ? TuningEntry::ImpactRole : TuningEntry::OtherRoles);
 }
 
 } // namespace pp_camroi

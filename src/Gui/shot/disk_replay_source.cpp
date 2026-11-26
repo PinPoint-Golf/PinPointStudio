@@ -44,9 +44,9 @@ namespace {
 // this; below it, leaving them free-running keeps decode smooth.
 constexpr qint64 kSlaveResyncMs = 120;
 
-constexpr int kPerspectiveFaceOn = 2;   // CameraInstance::FaceOn
-constexpr int kPerspectiveDtl    = 1;   // CameraInstance::DownTheLine
-constexpr int kPerspectiveImpact = 4;   // CameraInstance::Impact — the looping impact clip
+constexpr int kPerspectiveFaceOn = 2;   // recording::Perspective::FaceOn
+constexpr int kPerspectiveDtl    = 1;   // recording::Perspective::DownTheLine
+constexpr int kPerspectiveImpact = 4;   // recording::Perspective::Impact — the looping impact clip
 // The impact clip runs this much slower than the window's capture-time speed
 // (applyPlaybackRates): the interesting part is ~40 ms of capture time.
 // The impact clip's replay pace, as a fraction of real time — FIXED, not the

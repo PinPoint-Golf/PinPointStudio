@@ -49,8 +49,8 @@ Item {
 
         // ── D1 ───────────────────────────────────────────────────────────────
         function test_D01_camerasConnect() {
-            d.addCamera("FO1", CameraInstance.FaceOn, false)
-            d.addCamera("DTL1", CameraInstance.DownTheLine, false)
+            d.addCamera("FO1", Perspective.FaceOn, false)
+            d.addCamera("DTL1", Perspective.DownTheLine, false)
             d.open()
             d.next()
             compare(d.current(), "cameras")
@@ -64,8 +64,8 @@ Item {
 
         // ── D2 ───────────────────────────────────────────────────────────────
         function test_D02_cameraToggleOff() {
-            d.addCamera("FO1", CameraInstance.FaceOn, false)
-            d.addCamera("FO2", CameraInstance.FaceOn, false)
+            d.addCamera("FO1", Perspective.FaceOn, false)
+            d.addCamera("FO2", Perspective.FaceOn, false)
             d.open()
             d.next()
             var before = d.cams.countCalls("setSessionCameraEnabled")

@@ -40,6 +40,7 @@
 #include "raw_video_frame.h"
 #include "ting_player.h"
 #include "types.h"
+#include "../../Vocabulary/Recording/perspective.h"   // the one perspective type: `perspective` holds its code
 #include "../../Vocabulary/Rig/device_key.h"
 
 namespace pinpoint { class EventBuffer; }
@@ -141,14 +142,12 @@ class CameraInstance : public QObject
     Q_PROPERTY(QString lastPreviewError READ lastPreviewError NOTIFY lastPreviewErrorChanged)
 
 public:
-    // Perspective values — matches the perspective badge in PpCameraFrame.qml.
-    // Registered with QML (CameraInstance.FaceOn etc.) — use the enum names in
-    // QML, never the raw integers.
+    // `perspective` holds the code of the one perspective type, recording::Perspective
+    // (src/Vocabulary/Recording/perspective.h): QML names it Perspective.FaceOn etc.,
+    // never the raw integers; C++ writes int(recording::Perspective::FaceOn).
     // Impact is the club/ball impact camera (impact_camera_design.md §10): a
     // small, fast crop aimed at the ball. At most ONE camera holds it —
     // CameraManager::assignPerspective clears it from every other camera.
-    enum Perspective { None = 0, DownTheLine = 1, FaceOn = 2, Other = 3, Impact = 4 };
-    Q_ENUM(Perspective)
 
     // The impact camera's exposure when none is stored: ≤ 70 µs keeps blur
     // under 2 px at ~1 mm/px (impact_camera_design.md §1). CamerasPanel.qml

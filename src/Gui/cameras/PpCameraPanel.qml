@@ -239,7 +239,7 @@ Item {
                                                                    : modelData.description
                 serial: modelData.serialNumber
                 isPpcp: modelData.isPpcp === true
-                perspective: modelData.perspective    // CameraInstance.Perspective value
+                perspective: modelData.perspective    // a Perspective code (0–4)
                 iface:  modelData.interface
                 selected: modelData.selected
                 deviceEnabled: modelData.sessionEnabled
@@ -328,9 +328,9 @@ Item {
         }
         readonly property bool connected: realInstance !== null
 
-        readonly property string perspLabel: perspective === CameraInstance.FaceOn ? qsTr("Face-on")
-                                            : perspective === CameraInstance.DownTheLine ? qsTr("Down-the-line")
-                                            : perspective === CameraInstance.Impact ? qsTr("Club/Ball Impact")
+        readonly property string perspLabel: perspective === Perspective.FaceOn ? qsTr("Face-on")
+                                            : perspective === Perspective.DownTheLine ? qsTr("Down-the-line")
+                                            : perspective === Perspective.Impact ? qsTr("Club/Ball Impact")
                                             : qsTr("Unassigned")
         height: Theme.sp(60) + (camRow.hasTorch ? Theme.sp(24) : 0)
                              + (camRow.torchRefusal !== "" ? Theme.sp(16) : 0)

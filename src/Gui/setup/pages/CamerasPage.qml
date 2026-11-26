@@ -78,11 +78,11 @@ WizardPage {
         readonly property var camRows: {
             var rows = []
             var fo = page.ctx.faceOn, dtl = page.ctx.dtl, others = page.ctx.others
-            if (fo.length === 0) rows.push({ persp: CameraInstance.FaceOn, data: null })
+            if (fo.length === 0) rows.push({ persp: Perspective.FaceOn, data: null })
             for (var i = 0; i < fo.length; ++i)
-                rows.push({ persp: CameraInstance.FaceOn, data: fo[i] })
+                rows.push({ persp: Perspective.FaceOn, data: fo[i] })
             for (var j = 0; j < dtl.length; ++j)
-                rows.push({ persp: CameraInstance.DownTheLine, data: dtl[j] })
+                rows.push({ persp: Perspective.DownTheLine, data: dtl[j] })
             for (var k = 0; k < others.length; ++k)
                 rows.push({ persp: others[k].perspective, data: others[k] })
             return rows
@@ -122,11 +122,11 @@ WizardPage {
                         if (!_data)
                             return qsTr("Face-on camera")
                         var name = _data.alias || _data.description
-                        if (modelData.persp === CameraInstance.FaceOn)
+                        if (modelData.persp === Perspective.FaceOn)
                             return qsTr("Face-on camera — %1").arg(name)
-                        if (modelData.persp === CameraInstance.DownTheLine)
+                        if (modelData.persp === Perspective.DownTheLine)
                             return qsTr("Down-the-line camera — %1").arg(name)
-                        if (modelData.persp === CameraInstance.Impact)
+                        if (modelData.persp === Perspective.Impact)
                             return qsTr("Impact camera — %1").arg(name)
                         return qsTr("Camera — %1").arg(name)
                     }
@@ -165,13 +165,13 @@ WizardPage {
                     // Unassigned cameras record fine — nudge that analysis
                     // won't use them until a view is assigned ("Other" is
                     // a deliberate assignment, no nudge).
-                    subOk:   modelData.persp === CameraInstance.None
+                    subOk:   modelData.persp === Perspective.None
                              ? page.camDetail(_data) + qsTr(" · NO VIEW ASSIGNED")
                              : page.camDetail(_data)
                     subWarn: _data
                         ? (_data.alias || _data.description) + qsTr(" — PRESS CONNECT")
                         : ""
-                    subFail: modelData.persp === CameraInstance.FaceOn
+                    subFail: modelData.persp === Perspective.FaceOn
                         ? qsTr("NOT FOUND — ASSIGN FACE-ON PERSPECTIVE IN SETTINGS → CAMERAS")
                         : qsTr("NOT FOUND — ASSIGN DOWN-THE-LINE PERSPECTIVE IN SETTINGS → CAMERAS")
 

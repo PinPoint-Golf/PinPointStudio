@@ -30,6 +30,8 @@
 #include "camera_roi.h"
 #include <algorithm>
 
+namespace rec = pinpoint::recording;   // the one perspective type (perspective.h, through camera_instance.h)
+
 namespace {
 // The impact camera needs ≥ 4–5 head positions before the ball at ~1 mm/px,
 // which is 420 fps (impact_camera_design.md §2). A crop that cannot reach it
@@ -281,7 +283,7 @@ QVariantList CameraManager::cameraList() const
             slotFps = 200.0;
         // ...except the impact camera, whose ring is sized for its own rate
         // (CameraInstance's descriptor does the same).
-        if (entry[QStringLiteral("perspective")].toInt() == CameraInstance::Impact
+        if (entry[QStringLiteral("perspective")].toInt() == int(rec::Perspective::Impact)
             && cam.targetFps > slotFps)
             slotFps = cam.targetFps;
 
@@ -646,7 +648,7 @@ void CameraManager::setLivePoseEnabled(bool on)
     m_livePoseEnabled = on;
     for (auto &cam : m_cameras) {
         // The impact camera never runs pose (see createController).
-        if (cam.controller && cam.controller->perspective() != CameraInstance::Impact)
+        if (cam.controller && cam.controller->perspective() != int(rec::Perspective::Impact))
             cam.controller->setPoseEnabled(on);
     }
     emit livePoseEnabledChanged();
@@ -741,21 +743,21 @@ void CameraManager::assignPerspective(const QString &key, int perspective)
     const QVariantMap before = map;
 
     // Impact is exclusive: strip it from every other camera, persisted and live.
-    if (perspective == CameraInstance::Impact) {
+    if (perspective == int(rec::Perspective::Impact)) {
         for (auto it = map.begin(); it != map.end();) {
-            if (it.key() != key && it.value().toInt() == CameraInstance::Impact)
+            if (it.key() != key && it.value().toInt() == int(rec::Perspective::Impact))
                 it = map.erase(it);
             else
                 ++it;
         }
         for (const auto &cam : m_cameras) {
             if (cam.controller && cameraKey(cam) != key
-                && cam.controller->perspective() == CameraInstance::Impact)
-                cam.controller->setPerspective(CameraInstance::None);
+                && cam.controller->perspective() == int(rec::Perspective::Impact))
+                cam.controller->setPerspective(int(rec::Perspective::None));
         }
     }
 
-    if (perspective != CameraInstance::None)
+    if (perspective != int(rec::Perspective::None))
         map[key] = perspective;
     else
         map.remove(key);
@@ -777,7 +779,7 @@ void CameraManager::assignPerspective(const QString &key, int perspective)
     // between the other roles change nothing on the camera and reconnect
     // nothing. Settings are saved above, before the rebuild reads them.
     const auto isImpact = [](const QVariantMap &m, const QString &k) {
-        return m.value(k).toInt() == CameraInstance::Impact;
+        return m.value(k).toInt() == int(rec::Perspective::Impact);
     };
     QList<int> reconnect;
     for (int i = 0; i < m_cameras.size(); ++i) {
@@ -991,7 +993,7 @@ CameraInstance *CameraManager::createController(const Device &device)
         // The impact camera sees a 240-row strip of club and ball at ~600 fps:
         // there is no body in it to estimate a pose on, and the pose pipeline
         // would only burn a core. Off for good (setLivePoseEnabled skips it).
-        if (p == CameraInstance::Impact)
+        if (p == int(rec::Perspective::Impact))
             ctrl->setPoseEnabled(false);
     }
 

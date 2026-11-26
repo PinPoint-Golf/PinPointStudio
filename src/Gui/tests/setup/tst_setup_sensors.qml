@@ -95,7 +95,7 @@ Item {
 
         // ── MQ1 ─────────────────────────────────────────────────────────────
         function test_MQ1_unmountedSensorIsAsked() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addWitmotion("WT-N", "", true)                 // found, connected, no mount
             d.open()
             compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "ready"], "found is not wanted (§4.12)")
@@ -118,7 +118,7 @@ Item {
 
         // ── MQ2 ─────────────────────────────────────────────────────────────
         function test_MQ2_choosingAMountBringsTheArmSteps() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addWitmotion("WT-N", "", true)
             d.open()
             d.walkTo("imus")
@@ -326,7 +326,7 @@ Item {
         // ── AN6 ─────────────────────────────────────────────────────────────
         function test_AN6_noRawIdOnReady() {
             absentWg3("HackMotion wG3 " + uuid)
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.open()
             d.walkTo("imus")
             assertNoRawIds("AN6 Sensors")
@@ -337,7 +337,7 @@ Item {
 
         // ── NA1 ─────────────────────────────────────────────────────────────
         function test_NA1_noArmSensorNoArmSteps() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.open()
             compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "ready"])
@@ -384,7 +384,7 @@ Item {
 
         // ── OC1 ─────────────────────────────────────────────────────────────
         function test_OC1_linkDropAfterDoneVoidsTheOutcome() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addWg3("HM-1", true)
             d.open()
             d.walkTo("calibrateArm")
@@ -402,7 +402,7 @@ Item {
 
         // ── OC2 ─────────────────────────────────────────────────────────────
         function test_OC2_recalibrateAfterDone() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             var dev = d.addWg3("HM-1", true)
             d.open()
             d.walkTo("calibrateArm")

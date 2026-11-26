@@ -19,6 +19,7 @@
 #include "app_settings.h"
 
 #include "../imu/imu_role_map.h"
+#include "../../Vocabulary/Recording/perspective.h"   // the one perspective type: migrateImpactRoi reads Impact
 #include "pp_debug.h"
 
 #include <QStorageInfo>
@@ -33,12 +34,12 @@ void AppSettings::migrateImpactRoi()
     QSettings s = ppSettings();
     if (s.value(QStringLiteral("camera/impactRoiMigrated"), false).toBool())
         return;
-    constexpr int kImpact = 4;   // CameraInstance::Impact (camera_roi.h asserts it)
     bool changed = false;
     for (auto it = m_cameraPerspective.cbegin(); it != m_cameraPerspective.cend(); ++it) {
         const QString key = it.key();
         const QString strip = key + QStringLiteral("#impact");
-        if (it.value().toInt() != kImpact || m_cameraRoi.contains(strip) || !m_cameraRoi.contains(key))
+        if (it.value().toInt() != int(pinpoint::recording::Perspective::Impact) || m_cameraRoi.contains(strip)
+            || !m_cameraRoi.contains(key))
             continue;
         m_cameraRoi.insert(strip, m_cameraRoi.take(key));
         ppInfo() << "[AppSettings] impact crop for" << key << "moved to its own entry";

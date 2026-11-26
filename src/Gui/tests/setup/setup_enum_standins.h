@@ -18,34 +18,25 @@
 
 #pragma once
 
-// TEST-ONLY stand-ins for the two app-only enum carriers the session wizard reads.
+// TEST-ONLY stand-in for the app-only enum carrier the session wizard reads.
 //
-// The wizard uses CameraInstance.FaceOn / .DownTheLine / .Impact / .None and
-// SessionController.Wrist. The real classes live in camera_instance.cpp and
-// session_controller.cpp, which are app-only sources (they pull in the capture and
-// session machinery), so the module this test declares does not contain them. These
-// declare the SAME QML names with the SAME enumerators and values and nothing else.
+// The wizard uses SessionController.Wrist. The real class lives in session_controller.cpp,
+// an app-only source (it pulls in the session machinery), so the module this test declares
+// does not contain it. This declares the SAME QML name with the SAME enumerators and values
+// and nothing else.
 //
-// ⚠ THE VALUES MUST MATCH THE REAL HEADERS EXACTLY:
-//     src/Gui/cameras/camera_instance.h      enum Perspective (l.146)
+// The camera perspective needs no stand-in: QML names it Perspective.FaceOn, the one
+// perspective type (src/Vocabulary/Recording/perspective.h), which every QML module registers
+// through PP_QML_SOURCES (src/Gui/shell/perspective_qml.h), this suite's included.
+//
+// ⚠ THE VALUES MUST MATCH THE REAL HEADER EXACTLY:
 //     src/Gui/session/session_controller.h   enum class Type  (l.55)
-// Lint W6 (session_wizard_refactor_design.md §7.5) is what will check that; until it
-// exists, a change to either real enum must be copied here by hand.
+// Lint W6 (session_setup_lint_test) checks it.
 //
-// Both are QML_UNCREATABLE: QML only ever reads their enums.
+// QML_UNCREATABLE: QML only ever reads its enum.
 
 #include <QObject>
 #include <QtQml/qqmlregistration.h>
-
-class SetupCameraInstanceStandIn : public QObject
-{
-    Q_OBJECT
-    QML_NAMED_ELEMENT(CameraInstance)
-    QML_UNCREATABLE("test stand-in: enum carrier only")
-public:
-    enum Perspective { None = 0, DownTheLine = 1, FaceOn = 2, Other = 3, Impact = 4 };
-    Q_ENUM(Perspective)
-};
 
 class SetupSessionControllerStandIn : public QObject
 {

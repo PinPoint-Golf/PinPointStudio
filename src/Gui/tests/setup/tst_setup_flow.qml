@@ -122,7 +122,7 @@ Item {
         }
         // A face-on camera, connected, with a live instance whose ball is present (or not).
         function faceOnWithBall(present) {
-            cam("FO", CameraInstance.FaceOn, true)
+            cam("FO", Perspective.FaceOn, true)
             return cams.addInstance("FO", { ballPresent: present })
         }
         function setLines() { return log.matching("op=", "Setup") }
@@ -180,7 +180,7 @@ Item {
 
         // ═════ Navigation (N) ═════════════════════════════════════════════════
         function test_N01F_planForWrist() {
-            cam("FO", CameraInstance.FaceOn, false)
+            cam("FO", Perspective.FaceOn, false)
             wit("WT-A", "A", false)
             wit("WT-B", "B", false)
             makeShell()
@@ -196,7 +196,7 @@ Item {
             compare(flow().steps.map(function(s) { return s.number }), [1, 2, 3, 4, 5, 6, 7])
         }
         function test_N01F_noArmSensorNoArmSteps() {
-            cam("FO", CameraInstance.FaceOn, false)
+            cam("FO", Perspective.FaceOn, false)
             makeShell()
             open()
             // §4.12: no arm sensor in the session → no arm Calibrate / Check, whatever the focus.
@@ -205,8 +205,8 @@ Item {
         }
 
         function test_N02F_dtlInsertsTriangulate() {
-            cam("FO", CameraInstance.FaceOn, true)
-            cam("DTL", CameraInstance.DownTheLine, false)
+            cam("FO", Perspective.FaceOn, true)
+            cam("DTL", Perspective.DownTheLine, false)
             makeShell()
             open()
             go()
@@ -275,8 +275,8 @@ Item {
         }
 
         function test_N05F_skipConsequences() {
-            cam("FO", CameraInstance.FaceOn, true)
-            cam("DTL", CameraInstance.DownTheLine, true)
+            cam("FO", Perspective.FaceOn, true)
+            cam("DTL", Perspective.DownTheLine, true)
             wit("WT-A", "A", false)
             wit("WT-B", "B", false)
             makeShell()
@@ -356,7 +356,7 @@ Item {
         }
 
         function test_N08F_headerForwardNeverRunsPrimary() {
-            cam("FO", CameraInstance.FaceOn, false)          // enabled, not connected
+            cam("FO", Perspective.FaceOn, false)          // enabled, not connected
             makeShell()
             journal.setConfig("cameras", "canContinue", false)   // what a page offering Connect says
             open()
@@ -375,8 +375,8 @@ Item {
         }
 
         function test_N09F_cancelAtEachStep() {
-            cam("FO", CameraInstance.FaceOn, true)
-            cam("DTL", CameraInstance.DownTheLine, true)
+            cam("FO", Perspective.FaceOn, true)
+            cam("DTL", Perspective.DownTheLine, true)
             wit("WT-A", "A", false)
             wit("WT-B", "B", false)
             makeShell()
@@ -447,7 +447,7 @@ Item {
         }
 
         function test_N11F_N12F_suspendResumeKeepsTheDraft() {
-            cam("FO", CameraInstance.FaceOn, false)
+            cam("FO", Perspective.FaceOn, false)
             wit("WT-A", "A", false)
             makeShell()
             open({ focusConditionId: "chicken_wing", focusLabel: "Chicken wing" })
@@ -507,8 +507,8 @@ Item {
         }
 
         function test_N14F_currentStepStopsApplying() {
-            cam("FO", CameraInstance.FaceOn, true)
-            cam("DTL", CameraInstance.DownTheLine, true)
+            cam("FO", Perspective.FaceOn, true)
+            cam("DTL", Perspective.DownTheLine, true)
             makeShell()
             journal.setConfig("triangulate", "canContinue", false)
             open()
@@ -590,7 +590,7 @@ Item {
         }
 
         function test_N18F_trunkRolesOnly() {
-            cam("FO", CameraInstance.FaceOn, false)
+            cam("FO", Perspective.FaceOn, false)
             wit("WT-P", "", false)
             wit("WT-T", "", false)
             verify(imu.setRoleForDevice("WT-P", "pelvis"))
@@ -626,8 +626,8 @@ Item {
 
         // ═════ Lifecycle (L) ══════════════════════════════════════════════════
         function test_L01F_exactlyOnePageAlive() {
-            cam("FO", CameraInstance.FaceOn, true)
-            cam("DTL", CameraInstance.DownTheLine, true)
+            cam("FO", Perspective.FaceOn, true)
+            cam("DTL", Perspective.DownTheLine, true)
             cams.addInstance("FO", { ballPresent: true })
             var a = wit("WT-A", "A", true)
             var b = wit("WT-B", "B", true)
@@ -759,9 +759,9 @@ Item {
         function test_CTXF_cameras_data() {
             return [
                 { tag: "none",  setup: [] },
-                { tag: "FO",    setup: [["FO", CameraInstance.FaceOn, false]] },
-                { tag: "FO+DTL", setup: [["FO", CameraInstance.FaceOn, true], ["DTL", CameraInstance.DownTheLine, true],
-                                         ["IMP", CameraInstance.Impact, false]] }
+                { tag: "FO",    setup: [["FO", Perspective.FaceOn, false]] },
+                { tag: "FO+DTL", setup: [["FO", Perspective.FaceOn, true], ["DTL", Perspective.DownTheLine, true],
+                                         ["IMP", Perspective.Impact, false]] }
             ]
         }
         function test_CTXF_cameras(data) {
@@ -888,7 +888,7 @@ Item {
         }
 
         function test_CTXF_setupFactsThroughTheCatalogue() {
-            cam("FO", CameraInstance.FaceOn, true)
+            cam("FO", Perspective.FaceOn, true)
             var dev = wg3("HM1", true)
             lm.configured = true
             makeShell()

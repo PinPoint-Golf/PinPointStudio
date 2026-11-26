@@ -81,7 +81,7 @@ Item {
     // nested `dtl` sub-object (dtl_overlay_payload.h), which carries the same keys and
     // shapes so one painter serves both; any other tile has none. Phases stay on
     // _replayDetail: they are properties of the swing, not of a camera.
-    readonly property bool _isDtl: _replayPerspective === 1   // CameraInstance.DownTheLine
+    readonly property bool _isDtl: _replayPerspective === 1   // Perspective.DownTheLine
     readonly property var  _det: {
         var d = root._replayDetail
         if (!d) return null
@@ -100,7 +100,7 @@ Item {
     readonly property var _overlayGate: {
         var d = root._replayDetail
         if (!d || !d.gates || !root._replayActive) return null
-        if (root._replayPerspective === CameraInstance.Impact) {
+        if (root._replayPerspective === Perspective.Impact) {
             if (!root.showImpactOverlay) return null
             var gi = TrustWords.gateFor(d.gates, "track.impact")
             if (!gi || !gi.words) return null
@@ -899,14 +899,14 @@ Item {
             PpChip {
                 visible: root.showPerspectiveBadge
                          && root.instance !== null
-                         && root.instance.perspective !== CameraInstance.None
+                         && root.instance.perspective !== Perspective.None
                 tinted: false
                 tone:   Theme.colorOnScrim
                 color:  Theme.colorScrim
                 text: !root.instance ? ""
-                    : root.instance.perspective === CameraInstance.DownTheLine ? qsTr("DTL")
-                    : root.instance.perspective === CameraInstance.FaceOn ? Theme.caps(qsTr("Face on"))
-                    : root.instance.perspective === CameraInstance.Impact ? Theme.caps(qsTr("Impact"))
+                    : root.instance.perspective === Perspective.DownTheLine ? qsTr("DTL")
+                    : root.instance.perspective === Perspective.FaceOn ? Theme.caps(qsTr("Face on"))
+                    : root.instance.perspective === Perspective.Impact ? Theme.caps(qsTr("Impact"))
                     : Theme.caps(qsTr("Other"))
             }
 
@@ -1001,7 +1001,7 @@ Item {
                              : root.instance.cameraFps).toFixed(0) + " fps"
                       // The impact camera's levels (impact_camera_design.md
                       // §10.3): mat / brightest / clipped, on the RAW frame.
-                      + (root.showLevels && root.instance.perspective === CameraInstance.Impact
+                      + (root.showLevels && root.instance.perspective === Perspective.Impact
                              ? "   bg " + root.instance.levelBackground.toFixed(0)
                                + "  peak " + root.instance.levelPeak.toFixed(0)
                                + "  clip " + (root.instance.levelClipped * 100).toFixed(1) + "%"
@@ -1085,7 +1085,7 @@ Item {
             // the body/club overlay off (there is no body in the strip) and the
             // first build inherited that and drew nothing (2026-09-15).
             visible: root.showImpactOverlay && root._replayActive
-                     && root._replayPerspective === CameraInstance.Impact && _impact !== null
+                     && root._replayPerspective === Perspective.Impact && _impact !== null
 
             // The clip-local time to draw at.
             function _clipTime() {

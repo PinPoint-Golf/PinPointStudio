@@ -54,6 +54,8 @@ using CropEntry = DeviceKey::CropEntry;
 using TuningEntry = DeviceKey::TuningEntry;
 using Lane      = PlacementKey::Lane;
 namespace hmu   = pinpoint::hm_unit_id;
+// The impact camera's code, as the settings store holds it: the one perspective type (perspective.h).
+constexpr int kImpact = int(pinpoint::recording::Perspective::Impact);
 
 static int g_fail = 0;
 static int g_run  = 0;
@@ -115,11 +117,11 @@ static QString todaysSeededAlias(const QString &description, const QString &devi
 // impact strip is the one suffixed; for exposure and gain it is every role BUT Impact.
 static QString todaysRoiKey(const QString &cameraKey, int perspective)
 {
-    return perspective == pp_camroi::kImpactPerspective ? cameraKey + QStringLiteral("#impact") : cameraKey;
+    return perspective == kImpact ? cameraKey + QStringLiteral("#impact") : cameraKey;
 }
 static QString todaysTuningKey(const QString &cameraKey, int perspective)
 {
-    return perspective == pp_camroi::kImpactPerspective ? cameraKey : cameraKey + QStringLiteral("#wide");
+    return perspective == kImpact ? cameraKey : cameraKey + QStringLiteral("#wide");
 }
 
 // SET-05's key, as capture_context.cpp:348 built it on 8273d1cf, before C-1c:
@@ -158,16 +160,16 @@ static void testSpellings()
     same("4 roi impact", a.persistedRoiKey(CropEntry::ImpactStrip),
          QStringLiteral("Chameleon3 CM3-U3-13Y3C|18277032#impact"));
     same("4 roi impact = today", a.persistedRoiKey(CropEntry::ImpactStrip),
-         todaysRoiKey(todaysCameraKey(kCamA), pp_camroi::kImpactPerspective));
+         todaysRoiKey(todaysCameraKey(kCamA), kImpact));
     same("4 roi impact = today (no serial)", b.persistedRoiKey(CropEntry::ImpactStrip),
-         todaysRoiKey(todaysCameraKey(kCamB), pp_camroi::kImpactPerspective));
+         todaysRoiKey(todaysCameraKey(kCamB), kImpact));
     // 4b. camera/exposureUs, camera/tuning: the camera key for Impact, "#wide" for every other role
     //     (camera_roi.h tuningKey; §4.6's list omitted it, PR-52).
     same("4b tuning other roles", a.persistedTuningKey(TuningEntry::OtherRoles),
          QStringLiteral("Chameleon3 CM3-U3-13Y3C|18277032#wide"));
     same("4b tuning impact role", a.persistedTuningKey(TuningEntry::ImpactRole), todaysCameraKey(kCamA));
-    for (int p : { 0, 1, 2, 3, pp_camroi::kImpactPerspective }) {
-        const TuningEntry e = p == pp_camroi::kImpactPerspective ? TuningEntry::ImpactRole : TuningEntry::OtherRoles;
+    for (int p : { 0, 1, 2, 3, kImpact }) {
+        const TuningEntry e = p == kImpact ? TuningEntry::ImpactRole : TuningEntry::OtherRoles;
         same(QStringLiteral("4b tuning = today p%1").arg(p), a.persistedTuningKey(e), todaysTuningKey(todaysCameraKey(kCamA), p));
         same(QStringLiteral("4b tuning = today (no serial) p%1").arg(p), b.persistedTuningKey(e),
              todaysTuningKey(todaysCameraKey(kCamB), p));
@@ -226,13 +228,13 @@ static void testRoundTrips()
           DeviceKey::fromPersistedCameraKey(u"a|b|c").description() == QStringLiteral("a|b"));
 
     for (const QString &base : { todaysCameraKey(kCamA), todaysCameraKey(kCamB) }) {
-        for (int p : { 0, 1, 2, 3, pp_camroi::kImpactPerspective }) {
+        for (int p : { 0, 1, 2, 3, kImpact }) {
             const QString s = todaysRoiKey(base, p);
             CropEntry e = CropEntry::Shared;
             const DeviceKey k = DeviceKey::fromPersistedRoiKey(s, &e);
             same(QStringLiteral("roi parse→spell p%1 ").arg(p) + s, k.persistedRoiKey(e), s);
             check(QStringLiteral("roi entry p%1").arg(p),
-                  (e == CropEntry::ImpactStrip) == (p == pp_camroi::kImpactPerspective));
+                  (e == CropEntry::ImpactStrip) == (p == kImpact));
             check(QStringLiteral("roi camera p%1").arg(p), k == DeviceKey::fromPersistedCameraKey(base));
 
             const QString t = todaysTuningKey(base, p);
@@ -240,7 +242,7 @@ static void testRoundTrips()
             const DeviceKey tk = DeviceKey::fromPersistedTuningKey(t, &te);
             same(QStringLiteral("tuning parse→spell p%1 ").arg(p) + t, tk.persistedTuningKey(te), t);
             check(QStringLiteral("tuning entry p%1").arg(p),
-                  (te == TuningEntry::ImpactRole) == (p == pp_camroi::kImpactPerspective));
+                  (te == TuningEntry::ImpactRole) == (p == kImpact));
             check(QStringLiteral("tuning camera p%1").arg(p), tk == DeviceKey::fromPersistedCameraKey(base));
         }
     }
@@ -344,12 +346,12 @@ static void testSettingsFixture()
         s.setCameraAlias({ { camA, QStringLiteral("Face-on") }, { camB, QStringLiteral("Webcam") } });
         s.setCameraExcluded({ camB });
         s.setCameraRoi({ { todaysRoiKey(camA, 2), box(0.0, 0.0, 1.0, 1.0) },
-                         { todaysRoiKey(camA, pp_camroi::kImpactPerspective), box(0.25, 0.4, 0.5, 0.234375) },
+                         { todaysRoiKey(camA, kImpact), box(0.25, 0.4, 0.5, 0.234375) },
                          { todaysRoiKey(camB, 1), box(0.2, 0.0, 0.6, 1.0) } });
-        s.setCameraExposureUs({ { todaysTuningKey(camA, pp_camroi::kImpactPerspective), 100 },
+        s.setCameraExposureUs({ { todaysTuningKey(camA, kImpact), 100 },
                                 { todaysTuningKey(camA, 1), 4000 },
                                 { todaysTuningKey(camB, 2), 8000 } });
-        s.setCameraTuning({ { todaysTuningKey(camA, pp_camroi::kImpactPerspective), QVariantMap{ { "gain", 12.0 } } },
+        s.setCameraTuning({ { todaysTuningKey(camA, kImpact), QVariantMap{ { "gain", 12.0 } } },
                             { todaysTuningKey(camB, 2), QVariantMap{ { "gain", 3.0 } } } });
         s.setImuAlias({ { witAlias, QStringLiteral("Pelvis sensor") }, { hmAlias, QStringLiteral("Lead wrist") } });
         s.setImuExcluded({ kWit.id });
@@ -395,7 +397,7 @@ static void testSettingsFixture()
     check("alias A", r.cameraAlias().value(a.persistedCameraKey()).toString() == QStringLiteral("Face-on"));
     check("alias B", r.cameraAlias().value(b.persistedCameraKey()).toString() == QStringLiteral("Webcam"));
     check("excluded B", r.cameraExcluded().contains(b.persistedCameraKey()) && !r.cameraExcluded().contains(a.persistedCameraKey()));
-    check("impact strip A", pp_camroi::cropFor(r.cameraRoi(), a, pp_camroi::kImpactPerspective)
+    check("impact strip A", pp_camroi::cropFor(r.cameraRoi(), a, kImpact)
                                 == QRectF(0.25, 0.4, 0.5, 0.234375));
     check("impact strip A, typed", r.cameraRoi().value(a.persistedRoiKey(CropEntry::ImpactStrip)).toMap().value("h").toDouble() == 0.234375);
     check("shared crop B, typed", r.cameraRoi().value(b.persistedRoiKey(CropEntry::Shared)).toMap().value("w").toDouble() == 0.6);
@@ -479,7 +481,7 @@ static void testSites()
         // camera_manager.cpp:85, the alias seed: every '|' a space (C6).
         same("site alias seed " + today, pp_camroi::seededAlias(k), QString(today).replace(QLatin1Char('|'), QLatin1Char(' ')));
         // camera_roi.h: the role's crop and tuning entries, for every role.
-        for (int p : { 0, 1, 2, 3, pp_camroi::kImpactPerspective }) {
+        for (int p : { 0, 1, 2, 3, kImpact }) {
             same(QStringLiteral("site roi key p%1 ").arg(p) + today, pp_camroi::key(k, p), todaysRoiKey(today, p));
             same(QStringLiteral("site tuning key p%1 ").arg(p) + today, pp_camroi::tuningKey(k, p), todaysTuningKey(today, p));
         }
@@ -494,7 +496,7 @@ static void testSites()
     for (const QString &t : { todaysCameraKey(kCamA), todaysCameraKey(kCamB), QStringLiteral("|x"), QStringLiteral("a|b|c"),
                               QStringLiteral("model|"), QStringLiteral("m|id#impact#x") }) {
         const DeviceKey parsed = DeviceKey::fromPersistedCameraKey(t);
-        for (int p : { 0, 1, 2, 3, pp_camroi::kImpactPerspective })
+        for (int p : { 0, 1, 2, 3, kImpact })
             same(QStringLiteral("probe roi key p%1 ").arg(p) + t, pp_camroi::key(parsed, p), todaysRoiKey(t, p));
     }
     check("probe: a key with no '|' does not parse (the target is skipped)",
@@ -608,17 +610,17 @@ static void testFixtureCrops()
     {
         AppSettings s;   // today's writer, today's keys
         s.setCameraRoi({ { todaysRoiKey(camA, 2), box(0.0, 0.1, 1.0, 0.8) },
-                         { todaysRoiKey(camA, pp_camroi::kImpactPerspective), box(0.25, 0.4, 0.5, 0.234375) },
+                         { todaysRoiKey(camA, kImpact), box(0.25, 0.4, 0.5, 0.234375) },
                          { todaysRoiKey(camB, 1), box(0.2, 0.0, 0.6, 1.0) } });
         s.setCameraAlias({ { camA, QStringLiteral("Face-on") } });
     }
     AppSettings r;
     const DeviceKey a = pp_camroi::cameraDeviceKey(deviceFields(kCamA)), b = pp_camroi::cameraDeviceKey(deviceFields(kCamB));
-    check("crop A, impact role: the strip", pp_camroi::cropFor(r.cameraRoi(), a, pp_camroi::kImpactPerspective) == QRectF(0.25, 0.4, 0.5, 0.234375));
+    check("crop A, impact role: the strip", pp_camroi::cropFor(r.cameraRoi(), a, kImpact) == QRectF(0.25, 0.4, 0.5, 0.234375));
     for (int p : { 0, 1, 2, 3 })
         check(QStringLiteral("crop A, role %1: the shared crop").arg(p), pp_camroi::cropFor(r.cameraRoi(), a, p) == QRectF(0.0, 0.1, 1.0, 0.8));
     check("crop B, a role: its shared crop", pp_camroi::cropFor(r.cameraRoi(), b, 1) == QRectF(0.2, 0.0, 0.6, 1.0));
-    check("crop B, impact role, no strip stored: none", pp_camroi::cropFor(r.cameraRoi(), b, pp_camroi::kImpactPerspective).isEmpty());
+    check("crop B, impact role, no strip stored: none", pp_camroi::cropFor(r.cameraRoi(), b, kImpact).isEmpty());
     check("alias A through the site's key", r.cameraAlias().value(a.persistedCameraKey()).toString() == QStringLiteral("Face-on"));
 }
 

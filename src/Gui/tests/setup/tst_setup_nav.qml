@@ -54,7 +54,7 @@ Item {
 
         // ── N1 ───────────────────────────────────────────────────────────────
         function test_N01_wristOneFaceOnWitmotionPlan() {
-            d.addCamera("FO1", CameraInstance.FaceOn, false)
+            d.addCamera("FO1", Perspective.FaceOn, false)
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
             d.open()
@@ -67,8 +67,8 @@ Item {
 
         // ── N2 ───────────────────────────────────────────────────────────────
         function test_N02_dtlInsertsTriangulate() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
-            d.addCamera("DTL1", CameraInstance.DownTheLine, false)
+            d.addCamera("FO1", Perspective.FaceOn, true)
+            d.addCamera("DTL1", Perspective.DownTheLine, false)
             // An arm sensor pair: the new flow takes the arm steps from the hardware (§4.12),
             // the retired wizard took them from the session type — with these the plans agreed.
             d.addWitmotion("WT-A", "A", false)
@@ -106,7 +106,7 @@ Item {
 
         // ── N3 ───────────────────────────────────────────────────────────────
         function test_N03_continueThroughUngatedSteps() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
@@ -126,7 +126,7 @@ Item {
 
         // ── N4 ───────────────────────────────────────────────────────────────
         function test_N04_backFromEachStep() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
@@ -154,9 +154,9 @@ Item {
 
         // ── N5 ───────────────────────────────────────────────────────────────
         function test_N05_skipMarksSkippedAndReadyNamesIt() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
-            d.addCamera("DTL1", CameraInstance.DownTheLine, true)
-            d.addCamera("X1", CameraInstance.Other, false)      // keeps Cameras' Skip on offer
+            d.addCamera("FO1", Perspective.FaceOn, true)
+            d.addCamera("DTL1", Perspective.DownTheLine, true)
+            d.addCamera("X1", Perspective.Other, false)      // keeps Cameras' Skip on offer
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
             d.open()
@@ -201,7 +201,7 @@ Item {
 
         // ── N6 ───────────────────────────────────────────────────────────────
         function test_N06_ballGate() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             var inst = d.addCameraInstance("FO1", { ballPresent: false })
             d.open()
             d.walkTo("ball")
@@ -226,7 +226,7 @@ Item {
 
         // ── N7 ───────────────────────────────────────────────────────────────
         function test_N07_calibrateGate() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addWg3("HM-1", true)
             d.open()
             d.walkTo("calibrateArm")
@@ -249,7 +249,7 @@ Item {
 
         // ── N8 ───────────────────────────────────────────────────────────────
         function test_N08_headerForwardDoesNotSkipConnect() {
-            d.addCamera("FO1", CameraInstance.FaceOn, false)
+            d.addCamera("FO1", Perspective.FaceOn, false)
             d.open()
             d.next()
             compare(d.current(), "cameras")
@@ -260,7 +260,7 @@ Item {
 
         // ── N9 ───────────────────────────────────────────────────────────────
         function test_N09_cancelAtEachStep() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
             d.open()
@@ -301,7 +301,7 @@ Item {
         // Start hands back the chosen focus; Main sets it on the controller BEFORE start(), and
         // every session starts as the controller's defaultType (phase 2 C2).
         function test_N10_startSendsFocus() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.useWorkOns([{ id: "chicken_wing", name: "Chicken wing", status: "active" }], "", {})
             d.open()
             compare(d.focusId(), "", "a Home Start opens on Open assessment")
@@ -348,8 +348,8 @@ Item {
 
         // ── N12 ──────────────────────────────────────────────────────────────
         function test_N12_enablementSurvivesSettingsTrip() {
-            d.addCamera("FO1", CameraInstance.FaceOn, false)
-            d.addCamera("FO2", CameraInstance.FaceOn, false)
+            d.addCamera("FO1", Perspective.FaceOn, false)
+            d.addCamera("FO2", Perspective.FaceOn, false)
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
             d.open()
@@ -367,7 +367,7 @@ Item {
 
         // ── N13 ──────────────────────────────────────────────────────────────
         function test_N13_openResetsEverything() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: false })
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
@@ -416,8 +416,8 @@ Item {
 
         // ── N14 ──────────────────────────────────────────────────────────────
         function test_N14_deselectDtlWhileOnTriangulate() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
-            d.addCamera("DTL1", CameraInstance.DownTheLine, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
+            d.addCamera("DTL1", Perspective.DownTheLine, true)
             d.addWitmotion("WT-A", "A", false)               // arm steps in both shells (see N2)
             d.addWitmotion("WT-B", "B", false)
             d.open()
@@ -446,7 +446,7 @@ Item {
 
         // ── N15 ──────────────────────────────────────────────────────────────
         function test_N15_recalibrateLink() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             var a = d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
             d.open()
@@ -465,7 +465,7 @@ Item {
 
         // ── N16–N18: the post-refactor API ───────────────────────────────────
         function test_N16_indicatorJumpToDoneStep() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.open()
             d.next()                                     // Focus → Cameras
@@ -499,7 +499,7 @@ Item {
         function test_N17_registerDummyStep() {
             // A step registered from OUTSIDE (SetupSteps.extensions) with its own page file:
             // nothing in the shell, the footer, the indicator or Ready is edited for it.
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.open()
             var desc = createTemporaryObject(descComp, tc, {
@@ -586,7 +586,7 @@ Item {
         }
 
         function test_F02_pickedFocusGoesOutOnStart() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             twoWorkOns("early_extension")
             d.open()
             d.chooseFocus("chicken_wing")
@@ -637,7 +637,7 @@ Item {
         // open() with a focus none of the lists offers (Practise on a cleared condition): it is
         // offered as "requested", preselected, and stays on offer after another pick.
         function test_F04_openPreselectsTheRequestedFocus() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.useWorkOns([{ id: "chicken_wing", name: "Chicken wing", status: "active" }], "", {})
             d.open({ focusConditionId: "x", focusLabel: "X" })
             compare(d.focusChoices(), [

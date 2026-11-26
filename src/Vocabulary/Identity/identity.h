@@ -18,8 +18,8 @@
 
 #pragma once
 
-// The identity types: what names an athlete, a session and a shot (information_model.md §5.2,
-// ID-ATHLETE, ID-SESSION, ID-SHOT; refactor step 2.1). Vocabulary ring, in src/Vocabulary/Identity (Mark,
+// The identity types: what names an athlete, a session, a shot and a rig state (information_model.md §5.2,
+// ID-ATHLETE, ID-SESSION, ID-SHOT; refactor step 2.1; ID-RIG, platform refactor C-3). Vocabulary ring, in src/Vocabulary/Identity (Mark,
 // 15 Nov 2026; DEC-148), so a rule (Coaching, Diagnostics) can carry one without an outward include.
 //
 // ⚠ AN IDENTITY IS NEVER A FOLDER. None of these has a constructor from a path or a folder name, and
@@ -28,12 +28,13 @@
 // step 2, src/DomainModel/session_identity.h) and `SwingPaths` (a swing folder's number).
 //
 // Value types: Q_GADGET, hashable (qHash), ordered (operator<), `isNull()` for "no identity". The
-// three are distinct types: an AthleteId is never a SessionId, and neither converts from a QUuid or
+// types are distinct: an AthleteId is never a SessionId, and neither converts from a QUuid or
 // a string by accident (every constructor that takes one is explicit).
 //
 // Header-only. moc sees the gadgets in any target that lists this header among its sources (the app
 // does); a target that puts one into a QVariant must list it too, or it links without the metaobject.
 
+#include <QByteArray>
 #include <QHashFunctions>
 #include <QMetaType>
 #include <QObject>
@@ -188,11 +189,135 @@ private:
     int       m_swing = 0;
 };
 
+// ID-RIG (information_model.md §5.2; docs/design/rig_design.md §4.2). A rig state is named by RigRef = (RigId,
+// RigStateId). RigId: one machine's Rig, a uuid minted by the Rig the first time a machine has none stored. A RigId
+// that is not this machine's is normal in a Recording.
+class RigId
+{
+    Q_GADGET
+public:
+    RigId() = default;
+    explicit RigId(const QUuid &uuid) noexcept : m_uuid(uuid) {}
+
+    // A fresh random id, for a machine with none stored.
+    static RigId create() { return RigId(QUuid::createUuid()); }
+    // The text of a uuid, braced or not, any case (36 characters, or 38 with both braces). Anything else is null.
+    static RigId fromString(QStringView text) noexcept { return RigId(identity_detail::strictUuid(text)); }
+
+    bool  isNull() const noexcept { return m_uuid.isNull(); }
+    QUuid uuid() const noexcept { return m_uuid; }
+    // Lower case, no braces. Empty for a null id.
+    Q_INVOKABLE QString toString() const
+    {
+        return isNull() ? QString() : m_uuid.toString(QUuid::WithoutBraces);
+    }
+
+    friend bool operator==(const RigId &a, const RigId &b) noexcept { return a.m_uuid == b.m_uuid; }
+    friend bool operator!=(const RigId &a, const RigId &b) noexcept { return !(a == b); }
+    friend bool operator<(const RigId &a, const RigId &b) noexcept { return a.m_uuid < b.m_uuid; }
+
+private:
+    QUuid m_uuid;
+};
+
+// RigStateId: a digest of a rig state's canonical bytes (the versioned part only), so it is a function of the content:
+// the same set-up has the same id wherever and whenever it is computed, and putting a camera back as it was gives
+// back the earlier id. An equal id means the same set-up; an unequal one need not (R-RIG-1). The digest is SHA-256,
+// written as 64 lower-case hex digits; it is computed in src/Vocabulary/Rig/rig_state.h (rigStateIdOf), never here.
+class RigStateId
+{
+    Q_GADGET
+public:
+    RigStateId() = default;
+
+    // Exactly 64 lower-case hex digits; anything else (upper case, braces, a prefix, a uuid) is null.
+    static RigStateId fromString(QStringView text)
+    {
+        if (text.size() != 64)
+            return {};
+        for (QChar c : text)
+            if (!((c >= QLatin1Char('0') && c <= QLatin1Char('9')) || (c >= QLatin1Char('a') && c <= QLatin1Char('f'))))
+                return {};
+        RigStateId id;
+        id.m_hex = text.toString();
+        return id;
+    }
+    // A 32-byte SHA-256 digest; any other length is null.
+    static RigStateId fromDigest(const QByteArray &sha256)
+    {
+        return sha256.size() == 32 ? fromString(QString::fromLatin1(sha256.toHex())) : RigStateId();
+    }
+
+    bool isNull() const noexcept { return m_hex.isEmpty(); }
+    // The 64 hex digits. Empty for a null id.
+    Q_INVOKABLE QString toString() const { return m_hex; }
+
+    friend bool operator==(const RigStateId &a, const RigStateId &b) noexcept { return a.m_hex == b.m_hex; }
+    friend bool operator!=(const RigStateId &a, const RigStateId &b) noexcept { return !(a == b); }
+    friend bool operator<(const RigStateId &a, const RigStateId &b) noexcept { return a.m_hex < b.m_hex; }
+
+private:
+    QString m_hex;
+};
+
+// RigRef: the rig a shot was captured on, (RigId, RigStateId). Composed, never minted. A null half gives the null ref.
+class RigRef
+{
+    Q_GADGET
+public:
+    RigRef() = default;
+    RigRef(const RigId &rig, const RigStateId &state)
+    {
+        if (!rig.isNull() && !state.isNull()) {
+            m_rig   = rig;
+            m_state = state;
+        }
+    }
+
+    bool       isNull() const noexcept { return m_rig.isNull(); }
+    RigId      rig() const noexcept { return m_rig; }
+    RigStateId state() const { return m_state; }
+
+    // "<rig uuid>/<state digest>": for logs and hashes. Empty for a null ref.
+    Q_INVOKABLE QString toString() const
+    {
+        return isNull() ? QString() : m_rig.toString() + QLatin1Char('/') + m_state.toString();
+    }
+    // The inverse of toString() and nothing else.
+    static RigRef fromString(QStringView text)
+    {
+        const qsizetype slash = text.indexOf(QLatin1Char('/'));
+        if (slash <= 0)
+            return {};
+        const RigRef r(RigId::fromString(text.left(slash)), RigStateId::fromString(text.mid(slash + 1)));
+        return r.toString() == text ? r : RigRef();
+    }
+
+    friend bool operator==(const RigRef &a, const RigRef &b) noexcept { return a.m_rig == b.m_rig && a.m_state == b.m_state; }
+    friend bool operator!=(const RigRef &a, const RigRef &b) noexcept { return !(a == b); }
+    friend bool operator<(const RigRef &a, const RigRef &b) noexcept
+    {
+        if (a.m_rig != b.m_rig)
+            return a.m_rig < b.m_rig;
+        return a.m_state < b.m_state;
+    }
+
+private:
+    RigId      m_rig;
+    RigStateId m_state;
+};
+
 inline size_t qHash(const AthleteId &id, size_t seed = 0) noexcept { return qHash(id.uuid(), seed); }
 inline size_t qHash(const SessionId &id, size_t seed = 0) noexcept { return qHash(id.uuid(), seed); }
 inline size_t qHash(const ShotRef &ref, size_t seed = 0) noexcept
 {
     return qHashMulti(seed, ref.session().uuid(), ref.swingNumber());
+}
+inline size_t qHash(const RigId &id, size_t seed = 0) noexcept { return qHash(id.uuid(), seed); }
+inline size_t qHash(const RigStateId &id, size_t seed = 0) noexcept { return qHash(id.toString(), seed); }
+inline size_t qHash(const RigRef &ref, size_t seed = 0) noexcept
+{
+    return qHashMulti(seed, ref.rig().uuid(), ref.state().toString());
 }
 
 } // namespace pinpoint

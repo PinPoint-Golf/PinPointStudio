@@ -266,8 +266,8 @@ else()
         # Loads session setup (ScreenSessionSetup), ImuCalibrationFlow and PpImuPanel, unmodified,
         # over fake context objects (src/Gui/tests/setup/fakes/). A separate binary from qml_ui_test
         # because the fakes are injected under the context-property names the setup QML reads and the app-only
-        # enum carriers (CameraInstance, SessionController) are supplied by test stand-ins —
-        # neither may leak into the other suites. It declares the app's module the same way
+        # enum carrier SessionController is supplied by a test stand-in — neither may leak into the
+        # other suites. (The camera perspective is the registered Perspective type, in every module.) It declares the app's module the same way
         # qml_ui_test does (same lists, same aliases, same policy set), plus the stand-ins.
         #
         # ⚠ THE SOURCE LIST BELOW DUPLICATES qml_ui_test's LINK CLOSURE. Both compile the module's

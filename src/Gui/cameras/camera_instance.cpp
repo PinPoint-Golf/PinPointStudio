@@ -19,9 +19,6 @@
 #include "camera_instance.h"
 #include "camera_roi.h"
 
-static_assert(pp_camroi::kImpactPerspective == CameraInstance::Impact,
-              "camera_roi.h keys the impact crop by this role");
-
 #include "app_settings.h"
 #include "event_buffer.h"
 #include "source_descriptor.h"
@@ -144,7 +141,7 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
         // sizes the ring. Buffer-backed instances only: a settings preview
         // shows the full sensor at the camera's own exposure so the crop box
         // can be placed on a bright picture.
-        if (buffer && appSettings->cameraPerspective().value(key).toInt() == Impact) {
+        if (buffer && appSettings->cameraPerspective().value(key).toInt() == int(pinpoint::recording::Perspective::Impact)) {
             m_captureFps = appSettings->cameraTargetFps().value(key).toDouble();
             m_captureExposureUs =
                 appSettings->cameraExposureUs().value(key, kImpactDefaultExposureUs).toDouble();
@@ -1601,7 +1598,7 @@ void CameraInstance::drainDisplayFrame()
         m_lastDeliveredFrame = f;   // ground truth for updateBufferDescriptor()
     // Levels for a pre-decoded greyscale feed (an industrial Mono8 camera); a
     // colour webcam is never the impact camera, so its formats are skipped.
-    if (f.isValid() && m_perspective == Impact
+    if (f.isValid() && m_perspective == int(pinpoint::recording::Perspective::Impact)
         && (f.pixelFormat() == QVideoFrameFormat::Format_Y8
             || f.pixelFormat() == QVideoFrameFormat::Format_NV12
             || f.pixelFormat() == QVideoFrameFormat::Format_YUV420P)) {

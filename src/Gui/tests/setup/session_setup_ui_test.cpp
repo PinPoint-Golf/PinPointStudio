@@ -25,8 +25,8 @@
 //     sessionController as unqualified context properties, so the fakes have to be
 //     injected under exactly those names — in a CHILD context per instance, through
 //     `harness.createWithContext()`, so two hosts can be given different fakes;
-//   - the app-only enum carriers CameraInstance and SessionController are provided by
-//     test-only stand-ins (setup_enum_standins.h).
+//   - the app-only enum carrier SessionController is provided by a test-only stand-in
+//     (setup_enum_standins.h); the camera perspective is the registered Perspective type.
 //
 // What the setup object supplies, beyond what qml_ui_test does:
 //   testLog   — every QtWarningMsg / QtCriticalMsg, so each test can assert in cleanup()

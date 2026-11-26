@@ -635,7 +635,6 @@
 4 session_report_test
 4 session_repository_test
 4 session_series_test
-4 session_setup_lint_test
 4 session_setup_ui
 4 session_setup_ui.tst_setup_calib_hackmotion
 4 session_setup_ui.tst_setup_calib_witmotion

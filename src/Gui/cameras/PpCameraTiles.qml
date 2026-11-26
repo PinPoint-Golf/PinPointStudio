@@ -78,21 +78,21 @@ Item {
     readonly property var _liveAll:
         cameraManager.cameraList.filter(function(c) { return c.sessionEnabled })
     readonly property var _liveCameras:
-        root._liveAll.filter(function(c) { return c.perspective !== CameraInstance.Impact })
+        root._liveAll.filter(function(c) { return c.perspective !== Perspective.Impact })
     readonly property var _liveImpact: {
         var l = root._liveAll
         for (var i = 0; i < l.length; ++i)
-            if (l[i].perspective === CameraInstance.Impact) return l[i]
+            if (l[i].perspective === Perspective.Impact) return l[i]
         return null
     }
     // Replay streams likewise: the loaded swing's non-impact streams fill the
     // row; its impact stream (setup.perspective 4), if any, floats.
     readonly property var _replayStreams:
-        app.state.replay.streams.filter(function(s) { return s.perspective !== CameraInstance.Impact })
+        app.state.replay.streams.filter(function(s) { return s.perspective !== Perspective.Impact })
     readonly property var _replayImpact: {
         var s = app.state.replay.streams
         for (var i = 0; i < s.length; ++i)
-            if (s[i].perspective === CameraInstance.Impact) return s[i]
+            if (s[i].perspective === Perspective.Impact) return s[i]
         return null
     }
 
@@ -277,7 +277,7 @@ Item {
                 placeholderAspect: {
                     // The ROLE's crop: the impact strip lives under "<key>#impact" (camera_roi.h).
                     const roi = appSettings.cameraRoi[modelData.cameraKey
-                                                      + (modelData.perspective === CameraInstance.Impact ? "#impact" : "")]
+                                                      + (modelData.perspective === Perspective.Impact ? "#impact" : "")]
                     if (roi && roi.w > 0 && roi.h > 0
                         && modelData.maxWidth > 0 && modelData.maxHeight > 0)
                         return (modelData.maxWidth * roi.w) / (modelData.maxHeight * roi.h)
@@ -447,7 +447,7 @@ Item {
                 placeholderAspect: {
                     if (!camData) return 8.0 / 3.0
                     const roi = appSettings.cameraRoi[camData.cameraKey
-                                                      + (camData.perspective === CameraInstance.Impact ? "#impact" : "")]
+                                                      + (camData.perspective === Perspective.Impact ? "#impact" : "")]
                     if (roi && roi.w > 0 && roi.h > 0 && camData.maxWidth > 0 && camData.maxHeight > 0)
                         return (camData.maxWidth * roi.w) / (camData.maxHeight * roi.h)
                     return (camData.initialWidth > 0 && camData.initialHeight > 0)

@@ -187,7 +187,7 @@ Item {
 
         // ── P1 ───────────────────────────────────────────────────────────────
         function test_P1_pickerOffersArmAndTrunkByName() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addWitmotion("WT-N", "", true)
             d.imu.addHackMotion("HM-1", "")
             d.imu.connectDevice("HM-1")
@@ -206,7 +206,7 @@ Item {
 
         // ── P2 ───────────────────────────────────────────────────────────────
         function test_P2_trunkMountsBringTheTrunkSteps() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addWitmotion("WT-P", "", true)
             d.addWitmotion("WT-T", "", true)
             d.open()
@@ -229,7 +229,7 @@ Item {
 
         // ── P3 ───────────────────────────────────────────────────────────────
         function test_P3_notWornTakesTheMountAway() {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.addWitmotion("WT-N", "", true)
             d.addWitmotion("WT-A", "A", true)
             d.open()
@@ -261,7 +261,7 @@ Item {
             compare(mountLineShown("WT-1"), "Worn as: " + hipLabel + " (set in session setup)")
             compare(textStartingWith("Assigned: "), "Assigned: " + hipShort)
             d.imu.connectDevice("WT-1")
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
             d.open()
             d.walkTo("imus")
             compare(d.imuRows()[0].label, hipLabel + " — Belt sensor")

@@ -42,8 +42,8 @@ Item {
         // Every applicable step, each visited once (Triangulate included), sampling `probe`
         // on arrival. Returns {step: probe()}.
         function walkSampling(probe) {
-            d.addCamera("FO1", CameraInstance.FaceOn, true)
-            d.addCamera("DTL1", CameraInstance.DownTheLine, true)
+            d.addCamera("FO1", Perspective.FaceOn, true)
+            d.addCamera("DTL1", Perspective.DownTheLine, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
@@ -104,9 +104,9 @@ Item {
                 var w = testLog.takeWarnings()
                 compare(w.length, 0, stage + ": unexpected warnings (" + w.length + "):\n" + w.join("\n"))
             }
-            d.addCamera("FO1", CameraInstance.FaceOn, false)
-            d.addCamera("DTL1", CameraInstance.DownTheLine, false)
-            d.addCamera("IMP1", CameraInstance.Impact, false)
+            d.addCamera("FO1", Perspective.FaceOn, false)
+            d.addCamera("DTL1", Perspective.DownTheLine, false)
+            d.addCamera("IMP1", Perspective.Impact, false)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.addWitmotion("WT-C", "C", false)
             d.addWg3("HM-1", false)

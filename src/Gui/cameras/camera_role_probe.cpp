@@ -32,6 +32,8 @@
 #include <QTimer>
 #include <cmath>
 
+namespace rec = pinpoint::recording;   // the one perspective type (perspective.h, through camera_instance.h)
+
 namespace {
 // Long enough for the reconnect (factory set ~25 ms, Init, the latch), the
 // auto loops to settle, and several 500 ms cameraFps samples.
@@ -40,11 +42,11 @@ constexpr int kSettleMs = 4500;
 QString roleName(int r)
 {
     switch (r) {
-    case CameraInstance::None:        return QStringLiteral("None");
-    case CameraInstance::DownTheLine: return QStringLiteral("DownTheLine");
-    case CameraInstance::FaceOn:      return QStringLiteral("FaceOn");
-    case CameraInstance::Other:       return QStringLiteral("Other");
-    case CameraInstance::Impact:      return QStringLiteral("Impact");
+    case int(rec::Perspective::None):        return QStringLiteral("None");
+    case int(rec::Perspective::DownTheLine): return QStringLiteral("DownTheLine");
+    case int(rec::Perspective::FaceOn):      return QStringLiteral("FaceOn");
+    case int(rec::Perspective::Other):       return QStringLiteral("Other");
+    case int(rec::Perspective::Impact):      return QStringLiteral("Impact");
     }
     return QString::number(r);
 }
@@ -175,7 +177,7 @@ void CameraRoleProbe::seedImpactLikeTheViewCombo(const Target &t)
         m[t.key] = CameraInstance::kImpactDefaultExposureUs;
         m_settings->setCameraExposureUs(m);
     }
-    const QString stripKey = pp_camroi::key(t.camera, CameraInstance::Impact);
+    const QString stripKey = pp_camroi::key(t.camera, int(rec::Perspective::Impact));
     const double storedFps = m_settings->cameraTargetFps().value(t.key).toDouble();
     const bool stripUnset  = !m_settings->cameraRoi().contains(stripKey);
     if ((storedFps >= 420.0 && !stripUnset) || t.impactModes.isEmpty() || !(t.maxW > 0) || !(t.maxH > 0))
@@ -202,7 +204,7 @@ void CameraRoleProbe::seedImpactLikeTheViewCombo(const Target &t)
 void CameraRoleProbe::planCamera(const Target &t)
 {
     // The non-Impact leg is DownTheLine: the role of the October incident.
-    const int other = CameraInstance::DownTheLine;
+    const int other = int(rec::Perspective::DownTheLine);
     const int start = t.originalRole;
 
     then(kSettleMs, [this, t, start]() {
@@ -213,13 +215,13 @@ void CameraRoleProbe::planCamera(const Target &t)
     });
     then(0, [this, t]() {
         seedImpactLikeTheViewCombo(t);
-        m_cameras->assignPerspective(t.key, CameraInstance::Impact);
+        m_cameras->assignPerspective(t.key, int(rec::Perspective::Impact));
     });
-    then(kSettleMs, [this, t]() { observe(t, QStringLiteral("impact1"), CameraInstance::Impact); });
+    then(kSettleMs, [this, t]() { observe(t, QStringLiteral("impact1"), int(rec::Perspective::Impact)); });
     then(0, [this, t, other]() { m_cameras->assignPerspective(t.key, other); });
     then(kSettleMs, [this, t, other]() { observe(t, QStringLiteral("other"), other); });
-    then(0, [this, t]() { m_cameras->assignPerspective(t.key, CameraInstance::Impact); });
-    then(kSettleMs, [this, t]() { observe(t, QStringLiteral("impact2"), CameraInstance::Impact); });
+    then(0, [this, t]() { m_cameras->assignPerspective(t.key, int(rec::Perspective::Impact)); });
+    then(kSettleMs, [this, t]() { observe(t, QStringLiteral("impact2"), int(rec::Perspective::Impact)); });
     // Back to where it started — through the same call, so the restore is a
     // role change too — with the operator's own camera settings put back first.
     then(0, [this, t, start]() {
@@ -299,7 +301,7 @@ void CameraRoleProbe::evaluate(const Target &t)
 
     // Every move into or out of Impact rebuilt the instance (a reconnect);
     // the instance the probe found carries the new role.
-    check(i1->reconnected || st->role == CameraInstance::Impact,
+    check(i1->reconnected || st->role == int(rec::Perspective::Impact),
           QStringLiteral("start → Impact reconnected the camera"));
     check(ot->reconnected, QStringLiteral("Impact → other reconnected the camera"));
     check(i2->reconnected, QStringLiteral("other → Impact reconnected the camera"));
@@ -340,7 +342,7 @@ void CameraRoleProbe::evaluate(const Target &t)
               s + QStringLiteral("strobe %1 (Line1 %2)").arg(strobe ? QStringLiteral("on") : QStringLiteral("off"), str(n, "Line1.LineSource")));
     }
     for (const Observation *o : { st, ot, rs }) {
-        if (o->role == CameraInstance::Impact) continue;
+        if (o->role == int(rec::Perspective::Impact)) continue;
         const QVariantMap &n = o->nodes;
         const QString s = o->step + QStringLiteral(": ");
         check(str(n, "ExposureAuto") == QLatin1String("Continuous"), s + QStringLiteral("auto exposure (%1)").arg(str(n, "ExposureAuto")));

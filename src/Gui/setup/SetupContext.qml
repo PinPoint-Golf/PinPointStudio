@@ -131,21 +131,21 @@ QtObject {
     readonly property var faceOn: {
         var out = [], list = ctx.cameraList
         for (var i = 0; i < list.length; ++i)
-            if (list[i].perspective === CameraInstance.FaceOn) out.push(list[i])
+            if (list[i].perspective === Perspective.FaceOn) out.push(list[i])
         return out
     }
     readonly property var dtl: {
         var out = [], list = ctx.cameraList
         for (var i = 0; i < list.length; ++i)
-            if (list[i].perspective === CameraInstance.DownTheLine) out.push(list[i])
+            if (list[i].perspective === Perspective.DownTheLine) out.push(list[i])
         return out
     }
     // Unassigned, Other and Impact cameras: they record, analysis does not read them (l.968–972).
     readonly property var others: {
         var out = [], list = ctx.cameraList
         for (var i = 0; i < list.length; ++i)
-            if (list[i].perspective !== CameraInstance.FaceOn
-                    && list[i].perspective !== CameraInstance.DownTheLine)
+            if (list[i].perspective !== Perspective.FaceOn
+                    && list[i].perspective !== Perspective.DownTheLine)
                 out.push(list[i])
         return out
     }
@@ -157,8 +157,8 @@ QtObject {
         var fo = false, dl = false, list = ctx.cameraList
         for (var i = 0; i < list.length; ++i) {
             if (!list[i].selected) continue
-            if (list[i].perspective === CameraInstance.FaceOn)           fo = true
-            else if (list[i].perspective === CameraInstance.DownTheLine) dl = true
+            if (list[i].perspective === Perspective.FaceOn)           fo = true
+            else if (list[i].perspective === Perspective.DownTheLine) dl = true
         }
         return fo && dl
     }
@@ -171,7 +171,7 @@ QtObject {
         for (var i = 0; i < cams.length; ++i) {
             if (!cams[i].sessionEnabled) continue
             if (!cams[i].selected) return false
-            if (cams[i].perspective === CameraInstance.FaceOn) ++fo
+            if (cams[i].perspective === Perspective.FaceOn) ++fo
         }
         return fo > 0
     }
@@ -251,7 +251,7 @@ QtObject {
         var cams = ctx.cameraList, insts = cameraMgr.instances, out = []
         for (var i = 0; i < cams.length; ++i) {
             var c = cams[i]
-            if (!c.sessionEnabled || !c.selected || c.perspective === CameraInstance.Impact) continue
+            if (!c.sessionEnabled || !c.selected || c.perspective === Perspective.Impact) continue
             var inst = null
             for (var j = 0; j < insts.length; ++j)
                 if (insts[j].cameraKey === c.cameraKey) { inst = insts[j]; break }

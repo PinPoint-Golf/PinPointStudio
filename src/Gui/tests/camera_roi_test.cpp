@@ -72,7 +72,9 @@ static QString stripOf(const DeviceKey &k) { return k.persistedRoiKey(DeviceKey:
 static const DeviceKey kCamera = camera("Chameleon3 CM3-U3-13Y3C", "18277032");
 static const QString   kCam    = kCamera.persistedCameraKey();
 static const QString   kStrip  = stripOf(kCamera);
-constexpr int kDtl = 1, kFaceOn = 2, kImpact = pp_camroi::kImpactPerspective;
+// The codes the settings store holds, from the one perspective type (src/Vocabulary/Recording/perspective.h).
+using Perspective = pinpoint::recording::Perspective;
+constexpr int kDtl = int(Perspective::DownTheLine), kFaceOn = int(Perspective::FaceOn), kImpact = int(Perspective::Impact);
 
 // A Chameleon3 as enumeration describes it: 1280x1024, impact modes probed.
 static CameraCapabilities chameleon3()

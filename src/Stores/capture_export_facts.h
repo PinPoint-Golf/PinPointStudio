@@ -51,7 +51,7 @@ namespace pinpoint {
 
 struct CaptureCameraFacts {
     SourceId source       = kInvalidSourceId;
-    int      perspective  = 0;      // CameraInstance::Perspective / streams[].setup.perspective
+    int      perspective  = 0;      // recording::Perspective's code / streams[].setup.perspective
     bool     mirrored     = false;
     bool     fixedInPlace = false;
     QRectF   searchRoi;             // the hitting-area box; empty = none

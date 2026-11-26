@@ -44,28 +44,14 @@
 #include "../../Buffer/types.h"               // pinpoint::SourceId, kInvalidSourceId
 #include "capture_time_types.h"            // ImuSegmentBinding, BallTrack2D, BallBaselineRef
 #include "analysis_context.h"
+#include "perspective.h"                  // Perspective, perspectiveFromCode, perspectiveCode
 
 namespace pinpoint { class SwingWindow; }
 
 namespace pinpoint::recording {
 
-// ── The one perspective mapping ───────────────────────────────────────────────────────────────
-// A camera's placement. The codes are what the swing file stores in streams[].setup.perspective and
-// what CameraInstance::Perspective holds; every reader goes through this mapping instead of
-// comparing magic ints (2 = face-on, 4 = impact, 1 = down the line).
-enum class Perspective : int { None = 0, DownTheLine = 1, FaceOn = 2, Other = 3, Impact = 4 };
-
-inline Perspective perspectiveFromCode(int code)
-{
-    switch (code) {
-    case 1:  return Perspective::DownTheLine;
-    case 2:  return Perspective::FaceOn;
-    case 3:  return Perspective::Other;
-    case 4:  return Perspective::Impact;
-    default: return Perspective::None;
-    }
-}
-inline int perspectiveCode(Perspective p) { return static_cast<int>(p); }
+// The one perspective mapping, `Perspective`, `perspectiveFromCode` and `perspectiveCode`, is in
+// perspective.h (included above), so the rig state can hold it without this whole contract.
 
 // ── The shot kind (R-REC-8; Mark, 14 Nov 2026: DEC-44, DEC-87) ────────────────────────────────
 // Which kind of shot the Recording is: CAPTURED (cameras / IMU saw it: it has, or had, streams) or

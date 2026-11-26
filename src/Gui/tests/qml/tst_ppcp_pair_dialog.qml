@@ -520,10 +520,9 @@ Item {
     }
     // ══ Settings ▸ Cameras (#268) ══════════════════════════════════════════════════════════════
     //
-    // ⚠ CameraInstance IS NOT REGISTERED IN THIS BINARY (it is app-only; the setup suite's stand-in may
-    // not leak here, src/Gui/CMakeLists.txt). The panel's and the frame's `CameraInstance.*` bindings
-    // therefore warn ReferenceError and fall back; none of the handlers asserted below reads it, and the
-    // face-on perspective is given as its value, 2 (camera_instance.h, enum Perspective).
+    // The panel's and the frame's perspective bindings read `Perspective.*`, the one perspective type,
+    // registered in this binary as in the app (src/Gui/shell/perspective_qml.h). The face-on perspective is
+    // still given below as its code, 2, as the settings store holds it.
     //
     // The fake's writers do to the real AppSettings what camera_manager.cpp's do (setIsMirrored,
     // setBallRoi with "empty means clear", clearBallRoi), so the store values asserted are the ones the

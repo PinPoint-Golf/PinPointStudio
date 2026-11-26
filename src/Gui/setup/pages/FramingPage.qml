@@ -66,8 +66,8 @@ WizardPage {
     }
     function cameraLabel(c) {
         var name = c.alias || c.description
-        if (c.perspective === CameraInstance.FaceOn)      return qsTr("Face-on camera — %1").arg(name)
-        if (c.perspective === CameraInstance.DownTheLine) return qsTr("Down-the-line camera — %1").arg(name)
+        if (c.perspective === Perspective.FaceOn)      return qsTr("Face-on camera — %1").arg(name)
+        if (c.perspective === Perspective.DownTheLine) return qsTr("Down-the-line camera — %1").arg(name)
         return qsTr("Camera — %1").arg(name)
     }
 

@@ -553,7 +553,7 @@ pp_add_test(qml_reactivity_test
 # setup QML against the C++ headers they reach: W5 — every member QML uses on imuManager,
 # cameraManager, liveWrist, launchMonitor (and appLog, once it exists) is a PUBLIC Q_INVOKABLE,
 # slot, signal or Q_PROPERTY, and no Q_INVOKABLE sits in a non-public section (moc registers it,
-# QML silently gets undefined); W6 — the test enum stand-ins match Perspective / Session Type;
+# QML silently gets undefined); W6 — the test enum stand-in matches Session Type, and nothing mirrors Perspective;
 # W1 — Timer/Connections gating, report-only until kEnforceW1; W12 — no rule built in any production
 # QML file (AD-52, R-QML-4), R-QML-4's exceptions frozen in qml_rule_allowlist.txt, one line per file
 # with its issue (the Solution Architect's list).
@@ -563,6 +563,7 @@ pp_add_test(session_setup_lint_test
     LINK    Qt6::Core
     COMPILE_OPTIONS -DPP_QML_ROOT="${GUI}"
                     -DPP_QML_RULE_ALLOWLIST="${CMAKE_CURRENT_SOURCE_DIR}/qml_rule_allowlist.txt")
+pp_requirement(session_setup_lint_test CTL-AD-52)   # W12 is AD-52's check (no rule in QML), and R-QML-4's
 
 # Design-system lint (governance/artefacts/design_system/README.md, #133). Reads every screen's QML and fails on a
 # hand-drawn control, a raw text input, a popup that draws its own surface, a literal colour, or space

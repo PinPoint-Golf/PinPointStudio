@@ -100,7 +100,7 @@ SettingsPanelBase {
         // Live only when the camera is ALREADY the impact camera (a mode chip):
         // from the VIEW combo the instance still has its old role, and the
         // role change reconnects it with this crop anyway.
-        if (liveInstance && liveInstance.perspective === CameraInstance.Impact)
+        if (liveInstance && liveInstance.perspective === Perspective.Impact)
             liveInstance.setCropRoi(Qt.rect(x, y, w, h))
         roiMap[roiKey] = { x: x, y: y, w: w, h: h }
         appSettings.cameraRoi = roiMap
@@ -261,7 +261,7 @@ SettingsPanelBase {
         // The club/ball impact camera: its row swaps the frame-rate chips for
         // the modes the camera itself reported at enumeration (crop × rate)
         // and adds a locked-exposure chip.
-        readonly property bool isImpact:    camRow.camData.perspective === CameraInstance.Impact
+        readonly property bool isImpact:    camRow.camData.perspective === Perspective.Impact
         readonly property var  impactModes: camRow.camData.impactModes || []
 
         // Effective fps for storage calculations:
@@ -500,13 +500,13 @@ SettingsPanelBase {
                         // does: ≤ 240 fps and a rolling shutter.
                         readonly property var viewOptions: {
                             var opts = [
-                                { label: qsTr("— Unassigned —"), perspective: CameraInstance.None },
-                                { label: qsTr("Face-on"),         perspective: CameraInstance.FaceOn },
-                                { label: qsTr("Down-the-line"),   perspective: CameraInstance.DownTheLine }
+                                { label: qsTr("— Unassigned —"), perspective: Perspective.None },
+                                { label: qsTr("Face-on"),         perspective: Perspective.FaceOn },
+                                { label: qsTr("Down-the-line"),   perspective: Perspective.DownTheLine }
                             ]
-                            if (camRow.camData.impactCapable || camRow.camData.perspective === CameraInstance.Impact)
-                                opts.push({ label: qsTr("Club/Ball Impact"), perspective: CameraInstance.Impact })
-                            opts.push({ label: qsTr("Other"), perspective: CameraInstance.Other })
+                            if (camRow.camData.impactCapable || camRow.camData.perspective === Perspective.Impact)
+                                opts.push({ label: qsTr("Club/Ball Impact"), perspective: Perspective.Impact })
+                            opts.push({ label: qsTr("Other"), perspective: Perspective.Other })
                             return opts
                         }
 
@@ -549,7 +549,7 @@ SettingsPanelBase {
                             // No impact strip of its own yet (camera_roi.h) — including a camera
                             // whose strip used to live in the shared crop: seed the mode.
                             var stripUnset = appSettings.cameraRoi[key + "#impact"] === undefined
-                            if (p === CameraInstance.Impact) {
+                            if (p === Perspective.Impact) {
                                 // First assignment seeds the recommended mode and
                                 // exposure, so the camera is usable with no
                                 // further click (impact_camera_design.md §10.2).
@@ -788,7 +788,7 @@ SettingsPanelBase {
                 // explains inline.
                 PpButton {
                     id: ballBtn
-                    visible: camRow.camData.perspective === CameraInstance.FaceOn
+                    visible: camRow.camData.perspective === Perspective.FaceOn
                     style: "wash"; size: "compact"
                     implicitHeight: Theme.sp(26)
                     horizontalPadding: Theme.sp(24)
@@ -1522,7 +1522,7 @@ SettingsPanelBase {
                                     var map = appSettings.cameraRoi
                                     // The crop of the role the camera is in (camera_roi.h).
                                     var roiKey = camRow.camData.cameraKey
-                                               + (camRow.camData.perspective === CameraInstance.Impact ? "#impact" : "")
+                                               + (camRow.camData.perspective === Perspective.Impact ? "#impact" : "")
                                     if (roi.width > 0 && roi.height > 0)
                                         map[roiKey] = { x: roi.x, y: roi.y, w: roi.width, h: roi.height }
                                     else

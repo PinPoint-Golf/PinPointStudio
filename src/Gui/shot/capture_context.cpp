@@ -279,7 +279,7 @@ CaptureSnapshot snapshotAtFreeze(const pinpoint::SwingWindow &window, const std:
     // mid-swing, an unusual rig). Window-relative here; the job builder adds t0Us back.
     for (int pass = 0; pass < 2 && r.ball.track.frames.empty(); ++pass) {
         for (const CaptureCamera &c : cameras) {
-            if (pass == 0 && c.ctrl->perspective() != CameraInstance::FaceOn)
+            if (pass == 0 && c.ctrl->perspective() != int(rec::Perspective::FaceOn))
                 continue;
             if (c.ball.frames.empty())
                 continue;
@@ -296,7 +296,7 @@ CaptureSnapshot snapshotAtFreeze(const pinpoint::SwingWindow &window, const std:
     // The search box and the empty-mat baseline: the face-on camera's frozen facts, read as the
     // Recording loader reads them back (the last face-on stream that has one).
     for (const pinpoint::CaptureCameraFacts &f : snap.cameraFacts) {
-        if (f.perspective != int(CameraInstance::FaceOn))
+        if (f.perspective != int(rec::Perspective::FaceOn))
             continue;
         if (!f.searchRoi.isEmpty())
             r.ball.searchRoi = f.searchRoi;
@@ -340,7 +340,7 @@ CaptureSnapshot snapshotAtFreeze(const pinpoint::SwingWindow &window, const std:
 
         const CameraInstance *faceOnCtrl = nullptr;
         for (const CaptureCamera &c : cameras)
-            if (c.ctrl && c.ctrl->perspective() == CameraInstance::FaceOn) { faceOnCtrl = c.ctrl; break; }
+            if (c.ctrl && c.ctrl->perspective() == int(rec::Perspective::FaceOn)) { faceOnCtrl = c.ctrl; break; }
         const pinpoint::rig::DeviceKey faceOn = faceOnCtrl ? faceOnCtrl->deviceKey() : pinpoint::rig::DeviceKey();
         const QString faceOnKey = faceOn.persistedCameraKey();
         if (!faceOnKey.isEmpty() && fixedInPlace.value(faceOnKey).toBool()) {

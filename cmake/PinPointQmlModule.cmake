@@ -593,6 +593,10 @@ set(PP_QML_FILES
 set(PP_QML_SOURCES
     # The screen enum (header-only): every screen index is named from it.
     src/Gui/shell/app_screen.h
+    # The one perspective type (header-only, rig_design.md §4.7): the Vocabulary header, listed so AUTOMOC makes its
+    # namespace's meta-object in each module target, and the Adapters' registration that names it Perspective in QML.
+    src/Vocabulary/Recording/perspective.h
+    src/Gui/shell/perspective_qml.h
     src/Audio/ting_player.h
     src/Audio/ting_player.cpp
     src/Video/bayer_video_item.h

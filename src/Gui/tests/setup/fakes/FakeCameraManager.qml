@@ -66,7 +66,7 @@ QtObject {
     }
 
     // ── Test helpers ─────────────────────────────────────────────────────
-    // perspective: the CameraInstance enum value (None 0, DownTheLine 1, FaceOn 2, Other 3, Impact 4)
+    // perspective: a Perspective code (None 0, DownTheLine 1, FaceOn 2, Other 3, Impact 4)
     function addCamera(key, perspective, alias) {
         var a = _cams.slice()
         a.push({ key: key, perspective: perspective, alias: alias || "", description: "Camera " + key,

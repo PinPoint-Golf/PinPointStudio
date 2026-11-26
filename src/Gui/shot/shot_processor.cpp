@@ -63,6 +63,8 @@
 #include <cmath>
 #include <variant>
 
+namespace rec = pinpoint::recording;   // the one perspective type (perspective.h, through camera_instance.h)
+
 namespace {
 
 // Post-trigger capture continuation, per source — the buffer keeps capturing
@@ -518,7 +520,7 @@ void ShotProcessor::finishGatherAndLaunch()
         track.ctrl     = ctrl;
         track.sourceId = sid;
         track.entries  = std::move(entries);
-        track.loop     = (ctrl->perspective() == CameraInstance::Impact);
+        track.loop     = (ctrl->perspective() == int(rec::Perspective::Impact));
         // Freeze the ball-detector accumulator NOW (design §9): both job builders
         // run 12–37 s later (from onAnalysisFinished), by when the live deque has
         // scrolled to post-shot junk and a phantom re-launch may have overwritten
@@ -886,7 +888,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         }
         // The impact camera's keep band — see kImpactKeepBeforeUs. Absolute
         // buffer-clock, the domain of both m_impactUs and the entries.
-        if (cam.perspective == CameraInstance::Impact && m_impactUs >= 0) {
+        if (cam.perspective == int(rec::Perspective::Impact) && m_impactUs >= 0) {
             auto countIn = [&](int64_t lo, int64_t hi) {
                 size_t n = 0;
                 for (const auto &e : track.entries)
@@ -916,13 +918,13 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         // held if it told us, else what it was asked for. Every camera whose
         // gain was locked — the impact camera always, any other when its role
         // has a lock (flir_image_clarity.md §6.4); auto gain writes nothing.
-        if (cam.perspective == CameraInstance::Impact || track.ctrl->requestedGainDb() >= 0.0) {
+        if (cam.perspective == int(rec::Perspective::Impact) || track.ctrl->requestedGainDb() >= 0.0) {
             const double heldGain  = track.ctrl->appliedGainDb();
             cam.gainDb     = heldGain >= 0.0 ? heldGain : track.ctrl->requestedGainDb();
             cam.gainSource = (heldGain >= 0.0) ? QStringLiteral("applied")
                                                : QStringLiteral("requested");
         }
-        if (cam.perspective == CameraInstance::Impact) {
+        if (cam.perspective == int(rec::Perspective::Impact)) {
             cam.blackLevelLift = CameraInstance::kImpactBlackLevelLiftPct;
             const QVariantMap tuning = s->cameraTuning().value(track.ctrl->cameraKey()).toMap();
             cam.strobe   = tuning.value(QStringLiteral("strobe"), false).toBool();
@@ -986,7 +988,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
                        ? m_impactUs - m_swingWindow->startTimestampUs()
                        : -1;
     for (const ReplayTrack &track : m_replayTracks) {
-        if (track.ctrl->perspective() == CameraInstance::FaceOn) {
+        if (track.ctrl->perspective() == int(rec::Perspective::FaceOn)) {
             job.thumbnailSourceId = track.sourceId;
             break;
         }

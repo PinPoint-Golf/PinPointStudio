@@ -32,8 +32,8 @@ namespace pinpoint {
 
 namespace {
 
-constexpr int kPerspectiveFaceOn = 2;   // CameraInstance::FaceOn (swing_exporter.h)
-constexpr int kPerspectiveImpact = 4;   // CameraInstance::Impact
+constexpr int kPerspectiveFaceOn = 2;   // recording::Perspective::FaceOn (perspective.h)
+constexpr int kPerspectiveImpact = 4;   // recording::Perspective::Impact
 constexpr int kThumbJpegQuality  = 85;  // as swing_exporter.cpp writeThumbnail writes it
 
 bool isRawBayerStream(const QJsonObject &s)

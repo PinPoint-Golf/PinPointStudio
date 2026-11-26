@@ -637,6 +637,27 @@ pp_add_test(identity_test
             ${SRC}/Vocabulary/Identity/identity.h
     INCLUDE ${SRC}/Vocabulary/Identity
     AUTOMOC)
+# perspective_test: the one perspective type (src/Vocabulary/Recording/perspective.h, header-only, Q_ENUM_NS in a
+# namespace of its own; the header is listed so AUTOMOC makes that namespace's meta-object): the five stored codes
+# against the swing schema reference, an unknown code read as None, the enum's names through the meta-object.
+pp_add_test(perspective_test
+    SOURCES ${SRC}/Vocabulary/Recording/tests/perspective_test.cpp
+            ${SRC}/Vocabulary/Recording/perspective.h
+    AUTOMOC)
+pp_requirement(perspective_test REQ-DEV-1)   # the three camera roles REQ-DEV-1 names, as one type with its stored codes
+# rig_state_test: the rig state as a value (src/Vocabulary/Rig/rig_state.h, calibration_record.h; header-only) and the
+# three ids RigId, RigStateId, RigRef (identity.h): the digest ignores list order, changes with each versioned field,
+# ignores sinceUtc, the evidence pointer, aliases, enabled flags and the prior; a third camera is one more entry; the
+# canonical bytes of a hand-written case; a fixture's digest pinned as a literal, the same on the Mac and the cabin PC.
+# The headers are listed so AUTOMOC makes the gadgets' and the perspective namespace's meta-objects.
+pp_add_test(rig_state_test
+    SOURCES ${SRC}/Vocabulary/Rig/tests/rig_state_test.cpp
+            ${SRC}/Vocabulary/Rig/rig_state.h
+            ${SRC}/Vocabulary/Rig/calibration_record.h
+            ${SRC}/Vocabulary/Identity/identity.h
+            ${SRC}/Vocabulary/Recording/perspective.h
+    AUTOMOC)
+pp_requirement(rig_state_test REQ-DEV-17)   # supports: one value for a bay's set-up and calibration, named by its content
 # session_identity_test: a legacy folder's name read under every naming pattern (against the names
 # SwingPaths composes), D3's name-based id against Python's uuid5, n-of-day by start time.
 pp_add_test(session_identity_test
