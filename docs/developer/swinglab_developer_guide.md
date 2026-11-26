@@ -278,6 +278,8 @@ worse on frames with the display tone curve? It is off by default.
   - `--write-back` with `--tone-curve`, or with `--params` carrying the key, is
     refused, so a curved analysis never reaches a swing document.
 - **The app:** no app code sets the key. Without it the reader is unchanged.
+- **The A/B that uses it:** its scripts are in §5 ("#183's tone-curve A/B"), and
+  its report is [`docs/validation/tone_curve_ab.md`](../validation/tone_curve_ab.md).
 
 `--refuse-orientation` re-fuses the recorded raw IMU through the orientation
 filter before analysis (with `--refuse-beta` setting the gain), which is how the
@@ -362,12 +364,32 @@ file-based. Run with the SwingLab venv: `~/.swinglab-venv/bin/python lab.py …`
 - `--allow-frozen` — permits sweeping `score.*` / `rules.*` / `bands.*`, which
   are frozen until labels exist. A post-label pass only.
 
-### Two standalone tools alongside `lab.py`
+### Standalone tools alongside `lab.py`
 
 | Tool | Purpose |
 |---|---|
 | `parity_diff.py RUN_A RUN_B` | **Byte-identical soak gate for refactors.** Pairs every `result.json` under two run roots by relative path and diffs each pair. The *only* excluded field is `analysis.timings` — per-stage wall-clock ms, which legitimately differ between two runs of the same deterministic pipeline. Everything else, the whole document, must match exactly. Exit 0 iff every pair compared equal **and nothing was unpaired**. This is what gated the staged-vs-monolith analyzer migration. |
 | `montage_positions.py` | P1–P8 coaching-position montages per swing: a `_pstrip.png` row of 8 cropped tiles with the shaft drawn (green = MilestoneFit, orange = TrackSample, thin white = a `truth.json` label within 40 ms, grey = missing), and a `_strobe.png` single-frame overlay of every P plus a low-alpha interpolated layer — measured vs synthesized at a glance. |
+
+### #183's tone-curve A/B
+
+Five scripts and a reader run the corpus A/B of `--tone-curve` (§4, Stage 3): the
+corpus and a set of library sessions, each swing run in pinned and unpinned arms,
+with and without the curve, on the studio PC. The report, with the verdict and
+every figure, is [`docs/validation/tone_curve_ab.md`](../validation/tone_curve_ab.md).
+Nothing private is a default: the share, the machine and the studio PC's paths come
+from the environment variables `tone_ab.sh`'s header lists (`TONE_AB_HOST`,
+`TONE_AB_SHARE`, `TONE_AB_WSHARE`, `TONE_AB_WREPO`, `TONE_AB_WPY`, `TONE_AB_WQT`,
+`TONE_AB_ONE_ID`), or from arguments. The run's root is `<share>/scratch/i183-ab/`.
+
+| Tool | What it does | How to run it |
+|---|---|---|
+| `tone_ab_inputs.py` | Builds the population manifest (`manifest.json`/`.csv`: cameras, raw sidecars, stored ball baseline, pin source, truth, the launch monitor's clubhead speed) and the input copies `in/` (no `.raw`) and `in_nobase/` (no `.raw`, no ball baseline). Golfers become letters in the order of their first session. Records every source file's size and time, so `--verify-sources` can show the corpus and library were only read. | On the Mac: `python3 -I tools/swinglab/tone_ab_inputs.py --share <share> --library <session> ...`; afterwards `... --verify-sources` |
+| `tone_ab.sh` | The Mac side: takes and drops the studio PC's build lock (`cabin_run.sh`'s protocol, lane `i183-ab`), checks the studio PC is idle, copies the runner to the share, launches a phase detached and polls it with a ceiling. | `tools/swinglab/tone_ab.sh lock`, `preflight`, `tools`, `launch one\|corpus`, `wait <phase>`, `unlock` |
+| `tone_ab_studio.cmd` | The studio PC's wrapper (ASCII and CRLF): puts Qt and the Release build on `PATH`, runs `tone_ab_run.py` beside `swinglab_run.exe`, and writes `<phase>.console.log` and, last, `<phase>.rc.txt`. | Launched by `tone_ab.sh launch`, never by hand: `tone_ab_studio.cmd <phase> <share> <repo> <python> <qt-bin> [<one-id>]` |
+| `tone_ab_run.py` | The arms runner: the one-swing step (`one`: the floor repeat, the pinned arms, the write-back refusals on a copy) and the corpus arms (`corpus`: B1, B2, C1, [C2], PB, PC, [PB2], PBs, PCs), each run in a fresh folder with a 900 s ceiling, resumable, with an idle check before every run; then the digests and the strata (`digest`, `strata`). | Through `tone_ab_studio.cmd`: `python -I -X utf8 tone_ab_run.py --phase <phase> --share <share> --root <root> --exe <swinglab_run.exe> [--one-id <id>]` |
+| `tone_ab.py` | The comparator and the verdict: reads the digests, the manifest, the strata and the truth, applies the decision rule fixed before the run, and writes `pose.csv`, `shaft.csv`, `ball.csv`, `metrics.csv`, `lm.csv`, `strata.csv`, `verdict.csv` and `verdict.json`. | `python3 -I tools/swinglab/tone_ab.py --root <share>/scratch/i183-ab --out <folder>`; `--self-test` checks its rules (14 cases) |
+| `ppsw_peek.py` | A minimal swing-document (`.ppsw`, zstd and CBOR) reader, standard library only (Python 3.14); `tone_ab_inputs.py` reads the launch monitor's reading with it. | `python3 -I tools/swinglab/ppsw_peek.py <swing.ppsw> [key ...]` |
 
 The contact sheet (`plots.py`) is a 16:9 PNG: five overlay frames at the
 ladder's key instants (Address/Top/Impact/Release/Finish) with the recovered
@@ -657,6 +679,12 @@ tools/swinglab/
   lab.py                        # CLI entry point (subcommands → swinglab/*)
   parity_diff.py                # byte-identical refactor soak gate (§5)
   montage_positions.py          # P1–P8 position strips + strobe tiles (§5)
+  tone_ab_inputs.py             # #183 tone-curve A/B: manifest + input copies (§5)
+  tone_ab.sh                    #   the Mac side: lock, idle check, launch, poll
+  tone_ab_studio.cmd            #   the studio PC's wrapper
+  tone_ab_run.py                #   the arms runner, digests, strata
+  tone_ab.py                    #   the comparator + verdict (--self-test)
+  ppsw_peek.py                  # minimal .ppsw (zstd + CBOR) reader
   requirements.txt              # numpy, opencv-python, matplotlib
   configs/                      # params presets + sweep spaces
   src/swinglab_run.cpp          # C++ offline runner (PINPOINT_BUILD_TOOLS=ON)
