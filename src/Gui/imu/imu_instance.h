@@ -253,7 +253,6 @@ public:
     void setImpactSensitivity(float thresholdScale);
 
     // QML-invokable per-device actions
-    Q_INVOKABLE void    zeroOrientation();
     Q_INVOKABLE QString saveLog() override;
     Q_INVOKABLE void    setOutputRateHz(int hz);
     Q_INVOKABLE void    setCalibration(const QQuaternion &armDown, const QQuaternion &tPose);

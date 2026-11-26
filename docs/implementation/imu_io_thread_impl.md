@@ -99,7 +99,7 @@ thread (or a worker any-thread call, which is already mutex-safe):
   `setCalibration`, `clearCalibration`) — compute A/M on the GUI as today, then
   `worker->setAnatomical(A, M, calibrated)` (atomic swap, test #3); the members
   `ImuInstance` keeps for persistence/QML stay GUI-side.
-- `setOutputRateHz` / `zeroOrientation` / `requestBattery` / rawDump toggles —
+- `setOutputRateHz` / `requestBattery` / rawDump toggles —
   queued invokes to the driver on the I/O thread.
 - impact sensitivity (`ImuManager` threshold scale) — `worker->impactConfig()`
   before streaming starts (documented pre-stream contract).

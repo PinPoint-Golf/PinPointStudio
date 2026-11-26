@@ -70,7 +70,7 @@ Facts, counted at `a5089848`. Each row's evidence is the named file or Appendix 
 | What "excluded" means (table A2) | `camera/excluded` and `imu/excluded` are machine-wide switches. Each session is seeded from them and then decides for itself which devices it captures with; its own choice is never written back | 2 |
 | `ppcp/*` | `studioName`, `pairings` (SET-09)[^dec140]; also `phoneAlias`, `phoneNames`, `torchDuringCapture`, which SET-09 does not name. `ppcp/pairings/<id>` holds each pairing's key material and nothing else ("the 32 raw bytes of PRK as hex", `ppcp_pairing_store.cpp`). None of the five is an `AppSettings` property | 5 |
 | SET-05 | `analysis/clubLenPrior`, keyed `athlete uuid + "\|" + club + "\|" + face-on camera key`, read only for a fixed face-on camera, written on the live path after the analysis by `ShotProcessor` through `AppSettings`[^dec153] (table A2) | 1 |
-| A worn sensor's alignment | A and M live on the sensor's live object for the run of the app. Nothing restores them at launch. The live object clears them itself (`zeroOrientation`, the routines' resets), and a HackMotion's calibration dies with its link (table A2)[^code-hm] | per sensor |
+| A worn sensor's alignment | A and M live on the sensor's live object for the run of the app. Nothing restores them at launch. The live object clears them itself (`zeroOrientation`[^zero], the routines' resets), and a HackMotion's calibration dies with its link (table A2)[^code-hm] | per sensor |
 | FILE-SESS-11 | `<session>/trunk_ceremony.json`: the raw samples of every sensor in the ceremony, the step boundaries and each step's result, so the solve replays offline. Written by `TrunkCeremonyRecorder` on a pool thread[^code-cer][^trunk]. **No real file exists**: 0 on the share and 0 on the Mac; the test builds a synthetic one (table A3) | 1 writer; A5 ×7, A6 ×2; 0 files |
 | Open-coded device keys (table A1) | `camera_instance.cpp` ×2, `camera_manager.cpp` ×1, `camera_manager.h` ×1, `imu_role_map.h` ×1, `resource_monitor_controller.cpp` ×2, `shot_processor.cpp` ×1. The plan counts 7[^c-key]; `camera_manager.h:216` is the eighth | 8 |
 | Places that know a key's shape without building it (table A1) | `camera_manager.cpp:85`, `imu_manager.cpp:183`, `imu_role_map.h:110`, `camera_roi.h:47` (`<cameraKey>#impact`), `capture_context.cpp:348`, `tst_setup_sensors.qml:313` | 6 |
@@ -181,7 +181,7 @@ That is intended: the alignment in force is part of the state the shots were cap
 current rig state and in every Recording captured under it. It is **not** saved to `rig.json` and never re-applied
 at launch, because nothing restores one today (table A2) and restoring it onto a re-strapped sensor would be a
 behaviour change. **Every path that clears a sensor's calibration today calls `Rig::clearCalibration`**:
-`ImuInstance::zeroOrientation`, the routines' reset paths, and a HackMotion's link loss or "calibration invalidated"
+`ImuInstance::zeroOrientation`[^zero], the routines' reset paths, and a HackMotion's link loss or "calibration invalidated"
 signal. The sensors' duties inventory lists each one. So the Rig's record and the live sensor never disagree.
 
 A hitting-area or perspective edit is a command at the end of the edit, never per mouse move.
@@ -459,7 +459,7 @@ Stage C produces records of kind `sensorAlignment` and `extrinsics` with method 
    sensor commits a record to the Rig: `ImuInstance::setCalibration`, `setFunctionalCalibration`,
    `setNominalCalibration`, `refineMountAboutLongAxis` (which changes A again after a commit, on two branches) and
    `calibrateTrunk`; and the HackMotion reporting "calibrated", as a `deviceHeld` record. Every clear path clears
-   it: `clearCalibration`, `clearFunctionalCalibration`, `zeroOrientation`, and the HackMotion's link loss
+   it: `clearCalibration`, `clearFunctionalCalibration`, `zeroOrientation`[^zero], and the HackMotion's link loss
    (Appendix A, table A2). The sensors' duties inventory, which comes before C-6a, is the authority for both lists. So the Rig's records are complete and true from the first build that has
    them, whoever runs the procedure.
 2. *When each procedure moves to C++ (C-11 to C-13; deferred to #291[^c-v1]).* Its driver commits the record the step machine returned, and
@@ -774,7 +774,7 @@ otherwise; tests are counted apart.
 | `imu/alias` | `description\|deviceId` → label (`imu_role_map.h:80–83`), seeded on discovery (`imu_manager.cpp:178–184`) |
 | `analysis/clubLenPrior` | key `athlete.uuid\|sessionClub\|faceOnCameraKey`, read only for a fixed face-on camera (`capture_context.cpp:343–349`); written on the live path only, by read-modify-write of the whole map (`shot_processor.cpp:1594–1619`) |
 | Setting a calibration | `ImuInstance::setCalibration`; `setFunctionalCalibration` (`imu_instance.cpp:765`); `setNominalCalibration` (`:801`); `refineMountAboutLongAxis` (`:840`, changing A on two branches, `:855` and `:874`); `calibrateTrunk`; the HackMotion's own calibrated state |
-| Clearing a calibration | `clearCalibration` (`imu_instance.cpp:755`); `clearFunctionalCalibration` (`:891`); `zeroOrientation` calls `clearCalibration()` (`:581–584`); the routines' `_reset` paths call both clears; a HackMotion's calibration dies with its link |
+| Clearing a calibration | `clearCalibration` (`imu_instance.cpp:755`); `clearFunctionalCalibration` (`:891`); `zeroOrientation` calls `clearCalibration()` (`:581–584`)[^zero]; the routines' `_reset` paths call both clears; a HackMotion's calibration dies with its link |
 | `ppcp/pairings/<id>` | "the 32 raw bytes of PRK as hex. Nothing else" (`ppcp_pairing_store.cpp:155–157`) |
 
 **A3. Real trunk ceremonies.** A read-only `find` for `trunk_ceremony*.json` over the share found 0, on a walk that
@@ -871,3 +871,4 @@ directory.
 [^visits-26nov]: The Product Owner, 26 Nov 2026 (governance BT-43, tightened): a visit holds only steps that need golf clubs and a ball being hit; checks that can be automated or done at the desk are not run there. The 25 Nov wording above (`[^c-v1]`, "still recorded at visit 2") is kept as that ruling's record.
 
 [^visits-combined]: The Product Owner, 26 Nov 2026: Stage C's visit and Stage D's visit are combined into one, at Stage D, to save time; Stage C's close waits for it (the platform programme's decision log, `build/platform/JUDGEMENT-CALLS.md`). The C-16 row above, "the written procedure for the cabin visit, with its trunk-recording step", is the 24 Nov design's record.
+[^zero]: The Product Owner and the Design Lead, 26 Nov 2026 (`build/platform/JUDGEMENT-CALLS.md`, "C5, and the battery colours"): the Zero button is removed, with `ImuInstance::zeroOrientation` and `ImuManager::zeroAll`, after this page's code facts were taken. The trunk calibration sets "straight". Where this page lists `zeroOrientation` as a path, that path no longer exists.

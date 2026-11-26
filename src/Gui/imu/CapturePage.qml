@@ -302,15 +302,6 @@ Item {
                             implicitWidth: Theme.sp(90)
                         }
 
-                        // Zero button
-                        PpButton {
-                            id: zeroBtn
-                            style: "labOutline"; size: "lab"
-                            label: qsTr("Zero")
-                            enabled: ctrl && ctrl.imuConnected
-                            onClicked: if (ctrl) ctrl.zeroOrientation()
-                        }
-
                         // Save Log button
                         PpButton {
                             id: saveLogBtn

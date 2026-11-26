@@ -506,6 +506,8 @@ Lesson sessions can be given a focus title at configure time (e.g. "Fixing early
 
 ## 10. Mid-session IMU recalibration
 
+**The Zero button is removed, and the trunk calibration sets "straight"[^c5zero].** The re-zero overlay described below is not built.
+
 ### When it is needed
 
 IMUs accumulate drift over time. The system continuously monitors the difference between current quiet-moment readings and the last zero reference. When drift exceeds a configurable threshold (default: 3°), a small warning badge appears on the IMU status indicator in the header. The user taps the badge to open the re-zero overlay.
@@ -694,7 +696,7 @@ Each connected camera gets a card showing:
 
 ### IMU sensors detail pane
 
-Each paired IMU: name/ID, assigned hand (lead / trail), battery level, last-zero age, firmware version. Pair and unpair actions. Re-zero shortcut (opens the same overlay as mid-session re-zero, but outside a session context, for pre-session check).
+Each paired IMU: name/ID, assigned hand (lead / trail), battery level, last-zero age, firmware version. Pair and unpair actions. Re-zero shortcut (not built: see §10[^c5zero]; opens the same overlay as mid-session re-zero, but outside a session context, for pre-session check).
 
 ### Audio · STT / TTS
 
@@ -839,3 +841,5 @@ The following areas have been identified as requiring design work but are not ye
 ---
 
 *Document maintained by the Pinpoint project. Screen designs were produced as annotated wireframes; see the design conversation for visual references. This document describes intended behaviour, not current implementation state.*
+
+[^c5zero]: The Product Owner and the Design Lead, 26 Nov 2026 (`build/platform/JUDGEMENT-CALLS.md`, "C5, and the battery colours"): the Zero button is removed from Settings → Motion Sensors, the sensor lab and the Settings search, and the trunk calibration sets "straight".

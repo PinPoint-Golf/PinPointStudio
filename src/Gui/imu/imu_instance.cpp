@@ -567,23 +567,6 @@ void ImuInstance::beginZeroing()
     m_zeroConfirmTimer.start(30'000);     // absolute 30 s deadline
 }
 
-void ImuInstance::zeroOrientation()
-{
-    if (!m_connected) return;
-    appendLog(timestamp() + "  Zeroing orientation…");
-    QMetaObject::invokeMethod(m_imu, [imu = m_imu]() {
-        imu->reinitialize();
-        imu->zeroToCurrentPose();   // reinitialize() no longer zeros; explicit
-    }, Qt::QueuedConnection);
-
-    // Reinitialising changes the device configuration. If calibration was
-    // previously set, it is now invalid — the user must recalibrate.
-    if (m_calibrated) {
-        appendLog(timestamp() + "  Calibration cleared — recalibration required.");
-        clearCalibration();
-    }
-}
-
 QString ImuInstance::saveLog()
 {
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);

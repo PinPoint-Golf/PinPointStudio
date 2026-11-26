@@ -271,9 +271,6 @@ public:
     // Aggregate save — writes one log file per active instance.
     Q_INVOKABLE QString saveLog();
 
-    // Zero orientation on all connected instances.
-    Q_INVOKABLE void zeroAll();
-
 signals:
     void imuListChanged();
     void instancesChanged();

@@ -270,7 +270,7 @@ QtObject {
 
         { panelIndex: 4, panelLabel: qsTr("Motion Sensors"), groupLabel: qsTr("Motion sensor test panel"),
           label: qsTr("Test motion sensor connection"),    subtitle: qsTr("Verify orientation and live sensor data from a connected device"),
-          actions: "IMU Test Connect Disconnect Zero orientation Calibrate magnetometer Save to flash Scan Euler angles roll pitch yaw battery calibration",
+          actions: "IMU Test Connect Disconnect Calibrate magnetometer Save to flash Scan Euler angles roll pitch yaw battery calibration",
           itemId: "" },
 
         // ── Phones (panelIndex: 5) ────────────────────────────────────────────

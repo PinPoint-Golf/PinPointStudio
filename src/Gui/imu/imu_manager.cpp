@@ -832,15 +832,6 @@ QString ImuManager::saveLog()
     return paths.isEmpty() ? QStringLiteral("No active motion sensors") : paths.join(QStringLiteral("\n"));
 }
 
-void ImuManager::zeroAll()
-{
-    // No host-side zero on a HackMotion (it fuses on-device) — skip anything
-    // that isn't a Witmotion rather than asserting a control we don't have.
-    for (const auto &entry : m_selected)
-        if (auto *wt = qobject_cast<ImuInstance *>(entry.instance))
-            wt->zeroOrientation();
-}
-
 void ImuManager::setOrientationFilter(const QString &name)
 {
     AppSettings  fallback;

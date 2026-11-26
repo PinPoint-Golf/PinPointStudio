@@ -842,19 +842,8 @@ SettingsPanelBase {
                             Row {
                                 spacing: Theme.gap(6)
 
-                                // Zero orientation — Witmotion only. There is no
-                                // host-side zero on a HackMotion (imu_device.h);
-                                // a control that silently does nothing is worse
-                                // than no control.
-                                PpButton {
-                                    id: zeroBtn
-                                    visible: !imuRow.isHackMotion
-                                    style: "wash"; size: "compact"
-                                    implicitHeight: Theme.sp(24)
-                                    label: qsTr("Zero orientation")
-
-                                    onClicked:    if (imuRow.inst) imuRow.inst.zeroOrientation()
-                                }
+                                // No "Zero orientation" here: the trunk calibration is the one way
+                                // to set "straight" (the Product Owner and the Design Lead, 26 Nov 2026).
 
                                 // Calibrate magnetometer (placeholder — no API yet)
                                 Rectangle {
