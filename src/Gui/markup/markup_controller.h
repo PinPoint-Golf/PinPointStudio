@@ -44,7 +44,10 @@
 // Frame display: a seek decodes one still asynchronously per pane; the frame
 // handler pushes the QImage to the MarkupImageProvider under that pane's id and
 // bumps its token; QML binds `image://markup/face/<frameToken>` and
-// `image://markup/dtl/<dtlFrameToken>` so each new frame renders.
+// `image://markup/dtl/<dtlFrameToken>` so each new frame renders. A raw-Bayer
+// camera's frame is pushed with the display tone curve the replay draws (#183,
+// Video/display_tone_image.h), chosen in C++ from the stream's source format; a
+// phone clip's frame is pushed as decoded.
 
 #include "markup_truth.h"
 #include "../../App/shot_command_door.h"   // the swing's Shot, which reads and writes its truth (refactor 5.7d)

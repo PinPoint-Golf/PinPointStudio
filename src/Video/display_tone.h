@@ -27,11 +27,14 @@
 //
 // It is applied only where a golfer looks, never where the analysis reads:
 //   - on screen, by the GPU: viewgain.frag in PpCameraFrame's pass, with the exponent handed to QML as
-//     CameraInstance::displayTone (live) and ReplayStreamInfo::displayTone (Replay, Analyse);
-//   - in a clip or thumbnail the golfer takes away in an export zip (Stores/export_tone.h), through
-//     displayToneLut(). The table IS the curve the shader draws, from the same constant (display_tone_test).
+//     CameraInstance::displayTone (live) and ReplayStreamInfo::displayTone (Replay, Analyse); and the same pass
+//     over Settings → Cameras' sensor preview (CamerasPanel.qml), from the preview instance's displayTone;
+//   - on a still picture, through displayToneLut() (display_tone_image.h): the report's stills and the Charts
+//     pictures (Gui/report/report_stills.cpp), the Markup Lab's frames (Gui/markup/markup_controller.cpp), and
+//     a clip or thumbnail the golfer takes away in an export zip (Stores/export_tone.h). The table IS the curve
+//     the shader draws, from the same constant (display_tone_test).
 // The stored MP4s, the raw sidecars, thumb.jpg and everything the analysis decodes stay linear; display_tone_test
-// scans which files include this one.
+// scans which files include this one or display_tone_image.h.
 //
 // ONE TEST-ONLY EXCEPTION: the recording loader (Stores/recording_loader.cpp) builds its table from
 // displayToneLutFor() when a tool's run sets the decode.toneExponent tuning key (swinglab_run --tone-curve,

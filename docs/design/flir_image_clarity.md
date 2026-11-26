@@ -50,7 +50,7 @@ sharpening has no grain to amplify, and the encoder spends its bits on real deta
 | Demosaic, saved clip | OpenCV edge-aware (`COLOR_BayerRG2BGR_EA`) | `frame_decode.cpp:28` |
 | Denoise | none | — |
 | Sharpen | none (the camera's `Sharpness` node does nothing to Bayer output) | — |
-| Gamma | none in the file: raw Bayer has no in-camera gamma, and the recorder writes the sensor's linear values. On screen and in an export zip, the display tone curve (L8) | `camera_instance.h` (no in-camera gamma); #183, the 25 Nov 2026 comparison with Swing Catalyst |
+| Gamma | none in the file: raw Bayer has no in-camera gamma, and the recorder writes the sensor's linear values. On screen, on the report's stills and the Markup Lab's frames, and in an export zip, the display tone curve (L8) | `camera_instance.h` (no in-camera gamma); #183, the 25 Nov 2026 comparison with Swing Catalyst |
 | Encode | x264 CRF 28 ("low", the default 23 Sept – 17 Oct), `medium`, yuv420p: ≈ **0.026 bits per pixel**. **Now CRF 23** ("Standard") by default, ≈ 0.07 — Swing Catalyst's budget; CRF 28 stays selectable as the analysis floor | 676 kbit/s at 848 × 1024, 30 fps container |
 | Display | the live tile and replay scale to the tile; the tone curve `in^0.80` on studio-camera video (L8); no sharpening | `display_tone.h`, `viewgain.frag` |
 
@@ -100,11 +100,16 @@ beside every edge, and the shaft tracker, ball detector and pose model would all
   picture-in-picture. The rule follows the pixel format, so a phone's or a webcam's video (already
   tone-mapped) is shown as it is.
 - **In an export zip:** a raw-Bayer clip goes in as a curved copy, re-encoded through the same 256-entry
-  table (`src/Stores/export_tone.h`). `thumb.jpg` in the zip is curved likewise (proposed, for the Product Owner).
-- **Not curved:** the stored MP4s and raw sidecars, `thumb.jpg` on disk, Settings → Cameras' sensor preview and
-  the Markup Lab (proposed, for the Product Owner)[^scope].
-- **Not curved in this change:** the report stills, which have their own exposure curve. Whether they should
-  take this curve too is open (proposed, for the Product Owner)[^stills].
+  table (`src/Stores/export_tone.h`). `thumb.jpg` in the zip is curved likewise when it came from a raw-Bayer
+  stream[^stills].
+- **Settings → Cameras' sensor preview and the Markup Lab** show a raw-Bayer camera with the curve[^scope]. The
+  sensor preview runs the same `viewgain.frag` pass over its raw-Bayer view, with the preview camera's own
+  exponent. The Markup Lab curves each decoded frame before it is shown, through the same table
+  (`src/Video/display_tone_image.h`).
+- **The report stills** of a raw-Bayer camera take the curve[^stills], through the same table, and then their
+  own exposure lift (`report_stills.h`), measured on the curved crop. The Charts Posture and Club delivery
+  pictures, which come from the same renderer, take both too (the Product Owner's ruling that the curve goes on everything the golfer sees, exports included[^l8][^stills]). A phone's or a webcam's still takes the lift alone.
+- **Not curved:** the stored MP4s and raw sidecars, `thumb.jpg` on disk, and everything the analysis reads.
 - **Not yet curved:** the shot carousel's thumbnails. Choosing their curve at display needs the thumbnail
   stream's format on the Shot's summary, a domain field (proposed, for the Solution Architect).
 - **No setting:** the strength is fixed while the refactor freeze holds[^freeze]. Rolling back is the one
@@ -273,8 +278,8 @@ Any arm that changes the saved clip (P1–P6) is re-analysed against the raw run
 - **App:**
   - before the session: exposure and gain on every camera role, with a Full frame lock (§6.4);
   - KB-30 fixed;
-  - the display gamma on the live tile, replay and exported clips, fixed at 0.80 (built, §4 L8); the
-    display sharpen is not built;
+  - the display gamma on the live tile, replay, exported clips and thumbnails, the sensor preview, the Markup
+    Lab and the report stills, fixed at 0.80 (built, §4 L8); the display sharpen is not built;
   - any change of default (encode, denoise, exposure) that the results and §7.3 support. The Product Owner
     judges these from the sheets before anything is committed.
 
@@ -285,8 +290,10 @@ Not yet run.
 [^l8]: Design Lead, 25 Nov 2026 (#183: γ 0.80 from the step-0 sheets, and exported videos get it too); Product
     Owner, 25 Nov 2026 (#183: the curve on everything the golfer sees, never on the analysis without evidence).
 [^freeze]: The feature freeze during a refactor plan ([AG-31](../../governance/controls/kinds-of-work.md)).
-[^scope]: #183's display plan, §3, and its question P4: the sensor preview (set-up's exposure check) and the Markup Lab
-    (a tool view) keep the camera's linear picture. Not yet ruled: the Product Owner's ruling covers everything the
-    golfer sees, exports included (#183, 25 Nov 2026).
-[^stills]: The Product Owner's ruling covers everything the golfer sees, exports included (#183, 25 Nov 2026); #183's
-    plan, §2.1 and its question P3, proposed leaving the stills as they are; no answer is recorded.
+[^scope]: Product Owner, 26 Nov 2026 (#183, batch 3 (5)): the camera settings' exposure preview and the Markup Lab
+    get the curve too. This overrules #183's display plan (§3 and its question P4), which kept the camera's linear
+    picture in both.
+[^stills]: Product Owner, 26 Nov 2026 (#183, batch 3 (4)): the report's still pictures and the thumbnail inside an
+    exported zip get the curve. It answers #183's plan, §2.1 and its question P3, which proposed leaving the stills
+    as they are. The order (the curve, then the stills' own lift measured on the curved crop) is proposed, for the
+    Design Lead.

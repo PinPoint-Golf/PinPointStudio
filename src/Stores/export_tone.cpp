@@ -20,6 +20,7 @@
 
 #include "../Analysis/mp4_frame_reader.h"
 #include "../Video/display_tone.h"
+#include "../Video/display_tone_image.h"   // withToneTable: the one way a picture goes through the table
 
 #include <QBuffer>
 #include <QImage>
@@ -112,15 +113,9 @@ RetoneResult retoneClip(const std::string &srcMp4, IVideoEncoder &enc, VideoEnco
 
 QByteArray retoneJpeg(const QString &path, const std::array<std::uint8_t, 256> &lut)
 {
-    QImage img(path);
+    const QImage img = withToneTable(QImage(path), lut);
     if (img.isNull())
         return {};
-    img = img.convertToFormat(QImage::Format_RGB888);
-    for (int y = 0; y < img.height(); ++y) {
-        uchar *row = img.scanLine(y);
-        for (int x = 0; x < img.width() * 3; ++x)
-            row[x] = lut[row[x]];
-    }
     QByteArray out;
     QBuffer buf(&out);
     buf.open(QIODevice::WriteOnly);

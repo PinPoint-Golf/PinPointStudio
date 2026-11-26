@@ -46,9 +46,14 @@
 // Which side the seats are on is not known, so the body band bounds BOTH sides. See golferCrop().
 //
 // ── Exposure ───────────────────────────────────────────────────────────────────────────────────────
-// A levels lift measured and applied on the crop alone (exposureCurve): 1st–99th percentile luminance
-// stretch, a gentle mid-tone gamma when the crop is still dark, a soft shoulder so nothing is blown out,
-// and the identity on a crop that is already well lit.
+// Two steps, in this order. First, a still from a raw-Bayer camera (the stream's source.pixelFormat) takes the
+// display tone curve the screens draw (#183, Video/display_tone.h, through display_tone_image.h), so the still
+// starts from the picture the golfer saw; a phone's or a webcam's still does not (its video is already
+// tone-mapped). Then a levels lift measured and applied on the crop alone (exposureCurve): 1st–99th
+// percentile luminance stretch, a gentle mid-tone gamma when the crop is still dark, a soft shoulder so
+// nothing is blown out, and the identity on a crop that is already well lit. The lift is measured on the
+// curved crop, so it adds less where the curve has already lifted the picture. The Charts Posture and Club
+// delivery pictures' stills come from this renderer too, and take both steps.
 
 #include "report_stills_pure.h"   // the pure parts: which frame, which crop, the line's points
 #include "../../DomainModel/report_record.h"   // ReportStillWriter: the report's stills saved through its Session (5.6a)
@@ -100,6 +105,7 @@ struct StillResult {
     QRectF  crop;                // the source rect, normalised to the full frame
     bool    lineDrawn = false;   // the body line is on the still
     bool    addressDrawn = false;// the dashed address line is on the still
+    double  displayTone = 1.0;   // the display tone exponent the crop was curved with (#183): 1.0 = not curved
 };
 
 Q_DECLARE_METATYPE(StillResult)

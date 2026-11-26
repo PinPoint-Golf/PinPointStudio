@@ -484,6 +484,7 @@ StillStream stillStreamOf(const QJsonObject &root, bool dtl)
     const QJsonObject enc = s.value(QStringLiteral("encoded")).toObject();
     out.width = enc.value(QStringLiteral("width")).toInt(0);
     out.height = enc.value(QStringLiteral("height")).toInt(0);
+    out.sourcePixelFormat = s.value(QStringLiteral("source")).toObject().value(QStringLiteral("pixelFormat")).toString();
     out.ok = !out.file.isEmpty() && !out.tUs.isEmpty();
     return out;
 }

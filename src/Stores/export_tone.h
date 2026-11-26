@@ -22,7 +22,8 @@
 // thing that leaves the app with a shot's video in it. A raw-Bayer camera's stored MP4 is linear and plays dark
 // in any other player, so the zip carries a curved COPY: each such clip decoded frame by frame, mapped through
 // displayToneLut() (Video/display_tone.h, the same table the screen draws), and encoded again; and thumb.jpg
-// likewise when it came from such a stream. The stored files are only ever read here, never written.
+// likewise when it came from such a stream (ruled: the Product Owner, 26 Nov 2026, #183 batch 3 (4)). The stored
+// files are only ever read here, never written.
 //
 // Not the analysis' path: the stored MP4 stays what the recording loader decodes. Nothing that feeds the
 // analysis may include this file or display_tone.h (display_tone_test scans).
@@ -51,7 +52,11 @@ struct ExportToneMembers {
     };
     QHash<QString, Clip> clips;
     // thumb.jpg came from a raw-Bayer stream: the face-on stream the recorder writes it from, else the first
-    // stream it recorded from the cameras (a stream with a source format: a phone clip never makes one).
+    // stream it recorded from the cameras (a stream with a source format: a phone clip never makes one). The
+    // zip's thumb.jpg is then curved: ruled (the Product Owner, 26 Nov 2026, #183 batch 3 (4)).
+    // ⚠ The recorder falls back to its other streams when the face-on one can't make a thumbnail
+    // (swing_exporter.cpp); the document doesn't say which stream did, so on a rig that mixes a webcam with a
+    // studio camera this guess can pick the wrong curve.
     bool thumbnail = false;
 };
 ExportToneMembers exportToneMembers(const QJsonObject &doc);

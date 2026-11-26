@@ -1438,6 +1438,28 @@ SettingsPanelBase {
                                 visible: camRow.localPreviewInstance !== null
                                          && camRow.localPreviewInstance.needsDebayer
                             }
+                            // The display tone curve (#183, src/Video/display_tone.h): the
+                            // same pass as the camera tiles (viewgain.frag), over the raw-Bayer
+                            // view, with the exponent the C++ rule gives this camera
+                            // (CameraInstance::displayTone; 1 draws the picture as it is).
+                            // Display only: the exposure readings are the camera's own.
+                            ShaderEffectSource {
+                                id: settingsToneSource
+                                sourceItem: settingsBayerView.visible ? settingsBayerView : null
+                                hideSource: settingsBayerView.visible
+                                live: true
+                                visible: false
+                            }
+                            ShaderEffect {
+                                anchors.fill: parent
+                                visible: settingsBayerView.visible
+                                property variant source: settingsToneSource
+                                property real gain: 1.0
+                                property real toneExponent: (camRow.localPreviewInstance
+                                                             && camRow.localPreviewInstance.displayTone) || 1.0
+                                vertexShader:   "qrc:/shaders/src/Shaders/viewgain.vert.qsb"
+                                fragmentShader: "qrc:/shaders/src/Shaders/viewgain.frag.qsb"
+                            }
 
                             // A failed start is otherwise silent — the tile just stays
                             // black forever.  Most common cause today: a PPCP camera

@@ -37,6 +37,10 @@
 
 namespace pinpoint::report::stills {
 
+// How a still is drawn, as a number: a cache of made stills (the Charts Posture and Club delivery pictures') keys
+// its files on it, so a change to the drawing makes them again instead of showing old ones beside new ones.
+// 2: a raw-Bayer camera's still takes the display tone curve (#183).
+inline constexpr int kStillLookVersion = 2;
 
 // A drawable body segment: a chain of points, each the mean of one or more COCO body keypoints (the
 // spine runs mid-hip → mid-shoulder). `joints` empty = a name outside the vocabulary.
@@ -167,11 +171,14 @@ QRect stillCropPixels(const QRectF &srcN, int W, int H);
 // One camera's video stream in a swing document, by the SAME rule as markup::readVideoStream: face-on =
 // perspective 2, else an alias holding "Face", else the first video; DTL = perspective 1, else the whole-token
 // "dtl" name — never the face-on pick. `width` / `height` are the stream's encoded size (0 when not recorded).
+// `sourcePixelFormat` is the stream's source.pixelFormat as recorded (empty for a phone clip): the renderer gives a
+// raw-Bayer stream's still the display tone curve from it (#183; report_stills.h, "Exposure").
 struct StillStream {
     bool            ok = false;
     QString         file;
     QVector<qint64> tUs;
     int             width = 0, height = 0;
+    QString         sourcePixelFormat;
 };
 StillStream stillStreamOf(const QJsonObject &root, bool dtl);
 

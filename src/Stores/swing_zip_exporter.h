@@ -40,7 +40,8 @@ namespace pinpoint {
 // from a raw-Bayer camera, which is stored linear and plays dark elsewhere, goes
 // in as a curved copy (export_tone.h: decoded frame by frame, mapped through the
 // display tone table, encoded again as H.264), and thumb.jpg likewise when it came
-// from such a stream. Every other file is copied byte for byte, and the stored
+// from such a stream (ruled: the Product Owner, 26 Nov 2026, #183 batch 3 (4)).
+// Every other file is copied byte for byte, and the stored
 // files are never written. If a copy can't be made (no encoder in the build, a
 // clip that won't decode) the stored file goes in as it is, with a warning in the
 // log. ⚠ The zip's swing.json still names the stream's Bayer source format, so a

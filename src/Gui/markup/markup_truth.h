@@ -120,6 +120,8 @@ struct VideoStreamInfo {
     int             srcHeight = 0;
     QVector<qint64> frameTimesUs;     // window-relative µs, ascending
     double          playbackFps = 30.0;  // MP4 encode fps (sequential PTS); for frame→ms seeks
+    QString         sourcePixelFormat;   // source.pixelFormat as recorded (empty for a phone clip): the Markup
+                                         // Lab shows a raw-Bayer stream with the display tone curve (#183)
 
     int frameCount() const { return frameTimesUs.size(); }
 };

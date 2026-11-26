@@ -959,7 +959,9 @@ page. What the test found:
    `src/Resources/diagnostics/gate_words.json`, read through `gate_words_pack.h` and edited on the
    Diagnostic Model's Gates page beside the gate (#60).
 6. **Stills need exposure correction.** Jess's face-on frames in the bay are very dark. The stills
-   step (§6) lifts levels on the golfer's crop before the overlay.
+   step (§6) lifts levels on the golfer's crop before the overlay. A raw-Bayer camera's still first takes
+   the display tone curve ([`flir_image_clarity.md`](flir_image_clarity.md) §4, L8), and the lift is
+   measured on the curved crop[^stills-tone].
 
 ### 9.4 Rendering and file size
 
@@ -1111,6 +1113,8 @@ directly, so it does not depend on the fix, but the panel does.
 11. **Decided 20 Oct:** the document carries both the session date and the date it was prepared
     (§8.4).
 
+[^stills-tone]: Product Owner, 26 Nov 2026 (#183, batch 3 (4)): the report's still pictures get the curve. The order
+    (the curve, then the lift) is proposed, for the Design Lead.
 [^report-reads-5-6c]: Refactor step 5.6c, 23 Nov 2026 (`build/refactor/step-5/NOTES-5.6c.md`): B5, B6, Q5 and Q9 of `build/refactor/step-5/DUTIES-5.6b.md`, under DEC-81 as the Solution Architect amended it (the session's diagnosis is a source for the report); its review is pending.
 [^report-reads-5-6d]: Refactor step 5.6d, 23 Nov 2026 (`build/refactor/step-5/NOTES-5.6c.md`, its "5.6d" section); the Solution Architect, 23 Nov 2026 (J-80, J-82).
 [^dec-74-sum]: Solution Architect, 23 Nov 2026 (DEC-74, its build: "You can grow the summary file to support this"; `governance/artefacts/information_model.md` FILE-SESS-05 `dayReadings`). Built in refactor step 5.5d.

@@ -21,6 +21,7 @@
 
 #include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../App/shot_command_door.h"   // the Shot's markup truth (step 3.4b-i)
+#include "../../Video/display_tone_image.h"  // the display tone curve on the pane's frame (#183)
 
 #include <QDir>
 #include <QImage>
@@ -327,7 +328,10 @@ void MarkupController::acceptFrame(Decoder &d, const VideoStreamInfo &vi,
         }
     }
 
-    const QImage img = frame.toImage();
+    // A raw-Bayer camera's frame is shown with the display tone curve, as the replay shows it (#183); a phone's
+    // is shown as it is. Display only: the labels are positions on the frame, and nothing here reads its pixels.
+    const QImage img = pinpoint::withDisplayTone(frame.toImage(),
+                                                 pinpoint::displayToneFor(vi.sourcePixelFormat.toStdString()));
     if (img.isNull()) return;
     if (m_provider)
         m_provider->setImage(dtl ? MarkupImageProvider::Dtl : MarkupImageProvider::Face, img);

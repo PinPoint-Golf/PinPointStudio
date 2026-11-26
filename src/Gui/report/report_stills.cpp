@@ -23,6 +23,7 @@
 #include "../../Core/pp_debug.h"               // ppInfo / ppWarn — the app log
 #include "../../Vocabulary/Common/pp_tuned_constants.h"     // the per-keypoint pose gate
 #include "../../Stores/swing_store.h"          // the swing document, whichever format it is in
+#include "../../Video/display_tone_image.h"    // the display tone curve on a picture (#183)
 #include "../markup/markup_truth.h"            // faceOnStreamIndex / streamLooksDownTheLine / frameIndexForUs
 
 #include <QBuffer>
@@ -265,6 +266,12 @@ StillResult renderInContext(SwingContext &ctx, const StillRequest &rq)
 
     QImage crop = QImage(bgr.data, W, H, int(bgr.step), QImage::Format_BGR888).copy(srcPx)
                       .convertToFormat(QImage::Format_RGB888);
+
+    // ── The display tone curve, as the screens draw it (#183) ─────────────────────────────────────────
+    // A raw-Bayer camera's still starts from the picture the golfer saw; a phone's or a webcam's is left as it
+    // is. Before the lift, so the lift and the pad below measure the curved crop.
+    r.displayTone = pinpoint::displayToneFor(stream.sourcePixelFormat.toStdString());
+    crop = pinpoint::withDisplayTone(crop, r.displayTone);
 
     // ── Exposure, on the crop alone ───────────────────────────────────────────────────────────────────
     std::array<quint32, 256> hist{};

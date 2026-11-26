@@ -680,8 +680,11 @@ postureui::Picture posturePicture(const PictureDoc &doc, const PictureBands &ban
             // the still: what to make, and where it is
             QString outPath, src;
             if (imageWhy.isEmpty() && !opt.stillDir.isEmpty()) {
+                // The still's look is in the key (kStillLookVersion): a cached still made before a change to the
+                // drawing (the display tone curve, #183) is made again, not shown beside new ones.
                 const QString key = QStringLiteral("%1|%2|%3|%4|%5,%6,%7,%8|%9").arg(QDir::cleanPath(doc.swingDir), doc.stamp, camId, tag)
-                                        .arg(c.cropPx.x()).arg(c.cropPx.y()).arg(c.cropPx.width()).arg(c.cropPx.height()).arg(opt.maxPx);
+                                        .arg(c.cropPx.x()).arg(c.cropPx.y()).arg(c.cropPx.width()).arg(c.cropPx.height()).arg(opt.maxPx)
+                                    + QStringLiteral("|look%1").arg(st::kStillLookVersion);
                 outPath = QDir(opt.stillDir).filePath(QString::fromLatin1(QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha1).toHex().left(20))
                                                       + QStringLiteral(".jpg"));
                 if (QFileInfo::exists(outPath)) src = QUrl::fromLocalFile(outPath).toString();

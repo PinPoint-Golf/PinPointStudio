@@ -135,6 +135,20 @@ static void selfTests()
           "DTL by perspective==1");
     check(readFaceOn(both).videoFile == QLatin1String("face.mp4"), "readFaceOn wrapper unchanged");
 
+    // (a2) The source format each pane's display tone curve is chosen from (#183): a studio camera's as
+    //      recorded, a phone clip's (no pixelFormat in its source block) empty.
+    {
+        QJsonObject bayer = videoStream(QStringLiteral("Face-On"), QStringLiteral("face.mp4"), 1280, 1024, 2, 10, 0, kFaceStepUs);
+        QJsonObject src = bayer.value(QStringLiteral("source")).toObject();
+        src.insert(QStringLiteral("pixelFormat"), QStringLiteral("BayerRG8"));
+        bayer.insert(QStringLiteral("source"), src);
+        const QString fmts = makeSwing(root, QStringLiteral("formats"), QJsonArray{
+            bayer, videoStream(QStringLiteral("Phone DTL"), QStringLiteral("phone.mov"), 512, 1024, 1, 10, kDtlPhaseUs, kDtlStepUs) });
+        check(readVideoStream(fmts, MarkupView::FaceOn).sourcePixelFormat == QLatin1String("BayerRG8")
+                  && readVideoStream(fmts, MarkupView::DownTheLine).sourcePixelFormat.isEmpty(),
+              "each pane carries its stream's recorded source format (a phone clip's is empty)");
+    }
+
     // (b) The legacy session: no setup block anywhere, so the name decides. The
     //     face-on pick (alias contains "Face") must never be handed back as DTL.
     const QString legacy = makeSwing(root, QStringLiteral("legacy"), QJsonArray{

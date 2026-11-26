@@ -146,6 +146,7 @@ VideoStreamInfo readVideoStream(const QString &swingDir, MarkupView view, const 
     const QJsonObject src = pick.value(QStringLiteral("source")).toObject();
     fo.srcWidth  = src.value(QStringLiteral("width")).toInt();
     fo.srcHeight = src.value(QStringLiteral("height")).toInt();
+    fo.sourcePixelFormat = src.value(QStringLiteral("pixelFormat")).toString();
 
     // MP4 encode fps (fixed-rate, sequential PTS) — used to map frame index → ms
     // for QMediaPlayer seeks. Same field DiskReplaySource reads.

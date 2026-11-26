@@ -19,7 +19,8 @@
 // report_stills_test — the session report's stills (src/Gui/report/report_stills.h): which body keypoints a
 // segment reads for each handedness, the crop maths (the pose crop, the privacy bound of the golfer's own
 // body, the aspect padding), the exposure curve (monotone, never blown out, the identity on a well-lit
-// crop), the position instant and the frame and pose sample matched to it — all on synthetic data. Then
+// crop), the stream's recorded format that decides the display tone curve (#183), the position instant and the
+// frame and pose sample matched to it — all on synthetic data. Then
 // one real swing READ-ONLY from the share (Nick Henn 20 Oct _03 swing_0005), which SKIPS when the share is
 // absent: the frame the replay shows at P4, the line on it, the crop clear of the people seated in the bay,
 // the keyframe seek decoding the same pixels as a decode from frame 0, and renderAll's ordering.
@@ -32,6 +33,7 @@
 #include "report/report_stills.h"
 
 #include "../../Analysis/mp4_frame_reader.h"
+#include "../../Video/display_tone.h"   // the display tone curve a raw-Bayer still takes (#183)
 
 #include <QCoreApplication>
 #include <QDir>
@@ -221,6 +223,32 @@ static void testExposure()
     check(em[128] == 128, "empty histogram: the identity");
 }
 
+// The display tone curve (#183): a still is curved when its stream was recorded from a raw-Bayer camera, which
+// the renderer reads from the picked stream's source.pixelFormat; a phone clip has none.
+static void testStreamFormat()
+{
+    std::printf("stream format (the display tone curve)\n");
+    auto video = [](const char *file, int perspective, const QJsonObject &source) {
+        return QJsonObject{ { QStringLiteral("kind"), QStringLiteral("video") }, { QStringLiteral("file"), QString::fromLatin1(file) },
+                            { QStringLiteral("source"), source },
+                            { QStringLiteral("setup"), QJsonObject{ { QStringLiteral("perspective"), perspective } } },
+                            { QStringLiteral("frames"), QJsonObject{ { QStringLiteral("t_us"), QJsonArray{ 0, 6667, 13333 } } } } };
+    };
+    const QJsonObject studio{ { QStringLiteral("serial"), QStringLiteral("1") }, { QStringLiteral("pixelFormat"), QStringLiteral("BayerRG8") } };
+    const QJsonObject phone{ { QStringLiteral("serial"), QStringLiteral("phone-1") } };
+    const QJsonObject root{ { QStringLiteral("streams"), QJsonArray{ video("face.mp4", 2, studio), video("dtl.mov", 1, phone) } } };
+    const StillStream fo = stillStreamOf(root, false), dtl = stillStreamOf(root, true);
+    check(fo.ok && fo.sourcePixelFormat == QLatin1String("BayerRG8")
+              && pinpoint::displayToneFor(fo.sourcePixelFormat.toStdString()) == pinpoint::kDisplayToneExponent,
+          "a studio camera's still: its recorded raw-Bayer format, so it takes the curve");
+    check(dtl.ok && dtl.sourcePixelFormat.isEmpty() && pinpoint::displayToneFor(dtl.sourcePixelFormat.toStdString()) == 1.0,
+          "a phone clip's still: no source format, so no curve");
+    const QJsonObject webcam{ { QStringLiteral("streams"), QJsonArray{
+        video("face.mp4", 2, QJsonObject{ { QStringLiteral("pixelFormat"), QStringLiteral("NV12") } }) } } };
+    check(pinpoint::displayToneFor(stillStreamOf(webcam, false).sourcePixelFormat.toStdString()) == 1.0,
+          "a webcam's still (NV12): no curve");
+}
+
 static void testTiming()
 {
     std::printf("timing\n");
@@ -343,6 +371,8 @@ static void testRealSwing(QCoreApplication &app)
     // P4 of swing_0005 is t = 2 212 475 µs, which is face-on frame 330 exactly (frames.t_us[330]).
     check(r.frameIndex == 330, "the frame is the one at the swing's own P4 instant (frame 330)");
     check(r.lineDrawn && r.addressDrawn && r.note.isEmpty(), "trail thigh and its address line drawn, no note");
+    // The studio's face-on camera records raw Bayer: the still takes the display tone curve (#183).
+    check(r.displayTone == pinpoint::kDisplayToneExponent, "a studio camera's still is curved as the screen shows it (0.80)");
     // The seated bystander in this bay reaches x ≈ 0.25 of the face-on frame; the golfer's body starts ≈ 0.31.
     check(r.crop.left() > 0.27 && r.crop.right() < 0.80, "the crop stays clear of the man seated in the bay (his shoe ends at x = 0.248)");
     const QImage img(rq.outPath);
@@ -535,6 +565,7 @@ int main(int argc, char **argv)
     testSegments();
     testCrop();
     testExposure();
+    testStreamFormat();
     testTiming();
     testShaft();
     testRealSwing(app);

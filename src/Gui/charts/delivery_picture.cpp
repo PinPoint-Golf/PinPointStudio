@@ -337,8 +337,10 @@ deliveryui::Picture deliveryPicture(const DeliveryPictureDoc &doc, const Deliver
         }
         QString outPath, src;
         if (imageWhy.isEmpty() && !opt.stillDir.isEmpty()) {
+            // The still's look is in the key (kStillLookVersion), as the Posture picture's is.
             const QString key = QStringLiteral("%1|%2|dtl|%3|%4,%5,%6,%7|%8").arg(QDir::cleanPath(doc.swingDir), doc.stamp, tag)
-                                    .arg(doc.cropPx.x()).arg(doc.cropPx.y()).arg(doc.cropPx.width()).arg(doc.cropPx.height()).arg(opt.maxPx);
+                                    .arg(doc.cropPx.x()).arg(doc.cropPx.y()).arg(doc.cropPx.width()).arg(doc.cropPx.height()).arg(opt.maxPx)
+                                + QStringLiteral("|look%1").arg(st::kStillLookVersion);
             outPath = QDir(opt.stillDir).filePath(QString::fromLatin1(QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha1).toHex().left(20))
                                                   + QStringLiteral(".jpg"));
             if (QFileInfo::exists(outPath)) src = QUrl::fromLocalFile(outPath).toString();

@@ -26,13 +26,18 @@
 //     the swing document's spelling gives the same answer as the format.
 //  4. The export: which of a swing's files a zip curves; a synthetic clip re-toned frame by frame comes out with
 //     every frame, each pixel the formula of the stored frame's pixel, and the stored file byte-identical (the
-//     analysis decodes the same frames after an export as before); thumb.jpg likewise.
-//  5. The analysis path never sees it: only the display and export files include either header, and the recording
+//     analysis decodes the same frames after an export as before); thumb.jpg likewise (ruled: the Product Owner,
+//     26 Nov 2026, #183 batch 3 (4)).
+//  5. A still picture (display_tone_image.h: the report's stills, the Markup Lab, thumb.jpg): every channel
+//     through the one table, alpha dropped; a stream at 1.0 left exactly as it is. And Settings → Cameras' sensor
+//     preview runs the shader's pass with the camera's own C++ value (#183 batch 3 (5)).
+//  6. The analysis path never sees it: only the display and export files include the headers, and the recording
 //     loader only for #183's analysis A/B (a tool's switch, off by default).
 //
 // Run via CTest (src/Analysis/tests/CMakeLists.txt).
 
 #include "../../Video/display_tone.h"
+#include "../../Video/display_tone_image.h"
 #include "../export_tone.h"
 #include "../../Analysis/mp4_frame_reader.h"
 
@@ -105,6 +110,12 @@ static void tableAndRule()
               && qmlText.contains(QStringLiteral(".displayTone : 1.0"))
               && qmlText.contains(QStringLiteral("instance.displayTone")),
           "PpCameraFrame passes the C++ value (live and replay) to the shader");
+    QFile panel(QStringLiteral(PP_SRC_DIR "/Gui/settings/CamerasPanel.qml"));
+    const QString panelText = panel.open(QIODevice::ReadOnly) ? QString::fromUtf8(panel.readAll()) : QString();
+    check(panelText.contains(QStringLiteral("camRow.localPreviewInstance.displayTone) || 1.0"))
+              && panelText.contains(QStringLiteral("sourceItem: settingsBayerView.visible ? settingsBayerView : null"))
+              && panelText.count(QStringLiteral("viewgain.frag.qsb")) == 1,
+          "Settings > Cameras' sensor preview passes the preview camera's C++ value to the same shader");
 
     std::printf("=== the stream rule ===\n");
     bool bayer = true;
@@ -275,7 +286,7 @@ static void clip()
 
 static void thumbnail()
 {
-    std::printf("=== thumb.jpg re-toned for the zip ===\n");
+    std::printf("=== thumb.jpg re-toned for the zip (ruled: #183 batch 3 (4)) ===\n");
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("thumb.jpg"));
     QImage img(64, 48, QImage::Format_RGB888);
@@ -299,7 +310,40 @@ static void thumbnail()
           "no thumbnail: nothing (the stored file ships as it is)");
 }
 
-// ── 5: the analysis path never sees it ──────────────────────────────────────────────────────────
+// ── 5: a still picture ──────────────────────────────────────────────────────────────────────────
+
+static void picture()
+{
+    std::printf("=== a still picture ===\n");
+    const auto &t = displayToneLut();
+    QImage rgb(16, 8, QImage::Format_RGB888);
+    for (int y = 0; y < rgb.height(); ++y)
+        for (int x = 0; x < rgb.width(); ++x)
+            rgb.setPixelColor(x, y, QColor(x * 16, y * 32, 255 - x * 16));
+    const QImage curvedRgb = withDisplayTone(rgb, kDisplayToneExponent);
+    bool exact = curvedRgb.format() == QImage::Format_RGB888 && curvedRgb.size() == rgb.size();
+    for (int y = 0; exact && y < rgb.height(); ++y)
+        for (int x = 0; exact && x < rgb.width(); ++x) {
+            const QColor a = rgb.pixelColor(x, y), b = curvedRgb.pixelColor(x, y);
+            exact = b.red() == t[a.red()] && b.green() == t[a.green()] && b.blue() == t[a.blue()];
+        }
+    check(exact, "every channel of every pixel through the one table");
+
+    // A decoded video frame comes as 32-bit premultiplied; opaque, so the curve is the same, alpha dropped.
+    QImage argb(4, 4, QImage::Format_ARGB32_Premultiplied);
+    argb.fill(QColor(32, 64, 128));
+    const QImage fromArgb = withDisplayTone(argb, kDisplayToneExponent);
+    const QColor c = fromArgb.pixelColor(1, 1);
+    check(fromArgb.format() == QImage::Format_RGB888 && c.red() == t[32] && c.green() == t[64] && c.blue() == t[128],
+          "a 32-bit video frame: curved the same, as RGB888");
+
+    const QImage asIs = withDisplayTone(argb, displayToneFor(PixelFormat::NV12));
+    check(asIs.format() == argb.format() && asIs == argb, "a webcam's or phone's picture (1.0): exactly as it is");
+    check(withDisplayTone(QImage(), kDisplayToneExponent).isNull(), "no picture: none");
+    check(withToneTable(rgb, t) == curvedRgb, "the table and the stream's exponent give the same picture");
+}
+
+// ── 6: the analysis path never sees it ──────────────────────────────────────────────────────────
 
 static void analysisNeverSeesIt()
 {
@@ -310,6 +354,10 @@ static void analysisNeverSeesIt()
         QStringLiteral("Stores/swing_zip_exporter.cpp"),
         QStringLiteral("Gui/cameras/camera_instance.cpp"), QStringLiteral("Gui/shot/disk_replay_source.cpp"),
         QStringLiteral("Stores/tests/display_tone_test.cpp"),
+        // A still picture through the table (#183 batch 3): the helper, the report's stills (and the Charts
+        // pictures, which share the renderer) and its test, and the Markup Lab.
+        QStringLiteral("Video/display_tone_image.h"), QStringLiteral("Gui/report/report_stills.cpp"),
+        QStringLiteral("Gui/tests/report_stills_test.cpp"), QStringLiteral("Gui/markup/markup_controller.cpp"),
         // #183's analysis A/B (a tool's switch, off unless decode.toneExponent is set: display_tone.h) and its test.
         QStringLiteral("Stores/recording_loader.cpp"), QStringLiteral("Analysis/tests/swing_window_parity_test.cpp") };
     const QDir rootDir(QDir(QStringLiteral(PP_SRC_DIR)).canonicalPath());
@@ -326,6 +374,7 @@ static void analysisNeverSeesIt()
         ++scanned;
         const QString text = QString::fromUtf8(f.readAll());
         const bool includes = text.contains(QStringLiteral("display_tone.h\""))
+                           || text.contains(QStringLiteral("display_tone_image.h\""))
                            || text.contains(QStringLiteral("export_tone.h\""));
         if (includes && !allowed.contains(rel))
             offenders << rel;
@@ -345,6 +394,7 @@ int main()
     members();
     clip();
     thumbnail();
+    picture();
     analysisNeverSeesIt();
     std::printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "ALL PASSED", g_fail, g_fail == 1 ? "" : "s");
     return g_fail ? 1 : 0;
