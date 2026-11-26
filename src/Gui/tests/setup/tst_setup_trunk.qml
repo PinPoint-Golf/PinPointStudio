@@ -1208,7 +1208,7 @@ Item {
             var p = trunkPage()
             verify(p !== null)
             compare(p.routine.speakInstructions, row.on)
-            verify(p.routine.ttsController === v, "the routine's voice is not the context's ttsController")
+            verify(p.routine.ttsController === v, "the routine's voice is not app.ttsController")
             waitPageDone()
             // On: the shell prepared the lines when it was created (TP10), then each turn said its two.
             if (v) compare(v.calls.map(function(c) { return c.name + ":" + c.text }),

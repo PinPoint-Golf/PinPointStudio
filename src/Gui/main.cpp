@@ -1779,13 +1779,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("imuManager"),       &imuManager);
     engine.rootContext()->setContextProperty(QStringLiteral("trunkCeremony"),    &trunkCeremony);
     engine.rootContext()->setContextProperty(QStringLiteral("launchMonitor"),   &launchMonitorController);
-    engine.rootContext()->setContextProperty(QStringLiteral("controller"),       &controller);
-    engine.rootContext()->setContextProperty(QStringLiteral("ttsController"),    &ttsController);
     engine.rootContext()->setContextProperty(QStringLiteral("cameraManager"),    &cameraManager);
     engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);
-    engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
-    engine.rootContext()->setContextProperty(QStringLiteral("profiler"),         &profilerController);
-    engine.rootContext()->setContextProperty(QStringLiteral("cudaRuntime"),        &cudaRuntime);
     engine.rootContext()->setContextProperty(QStringLiteral("appLog"),             &appLog);
     // (The PINPOINT_DEV_TRUNK_MOUNTS dev seam went with W2.2: the trunk mounts are offered because the
     // trunk calibrate step exists — ImuMounts.trunkMountsOffered.)
@@ -2025,7 +2020,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("liveWrist"),         &liveWrist);
 
     // THE APP-WIDE OBJECTS, REACHED THROUGH `app` (refactor 5.8b; R-QML-1: the context globals are only devices, settings,
-    // logging and `app`). Each was a context property of its own; QML reads it as app.<the same name> (gui_app.h).
+    // logging and `app`). Each was a context property of its own; QML reads it as app.<the same name> (gui_app.h), but for
+    // the voice in: `controller` became app.transcriptionController.
     {
         pinpoint::GuiApp::Members m;
         m.athleteController       = &athleteController;
@@ -2052,6 +2048,12 @@ int main(int argc, char *argv[])
         m.appInfo                 = &appInfo;
         m.clipboard               = &clipboardHelper;
         m.studioProfile           = &studioProfile;   // a context global of its own until the platform refactor gave it its repository
+        // The five screen-facing objects, context globals of their own until the platform refactor (gui_app.h says why).
+        m.ttsController           = &ttsController;
+        m.transcriptionController = &controller;
+        m.profiler                = &profilerController;
+        m.resourceMonitor         = &resourceMonitor;
+        m.cudaRuntime             = &cudaRuntime;
         appObject.setMembers(m);
     }
 

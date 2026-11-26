@@ -248,7 +248,7 @@ SettingsPanelBase {
     }
 
     // Speak calibration instructions (EXPERIMENTAL, 27 Oct 2026) — the trunk routine says when to
-    // start each turn and when to turn back to address, through ttsController. Instructions
+    // start each turn and when to turn back to address, through app.ttsController. Instructions
     // only: nothing else is ever spoken (Mark's rule; TrunkRoutine.qml).
     SettingsRow {
         objectName: "setting_spokenInstructions"
@@ -608,24 +608,24 @@ SettingsPanelBase {
     // GPU added since launch is reflected without a restart (design §4.4).
     SettingsRow {
         objectName: "setting_gpuAccel"
-        visible: cudaRuntime.supported
-        Component.onCompleted: cudaRuntime.refresh()
+        visible: app.cudaRuntime.supported
+        Component.onCompleted: app.cudaRuntime.refresh()
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.gap(16)
 
             SettingsRowTitle {
                 title: qsTr("GPU acceleration")
-                subtitle: cudaRuntime.runtimeInstalled
+                subtitle: app.cudaRuntime.runtimeInstalled
                               ? qsTr("NVIDIA GPU runtime installed — speech and pose run on the GPU")
-                          : cudaRuntime.gpuPresent
+                          : app.cudaRuntime.gpuPresent
                               ? qsTr("NVIDIA GPU detected — install the runtime to accelerate speech and pose")
                               : qsTr("No NVIDIA GPU detected — running on CPU / cloud")
             }
 
             // "Enabled" badge when installed.
             PpStatusPill {
-                visible: cudaRuntime.runtimeInstalled
+                visible: app.cudaRuntime.runtimeInstalled
                 Layout.alignment: Qt.AlignVCenter
                 tone: "good"
                 text: qsTr("✓  Enabled")
@@ -635,11 +635,11 @@ SettingsPanelBase {
             // official release page so the -cuda installer is fetched over HTTPS).
             PpButton {
                 id: gpuInstall
-                visible: cudaRuntime.shouldOffer
+                visible: app.cudaRuntime.shouldOffer
                 Layout.alignment: Qt.AlignVCenter
                 style: "tone"; tone: "accent"; size: "micro"; mono: true
                 label: qsTr("Install GPU acceleration")
-                onClicked: cudaRuntime.openDownloadPage()
+                onClicked: app.cudaRuntime.openDownloadPage()
             }
         }
     }

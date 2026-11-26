@@ -52,9 +52,9 @@ Item {
     // arm flow. null = the routine's own (real) pace.
     property var trunkPace: null
 
-    // The voice (fakes/FakeTts.qml, as the app's "ttsController" context property) — OPT-IN: set it
-    // before open() and the shell's context has a ttsController; left null, the context has NONE at
-    // all, as headless (the page must cope with the name being undefined). Never the real controller.
+    // The voice (fakes/FakeTts.qml, as the app's `app.ttsController`) — OPT-IN: set it before open()
+    // and the fake `app` has a ttsController; left null, the fake `app` has NONE at all (the page must
+    // cope with the member being undefined). Never the real controller.
     property var tts: null
 
     // The work-ons controller (fakes/FakeWorkOns.qml, as the app's "workOns" context property) —
@@ -201,7 +201,7 @@ Item {
             pageJournal:       journal,
             trunkCeremony:     ceremony
         }
-        if (tts) props.ttsController = tts
+        if (tts) props.app.ttsController = tts
         if (workOns) props.workOns = workOns
         var w = harness.createWithContext("ScreenSessionSetup", props,
                                           host, { width: host.width, height: host.height, visible: false })

@@ -165,7 +165,7 @@ Column {
 
     // ── The first resource warning ───────────────────────────────────────────
     Item {
-        visible: resourceMonitor.warnings.length > 0
+        visible: app.resourceMonitor.warnings.length > 0
         height:  visible ? (warnNotice.implicitHeight + Theme.gap(12)) : 0
         width:   root.width
 
@@ -173,7 +173,7 @@ Column {
             id: warnNotice
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
             style: "warning"
-            text:  resourceMonitor.warnings.length > 0 ? resourceMonitor.warnings[0] : ""
+            text:  app.resourceMonitor.warnings.length > 0 ? app.resourceMonitor.warnings[0] : ""
         }
     }
 }

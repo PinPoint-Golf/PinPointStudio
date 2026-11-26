@@ -40,7 +40,7 @@
 // app-side "verify this file" API, so it needs a vendored Ed25519 verifier or an
 // Authenticode-signed installer first (design §4.4, §6).
 //
-// Registered in main.cpp as the QML context property `cudaRuntime` on all platforms
+// Handed to QML by main.cpp as `app.cudaRuntime` (gui_app.h) on all platforms
 // for QML uniformity; `supported` is true only on a Windows, CUDA-capable, installed
 // build — elsewhere it is inert and `shouldOffer` is always false.
 class CudaRuntimeController : public QObject

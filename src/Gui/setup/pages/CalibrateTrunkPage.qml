@@ -47,8 +47,8 @@
 // turn and when to come back"): "START YOUR BACKSWING TURN" the moment the step is armed, and "TURN BACK
 // TO ADDRESS" only when the routine's turn-back cue fires (turnBackDue: he has turned enough, or stopped
 // at the top) — not when the turn starts. With Settings → "Speak calibration instructions" on, the
-// routine says the same two cues through the app's ttsController, and nothing else is ever spoken
-// (TrunkRoutine.qml says why). No ttsController in this context (tests, headless) → no voice: the
+// routine says the same two cues through the app's voice (app.ttsController), and nothing else is ever
+// spoken (TrunkRoutine.qml says why). No app.ttsController (tests, headless) → no voice: the
 // routine skips and logs it.
 //
 // Lifecycle (R8):
@@ -82,9 +82,9 @@ WizardPage {
     // The recorder (trunk_ceremony_recorder.h), through the context — named as the context object
     // is, so lint W5 checks the members the routine uses.
     readonly property var trunkCeremony: page.ctx.trunkCeremony
-    // The app's voice (TtsController), when this context has one — not under a name the routine's own
-    // `ttsController` property would shadow.
-    readonly property var _voice: typeof ttsController !== "undefined" ? ttsController : null
+    // The app's voice (TtsController), when the app has one (tests and headless may not); the routine
+    // takes it as its own `ttsController` property.
+    readonly property var _voice: typeof app !== "undefined" && app.ttsController ? app.ttsController : null
     // The two sensor UNITS the routine calibrates, and the draft's outcome is checked against.
     readonly property var _segments: ({ pelvis: page.ctx.roles.pelvis.unit, thorax: page.ctx.roles.thorax.unit })
     function _outcomeDevices() {

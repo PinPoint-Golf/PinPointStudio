@@ -6,6 +6,8 @@ How GUI-layer C++ reaches QML. Two mechanisms: **context properties** (global na
 
 A QML file refers to these by bare name, so they are *implicit inputs* of every component that mentions them — not visible in the component's property list. `Used in` counts app QML files that mention the name.
 
+**Since this count (31 Oct 2026), most of these are no longer context globals.** The context globals are the 12 that `src/Gui/main.cpp` registers: the devices (`cameraManager`, `imuManager`, `launchMonitor`, `trunkCeremony`, `bufferController`, `liveWrist`, `ppcpHost`, `ppcpOffers`), the settings (`appSettings`, `secrets`), the logging (`appLog`) and `app`[^r-qml-1]. The app-wide objects that `app` holds are listed in `src/Gui/app/gui_app.h`, and QML reads each as `app.<name>`[^5-8b]. They include the five screen-facing objects: `app.ttsController`, `app.profiler`, `app.resourceMonitor`, `app.cudaRuntime`, and the voice in, which was `controller` and is now `app.transcriptionController`[^e4].
+
 | Global | C++ type | Set at | Used in |
 |---|---|---|---:|
 | `appSettings` | `AppSettings` | `src/Gui/main.cpp:956` | 46 |
@@ -186,3 +188,7 @@ Classes found by scanning headers for `class X : public Base`. `Prop` = `Q_PROPE
 | session | 2 | 291 |
 | shell | 3 | 206 |
 | typeset | 1 | 85 |
+
+[^r-qml-1]: The information model's R-QML-1, "context globals are only devices, settings, logging and `app`".
+[^5-8b]: The Solution Architect's refactor step 5.8b, and the studio profile's own move with its repository in the platform refactor.
+[^e4]: The Product Owner and the Solution Architect, 26 Nov 2026: the five are brought within R-QML-1, not named in it.

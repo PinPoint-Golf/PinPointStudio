@@ -116,15 +116,15 @@ Item {
     // for the setting being switched on/off)". With AppSettings.experimentalSpokenInstructions on and
     // the app's voice (TtsController) ready, every phrase a step's routine may speak — the steps'
     // `spokenPhrases`, read from the registry without naming a step (R1) — is handed to
-    // ttsController.prepare(), which synthesises it into its cache without playing it; the routine's
+    // the voice's prepare(), which synthesises it into its cache without playing it; the routine's
     // speak() then plays at once. When: this shell is created; a visit opens; the setting goes ON; the
     // voice becomes ready (its model still loading at creation); the voice changes (the controller
     // empties its cache; a local voice reloads, so ready drops and comes back). The setting going OFF
     // does nothing (the cache is simply not used). Only phrases not already prepared are asked for,
     // and prepare() is itself idempotent. Driven by one binding (`trigger`), not a Connections: this
     // object has no `active` to gate one on (lint W1), and it is wired for as long as the shell lives.
-    // No ttsController in this context (tests, headless) → nothing.
-    readonly property var _appVoice: typeof ttsController !== "undefined" ? ttsController : null
+    // No app.ttsController (tests, headless) → nothing.
+    readonly property var _appVoice: typeof app !== "undefined" && app.ttsController ? app.ttsController : null
     QtObject {
         id: spokenPrep
         // Named as the context object is, so lint W5 checks every member used below.

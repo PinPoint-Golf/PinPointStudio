@@ -69,7 +69,7 @@ Item {
                     TextArea {
                         id: transcriptArea
                         readOnly: true
-                        text: controller.transcript
+                        text: app.transcriptionController.transcript
                         wrapMode: TextArea.Wrap
                         color: Theme.colorText
                         font.family: Theme.fontData
@@ -93,24 +93,24 @@ Item {
                         id: listenButton
                         style: "labPrimary"; size: "lab"
                         label: qsTr("Listen ●")
-                        enabled: !controller.isListening
-                        onClicked: controller.startListening()
+                        enabled: !app.transcriptionController.isListening
+                        onClicked: app.transcriptionController.startListening()
                     }
 
                     PpButton {
                         id: stopListenButton
                         style: "labStop"; size: "lab"
                         label: qsTr("Stop ■")
-                        enabled: controller.isListening
-                        onClicked: controller.stopListening()
+                        enabled: app.transcriptionController.isListening
+                        onClicked: app.transcriptionController.stopListening()
                     }
 
                     Rectangle {
-                        visible: controller.isListening
+                        visible: app.transcriptionController.isListening
                         width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
                         color: Theme.colorGood
                         SequentialAnimation on opacity {
-                            running: controller.isListening
+                            running: app.transcriptionController.isListening
                             loops: Animation.Infinite
                             NumberAnimation { to: 0.2; duration: 900; easing.type: Easing.InOutSine }
                             NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
@@ -118,7 +118,7 @@ Item {
                     }
 
                     Label {
-                        visible: controller.isListening
+                        visible: app.transcriptionController.isListening
                         text: qsTr("Listening…")
                         color: Theme.colorGood
                         font.family: Theme.fontBody
@@ -128,10 +128,10 @@ Item {
                     Item { Layout.fillWidth: true }
 
                     Label {
-                        visible: controller.lastSttLatencyMs > 0
-                        text: controller.lastSttLatencyMs < 1000
-                              ? controller.lastSttLatencyMs + "ms"
-                              : (controller.lastSttLatencyMs / 1000).toFixed(1) + "s"
+                        visible: app.transcriptionController.lastSttLatencyMs > 0
+                        text: app.transcriptionController.lastSttLatencyMs < 1000
+                              ? app.transcriptionController.lastSttLatencyMs + "ms"
+                              : (app.transcriptionController.lastSttLatencyMs / 1000).toFixed(1) + "s"
                         color: Theme.colorText3
                         font.family: Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
@@ -140,43 +140,43 @@ Item {
                     // STT backend badge
                     Rectangle {
                         radius: Theme.radius
-                        color: controller.sttBackend === "Cloud"
+                        color: app.transcriptionController.sttBackend === "Cloud"
                                ? Theme.colorAccentLight
-                               : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
+                               : app.transcriptionController.sttBackend !== "" && app.transcriptionController.sttBackend !== "CPU"
                                  ? Theme.colorGoodLight
                                  : Theme.colorBg3
                         border.width: 1
-                        border.color: controller.sttBackend === "Cloud"
+                        border.color: app.transcriptionController.sttBackend === "Cloud"
                                       ? Qt.alpha(Theme.colorAccent, 0.25)
-                                      : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
+                                      : app.transcriptionController.sttBackend !== "" && app.transcriptionController.sttBackend !== "CPU"
                                         ? Qt.alpha(Theme.colorGood, 0.25)
                                         : Theme.colorBorderMid
                         implicitWidth: sttBackendBadge.implicitWidth + Theme.sp(10)
                         implicitHeight: sttBackendBadge.implicitHeight + Theme.sp(4)
                         ToolTip.visible: sttBackendPress.containsMouse
-                        ToolTip.text: controller.cloudSttFallbackAvailable
-                            ? (controller.sttBackend === "Cloud"
+                        ToolTip.text: app.transcriptionController.cloudSttFallbackAvailable
+                            ? (app.transcriptionController.sttBackend === "Cloud"
                                ? qsTr("Cloud STT (Azure) — click to switch to CPU")
                                : qsTr("CPU transcription — click to switch to Cloud"))
-                            : (controller.sttBackend === "CPU"   ? qsTr("CPU transcription")
-                             : controller.sttBackend === "Cloud" ? qsTr("Cloud transcription via Azure")
-                             : qsTr("GPU transcription via %1").arg(controller.sttBackend))
+                            : (app.transcriptionController.sttBackend === "CPU"   ? qsTr("CPU transcription")
+                             : app.transcriptionController.sttBackend === "Cloud" ? qsTr("Cloud transcription via Azure")
+                             : qsTr("GPU transcription via %1").arg(app.transcriptionController.sttBackend))
                         // Hovers for its tooltip whatever the backend; moves and toggles only when
                         // there is a fallback to switch to.
                         PpPressable {
                             id: sttBackendPress
-                            moves:       controller.cloudSttFallbackAvailable
-                            cursorShape: controller.cloudSttFallbackAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor
-                            onClicked:   if (controller.cloudSttFallbackAvailable) controller.toggleSttBackend()
+                            moves:       app.transcriptionController.cloudSttFallbackAvailable
+                            cursorShape: app.transcriptionController.cloudSttFallbackAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked:   if (app.transcriptionController.cloudSttFallbackAvailable) app.transcriptionController.toggleSttBackend()
                         }
 
                         Label {
                             id: sttBackendBadge
                             anchors.centerIn: parent
-                            text: controller.sttBackend !== "" ? controller.sttBackend : qsTr("CPU")
-                            color: controller.sttBackend === "Cloud"
+                            text: app.transcriptionController.sttBackend !== "" ? app.transcriptionController.sttBackend : qsTr("CPU")
+                            color: app.transcriptionController.sttBackend === "Cloud"
                                    ? Theme.colorAccent
-                                   : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
+                                   : app.transcriptionController.sttBackend !== "" && app.transcriptionController.sttBackend !== "CPU"
                                      ? Theme.colorGood
                                      : Theme.colorText3
                             font.family: Theme.fontData
@@ -216,7 +216,7 @@ Item {
                     Keys.onPressed: function(event) {
                         if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                                 && (event.modifiers & Qt.ControlModifier)) {
-                            ttsController.speak(ttsInput.text)
+                            app.ttsController.speak(ttsInput.text)
                             event.accepted = true
                         }
                     }
@@ -228,30 +228,30 @@ Item {
                     PpButton {
                         id: speakButton
                         style: "labPrimary"; size: "lab"
-                        label: ttsController.ttsActive ? qsTr("Speaking…") : qsTr("Speak ▶")
-                        enabled: ttsController.ttsReady && !ttsController.ttsActive
+                        label: app.ttsController.ttsActive ? qsTr("Speaking…") : qsTr("Speak ▶")
+                        enabled: app.ttsController.ttsReady && !app.ttsController.ttsActive
                                  && ttsInput.text.trim().length > 0
-                        onClicked: ttsController.speak(ttsInput.text)
+                        onClicked: app.ttsController.speak(ttsInput.text)
                     }
 
                     PpButton {
                         id: stopButton
                         style: "labStop"; size: "lab"
                         label: qsTr("Stop ■")
-                        enabled: ttsController.ttsActive
-                        onClicked: ttsController.stopSpeaking()
+                        enabled: app.ttsController.ttsActive
+                        onClicked: app.ttsController.stopSpeaking()
                     }
 
                     PpButton {
                         id: replayButton
                         style: "labOutline"; size: "lab"
                         label: qsTr("Replay ↺")
-                        enabled: ttsController.canReplay && !ttsController.ttsActive
-                        onClicked: ttsController.replayLastAudio()
+                        enabled: app.ttsController.canReplay && !app.ttsController.ttsActive
+                        onClicked: app.ttsController.replayLastAudio()
                     }
 
                     Label {
-                        visible: ttsController.ttsBackend !== "Cloud"
+                        visible: app.ttsController.ttsBackend !== "Cloud"
                         text: qsTr("Voice:")
                         color: Theme.colorText2
                         font.family: Theme.fontBody
@@ -260,20 +260,20 @@ Item {
 
                     PpComboBox {
                         id: voiceSelector
-                        visible: ttsController.ttsBackend !== "Cloud"
-                        model: ttsController.voices
-                        currentIndex: ttsController.voices.indexOf(ttsController.voice)
-                        onActivated: ttsController.voice = currentText
+                        visible: app.ttsController.ttsBackend !== "Cloud"
+                        model: app.ttsController.voices
+                        currentIndex: app.ttsController.voices.indexOf(app.ttsController.voice)
+                        onActivated: app.ttsController.voice = currentText
                         implicitWidth: Theme.sp(130)
                     }
 
                     Item { Layout.fillWidth: true }
 
                     Label {
-                        visible: ttsController.lastTtsLatencyMs > 0
-                        text: ttsController.lastTtsLatencyMs < 1000
-                              ? ttsController.lastTtsLatencyMs + "ms"
-                              : (ttsController.lastTtsLatencyMs / 1000).toFixed(1) + "s"
+                        visible: app.ttsController.lastTtsLatencyMs > 0
+                        text: app.ttsController.lastTtsLatencyMs < 1000
+                              ? app.ttsController.lastTtsLatencyMs + "ms"
+                              : (app.ttsController.lastTtsLatencyMs / 1000).toFixed(1) + "s"
                         color: Theme.colorText3
                         font.family: Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
@@ -281,65 +281,65 @@ Item {
 
                     Rectangle {
                         width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
-                        color: ttsController.ttsReady ? Theme.colorGood : Theme.colorWarn
+                        color: app.ttsController.ttsReady ? Theme.colorGood : Theme.colorWarn
                         ToolTip.visible: ttsStatusHover.hovered
-                        ToolTip.text: ttsController.ttsReady ? qsTr("TTS model ready")
+                        ToolTip.text: app.ttsController.ttsReady ? qsTr("TTS model ready")
                                                               : qsTr("TTS model not loaded")
                         HoverHandler { id: ttsStatusHover }
                     }
 
                     Label {
-                        text: ttsController.ttsReady    ? qsTr("Ready")
-                            : ttsController.downloading ? qsTr("Downloading…")
+                        text: app.ttsController.ttsReady    ? qsTr("Ready")
+                            : app.ttsController.downloading ? qsTr("Downloading…")
                             :                             qsTr("Loading…")
-                        color: ttsController.ttsReady ? Theme.colorGood : Theme.colorWarn
+                        color: app.ttsController.ttsReady ? Theme.colorGood : Theme.colorWarn
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2
                     }
 
                     // TTS backend badge
                     Rectangle {
-                        visible: ttsController.ttsReady
+                        visible: app.ttsController.ttsReady
                         radius: Theme.radius
-                        color: ttsController.ttsBackend === "Cloud"
+                        color: app.ttsController.ttsBackend === "Cloud"
                                ? Theme.colorAccentLight
-                               : ttsController.ttsBackend !== ""
+                               : app.ttsController.ttsBackend !== ""
                                  ? Theme.colorGoodLight
                                  : Theme.colorBg3
                         border.width: 1
-                        border.color: ttsController.ttsBackend === "Cloud"
+                        border.color: app.ttsController.ttsBackend === "Cloud"
                                       ? Qt.alpha(Theme.colorAccent, 0.25)
-                                      : ttsController.ttsBackend !== ""
+                                      : app.ttsController.ttsBackend !== ""
                                         ? Qt.alpha(Theme.colorGood, 0.25)
                                         : Theme.colorBorderMid
                         implicitWidth: backendBadge.implicitWidth + Theme.sp(10)
                         implicitHeight: backendBadge.implicitHeight + Theme.sp(4)
                         ToolTip.visible: backendPress.containsMouse
-                        ToolTip.text: ttsController.cloudTtsFallbackAvailable
-                            ? (ttsController.ttsBackend === "Cloud"
+                        ToolTip.text: app.ttsController.cloudTtsFallbackAvailable
+                            ? (app.ttsController.ttsBackend === "Cloud"
                                ? qsTr("Cloud TTS (Azure) — click to switch to CPU")
                                : qsTr("CPU inference — click to switch to Cloud"))
-                            : (ttsController.ttsBackend === "Cloud"
+                            : (app.ttsController.ttsBackend === "Cloud"
                                ? qsTr("Cloud synthesis via Azure Speech")
-                               : ttsController.ttsBackend !== ""
-                               ? qsTr("GPU inference via %1").arg(ttsController.ttsBackend)
+                               : app.ttsController.ttsBackend !== ""
+                               ? qsTr("GPU inference via %1").arg(app.ttsController.ttsBackend)
                                : qsTr("CPU inference"))
                         // Hovers for its tooltip whatever the backend; moves and toggles only when
                         // there is a fallback to switch to.
                         PpPressable {
                             id: backendPress
-                            moves:       ttsController.cloudTtsFallbackAvailable
-                            cursorShape: ttsController.cloudTtsFallbackAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor
-                            onClicked:   if (ttsController.cloudTtsFallbackAvailable) ttsController.toggleTtsBackend()
+                            moves:       app.ttsController.cloudTtsFallbackAvailable
+                            cursorShape: app.ttsController.cloudTtsFallbackAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked:   if (app.ttsController.cloudTtsFallbackAvailable) app.ttsController.toggleTtsBackend()
                         }
 
                         Label {
                             id: backendBadge
                             anchors.centerIn: parent
-                            text: ttsController.ttsBackend !== "" ? ttsController.ttsBackend : qsTr("CPU")
-                            color: ttsController.ttsBackend === "Cloud"
+                            text: app.ttsController.ttsBackend !== "" ? app.ttsController.ttsBackend : qsTr("CPU")
+                            color: app.ttsController.ttsBackend === "Cloud"
                                    ? Theme.colorAccent
-                                   : ttsController.ttsBackend !== ""
+                                   : app.ttsController.ttsBackend !== ""
                                      ? Theme.colorGood
                                      : Theme.colorText3
                             font.family: Theme.fontData
@@ -353,11 +353,11 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: Theme.gap(4)
-                    visible: ttsController.downloading
+                    visible: app.ttsController.downloading
 
                     ProgressBar {
                         Layout.fillWidth: true
-                        value: ttsController.downloadProgress
+                        value: app.ttsController.downloadProgress
                         background: Rectangle {
                             color: Theme.colorBg3
                             radius: Theme.radius - 2
@@ -365,7 +365,7 @@ Item {
                         }
                         contentItem: Item {
                             Rectangle {
-                                width: parent.width * ttsController.downloadProgress
+                                width: parent.width * app.ttsController.downloadProgress
                                 height: parent.height
                                 radius: Theme.radius - 2
                                 color: Theme.colorAccent
@@ -375,7 +375,7 @@ Item {
                     }
 
                     Label {
-                        text: ttsController.downloadStatus
+                        text: app.ttsController.downloadStatus
                         color: Theme.colorText3
                         font.family: Theme.fontData
                         font.pixelSize: Theme.fontSzLabel

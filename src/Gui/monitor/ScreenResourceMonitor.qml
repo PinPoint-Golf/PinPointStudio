@@ -387,8 +387,8 @@ Item {
         running: visible
         repeat: true
         onTriggered: {
-            resourceMonitor.refresh()
-            if (profiler.available) profiler.refresh()
+            app.resourceMonitor.refresh()
+            if (app.profiler.available) app.profiler.refresh()
             // Only while its own tab is in front: two QVariant reads a second
             // for a tab nobody is looking at is work for nothing.
             if (root.logTab === 3) root.refreshPpcp()
@@ -416,7 +416,7 @@ Item {
             }
 
             Repeater {
-                model: resourceMonitor.devices
+                model: app.resourceMonitor.devices
 
                 RmDeviceCard {
                     deviceData: modelData
@@ -436,7 +436,7 @@ Item {
 
                 Text {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                    text: resourceMonitor.scanStatus
+                    text: app.resourceMonitor.scanStatus
                     font.family: Theme.fontData
                     font.pixelSize: Theme.sp(9)
                     color: Theme.colorText3
@@ -447,8 +447,8 @@ Item {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                     style: "quiet"; size: "mini"
                     label: qsTr("Scan")
-                    enabled: !resourceMonitor.scanning
-                    onClicked: resourceMonitor.scanDevices()
+                    enabled: !app.resourceMonitor.scanning
+                    onClicked: app.resourceMonitor.scanDevices()
                 }
             }
         }
@@ -505,7 +505,7 @@ Item {
                         radius: Theme.sp(4)
                         anchors.verticalCenter: parent.verticalCenter
                         color: {
-                            var s = resourceMonitor.bufferState
+                            var s = app.resourceMonitor.bufferState
                             if (s === "capturing") return Theme.colorGood
                             if (s === "paused")    return Theme.colorWarn
                             return Theme.colorBorderStrong
@@ -516,13 +516,13 @@ Item {
                     // before the theme decides whether labels are set in capitals.
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: Theme.caps(resourceMonitor.bufferState.charAt(0).toUpperCase()
-                                         + resourceMonitor.bufferState.slice(1))
+                        text: Theme.caps(app.resourceMonitor.bufferState.charAt(0).toUpperCase()
+                                         + app.resourceMonitor.bufferState.slice(1))
                         font.family: Theme.fontData
                         font.pixelSize: Theme.fontSzDataSm
                         font.letterSpacing: Theme.trackingMicro
                         color: {
-                            var s = resourceMonitor.bufferState
+                            var s = app.resourceMonitor.bufferState
                             if (s === "capturing") return Theme.colorGood
                             if (s === "paused")    return Theme.colorWarn
                             return Theme.colorText3
@@ -554,7 +554,7 @@ Item {
                                 color: Theme.colorText3
                             }
                             Text {
-                                text: resourceMonitor.totalEventsStr
+                                text: app.resourceMonitor.totalEventsStr
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.fontSzData
                                 font.weight: Font.Light
@@ -579,7 +579,7 @@ Item {
                                 color: Theme.colorText3
                             }
                             Text {
-                                text: resourceMonitor.timelineEntriesStr
+                                text: app.resourceMonitor.timelineEntriesStr
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.fontSzData
                                 font.weight: Font.Light
@@ -604,7 +604,7 @@ Item {
                                 color: Theme.colorText3
                             }
                             Text {
-                                text: resourceMonitor.sourceCount.toString()
+                                text: app.resourceMonitor.sourceCount.toString()
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.fontSzData
                                 font.weight: Font.Light
@@ -735,7 +735,7 @@ Item {
 
                 // Source rows
                 Repeater {
-                    model: resourceMonitor.sources
+                    model: app.resourceMonitor.sources
 
                     RmSourceRow {
                         sourceData: modelData
@@ -746,7 +746,7 @@ Item {
 
                 // Empty state
                 EmptyRow {
-                    visible: resourceMonitor.sources.length === 0
+                    visible: app.resourceMonitor.sources.length === 0
                     height: Theme.sp(40)
                     text: qsTr("No sources registered")
                 }
@@ -755,8 +755,8 @@ Item {
             // Timeline chart
             RmTimelineChart {
                 width: parent.width - 40
-                historyData: resourceMonitor.timelineHistory
-                bufferState: resourceMonitor.bufferState
+                historyData: app.resourceMonitor.timelineHistory
+                bufferState: app.resourceMonitor.bufferState
             }
 
             // ── Resource profiler ─────────────────────────────────────────────
@@ -764,7 +764,7 @@ Item {
             // pre-formatted in ProfilerController — pure bindings here.
             Column {
                 id: profilerSection
-                visible: profiler.available
+                visible: app.profiler.available
                 width: parent.width - 40
                 spacing: Theme.gap(12)
 
@@ -788,27 +788,27 @@ Item {
                             id: deepChip
                             style:    "toggle"
                             label:    Theme.caps(qsTr("Deep"))
-                            selected: profiler.deepEnabled
+                            selected: app.profiler.deepEnabled
                             // Hovers (and tints) even when the deep tier is missing; only moves and
                             // toggles when it is there.
-                            dimmed:   !profiler.deepAvailable
-                            blocked:  !profiler.deepAvailable
-                            moves:    profiler.deepAvailable
-                            onClicked: if (profiler.deepAvailable) profiler.deepEnabled = !profiler.deepEnabled
+                            dimmed:   !app.profiler.deepAvailable
+                            blocked:  !app.profiler.deepAvailable
+                            moves:    app.profiler.deepAvailable
+                            onClicked: if (app.profiler.deepAvailable) app.profiler.deepEnabled = !app.profiler.deepEnabled
                         }
 
                         // Reset
                         PpButton {
                             style: "faint"; size: "mini"
                             label: qsTr("Reset")
-                            onClicked: profiler.reset()
+                            onClicked: app.profiler.reset()
                         }
 
                         // Dump to log
                         PpButton {
                             style: "faint"; size: "mini"
                             label: qsTr("Dump to log")
-                            onClicked: profiler.dumpToLog()
+                            onClicked: app.profiler.dumpToLog()
                         }
                     }
                 }
@@ -835,12 +835,12 @@ Item {
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
                             Text {
-                                text: profiler.cpuPercentStr
+                                text: app.profiler.cpuPercentStr
                                 font.family: Theme.fontData; font.pixelSize: Theme.fontSzData
                                 font.weight: Font.Light; color: Theme.colorText
                             }
                             Text {
-                                text: qsTr("peak %1").arg(profiler.peakCpuPercentStr)
+                                text: qsTr("peak %1").arg(app.profiler.peakCpuPercentStr)
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9); color: Theme.colorText3
                             }
                         }
@@ -860,12 +860,12 @@ Item {
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
                             Text {
-                                text: profiler.rssBytesStr
+                                text: app.profiler.rssBytesStr
                                 font.family: Theme.fontData; font.pixelSize: Theme.fontSzData
                                 font.weight: Font.Light; color: Theme.colorText
                             }
                             Text {
-                                text: qsTr("peak %1").arg(profiler.peakRssBytesStr)
+                                text: qsTr("peak %1").arg(app.profiler.peakRssBytesStr)
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9); color: Theme.colorText3
                             }
                         }
@@ -883,7 +883,7 @@ Item {
                     color: Theme.colorSurface
 
                     Text {
-                        visible: !profiler.gpuAvailable
+                        visible: !app.profiler.gpuAvailable
                         anchors { left: parent.left; leftMargin: Theme.gap(16); verticalCenter: parent.verticalCenter }
                         text: qsTr("GPU  —  none (CPU inference)")
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
@@ -891,7 +891,7 @@ Item {
                     }
 
                     Row {
-                        visible: profiler.gpuAvailable
+                        visible: app.profiler.gpuAvailable
                         anchors { fill: parent; leftMargin: Theme.gap(16); rightMargin: Theme.gap(16) }
                         spacing: Theme.gap(28)
 
@@ -904,12 +904,12 @@ Item {
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
                             Text {
-                                text: profiler.gpuProcessBytesStr
+                                text: app.profiler.gpuProcessBytesStr
                                 font.family: Theme.fontData; font.pixelSize: Theme.fontSzData
                                 font.weight: Font.Light; color: Theme.colorText
                             }
                             Text {
-                                text: qsTr("peak %1").arg(profiler.gpuPeakProcessBytesStr)
+                                text: qsTr("peak %1").arg(app.profiler.gpuPeakProcessBytesStr)
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9); color: Theme.colorText3
                             }
                         }
@@ -931,17 +931,17 @@ Item {
                             Text {
                                 // used/total when the backend reports device-wide used (NVML);
                                 // total/budget only for DXGI/Metal.
-                                text: profiler.gpuDeviceUsedBytes > 0
-                                      ? qsTr("%1 / %2").arg(profiler.gpuDeviceUsedBytesStr).arg(profiler.gpuDeviceTotalBytesStr)
-                                      : profiler.gpuDeviceTotalBytesStr
+                                text: app.profiler.gpuDeviceUsedBytes > 0
+                                      ? qsTr("%1 / %2").arg(app.profiler.gpuDeviceUsedBytesStr).arg(app.profiler.gpuDeviceTotalBytesStr)
+                                      : app.profiler.gpuDeviceTotalBytesStr
                                 font.family: Theme.fontData; font.pixelSize: Theme.fontSzData
                                 font.weight: Font.Light; color: Theme.colorText
                             }
                             Text {
                                 width: Theme.sp(190)
-                                text: profiler.gpuBackend
-                                      + " · " + profiler.gpuDeviceName
-                                      + (profiler.gpuUnified ? qsTr("  (unified)") : "")
+                                text: app.profiler.gpuBackend
+                                      + " · " + app.profiler.gpuDeviceName
+                                      + (app.profiler.gpuUnified ? qsTr("  (unified)") : "")
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 color: Theme.colorText3; elide: Text.ElideRight
                             }
@@ -961,7 +961,7 @@ Item {
                     }
 
                     Repeater {
-                        model: profiler.threads
+                        model: app.profiler.threads
 
                         Item {
                             width: parent.width
@@ -1000,7 +1000,7 @@ Item {
                     }
 
                     EmptyRow {
-                        visible: profiler.threads.length === 0
+                        visible: app.profiler.threads.length === 0
                         text: qsTr("No threads registered")
                     }
                 }
@@ -1086,24 +1086,24 @@ Item {
                                     text: qsTr("CPU")
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro
-                                    color: profiler.deepEnabled ? Theme.colorText3 : Theme.colorBorderStrong
+                                    color: app.profiler.deepEnabled ? Theme.colorText3 : Theme.colorBorderStrong
                                 }
                             }
                         }
                     }
 
                     Repeater {
-                        model: profiler.scopes
+                        model: app.profiler.scopes
                         RmProfilerRow {
                             scopeData: modelData
                             isAlternate: index % 2 === 1
-                            deepOn: profiler.deepEnabled
+                            deepOn: app.profiler.deepEnabled
                             width: parent.width
                         }
                     }
 
                     EmptyRow {
-                        visible: profiler.scopes.length === 0
+                        visible: app.profiler.scopes.length === 0
                         text: qsTr("No scopes recorded")
                     }
                 }
@@ -1204,17 +1204,17 @@ Item {
                     }
 
                     Repeater {
-                        model: profiler.analysisStages
+                        model: app.profiler.analysisStages
                         RmProfilerRow {
                             scopeData: modelData
                             isAlternate: index % 2 === 1
-                            deepOn: profiler.deepEnabled
+                            deepOn: app.profiler.deepEnabled
                             width: parent.width
                         }
                     }
 
                     EmptyRow {
-                        visible: profiler.analysisStages.length === 0
+                        visible: app.profiler.analysisStages.length === 0
                         text: qsTr("No analyses recorded — run a shot or re-analyse a swing")
                     }
                 }
@@ -1223,7 +1223,7 @@ Item {
                 MemoryTable {
                     width: parent.width
                     title: Theme.caps(qsTr("Memory"))
-                    rows: profiler.memory
+                    rows: app.profiler.memory
                     emptyText: qsTr("No memory categories")
                 }
 
@@ -1232,8 +1232,8 @@ Item {
                     width: parent.width
                     title: Theme.caps(qsTr("GPU memory"))
                     note: qsTr("measured process-VRAM delta per model — the first model loaded also carries the shared GPU runtime/context")
-                    rows: profiler.gpuMemory
-                    emptyText: profiler.gpuAvailable ? qsTr("No GPU allocations attributed yet")
+                    rows: app.profiler.gpuMemory
+                    emptyText: app.profiler.gpuAvailable ? qsTr("No GPU allocations attributed yet")
                                                      : qsTr("No GPU categories (CPU inference)")
                 }
             }
@@ -1253,7 +1253,7 @@ Item {
 
                 // Stats History tab — only when the profiler is compiled in
                 LogTab {
-                    visible: profiler.available
+                    visible: app.profiler.available
                     text: Theme.caps(qsTr("Stats history"))
                     selected: root.logTab === 1
                     onActivated: root.logTab = 1
@@ -1261,7 +1261,7 @@ Item {
 
                 // Analysis Runs tab — the per-analysis drill-down (profiler compiled in)
                 LogTab {
-                    visible: profiler.available
+                    visible: app.profiler.available
                     text: Theme.caps(qsTr("Analysis runs"))
                     selected: root.logTab === 2
                     onActivated: root.logTab = 2
@@ -1308,7 +1308,7 @@ Item {
                 property var filteredLog: {
                     var filters = activeFilters
                     var needle  = textFilter.toLowerCase()
-                    var log = resourceMonitor.messageLog
+                    var log = app.resourceMonitor.messageLog
                     var result = []
                     for (var i = 0; i < log.length; i++) {
                         var e = log[i]
@@ -1326,7 +1326,7 @@ Item {
 
                     // Entry count
                     Text {
-                        visible: resourceMonitor.messageLog.length > 0
+                        visible: app.resourceMonitor.messageLog.length > 0
                         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                         text: qsTr("%1 entries").arg(msgLogColumn.filteredLog.length)
                         font.family: Theme.fontData
@@ -1338,21 +1338,21 @@ Item {
                     PpButton {
                         id: clearBtn
                         style: "faint"; size: "mini"
-                        visible: resourceMonitor.messageLog.length > 0
+                        visible: app.resourceMonitor.messageLog.length > 0
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                         label: qsTr("Clear")
-                        onClicked: resourceMonitor.clearLog()
+                        onClicked: app.resourceMonitor.clearLog()
                     }
 
                     // Export button — writes the log to a text file in the home directory
                     PpButton {
                         id: exportBtn
                         style: "faint"; size: "mini"
-                        visible: resourceMonitor.messageLog.length > 0
+                        visible: app.resourceMonitor.messageLog.length > 0
                         anchors { right: clearBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         label: qsTr("Export")
                         onClicked: {
-                            var path = resourceMonitor.exportLog()
+                            var path = app.resourceMonitor.exportLog()
                             exportToast.copyText = path   // empty on failure → copy icon hidden
                             if (path.length > 0) exportToast.show(qsTr("Log exported to %1").arg(path))
                             else                 exportToast.show(qsTr("Log export failed"))
@@ -1362,7 +1362,7 @@ Item {
                     // Inline text filter box
                     FilterBox {
                         id: filterBox
-                        visible: resourceMonitor.messageLog.length > 0
+                        visible: app.resourceMonitor.messageLog.length > 0
                         anchors { right: filterChips.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         onFilterTextChanged: msgLogColumn.textFilter = filterText
                     }
@@ -1370,7 +1370,7 @@ Item {
                     // Severity filter chips
                     PpChipGroup {
                         id: filterChips
-                        visible: resourceMonitor.messageLog.length > 0
+                        visible: app.resourceMonitor.messageLog.length > 0
                         anchors { right: exportBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         spacing: Theme.gap(4)
                         style: "tag"
@@ -1384,7 +1384,7 @@ Item {
 
                 // Column header for entries
                 Rectangle {
-                    visible: resourceMonitor.messageLog.length > 0
+                    visible: app.resourceMonitor.messageLog.length > 0
                     width: parent.width
                     height: Theme.sp(24)
                     color: Theme.colorBg2
@@ -1526,7 +1526,7 @@ Item {
             // ── Stats history — the dedicated PpStatsLog ring (own filter) ──
             Column {
                 id: statsCol
-                visible: root.logTab === 1 && profiler.available
+                visible: root.logTab === 1 && app.profiler.available
                 width: parent.width - 40
                 spacing: 0
 
@@ -1541,7 +1541,7 @@ Item {
                         style: "faint"; size: "mini"
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                         label: qsTr("Clear")
-                        onClicked: profiler.clearStats()
+                        onClicked: app.profiler.clearStats()
                     }
 
                     // Export
@@ -1551,7 +1551,7 @@ Item {
                         anchors { right: statsClearBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         label: qsTr("Export")
                         onClicked: {
-                            var path = profiler.exportStats()
+                            var path = app.profiler.exportStats()
                             exportToast.copyText = path
                             if (path.length > 0) exportToast.show(qsTr("Stats exported to %1").arg(path))
                             else                 exportToast.show(qsTr("Stats export failed"))
@@ -1565,15 +1565,15 @@ Item {
                         spacing: Theme.gap(4)
                         style: "tag"
                         multiSelect: true
-                        options: profiler.statsCategories.map(c => c.name)
-                        selectedValues: profiler.statsCategories.filter(c => c.active).map(c => c.name)
-                        onSelectionChanged: (name) => profiler.toggleStatsCategory(name)
+                        options: app.profiler.statsCategories.map(c => c.name)
+                        selectedValues: app.profiler.statsCategories.filter(c => c.active).map(c => c.name)
+                        onSelectionChanged: (name) => app.profiler.toggleStatsCategory(name)
                     }
 
                     // Text filter
                     FilterBox {
                         anchors { right: statsChips.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
-                        onFilterTextChanged: profiler.setStatsTextFilter(filterText)
+                        onFilterTextChanged: app.profiler.setStatsTextFilter(filterText)
                     }
                 }
 
@@ -1624,14 +1624,14 @@ Item {
 
                 // Empty state
                 EmptyRow {
-                    visible: profiler.statsHistory.length === 0
+                    visible: app.profiler.statsHistory.length === 0
                     boxed: true
                     text: qsTr("No stats recorded — dumped every 60 s and at session end")
                 }
 
                 // Rows — newest first
                 Repeater {
-                    model: profiler.statsHistory
+                    model: app.profiler.statsHistory
                     RmStatRow {
                         statData: modelData
                         isAlternate: index % 2 === 1
@@ -1643,7 +1643,7 @@ Item {
             // ── Analysis runs (per-analysis drill-down) ───────────────────────
             Column {
                 id: analysisRunsCol
-                visible: root.logTab === 2 && profiler.available
+                visible: root.logTab === 2 && app.profiler.available
                 width: parent.width - 40
                 spacing: 0
 
@@ -1666,7 +1666,7 @@ Item {
                         style: "faint"; size: "mini"
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                         label: qsTr("Clear")
-                        onClicked: profiler.clearAnalysisRuns()
+                        onClicked: app.profiler.clearAnalysisRuns()
                     }
 
                     // Export
@@ -1676,7 +1676,7 @@ Item {
                         anchors { right: anClearBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         label: qsTr("Export")
                         onClicked: {
-                            var path = profiler.exportAnalysisRuns()
+                            var path = app.profiler.exportAnalysisRuns()
                             exportToast.copyText = path
                             if (path.length > 0) exportToast.show(qsTr("Analysis runs exported to %1").arg(path))
                             else                 exportToast.show(qsTr("Analysis export failed"))
@@ -1729,14 +1729,14 @@ Item {
 
                 // Empty state
                 EmptyRow {
-                    visible: profiler.analysisRuns.length === 0
+                    visible: app.profiler.analysisRuns.length === 0
                     boxed: true
                     text: qsTr("No analyses yet — run a shot or re-analyse a swing")
                 }
 
                 // Rows — newest first, tap to expand the per-stage breakdown
                 Repeater {
-                    model: profiler.analysisRuns
+                    model: app.profiler.analysisRuns
                     RmAnalysisRunRow {
                         runData: modelData
                         isAlternate: index % 2 === 1

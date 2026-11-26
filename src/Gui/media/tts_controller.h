@@ -42,17 +42,17 @@ class TtsWorker;
 // before loading the model.
 //
 // QML usage:
-//   ttsController.speak("Hello world")
-//   ttsController.stopSpeaking()
-//   ttsController.ttsReady         // bool — model loaded, speak() may be called
-//   ttsController.ttsActive        // bool — synthesis in progress
-//   ttsController.downloading      // bool — model files being fetched
-//   ttsController.downloadProgress // real 0.0–1.0
-//   ttsController.downloadStatus   // human-readable status string
-//   ttsController.voices           // string list of available voices
-//   ttsController.voice            // current voice name (read/write)
-//   ttsController.prepare("Turn back to address.")   // synthesise now, play later
-//   ttsController.isPrepared("Turn back to address.") // its audio is cached for this voice
+//   app.ttsController.speak("Hello world")
+//   app.ttsController.stopSpeaking()
+//   app.ttsController.ttsReady         // bool — model loaded, speak() may be called
+//   app.ttsController.ttsActive        // bool — synthesis in progress
+//   app.ttsController.downloading      // bool — model files being fetched
+//   app.ttsController.downloadProgress // real 0.0–1.0
+//   app.ttsController.downloadStatus   // human-readable status string
+//   app.ttsController.voices           // string list of available voices
+//   app.ttsController.voice            // current voice name (read/write)
+//   app.ttsController.prepare("Turn back to address.")   // synthesise now, play later
+//   app.ttsController.isPrepared("Turn back to address.") // its audio is cached for this voice
 //
 // PREPARED PHRASES (27 Oct 2026, Mark: "the phrases should be prepared in advance, ideally when the
 // session setup is instantiated — makes no sense to do it at the last minute"). prepare(text)

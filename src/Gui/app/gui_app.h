@@ -34,9 +34,15 @@
 // Application ring's (src/App/studio_profile.h); it hangs here, as a QObject * like the others, so `App` and every test
 // that builds it need not link it.
 //
+// THE FIVE SCREEN-FACING OBJECTS joined them in the platform refactor, which brings them within R-QML-1 rather than
+// naming them in it as devices or logging: the voice out (`app.ttsController`), the voice in with the microphone and
+// the acoustic shot detector (`app.transcriptionController`, the context global `controller` before: a name that said
+// nothing), the resource profiler (`app.profiler`), the resource monitor (`app.resourceMonitor`) and the graphics-card
+// runtime offer (`app.cudaRuntime`). Their C++ objects and owners are unchanged; only the name QML reaches them by
+// moved.
+//
 // WHAT STAYS A CONTEXT GLOBAL (main.cpp): the devices (cameraManager, imuManager, launchMonitor, trunkCeremony,
-// bufferController, cudaRuntime, resourceMonitor, liveWrist, ppcpHost, ppcpOffers, the voice in and out: controller,
-// ttsController), the settings (appSettings, secrets) and the logging (appLog, profiler).
+// bufferController, liveWrist, ppcpHost, ppcpOffers), the settings (appSettings, secrets) and the logging (appLog).
 
 #include "../../App/app.h"
 
@@ -71,6 +77,11 @@ class GuiApp : public App
     Q_PROPERTY(QObject *appInfo                 READ appInfo                 CONSTANT)
     Q_PROPERTY(QObject *clipboard               READ clipboard               CONSTANT)
     Q_PROPERTY(QObject *studioProfile           READ studioProfile           CONSTANT)
+    Q_PROPERTY(QObject *ttsController           READ ttsController           CONSTANT)
+    Q_PROPERTY(QObject *transcriptionController READ transcriptionController CONSTANT)
+    Q_PROPERTY(QObject *profiler                READ profiler                CONSTANT)
+    Q_PROPERTY(QObject *resourceMonitor         READ resourceMonitor         CONSTANT)
+    Q_PROPERTY(QObject *cudaRuntime             READ cudaRuntime             CONSTANT)
 public:
     // The objects main() makes, by their QML names. Set once, before the engine loads anything.
     struct Members {
@@ -98,6 +109,11 @@ public:
         QObject *appInfo                 = nullptr;
         QObject *clipboard               = nullptr;
         QObject *studioProfile           = nullptr;
+        QObject *ttsController           = nullptr;
+        QObject *transcriptionController = nullptr;
+        QObject *profiler                = nullptr;
+        QObject *resourceMonitor         = nullptr;
+        QObject *cudaRuntime             = nullptr;
     };
 
     using App::App;
@@ -128,6 +144,11 @@ public:
     QObject *appInfo() const                 { return m_m.appInfo; }
     QObject *clipboard() const               { return m_m.clipboard; }
     QObject *studioProfile() const           { return m_m.studioProfile; }
+    QObject *ttsController() const           { return m_m.ttsController; }
+    QObject *transcriptionController() const { return m_m.transcriptionController; }
+    QObject *profiler() const                { return m_m.profiler; }
+    QObject *resourceMonitor() const         { return m_m.resourceMonitor; }
+    QObject *cudaRuntime() const             { return m_m.cudaRuntime; }
 
 private:
     Members m_m;

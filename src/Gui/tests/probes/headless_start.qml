@@ -56,9 +56,10 @@ Item {
     }
     function rootItem() { let t = probe; while (t.parent) t = t.parent; return t }
 
-    // The screens the rail and the app reach (AppScreen; Developer is unreachable from the UI and skipped).
+    // The screens the rail and the app reach, and Developer (the dev hatch, unreachable from the UI): its audio page
+    // reads the voice in and out through `app`.
     readonly property var screens: [AppScreen.Home, AppScreen.Session, AppScreen.Athletes, AppScreen.Athlete,
-                                    AppScreen.System, AppScreen.Wizard, AppScreen.Settings]
+                                    AppScreen.System, AppScreen.Wizard, AppScreen.Developer, AppScreen.Settings]
     readonly property int settingsPanels: 12   // ScreenSettings' StackLayout slots 0..11
     property int stage: 0
     property int index: 0
@@ -73,8 +74,17 @@ Item {
     function step() {
         if (stage === 0) {
             // The device controllers are objects (inert), so every binding on them resolves.
-            check(!!imuManager && !!controller && !!ttsController && !!cameraManager && !!launchMonitor,
-                  "the device controllers QML reads are there")
+            check(!!imuManager && !!cameraManager && !!launchMonitor, "the device controllers QML reads are there")
+            // The five screen-facing objects are reached through `app` (R-QML-1), and their old context names are
+            // gone: a read of `app.<name>` that is not a property is undefined without a word, and a bare old name
+            // would resolve only while main.cpp still registered it. typeof, so a missing name is not a ReferenceError.
+            const appMembers = ["ttsController", "transcriptionController", "profiler", "resourceMonitor", "cudaRuntime"]
+            for (let i = 0; i < appMembers.length; ++i)
+                check(typeof app[appMembers[i]] === "object" && app[appMembers[i]] !== null,
+                      "app." + appMembers[i] + " is an object")
+            check(typeof ttsController === "undefined" && typeof controller === "undefined"
+                  && typeof profiler === "undefined" && typeof resourceMonitor === "undefined"
+                  && typeof cudaRuntime === "undefined", "the five old context names are gone")
             check(imuManager.imuScanActive === false, "no Bluetooth scan is running")
             check(cameraManager.cameraList.length === 0, "no camera is listed")
             stage = 1

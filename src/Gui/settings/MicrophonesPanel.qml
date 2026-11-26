@@ -39,13 +39,13 @@ SettingsPanelBase {
 
     // Capture is forced on only while calibrating AND on screen.
     readonly property bool calActive: calibrating && shown
-    onCalActiveChanged: controller.setCalibrationActive(calActive)
-    Component.onDestruction: if (calActive) controller.setCalibrationActive(false)
+    onCalActiveChanged: app.transcriptionController.setCalibrationActive(calActive)
+    Component.onDestruction: if (calActive) app.transcriptionController.setCalibrationActive(false)
 
     // Enumerated input devices: [{ id, description, isDefault }, …]. Refreshed
     // on show and via Rescan — availableInputDevices() is a plain function call.
     property var devices: []
-    function refreshDevices() { root.devices = controller.availableInputDevices() }
+    function refreshDevices() { root.devices = app.transcriptionController.availableInputDevices() }
 
     function deviceIsActive(d) {
         var sel = appSettings.audioInputDevice
@@ -66,7 +66,7 @@ SettingsPanelBase {
     TingPlayer { id: shotTing; frequency: 4186.0 }
 
     Connections {
-        target: controller
+        target: app.transcriptionController
         function onImpactDetected(estImpactUs, confidence) {
             if (!root.calActive) return
             root.detectCount    += 1

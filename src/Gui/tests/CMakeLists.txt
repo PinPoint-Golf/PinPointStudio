@@ -584,6 +584,14 @@ pp_add_test(architecture_lint_test
     COMPILE_OPTIONS -DPP_SRC_ROOT="${SRC}"
                     -DPP_ARCH_ALLOWLIST="${CMAKE_CURRENT_SOURCE_DIR}/architecture_allowlist.txt")
 
+# The names QML reads are the names C++ gives it (R-QML-1: the context globals are only devices, settings, logging and
+# `app`): main.cpp registers exactly the ruled globals, no production QML or JS reads one of the five names that moved
+# under `app` bare, and every `app.<member>` it reads is a member of GuiApp or App (a misspelt one is undefined without a
+# word). Plain CMake, reading the source at run time: no build, no Python. No allow-list.
+add_test(NAME qml_globals_lint_test
+         COMMAND ${CMAKE_COMMAND} -DGUI=${GUI} -DAPPH=${SRC}/App/app.h -P ${CMAKE_CURRENT_SOURCE_DIR}/qml_globals_check.cmake)
+set_tests_properties(qml_globals_lint_test PROPERTIES TIMEOUT 120)
+
 # Namespace collision test (platform refactor B1.20a). Reads every C++ source under src/ and fails when one
 # (namespace, name) — a class, struct, enum or using alias at namespace scope — is defined in two files: an ODR
 # violation the linker accepts (7 Oct 2026, pinpoint::analysis::DagEdge). A forward declaration beside its

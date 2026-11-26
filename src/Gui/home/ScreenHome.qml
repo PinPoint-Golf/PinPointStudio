@@ -95,8 +95,8 @@ Item {
         return qsTr("Last session %1 · %2").arg(s.label).arg(Theme.plural(n, qsTr("%1 shot"), qsTr("%1 shots")))
     }
 
-    // The device warning in the rig pane reads resourceMonitor; keep it current while Home shows.
-    Component.onCompleted: resourceMonitor.refresh()
+    // The device warning in the rig pane reads app.resourceMonitor; keep it current while Home shows.
+    Component.onCompleted: app.resourceMonitor.refresh()
 
     onVisibleChanged: if (visible && (typeof app !== "undefined" && !!app.workOns)) app.workOns.refresh()
 
@@ -104,7 +104,7 @@ Item {
         interval: 2000
         running:  root.visible
         repeat:   true
-        onTriggered: resourceMonitor.refresh()
+        onTriggered: app.resourceMonitor.refresh()
     }
 
     Rectangle { anchors.fill: parent; color: Theme.colorBg }

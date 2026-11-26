@@ -26,8 +26,8 @@
 // button used. `armed` tracks shotController.armed (buffer capturing + processor
 // idle), so a disarmed click is a no-op and the hover frame / pointer cursor do
 // not appear. The placement site still owns the OUTER visibility gate (session
-// screen + Capture mode). Reads the global context props imuManager /
-// cameraManager / shotController / controller / appSettings, plus the Theme and
+// screen + Capture mode). Reads the context globals imuManager / cameraManager /
+// appSettings and app.shotController / app.transcriptionController, plus the Theme and
 // SessionMode singletons.
 //
 // Dot tiers: even-more-dim (auto-detect off, or the modality is unavailable —
@@ -179,7 +179,7 @@ Item {
         function onImpactDetected(estImpactUs, confidence) { imuDot.triggerFlash() }
     }
     Connections {
-        target: controller   // TranscriptionController owns the acoustic detector
+        target: app.transcriptionController   // TranscriptionController owns the acoustic detector
         function onImpactDetected(estImpactUs, confidence) { acDot.triggerFlash() }
     }
 
