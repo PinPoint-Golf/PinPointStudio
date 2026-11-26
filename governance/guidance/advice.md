@@ -24,6 +24,10 @@ once a change's gates pass, offer the whole path to something the owner can try 
 **AG-40.** When a role corrects one behaviour, fix that behaviour and don't reopen the design around it.
 *Why:* a narrow correction is not an invitation to redesign.[^om-13]
 
+**AG-49.** When work is planned into a release, harder and bigger work should be deferred to v2.
+The ladder is in [`requirements.md`](../artefacts/requirements.md), document control, "Release values". Two refinements, proposed, for the Product Owner: the habit gives way where v1's line on the ladder needs the work; and the work's effort (small, medium or large) is rated before its release is chosen.
+*Why:* v1 ships what its line on the ladder promises; big work pulled into it holds v1 back for what v2 promises.[^ag-49]
+
 **BT-23.** The full test suite should finish in under 3 minutes, with no flat timeout on the gate.
 *Why:* a fast suite gets run.[^om-13]
 
@@ -32,3 +36,4 @@ once a change's gates pass, offer the whole path to something the owner can try 
 [^om-5]: Product Owner, 25 Nov 2026 (#195, OM-5).
 [^om-6]: Product Owner, 25 Nov 2026 (#195, OM-6).
 [^om-13]: Product Owner, 25 Nov 2026 (#195, OM-13).
+[^ag-49]: Product Owner, 26 Nov 2026 (the release ladder: "defer harder and bigger work to v2").

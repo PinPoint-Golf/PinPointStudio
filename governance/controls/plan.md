@@ -87,7 +87,7 @@ A plan that holds data copies in the ownership section, `governance/artefacts/in
 
 **Also at this stage (written elsewhere):** [AG-6](decide.md) architecture: design agreed before building · [AG-10](kinds-of-work.md) a duties inventory before a cut-over (agents) · [AG-31](kinds-of-work.md) the feature freeze · [AD-16](kinds-of-work.md) a sources × metrics matrix.
 
-**Guidance for this stage:** [AG-33](../guidance/advice.md) multi-session plans in a repo doc · [AG-39](../guidance/advice.md) a status line at each milestone.
+**Guidance for this stage:** [AG-33](../guidance/advice.md) multi-session plans in a repo doc · [AG-39](../guidance/advice.md) a status line at each milestone · [AG-49](../guidance/advice.md) defer harder and bigger work to v2.
 
 [^om-13]: Product Owner, 25 Nov 2026 (#195, OM-13).
 [^om-5]: Product Owner, 25 Nov 2026 (#195, OM-5).

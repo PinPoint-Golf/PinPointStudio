@@ -1,6 +1,6 @@
 # PinPoint Studio use cases
 
-**Version 1.1, 26 Nov 2026; version 1.0 approved by the Product Owner on 26 Nov 2026**[^approved]. It organises the requirements ([`requirements.md`](requirements.md), v1.1) into epics and use cases; it adds no requirement and changes none. The steps it found uncovered are now requirements of their own, named where they occur[^gaps].
+**Version 1.2, 26 Nov 2026; version 1.0 approved by the Product Owner on 26 Nov 2026**[^approved]. It organises the requirements ([`requirements.md`](requirements.md), v1.2) into epics and use cases; it adds no requirement and changes none. The steps it found uncovered are now requirements of their own, named where they occur[^gaps].
 
 | Document control | Value |
 |---|---|
@@ -10,7 +10,7 @@
 | **Traced by** | [`uc-map.csv`](uc-map.csv), beside this page: one row per requirement, with the use cases it is a step of, a path of, or a constraint on. The traceability matrix's generator reads it[^home] |
 | **How it changes** | As the requirements do (`requirements.md`, "How a requirement changes"): proposed, approved by the Product Owner, and recorded in this page's change log. A use case that needs a step no requirement covers names the gap and its proposed requirement in the same change (proposed, for the Product Owner) |
 | **Ids** | `EP-n` for an epic and `UC-n` for a use case, numbered once and never reused; a use case keeps its id if it moves to another epic. `UCG-n` numbers a step no requirement covers, fixed once and never reused, so a gap keeps its id when others are added or struck |
-| **Status of this page** | v1.1, 26 Nov 2026: 9 epics, 45 use cases, 202 main-path steps, 69 alternative or failure paths (43 of them could lose a shot, a setting or other work, or misfile it). 278 of the 278 requirements map to a use case; 0 steps and paths have no requirement. Of the 19 gaps the use cases found, 18 are now requirements and 1 is struck |
+| **Status of this page** | v1.2, 26 Nov 2026: 9 epics, 45 use cases, 202 main-path steps, 69 alternative or failure paths (43 of them could lose a shot, a setting or other work, or misfile it). 278 of the 278 requirements map to a use case; 0 steps and paths have no requirement. Of the 19 gaps the use cases found, 18 are now requirements and 1 is struck |
 
 ## How to read a use case
 
@@ -308,7 +308,7 @@ Where it stands: 2 requirements: 2 built, not verified.
 
 The golfer hits balls at their own pace, hands on the club, and every swing is kept as one shot with everything every device saw, ready for the next swing at once.
 
-Where it stands: 68 requirements: 15 built, not verified; 32 partial; 11 planned; 9 proposed; 1 won't have.
+Where it stands: 68 requirements: 16 built, not verified; 31 partial; 11 planned; 8 proposed; 2 won't have.
 
 ### UC-11 Start a session
 
@@ -316,7 +316,7 @@ Where it stands: 68 requirements: 15 built, not verified; 32 partial; 11 planned
 |---|---|---|
 | Golfer | Capturing, for the right golfer, with the right club, in under two minutes. | The golfer, or the coach for a pupil, starts a practice or a lesson. |
 
-Where it stands: 17 requirements: 5 built, not verified; 7 partial; 1 planned; 4 proposed.
+Where it stands: 17 requirements: 6 built, not verified; 6 partial; 1 planned; 4 proposed.
 
 **Main path**
 
@@ -426,7 +426,7 @@ Where it stands: 3 requirements: 1 built, not verified; 1 partial; 1 planned.
 |---|---|---|
 | Golfer | One failure costs at most what failed, never the session. | A device drops out, the shared library goes out of reach, or a problem recurs. |
 
-Where it stands: 5 requirements: 1 built, not verified; 1 partial; 1 planned; 2 proposed.
+Where it stands: 5 requirements: 1 built, not verified; 1 partial; 1 planned; 1 proposed; 1 won't have.
 
 **Main path**
 
@@ -434,7 +434,7 @@ Where it stands: 5 requirements: 1 built, not verified; 1 partial; 1 planned; 2 
 |---|---|---|
 | 1 | The app keeps capturing, tells the golfer which device was lost, and keeps each shot with what remains. | REQ-CAP-14 |
 | 2 | A sensor that re-links has its calibration cleared, and the golfer is told. | REQ-DEV-12 (proposed) |
-| 3 | If the shared library goes out of reach, the app keeps working, says so, and catches up when it returns. | REQ-REL-9 (proposed) |
+| 3 | If the shared library goes out of reach, the app keeps working, says so, and catches up when it returns. | REQ-REL-9 (won't have)[^wont-rel9] |
 | 4 | Each problem is reported once. | REQ-REL-8 |
 
 **Alternative and failure paths**
@@ -931,7 +931,7 @@ Where it stands: 4 requirements: 1 built, not verified; 1 partial; 2 proposed. *
 
 The golfer's and coach's history is never lost, misfiled or removed without their say: through crashes, upgrades and a shared folder, and back again from the trash or an archive.
 
-Where it stands: 29 requirements: 8 built, not verified; 13 partial; 3 planned; 5 proposed.
+Where it stands: 29 requirements: 8 built, not verified; 13 partial; 3 planned; 4 proposed; 1 won't have.
 
 ### UC-36 Look after the golfers
 
@@ -1030,7 +1030,7 @@ Where it stands: 5 requirements: 3 built, not verified; 1 planned; 1 proposed.
 |---|---|---|
 | Studio owner | Two computers in the studio see the same golfers, without tearing a session in two. | A second computer uses the studio's library. |
 
-Where it stands: 5 requirements: 2 built, not verified; 1 partial; 2 proposed.
+Where it stands: 5 requirements: 2 built, not verified; 1 partial; 1 proposed; 1 won't have.
 
 **Main path**
 
@@ -1044,7 +1044,7 @@ Where it stands: 5 requirements: 2 built, not verified; 1 partial; 2 proposed.
 
 | When | What happens | Covered by | At stake |
 |---|---|---|---|
-| The shared folder goes out of reach | The app keeps working, says so, and catches up when it returns. | REQ-REL-9 (proposed) | could lose a shot |
+| The shared folder goes out of reach | The app keeps working, says so, and catches up when it returns. | REQ-REL-9 (won't have)[^wont-rel9] | could lose a shot |
 | The library moves to a new disk or computer | Everything in it moves too, and the app finds it. | REQ-LIB-29 (proposed) (the use cases' gap UCG-14) | could lose a shot |
 
 ### UC-42 Recover after a crash or a power cut
@@ -1188,6 +1188,7 @@ These hold everywhere they apply; the use cases above name them only where they 
 | v0.1 | 26 Nov 2026 | First draft: epics and use cases over the requirements' draft v0.2. Review round 1 applied: a last shot whose late data never comes, a re-analysis the golfer asked for, and an update keeping the studio's settings, given their paths; UCG-15 to UCG-19 added | (a draft) |
 | v1.0 | 26 Nov 2026 | Approved and moved into `governance/artefacts/` with the requirements. Nine epics. The accepted gaps are now requirements, each named where its step is; the low sensor battery (UCG-5) is struck and its path removed. Two gaps no longer cite a source that did not say them (UCG-16, UCG-17) | Product Owner[^approved] |
 | v1.1 | 26 Nov 2026 | With the requirements' v1.1: REQ-CAP-36 is won't have, and UC-12's path for a reading paired with the wrong shot says so; REQ-INST-15 is planned, and nothing waits on the Solution Architect; the four counts that named them follow. UC-7's lost-calibration path no longer names a zero: the trunk calibration sets "straight" | the Product Owner[^wont]; the Solution Architect (REQ-INST-15)[^sa-afternoon]; the Product Owner and the Design Lead (the zero)[^c5] |
+| v1.2 | 26 Nov 2026 | With the requirements' v1.2: REQ-REL-9 (keep capturing when the shared library is out of reach) is won't have, and UC-15's and UC-41's paths for it say so; REQ-CAP-21 (every session starts in Capture) is built, not verified. The counts of EP-3, EP-8, UC-11, UC-15 and UC-41 follow. The requirements' release and MoSCoW ratings are not repeated here | the Product Owner[^wont-rel9] |
 
 [^approved]: Product Owner, 26 Nov 2026 (the use-case decisions: "agree with your recommendations"): Q1, nine epics; Q2, the gaps; Q4, this page's home.
 [^po]: Product Owner, 26 Nov 2026: "we need a layer above the PRD that organises the requirements into use-cases and epics."
@@ -1195,5 +1196,6 @@ These hold everywhere they apply; the use cases above name them only where they 
 [^hand]: Product Owner, 25 Nov 2026: the requirements are hand-edited at their governed home; applied to the use cases over them by the coordinator's call of 26 Nov 2026, for the Product Owner's review.
 [^gaps]: Product Owner, 26 Nov 2026 (the use-case decisions, Q2): 18 gaps accepted as new requirements, and UCG-5 (the low sensor battery) struck; UCG-2, UCG-7, UCG-12 and UCG-19 also go to the Solution Architect. UCG-12 is met by widening REQ-LIB-12 to a whole session (Q3).
 [^wont]: Product Owner, 26 Nov 2026 (the Solution Architect's afternoon batch, item 6): REQ-CAP-36 is won't have (`requirements.md`, `[^wont]`).
+[^wont-rel9]: Product Owner, 26 Nov 2026 (the release and MoSCoW ratings): REQ-REL-9's release is never; that it is therefore won't have is the coordinator's reading ([AG-4](../controls/decide.md)), for the Product Owner's review (`requirements.md`, `[^wont-rel9]`).
 [^sa-afternoon]: Solution Architect, 26 Nov 2026 (the Solution Architect's afternoon batch, item 7): REQ-INST-15 is approved as a requirement, marked planned.
 [^c5]: Product Owner and Design Lead, 26 Nov 2026 (C5, and the battery colours): the Zero button is removed; the trunk calibration sets "straight".
